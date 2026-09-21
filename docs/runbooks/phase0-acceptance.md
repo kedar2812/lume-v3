@@ -24,6 +24,8 @@ Report criterion (§17 Phase 0): *`docker compose up` on a fresh Ubuntu VPS yiel
 - The offsite volume was created root-owned while the worker runs as `node`, so the backup failed with *permission denied*. The worker image now pre-creates `/var/lib/lume/offsite` owned by `node`.
 - A failed restore test with no backup recorded an empty backup name. It now records `(none)`.
 - The restore runbook assumed `age`/`rclone` on the host. It now runs them through the worker image.
+- **Scheduled jobs would never have fired** (found via the CI Postgres log). pg-boss creates its internal cron queue `__pgboss__send-it` at worker start but swallows the permission error, and `lume_worker` rightly has no schema rights. The migrate step now creates it as `lume_owner`, and tests assert it exists. Verified live: with `ops.restore-test` temporarily set to `* * * * *`, a cron-triggered run recorded `3 | 2026-09-21 16:15:47 | lume-20260921T1553Z.dump.age | t | {"tables": 10, "migrations": 4}`. The schedule was then restored to `0 4 * * 1`.
+- CI's runner had pg_dump 16 first on the PATH. CI now prepends the Postgres 17 client (the worker image only ships 17).
 
 ## Captured output
 ```
@@ -72,3 +74,6 @@ $ decrypt lume-20260921T1553Z.dump.age with the owner's offline key (key streame
 The first `ops_restore_tests` row (`ok = f`, "no backups found") is the genuine failed attempt from before the volume-ownership fix, which also proves failures are recorded.
 
 ## CI
+- Green: https://github.com/kedar2812/lume-v3/actions/runs/35624483435 (commit `846b6f0`): lint, typecheck, `pnpm audit`, shellcheck, 41/41 tests against Postgres 17, bootstrap dry-run ×2 identical. Image build + GHCR push runs on `main` after merge.
+
+**Status: accepted on temp build host. Final acceptance pending a fresh-VPS run on the production server (spec §4).**
