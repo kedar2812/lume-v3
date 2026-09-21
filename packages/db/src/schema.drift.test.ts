@@ -1,4 +1,5 @@
-import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
+import { is } from "drizzle-orm";
+import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { QUEUE_NAMES } from "@lume/core";
@@ -27,9 +28,7 @@ beforeAll(async () => {
 });
 afterAll(async () => db.drop());
 
-const tables = Object.values(schema).filter(
-  (v): v is PgTable => typeof v === "object" && v !== null && Symbol.for("drizzle:IsDrizzleTable") in v,
-);
+const tables = (Object.values(schema) as unknown[]).filter((v): v is PgTable => is(v, PgTable));
 
 describe("Drizzle mirror matches the migrations", () => {
   it.each(tables.map((t) => [getTableConfig(t).name, t] as const))("%s", (name, table) => {
