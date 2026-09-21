@@ -20,7 +20,7 @@ for h in "strict-transport-security: max-age=63072000" "x-content-type-options: 
   check "header $h" grep -qi "$h" <<<"$headers"
 done
 no_server_header() { ! grep -qi "^server:" <<<"$headers"; }
-page_has_brand() { c "$base/" | grep -q LUME; }
+page_has_brand() { c -L "$base/" | grep -q LUME; }
 check "no Server header" no_server_header
 check "web page renders" page_has_brand
 check "unknown API route 404" test "$(status -H 'Origin: https://evil.example' "$base/api/v1/nope")" = 404

@@ -3997,8 +3997,8 @@ Watch the run at `https://github.com/kedar2812/lume-v3/actions` until `check`, `
 - [ ] **Step 1: Rebuild and smoke the stack**
 
 Run: `scripts/dev.sh up && scripts/dev.sh remote bash infra/scripts/smoke.sh`
-Expected: `smoke passed`. The smoke test's "web page renders" check now follows the `/` → `/today` redirect. If it fails because the root is a redirect, change `page_has_brand` in `infra/scripts/smoke.sh` to `c -L "$base/" | grep -q LUME`.
+Expected: `smoke passed`. The smoke test's "web page renders" check now follows the `/` → `/today` redirect. The root is now a redirect, so `page_has_brand` in `infra/scripts/smoke.sh` uses `c -L "$base/" | grep -q LUME`.
 
 - [ ] **Step 2: Demo**
 
-Ask the owner to run `bash scripts/dev.sh tunnel` and open `https://lume.localhost:8443/sign-in`, `/today` and `/design` (the showcase is only enabled in the dev stack via `LUME_DESIGN_SHOWCASE=1`; add it to the `web` service environment in `infra/compose.dev.yml`). Confirm both themes, the nav pill, page transitions, Ctrl+K, toasts with sound and the sign-in bloom.
+Ask the owner to run `bash scripts/dev.sh tunnel` and open `https://lume.localhost:8443/sign-in`, `/today` and `/design` (the showcase is only enabled in the dev stack via `LUME_DESIGN_SHOWCASE=1`; set as `LUME_DESIGN_SHOWCASE: "1"` on the `web` service in `infra/compose.dev.yml`). Confirm both themes, the nav pill, page transitions, Ctrl+K, toasts with sound and the sign-in bloom.

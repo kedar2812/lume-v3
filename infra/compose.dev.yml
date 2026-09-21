@@ -28,6 +28,8 @@ services:
     cpus: 0.3
   web:
     build: { context: .., dockerfile: infra/docker/web.Dockerfile }
+    environment:
+      LUME_DESIGN_SHOWCASE: "1"
     mem_limit: 512m
     cpus: 0.3
   caddy:
