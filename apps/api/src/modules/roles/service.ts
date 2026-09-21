@@ -76,7 +76,10 @@ export async function listRoles(req: FastifyRequest) {
     .from(schema.roles)
     .where(isNull(schema.roles.deletedAt))
     .orderBy(schema.roles.name);
-  return { roles: await Promise.all(rows.map((r) => getRole(req, r.id))) };
+  // Sequential on purpose: one request = one transaction = one connection, which runs one query at a time.
+  const roles = [];
+  for (const r of rows) roles.push(await getRole(req, r.id));
+  return { roles };
 }
 
 export const readRole = async (req: FastifyRequest, id: string) => ({ role: await getRole(req, id) });
