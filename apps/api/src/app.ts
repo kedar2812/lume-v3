@@ -1,0 +1,69 @@
+import cookie from "@fastify/cookie";
+import type { FastifyInstance, FastifyServerOptions } from "fastify";
+import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
+import type pg from "pg";
+import type { Argon2Params, Keyring } from "@lume/core";
+import { csrfRoutes } from "./auth/csrf";
+import { authPlugin } from "./auth/plugin";
+import type { SetupTokens } from "./auth/setup-token";
+import { dbContext } from "./db/context";
+import { dbChecks } from "./health";
+import type { Mailer } from "./mail/mailer";
+import { memoSettings } from "./modules/settings/service";
+import { ActorCache, startRbacListener } from "./rbac/cache";
+import { syncPermissionCatalog } from "./rbac/sync";
+import { buildServer } from "./server";
+
+export type Clock = () => Date;
+export type AppConfig = { publicUrl: string; cookieSecure: boolean };
+export type AppDeps = {
+  pool: pg.Pool;
+  keyring: Keyring;
+  mailer: Mailer;
+  config: AppConfig;
+  clock: Clock;
+  setupTokens: SetupTokens;
+  isBreached: (pw: string) => boolean;
+  argon2: Argon2Params;
+  logger?: FastifyServerOptions["logger"];
+  /** Observes every `lume_rbac` notification after the cache has handled it (tests). */
+  onRbacEvent?: (payload: string) => void;
+  /** Tests only: extra routes registered inside the authenticated scope. */
+  extraRoutes?: (app: FastifyInstance) => void;
+};
+
+/** Composition root: every dependency comes in through `deps`, so tests build the real app. */
+export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
+  await syncPermissionCatalog(deps.pool);
+  const cache = new ActorCache(deps.pool);
+  const stopListener = await startRbacListener(deps.pool, cache, deps.onRbacEvent);
+  try {
+    const app = await buildServer({
+      checks: dbChecks(deps.pool),
+      logger: deps.logger,
+      configure: (a) => {
+        a.setValidatorCompiler(validatorCompiler);
+        a.setSerializerCompiler(serializerCompiler);
+      },
+      register: async (scope) => {
+        scope.addHook("onClose", stopListener);
+        await scope.register(cookie);
+        // Hooks first (called directly so they cover this whole scope), then routes.
+        authPlugin(scope, {
+          pool: deps.pool,
+          cache,
+          clock: deps.clock,
+          publicOrigin: new URL(deps.config.publicUrl).origin,
+          settings: memoSettings(deps.pool),
+        });
+        dbContext(scope, { pool: deps.pool });
+        await scope.register(csrfRoutes, { secure: deps.config.cookieSecure });
+        deps.extraRoutes?.(scope);
+      },
+    });
+    return app;
+  } catch (e) {
+    await stopListener();
+    throw e;
+  }
+}

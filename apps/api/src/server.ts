@@ -8,6 +8,8 @@ export type ServerDeps = {
   checks: Record<string, ReadinessCheck>;
   readinessTimeoutMs?: number;
   logger?: FastifyServerOptions["logger"];
+  /** Instance-wide setup before any route (validator/serializer compilers). */
+  configure?: (app: FastifyInstance) => void;
   /** Feature modules register here (Phase 1+). */
   register?: (app: FastifyInstance) => void | Promise<void>;
 };
@@ -19,6 +21,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     trustProxy: true,
     bodyLimit: 1_048_576,
   });
+  deps.configure?.(app);
   const assertDeclared = trackRouteDeclarations(app);
   app.setErrorHandler(errorHandler);
   app.setNotFoundHandler(notFoundHandler);
