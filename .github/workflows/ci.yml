@@ -30,7 +30,10 @@ jobs:
       - name: Test database
         run: TEST_DB_PUBLISH=55432 LUME_DEV_ROOT="$RUNNER_TEMP" bash scripts/test-db.sh up
       - name: Tests
-        run: set -a && . "$RUNNER_TEMP/test.env" && set +a && pnpm test
+        run: set -a && . "$RUNNER_TEMP/test.env" && set +a && pnpm test --reporter=default --reporter=github-actions
+      - name: Test database logs (on failure)
+        if: failure()
+        run: docker logs lumedev-pgtest 2>&1 | tail -n 60 | sed "s/^/::warning title=pgtest::/"
       - name: Bootstrap script dry run (twice, identical)
         run: |
           for i in 1 2; do docker run --rm -v "$PWD/infra/scripts:/s:ro" ubuntu:24.04 bash /s/bootstrap-server.sh --dry-run > "$RUNNER_TEMP/bs$i.log"; done
