@@ -3064,7 +3064,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```yaml
 name: ci
 on:
-  push: { branches: [main] }
+  push: { branches: [main, "phase-*"] }
   pull_request: {}
 permissions:
   contents: read
