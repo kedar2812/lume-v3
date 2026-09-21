@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="porcelain">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LUME — Today</title>
+<link rel="icon" href="../../../public/lume-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --r-sheet:16px;--r-card:14px;--r-ctl:10px;
+}
+[data-theme="porcelain"]{
+  --canvas:#EEF0F3; --side-text:#3A3F4A;
+  --sheet:#FFFFFF; --raised:#FFFFFF; --sunk:#F6F7F9;
+  --line:rgba(12,18,32,.075); --line-2:rgba(12,18,32,.12);
+  --text:#0A0C11; --text-2:#5A606D; --text-3:#9398A3;
+  --accent:#2A5BFF; --accent-ink:#1E47D9; --accent-soft:rgba(42,91,255,.08);
+  --hover:rgba(12,18,32,.04); --press:rgba(12,18,32,.07);
+  --danger:#E5484D; --danger-soft:#FDECEC; --danger-ink:#C3272D;
+  --warn:#F2A20C; --warn-soft:#FEF4DD; --warn-ink:#946100;
+  --meet:#6E56CF; --meet-soft:#F0EDFC; --meet-ink:#5539C0;
+  --ok:#18A566; --ok-soft:#E4F6EC; --ok-ink:#0E7F4B;
+  --shadow-sheet:0 0 0 .5px rgba(12,18,32,.08),0 1px 2px rgba(12,18,32,.04),0 12px 40px -12px rgba(12,18,32,.10);
+  --shadow-pop:0 0 0 .5px rgba(12,18,32,.10),0 10px 30px -6px rgba(12,18,32,.22),0 30px 80px -20px rgba(12,18,32,.25);
+  --hud:rgba(22,24,30,.86); --hud-text:#F4F5F7;
+  --skel:#EDEFF2; --skel-hi:#F7F8FA;
+  --glow:rgba(42,91,255,.10);
+}
+[data-theme="obsidian"]{
+  --canvas:#060708; --side-text:#B4B8C0;
+  --sheet:#0E0F12; --raised:#15171B; --sunk:#0A0B0D;
+  --line:rgba(255,255,255,.065); --line-2:rgba(255,255,255,.11);
+  --text:#EEF0F3; --text-2:#9CA1AB; --text-3:#626772;
+  --accent:#5B84FF; --accent-ink:#8AA7FF; --accent-soft:rgba(91,132,255,.12);
+  --hover:rgba(255,255,255,.04); --press:rgba(255,255,255,.07);
+  --danger:#FF5C61; --danger-soft:rgba(255,92,97,.12); --danger-ink:#FF8A8E;
+  --warn:#FFB224; --warn-soft:rgba(255,178,36,.12); --warn-ink:#FFC75C;
+  --meet:#9582FF; --meet-soft:rgba(149,130,255,.14); --meet-ink:#B3A6FF;
+  --ok:#2FD08A; --ok-soft:rgba(47,208,138,.12); --ok-ink:#5FE0A8;
+  --shadow-sheet:0 0 0 .5px rgba(255,255,255,.07),inset 0 1px 0 rgba(255,255,255,.03),0 20px 60px -20px rgba(0,0,0,.8);
+  --shadow-pop:0 0 0 .5px rgba(255,255,255,.12),inset 0 1px 0 rgba(255,255,255,.06),0 30px 80px -10px rgba(0,0,0,.8);
+  --hud:rgba(38,41,48,.82); --hud-text:#F4F5F7;
+  --skel:#17191D; --skel-hi:#1F2227;
+  --glow:rgba(91,132,255,.16);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);font-optical-sizing:auto;background:var(--canvas);color:var(--text);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden;transition:background .4s ease,color .4s ease}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+svg{display:block}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:244px 1fr;height:100vh}
+.side{padding:14px 10px;display:flex;flex-direction:column;gap:2px;color:var(--side-text)}
+.ws{display:flex;align-items:center;gap:10px;padding:8px 10px 16px;border-radius:10px}
+.ws img{width:26px;height:26px;filter:drop-shadow(0 2px 6px rgba(42,91,255,.35))}
+.ws .n{font-weight:760;font-size:15px;color:var(--text);letter-spacing:.06em}
+.ws .s{font-size:11.5px;color:var(--text-3)}
+.nav{display:flex;align-items:center;gap:11px;height:34px;padding:0 10px;border-radius:9px;font-size:13.5px;font-weight:500;transition:background .15s}
+.nav:hover{background:var(--hover)}
+.nav:active{background:var(--press);transform:scale(.985)}
+.nav svg{width:17px;height:17px;opacity:.75}
+.nav.on{background:var(--sheet);color:var(--text);box-shadow:0 0 0 .5px var(--line-2),0 1px 2px rgba(0,0,0,.05)}
+.nav.on svg{opacity:1;color:var(--accent)}
+.nav .ct{margin-left:auto;font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.nav .ct.hot{color:#fff;background:var(--danger);padding:1px 7px;border-radius:99px;font-weight:600}
+.side .lbl{font-size:11px;font-weight:600;color:var(--text-3);padding:18px 10px 6px;letter-spacing:.02em}
+.side .sp{flex:1}
+.me{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px}
+.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:650;color:#fff;flex:none}
+
+.main{margin:8px 8px 8px 0;background:var(--sheet);border-radius:var(--r-sheet);box-shadow:var(--shadow-sheet);display:flex;flex-direction:column;overflow:hidden;position:relative;transition:background .4s}
+.bar{height:56px;display:flex;align-items:center;gap:12px;padding:0 20px 0 28px;border-bottom:.5px solid var(--line);flex:none}
+.crumb{font-weight:600;font-size:14px;letter-spacing:-.01em}
+.search{margin-left:auto;display:flex;align-items:center;gap:8px;height:34px;width:300px;padding:0 10px 0 12px;border-radius:var(--r-ctl);background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line);color:var(--text-3);font-size:13px;transition:box-shadow .2s}
+.search:hover{box-shadow:inset 0 0 0 .5px var(--line-2)}
+.search svg{width:15px;height:15px}
+.kbd{margin-left:auto;font-size:11px;font-weight:550;padding:1px 6px;border-radius:5px;box-shadow:inset 0 0 0 .5px var(--line-2);color:var(--text-3)}
+.ibtn{width:34px;height:34px;border-radius:var(--r-ctl);display:grid;place-items:center;color:var(--text-2);position:relative;transition:background .15s,transform .1s}
+.ibtn:hover{background:var(--hover)}
+.ibtn:active{transform:scale(.94)}
+.ibtn svg{width:18px;height:18px}
+.ibtn .dot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 2px var(--sheet)}
+.seg{display:flex;padding:2px;border-radius:9px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line);position:relative}
+.seg button{position:relative;z-index:1;height:28px;padding:0 11px;font-size:12px;font-weight:560;color:var(--text-2);border-radius:7px;transition:color .2s}
+.seg button.on{color:var(--text)}
+.seg .thumb{position:absolute;top:2px;bottom:2px;border-radius:7px;background:var(--raised);box-shadow:0 0 0 .5px var(--line-2),0 1px 3px rgba(0,0,0,.08);transition:left .35s var(--spring),width .35s var(--spring)}
+
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+.page{max-width:1160px;margin:0 auto;padding:36px 36px 120px;min-width:0}
+
+/* ---------- hero ---------- */
+.hero{position:relative;display:flex;align-items:flex-end;gap:28px;padding-bottom:30px}
+.hero::before{content:"";position:absolute;left:-80px;top:-120px;width:620px;height:360px;background:radial-gradient(closest-side,var(--glow),transparent);pointer-events:none;filter:blur(10px)}
+.date{font-size:12.5px;font-weight:560;color:var(--text-3);letter-spacing:.01em;margin-bottom:8px;position:relative}
+.greet{font-size:34px;line-height:1.08;font-weight:680;letter-spacing:-.032em;position:relative}
+.brief{margin-top:10px;font-size:15px;color:var(--text-2);max-width:560px;position:relative;letter-spacing:-.005em}
+.brief b{color:var(--text);font-weight:600}
+.ring{margin-left:auto;display:flex;align-items:center;gap:14px;position:relative}
+.ring svg{width:64px;height:64px;transform:rotate(-90deg)}
+.ring .trk{stroke:var(--line-2)}
+.ring .val{stroke:var(--ok);stroke-linecap:round;transition:stroke-dashoffset .9s var(--spring-soft)}
+.ring .big{font-size:22px;font-weight:680;letter-spacing:-.02em}
+.ring .cap{font-size:12px;color:var(--text-3)}
+
+/* ---------- kpis ---------- */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);border-radius:var(--r-card);box-shadow:0 0 0 .5px var(--line-2);overflow:hidden;margin-bottom:30px}
+.kpi{padding:16px 18px 14px;position:relative;transition:background .15s;cursor:pointer}
+.kpi+.kpi{box-shadow:inset .5px 0 0 var(--line-2)}
+.kpi:hover{background:var(--hover)}
+.kpi .k{font-size:12px;color:var(--text-2);font-weight:520}
+.kpi .v{font-size:26px;font-weight:660;letter-spacing:-.03em;margin-top:6px;line-height:1}
+.kpi .v small{font-size:13px;font-weight:560;color:var(--text-3);letter-spacing:0;margin-right:3px}
+.kpi .d{font-size:11.5px;font-weight:600;margin-top:8px;display:flex;align-items:center;gap:6px}
+.kpi .d span{color:var(--text-3);font-weight:500}
+.up{color:var(--ok-ink)} .down{color:var(--danger-ink)}
+.kpi svg.spark{position:absolute;right:16px;bottom:16px;width:76px;height:28px}
+
+/* ---------- body grid ---------- */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 316px;gap:28px;align-items:start}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}
+.sec-h h3{font-size:15px;font-weight:650;letter-spacing:-.015em}
+.sec-h .c{font-size:12.5px;color:var(--text-3)}
+.sec-h a{margin-left:auto;font-size:12.5px;color:var(--accent);font-weight:560;text-decoration:none}
+
+.grp{margin-bottom:6px}
+.grp-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-2);padding:14px 4px 6px;letter-spacing:.005em}
+.grp-h i{width:7px;height:7px;border-radius:50%}
+.grp-h .n{color:var(--text-3);font-weight:500}
+
+.row{display:flex;align-items:center;gap:14px;height:60px;padding:0 10px 0 12px;border-radius:12px;position:relative;transition:background .15s;overflow:hidden}
+.row:hover{background:var(--hover)}
+.row+.row::before{content:"";position:absolute;top:0;left:56px;right:10px;height:.5px;background:var(--line)}
+.row:hover::before,.row:hover+.row::before{opacity:0}
+.chk{width:22px;height:22px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.5px var(--line-2);display:grid;place-items:center;transition:box-shadow .2s,background .2s,transform .12s;position:relative}
+.chk:hover{box-shadow:inset 0 0 0 1.5px var(--ok)}
+.chk:active{transform:scale(.86)}
+.chk svg{width:12px;height:12px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20}
+.row.done .chk{background:var(--ok);box-shadow:none;animation:pop .45s var(--spring-bounce)}
+.row.done .chk svg{transition:stroke-dashoffset .3s .08s ease-out;stroke-dashoffset:0}
+.row.done .who .t{color:var(--text-3)}
+.chk::after{content:"";position:absolute;inset:-6px;border-radius:50%;box-shadow:0 0 0 2px var(--ok);opacity:0}
+.row.done .chk::after{animation:ripple .6s ease-out}
+@keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+@keyframes ripple{0%{opacity:.6;transform:scale(.7)}100%{opacity:0;transform:scale(1.5)}}
+.who{min-width:0;flex:1}
+.who .t{font-weight:580;font-size:14px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .3s}
+.who .m{font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.stage{font-size:11.5px;font-weight:580;padding:3px 9px;border-radius:99px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line-2);color:var(--text-2);white-space:nowrap}
+.when{font-size:12.5px;font-weight:560;width:88px;text-align:right;white-space:nowrap}
+.when.over{color:var(--danger-ink)} .when.soon{color:var(--warn-ink)} .when.later{color:var(--text-2)}
+.acts{display:flex;gap:4px;opacity:0;transform:translateX(6px);transition:opacity .18s,transform .25s var(--spring)}
+.row:hover .acts{opacity:1;transform:none}
+.act{height:30px;padding:0 10px;border-radius:8px;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:580;color:var(--text-2);box-shadow:inset 0 0 0 .5px var(--line-2);background:var(--raised);transition:transform .1s,background .15s}
+.act:hover{color:var(--text)}
+.act:active{transform:scale(.95)}
+.act svg{width:15px;height:15px}
+.act.wa{color:#fff;background:#1FAF5A;box-shadow:none}
+.act.wa:hover{background:#1A9E51;color:#fff}
+
+/* right column */
+.card{border-radius:var(--r-card);box-shadow:0 0 0 .5px var(--line-2);padding:16px 18px;margin-bottom:18px;background:var(--sheet)}
+.meet{display:flex;gap:12px;padding:10px 0;position:relative}
+.meet+.meet{border-top:.5px solid var(--line)}
+.meet .tm{width:52px;font-size:12.5px;font-weight:600;padding-top:1px}
+.meet .tm span{display:block;font-size:11px;color:var(--text-3);font-weight:500}
+.meet .bd{flex:1;border-left:2.5px solid var(--meet);padding-left:10px}
+.meet .bd .t{font-weight:580;font-size:13.5px}
+.meet .bd .m{font-size:12px;color:var(--text-2)}
+.meet.now .bd{border-color:var(--warn)}
+.live{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:650;color:var(--warn-ink);margin-left:6px}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--warn);animation:pulse 1.8s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--warn)}70%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.fn{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:10px;font-size:12.5px;padding:5px 0}
+.fn .l{color:var(--text-2)}
+.fn .b{height:8px;border-radius:99px;background:var(--sunk);overflow:hidden}
+.fn .b i{display:block;height:100%;border-radius:99px;background:var(--accent);transform-origin:left;transform:scaleX(0);transition:transform 1s var(--spring-soft)}
+.fn .n{text-align:right;font-weight:600}
+
+/* ---------- skeleton ---------- */
+.sk{position:absolute;inset:0;background:var(--sheet);z-index:5;transition:opacity .35s ease}
+.sk.gone{opacity:0;pointer-events:none}
+.sk .page>*{margin-bottom:14px}
+.sb{border-radius:8px;background:linear-gradient(90deg,var(--skel) 0%,var(--skel-hi) 40%,var(--skel) 80%);background-size:300% 100%;animation:shim 1.4s infinite linear}
+@keyframes shim{0%{background-position:100% 0}100%{background-position:-50% 0}}
+.reveal{opacity:0;transform:translateY(8px)}
+.reveal.in{opacity:1;transform:none;transition:opacity .5s ease,transform .7s var(--spring-soft)}
+
+/* ---------- toast (HUD) ---------- */
+.toasts{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);display:flex;flex-direction:column-reverse;align-items:center;gap:8px;z-index:50;pointer-events:none}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:12px;min-width:320px;padding:10px 10px 10px 12px;border-radius:14px;background:var(--hud);color:var(--hud-text);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);box-shadow:0 0 0 .5px rgba(255,255,255,.08),inset 0 1px 0 rgba(255,255,255,.08),0 16px 40px -8px rgba(0,0,0,.4);position:relative;overflow:hidden}
+.toast .ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none}
+.toast .ic svg{width:14px;height:14px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:20;animation:draw .35s .12s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.toast .tx{flex:1;font-size:13px;line-height:1.3}
+.toast .tx b{font-weight:600;display:block}
+.toast .tx span{color:rgba(244,245,247,.6);font-size:12px}
+.toast .tb{height:30px;padding:0 12px;border-radius:8px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.1);color:#fff;transition:background .15s,transform .1s}
+.toast .tb:hover{background:rgba(255,255,255,.18)}
+.toast .tb:active{transform:scale(.95)}
+.toast .tb.pri{background:#fff;color:#111}
+.toast .tm{position:absolute;left:0;bottom:0;height:2px;background:rgba(255,255,255,.35);transform-origin:left}
+
+/* ---------- command palette ---------- */
+.scrim{position:fixed;inset:0;background:rgba(8,10,14,.28);z-index:60;opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.on{opacity:1;pointer-events:auto}
+.pal{position:fixed;left:50%;top:14vh;width:620px;margin-left:-310px;border-radius:18px;background:var(--raised);box-shadow:var(--shadow-pop);z-index:61;overflow:hidden;opacity:0;transform:scale(.96) translateY(-6px);filter:blur(6px);pointer-events:none;transition:opacity .2s,transform .35s var(--spring),filter .25s}
+.pal.on{opacity:1;transform:none;filter:none;pointer-events:auto}
+.pal input{width:100%;height:58px;border:0;outline:0;background:transparent;padding:0 20px;font:inherit;font-size:17px;color:var(--text);letter-spacing:-.01em;border-bottom:.5px solid var(--line)}
+.pal input::placeholder{color:var(--text-3)}
+.pal .gl{font-size:11.5px;font-weight:600;color:var(--text-3);padding:12px 20px 4px}
+.pal .it{display:flex;align-items:center;gap:12px;height:44px;margin:0 8px;padding:0 12px;border-radius:10px;font-size:13.5px}
+.pal .it.sel{background:var(--accent-soft)}
+.pal .it .s{margin-left:auto;font-size:12px;color:var(--text-3)}
+.pal .ft{display:flex;gap:16px;padding:10px 20px;border-top:.5px solid var(--line);font-size:11.5px;color:var(--text-3);margin-top:8px}
+
+/* ---------- celebration ---------- */
+.cele{position:fixed;inset:0;display:grid;place-items:center;z-index:40;pointer-events:none}
+.cele .in{text-align:center;opacity:0}
+.cele img{width:88px;height:88px;filter:drop-shadow(0 10px 30px rgba(42,91,255,.5))}
+.cele h4{font-size:22px;font-weight:680;letter-spacing:-.025em;margin-top:18px}
+.cele p{color:var(--text-2);margin-top:4px}
+
+.pick{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:70;display:none}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.15s!important}}
+
+/* ---------- LUME scrollbars: thin overlay-style, theme tokens, fade in on hover/scroll ---------- */
+[data-theme="porcelain"]{--sb:rgba(12,18,32,.16);--sb-hover:rgba(12,18,32,.30);--sb-active:rgba(12,18,32,.42)}
+[data-theme="obsidian"]{--sb:rgba(255,255,255,.14);--sb-hover:rgba(255,255,255,.26);--sb-active:rgba(255,255,255,.38)}
+::-webkit-scrollbar{width:11px;height:11px;background:transparent}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-button{display:none;width:0;height:0}
+::-webkit-scrollbar-thumb{border-radius:99px;border:3px solid transparent;background-clip:padding-box;background-color:transparent;min-height:40px;transition:background-color .3s}
+:hover::-webkit-scrollbar-thumb,.is-scrolling::-webkit-scrollbar-thumb{background-color:var(--sb)}
+::-webkit-scrollbar-thumb:hover{background-color:var(--sb-hover);border-width:2px}
+::-webkit-scrollbar-thumb:active{background-color:var(--sb-active)}
+@supports (-moz-appearance:none){*{scrollbar-width:thin;scrollbar-color:transparent transparent}:hover,.is-scrolling{scrollbar-color:var(--sb) transparent}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side">
+    <div class="ws"><img src="../../../public/lume-mark.png" alt="LUME"><div><div class="n">LUME</div><div class="s">Nupuur Coaching</div></div></div>
+    <button class="nav on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Today<span class="ct hot num" id="navCount">6</span></button>
+    <button class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>Leads<span class="ct num">1,284</span></button>
+    <button class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg>Pipeline</button>
+    <button class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Calendar<span class="ct num">2</span></button>
+    <button class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7l8 6 8-6"/><rect x="3" y="5" width="18" height="14" rx="3"/></svg>Templates</button>
+    <button class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Analytics</button>
+    <div class="lbl">Views</div>
+    <button class="nav"><i style="width:8px;height:8px;border-radius:3px;background:var(--danger);margin:0 4px"></i>My overdue<span class="ct num">2</span></button>
+    <button class="nav"><i style="width:8px;height:8px;border-radius:3px;background:var(--accent);margin:0 4px"></i>New today<span class="ct num">24</span></button>
+    <button class="nav"><i style="width:8px;height:8px;border-radius:3px;background:var(--warn);margin:0 4px"></i>Needs country code<span class="ct num">9</span></button>
+    <button class="nav"><i style="width:8px;height:8px;border-radius:3px;background:var(--meet);margin:0 4px"></i>Lost · re-engage<span class="ct num">41</span></button>
+    <div class="sp"></div>
+    <button class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+    <div class="me"><span class="av" style="background:linear-gradient(135deg,#2A5BFF,#16B5FF)">TS</span><div><div style="font-size:13px;font-weight:580;color:var(--text)">Tasneem</div><div style="font-size:11.5px;color:var(--text-3)">Admin</div></div></div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="bar">
+      <div class="crumb">Today</div>
+      <button class="search" id="openPal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search leads, actions…<span class="kbd">Ctrl K</span></button>
+      <div class="seg" id="themeSeg"><span class="thumb"></span><button class="on" data-t="porcelain">Porcelain</button><button data-t="obsidian">Obsidian</button></div>
+      <button class="ibtn" id="soundBtn" title="Sounds"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path id="wave" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+      <button class="ibtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><i class="dot"></i></button>
+    </div>
+
+    <div class="scroll">
+      <!-- skeleton -->
+      <div class="sk" id="sk"><div class="page">
+        <div class="sb" style="width:140px;height:12px"></div>
+        <div class="sb" style="width:420px;height:34px"></div>
+        <div class="sb" style="width:520px;height:16px;margin-bottom:34px"></div>
+        <div class="sb" style="height:96px;border-radius:14px;margin-bottom:34px"></div>
+        <div style="display:grid;grid-template-columns:1fr 330px;gap:28px">
+          <div><div class="sb" style="width:120px;height:14px;margin-bottom:18px"></div>
+            <div class="sb" style="height:60px;border-radius:12px;margin-bottom:8px"></div><div class="sb" style="height:60px;border-radius:12px;margin-bottom:8px"></div><div class="sb" style="height:60px;border-radius:12px;margin-bottom:8px"></div><div class="sb" style="height:60px;border-radius:12px"></div></div>
+          <div><div class="sb" style="height:200px;border-radius:14px;margin-bottom:18px"></div><div class="sb" style="height:170px;border-radius:14px"></div></div>
+        </div>
+      </div></div>
+
+      <div class="page">
+        <section class="hero reveal">
+          <div>
+            <div class="date">Monday, 21 September</div>
+            <h1 class="greet">Good morning, Tasneem</h1>
+            <p class="brief" id="brief"><b>6 follow-ups</b> and <b>2 calls</b> today. Aisha has been waiting since yesterday, so start there.</p>
+          </div>
+          <div class="ring">
+            <div style="text-align:right"><div class="big num" id="ringBig">0 / 6</div><div class="cap">cleared today</div></div>
+            <svg viewBox="0 0 64 64"><circle class="trk" cx="32" cy="32" r="27" fill="none" stroke-width="6"/><circle class="val" id="ringVal" cx="32" cy="32" r="27" fill="none" stroke-width="6" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
+          </div>
+        </section>
+
+        <section class="kpis reveal">
+          <div class="kpi"><div class="k">New leads</div><div class="v num" data-count="24">0</div><div class="d up">▲ 12% <span>vs last week</span></div><svg class="spark" viewBox="0 0 76 28"><path d="M1 22 L12 19 L23 21 L34 14 L45 16 L56 9 L67 11 L75 4" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="kpi"><div class="k">Reply rate</div><div class="v num"><span data-count="38">0</span><small style="margin-left:2px">%</small></div><div class="d up">▲ 4 pts <span>vs last week</span></div><svg class="spark" viewBox="0 0 76 28"><path d="M1 18 L12 20 L23 15 L34 17 L45 12 L56 13 L67 8 L75 9" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="kpi"><div class="k">Calls booked</div><div class="v num" data-count="7">0</div><div class="d down">▼ 2 <span>vs last week</span></div><svg class="spark" viewBox="0 0 76 28"><path d="M1 8 L12 10 L23 7 L34 13 L45 11 L56 16 L67 15 L75 19" fill="none" stroke="var(--text-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="kpi"><div class="k">Revenue won</div><div class="v num"><small>AED</small><span data-count="42500" data-fmt="1">0</span></div><div class="d up">▲ 18% <span>vs last month</span></div><svg class="spark" viewBox="0 0 76 28"><path d="M1 24 L12 22 L23 23 L34 17 L45 18 L56 11 L67 7 L75 3" fill="none" stroke="var(--ok)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </section>
+
+        <div class="cols">
+          <section class="reveal">
+            <div class="sec-h"><h3>Up next</h3><span class="c">Sorted by what needs you first</span><a href="#">All tasks</a></div>
+            <div id="list"></div>
+          </section>
+
+          <aside class="reveal">
+            <div class="card">
+              <div class="sec-h" style="margin-bottom:4px"><h3>Today's calls</h3><a href="#">Calendar</a></div>
+              <div class="meet now"><div class="tm num">11:30<span>30 min</span></div><div class="bd"><div class="t">Discovery · Sara Pinto<span class="live"><i></i>In 12 min</span></div><div class="m">Google Meet · Call booked</div></div></div>
+              <div class="meet"><div class="tm num">15:30<span>45 min</span></div><div class="bd"><div class="t">Consultation · Omar Haddad</div><div class="m">Calendly · Replied</div></div></div>
+            </div>
+            <div class="card">
+              <div class="sec-h" style="margin-bottom:8px"><h3>Pipeline</h3><span class="c">This month</span></div>
+              <div class="fn"><span class="l">New</span><span class="b"><i style="--w:1"></i></span><span class="n num">142</span></div>
+              <div class="fn"><span class="l">Message sent</span><span class="b"><i style="--w:.78"></i></span><span class="n num">111</span></div>
+              <div class="fn"><span class="l">Replied</span><span class="b"><i style="--w:.44"></i></span><span class="n num">63</span></div>
+              <div class="fn"><span class="l">Call booked</span><span class="b"><i style="--w:.22"></i></span><span class="n num">31</span></div>
+              <div class="fn"><span class="l">Won</span><span class="b"><i style="--w:.09;background:var(--ok)"></i></span><span class="n num">13</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="scrim" id="scrim"></div>
+<div class="pal" id="pal">
+  <input id="palIn" placeholder="Search leads, or type a command…" autocomplete="off">
+  <div class="gl">Leads</div>
+  <div class="it sel"><span class="av" style="background:#E5484D;width:24px;height:24px;font-size:10px">AK</span>Aisha Khan<span class="s">Message sent · Overdue</span></div>
+  <div class="it"><span class="av" style="background:#6E56CF;width:24px;height:24px;font-size:10px">SP</span>Sara Pinto<span class="s">Call booked · 11:30</span></div>
+  <div class="gl">Actions</div>
+  <div class="it"><span style="width:24px;text-align:center">＋</span>New lead<span class="s kbd">N</span></div>
+  <div class="it"><span style="width:24px;text-align:center">⏱</span>Add follow-up<span class="s kbd">F</span></div>
+  <div class="ft"><span>↑↓ navigate</span><span>↵ open</span><span>esc close</span></div>
+</div>
+<div class="cele" id="cele"><div class="in"><img src="../../../public/lume-mark.png" alt=""><h4>All clear. Beautiful work.</h4><p>Every follow-up for today is done.</p></div></div>
+
+<script>
+/* ---------- spring easing (Apple-style damping + response → CSS linear()) ---------- */
+function spring(bounce=0,response=.4){
+  const z=1-bounce, w=2*Math.PI/response, pts=[], T=response*2.2, N=60;
+  for(let i=0;i<=N;i++){const t=T*i/N;let x;
+    if(z>=1){x=1-Math.exp(-w*t)*(1+w*t)}
+    else{const wd=w*Math.sqrt(1-z*z);x=1-Math.exp(-z*w*t)*(Math.cos(wd*t)+(z*w/wd)*Math.sin(wd*t))}
+    pts.push(+x.toFixed(4))}
+  pts[N]=1;return {ease:`linear(${pts.join(',')})`,dur:T*1000}
+}
+const S=spring(0,.38),SS=spring(0,.7),SB=spring(.35,.4);
+const root=document.documentElement.style;
+root.setProperty('--spring',S.ease);root.setProperty('--spring-soft',SS.ease);root.setProperty('--spring-bounce',SB.ease);
+
+/* ---------- sound (synthesised, soft, short) ---------- */
+let AC=null,soundOn=true;
+function ac(){if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();return AC}
+function tone(f,t0,d,g=.06,type='sine'){const a=ac(),o=a.createOscillator(),v=a.createGain();o.type=type;o.frequency.value=f;
+  v.gain.setValueAtTime(0,a.currentTime+t0);v.gain.linearRampToValueAtTime(g,a.currentTime+t0+.008);v.gain.exponentialRampToValueAtTime(.0001,a.currentTime+t0+d);
+  o.connect(v).connect(a.destination);o.start(a.currentTime+t0);o.stop(a.currentTime+t0+d+.05)}
+const sfx={
+  done(){if(!soundOn)return;tone(880,0,.22,.028);tone(1318.5,.06,.34,.022)},        // soft rising fifth: "done"
+  sent(){if(!soundOn)return;tone(784,0,.2,.024);tone(1046.5,.06,.24,.022);tone(1568,.12,.38,.018)}, // airy lift: "sent"
+  soft(){},   // silent: clicks, toggles, opening WhatsApp, snoozing are not achievements
+  undo(){},   // silent: undo is a correction, not a win
+  win(){if(!soundOn)return;[523.3,659.3,784,1046.5].forEach((f,i)=>tone(f,i*.09,1.1-i*.1,.022))}   // gentle arpeggio: day cleared
+};
+
+/* ---------- data ---------- */
+const tasks=[
+  {g:'over',n:'Aisha Khan',ini:'AK',c:'#E5484D',m:'Follow up · no reply to first message',s:'Message sent',w:'Yesterday'},
+  {g:'over',n:'Karan Mehta',ini:'KM',c:'#F2A20C',m:'Send pricing after call',s:'Call done',w:'2 days'},
+  {g:'soon',n:'Rohan Malik',ini:'RM',c:'#2A5BFF',m:'Reminder · call tomorrow 5:00 PM',s:'Call booked',w:'In 20 min'},
+  {g:'soon',n:'Fatima Noor',ini:'FN',c:'#18A566',m:'Gentle nudge · asked about group plan',s:'Replied',w:'11:00'},
+  {g:'later',n:'Priya Shah',ini:'PS',c:'#6E56CF',m:'First touch · new from Instagram',s:'New',w:'14:00'},
+  {g:'later',n:'Daniel Costa',ini:'DC',c:'#0EA5B7',m:'Re-engage · lost 45 days ago, "not now"',s:'Lost',w:'17:30'},
+];
+const groups={over:['Overdue','var(--danger)','over'],soon:['Due soon','var(--warn)','soon'],later:['Later today','var(--text-3)','later']};
+const list=document.getElementById('list');
+let cleared=0;const total=tasks.length;
+function build(){
+  Object.entries(groups).forEach(([k,[label,col,cls]])=>{
+    const g=document.createElement('div');g.className='grp';g.dataset.g=k;
+    g.innerHTML=`<div class="grp-h"><i style="background:${col}"></i>${label}<span class="n num">${tasks.filter(t=>t.g===k).length}</span></div>`;
+    tasks.filter(t=>t.g===k).forEach(t=>{
+      const r=document.createElement('div');r.className='row';
+      r.innerHTML=`<button class="chk" aria-label="Mark done"><svg viewBox="0 0 12 12"><path d="M2.5 6.3 5 8.6l4.6-5"/></svg></button>
+        <span class="av" style="background:${t.c}">${t.ini}</span>
+        <div class="who"><div class="t">${t.n}</div><div class="m">${t.m}</div></div>
+        <div class="acts"><button class="act wa"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z"/></svg>WhatsApp</button><button class="act">Snooze</button></div>
+        <span class="stage">${t.s}</span><span class="when num ${cls}">${t.w}</span>`;
+      r.querySelector('.chk').onclick=()=>complete(r,t);
+      r.querySelector('.wa').onclick=()=>whatsapp(r,t);
+      r.querySelector('.act:not(.wa)').onclick=()=>snooze(r,t);
+      g.appendChild(r)});
+    list.appendChild(g)});
+}
+build();
+
+/* ---------- progress ---------- */
+function setProgress(){
+  const c=169.6;document.getElementById('ringVal').style.strokeDashoffset=c*(1-cleared/total);
+  document.getElementById('ringBig').textContent=`${cleared} / ${total}`;
+  const left=total-cleared,nc=document.getElementById('navCount');
+  nc.textContent=left;nc.style.display=left?'':'none';
+  document.title=left?`(${left}) LUME`:'LUME';
+  document.getElementById('brief').innerHTML=left?`<b>${left} follow-up${left>1?'s':''}</b> left and <b>2 calls</b> today. ${left===total?'Aisha has been waiting since yesterday, so start there.':'You\'re moving. Keep the streak going.'}`:'<b>Everything is done.</b> Your 2 calls are ready when you are.';
+}
+
+/* ---------- row collapse / restore ---------- */
+function collapse(r){
+  const h=r.offsetHeight;
+  return r.animate([{height:h+'px',opacity:1},{height:'0px',opacity:0,paddingTop:0,paddingBottom:0}],{duration:S.dur,easing:S.ease,fill:'forwards'}).finished
+}
+function refreshGroup(g){
+  const n=g.querySelectorAll('.row').length;g.querySelector('.grp-h .n').textContent=n;
+  if(!n){g.animate([{opacity:1,height:g.offsetHeight+'px'},{opacity:0,height:'0px'}],{duration:S.dur,easing:S.ease,fill:'forwards'}).finished.then(()=>g.style.display='none')}
+}
+function complete(r,t,msg){
+  if(r.classList.contains('done'))return;
+  r.classList.add('done');sfx.done();cleared++;setProgress();
+  const g=r.parentElement,next=r.nextSibling;
+  setTimeout(async()=>{await collapse(r);r.remove();refreshGroup(g);if(cleared===total)celebrate()},420);
+  toast({kind:'ok',title:msg||'Follow-up done',sub:`${t.n} · ${cleared} of ${total} cleared today`,btn:'Undo',onBtn:()=>{
+    cleared--;setProgress();sfx.undo();r.classList.remove('done');r.getAnimations().forEach(a=>a.cancel());
+    g.style.display='';g.getAnimations().forEach(a=>a.cancel());g.insertBefore(r,next&&next.parentElement===g?next:null);refreshGroup(g);
+    r.animate([{opacity:0,transform:'translateY(-6px)'},{opacity:1,transform:'none'}],{duration:S.dur,easing:S.ease});
+  }});
+}
+function whatsapp(r,t){
+  sfx.soft();
+  toast({kind:'wa',title:`WhatsApp opened for ${t.n.split(' ')[0]}`,sub:'Did the message go out?',btn:'Not sent',btn2:'Sent',sticky:true,
+    onBtn:()=>{},onBtn2:()=>{sfx.sent();setTimeout(()=>complete(r,t,'Message sent'),0)}});
+}
+function snooze(r,t){
+  sfx.soft();const w=r.querySelector('.when');w.textContent='Tomorrow';w.className='when num later';
+  toast({kind:'info',title:'Snoozed until tomorrow 10:00',sub:t.n,btn:'Undo',onBtn:()=>{}});
+}
+
+/* ---------- toast ---------- */
+const icons={ok:['var(--ok)','<path d="M3 7.5 6 10.3 11.5 4"/>'],wa:['#1FAF5A','<path d="M3 7.5 6 10.3 11.5 4"/>'],info:['var(--accent)','<path d="M7 3.5V7l2.5 1.5"/>']};
+function toast({kind,title,sub,btn,btn2,onBtn,onBtn2,sticky}){
+  const box=document.getElementById('toasts');
+  while(box.children.length>2)box.firstChild.remove();
+  const el=document.createElement('div');el.className='toast';
+  const [bg,path]=icons[kind];
+  el.innerHTML=`<span class="ic" style="background:${bg}"><svg viewBox="0 0 14 14">${path}</svg></span><div class="tx"><b>${title}</b><span>${sub}</span></div>${btn?`<button class="tb b1">${btn}</button>`:''}${btn2?`<button class="tb pri b2">${btn2}</button>`:''}${sticky?'':'<i class="tm"></i>'}`;
+  box.appendChild(el);
+  el.animate([{opacity:0,transform:'translateY(24px) scale(.94)',filter:'blur(4px)'},{opacity:1,transform:'none',filter:'blur(0)'}],{duration:SB.dur,easing:SB.ease});
+  let life=sticky?null:setTimeout(close,4200);
+  if(!sticky)el.querySelector('.tm').animate([{transform:'scaleX(1)'},{transform:'scaleX(0)'}],{duration:4200,easing:'linear',fill:'forwards'});
+  function close(){clearTimeout(life);el.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(16px) scale(.96)'}],{duration:220,easing:'ease-in',fill:'forwards'}).finished.then(()=>el.remove())}
+  el.querySelector('.b1')&&(el.querySelector('.b1').onclick=()=>{onBtn&&onBtn();close()});
+  el.querySelector('.b2')&&(el.querySelector('.b2').onclick=()=>{close();onBtn2&&onBtn2()});
+}
+
+/* ---------- celebration ---------- */
+function celebrate(){
+  sfx.win();const c=document.querySelector('#cele .in'),img=c.querySelector('img');
+  c.animate([{opacity:0,transform:'scale(.9)'},{opacity:1,transform:'none',offset:.15},{opacity:1,offset:.8},{opacity:0,transform:'translateY(-10px)'}],{duration:3000,easing:'ease-out',fill:'forwards'});
+  img.animate([{transform:'rotate(-60deg) scale(.4)'},{transform:'rotate(0) scale(1)'}],{duration:SB.dur*1.6,easing:SB.ease});
+}
+
+/* ---------- theme segmented control ---------- */
+const seg=document.getElementById('themeSeg'),thumb=seg.querySelector('.thumb');
+function place(b){thumb.style.left=b.offsetLeft+'px';thumb.style.width=b.offsetWidth+'px'}
+seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');place(b);document.documentElement.dataset.theme=b.dataset.t;sfx.soft()});
+requestAnimationFrame(()=>place(seg.querySelector('.on')));
+
+/* ---------- sound toggle ---------- */
+document.getElementById('soundBtn').onclick=()=>{soundOn=!soundOn;document.getElementById('wave').style.opacity=soundOn?1:0;if(soundOn)sfx.soft()};
+
+/* ---------- command palette ---------- */
+const pal=document.getElementById('pal'),scrim=document.getElementById('scrim');
+function openPal(){pal.classList.add('on');scrim.classList.add('on');setTimeout(()=>document.getElementById('palIn').focus(),30)}
+function closePal(){pal.classList.remove('on');scrim.classList.remove('on')}
+document.getElementById('openPal').onclick=openPal;scrim.onclick=closePal;
+addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();pal.classList.contains('on')?closePal():openPal()}if(e.key==='Escape')closePal()});
+
+/* ---------- load: skeleton → content ---------- */
+function countUp(el){const to=+el.dataset.count,fmt=el.dataset.fmt,t0=performance.now(),d=1100;
+  (function f(n){const p=Math.min(1,(n-t0)/d),e=1-Math.pow(1-p,4),v=Math.round(to*e);el.textContent=fmt?v.toLocaleString('en-US'):v;if(p<1)requestAnimationFrame(f)})(t0)}
+setTimeout(()=>{
+  document.getElementById('sk').classList.add('gone');
+  document.querySelectorAll('.reveal').forEach((el,i)=>setTimeout(()=>el.classList.add('in'),i*70));
+  document.querySelectorAll('[data-count]').forEach(countUp);
+  setTimeout(()=>document.querySelectorAll('.fn .b i').forEach((b,i)=>setTimeout(()=>b.style.transform=`scaleX(${b.style.getPropertyValue('--w')})`,i*60)),250);
+  setProgress();
+},1300);
+/* scrollbars appear while scrolling, then fade after a pause */
+(()=>{const t=new WeakMap();addEventListener('scroll',e=>{const el=e.target===document?document.documentElement:e.target;if(!el.classList)return;el.classList.add('is-scrolling');clearTimeout(t.get(el));t.set(el,setTimeout(()=>el.classList.remove('is-scrolling'),900))},true)})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+dist/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+.turbo/
+*.log
+.env
+.env.*
+!.env.example
+!infra/.env.example
+.superpowers/
+.DS_Store
+Thumbs.db
