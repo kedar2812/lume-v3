@@ -4,14 +4,12 @@ import {
   Keyring,
   QUEUE_NAMES,
   createBreachedChecker,
-  hashPassword,
   masterKeyFromBase64,
   newId,
   newStoredKey,
   newTotpSecret,
   randomToken,
   sha256Hex,
-  type Argon2Params,
   type Grant,
 } from "@lume/core";
 import {
@@ -21,6 +19,7 @@ import {
   migrate,
   type DbRole,
 } from "@lume/db";
+import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";

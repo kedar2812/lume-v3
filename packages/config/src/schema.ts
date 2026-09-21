@@ -34,6 +34,9 @@ const masterKey = z
     "must be base64 of at least 32 random bytes",
   );
 
+/** Compose passes unset optional variables as empty strings; treat those as absent. */
+const optional = <T extends z.ZodType>(t: T) => z.preprocess((v) => (v === "" ? undefined : v), t.optional());
+
 const AGE_PUBLIC_KEY = /^age1[02-9ac-hj-np-z]{58}$/;
 
 const base = z.object({
@@ -46,7 +49,12 @@ export const apiSchema = base.extend({
   LUME_MASTER_KEY: masterKey,
   DATABASE_URL_APP: pgUrl("lume_app"),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
-  SMTP_URL: z.string().url().optional(),
+  /** Base URL for links in emails; defaults to https://LUME_PUBLIC_HOST (set it when a port is involved). */
+  LUME_PUBLIC_URL: optional(z.url({ protocol: /^https?$/ })),
+  /** smtp(s)://user:pass@host:port. Unset: mail is not sent and invite links are only shown to the admin. */
+  SMTP_URL: optional(z.url({ protocol: /^smtps?$/ })),
+  MAIL_FROM: optional(z.string().min(3).max(200)),
+  BREACHED_LIST_FILE: z.string().min(1).default("/app/data/breached-sha1.bin"),
 });
 
 export const workerSchema = base.extend({

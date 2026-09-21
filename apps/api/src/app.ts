@@ -2,14 +2,17 @@ import cookie from "@fastify/cookie";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import type pg from "pg";
-import type { Argon2Params, Keyring } from "@lume/core";
+import type { Keyring } from "@lume/core";
+import type { Argon2Params } from "@lume/core/password";
 import { csrfRoutes } from "./auth/csrf";
 import { authPlugin } from "./auth/plugin";
 import type { SetupTokens } from "./auth/setup-token";
 import { dbContext } from "./db/context";
 import { dbChecks } from "./health";
 import type { Mailer } from "./mail/mailer";
+import { authRoutes } from "./modules/auth/routes";
 import { memoSettings } from "./modules/settings/service";
+import { setupRoutes } from "./modules/setup/routes";
 import { ActorCache, startRbacListener } from "./rbac/cache";
 import { syncPermissionCatalog } from "./rbac/sync";
 import { buildServer } from "./server";
@@ -58,6 +61,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         });
         dbContext(scope, { pool: deps.pool });
         await scope.register(csrfRoutes, { secure: deps.config.cookieSecure });
+        await scope.register(setupRoutes, deps);
+        await scope.register(authRoutes, deps);
         deps.extraRoutes?.(scope);
       },
     });

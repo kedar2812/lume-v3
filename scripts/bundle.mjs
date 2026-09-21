@@ -26,7 +26,8 @@ for (let i = 0; i < pairs.length; i += 2) {
     format: "esm",
     sourcemap: true,
     legalComments: "none",
-    external: ["pg-native"],
+    // Native modules cannot be inlined; images that need one install it next to dist/.
+    external: ["pg-native", "@node-rs/argon2"],
     banner: { js: banner },
     logLevel: "warning",
   });

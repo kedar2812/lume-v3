@@ -82,6 +82,9 @@ services:
       LUME_PUBLIC_HOST: ${LUME_PUBLIC_HOST:?}
       LUME_MASTER_KEY: ${LUME_MASTER_KEY:?}
       DATABASE_URL_APP: postgres://lume_app:${LUME_APP_PASSWORD:?}@db:5432/lume
+      LUME_PUBLIC_URL: ${LUME_PUBLIC_URL:-}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     networks: [frontend, backend]
     mem_limit: 768m

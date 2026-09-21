@@ -79,6 +79,24 @@ describe("loadConfig", () => {
     ).toMatch(/offline key and the restore-test key/);
   });
 
+  it("treats empty optional api variables as unset and validates them when present", () => {
+    const cfg = loadConfig(apiSchema, { ...apiEnv, LUME_PUBLIC_URL: "", SMTP_URL: "", MAIL_FROM: "" });
+    expect(cfg.LUME_PUBLIC_URL).toBeUndefined();
+    expect(cfg.SMTP_URL).toBeUndefined();
+    expect(cfg.BREACHED_LIST_FILE).toBe("/app/data/breached-sha1.bin");
+    const ok = loadConfig(apiSchema, {
+      ...apiEnv,
+      LUME_PUBLIC_URL: "https://lume.localhost:8443",
+      SMTP_URL: "smtp://mailpit:1025",
+    });
+    expect(ok.SMTP_URL).toBe("smtp://mailpit:1025");
+    const bad = issuesOf(() =>
+      loadConfig(apiSchema, { ...apiEnv, SMTP_URL: "http://mail", LUME_PUBLIC_URL: "ftp://x" }),
+    );
+    expect(bad.join("\n")).toMatch(/SMTP_URL/);
+    expect(bad.join("\n")).toMatch(/LUME_PUBLIC_URL/);
+  });
+
   it("validates the migrate env", () => {
     expect(loadConfig(migrateSchema, { DATABASE_URL_OWNER: url("lume_owner") }).MIGRATIONS_DIR).toBe(
       "/app/migrations",
