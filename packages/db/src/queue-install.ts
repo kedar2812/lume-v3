@@ -27,6 +27,7 @@ export async function installQueueSchema(ownerUrl: string, queues: readonly stri
       }
     }
   } finally {
-    await boss.stop({ graceful: false, wait: true });
+    // Graceful: let pg-boss finish its own housekeeping queries before closing its pool.
+    await boss.stop({ graceful: true, wait: true, timeout: 5000 });
   }
 }

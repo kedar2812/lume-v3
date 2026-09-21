@@ -7,7 +7,8 @@ export type TestDatabase = {
   name: string;
   /** Connection URL for this database as the given role (default lume_owner). */
   url(role?: DbRole): string;
-  drop(): Promise<void>;
+  /** Drop the database. `immediate` kills live connections at once (for tests that simulate an outage). */
+  drop(opts?: { immediate?: boolean }): Promise<void>;
 };
 
 export function adminUrl(): string {
@@ -47,6 +48,19 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   return {
     name,
     url: (role: DbRole = "lume_owner") => roleUrl(role, name),
-    drop: () => asAdmin(async (c) => void (await c.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`))),
+    drop: (opts) =>
+      asAdmin(async (c) => {
+        // Give lingering connections (pools still closing) a moment to leave on their own; FORCE
+        // then only ever kills a truly stuck one, instead of failing an in-flight query mid-test.
+        for (let i = 0; !opts?.immediate && i < 50; i++) {
+          const { rows } = await c.query<{ n: number }>(
+            "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+            [name],
+          );
+          if (rows[0]!.n === 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        await c.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+      }),
   };
 }

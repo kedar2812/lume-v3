@@ -24,7 +24,7 @@ describe("/readyz against real Postgres as lume_app", () => {
     );
 
     expect((await app.inject({ method: "GET", url: "/readyz" })).statusCode).toBe(200);
-    await db.drop();
+    await db.drop({ immediate: true });
     expect((await app.inject({ method: "GET", url: "/readyz" })).statusCode).toBe(503);
   });
 });
