@@ -11,3 +11,7 @@ RUN apt-get update \
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /repo
+
+# Chromium system libraries for Playwright (browsers themselves are cached in the pnpm-store volume).
+RUN npx -y playwright@1 install-deps chromium && rm -rf /var/lib/apt/lists/*
+ENV PLAYWRIGHT_BROWSERS_PATH=/pnpm-store/ms-playwright

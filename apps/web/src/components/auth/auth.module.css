@@ -109,7 +109,7 @@
 }
 .fine {
   font-size: 0.75rem;
-  color: var(--text-3);
+  color: var(--text-2);
   margin-top: 16px;
   display: flex;
   justify-content: space-between;
@@ -173,4 +173,38 @@
 }
 .shake {
   animation: shake 0.42s ease;
+}
+
+/* Page-load entrance (spec §5.4): the six petals bloom, the wordmark settles, the card rises.
+   base.css collapses these to their end state under prefers-reduced-motion. */
+.mark {
+  animation: bloom 1.3s var(--spring-bounce) both;
+}
+.brand {
+  animation: rise 1.1s var(--spring-soft) 0.35s both;
+}
+.card {
+  animation: rise 1.4s var(--spring-soft) 0.56s both;
+}
+@keyframes bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.35) rotate(-120deg);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: drop-shadow(0 12px 30px rgba(42, 91, 255, 0.45));
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

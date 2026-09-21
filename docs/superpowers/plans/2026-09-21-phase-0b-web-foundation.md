@@ -149,7 +149,10 @@ function block(selector: string, within = css): Record<string, string> {
     const sels = m[1]!.split(",").map((s) => s.trim());
     if (sels.includes(selector)) {
       return Object.fromEntries(
-        [...m[2]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((d) => [d[1]!, d[2]!.replace(/\s+/g, " ").trim()]),
+        [...m[2]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((d) => [
+          d[1]!,
+          d[2]!.replace(/\s+/g, " ").trim(),
+        ]),
       );
     }
   }
@@ -173,8 +176,25 @@ describe("theme tokens", () => {
   it.each([
     ["porcelain", light],
     ["obsidian", dark],
+  ])("%s: white text on every -fill token reaches 4.5:1 (filled buttons)", (_name, t) => {
+    for (const k of ["--accent-fill", "--wa-fill", "--danger-fill"]) {
+      expect(contrastRatio("#ffffff", t[k]!), k).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it.each([
+    ["porcelain", light],
+    ["obsidian", dark],
   ])("%s: body text and -ink tokens reach 4.5:1 on the sheet", (_name, t) => {
-    for (const k of ["--text", "--text-2", "--danger-ink", "--warn-ink", "--ok-ink", "--meet-ink", "--accent-ink"]) {
+    for (const k of [
+      "--text",
+      "--text-2",
+      "--danger-ink",
+      "--warn-ink",
+      "--ok-ink",
+      "--meet-ink",
+      "--accent-ink",
+    ]) {
       expect(contrastRatio(t[k]!, t["--sheet"]!), k).toBeGreaterThanOrEqual(4.5);
     }
   });
@@ -182,8 +202,10 @@ describe("theme tokens", () => {
   it.each([
     ["porcelain", light],
     ["obsidian", dark],
-  ])("%s: tertiary text stays legible (3:1) for captions", (_name, t) => {
-    expect(contrastRatio(t["--text-3"]!, t["--sheet"]!)).toBeGreaterThanOrEqual(3);
+  ])("%s: tertiary text is real text too: 4.5:1 on every surface it sits on", (_name, t) => {
+    for (const bg of ["--sheet", "--sunk", "--canvas"]) {
+      expect(contrastRatio(t["--text-3"]!, t[bg]!), bg).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 ```
@@ -262,7 +284,7 @@ export function contrastRatio(a: string, b: string): number {
   --line-2: rgba(12, 18, 32, 0.12);
   --text: #0a0c11;
   --text-2: #5a606d;
-  --text-3: #858b97;
+  --text-3: #666b76;
   --accent: #2a5bff;
   --accent-rgb: 42, 91, 255;
   --accent-soft: rgba(42, 91, 255, 0.08);
@@ -283,6 +305,9 @@ export function contrastRatio(a: string, b: string): number {
   --ok-ink: #0e7f4b;
   --cyan: #0ea5b7;
   --wa: #1faf5a;
+  --accent-fill: #2a5bff;
+  --wa-fill: #0f7f44;
+  --danger-fill: #d12f35;
   --glass: rgba(255, 255, 255, 0.78);
   --hud: rgba(22, 24, 30, 0.88);
   --hud-text: #f4f5f7;
@@ -293,8 +318,12 @@ export function contrastRatio(a: string, b: string): number {
   --sb: rgba(12, 18, 32, 0.16);
   --sb-hover: rgba(12, 18, 32, 0.3);
   --sb-active: rgba(12, 18, 32, 0.42);
-  --shadow-sheet: 0 0 0 0.5px rgba(12, 18, 32, 0.08), 0 1px 2px rgba(12, 18, 32, 0.04), 0 12px 40px -12px rgba(12, 18, 32, 0.1);
-  --shadow-pop: 0 0 0 0.5px rgba(12, 18, 32, 0.1), 0 10px 30px -6px rgba(12, 18, 32, 0.18), 0 30px 80px -20px rgba(12, 18, 32, 0.22);
+  --shadow-sheet:
+    0 0 0 0.5px rgba(12, 18, 32, 0.08), 0 1px 2px rgba(12, 18, 32, 0.04),
+    0 12px 40px -12px rgba(12, 18, 32, 0.1);
+  --shadow-pop:
+    0 0 0 0.5px rgba(12, 18, 32, 0.1), 0 10px 30px -6px rgba(12, 18, 32, 0.18),
+    0 30px 80px -20px rgba(12, 18, 32, 0.22);
   --shadow-lift: 0 0 0 0.5px rgba(12, 18, 32, 0.1), 0 12px 30px -8px rgba(12, 18, 32, 0.25);
 }
 
@@ -309,7 +338,7 @@ export function contrastRatio(a: string, b: string): number {
   --line-2: rgba(255, 255, 255, 0.11);
   --text: #eef0f3;
   --text-2: #9ca1ab;
-  --text-3: #71767f;
+  --text-3: #767b84;
   --accent: #5b84ff;
   --accent-rgb: 91, 132, 255;
   --accent-soft: rgba(91, 132, 255, 0.12);
@@ -330,6 +359,9 @@ export function contrastRatio(a: string, b: string): number {
   --ok-ink: #5fe0a8;
   --cyan: #22c3d6;
   --wa: #25c366;
+  --accent-fill: #2a5bff;
+  --wa-fill: #0f7f44;
+  --danger-fill: #d12f35;
   --glass: rgba(22, 24, 29, 0.72);
   --hud: rgba(38, 41, 48, 0.86);
   --hud-text: #f4f5f7;
@@ -340,8 +372,12 @@ export function contrastRatio(a: string, b: string): number {
   --sb: rgba(255, 255, 255, 0.14);
   --sb-hover: rgba(255, 255, 255, 0.26);
   --sb-active: rgba(255, 255, 255, 0.38);
-  --shadow-sheet: 0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 20px 60px -20px rgba(0, 0, 0, 0.8);
-  --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 80px -10px rgba(0, 0, 0, 0.8);
+  --shadow-sheet:
+    0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 20px 60px -20px rgba(0, 0, 0, 0.8);
+  --shadow-pop:
+    0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 80px -10px rgba(0, 0, 0, 0.8);
   --shadow-lift: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.8);
 }
 
@@ -357,7 +393,7 @@ export function contrastRatio(a: string, b: string): number {
     --line-2: rgba(255, 255, 255, 0.11);
     --text: #eef0f3;
     --text-2: #9ca1ab;
-    --text-3: #71767f;
+    --text-3: #767b84;
     --accent: #5b84ff;
     --accent-rgb: 91, 132, 255;
     --accent-soft: rgba(91, 132, 255, 0.12);
@@ -378,6 +414,9 @@ export function contrastRatio(a: string, b: string): number {
     --ok-ink: #5fe0a8;
     --cyan: #22c3d6;
     --wa: #25c366;
+    --accent-fill: #2a5bff;
+    --wa-fill: #0f7f44;
+    --danger-fill: #d12f35;
     --glass: rgba(22, 24, 29, 0.72);
     --hud: rgba(38, 41, 48, 0.86);
     --hud-text: #f4f5f7;
@@ -388,13 +427,17 @@ export function contrastRatio(a: string, b: string): number {
     --sb: rgba(255, 255, 255, 0.14);
     --sb-hover: rgba(255, 255, 255, 0.26);
     --sb-active: rgba(255, 255, 255, 0.38);
-    --shadow-sheet: 0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 20px 60px -20px rgba(0, 0, 0, 0.8);
-    --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 80px -10px rgba(0, 0, 0, 0.8);
+    --shadow-sheet:
+      0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 20px 60px -20px rgba(0, 0, 0, 0.8);
+    --shadow-pop:
+      0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 30px 80px -10px rgba(0, 0, 0, 0.8);
     --shadow-lift: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.8);
   }
 }
 ```
-Note: `--text-3` and `--warn-ink` (Porcelain), and `--text-3` (Obsidian), are slightly stronger than in the prototypes so they pass the contrast test. Keep them.
+Note: `--text-3` (both themes) and `--warn-ink` (Porcelain) are stronger than in the prototypes: tertiary text is real text (client name, roles, hints), so it must reach 4.5:1 on sheet, sunk and canvas. Keep them.
 
 `apps/web/src/styles/base.css`:
 ```css
@@ -1127,20 +1170,65 @@ export function useDelayedFlag(active: boolean, delayMs = 150): boolean {
   white-space: nowrap;
   background: var(--raised);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
-  transition: transform 0.1s ease-out, background-color 0.15s, filter 0.15s;
+  transition:
+    transform 0.1s ease-out,
+    background-color 0.15s,
+    filter 0.15s;
 }
-.btn:hover { background: var(--hover); }
-.btn:active { transform: scale(0.97); }
-.btn:disabled { opacity: 0.45; cursor: default; }
-.sm { height: 30px; padding: 0 11px; font-size: 0.78125rem; }
-.primary { background: var(--accent); color: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15); }
-.primary:hover { background: var(--accent); filter: brightness(1.06); }
-.whatsapp { background: var(--wa); color: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
-.whatsapp:hover { background: var(--wa); filter: brightness(1.05); }
-.danger { background: var(--danger); color: #fff; box-shadow: none; }
-.danger:hover { background: var(--danger); filter: brightness(1.05); }
-.ghost { background: none; box-shadow: none; color: var(--text-2); }
-.ghost:hover { color: var(--text); }
+.btn:hover {
+  background: var(--hover);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.sm {
+  height: 30px;
+  padding: 0 11px;
+  font-size: 0.78125rem;
+}
+.primary {
+  background: var(--accent-fill);
+  color: #fff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.primary:hover {
+  background: var(--accent-fill);
+  filter: brightness(1.06);
+}
+.whatsapp {
+  background: var(--wa-fill);
+  color: #fff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.whatsapp:hover {
+  background: var(--wa-fill);
+  filter: brightness(1.05);
+}
+.danger {
+  background: var(--danger-fill);
+  color: #fff;
+  box-shadow: none;
+}
+.danger:hover {
+  background: var(--danger-fill);
+  filter: brightness(1.05);
+}
+.ghost {
+  background: none;
+  box-shadow: none;
+  color: var(--text-2);
+}
+.ghost:hover {
+  color: var(--text);
+}
 .spinner {
   width: 16px;
   height: 16px;
@@ -1150,10 +1238,23 @@ export function useDelayedFlag(active: boolean, delayMs = 150): boolean {
   opacity: 0.7;
   animation: spin 0.7s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
-.btn { position: relative; }
-.hidden { opacity: 0; }
-.btn .spinner { position: absolute; left: 50%; top: 50%; margin: -8px 0 0 -8px; }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.btn {
+  position: relative;
+}
+.hidden {
+  opacity: 0;
+}
+.btn .spinner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: -8px 0 0 -8px;
+}
 ```
 
 `Button.tsx`:
@@ -1268,7 +1369,8 @@ export function Chip({ tone = "neutral", selected = false, dot = false, children
 ```tsx
 import s from "./Avatar.module.css";
 
-const PALETTE = ["#E5484D", "#F2A20C", "#2A5BFF", "#18A566", "#6E56CF", "#0EA5B7"];
+// Deep enough that white initials reach 4.5:1 on every colour (WCAG AA).
+const PALETTE = ["#C62A30", "#A15C00", "#2A5BFF", "#0F7F44", "#5B43C8", "#0B7285"];
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -1286,7 +1388,12 @@ export function avatarColor(name: string): string {
 
 export function Avatar({ name, color, size = 28 }: { name: string; color?: string; size?: number }) {
   return (
-    <span role="img" aria-label={name} className={s.avatar} style={{ width: size, height: size, fontSize: size * 0.39, background: color ?? avatarColor(name) }}>
+    <span
+      role="img"
+      aria-label={name}
+      className={s.avatar}
+      style={{ width: size, height: size, fontSize: size * 0.39, background: color ?? avatarColor(name) }}
+    >
       {initials(name)}
     </span>
   );
@@ -2124,39 +2231,188 @@ export function NavIcon({ name }: { name: IconName }) {
 
 `shell.module.css`:
 ```css
-.app { display: grid; grid-template-columns: 244px minmax(0, 1fr); height: 100vh; }
-.side { padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; color: var(--side-text); min-height: 0; }
-.lockup { display: flex; align-items: center; gap: 11px; padding: 8px 10px 18px; }
-.lockup img { width: 28px; height: 28px; filter: drop-shadow(0 2px 6px rgba(42, 91, 255, 0.35)); }
-.brand { font-weight: 760; font-size: 0.9375rem; color: var(--text); letter-spacing: 0.06em; line-height: 1.1; display: block; }
-.client { font-size: 0.71875rem; color: var(--text-3); display: block; margin-top: 1px; }
-.nav { position: relative; display: flex; flex-direction: column; gap: 2px; }
-.link { position: relative; display: flex; align-items: center; gap: 11px; height: 34px; padding: 0 10px; border-radius: 9px; font-size: 0.84375rem; font-weight: 500; transition: color 0.2s; }
-.link:not([aria-current="page"]):hover { background: var(--hover); }
-.link:active { transform: scale(0.985); }
-.link svg { opacity: 0.75; position: relative; z-index: 1; }
-.link span { position: relative; z-index: 1; }
-.link[aria-current="page"] { color: var(--text); }
-.link[aria-current="page"] svg { opacity: 1; color: var(--accent); }
-.pill { position: absolute; inset: 0; border-radius: 9px; background: var(--sheet); box-shadow: 0 0 0 0.5px var(--line-2), 0 1px 2px rgba(0, 0, 0, 0.05); z-index: 0; }
-.spacer { flex: 1; }
-.me { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
-.meName { font-size: 0.8125rem; font-weight: 580; color: var(--text); display: block; }
-.meRole { font-size: 0.71875rem; color: var(--text-3); display: block; }
-.main { margin: 8px 8px 8px 0; background: var(--sheet); border-radius: var(--r-sheet); box-shadow: var(--shadow-sheet); display: flex; flex-direction: column; overflow: hidden; min-width: 0; transition: background-color 0.4s; }
-.bar { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px 0 28px; border-bottom: 0.5px solid var(--line); flex: none; }
-.crumb { font-weight: 600; font-size: 0.875rem; letter-spacing: -0.01em; }
-.search { margin-left: auto; display: flex; align-items: center; gap: 8px; height: 34px; width: 300px; padding: 0 10px 0 12px; border-radius: var(--r-ctl); background: var(--sunk); box-shadow: inset 0 0 0 0.5px var(--line); color: var(--text-3); font-size: 0.8125rem; }
-.search:hover { box-shadow: inset 0 0 0 0.5px var(--line-2); }
-.search kbd { margin-left: auto; }
-.scroll { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; }
-.page { max-width: 1160px; margin: 0 auto; padding: 34px 36px 110px; min-width: 0; }
+.app {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  height: 100vh;
+}
+.side {
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--side-text);
+  min-height: 0;
+}
+.lockup {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px 18px;
+}
+.lockup img {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 2px 6px rgba(42, 91, 255, 0.35));
+}
+.brand {
+  font-weight: 760;
+  font-size: 0.9375rem;
+  color: var(--text);
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  display: block;
+}
+.client {
+  font-size: 0.71875rem;
+  color: var(--text-3);
+  display: block;
+  margin-top: 1px;
+}
+.nav {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 0.84375rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.link:not([aria-current="page"]):hover {
+  background: var(--hover);
+}
+.link:active {
+  transform: scale(0.985);
+}
+.link svg {
+  opacity: 0.75;
+  position: relative;
+  z-index: 1;
+}
+.label {
+  position: relative;
+  z-index: 1;
+}
+.link[aria-current="page"] {
+  color: var(--text);
+}
+.link[aria-current="page"] svg {
+  opacity: 1;
+  color: var(--accent);
+}
+.pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+  z-index: 0;
+}
+.spacer {
+  flex: 1;
+}
+.me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+.meName {
+  font-size: 0.8125rem;
+  font-weight: 580;
+  color: var(--text);
+  display: block;
+}
+.meRole {
+  font-size: 0.71875rem;
+  color: var(--text-3);
+  display: block;
+}
+.main {
+  margin: 8px 8px 8px 0;
+  background: var(--sheet);
+  border-radius: var(--r-sheet);
+  box-shadow: var(--shadow-sheet);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  transition: background-color 0.4s;
+}
+.bar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px 0 28px;
+  border-bottom: 0.5px solid var(--line);
+  flex: none;
+}
+.crumb {
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+}
+.search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  width: 300px;
+  padding: 0 10px 0 12px;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  color: var(--text-3);
+  font-size: 0.8125rem;
+}
+.search:hover {
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.search kbd {
+  margin-left: auto;
+}
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+.page {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 34px 36px 110px;
+  min-width: 0;
+}
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; }
-  .side { display: none; }
-  .main { margin: 0; border-radius: 0; }
-  .search { width: auto; }
-  .page { padding: 22px 16px 96px; }
+  .app {
+    grid-template-columns: 1fr;
+  }
+  .side {
+    display: none;
+  }
+  .main {
+    margin: 0;
+    border-radius: 0;
+  }
+  .search {
+    width: auto;
+  }
+  .page {
+    padding: 22px 16px 96px;
+  }
 }
 ```
 
@@ -2214,7 +2470,7 @@ export function Sidebar({ businessName, user, can }: Props) {
                 />
               )}
               <NavIcon name={i.icon} />
-              <span>{i.label}</span>
+              <span className={s.label}>{i.label}</span>
             </Link>
           );
         })}
@@ -2856,33 +3112,216 @@ export async function verifyOtp(code: string): Promise<"ok" | "invalid" | "unava
 
 `auth.module.css`:
 ```css
-.page { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; background: var(--canvas); }
-.aura { position: absolute; inset: -20%; pointer-events: none; }
-.aura i { position: absolute; border-radius: 50%; filter: blur(70px); }
-.aura i:nth-child(1) { left: 22%; top: 18%; width: 46vw; height: 46vw; background: rgba(var(--accent-rgb), 0.16); }
-.aura i:nth-child(2) { left: 48%; top: 36%; width: 34vw; height: 34vw; background: rgba(22, 181, 255, 0.14); }
-.wrap { position: relative; width: min(380px, calc(100vw - 32px)); text-align: center; }
-.mark { width: 76px; height: 76px; margin: 0 auto; filter: drop-shadow(0 12px 30px rgba(42, 91, 255, 0.45)); }
-.brand { margin-top: 20px; }
-.brand h1 { font-size: 1.875rem; font-weight: 780; letter-spacing: 0.14em; padding-left: 0.14em; line-height: 1; }
-.brand p { color: var(--text-2); font-size: 0.875rem; margin-top: 8px; }
-.card { margin-top: 30px; padding: 24px; border-radius: 20px; background: var(--glass); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%); box-shadow: var(--shadow-pop); text-align: left; }
-.field { margin-bottom: 12px; }
-.field label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
-.input { width: 100%; height: 44px; border-radius: 11px; padding: 0 14px; background: var(--sheet); box-shadow: inset 0 0 0 0.5px var(--line-2); outline: 0; font-size: 0.90625rem; transition: box-shadow 0.2s; }
-.input:focus { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 4px var(--accent-soft); }
-.input[aria-invalid="true"] { box-shadow: inset 0 0 0 1.5px var(--danger), 0 0 0 4px var(--danger-soft); }
-.error { font-size: 0.78125rem; color: var(--danger-ink); padding: 2px 0 8px; }
-.submit { width: 100%; height: 46px; margin-top: 4px; }
-.fine { font-size: 0.75rem; color: var(--text-3); margin-top: 16px; display: flex; justify-content: space-between; gap: 12px; }
-.fine a { color: var(--accent-ink); font-weight: 560; }
-.otpTitle { font-weight: 650; font-size: 0.96875rem; text-align: center; }
-.otpSub { font-size: 0.8125rem; color: var(--text-2); text-align: center; margin: 4px 0 14px; }
-.otp { display: flex; gap: 8px; justify-content: center; }
-.otp input { width: 46px; height: 54px; border-radius: 12px; text-align: center; font-size: 1.375rem; font-weight: 650; font-variant-numeric: tabular-nums; background: var(--sheet); box-shadow: inset 0 0 0 0.5px var(--line-2); outline: 0; transition: box-shadow 0.2s; }
-.otp input:focus { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 4px var(--accent-soft); }
-@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
-.shake { animation: shake 0.42s ease; }
+.page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--canvas);
+}
+.aura {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+}
+.aura i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+.aura i:nth-child(1) {
+  left: 22%;
+  top: 18%;
+  width: 46vw;
+  height: 46vw;
+  background: rgba(var(--accent-rgb), 0.16);
+}
+.aura i:nth-child(2) {
+  left: 48%;
+  top: 36%;
+  width: 34vw;
+  height: 34vw;
+  background: rgba(22, 181, 255, 0.14);
+}
+.wrap {
+  position: relative;
+  width: min(380px, calc(100vw - 32px));
+  text-align: center;
+}
+.mark {
+  width: 76px;
+  height: 76px;
+  margin: 0 auto;
+  filter: drop-shadow(0 12px 30px rgba(42, 91, 255, 0.45));
+}
+.brand {
+  margin-top: 20px;
+}
+.brand h1 {
+  font-size: 1.875rem;
+  font-weight: 780;
+  letter-spacing: 0.14em;
+  padding-left: 0.14em;
+  line-height: 1;
+}
+.brand p {
+  color: var(--text-2);
+  font-size: 0.875rem;
+  margin-top: 8px;
+}
+.card {
+  margin-top: 30px;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  text-align: left;
+}
+.field {
+  margin-bottom: 12px;
+}
+.field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.input {
+  width: 100%;
+  height: 44px;
+  border-radius: 11px;
+  padding: 0 14px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  outline: 0;
+  font-size: 0.90625rem;
+  transition: box-shadow 0.2s;
+}
+.input:focus {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.input[aria-invalid="true"] {
+  box-shadow:
+    inset 0 0 0 1.5px var(--danger),
+    0 0 0 4px var(--danger-soft);
+}
+.error {
+  font-size: 0.78125rem;
+  color: var(--danger-ink);
+  padding: 2px 0 8px;
+}
+.submit {
+  width: 100%;
+  height: 46px;
+  margin-top: 4px;
+}
+.fine {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.fine a {
+  color: var(--accent-ink);
+  font-weight: 560;
+}
+.otpTitle {
+  font-weight: 650;
+  font-size: 0.96875rem;
+  text-align: center;
+}
+.otpSub {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  text-align: center;
+  margin: 4px 0 14px;
+}
+.otp {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.otp input {
+  width: 46px;
+  height: 54px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 1.375rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  outline: 0;
+  transition: box-shadow 0.2s;
+}
+.otp input:focus {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(7px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+.shake {
+  animation: shake 0.42s ease;
+}
+
+/* Page-load entrance (spec §5.4): the six petals bloom, the wordmark settles, the card rises.
+   base.css collapses these to their end state under prefers-reduced-motion. */
+.mark {
+  animation: bloom 1.3s var(--spring-bounce) both;
+}
+.brand {
+  animation: rise 1.1s var(--spring-soft) 0.35s both;
+}
+.card {
+  animation: rise 1.4s var(--spring-soft) 0.56s both;
+}
+@keyframes bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.35) rotate(-120deg);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: drop-shadow(0 12px 30px rgba(42, 91, 255, 0.45));
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 ```
 
 `OtpInput.tsx`:
@@ -3022,46 +3461,86 @@ export function SignInForm({ businessName, onSignIn, onVerify, onSuccess }: Prop
     shake();
   }
 
-  const bloom = reduce
-    ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
-    : { initial: { opacity: 0, scale: 0.35, rotate: -120, filter: "blur(8px)" }, animate: { opacity: 1, scale: 1, rotate: 0, filter: "blur(0px)" } };
+  // Reduced motion: no entrance at all, the page is simply there (spec §5.2).
 
   return (
     <div className={s.wrap}>
-      <motion.img src="/lume-mark.png" alt="" className={s.mark} {...bloom} transition={{ ...toMotion(SPRINGS.bounce), visualDuration: 1.1 }} />
-      <motion.div className={s.brand} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ ...toMotion(SPRINGS.soft), delay: reduce ? 0 : 0.35 }}>
+      {/* Page-load entrance is CSS (auth.module.css): it applies before first paint, so the server-rendered
+          HTML and the client agree, and prefers-reduced-motion switches it off natively. */}
+      <img src="/lume-mark.png" alt="" className={s.mark} />
+      <div className={s.brand}>
         <h1>LUME</h1>
         <p>{businessName}</p>
-      </motion.div>
-      <motion.div ref={card} className={s.card} initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ ...toMotion(SPRINGS.soft), delay: reduce ? 0 : 0.56 }}>
+      </div>
+      <div ref={card} className={s.card}>
         <AnimatePresence mode="wait" initial={false}>
           {step === "password" ? (
-            <motion.form key="pw" onSubmit={submit} noValidate initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={toMotion(SPRINGS.default)}>
+            <motion.form
+              key="pw"
+              onSubmit={submit}
+              noValidate
+              initial={{ opacity: 0, x: -24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={toMotion(SPRINGS.default)}
+            >
               <div className={s.field}>
                 <label htmlFor="email">Email</label>
-                <input id="email" name="email" type="email" autoComplete="username" required className={s.input} />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  required
+                  className={s.input}
+                />
               </div>
               <div className={s.field}>
                 <label htmlFor="password">Password</label>
-                <input id="password" name="password" type="password" autoComplete="current-password" required className={s.input} aria-invalid={error ? true : undefined} aria-describedby={error ? "signin-error" : undefined} />
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  className={s.input}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "signin-error" : undefined}
+                />
               </div>
-              {error && <p id="signin-error" role="alert" className={s.error}>{error}</p>}
-              <Button type="submit" variant="primary" className={s.submit} loading={busy}>Sign in</Button>
+              {error && (
+                <p id="signin-error" role="alert" className={s.error}>
+                  {error}
+                </p>
+              )}
+              <Button type="submit" variant="primary" className={s.submit} loading={busy}>
+                Sign in
+              </Button>
               <div className={s.fine}>
                 <span>Private workspace. Invite only.</span>
                 <a href="/forgot-password">Forgot password?</a>
               </div>
             </motion.form>
           ) : (
-            <motion.div key="otp" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }} transition={toMotion(SPRINGS.default)}>
+            <motion.div
+              key="otp"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 24 }}
+              transition={toMotion(SPRINGS.default)}
+            >
               <p className={s.otpTitle}>Two-step check</p>
               <p className={s.otpSub}>Enter the 6-digit code from your authenticator app.</p>
               <OtpInput key={otpKey} onComplete={verify} disabled={busy} />
-              {error && <p role="alert" className={s.error} style={{ textAlign: "center", marginTop: 10 }}>{error}</p>}
+              {error && (
+                <p role="alert" className={s.error} style={{ textAlign: "center", marginTop: 10 }}>
+                  {error}
+                </p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -3137,9 +3616,12 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.GITHUB_ACTIONS ? [["github"], ["list"]] : "list",
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled" } },
+  // Same container everywhere, so renders are deterministic: allow only anti-aliasing noise.
+  expect: { toHaveScreenshot: { maxDiffPixels: 100, animations: "disabled" } },
   use: { baseURL: "http://127.0.0.1:3100", reducedMotion: "reduce", viewport: { width: 1366, height: 800 } },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1366, height: 800 } } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1366, height: 800 } } },
+  ],
   webServer: {
     command: "pnpm build && pnpm start -p 3100 -H 127.0.0.1",
     url: "http://127.0.0.1:3100/sign-in",
@@ -3152,6 +3634,20 @@ export default defineConfig({
 Add to `apps/web/package.json` scripts: `"e2e": "playwright install chromium && playwright test"`. Also make `apps/web/vitest.config.ts` exclude `e2e/**` (its `include` already limits to `src/**`). Add `apps/web/test-results/` and `apps/web/playwright-report/` to `.gitignore`.
 
 - [ ] **Step 3: Write the e2e tests (they fail: no /design page yet)**
+
+`apps/web/e2e/settle.ts` (shared by the a11y and visual specs: measure only settled pages):
+```ts
+import type { Page } from "@playwright/test";
+
+/** Wait for the page to be visually settled: fonts loaded, no running animations, a short idle. */
+export async function settle(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, {
+    timeout: 8000,
+  });
+  await page.waitForTimeout(600);
+}
+```
 
 `apps/web/e2e/shell.spec.ts`:
 ```ts
@@ -3198,14 +3694,22 @@ test("every response carries a nonce CSP", async ({ page }) => {
 ```ts
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { settle } from "./settle";
 
 for (const theme of ["porcelain", "obsidian"] as const) {
   for (const path of ["/sign-in", "/today", "/design"]) {
     test(`${path} has no axe violations (${theme})`, async ({ page, context }) => {
       await context.addCookies([{ name: "lume_theme", value: theme, url: "http://127.0.0.1:3100" }]);
       await page.goto(path);
-      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-      expect(results.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+      await settle(page); // measure the settled page, not a frame mid-entrance
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze();
+      const detail = results.violations.map(
+        (v) =>
+          `${v.id}: ${v.nodes.map((n) => `${n.target.join(" ")} (${n.any[0]?.message ?? n.failureSummary})`).join(" | ")}`,
+      );
+      expect(detail).toEqual([]);
     });
   }
 }
@@ -3214,16 +3718,21 @@ for (const theme of ["porcelain", "obsidian"] as const) {
 `apps/web/e2e/visual.spec.ts`:
 ```ts
 import { expect, test } from "@playwright/test";
+import { settle } from "./settle";
 
 for (const theme of ["porcelain", "obsidian"] as const) {
   test.describe(theme, () => {
     test.beforeEach(async ({ context }) => {
       await context.addCookies([{ name: "lume_theme", value: theme, url: "http://127.0.0.1:3100" }]);
     });
-    for (const [name, path] of [["design", "/design"], ["sign-in", "/sign-in"], ["today", "/today"]] as const) {
+    for (const [name, path] of [
+      ["design", "/design"],
+      ["sign-in", "/sign-in"],
+      ["today", "/today"],
+    ] as const) {
       test(name, async ({ page }) => {
         await page.goto(path);
-        await page.evaluate(() => document.fonts.ready);
+        await settle(page);
         await expect(page).toHaveScreenshot(`${name}-${theme}.png`, { fullPage: true });
       });
     }
@@ -3238,14 +3747,17 @@ Expected: FAIL. `/design` returns 404, and snapshots are missing.
 
 `apps/web/src/app/design/page.tsx`:
 ```tsx
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { THEME_COOKIE, parseThemePref } from "@/lib/theme";
 import { Showcase } from "./Showcase";
 
 export const metadata = { title: "Design system · LUME" };
 
-export default function DesignPage() {
+export default async function DesignPage() {
   if (process.env.NODE_ENV === "production" && process.env.LUME_DESIGN_SHOWCASE !== "1") notFound();
-  return <Showcase />;
+  const theme = parseThemePref((await cookies()).get(THEME_COOKIE)?.value);
+  return <Showcase theme={theme} />;
 }
 ```
 
@@ -3266,31 +3778,64 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Switch } from "@/components/ui/Switch";
+import type { ThemePref } from "@/lib/theme";
 
-const SWATCHES = ["canvas", "sheet", "sunk", "text", "text-2", "text-3", "accent", "danger", "warn", "meet", "ok", "cyan", "wa"];
+const SWATCHES = [
+  "canvas",
+  "sheet",
+  "sunk",
+  "text",
+  "text-2",
+  "text-3",
+  "accent",
+  "danger",
+  "warn",
+  "meet",
+  "ok",
+  "cyan",
+  "wa",
+];
 const section = { padding: "24px 0", borderTop: "0.5px solid var(--line)" } as const;
 const row = { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } as const;
 
-export function Showcase() {
+export function Showcase({ theme }: { theme: ThemePref }) {
   const [range, setRange] = useState<"7" | "30" | "90">("30");
   const [cmp, setCmp] = useState(false);
   const [done, setDone] = useState(false);
   const [n, setN] = useState(42500);
   const { toast } = useToast();
   return (
-    <main style={{ maxWidth: 980, margin: "0 auto", padding: "36px 24px 120px", background: "var(--sheet)", minHeight: "100vh" }}>
+    <main
+      style={{
+        maxWidth: 980,
+        margin: "0 auto",
+        padding: "36px 24px 120px",
+        background: "var(--sheet)",
+        minHeight: "100vh",
+      }}
+    >
       <div style={{ ...row, justifyContent: "space-between" }}>
         <h1 className="t-page">LUME design system</h1>
-        <ThemeToggle initial="system" />
+        <ThemeToggle initial={theme} />
       </div>
-      <p className="t-meta" style={{ marginTop: 6 }}>Every primitive, in both themes. Visual snapshots and accessibility checks run against this page.</p>
+      <p className="t-meta" style={{ marginTop: 6 }}>
+        Every primitive, in both themes. Visual snapshots and accessibility checks run against this page.
+      </p>
 
       <section style={section}>
         <h2 className="t-section">Colour tokens</h2>
         <div style={{ ...row, marginTop: 12 }}>
           {SWATCHES.map((t) => (
             <div key={t} style={{ textAlign: "center", fontSize: 11, color: "var(--text-2)" }}>
-              <div style={{ width: 56, height: 40, borderRadius: 10, background: `var(--${t})`, boxShadow: "inset 0 0 0 0.5px var(--line-2)" }} />
+              <div
+                style={{
+                  width: 56,
+                  height: 40,
+                  borderRadius: 10,
+                  background: `var(--${t})`,
+                  boxShadow: "inset 0 0 0 0.5px var(--line-2)",
+                }}
+              />
               {t}
             </div>
           ))}
@@ -3305,7 +3850,9 @@ export function Showcase() {
           <Button variant="ghost">Ghost</Button>
           <Button variant="whatsapp">Send on WhatsApp</Button>
           <Button variant="danger">End sessions</Button>
-          <Button variant="primary" loading>Saving</Button>
+          <Button variant="primary" loading>
+            Saving
+          </Button>
           <Button size="sm">Small</Button>
           <Kbd>Ctrl K</Kbd>
         </div>
@@ -3314,11 +3861,21 @@ export function Showcase() {
       <section style={section}>
         <h2 className="t-section">Chips and avatars</h2>
         <div style={{ ...row, marginTop: 12 }}>
-          <Chip tone="danger" dot>Overdue</Chip>
-          <Chip tone="warn" dot>Due soon</Chip>
-          <Chip tone="meet" dot>Meeting</Chip>
-          <Chip tone="ok" dot>Won</Chip>
-          <Chip tone="accent" selected>Selected</Chip>
+          <Chip tone="danger" dot>
+            Overdue
+          </Chip>
+          <Chip tone="warn" dot>
+            Due soon
+          </Chip>
+          <Chip tone="meet" dot>
+            Meeting
+          </Chip>
+          <Chip tone="ok" dot>
+            Won
+          </Chip>
+          <Chip tone="accent" selected>
+            Selected
+          </Chip>
           <Avatar name="Aisha Khan" />
           <Avatar name="Rohan Malik" />
           <Avatar name="Tasneem" size={40} />
@@ -3328,7 +3885,16 @@ export function Showcase() {
       <section style={section}>
         <h2 className="t-section">Controls</h2>
         <div style={{ ...row, marginTop: 12 }}>
-          <SegmentedControl label="Range" value={range} options={[{ value: "7", label: "7D" }, { value: "30", label: "30D" }, { value: "90", label: "90D" }]} onChange={setRange} />
+          <SegmentedControl
+            label="Range"
+            value={range}
+            options={[
+              { value: "7", label: "7D" },
+              { value: "30", label: "30D" },
+              { value: "90", label: "90D" },
+            ]}
+            onChange={setRange}
+          />
           <Switch checked={cmp} onChange={setCmp} label="Compare to previous" />
           <CheckCircle checked={done} onChange={setDone} label="Mark follow-up done" />
         </div>
@@ -3339,7 +3905,9 @@ export function Showcase() {
         <div style={{ ...row, marginTop: 12, fontSize: 26, fontWeight: 660, letterSpacing: "-0.03em" }}>
           <span>AED&nbsp;</span>
           <Odometer value={n} format={(v) => v.toLocaleString("en-US")} label="Revenue" />
-          <Button size="sm" onClick={() => setN((v) => v + 1375)}>+1,375</Button>
+          <Button size="sm" onClick={() => setN((v) => v + 1375)}>
+            +1,375
+          </Button>
           <ProgressRing value={0.66} label="Cleared today" />
         </div>
       </section>
@@ -3347,8 +3915,22 @@ export function Showcase() {
       <section style={section}>
         <h2 className="t-section">Feedback</h2>
         <div style={{ ...row, marginTop: 12 }}>
-          <Button onClick={() => toast({ tone: "ok", title: "Follow-up done", detail: "Aisha Khan · 3 of 6 cleared", sound: "done", action: { label: "Undo", onClick: () => undefined } })}>Success toast</Button>
-          <Button onClick={() => toast({ tone: "warn", title: "Snoozed until tomorrow 10:00" })}>Silent toast</Button>
+          <Button
+            onClick={() =>
+              toast({
+                tone: "ok",
+                title: "Follow-up done",
+                detail: "Aisha Khan · 3 of 6 cleared",
+                sound: "done",
+                action: { label: "Undo", onClick: () => undefined },
+              })
+            }
+          >
+            Success toast
+          </Button>
+          <Button onClick={() => toast({ tone: "warn", title: "Snoozed until tomorrow 10:00" })}>
+            Silent toast
+          </Button>
         </div>
         <div style={{ display: "grid", gap: 8, marginTop: 16, maxWidth: 420 }}>
           <Skeleton width={140} height={12} />
@@ -3358,7 +3940,10 @@ export function Showcase() {
       </section>
 
       <section style={section}>
-        <EmptyState title="You’re all caught up" body="Nothing needs you right now. New follow-ups and bookings will land here." />
+        <EmptyState
+          title="You’re all caught up"
+          body="Nothing needs you right now. New follow-ups and bookings will land here."
+        />
       </section>
     </main>
   );

@@ -1,6 +1,7 @@
 import s from "./Avatar.module.css";
 
-const PALETTE = ["#E5484D", "#F2A20C", "#2A5BFF", "#18A566", "#6E56CF", "#0EA5B7"];
+// Deep enough that white initials reach 4.5:1 on every colour (WCAG AA).
+const PALETTE = ["#C62A30", "#A15C00", "#2A5BFF", "#0F7F44", "#5B43C8", "#0B7285"];
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

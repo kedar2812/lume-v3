@@ -61,38 +61,18 @@ export function SignInForm({ businessName, onSignIn, onVerify, onSuccess }: Prop
     shake();
   }
 
-  const bloom = reduce
-    ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
-    : {
-        initial: { opacity: 0, scale: 0.35, rotate: -120, filter: "blur(8px)" },
-        animate: { opacity: 1, scale: 1, rotate: 0, filter: "blur(0px)" },
-      };
+  // Reduced motion: no entrance at all, the page is simply there (spec §5.2).
 
   return (
     <div className={s.wrap}>
-      <motion.img
-        src="/lume-mark.png"
-        alt=""
-        className={s.mark}
-        {...bloom}
-        transition={{ ...toMotion(SPRINGS.bounce), visualDuration: 1.1 }}
-      />
-      <motion.div
-        className={s.brand}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...toMotion(SPRINGS.soft), delay: reduce ? 0 : 0.35 }}
-      >
+      {/* Page-load entrance is CSS (auth.module.css): it applies before first paint, so the server-rendered
+          HTML and the client agree, and prefers-reduced-motion switches it off natively. */}
+      <img src="/lume-mark.png" alt="" className={s.mark} />
+      <div className={s.brand}>
         <h1>LUME</h1>
         <p>{businessName}</p>
-      </motion.div>
-      <motion.div
-        ref={card}
-        className={s.card}
-        initial={{ opacity: 0, y: 18, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ ...toMotion(SPRINGS.soft), delay: reduce ? 0 : 0.56 }}
-      >
+      </div>
+      <div ref={card} className={s.card}>
         <AnimatePresence mode="wait" initial={false}>
           {step === "password" ? (
             <motion.form
@@ -160,7 +140,7 @@ export function SignInForm({ businessName, onSignIn, onVerify, onSuccess }: Prop
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
     </div>
   );
 }

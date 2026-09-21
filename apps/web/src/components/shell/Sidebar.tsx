@@ -50,7 +50,7 @@ export function Sidebar({ businessName, user, can }: Props) {
                 />
               )}
               <NavIcon name={i.icon} />
-              <span>{i.label}</span>
+              <span className={s.label}>{i.label}</span>
             </Link>
           );
         })}

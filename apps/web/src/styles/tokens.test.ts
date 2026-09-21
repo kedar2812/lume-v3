@@ -39,6 +39,15 @@ describe("theme tokens", () => {
   it.each([
     ["porcelain", light],
     ["obsidian", dark],
+  ])("%s: white text on every -fill token reaches 4.5:1 (filled buttons)", (_name, t) => {
+    for (const k of ["--accent-fill", "--wa-fill", "--danger-fill"]) {
+      expect(contrastRatio("#ffffff", t[k]!), k).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it.each([
+    ["porcelain", light],
+    ["obsidian", dark],
   ])("%s: body text and -ink tokens reach 4.5:1 on the sheet", (_name, t) => {
     for (const k of [
       "--text",
@@ -56,7 +65,9 @@ describe("theme tokens", () => {
   it.each([
     ["porcelain", light],
     ["obsidian", dark],
-  ])("%s: tertiary text stays legible (3:1) for captions", (_name, t) => {
-    expect(contrastRatio(t["--text-3"]!, t["--sheet"]!)).toBeGreaterThanOrEqual(3);
+  ])("%s: tertiary text is real text too: 4.5:1 on every surface it sits on", (_name, t) => {
+    for (const bg of ["--sheet", "--sunk", "--canvas"]) {
+      expect(contrastRatio(t["--text-3"]!, t[bg]!), bg).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

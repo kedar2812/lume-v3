@@ -50,8 +50,18 @@ jobs:
           for i in 1 2; do docker run --rm -v "$PWD/infra/scripts:/s:ro" ubuntu:24.04 bash /s/bootstrap-server.sh --dry-run > "$RUNNER_TEMP/bs$i.log"; done
           diff "$RUNNER_TEMP/bs1.log" "$RUNNER_TEMP/bs2.log"
 
+  e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolbox image (same environment as local runs, so screenshots match)
+        run: docker build -t lumedev-toolbox infra/toolbox
+      - name: Playwright in the toolbox
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo -e CI=1 -e GITHUB_ACTIONS=true lumedev-toolbox             bash -lc "pnpm install --frozen-lockfile && cd apps/web && pnpm e2e"
+
   images:
-    needs: check
+    needs: [check, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions: { contents: read, packages: write }
