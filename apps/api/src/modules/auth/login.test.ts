@@ -78,7 +78,8 @@ describe("POST /auth/login (report §12.1)", () => {
     expect(replay.json().error.code).toBe("INVALID_CODE");
   });
 
-  it("locks the account after 10 failures and says so with Retry-After", async () => {
+  it("locks the account after 10 failures, says so with Retry-After and alerts the owner", async () => {
+    const owner = await h.seedUser({ owner: true, totp: true });
     const u = await h.seedUser({ grants: [] });
     let last;
     for (let i = 0; i < 12; i++) {
@@ -92,6 +93,10 @@ describe("POST /auth/login (report §12.1)", () => {
       (await h.pool.query("SELECT count(*)::int n FROM audit_log WHERE action = 'user.login.locked'")).rows[0]
         .n,
     ).toBe(1);
+    const alerts = h.mail.filter((m) => m.kind === "lockout");
+    expect(alerts.map((m) => m.to)).toEqual([owner.email]);
+    expect(alerts[0]!.text).toContain(`${u.email[0]}•••@test.lume`);
+    expect(alerts[0]!.text).not.toContain(u.email);
   });
 
   it("logout revokes the session", async () => {

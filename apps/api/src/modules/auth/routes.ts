@@ -9,7 +9,8 @@ import { audit } from "../../audit/audit";
 import { clearSessionCookie } from "../../auth/cookies";
 import { revokeSession } from "../../auth/sessions";
 import { unauthorized } from "../../http/errors";
-import { emailSchema as email, passwordInput, totpCodeSchema } from "../../http/schemas";
+import { emailSchema as email, passwordInput, totpCodeSchema, urlTokenSchema } from "../../http/schemas";
+import { forgotPassword, resetPassword } from "./password";
 import { login, recoveryCode, secondFactor, type LockoutHook } from "./service";
 
 const self = { permission: "auth.self" as const, allowDuringEnrolment: true };
@@ -34,6 +35,26 @@ export async function authRoutes(
     "/api/v1/auth/recovery",
     { config: { public: true }, schema: { body: z.object({ code: z.string().min(10).max(20) }) } },
     (req, reply) => recoveryCode(req, reply, d, req.body.code),
+  );
+
+  r.post(
+    "/api/v1/auth/password/forgot",
+    { config: { public: true }, schema: { body: z.object({ email }) } },
+    async (req, reply) => {
+      await forgotPassword(req, d, req.body.email);
+      return reply.code(202).send();
+    },
+  );
+  r.post(
+    "/api/v1/auth/password/reset",
+    {
+      config: { public: true },
+      schema: { body: z.object({ token: urlTokenSchema, password: passwordInput }) },
+    },
+    async (req, reply) => {
+      await resetPassword(req, d, req.body.token, req.body.password);
+      return reply.code(204).send();
+    },
   );
 
   r.post("/api/v1/auth/logout", { config: self }, async (req, reply) => {

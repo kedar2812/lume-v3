@@ -10,7 +10,9 @@ import type { SetupTokens } from "./auth/setup-token";
 import { dbContext } from "./db/context";
 import { dbChecks } from "./health";
 import type { Mailer } from "./mail/mailer";
+import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
+import { inviteRoutes } from "./modules/invites/routes";
 import { meRoutes } from "./modules/me/routes";
 import { memoSettings } from "./modules/settings/service";
 import { setupRoutes } from "./modules/setup/routes";
@@ -64,7 +66,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         dbContext(scope, { pool: deps.pool });
         await scope.register(csrfRoutes, { secure: deps.config.cookieSecure });
         await scope.register(setupRoutes, deps);
-        await scope.register(authRoutes, deps);
+        await scope.register(authRoutes, { ...deps, onLockout: lockoutAlerts(deps) });
+        await scope.register(inviteRoutes, deps);
         await scope.register(meRoutes, deps);
         deps.extraRoutes?.(scope);
       },

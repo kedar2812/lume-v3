@@ -117,6 +117,8 @@ case "${1:-}" in
   compose) shift; compose "$@" ;;
   remote) shift; remote "cd $REMOTE_SRC && $*" ;;
   fetch) shift; for p in "$@"; do scp -q "$HOST:$REMOTE_SRC/$p" "$p"; done ;;
-  tunnel) echo "https://lume.localhost:8443 → $HOST (Ctrl+C to stop)"; ssh -N -L 8443:127.0.0.1:8443 "$HOST" ;;
+  tunnel)
+    echo "https://lume.localhost:8443 and Mailpit http://127.0.0.1:8025 → $HOST (Ctrl+C to stop)"
+    ssh -N -L 8443:127.0.0.1:8443 -L 8025:127.0.0.1:8025 "$HOST" ;;
   *) echo "usage: dev.sh {init|sync|toolbox|run|add|fmt|test-db|up|down|ps|logs|compose|remote|fetch|tunnel}" >&2; exit 2 ;;
 esac
