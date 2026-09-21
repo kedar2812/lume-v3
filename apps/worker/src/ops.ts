@@ -71,7 +71,7 @@ export function makeOpsJobs(d: OpsDeps): OpsJobs {
       await d.recordRestoreTest({
         startedAt,
         finishedAt: d.now(),
-        backupName: typeof backup === "string" ? backup : "(none)",
+        backupName: typeof backup === "string" && backup !== "" ? backup : "(none)",
         ok: failure === null && ok === true,
         details,
       });

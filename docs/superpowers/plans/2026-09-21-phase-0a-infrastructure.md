@@ -1987,7 +1987,7 @@ export function makeOpsJobs(d: OpsDeps): OpsJobs {
       await d.recordRestoreTest({
         startedAt,
         finishedAt: d.now(),
-        backupName: typeof backup === "string" ? backup : "(none)",
+        backupName: typeof backup === "string" && backup !== "" ? backup : "(none)",
         ok: failure === null && ok === true,
         details,
       });
@@ -2523,6 +2523,8 @@ WORKDIR /app
 COPY --from=build /src/apps/worker/dist ./dist
 COPY --from=build /src/packages/db/migrations ./migrations
 COPY --from=build /src/infra/scripts/backup.sh /src/infra/scripts/restore-test.sh ./scripts/
+# Owned by node so a fresh named volume mounted here inherits writable ownership.
+RUN install -d -o node -g node /var/lib/lume/offsite
 USER node
 CMD ["node", "dist/main.js"]
 ```
@@ -3156,7 +3158,7 @@ scripts/dev.sh up
 scripts/dev.sh remote bash infra/scripts/smoke.sh
 scripts/dev.sh compose exec -T worker node dist/main.js run-now ops.backup
 scripts/dev.sh compose exec -T worker node dist/main.js run-now ops.restore-test
-scripts/dev.sh compose exec -T db psql -U postgres -d lume -Atc "SELECT backup_name, ok, details FROM ops_restore_tests ORDER BY id DESC LIMIT 1"
+scripts/dev.sh compose exec -T -u postgres db psql -U postgres -d lume -Atc "SELECT backup_name, ok, details FROM ops_restore_tests ORDER BY id DESC LIMIT 1"
 scripts/dev.sh compose stop db && sleep 3 && scripts/dev.sh remote "curl -sk --resolve lume.localhost:8443:127.0.0.1 -o /dev/null -w '%{http_code}\n' https://lume.localhost:8443/readyz"
 scripts/dev.sh compose start db && sleep 8 && scripts/dev.sh remote bash infra/scripts/smoke.sh
 scripts/dev.sh compose exec -T worker sh -c 'ls -l /var/lib/lume/offsite'
@@ -3195,13 +3197,16 @@ Expected: the `pg_restore --list` header lines (archive details). This proves th
 1. Provision Ubuntu 24.04, run `infra/scripts/bootstrap-server.sh --deploy-key "<key>"`.
 2. Put `.env` (from the password manager) and `secrets/restore.agekey` in `/srv/lume`, then `docker compose pull`.
 3. Start only the database: `docker compose up -d db` (roles are created on first boot).
-4. Fetch the newest backup: `rclone copyto offsite:<path>/<name> /tmp/b.age` (or download it from the bucket UI).
-5. Decrypt on the server using the offline key over stdin, so it never lands on disk:
-   `ssh deploy@server 'age -d -i /dev/stdin /tmp/b.age > /tmp/b.dump' < offline.agekey`
+4. Fetch the newest backup with the worker image, which ships rclone and age (the host has neither):
+   `docker compose run --rm --no-deps -v /tmp/lume-restore:/work worker sh -c 'rclone lsf "$RCLONE_REMOTE" | sort | tail -n 1'` to find the name, then
+   `docker compose run --rm --no-deps -v /tmp/lume-restore:/work worker sh -c 'rclone copyto "$RCLONE_REMOTE/<name>" /work/b.age'`
+   (or download it from the bucket UI into `/tmp/lume-restore/b.age`).
+5. Decrypt on the server with the offline key streamed over SSH stdin, so the key never lands on disk:
+   `ssh deploy@server 'cd /srv/lume && docker compose run --rm -T --no-deps -v /tmp/lume-restore:/work worker sh -c "age -d -i /dev/stdin -o /work/b.dump /work/b.age"' < offline.agekey`
 6. Restore as the owner role:
-   `docker compose exec -T db pg_restore --clean --if-exists --no-owner --role=lume_owner -U postgres -d lume < /tmp/b.dump`
+   `docker compose exec -T -u postgres db pg_restore --clean --if-exists --no-owner --role=lume_owner -d lume < /tmp/lume-restore/b.dump`
 7. `docker compose run --rm migrate` (a no-op if the schema is current), then `docker compose up -d`.
-8. Verify: `https://<host>/readyz` is 200, spot-check lead counts, then `shred -u /tmp/b.dump /tmp/b.age`.
+8. Verify: `https://<host>/readyz` is 200, spot-check lead counts, then `shred -u /tmp/lume-restore/b.dump /tmp/lume-restore/b.age`.
 9. Record the incident and the restored backup's timestamp (data after it is lost, at most 6 h).
 ````
 

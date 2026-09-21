@@ -18,5 +18,7 @@ WORKDIR /app
 COPY --from=build /src/apps/worker/dist ./dist
 COPY --from=build /src/packages/db/migrations ./migrations
 COPY --from=build /src/infra/scripts/backup.sh /src/infra/scripts/restore-test.sh ./scripts/
+# Owned by node so a fresh named volume mounted here inherits writable ownership.
+RUN install -d -o node -g node /var/lib/lume/offsite
 USER node
 CMD ["node", "dist/main.js"]
