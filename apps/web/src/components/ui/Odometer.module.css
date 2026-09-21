@@ -1,0 +1,26 @@
+.odo {
+  display: inline-flex;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+.slot {
+  display: inline-block;
+  height: 1em;
+  line-height: 1;
+  overflow: hidden;
+}
+.strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.9s var(--spring-soft);
+}
+.strip span {
+  height: 1em;
+  line-height: 1;
+}
+.char {
+  display: inline-block;
+  height: 1em;
+  line-height: 1;
+  white-space: pre;
+}

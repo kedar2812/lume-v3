@@ -1,0 +1,25 @@
+.empty {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--text-2);
+  max-width: 420px;
+  margin: 0 auto;
+}
+.empty img {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 16px;
+  filter: drop-shadow(0 8px 20px rgba(42, 91, 255, 0.4));
+}
+.empty h2 {
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  margin-bottom: 6px;
+}
+.empty .action {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center;
+}

@@ -1151,6 +1151,9 @@ export function useDelayedFlag(active: boolean, delayMs = 150): boolean {
   animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+.btn { position: relative; }
+.hidden { opacity: 0; }
+.btn .spinner { position: absolute; left: 50%; top: 50%; margin: -8px 0 0 -8px; }
 ```
 
 `Button.tsx`:
@@ -1171,7 +1174,9 @@ export function Button({ variant = "secondary", size = "md", loading = false, di
       className={[s.btn, variant !== "secondary" && s[variant], size === "sm" && s.sm, className].filter(Boolean).join(" ")}
       {...rest}
     >
-      {loading ? <span className={s.spinner} aria-hidden /> : children}
+      {/* The label stays (transparent) while loading: keeps the accessible name and the button width. */}
+      <span className={loading ? s.hidden : undefined}>{children}</span>
+      {loading && <span className={s.spinner} aria-hidden />}
     </button>
   );
 }

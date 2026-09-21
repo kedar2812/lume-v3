@@ -1,0 +1,15 @@
+.sk {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--skel) 0%, var(--skel-hi) 40%, var(--skel) 80%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
