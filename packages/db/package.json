@@ -10,7 +10,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "pg": "^8.23.0"
+    "@lume/config": "workspace:*",
+    "@lume/core": "workspace:*",
+    "pg": "^8.23.0",
+    "pg-boss": "^10.4.2"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1"
