@@ -3096,10 +3096,19 @@ jobs:
       - name: Test database
         run: TEST_DB_PUBLISH=55432 LUME_DEV_ROOT="$RUNNER_TEMP" bash scripts/test-db.sh up
       - name: Tests
-        run: set -a && . "$RUNNER_TEMP/test.env" && set +a && pnpm test --reporter=default --reporter=github-actions
-      - name: Test database logs (on failure)
+        run: |
+          set -a && . "$RUNNER_TEMP/test.env" && set +a
+          set -o pipefail
+          pnpm test --reporter=default --reporter=github-actions 2>&1 | tee "$RUNNER_TEMP/test.out"
+      - name: Failure details (public annotation)
         if: failure()
-        run: docker logs lumedev-pgtest 2>&1 | tail -n 60 | sed "s/^/::warning title=pgtest::/"
+        run: |
+          out="$(sed -r 's/\x1B\[[0-9;]*[A-Za-z]//g' "$RUNNER_TEMP/test.out" 2>/dev/null | grep -v '^\s*$' | tail -n 60 || true)"
+          db="$(docker logs lumedev-pgtest 2>&1 | tail -n 15)"
+          body="$(printf '%s\n--- pgtest ---\n%s' "$out" "$db")"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          echo "::error title=test output::$body"
       - name: Bootstrap script dry run (twice, identical)
         run: |
           for i in 1 2; do docker run --rm -v "$PWD/infra/scripts:/s:ro" ubuntu:24.04 bash /s/bootstrap-server.sh --dry-run > "$RUNNER_TEMP/bs$i.log"; done
