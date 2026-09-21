@@ -10,6 +10,7 @@ import { createSession } from "../../auth/sessions";
 import { badRequest, conflict, notFound } from "../../http/errors";
 import { sendAfterCommit } from "../../mail/mailer";
 import { inviteMail } from "../../mail/templates";
+import { assertCanAssignRoles } from "../../rbac/escalation";
 
 const TTL_MS = 72 * 3600_000;
 
@@ -32,6 +33,7 @@ export async function createInvite(
     if (found.length !== new Set(a.roleIds).size)
       throw badRequest("UNKNOWN_ROLE", "One of those roles doesn't exist");
   }
+  await assertCanAssignRoles(req, a.roleIds);
   // One live invite per address: a new one replaces any still-open link.
   await req.db
     .update(schema.userInvites)
