@@ -149,7 +149,7 @@ function block(selector: string, within = css): Record<string, string> {
     const sels = m[1]!.split(",").map((s) => s.trim());
     if (sels.includes(selector)) {
       return Object.fromEntries(
-        [...m[2]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((d) => [d[1]!, d[2]!.trim()]),
+        [...m[2]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((d) => [d[1]!, d[2]!.replace(/\s+/g, " ").trim()]),
       );
     }
   }
@@ -717,7 +717,7 @@ function fakeContext() {
   const ctx: AudioContextLike = {
     currentTime: 10,
     state: "running",
-    destination: {} as AudioNode,
+    destination: {} as AudioDestinationNode,
     resume: async () => undefined,
     createOscillator() {
       const osc = {
