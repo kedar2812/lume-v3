@@ -1,0 +1,69 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 60;
+}
+.panel {
+  position: fixed;
+  left: 50%;
+  top: 14vh;
+  width: min(620px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  border-radius: 18px;
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  z-index: 61;
+  overflow: hidden;
+}
+.input {
+  width: 100%;
+  height: 58px;
+  border: 0;
+  outline: 0;
+  padding: 0 20px;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  border-bottom: 0.5px solid var(--line);
+  background: transparent;
+}
+.input::placeholder {
+  color: var(--text-3);
+}
+.list {
+  padding: 8px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.group {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 8px 12px 4px;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.84375rem;
+  cursor: pointer;
+}
+.option[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+.empty {
+  padding: 18px 12px;
+  color: var(--text-3);
+  font-size: 0.8125rem;
+}
+.foot {
+  display: flex;
+  gap: 16px;
+  padding: 10px 20px;
+  border-top: 0.5px solid var(--line);
+  font-size: 0.71875rem;
+  color: var(--text-3);
+}
