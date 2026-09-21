@@ -77,3 +77,61 @@ The first `ops_restore_tests` row (`ok = f`, "no backups found") is the genuine 
 - Green: https://github.com/kedar2812/lume-v3/actions/runs/35624483435 (commit `846b6f0`): lint, typecheck, `pnpm audit`, shellcheck, 41/41 tests against Postgres 17, bootstrap dry-run ×2 identical. Image build + GHCR push runs on `main` after merge.
 
 **Status: accepted on temp build host. Final acceptance pending a fresh-VPS run on the production server (spec §4).**
+
+---
+
+# Phase 1A — Identity & access (2026-09-22)
+
+Run on the temp build host (`lumedev`), fresh identity data, through Caddy exactly as a browser does:
+
+```bash
+scripts/dev.sh up                    # API image now carries the native Argon2 module; Mailpit joins the dev stack
+scripts/dev.sh remote 'cd /root/lume-dev/src && tok="$(docker logs lumedev-api-1 2>&1 | grep -o "setup token: [A-Za-z0-9_-]*" | tail -1 | cut -d" " -f3)" \
+  && docker run --rm --network host --add-host lume.localhost:127.0.0.1 -e NODE_TLS_REJECT_UNAUTHORIZED=0 -e SETUP_TOKEN="$tok" \
+     -v /root/lume-dev/src:/repo -w /repo lumedev-toolbox:latest node infra/scripts/acceptance-1a.mjs'
+```
+
+Result (`infra/scripts/acceptance-1a.mjs`, 32 checks):
+
+```
+ok   setup is needed on a fresh install
+ok   a wrong setup token is refused
+ok   setup hands out a TOTP secret
+ok   setup creates the owner with 2FA and 10 recovery codes
+ok   setup cannot run twice
+ok   owner is signed in with 2FA on
+ok   owner signs out
+ok   signed out means signed out
+ok   a wrong password is refused generically
+ok   the right password asks for the second step
+ok   a password alone opens nothing
+ok   a recovery code completes sign-in (9 left)
+ok   owner is back in
+ok   setup seeded the Admin and Sales roles
+ok   owner invites Riya as Sales
+ok   the invite email reached Mailpit with a link
+ok   the invite page knows who it is for
+ok   a breached password is refused
+ok   Riya accepts the invite
+ok   Riya is signed in with Sales access (reveal, own scope)
+ok   Sales never sees full contacts
+ok   Sales cannot open people admin
+ok   an invite works once
+ok   owner disables Riya
+ok   Riya's session is dead immediately
+ok   audit log records setup.completed
+ok   audit log records user.logout
+ok   audit log records user.login.failed
+ok   audit log records user.login
+ok   audit log records user.invited
+ok   audit log records user.invite.accepted
+ok   audit log records user.disabled
+acceptance 1A passed
+```
+
+Afterwards the identity tables were truncated so the real first-run setup can be done through the Phase 1C screens. The superuser's attempt to clear the audit log as well was refused — `ERROR: audit_log is append-only` — so its 8 entries from the run remain, as designed.
+
+## CI
+- Green: https://github.com/kedar2812/lume-v3/actions/runs/35642192860 (commit `58a88cb`): lint, typecheck, 220 tests across 46 files against Postgres 17 (including the route × role access matrix), e2e, images.
+
+**Status: Phase 1A accepted on the temp build host.**

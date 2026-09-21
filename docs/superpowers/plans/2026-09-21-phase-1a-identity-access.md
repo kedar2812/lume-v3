@@ -4723,7 +4723,7 @@ Each step prints `ok …`, and the script ends `acceptance 1A passed`. Run it wi
 
 - [ ] **Step 3: Record and push**
 
-Append a "Phase 1A" section to `docs/runbooks/phase0-acceptance.md` (rename the file to `docs/runbooks/acceptance.md` and update links) with the script output and the CI run URL.
+Append a "Phase 1A" section to `docs/runbooks/acceptance.md` (rename the file to `docs/runbooks/acceptance.md` and update links) with the script output and the CI run URL.
 ```bash
 git add -A && git commit -m "docs: Phase 1A acceptance on the dev stack
 
@@ -4731,3 +4731,20 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 git push origin main
 ```
 Tell the owner that Mailpit is at `http://127.0.0.1:8025` through the tunnel, so they can watch real invite emails arrive.
+
+---
+
+## Execution notes (2026-09-22)
+
+Built as planned, with these deliberate deviations (the code is the reference where they differ):
+
+- **Fastify encapsulation:** `authPlugin` and `dbContext` are called directly on the feature scope, not `register`ed, so their hooks cover every route in it; hooks are added before any route module.
+- **Rollback signal:** the error handler calls `markRequestFailed(req)`; it doesn't depend on `onError`/`onSend` ordering.
+- **`req.afterCommit(fn)`** added to the request transaction. `notifyRbac(req, userId?)` uses it to drop this instance's cache entry right after commit (so the caller's next request sees new access), while `pg_notify` still reaches every instance. Mail is sent the same way (`sendAfterCommit`): an SMTP outage never rolls back an invite, and forgot-password answers identically for known and unknown addresses.
+- **Argon2 lives at `@lume/core/password`** (not the core index) so the worker bundle never loads the native module; `@node-rs/argon2` is external in `scripts/bundle.mjs`, and the API image installs the locked version beside its bundle.
+- **Privilege escalation guard** (`apps/api/src/rbac/escalation.ts`), not in the original plan: nobody can write access they lack into a role, assign a role carrying it, invite with it, or pick it as a replacement role. Owner exempt.
+- **Access matrix** checks routes against an independent access table in `test/probes.ts` (not the routes' own declarations), uses a fresh session per probe, and was mutation-checked.
+- **Hardening beyond the plan:** throttled self-service re-authentication answering 400 `WRONG_PASSWORD` (not 401); at most 3 reset emails per account per 15 min; a new invite revokes an open one; the setup TOTP step is recorded so it can't be replayed at first sign-in; extra log redaction (codes, recovery codes, otpauth URIs, CSRF header).
+- **Config:** `LUME_PUBLIC_URL` is optional (defaults to `https://LUME_PUBLIC_HOST`); empty optional env vars count as unset.
+- **Tests:** migration counts are read from the directory; test databases drop patiently (`drop({ immediate: true })` for outage tests); pg-boss stops gracefully after installing its schema.
+- **Acceptance** is `infra/scripts/acceptance-1a.mjs` (Node, run in the toolbox on host networking) rather than a curl script.

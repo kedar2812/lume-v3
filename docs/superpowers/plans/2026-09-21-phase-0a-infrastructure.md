@@ -50,7 +50,7 @@
 | `infra/scripts/gen-dev-env.sh`, `infra/scripts/smoke.sh` | Dev env generation, HTTPS/health smoke test |
 | `infra/scripts/bootstrap-server.sh` | Idempotent Ubuntu 24.04 hardening with `--dry-run` |
 | `.github/workflows/ci.yml` | Lint, typecheck, shellcheck, audit, tests, image build → GHCR |
-| `docs/runbooks/restore.md`, `docs/runbooks/phase0-acceptance.md` | Recovery runbook (RPO/RTO) and recorded acceptance evidence |
+| `docs/runbooks/restore.md`, `docs/runbooks/acceptance.md` | Recovery runbook (RPO/RTO) and recorded acceptance evidence |
 
 ---
 
@@ -3194,7 +3194,7 @@ The repo is private and `gh` isn't installed on the PC. Ask the owner to open **
 ### Task 12: Phase 0 acceptance on the build host + runbooks
 
 **Files:**
-- Create: `docs/runbooks/restore.md`, `docs/runbooks/phase0-acceptance.md`
+- Create: `docs/runbooks/restore.md`, `docs/runbooks/acceptance.md`
 
 - [ ] **Step 1: Run the acceptance script and capture output**
 
@@ -3256,7 +3256,7 @@ Expected: the `pg_restore --list` header lines (archive details). This proves th
 9. Record the incident and the restored backup's timestamp (data after it is lost, at most 6 h).
 ````
 
-`docs/runbooks/phase0-acceptance.md`: record the date, the commit SHA, and the verbatim output of every command in Step 1, under the headings *HTTPS + headers*, *Health/readiness*, *Readiness when DB is down*, *Backup*, *Restore test*, *Offline-key decrypt*, *Bootstrap dry-run (CI)* and *CI run URL*. End with the line: **Status: accepted on temp build host. Final acceptance pending a fresh-VPS run on the production server (spec §4).**
+`docs/runbooks/acceptance.md`: record the date, the commit SHA, and the verbatim output of every command in Step 1, under the headings *HTTPS + headers*, *Health/readiness*, *Readiness when DB is down*, *Backup*, *Restore test*, *Offline-key decrypt*, *Bootstrap dry-run (CI)* and *CI run URL*. End with the line: **Status: accepted on temp build host. Final acceptance pending a fresh-VPS run on the production server (spec §4).**
 
 - [ ] **Step 3: Commit and push**
 
