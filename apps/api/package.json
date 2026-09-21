@@ -8,13 +8,19 @@
     "build": "node ../../scripts/bundle.mjs . src/main.ts dist/main.js"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
     "@lume/config": "workspace:*",
+    "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",
-    "pg": "^8.23.0"
+    "fastify-type-provider-zod": "^7.0.0",
+    "nodemailer": "^10.0.10",
+    "pg": "^8.23.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@lume/core": "workspace:*",
     "@lume/db": "workspace:*",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1"
   }
 }

@@ -12,6 +12,7 @@
   "dependencies": {
     "@lume/config": "workspace:*",
     "@lume/core": "workspace:*",
+    "drizzle-orm": "^0.45.3",
     "pg": "^8.23.0",
     "pg-boss": "^10.4.2"
   },
