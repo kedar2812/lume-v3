@@ -31,5 +31,9 @@ describe("worker queue as lume_worker", () => {
     ]);
     await boss.send("ops.backup", {});
     await vi.waitFor(() => expect(backup).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 250 });
+    // Cron delivery goes through pg-boss's internal queue. pg-boss swallows the error when it can't
+    // create it, so check it exists; otherwise scheduled backups would silently never fire.
+    expect(await boss.getQueue("__pgboss__send-it")).toBeTruthy();
+    expect(log.error).not.toHaveBeenCalled();
   });
 });

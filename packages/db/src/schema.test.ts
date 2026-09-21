@@ -34,7 +34,8 @@ describe("Phase 0 schema and grants", () => {
       expect((await as<{ version: number }>(role, "SELECT version FROM pgboss.version")).length).toBe(1);
     }
     const queues = await as<{ name: string }>("lume_worker", "SELECT name FROM pgboss.queue ORDER BY 1");
-    expect(queues.map((q) => q.name)).toEqual([...QUEUE_NAMES].sort());
+    // Our queues plus pg-boss's internal cron queue, which only lume_owner may create.
+    expect(queues.map((q) => q.name).sort()).toEqual([...QUEUE_NAMES, "__pgboss__send-it"].sort());
   });
 
   it("restore-test results: worker inserts, api cannot, nobody updates", async () => {

@@ -1084,20 +1084,33 @@ describe("Phase 0 schema and grants", () => {
       expect((await as<{ version: number }>(role, "SELECT version FROM pgboss.version")).length).toBe(1);
     }
     const queues = await as<{ name: string }>("lume_worker", "SELECT name FROM pgboss.queue ORDER BY 1");
-    expect(queues.map((q) => q.name)).toEqual([...QUEUE_NAMES].sort());
+    // Our queues plus pg-boss's internal cron queue, which only lume_owner may create.
+    expect(queues.map((q) => q.name).sort()).toEqual([...QUEUE_NAMES, "__pgboss__send-it"].sort());
   });
 
   it("restore-test results: worker inserts, api cannot, nobody updates", async () => {
-    await as("lume_worker", "INSERT INTO ops_restore_tests (started_at, finished_at, backup_name, ok) VALUES (now(), now(), 'x', true)");
-    await expect(as("lume_app", "INSERT INTO ops_restore_tests (started_at, finished_at, backup_name, ok) VALUES (now(), now(), 'x', true)")).rejects.toThrow(/permission denied/);
-    await expect(as("lume_worker", "UPDATE ops_restore_tests SET ok = false")).rejects.toThrow(/permission denied/);
+    await as(
+      "lume_worker",
+      "INSERT INTO ops_restore_tests (started_at, finished_at, backup_name, ok) VALUES (now(), now(), 'x', true)",
+    );
+    await expect(
+      as(
+        "lume_app",
+        "INSERT INTO ops_restore_tests (started_at, finished_at, backup_name, ok) VALUES (now(), now(), 'x', true)",
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(as("lume_worker", "UPDATE ops_restore_tests SET ok = false")).rejects.toThrow(
+      /permission denied/,
+    );
     expect((await as<{ ok: boolean }>("lume_app", "SELECT ok FROM ops_restore_tests")).length).toBe(1);
   });
 
   it("backup role reads everything but writes nothing", async () => {
     expect((await as("lume_readonly_backup", "SELECT name FROM schema_migrations")).length).toBe(4);
     expect((await as("lume_readonly_backup", "SELECT count(*) FROM pgboss.job")).length).toBe(1);
-    await expect(as("lume_readonly_backup", "DELETE FROM ops_restore_tests")).rejects.toThrow(/permission denied/);
+    await expect(as("lume_readonly_backup", "DELETE FROM ops_restore_tests")).rejects.toThrow(
+      /permission denied/,
+    );
   });
 
   it("app and worker cannot create tables in public", async () => {
@@ -1197,16 +1210,27 @@ export async function migrate(connectionString: string, dir: string): Promise<Mi
 ```ts
 import PgBoss from "pg-boss";
 
+/** pg-boss 10's internal cron delivery queue (timekeeper.js QUEUES.SEND_IT). Pinned by tests. */
+export const PGBOSS_CRON_QUEUE = "__pgboss__send-it";
+
 /**
  * Install/upgrade pg-boss's schema and create our queues as lume_owner.
  * Queues are partitions of pgboss.job, which only the table owner may create,
  * so the worker (lume_worker) runs with migrate: false and never creates queues itself.
  */
 export async function installQueueSchema(ownerUrl: string, queues: readonly string[]): Promise<void> {
-  const boss = new PgBoss({ connectionString: ownerUrl, schema: "pgboss", supervise: false, schedule: false });
+  const boss = new PgBoss({
+    connectionString: ownerUrl,
+    schema: "pgboss",
+    supervise: false,
+    schedule: false,
+  });
   boss.on("error", () => undefined);
   await boss.start();
   try {
+    // pg-boss delivers cron jobs through this internal queue and creates it at worker start, but
+    // silently gives up without schema rights (lume_worker has none). Create it here as the owner.
+    if (!(await boss.getQueue(PGBOSS_CRON_QUEUE))) await boss.createQueue(PGBOSS_CRON_QUEUE);
     for (const name of queues) {
       if (!(await boss.getQueue(name))) {
         await boss.createQueue(name, { name, retryLimit: 5, retryDelay: 60, retryBackoff: true });
@@ -1895,7 +1919,11 @@ describe("worker queue as lume_worker", () => {
 
     const backup = vi.fn(async () => ({ name: "x", bytes: 1, deleted: [] }));
     const log = { info: vi.fn(), error: vi.fn() };
-    const boss = await startQueue({ connectionString: db.url("lume_worker"), jobs: { backup, restoreTest: vi.fn() }, log });
+    const boss = await startQueue({
+      connectionString: db.url("lume_worker"),
+      jobs: { backup, restoreTest: vi.fn() },
+      log,
+    });
     cleanup.push(() => boss.stop({ graceful: false, wait: true }));
 
     const schedules = await boss.getSchedules();
@@ -1905,6 +1933,10 @@ describe("worker queue as lume_worker", () => {
     ]);
     await boss.send("ops.backup", {});
     await vi.waitFor(() => expect(backup).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 250 });
+    // Cron delivery goes through pg-boss's internal queue. pg-boss swallows the error when it can't
+    // create it, so check it exists; otherwise scheduled backups would silently never fire.
+    expect(await boss.getQueue("__pgboss__send-it")).toBeTruthy();
+    expect(log.error).not.toHaveBeenCalled();
   });
 });
 ```
@@ -3088,6 +3120,8 @@ jobs:
           sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -q && sudo apt-get install -y -q postgresql-client-17 age rclone shellcheck
+          # The runner's preinstalled client 16 wins on PATH otherwise, and pg_dump refuses a v17 server.
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod --audit-level high
       - run: pnpm lint
