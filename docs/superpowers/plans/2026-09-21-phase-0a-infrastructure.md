@@ -1829,7 +1829,12 @@ describe("ops.backup", () => {
     const calls: string[][] = [];
     const exec: Exec = vi.fn(async (file, args) => {
       calls.push([file, ...args]);
-      if (file === "rclone" && args[0] === "lsf") return "lume-20250101T0000Z.dump.age\nlume-20260921T1200Z.dump.age\nnotes.txt\n";
+      if (file === "rclone" && args[0] === "lsf") {
+        // Today's backup + the 1st of each of the last 6 months fill the 4 weekly and 6 monthly slots,
+        // so the January 2025 backup is the only one retention may drop.
+        const monthly = ["09", "08", "07", "06", "05", "04"].map((m) => `lume-2026${m}01T0000Z.dump.age`);
+        return ["lume-20250101T0000Z.dump.age", "lume-20260921T1200Z.dump.age", ...monthly, "notes.txt"].join("\n") + "\n";
+      }
       return '{"backup":"lume-20260921T1200Z.dump.age","bytes":10}\n';
     });
     const jobs = makeOpsJobs({ ...base, exec, recordRestoreTest: vi.fn() });
@@ -2049,7 +2054,10 @@ if (command === "run-now") {
   // Operator/acceptance entry: run one ops job immediately, outside the queue.
   try {
     if (target === "ops.backup") log.info(await jobs.backup(), "backup complete");
-    else if (target === "ops.restore-test") (await jobs.restoreTest(), log.info({}, "restore test passed"));
+    else if (target === "ops.restore-test") {
+      await jobs.restoreTest();
+      log.info({}, "restore test passed");
+    }
     else throw new Error(`unknown job ${target ?? "(none)"}`);
     await pool.end();
     process.exit(0);
