@@ -1,0 +1,139 @@
+name: lume
+
+x-base: &base
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+networks:
+  frontend: {}
+  backend:
+    ipam:
+      config: [{ subnet: 172.30.0.0/24 }]
+
+volumes:
+  pgdata: {}
+  caddy_data: {}
+  caddy_config: {}
+  offsite: {}
+
+secrets:
+  restore_agekey:
+    file: ${LUME_SECRETS_DIR:?}/restore.agekey
+
+services:
+  db:
+    <<: *base
+    image: postgres:17
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      LUME_OWNER_PASSWORD: ${LUME_OWNER_PASSWORD:?}
+      LUME_APP_PASSWORD: ${LUME_APP_PASSWORD:?}
+      LUME_WORKER_PASSWORD: ${LUME_WORKER_PASSWORD:?}
+      LUME_BACKUP_PASSWORD: ${LUME_BACKUP_PASSWORD:?}
+      LUME_RESTORE_PASSWORD: ${LUME_RESTORE_PASSWORD:?}
+    command:
+      [
+        "postgres",
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf",
+      ]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks: [backend]
+    shm_size: 256m
+    mem_limit: 3g
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    image: ${LUME_IMAGE_PREFIX:-lume}/worker:${LUME_TAG:-dev}
+    command: ["node", "dist/migrate.js"]
+    restart: "no"
+    profiles: ["tools"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATABASE_URL_OWNER: postgres://lume_owner:${LUME_OWNER_PASSWORD:?}@db:5432/lume
+    networks: [backend]
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    <<: *base
+    image: ${LUME_IMAGE_PREFIX:-lume}/api:${LUME_TAG:-dev}
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs: ["/tmp"]
+    environment:
+      LUME_PUBLIC_HOST: ${LUME_PUBLIC_HOST:?}
+      LUME_MASTER_KEY: ${LUME_MASTER_KEY:?}
+      DATABASE_URL_APP: postgres://lume_app:${LUME_APP_PASSWORD:?}@db:5432/lume
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks: [frontend, backend]
+    mem_limit: 768m
+    depends_on:
+      db: { condition: service_healthy }
+
+  worker:
+    <<: *base
+    image: ${LUME_IMAGE_PREFIX:-lume}/worker:${LUME_TAG:-dev}
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs: ["/tmp:size=4g"]
+    environment:
+      LUME_MASTER_KEY: ${LUME_MASTER_KEY:?}
+      DATABASE_URL_WORKER: postgres://lume_worker:${LUME_WORKER_PASSWORD:?}@db:5432/lume
+      DATABASE_URL_BACKUP: postgres://lume_readonly_backup:${LUME_BACKUP_PASSWORD:?}@db:5432/lume
+      DATABASE_URL_RESTORE: postgres://lume_restore:${LUME_RESTORE_PASSWORD:?}@db:5432/postgres
+      BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:?}
+      BACKUP_AGE_IDENTITY_FILE: /run/secrets/restore_agekey
+      RCLONE_CONFIG_OFFSITE_TYPE: ${RCLONE_CONFIG_OFFSITE_TYPE:-local}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-offsite:/var/lib/lume/offsite}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    secrets: [restore_agekey]
+    volumes:
+      - offsite:/var/lib/lume/offsite
+    networks: [backend]
+    mem_limit: 768m
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    <<: *base
+    image: ${LUME_IMAGE_PREFIX:-lume}/web:${LUME_TAG:-dev}
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs: ["/tmp", "/app/apps/web/.next/cache"]
+    networks: [frontend]
+    mem_limit: 768m
+
+  caddy:
+    <<: *base
+    image: ${LUME_IMAGE_PREFIX:-lume}/caddy:${LUME_TAG:-dev}
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    environment:
+      LUME_PUBLIC_HOST: ${LUME_PUBLIC_HOST:?}
+      LUME_TLS: ${LUME_TLS:-}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [frontend]
+    mem_limit: 128m
+    depends_on: [api, web]

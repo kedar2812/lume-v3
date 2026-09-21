@@ -15,3 +15,4 @@ test-results/
 .superpowers/
 .DS_Store
 Thumbs.db
+apps/web/next-env.d.ts

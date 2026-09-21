@@ -1,0 +1,42 @@
+{
+	admin off
+	order rate_limit before basic_auth
+}
+
+{$LUME_PUBLIC_HOST} {
+	{$LUME_TLS}
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		X-Frame-Options "DENY"
+		-Server
+		-X-Powered-By
+	}
+
+	rate_limit {
+		zone per_ip {
+			key {remote_host}
+			events 600
+			window 1m
+		}
+	}
+
+	@api path /api/* /webhooks/* /healthz /readyz
+	handle @api {
+		# The API never serves HTML; the web app sets its own nonce CSP.
+		header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		reverse_proxy api:3001
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
