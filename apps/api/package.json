@@ -1,0 +1,20 @@
+{
+  "name": "@lume/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/bundle.mjs . src/main.ts dist/main.js"
+  },
+  "dependencies": {
+    "@lume/config": "workspace:*",
+    "fastify": "^5.12.5",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@lume/core": "workspace:*",
+    "@lume/db": "workspace:*",
+    "@types/pg": "^8.23.1"
+  }
+}
