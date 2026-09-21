@@ -60,8 +60,18 @@ cmd_run() {
     $TOOLBOX bash -lc $(printf '%q' "$q")"
 }
 
-# Dependency changes happen on the PC, lockfile only (no node_modules here).
-cmd_add() { corepack pnpm@10 add --lockfile-only "$@"; }
+# Dependency changes: resolve in the Node 22 toolbox (lockfile only), then copy the changed
+# manifests and lockfile back here so the PC stays the source of truth.
+cmd_add() {
+  cmd_run pnpm add --lockfile-only "$@"
+  local changed p
+  changed="$(remote "cd $REMOTE_SRC && git status --porcelain --untracked-files=all | awk '{print \$NF}' | grep -E '(^|/)(package\\.json|pnpm-lock\\.yaml)\$' || true")"
+  for p in $changed; do
+    mkdir -p "$(dirname "$p")"
+    scp -q "$HOST:$REMOTE_SRC/$p" "$p"
+    echo "updated $p"
+  done
+}
 
 compose() {
   local q

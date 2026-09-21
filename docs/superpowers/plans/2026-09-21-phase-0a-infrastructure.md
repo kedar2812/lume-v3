@@ -15,7 +15,7 @@
 - The build host `lumedev` is another client's **live** server. Never install/upgrade anything on the host, never touch its nginx, pm2, PostgreSQL 16, UFW or sshd, never run `bootstrap-server.sh` on it. Work only in `/root/lume-dev`. Compose project name is always `lumedev`.
 - Every port LUME publishes on `lumedev` binds `127.0.0.1` (Docker publishing bypasses UFW). No container publishes a Postgres port on `lumedev`.
 - LUME containers on `lumedev` are capped at ≈1.5 CPU / 3 GB total. Builds run under `nice -n 10`.
-- Node 22 LTS, pnpm 10 (via corepack). Never run `pnpm install` on the PC. Dependency changes on the PC use `--lockfile-only`, and installs happen in the toolbox container.
+- Node 22 LTS, pnpm 10 (via corepack). Never run `pnpm` installs on the PC (it has Node 20). `scripts/dev.sh add …` resolves dependencies with `--lockfile-only` in the toolbox and copies the changed `package.json`/`pnpm-lock.yaml` back to the PC.
 - TypeScript strict. Parameterised SQL only. ESLint bans template literals with expressions and string concatenation as `.query()` arguments outside `packages/db`.
 - Secrets never enter git. `.env` and key files live in `/root/lume-dev` (mode 600).
 - Error shape `{ error: { code, message } }`, never stack traces or SQL (report §4.4).
@@ -322,7 +322,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    projects: ["packages/*", "apps/api", "apps/worker"],
+    projects: ["packages/*", "apps/*"],
     testTimeout: 30_000,
     hookTimeout: 60_000,
   },
