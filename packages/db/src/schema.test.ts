@@ -1,7 +1,7 @@
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { QUEUE_NAMES } from "@lume/core";
-import { MIGRATIONS_DIR_DEFAULT, migrate } from "./migrate";
+import { MIGRATIONS_DIR_DEFAULT, listMigrations, migrate } from "./migrate";
 import { installQueueSchema } from "./queue-install";
 import { createTestDatabase, type DbRole, type TestDatabase } from "./testing";
 
@@ -56,7 +56,9 @@ describe("Phase 0 schema and grants", () => {
   });
 
   it("backup role reads everything but writes nothing", async () => {
-    expect((await as("lume_readonly_backup", "SELECT name FROM schema_migrations")).length).toBe(7);
+    expect((await as("lume_readonly_backup", "SELECT name FROM schema_migrations")).length).toBe(
+      (await listMigrations(MIGRATIONS_DIR_DEFAULT)).length,
+    );
     expect((await as("lume_readonly_backup", "SELECT count(*) FROM pgboss.job")).length).toBe(1);
     await expect(as("lume_readonly_backup", "DELETE FROM ops_restore_tests")).rejects.toThrow(
       /permission denied/,

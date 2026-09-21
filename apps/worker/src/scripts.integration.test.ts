@@ -7,6 +7,7 @@ import {
   MIGRATIONS_DIR_DEFAULT,
   createTestDatabase,
   installQueueSchema,
+  listMigrations,
   migrate,
   roleUrl,
   type TestDatabase,
@@ -72,7 +73,8 @@ describe("backup.sh → restore-test.sh", () => {
         })
       ).trim(),
     );
-    expect(result).toMatchObject({ ok: true, backup: name, migrations: 4 });
+    const migrations = (await listMigrations(MIGRATIONS_DIR_DEFAULT)).length;
+    expect(result).toMatchObject({ ok: true, backup: name, migrations });
     expect(result.tables).toBeGreaterThanOrEqual(3);
   });
 
