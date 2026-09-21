@@ -29,11 +29,11 @@ Order: 1A → 1B → 1C. Each gets its own plan in `docs/superpowers/plans/`.
 
 ### Auth & sessions
 - **Argon2id** via `@node-rs/argon2`: memoryCost 65536 KiB, timeCost 3, parallelism 1 (2 vCPU host). Hashes are re-checked and upgraded on login if parameters change.
-- **Breached-password list:** top 100k SHA-1 hashes bundled as a sorted binary file in `packages/core/data/`. Lookup by binary search. Passwords are checked hashed, never logged.
+- **Breached-password list:** the UK NCSC top-100k list (SecLists `100k-most-used-passwords-NCSC.txt`) as sorted SHA-1 hashes bundled as a sorted binary file in `packages/core/data/`. Lookup by binary search. Passwords are checked hashed, never logged.
 - **Constant-time login:** unknown emails run a dummy Argon2 verify, so response time never reveals whether an account exists.
 - **Throttling:** per-IP and per-account counters in Postgres (`auth_throttle` table, sliding window), progressive delay (0 / 1 / 2 / 4 … s capped at 30 s), 15-minute lock after 10 failures. Caddy rate limits remain the outer layer.
-- **TOTP:** `otplib`, SHA-1, 6 digits, 30 s, window ±1. The last used time-step is stored to block replays. Secrets are AES-256-GCM encrypted (§12.5) with a data key wrapped by `LUME_MASTER_KEY`.
-- **Recovery codes:** 10 × 10 characters (base32, no ambiguous chars), Argon2id-hashed, single use.
+- **TOTP:** implemented directly on node:crypto (RFC 6238, verified against the RFC test vectors; no dependency), SHA-1, 6 digits, 30 s, window ±1. The last used time-step is stored to block replays. Secrets are AES-256-GCM encrypted (§12.5) with a data key wrapped by `LUME_MASTER_KEY`.
+- **Recovery codes:** 10 × 10 characters from a 31-symbol unambiguous alphabet (~49 bits each), stored as SHA-256 (high-entropy random secrets need no slow hash; Argon2 would cost ten 64 MB hashes per attempt), single use.
 - **2FA mandatory** when the user is the owner, or holds `users.manage`, `roles.manage`, `leads.export`, `security.manage`, or `leads.contact.full` with scope `all`. Such a user is forced through enrolment before any other route works (`403 TWO_FACTOR_REQUIRED` → UI enrolment screen).
 - **Sessions:** token = 32 random bytes (base64url) in `__Host-lume_session`. The DB stores `sha256(token)` as the id. Idle timeout 12 h and absolute 7 d, both from `settings.security`. `last_seen_at` is written at most once per minute. Rotation happens on login, 2FA completion and any change to the user's roles.
 - **CSRF:** SameSite=Lax + `Origin`/`Sec-Fetch-Site` check + double-submit token (`__Host-lume_csrf` cookie, readable by JS, echoed in `X-CSRF-Token`) on every non-GET.
