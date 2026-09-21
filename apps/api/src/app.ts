@@ -11,6 +11,7 @@ import { dbContext } from "./db/context";
 import { dbChecks } from "./health";
 import type { Mailer } from "./mail/mailer";
 import { authRoutes } from "./modules/auth/routes";
+import { meRoutes } from "./modules/me/routes";
 import { memoSettings } from "./modules/settings/service";
 import { setupRoutes } from "./modules/setup/routes";
 import { ActorCache, startRbacListener } from "./rbac/cache";
@@ -50,6 +51,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       },
       register: async (scope) => {
         scope.addHook("onClose", stopListener);
+        scope.decorate("actorCache", cache);
         await scope.register(cookie);
         // Hooks first (called directly so they cover this whole scope), then routes.
         authPlugin(scope, {
@@ -63,6 +65,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(csrfRoutes, { secure: deps.config.cookieSecure });
         await scope.register(setupRoutes, deps);
         await scope.register(authRoutes, deps);
+        await scope.register(meRoutes, deps);
         deps.extraRoutes?.(scope);
       },
     });

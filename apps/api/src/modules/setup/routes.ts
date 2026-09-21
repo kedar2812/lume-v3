@@ -4,16 +4,8 @@ import { z } from "zod";
 import { newTotpSecret, otpauthUri, safeEqual } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { forbidden } from "../../http/errors";
+import { emailSchema, nameSchema, passwordInput, timezoneSchema, totpCodeSchema } from "../../http/schemas";
 import { runSetup } from "./service";
-
-const tz = z.string().refine((v) => {
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: v });
-    return true;
-  } catch {
-    return false;
-  }
-}, "unknown timezone");
 
 export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
@@ -40,18 +32,18 @@ export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
         body: z.object({
           token: z.string().min(1).max(128),
           business: z.object({
-            name: z.string().trim().min(1).max(120),
-            timezone: tz,
+            name: nameSchema,
+            timezone: timezoneSchema,
             currency: z.string().regex(/^[A-Z]{3}$/),
             defaultCountry: z.string().regex(/^[A-Z]{2}$/),
           }),
           preset: z.enum(["coaching", "general"]),
           owner: z.object({
-            name: z.string().trim().min(1).max(120),
-            email: z.email().max(254),
-            password: z.string().min(1).max(256),
+            name: nameSchema,
+            email: emailSchema,
+            password: passwordInput,
           }),
-          totp: z.object({ secret: z.string().regex(/^[A-Z2-7]{32}$/), code: z.string().regex(/^\d{6}$/) }),
+          totp: z.object({ secret: z.string().regex(/^[A-Z2-7]{32}$/), code: totpCodeSchema }),
         }),
       },
     },

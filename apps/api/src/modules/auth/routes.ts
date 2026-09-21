@@ -9,9 +9,9 @@ import { audit } from "../../audit/audit";
 import { clearSessionCookie } from "../../auth/cookies";
 import { revokeSession } from "../../auth/sessions";
 import { unauthorized } from "../../http/errors";
+import { emailSchema as email, passwordInput, totpCodeSchema } from "../../http/schemas";
 import { login, recoveryCode, secondFactor, type LockoutHook } from "./service";
 
-const email = z.email().max(254);
 const self = { permission: "auth.self" as const, allowDuringEnrolment: true };
 
 export async function authRoutes(
@@ -22,12 +22,12 @@ export async function authRoutes(
 
   r.post(
     "/api/v1/auth/login",
-    { config: { public: true }, schema: { body: z.object({ email, password: z.string().min(1).max(256) }) } },
+    { config: { public: true }, schema: { body: z.object({ email, password: passwordInput }) } },
     (req, reply) => login(req, reply, d, req.body.email, req.body.password, d.onLockout),
   );
   r.post(
     "/api/v1/auth/2fa",
-    { config: { public: true }, schema: { body: z.object({ code: z.string().regex(/^\d{6}$/) }) } },
+    { config: { public: true }, schema: { body: z.object({ code: totpCodeSchema }) } },
     (req, reply) => secondFactor(req, reply, d, req.body.code),
   );
   r.post(

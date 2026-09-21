@@ -14,10 +14,13 @@ declare module "fastify" {
   interface FastifyRequest {
     db: Db;
     actor: Actor | null;
+    /** Run `fn` once this request's transaction has committed (never after a rollback). */
+    afterCommit(fn: () => void): void;
   }
 }
 
-const held = new WeakMap<FastifyRequest, { client: pg.PoolClient; failed: boolean }>();
+type Held = { client: pg.PoolClient; failed: boolean; afterCommit: (() => void)[] };
+const held = new WeakMap<FastifyRequest, Held>();
 
 /** Called by the error handler: a thrown error rolls the request's transaction back. */
 export function markRequestFailed(req: FastifyRequest): void {
@@ -44,6 +47,7 @@ async function finish(req: FastifyRequest): Promise<void> {
     h.client.release(e as Error); // a broken connection is destroyed, never reused
     throw e;
   }
+  if (!h.failed) for (const fn of h.afterCommit) fn();
 }
 
 /**
@@ -54,11 +58,16 @@ async function finish(req: FastifyRequest): Promise<void> {
 export function dbContext(app: FastifyInstance, opts: { pool: pg.Pool }): void {
   app.decorateRequest("db", null as unknown as Db);
   app.decorateRequest("actor", null);
+  app.decorateRequest("afterCommit", function (this: FastifyRequest, fn: () => void) {
+    const h = held.get(this);
+    if (!h) throw new Error("afterCommit called outside a request transaction");
+    h.afterCommit.push(fn);
+  });
 
   app.addHook("preHandler", async (req) => {
     if (req.routeOptions.config?.db === false) return;
     const client = await opts.pool.connect();
-    held.set(req, { client, failed: false });
+    held.set(req, { client, failed: false, afterCommit: [] });
     await client.query("BEGIN");
     if (req.actor) await applyRequestScope(client, req.actor);
     req.db = drizzle(client, { schema });

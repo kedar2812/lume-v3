@@ -109,7 +109,7 @@ export async function runSetup(req: FastifyRequest, reply: FastifyReply, d: AppD
     actorUserId: ownerId,
     diff: { preset: input.preset },
   });
-  await notifyRbac(req.db);
+  await notifyRbac(req);
   d.setupTokens.burn();
   return reply.code(201).send({ recoveryCodes: codes });
 }
