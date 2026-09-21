@@ -105,7 +105,9 @@ remote() { ssh -o BatchMode=yes "$HOST" "$@"; }
 snapshot_commit() {
   local idx tree
   idx="$(mktemp)"
-  GIT_INDEX_FILE="$idx" git read-tree HEAD
+  # Start from the real index so file modes set with `git update-index --chmod=+x` survive
+  # (Windows checkouts have core.fileMode=false, so `git add` alone would drop the executable bit).
+  cp "$(git rev-parse --git-path index)" "$idx"
   GIT_INDEX_FILE="$idx" git add -A
   tree="$(GIT_INDEX_FILE="$idx" git write-tree)"
   rm -f "$idx"
@@ -2274,7 +2276,9 @@ pg_restore --no-owner --no-privileges --exit-on-error --dbname="$base/$scratch" 
 
 migrations="$(psql -X -At "$base/$scratch" -c "SELECT count(*) FROM schema_migrations")"
 tables="$(psql -X -At "$base/$scratch" -c "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('public','pgboss')")"
-[ "$migrations" -ge 1 ] && [ "$tables" -ge 3 ] || fail "sanity counts failed (migrations=$migrations tables=$tables)"
+if [ "$migrations" -lt 1 ] || [ "$tables" -lt 3 ]; then
+  fail "sanity counts failed (migrations=$migrations tables=$tables)"
+fi
 
 printf '{"ok":true,"backup":"%s","migrations":%s,"tables":%s}\n' "$latest" "$migrations" "$tables"
 ```

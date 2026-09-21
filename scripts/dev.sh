@@ -19,7 +19,9 @@ remote() { ssh -o BatchMode=yes "$HOST" "$@"; }
 snapshot_commit() {
   local idx tree
   idx="$(mktemp)"
-  GIT_INDEX_FILE="$idx" git read-tree HEAD
+  # Start from the real index so file modes set with `git update-index --chmod=+x` survive
+  # (Windows checkouts have core.fileMode=false, so `git add` alone would drop the executable bit).
+  cp "$(git rev-parse --git-path index)" "$idx"
   GIT_INDEX_FILE="$idx" git add -A
   tree="$(GIT_INDEX_FILE="$idx" git write-tree)"
   rm -f "$idx"
