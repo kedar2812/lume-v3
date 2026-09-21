@@ -2943,8 +2943,11 @@ write() { # write <path> <mode> <content>
 }
 step() { printf '\n== %s\n' "$1"; }
 
+# shellcheck source=/dev/null
 . /etc/os-release
-[ "${ID:-}" = ubuntu ] && [ "${VERSION_ID:-}" = "24.04" ] || { echo "Ubuntu 24.04 required (found ${PRETTY_NAME:-unknown})" >&2; exit 1; }
+if [ "${ID:-}" != ubuntu ] || [ "${VERSION_ID:-}" != "24.04" ]; then
+  echo "Ubuntu 24.04 required (found ${PRETTY_NAME:-unknown})" >&2; exit 1
+fi
 [ "$(id -u)" = 0 ] || $DRY || { echo "run as root" >&2; exit 1; }
 
 step "packages"
