@@ -30,7 +30,7 @@ The prototypes are the visual source of truth. Their code is throwaway: rebuild 
 
 ## 2. Brand and logo
 
-- Asset: `public/lume-mark.png` (6-petal blue rosette). Also produce an SVG trace plus 16/32/180/512 px PNG exports for favicon, apple-touch-icon and PWA manifest.
+- Asset: `public/lume-mark.png` (6-petal blue rosette), the owner's file, used **as-is** everywhere (sidebar, sign-in, favicon, empty states). Never generate, trace, resize or re-export it.
 - **Sidebar lockup:** mark (28 px, soft blue drop-shadow) + **LUME** on top (bold 760, tracking +0.06em, 15 px) + the **client name** beneath (11.5 px, tertiary text). The client name comes from `settings.business_name`.
 - **Sign-in page:** the mark is the hero (76 px) with a "bloom" entrance (Section 5.4). Below it: LUME wordmark (30 px, 780, tracking +0.14em) and the client name.
 - **Favicon:** the mark. The tab title carries the unread count: `(3) LUME`.
