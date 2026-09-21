@@ -1,0 +1,184 @@
+/* LUME design tokens. Spec: docs/superpowers/specs/2026-09-21-lume-frontend-design.md §3–4.
+   Components use only these variables. "system" follows the OS: light = Porcelain, dark = Obsidian. */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable-Italic.woff2") format("woff2");
+}
+
+:root {
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --r-sheet: 16px;
+  --r-card: 14px;
+  --r-row: 12px;
+  --r-ctl: 10px;
+  --r-chip: 8px;
+  --focus-ring: 0 0 0 4px var(--accent-soft), inset 0 0 0 1.5px var(--accent);
+}
+
+:root,
+[data-theme="porcelain"],
+[data-theme="system"] {
+  color-scheme: light;
+  --canvas: #eef0f3;
+  --side-text: #3a3f4a;
+  --sheet: #ffffff;
+  --raised: #ffffff;
+  --sunk: #f6f7f9;
+  --line: rgba(12, 18, 32, 0.075);
+  --line-2: rgba(12, 18, 32, 0.12);
+  --text: #0a0c11;
+  --text-2: #5a606d;
+  --text-3: #858b97;
+  --accent: #2a5bff;
+  --accent-rgb: 42, 91, 255;
+  --accent-soft: rgba(42, 91, 255, 0.08);
+  --accent-ink: #1e47d9;
+  --hover: rgba(12, 18, 32, 0.04);
+  --press: rgba(12, 18, 32, 0.07);
+  --danger: #e5484d;
+  --danger-soft: #fdecec;
+  --danger-ink: #c3272d;
+  --warn: #f2a20c;
+  --warn-soft: #fef4dd;
+  --warn-ink: #8a5a00;
+  --meet: #6e56cf;
+  --meet-soft: #f0edfc;
+  --meet-ink: #5539c0;
+  --ok: #18a566;
+  --ok-soft: #e4f6ec;
+  --ok-ink: #0e7f4b;
+  --cyan: #0ea5b7;
+  --wa: #1faf5a;
+  --glass: rgba(255, 255, 255, 0.78);
+  --hud: rgba(22, 24, 30, 0.88);
+  --hud-text: #f4f5f7;
+  --scrim: rgba(8, 10, 14, 0.22);
+  --skel: #edeff2;
+  --skel-hi: #f7f8fa;
+  --glow: rgba(42, 91, 255, 0.1);
+  --sb: rgba(12, 18, 32, 0.16);
+  --sb-hover: rgba(12, 18, 32, 0.3);
+  --sb-active: rgba(12, 18, 32, 0.42);
+  --shadow-sheet:
+    0 0 0 0.5px rgba(12, 18, 32, 0.08), 0 1px 2px rgba(12, 18, 32, 0.04),
+    0 12px 40px -12px rgba(12, 18, 32, 0.1);
+  --shadow-pop:
+    0 0 0 0.5px rgba(12, 18, 32, 0.1), 0 10px 30px -6px rgba(12, 18, 32, 0.18),
+    0 30px 80px -20px rgba(12, 18, 32, 0.22);
+  --shadow-lift: 0 0 0 0.5px rgba(12, 18, 32, 0.1), 0 12px 30px -8px rgba(12, 18, 32, 0.25);
+}
+
+[data-theme="obsidian"] {
+  color-scheme: dark;
+  --canvas: #060708;
+  --side-text: #b4b8c0;
+  --sheet: #0e0f12;
+  --raised: #15171b;
+  --sunk: #0a0b0d;
+  --line: rgba(255, 255, 255, 0.065);
+  --line-2: rgba(255, 255, 255, 0.11);
+  --text: #eef0f3;
+  --text-2: #9ca1ab;
+  --text-3: #71767f;
+  --accent: #5b84ff;
+  --accent-rgb: 91, 132, 255;
+  --accent-soft: rgba(91, 132, 255, 0.12);
+  --accent-ink: #8aa7ff;
+  --hover: rgba(255, 255, 255, 0.04);
+  --press: rgba(255, 255, 255, 0.07);
+  --danger: #ff5c61;
+  --danger-soft: rgba(255, 92, 97, 0.12);
+  --danger-ink: #ff8a8e;
+  --warn: #ffb224;
+  --warn-soft: rgba(255, 178, 36, 0.12);
+  --warn-ink: #ffc75c;
+  --meet: #9582ff;
+  --meet-soft: rgba(149, 130, 255, 0.14);
+  --meet-ink: #b3a6ff;
+  --ok: #2fd08a;
+  --ok-soft: rgba(47, 208, 138, 0.12);
+  --ok-ink: #5fe0a8;
+  --cyan: #22c3d6;
+  --wa: #25c366;
+  --glass: rgba(22, 24, 29, 0.72);
+  --hud: rgba(38, 41, 48, 0.86);
+  --hud-text: #f4f5f7;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --skel: #17191d;
+  --skel-hi: #1f2227;
+  --glow: rgba(91, 132, 255, 0.16);
+  --sb: rgba(255, 255, 255, 0.14);
+  --sb-hover: rgba(255, 255, 255, 0.26);
+  --sb-active: rgba(255, 255, 255, 0.38);
+  --shadow-sheet:
+    0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 20px 60px -20px rgba(0, 0, 0, 0.8);
+  --shadow-pop:
+    0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 80px -10px rgba(0, 0, 0, 0.8);
+  --shadow-lift: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    color-scheme: dark;
+    --canvas: #060708;
+    --side-text: #b4b8c0;
+    --sheet: #0e0f12;
+    --raised: #15171b;
+    --sunk: #0a0b0d;
+    --line: rgba(255, 255, 255, 0.065);
+    --line-2: rgba(255, 255, 255, 0.11);
+    --text: #eef0f3;
+    --text-2: #9ca1ab;
+    --text-3: #71767f;
+    --accent: #5b84ff;
+    --accent-rgb: 91, 132, 255;
+    --accent-soft: rgba(91, 132, 255, 0.12);
+    --accent-ink: #8aa7ff;
+    --hover: rgba(255, 255, 255, 0.04);
+    --press: rgba(255, 255, 255, 0.07);
+    --danger: #ff5c61;
+    --danger-soft: rgba(255, 92, 97, 0.12);
+    --danger-ink: #ff8a8e;
+    --warn: #ffb224;
+    --warn-soft: rgba(255, 178, 36, 0.12);
+    --warn-ink: #ffc75c;
+    --meet: #9582ff;
+    --meet-soft: rgba(149, 130, 255, 0.14);
+    --meet-ink: #b3a6ff;
+    --ok: #2fd08a;
+    --ok-soft: rgba(47, 208, 138, 0.12);
+    --ok-ink: #5fe0a8;
+    --cyan: #22c3d6;
+    --wa: #25c366;
+    --glass: rgba(22, 24, 29, 0.72);
+    --hud: rgba(38, 41, 48, 0.86);
+    --hud-text: #f4f5f7;
+    --scrim: rgba(0, 0, 0, 0.5);
+    --skel: #17191d;
+    --skel-hi: #1f2227;
+    --glow: rgba(91, 132, 255, 0.16);
+    --sb: rgba(255, 255, 255, 0.14);
+    --sb-hover: rgba(255, 255, 255, 0.26);
+    --sb-active: rgba(255, 255, 255, 0.38);
+    --shadow-sheet:
+      0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 20px 60px -20px rgba(0, 0, 0, 0.8);
+    --shadow-pop:
+      0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 30px 80px -10px rgba(0, 0, 0, 0.8);
+    --shadow-lift: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.8);
+  }
+}

@@ -66,7 +66,7 @@
 
 Run:
 ```bash
-scripts/dev.sh add --filter @lume/web -D vitest@^3 @vitejs/plugin-react jsdom @testing-library/react @testing-library/user-event @testing-library/jest-dom
+scripts/dev.sh add --filter @lume/web -D vitest@^3 @vitejs/plugin-react@^5 jsdom @testing-library/react @testing-library/user-event @testing-library/jest-dom
 ```
 
 `apps/web/vitest.config.ts`:
