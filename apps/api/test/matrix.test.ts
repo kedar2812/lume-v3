@@ -181,3 +181,58 @@ describe("access matrix (report §7.5)", () => {
     expect(failures).toEqual([]);
   });
 });
+
+describe("lead scope across every lead route (report §7.5: in and out of scope)", () => {
+  it("a sales rep gets 404 on every route of someone else's lead, and reaches every route of their own", async () => {
+    const sales = users.get("sales")!;
+    const mine = await h.seedLead({ ownerId: sales.id });
+    const other = await h.seedUser({ grants: [] });
+    const theirs = await h.seedLead({ ownerId: other.id });
+    const leadRoutes = apiRoutes().filter((r) => r.url.startsWith("/api/v1/leads/:id"));
+    expect(leadRoutes.length).toBeGreaterThanOrEqual(8);
+    const wrong: string[] = [];
+    for (const route of leadRoutes) {
+      const probe = PROBES[key(route)]!;
+      for (const [id, outOfScope] of [
+        [theirs, true],
+        [mine, false],
+      ] as const) {
+        const res = await (
+          await h.signIn(sales)
+        ).inject({
+          method: route.method as "GET",
+          url: route.url.replace(":id", id) + (probe.query ? `?${probe.query}` : ""),
+          headers: { "if-match": "1" },
+          ...(probe.body ? { payload: probe.body(fx) as object } : {}),
+        });
+        const code =
+          res.statusCode >= 400 ? (res.json() as { error?: { code?: string } }).error?.code : undefined;
+        // The route guard may refuse a permission the rep lacks outright (403 FORBIDDEN, before any lookup,
+        // so it reveals nothing). Anything past the guard on someone else's lead must be a plain 404.
+        const guardRefusal = res.statusCode === 403 && code === "FORBIDDEN";
+        if (outOfScope && res.statusCode !== 404 && !guardRefusal) {
+          wrong.push(`${key(route)} on someone else's lead → ${res.statusCode} ${code ?? ""}`);
+        }
+        if (!outOfScope && res.statusCode === 404) wrong.push(`${key(route)} on the rep's own lead → 404`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("a team lead sees their members' leads and nobody else's", async () => {
+    const lead = await h.seedUser({ grants: [{ key: "leads.view", scope: "team" }] });
+    const member = await h.seedUser({ grants: [] });
+    const outsider = await h.seedUser({ grants: [] });
+    await h.seedTeam(lead.id, [member.id]);
+    const theirs = await h.seedLead({ ownerId: member.id });
+    const nope = await h.seedLead({ ownerId: outsider.id });
+    const c = await h.signIn(lead);
+    expect((await c.inject({ method: "GET", url: `/api/v1/leads/${theirs}` })).statusCode).toBe(200);
+    expect((await c.inject({ method: "GET", url: `/api/v1/leads/${nope}` })).statusCode).toBe(404);
+    const listed = (await c.inject({ method: "GET", url: "/api/v1/leads?limit=100" })).json().items as {
+      id: string;
+    }[];
+    expect(listed.map((l) => l.id)).toContain(theirs);
+    expect(listed.map((l) => l.id)).not.toContain(nope);
+  });
+});
