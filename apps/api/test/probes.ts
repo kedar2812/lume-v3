@@ -254,6 +254,10 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.contact.reveal",
     path: (f) => `/api/v1/leads/${f.leadId}/contact/reveal`,
   },
+  "POST /api/v1/leads/bulk": {
+    access: "leads.bulk_edit",
+    body: (f) => ({ ids: [f.leadId], action: { type: "tags", add: [f.tagId] } }),
+  },
   "POST /api/v1/stages/:id/archive": {
     access: "pipelines.manage",
     path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,

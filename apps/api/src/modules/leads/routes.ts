@@ -5,6 +5,7 @@ import { INSTAGRAM_RE, normalizePhone } from "@lume/core";
 import { loadFieldRegistry } from "../../leads/fields";
 import { findDuplicates } from "./duplicates";
 import { listLeads } from "./query";
+import { runBulk } from "./bulk";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
 import { addNote, assignLead, listActivities, moveStage } from "./write";
@@ -162,5 +163,27 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
       void reply.header("cache-control", "no-store");
       return revealContact(req, req.params.id);
     },
+  );
+  r.post(
+    "/api/v1/leads/bulk",
+    {
+      config: { permission: "leads.bulk_edit" },
+      schema: {
+        body: z.object({
+          ids: z.array(z.uuid()).min(1).max(100),
+          action: z.discriminatedUnion("type", [
+            z.object({ type: z.literal("stage"), stageId: z.uuid(), lostReasonId: z.uuid().optional() }),
+            z.object({ type: z.literal("assign"), ownerId: z.uuid().nullable() }),
+            z.object({
+              type: z.literal("tags"),
+              add: z.array(z.uuid()).max(20).optional(),
+              remove: z.array(z.uuid()).max(20).optional(),
+            }),
+            z.object({ type: z.literal("delete") }),
+          ]),
+        }),
+      },
+    },
+    (req) => runBulk(req, req.body.ids, req.body.action),
   );
 }
