@@ -1,6 +1,7 @@
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { QUEUE_NAMES, backupName } from "@lume/core";
 import {
@@ -33,6 +34,22 @@ beforeAll(async () => {
   db = await createTestDatabase();
   await installQueueSchema(db.url("lume_owner"), QUEUE_NAMES);
   await migrate(db.url("lume_owner"), MIGRATIONS_DIR_DEFAULT);
+  // Lead tables force RLS: prove backup + restore cope with real rows in them.
+  const owner = new pg.Client({ connectionString: db.url("lume_owner") });
+  await owner.connect();
+  await owner.query("BEGIN");
+  await owner.query(
+    "SELECT set_config('lume.user_id', '0190e0c0-0000-7000-8000-000000000001', true), set_config('lume.lead_scope', 'all', true)",
+  );
+  await owner.query("INSERT INTO pipelines (id, name) VALUES ('0190e0c0-0000-7000-8000-0000000000f1', 'P')");
+  await owner.query(
+    "INSERT INTO stages (id, pipeline_id, name, kind) VALUES ('0190e0c0-0000-7000-8000-0000000000f2', '0190e0c0-0000-7000-8000-0000000000f1', 'New', 'open')",
+  );
+  await owner.query(
+    "INSERT INTO leads (id, pipeline_id, stage_id, name) VALUES (gen_random_uuid(), '0190e0c0-0000-7000-8000-0000000000f1', '0190e0c0-0000-7000-8000-0000000000f2', 'Backup me')",
+  );
+  await owner.query("COMMIT");
+  await owner.end();
   offline = await agekey("offline");
   restore = await agekey("restore");
 });

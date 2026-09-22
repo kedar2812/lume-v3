@@ -15,7 +15,8 @@ for k in "${keys[@]}"; do
 done
 [ "${#recipients[@]}" -ge 4 ] || { echo '{"ok":false,"error":"need two age recipients"}'; exit 1; }
 
-pg_dump --format=custom --compress=6 --dbname="$DATABASE_URL_BACKUP" | age "${recipients[@]}" -o "$work/$BACKUP_NAME"
+# --enable-row-security: lead tables FORCE RLS; the backup role reads them through its backup_read policies.
+pg_dump --format=custom --compress=6 --enable-row-security --dbname="$DATABASE_URL_BACKUP" | age "${recipients[@]}" -o "$work/$BACKUP_NAME"
 bytes="$(stat -c %s "$work/$BACKUP_NAME")"
 rclone copyto --no-traverse "$work/$BACKUP_NAME" "$RCLONE_REMOTE/$BACKUP_NAME"
 printf '{"backup":"%s","bytes":%s}\n' "$BACKUP_NAME" "$bytes"

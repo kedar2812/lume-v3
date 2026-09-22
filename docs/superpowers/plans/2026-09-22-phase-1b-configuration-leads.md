@@ -279,7 +279,7 @@ const valid = (raw: string, p: PhoneNumber): NormalizedPhone => ({ raw, e164: p.
 export function normalizePhone(input: string | null | undefined, defaultCountry?: string | null): NormalizedPhone {
   const raw = input?.trim() ?? "";
   if (!raw) return { raw: null, e164: null, countryIso: null, status: "missing" };
-  let s = raw.replace(/[\s\-.() ]/g, "");
+  let s = raw.replace(/[\s\-.()\xA0]/g, "");
   if (s.startsWith("00")) s = `+${s.slice(2)}`;
   if (!/^\+?\d+$/.test(s)) return { raw, e164: null, countryIso: null, status: "invalid" };
   if (s.startsWith("+")) {

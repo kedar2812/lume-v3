@@ -4,7 +4,6 @@ import {
   bigserial,
   boolean,
   char,
-  customType,
   integer,
   jsonb,
   pgTable,
@@ -12,15 +11,9 @@ import {
   smallint,
   text,
   time,
-  timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-
-const citext = customType<{ data: string }>({ dataType: () => "citext" });
-const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
-const inet = customType<{ data: string }>({ dataType: () => "inet" });
-const cidrArray = customType<{ data: string[] }>({ dataType: () => "cidr[]" });
-const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+import { bytea, cidrArray, citext, inet, tz } from "./types";
 
 export const settings = pgTable("settings", {
   id: smallint("id").primaryKey().default(1),
