@@ -16,6 +16,7 @@ import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
 import { meRoutes } from "./modules/me/routes";
+import { pipelineRoutes } from "./modules/pipelines/routes";
 import { roleRoutes } from "./modules/roles/routes";
 import { settingsRoutes } from "./modules/settings/routes";
 import { memoSettings } from "./modules/settings/service";
@@ -82,6 +83,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(teamRoutes);
         await scope.register(settingsRoutes);
         await scope.register(auditRoutes);
+        await scope.register(pipelineRoutes);
         deps.extraRoutes?.(scope);
       },
     });

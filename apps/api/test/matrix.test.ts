@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ALL_GRANTS, PERMISSIONS, can, effectivePermissions, type Grant } from "@lume/core";
+import { ALL_GRANTS, PERMISSIONS, can, effectivePermissions, newId, type Grant } from "@lume/core";
 import { createHarness, type Harness, type SeededUser } from "./harness";
 import { PROBES, type Access, type Fixtures } from "./probes";
 
@@ -46,6 +46,7 @@ beforeAll(async () => {
     roleId: rows[0]!.id,
     teamId: await h.seedTeam(target.id, []),
     inviteToken: "y".repeat(43),
+    ...(await configFixtures(target.id)),
   };
   for (const a of ACTORS) {
     // Everyone who could need two-step sign-in has it, so the 2FA gate never masks the permission check.
@@ -54,6 +55,59 @@ beforeAll(async () => {
   }
 });
 afterAll(async () => h.close());
+
+/** Phase 1B fixtures, written straight to the configuration tables (no RLS there) and via seedLead. */
+async function configFixtures(ownerId: string) {
+  const cfg = await h.config();
+  const q = async (sql: string, params: unknown[]) =>
+    (await h.ownerPool.query<{ id: string }>(sql, params)).rows[0]!.id;
+  const pipeline = async (name: string) => {
+    const id = await q("INSERT INTO pipelines (id, name) VALUES ($1, $2) RETURNING id", [newId(), name]);
+    for (const [i, [n, kind]] of [
+      ["New", "open"],
+      ["Won", "won"],
+      ["Lost", "lost"],
+    ].entries()) {
+      await h.ownerPool.query(
+        "INSERT INTO stages (id, pipeline_id, name, kind, position) VALUES ($1, $2, $3, $4, $5)",
+        [newId(), id, n, kind, i],
+      );
+    }
+    return id;
+  };
+  const pipelineId = await pipeline("Matrix P2");
+  const field = (key: string) =>
+    q(
+      "INSERT INTO field_definitions (id, key, label, type, position) VALUES ($1, $2, $2, 'text', 90) RETURNING id",
+      [newId(), key],
+    );
+  return {
+    leadId: await h.seedLead({ ownerId }),
+    leadToDelete: await h.seedLead({ ownerId }),
+    pipelineId,
+    pipelineToArchive: await pipeline("Matrix P3"),
+    stageId: cfg.stages.New!,
+    stageToArchive: await q(
+      "INSERT INTO stages (id, pipeline_id, name, kind, position) VALUES ($1, $2, 'Doomed', 'open', 9) RETURNING id",
+      [newId(), pipelineId],
+    ),
+    fieldId: await field("matrix_field"),
+    fieldToArchive: await field("matrix_doomed"),
+    lostReasonId: cfg.lostReasons[0]!,
+    lostReasonToArchive: await q(
+      "INSERT INTO lost_reasons (id, label) VALUES ($1, 'Matrix doomed') RETURNING id",
+      [newId()],
+    ),
+    tagId: await q("INSERT INTO tags (id, label) VALUES ($1, 'Matrix') RETURNING id", [newId()]),
+    tagToDelete: await q("INSERT INTO tags (id, label) VALUES ($1, 'Matrix doomed') RETURNING id", [newId()]),
+    productId: await q("INSERT INTO products (id, name) VALUES ($1, 'Matrix product') RETURNING id", [
+      newId(),
+    ]),
+    productToArchive: await q("INSERT INTO products (id, name) VALUES ($1, 'Matrix doomed') RETURNING id", [
+      newId(),
+    ]),
+  };
+}
 
 const apiRoutes = () => h.app.lumeRoutes.filter((r) => r.url.startsWith("/api/v1/"));
 const key = (r: { method: string; url: string }) => `${r.method} ${r.url}`;

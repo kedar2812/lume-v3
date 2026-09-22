@@ -1,7 +1,27 @@
 import type { PermissionKey } from "@lume/core";
 
 /** One probe per route: how to call it with valid-looking input. Missing probe = failing CI (report §7.5). */
-export type Fixtures = { userId: string; roleId: string; teamId: string; inviteToken: string };
+export type Fixtures = {
+  userId: string;
+  roleId: string;
+  teamId: string;
+  inviteToken: string;
+  /** Configuration and lead fixtures (Phase 1B). "…To…" ids are consumed by destructive probes. */
+  leadId: string;
+  leadToDelete: string;
+  pipelineId: string;
+  pipelineToArchive: string;
+  stageId: string;
+  stageToArchive: string;
+  fieldId: string;
+  fieldToArchive: string;
+  lostReasonId: string;
+  lostReasonToArchive: string;
+  tagId: string;
+  tagToDelete: string;
+  productId: string;
+  productToArchive: string;
+};
 /** What the route must require, written independently of the route code (the spec's route table). */
 export type Access = "public" | "auth.self" | PermissionKey;
 export type Probe = {
@@ -112,4 +132,39 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/settings": { access: "auth.self" },
   "PATCH /api/v1/settings": { access: "settings.manage", body: () => ({ weekStart: 1 }) },
   "GET /api/v1/audit": { access: "audit.view", query: "limit=5" },
+  // Phase 1B — configuration
+  "GET /api/v1/pipelines": { access: "leads.view" },
+  "POST /api/v1/pipelines": {
+    access: "pipelines.manage",
+    body: () => ({ name: `MP-${Math.random()}`.slice(0, 30) }),
+  },
+  "PATCH /api/v1/pipelines/:id": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/pipelines/${f.pipelineId}`,
+    body: () => ({ position: 5 }),
+  },
+  "POST /api/v1/pipelines/:id/archive": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/pipelines/${f.pipelineToArchive}/archive`,
+  },
+  "POST /api/v1/pipelines/:id/stages": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/pipelines/${f.pipelineId}/stages`,
+    body: () => ({ name: `S-${Math.random()}`.slice(0, 20), kind: "open" }),
+  },
+  "PUT /api/v1/pipelines/:id/stage-order": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/pipelines/${f.pipelineId}/stage-order`,
+    body: () => ({ stageIds: [uuid] }),
+  },
+  "PATCH /api/v1/stages/:id": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/stages/${f.stageId}`,
+    body: () => ({ color: "cyan" }),
+  },
+  "POST /api/v1/stages/:id/archive": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,
+    body: () => ({}),
+  },
 };
