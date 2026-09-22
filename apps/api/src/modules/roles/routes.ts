@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { setFieldAccess } from "./field-access";
 import * as roles from "./service";
 
 const cfg = { permission: "roles.manage" as const };
@@ -51,5 +52,20 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
     "/api/v1/roles/:id/clone",
     { config: cfg, schema: { params, body: z.object({ name: z.string().trim().min(1).max(60) }) } },
     async (req, reply) => reply.code(201).send(await roles.cloneRole(req, req.params.id, req.body.name)),
+  );
+  r.put(
+    "/api/v1/roles/:id/field-access",
+    {
+      config: cfg,
+      schema: {
+        params,
+        body: z.object({
+          entries: z
+            .array(z.object({ fieldId: z.uuid(), access: z.enum(["hidden", "view", "edit"]) }))
+            .max(500),
+        }),
+      },
+    },
+    (req) => setFieldAccess(req, req.params.id, req.body.entries),
   );
 }

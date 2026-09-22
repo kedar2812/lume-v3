@@ -12,6 +12,8 @@ import { idempotency } from "./http/idempotency";
 import { dbChecks } from "./health";
 import type { Mailer } from "./mail/mailer";
 import { auditRoutes } from "./modules/audit/routes";
+import { catalogRoutes } from "./modules/catalog/routes";
+import { fieldRoutes } from "./modules/fields/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
@@ -84,6 +86,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(settingsRoutes);
         await scope.register(auditRoutes);
         await scope.register(pipelineRoutes);
+        await scope.register(fieldRoutes);
+        await scope.register(catalogRoutes);
         deps.extraRoutes?.(scope);
       },
     });

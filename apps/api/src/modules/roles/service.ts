@@ -41,7 +41,11 @@ async function getRole(req: FastifyRequest, id: string) {
   const [{ holders }] = (
     await req.db.execute(sql`SELECT count(*)::int AS holders FROM user_roles WHERE role_id = ${id}`)
   ).rows as [{ holders: number }];
-  return { ...role, grants: grants.sort((a, b) => a.key.localeCompare(b.key)), holders };
+  const fieldAccess = await req.db
+    .select({ fieldId: schema.roleFieldAccess.fieldId, access: schema.roleFieldAccess.access })
+    .from(schema.roleFieldAccess)
+    .where(eq(schema.roleFieldAccess.roleId, id));
+  return { ...role, grants: grants.sort((a, b) => a.key.localeCompare(b.key)), fieldAccess, holders };
 }
 
 async function writeGrants(req: FastifyRequest, roleId: string, grants: ReturnType<typeof normaliseGrants>) {

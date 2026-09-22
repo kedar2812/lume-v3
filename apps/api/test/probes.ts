@@ -162,6 +162,64 @@ export const PROBES: Record<string, Probe> = {
     path: (f) => `/api/v1/stages/${f.stageId}`,
     body: () => ({ color: "cyan" }),
   },
+  "GET /api/v1/fields": { access: "leads.view" },
+  "POST /api/v1/fields": {
+    access: "fields.manage",
+    body: () => ({ key: `mf_${Math.random().toString(36).slice(2, 10)}`, label: "M", type: "text" }),
+  },
+  "PATCH /api/v1/fields/:id": {
+    access: "fields.manage",
+    path: (f) => `/api/v1/fields/${f.fieldId}`,
+    body: () => ({ position: 50 }),
+  },
+  "POST /api/v1/fields/:id/archive": {
+    access: "fields.manage",
+    path: (f) => `/api/v1/fields/${f.fieldToArchive}/archive`,
+  },
+  "GET /api/v1/lost-reasons": { access: "leads.view" },
+  "POST /api/v1/lost-reasons": {
+    access: "pipelines.manage",
+    body: () => ({ label: `LR-${Math.random()}`.slice(0, 30) }),
+  },
+  "PATCH /api/v1/lost-reasons/:id": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/lost-reasons/${f.lostReasonId}`,
+    body: () => ({ position: 9 }),
+  },
+  "POST /api/v1/lost-reasons/:id/archive": {
+    access: "pipelines.manage",
+    path: (f) => `/api/v1/lost-reasons/${f.lostReasonToArchive}/archive`,
+  },
+  "GET /api/v1/tags": { access: "leads.view" },
+  "POST /api/v1/tags": {
+    access: "settings.manage",
+    body: () => ({ label: `T-${Math.random()}`.slice(0, 30) }),
+  },
+  "PATCH /api/v1/tags/:id": {
+    access: "settings.manage",
+    path: (f) => `/api/v1/tags/${f.tagId}`,
+    body: () => ({ color: "ok" }),
+  },
+  "DELETE /api/v1/tags/:id": { access: "settings.manage", path: (f) => `/api/v1/tags/${f.tagToDelete}` },
+  "GET /api/v1/products": { access: "leads.view" },
+  "POST /api/v1/products": {
+    access: "settings.manage",
+    body: () => ({ name: `P-${Math.random()}`.slice(0, 30) }),
+  },
+  "PATCH /api/v1/products/:id": {
+    access: "settings.manage",
+    path: (f) => `/api/v1/products/${f.productId}`,
+    body: () => ({ defaultValue: 10 }),
+  },
+  "POST /api/v1/products/:id/archive": {
+    access: "settings.manage",
+    path: (f) => `/api/v1/products/${f.productToArchive}/archive`,
+  },
+  "PUT /api/v1/roles/:id/field-access": {
+    access: "roles.manage",
+    path: (f) => `/api/v1/roles/${f.roleId}/field-access`,
+    body: () => ({ entries: [] }),
+  },
   "POST /api/v1/stages/:id/archive": {
     access: "pipelines.manage",
     path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,
