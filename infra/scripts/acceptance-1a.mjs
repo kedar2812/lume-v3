@@ -53,7 +53,11 @@ function browser(name) {
     if (jar.size) headers.cookie = [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
     if (jar.has("__Host-lume_csrf")) headers["x-csrf-token"] = jar.get("__Host-lume_csrf");
     if (body !== undefined) headers["content-type"] = "application/json";
-    const res = await fetch(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await fetch(BASE + path, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
     for (const c of res.headers.getSetCookie()) {
       const [pair, ...attrs] = c.split(";");
       const [k, v] = pair.split("=");
@@ -95,14 +99,22 @@ r = await owner.post("/api/v1/setup", {
   owner: { name: "Nupuur Patil", email: ownerEmail, password: ownerPassword },
   totp: { secret, code: totp(secret) },
 });
-assert(r.status === 201 && r.body.recoveryCodes.length === 10, "setup creates the owner with 2FA and 10 recovery codes", r.body);
+assert(
+  r.status === 201 && r.body.recoveryCodes.length === 10,
+  "setup creates the owner with 2FA and 10 recovery codes",
+  r.body,
+);
 const recovery = r.body.recoveryCodes;
 r = await owner.get("/api/v1/setup/status");
 assert(r.body.needsSetup === false, "setup cannot run twice");
 
 // 2. The owner is signed in
 r = await owner.get("/api/v1/auth/me");
-assert(r.status === 200 && r.body.user.isOwner && r.body.twoFactor.enabled, "owner is signed in with 2FA on", r.body);
+assert(
+  r.status === 200 && r.body.user.isOwner && r.body.twoFactor.enabled,
+  "owner is signed in with 2FA on",
+  r.body,
+);
 
 // 3. Sign out, then back in: password, then a recovery code (the TOTP step used in setup can't be replayed)
 r = await owner.post("/api/v1/auth/logout");
@@ -110,7 +122,10 @@ assert(r.status === 204, "owner signs out");
 assert((await owner.get("/api/v1/auth/me")).status === 401, "signed out means signed out");
 await owner.start();
 r = await owner.post("/api/v1/auth/login", { email: ownerEmail, password: "wrong password entirely" });
-assert(r.status === 401 && r.body.error.code === "INVALID_CREDENTIALS", "a wrong password is refused generically");
+assert(
+  r.status === 401 && r.body.error.code === "INVALID_CREDENTIALS",
+  "a wrong password is refused generically",
+);
 r = await owner.post("/api/v1/auth/login", { email: ownerEmail, password: ownerPassword });
 assert(r.status === 200 && r.body.next === "otp", "the right password asks for the second step");
 assert((await owner.get("/api/v1/auth/me")).status === 401, "a password alone opens nothing");
@@ -128,7 +143,9 @@ assert(r.status === 201, "owner invites Riya as Sales", r.body);
 
 let link = null;
 for (let i = 0; i < 30 && !link; i++) {
-  const list = await (await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${riyaEmail}"`)}`)).json();
+  const list = await (
+    await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${riyaEmail}"`)}`)
+  ).json();
   if (list.messages?.length) {
     const msg = await (await fetch(`${MAILPIT}/api/v1/message/${list.messages[0].ID}`)).json();
     link = /https:\/\/\S+\/invite\/([A-Za-z0-9_-]{43})/.exec(msg.Text)?.[1] ?? null;
@@ -140,7 +157,10 @@ assert(link, "the invite email reached Mailpit with a link");
 const riya = browser("riya");
 await riya.start();
 r = await riya.get(`/api/v1/invites/${link}`);
-assert(r.status === 200 && r.body.email === riyaEmail && r.body.businessName === "Nupuur Coaching", "the invite page knows who it is for");
+assert(
+  r.status === 200 && r.body.email === riyaEmail && r.body.businessName === "Nupuur Coaching",
+  "the invite page knows who it is for",
+);
 r = await riya.post(`/api/v1/invites/${link}/accept`, { password: "password123456" });
 assert(r.status === 400 && r.body.error.code === "WEAK_PASSWORD", "a breached password is refused", r.body);
 r = await riya.post(`/api/v1/invites/${link}/accept`, { password: "sunrise over the creek at five" });
@@ -153,7 +173,11 @@ assert(
 );
 assert(!r.body.permissions.some((p) => p.key === "leads.contact.full"), "Sales never sees full contacts");
 assert((await riya.get("/api/v1/users")).status === 403, "Sales cannot open people admin");
-assert((await riya.post(`/api/v1/invites/${link}/accept`, { password: "sunrise over the creek at five" })).status === 404, "an invite works once");
+assert(
+  (await riya.post(`/api/v1/invites/${link}/accept`, { password: "sunrise over the creek at five" }))
+    .status === 404,
+  "an invite works once",
+);
 
 // 6. The owner disables Riya: her session ends on the very next request
 const riyaId = (await owner.get("/api/v1/users")).body.users.find((u) => u.email === riyaEmail).id;
@@ -163,7 +187,15 @@ assert((await riya.get("/api/v1/auth/me")).status === 401, "Riya's session is de
 
 // 7. It is all in the audit log
 const actions = new Set((await owner.get("/api/v1/audit?limit=100")).body.entries.map((e) => e.action));
-for (const a of ["setup.completed", "user.logout", "user.login.failed", "user.login", "user.invited", "user.invite.accepted", "user.disabled"]) {
+for (const a of [
+  "setup.completed",
+  "user.logout",
+  "user.login.failed",
+  "user.login",
+  "user.invited",
+  "user.invite.accepted",
+  "user.disabled",
+]) {
   assert(actions.has(a), `audit log records ${a}`);
 }
 

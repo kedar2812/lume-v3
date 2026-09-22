@@ -53,3 +53,17 @@ export function requiresTwoFactor(actor: Actor): boolean {
 }
 
 export const ALL_GRANTS: Grant[] = PERMISSIONS.map((p) => ({ key: p.key, scope: p.scoped ? "all" : null }));
+
+/**
+ * Scoped permission on one record: `own` covers records I own, `team` adds records owned by members of
+ * teams I lead, `all` covers everything including unassigned records. The owner covers everything.
+ */
+export function canOnRecord(actor: Actor, key: PermissionKey, ownerId: string | null): boolean {
+  if (actor.isOwner) return true;
+  const s = scopeOf(actor, key);
+  if (s === null) return false;
+  if (s === "all") return true;
+  if (ownerId === null) return false;
+  if (ownerId === actor.userId) return true;
+  return s === "team" && actor.teamMemberIds.includes(ownerId);
+}

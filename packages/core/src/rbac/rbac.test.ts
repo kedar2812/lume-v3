@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { PERMISSIONS, isPermissionKey } from "./catalog";
 import { DEFAULT_ROLES } from "./defaults";
-import { can, effectivePermissions, leadScope, requiresTwoFactor, scopeOf, type Actor } from "./engine";
+import {
+  can,
+  canOnRecord,
+  effectivePermissions,
+  leadScope,
+  requiresTwoFactor,
+  scopeOf,
+  type Actor,
+} from "./engine";
 
 const actor = (grants: Parameters<typeof effectivePermissions>[0], extra: Partial<Actor> = {}): Actor => ({
   userId: "u1",
@@ -106,5 +114,27 @@ describe("seeded roles", () => {
       "calendar.connect": null,
       "analytics.view": "own",
     });
+  });
+});
+
+describe("canOnRecord (scoped write checks)", () => {
+  const rep = actor(
+    [
+      { key: "leads.edit", scope: "own" },
+      { key: "leads.assign", scope: "team" },
+    ],
+    { userId: "me", teamMemberIds: ["me", "m2"] },
+  );
+  it("own scope covers only my records, team adds my team's, nothing covers unassigned below all", () => {
+    expect(canOnRecord(rep, "leads.edit", "me")).toBe(true);
+    expect(canOnRecord(rep, "leads.edit", "m2")).toBe(false);
+    expect(canOnRecord(rep, "leads.assign", "m2")).toBe(true);
+    expect(canOnRecord(rep, "leads.assign", "stranger")).toBe(false);
+    expect(canOnRecord(rep, "leads.assign", null)).toBe(false);
+    expect(canOnRecord(rep, "leads.delete", "me")).toBe(false);
+  });
+  it("all scope and the owner cover everything", () => {
+    expect(canOnRecord(actor([{ key: "leads.edit", scope: "all" }]), "leads.edit", null)).toBe(true);
+    expect(canOnRecord(actor([], { isOwner: true }), "leads.delete", "anyone")).toBe(true);
   });
 });
