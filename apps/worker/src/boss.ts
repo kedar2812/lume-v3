@@ -1,4 +1,5 @@
 import PgBoss from "pg-boss";
+import type { MaintenanceJobs } from "./maintenance";
 import type { OpsJobs } from "./ops";
 
 export type Logger = { info: (o: object, msg?: string) => void; error: (o: object, msg?: string) => void };
@@ -7,6 +8,7 @@ export type Logger = { info: (o: object, msg?: string) => void; error: (o: objec
 export async function startQueue(opts: {
   connectionString: string;
   jobs: OpsJobs;
+  maintenance: MaintenanceJobs;
   log: Logger;
 }): Promise<PgBoss> {
   const boss = new PgBoss({ connectionString: opts.connectionString, schema: "pgboss", migrate: false });
@@ -21,6 +23,11 @@ export async function startQueue(opts: {
   await boss.work("ops.restore-test", { batchSize: 1 }, async () => {
     await opts.jobs.restoreTest();
     opts.log.info({}, "restore test passed");
+  });
+  await boss.schedule("ops.idempotency-cleanup", "17 * * * *", {}, { tz: "UTC" });
+  await boss.work("ops.idempotency-cleanup", { batchSize: 1 }, async () => {
+    const purged = await opts.maintenance.purgeIdempotencyKeys();
+    opts.log.info({ purged }, "idempotency keys purged");
   });
   return boss;
 }

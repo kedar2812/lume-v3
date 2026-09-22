@@ -3,6 +3,7 @@ import pino from "pino";
 import { loadConfig, workerSchema } from "@lume/config";
 import { startQueue } from "./boss";
 import { realExec } from "./exec";
+import { makeMaintenanceJobs } from "./maintenance";
 import { makeOpsJobs } from "./ops";
 
 const cfg = loadConfig(workerSchema);
@@ -52,7 +53,12 @@ if (command === "run-now") {
     process.exit(1);
   }
 } else {
-  const boss = await startQueue({ connectionString: cfg.DATABASE_URL_WORKER, jobs, log });
+  const boss = await startQueue({
+    connectionString: cfg.DATABASE_URL_WORKER,
+    jobs,
+    maintenance: makeMaintenanceJobs(pool),
+    log,
+  });
   log.info({}, "worker started");
   for (const signal of ["SIGTERM", "SIGINT"] as const) {
     process.once(signal, async () => {

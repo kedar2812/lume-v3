@@ -20,6 +20,7 @@ describe("worker queue as lume_worker", () => {
     const boss = await startQueue({
       connectionString: db.url("lume_worker"),
       jobs: { backup, restoreTest: vi.fn() },
+      maintenance: { purgeIdempotencyKeys: vi.fn(async () => 0) },
       log,
     });
     cleanup.push(() => boss.stop({ graceful: false, wait: true }));
@@ -27,6 +28,7 @@ describe("worker queue as lume_worker", () => {
     const schedules = await boss.getSchedules();
     expect(schedules.map((s) => [s.name, s.cron]).sort()).toEqual([
       ["ops.backup", "0 */6 * * *"],
+      ["ops.idempotency-cleanup", "17 * * * *"],
       ["ops.restore-test", "0 4 * * 1"],
     ]);
     await boss.send("ops.backup", {});

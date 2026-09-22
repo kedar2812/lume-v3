@@ -14,9 +14,9 @@ import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { setSessionCookie } from "../../auth/cookies";
 import { createSession } from "../../auth/sessions";
-import type { Db } from "../../db/context";
 import { badRequest, forbidden } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
+import { seedConfiguration } from "../pipelines/seed";
 
 export type SetupInput = {
   token: string;
@@ -25,9 +25,6 @@ export type SetupInput = {
   owner: { name: string; email: string; password: string };
   totp: { secret: string; code: string };
 };
-
-/** Phase 1B registers pipeline/field/template seeding here; it runs inside the setup transaction. */
-export const presetAppliers: Array<(db: Db, preset: SetupInput["preset"]) => Promise<void>> = [];
 
 function assertToken(d: AppDeps, token: string) {
   const current = d.setupTokens.current();
@@ -92,7 +89,7 @@ export async function runSetup(req: FastifyRequest, reply: FastifyReply, d: AppD
   await req.db
     .insert(schema.recoveryCodes)
     .values(codes.map((c) => ({ id: newId(), userId: ownerId, codeHash: hashRecoveryCode(c) })));
-  for (const apply of presetAppliers) await apply(req.db, input.preset);
+  await seedConfiguration(req.db, input.preset);
   const s = await createSession(req.db, {
     userId: ownerId,
     stage: "full",

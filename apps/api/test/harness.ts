@@ -1,3 +1,4 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from "fastify";
 import pg from "pg";
 import {
@@ -11,18 +12,21 @@ import {
   randomToken,
   sha256Hex,
   type Grant,
+  type PresetKey,
 } from "@lume/core";
 import {
   MIGRATIONS_DIR_DEFAULT,
   createTestDatabase,
   installQueueSchema,
   migrate,
+  schema as dbSchema,
   type DbRole,
 } from "@lume/db";
 import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
+import { seedConfiguration } from "../src/modules/pipelines/seed";
 import { loadActor, type ActorRecord } from "../src/rbac/actor";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
@@ -30,6 +34,34 @@ export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parall
 export const TEST_PUBLIC_URL = "https://lume.test";
 const SETUP_TOKEN = "test-setup-token-0000000000000000";
 const PASSWORD = "correct horse battery staple";
+/** Stands in as lume.user_id for fixture writes; never a real user. */
+export const SYSTEM_USER = "0190e0c0-0000-7000-8000-000000000000";
+
+/** As lume_owner in one transaction with request scope `all`: lead tables FORCE RLS even for their owner. */
+async function withAllScope<T>(ownerPool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  const c = await ownerPool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'all', true)", [
+      SYSTEM_USER,
+    ]);
+    const out = await fn(c);
+    await c.query("COMMIT");
+    return out;
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+export type HarnessConfig = {
+  pipelineId: string;
+  stages: Record<string, string>;
+  fields: Record<string, string>;
+  lostReasons: string[];
+};
 
 export type SeededUser = { id: string; email: string; password: string; totpSecret?: string };
 export type SeedUserOptions = {
@@ -69,11 +101,21 @@ export type Harness = {
   /** Resolves once every lume_rbac notification sent before this call has reached the app. */
   waitForRbacNotify(): Promise<void>;
   actorOf(userId: string): Promise<ActorRecord | null>;
+  /** Ids of the default pipeline's live stages, every field (by key) and the lost reasons (in order). */
+  config(): Promise<HarnessConfig>;
+  /** A lead in the default pipeline, written with full scope (bypasses nothing: RLS is simply satisfied). */
+  seedLead(o: {
+    ownerId: string | null;
+    name?: string;
+    stage?: string;
+    phone?: string;
+    email?: string;
+  }): Promise<string>;
   close(): Promise<void>;
 };
 
 export async function createHarness(
-  opts: { extraRoutes?: AppDeps["extraRoutes"]; noSettings?: boolean } = {},
+  opts: { extraRoutes?: AppDeps["extraRoutes"]; noSettings?: boolean; preset?: PresetKey } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
   await installQueueSchema(tdb.url("lume_owner"), QUEUE_NAMES);
@@ -91,6 +133,9 @@ export async function createHarness(
   if (!opts.noSettings) {
     await ownerPool.query(
       "INSERT INTO settings (business_name, timezone, currency, default_country_iso, industry_preset) VALUES ('Test Co', 'Asia/Dubai', 'AED', 'AE', 'general')",
+    );
+    await withAllScope(ownerPool, (c) =>
+      seedConfiguration(drizzle(c, { schema: dbSchema }), opts.preset ?? "general"),
     );
   }
 
@@ -228,6 +273,53 @@ export async function createHarness(
       waiters.delete(marker);
     },
     actorOf: (userId) => loadActor(pool, userId),
+    async config() {
+      const p = (
+        await ownerPool.query<{ id: string }>(
+          "SELECT id FROM pipelines WHERE is_default AND archived_at IS NULL",
+        )
+      ).rows[0];
+      if (!p) throw new Error("no default pipeline (harness created with noSettings?)");
+      const stages = await ownerPool.query<{ name: string; id: string }>(
+        "SELECT name, id FROM stages WHERE pipeline_id = $1 AND archived_at IS NULL",
+        [p.id],
+      );
+      const fields = await ownerPool.query<{ key: string; id: string }>(
+        "SELECT key, id FROM field_definitions",
+      );
+      const reasons = await ownerPool.query<{ id: string }>(
+        "SELECT id FROM lost_reasons WHERE archived_at IS NULL ORDER BY position",
+      );
+      return {
+        pipelineId: p.id,
+        stages: Object.fromEntries(stages.rows.map((r) => [r.name, r.id])),
+        fields: Object.fromEntries(fields.rows.map((r) => [r.key, r.id])),
+        lostReasons: reasons.rows.map((r) => r.id),
+      };
+    },
+    async seedLead(o) {
+      const cfg = await h.config();
+      const stageId = cfg.stages[o.stage ?? Object.keys(cfg.stages).find((n) => n === "New") ?? ""];
+      if (!stageId) throw new Error(`no stage ${o.stage ?? "New"}`);
+      const id = newId();
+      await withAllScope(ownerPool, (c) =>
+        c.query(
+          `INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, phone_e164, phone_status, email)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            id,
+            cfg.pipelineId,
+            stageId,
+            o.ownerId,
+            o.name ?? `Lead ${id.slice(-6)}`,
+            o.phone ?? null,
+            o.phone ? "valid" : "missing",
+            o.email ?? null,
+          ],
+        ),
+      );
+      return id;
+    },
     async close() {
       await app.close();
       await pool.end();

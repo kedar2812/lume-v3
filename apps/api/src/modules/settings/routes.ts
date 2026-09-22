@@ -4,6 +4,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
+import { bumpFieldDefs } from "../../leads/fields";
 import { notFound } from "../../http/errors";
 import { timezoneSchema } from "../../http/schemas";
 
@@ -42,6 +43,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req) => {
       const { defaultCountry, ...rest } = req.body;
+      if (defaultCountry) await bumpFieldDefs(req); // compiled phone validators depend on it
       const [s] = await req.db
         .update(schema.settings)
         .set({ ...rest, ...(defaultCountry ? { defaultCountryIso: defaultCountry } : {}) })

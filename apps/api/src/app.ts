@@ -8,6 +8,7 @@ import { csrfRoutes } from "./auth/csrf";
 import { authPlugin } from "./auth/plugin";
 import type { SetupTokens } from "./auth/setup-token";
 import { dbContext } from "./db/context";
+import { idempotency } from "./http/idempotency";
 import { dbChecks } from "./health";
 import type { Mailer } from "./mail/mailer";
 import { auditRoutes } from "./modules/audit/routes";
@@ -59,6 +60,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       register: async (scope) => {
         scope.addHook("onClose", stopListener);
         scope.decorate("actorCache", cache);
+        scope.decorate("fieldRegistryCache", { value: null });
         await scope.register(cookie);
         // Hooks first (called directly so they cover this whole scope), then routes.
         authPlugin(scope, {
@@ -69,6 +71,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           settings: memoSettings(deps.pool),
         });
         dbContext(scope, { pool: deps.pool });
+        idempotency(scope); // after dbContext: it needs the request transaction
         await scope.register(csrfRoutes, { secure: deps.config.cookieSecure });
         await scope.register(setupRoutes, deps);
         await scope.register(authRoutes, { ...deps, onLockout: lockoutAlerts(deps) });

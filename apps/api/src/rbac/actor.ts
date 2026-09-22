@@ -1,9 +1,21 @@
 import type pg from "pg";
-import { effectivePermissions, isPermissionKey, type Actor, type Grant, type Scope } from "@lume/core";
+import {
+  effectivePermissions,
+  isPermissionKey,
+  mergeFieldAccess,
+  type Actor,
+  type FieldAccess,
+  type Grant,
+  type Scope,
+} from "@lume/core";
 import type { LoginHours } from "@lume/db";
 
 export type RoleRestriction = { loginHours: LoginHours | null; ipAllowlist: string[] | null };
-export type ActorRecord = Actor & { restrictions: RoleRestriction[] };
+export type ActorRecord = Actor & {
+  restrictions: RoleRestriction[];
+  /** Per-field access narrower than `edit` (report §7.1); empty for the owner. */
+  fieldAccess: ReadonlyMap<string, FieldAccess>;
+};
 
 type GrantRow = {
   key: string | null;
@@ -13,9 +25,9 @@ type GrantRow = {
   ip_allowlist: string[] | null;
 };
 
-/** Everything the permission check and RLS need for one user, in three indexed queries. Null = not an active user. */
+/** Everything the permission check and RLS need for one user, in four indexed queries. Null = not an active user. */
 export async function loadActor(pool: pg.Pool, userId: string): Promise<ActorRecord | null> {
-  const [u, grants, team] = await Promise.all([
+  const [u, grants, team, fa] = await Promise.all([
     pool.query<{ is_owner: boolean; totp_enabled: boolean; status: string }>(
       "SELECT is_owner, totp_enabled, status FROM users WHERE id = $1",
       [userId],
@@ -37,6 +49,14 @@ export async function loadActor(pool: pg.Pool, userId: string): Promise<ActorRec
         WHERE lead.user_id = $1 AND lead.is_lead`,
       [userId],
     ),
+    pool.query<{ role_id: string; field_id: string; access: FieldAccess }>(
+      `SELECT rfa.role_id, rfa.field_id, rfa.access
+         FROM role_field_access rfa
+         JOIN user_roles ur ON ur.role_id = rfa.role_id
+         JOIN roles r ON r.id = rfa.role_id AND r.deleted_at IS NULL
+        WHERE ur.user_id = $1`,
+      [userId],
+    ),
   ]);
   const user = u.rows[0];
   if (!user || user.status !== "active") return null;
@@ -54,5 +74,11 @@ export async function loadActor(pool: pg.Pool, userId: string): Promise<ActorRec
     twoFactorEnabled: user.totp_enabled,
     roleIds: [...restrictions.keys()],
     restrictions: [...restrictions.values()],
+    fieldAccess: user.is_owner
+      ? new Map()
+      : mergeFieldAccess(
+          [...restrictions.keys()],
+          fa.rows.map((r) => ({ roleId: r.role_id, fieldId: r.field_id, access: r.access })),
+        ),
   };
 }
