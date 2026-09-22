@@ -201,8 +201,7 @@ describe("editing (optimistic concurrency, report §4.4)", () => {
     expect(stale.json().error).toMatchObject({ code: "VERSION_CONFLICT", details: { currentVersion: 2 } });
   });
 
-  // un-skipped in Task 7 (needs GET /leads/:id/activities)
-  it.skip("records a field_changed activity without contact values", async () => {
+  it("records a field_changed activity without contact values", async () => {
     const lead = (await create(rep, { name: "Audited" })).json().lead;
     await rep.inject({
       method: "PATCH",

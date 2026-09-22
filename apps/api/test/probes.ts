@@ -231,6 +231,29 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ name: "Renamed" }),
   },
   "DELETE /api/v1/leads/:id": { access: "leads.delete", path: (f) => `/api/v1/leads/${f.leadToDelete}` },
+  "POST /api/v1/leads/:id/stage": {
+    access: "leads.change_stage",
+    path: (f) => `/api/v1/leads/${f.leadId}/stage`,
+    body: (f) => ({ stageId: f.stageId }),
+  },
+  "POST /api/v1/leads/:id/assign": {
+    access: "leads.assign",
+    path: (f) => `/api/v1/leads/${f.leadId}/assign`,
+    body: (f) => ({ ownerId: f.userId }),
+  },
+  "POST /api/v1/leads/:id/notes": {
+    access: "leads.edit",
+    path: (f) => `/api/v1/leads/${f.leadId}/notes`,
+    body: () => ({ body: "Matrix note" }),
+  },
+  "GET /api/v1/leads/:id/activities": {
+    access: "leads.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/activities`,
+  },
+  "POST /api/v1/leads/:id/contact/reveal": {
+    access: "leads.contact.reveal",
+    path: (f) => `/api/v1/leads/${f.leadId}/contact/reveal`,
+  },
   "POST /api/v1/stages/:id/archive": {
     access: "pipelines.manage",
     path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,

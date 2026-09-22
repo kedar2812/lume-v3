@@ -103,6 +103,11 @@ export type Harness = {
   actorOf(userId: string): Promise<ActorRecord | null>;
   /** Ids of the default pipeline's live stages, every field (by key) and the lost reasons (in order). */
   config(): Promise<HarnessConfig>;
+  /** Read lead tables in a test assertion: runs as lume_owner under request scope `all`. */
+  queryAll<R extends pg.QueryResultRow = Record<string, unknown>>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<R[]>;
   /** A lead in the default pipeline, written with full scope (bypasses nothing: RLS is simply satisfied). */
   seedLead(o: {
     ownerId: string | null;
@@ -273,6 +278,9 @@ export async function createHarness(
       waiters.delete(marker);
     },
     actorOf: (userId) => loadActor(pool, userId),
+    async queryAll(sql, params = []) {
+      return withAllScope(ownerPool, async (c) => (await c.query(sql, params)).rows);
+    },
     async config() {
       const p = (
         await ownerPool.query<{ id: string }>(

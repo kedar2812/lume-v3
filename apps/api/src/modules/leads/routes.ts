@@ -5,7 +5,9 @@ import { INSTAGRAM_RE, normalizePhone } from "@lume/core";
 import { loadFieldRegistry } from "../../leads/fields";
 import { findDuplicates } from "./duplicates";
 import { listLeads } from "./query";
+import { revealContact } from "./reveal";
 import * as svc from "./service";
+import { addNote, assignLead, listActivities, moveStage } from "./write";
 
 const params = z.object({ id: z.uuid() });
 const money = z.number().nonnegative().max(1e12);
@@ -96,6 +98,69 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       await svc.deleteLead(req, req.params.id);
       return reply.code(204).send();
+    },
+  );
+  r.post(
+    "/api/v1/leads/:id/stage",
+    {
+      config: { permission: "leads.change_stage" },
+      schema: {
+        params,
+        body: z.object({
+          stageId: z.uuid(),
+          lostReasonId: z.uuid().optional(),
+          lostNote: z.string().trim().max(1000).optional(),
+        }),
+      },
+    },
+    async (req) => {
+      const lead = await moveStage(req, await svc.visibleLead(req, req.params.id), req.body);
+      return { lead: await svc.leadViewFor(req, lead) };
+    },
+  );
+  r.post(
+    "/api/v1/leads/:id/assign",
+    {
+      config: { permission: "leads.assign" },
+      schema: {
+        params,
+        body: z.object({ ownerId: z.uuid().nullable(), reason: z.string().trim().max(200).optional() }),
+      },
+    },
+    async (req) => {
+      const { visible } = await assignLead(req, await svc.visibleLead(req, req.params.id), req.body);
+      return { id: req.params.id, ownerId: req.body.ownerId, visible };
+    },
+  );
+  r.post(
+    "/api/v1/leads/:id/notes",
+    {
+      config: { permission: "leads.edit" },
+      schema: { params, body: z.object({ body: z.string().trim().min(1).max(5000) }) },
+    },
+    async (req, reply) =>
+      reply.code(201).send(await addNote(req, await svc.visibleLead(req, req.params.id), req.body.body)),
+  );
+  r.get(
+    "/api/v1/leads/:id/activities",
+    {
+      config: { permission: "leads.view" },
+      schema: {
+        params,
+        querystring: z.object({
+          cursor: z.uuid().optional(),
+          limit: z.coerce.number().int().min(1).max(100).default(50),
+        }),
+      },
+    },
+    async (req) => listActivities(req, await svc.visibleLead(req, req.params.id), req.query),
+  );
+  r.post(
+    "/api/v1/leads/:id/contact/reveal",
+    { config: { permission: "leads.contact.reveal", idempotent: false }, schema: { params } },
+    async (req, reply) => {
+      void reply.header("cache-control", "no-store");
+      return revealContact(req, req.params.id);
     },
   );
 }
