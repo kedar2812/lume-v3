@@ -135,3 +135,48 @@ Afterwards the identity tables were truncated so the real first-run setup can be
 - Green: https://github.com/kedar2812/lume-v3/actions/runs/35642192860 (commit `58a88cb`): lint, typecheck, 220 tests across 46 files against Postgres 17 (including the route × role access matrix), e2e, images.
 
 **Status: Phase 1A accepted on the temp build host.**
+
+---
+
+# Phase 1B — Configuration & leads (2026-09-22)
+
+On the temp build host after `scripts/dev.sh up` (migrations `0008_configuration`, `0009_leads`, `0010_lead_rls` applied), from a fresh install, through Caddy (`infra/scripts/acceptance-1b.mjs`, 23 checks):
+
+```
+ok   setup with the Coaching preset
+ok   the preset seeded Nupuur's pipeline and stages
+ok   the preset seeded Struggles and Handled by
+ok   owner invites Riya as Sales
+ok   Riya accepts the invite
+ok   owner creates a lead and sees the full, normalised number
+ok   a retried create with the same Idempotency-Key replays instead of duplicating
+ok   Riya's list holds exactly her lead
+ok   …with the phone masked
+ok   …and the email masked
+ok   Riya can't search by phone digits
+ok   Reveal shows Riya the full contact
+ok   the reveal is in the audit log
+ok   Riya moves the lead to Call booked
+ok   Lost needs a reason
+ok   the timeline records it all
+ok   Riya gets 404 for the owner's lead
+ok   …and can't reveal it
+ok   owner takes the lead back
+ok   Riya lost the lead at once
+ok   …and her list is empty
+ok   owner disables Riya
+ok   Riya's session is dead
+acceptance 1B passed
+```
+
+Backups under forced RLS, with those lead rows in place:
+
+```
+backup complete   lume-20260922T1613Z.dump.age  164304 bytes
+restore test passed
+ops_restore_tests: ok=t  {"tables": 42, "migrations": 10}
+```
+
+The "raw SQL as lume_app" half of the Phase 1 acceptance is `packages/db/src/rls.test.ts` (own/team/all/unset scopes, child tables, inserts, handoff, deletes, history, backup role), run in CI. Identity, lead and configuration tables were truncated afterwards so the real first-run setup happens through the Phase 1C screens.
+
+**Status: Phase 1B accepted on the temp build host.**

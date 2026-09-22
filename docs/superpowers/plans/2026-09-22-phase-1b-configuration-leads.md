@@ -4209,3 +4209,15 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 git push origin main
 ```
 Update the `lume-progress` memory: 1B done, next Plan 1C (screens).
+
+---
+
+## Execution notes (2026-09-22)
+
+Built as planned, with these deviations (the code is the reference where they differ):
+
+- **Reassignment under RLS (decision 1 revised).** Postgres checks an UPDATE's *new* row against the SELECT policy whenever the WHERE clause reads the table, so `WITH CHECK (lume_user() IS NOT NULL)` alone could not hand a lead out of the caller's scope. `0010` adds `lume_handoff_lead()` (reads `lume.handoff_lead`), and `leads_read` also admits that one id. `assignLead` sets the setting just for its UPDATE and clears it afterwards. The update policy still requires the lead to be visible beforehand, so a handoff can't be used to take another person's lead; `rls.test.ts` proves both directions.
+- **`search_path` pinned** on `lume_user/lume_scope/lume_team_members/lead_contact_keys_sync` (`ALTER FUNCTION … SET search_path` in `0010`) and on the new helpers. pg_dump runs with an empty search_path, and without this the first backup containing lead rows fails. The worker backup/restore integration test caught it.
+- **Harness:** `queryAll()` reads RLS-forced tables under `all` scope for assertions; matrix fixtures for configuration are written in SQL (config tables have no RLS), so probes can be added as each task lands.
+- **Acceptance** also exercises Idempotency-Key replay and runs a live backup + restore test with lead rows present.
+- `@lume/db` exports the `FieldOptionRow` type; the phone separator regex uses the `\xA0` escape.
