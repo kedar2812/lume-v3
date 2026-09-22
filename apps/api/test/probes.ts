@@ -220,6 +220,17 @@ export const PROBES: Record<string, Probe> = {
     path: (f) => `/api/v1/roles/${f.roleId}/field-access`,
     body: () => ({ entries: [] }),
   },
+  // Phase 1B — leads
+  "GET /api/v1/leads": { access: "leads.view", query: "limit=5" },
+  "POST /api/v1/leads": { access: "leads.create", body: () => ({ name: "Matrix lead" }) },
+  "GET /api/v1/leads/duplicates": { access: "leads.create", query: "email=nobody%40test.lume" },
+  "GET /api/v1/leads/:id": { access: "leads.view", path: (f) => `/api/v1/leads/${f.leadId}` },
+  "PATCH /api/v1/leads/:id": {
+    access: "leads.edit",
+    path: (f) => `/api/v1/leads/${f.leadId}`,
+    body: () => ({ name: "Renamed" }),
+  },
+  "DELETE /api/v1/leads/:id": { access: "leads.delete", path: (f) => `/api/v1/leads/${f.leadToDelete}` },
   "POST /api/v1/stages/:id/archive": {
     access: "pipelines.manage",
     path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,

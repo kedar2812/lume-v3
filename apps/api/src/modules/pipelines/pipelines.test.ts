@@ -77,8 +77,7 @@ describe("pipelines & stages (report §6)", () => {
     ).toBe("STAGE_KINDS_REQUIRED");
   });
 
-  // un-skipped in Task 6 (needs GET /leads/:id)
-  it.skip("archiving a stage with leads moves them to an open stage, with history", async () => {
+  it("archiving a stage with leads moves them to an open stage, with history", async () => {
     const cfg = await h.config();
     const owner = await h.seedUser({ grants: [] });
     const lead = await h.seedLead({ ownerId: owner.id, stage: "Replied" });
