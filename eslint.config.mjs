@@ -16,7 +16,14 @@ const noBuiltSql = [
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**", "coverage/**", "docs/design/prototypes/**"],
+    ignores: [
+      "**/dist/**",
+      "**/.next/**",
+      "**/node_modules/**",
+      "coverage/**",
+      "docs/design/prototypes/**",
+      "apps/web/e2e/.artifacts/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -25,7 +32,7 @@ export default tseslint.config(
   // The web app ships to browsers: only the Node-free part of core. The root export pulls node:crypto and
   // node:fs, which breaks the production build (a unit test run would not notice).
   {
-    files: ["apps/web/**/*.{ts,tsx}"],
+    files: ["apps/web/src/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",

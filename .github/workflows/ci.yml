@@ -56,9 +56,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Toolbox image (same environment as local runs, so screenshots match)
         run: docker build -t lumedev-toolbox infra/toolbox
-      - name: Playwright in the toolbox
+      - name: Test database
+        run: TEST_DB_PUBLISH=55432 LUME_DEV_ROOT="$RUNNER_TEMP" bash scripts/test-db.sh up
+      - name: Playwright against the real API and web app, behind an edge proxy
         run: |
-          docker run --rm -v "$PWD:/repo" -w /repo -e CI=1 -e GITHUB_ACTIONS=true lumedev-toolbox             bash -lc "pnpm install --frozen-lockfile && cd apps/web && pnpm e2e"
+          docker run --rm --network host -v "$PWD:/repo" -w /repo --env-file "$RUNNER_TEMP/test.env"             -e CI=1 -e GITHUB_ACTIONS=true lumedev-toolbox             bash -lc "pnpm install --frozen-lockfile && cd apps/web && pnpm e2e"
+      - name: Report and API log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          retention-days: 7
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            apps/web/e2e/.artifacts/api.log
 
   images:
     needs: [check, e2e]

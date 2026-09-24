@@ -1,0 +1,15 @@
+- navigation "Main":
+    - link "Today":
+        - /url: /today
+    - link "Leads":
+        - /url: /leads
+    - link "Pipeline":
+        - /url: /pipeline
+    - link "Calendar":
+        - /url: /calendar
+    - link "Templates":
+        - /url: /templates
+    - link "Analytics":
+        - /url: /analytics
+    - link "Settings":
+        - /url: /settings
