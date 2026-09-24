@@ -78,6 +78,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@lume/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       lucide-react:
         specifier: ^1.47.0
         version: 1.47.0(react@19.3.0)

@@ -1,20 +1,19 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/shell/AppShell";
 import { THEME_COOKIE, parseThemePref } from "@/lib/theme";
-
-// Phase 1 replaces these with the signed-in user's session, settings.business_name and effective permissions.
-const DEV_PERMISSIONS = ["leads.view", "calendar.view", "templates.use", "analytics.view", "settings.manage"];
+import { businessName, requireSession } from "@/server/session";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const theme = parseThemePref((await cookies()).get(THEME_COOKIE)?.value);
+  const session = await requireSession();
+  // Onboarding — and any outstanding required two-step enrolment — comes before the app itself.
+  if (session.flags.needsOnboarding || session.flags.needsTwoFactorEnrolment) redirect("/welcome");
+  // The cookie renders without a flash; the stored choice is the fallback on a new device.
+  const cookieTheme = parseThemePref((await cookies()).get(THEME_COOKIE)?.value);
+  const theme = cookieTheme === "system" ? session.user.theme : cookieTheme;
   return (
-    <AppShell
-      businessName="Nupuur Coaching"
-      user={{ name: "Tasneem", role: "Admin" }}
-      permissions={DEV_PERMISSIONS}
-      theme={theme}
-    >
+    <AppShell session={session} businessName={await businessName()} theme={theme}>
       {children}
     </AppShell>
   );

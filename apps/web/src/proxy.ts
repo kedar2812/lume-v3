@@ -1,7 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Per-request nonce CSP (report §12.3: no inline scripts). Inline style attributes are allowed for motion. */
+/** Screens that must work without a session. Everything else needs one. */
+const PUBLIC_PATHS = [/^\/sign-in/, /^\/setup/, /^\/invite\//, /^\/forgot/, /^\/reset\//, /^\/design/];
+
+/**
+ * Per-request nonce CSP (report §12.3: no inline scripts) plus the signed-out redirect. The cookie's
+ * presence is only a shortcut to save a round trip; requireSession() and the API remain the authority.
+ */
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  if (!request.cookies.has("__Host-lume_session") && !PUBLIC_PATHS.some((p) => p.test(pathname))) {
+    const to = request.nextUrl.clone();
+    to.pathname = "/sign-in";
+    to.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname)}`;
+    return NextResponse.redirect(to);
+  }
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const dev = process.env.NODE_ENV === "development";
   const csp = [

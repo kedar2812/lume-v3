@@ -1,23 +1,27 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
+import { can as canCore, isPermissionKey } from "@lume/core";
 import type { ThemePref } from "@/lib/theme";
+import type { Session } from "@/server/session";
 import { CommandPalette } from "./CommandPalette";
 import { PageContent, PageTransitionProvider } from "./PageTransition";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import s from "./shell.module.css";
 
-type Props = {
-  businessName: string;
-  user: { name: string; role: string };
-  permissions: string[];
-  theme: ThemePref;
-  children: ReactNode;
-};
+type Props = { session: Session; businessName: string; theme: ThemePref; children: ReactNode };
 
-export function AppShell({ businessName, user, permissions, theme, children }: Props) {
+/** What to call someone in the sidebar: the owner, an admin (manages people), or their role's work. */
+function roleLabel(session: Session): string {
+  if (session.user.isOwner) return "Owner";
+  return canCore(session.actor, "users.manage") ? "Admin" : "Sales";
+}
+
+export function AppShell({ session, businessName, theme, children }: Props) {
   const [palette, setPalette] = useState(false);
-  const can = (p: string) => permissions.includes(p);
+  // The very same check the API runs, imported from @lume/core — never a second implementation.
+  const can = (p: string) => isPermissionKey(p) && canCore(session.actor, p);
+  const user = { name: session.user.name, role: roleLabel(session) };
 
   useEffect(() => {
     // Scrollbars fade in while scrolling (spec §4.4).

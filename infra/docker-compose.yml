@@ -118,6 +118,8 @@ services:
   web:
     <<: *base
     image: ${LUME_IMAGE_PREFIX:-lume}/web:${LUME_TAG:-dev}
+    environment:
+      LUME_API_URL: http://api:3001
     read_only: true
     cap_drop: ["ALL"]
     tmpfs: ["/tmp", "/app/apps/web/.next/cache"]

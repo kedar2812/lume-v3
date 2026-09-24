@@ -1,0 +1,17 @@
+.wrap {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 48px 24px;
+  text-align: center;
+}
+.title {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.014em;
+}
+.message {
+  color: var(--text-2);
+  max-width: 42ch;
+  line-height: 1.55;
+}
