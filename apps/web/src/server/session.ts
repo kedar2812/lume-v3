@@ -14,7 +14,7 @@ import {
   type Preferences,
   type Scope,
   type TourState,
-} from "@lume/core";
+} from "@lume/core/shared";
 import { apiGet } from "./api";
 
 export type SessionUser = {

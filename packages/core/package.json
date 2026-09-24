@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./shared": "./src/shared.ts",
     "./password": "./src/auth/password.ts"
   },
   "scripts": {

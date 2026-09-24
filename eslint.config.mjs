@@ -22,6 +22,22 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   { languageOptions: { globals: { ...globals.node } } },
   { files: ["**/*.{ts,tsx,js,mjs}"], rules: { "no-restricted-syntax": noBuiltSql } },
+  // The web app ships to browsers: only the Node-free part of core. The root export pulls node:crypto and
+  // node:fs, which breaks the production build (a unit test run would not notice).
+  {
+    files: ["apps/web/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@lume/core", message: "Import from @lume/core/shared in the web app." },
+            { name: "@lume/core/password", message: "Password hashing runs on the API only." },
+          ],
+        },
+      ],
+    },
+  },
   // The migrations package is the one place allowed to run identifier-built SQL (report §12.3).
   { files: ["packages/db/**"], rules: { "no-restricted-syntax": "off" } },
 );

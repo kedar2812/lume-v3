@@ -52,8 +52,10 @@
   line-height: 1;
 }
 .brand p {
-  color: var(--text-2);
+  /* Full ink, not --text-2: this line sits on the aura, where secondary grey falls below 4.5:1. */
+  color: var(--text);
   font-size: 0.875rem;
+  font-weight: 520;
   margin-top: 8px;
 }
 .card {

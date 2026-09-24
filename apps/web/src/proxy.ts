@@ -1,7 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Screens that must work without a session. Everything else needs one. */
-const PUBLIC_PATHS = [/^\/sign-in/, /^\/setup/, /^\/invite\//, /^\/forgot/, /^\/reset\//, /^\/design/];
+/**
+ * What works without a session: the signed-out screens (matched by whole path segment, so a look-alike
+ * such as /sign-in-x is not public) and the public files they need. Everything else needs a session.
+ */
+const PUBLIC_PATHS = [
+  /^\/(sign-in|setup|forgot|design)(\/|$)/,
+  /^\/(invite|reset)\/[^/]+$/, // a token, or /invite/not-found
+  /^\/(fonts|brand)\/[\w.-]+$/,
+  /^\/(lume-mark|icon)\.png$/,
+];
 
 /**
  * Per-request nonce CSP (report §12.3: no inline scripts) plus the signed-out redirect. The cookie's
