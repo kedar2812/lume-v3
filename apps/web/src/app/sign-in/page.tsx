@@ -1,24 +1,11 @@
-"use client";
-import { useRouter } from "next/navigation";
-import { SignInForm } from "@/components/auth/SignInForm";
-import s from "@/components/auth/auth.module.css";
-import { signIn, verifyOtp } from "@/lib/auth-client";
+import { SignInScreen } from "@/components/auth/SignInScreen";
+import { publicBusinessName } from "@/server/public-settings";
 
-export default function SignInPage() {
-  const router = useRouter();
-  return (
-    <div className={s.page}>
-      <div className={s.aura} aria-hidden>
-        <i />
-        <i />
-      </div>
-      {/* Phase 1: the business name comes from public settings. */}
-      <SignInForm
-        businessName="Nupuur Coaching"
-        onSignIn={signIn}
-        onVerify={verifyOtp}
-        onSuccess={() => router.replace("/today")}
-      />
-    </div>
-  );
+/** Only in-app paths, so a crafted ?next= can never bounce someone off-site. */
+const safeNext = (next: string | undefined): string =>
+  next && /^\/[A-Za-z0-9\-_/]*$/.test(next) ? next : "/today";
+
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const { next } = await searchParams;
+  return <SignInScreen businessName={await publicBusinessName()} next={safeNext(next)} />;
 }

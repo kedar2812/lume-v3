@@ -208,3 +208,57 @@
     transform: none;
   }
 }
+
+/* A button that reads as a link (recovery code, back to the app code). */
+.linkish {
+  color: var(--accent-ink);
+  font-weight: 560;
+  font-size: 0.75rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.linkish:hover {
+  text-decoration: underline;
+}
+/* Hint under a password field, and the show/hide control inside it. */
+.hint {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  margin-top: 6px;
+}
+.withReveal {
+  position: relative;
+  display: block;
+}
+.revealBtn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--raised);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+}
+.done {
+  text-align: center;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+.doneTitle {
+  font-weight: 650;
+  font-size: 1rem;
+}
+.doneText {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
