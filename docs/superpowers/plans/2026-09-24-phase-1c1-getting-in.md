@@ -3267,3 +3267,12 @@ Rewrite `lume-progress` memory: 1C-1 done (what it delivers), next 1C-2 (leads s
 **Deliberate omissions.** The Connect step's cards are built but hidden until `CAPABILITIES` flips, which is why the Sheets and Calendar phases come next in the spec's order. The Settings pages themselves are 1C-3; 1C-1 only adds the Help card with "Replay the tour" to the existing placeholder page.
 
 **Type consistency.** `OnboardingActions` in Task 6 matches `onboardingActions()` in the same task, and both use `PreferencesPatch` and `OnboardingStepId` from Task 1. `Session` (Task 2) is what Tasks 6 and 7 consume, including `capabilities` and `flags`. `AuthStep`, `SignInResult`, `ResetResult` and `AcceptResult` are defined once in Task 3 and reused by Task 4. `api.get` is added in Task 6 where it is first needed, and the GET path never sends an Idempotency-Key.
+
+## Execution notes
+
+**Task 5.**
+- *QR encoder correctness.* The plan's structural tests (size, finder patterns) would pass for an encoder that no phone can read. During development the encoder was compared module-for-module with an independent implementation (node-qrcode, byte mode, level M, mask 0) for every length from 1 to 213 plus Unicode, and each matrix was rendered and decoded back with jsQR: 217 of 217 identical and readable. Neither library is a dependency; `qr.test.ts` pins one of those matrices as a golden, and also checks the timing patterns and the dark module.
+- *Code entry.* The wizard uses the same six-box `OtpInput` as sign-in rather than a single field, so the two screens match. `OtpInput` gained optional `onChange` and `label` props, and `onComplete` is now optional, because setup submits with `Finish setup` instead of on the sixth digit. The tests type the code the way sign-in's tests do.
+- *Timezones.* ICU still reports a few zones by their old ids (`Asia/Calcutta`), and it leaves out `UTC`. `timezones.ts` maps the renamed ids to their current names and adds `UTC`. Both kinds of id pass the API's `timezoneSchema`.
+- *Test mock.* The `motion/react` mock now makes one component per tag. The earlier version made a new component type on every access, which remounted controlled inputs after each keystroke.
+- *Extra files.* `TimezonePicker.module.css`. Two tests were added beyond the plan: the codes cannot be skipped, and the General preset plus Back both work.

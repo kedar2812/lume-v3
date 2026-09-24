@@ -2,13 +2,21 @@
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import s from "./auth.module.css";
 
+/**
+ * Six boxes for a two-step code, with paste support. `onComplete` fires once all digits are in (sign-in
+ * submits on it); `onChange` reports every edit (setup, where a button submits instead).
+ */
 export function OtpInput({
   length = 6,
   onComplete,
+  onChange,
+  label = "Two-step code",
   disabled = false,
 }: {
   length?: number;
-  onComplete(code: string): void;
+  onComplete?(code: string): void;
+  onChange?(code: string): void;
+  label?: string;
   disabled?: boolean;
 }) {
   const [digits, setDigits] = useState<string[]>(() => Array(length).fill(""));
@@ -17,9 +25,10 @@ export function OtpInput({
 
   function commit(next: string[]) {
     setDigits(next);
+    onChange?.(next.join(""));
     if (next.every(Boolean) && !done.current) {
       done.current = true;
-      onComplete(next.join(""));
+      onComplete?.(next.join(""));
     }
     if (!next.every(Boolean)) done.current = false;
   }
@@ -53,7 +62,7 @@ export function OtpInput({
   }
 
   return (
-    <div className={s.otp} role="group" aria-label="Two-step code">
+    <div className={s.otp} role="group" aria-label={label}>
       {digits.map((d, i) => (
         <input
           key={i}

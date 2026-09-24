@@ -1,0 +1,266 @@
+/* First-run setup: the sign-in canvas, a wider glass card, one step at a time. */
+.wrap {
+  position: relative;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 8px 2px;
+  text-align: center;
+}
+.mark {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto;
+  filter: drop-shadow(0 10px 26px rgba(42, 91, 255, 0.42));
+  animation: bloom 1.3s var(--spring-bounce) both;
+}
+.brand {
+  margin-top: 14px;
+  font-size: 1.375rem;
+  font-weight: 780;
+  letter-spacing: 0.14em;
+  padding-left: 0.14em;
+  line-height: 1;
+  animation: rise 1.1s var(--spring-soft) 0.3s both;
+}
+.card {
+  margin-top: 22px;
+  padding: 24px;
+  border-radius: 22px;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  text-align: left;
+  overflow: hidden;
+  animation: rise 1.4s var(--spring-soft) 0.5s both;
+}
+
+/* Progress: the same slim bar the tour uses. */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.count {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.track {
+  flex: 1;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+.track i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.6s var(--spring);
+}
+
+.title {
+  font-size: 1.125rem;
+  font-weight: 680;
+  letter-spacing: -0.014em;
+}
+.sub {
+  font-size: 0.84375rem;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin: 6px 0 18px;
+}
+.legend {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  margin: 4px 0 8px;
+}
+.fine {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-top: 8px;
+}
+.error {
+  font-size: 0.78125rem;
+  color: var(--danger-ink);
+  text-align: center;
+  margin-top: 10px;
+}
+.submit {
+  width: 100%;
+  height: 46px;
+  margin-top: 6px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+}
+.row > :last-child {
+  flex: 1;
+  max-width: 220px;
+  margin-left: auto;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 12px;
+}
+@media (max-width: 420px) {
+  .pair {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+/* Presets: two cards, one pre-chosen. The radio stays in the accessibility tree; the card is its label. */
+.presets {
+  display: grid;
+  gap: 8px;
+}
+.preset {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px 12px 40px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s,
+    background 0.2s;
+}
+.preset:active {
+  transform: scale(0.995);
+}
+.preset[data-on="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.preset input {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.preset input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.presetName {
+  font-size: 0.875rem;
+  font-weight: 620;
+}
+.presetDetail {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+/* Two-step: the QR plate is always white, so it scans in dark mode too. */
+.qrRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.qr {
+  flex: none;
+  border-radius: 12px;
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.secret {
+  display: block;
+  margin-top: 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  word-break: break-all;
+  user-select: all;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+@media (max-width: 420px) {
+  .qrRow {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .qr {
+    align-self: center;
+  }
+}
+
+/* Recovery codes. */
+.codes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.codeActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.codeActions > * {
+  flex: 1;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 10px;
+  font-size: 0.84375rem;
+  cursor: pointer;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+@keyframes bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.35) rotate(-120deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
