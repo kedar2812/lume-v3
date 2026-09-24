@@ -89,11 +89,65 @@
 .spacer {
   flex: 1;
 }
+.meWrap {
+  position: relative;
+}
 .me {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   padding: 8px 10px;
+  border-radius: 11px;
+  text-align: left;
+  background: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.me:hover,
+.me[aria-expanded="true"] {
+  background: var(--hover);
+}
+.me:active {
+  transform: scale(0.99);
+}
+/* Rises from the row that opened it (spatial consistency). */
+.meMenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  display: grid;
+  padding: 5px;
+  border-radius: 13px;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  transform-origin: bottom center;
+  animation: menuIn 0.22s var(--spring) both;
+}
+.meMenu button {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 540;
+  background: none;
+  cursor: pointer;
+}
+.meMenu button:hover,
+.meMenu button:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
 }
 .meName {
   font-size: 0.8125rem;

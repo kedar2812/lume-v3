@@ -5,6 +5,7 @@ import { shellIdentity } from "@/components/shell/AppShell";
 import { PageTransitionProvider } from "@/components/shell/PageTransition";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { onboardingActions } from "@/lib/onboarding-client";
+import { tourClient } from "@/lib/tour-client";
 import type { Session } from "@/server/session";
 import { Onboarding } from "./Onboarding";
 import s from "./onboarding.module.css";
@@ -60,6 +61,8 @@ export function WelcomeScreen({ session, businessName }: { session: Session; bus
         businessName={businessName}
         actions={actions}
         onFinished={({ startTour }) => {
+          // "Explore on my own" is an answer: the tour must not then start by itself on Today.
+          if (!startTour) void tourClient.skip().catch(() => undefined);
           setLeaving(true);
           setTimeout(() => {
             router.replace(startTour ? "/today?tour=1" : "/today");

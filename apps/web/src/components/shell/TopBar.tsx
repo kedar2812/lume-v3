@@ -13,13 +13,13 @@ export function TopBar({ theme, onSearch }: { theme: ThemePref; onSearch(): void
   return (
     <header className={s.bar}>
       <h1 className={s.crumb}>{title}</h1>
-      <button type="button" className={s.search} onClick={onSearch}>
+      <button type="button" className={s.search} onClick={onSearch} data-tour="search">
         <Search size={15} aria-hidden />
         Search leads, actions…
         <Kbd>Ctrl K</Kbd>
       </button>
       <ThemeToggle initial={theme} />
-      <IconButton label="Notifications">
+      <IconButton label="Notifications" data-tour="notifications">
         <Bell size={18} strokeWidth={1.8} aria-hidden />
       </IconButton>
     </header>

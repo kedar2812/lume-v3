@@ -1,0 +1,164 @@
+/* The spotlight tour. Approved design: tour-spotlight-v2 mockup (blurred veil, one sharp hole). */
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--veil);
+  backdrop-filter: blur(9px) saturate(0.92);
+  -webkit-backdrop-filter: blur(9px) saturate(0.92);
+  cursor: pointer;
+  animation: fade 0.45s var(--spring) both;
+  transition: clip-path 0.55s var(--spring);
+}
+/* Without path() clip support there is no hole: keep a plain dim veil, and the ring still marks the target. */
+@supports not (clip-path: path("M0 0")) {
+  .veil {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+.ring {
+  position: fixed;
+  z-index: 71;
+  border-radius: 14px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 30px 6px rgba(var(--accent-rgb), 0.3);
+  animation: fade 0.4s var(--spring) both;
+  transition:
+    top 0.55s var(--spring),
+    left 0.55s var(--spring),
+    width 0.55s var(--spring),
+    height 0.55s var(--spring);
+}
+.card {
+  position: fixed;
+  z-index: 72;
+  top: 50%;
+  left: 50%;
+  width: min(330px, calc(100vw - 24px));
+  padding: 17px 19px 15px;
+  border-radius: 17px;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+  opacity: 0;
+  animation: rise 0.5s var(--spring) both;
+  transition:
+    top 0.55s var(--spring),
+    left 0.55s var(--spring);
+}
+.card[data-placed="true"] {
+  opacity: 1;
+}
+.kicker {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.esc {
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 560;
+}
+.title {
+  font-size: 1.03125rem;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  margin-top: 7px;
+}
+.body {
+  font-size: 0.84375rem;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+.body strong {
+  color: var(--text);
+  font-weight: 680;
+}
+.bar {
+  display: block;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line-2);
+  margin-top: 14px;
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.5s var(--spring);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.right {
+  display: flex;
+  gap: 4px;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .veil,
+  .ring,
+  .card {
+    transition: none;
+    animation: fade 0.2s linear both;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .veil {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .card {
+    background: var(--raised);
+  }
+}
+
+/* Settings: the Help card. */
+.help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 560px;
+  margin: 24px auto 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.help h2 {
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+.help p {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  margin-top: 2px;
+}

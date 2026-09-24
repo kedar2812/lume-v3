@@ -18,3 +18,11 @@ if (!window.matchMedia) {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+// jsdom has no Web Animations API; the page transition asks the page for its running animations.
+if (typeof Element.prototype.getAnimations !== "function") {
+  Element.prototype.getAnimations = () => [];
+}
+if (typeof Element.prototype.scrollTo !== "function") {
+  Element.prototype.scrollTo = () => undefined;
+}

@@ -3,6 +3,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { can as canCore, isPermissionKey } from "@lume/core/shared";
 import type { ThemePref } from "@/lib/theme";
 import type { Session } from "@/server/session";
+import { TourProvider } from "@/components/tour/TourProvider";
+import { tourClient } from "@/lib/tour-client";
 import { CommandPalette } from "./CommandPalette";
 import { PageContent, PageTransitionProvider } from "./PageTransition";
 import { Sidebar } from "./Sidebar";
@@ -60,18 +62,20 @@ export function AppShell({ session, businessName, theme, children }: Props) {
 
   return (
     <PageTransitionProvider>
-      <div className={s.app}>
-        <Sidebar businessName={businessName} user={user} can={can} />
-        <main className={s.main}>
-          <TopBar theme={theme} onSearch={() => setPalette(true)} />
-          <div className={s.scroll} data-scroll>
-            <div className={s.page}>
-              <PageContent>{children}</PageContent>
+      <TourProvider session={session} client={tourClient} autoStart>
+        <div className={s.app}>
+          <Sidebar businessName={businessName} user={user} can={can} />
+          <main className={s.main}>
+            <TopBar theme={theme} onSearch={() => setPalette(true)} />
+            <div className={s.scroll} data-scroll>
+              <div className={s.page}>
+                <PageContent>{children}</PageContent>
+              </div>
             </div>
-          </div>
-        </main>
-      </div>
-      <CommandPalette open={palette} onOpenChange={setPalette} can={can} />
+          </main>
+        </div>
+        <CommandPalette open={palette} onOpenChange={setPalette} can={can} />
+      </TourProvider>
     </PageTransitionProvider>
   );
 }

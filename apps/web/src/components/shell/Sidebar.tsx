@@ -2,11 +2,11 @@
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Avatar } from "@/components/ui/Avatar";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { NavIcon } from "./icons";
 import { NAV_ITEMS, activeNav, visibleNav } from "./nav";
 import { usePageNav } from "./PageTransition";
+import { ProfileMenu } from "./ProfileMenu";
 import s from "./shell.module.css";
 
 type Props = { businessName: string; user: { name: string; role: string }; can: (p: string) => boolean };
@@ -19,7 +19,7 @@ export function Sidebar({ businessName, user, can }: Props) {
   const reduce = useReducedMotion();
   return (
     <aside className={s.side}>
-      <div className={s.lockup} data-testid="lockup">
+      <div className={s.lockup} data-testid="lockup" data-tour="brand">
         <img src="/lume-mark.png" alt="" />
         <div>
           <span className={s.brand}>LUME</span>
@@ -34,6 +34,7 @@ export function Sidebar({ businessName, user, can }: Props) {
               key={i.id}
               href={i.href}
               className={s.link}
+              data-tour={`nav-${i.id}`}
               aria-current={on ? "page" : undefined}
               onClick={(e) => {
                 if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
@@ -56,13 +57,7 @@ export function Sidebar({ businessName, user, can }: Props) {
         })}
       </nav>
       <div className={s.spacer} />
-      <div className={s.me}>
-        <Avatar name={user.name} color="linear-gradient(135deg,#2A5BFF,#16B5FF)" />
-        <div>
-          <span className={s.meName}>{user.name}</span>
-          <span className={s.meRole}>{user.role}</span>
-        </div>
-      </div>
+      <ProfileMenu user={user} />
     </aside>
   );
 }
