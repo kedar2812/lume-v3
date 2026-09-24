@@ -137,6 +137,14 @@ Notification centre and reminders (Phase 3, though preferences are collected now
 
 ## 10. Dependencies on the owner
 
-1. **Google Cloud project for Calendar**, owned by Kedar, with LUME's OAuth consent screen and the client's redirect URI; Google's verification of the sensitive calendar scope takes weeks, so start it during 1C-1 (report §9.1).
+1. **Google Cloud project for Calendar**, owned by LUME (not by Kedar personally and never by a client), with LUME’s OAuth consent screen and each client subdomain as a redirect URI. Google’s verification of the sensitive calendar scope takes weeks, so start it during 1C-1 (report §9.1). Agreed order (2026-09-24):
+   1. buy the LUME domain;
+   2. create the LUME Google account on that domain — Google Workspace (own organisation, real mailbox, survives any change of hands; recommended) or a free Google account whose username is the domain address, with mail hosted elsewhere;
+   3. publish the landing page **including privacy policy and terms pages** — Google requires both, so the landing page is on the critical path for calendar access;
+   4. verify the domain in Search Console **with that same account**;
+   5. create the Cloud project, brand the consent screen as LUME with those links;
+   6. add the `calendar.events.readonly` scope and submit for verification; create the Sheets service account in the same project (no review needed, so sheet intake can ship first).
+
+   Guardrails: two owners on the project so nobody can be locked out, two-step sign-in on the LUME account, recovery codes kept offline. One LUME project serves every client. **Calendar connect is therefore built last in the pulled-forward group, to give the review the most time.**
 2. **A Google service account** for Sheets (no verification needed), and the client sharing the sheet with it as Viewer (report §8.1).
 3. **Tasneem's confirmations** still open: the final Struggles options and lost reasons (preset values are editable in Settings), and the email provider (`SMTP_URL`) for production.
