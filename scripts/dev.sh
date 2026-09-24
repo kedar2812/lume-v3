@@ -102,6 +102,15 @@ cmd_up() {
   compose up -d
 }
 
+# Back to a genuine first run on the DEV stack only: the database is recreated exactly as
+# infra/postgres/init/00-roles.sh creates it, migrated, and the API restarted so it prints a new setup token.
+cmd_reset_db() {
+  compose stop api worker web
+  remote "docker exec -u postgres ${PROJECT}-db-1 psql -v ON_ERROR_STOP=1 -q     -c 'DROP DATABASE IF EXISTS lume WITH (FORCE)'     -c 'CREATE DATABASE lume OWNER lume_owner'     -c 'REVOKE ALL ON DATABASE lume FROM PUBLIC'     -c 'GRANT CONNECT ON DATABASE lume TO lume_app, lume_worker, lume_readonly_backup'"
+  compose run --rm migrate
+  compose up -d
+}
+
 case "${1:-}" in
   init) cmd_init ;;
   sync) cmd_sync ;;
@@ -111,6 +120,7 @@ case "${1:-}" in
   fmt) cmd_fmt ;;
   test-db) shift; cmd_sync; remote "cd $REMOTE_SRC && LUME_DEV_ROOT=$REMOTE_ROOT bash scripts/test-db.sh ${1:-up}" ;;
   up) cmd_up ;;
+  reset-db) cmd_reset_db ;;
   down) compose down ;;
   ps) compose ps ;;
   logs) shift; compose logs --tail=200 "$@" ;;
@@ -120,5 +130,5 @@ case "${1:-}" in
   tunnel)
     echo "https://lume.localhost:8443 and Mailpit http://127.0.0.1:8025 → $HOST (Ctrl+C to stop)"
     ssh -N -L 8443:127.0.0.1:8443 -L 8025:127.0.0.1:8025 "$HOST" ;;
-  *) echo "usage: dev.sh {init|sync|toolbox|run|add|fmt|test-db|up|down|ps|logs|compose|remote|fetch|tunnel}" >&2; exit 2 ;;
+  *) echo "usage: dev.sh {init|sync|toolbox|run|add|fmt|test-db|up|reset-db|down|ps|logs|compose|remote|fetch|tunnel}" >&2; exit 2 ;;
 esac

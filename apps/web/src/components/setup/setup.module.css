@@ -1,10 +1,14 @@
 /* First-run setup: the sign-in canvas, a wider glass card, one step at a time. */
+/* A scroll container clips shadows at its padding edge, so it gets room for the card's soft shadow
+   (with negative margins, the layout is unchanged). Without it the shadow ends in a hard rectangle. */
 .wrap {
   position: relative;
   width: min(480px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  box-sizing: content-box;
+  max-height: calc(100dvh - 32px - 168px);
   overflow-y: auto;
-  padding: 8px 2px;
+  padding: 48px 48px 120px; /* --shadow-pop reaches ~116px below the card */
+  margin: -48px -48px -120px;
   text-align: center;
 }
 .mark {

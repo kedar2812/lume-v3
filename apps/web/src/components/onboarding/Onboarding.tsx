@@ -118,11 +118,23 @@ export function Onboarding({
   useEffect(() => {
     pane.current?.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
     if (step.id === "done") sound.play("done");
-    // The fade at the bottom only shows while there is more to scroll to.
-    const el = pane.current?.querySelector<HTMLElement>("[data-panel]");
-    setMore(!!el && el.scrollHeight - el.clientHeight - el.scrollTop > 8);
     // Deliberately keyed on the step alone: the chime must play once on arrival, not on every re-render.
   }, [index]);
+
+  // The fade at the bottom shows only while there is more to scroll to — re-measured whenever the
+  // panel's content changes size (a list that loads after the step appears, a field that grows).
+  useEffect(() => {
+    const panel = pane.current?.querySelector<HTMLElement>(`[data-panel="${step.id}"]`);
+    const body = panel?.firstElementChild;
+    if (!panel || !body) return;
+    const measure = () => setMore(panel.scrollHeight - panel.clientHeight - panel.scrollTop > 8);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(body);
+    ro.observe(panel);
+    return () => ro.disconnect();
+  }, [step.id]);
 
   function go(i: number) {
     setDirection(i > index ? 1 : -1);
@@ -330,7 +342,7 @@ export function Onboarding({
         <AnimatePresence initial={false} custom={direction}>
           <motion.div
             key={step.id}
-            data-panel
+            data-panel={step.id}
             className={s.panel}
             initial={{ opacity: 0, x: offset }}
             animate={{ opacity: 1, x: 0 }}
@@ -341,7 +353,7 @@ export function Onboarding({
               setMore(el.scrollHeight - el.clientHeight - el.scrollTop > 8);
             }}
           >
-            {panel}
+            <div>{panel}</div>
           </motion.div>
         </AnimatePresence>
         <div className={s.footBar}>

@@ -3276,3 +3276,25 @@ Rewrite `lume-progress` memory: 1C-1 done (what it delivers), next 1C-2 (leads s
 - *Timezones.* ICU still reports a few zones by their old ids (`Asia/Calcutta`), and it leaves out `UTC`. `timezones.ts` maps the renamed ids to their current names and adds `UTC`. Both kinds of id pass the API's `timezoneSchema`.
 - *Test mock.* The `motion/react` mock now makes one component per tag. The earlier version made a new component type on every access, which remounted controlled inputs after each keystroke.
 - *Extra files.* `TimezonePicker.module.css`. Two tests were added beyond the plan: the codes cannot be skipped, and the General preset plus Back both work.
+
+**Task 6.**
+- *Roles for invites.* `GET /roles` needs `roles.manage`, so an admin with only `users.manage` would have had an empty role picker. The new `GET /roles/assignable` (`users.manage`) returns only the roles whose every grant the person holds, which is the escalation guard's own rule, so the picker never offers a role that would be refused.
+- *The app behind the glass* is the real `Sidebar`, inert, not the whole `AppShell`: the shell's window-level ⌘K listener would otherwise reach through the sheet.
+- *Sound volume* was a stored number the player ignored. The player now scales every cue around its designed level (60), and the provider keeps and applies the choice.
+- *Explore on my own* records a tour skip. Otherwise the tour would have started on its own on Today anyway, because a never-seen tour counts as outstanding.
+- The "reviewed by another admin" bylines from the mockup were left out, because nothing records who reviewed what. The team byline counts pending invites instead.
+
+**Task 7.**
+- The profile row now opens a menu with *Replay the tour* and *Sign out*. The UI had no way to sign out.
+- A tour left half-way resumes where it stopped; a replay starts from the beginning. Targets that are hidden (not just missing) are skipped.
+- Settings is shown to everyone. It was gated on `settings.manage`, but spec §7 puts everyone's own pages there.
+
+**Task 8.**
+- The database is dropped and recreated before the API boots, rather than truncated: web servers start before global setup, and the API decides at boot whether to print the setup token. `e2e/reset-db.ts` is bundled and run first.
+- API calls in specs go through the page (`callApi`), because Playwright's separate request client won't send `Secure` cookies over plain http.
+- Every navigation waits for `html[data-hydrated]`. One flaky run was traced to key presses arriving before hydration. The same investigation found that forms without `method="post"` submitted as GET before hydration, putting credentials in the URL.
+- Aman, a fourth person, exists only for the password-reset spec, because a reset ends that person's sessions everywhere.
+- Role snapshots cover the owner and the rep. The admin is only part-way through onboarding in this run, so the admin gets the `/welcome` screenshot and axe check instead.
+- Findings fixed along the way are listed in `docs/runbooks/acceptance.md` (Phase 1C-1).
+
+**Task 9.** The walkthrough is automated (`apps/web/e2e-live/acceptance-1c1.mjs`) against the real dev stack, with screenshots and secrets masked. Afterwards the dev database was **reset to a genuine first run** instead of being left set up, so the owner creates the real account with their own password and authenticator. `scripts/dev.sh reset-db` was added for that.

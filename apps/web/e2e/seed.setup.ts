@@ -7,9 +7,14 @@ test("seed: the owner finishes onboarding, then invites an admin and two sales r
   // The owner is signed in (storage state from the wizard). Skip through onboarding to reach the app.
   await page.goto("/welcome");
   await page.getByRole("button", { name: /let’s go/i }).click();
+  // Wait for whichever button comes next rather than guessing whether a panel has finished arriving.
   const explore = page.getByRole("button", { name: /explore on my own/i });
-  for (let i = 0; i < 12 && !(await explore.isVisible()); i++)
-    await page.getByRole("button", { name: /^(Skip|Later)$/ }).click();
+  const skip = page.getByRole("button", { name: /^(Skip|Later)$/ });
+  for (let i = 0; i < 12; i++) {
+    await explore.or(skip).first().waitFor();
+    if (await explore.isVisible()) break;
+    await skip.click();
+  }
   await explore.click();
   await expect(page).toHaveURL(/\/today$/);
   await expect(page.getByRole("dialog", { name: /tour/i })).toHaveCount(0); // "on my own" means no tour

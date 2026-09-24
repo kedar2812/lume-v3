@@ -180,3 +180,65 @@ ops_restore_tests: ok=t  {"tables": 42, "migrations": 10}
 The "raw SQL as lume_app" half of the Phase 1 acceptance is `packages/db/src/rls.test.ts` (own/team/all/unset scopes, child tables, inserts, handoff, deletes, history, backup role), run in CI. Identity, lead and configuration tables were truncated afterwards so the real first-run setup happens through the Phase 1C screens.
 
 **Status: Phase 1B accepted on the temp build host.**
+
+# Phase 1C-1 — Getting in (2026-09-25)
+
+**Commits:** `85a0361` … `1f41768` plus the fixes and docs after them · **Host:** temp build host `lumedev`, dev stack behind Caddy (`https://lume.localhost:8443`), Mailpit for mail.
+
+## Live walkthrough
+
+`apps/web/e2e-live/acceptance-1c1.mjs` drives a real Chromium through Caddy's TLS against the running dev stack, with mail read from Mailpit (`scripts/dev.sh reset-db`, then the command in the script's header). Screenshots are in [`screenshots-1c1/`](screenshots-1c1/). QR codes, TOTP keys and recovery codes are masked in every image.
+
+```
+ok   a brand-new installation sends every visitor to the setup wizard
+ok   setup shows ten recovery codes
+ok   the owner lands in onboarding, signed in
+ok   both invites are sent from the Team step
+ok   the Coaching pipeline's eight stages are there to review
+ok   the veil really blurs the app (the Chrome glass bug stays fixed)
+ok   the owner's tour covers the admin tools
+ok   the tour replays from Settings
+ok   Tasneem's invite arrived: "Nupuur Patil invited you to LUME for Nupuur Coaching"
+ok   an admin cannot skip two-step sign-in
+ok   Tasneem is enrolled and in the app
+ok   Riya's tour has no admin steps
+ok   Riya's nav has her sections, Settings included (personal)
+ok   the reset email arrived: "Reset your LUME password"
+ok   Riya signs in with the new password
+acceptance 1C-1 passed
+```
+
+| Plan step | Outcome | Screenshot |
+|---|---|---|
+| 1. `/setup`: token, Nupuur Coaching (Asia/Dubai, AED, AE, Coaching), owner with two-step, recovery codes | ✅ | 01a–01c |
+| 2. Owner onboarding: theme, working day, alerts; invite Tasneem (Admin) and Riya (Sales); review the pipeline; take the tour | ✅ | 02a–02c |
+| 3. Tour: blur plus one sharp highlight, both themes; replay from Settings | ✅ | 03a, 03b |
+| 4. Invite emails in Mailpit; Tasneem's onboarding requires two-step sign-in first | ✅ | 04 |
+| 5. Riya's tour has no admin steps; her nav has only her sections | ✅ | 05 |
+| 6. Sign out, forgot password, email, new password, sign in | ✅ | 06 |
+
+## Automated
+
+- **Unit and integration:** 71 files, 415 tests (`pnpm test`), plus lint, typecheck and the production web build, all in the gate.
+- **End to end:** 47 Playwright tests against the built API and web app on a fresh database, behind an edge proxy that mirrors Caddy, with a real SMTP sink. That covers 16 axe checks (8 routes × 2 themes), 10 screenshots (5 screens × 2 themes) and 2 role snapshots. There are no retries, and two consecutive full runs passed 47/47.
+- **CI:** https://github.com/kedar2812/lume-v3/actions/runs/36057266997 (check, e2e, images: all green).
+
+## Findings fixed during acceptance
+
+These were found by running the real stack. None would have shown up in unit tests.
+
+- **Glass had no blur anywhere in Chrome.** With `-webkit-backdrop-filter` written after `backdrop-filter`, the CSS compiler kept only the prefixed property, which Chrome ignores. Sources now write the standard property and the compiler adds prefixes; a test forbids hand-written vendor prefixes.
+- **The production web build failed** because client code imported `@lume/core`'s root, which pulls in `node:crypto` and `node:fs`. There is now a Node-free `@lume/core/shared`, a lint rule enforces it, and the gate builds the web app.
+- **Signed-out screens rendered in the fallback font:** the signed-out redirect caught `/fonts/*`.
+- **The onboarding stage collapsed to a 42px strip:** two CSS classes had the same name in one module.
+- **An admin who hadn't enrolled yet couldn't save the first onboarding step,** and saw "LUME" instead of the business name.
+- **Settings was hidden from sales reps,** although it holds everyone's own settings and the tour.
+- **A submit before hydration was a native GET** that put the email and password in the URL. Every form now posts.
+- **`?next=//host` was an open redirect.**
+- Smaller fixes: sign-in now steps aside for someone already signed in, and a fresh installation sends people to `/setup`. Contrast fixes in Obsidian and on the aura. The empty "LUME / LUME" line is gone. Announced headings no longer show a focus box. The pipeline list fades where more stages follow. The setup card's shadow is no longer clipped.
+
+## State left behind
+
+The dev database was **reset to a genuine first run** after the walkthrough (`scripts/dev.sh reset-db`). The accounts above were throwaway and are gone. The owner's real account should be created by the owner, with their own password and authenticator app, so its credentials exist only in their password manager and never in this repo or on this machine. The new setup token is in `scripts/dev.sh logs api`.
+
+**Status: Phase 1C-1 accepted on the temp build host.**
