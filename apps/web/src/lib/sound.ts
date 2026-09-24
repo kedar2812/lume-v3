@@ -35,7 +35,15 @@ export type AudioContextLike = Pick<
   "currentTime" | "destination" | "createOscillator" | "createGain" | "resume" | "state"
 >;
 
-export function createSoundPlayer(opts: { createContext: () => AudioContextLike; isEnabled: () => boolean }) {
+/** The level the cues were designed at; the volume preference scales around it (spec §4.2, 0–100). */
+export const DESIGNED_VOLUME = 60;
+
+export function createSoundPlayer(opts: {
+  createContext: () => AudioContextLike;
+  isEnabled: () => boolean;
+  /** 0–100; defaults to the designed level. */
+  volume?: () => number;
+}) {
   let ctx: AudioContextLike | null = null;
   let unlocked = false;
   return {
@@ -51,6 +59,8 @@ export function createSoundPlayer(opts: { createContext: () => AudioContextLike;
     },
     play(cue: SoundCue) {
       if (!unlocked || !ctx || !opts.isEnabled()) return;
+      const level = Math.min(100, Math.max(0, opts.volume?.() ?? DESIGNED_VOLUME)) / DESIGNED_VOLUME;
+      if (level === 0) return;
       try {
         const t0 = ctx.currentTime;
         for (const n of CUE_NOTES[cue]) {
@@ -60,7 +70,7 @@ export function createSoundPlayer(opts: { createContext: () => AudioContextLike;
           osc.frequency.value = n.freq;
           const t = t0 + n.at;
           gain.gain.setValueAtTime(0, t);
-          gain.gain.linearRampToValueAtTime(n.gain, t + 0.006);
+          gain.gain.linearRampToValueAtTime(n.gain * level, t + 0.006);
           gain.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
           osc.connect(gain);
           gain.connect(ctx.destination);

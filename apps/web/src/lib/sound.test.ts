@@ -48,6 +48,26 @@ describe("sound policy", () => {
 });
 
 describe("createSoundPlayer", () => {
+  it("scales every note by the chosen volume, 60 being the designed level and never above it by more than 5/3", () => {
+    const f = fakeContext();
+    let volume = 60;
+    const p = createSoundPlayer({ createContext: () => f.ctx, isEnabled: () => true, volume: () => volume });
+    p.unlock();
+    p.play("done");
+    expect(f.gains).toEqual(CUE_NOTES.done.map((n) => n.gain));
+    f.gains.length = 0;
+    volume = 30;
+    p.play("done");
+    expect(f.gains[0]).toBeCloseTo(CUE_NOTES.done[0]!.gain / 2, 6);
+    f.gains.length = 0;
+    volume = 0;
+    p.play("done");
+    expect(f.gains).toEqual([]); // silent means no oscillators at all
+    volume = 500; // out of range is clamped
+    p.play("done");
+    expect(f.gains[0]).toBeCloseTo((CUE_NOTES.done[0]!.gain * 100) / 60, 6);
+  });
+
   it("is silent until unlocked by a user gesture", () => {
     const f = fakeContext();
     const p = createSoundPlayer({ createContext: () => f.ctx, isEnabled: () => true });

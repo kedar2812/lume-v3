@@ -28,6 +28,9 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/permissions", { config: cfg }, async () => roles.catalog());
   r.get("/api/v1/roles", { config: cfg }, (req) => roles.listRoles(req));
+  r.get("/api/v1/roles/assignable", { config: { permission: "users.manage" } }, (req) =>
+    roles.listAssignableRoles(req),
+  );
   r.get("/api/v1/roles/:id", { config: cfg, schema: { params } }, (req) =>
     roles.readRole(req, req.params.id),
   );

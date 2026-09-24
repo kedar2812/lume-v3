@@ -10,3 +10,9 @@ export function parseThemePref(v: string | undefined): ThemePref {
 export function themeCookie(pref: ThemePref): string {
   return `${THEME_COOKIE}=${pref}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
+
+/** Apply a theme now (live preview) and remember it so the next server render matches. Browser only. */
+export function applyTheme(pref: ThemePref): void {
+  document.documentElement.dataset.theme = pref;
+  document.cookie = themeCookie(pref);
+}

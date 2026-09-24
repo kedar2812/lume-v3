@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { PERMISSIONS, isPermissionKey, newId, permissionDef, type Scope } from "@lume/core";
+import { PERMISSIONS, can, isPermissionKey, newId, permissionDef, type Scope } from "@lume/core";
 import { schema, type LoginHours } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { badRequest, conflict, notFound } from "../../http/errors";
@@ -84,6 +84,30 @@ export async function listRoles(req: FastifyRequest) {
   const roles = [];
   for (const r of rows) roles.push(await getRole(req, r.id));
   return { roles };
+}
+
+/**
+ * The roles this person may hand out when inviting or editing someone: those whose every grant they hold
+ * themselves (the same rule assertCanAssignRoles enforces on write). Needs only users.manage, so an admin
+ * who can invite but not edit roles still gets a role picker, and is never offered one that would fail.
+ */
+export async function listAssignableRoles(req: FastifyRequest) {
+  const actor = req.actor!;
+  const rows = await req.db
+    .select({ id: schema.roles.id, name: schema.roles.name, color: schema.roles.color })
+    .from(schema.roles)
+    .where(isNull(schema.roles.deletedAt))
+    .orderBy(schema.roles.name);
+  const grants = await req.db
+    .select({
+      roleId: schema.rolePermissions.roleId,
+      key: schema.rolePermissions.permissionKey,
+      scope: schema.rolePermissions.scope,
+    })
+    .from(schema.rolePermissions);
+  const holds = (g: { key: string; scope: Scope | null }) =>
+    isPermissionKey(g.key) && can(actor, g.key, g.scope ?? undefined);
+  return { roles: rows.filter((r) => grants.filter((g) => g.roleId === r.id).every(holds)) };
 }
 
 export const readRole = async (req: FastifyRequest, id: string) => ({ role: await getRole(req, id) });

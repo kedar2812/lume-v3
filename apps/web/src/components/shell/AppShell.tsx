@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
-import { can as canCore, isPermissionKey } from "@lume/core";
+import { can as canCore, isPermissionKey } from "@lume/core/shared";
 import type { ThemePref } from "@/lib/theme";
 import type { Session } from "@/server/session";
 import { CommandPalette } from "./CommandPalette";
@@ -17,11 +17,20 @@ function roleLabel(session: Session): string {
   return canCore(session.actor, "users.manage") ? "Admin" : "Sales";
 }
 
+/**
+ * The sidebar's inputs for a session. The permission check is the very same one the API runs, imported
+ * from @lume/core, never a second implementation. Shared with the onboarding backdrop.
+ */
+export function shellIdentity(session: Session) {
+  return {
+    can: (p: string) => isPermissionKey(p) && canCore(session.actor, p),
+    user: { name: session.user.name, role: roleLabel(session) },
+  };
+}
+
 export function AppShell({ session, businessName, theme, children }: Props) {
   const [palette, setPalette] = useState(false);
-  // The very same check the API runs, imported from @lume/core — never a second implementation.
-  const can = (p: string) => isPermissionKey(p) && canCore(session.actor, p);
-  const user = { name: session.user.name, role: roleLabel(session) };
+  const { can, user } = shellIdentity(session);
 
   useEffect(() => {
     // Scrollbars fade in while scrolling (spec §4.4).

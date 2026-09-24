@@ -54,6 +54,42 @@ describe("users admin", () => {
     expect((await s.inject({ method: "GET", url: "/api/v1/audit" })).statusCode).toBe(200);
   });
 
+  it("offers someone who manages people exactly the roles they are allowed to give", async () => {
+    const manager = await h.seedUser({
+      grants: [
+        { key: "users.manage", scope: null },
+        { key: "leads.view", scope: "own" },
+      ],
+      totp: true,
+    });
+    const c = await h.signIn(manager);
+    const make = async (name: string, grants: [string, string | null][]) => {
+      const {
+        rows: [r],
+      } = await h.pool.query("INSERT INTO roles (id, name) VALUES (gen_random_uuid(), $1) RETURNING id", [
+        name,
+      ]);
+      for (const [key, scope] of grants)
+        await h.pool.query("INSERT INTO role_permissions VALUES ($1, $2, $3)", [r.id, key, scope]);
+      return r.id as string;
+    };
+    const giveable = await make("Assignable Viewer", [["leads.view", "own"]]);
+    const wider = await make("Assignable Wider", [["leads.view", "all"]]);
+    const res = await c.inject({ method: "GET", url: "/api/v1/roles/assignable" });
+    expect(res.statusCode).toBe(200);
+    const ids = res.json().roles.map((r: { id: string }) => r.id);
+    expect(ids).toContain(giveable);
+    expect(ids).not.toContain(wider); // "all" is more than this person holds
+    expect(res.json().roles.find((r: { id: string }) => r.id === giveable)).toEqual({
+      id: giveable,
+      name: "Assignable Viewer",
+      color: expect.any(String),
+    });
+    // Someone who holds every grant is offered every role.
+    const all = (await admin.inject({ method: "GET", url: "/api/v1/roles/assignable" })).json().roles;
+    expect(all.map((r: { id: string }) => r.id)).toEqual(expect.arrayContaining([giveable, wider]));
+  });
+
   it("someone who can manage people cannot hand out access they don't have", async () => {
     const manager = await h.seedUser({ grants: [{ key: "users.manage", scope: null }], totp: true });
     const c = await h.signIn(manager);

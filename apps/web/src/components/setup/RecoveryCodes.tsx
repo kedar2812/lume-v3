@@ -4,12 +4,19 @@ import { Button } from "@/components/ui/Button";
 import s from "./setup.module.css";
 
 /**
- * The ten recovery codes, shown once and never again — so this screen refuses to move on until the
- * person says they have saved them. Copy and download are offered because "write these down" is
- * where most people quietly skip a step.
+ * The ten recovery codes, shown once and never again, with Copy and Download (because "write these
+ * down" is where most people quietly skip a step) and the "I've saved these" confirmation. The caller
+ * decides what the confirmation unlocks: setup's Open LUME, or onboarding's Continue.
  */
-export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
-  const [saved, setSaved] = useState(false);
+export function RecoveryCodeList({
+  codes,
+  saved,
+  onSavedChange,
+}: {
+  codes: string[];
+  saved: boolean;
+  onSavedChange: (saved: boolean) => void;
+}) {
   const [copied, setCopied] = useState(false);
   const text = codes.join("\n");
 
@@ -34,11 +41,6 @@ export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () =
 
   return (
     <div>
-      <p className={s.title}>Your recovery codes</p>
-      <p className={s.sub}>
-        Each one signs you in once if you ever lose your phone. Save these somewhere safe — LUME can’t show
-        them again.
-      </p>
       <ul className={s.codes}>
         {codes.map((c) => (
           <li key={c}>{c}</li>
@@ -49,9 +51,24 @@ export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () =
         <Button onClick={download}>Download .txt</Button>
       </div>
       <label className={s.check}>
-        <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
+        <input type="checkbox" checked={saved} onChange={(e) => onSavedChange(e.target.checked)} />
         <span>I’ve saved these somewhere safe</span>
       </label>
+    </div>
+  );
+}
+
+/** Setup's last screen: the codes, then Open LUME once they are saved. */
+export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+  const [saved, setSaved] = useState(false);
+  return (
+    <div>
+      <p className={s.title}>Your recovery codes</p>
+      <p className={s.sub}>
+        Each one signs you in once if you ever lose your phone. Save these somewhere safe — LUME can’t show
+        them again.
+      </p>
+      <RecoveryCodeList codes={codes} saved={saved} onSavedChange={setSaved} />
       <Button variant="primary" className={s.submit} disabled={!saved} onClick={onDone}>
         Open LUME
       </Button>
