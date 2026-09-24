@@ -123,7 +123,6 @@
   border-radius: 13px;
   background: var(--glass);
   backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
   box-shadow: var(--shadow-pop);
   transform-origin: bottom center;
   animation: menuIn 0.22s var(--spring) both;

@@ -54,9 +54,12 @@ export function AppShell({ session, businessName, theme, children }: Props) {
     };
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("keydown", onKey);
+    // The shortcuts are live from here on. End-to-end tests wait for this rather than racing hydration.
+    document.documentElement.dataset.shell = "ready";
     return () => {
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("keydown", onKey);
+      delete document.documentElement.dataset.shell;
     };
   }, []);
 

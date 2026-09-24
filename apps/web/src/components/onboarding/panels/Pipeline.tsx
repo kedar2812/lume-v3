@@ -94,7 +94,7 @@ export function PipelinePanel({
       ) : (
         <ol className={s.pipe} aria-label={pipeline.name}>
           {pipeline.stages.map((st, i) => (
-            <li key={st.id} className={s.stage}>
+            <li key={st.id} className={s.stageRow}>
               <span className={s.dot} style={{ background: COLOR[st.color] ?? COLOR.neutral }} aria-hidden />
               <input
                 aria-label={`Stage ${i + 1} name`}

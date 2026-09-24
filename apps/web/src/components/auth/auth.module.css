@@ -3,12 +3,14 @@
   inset: 0;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* clip, not hidden: the aura overflows, and "hidden" can still be scrolled by focus. */
+  overflow: clip;
   background: var(--canvas);
 }
 .aura {
   position: absolute;
   inset: -20%;
+  overflow: clip;
   pointer-events: none;
 }
 .aura i {
@@ -64,7 +66,6 @@
   border-radius: 20px;
   background: var(--glass);
   backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
   box-shadow: var(--shadow-pop);
   text-align: left;
 }

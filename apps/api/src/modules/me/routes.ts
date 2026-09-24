@@ -41,7 +41,7 @@ export async function meRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
   r.patch(
     "/api/v1/me",
     {
-      config: self,
+      config: enrol, // the steps before two-step enrolment save through this
       schema: {
         body: z
           .object({

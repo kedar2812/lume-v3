@@ -150,7 +150,7 @@ export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
             "token",
             "Let’s set up LUME",
             "LUME printed a setup token in the server logs when it started. Paste it here to prove this installation is yours.",
-            <form onSubmit={submitToken} noValidate>
+            <form method="post" onSubmit={submitToken} noValidate>
               <Field
                 label="Setup token"
                 error={error}
@@ -180,6 +180,7 @@ export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
             "About the business",
             "This names the workspace and sets the clock everything in LUME is measured against.",
             <form
+              method="post"
               onSubmit={(e) => {
                 e.preventDefault();
                 setStep(3);
@@ -270,6 +271,7 @@ export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
             "Your account",
             "You’ll be the owner: the one account that can never be locked out or removed.",
             <form
+              method="post"
               onSubmit={(e) => {
                 e.preventDefault();
                 setPasswordError(null);
@@ -323,12 +325,14 @@ export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
             "totp",
             "Two-step sign-in",
             "Scan this with an authenticator app — Google Authenticator, 1Password, Authy. It’s required for the owner.",
-            <form onSubmit={finish} noValidate>
+            <form method="post" onSubmit={finish} noValidate>
               <div className={s.qrRow}>
                 {totp && <QrCode text={totp.otpauthUri} />}
                 <div>
                   <p className={s.fine}>Can’t scan? Type this key into the app instead:</p>
-                  <code className={s.secret}>{totp?.secret}</code>
+                  <code className={s.secret} data-testid="totp-secret">
+                    {totp?.secret}
+                  </code>
                 </div>
               </div>
               <p className={s.legend} aria-hidden>

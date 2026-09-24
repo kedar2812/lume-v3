@@ -104,12 +104,13 @@ export function SignInForm({ businessName, onSignIn, onVerify, onVerifyRecovery,
       <img src="/lume-mark.png" alt="" className={s.mark} />
       <div className={s.brand}>
         <h1>LUME</h1>
-        <p>{businessName}</p>
+        {businessName && <p>{businessName}</p>}
       </div>
       <div ref={card} className={s.card}>
         <AnimatePresence mode="wait" initial={false}>
           {step === "password" ? (
             <motion.form
+              method="post"
               key="pw"
               onSubmit={submit}
               noValidate
@@ -175,6 +176,7 @@ export function SignInForm({ businessName, onSignIn, onVerify, onVerifyRecovery,
             </motion.div>
           ) : (
             <motion.form
+              method="post"
               key="recovery"
               onSubmit={useRecoveryCode}
               noValidate

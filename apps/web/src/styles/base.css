@@ -49,6 +49,11 @@ svg {
   box-shadow: var(--focus-ring);
   border-radius: var(--r-ctl);
 }
+/* Focus moved by the app to announce something (a step heading, the tour card) is for screen readers:
+   those elements aren't controls, so no ring. Anything a person can operate keeps its ring. */
+[tabindex="-1"]:focus-visible {
+  box-shadow: none;
+}
 
 /* Typography roles (spec §4.1) */
 .t-hero {

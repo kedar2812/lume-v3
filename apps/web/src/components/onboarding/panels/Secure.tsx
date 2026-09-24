@@ -70,7 +70,10 @@ export function SecurePanel({
             <OtpInput key={otpKey} label="6-digit code" onChange={onCode} disabled={busy || !enrolment} />
             {enrolment && (
               <p className={s.clock}>
-                Can’t scan? Enter this key: <code className={s.key}>{enrolment.secret}</code>
+                Can’t scan? Enter this key:{" "}
+                <code className={s.key} data-testid="totp-secret">
+                  {enrolment.secret}
+                </code>
               </p>
             )}
           </div>

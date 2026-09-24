@@ -26,7 +26,7 @@ export function ForgotForm({ businessName }: { businessName: string }) {
       <img src="/lume-mark.png" alt="" className={s.mark} />
       <div className={s.brand}>
         <h1>LUME</h1>
-        <p>{businessName}</p>
+        {businessName && <p>{businessName}</p>}
       </div>
       <div className={s.card}>
         {state === "sent" ? (
@@ -40,7 +40,7 @@ export function ForgotForm({ businessName }: { businessName: string }) {
             </a>
           </div>
         ) : (
-          <form onSubmit={submit} noValidate>
+          <form method="post" onSubmit={submit} noValidate>
             <p className={s.otpTitle}>Reset your password</p>
             <p className={s.otpSub}>We’ll email you a link to choose a new one.</p>
             <div className={s.field}>

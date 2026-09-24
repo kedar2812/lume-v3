@@ -104,7 +104,7 @@ export function TeamPanel({
               </div>
             ))}
       </div>
-      <form className={s.invite} onSubmit={invite} noValidate>
+      <form method="post" className={s.invite} onSubmit={invite} noValidate>
         <input
           aria-label="Email"
           type="email"

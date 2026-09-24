@@ -194,4 +194,21 @@ describe("preferences, onboarding and tour state (spec §4.2)", () => {
     const r = await c.inject({ method: "PUT", url: "/api/v1/me/onboarding", payload: { step: "secure" } });
     expect(r.statusCode).toBe(200);
   });
+
+  // Onboarding asks for the name first and two-step sign-in second, so the steps before enrolment must
+  // be able to save — but nothing that touches anyone else's data may open up.
+  it("lets an admin who still has to enrol save their own profile and read the business name, and nothing more", async () => {
+    const c = await h.signIn(await h.seedUser({ grants: [{ key: "users.manage", scope: null }] }));
+    const saved = await c.inject({
+      method: "PATCH",
+      url: "/api/v1/me",
+      payload: { name: "Tasneem S", timezone: "Asia/Dubai", preferences: { workStart: "10:00" } },
+    });
+    expect(saved.statusCode).toBe(200);
+    const settings = await c.inject({ method: "GET", url: "/api/v1/settings" });
+    expect(settings.statusCode).toBe(200);
+    expect(settings.json()).toHaveProperty("businessName");
+    for (const url of ["/api/v1/users", "/api/v1/leads", "/api/v1/roles/assignable", "/api/v1/me/sessions"])
+      expect((await c.inject({ method: "GET", url })).statusCode, url).toBe(403);
+  });
 });

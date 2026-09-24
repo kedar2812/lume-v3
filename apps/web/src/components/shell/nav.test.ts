@@ -16,7 +16,13 @@ describe("navigation", () => {
 
   it("hides items the role cannot use (absent, not disabled)", () => {
     const can = (p: string) => ["leads.view", "calendar.view"].includes(p);
-    expect(visibleNav(NAV_ITEMS, can).map((i) => i.id)).toEqual(["today", "leads", "pipeline", "calendar"]);
+    expect(visibleNav(NAV_ITEMS, can).map((i) => i.id)).toEqual([
+      "today",
+      "leads",
+      "pipeline",
+      "calendar",
+      "settings", // everyone has personal settings (spec §7)
+    ]);
   });
 
   it("matches nested paths to their section", () => {

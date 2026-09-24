@@ -21,7 +21,13 @@ export function Spotlight({
   const clip = rect && viewport.width ? clipPathFor(rect, PAD, RADIUS, viewport) : undefined;
   return (
     <>
-      <div className={s.veil} style={clip ? { clipPath: clip } : undefined} onClick={onClick} aria-hidden />
+      <div
+        className={s.veil}
+        data-testid="tour-veil"
+        style={clip ? { clipPath: clip } : undefined}
+        onClick={onClick}
+        aria-hidden
+      />
       {rect && (
         <div
           className={s.ring}

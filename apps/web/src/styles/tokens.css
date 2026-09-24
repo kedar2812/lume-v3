@@ -95,7 +95,7 @@
   --line-2: rgba(255, 255, 255, 0.11);
   --text: #eef0f3;
   --text-2: #9ca1ab;
-  --text-3: #767b84;
+  --text-3: #80858e; /* ≥ 4.79:1 on every dark surface, glass included */
   --accent: #5b84ff;
   --accent-rgb: 91, 132, 255;
   --accent-soft: rgba(91, 132, 255, 0.12);
@@ -152,7 +152,7 @@
     --line-2: rgba(255, 255, 255, 0.11);
     --text: #eef0f3;
     --text-2: #9ca1ab;
-    --text-3: #767b84;
+    --text-3: #80858e; /* ≥ 4.79:1 on every dark surface, glass included */
     --accent: #5b84ff;
     --accent-rgb: 91, 132, 255;
     --accent-soft: rgba(91, 132, 255, 0.12);

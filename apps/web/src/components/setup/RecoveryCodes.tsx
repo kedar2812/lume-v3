@@ -41,7 +41,7 @@ export function RecoveryCodeList({
 
   return (
     <div>
-      <ul className={s.codes}>
+      <ul className={s.codes} data-testid="recovery-codes">
         {codes.map((c) => (
           <li key={c}>{c}</li>
         ))}

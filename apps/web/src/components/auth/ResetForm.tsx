@@ -48,7 +48,7 @@ export function ResetForm({
       <img src="/lume-mark.png" alt="" className={s.mark} />
       <div className={s.brand}>
         <h1>LUME</h1>
-        <p>{businessName}</p>
+        {businessName && <p>{businessName}</p>}
       </div>
       <div className={s.card}>
         {saved ? (
@@ -57,7 +57,7 @@ export function ResetForm({
             <p className={s.doneText}>Sign in with your new password.</p>
           </div>
         ) : (
-          <form onSubmit={submit} noValidate>
+          <form method="post" onSubmit={submit} noValidate>
             <p className={s.otpTitle}>Choose a new password</p>
             <p className={s.otpSub}>This also signs you out everywhere else.</p>
             <PasswordField

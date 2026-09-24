@@ -49,7 +49,7 @@ export function AcceptInvite({
         <p>{invite.businessName}</p>
       </div>
       <div className={s.card}>
-        <form onSubmit={submit} noValidate>
+        <form method="post" onSubmit={submit} noValidate>
           <p className={s.otpTitle}>You’re invited</p>
           <p className={s.otpSub}>Choose a password and you’re in, {invite.name.split(" ")[0]}.</p>
           <div className={s.field}>

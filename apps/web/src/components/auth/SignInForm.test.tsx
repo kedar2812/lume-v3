@@ -49,6 +49,34 @@ describe("SignInForm", () => {
     expect(screen.getByText("Nupuur Coaching")).toBeInTheDocument();
   });
 
+  // Before hydration a submit is a native one; with no method it would be a GET that puts the email and
+  // password in the address bar, the history and the server logs.
+  it("never lets credentials reach a URL, even before the page has hydrated", () => {
+    const { container } = render(
+      <SignInForm
+        businessName="X"
+        onSignIn={vi.fn()}
+        onVerify={vi.fn()}
+        onVerifyRecovery={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    for (const form of container.querySelectorAll("form")) expect(form).toHaveAttribute("method", "post");
+  });
+
+  it("shows only the wordmark to a stranger, never an echo of it", () => {
+    render(
+      <SignInForm
+        businessName=""
+        onSignIn={vi.fn()}
+        onVerify={vi.fn()}
+        onVerifyRecovery={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText("LUME")).toHaveLength(1);
+  });
+
   it("gives one generic message for bad credentials (no user enumeration)", async () => {
     render(
       <SignInForm

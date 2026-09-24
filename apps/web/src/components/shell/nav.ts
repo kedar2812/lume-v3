@@ -49,7 +49,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Settings",
     href: "/settings",
     icon: "settings",
-    permission: "settings.manage",
+    // Everyone: personal settings, two-step sign-in and the tour live here; admin pages gate themselves.
     phase: 1,
   },
 ];

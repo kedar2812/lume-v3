@@ -19,11 +19,16 @@ const shape = (s: typeof schema.settings.$inferSelect) => ({
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
-  r.get("/api/v1/settings", { config: { permission: "auth.self" } }, async (req) => {
-    const [s] = await req.db.select().from(schema.settings);
-    if (!s) throw notFound();
-    return shape(s);
-  });
+  // Readable before a required two-step enrolment is done: onboarding shows the business name throughout.
+  r.get(
+    "/api/v1/settings",
+    { config: { permission: "auth.self", allowDuringEnrolment: true } },
+    async (req) => {
+      const [s] = await req.db.select().from(schema.settings);
+      if (!s) throw notFound();
+      return shape(s);
+    },
+  );
   r.patch(
     "/api/v1/settings",
     {
