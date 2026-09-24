@@ -89,6 +89,8 @@ export type Harness = {
   mail: OutgoingMail[];
   clock: { now: Date; advance(ms: number): void };
   setupToken: string;
+  /** Tokens minted on demand by GET /setup/status (spec §4.2 operator recovery). */
+  mintedTokens: string[];
   url(role: DbRole): string;
   /** A fresh CSRF cookie + matching header, to spread into a mutating inject(). */
   csrf(): Promise<{ headers: Record<string, string>; cookies: Record<string, string> }>;
@@ -120,7 +122,13 @@ export type Harness = {
 };
 
 export async function createHarness(
-  opts: { extraRoutes?: AppDeps["extraRoutes"]; noSettings?: boolean; preset?: PresetKey } = {},
+  opts: {
+    extraRoutes?: AppDeps["extraRoutes"];
+    noSettings?: boolean;
+    preset?: PresetKey;
+    /** Start with no first-run token, as a restarted API with a wiped database would. */
+    forgetSetupToken?: boolean;
+  } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
   await installQueueSchema(tdb.url("lume_owner"), QUEUE_NAMES);
@@ -152,8 +160,19 @@ export async function createHarness(
       this.now = new Date(this.now.getTime() + ms);
     },
   };
-  let token: string | null = SETUP_TOKEN;
-  const setupTokens: SetupTokens = { current: () => token, burn: () => void (token = null) };
+  const mintedTokens: string[] = [];
+  let token: string | null = opts.forgetSetupToken ? null : SETUP_TOKEN;
+  const setupTokens: SetupTokens = {
+    current: () => token,
+    ensure: () => {
+      if (!token) {
+        token = `test-minted-${randomToken(8)}`;
+        mintedTokens.push(token);
+      }
+      return token;
+    },
+    burn: () => void (token = null),
+  };
   const waiters = new Map<string, () => void>();
 
   const app = await buildApp({
@@ -194,6 +213,7 @@ export async function createHarness(
     mail,
     clock,
     setupToken: SETUP_TOKEN,
+    mintedTokens,
     url: (role) => tdb.url(role),
     async csrf() {
       const res = await app.inject({ method: "GET", url: "/api/v1/auth/csrf" });

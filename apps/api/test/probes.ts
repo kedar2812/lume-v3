@@ -69,6 +69,8 @@ export const PROBES: Record<string, Probe> = {
   "POST /api/v1/me/2fa/disable": { access: "auth.self", body: () => ({ password: "wrong" }) },
   "POST /api/v1/me/recovery-codes": { access: "auth.self", body: () => ({ password: "wrong" }) },
   "PATCH /api/v1/me": { access: "auth.self", body: () => ({ theme: "obsidian" }) },
+  "PUT /api/v1/me/onboarding": { access: "auth.self", body: () => ({ step: "look" }) },
+  "PUT /api/v1/me/tour": { access: "auth.self", body: () => ({ step: 1 }) },
   "POST /api/v1/invites": {
     access: "users.manage",
     body: () => ({ email: `new-${Date.now()}@test.lume`, name: "New", roleIds: [] }),

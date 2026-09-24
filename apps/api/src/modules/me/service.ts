@@ -1,13 +1,20 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
+  EMPTY_ONBOARDING,
+  EMPTY_TOUR,
+  TOUR_VERSION,
   generateRecoveryCodes,
   hashRecoveryCode,
   newId,
   newTotpSecret,
   otpauthUri,
+  mergePreferences,
   requiresTwoFactor,
   verifyTotp,
+  type OnboardingState,
+  type OnboardingStepId,
+  type TourState,
 } from "@lume/core";
 import { verifyPassword } from "@lume/core/password";
 import { schema } from "@lume/db";
@@ -173,18 +180,92 @@ export async function regenerateRecoveryCodes(
   return { recoveryCodes: codes };
 }
 
-export type ProfilePatch = { name?: string; timezone?: string; theme?: "system" | "porcelain" | "obsidian" };
+export type ProfilePatch = {
+  name?: string;
+  timezone?: string;
+  theme?: "system" | "porcelain" | "obsidian";
+  preferences?: unknown;
+};
 
 export async function updateProfile(req: FastifyRequest, patch: ProfilePatch) {
   const where = eq(schema.users.id, req.actor!.userId);
-  const [u] = Object.keys(patch).length
-    ? await req.db.update(schema.users).set(patch).where(where).returning()
+  const { preferences, ...columns } = patch;
+  const set: Record<string, unknown> = { ...columns };
+  if (preferences !== undefined) {
+    // Merged onto what is stored, so one screen can save one setting without clearing the others.
+    const [current] = await req.db
+      .select({ preferences: schema.users.preferences })
+      .from(schema.users)
+      .where(where);
+    set.preferences = mergePreferences(current?.preferences, preferences);
+  }
+  const [u] = Object.keys(set).length
+    ? await req.db.update(schema.users).set(set).where(where).returning()
     : await req.db.select().from(schema.users).where(where);
   await audit(req, {
     action: "user.profile.updated",
     entityType: "user",
     entityId: u!.id,
-    diff: { fields: Object.keys(patch) },
+    diff: { fields: Object.keys(set) },
   });
-  return { id: u!.id, name: u!.name, email: u!.email, timezone: u!.timezone, theme: u!.theme };
+  return {
+    id: u!.id,
+    name: u!.name,
+    email: u!.email,
+    timezone: u!.timezone,
+    theme: u!.theme,
+    preferences: mergePreferences(u!.preferences, {}),
+  };
+}
+
+export const onboardingOf = (row: { onboarding: Partial<OnboardingState> }): OnboardingState => ({
+  ...EMPTY_ONBOARDING,
+  ...row.onboarding,
+});
+export const tourOf = (row: { tour: Partial<TourState> }): TourState => ({ ...EMPTY_TOUR, ...row.tour });
+
+/** Where onboarding got to, what was skipped, and when it finished (spec §4.2). */
+export async function updateOnboarding(
+  req: FastifyRequest,
+  patch: { step?: OnboardingStepId | null; skip?: OnboardingStepId; completed?: true },
+) {
+  const userId = req.actor!.userId;
+  const [u] = await req.db.select().from(schema.users).where(eq(schema.users.id, userId)).for("update");
+  const state = onboardingOf(u!);
+  const next: OnboardingState = {
+    step: patch.step !== undefined ? patch.step : state.step,
+    skipped:
+      patch.skip && !state.skipped.includes(patch.skip) ? [...state.skipped, patch.skip] : state.skipped,
+    completedAt: patch.completed ? (state.completedAt ?? new Date().toISOString()) : state.completedAt,
+  };
+  await req.db.update(schema.users).set({ onboarding: next }).where(eq(schema.users.id, userId));
+  if (patch.completed && !state.completedAt) {
+    await audit(req, {
+      action: "user.onboarding.completed",
+      entityType: "user",
+      entityId: userId,
+      diff: { skipped: next.skipped },
+    });
+  }
+  return { onboarding: next };
+}
+
+/** Tour progress. A new TOUR_VERSION starts again, so later phases can show only their new steps. */
+export async function updateTour(
+  req: FastifyRequest,
+  patch: { step?: number; completed?: true; skipped?: true },
+) {
+  const userId = req.actor!.userId;
+  const [u] = await req.db.select().from(schema.users).where(eq(schema.users.id, userId)).for("update");
+  const stored = tourOf(u!);
+  const state = stored.version === TOUR_VERSION ? stored : EMPTY_TOUR;
+  const now = new Date().toISOString();
+  const next: TourState = {
+    version: TOUR_VERSION,
+    step: patch.step ?? state.step,
+    completedAt: patch.completed ? (state.completedAt ?? now) : state.completedAt,
+    skippedAt: patch.skipped ? (state.skippedAt ?? now) : state.skippedAt,
+  };
+  await req.db.update(schema.users).set({ tour: next }).where(eq(schema.users.id, userId));
+  return { tour: next };
 }

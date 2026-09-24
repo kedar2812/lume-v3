@@ -13,6 +13,7 @@ import {
   time,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { OnboardingState, Preferences, TourState } from "@lume/core";
 import { bytea, cidrArray, citext, inet, tz } from "./types";
 
 export const settings = pgTable("settings", {
@@ -55,6 +56,18 @@ export const users = pgTable("users", {
   isOwner: boolean("is_owner").notNull().default(false),
   timezone: text("timezone"),
   theme: text("theme").$type<"system" | "porcelain" | "obsidian">().notNull().default("system"),
+  preferences: jsonb("preferences")
+    .$type<Partial<Preferences>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  onboarding: jsonb("onboarding")
+    .$type<Partial<OnboardingState>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  tour: jsonb("tour")
+    .$type<Partial<TourState>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   totpSecretEnc: bytea("totp_secret_enc"),
   totpPendingEnc: bytea("totp_pending_enc"),
   totpEnabled: boolean("totp_enabled").notNull().default(false),

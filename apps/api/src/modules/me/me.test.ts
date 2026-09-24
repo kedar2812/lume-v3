@@ -1,4 +1,4 @@
-import { totpCode } from "@lume/core";
+import { PREFERENCES_DEFAULTS, TOUR_VERSION, totpCode } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "../../../test/harness";
 
@@ -110,5 +110,88 @@ describe("/me", () => {
       (await c.inject({ method: "PATCH", url: "/api/v1/me", payload: { timezone: "Mars/Olympus" } }))
         .statusCode,
     ).toBe(400);
+  });
+});
+
+describe("preferences, onboarding and tour state (spec §4.2)", () => {
+  it("starts with defaults, merges a patch, and keeps the rest", async () => {
+    const c = await h.signIn(await h.seedUser({ grants: [] }));
+    const me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect(me.preferences).toEqual(PREFERENCES_DEFAULTS);
+    expect(me.flags).toEqual({ needsOnboarding: true, needsTwoFactorEnrolment: false, needsTour: false });
+    const r = await c.inject({
+      method: "PATCH",
+      url: "/api/v1/me",
+      payload: { timezone: "Asia/Kolkata", preferences: { digestTime: "07:15", sounds: { volume: 10 } } },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().preferences).toMatchObject({
+      digestTime: "07:15",
+      sounds: { enabled: true, volume: 10 },
+    });
+    const again = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect(again.preferences.workingDays).toEqual([1, 2, 3, 4, 5]);
+    expect(again.preferences.digestTime).toBe("07:15");
+    expect(again.user.timezone).toBe("Asia/Kolkata");
+  });
+
+  it("refuses nonsense preferences", async () => {
+    const c = await h.signIn(await h.seedUser({ grants: [] }));
+    const r = await c.inject({
+      method: "PATCH",
+      url: "/api/v1/me",
+      payload: { preferences: { workStart: "9am" } },
+    });
+    expect(r.statusCode).toBe(400);
+  });
+
+  it("remembers where onboarding got to, what was skipped, and when it finished", async () => {
+    const c = await h.signIn(await h.seedUser({ grants: [] }));
+    let r = await c.inject({
+      method: "PUT",
+      url: "/api/v1/me/onboarding",
+      payload: { step: "day", skip: "look" },
+    });
+    expect(r.json().onboarding).toMatchObject({ step: "day", skipped: ["look"], completedAt: null });
+    r = await c.inject({ method: "PUT", url: "/api/v1/me/onboarding", payload: { skip: "look" } });
+    expect(r.json().onboarding.skipped).toEqual(["look"]); // recorded once
+    r = await c.inject({ method: "PUT", url: "/api/v1/me/onboarding", payload: { completed: true } });
+    expect(r.json().onboarding.completedAt).not.toBeNull();
+    const me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect(me.flags.needsOnboarding).toBe(false);
+    expect(me.flags.needsTour).toBe(true); // now the tour is what is outstanding
+    expect(
+      (await h.pool.query("SELECT count(*)::int n FROM audit_log WHERE action = 'user.onboarding.completed'"))
+        .rows[0].n,
+    ).toBe(1);
+  });
+
+  it("tracks tour progress and stops asking once finished", async () => {
+    const c = await h.signIn(await h.seedUser({ grants: [] }));
+    await c.inject({ method: "PUT", url: "/api/v1/me/onboarding", payload: { completed: true } });
+    await c.inject({ method: "PUT", url: "/api/v1/me/tour", payload: { step: 4 } });
+    let me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect(me.tour).toMatchObject({ version: TOUR_VERSION, step: 4, completedAt: null });
+    expect(me.flags.needsTour).toBe(true);
+    await c.inject({ method: "PUT", url: "/api/v1/me/tour", payload: { completed: true } });
+    me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect(me.flags.needsTour).toBe(false);
+    expect(me.tour.completedAt).not.toBeNull();
+  });
+
+  it("tells the app which integrations exist", async () => {
+    const c = await h.signIn(await h.seedUser({ grants: [] }));
+    expect((await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json().capabilities).toEqual({
+      sheets: false,
+      calendar: false,
+    });
+  });
+
+  it("flags an admin who still has to enrol in two-step sign-in, and lets them record onboarding steps", async () => {
+    const c = await h.signIn(await h.seedUser({ grants: [{ key: "users.manage", scope: null }] }));
+    const me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect(me.flags).toMatchObject({ needsTwoFactorEnrolment: true, needsOnboarding: true });
+    const r = await c.inject({ method: "PUT", url: "/api/v1/me/onboarding", payload: { step: "secure" } });
+    expect(r.statusCode).toBe(200);
   });
 });

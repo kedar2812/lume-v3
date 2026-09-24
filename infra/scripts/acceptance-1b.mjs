@@ -89,18 +89,27 @@ let r = await owner.post("/api/v1/setup", {
   token: SETUP_TOKEN,
   business: { name: "Nupuur Coaching", timezone: "Asia/Dubai", currency: "AED", defaultCountry: "AE" },
   preset: "coaching",
-  owner: { name: "Nupuur Patil", email: "owner@nupuur.local", password: `acceptance ${randomBytes(6).toString("hex")} passphrase` },
+  owner: {
+    name: "Nupuur Patil",
+    email: "owner@nupuur.local",
+    password: `acceptance ${randomBytes(6).toString("hex")} passphrase`,
+  },
   totp: { secret: setupSecret, code: totp(setupSecret) },
 });
 assert(r.status === 201, "setup with the Coaching preset", r.body);
 const pipelines = (await owner.get("/api/v1/pipelines")).body.pipelines;
 const stages = Object.fromEntries(pipelines[0].stages.map((s) => [s.name, s.id]));
 assert(
-  pipelines.length === 1 && pipelines[0].stages.map((s) => s.name).join(",") === "New,Message sent,Replied,Call booked,Call done,Follow-up later,Won,Lost",
+  pipelines.length === 1 &&
+    pipelines[0].stages.map((s) => s.name).join(",") ===
+      "New,Message sent,Replied,Call booked,Call done,Follow-up later,Won,Lost",
   "the preset seeded Nupuur's pipeline and stages",
 );
 const fieldKeys = (await owner.get("/api/v1/fields")).body.fields.map((f) => f.key);
-assert(fieldKeys.includes("struggles") && fieldKeys.includes("handled_by"), "the preset seeded Struggles and Handled by");
+assert(
+  fieldKeys.includes("struggles") && fieldKeys.includes("handled_by"),
+  "the preset seeded Struggles and Handled by",
+);
 
 // 2. Riya joins as Sales
 const sales = (await owner.get("/api/v1/roles")).body.roles.find((x) => x.name === "Sales");
@@ -109,7 +118,9 @@ r = await owner.post("/api/v1/invites", { email: riyaEmail, name: "Riya", roleId
 assert(r.status === 201, "owner invites Riya as Sales");
 let link = null;
 for (let i = 0; i < 30 && !link; i++) {
-  const list = await (await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${riyaEmail}"`)}`)).json();
+  const list = await (
+    await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${riyaEmail}"`)}`)
+  ).json();
   if (list.messages?.length) {
     const msg = await (await fetch(`${MAILPIT}/api/v1/message/${list.messages[0].ID}`)).json();
     link = /https:\/\/\S+\/invite\/([A-Za-z0-9_-]{43})/.exec(msg.Text)?.[1] ?? null;
@@ -117,46 +128,94 @@ for (let i = 0; i < 30 && !link; i++) {
 }
 const riya = browser("riya");
 await riya.start();
-assert((await riya.post(`/api/v1/invites/${link}/accept`, { password: "sunrise over the creek at five" })).status === 201, "Riya accepts the invite");
+assert(
+  (await riya.post(`/api/v1/invites/${link}/accept`, { password: "sunrise over the creek at five" }))
+    .status === 201,
+  "Riya accepts the invite",
+);
 const riyaId = (await owner.get("/api/v1/users")).body.users.find((u) => u.email === riyaEmail).id;
 
 // 3. The owner creates a lead for Riya: the local number is normalised with the business's country
-r = await owner.post("/api/v1/leads", { name: "Asha Menon", phone: "050 123 4567", email: "asha@example.com", ownerId: riyaId }, "key-accept-lead-0001");
-assert(r.status === 201 && r.body.lead.phone.display === "+971 50 123 4567" && !r.body.lead.phone.masked, "owner creates a lead and sees the full, normalised number", r.body);
+r = await owner.post(
+  "/api/v1/leads",
+  { name: "Asha Menon", phone: "050 123 4567", email: "asha@example.com", ownerId: riyaId },
+  "key-accept-lead-0001",
+);
+assert(
+  r.status === 201 && r.body.lead.phone.display === "+971 50 123 4567" && !r.body.lead.phone.masked,
+  "owner creates a lead and sees the full, normalised number",
+  r.body,
+);
 const asha = r.body.lead.id;
-const replay = await owner.post("/api/v1/leads", { name: "Asha Menon", phone: "050 123 4567", email: "asha@example.com", ownerId: riyaId }, "key-accept-lead-0001");
-assert(replay.status === 201 && replay.body.lead.id === asha, "a retried create with the same Idempotency-Key replays instead of duplicating");
+const replay = await owner.post(
+  "/api/v1/leads",
+  { name: "Asha Menon", phone: "050 123 4567", email: "asha@example.com", ownerId: riyaId },
+  "key-accept-lead-0001",
+);
+assert(
+  replay.status === 201 && replay.body.lead.id === asha,
+  "a retried create with the same Idempotency-Key replays instead of duplicating",
+);
 
 // 4. Riya sees only her lead, with contacts masked
 r = await riya.get("/api/v1/leads");
-assert(r.status === 200 && r.body.items.length === 1 && r.body.items[0].id === asha, "Riya's list holds exactly her lead");
-assert(r.body.items[0].phone.display === "+971 50 ••• ••67" && r.body.items[0].phone.masked, "…with the phone masked");
+assert(
+  r.status === 200 && r.body.items.length === 1 && r.body.items[0].id === asha,
+  "Riya's list holds exactly her lead",
+);
+assert(
+  r.body.items[0].phone.display === "+971 50 ••• ••67" && r.body.items[0].phone.masked,
+  "…with the phone masked",
+);
 assert(r.body.items[0].email.display === "a•••@example.com", "…and the email masked");
-assert((await riya.get("/api/v1/leads?q=1234567")).body.items.length === 0, "Riya can't search by phone digits");
+assert(
+  (await riya.get("/api/v1/leads?q=1234567")).body.items.length === 0,
+  "Riya can't search by phone digits",
+);
 
 // 5. Reveal: one lead, audited and metered
 r = await riya.post(`/api/v1/leads/${asha}/contact/reveal`);
-assert(r.status === 200 && r.body.phone === "+971 50 123 4567" && r.body.email === "asha@example.com", "Reveal shows Riya the full contact", r.body);
+assert(
+  r.status === 200 && r.body.phone === "+971 50 123 4567" && r.body.email === "asha@example.com",
+  "Reveal shows Riya the full contact",
+  r.body,
+);
 const audit1 = (await owner.get("/api/v1/audit?limit=100")).body.entries;
-assert(audit1.some((e) => e.action === "lead.contact.reveal" && e.entityId === asha), "the reveal is in the audit log");
+assert(
+  audit1.some((e) => e.action === "lead.contact.reveal" && e.entityId === asha),
+  "the reveal is in the audit log",
+);
 
 // 6. Riya moves the lead along
 r = await riya.post(`/api/v1/leads/${asha}/stage`, { stageId: stages["Call booked"] });
-assert(r.status === 200 && r.body.lead.stageId === stages["Call booked"] && r.body.lead.version === 2, "Riya moves the lead to Call booked");
+assert(
+  r.status === 200 && r.body.lead.stageId === stages["Call booked"] && r.body.lead.version === 2,
+  "Riya moves the lead to Call booked",
+);
 r = await riya.post(`/api/v1/leads/${asha}/stage`, { stageId: stages.Lost });
 assert(r.status === 400 && r.body.error.code === "LOST_REASON_REQUIRED", "Lost needs a reason");
 const acts = (await riya.get(`/api/v1/leads/${asha}/activities`)).body.items.map((a) => a.type);
-assert(acts.includes("stage_changed") && acts.includes("contact_revealed") && acts.includes("lead_created"), "the timeline records it all", acts);
+assert(
+  acts.includes("stage_changed") && acts.includes("contact_revealed") && acts.includes("lead_created"),
+  "the timeline records it all",
+  acts,
+);
 
 // 7. Someone else's lead doesn't exist for Riya
 r = await owner.post("/api/v1/leads", { name: "Owner's own lead" });
 const ownersLead = r.body.lead.id;
 r = await riya.get(`/api/v1/leads/${ownersLead}`);
 assert(r.status === 404 && r.body.error.code === "LEAD_NOT_FOUND", "Riya gets 404 for the owner's lead");
-assert((await riya.post(`/api/v1/leads/${ownersLead}/contact/reveal`)).status === 404, "…and can't reveal it");
+assert(
+  (await riya.post(`/api/v1/leads/${ownersLead}/contact/reveal`)).status === 404,
+  "…and can't reveal it",
+);
 
 // 8. Reassignment takes Riya's access away immediately
-r = await owner.post(`/api/v1/leads/${asha}/assign`, { ownerId: (await owner.get("/api/v1/auth/me")).body.user.id, reason: "acceptance" });
+r = await owner.post(`/api/v1/leads/${asha}/assign`, {
+  ownerId: (await owner.get("/api/v1/auth/me")).body.user.id,
+  reason: "acceptance",
+});
 assert(r.status === 200, "owner takes the lead back", r.body);
 assert((await riya.get(`/api/v1/leads/${asha}`)).status === 404, "Riya lost the lead at once");
 assert((await riya.get("/api/v1/leads")).body.items.length === 0, "…and her list is empty");

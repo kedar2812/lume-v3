@@ -2,13 +2,15 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { requiresTwoFactor } from "@lume/core";
+import { mergePreferences, needsOnboarding, needsTour, requiresTwoFactor } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { clearSessionCookie } from "../../auth/cookies";
 import { revokeSession } from "../../auth/sessions";
+import { CAPABILITIES } from "../../capabilities";
 import { unauthorized } from "../../http/errors";
+import { onboardingOf, tourOf } from "../me/service";
 import { emailSchema as email, passwordInput, totpCodeSchema, urlTokenSchema } from "../../http/schemas";
 import { forgotPassword, resetPassword } from "./password";
 import { login, recoveryCode, secondFactor, type LockoutHook } from "./service";
@@ -68,6 +70,8 @@ export async function authRoutes(
     const a = req.actor!;
     const [u] = await req.db.select().from(schema.users).where(eq(schema.users.id, a.userId));
     if (!u) throw unauthorized();
+    const onboarding = onboardingOf(u);
+    const tour = tourOf(u);
     return {
       user: {
         id: u.id,
@@ -81,6 +85,16 @@ export async function authRoutes(
         .map(([key, scope]) => ({ key, scope: scope === true ? null : scope }))
         .sort((x, y) => x.key.localeCompare(y.key)),
       twoFactor: { enabled: a.twoFactorEnabled, required: requiresTwoFactor(a) },
+      preferences: mergePreferences(u.preferences, {}),
+      onboarding,
+      tour,
+      capabilities: CAPABILITIES,
+      flags: {
+        needsOnboarding: needsOnboarding(onboarding),
+        needsTwoFactorEnrolment: requiresTwoFactor(a) && !a.twoFactorEnabled,
+        // Onboarding itself offers the tour, so the tour is only outstanding on its own afterwards.
+        needsTour: !needsOnboarding(onboarding) && needsTour(tour),
+      },
     };
   });
 }

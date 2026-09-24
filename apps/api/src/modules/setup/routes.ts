@@ -10,8 +10,12 @@ import { runSetup } from "./service";
 export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/setup/status", { config: { public: true } }, async () => {
-    const { rows } = await d.pool.query("SELECT EXISTS (SELECT 1 FROM users) AS has_users");
-    return { needsSetup: !rows[0].has_users && d.setupTokens.current() !== null };
+    const { rows } = await d.pool.query<{ has_users: boolean }>(
+      "SELECT EXISTS (SELECT 1 FROM users) AS has_users",
+    );
+    if (rows[0]!.has_users) return { needsSetup: false };
+    d.setupTokens.ensure(); // a wiped installation can still be set up; the token is printed again
+    return { needsSetup: true };
   });
   r.post(
     "/api/v1/setup/totp",

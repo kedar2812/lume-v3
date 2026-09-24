@@ -115,3 +115,26 @@ describe("first-run setup (report §15.3)", () => {
     ).toBe(403);
   });
 });
+
+describe("the first-run token when an installation is wiped", () => {
+  it("is minted on demand while there are no users, and printed for the operator", async () => {
+    const fresh = await createHarness({ noSettings: true, forgetSetupToken: true });
+    try {
+      const status = await fresh.app.inject({ method: "GET", url: "/api/v1/setup/status" });
+      expect(status.json()).toEqual({ needsSetup: true });
+      expect(fresh.mintedTokens).toHaveLength(1);
+      // The same token stays valid until it is used.
+      await fresh.app.inject({ method: "GET", url: "/api/v1/setup/status" });
+      expect(fresh.mintedTokens).toHaveLength(1);
+      const totp = await fresh.app.inject({
+        method: "POST",
+        url: "/api/v1/setup/totp",
+        payload: { token: fresh.mintedTokens[0] },
+        ...(await fresh.csrf()),
+      });
+      expect(totp.statusCode).toBe(200);
+    } finally {
+      await fresh.close();
+    }
+  });
+});
