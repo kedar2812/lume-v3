@@ -3,6 +3,31 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SignInForm } from "./SignInForm";
 
+// jsdom runs no animations, so AnimatePresence would wait forever for an exit before mounting the next step.
+vi.mock("motion/react", async () => {
+  const { createElement, forwardRef } = await import("react");
+  const strip = ({ initial, animate, exit, transition, layout, ...rest }: Record<string, unknown>) => (
+    void initial,
+    void animate,
+    void exit,
+    void transition,
+    void layout,
+    rest
+  );
+  const motion = new Proxy(
+    {},
+    {
+      get: (_t, tag: string) =>
+        forwardRef((p: Record<string, unknown>, ref) => createElement(tag, { ...strip(p), ref })),
+    },
+  );
+  return {
+    motion,
+    AnimatePresence: ({ children }: { children: unknown }) => children,
+    useReducedMotion: () => true,
+  };
+});
+
 const fill = async () => {
   await userEvent.type(screen.getByLabelText("Email"), "t@nupuur.com");
   await userEvent.type(screen.getByLabelText("Password"), "correct horse");
