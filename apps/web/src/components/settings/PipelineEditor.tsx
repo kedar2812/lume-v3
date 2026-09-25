@@ -8,18 +8,10 @@ import { tokenColor } from "@/lib/leads/colors";
 import type { FieldDefView, Pipeline, Stage } from "@/lib/leads/types";
 import { pipelinesClient, type StagePatch } from "@/lib/settings/pipelines";
 import { AccessChanged } from "./AccessChanged";
+import { ColourPicker } from "./ColourPicker";
 import { ListEditor } from "./ListEditor";
 import s from "./settings.module.css";
 
-const COLOURS = [
-  ["accent", "Blue"],
-  ["cyan", "Cyan"],
-  ["ok", "Green"],
-  ["warn", "Amber"],
-  ["danger", "Red"],
-  ["meet", "Violet"],
-  ["neutral", "Grey"],
-] as const;
 const KINDS = [
   ["open", "Open"],
   ["won", "Won"],
@@ -148,36 +140,11 @@ export function PipelineEditor({
         askToArchive={(id) => setArchiving(stages.find((x) => x.id === id) ?? null)}
         renderExtra={(stage) => (
           <div className={s.extras}>
-            <Popover
+            <ColourPicker
               label={`Colour for ${stage.name}`}
-              triggerClassName={s.swatchBtn}
-              trigger={
-                <>
-                  <span className={s.swatch} style={{ background: tokenColor(stage.color) }} aria-hidden />
-                  <span className={s.srOnly}>Colour for {stage.name}</span>
-                </>
-              }
-            >
-              {(close) => (
-                <div role="radiogroup" aria-label={`Colour for ${stage.name}`} className={s.swatches}>
-                  {COLOURS.map(([token, name]) => (
-                    <label key={token} className={s.swatchChoice} title={name}>
-                      <input
-                        type="radio"
-                        name={`colour-${stage.id}`}
-                        aria-label={name}
-                        checked={stage.color === token}
-                        onChange={() => {
-                          close();
-                          void patch(stage, { color: token });
-                        }}
-                      />
-                      <span className={s.swatch} style={{ background: tokenColor(token) }} aria-hidden />
-                    </label>
-                  ))}
-                </div>
-              )}
-            </Popover>
+              value={stage.color}
+              onChange={(color) => void patch(stage, { color })}
+            />
             <select
               className={s.kind}
               aria-label={`Kind of ${stage.name}`}

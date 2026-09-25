@@ -20,6 +20,7 @@ export function ListEditor<T extends ListItem>({
   onArchive,
   renderExtra,
   askToArchive,
+  archiveVerb = "Archive",
   archiveNote = "Leads keep it; it just can’t be picked any more.",
 }: {
   items: T[];
@@ -33,6 +34,8 @@ export function ListEditor<T extends ListItem>({
   renderExtra?: (item: T) => ReactNode;
   /** Ask about archiving yourself (when it needs a choice, like where a stage's leads go). */
   askToArchive?: (id: string) => void;
+  /** What taking an item away is called here: "Archive", or "Remove" when it really goes. */
+  archiveVerb?: string;
   archiveNote?: string;
 }) {
   const [draft, setDraft] = useState("");
@@ -68,9 +71,12 @@ export function ListEditor<T extends ListItem>({
         {items.map((item, i) => (
           <li key={item.id} className={s.row} data-asking={asking === item.id || undefined}>
             {asking === item.id ? (
-              <div className={s.ask} role="group" aria-label={`Archive ${item.label}?`}>
+              <div className={s.ask} role="group" aria-label={`${archiveVerb} ${item.label}?`}>
                 <p>
-                  <b>Archive {item.label}?</b> {archiveNote}
+                  <b>
+                    {archiveVerb} {item.label}?
+                  </b>{" "}
+                  {archiveNote}
                 </p>
                 <Button size="sm" variant="ghost" onClick={() => setAsking(null)}>
                   Cancel
@@ -83,7 +89,7 @@ export function ListEditor<T extends ListItem>({
                     onArchive?.(item.id);
                   }}
                 >
-                  Archive
+                  {archiveVerb}
                 </Button>
               </div>
             ) : (
@@ -153,7 +159,7 @@ export function ListEditor<T extends ListItem>({
                   <button
                     type="button"
                     className={s.iconBtn}
-                    aria-label={`Archive ${item.label}`}
+                    aria-label={`${archiveVerb} ${item.label}`}
                     onClick={() => (askToArchive ? askToArchive(item.id) : setAsking(item.id))}
                   >
                     <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
