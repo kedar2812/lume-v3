@@ -260,15 +260,14 @@ assert(
 await owner.goto("/leads");
 const strip = owner.getByRole("group", { name: "Stages" });
 await strip.getByRole("button", { name: /^Call booked, 2 leads$/ }).click();
-const filtered = await owner
-  .waitForFunction(() => document.querySelectorAll('[data-testid="lead-row"]').length === 2, null, {
-    timeout: 10_000,
-  })
-  .then(() => true)
-  .catch(async () => {
-    await owner.screenshot({ path: path.join(SHOTS, "FAILED-06b.png") });
-    return false;
-  });
+// Wait for the filtered list itself: the unfiltered rows stay on screen while it loads.
+let rows = -1;
+for (let i = 0; i < 40 && rows !== 2; i++) {
+  rows = await owner.getByTestId("lead-row").count();
+  if (rows !== 2) await owner.waitForTimeout(250);
+}
+const filtered = rows === 2;
+if (!filtered) await owner.screenshot({ path: path.join(SHOTS, "FAILED-06b.png") });
 assert(
   filtered && (await owner.getByRole("button", { name: "Open Sara Nasser" }).count()) === 1,
   "Call booked shows its two leads, as its count said",
