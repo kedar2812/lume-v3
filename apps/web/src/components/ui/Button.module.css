@@ -2,8 +2,9 @@
   height: 34px;
   padding: 0 14px;
   border-radius: 9px;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -29,7 +30,8 @@
 .sm {
   height: 30px;
   padding: 0 11px;
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
 }
 .primary {
   background: var(--accent-fill);

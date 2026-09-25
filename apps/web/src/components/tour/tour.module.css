@@ -54,8 +54,8 @@
 .kicker {
   display: flex;
   justify-content: space-between;
-  font-size: 0.6875rem;
-  font-weight: 650;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--accent-ink);
@@ -65,23 +65,24 @@
   color: var(--text-2); /* --text-3 is only 4.3:1 on the glass in Obsidian */
   letter-spacing: 0.02em;
   text-transform: none;
-  font-weight: 560;
+  font-weight: var(--fw-medium);
 }
 .title {
-  font-size: 1.03125rem;
-  font-weight: 700;
-  letter-spacing: -0.018em;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-xl);
   margin-top: 7px;
 }
 .body {
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
   color: var(--text-2);
   line-height: 1.5;
   margin-top: 6px;
 }
 .body strong {
   color: var(--text);
-  font-weight: 680;
+  font-weight: var(--fw-bold);
 }
 .bar {
   display: block;
@@ -150,11 +151,13 @@
   box-shadow: 0 0 0 0.5px var(--line-2);
 }
 .help h2 {
-  font-size: 0.9375rem;
-  font-weight: 650;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-bold);
 }
 .help p {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
   margin-top: 2px;
 }

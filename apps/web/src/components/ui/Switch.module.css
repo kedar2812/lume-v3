@@ -2,8 +2,9 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.78125rem;
-  font-weight: 560;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
   color: var(--text-2);
 }
 .track {

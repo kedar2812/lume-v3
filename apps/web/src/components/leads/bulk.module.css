@@ -29,13 +29,14 @@
 }
 
 .count {
-  font-size: 13px;
-  font-weight: 620;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .note {
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   opacity: 0.7;
 }
 .clear,
@@ -44,8 +45,9 @@
   height: 32px;
   padding: 0 11px;
   border-radius: 9px;
-  font-size: 13px;
-  font-weight: 580;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
   color: inherit;
   white-space: nowrap;
   transition:
@@ -85,11 +87,12 @@
 }
 .confirm {
   margin-right: 6px;
-  font-size: 13px;
-  font-weight: 620;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
 }
 .confirm span {
-  font-weight: 450;
+  font-weight: var(--fw-regular);
   opacity: 0.75;
 }
 
@@ -108,7 +111,8 @@
   height: 34px;
   padding: 0 10px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   text-align: left;
   color: var(--text);
 }
@@ -124,8 +128,9 @@
 }
 .groupTitle {
   padding: 6px 10px 2px;
-  font-size: 11.5px;
-  font-weight: 620;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-3);
 }
 .lostPanel {
@@ -135,6 +140,7 @@
 }
 .panelTitle {
   margin-bottom: 10px;
-  font-size: 14px;
-  font-weight: 650;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-bold);
 }

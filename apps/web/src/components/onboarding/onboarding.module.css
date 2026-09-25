@@ -91,9 +91,9 @@
   padding: 26px 30px;
 }
 .fakePage h2 {
-  font-size: 1.5rem;
-  font-weight: 720;
-  letter-spacing: -0.024em;
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-2xl);
 }
 .fakePage p {
   color: var(--text-2);
@@ -217,12 +217,13 @@
 }
 .who span {
   display: block;
-  font-size: 0.71875rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
 }
 .grp {
-  font-size: 0.65625rem;
-  font-weight: 650;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -237,8 +238,9 @@
   height: 36px;
   padding: 0 10px;
   border-radius: 10px;
-  font-size: 0.8125rem;
-  font-weight: 540;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
   color: var(--text-2);
   text-align: left;
   background: none;
@@ -256,7 +258,7 @@
 }
 .st[data-state="on"] {
   color: var(--text);
-  font-weight: 620;
+  font-weight: var(--fw-semibold);
   background: var(--raised);
   box-shadow:
     0 0 0 0.5px var(--line-2),
@@ -292,8 +294,9 @@
 }
 .req {
   margin-left: auto;
-  font-size: 0.625rem;
-  font-weight: 650;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-2xs);
+  font-weight: var(--fw-bold);
   padding: 2px 6px;
   border-radius: 99px;
   background: var(--warn-soft);
@@ -301,7 +304,8 @@
 }
 .railFoot {
   margin-top: auto;
-  font-size: 0.71875rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-3);
   padding: 14px 10px 0;
   line-height: 1.5;
@@ -354,11 +358,13 @@
   bottom: calc(100% + 8px);
   left: 0;
   right: 0;
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--danger-ink);
 }
 .estimate {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-3);
 }
 .arrow {
@@ -368,23 +374,24 @@
 
 /* ── Panel content ────────────────────────────────────────────────────────────────────────────── */
 .kicker {
-  font-size: 0.71875rem;
-  font-weight: 650;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent-ink);
 }
 .title {
-  font-size: 1.6875rem;
-  font-weight: 730;
-  letter-spacing: -0.028em;
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-3xl);
   line-height: 1.15;
   margin-top: 8px;
   outline: none;
 }
 .lead {
   color: var(--text-2);
-  font-size: 0.90625rem;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
   margin-top: 8px;
   max-width: 500px;
   line-height: 1.55;
@@ -396,19 +403,21 @@
   max-width: 480px;
 }
 .label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-2);
   margin-bottom: 6px;
 }
 .clock {
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
   margin-top: -6px;
 }
 .clock b {
   color: var(--text);
-  font-weight: 620;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
 }
 .summary {
@@ -421,28 +430,31 @@
 .summary li {
   display: flex;
   gap: 10px;
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
   color: var(--text-2);
 }
 .summary b {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   min-width: 118px;
 }
 .inlineNote {
   margin-top: 20px;
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
   color: var(--text-2);
 }
 .linkish {
   color: var(--accent-ink);
-  font-weight: 560;
+  font-weight: var(--fw-medium);
   background: none;
   cursor: pointer;
 }
 .alert {
   margin-top: 10px;
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--danger-ink);
 }
 .byline {
@@ -451,7 +463,8 @@
   padding: 11px 14px;
   border-radius: 12px;
   background: var(--ok-soft);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
 }
 
 /* Look */
@@ -486,13 +499,15 @@
 }
 .tile b {
   display: block;
-  font-size: 0.8125rem;
-  font-weight: 620;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
   margin-top: 9px;
 }
 .tile > span:last-child {
   display: block;
-  font-size: 0.71875rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
 }
 /* The tiles show each theme as it is, whatever the current theme: literal colours on purpose. */
@@ -558,8 +573,9 @@
   width: 44px;
   height: 36px;
   border-radius: 10px;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
   background: var(--sunk);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
   color: var(--text-2);
@@ -585,7 +601,8 @@
   border-radius: 12px;
   padding: 12px 14px;
   background: var(--accent-soft);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   line-height: 1.5;
   display: flex;
   gap: 10px;
@@ -622,12 +639,14 @@
 }
 .setText b {
   display: block;
-  font-size: 0.84375rem;
-  font-weight: 600;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
 }
 .setText span {
   display: block;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
 }
 .toggle {
@@ -678,8 +697,9 @@
   cursor: default;
 }
 .always {
-  font-size: 0.71875rem;
-  font-weight: 620;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   padding: 3px 9px;
   border-radius: 99px;
   background: var(--accent-soft);
@@ -704,14 +724,15 @@
   overflow: hidden;
 }
 .howto {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
   line-height: 1.7;
   margin: 0 0 12px 18px;
 }
 .howto b {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .secure :global(div[role="group"]) {
   justify-content: flex-start;
@@ -721,7 +742,7 @@
 }
 .key {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   word-break: break-all;
   user-select: all;
@@ -747,7 +768,8 @@
   gap: 11px;
   padding: 10px 14px;
   border-top: 0.5px solid var(--line);
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
   animation: enter 0.5s var(--spring) both;
 }
 .person:first-child {
@@ -759,23 +781,26 @@
 }
 .personText b {
   display: block;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .personText span {
   display: block;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .pending {
-  font-size: 0.71875rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--warn-ink);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .role {
-  font-size: 0.71875rem;
-  font-weight: 620;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   padding: 3px 9px;
   border-radius: 99px;
   background: var(--sunk);
@@ -807,7 +832,8 @@
   background: var(--sunk);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
   padding: 0 12px;
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
   color: var(--text);
   outline: 0;
   transition: box-shadow 0.2s;
@@ -859,8 +885,9 @@
   padding: 0 8px;
   margin-left: -8px;
   border-radius: 8px;
-  font-size: 0.84375rem;
-  font-weight: 560;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
   background: none;
   outline: 0;
   transition:
@@ -875,8 +902,9 @@
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 .kind {
-  font-size: 0.6875rem;
-  font-weight: 620;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-2xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-3);
 }
 .move {
@@ -932,12 +960,14 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 0.875rem;
-  font-weight: 620;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
 }
 .connText span {
   display: block;
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
   margin-top: 2px;
   line-height: 1.45;
@@ -945,8 +975,9 @@
 .connText .badge {
   display: inline;
   margin: 0;
-  font-size: 0.65625rem;
-  font-weight: 650;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-2xs);
+  font-weight: var(--fw-bold);
   padding: 2px 7px;
   border-radius: 99px;
   background: var(--meet-soft);
@@ -960,8 +991,9 @@
   background: #fff;
   color: #1f1f1f;
   box-shadow: 0 0 0 1px #747775 inset;
-  font-size: 0.8125rem;
-  font-weight: 560;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -1001,11 +1033,12 @@
 .recap div {
   display: flex;
   gap: 10px;
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
 }
 .recap dt {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   min-width: 96px;
 }
 .recap dd {

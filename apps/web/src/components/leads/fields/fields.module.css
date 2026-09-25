@@ -13,7 +13,8 @@
   box-shadow:
     inset 0 0 0 1.5px var(--accent),
     0 0 0 4px var(--accent-soft);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text);
   outline: 0;
 }
@@ -25,7 +26,8 @@ textarea.control {
   line-height: 1.5;
 }
 .error {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--danger-ink);
   white-space: normal;
 }
@@ -46,7 +48,8 @@ textarea.control {
   min-height: 30px;
   padding: 0 8px;
   border-radius: 7px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   cursor: pointer;
 }
 .option:hover {
@@ -66,8 +69,9 @@ textarea.control {
   height: 28px;
   padding: 0 10px;
   border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
 }
 .ghost {
@@ -88,8 +92,9 @@ textarea.control {
   align-items: center;
   padding: 2px 9px;
   border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 560;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-medium);
   color: var(--c);
   background: color-mix(in srgb, var(--c) 12%, transparent);
 }

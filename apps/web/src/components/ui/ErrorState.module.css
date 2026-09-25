@@ -6,9 +6,9 @@
   text-align: center;
 }
 .title {
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.014em;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-xl);
 }
 .message {
   color: var(--text-2);

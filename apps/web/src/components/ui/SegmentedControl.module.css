@@ -10,8 +10,9 @@
   position: relative;
   height: 28px;
   padding: 0 11px;
-  font-size: 0.75rem;
-  font-weight: 560;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-medium);
   color: var(--text-2);
   border-radius: 7px;
   transition: color 0.2s;
@@ -22,7 +23,8 @@
 .sm .item {
   height: 24px;
   padding: 0 9px;
-  font-size: 0.71875rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
 }
 .thumb {
   position: absolute;

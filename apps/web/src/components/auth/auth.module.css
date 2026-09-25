@@ -56,8 +56,9 @@
 .brand p {
   /* Full ink, not --text-2: this line sits on the aura, where secondary grey falls below 4.5:1. */
   color: var(--text);
-  font-size: 0.875rem;
-  font-weight: 520;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
   margin-top: 8px;
 }
 .card {
@@ -74,8 +75,9 @@
 }
 .field label {
   display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-2);
   margin-bottom: 6px;
 }
@@ -87,7 +89,8 @@
   background: var(--sheet);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
   outline: 0;
-  font-size: 0.90625rem;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
   transition: box-shadow 0.2s;
 }
 .input:focus {
@@ -101,7 +104,8 @@
     0 0 0 4px var(--danger-soft);
 }
 .error {
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--danger-ink);
   padding: 2px 0 8px;
 }
@@ -111,7 +115,8 @@
   margin-top: 4px;
 }
 .fine {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
   margin-top: 16px;
   display: flex;
@@ -120,15 +125,17 @@
 }
 .fine a {
   color: var(--accent-ink);
-  font-weight: 560;
+  font-weight: var(--fw-medium);
 }
 .otpTitle {
-  font-weight: 650;
-  font-size: 0.96875rem;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
   text-align: center;
 }
 .otpSub {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
   text-align: center;
   margin: 4px 0 14px;
@@ -143,8 +150,9 @@
   height: 54px;
   border-radius: 12px;
   text-align: center;
-  font-size: 1.375rem;
-  font-weight: 650;
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
   background: var(--sheet);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
@@ -215,8 +223,9 @@
 /* A button that reads as a link (recovery code, back to the app code). */
 .linkish {
   color: var(--accent-ink);
-  font-weight: 560;
-  font-size: 0.75rem;
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   background: none;
   border: 0;
   padding: 0;
@@ -227,7 +236,8 @@
 }
 /* Hint under a password field, and the show/hide control inside it. */
 .hint {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
   margin-top: 6px;
 }
@@ -243,8 +253,9 @@
   height: 30px;
   padding: 0 10px;
   border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-2);
   background: var(--raised);
   box-shadow: 0 0 0 0.5px var(--line-2);
@@ -257,11 +268,13 @@
   justify-items: center;
 }
 .doneTitle {
-  font-weight: 650;
-  font-size: 1rem;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
 }
 .doneText {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
   line-height: 1.5;
 }

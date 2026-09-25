@@ -1,11 +1,12 @@
 .title {
-  font-size: 0.9375rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-lg);
 }
 .sub {
   margin-top: 4px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
   line-height: 1.5;
 }
@@ -26,8 +27,9 @@
   height: 32px;
   padding: 0 12px;
   border-radius: 9px;
-  font-size: 0.8125rem;
-  font-weight: 560;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
   color: var(--text-2);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
   cursor: pointer;
@@ -55,8 +57,9 @@
 .field {
   display: grid;
   gap: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-2);
 }
 .field input {
@@ -65,8 +68,9 @@
   border-radius: 10px;
   background: var(--sheet);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
-  font-size: 0.84375rem;
-  font-weight: 400;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-regular);
   color: var(--text);
   outline: 0;
 }
@@ -76,11 +80,13 @@
     0 0 0 4px var(--accent-soft);
 }
 .hint {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
 }
 .error {
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--danger-ink);
 }
 .actions {
@@ -89,8 +95,9 @@
   gap: 6px;
 }
 .fieldLabel {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-2);
   margin-bottom: 6px;
 }

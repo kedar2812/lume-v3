@@ -46,25 +46,29 @@
   color: var(--accent-ink);
 }
 .city {
-  font-size: 0.875rem;
-  font-weight: 560;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
 }
 .zone {
   grid-column: 1;
-  font-size: 0.6875rem;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-2xs);
   color: var(--text-3);
 }
 .clock {
   grid-row: 1 / span 2;
   grid-column: 2;
   align-self: center;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .empty {
   padding: 12px 10px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--text-2);
 }

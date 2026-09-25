@@ -47,8 +47,8 @@
   margin-bottom: 18px;
 }
 .count {
-  font-size: 0.6875rem;
-  font-weight: 650;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -71,30 +71,34 @@
 }
 
 .title {
-  font-size: 1.125rem;
-  font-weight: 680;
-  letter-spacing: -0.014em;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-xl);
 }
 .sub {
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
   color: var(--text-2);
   line-height: 1.5;
   margin: 6px 0 18px;
 }
 .legend {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
   color: var(--text-2);
   margin: 4px 0 8px;
 }
 .fine {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
   line-height: 1.5;
   margin-top: 8px;
 }
 .error {
-  font-size: 0.78125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
   color: var(--danger-ink);
   text-align: center;
   margin-top: 10px;
@@ -165,11 +169,13 @@
   outline-offset: 2px;
 }
 .presetName {
-  font-size: 0.875rem;
-  font-weight: 620;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
 }
 .presetDetail {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
   color: var(--text-2);
   line-height: 1.45;
 }
@@ -190,7 +196,7 @@
   display: block;
   margin-top: 6px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.08em;
   word-break: break-all;
   user-select: all;
@@ -220,7 +226,7 @@
   background: var(--sheet);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -238,7 +244,8 @@
   align-items: center;
   gap: 10px;
   margin: 16px 0 10px;
-  font-size: 0.84375rem;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
   cursor: pointer;
 }
 .check input {

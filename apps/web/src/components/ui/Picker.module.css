@@ -34,8 +34,9 @@
   padding: 0 10px 0 12px;
   border-radius: 11px 0 0 11px;
   border-right: 0.5px solid var(--line-2);
-  font-size: 0.875rem;
-  font-weight: 560;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
   color: var(--text);
   font-variant-numeric: tabular-nums;
   transition: background 0.15s;
@@ -43,7 +44,8 @@
 .field[data-size="sm"] .prefix {
   gap: 5px;
   padding: 0 7px 0 9px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
 }
 .prefix:hover,
 .prefix[aria-expanded="true"] {
@@ -69,7 +71,8 @@
   box-shadow: none;
   outline: 0;
   font: inherit;
-  font-size: 0.90625rem;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
@@ -78,7 +81,8 @@
 }
 .field[data-size="sm"] .input {
   padding: 0 10px 0 9px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
 }
 
 /* A picker on its own (a currency or a country in a form): looks like the other inputs. */
@@ -92,7 +96,8 @@
   border-radius: 11px;
   background: var(--sheet);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
-  font-size: 0.90625rem;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
   color: var(--text);
   text-align: left;
   transition: box-shadow 0.2s;
@@ -127,15 +132,17 @@
   gap: 7px;
   padding: 0 10px 0 12px;
   border-right: 0.5px solid var(--line-2);
-  font-size: 0.875rem;
-  font-weight: 560;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
 .field[data-size="sm"] .fixed {
   gap: 5px;
   padding: 0 8px 0 9px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
 }
 .srOnly {
   position: absolute;

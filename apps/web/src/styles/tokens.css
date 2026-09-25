@@ -24,6 +24,33 @@
   --r-ctl: 10px;
   --r-chip: 8px;
   --focus-ring: 0 0 0 4px var(--accent-soft), inset 0 0 0 1.5px var(--accent);
+
+  /* Type scale. Nine sizes, each with the tracking Inter is drawn for at that size
+     (rsms' dynamic metrics: -0.0223 + 0.185·e^(-0.1745·px)): small text opens up a touch,
+     headings tighten as they grow. Every stylesheet uses these; no size is set by hand. */
+  --fs-2xs: 0.6875rem; /* 11px: badges, counts */
+  --fs-xs: 0.75rem; /* 12px: captions, hints */
+  --fs-sm: 0.8125rem; /* 13px: controls, tables, secondary text */
+  --fs-md: 0.875rem; /* 14px: body */
+  --fs-lg: 0.9375rem; /* 15px: inputs, section titles */
+  --fs-xl: 1.125rem; /* 18px: sheet and card titles */
+  --fs-2xl: 1.4375rem; /* 23px: a record's name */
+  --fs-3xl: 1.75rem; /* 28px: page titles */
+  --fs-4xl: 2.125rem; /* 34px: hero */
+  --ls-2xs: 0.005em;
+  --ls-xs: 0em;
+  --ls-sm: -0.003em;
+  --ls-md: -0.006em;
+  --ls-lg: -0.009em;
+  --ls-xl: -0.014em;
+  --ls-2xl: -0.019em;
+  --ls-3xl: -0.021em;
+  --ls-4xl: -0.022em;
+  /* Four weights: text, controls, emphasis, titles. */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 680;
 }
 
 :root,
