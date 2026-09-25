@@ -289,7 +289,7 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
 
   return (
     <section className={s.screen}>
-      <div className={s.toolbar}>
+      <div className={s.toolbar} data-testid="leads-toolbar">
         <FilterBar
           session={session}
           catalog={catalog}

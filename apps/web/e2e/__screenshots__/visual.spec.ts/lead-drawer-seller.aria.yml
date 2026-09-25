@@ -1,0 +1,49 @@
+- dialog "Aisha Khan":
+    - button "Close (Esc)"
+    - button "Previous lead (K)" [disabled]
+    - button "Next lead (J)" [disabled]
+    - text: 1 of 1
+    - img "Aisha Khan": AK
+    - heading "Aisha Khan" [level=2]
+    - button "Edit Name for Aisha Khan"
+    - text: "/Enquiry .+ Owner: Noor Ahmed/"
+    - button "WhatsApp"
+    - button "Won"
+    - button "Lost"
+    - button "New" [disabled]
+    - button "Message sent"
+    - button "Replied"
+    - button "Call booked"
+    - button "Call done"
+    - button "Follow-up later"
+    - paragraph: /In New (since today|for \d+ days?)/
+    - tablist "Lead":
+        - tab "Details" [selected]
+        - tab "Notes"
+        - tab "History"
+    - tabpanel "Details":
+        - region "Contact":
+            - heading "Contact masked for your role" [level=3]
+            - img "Phone"
+            - text: /\+\d+ \d+ ••• ••\d+/
+            - img "Email"
+            - text: a•••@example.com
+            - button "Reveal contact"
+        - region "Details":
+            - heading "Details" [level=3]
+            - term: Value
+            - definition:
+                - text: /AED \d+,\d+/
+                - button "Edit Value for Aisha Khan"
+            - term: Date
+            - definition:
+                - text: —
+                - button "Edit Date for Aisha Khan"
+            - term: Struggles
+            - definition:
+                - text: —
+                - button "Edit Struggles for Aisha Khan"
+            - term: Handled by
+            - definition:
+                - text: —
+                - button "Edit Handled by for Aisha Khan"

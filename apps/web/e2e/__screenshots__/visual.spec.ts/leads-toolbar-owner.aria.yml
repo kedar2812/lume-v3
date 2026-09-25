@@ -1,0 +1,34 @@
+- search:
+    - searchbox "Search leads": Karim
+    - button "Stage"
+    - text: Owner
+    - combobox "Owner":
+        - option "Anyone" [selected]
+        - option "Me"
+        - option "Unassigned"
+        - option "Aman Verma"
+        - option "Noor Ahmed"
+        - option "Riya S"
+        - option "Tasneem Shaikh"
+    - text: Phone status
+    - combobox "Phone status":
+        - option "Any phone" [selected]
+        - option "Valid"
+        - option "Needs country"
+        - option "Invalid"
+        - option "Missing"
+    - button "Date"
+    - button "More filters"
+    - button "Clear all filters": Clear · 1
+- text: Sort
+- combobox "Sort":
+    - option "Newest first" [selected]
+    - option "Oldest first"
+    - option "Last activity"
+    - option "Name"
+- button "Columns"
+- navigation "View":
+    - text: Table
+    - link "Board":
+        - /url: /pipeline?q=Karim
+- button "New lead"

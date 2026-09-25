@@ -202,6 +202,41 @@ describe("editing (optimistic concurrency, report §4.4)", () => {
     expect(stale.json().error).toMatchObject({ code: "VERSION_CONFLICT", details: { currentVersion: 2 } });
   });
 
+  it("sets, keeps and clears custom fields in one PATCH each (a set alone once broke the SQL)", async () => {
+    const cfg = await h.config();
+    const opt = (
+      await h.ownerPool.query("SELECT options->0->>'id' AS id FROM field_definitions WHERE id = $1", [
+        cfg.fields.struggles,
+      ])
+    ).rows[0].id;
+    const lead = (await create(admin, { name: "Custom" })).json().lead;
+    const url = `/api/v1/leads/${lead.id}`;
+    const set = await admin.inject({
+      method: "PATCH",
+      url,
+      headers: { "if-match": "1" },
+      payload: { custom: { struggles: [opt] } },
+    });
+    expect(set.statusCode, set.body).toBe(200);
+    expect(set.json().lead.custom).toEqual({ struggles: [opt] });
+    const both = await admin.inject({
+      method: "PATCH",
+      url,
+      headers: { "if-match": "2" },
+      payload: { custom: { struggles: null, handled_by: repUser.id } },
+    });
+    expect(both.statusCode, both.body).toBe(200);
+    expect(both.json().lead.custom).toEqual({ handled_by: repUser.id });
+    const cleared = await admin.inject({
+      method: "PATCH",
+      url,
+      headers: { "if-match": "3" },
+      payload: { custom: { handled_by: null } },
+    });
+    expect(cleared.statusCode, cleared.body).toBe(200);
+    expect(cleared.json().lead.custom).toEqual({});
+  });
+
   it("records a field_changed activity without contact values", async () => {
     const lead = (await create(rep, { name: "Audited" })).json().lead;
     await rep.inject({

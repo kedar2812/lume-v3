@@ -134,6 +134,12 @@ describe("BoardScreen", () => {
     await userEvent.keyboard(" ");
     expect(screen.queryByText(/picked up/i)).not.toBeInTheDocument();
   });
+  it("marks an unassigned card as unassigned, not with a person's initials", () => {
+    board({ columns: { "s-new": { items: [testLead({ ownerId: null })], nextCursor: null } } });
+    const card = within(column("New")).getByRole("button", { name: /Aisha Khan/ });
+    expect(within(card).getByRole("img", { name: "Unassigned" })).toHaveTextContent("");
+  });
+
   it("opens the drawer on a click, never on the Space that picks a card up", async () => {
     vi.mocked(leadsClient.get).mockResolvedValue({ ok: true, status: 200, data: { lead: testLead() } });
     board();

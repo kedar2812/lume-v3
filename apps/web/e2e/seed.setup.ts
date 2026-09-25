@@ -32,6 +32,7 @@ test("seed: the owner finishes onboarding, then invites an admin and two sales r
     { ...PEOPLE.admin, role: "Admin", file: stateFile("admin") },
     { ...PEOPLE.rep, role: "Sales", file: stateFile("rep") },
     { ...PEOPLE.aman, role: "Sales", file: null },
+    { ...PEOPLE.seller, role: "Sales", file: stateFile("seller") },
   ]) {
     const since = new Date(Date.now() - 1000).toISOString();
     const invited = await callApi(page, "POST", "/api/v1/invites", {
@@ -51,6 +52,11 @@ test("seed: the owner finishes onboarding, then invites an admin and two sales r
     await p.getByLabel("Choose a password").fill(who.password);
     await p.getByRole("button", { name: "Join LUME" }).click();
     await expect(p).toHaveURL(/\/welcome$/);
+    if (who.email === PEOPLE.seller.email) {
+      // Noor skips onboarding and the tour, so specs that run before onboarding.spec can use a rep.
+      expect((await callApi(p, "PUT", "/api/v1/me/onboarding", { completed: true })).status).toBe(200);
+      expect((await callApi(p, "PUT", "/api/v1/me/tour", { skipped: true })).status).toBe(200);
+    }
     if (who.file) await ctx.storageState({ path: who.file });
     await ctx.close();
 
@@ -62,4 +68,50 @@ test("seed: the owner finishes onboarding, then invites an admin and two sales r
     await expect(q.getByText(/no longer valid/i)).toBeVisible();
     await again.close();
   }
+
+  // Leads for the 1C-2 specs: Noor (Sales) owns four, the admin two, and two are unassigned.
+  const people = (await callApi<{ people: { id: string; name: string }[] }>(page, "GET", "/api/v1/people"))
+    .data.people;
+  const idOf = (name: string) => people.find((p) => p.name === name)!.id;
+  const leads = [
+    {
+      name: "Aisha Khan",
+      phone: "+971501234567",
+      email: "aisha@example.com",
+      owner: idOf(PEOPLE.seller.name),
+      value: 4500,
+    },
+    { name: "Omar Haddad", phone: "+971502223344", owner: idOf(PEOPLE.seller.name) },
+    { name: "Sara Nasser", phone: "+971503334455", owner: idOf(PEOPLE.seller.name) },
+    { name: "Priya Menon", phone: "+971504445566", owner: idOf(PEOPLE.seller.name) },
+    { name: "Karim Aziz", phone: "+971505556677", owner: idOf(PEOPLE.admin.name) },
+    { name: "Lina Farah", phone: "+971506667788", owner: idOf(PEOPLE.admin.name) },
+    { name: "Unassigned One", phone: "+971507778899", owner: null },
+    { name: "Unassigned Two", phone: "+971508889900", owner: null },
+  ];
+  for (const l of leads) {
+    const r = await callApi(page, "POST", "/api/v1/leads", {
+      name: l.name,
+      phone: l.phone,
+      ...(l.email ? { email: l.email } : {}),
+      ownerId: l.owner,
+      ...(l.value ? { value: l.value } : {}),
+    });
+    expect(r.status, JSON.stringify(r.data)).toBe(201);
+  }
+  const { pipelines } = (
+    await callApi<{ pipelines: { stages: { id: string; name: string }[] }[] }>(
+      page,
+      "GET",
+      "/api/v1/pipelines",
+    )
+  ).data;
+  const booked = pipelines[0]!.stages.find((s) => s.name === "Call booked")!;
+  const { fields } = (await callApi<{ fields: { id: string; key: string }[] }>(page, "GET", "/api/v1/fields"))
+    .data;
+  const struggles = fields.find((f) => f.key === "struggles")!;
+  const required = await callApi(page, "PATCH", `/api/v1/stages/${booked.id}`, {
+    requiredFieldIds: [struggles.id],
+  });
+  expect(required.status, JSON.stringify(required.data)).toBe(200);
 });

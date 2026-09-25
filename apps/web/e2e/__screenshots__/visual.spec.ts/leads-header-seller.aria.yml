@@ -1,0 +1,8 @@
+- row "Name Stage Owner Value Last activity":
+    - columnheader "Name":
+        - button "Name"
+    - columnheader "Stage"
+    - columnheader "Owner"
+    - columnheader "Value"
+    - columnheader "Last activity":
+        - button "Last activity"

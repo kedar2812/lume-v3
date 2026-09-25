@@ -4,7 +4,7 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
 import { totpCode } from "@lume/core";
 
 const ARTIFACTS = path.resolve(import.meta.dirname, ".artifacts");
-export type Who = "owner" | "admin" | "rep";
+export type Who = "owner" | "admin" | "rep" | "seller";
 export const stateFile = (who: Who) => path.join(ARTIFACTS, `${who}.json`);
 
 export const PEOPLE = {
@@ -13,6 +13,8 @@ export const PEOPLE = {
   rep: { email: "riya@nupuur.test", name: "Riya Sharma", password: "sunrise over the creek at five" },
   /** For the password-reset spec, which signs him out everywhere; nobody else relies on his session. */
   aman: { email: "aman@nupuur.test", name: "Aman Verma", password: "sunrise over the creek at five" },
+  /** Sales, onboarded at seed time (through the API), so the leads specs can use a rep straight away. */
+  seller: { email: "noor@nupuur.test", name: "Noor Ahmed", password: "sunrise over the creek at five" },
 } as const;
 
 /** The token the API printed at boot, read the way an operator reads it: from the log. */

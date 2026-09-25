@@ -31,7 +31,11 @@ export function CardFace({ lead, catalog }: { lead: Lead; catalog: Catalog }) {
           {inStage(lead)}
         </span>
         <span className={s.cardOwner} title={owner}>
-          <Avatar name={owner} size={20} />
+          {lead.ownerId ? (
+            <Avatar name={owner} size={20} />
+          ) : (
+            <span role="img" aria-label="Unassigned" className={s.nobody} />
+          )}
         </span>
       </span>
     </>

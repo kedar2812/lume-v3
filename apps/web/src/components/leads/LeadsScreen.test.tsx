@@ -127,7 +127,7 @@ describe("LeadsScreen", () => {
     });
     expect(screen.getByRole("columnheader", { name: "Phone" })).toBeInTheDocument();
     expect(screen.getByText("+971 50 123 4567")).toBeInTheDocument();
-    expect(screen.getByRole("searchbox")).toHaveAttribute("placeholder", "Search name, phone or email");
+    expect(screen.getByRole("searchbox")).toHaveAttribute("placeholder", "Search name, phone, email");
   });
 
   it("puts a filter into the address bar and fetches the matching page", async () => {

@@ -51,8 +51,11 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "notes", label: "Notes" },
   { id: "history", label: "History" },
 ];
-/** Shown in their own places (the header and the contact box), so left out of the field list. */
-const SHOWN_ELSEWHERE = new Set(["name", "phone", "email", "instagram"]);
+/**
+ * Left out of the field list: shown in their own places (header, owner menu, stage track, contact box),
+ * or, for source, not filled in until leads arrive from intake.
+ */
+const SHOWN_ELSEWHERE = new Set(["name", "phone", "email", "instagram", "owner", "stage", "source"]);
 const FOCUSABLE =
   'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 const typingIn = (t: EventTarget | null) =>

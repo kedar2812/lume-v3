@@ -74,7 +74,7 @@ export function FilterBar({
           ref={search}
           type="search"
           aria-label="Search leads"
-          placeholder={contactsVisible ? "Search name, phone or email" : "Search by name"}
+          placeholder={contactsVisible ? "Search name, phone, email" : "Search by name"}
           maxLength={100}
           value={filters.q ?? ""}
           onChange={(e) => set({ q: e.target.value || undefined })}

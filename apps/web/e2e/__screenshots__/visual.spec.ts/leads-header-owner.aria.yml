@@ -1,0 +1,11 @@
+- row "Select all loaded Name Stage Owner Phone Value Last activity":
+    - columnheader "Select all loaded":
+        - checkbox "Select all loaded"
+    - columnheader "Name":
+        - button "Name"
+    - columnheader "Stage"
+    - columnheader "Owner"
+    - columnheader "Phone"
+    - columnheader "Value"
+    - columnheader "Last activity":
+        - button "Last activity"

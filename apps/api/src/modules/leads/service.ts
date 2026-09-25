@@ -278,6 +278,20 @@ export function parseIfMatch(header: string | string[] | undefined): number {
   return Number(m[1]);
 }
 
+/**
+ * The custom-fields update: merge what was set, then drop what was cleared. Drizzle spreads a JS array
+ * into a parenthesised list, so the removed keys are built as an ARRAY[...] (and left out when empty:
+ * `- ()::text[]` is a syntax error).
+ */
+function customMerge(merged: Record<string, unknown>, removed: string[]) {
+  const withSet = sql`(${L.custom} || ${JSON.stringify(merged)}::jsonb)`;
+  if (!removed.length) return withSet;
+  return sql`${withSet} - ARRAY[${sql.join(
+    removed.map((k) => sql`${k}`),
+    sql`, `,
+  )}]::text[]`;
+}
+
 export async function updateLead(req: FastifyRequest, id: string, expectedVersion: number, input: LeadInput) {
   const fields = await loadFieldRegistry(req);
   const current = await visibleLead(req, id);
@@ -308,9 +322,7 @@ export async function updateLead(req: FastifyRequest, id: string, expectedVersio
     .update(L)
     .set({
       ...set,
-      ...(input.custom
-        ? { custom: sql`(${L.custom} || ${JSON.stringify(merged)}::jsonb) - ${removed}::text[]` }
-        : {}),
+      ...(input.custom ? { custom: customMerge(merged, removed) } : {}),
       version: sql`${L.version} + 1`,
       lastActivityAt: new Date(),
     })

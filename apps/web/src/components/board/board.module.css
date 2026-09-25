@@ -22,6 +22,7 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  margin-top: 14px;
   padding: 2px 2px 16px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
@@ -179,6 +180,13 @@
 .cardOwner {
   display: inline-flex;
   margin-left: auto;
+}
+.nobody {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  background: repeating-conic-gradient(from 0deg, transparent 0 15deg, var(--line) 15deg 30deg);
 }
 
 @media (max-width: 720px) {

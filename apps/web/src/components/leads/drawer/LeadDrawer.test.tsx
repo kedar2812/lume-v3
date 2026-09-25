@@ -239,6 +239,36 @@ describe("LeadDrawer", () => {
     expect(await screen.findByText("Call after 6pm")).toBeInTheDocument();
   });
 
+  it("lists details without repeating the owner and stage, which have their own places", async () => {
+    const cat = testCatalog();
+    const core = (key: string, label: string, type: "user" | "select" | "text") => ({
+      id: `f-${key}`,
+      key,
+      label,
+      type,
+      options: [],
+      isCore: true,
+      isRequired: false,
+      archived: false,
+      access: "edit" as const,
+    });
+    cat.fields.push(
+      core("owner", "Handled by (owner)", "user"),
+      core("stage", "Stage", "select"),
+      core("source", "Source", "text"),
+    );
+    vi.mocked(leadsClient.get).mockResolvedValue(ok({ lead: testLead() }));
+    render(
+      <CatalogProvider catalog={cat}>
+        <LeadDrawer id="l1" session={rep()} neighbours={["l1"]} {...handlers()} />
+      </CatalogProvider>,
+    );
+    const details = await screen.findByRole("region", { name: "Details" });
+    expect(details).toHaveTextContent("Deal value");
+    for (const label of ["Handled by (owner)", "Stage", "Source"])
+      expect(details).not.toHaveTextContent(label);
+  });
+
   it("shows the history in words", async () => {
     open();
     vi.mocked(leadsClient.activities).mockResolvedValue(

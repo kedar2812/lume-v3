@@ -59,6 +59,37 @@ const CHECKS: Check[] = [
     who: "owner",
     ready: (p) => p.getByRole("button", { name: /replay/i }).waitFor(),
   },
+  { name: "leads", path: "/leads", who: "owner", ready: (p) => p.getByTestId("lead-row").first().waitFor() },
+  {
+    name: "leads (sales)",
+    path: "/leads",
+    who: "seller",
+    ready: (p) => p.getByTestId("lead-row").first().waitFor(),
+  },
+  {
+    name: "lead drawer",
+    path: "/leads?q=Karim",
+    who: "owner",
+    ready: async (p) => {
+      await p.getByRole("button", { name: "Open Karim Aziz" }).click();
+      await p.getByRole("dialog", { name: "Karim Aziz" }).waitFor();
+    },
+  },
+  {
+    name: "new lead sheet",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) => {
+      await p.getByRole("button", { name: "New lead" }).first().click();
+      await p.getByRole("dialog", { name: "New lead" }).waitFor();
+    },
+  },
+  {
+    name: "pipeline board",
+    path: "/pipeline",
+    who: "owner",
+    ready: (p) => p.getByRole("region").first().waitFor(),
+  },
 ];
 
 for (const theme of ["porcelain", "obsidian"] as const) {

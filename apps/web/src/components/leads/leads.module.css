@@ -413,6 +413,10 @@
   gap: 6px;
   min-width: 0;
 }
+/* In a right-aligned column (money), the value sits flush right and the pencil comes before it. */
+.table td[data-align="end"] .editable {
+  flex-direction: row-reverse;
+}
 .editValue {
   min-width: 0;
   overflow: hidden;

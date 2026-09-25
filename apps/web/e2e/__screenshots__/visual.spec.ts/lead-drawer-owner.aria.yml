@@ -1,0 +1,48 @@
+- dialog "Karim Aziz":
+    - button "Close (Esc)"
+    - button "Previous lead (K)" [disabled]
+    - button "Next lead (J)" [disabled]
+    - text: 1 of 1
+    - button "Delete lead"
+    - img "Karim Aziz": KA
+    - heading "Karim Aziz" [level=2]
+    - button "Edit Name for Karim Aziz"
+    - text: /Enquiry .+/
+    - 'button "Owner: Tasneem Shaikh"'
+    - button "WhatsApp"
+    - button "Won"
+    - button "Lost"
+    - button "New" [disabled]
+    - button "Message sent"
+    - button "Replied"
+    - button "Call booked"
+    - button "Call done"
+    - button "Follow-up later"
+    - paragraph: /In New (since today|for \d+ days?)/
+    - tablist "Lead":
+        - tab "Details" [selected]
+        - tab "Notes"
+        - tab "History"
+    - tabpanel "Details":
+        - region "Contact":
+            - heading "Contact" [level=3]
+            - img "Phone"
+            - text: /\+\d+ \d+ \d+ \d+/
+        - region "Details":
+            - heading "Details" [level=3]
+            - term: Value
+            - definition:
+                - text: —
+                - button "Edit Value for Karim Aziz"
+            - term: Date
+            - definition:
+                - text: —
+                - button "Edit Date for Karim Aziz"
+            - term: Struggles
+            - definition:
+                - text: —
+                - button "Edit Struggles for Karim Aziz"
+            - term: Handled by
+            - definition:
+                - text: —
+                - button "Edit Handled by for Karim Aziz"
