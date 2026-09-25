@@ -8,15 +8,12 @@ import type { ApiResult } from "@/lib/api";
 import { invitesClient, usersClient, type Invite, type RoleRef, type UserRow } from "@/lib/settings/people";
 import type { Session } from "@/server/session";
 import { accessGone } from "@/lib/settings/access";
+import { shortDate } from "@/lib/settings/format";
 import { AccessChanged } from "./AccessChanged";
 import s from "./settings.module.css";
 
 type Note = { text: string; problem?: boolean; copy?: string } | null;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const day = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-};
+const day = (iso: string) => shortDate(iso, false);
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

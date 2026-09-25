@@ -1221,3 +1221,201 @@
   opacity: 0.3;
   cursor: default;
 }
+
+/* ── my account ── */
+.lookField {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.lookField .blockLabel {
+  margin: 0;
+}
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 6px;
+}
+.confirmBox {
+  display: grid;
+  gap: 4px;
+  max-width: 420px;
+  padding-bottom: 6px;
+}
+.confirmBox .dialogText {
+  margin: 0 0 10px;
+}
+.enrol {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+  padding-bottom: 12px;
+}
+@media (max-width: 560px) {
+  .enrol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.qrSlot {
+  width: 150px;
+  height: 150px;
+  border-radius: 14px;
+  background: #fff; /* a QR code needs full contrast in both themes */
+  overflow: hidden;
+}
+.howto {
+  margin: 0 0 0 18px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.secret {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  word-break: break-all;
+  user-select: all;
+  color: var(--text);
+}
+.sessionList {
+  list-style: none;
+  margin: 0 -20px;
+}
+.sessionRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 20px;
+}
+.sessionRow + .sessionRow {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.chip[data-tone="ok"] {
+  background: var(--ok-soft);
+  box-shadow: none;
+  color: var(--ok-ink);
+}
+
+/* ── audit ── */
+.lockNote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.lockNote::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 7V5a3.5 3.5 0 0 1 7 0v2h.5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1.5 0h4V5a2 2 0 0 0-4 0z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.auditFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.auditFilters label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.auditFilters select {
+  height: 34px;
+  max-width: 260px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text);
+}
+.auditList {
+  list-style: none;
+  padding: 4px 0;
+}
+.auditRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 11px 20px;
+}
+.auditRow + .auditRow {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.auditText {
+  flex: 1;
+  min-width: 220px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+}
+.auditLink {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+}
+.auditTime {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ── about ── */
+.facts {
+  display: grid;
+  gap: 0;
+}
+.facts > div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 16px 20px;
+}
+.facts > div + div {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.facts dt {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-3);
+}
+.facts dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
+}
+.facts > div > .muted {
+  grid-column: 2;
+  max-width: 62ch;
+}
+.restoreDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.restoreDot[data-ok] {
+  background: var(--ok);
+}
