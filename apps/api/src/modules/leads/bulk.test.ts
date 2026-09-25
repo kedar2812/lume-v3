@@ -35,6 +35,25 @@ describe("bulk actions (report §14)", () => {
     expect(ok.json()).toEqual({ updated: ids, skipped: [] });
   });
 
+  it("keeps the note when many leads are marked lost together", async () => {
+    const id = await h.seedLead({ ownerId: null });
+    const reason = (
+      await h.ownerPool.query<{ id: string }>("SELECT id FROM lost_reasons ORDER BY position LIMIT 1")
+    ).rows[0]!.id;
+    const r = await bulk(admin, {
+      ids: [id],
+      action: {
+        type: "stage",
+        stageId: cfg.stages.Lost,
+        lostReasonId: reason,
+        lostNote: "Went quiet after the call",
+      },
+    });
+    expect(r.json()).toEqual({ updated: [id], skipped: [] });
+    const lead = (await admin.inject({ method: "GET", url: `/api/v1/leads/${id}` })).json().lead;
+    expect(lead).toMatchObject({ lostReasonId: reason, lostNote: "Went quiet after the call" });
+  });
+
   it("tags, reassigns and deletes", async () => {
     const tag = (
       await admin.inject({ method: "POST", url: "/api/v1/tags", payload: { label: "Hot" } })

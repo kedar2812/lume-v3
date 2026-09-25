@@ -312,6 +312,31 @@ describe("what the screens need from each lead (Phase 1C-2)", () => {
     expect(filtered.total).toBe(1);
   });
 
+  it("adds up each stage's deal values, so a column can show its total before every card is loaded", async () => {
+    const seller = await h.seedUser({ grants: SALES_GRANTS });
+    const { pipelineId, stages } = await h.config();
+    const a = await h.seedLead({ ownerId: seller.id, stage: "Won" });
+    const b = await h.seedLead({ ownerId: seller.id, stage: "Won" });
+    await h.seedLead({ ownerId: seller.id, stage: "Won" }); // no value: counts, adds nothing
+    for (const [id, value] of [
+      [a, 4500],
+      [b, 1200.5],
+    ] as const)
+      await admin.inject({
+        method: "PATCH",
+        url: `/api/v1/leads/${id}`,
+        headers: { "if-match": "1" },
+        payload: { value },
+      });
+    const res = (
+      await (
+        await h.signIn(seller)
+      ).inject({ method: "GET", url: `/api/v1/leads/counts?pipelineId=${pipelineId}` })
+    ).json();
+    expect(res.counts[stages["Won"]!]).toBe(3);
+    expect(res.values[stages["Won"]!]).toBe(5700.5);
+  });
+
   it("records the lost reason with the stage change, so history can say why", async () => {
     const { stages, lostReasons } = await h.config();
     const id = await h.seedLead({ ownerId: null });

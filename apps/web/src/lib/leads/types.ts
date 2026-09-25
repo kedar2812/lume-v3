@@ -93,7 +93,7 @@ export type Duplicate =
   | { visible: true; leadId: string; name: string; ownerName: string | null; matchedOn: ContactKind[] }
   | { visible: false; matchedOn: ContactKind[] };
 export type BulkAction =
-  | { type: "stage"; stageId: string; lostReasonId?: string }
+  | { type: "stage"; stageId: string; lostReasonId?: string; lostNote?: string }
   | { type: "assign"; ownerId: string | null }
   | { type: "tags"; add?: string[]; remove?: string[] }
   | { type: "delete" };

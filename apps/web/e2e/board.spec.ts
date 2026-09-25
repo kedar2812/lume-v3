@@ -1,4 +1,4 @@
-import { expect, openApp, test } from "./fixtures";
+import { expect, openApp, stateFile, test } from "./fixtures";
 
 test("@smoke drag a card to the next stage; the count moves and it sticks", async ({ page }) => {
   await openApp(page, "/pipeline");
@@ -46,4 +46,38 @@ test("move a card with the keyboard only; dropping on Lost asks why, and cancell
   await expect(
     page.getByRole("region", { name: /^Message sent,/ }).getByRole("button", { name: new RegExp(name) }),
   ).toBeVisible();
+});
+
+test("on a touch screen, a long press lifts a card and a drag moves it", async ({ browser }) => {
+  const ctx = await browser.newContext({
+    storageState: stateFile("owner"),
+    hasTouch: true,
+    viewport: { width: 1366, height: 800 },
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await openApp(page, "/pipeline");
+  const from = page.getByRole("region", { name: /^New,/ });
+  const to = page.getByRole("region", { name: /^Replied,/ });
+  const card = from.locator("[data-lead-card]").first();
+  const name = (await card.innerText()).split("\n")[0]!;
+  const a = (await card.boundingBox())!;
+  const b = (await to.boundingBox())!;
+  const cdp = await ctx.newCDPSession(page);
+  const touch = (type: string, x: number, y: number) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: type === "touchEnd" ? [] : [{ x: Math.round(x), y: Math.round(y) }],
+    });
+  await touch("touchStart", a.x + a.width / 2, a.y + a.height / 2);
+  await page.waitForTimeout(500); // hold still: the card lifts
+  for (let i = 1; i <= 12; i++)
+    await touch(
+      "touchMove",
+      a.x + a.width / 2 + ((b.x + b.width / 2 - (a.x + a.width / 2)) * i) / 12,
+      a.y + 40,
+    );
+  await touch("touchEnd", 0, 0);
+  await expect(to.getByRole("button", { name: new RegExp(name) })).toBeVisible();
+  await ctx.close();
 });

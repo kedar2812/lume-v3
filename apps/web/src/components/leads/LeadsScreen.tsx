@@ -140,7 +140,17 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
-  const list = useLeadList(filters, first);
+  // With several pipelines the table shows one at a time, so its stages and counts match the rows.
+  const multiPipeline = catalog.pipelines.length > 1;
+  const shownPipeline =
+    catalog.pipelines.find((p) => p.id === filters.pipelineId) ??
+    catalog.pipelines.find((p) => p.isDefault) ??
+    catalog.pipelines[0];
+  const listFilters = useMemo(
+    () => (multiPipeline && shownPipeline ? { ...filters, pipelineId: shownPipeline.id } : filters),
+    [filters, multiPipeline, shownPipeline],
+  );
+  const list = useLeadList(listFilters, first);
   const available = useMemo(() => availableColumns(catalog, contactsVisible), [catalog, contactsVisible]);
   const [chosen, setChosen] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
@@ -149,10 +159,7 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
   const [selected, setSelected] = useState<string[]>([]);
   const anchor = useRef<string | null>(null);
   const editor = useLeadEditor(list.replace);
-  const pipeline =
-    catalog.pipelines.find((p) => p.id === filters.pipelineId) ??
-    catalog.pipelines.find((p) => p.isDefault) ??
-    catalog.pipelines[0];
+  const pipeline = shownPipeline;
   const [countsTick, recount] = useReducer((n: number) => n + 1, 0);
   const stageCounts = useStageCounts(filters, pipeline?.id, countsTick);
 
@@ -341,6 +348,23 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
     <section className={s.screen}>
       <div className={s.toolbar} data-testid="leads-toolbar">
         <div className={`${s.bar} ${s.stagesBar}`}>
+          {multiPipeline && pipeline && (
+            <label className={s.select}>
+              <span className={s.srOnly}>Pipeline</span>
+              <select
+                aria-label="Pipeline"
+                value={pipeline.id}
+                onChange={(e) => setFilters({ ...filters, pipelineId: e.target.value, stageIds: [] })}
+              >
+                {catalog.pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <Caret />
+            </label>
+          )}
           {pipeline && (
             <StageStrip
               stages={[...pipeline.stages].sort((a, b) => a.position - b.position)}
@@ -448,6 +472,12 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
     </section>
   );
 }
+
+const Caret = () => (
+  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden className={s.caret}>
+    <path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
 
 /** "Select all loaded": checked, unchecked, or mixed when only some loaded rows are selected. */
 function HeaderCheck({

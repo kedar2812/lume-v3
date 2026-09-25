@@ -18,7 +18,7 @@ export default async function Page({
       v === undefined ? [] : Array.isArray(v) ? v.map((x) => [k, x]) : [[k, v]],
     ),
   );
-  const { catalog, pipeline, filters, columns, counts } = await loadBoard(params, BOARD_PAGE);
+  const { catalog, pipeline, filters, columns, counts, values } = await loadBoard(params, BOARD_PAGE);
   if (!pipeline)
     return (
       <EmptyState title="No pipeline yet" body="An admin can set one up in Settings, under Pipelines." />
@@ -33,6 +33,7 @@ export default async function Page({
       filters={filters}
       columns={columns}
       counts={counts}
+      values={values}
       initialLeadId={lead && /^[0-9a-f-]{36}$/.test(lead) ? lead : null}
     />
   );

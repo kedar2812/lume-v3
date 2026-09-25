@@ -201,7 +201,12 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
         body: z.object({
           ids: z.array(z.uuid()).min(1).max(100),
           action: z.discriminatedUnion("type", [
-            z.object({ type: z.literal("stage"), stageId: z.uuid(), lostReasonId: z.uuid().optional() }),
+            z.object({
+              type: z.literal("stage"),
+              stageId: z.uuid(),
+              lostReasonId: z.uuid().optional(),
+              lostNote: z.string().trim().max(1000).optional(),
+            }),
             z.object({ type: z.literal("assign"), ownerId: z.uuid().nullable() }),
             z.object({
               type: z.literal("tags"),

@@ -46,7 +46,16 @@ export async function loadLeadsPage(
 ): Promise<{ catalog: Catalog; filters: ListFilters; first: LeadPage | null; contactsVisible: boolean }> {
   const catalog = await loadCatalog();
   const filters = parseFilters(search, catalog);
-  const first = await apiGet<LeadPage>(`/api/v1/leads?${apiQuery(filters)}&limit=50`);
+  // Several pipelines: page one shows the chosen (or default) one, as the table will.
+  const scoped =
+    catalog.pipelines.length > 1
+      ? {
+          ...filters,
+          pipelineId:
+            filters.pipelineId ?? (catalog.pipelines.find((p) => p.isDefault) ?? catalog.pipelines[0])?.id,
+        }
+      : filters;
+  const first = await apiGet<LeadPage>(`/api/v1/leads?${apiQuery(scoped)}&limit=50`);
   return { catalog, filters, first: first.data, contactsVisible: seesFullContacts(session.actor) };
 }
 
@@ -64,6 +73,7 @@ export async function loadBoard(
   filters: ListFilters;
   columns: Record<string, LeadPage>;
   counts: Record<string, number>;
+  values: Record<string, number>;
 }> {
   const catalog = await loadCatalog();
   const parsed = parseFilters(search, catalog);
@@ -73,12 +83,14 @@ export async function loadBoard(
     catalog.pipelines[0] ??
     null;
   const filters: ListFilters = { ...parsed, stageIds: [], pipelineId: undefined };
-  if (!pipeline) return { catalog, pipeline, filters, columns: {}, counts: {} };
+  if (!pipeline) return { catalog, pipeline, filters, columns: {}, counts: {}, values: {} };
   const scoped = { ...filters, pipelineId: pipeline.id };
   const countQuery = new URLSearchParams(apiQuery(scoped));
   countQuery.delete("sort");
   const [counts, ...pages] = await Promise.all([
-    apiGet<{ counts: Record<string, number> }>(`/api/v1/leads/counts?${countQuery}`),
+    apiGet<{ counts: Record<string, number>; values: Record<string, number> }>(
+      `/api/v1/leads/counts?${countQuery}`,
+    ),
     ...pipeline.stages.map((st) =>
       apiGet<LeadPage>(`/api/v1/leads?${apiQuery({ ...scoped, stageIds: [st.id] })}&limit=${pageSize}`),
     ),
@@ -91,5 +103,6 @@ export async function loadBoard(
       pipeline.stages.map((st, i) => [st.id, pages[i]?.data ?? { items: [], nextCursor: null }]),
     ),
     counts: counts.data?.counts ?? {},
+    values: counts.data?.values ?? {},
   };
 }

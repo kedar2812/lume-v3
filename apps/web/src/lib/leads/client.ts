@@ -13,7 +13,9 @@ export const leadsClient = {
   counts: (f: ListFilters & { pipelineId: string }) => {
     const q = new URLSearchParams(apiQuery(f));
     q.delete("sort");
-    return api.get<{ counts: Record<string, number>; total: number }>(`/api/v1/leads/counts?${q}`);
+    return api.get<{ counts: Record<string, number>; values: Record<string, number>; total: number }>(
+      `/api/v1/leads/counts?${q}`,
+    );
   },
   get: (id: string) => api.get<{ lead: Lead }>(`/api/v1/leads/${id}`),
   create: (input: Record<string, unknown>) =>

@@ -92,7 +92,7 @@ beforeEach(() => {
   vi.mocked(leadsClient.counts).mockResolvedValue({
     ok: true,
     status: 200,
-    data: { counts: { "s-new": 3, "s-sent": 1 }, total: 4 },
+    data: { counts: { "s-new": 3, "s-sent": 1 }, values: {}, total: 4 },
   });
   vi.mocked(leadsClient.list).mockReset();
   window.history.replaceState(null, "", "/leads");
@@ -385,6 +385,49 @@ describe("LeadsScreen", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("with several pipelines, shows one at a time so the stages and counts match the rows", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    const base = testCatalog();
+    const corporate = {
+      id: "p2",
+      name: "Corporate",
+      isDefault: false,
+      stages: [
+        {
+          id: "c-new",
+          name: "Enquiry",
+          color: "accent",
+          position: 0,
+          kind: "open" as const,
+          requiredFieldIds: [],
+        },
+        { id: "c-won", name: "Signed", color: "ok", position: 1, kind: "won" as const, requiredFieldIds: [] },
+      ],
+    };
+    view({ catalog: { ...base, pipelines: [...base.pipelines, corporate] } });
+    const pick = screen.getByRole("combobox", { name: "Pipeline" });
+    expect(pick).toHaveDisplayValue("Coaching sales");
+    expect(screen.getByRole("group", { name: "Stages" })).toHaveTextContent("Message sent");
+    await userEvent.selectOptions(pick, "p2");
+    expect(screen.getByRole("group", { name: "Stages" })).toHaveTextContent("Signed");
+    await vi.waitFor(() =>
+      expect(leadsClient.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ pipelineId: "p2", stageIds: [] }),
+        undefined,
+      ),
+    );
+    expect(leadsClient.counts).toHaveBeenLastCalledWith(expect.objectContaining({ pipelineId: "p2" }));
+  });
+
+  it("with one pipeline, has no pipeline control at all", () => {
+    view();
+    expect(screen.queryByRole("combobox", { name: "Pipeline" })).not.toBeInTheDocument();
   });
 
   it("combines stages with Ctrl or ⌘ held", async () => {

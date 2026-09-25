@@ -41,12 +41,16 @@ type Props = {
   /** The first cards of each stage, by stage id. */
   columns: Record<string, LeadPage>;
   counts: Record<string, number>;
+  /** Summed deal values by stage id (every lead, not only the loaded cards). */
+  values?: Record<string, number>;
   initialLeadId?: string | null;
 };
 type Drag = { lead: Lead; from: Stage; width: number; dx: number; dy: number; over: string | null };
 
 const EMPTY: LeadPage = { items: [], nextCursor: null };
 const DRAG_THRESHOLD = 6;
+/** How long a finger rests on a card before it lifts (shorter feels twitchy, longer feels stuck). */
+const LONG_PRESS_MS = 350;
 const EDGE = 64;
 
 const without = (p: LeadPage | undefined, id: string): LeadPage => ({
@@ -80,12 +84,14 @@ function Board({
   filters: initialFilters,
   columns: firstColumns,
   counts: firstCounts,
+  values: firstValues = {},
   initialLeadId = null,
 }: Props) {
   const stages = useMemo(() => [...pipeline.stages].sort((a, b) => a.position - b.position), [pipeline]);
   const [filters, setFilters] = useState(initialFilters);
   const [columns, setColumns] = useState(firstColumns);
   const [counts, setCounts] = useState(firstCounts);
+  const [values, setValues] = useState(firstValues);
   const [keys, setKeys] = useState<BoardKeysState>({ picked: null });
   const [message, setMessage] = useState("");
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
@@ -124,6 +130,8 @@ function Board({
   const shift = (lead: Lead, from: string, to: string, index = 0) => {
     setColumns((c) => ({ ...c, [from]: without(c[from], lead.id), [to]: insertAt(c[to], lead, index) }));
     setCounts((n) => ({ ...n, [from]: Math.max(0, (n[from] ?? 1) - 1), [to]: (n[to] ?? 0) + 1 }));
+    const v = lead.value ?? 0;
+    if (v) setValues((m) => ({ ...m, [from]: (m[from] ?? v) - v, [to]: (m[to] ?? 0) + v }));
   };
 
   /** Every move on the board, by pointer or keyboard: it lands at once, and springs back if refused. */
@@ -231,19 +239,54 @@ function Board({
   };
 
   // ── pointer drag: a lifted copy follows the pointer; the card waits, dimmed, in its place ──
-  const pending = useRef<{ lead: Lead; stage: Stage; x: number; y: number; rect: DOMRect } | null>(null);
+  const pending = useRef<{
+    lead: Lead;
+    stage: Stage;
+    x: number;
+    y: number;
+    rect: DOMRect;
+    touch: boolean;
+  } | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const swallowClick = useRef(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lift = useCallback(
+    (p: NonNullable<typeof pending.current>, x: number, y: number) => {
+      dragRef.current = {
+        lead: p.lead,
+        from: p.stage,
+        width: p.rect.width,
+        dx: p.x - p.rect.left,
+        dy: p.y - p.rect.top,
+        over: p.stage.id,
+      };
+      liftX.set(x - dragRef.current.dx);
+      liftY.set(y - dragRef.current.dy);
+      setDrag(dragRef.current);
+    },
+    [liftX, liftY],
+  );
   const onCardPointerDown = (lead: Lead, stage: Stage) => (e: PointerEvent<HTMLButtonElement>) => {
-    // Touch keeps scrolling the board; on a phone a lead moves from its drawer or the keyboard.
-    if (e.button !== 0 || e.pointerType === "touch" || !lead.can.move || keysRef.current.picked) return;
-    pending.current = {
+    if (e.button !== 0 || !lead.can.move || keysRef.current.picked) return;
+    const p = {
       lead,
       stage,
       x: e.clientX,
       y: e.clientY,
       rect: e.currentTarget.getBoundingClientRect(),
+      touch: e.pointerType === "touch",
     };
+    pending.current = p;
+    // On a touch screen a swipe scrolls the board; holding still for a moment lifts the card instead.
+    if (p.touch) {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      holdTimer.current = setTimeout(() => {
+        holdTimer.current = null;
+        if (pending.current !== p) return;
+        navigator.vibrate?.(8);
+        lift(p, p.x, p.y);
+      }, LONG_PRESS_MS);
+    }
   };
   useEffect(() => {
     const setOver = (over: string | null) => {
@@ -256,17 +299,15 @@ function Board({
       if (!p) return;
       if (!dragRef.current) {
         if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < DRAG_THRESHOLD) return;
-        dragRef.current = {
-          lead: p.lead,
-          from: p.stage,
-          width: p.rect.width,
-          dx: p.x - p.rect.left,
-          dy: p.y - p.rect.top,
-          over: p.stage.id,
-        };
-        setDrag(dragRef.current);
+        if (p.touch) {
+          // Moved before the long press: it's a scroll, not a drag.
+          pending.current = null;
+          return;
+        }
+        lift(p, e.clientX, e.clientY);
       }
       const d = dragRef.current;
+      if (!d) return;
       liftX.set(e.clientX - d.dx);
       liftY.set(e.clientY - d.dy);
       const column = document
@@ -282,6 +323,8 @@ function Board({
     };
     const finish = (commit: boolean) => {
       pending.current = null;
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      holdTimer.current = null;
       const d = dragRef.current;
       if (!d) return;
       dragRef.current = null;
@@ -299,17 +342,30 @@ function Board({
         finish(false);
       }
     };
+    // While a card is lifted by touch, the page must not scroll under the finger (and a long press
+    // must not open the browser's menu). Registered up front, non-passive, so the browser waits for it.
+    const noScroll = (e: TouchEvent) => {
+      if (dragRef.current) e.preventDefault();
+    };
+    const noMenu = (e: Event) => {
+      if (pending.current?.touch || dragRef.current) e.preventDefault();
+    };
+    const el = board.current;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
     window.addEventListener("keydown", onKey, true);
+    el?.addEventListener("touchmove", noScroll, { passive: false });
+    el?.addEventListener("contextmenu", noMenu);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("keydown", onKey, true);
+      el?.removeEventListener("touchmove", noScroll);
+      el?.removeEventListener("contextmenu", noMenu);
     };
-  }, [stages, liftX, liftY]);
+  }, [stages, liftX, liftY, lift]);
 
   // ── filters: the whole board refetches, and an answer to an older filter is dropped ──
   const generation = useRef(0);
@@ -332,6 +388,7 @@ function Board({
         if (!c || !c.ok || pages.some((p) => !p.ok)) return setFailed(true);
         setFailed(false);
         setCounts(c.data.counts);
+        setValues(c.data.values ?? {});
         setColumns(Object.fromEntries(stages.map((st, i) => [st.id, pages[i]!.ok ? pages[i]!.data : EMPTY])));
       },
       filters.q ? 250 : 0,
@@ -385,6 +442,8 @@ function Board({
     if (found) {
       setColumns((c) => ({ ...c, [found.stage.id]: without(c[found.stage.id], id) }));
       setCounts((n) => ({ ...n, [found.stage.id]: Math.max(0, (n[found.stage.id] ?? 1) - 1) }));
+      const v = found.lead.value ?? 0;
+      if (v) setValues((m) => ({ ...m, [found.stage.id]: (m[found.stage.id] ?? v) - v }));
     }
     setOpenId(null);
   };
@@ -464,6 +523,7 @@ function Board({
                 stage={stage}
                 page={page}
                 count={counts[stage.id] ?? page.items.length}
+                total={stage.kind === "won" ? (values[stage.id] ?? null) : null}
                 currency={catalog.currency}
                 over={
                   over === stage.id &&
@@ -534,6 +594,8 @@ function Board({
                 const stageId = lead.stageId;
                 setColumns((c) => ({ ...c, [stageId]: insertAt(c[stageId], lead) }));
                 setCounts((n) => ({ ...n, [stageId]: (n[stageId] ?? 0) + 1 }));
+                if (lead.value)
+                  setValues((m) => ({ ...m, [stageId]: (m[stageId] ?? 0) + (lead.value ?? 0) }));
               }
               setOpenId(lead.id);
               toast({ tone: "ok", title: "Lead added", detail: lead.name });

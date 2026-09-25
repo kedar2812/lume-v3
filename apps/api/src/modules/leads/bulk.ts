@@ -8,7 +8,7 @@ import { deleteLead, recordActivity, visibleLead } from "./service";
 import { assignLead, moveStage } from "./write";
 
 export type BulkAction =
-  | { type: "stage"; stageId: string; lostReasonId?: string }
+  | { type: "stage"; stageId: string; lostReasonId?: string; lostNote?: string }
   | { type: "assign"; ownerId: string | null }
   | { type: "tags"; add?: string[]; remove?: string[] }
   | { type: "delete" };
@@ -39,7 +39,11 @@ export async function runBulk(req: FastifyRequest, ids: string[], action: BulkAc
       if (!canOnRecord(req.actor!, "leads.bulk_edit", lead.ownerId)) throw forbidden();
       switch (action.type) {
         case "stage":
-          await moveStage(req, lead, { stageId: action.stageId, lostReasonId: action.lostReasonId });
+          await moveStage(req, lead, {
+            stageId: action.stageId,
+            lostReasonId: action.lostReasonId,
+            ...(action.lostNote ? { lostNote: action.lostNote } : {}),
+          });
           break;
         case "assign":
           await assignLead(req, lead, { ownerId: action.ownerId, reason: "bulk" });

@@ -14,6 +14,7 @@ export function BoardColumn({
   stage,
   page,
   count,
+  total,
   currency,
   over,
   loadingMore,
@@ -23,6 +24,8 @@ export function BoardColumn({
   stage: Stage;
   page: LeadPage;
   count: number;
+  /** The summed deal value of every lead in the stage (from the server), shown for a won stage. */
+  total: number | null;
   currency: string;
   /** A card is being dragged (or keyboard-moved) over this column. */
   over: boolean;
@@ -30,11 +33,6 @@ export function BoardColumn({
   onMore: () => void;
   children: ReactNode;
 }) {
-  // A won column adds up what it holds, once every card in it is loaded (a partial sum would mislead).
-  const total =
-    stage.kind === "won" && page.nextCursor === null
-      ? page.items.reduce((sum, l) => sum + (l.value ?? 0), 0)
-      : null;
   return (
     <section
       role="region"

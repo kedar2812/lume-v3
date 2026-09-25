@@ -153,12 +153,18 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
 export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
   const fields = await loadFieldRegistry(req);
   const rows = await req.db
-    .select({ stageId: L.stageId, n: sql<number>`count(*)::int` })
+    .select({
+      stageId: L.stageId,
+      n: sql<number>`count(*)::int`,
+      // Summed in SQL (numeric), so a column shows its total before every card is loaded.
+      value: sql<string>`coalesce(sum(${L.value}), 0)::text`,
+    })
     .from(L)
     .where(and(...leadFilters(req, q, fields)))
     .groupBy(L.stageId);
   return {
     counts: Object.fromEntries(rows.map((r) => [r.stageId, r.n])),
+    values: Object.fromEntries(rows.map((r) => [r.stageId, Number(r.value)])),
     total: rows.reduce((sum, r) => sum + r.n, 0),
   };
 }

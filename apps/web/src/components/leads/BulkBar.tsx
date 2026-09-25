@@ -25,7 +25,9 @@ function StageMenu({ stages, count, run }: { stages: Stage[]; count: number; run
         <LostReasonPicker
           confirmLabel={`Mark ${count} as lost`}
           onCancel={() => setLost(null)}
-          onConfirm={(lostReasonId) => run({ type: "stage", stageId: lost.id, lostReasonId })}
+          onConfirm={(lostReasonId, lostNote) =>
+            run({ type: "stage", stageId: lost.id, lostReasonId, ...(lostNote ? { lostNote } : {}) })
+          }
         />
       </div>
     );

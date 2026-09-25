@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
@@ -134,6 +134,62 @@ describe("BoardScreen", () => {
     await userEvent.keyboard(" ");
     expect(screen.queryByText(/picked up/i)).not.toBeInTheDocument();
   });
+  it("shows the Won column's total even before every card is loaded, and keeps it true as cards move", async () => {
+    vi.mocked(leadsClient.move).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { lead: testLead({ stageId: "s-won", value: 4500 }) },
+    });
+    board({
+      columns: {
+        "s-new": { items: [testLead({ value: 4500 })], nextCursor: null },
+        "s-won": {
+          items: [testLead({ id: "w1", name: "Won One", stageId: "s-won", value: 1000 })],
+          nextCursor: "more",
+        },
+      },
+      counts: { "s-new": 1, "s-won": 30 },
+      values: { "s-new": 4500, "s-won": 90000 },
+    });
+    expect(column("Won")).toHaveTextContent("AED 90,000");
+    within(column("New"))
+      .getByRole("button", { name: /Aisha Khan/ })
+      .focus();
+    await userEvent.keyboard(" {ArrowRight}{ArrowRight}{ArrowRight}{Enter}");
+    await vi.waitFor(() => expect(column("Won")).toHaveTextContent("AED 94,500"));
+  });
+
+  it("on a touch screen, a long press lifts a card and a drop moves it; a quick swipe just scrolls", async () => {
+    vi.mocked(leadsClient.move).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { lead: testLead({ stageId: "s-sent" }) },
+    });
+    board();
+    const card = within(column("New")).getByRole("button", { name: /Aisha Khan/ });
+    const target = column("Message sent");
+    document.elementsFromPoint = () => [target];
+    vi.useFakeTimers();
+    try {
+      // A quick swipe: moves before the press is long enough, so nothing is lifted.
+      fireEvent.pointerDown(card, { pointerType: "touch", button: 0, clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(window, { pointerType: "touch", clientX: 10, clientY: 60 });
+      act(() => void vi.advanceTimersByTime(500));
+      fireEvent.pointerUp(window, { pointerType: "touch", clientX: 10, clientY: 60 });
+      expect(leadsClient.move).not.toHaveBeenCalled();
+
+      // A long press, then a drag onto the next column.
+      fireEvent.pointerDown(card, { pointerType: "touch", button: 0, clientX: 10, clientY: 10 });
+      act(() => void vi.advanceTimersByTime(400));
+      expect(card).toHaveAttribute("data-ghost"); // lifted: the card waits, dimmed, while a copy follows
+      fireEvent.pointerMove(window, { pointerType: "touch", clientX: 300, clientY: 40 });
+      fireEvent.pointerUp(window, { pointerType: "touch", clientX: 300, clientY: 40 });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(leadsClient.move).toHaveBeenCalledWith("l1", "s-sent", {});
+  });
+
   it("marks an unassigned card as unassigned, not with a person's initials", () => {
     board({ columns: { "s-new": { items: [testLead({ ownerId: null })], nextCursor: null } } });
     const card = within(column("New")).getByRole("button", { name: /Aisha Khan/ });

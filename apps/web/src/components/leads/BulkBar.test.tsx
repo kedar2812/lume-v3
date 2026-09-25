@@ -69,6 +69,26 @@ describe("BulkBar", () => {
     });
   });
 
+  it("keeps the note written for a bulk move to Lost", async () => {
+    vi.mocked(leadsClient.bulk).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { updated: ["a"], skipped: [] },
+    });
+    bar(["a"]);
+    await userEvent.click(screen.getByRole("button", { name: "Move to stage" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Lost" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Price" }));
+    await userEvent.type(screen.getByLabelText("Note (optional)"), "Chose a cheaper coach");
+    await userEvent.click(screen.getByRole("button", { name: "Mark 1 as lost" }));
+    expect(leadsClient.bulk).toHaveBeenCalledWith(["a"], {
+      type: "stage",
+      stageId: "s-lost",
+      lostReasonId: "r-price",
+      lostNote: "Chose a cheaper coach",
+    });
+  });
+
   it("makes deleting a deliberate act, naming how many", async () => {
     vi.mocked(leadsClient.bulk).mockResolvedValue({
       ok: true,
