@@ -21,10 +21,13 @@
 	# Everything else is limited per client — the session when there is one, else the address — so
 	# colleagues behind one office address don't use up each other's allowance. One address as a whole
 	# still has a ceiling, so rotating cookies can't get round it. Sign-in has its own throttle in the API.
+	# The router's own prefetches (every link on screen, fetched ahead) aren't something a person did, so
+	# they don't use up the person's allowance; they still count toward the address's ceiling.
 	rate_limit {
 		zone per_client {
 			match {
 				not path /_next/static/* /fonts/* /flags/* /favicon.ico /icon* /apple-icon*
+				not header Next-Router-Prefetch 1
 			}
 			key {remote_host}|{http.request.cookie.__Host-lume_session}
 			events 600

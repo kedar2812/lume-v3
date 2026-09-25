@@ -6,13 +6,15 @@
 //   1. Static files (JS chunks, fonts, flags) are never limited: a page view loads dozens of them.
 //   2. Each signed-in session has its own allowance, so colleagues sharing one IP don't starve each other.
 //   3. One client without a session is still limited, and so is one IP as a whole (a generous ceiling).
+//   4. The router's prefetches don't use up a session's allowance (found when a brisk walk through
+//      Settings, eleven links prefetched per page, got 429s); the IP ceiling still covers them.
 const BASE = process.argv[2] ?? "https://lume.localhost:8443";
 const SESSION = "__Host-lume_session";
 
-async function burst(n, url, cookie) {
+async function burst(n, url, cookie, extra = {}) {
   let limited = 0;
   const one = async () => {
-    const r = await fetch(url, { headers: cookie ? { cookie } : {}, redirect: "manual" });
+    const r = await fetch(url, { headers: { ...(cookie ? { cookie } : {}), ...extra }, redirect: "manual" });
     await r.arrayBuffer();
     if (r.status === 429) limited++;
   };
@@ -34,6 +36,11 @@ check(
   (await burst(450, `${BASE}/healthz`, `${SESSION}=check-a`)) === 0 &&
     (await burst(450, `${BASE}/healthz`, `${SESSION}=check-b`)) === 0,
   "two sessions on one IP, 450 requests each: neither limited",
+);
+check(
+  (await burst(700, `${BASE}/sign-in`, `${SESSION}=check-c`, { "Next-Router-Prefetch": "1", RSC: "1" })) ===
+    0,
+  "700 router prefetches in one session: none limited",
 );
 check((await burst(650, `${BASE}/healthz`)) > 0, "one client without a session is limited after 600");
 process.exit(failed ? 1 : 0);

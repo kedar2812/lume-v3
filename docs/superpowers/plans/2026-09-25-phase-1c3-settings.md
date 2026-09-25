@@ -688,3 +688,11 @@ a11y: every settings route for the owner in both themes, plus the currency dialo
 **Placeholder scan:** every test step carries its test code. Task 11's e2e specs are named with their flows; each follows the 1C-2 spec style (`callApi`, `stateFile`, `hydrated`) and is written in full at execution, step 1.
 
 **Type consistency:** `settingsClient`, `pipelinesClient`, `fieldsClient`, `listsClient`, `usersClient`, `invitesClient`, `rolesClient`, `auditClient` are all created in `lib/settings/client.ts` in Task 3 and extended by later tasks. `RateSource` is defined once (Task 2) and consumed only by the settings service.
+
+## Execution notes (2026-09-26)
+
+- Executed inline, task by task, with TDD and the strict gate before every commit. The ledger records each task's range and tests, and every ruling with its cost.
+- **Inserted:** Task 2b (the licence agreement, terms and privacy policy, agreed to first), at the owner's request.
+- **Mid-phase:** the dark theme moved to the Carbon shade at the owner's request (`048ce50`). Every settings screen now tells a plain 403 apart from a refusal with a reason (`e9838a1`).
+- **CI:** red once, on `a05b3ae`. The tour replay moved to My account before the e2e targets did. Task 11 fixed that, and CI has been green since.
+- **Live acceptance found two issues the suites couldn't:** the edge limiting router prefetches, and the invite form defaulting to Admin. Both are fixed and covered.

@@ -318,3 +318,86 @@ The unit tests would have caught none of these. They came from the real stack, t
 The dev database was **reset to a genuine first run** after the walkthrough (`scripts/dev.sh reset-db`). The accounts were throwaway and are gone; the owner still does the real first run. The new setup token is in `scripts/dev.sh logs api`.
 
 **Status: Phase 1C-2 accepted on the temp build host.**
+
+# Phase 1C-3 — Settings (2026-09-26)
+
+**Commits:** `0956104` … `14689df`, then the edge fix and these docs · **Host:** temp build host `lumedev`, dev stack behind Caddy (`https://lume.localhost:8443`), with the live exchange rate from open.er-api.com.
+
+## Live walkthrough
+
+`apps/web/e2e-live/acceptance-1c3.mjs` runs after `acceptance-1c1.mjs` and `acceptance-1c2.mjs` in the same throwaway container. It uses the sessions handed over in `ACCEPT_STATE_DIR` (the command is in the script's header). Screenshots are in [`screenshots-1c3/`](screenshots-1c3/), and 1C-1's and 1C-2's were refreshed in the same run. They show throwaway data only; QR codes and two-step keys stay masked.
+
+```
+ok   the owner reaches every settings page
+ok   Riya (Sales) sees only her account and About
+ok   a page she can't use sends her back to Today
+ok   the board shows the renamed stage
+ok   the preview shows the field, with its options, before it's saved
+ok   the New lead form asks for it
+ok   Riya can show Budget band as a column
+ok   once hidden from Sales, it's gone from Riya's columns
+ok   Omar joins from the email
+ok   a lead is given to Omar
+ok   Omar's session ends at once
+ok   his lead is Riya's now
+ok   a lead worth AED 1,000
+ok   the quote comes from open.er-api.com, dated
+ok   the live rate is plausible (1 AED = 0.272294 USD)
+ok   the business currency is now USD
+ok   AED 1,000 became USD 272.29, once (1,000 × 0.272294)
+ok   the audit log says who changed the currency, and at what rate
+ok   About shows the running version (Version 0.0.0) and the restore-test status
+acceptance 1C-3 passed
+```
+
+`Version 0.0.0` is expected on the dev stack, because it doesn't set `LUME_VERSION`. A release build stamps it.
+
+| Plan step | Outcome | Screenshot |
+|---|---|---|
+| Settings home by permission: the owner sees every area, a sales rep only My account and About; a page she can't use sends her to Today | ✅ | 01, 02 |
+| Rename a stage; the board follows | ✅ | 03 |
+| Add a select field; the preview shows it with its options before it's saved; the New lead form asks for it | ✅ | 04, 05 |
+| Hide a field from Sales; it leaves Riya's column choices | ✅ | 06, 07 |
+| Invite someone by email, then disable them handing their leads to Riya; their session ends at once | ✅ | 08, 09 |
+| Switch the currency at the live rate, shown with its source and date; AED 1,000 becomes USD 272.29, once | ✅ | 10, 11 |
+| The audit log in words, filtered by action: who changed the currency, and at what rate | ✅ | 12 |
+| My account (sessions, two-step, the tour) and About | ✅ | 13, 14 |
+| The same screens in Obsidian (Carbon) | ✅ | 15, 16 |
+
+## Automated
+
+- **Unit and integration:** 120 files, 742 tests, plus lint, typecheck and the production web build, all in the gate.
+- **End to end:** 127 Playwright tests on a fresh database behind an edge proxy that mirrors Caddy.
+  - **New settings specs:** rename a stage and see it on the board; add a field and see it on the New lead form; hide a field from Sales and it leaves Noor's columns; invite then disable (session ends, leads move); read and filter the audit log; switch the currency at a typed rate and back exactly; lose access mid-visit and be told.
+  - **Axe checks** on every settings page in both themes, with the currency dialog open, and on the Sales view of Settings.
+  - **Screenshots** of Settings home (owner and sales), Business, Pipeline, Fields and Roles in both themes. **Role snapshots** of the Settings nav for the owner and for Sales.
+  - The e2e API quotes from a fixed rate table, never the live site. There are no retries, and the last full run passed 127/127 with no snapshot updates.
+- **CI:** https://github.com/kedar2812/lume-v3/actions/runs/36176696710 (check, e2e, images: all green for `14689df`).
+- **Edge limits:** `infra/scripts/check-rate-limits.mjs` passes against the dev stack, now with a fourth check: 700 router prefetches in one session, none limited.
+
+## Findings fixed during acceptance
+
+These came from the real stack, the e2e suite, or reviewing the screenshots before accepting them. The unit tests caught none of them.
+
+- **A brisk walk through Settings got 429s at the edge.** Next.js prefetches every link on screen, and Settings adds eleven, so a session's 600-a-minute allowance ran out mid-walkthrough. The router's prefetches no longer use a person's allowance; they still count toward the address's ceiling.
+- **The invite form preselected the first role, usually Admin.** One quick invite could have handed out full control. The role is now chosen on purpose.
+- **Settings treated every 403 as "your access changed".** A refusal with its own reason, like granting more than you hold, now shows that reason and keeps the page.
+- **Contrast:**
+  - Green text on its soft tint was 4.49:1 in Porcelain.
+  - Muted text on a selected row, and the role summary's scope words, fell under 4.5:1 in Obsidian.
+  - All are fixed. A token test now checks every status ink on its own tint, in both themes.
+- **The Fields preview and the New lead sheet's custom fields showed every control as active.** In a form they now rest on a hairline until focused.
+- **Roles:** the list column overflowed under the editor, because an input's intrinsic width sized the grid track. **About:** its definition list held a `<p>`. **My account:** the Help card sat outside the page's column.
+- **A button's icon could drop to a second line** ("Let's go →"), because the reset makes `svg` a block.
+
+## Asked for during the phase, and built
+
+- **One currency for all of LUME:** set in setup and Settings. Switching quotes the live rate (open.er-api.com), shows exactly what will convert, lets the rate be corrected or typed when the live one is unavailable, and converts once on the server.
+- **The licence agreement, terms and privacy policy come first**, before onboarding. "I agree" unlocks only at the end of the text. The text is a **draft for a lawyer's review**: when it's final, set `LEGAL_DRAFT=false` and bump `LEGAL_VERSION`, and everyone agrees again.
+- **Dark mode in the Carbon shade**, chosen from five on a comparison page. Cards and popovers step clearly off the page, and a token test holds the steps.
+
+## State left behind
+
+The dev database was **reset to a genuine first run** after the walkthrough (`scripts/dev.sh reset-db`). The accounts were throwaway and are gone; the owner still does the real first run. The new setup token is in `scripts/dev.sh logs api`.
+
+**Status: Phase 1C-3 accepted on the temp build host.**
