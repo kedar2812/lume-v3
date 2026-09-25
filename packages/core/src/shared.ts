@@ -12,6 +12,7 @@ export * from "./leads/mask";
 export * from "./leads/custom-fields";
 export * from "./leads/field-access";
 export * from "./leads/presets";
+export * from "./leads/contact-access";
 export * from "./users/preferences";
 export * from "./onboarding/steps";
 export * from "./tour/steps";

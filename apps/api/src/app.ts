@@ -15,6 +15,7 @@ import { auditRoutes } from "./modules/audit/routes";
 import { catalogRoutes } from "./modules/catalog/routes";
 import { fieldRoutes } from "./modules/fields/routes";
 import { leadRoutes } from "./modules/leads/routes";
+import { peopleRoutes } from "./modules/people/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
@@ -90,6 +91,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(fieldRoutes);
         await scope.register(catalogRoutes);
         await scope.register(leadRoutes);
+        await scope.register(peopleRoutes);
         deps.extraRoutes?.(scope);
       },
     });

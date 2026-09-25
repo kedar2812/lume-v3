@@ -1,5 +1,6 @@
 import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SALES_GRANTS } from "../../../test/grants";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 
 let h: Harness;
@@ -221,5 +222,74 @@ describe("editing (optimistic concurrency, report §4.4)", () => {
     expect((await rep.inject({ method: "DELETE", url: `/api/v1/leads/${lead.id}` })).statusCode).toBe(403);
     expect((await admin.inject({ method: "DELETE", url: `/api/v1/leads/${lead.id}` })).statusCode).toBe(204);
     expect((await admin.inject({ method: "GET", url: `/api/v1/leads/${lead.id}` })).statusCode).toBe(404);
+  });
+});
+
+describe("what the screens need from each lead (Phase 1C-2)", () => {
+  it("tells the caller what they may do with each lead, computed on the server", async () => {
+    const seller = await h.seedUser({ grants: SALES_GRANTS });
+    const other = await h.seedUser({ grants: SALES_GRANTS });
+    const mine = await h.seedLead({ ownerId: seller.id });
+    const c = await h.signIn(seller);
+    const { lead } = (await c.inject({ method: "GET", url: `/api/v1/leads/${mine}` })).json();
+    expect(lead.can).toEqual({
+      edit: true,
+      move: true,
+      reveal: true,
+      assign: false,
+      delete: false,
+      message: true,
+    });
+    const theirs = await h.seedLead({ ownerId: other.id });
+    const seen = (await admin.inject({ method: "GET", url: `/api/v1/leads/${theirs}` })).json().lead;
+    // Full contacts already: nothing to reveal, everything else allowed.
+    expect(seen.can).toEqual({
+      edit: true,
+      move: true,
+      reveal: false,
+      assign: true,
+      delete: true,
+      message: true,
+    });
+  });
+
+  it("counts leads per stage with the same filters as the list, and only what the caller may see", async () => {
+    const seller = await h.seedUser({ grants: SALES_GRANTS });
+    const other = await h.seedUser({ grants: SALES_GRANTS });
+    const { pipelineId, stages } = await h.config();
+    await h.seedLead({ ownerId: seller.id, stage: "New" });
+    await h.seedLead({ ownerId: seller.id, stage: "New" });
+    await h.seedLead({ ownerId: seller.id, stage: "Message sent" });
+    await h.seedLead({ ownerId: other.id, stage: "Message sent" }); // invisible to the seller
+    const c = await h.signIn(seller);
+    const res = (
+      await c.inject({ method: "GET", url: `/api/v1/leads/counts?pipelineId=${pipelineId}` })
+    ).json();
+    expect(res.counts[stages["New"]!]).toBe(2);
+    expect(res.counts[stages["Message sent"]!]).toBe(1);
+    expect(res.total).toBe(3);
+    const filtered = (
+      await c.inject({
+        method: "GET",
+        url: `/api/v1/leads/counts?pipelineId=${pipelineId}&stageId=${stages["Message sent"]}`,
+      })
+    ).json();
+    expect(filtered.total).toBe(1);
+  });
+
+  it("records the lost reason with the stage change, so history can say why", async () => {
+    const { stages, lostReasons } = await h.config();
+    const id = await h.seedLead({ ownerId: null });
+    const moved = await admin.inject({
+      method: "POST",
+      url: `/api/v1/leads/${id}/stage`,
+      payload: { stageId: stages["Lost"], lostReasonId: lostReasons[0] },
+    });
+    expect(moved.statusCode).toBe(200);
+    const acts = (await admin.inject({ method: "GET", url: `/api/v1/leads/${id}/activities` })).json().items;
+    expect(acts.find((a: { type: string }) => a.type === "stage_changed").payload).toMatchObject({
+      to: stages["Lost"],
+      lostReasonId: lostReasons[0],
+    });
   });
 });

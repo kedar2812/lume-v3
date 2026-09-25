@@ -96,6 +96,18 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/permissions": { access: "roles.manage" },
   "GET /api/v1/roles": { access: "roles.manage" },
   "GET /api/v1/roles/assignable": { access: "users.manage" },
+  "GET /api/v1/people": { access: "leads.view" },
+  "GET /api/v1/leads/counts": { access: "leads.view", query: `pipelineId=${uuid}` },
+  "POST /api/v1/leads/:id/messages/prepare": {
+    access: "messages.send",
+    path: (f) => `/api/v1/leads/${f.leadId}/messages/prepare`,
+    body: () => ({}),
+  },
+  "POST /api/v1/leads/:id/messages/confirm": {
+    access: "messages.send",
+    path: (f) => `/api/v1/leads/${f.leadId}/messages/confirm`,
+    body: () => ({ sent: false }),
+  },
   "GET /api/v1/roles/:id": { access: "roles.manage", path: (f) => `/api/v1/roles/${f.roleId}` },
   "POST /api/v1/roles": {
     access: "roles.manage",

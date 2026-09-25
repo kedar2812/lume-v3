@@ -117,6 +117,9 @@ export type Harness = {
     stage?: string;
     phone?: string;
     email?: string;
+    /** A phone as typed, for statuses other than valid (e.g. a local number that needs a country). */
+    phoneRaw?: string;
+    phoneStatus?: "valid" | "needs_country" | "invalid" | "missing";
   }): Promise<string>;
   close(): Promise<void>;
 };
@@ -332,8 +335,8 @@ export async function createHarness(
       const id = newId();
       await withAllScope(ownerPool, (c) =>
         c.query(
-          `INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, phone_e164, phone_status, email)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          `INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, phone_e164, phone_status, email, phone_raw)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             id,
             cfg.pipelineId,
@@ -341,8 +344,9 @@ export async function createHarness(
             o.ownerId,
             o.name ?? `Lead ${id.slice(-6)}`,
             o.phone ?? null,
-            o.phone ? "valid" : "missing",
+            o.phoneStatus ?? (o.phone ? "valid" : "missing"),
             o.email ?? null,
+            o.phoneRaw ?? null,
           ],
         ),
       );

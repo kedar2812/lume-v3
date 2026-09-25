@@ -85,7 +85,11 @@ export async function moveStage(
     pipelineId: target.pipelineId,
     changedBy: actor.userId,
   });
-  await recordActivity(req, lead.id, "stage_changed", { from: lead.stageId, to: target.id });
+  await recordActivity(req, lead.id, "stage_changed", {
+    from: lead.stageId,
+    to: target.id,
+    ...(target.kind === "lost" && input.lostReasonId ? { lostReasonId: input.lostReasonId } : {}),
+  });
   await req.db
     .update(L)
     .set({ ...set, version: sql`${L.version} + 1` })

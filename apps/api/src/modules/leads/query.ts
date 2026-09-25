@@ -1,9 +1,9 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { SCOPE_RANK, scopeOf } from "@lume/core";
+import { seesFullContacts } from "@lume/core";
 import { schema } from "@lume/db";
 import { badRequest } from "../../http/errors";
-import { loadFieldRegistry } from "../../leads/fields";
+import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
 import { isFieldVisible, serializeLead, type LeadRow } from "./serialize";
 
 export type ListQuery = {
@@ -23,15 +23,6 @@ export type ListQuery = {
 
 const L = schema.leads;
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
-
-/** Masked roles search names only (report §12.2 #4: no search by contact for masked roles). */
-function canSearchContacts(req: FastifyRequest): boolean {
-  const a = req.actor!;
-  if (a.isOwner) return true;
-  const full = scopeOf(a, "leads.contact.full");
-  const view = scopeOf(a, "leads.view");
-  return full !== null && view !== null && SCOPE_RANK[full] >= SCOPE_RANK[view];
-}
 
 function encodeCursor(sort: ListQuery["sort"], row: LeadRow): string {
   const v =
@@ -70,10 +61,12 @@ const orderBy = (sort: ListQuery["sort"]) =>
         ? [desc(L.updatedAt), desc(L.id)]
         : [sql`lower(${L.name}) asc`, asc(L.id)];
 
-export async function listLeads(req: FastifyRequest, q: ListQuery) {
-  const fields = await loadFieldRegistry(req);
+export type FilterQuery = Omit<ListQuery, "cursor" | "limit" | "sort">;
+
+/** The WHERE for a set of filters: shared by the list and the board counts, so both always agree. */
+export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRegistry): (SQL | undefined)[] {
   const ctx = { actor: req.actor!, fields };
-  const where: (SQL | undefined)[] = [isNull(L.deletedAt), cursorWhere(q.sort, q.cursor)];
+  const where: (SQL | undefined)[] = [isNull(L.deletedAt)];
 
   if (q.pipelineId) where.push(eq(L.pipelineId, q.pipelineId));
   if (q.stageId) where.push(inArray(L.stageId, q.stageId.split(",")));
@@ -92,7 +85,8 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
   if (q.q) {
     const term = `%${likeEscape(q.q.trim())}%`;
     const terms: SQL[] = [sql`${L.name} ILIKE ${term}`];
-    if (canSearchContacts(req)) {
+    // Masked roles search names only (report §12.2 #4).
+    if (seesFullContacts(req.actor!)) {
       if (isFieldVisible(ctx, "email")) terms.push(sql`${L.email}::text ILIKE ${term}`);
       if (isFieldVisible(ctx, "instagram")) terms.push(sql`${L.instagramHandle}::text ILIKE ${term}`);
       const digits = q.q.replace(/\D/g, "");
@@ -122,6 +116,13 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
     }
   }
 
+  return where;
+}
+
+export async function listLeads(req: FastifyRequest, q: ListQuery) {
+  const fields = await loadFieldRegistry(req);
+  const ctx = { actor: req.actor!, fields };
+  const where = [...leadFilters(req, q, fields), cursorWhere(q.sort, q.cursor)];
   const rows = await req.db
     .select()
     .from(L)
@@ -145,5 +146,19 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
       serializeLead(r, { ...ctx, tagIds: tags.filter((t) => t.leadId === r.id).map((t) => t.tagId) }),
     ),
     nextCursor: rows.length > q.limit ? encodeCursor(q.sort, page.at(-1)!) : null,
+  };
+}
+
+/** Board counts per stage, for the same filters as the list and only the leads the caller may see (RLS). */
+export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
+  const fields = await loadFieldRegistry(req);
+  const rows = await req.db
+    .select({ stageId: L.stageId, n: sql<number>`count(*)::int` })
+    .from(L)
+    .where(and(...leadFilters(req, q, fields)))
+    .groupBy(L.stageId);
+  return {
+    counts: Object.fromEntries(rows.map((r) => [r.stageId, r.n])),
+    total: rows.reduce((sum, r) => sum + r.n, 0),
   };
 }

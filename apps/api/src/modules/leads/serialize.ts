@@ -20,6 +20,8 @@ export type LeadView = Record<string, unknown> & {
   contactMasked: boolean;
   tagIds: string[];
   custom: Record<string, unknown>;
+  /** What the caller may do with this lead, decided here with the routes' own checks (Phase 1C-2). */
+  can: Record<"edit" | "move" | "reveal" | "assign" | "delete" | "message", boolean>;
 };
 export type SerializeCtx = { actor: ActorRecord; fields: FieldRegistry; tagIds: string[] };
 
@@ -105,6 +107,18 @@ export function serializeLead(row: LeadRow, ctx: SerializeCtx): LeadView {
     tagIds: ctx.tagIds,
     custom,
     contactMasked: !full,
+    can: {
+      edit: canOnRecord(ctx.actor, "leads.edit", row.ownerId),
+      move: canOnRecord(ctx.actor, "leads.change_stage", row.ownerId),
+      // Nothing to reveal when the contact is already shown in full.
+      reveal:
+        !full &&
+        (canOnRecord(ctx.actor, "leads.contact.reveal", row.ownerId) ||
+          canOnRecord(ctx.actor, "leads.contact.full", row.ownerId)),
+      assign: canOnRecord(ctx.actor, "leads.assign", row.ownerId),
+      delete: canOnRecord(ctx.actor, "leads.delete", row.ownerId),
+      message: canOnRecord(ctx.actor, "messages.send", row.ownerId),
+    },
   };
   for (const [key, props] of Object.entries(CORE_PROPS)) {
     if (!isFieldVisible(ctx, key)) for (const p of props) delete view[p];

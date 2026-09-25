@@ -4,7 +4,8 @@ import { z } from "zod";
 import { INSTAGRAM_RE, normalizePhone } from "@lume/core";
 import { loadFieldRegistry } from "../../leads/fields";
 import { findDuplicates } from "./duplicates";
-import { listLeads } from "./query";
+import { countLeads, listLeads } from "./query";
+import { confirmMessage, prepareMessage } from "./messages";
 import { runBulk } from "./bulk";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
@@ -60,6 +61,18 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
     "/api/v1/leads",
     { config: { permission: "leads.create" }, schema: { body: leadBody } },
     async (req, reply) => reply.code(201).send(await svc.createLead(req, req.body)),
+  );
+  r.get(
+    "/api/v1/leads/counts",
+    {
+      config: { permission: "leads.view" },
+      schema: {
+        querystring: listQuery
+          .omit({ cursor: true, limit: true, sort: true })
+          .extend({ pipelineId: z.uuid() }),
+      },
+    },
+    (req) => countLeads(req, req.query),
   );
   r.get(
     "/api/v1/leads/duplicates",
@@ -162,6 +175,25 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       void reply.header("cache-control", "no-store");
       return revealContact(req, req.params.id);
+    },
+  );
+  r.post(
+    "/api/v1/leads/:id/messages/prepare",
+    {
+      config: { permission: "messages.send" },
+      schema: { params, body: z.object({ text: z.string().max(4096).default("") }) },
+    },
+    async (req, reply) => {
+      void reply.header("cache-control", "no-store");
+      return prepareMessage(req, req.params.id, req.body.text);
+    },
+  );
+  r.post(
+    "/api/v1/leads/:id/messages/confirm",
+    { config: { permission: "messages.send" }, schema: { params, body: z.object({ sent: z.boolean() }) } },
+    async (req, reply) => {
+      await confirmMessage(req, req.params.id, req.body.sent);
+      return reply.code(204).send();
     },
   );
   r.post(
