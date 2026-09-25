@@ -17,10 +17,25 @@
 		-X-Powered-By
 	}
 
+	# Static files (content-hashed chunks, fonts, flags) are never limited: one page view loads dozens.
+	# Everything else is limited per client — the session when there is one, else the address — so
+	# colleagues behind one office address don't use up each other's allowance. One address as a whole
+	# still has a ceiling, so rotating cookies can't get round it. Sign-in has its own throttle in the API.
 	rate_limit {
-		zone per_ip {
-			key {remote_host}
+		zone per_client {
+			match {
+				not path /_next/static/* /fonts/* /flags/* /favicon.ico /icon* /apple-icon*
+			}
+			key {remote_host}|{http.request.cookie.__Host-lume_session}
 			events 600
+			window 1m
+		}
+		zone per_ip {
+			match {
+				not path /_next/static/* /fonts/* /flags/* /favicon.ico /icon* /apple-icon*
+			}
+			key {remote_host}
+			events 3000
 			window 1m
 		}
 	}

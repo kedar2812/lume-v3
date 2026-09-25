@@ -135,6 +135,10 @@
   font-size: 0.8125rem;
   color: var(--text);
 }
+/* The box around the input shows focus; the input itself doesn't draw a second ring inside it. */
+.search input:focus-visible {
+  box-shadow: none;
+}
 .search input::placeholder {
   color: var(--text-3);
 }

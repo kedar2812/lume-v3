@@ -107,16 +107,31 @@ await owner.goto("/leads");
 await owner.getByRole("button", { name: "New lead" }).first().click();
 let sheet = owner.getByRole("dialog", { name: "New lead" });
 await sheet.getByLabel("Name").fill("Aisha Khan");
-await sheet.getByLabel("Phone").fill("+971501234567");
+await sheet.getByRole("button", { name: /^Country code/ }).click();
+await owner.getByRole("combobox", { name: "Search countries" }).fill("united");
+await shot(owner, "01a-country-picker");
+await owner.getByRole("option", { name: "United Arab Emirates +971" }).click();
+await sheet.getByLabel("Phone").fill("050 123 4567"); // typed as people say it; the code is added
+assert(
+  (await sheet.getByRole("button", { name: /^Country code/ }).getAttribute("aria-label")) ===
+    "Country code: United Arab Emirates +971",
+  "the phone's country is picked from a searchable list with flags",
+);
 await sheet.getByLabel("Email").fill("aisha@example.com");
 await sheet.getByLabel("Owner").selectOption({ label: "Riya Sharma" });
 await sheet.getByLabel("Deal value").fill("4500");
-await shot(owner, "01a-new-lead-sheet");
+await shot(owner, "01b-new-lead-sheet");
 await sheet.getByRole("button", { name: "Create lead" }).click();
 await owner.getByRole("dialog", { name: "Aisha Khan" }).waitFor();
 ids["Aisha Khan"] = new URL(owner.url()).searchParams.get("lead");
 assert(!!ids["Aisha Khan"], "the new lead opens in the drawer, and the address names it", owner.url());
-await shot(owner, "01b-new-lead-opened");
+const saved = await api(owner, "GET", `/api/v1/leads/${ids["Aisha Khan"]}`);
+assert(
+  saved.data.lead.phone?.display === "+971 50 123 4567" && saved.data.lead.phone?.status === "valid",
+  "the saved number carries the picked code, trunk zero dropped, valid for WhatsApp",
+  saved.data.lead.phone,
+);
+await shot(owner, "01c-new-lead-opened");
 await owner.keyboard.press("Escape");
 await owner.getByRole("button", { name: "New lead" }).first().click();
 sheet = owner.getByRole("dialog", { name: "New lead" });
@@ -129,7 +144,7 @@ assert(
   "typing a known number warns, naming the lead and who handles it",
   await status.innerText(),
 );
-await shot(owner, "01c-duplicate-warning");
+await shot(owner, "01d-duplicate-warning");
 await owner.keyboard.press("Escape");
 await sheet.getByRole("button", { name: "Discard" }).click();
 ok("closing a filled sheet asks first, then discards");
@@ -225,7 +240,13 @@ assert(
   "search says it's by name",
 );
 await rep.getByRole("searchbox").fill("501234567");
-await rep.getByText("Nothing matches these filters").waitFor();
+await rep
+  .getByText("Nothing matches these filters")
+  .waitFor()
+  .catch(async (e) => {
+    await rep.screenshot({ path: path.join(SHOTS, "FAILED-06.png") });
+    throw e;
+  });
 await shot(rep, "06-rep-name-only-search");
 const byName = await api(rep, "GET", "/api/v1/leads?q=Aisha");
 const byDigits = await api(rep, "GET", "/api/v1/leads?q=501234567");
@@ -234,6 +255,17 @@ assert(
   "the API agrees: contacts arrive masked, and a number finds nothing",
   { byName: byName.data.items[0]?.phone, byDigits: byDigits.data.items.length },
 );
+
+// 6b ─ the stage strip: counts at a glance, one click to filter ─────────────────────────────────────
+await owner.goto("/leads");
+const strip = owner.getByRole("group", { name: "Stages" });
+await strip.getByRole("button", { name: /^Call booked, 2 leads$/ }).click();
+await owner.getByRole("button", { name: "Open Sara Nasser" }).waitFor();
+assert(
+  (await owner.getByTestId("lead-row").count()) === 2,
+  "Call booked shows its two leads, as its count said",
+);
+await shot(owner, "06b-stage-strip");
 
 // 7 ─ the board: a real pointer drag, and it sticks ────────────────────────────────────────────────
 await owner.goto("/pipeline");

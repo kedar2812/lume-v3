@@ -129,6 +129,10 @@ test.describe("a masked sales rep", () => {
     const byDigits = await callApi<{ items: unknown[] }>(page, "GET", "/api/v1/leads?q=501234567");
     expect(byDigits.data.items).toHaveLength(0);
 
+    await page.getByRole("searchbox").fill("501234567"); // her number: finds nothing, by design
+    await expect(page.getByText("Nothing matches these filters")).toBeVisible();
+    await page.getByRole("searchbox").fill("");
+
     await page.getByRole("button", { name: "Open Aisha Khan" }).click();
     const drawer = page.getByRole("dialog", { name: "Aisha Khan" });
     await expect(drawer.getByText("+971 50 123 4567")).toHaveCount(0);

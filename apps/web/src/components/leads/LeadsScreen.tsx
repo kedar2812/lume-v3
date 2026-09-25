@@ -42,7 +42,7 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
   const [rows, setRows] = useState<Lead[]>(first?.items ?? []);
   const [cursor, setCursor] = useState<string | null>(first?.nextCursor ?? null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<"offline" | "load" | null>(first === null ? "load" : null);
+  const [error, setError] = useState<"offline" | "busy" | "load" | null>(first === null ? "load" : null);
   const generation = useRef(0);
   const skipFirst = useRef(first !== null); // the server already sent page one for these filters
 
@@ -54,7 +54,8 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
       const r = await leadsClient.list(filters, after);
       if (gen !== generation.current) return;
       setLoading(false);
-      if (!r.ok) return setError(r.code === "OFFLINE" ? "offline" : "load");
+      if (!r.ok)
+        return setError(r.code === "OFFLINE" ? "offline" : r.code === "RATE_LIMITED" ? "busy" : "load");
       setRows((prev) =>
         after ? [...prev, ...r.data.items.filter((x) => !prev.some((p) => p.id === x.id))] : r.data.items,
       );
@@ -235,7 +236,9 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
           message={
             list.error === "offline"
               ? "It looks like you’re offline. Check your connection, then try again."
-              : "Check your connection, then try again."
+              : list.error === "busy"
+                ? "Too many requests from this network right now. Wait a moment, then try again."
+                : "Check your connection, then try again."
           }
           action={{ label: "Try again", onClick: list.reload }}
         />

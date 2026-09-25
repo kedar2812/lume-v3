@@ -102,4 +102,49 @@ describe("browser API client", () => {
     const r = await api.del("/api/v1/me/sessions/abc");
     expect(r).toEqual({ ok: true, status: 204, data: null });
   });
+
+  it("waits out a busy edge once for a read, then carries on", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        if (String(url).endsWith("/auth/csrf")) return csrfResponse();
+        calls++;
+        return calls === 1
+          ? new Response("", { status: 429, headers: { "retry-after": "0" } })
+          : json(200, { ok: 1 });
+      }),
+    );
+    expect(await api.get("/api/v1/leads")).toEqual({ ok: true, status: 200, data: { ok: 1 } });
+    expect(calls).toBe(2);
+  });
+
+  it("says plainly when the network is sending too much, instead of blaming the connection", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url).endsWith("/auth/csrf")
+          ? csrfResponse()
+          : new Response("", { status: 429, headers: { "retry-after": "0" } }),
+      ),
+    );
+    const r = await api.get("/api/v1/leads");
+    expect(r).toMatchObject({ ok: false, status: 429, code: "RATE_LIMITED" });
+    expect(!r.ok && r.message).toMatch(/too many requests/i);
+    // A write is never repeated on its own.
+    const w = await api.post("/api/v1/leads", { name: "A" });
+    expect(w).toMatchObject({ ok: false, code: "RATE_LIMITED" });
+  });
+
+  it("survives an error page that isn't JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url).endsWith("/auth/csrf")
+          ? csrfResponse()
+          : new Response("<html>502 Bad Gateway</html>", { status: 502 }),
+      ),
+    );
+    expect(await api.get("/api/v1/leads")).toMatchObject({ ok: false, status: 502, code: "UNKNOWN" });
+  });
 });

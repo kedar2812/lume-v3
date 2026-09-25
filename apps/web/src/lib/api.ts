@@ -9,6 +9,9 @@ export type ApiResult<T> =
   | { ok: false; status: number; code: string; message: string; details?: unknown };
 
 const OFFLINE = "LUME can’t reach the server right now. Check your connection and try again.";
+const BUSY = "Too many requests from this network right now. Wait a moment, then try again.";
+/** A read that meets a busy edge waits this long at most (Retry-After, capped) and tries once more. */
+const MAX_WAIT_MS = 3000;
 let csrf: string | null = null;
 
 /** Tests only. */
@@ -55,9 +58,24 @@ async function send<T>(
     return { ok: false, status: 0, code: "OFFLINE", message: OFFLINE };
   }
   const text = await res.text();
-  const payload = text ? (JSON.parse(text) as unknown) : null;
+  let payload: unknown = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    // An error page from the edge (502, 504) rather than the API: no detail to read.
+  }
   if (res.ok) return { ok: true, status: res.status, data: payload as T };
   const err = (payload as { error?: { code?: string; message?: string; details?: unknown } } | null)?.error;
+  // A 429 from the edge (no API answer inside; the API's own lockouts explain themselves) means the
+  // network is busy: a read is safe to repeat once after a short wait, a write never repeats on its own.
+  if (res.status === 429 && !err?.code) {
+    if (method === "GET" && retry) {
+      const wait = Math.min(MAX_WAIT_MS, Math.max(0, Number(res.headers.get("retry-after") ?? 1) * 1000));
+      await new Promise((r) => setTimeout(r, wait));
+      return send<T>(method, path, body, false, extra);
+    }
+    return { ok: false, status: 429, code: "RATE_LIMITED", message: BUSY };
+  }
   // A stale CSRF cookie (a long-open tab) is worth exactly one silent retry.
   if (res.status === 403 && err?.code === "CSRF" && retry) {
     await csrfToken(true);

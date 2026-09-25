@@ -417,6 +417,19 @@ describe("LeadsScreen", () => {
     expect(screen.getByRole("combobox", { name: "Phone status" })).toHaveDisplayValue("Any phone");
   });
 
+  it("says when the network is busy rather than blaming the connection", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: false,
+      status: 429,
+      code: "RATE_LIMITED",
+      message: "Too many requests from this network right now. Wait a moment, then try again.",
+    });
+    view({ first: null });
+    await userEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/too many requests from this network/i)).toBeInTheDocument();
+    expect(screen.queryByText(/check your connection/i)).not.toBeInTheDocument();
+  });
+
   it("offers no editing where the person can't edit", () => {
     view({ first: { items: [lead({ can: { ...lead().can, edit: false } })], nextCursor: null } });
     expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
