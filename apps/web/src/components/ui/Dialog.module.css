@@ -1,0 +1,42 @@
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  animation: fade 0.2s ease-out both;
+}
+.panel {
+  position: relative;
+  width: min(380px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  animation: pop 0.32s var(--spring) both;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scrim,
+  .panel {
+    animation: fade 0.15s linear both;
+  }
+}

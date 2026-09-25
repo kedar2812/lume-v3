@@ -13,9 +13,49 @@ vi.mock("next/navigation", () => ({
 }));
 const address = () => window.location.pathname + window.location.search;
 vi.mock("@/lib/leads/client", () => ({
-  leadsClient: { list: vi.fn(), get: vi.fn(), patch: vi.fn() },
+  leadsClient: { list: vi.fn(), get: vi.fn(), patch: vi.fn(), activities: vi.fn(), remove: vi.fn() },
   PAGE_SIZE: 50,
 }));
+// jsdom runs no animations, so AnimatePresence would wait forever for the drawer's exit.
+vi.mock("motion/react", async () => {
+  const { createElement, forwardRef } = await import("react");
+  const strip = ({
+    initial,
+    animate,
+    exit,
+    transition,
+    layout,
+    layoutId,
+    ...rest
+  }: Record<string, unknown>) => (
+    void initial,
+    void animate,
+    void exit,
+    void transition,
+    void layout,
+    void layoutId,
+    rest
+  );
+  const made = new Map<string, unknown>();
+  const motion = new Proxy(
+    {},
+    {
+      get: (_t, tag: string) => {
+        if (!made.has(tag))
+          made.set(
+            tag,
+            forwardRef((p: Record<string, unknown>, ref) => createElement(tag, { ...strip(p), ref })),
+          );
+        return made.get(tag);
+      },
+    },
+  );
+  return {
+    motion,
+    AnimatePresence: ({ children }: { children: unknown }) => children,
+    useReducedMotion: () => true,
+  };
+});
 vi.mock("@/components/feedback/ToastProvider", () => ({
   useToast: () => ({ toast: vi.fn(), dismiss: vi.fn() }),
 }));
@@ -197,6 +237,30 @@ describe("LeadsScreen", () => {
     expect(leadsClient.patch).toHaveBeenCalledWith("l1", 1, { value: 5200 });
     expect(await screen.findByText("AED 5,200")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Deal value" })).not.toBeInTheDocument();
+  });
+
+  it("opens a lead in the drawer, keeps it in the address bar, and closes it with Escape", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue({ ok: true, status: 200, data: { lead: lead() } });
+    view();
+    await userEvent.click(screen.getByRole("button", { name: "Open Aisha Khan" }));
+    expect(await screen.findByRole("dialog", { name: "Aisha Khan" })).toBeInTheDocument();
+    expect(address()).toBe("/leads?lead=l1");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(address()).toBe("/leads");
+  });
+
+  it("takes a deleted lead out of the list and closes the drawer", async () => {
+    const deletable = lead({ can: { ...lead().can, delete: true } });
+    vi.mocked(leadsClient.get).mockResolvedValue({ ok: true, status: 200, data: { lead: deletable } });
+    vi.mocked(leadsClient.remove).mockResolvedValue({ ok: true, status: 204, data: null });
+    view({ first: { items: [deletable, lead({ id: "l2", name: "Omar Farouk" })], nextCursor: null } });
+    await userEvent.click(screen.getByRole("button", { name: "Open Aisha Khan" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Delete lead" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Open Aisha Khan" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Omar Farouk" })).toBeInTheDocument();
   });
 
   it("offers no editing where the person can't edit", () => {

@@ -1,4 +1,5 @@
 "use client";
+import { AnimatePresence } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { can } from "@lume/core/shared";
@@ -12,6 +13,7 @@ import type { Catalog, Lead, LeadPage } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
 import { CatalogProvider } from "./CatalogProvider";
 import { ColumnPicker } from "./ColumnPicker";
+import { LeadDrawer } from "./drawer/LeadDrawer";
 import { EditableCell } from "./EditableCell";
 import { FilterBar } from "./FilterBar";
 import { LeadsTable } from "./LeadsTable";
@@ -252,6 +254,24 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
         </div>
       </div>
       {body}
+      {/* One drawer for the whole visit: J/K swap the lead inside it rather than remounting it. */}
+      <AnimatePresence>
+        {openId && (
+          <LeadDrawer
+            key="drawer"
+            id={openId}
+            session={session}
+            neighbours={list.rows.map((r) => r.id)}
+            onClose={() => setOpenId(null)}
+            onStep={setOpenId}
+            onChanged={list.replace}
+            onGone={(id) => {
+              list.removeRow(id);
+              setOpenId(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }

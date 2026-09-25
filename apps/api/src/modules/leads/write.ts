@@ -153,11 +153,26 @@ export async function assignLead(
 export async function addNote(req: FastifyRequest, lead: LeadRow, body: string) {
   if (!canOnRecord(req.actor!, "leads.edit", lead.ownerId)) throw forbidden();
   const id = newId();
-  await req.db
+  const userId = req.actor!.userId;
+  const [row] = await req.db
     .insert(schema.activities)
-    .values({ id, leadId: lead.id, userId: req.actor!.userId, type: "note", payload: { body } });
+    .values({ id, leadId: lead.id, userId, type: "note", payload: { body } })
+    .returning({ occurredAt: schema.activities.occurredAt });
   await req.db.update(L).set({ lastActivityAt: new Date() }).where(eq(L.id, lead.id));
-  return { activity: { id, type: "note", payload: { body } } };
+  const [me] = await req.db
+    .select({ name: schema.users.name })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId));
+  // Shaped like a listed activity, so a screen can show the note straight away.
+  return {
+    activity: {
+      id,
+      type: "note",
+      payload: { body },
+      occurredAt: row!.occurredAt,
+      user: { id: userId, name: me?.name ?? null },
+    },
+  };
 }
 
 export async function listActivities(

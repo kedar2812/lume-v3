@@ -151,6 +151,13 @@ describe("notes and activities", () => {
       payload: { body: "Prefers evenings" },
     });
     expect(n.statusCode).toBe(201);
+    // The new note has the same shape as a listed one, so a screen can show it without a refetch.
+    expect(n.json().activity).toMatchObject({
+      type: "note",
+      payload: { body: "Prefers evenings" },
+      occurredAt: expect.any(String),
+      user: { id: repUser.id, name: expect.any(String) },
+    });
     await stage(rep, id, { stageId: cfg.stages.Replied });
     const acts = (await rep.inject({ method: "GET", url: `/api/v1/leads/${id}/activities` })).json().items;
     expect(acts.map((a: { type: string }) => a.type).slice(0, 2)).toEqual(["stage_changed", "note"]);
