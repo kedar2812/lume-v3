@@ -156,7 +156,7 @@ export function BusinessForm({ initial }: { initial?: BusinessSettings }) {
               {problem}
             </p>
           )}
-          <Button type="submit" disabled={!dirty || busy}>
+          <Button type="submit" variant="primary" disabled={!dirty || busy}>
             Save changes
           </Button>
         </div>
