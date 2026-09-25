@@ -1,0 +1,7 @@
+- navigation "Settings":
+    - link "All settings":
+        - /url: /settings
+    - link "My account":
+        - /url: /settings/account
+    - link "About":
+        - /url: /settings/about

@@ -30,6 +30,9 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     SMTP_URL: `smtp://127.0.0.1:${process.env.E2E_SMTP_PORT ?? 3110}`,
     MAIL_FROM: "LUME <no-reply@lume.test>",
     BREACHED_LIST_FILE: path.join(root, "packages/core/data/breached-sha1.bin"),
+    // Never the live rates site in tests: a fixed table, so a switch quotes the same rate every run.
+    LUME_FX_PROVIDER: "fixed",
+    LUME_FX_FIXED: "AED:USD=0.27",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });

@@ -58,7 +58,19 @@ const toLocalInput = (iso: unknown) => {
  * One editor for any field type. Enter commits and Escape cancels; leaving the field commits a change and
  * cancels an untouched one. Every control is labelled with the field's name.
  */
-export function FieldEditor({ def, value, onCommit, onCancel, autoFocus, error, inForm = false }: Props) {
+export function FieldEditor(props: Props) {
+  // In a form a field rests like any other input and lights up only when focused; inline, the editor
+  // is the thing being edited, so it shows as active from the start.
+  return props.inForm ? (
+    <div className={s.formScope}>
+      <Editor {...props} />
+    </div>
+  ) : (
+    <Editor {...props} />
+  );
+}
+
+function Editor({ def, value, onCommit, onCancel, autoFocus, error, inForm = false }: Props) {
   const catalog = useCatalog();
   const first = useRef<HTMLElement | null>(null);
   const [problem, setProblem] = useState<string | null>(null);

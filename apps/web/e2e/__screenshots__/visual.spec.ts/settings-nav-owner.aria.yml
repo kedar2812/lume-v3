@@ -1,0 +1,23 @@
+- navigation "Settings":
+    - link "All settings":
+        - /url: /settings
+    - link "Business":
+        - /url: /settings/business
+    - link "Pipeline & stages":
+        - /url: /settings/pipeline
+    - link "Fields":
+        - /url: /settings/fields
+    - link "Lost reasons, tags & packages":
+        - /url: /settings/lists
+    - link "People":
+        - /url: /settings/people
+    - link "Roles & access":
+        - /url: /settings/roles
+    - link "Teams":
+        - /url: /settings/teams
+    - link "Audit log":
+        - /url: /settings/audit
+    - link "My account":
+        - /url: /settings/account
+    - link "About":
+        - /url: /settings/about

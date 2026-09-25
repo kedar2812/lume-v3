@@ -80,6 +80,42 @@ const SHOTS: Shot[] = [
     who: "owner",
     ready: (p) => p.getByRole("region").first().waitFor(),
   },
+  {
+    name: "settings-owner",
+    path: "/settings",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Settings" }).waitFor(),
+  },
+  {
+    name: "settings-seller",
+    path: "/settings",
+    who: "seller",
+    ready: (p) => p.locator("#settings-title", { hasText: "Settings" }).waitFor(),
+  },
+  {
+    name: "settings-business",
+    path: "/settings/business",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Business" }).waitFor(),
+  },
+  {
+    name: "settings-pipeline",
+    path: "/settings/pipeline",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Pipeline & stages" }).waitFor(),
+  },
+  {
+    name: "settings-fields",
+    path: "/settings/fields",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Fields" }).waitFor(),
+  },
+  {
+    name: "settings-roles",
+    path: "/settings/roles",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Roles & access" }).waitFor(),
+  },
 ];
 
 for (const theme of ["porcelain", "obsidian"] as const) {
@@ -148,6 +184,19 @@ for (const [who, lead] of [
       const drawer = page.getByRole("dialog", { name: lead });
       await drawer.getByRole("heading", { name: lead }).waitFor();
       await expect(drawer).toMatchAriaSnapshot({ name: `lead-drawer-${who}.aria.yml` });
+    });
+  });
+}
+
+/** What each role can reach in Settings is part of the design as well: the section nav, as read aloud. */
+for (const who of ["owner", "seller"] as const) {
+  test.describe(`settings for the ${who}`, () => {
+    test.use({ storageState: stateFile(who) });
+    test("matches the approved role snapshot", async ({ page }) => {
+      await page.goto("/settings");
+      await expect(page.getByRole("navigation", { name: "Settings" })).toMatchAriaSnapshot({
+        name: `settings-nav-${who}.aria.yml`,
+      });
     });
   });
 }

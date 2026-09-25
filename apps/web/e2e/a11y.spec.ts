@@ -63,7 +63,88 @@ const CHECKS: Check[] = [
     name: "settings",
     path: "/settings",
     who: "owner",
-    ready: (p) => p.getByRole("button", { name: /replay/i }).waitFor(),
+    ready: (p) => p.locator("#settings-title", { hasText: "Settings" }).waitFor(),
+  },
+  {
+    name: "settings: business",
+    path: "/settings/business",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Business" }).waitFor(),
+  },
+  {
+    name: "settings: pipeline",
+    path: "/settings/pipeline",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Pipeline & stages" }).waitFor(),
+  },
+  {
+    name: "settings: fields",
+    path: "/settings/fields",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Fields" }).waitFor(),
+  },
+  {
+    name: "settings: lists",
+    path: "/settings/lists",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Lists" }).waitFor(),
+  },
+  {
+    name: "settings: people",
+    path: "/settings/people",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "People" }).waitFor(),
+  },
+  {
+    name: "settings: teams",
+    path: "/settings/teams",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Teams" }).waitFor(),
+  },
+  {
+    name: "settings: roles",
+    path: "/settings/roles",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Roles & access" }).waitFor(),
+  },
+  {
+    name: "settings: account",
+    path: "/settings/account",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "My account" }).waitFor(),
+  },
+  {
+    name: "settings: audit",
+    path: "/settings/audit",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Audit log" }).waitFor(),
+  },
+  {
+    name: "settings: about",
+    path: "/settings/about",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "About" }).waitFor(),
+  },
+  {
+    name: "settings: currency dialog",
+    path: "/settings/business",
+    who: "owner",
+    ready: async (p) => {
+      await p.getByRole("button", { name: "Change currency" }).click();
+      await p.getByRole("button", { name: /^New currency/ }).click();
+      await p.getByRole("combobox", { name: "Search currencies" }).fill("usd");
+      await p.keyboard.press("Enter");
+      await p
+        .getByRole("dialog", { name: "Change the currency to US Dollar?" })
+        .getByText(/^1 AED = /)
+        .waitFor();
+    },
+  },
+  {
+    name: "settings (sales)",
+    path: "/settings",
+    who: "seller",
+    ready: (p) => p.locator("#settings-title", { hasText: "Settings" }).waitFor(),
   },
   { name: "leads", path: "/leads", who: "owner", ready: (p) => p.getByTestId("lead-row").first().waitFor() },
   {

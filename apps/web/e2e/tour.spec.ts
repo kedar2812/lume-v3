@@ -28,7 +28,7 @@ test.describe("the tour, as a sales rep", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByRole("dialog", { name: /tour/i })).toHaveCount(0); // never nags again
 
-    await page.goto("/settings");
+    await page.goto("/settings/account"); // Help lives with the person's own settings
     await page.getByRole("button", { name: /replay the tour/i }).click();
     await expect(page.getByRole("dialog", { name: /tour/i })).toContainText("This is LUME");
   });

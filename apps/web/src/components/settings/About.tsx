@@ -48,12 +48,12 @@ export function About() {
                 <span>No restore test has run yet</span>
               )}
             </dd>
-            <p className={s.muted}>
+            <dd className={s.muted}>
               {t && !t.ok
                 ? "The latest backup couldn’t be restored in the weekly test. Whoever runs your server should look at it today."
                 : "Every week the newest backup is restored into a scratch database and checked, so a backup is known to work before it’s needed."}
               {t?.backup && ` Tested: ${t.backup}.`}
-            </p>
+            </dd>
           </div>
         </dl>
       </section>

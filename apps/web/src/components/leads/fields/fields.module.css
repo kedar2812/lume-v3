@@ -105,3 +105,19 @@ textarea.control {
 .empty {
   color: var(--text-3);
 }
+
+/* In a form (the New lead sheet, the Fields preview): a resting hairline, the accent only on focus. */
+.formScope .control {
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition: box-shadow 0.2s;
+}
+.formScope .control:focus,
+.formScope .control:focus-within {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.formScope .multi {
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}

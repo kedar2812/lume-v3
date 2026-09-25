@@ -667,6 +667,9 @@
 }
 .fieldList {
   display: grid;
+  /* An input's intrinsic width (about 20 characters) would size an auto track past the column. */
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 10px;
 }
 .listCard {
@@ -693,6 +696,9 @@
 }
 .fieldRow[aria-current="true"] {
   background: var(--accent-soft);
+}
+.fieldRow[aria-current="true"] .fieldRowMeta {
+  color: var(--text-2); /* --text-3 dips under 4.5:1 on the tint */
 }
 .fieldRowName {
   font-size: var(--fs-md);
@@ -1105,7 +1111,6 @@
 }
 .summaryScope {
   font-weight: var(--fw-regular);
-  opacity: 0.85;
 }
 .permGroup {
   border: 0;
@@ -1406,9 +1411,13 @@
   letter-spacing: var(--ls-md);
   font-weight: var(--fw-medium);
 }
-.facts > div > .muted {
+.facts dd.muted {
+  display: block;
   grid-column: 2;
   max-width: 62ch;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-regular);
 }
 .restoreDot {
   width: 8px;

@@ -78,4 +78,23 @@ describe("theme tokens", () => {
     // Inputs and table headers sit recessed inside a card, never above it.
     expect(contrastRatio(dark["--sheet"]!, dark["--sunk"]!)).toBeGreaterThanOrEqual(1.1);
   });
+
+  it.each([
+    ["porcelain", light],
+    ["obsidian", dark],
+  ])("%s: each -ink reads 4.5:1 on its own -soft tint (chips, badges, the Won kind)", (_name, t) => {
+    // A -soft token is a translucent tint; what the eye sees is that tint laid over the sheet.
+    const over = (rgba: string, base: string) => {
+      if (rgba.startsWith("#")) return rgba; // already solid
+      const [r, g, b, a] = rgba.match(/[\d.]+/g)!.map(Number) as [number, number, number, number];
+      const [br, bg, bb] = [1, 3, 5].map((i) => parseInt(base.slice(i, i + 2), 16));
+      return `#${[r * a + br! * (1 - a), g * a + bg! * (1 - a), b * a + bb! * (1 - a)]
+        .map((v) => Math.round(v).toString(16).padStart(2, "0"))
+        .join("")}`;
+    };
+    for (const k of ["accent", "ok", "warn", "danger", "meet"]) {
+      const bg = over(t[`--${k}-soft`]!, t["--sheet"]!);
+      expect(contrastRatio(t[`--${k}-ink`]!, bg), `--${k}-ink on --${k}-soft`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });
