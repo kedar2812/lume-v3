@@ -289,6 +289,7 @@ acceptance 1C-2 passed
 
 - **Unit and integration:** 92 files, 543 tests (`pnpm test`), plus lint, typecheck and the production web build, all in the gate.
 - **End to end:** 75 Playwright tests on a fresh database behind an edge proxy that mirrors Caddy. They cover the leads specs (create and duplicate warning, the country picker, stage prompts, reassign, bulk skips, the masked rep, WhatsApp hand-off with the tab stubbed, and a deep link under reduced motion) and the board specs (pointer drag, keyboard move). They also include axe checks in both themes for the table, the rep's table, the drawer, the New lead sheet with the country list open and the board, screenshots of the leads table, drawer and board in both themes, and role snapshots of the toolbar, the table header and a drawer for the owner and for a sales rep. There are no retries, and the last full run passed 75/75 with no snapshot updates.
+- **CI:** https://github.com/kedar2812/lume-v3/actions/runs/36118723268 (check, e2e, images: all green).
 - **Edge limits:** `infra/scripts/check-rate-limits.mjs` passes against the dev stack. Static files are never limited. Two sessions on one address get 450 requests each without a 429. A client without a session is limited after 600.
 
 ## Findings fixed during acceptance
