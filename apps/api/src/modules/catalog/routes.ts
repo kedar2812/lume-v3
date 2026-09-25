@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import * as svc from "./service";
+import { currencySchema } from "../../http/schemas";
 
 const read = { permission: "leads.view" as const };
 const pipelines = { permission: "pipelines.manage" as const };
@@ -12,11 +13,7 @@ const COLORS = ["accent", "ok", "warn", "danger", "meet", "cyan", "neutral"] as 
 const product = z.object({
   name: z.string().trim().min(1).max(80),
   defaultValue: z.number().nonnegative().max(1e12).nullable().optional(),
-  currency: z
-    .string()
-    .regex(/^[A-Z]{3}$/)
-    .nullable()
-    .optional(),
+  currency: currencySchema.nullable().optional(),
 });
 
 export async function catalogRoutes(app: FastifyInstance): Promise<void> {

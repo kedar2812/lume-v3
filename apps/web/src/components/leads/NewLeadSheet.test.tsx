@@ -158,6 +158,22 @@ describe("NewLeadSheet", () => {
     expect(screen.queryByRole("option", { name: "Unassigned" })).not.toBeInTheDocument();
   });
 
+  it("records the deal in the business currency, the only one LUME uses", async () => {
+    vi.mocked(leadsClient.create).mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: { lead: testLead({ id: "new" }), duplicates: [] },
+    });
+    open();
+    await userEvent.type(screen.getByLabelText("Name"), "Aisha Khan");
+    expect(screen.queryByRole("button", { name: /^Currency/ })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Deal value"), "4,500");
+    await userEvent.click(screen.getByRole("button", { name: "Create lead" }));
+    const sent = vi.mocked(leadsClient.create).mock.calls.at(-1)![0];
+    expect(sent).toMatchObject({ value: 4500 });
+    expect(sent).not.toHaveProperty("currency");
+  });
+
   it("fills the deal value from a package until the person types one", async () => {
     const cat = testCatalog();
     render(

@@ -39,7 +39,7 @@ describe("lost reasons, tags, products", () => {
     expect((await admin.inject({ method: "DELETE", url: `/api/v1/tags/${t.id}` })).statusCode).toBe(204);
   });
 
-  it("products carry an optional default value and currency", async () => {
+  it("products carry an optional default value, in the business currency", async () => {
     const p = (
       await admin.inject({
         method: "POST",
@@ -47,7 +47,7 @@ describe("lost reasons, tags, products", () => {
         payload: { name: "12-week program", defaultValue: 4500, currency: "AED" },
       })
     ).json().product;
-    expect(p).toMatchObject({ name: "12-week program", defaultValue: 4500, currency: "AED" });
+    expect(p).toMatchObject({ name: "12-week program", defaultValue: 4500, currency: null });
     expect((await admin.inject({ method: "POST", url: `/api/v1/products/${p.id}/archive` })).statusCode).toBe(
       204,
     );

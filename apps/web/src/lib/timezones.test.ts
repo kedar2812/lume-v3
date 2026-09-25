@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  COUNTRIES,
-  CURRENCIES,
-  formatOffset,
-  guessTimezone,
-  localTime,
-  searchTimezones,
-  timezoneOptions,
-} from "./timezones";
+import { formatOffset, guessTimezone, localTime, searchTimezones, timezoneOptions } from "./timezones";
 
 describe("timezones", () => {
   it("lists real zones with a readable label and their current offset", () => {
@@ -34,14 +26,5 @@ describe("timezones", () => {
     const at = new Date("2026-09-24T06:30:00Z");
     expect(localTime("Asia/Dubai", at)).toBe("10:30 am");
     expect(localTime("Asia/Kolkata", at)).toBe("12:00 pm");
-  });
-
-  it("offers the currencies and markets LUME's clients actually use, in a sensible order", () => {
-    expect(CURRENCIES.slice(0, 3)).toEqual(["AED", "INR", "USD"]);
-    expect(new Set(CURRENCIES).size).toBe(CURRENCIES.length);
-    expect(COUNTRIES.find((c) => c.iso === "AE")?.name).toBe("United Arab Emirates");
-    expect(COUNTRIES.map((c) => c.name)).toEqual(
-      [...COUNTRIES.map((c) => c.name)].sort((a, b) => a.localeCompare(b)),
-    );
   });
 });

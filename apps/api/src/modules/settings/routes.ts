@@ -6,7 +6,7 @@ import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { bumpFieldDefs } from "../../leads/fields";
 import { notFound } from "../../http/errors";
-import { timezoneSchema } from "../../http/schemas";
+import { countrySchema, currencySchema, timezoneSchema } from "../../http/schemas";
 
 const shape = (s: typeof schema.settings.$inferSelect) => ({
   businessName: s.businessName,
@@ -38,8 +38,8 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
           .object({
             businessName: z.string().trim().min(1).max(120),
             timezone: timezoneSchema,
-            currency: z.string().regex(/^[A-Z]{3}$/),
-            defaultCountry: z.string().regex(/^[A-Z]{2}$/),
+            currency: currencySchema,
+            defaultCountry: countrySchema,
             weekStart: z.number().int().min(0).max(6),
           })
           .partial()

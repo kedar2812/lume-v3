@@ -263,7 +263,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     if (r && !reduce) setBurst({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
     toast({
       tone: "ok",
-      title: moved.value ? `Won · ${formatMoney(moved.value, moved.currency ?? catalog.currency)}` : "Won",
+      title: moved.value ? `Won · ${formatMoney(moved.value, catalog.currency)}` : "Won",
       detail: moved.name,
     });
   };

@@ -12,6 +12,7 @@ import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, forbidden, notFound } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
+import { assertOneCurrency } from "../settings/service";
 import { findDuplicates } from "./duplicates";
 import { isFieldEditable, serializeLead, type LeadRow } from "./serialize";
 
@@ -215,6 +216,7 @@ async function setTags(req: FastifyRequest, leadId: string, tagIds: string[]) {
 
 export async function createLead(req: FastifyRequest, input: LeadInput & { name: string }) {
   const fields = await loadFieldRegistry(req);
+  await assertOneCurrency(req, input.currency);
   assertWritable(req, fields, input);
   const custom = validateCustom(fields, input.custom, "create");
   await assertUsersExist(req, fields, custom);
@@ -238,7 +240,7 @@ export async function createLead(req: FastifyRequest, input: LeadInput & { name:
     name: input.name,
     ...contact,
     value: input.value ?? null,
-    currency: input.currency ?? null,
+    currency: null, // always the business currency (assertOneCurrency)
     productId: input.productId ?? null,
     leadCreatedAt: input.leadCreatedAt ?? null,
     custom: Object.fromEntries(Object.entries(custom).filter(([, v]) => v !== null)),
@@ -306,7 +308,8 @@ export async function updateLead(req: FastifyRequest, id: string, expectedVersio
   const { out: contact } = contactColumns(input, fields.defaultCountry);
 
   const set: Record<string, unknown> = { ...contact };
-  for (const k of ["name", "value", "currency", "productId", "leadCreatedAt"] as const)
+  await assertOneCurrency(req, input.currency);
+  for (const k of ["name", "value", "productId", "leadCreatedAt"] as const)
     if (k in input) set[k] = input[k] ?? null;
   const removed = Object.entries(custom)
     .filter(([, v]) => v === null)

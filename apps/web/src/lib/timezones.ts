@@ -85,23 +85,3 @@ export function localTime(id: string, at: Date = new Date()): string {
     .replace(/[\u202f\u00a0]/g, " ") // ICU writes a narrow no-break space before AM/PM
     .toLowerCase();
 }
-
-/** The currencies LUME's first clients bill in, then whatever else the platform knows. */
-export const CURRENCIES: string[] = (() => {
-  const common = ["AED", "INR", "USD", "EUR", "GBP", "SAR", "AUD", "CAD", "SGD"];
-  const all = supportedValues("currency");
-  return [...common, ...all.filter((c) => !common.includes(c))];
-})();
-
-export type CountryOption = { iso: string; name: string };
-/** The markets LUME's first clients sell into; the full phone-country list arrives with sheet intake. */
-export const COUNTRIES: CountryOption[] = (() => {
-  const isoList =
-    "AE IN US GB SA QA KW OM BH CA AU NZ SG MY ID PH TH VN CN JP KR DE FR IT ES NL BE SE NO DK IE PT PL ZA KE NG EG BR MX AR CL".split(
-      " ",
-    );
-  const names = new Intl.DisplayNames(["en"], { type: "region" });
-  return isoList
-    .map((iso) => ({ iso, name: names.of(iso) ?? iso }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-})();

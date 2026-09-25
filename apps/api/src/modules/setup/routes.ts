@@ -4,7 +4,15 @@ import { z } from "zod";
 import { newTotpSecret, otpauthUri, safeEqual } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { forbidden } from "../../http/errors";
-import { emailSchema, nameSchema, passwordInput, timezoneSchema, totpCodeSchema } from "../../http/schemas";
+import {
+  countrySchema,
+  currencySchema,
+  emailSchema,
+  nameSchema,
+  passwordInput,
+  timezoneSchema,
+  totpCodeSchema,
+} from "../../http/schemas";
 import { runSetup } from "./service";
 
 export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
@@ -38,8 +46,8 @@ export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
           business: z.object({
             name: nameSchema,
             timezone: timezoneSchema,
-            currency: z.string().regex(/^[A-Z]{3}$/),
-            defaultCountry: z.string().regex(/^[A-Z]{2}$/),
+            currency: currencySchema,
+            defaultCountry: countrySchema,
           }),
           preset: z.enum(["coaching", "general"]),
           owner: z.object({

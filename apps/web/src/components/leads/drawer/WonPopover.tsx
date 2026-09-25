@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Popover } from "@/components/ui/Popover";
 import type { Catalog, Lead } from "@/lib/leads/types";
 import s from "./drawer.module.css";
@@ -80,21 +81,17 @@ function WonForm({
       <label htmlFor={id} className={s.popLabel}>
         Deal value
       </label>
-      <div className={s.money}>
-        <span aria-hidden>{lead.currency ?? catalog.currency}</span>
-        <input
-          id={id}
-          inputMode="decimal"
-          autoComplete="off"
-          value={value}
-          aria-invalid={problem ? true : undefined}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setTyped(true);
-            setProblem(null);
-          }}
-        />
-      </div>
+      <MoneyInput
+        id={id}
+        amount={value}
+        currency={catalog.currency}
+        aria-invalid={problem ? true : undefined}
+        onChange={(amount) => {
+          setValue(amount);
+          setTyped(true);
+          setProblem(null);
+        }}
+      />
       {problem && (
         <p role="alert" className={s.popError}>
           {problem}

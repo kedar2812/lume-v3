@@ -9,7 +9,9 @@ import { TimezonePicker } from "@/components/ui/TimezonePicker";
 import { passwordProblemText } from "@/lib/auth-client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import type { SetupInput, SetupResult } from "@/lib/setup-client";
-import { COUNTRIES, CURRENCIES, guessTimezone } from "@/lib/timezones";
+import { CountryPicker } from "@/components/ui/CountryPicker";
+import { CurrencyPicker } from "@/components/ui/CurrencyPicker";
+import { guessTimezone } from "@/lib/timezones";
 import { QrCode } from "./QrCode";
 import { RecoveryCodes } from "./RecoveryCodes";
 import s from "./setup.module.css";
@@ -210,32 +212,22 @@ export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
               <div className={s.pair}>
                 <Field label="Currency">
                   {(control) => (
-                    <select
-                      {...control}
+                    <CurrencyPicker
+                      id={control.id}
+                      label="Currency"
                       value={business.currency}
-                      onChange={(e) => setBusiness({ ...business, currency: e.target.value })}
-                    >
-                      {CURRENCIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(currency) => setBusiness({ ...business, currency })}
+                    />
                   )}
                 </Field>
                 <Field label="Most leads are in">
                   {(control) => (
-                    <select
-                      {...control}
+                    <CountryPicker
+                      id={control.id}
+                      label="Most leads are in"
                       value={business.defaultCountry}
-                      onChange={(e) => setBusiness({ ...business, defaultCountry: e.target.value })}
-                    >
-                      {COUNTRIES.map((c) => (
-                        <option key={c.iso} value={c.iso}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(defaultCountry) => setBusiness({ ...business, defaultCountry })}
+                    />
                   )}
                 </Field>
               </div>

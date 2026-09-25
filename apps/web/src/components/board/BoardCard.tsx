@@ -24,9 +24,7 @@ export function CardFace({ lead, catalog }: { lead: Lead; catalog: Catalog }) {
     <>
       <span className={s.cardName}>{lead.name ?? "Unnamed lead"}</span>
       <span className={s.cardMeta}>
-        {lead.value ? (
-          <span className={s.cardValue}>{formatMoney(lead.value, lead.currency ?? catalog.currency)}</span>
-        ) : null}
+        {lead.value ? <span className={s.cardValue}>{formatMoney(lead.value, catalog.currency)}</span> : null}
         <span className={s.cardAge} data-volatile>
           {inStage(lead)}
         </span>

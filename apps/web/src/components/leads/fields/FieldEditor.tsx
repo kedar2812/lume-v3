@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { PhoneInput } from "@/components/ui/PhoneInput";
 import { Switch } from "@/components/ui/Switch";
 import type { FieldDefView } from "@/lib/leads/types";
@@ -152,6 +153,20 @@ export function FieldEditor({ def, value, onCommit, onCancel, autoFocus, error, 
 
     case "number":
     case "currency":
+      if (def.isCore && def.key === "value")
+        return (
+          <MoneyEditor
+            def={def}
+            value={typeof value === "number" ? value : null}
+            currency={catalog.currency}
+            onCommit={onCommit}
+            onCancel={onCancel}
+            inForm={inForm}
+            autoFocus={autoFocus}
+            setProblem={setProblem}
+            message={message}
+          />
+        );
       return (
         <TextEditor
           def={def}
@@ -456,7 +471,7 @@ function PhoneEditor({
       onBlur={(e) => {
         // The country list floats in a portal: focus moving there hasn't left the field.
         const to = e.relatedTarget as HTMLElement | null;
-        if (!inForm && !e.currentTarget.contains(to) && !to?.closest("[data-phone-panel]")) commit();
+        if (!inForm && !e.currentTarget.contains(to) && !to?.closest("[data-search-panel]")) commit();
       }}
     >
       <PhoneInput
@@ -479,6 +494,76 @@ function PhoneEditor({
             commit();
           }
         }}
+      />
+      {message}
+    </div>
+  );
+}
+
+/**
+ * A lead's value, in the business currency (MoneyInput). Enter saves, Escape cancels, leaving saves.
+ */
+function MoneyEditor({
+  def,
+  value,
+  currency,
+  onCommit,
+  onCancel,
+  inForm,
+  autoFocus,
+  setProblem,
+  message,
+}: {
+  def: FieldDefView;
+  value: number | null;
+  currency: string;
+  onCommit: (v: unknown) => void;
+  onCancel: () => void;
+  inForm: boolean;
+  autoFocus?: boolean;
+  setProblem: (m: string | null) => void;
+  message: ReactNode;
+}) {
+  const [draft, setDraft] = useState(value === null ? "" : String(value));
+  const done = useRef(false);
+  const commit = () => {
+    if (done.current) return;
+    const r = parseNumber(draft, true);
+    if ("error" in r) return setProblem(r.error);
+    setProblem(null);
+    done.current = true;
+    if (r.value === value) return onCancel();
+    onCommit(r.value);
+  };
+  return (
+    <div className={s.wrap}>
+      <MoneyInput
+        aria-label={def.label}
+        amount={draft}
+        currency={currency}
+        size="sm"
+        autoFocus={autoFocus}
+        onChange={(next) => {
+          setDraft(next);
+          if (!inForm) return;
+          const r = parseNumber(next, true);
+          if ("error" in r) setProblem(r.error);
+          else {
+            setProblem(null);
+            onCommit(r.value);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            done.current = true;
+            onCancel();
+          } else if (e.key === "Enter" && !inForm) {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        onBlur={inForm ? undefined : commit}
       />
       {message}
     </div>

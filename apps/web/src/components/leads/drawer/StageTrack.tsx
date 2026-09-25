@@ -10,7 +10,7 @@ const DAY = 86_400_000;
 function trackNote(lead: Lead, stage: Stage | undefined, catalog: Catalog): string {
   if (!stage) return "";
   if (stage.kind === "won")
-    return `Won${lead.value ? ` · ${formatMoney(lead.value, lead.currency ?? catalog.currency)}` : ""}`;
+    return `Won${lead.value ? ` · ${formatMoney(lead.value, catalog.currency)}` : ""}`;
   if (stage.kind === "lost") {
     const reason = catalog.lostReasons.find((r) => r.id === lead.lostReasonId)?.label;
     return `Lost${reason ? ` · ${reason}` : ""}`;

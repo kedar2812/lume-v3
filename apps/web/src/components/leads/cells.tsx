@@ -63,7 +63,7 @@ export const ValueCell = ({ lead, catalog }: { lead: Lead; catalog: Catalog }) =
   lead.value === null || lead.value === undefined ? (
     <span className={s.muted}>—</span>
   ) : (
-    <span className={s.num}>{formatMoney(lead.value, lead.currency ?? catalog.currency)}</span>
+    <span className={s.num}>{formatMoney(lead.value, catalog.currency)}</span>
   );
 
 /** "3h ago" and the like. Marked volatile: it changes with the clock, so screenshots mask it. */

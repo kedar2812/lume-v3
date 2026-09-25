@@ -80,7 +80,7 @@ describe("PhoneInput", () => {
     await userEvent.click(country());
     const list = screen.getByRole("listbox", { name: "Countries" });
     expect(container.contains(list)).toBe(false);
-    expect(list.closest("[data-phone-panel]")).toHaveStyle({ position: "fixed" });
+    expect(list.closest("[data-search-panel]")).toHaveStyle({ position: "fixed" });
     await userEvent.pointer({ target: document.body, keys: "[MouseLeft]" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });

@@ -4,6 +4,7 @@ import { newId } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { conflict, notFound } from "../../http/errors";
+import { assertOneCurrency } from "../settings/service";
 
 // ── Lost reasons ───────────────────────────────────────────────────────────────
 const reasonView = (r: typeof schema.lostReasons.$inferSelect) => ({
@@ -145,10 +146,11 @@ async function assertProductNameFree(req: FastifyRequest, name: string, exceptId
 
 export async function createProduct(req: FastifyRequest, input: ProductInput & { name: string }) {
   await assertProductNameFree(req, input.name);
+  await assertOneCurrency(req, input.currency);
   const id = newId();
   const [row] = await req.db
     .insert(schema.products)
-    .values({ id, ...input })
+    .values({ id, ...input, currency: null }) // always the business currency
     .returning();
   await audit(req, {
     action: "product.created",
@@ -161,6 +163,8 @@ export async function createProduct(req: FastifyRequest, input: ProductInput & {
 
 export async function updateProduct(req: FastifyRequest, id: string, patch: ProductInput) {
   if (patch.name) await assertProductNameFree(req, patch.name, id);
+  await assertOneCurrency(req, patch.currency);
+  if ("currency" in patch) patch = { ...patch, currency: null };
   const [row] = await req.db
     .update(schema.products)
     .set(patch)

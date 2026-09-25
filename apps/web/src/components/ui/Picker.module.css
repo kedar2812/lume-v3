@@ -1,0 +1,148 @@
+/* A control with a picker in front (phone, money): read as one field. And a picker on its own. */
+
+.field {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition: box-shadow 0.2s;
+}
+.field[data-size="sm"] {
+  height: 34px;
+  border-radius: 9px;
+}
+.field:focus-within {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.field:has(.input[aria-invalid="true"]) {
+  box-shadow:
+    inset 0 0 0 1.5px var(--danger),
+    0 0 0 4px var(--danger-soft);
+}
+
+.prefix {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 12px;
+  border-radius: 11px 0 0 11px;
+  border-right: 0.5px solid var(--line-2);
+  font-size: 0.875rem;
+  font-weight: 560;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s;
+}
+.field[data-size="sm"] .prefix {
+  gap: 5px;
+  padding: 0 7px 0 9px;
+  font-size: 0.8125rem;
+}
+.prefix:hover,
+.prefix[aria-expanded="true"] {
+  background: var(--hover);
+}
+.prefix:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+}
+.chevron {
+  color: var(--text-3);
+}
+
+/* The number box: plain, since the wrapper draws the field. Beats the Field component's input style. */
+.field .input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 14px 0 12px;
+  border: 0;
+  border-radius: 0 11px 11px 0;
+  background: none;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  font-size: 0.90625rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.field .input:focus {
+  box-shadow: none;
+}
+.field[data-size="sm"] .input {
+  padding: 0 10px 0 9px;
+  font-size: 0.8125rem;
+}
+
+/* A picker on its own (a currency or a country in a form): looks like the other inputs. */
+.select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px 0 14px;
+  border-radius: 11px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: 0.90625rem;
+  color: var(--text);
+  text-align: left;
+  transition: box-shadow 0.2s;
+}
+.select:focus-visible,
+.select[aria-expanded="true"] {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.select .chevron {
+  margin-left: auto;
+}
+.selectLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.muted {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A fixed prefix (the business currency): same place as a picker, but not a control. */
+.fixed {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 12px;
+  border-right: 0.5px solid var(--line-2);
+  font-size: 0.875rem;
+  font-weight: 560;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.field[data-size="sm"] .fixed {
+  gap: 5px;
+  padding: 0 8px 0 9px;
+  font-size: 0.8125rem;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -143,7 +143,7 @@ function Board({
       toast({
         tone: "ok",
         title: `Won · ${nameOf(moved)}`,
-        detail: moved.value ? formatMoney(moved.value, moved.currency ?? catalog.currency) : undefined,
+        detail: moved.value ? formatMoney(moved.value, catalog.currency) : undefined,
       });
     }
     setMessage(`${nameOf(lead)} moved to ${to.name}.`);

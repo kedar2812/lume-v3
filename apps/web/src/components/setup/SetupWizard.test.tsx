@@ -95,6 +95,30 @@ describe("SetupWizard", () => {
     expect(sent.business.timezone).toMatch(/^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/);
   });
 
+  it("takes the business currency and country from searchable lists", async () => {
+    const p = props();
+    render(<SetupWizard {...p} />);
+    await userEvent.type(screen.getByLabelText("Setup token"), "token-from-the-server-logs");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.type(await screen.findByLabelText("Business name"), "Nupuur Coaching");
+    await userEvent.click(screen.getByRole("button", { name: /^Currency:/ }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search currencies" }), "rupee{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: /^Most leads are in:/ }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search countries" }), "india{Enter}");
+    expect(screen.getByRole("button", { name: /^Currency:/ })).toHaveAccessibleName(
+      "Currency: Indian Rupee, INR",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.type(await screen.findByLabelText("Your name"), "Nupuur Patil");
+    await userEvent.type(screen.getByLabelText("Email"), "nupuur@nupuur.com");
+    await userEvent.type(screen.getByLabelText("Password"), "a long and lovely passphrase");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await typeCode("123456");
+    await userEvent.click(screen.getByRole("button", { name: "Finish setup" }));
+    await screen.findByText("CODE0-XXXXX");
+    expect(p.onComplete.mock.calls[0]![0].business).toMatchObject({ currency: "INR", defaultCountry: "IN" });
+  });
+
   it("cannot be finished before the codes are saved", async () => {
     const p = props();
     await fillToTwoFactor(p);

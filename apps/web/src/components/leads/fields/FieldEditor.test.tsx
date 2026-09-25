@@ -19,6 +19,16 @@ const edit = (key: string, value: unknown, catalog = cat) => {
 };
 
 describe("FieldEditor", () => {
+  it("edits a lead's value in the business currency", async () => {
+    const a = edit("value", 4500);
+    expect(screen.getByText("AED")).toBeInTheDocument();
+    const box = screen.getByRole("textbox", { name: "Deal value" });
+    expect(box).toHaveFocus();
+    await userEvent.clear(box);
+    await userEvent.type(box, "5,200.50{Enter}");
+    expect(a.onCommit).toHaveBeenCalledWith(5200.5);
+  });
+
   it("edits a phone as its country and number, saving the whole number on Enter", async () => {
     const a = edit("phone", "+971501234567");
     expect(screen.getByRole("button", { name: /^Country code/ })).toHaveAccessibleName(

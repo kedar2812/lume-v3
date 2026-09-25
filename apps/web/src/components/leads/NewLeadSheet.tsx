@@ -13,6 +13,7 @@ import { can, scopeOf } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { IconButton } from "@/components/ui/IconButton";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { PhoneInput } from "@/components/ui/PhoneInput";
 import { leadsClient } from "@/lib/leads/client";
 import { tokenColor } from "@/lib/leads/colors";
@@ -368,16 +369,16 @@ export function NewLeadSheet({
 
           <div className={s.pair}>
             {writable("value") && (
-              <Field label="Deal value" hint={catalog.currency} error={errors.value}>
+              <Field label="Deal value" error={errors.value}>
                 {(c) => (
-                  <input
+                  <MoneyInput
                     {...c}
-                    inputMode="decimal"
-                    autoComplete="off"
-                    value={value}
-                    onChange={(e) => {
-                      setValue(e.target.value);
-                      setValueTyped(e.target.value !== "");
+                    amount={value}
+                    currency={catalog.currency}
+                    onChange={(amount) => {
+                      setValue(amount);
+                      setValueTyped(amount !== "");
+                      setDirty(true);
                       clearError("value");
                     }}
                   />

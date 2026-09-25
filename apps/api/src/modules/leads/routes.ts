@@ -10,6 +10,7 @@ import { runBulk } from "./bulk";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
 import { addNote, assignLead, listActivities, moveStage } from "./write";
+import { currencySchema } from "../../http/schemas";
 
 const params = z.object({ id: z.uuid() });
 const money = z.number().nonnegative().max(1e12);
@@ -22,11 +23,7 @@ const leadBody = z.object({
   stageId: z.uuid().optional(),
   ownerId: z.uuid().nullable().optional(),
   value: money.nullable().optional(),
-  currency: z
-    .string()
-    .regex(/^[A-Z]{3}$/)
-    .nullable()
-    .optional(),
+  currency: currencySchema.nullable().optional(),
   productId: z.uuid().nullable().optional(),
   leadCreatedAt: z.iso.date().nullable().optional(),
   tagIds: z.array(z.uuid()).max(50).optional(),
