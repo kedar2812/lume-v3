@@ -4,7 +4,7 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
 import { totpCode } from "@lume/core";
 
 const ARTIFACTS = path.resolve(import.meta.dirname, ".artifacts");
-export type Who = "owner" | "admin" | "rep" | "seller";
+export type Who = "owner" | "admin" | "rep" | "seller" | "fresh";
 export const stateFile = (who: Who) => path.join(ARTIFACTS, `${who}.json`);
 
 export const PEOPLE = {
@@ -15,6 +15,8 @@ export const PEOPLE = {
   aman: { email: "aman@nupuur.test", name: "Aman Verma", password: "sunrise over the creek at five" },
   /** Sales, onboarded at seed time (through the API), so the leads specs can use a rep straight away. */
   seller: { email: "noor@nupuur.test", name: "Noor Ahmed", password: "sunrise over the creek at five" },
+  /** Joined but hasn't agreed to the licence agreement, terms and privacy policy yet (the gate's own specs). */
+  fresh: { email: "zara@nupuur.test", name: "Zara Malik", password: "sunrise over the creek at five" },
 } as const;
 
 /** The token the API printed at boot, read the way an operator reads it: from the log. */
@@ -83,6 +85,20 @@ export async function callApi<T = unknown>(
     },
     { method, url, body },
   );
+}
+
+/**
+ * The first-use agreement: read to the end of the licence agreement, terms and privacy policy, then
+ * agree. "I agree" must be locked until the end is reached.
+ */
+export async function agreeToTerms(page: Page): Promise<void> {
+  await page.waitForURL(/\/agree$/);
+  const agree = page.getByRole("button", { name: "I agree" });
+  await expect(agree).toBeDisabled();
+  const reader = page.getByRole("region", { name: "Licence agreement, terms of service and privacy policy" });
+  await reader.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await expect(agree).toBeEnabled();
+  await agree.click();
 }
 
 /** Opens an app page and waits until the shell's keyboard shortcuts are live (after hydration). */

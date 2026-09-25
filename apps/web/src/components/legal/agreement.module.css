@@ -1,0 +1,212 @@
+/* The first-use agreement: one calm sheet on the sign-in aura, a reader that scrolls, and a footer. */
+
+.page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: clip;
+  background: var(--canvas);
+}
+.aura {
+  position: absolute;
+  inset: -20%;
+  overflow: clip;
+  pointer-events: none;
+}
+.aura i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+.aura i:nth-child(1) {
+  left: 18%;
+  top: 12%;
+  width: 46vw;
+  height: 46vw;
+  background: rgba(var(--accent-rgb), 0.14);
+}
+.aura i:nth-child(2) {
+  left: 52%;
+  top: 40%;
+  width: 34vw;
+  height: 34vw;
+  background: rgba(22, 181, 255, 0.12);
+}
+
+.sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 28px 28px 20px;
+  border-radius: 22px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-pop);
+}
+@media (max-width: 720px) {
+  .sheet {
+    width: 100vw;
+    max-height: 100dvh;
+    height: 100dvh;
+    padding: 20px 16px 16px;
+    border-radius: 0;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.mark {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  filter: drop-shadow(0 8px 20px rgba(42, 91, 255, 0.35));
+}
+.title {
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+}
+.lede {
+  margin-top: 6px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.draft {
+  margin-top: 16px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 18px;
+}
+.tab {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.tab:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.progress {
+  height: 3px;
+  margin-top: 14px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.2s linear;
+}
+
+.reader {
+  flex: 1;
+  min-height: 200px;
+  margin-top: 10px;
+  padding: 6px 4px 6px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 8px;
+  /* More to read: the text fades out at the foot until the end is reached. */
+  mask-image: linear-gradient(#000 calc(100% - 40px), transparent);
+}
+.reader[data-reached] {
+  mask-image: none;
+}
+.doc + .doc {
+  margin-top: 32px;
+  padding-top: 28px;
+  border-top: 0.5px solid var(--line);
+}
+.docTitle {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  scroll-margin-top: 8px;
+}
+.section {
+  margin-top: 16px;
+}
+.section h3 {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
+}
+.section p {
+  margin-top: 6px;
+  max-width: 68ch;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.version {
+  margin-top: 28px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.end {
+  height: 1px;
+}
+
+.problem {
+  margin-top: 12px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--line);
+}
+.status {
+  margin-right: auto;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.status[data-done] {
+  color: var(--ok-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress i,
+  .tab {
+    transition: none;
+  }
+}

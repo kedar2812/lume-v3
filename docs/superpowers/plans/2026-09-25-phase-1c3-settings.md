@@ -253,6 +253,20 @@ GRANT SELECT ON ops_restore_tests TO lume_app;
 
 ---
 
+### Task 2b: The first-use agreement (added by the owner, 2026-09-25)
+
+Before anyone uses LUME for the first time — owner, admin or rep — they read the licence agreement,
+terms of service and privacy policy in one scrolling reader; **I agree** unlocks only at the end of the
+text; **Decline and sign out** signs out. The documents live in `@lume/core` (`LEGAL_DOCUMENTS`,
+`LEGAL_VERSION`, `LEGAL_DRAFT`); changing the version asks everyone again. Evidence of each acceptance
+(who, version, time, address, browser) is appended to `legal_acceptances`; `/auth/me` reports
+`agreement` and `flags.needsAgreement`; `POST /me/agreement` takes only the current version. The web
+routes through `/agree` before `/welcome` (`firstRunStop`). Tests: core documents, API agreement,
+`AgreementScreen`, `first-run`, e2e `legal.spec.ts`, axe and screenshots of `/agree`, and both live
+walkthroughs. **The text is a plain-language draft for legal review** (`LEGAL_DRAFT` shows a banner).
+
+---
+
 ### Task 3: Settings shell — home by permission, section nav, access that changes mid-visit
 
 **Files:**

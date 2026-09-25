@@ -1,4 +1,13 @@
-import { alertIn, enterCode, expect, PEOPLE, readSetupToken, stateFile, test } from "./fixtures";
+import {
+  agreeToTerms,
+  alertIn,
+  enterCode,
+  expect,
+  PEOPLE,
+  readSetupToken,
+  stateFile,
+  test,
+} from "./fixtures";
 
 test("@smoke first run: the wizard creates the business and the owner, with two-step sign-in", async ({
   page,
@@ -34,7 +43,8 @@ test("@smoke first run: the wizard creates the business and the owner, with two-
   await page.getByRole("checkbox", { name: /saved/i }).check();
   await page.getByRole("button", { name: /open lume/i }).click();
 
-  // Straight into onboarding, already signed in.
+  // Signed in: the licence agreement, terms and privacy policy first, then straight into onboarding.
+  await agreeToTerms(page);
   await expect(page).toHaveURL(/\/welcome$/);
   await expect(page.getByRole("dialog", { name: /welcome to lume/i })).toBeVisible();
   await page.context().storageState({ path: stateFile("owner") });

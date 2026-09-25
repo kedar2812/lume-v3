@@ -225,7 +225,7 @@ describe("Onboarding", () => {
       },
       permissions: [{ key: "users.manage", scope: null }],
       twoFactor: { enabled: false, required: true },
-      flags: { needsOnboarding: true, needsTwoFactorEnrolment: true, needsTour: true },
+      flags: { needsAgreement: false, needsOnboarding: true, needsTwoFactorEnrolment: true, needsTour: true },
     });
     render(<Onboarding session={admin} actions={a} onFinished={() => {}} />);
     expect(railLabels()).toEqual([

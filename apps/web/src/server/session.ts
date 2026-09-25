@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   EMPTY_ONBOARDING,
   EMPTY_TOUR,
+  LEGAL_VERSION,
   PREFERENCES_DEFAULTS,
   can,
   effectivePermissions,
@@ -33,14 +34,24 @@ export type Session = {
   onboarding: OnboardingState;
   tour: TourState;
   capabilities: Capabilities;
-  flags: { needsOnboarding: boolean; needsTwoFactorEnrolment: boolean; needsTour: boolean };
+  /** The licence agreement, terms and privacy policy: the version agreed to, and the current one. */
+  agreement: { version: string | null; current: string };
+  flags: {
+    needsAgreement: boolean;
+    needsOnboarding: boolean;
+    needsTwoFactorEnrolment: boolean;
+    needsTour: boolean;
+  };
   /** The same Actor shape the API and core use, so gates call the very same `can()`. */
   actor: Actor;
 };
 
 /** Exactly what GET /auth/me sends. Permission keys stay loose here: a newer API may know more of them. */
-export type MePayload = Omit<Session, "actor" | "permissions"> & {
+export type MePayload = Omit<Session, "actor" | "permissions" | "agreement" | "flags"> & {
   permissions: { key: string; scope: Scope | null }[];
+  /** Absent from an API that predates the agreement. */
+  agreement?: Session["agreement"];
+  flags: Omit<Session["flags"], "needsAgreement"> & { needsAgreement?: boolean };
 };
 
 export function toSession(me: MePayload): Session {
@@ -55,7 +66,9 @@ export function toSession(me: MePayload): Session {
     onboarding: me.onboarding ?? EMPTY_ONBOARDING,
     tour: me.tour ?? EMPTY_TOUR,
     capabilities: me.capabilities,
-    flags: me.flags,
+    agreement: me.agreement ?? { version: null, current: LEGAL_VERSION },
+    // An API from before the agreement existed sends no flag: nobody is asked.
+    flags: { ...me.flags, needsAgreement: me.flags.needsAgreement ?? false },
     actor: {
       userId: me.user.id,
       isOwner: me.user.isOwner,
@@ -111,7 +124,13 @@ export function fakeSession(overrides: Partial<Omit<Session, "actor">> = {}): Se
     onboarding: EMPTY_ONBOARDING,
     tour: EMPTY_TOUR,
     capabilities: { sheets: false, calendar: false },
-    flags: { needsOnboarding: false, needsTwoFactorEnrolment: false, needsTour: false },
+    agreement: { version: LEGAL_VERSION, current: LEGAL_VERSION },
+    flags: {
+      needsAgreement: false,
+      needsOnboarding: false,
+      needsTwoFactorEnrolment: false,
+      needsTour: false,
+    },
   };
   return toSession({ ...base, ...overrides } as MePayload);
 }

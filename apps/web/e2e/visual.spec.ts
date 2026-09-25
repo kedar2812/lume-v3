@@ -45,6 +45,12 @@ const SHOTS: Shot[] = [
     ready: (p) => p.getByRole("dialog", { name: /tour/i }).waitFor(),
   },
   {
+    name: "agreement",
+    path: "/agree",
+    who: "fresh",
+    ready: (p) => p.getByRole("button", { name: "I agree" }).waitFor(),
+  },
+  {
     name: "welcome",
     path: "/welcome",
     who: "admin",

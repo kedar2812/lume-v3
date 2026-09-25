@@ -41,6 +41,12 @@ const CHECKS: Check[] = [
     ready: (p) => p.getByRole("heading", { level: 1 }).waitFor(),
   },
   {
+    name: "agreement",
+    path: "/agree",
+    who: "fresh",
+    ready: (p) => p.getByRole("button", { name: "I agree" }).waitFor(),
+  },
+  {
     name: "welcome (admin)",
     path: "/welcome",
     who: "admin",

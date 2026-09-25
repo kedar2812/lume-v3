@@ -105,6 +105,23 @@ const code = async (page) => {
   await page.getByLabel("Digit 1 of 6").click();
   await page.keyboard.type(totp(secret));
 };
+/** The first-use agreement: "I agree" stays locked until the reader reaches the end of the text. */
+const agreeToTerms = async (page, shotName) => {
+  await page.waitForURL(/\/agree$/);
+  const agree = page.getByRole("button", { name: "I agree" });
+  assert(
+    await agree.isDisabled(),
+    "I agree is locked until the end of the licence, terms and privacy policy",
+  );
+  if (shotName) await shot(page, shotName);
+  await page
+    .getByRole("region", { name: "Licence agreement, terms of service and privacy policy" })
+    .evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  for (let i = 0; i < 40 && !(await agree.isEnabled()); i++) await page.waitForTimeout(100);
+  assert(await agree.isEnabled(), "reading to the end unlocks I agree");
+  await agree.click();
+};
+
 /** Skips to the end of onboarding: waits for whichever button is next rather than guessing. */
 const skipThrough = async (page) => {
   const explore = page.getByRole("button", { name: /explore on my own/i });
@@ -148,6 +165,7 @@ assert(
 await shot(owner, "01c-setup-recovery-codes");
 await owner.getByRole("checkbox", { name: /saved/i }).check();
 await owner.getByRole("button", { name: /open lume/i }).click();
+await agreeToTerms(owner, "01d-agreement");
 await owner.waitForURL(/\/welcome$/);
 ok("the owner lands in onboarding, signed in");
 
@@ -227,6 +245,7 @@ const admin = await newPage();
 await admin.goto(adminMail.link);
 await admin.getByLabel("Choose a password").fill(ADMIN.password);
 await admin.getByRole("button", { name: "Join LUME" }).click();
+await agreeToTerms(admin);
 await admin.waitForURL(/\/welcome$/);
 await admin.getByRole("button", { name: /let’s go/i }).click();
 await admin.getByRole("button", { name: "Continue" }).click(); // You — saves during enrolment now
@@ -250,6 +269,7 @@ const rep = await newPage();
 await rep.goto(repMail.link);
 await rep.getByLabel("Choose a password").fill(REP.password);
 await rep.getByRole("button", { name: "Join LUME" }).click();
+await agreeToTerms(rep);
 await rep.waitForURL(/\/welcome$/);
 await rep.getByRole("button", { name: /let’s go/i }).click();
 const tourBtn = rep.getByRole("button", { name: /take the tour/i });

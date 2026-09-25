@@ -1,4 +1,14 @@
-import { callApi, expect, hydrated, lastMailTo, linkIn, PEOPLE, stateFile, test } from "./fixtures";
+import {
+  agreeToTerms,
+  callApi,
+  expect,
+  hydrated,
+  lastMailTo,
+  linkIn,
+  PEOPLE,
+  stateFile,
+  test,
+} from "./fixtures";
 
 test("seed: the owner finishes onboarding, then invites an admin and two sales reps by email", async ({
   page,
@@ -33,6 +43,7 @@ test("seed: the owner finishes onboarding, then invites an admin and two sales r
     { ...PEOPLE.rep, role: "Sales", file: stateFile("rep") },
     { ...PEOPLE.aman, role: "Sales", file: null },
     { ...PEOPLE.seller, role: "Sales", file: stateFile("seller") },
+    { ...PEOPLE.fresh, role: "Sales", file: stateFile("fresh") },
   ]) {
     const since = new Date(Date.now() - 1000).toISOString();
     const invited = await callApi(page, "POST", "/api/v1/invites", {
@@ -51,7 +62,12 @@ test("seed: the owner finishes onboarding, then invites an admin and two sales r
     await expect(p.getByLabel("Email")).toHaveValue(who.email);
     await p.getByLabel("Choose a password").fill(who.password);
     await p.getByRole("button", { name: "Join LUME" }).click();
-    await expect(p).toHaveURL(/\/welcome$/);
+    // First the licence agreement, terms and privacy policy; Zara is left there on purpose.
+    await expect(p).toHaveURL(/\/agree$/);
+    if (who.email !== PEOPLE.fresh.email) {
+      await agreeToTerms(p);
+      await expect(p).toHaveURL(/\/welcome$/);
+    }
     if (who.email === PEOPLE.seller.email) {
       // Noor skips onboarding and the tour, so specs that run before onboarding.spec can use a rep.
       expect((await callApi(p, "PUT", "/api/v1/me/onboarding", { completed: true })).status).toBe(200);
