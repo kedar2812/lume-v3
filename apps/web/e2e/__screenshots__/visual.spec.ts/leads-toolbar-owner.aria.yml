@@ -1,10 +1,24 @@
+- group "Stages":
+    - button "All stages, 1 lead" [pressed]: All 1
+    - button "New, 1 lead": New 1
+    - button "Message sent, 0 leads"
+    - button "Replied, 0 leads": Replied 0
+    - button "Call booked, 0 leads"
+    - button "Call done, 0 leads"
+    - button "Follow-up later, 0 leads"
+    - button "Won, 0 leads": Won 0
+    - button "Lost, 0 leads": Lost 0
+- navigation "View":
+    - text: Table
+    - link "Board":
+        - /url: /pipeline?q=Karim
+- button "New lead"
 - search:
     - searchbox "Search leads": Karim
-    - button "Stage"
     - text: Owner
     - combobox "Owner":
-        - option "Anyone" [selected]
-        - option "Me"
+        - option "Any owner" [selected]
+        - option "My leads"
         - option "Unassigned"
         - option "Aman Verma"
         - option "Noor Ahmed"
@@ -13,10 +27,10 @@
     - text: Phone status
     - combobox "Phone status":
         - option "Any phone" [selected]
-        - option "Valid"
-        - option "Needs country"
-        - option "Invalid"
-        - option "Missing"
+        - option "Valid phone"
+        - option "Needs code"
+        - option "Invalid phone"
+        - option "No phone"
     - button "Date"
     - button "More filters"
     - button "Clear all filters": Clear · 1
@@ -27,8 +41,3 @@
     - option "Last activity"
     - option "Name"
 - button "Columns"
-- navigation "View":
-    - text: Table
-    - link "Board":
-        - /url: /pipeline?q=Karim
-- button "New lead"

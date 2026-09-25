@@ -399,40 +399,42 @@ function Board({
   return (
     <section className={s.screen}>
       <div className={l.toolbar}>
-        {catalog.pipelines.length > 1 && (
-          <label className={l.select}>
-            <span className={l.srOnly}>Pipeline</span>
-            <select
-              aria-label="Pipeline"
-              value={pipeline.id}
-              onChange={(e) => router.push(`/pipeline?pipeline=${encodeURIComponent(e.target.value)}`)}
-            >
-              {catalog.pipelines.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <FilterBar
-          session={session}
-          catalog={catalog}
-          filters={filters}
-          onChange={setFilters}
-          contactsVisible={contactsVisible}
-          hideStage
-        />
-        <div className={l.right}>
-          <nav className={l.views} aria-label="View">
-            <Link href={tableHref}>Table</Link>
-            <span aria-current="page">Board</span>
-          </nav>
-          {mayCreate && (
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              New lead
-            </Button>
+        <div className={l.bar}>
+          {catalog.pipelines.length > 1 && (
+            <label className={l.select}>
+              <span className={l.srOnly}>Pipeline</span>
+              <select
+                aria-label="Pipeline"
+                value={pipeline.id}
+                onChange={(e) => router.push(`/pipeline?pipeline=${encodeURIComponent(e.target.value)}`)}
+              >
+                {catalog.pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
+          <FilterBar
+            session={session}
+            catalog={catalog}
+            filters={filters}
+            onChange={setFilters}
+            contactsVisible={contactsVisible}
+            hideStage
+          />
+          <div className={l.right}>
+            <nav className={l.views} aria-label="View">
+              <Link href={tableHref}>Table</Link>
+              <span aria-current="page">Board</span>
+            </nav>
+            {mayCreate && (
+              <Button variant="primary" onClick={() => setCreating(true)}>
+                New lead
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

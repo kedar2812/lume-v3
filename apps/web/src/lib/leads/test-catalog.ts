@@ -119,6 +119,7 @@ export function testCatalog(over: Partial<Catalog> = {}): Catalog {
     lostReasons: [{ id: "r-price", label: "Price", position: 0 }],
     products: [{ id: "pr-sig", name: "Signature 12-week", defaultValue: 4500, currency: "AED" }],
     currency: "AED",
+    country: "AE",
     ...over,
   };
 }

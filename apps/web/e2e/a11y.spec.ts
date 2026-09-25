@@ -81,7 +81,11 @@ const CHECKS: Check[] = [
     who: "owner",
     ready: async (p) => {
       await p.getByRole("button", { name: "New lead" }).first().click();
-      await p.getByRole("dialog", { name: "New lead" }).waitFor();
+      await p
+        .getByRole("dialog", { name: "New lead" })
+        .getByRole("button", { name: /^Country code/ })
+        .click();
+      await p.getByRole("listbox", { name: "Countries" }).waitFor(); // checked with the country list open
     },
   },
   {

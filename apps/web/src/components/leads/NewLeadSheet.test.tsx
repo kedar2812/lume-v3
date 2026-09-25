@@ -73,6 +73,29 @@ describe("NewLeadSheet", () => {
     expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "new" }));
   });
 
+  it("adds the business country's code to a number typed without one, and another country's when picked", async () => {
+    vi.mocked(leadsClient.create).mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: { lead: testLead({ id: "new" }), duplicates: [] },
+    });
+    open();
+    await userEvent.type(screen.getByLabelText("Name"), "Aisha Khan");
+    expect(screen.getByRole("button", { name: /^Country code/ })).toHaveAccessibleName(
+      "Country code: United Arab Emirates +971",
+    );
+    await userEvent.type(screen.getByLabelText("Phone"), "050 123 4567");
+    await userEvent.click(screen.getByRole("button", { name: "Create lead" }));
+    expect(leadsClient.create).toHaveBeenLastCalledWith(expect.objectContaining({ phone: "+971501234567" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /^Country code/ }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search countries" }), "india{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: "Create lead" }));
+    expect(leadsClient.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ phone: "+91 050 123 4567" }),
+    );
+  });
+
   it("warns about a duplicate as the phone is typed, naming the owner only when allowed", async () => {
     vi.mocked(leadsClient.duplicates).mockResolvedValue(
       ok({

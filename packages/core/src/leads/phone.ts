@@ -1,4 +1,10 @@
-import { parsePhoneNumberFromString, type CountryCode, type PhoneNumber } from "libphonenumber-js/max";
+import {
+  getCountries,
+  getCountryCallingCode,
+  parsePhoneNumberFromString,
+  type CountryCode,
+  type PhoneNumber,
+} from "libphonenumber-js/max";
 
 export type PhoneStatus = "valid" | "needs_country" | "invalid" | "missing";
 export type NormalizedPhone = {
@@ -43,4 +49,51 @@ export function normalizePhone(
 
 export function formatPhone(e164: string): string {
   return parsePhoneNumberFromString(e164)?.formatInternational() ?? e164;
+}
+
+export type DialCountry = { iso: string; code: string };
+let dial: DialCountry[] | null = null;
+
+/** Every country a phone number can belong to, with its calling code (without the "+"). */
+export function dialCountries(): DialCountry[] {
+  dial ??= getCountries().map((iso) => ({ iso, code: String(getCountryCallingCode(iso)) }));
+  return dial;
+}
+
+/**
+ * A stored number as the phone field shows it: the country (read from an international number, or the
+ * business default) and the rest. An international number that isn't valid yet still gives its country,
+ * by the longest calling code it starts with.
+ */
+export function splitPhone(
+  value: string | null | undefined,
+  defaultCountry: string | null,
+): { country: string | null; national: string } {
+  const raw = value?.trim() ?? "";
+  if (!raw.startsWith("+")) return { country: defaultCountry, national: raw };
+  const p = parsePhoneNumberFromString(raw);
+  if (p?.country) return { country: p.country, national: String(p.nationalNumber) };
+  const digits = raw.replace(/\D/g, "");
+  const match = dialCountries()
+    .filter((c) => digits.startsWith(c.code))
+    .sort(
+      (a, b) =>
+        b.code.length - a.code.length || Number(b.iso === defaultCountry) - Number(a.iso === defaultCountry),
+    )[0];
+  return match
+    ? { country: match.iso, national: digits.slice(match.code.length) }
+    : { country: defaultCountry, national: raw };
+}
+
+/**
+ * The number to save: the chosen country's code in front of what was typed. A valid number is saved in
+ * E.164 (so a typed trunk "0" is dropped); anything else is kept as typed, behind the code, for the server
+ * to judge. A pasted international number wins over the picker.
+ */
+export function joinPhone(country: string | null, national: string): string {
+  const typed = national.trim();
+  if (!typed || typed.startsWith("+") || !country) return typed;
+  const p = parsePhoneNumberFromString(typed, country as CountryCode);
+  if (p?.isValid()) return p.number;
+  return `+${getCountryCallingCode(country as CountryCode)} ${typed}`;
 }

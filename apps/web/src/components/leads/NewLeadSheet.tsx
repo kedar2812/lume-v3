@@ -13,6 +13,7 @@ import { can, scopeOf } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { IconButton } from "@/components/ui/IconButton";
+import { PhoneInput } from "@/components/ui/PhoneInput";
 import { leadsClient } from "@/lib/leads/client";
 import { tokenColor } from "@/lib/leads/colors";
 import { fieldErrors } from "@/lib/leads/errors";
@@ -275,20 +276,15 @@ export function NewLeadSheet({
 
           <div className={s.pair}>
             {writable("phone") && (
-              <Field
-                label="Phone"
-                hint="Include the country code, like +971, so WhatsApp can open it"
-                error={errors.phone}
-              >
+              <Field label="Phone" error={errors.phone}>
                 {(c) => (
-                  <input
+                  <PhoneInput
                     {...c}
-                    type="tel"
-                    autoComplete="off"
-                    maxLength={40}
                     value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value);
+                    defaultCountry={catalog.country}
+                    onChange={(v) => {
+                      setPhone(v);
+                      setDirty(true);
                       clearError("phone");
                     }}
                   />

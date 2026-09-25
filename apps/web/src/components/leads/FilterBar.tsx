@@ -9,10 +9,10 @@ import type { Session } from "@/server/session";
 import s from "./leads.module.css";
 
 const PHONE_LABEL: Record<PhoneStatus, string> = {
-  valid: "Valid",
-  needs_country: "Needs country",
-  invalid: "Invalid",
-  missing: "Missing",
+  valid: "Valid phone",
+  needs_country: "Needs code",
+  invalid: "Invalid phone",
+  missing: "No phone",
 };
 
 const Caret = () => (
@@ -119,8 +119,8 @@ export function FilterBar({
 
       {viewScope && viewScope !== "own" && (
         <Select label="Owner" value={filters.owner ?? ""} onChange={(v) => set({ owner: v || undefined })}>
-          <option value="">Anyone</option>
-          <option value="me">Me</option>
+          <option value="">Any owner</option>
+          <option value="me">My leads</option>
           {viewScope === "all" && <option value="none">Unassigned</option>}
           {catalog.people
             .filter((p) => p.active && p.id !== session.user.id)

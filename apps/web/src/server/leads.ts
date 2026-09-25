@@ -25,7 +25,7 @@ export async function loadCatalog(): Promise<Catalog> {
     apiGet<{ tags: Tag[] }>("/api/v1/tags"),
     apiGet<{ lostReasons: LostReason[] }>("/api/v1/lost-reasons"),
     apiGet<{ products: Product[] }>("/api/v1/products"),
-    apiGet<{ currency: string }>("/api/v1/settings"),
+    apiGet<{ currency: string; defaultCountry: string | null }>("/api/v1/settings"),
   ]);
   return {
     pipelines: pipelines.data?.pipelines ?? [],
@@ -35,6 +35,7 @@ export async function loadCatalog(): Promise<Catalog> {
     lostReasons: reasons.data?.lostReasons ?? [],
     products: products.data?.products ?? [],
     currency: settings.data?.currency ?? "AED",
+    country: settings.data?.defaultCountry ?? null,
   };
 }
 

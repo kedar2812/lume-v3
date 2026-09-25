@@ -22,6 +22,7 @@ vi.mock("@/lib/leads/client", () => ({
     create: vi.fn(),
     duplicates: vi.fn(),
     bulk: vi.fn(),
+    counts: vi.fn(),
   },
   PAGE_SIZE: 50,
 }));
@@ -88,6 +89,11 @@ const admin = () =>
   });
 
 beforeEach(() => {
+  vi.mocked(leadsClient.counts).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { counts: { "s-new": 3, "s-sent": 1 }, total: 4 },
+  });
   vi.mocked(leadsClient.list).mockReset();
   window.history.replaceState(null, "", "/leads");
   localStorage.clear();
@@ -347,6 +353,68 @@ describe("LeadsScreen", () => {
   it("shows no selection column to someone without bulk editing", () => {
     view();
     expect(screen.queryByRole("checkbox", { name: /^Select/ })).not.toBeInTheDocument();
+  });
+
+  it("shows every stage with its count, and filters by one in a click", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    view();
+    const stages = screen.getByRole("group", { name: "Stages" });
+    expect(await within(stages).findByRole("button", { name: "All stages, 4 leads" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const fresh = within(stages).getByRole("button", { name: "New, 3 leads" });
+    expect(within(stages).getByRole("button", { name: "Call booked, 0 leads" })).toBeInTheDocument();
+    await userEvent.click(fresh);
+    expect(fresh).toHaveAttribute("aria-pressed", "true");
+    await vi.waitFor(() =>
+      expect(leadsClient.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ stageIds: ["s-new"] }),
+        undefined,
+      ),
+    );
+    expect(address()).toBe("/leads?stage=s-new");
+    // The counts describe the other filters, so they don't collapse to the one stage picked.
+    expect(leadsClient.counts).toHaveBeenLastCalledWith(expect.objectContaining({ stageIds: [] }));
+    await userEvent.click(fresh); // again: back to all
+    expect(within(stages).getByRole("button", { name: "All stages, 4 leads" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("combines stages with Ctrl or ⌘ held", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    const user = userEvent.setup(); // one session, so the held key reaches the click
+    view();
+    const stages = screen.getByRole("group", { name: "Stages" });
+    await user.click(await within(stages).findByRole("button", { name: /^New,/ }));
+    await user.keyboard("{Control>}");
+    await user.click(within(stages).getByRole("button", { name: /^Message sent,/ }));
+    await user.keyboard("{/Control}");
+    expect(address()).toBe("/leads?stage=s-new%2Cs-sent");
+  });
+
+  it("opens New lead with N, and says so on the button", async () => {
+    vi.mocked(leadsClient.duplicates).mockResolvedValue({ ok: true, status: 200, data: { duplicates: [] } });
+    view({ session: admin() });
+    expect(screen.getAllByRole("button", { name: "New lead" })[0]).toHaveAttribute("title", "New lead (N)");
+    await userEvent.keyboard("n");
+    expect(await screen.findByRole("dialog", { name: "New lead" })).toBeInTheDocument();
+  });
+
+  it("names what each filter is about, even when it's set to anything", () => {
+    view({ session: admin() });
+    expect(screen.getByRole("combobox", { name: "Owner" })).toHaveDisplayValue("Any owner");
+    expect(screen.getByRole("combobox", { name: "Phone status" })).toHaveDisplayValue("Any phone");
   });
 
   it("offers no editing where the person can't edit", () => {

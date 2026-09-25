@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
+import { PhoneInput } from "@/components/ui/PhoneInput";
 import { Switch } from "@/components/ui/Switch";
 import type { FieldDefView } from "@/lib/leads/types";
 import { useCatalog } from "../CatalogProvider";
@@ -163,6 +164,20 @@ export function FieldEditor({ def, value, onCommit, onCancel, autoFocus, error, 
           inForm={inForm}
           message={message}
           focusRef={first}
+        />
+      );
+
+    case "phone":
+      return (
+        <PhoneEditor
+          def={def}
+          value={typeof value === "string" ? value : ""}
+          defaultCountry={catalog.country}
+          onCommit={onCommit}
+          onCancel={onCancel}
+          inForm={inForm}
+          autoFocus={autoFocus}
+          message={message}
         />
       );
 
@@ -401,5 +416,71 @@ function MultiEditor({
       )}
       {message}
     </fieldset>
+  );
+}
+
+/**
+ * A phone: country and number (PhoneInput). Enter saves, Escape cancels; leaving the whole field saves,
+ * but moving between the number and the country list doesn't, so half a number is never saved.
+ */
+function PhoneEditor({
+  def,
+  value,
+  defaultCountry,
+  onCommit,
+  onCancel,
+  inForm,
+  autoFocus,
+  message,
+}: {
+  def: FieldDefView;
+  value: string;
+  defaultCountry: string | null;
+  onCommit: (v: unknown) => void;
+  onCancel: () => void;
+  inForm: boolean;
+  autoFocus?: boolean;
+  message: ReactNode;
+}) {
+  const [draft, setDraft] = useState(value);
+  const done = useRef(false);
+  const commit = () => {
+    if (done.current) return;
+    done.current = true;
+    if (draft.trim() === value.trim()) return onCancel();
+    onCommit(draft.trim() || null);
+  };
+  return (
+    <div
+      className={s.wrap}
+      onBlur={(e) => {
+        // The country list floats in a portal: focus moving there hasn't left the field.
+        const to = e.relatedTarget as HTMLElement | null;
+        if (!inForm && !e.currentTarget.contains(to) && !to?.closest("[data-phone-panel]")) commit();
+      }}
+    >
+      <PhoneInput
+        aria-label={def.label}
+        value={draft}
+        defaultCountry={defaultCountry}
+        size="sm"
+        autoFocus={autoFocus}
+        onChange={(v) => {
+          setDraft(v);
+          if (inForm) onCommit(v || null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            done.current = true;
+            onCancel();
+          } else if (e.key === "Enter" && !inForm) {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
+      {message}
+    </div>
   );
 }

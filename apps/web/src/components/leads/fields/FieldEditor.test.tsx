@@ -19,6 +19,39 @@ const edit = (key: string, value: unknown, catalog = cat) => {
 };
 
 describe("FieldEditor", () => {
+  it("edits a phone as its country and number, saving the whole number on Enter", async () => {
+    const a = edit("phone", "+971501234567");
+    expect(screen.getByRole("button", { name: /^Country code/ })).toHaveAccessibleName(
+      "Country code: United Arab Emirates +971",
+    );
+    const box = screen.getByRole("textbox", { name: "Phone" });
+    expect(box).toHaveFocus();
+    expect(box).toHaveValue("501234567");
+    await userEvent.clear(box);
+    await userEvent.type(box, "52 000 1111{Enter}");
+    expect(a.onCommit).toHaveBeenCalledWith("+971520001111");
+  });
+
+  it("doesn't save half a phone number while the country list is in use", async () => {
+    const a = edit("phone", "+971501234567");
+    await userEvent.click(screen.getByRole("button", { name: /^Country code/ }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search countries" }), "india{Enter}");
+    expect(a.onCommit).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Enter}"); // focus is back on the number
+    expect(a.onCommit).toHaveBeenCalledWith("+91 501234567");
+  });
+
+  it("cancels a phone edit on Escape, and clearing it saves nothing as empty", async () => {
+    const a = edit("phone", "+971501234567");
+    await userEvent.keyboard("{Escape}");
+    expect(a.onCancel).toHaveBeenCalled();
+    a.unmount();
+    const b = edit("phone", "+971501234567");
+    await userEvent.clear(screen.getByRole("textbox", { name: "Phone" }));
+    await userEvent.keyboard("{Enter}");
+    expect(b.onCommit).toHaveBeenCalledWith(null);
+  });
+
   it("commits text on Enter and cancels on Escape without saving", async () => {
     const a = edit("name", "Aisha");
     const box = screen.getByRole("textbox", { name: "Name" });

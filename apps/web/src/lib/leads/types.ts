@@ -75,6 +75,8 @@ export type Catalog = {
   products: Product[];
   /** The business currency (settings), the default for new values. */
   currency: string;
+  /** The business country (settings, ISO 3166 alpha-2): the phone picker's default. */
+  country: string | null;
 };
 
 export type Activity = {

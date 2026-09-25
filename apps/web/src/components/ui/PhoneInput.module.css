@@ -1,0 +1,193 @@
+/* A phone number: the country picker and the number, read as one field. */
+
+.phone {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition: box-shadow 0.2s;
+}
+.phone[data-size="sm"] {
+  height: 34px;
+  border-radius: 9px;
+}
+.phone:focus-within {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.phone:has(.number[aria-invalid="true"]) {
+  box-shadow:
+    inset 0 0 0 1.5px var(--danger),
+    0 0 0 4px var(--danger-soft);
+}
+
+.country {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 12px;
+  border-radius: 11px 0 0 11px;
+  border-right: 0.5px solid var(--line-2);
+  font-size: 0.875rem;
+  font-weight: 560;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s;
+}
+.phone[data-size="sm"] .country {
+  gap: 5px;
+  padding: 0 7px 0 9px;
+  font-size: 0.8125rem;
+}
+.country:hover,
+.country[aria-expanded="true"] {
+  background: var(--hover);
+}
+.country:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+}
+.chevron {
+  color: var(--text-3);
+}
+.flag,
+.noFlag {
+  flex: none;
+  width: 20px;
+  height: 14px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  object-fit: cover;
+}
+.noFlag {
+  background: var(--sunk);
+}
+
+/* The number box: plain, since the wrapper draws the field. Beats the Field component's input style. */
+.phone .number {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 14px 0 12px;
+  border: 0;
+  border-radius: 0 11px 11px 0;
+  background: none;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  font-size: 0.90625rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.phone .number:focus {
+  box-shadow: none;
+}
+.phone[data-size="sm"] .number {
+  padding: 0 10px 0 9px;
+  font-size: 0.8125rem;
+}
+
+.panel {
+  z-index: 85; /* over drawers, sheets and dialogs; under toasts */
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  max-height: 340px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  transform-origin: top left;
+  animation: grow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.panel .search {
+  flex: none;
+  height: 36px;
+  margin-bottom: 4px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  outline: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+.panel .search:focus {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.option[data-active] {
+  background: var(--hover);
+}
+.option[aria-selected="true"] {
+  font-weight: 600;
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.optionCode {
+  color: var(--text-2); /* --text-3 dips under 4.5:1 on the highlighted row in Obsidian */
+  font-variant-numeric: tabular-nums;
+}
+.tick {
+  color: var(--accent);
+}
+.none {
+  padding: 14px 10px;
+  font-size: 0.8125rem;
+  color: var(--text-3);
+}
+
+.panel[data-up] {
+  flex-direction: column-reverse;
+  transform-origin: bottom left;
+}
+.panel[data-up] .search {
+  margin: 4px 0 0;
+}
+
+@keyframes grow {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}

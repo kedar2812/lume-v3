@@ -10,6 +10,19 @@ const volatile = (page: Page) => [
   page.locator("[data-volatile]"), // relative times: "3h ago", "In New since today"
 ];
 
+/**
+ * Relative times are masked, but their width would still move what follows them ("just now" vs "2m ago"
+ * pushed the owner's name aside in CI). In screenshots each one gets the same fixed box.
+ */
+const FREEZE_VOLATILE = `[data-volatile] {
+  display: inline-block !important;
+  width: 88px !important;
+  height: 1.25em !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  vertical-align: bottom !important;
+}`;
+
 type Shot = { name: string; path: string; who: Who | null; ready: (p: Page) => Promise<unknown> };
 const SHOTS: Shot[] = [
   {
@@ -75,6 +88,7 @@ for (const theme of ["porcelain", "obsidian"] as const) {
         await expect(page).toHaveScreenshot(`${s.name}-${theme}.png`, {
           fullPage: true,
           mask: volatile(page),
+          style: FREEZE_VOLATILE,
         });
       });
     });

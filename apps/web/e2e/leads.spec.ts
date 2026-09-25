@@ -18,6 +18,25 @@ test.describe("the owner works leads", () => {
     await expect(page.getByRole("button", { name: "Open Aisha Duplicate" })).toBeVisible();
   });
 
+  test("the phone's country comes from the picker, and its code is added for you", async ({ page }) => {
+    await page.goto("/leads");
+    await page.keyboard.press("n"); // the shortcut the button's tooltip names
+    const sheet = page.getByRole("dialog", { name: "New lead" });
+    await sheet.getByLabel("Name").fill("Dev Mehta");
+    await sheet.getByRole("button", { name: /^Country code/ }).click();
+    await page.getByRole("combobox", { name: "Search countries" }).fill("india");
+    await page.getByRole("option", { name: "India +91" }).click();
+    await expect(sheet.getByRole("button", { name: /^Country code/ })).toHaveAccessibleName(
+      "Country code: India +91",
+    );
+    await expect(sheet.getByLabel("Phone")).toBeFocused();
+    await page.keyboard.type("98200 12345");
+    await sheet.getByRole("button", { name: "Create lead" }).click();
+    const drawer = page.getByRole("dialog", { name: "Dev Mehta" });
+    await expect(drawer.getByText("+91 98200 12345")).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "WhatsApp" })).toBeEnabled(); // a valid number, ready
+  });
+
   test("@smoke move through stages: required fields prompt, lost reason prompt", async ({ page }) => {
     await page.goto("/leads?q=Omar");
     await page.getByRole("button", { name: "Open Omar Haddad" }).click();

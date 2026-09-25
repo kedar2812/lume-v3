@@ -1,7 +1,7 @@
 "use client";
 import { AnimatePresence } from "motion/react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { can } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -20,6 +20,7 @@ import { EditableCell } from "./EditableCell";
 import { FilterBar } from "./FilterBar";
 import { LeadsTable } from "./LeadsTable";
 import { NewLeadSheet } from "./NewLeadSheet";
+import { StageStrip } from "./StageStrip";
 import { editable, useLeadEditor } from "./useLeadEditor";
 import s from "./leads.module.css";
 
@@ -91,6 +92,32 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
   };
 }
 
+/**
+ * How many leads each stage holds under the other filters (not the stage filter itself, so the strip
+ * never collapses to the stage you picked). Refetched when the filters change or a lead moves.
+ */
+function useStageCounts(filters: ListFilters, pipelineId: string | undefined, tick: number) {
+  const [data, setData] = useState<{ counts: Record<string, number>; total: number } | null>(null);
+  const key = JSON.stringify({ ...filters, stageIds: [], sort: undefined });
+  useEffect(() => {
+    if (!pipelineId) return;
+    let live = true;
+    const f = { ...(JSON.parse(key) as ListFilters), stageIds: [], sort: "newest" as Sort, pipelineId };
+    const t = setTimeout(
+      async () => {
+        const r = await leadsClient.counts(f);
+        if (live && r.ok) setData(r.data);
+      },
+      f.q ? 250 : 0,
+    );
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [key, pipelineId, tick]);
+  return data;
+}
+
 const SORTS: { value: Sort; label: string }[] = [
   { value: "newest", label: "Newest first" },
   { value: "oldest", label: "Oldest first" },
@@ -121,6 +148,26 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
   const [selected, setSelected] = useState<string[]>([]);
   const anchor = useRef<string | null>(null);
   const editor = useLeadEditor(list.replace);
+  const pipeline =
+    catalog.pipelines.find((p) => p.id === filters.pipelineId) ??
+    catalog.pipelines.find((p) => p.isDefault) ??
+    catalog.pipelines[0];
+  const [countsTick, recount] = useReducer((n: number) => n + 1, 0);
+  const stageCounts = useStageCounts(filters, pipeline?.id, countsTick);
+
+  // N starts a new lead from anywhere on the page that isn't a field or an open panel.
+  useEffect(() => {
+    if (!mayCreate || openId || creating) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "n" || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable], [role=dialog]"))
+        return;
+      e.preventDefault();
+      setCreating(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mayCreate, openId, creating]);
 
   // The saved column choice lives in this browser, so it's read after mount (the server can't know it).
   useEffect(() => setChosen(loadColumnChoice(session.user.id)), [session.user.id]);
@@ -206,7 +253,7 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
           body="New leads from your forms, or ones you add, will appear here."
           action={
             mayCreate ? (
-              <Button variant="primary" onClick={() => setCreating(true)}>
+              <Button variant="primary" title="New lead (N)" onClick={() => setCreating(true)}>
                 New lead
               </Button>
             ) : undefined
@@ -290,38 +337,54 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
   return (
     <section className={s.screen}>
       <div className={s.toolbar} data-testid="leads-toolbar">
-        <FilterBar
-          session={session}
-          catalog={catalog}
-          filters={filters}
-          onChange={setFilters}
-          contactsVisible={contactsVisible}
-        />
-        <div className={s.right}>
-          <label className={s.select}>
-            <span className={s.srOnly}>Sort</span>
-            <select
-              aria-label="Sort"
-              value={filters.sort}
-              onChange={(e) => setFilters({ ...filters, sort: e.target.value as Sort })}
-            >
-              {SORTS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <ColumnPicker available={available} chosen={columns.map((c) => c.id)} onChange={chooseColumns} />
-          <nav className={s.views} aria-label="View">
-            <span aria-current="page">Table</span>
-            <Link href={boardHref}>Board</Link>
-          </nav>
-          {mayCreate && (
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              New lead
-            </Button>
+        <div className={`${s.bar} ${s.stagesBar}`}>
+          {pipeline && (
+            <StageStrip
+              stages={[...pipeline.stages].sort((a, b) => a.position - b.position)}
+              counts={stageCounts?.counts ?? null}
+              total={stageCounts?.total ?? null}
+              selected={filters.stageIds}
+              onChange={(stageIds) => setFilters({ ...filters, stageIds })}
+            />
           )}
+          <div className={s.right}>
+            <nav className={s.views} aria-label="View">
+              <span aria-current="page">Table</span>
+              <Link href={boardHref}>Board</Link>
+            </nav>
+            {mayCreate && (
+              <Button variant="primary" title="New lead (N)" onClick={() => setCreating(true)}>
+                New lead
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className={s.bar}>
+          <FilterBar
+            session={session}
+            catalog={catalog}
+            filters={filters}
+            onChange={setFilters}
+            contactsVisible={contactsVisible}
+            hideStage
+          />
+          <div className={s.right}>
+            <label className={s.select}>
+              <span className={s.srOnly}>Sort</span>
+              <select
+                aria-label="Sort"
+                value={filters.sort}
+                onChange={(e) => setFilters({ ...filters, sort: e.target.value as Sort })}
+              >
+                {SORTS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <ColumnPicker available={available} chosen={columns.map((c) => c.id)} onChange={chooseColumns} />
+          </div>
         </div>
       </div>
       {body}
@@ -335,6 +398,7 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             onClear={() => setSelected([])}
             onDone={(result) => {
               list.reload();
+              recount();
               setSelected(result.skipped.map((x) => x.id));
             }}
           />
@@ -350,9 +414,13 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             neighbours={list.rows.map((r) => r.id)}
             onClose={() => setOpenId(null)}
             onStep={setOpenId}
-            onChanged={list.replace}
+            onChanged={(lead) => {
+              list.replace(lead);
+              recount();
+            }}
             onGone={(id) => {
               list.removeRow(id);
+              recount();
               setOpenId(null);
             }}
           />
@@ -367,6 +435,7 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             onCreated={(lead) => {
               setCreating(false);
               list.prepend(lead);
+              recount();
               setOpenId(lead.id);
               toast({ tone: "ok", title: "Lead added", detail: lead.name });
             }}
