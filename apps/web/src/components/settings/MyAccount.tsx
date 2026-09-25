@@ -17,12 +17,13 @@ import s from "./settings.module.css";
  * The signed-in person's own account: their name and look, two-step sign-in (on, off where the role
  * allows it, and fresh recovery codes), and every device signed in, with a way to end the others.
  */
-export function MyAccount({ session }: { session: Session }) {
+export function MyAccount({ session, children }: { session: Session; children?: ReactNode }) {
   return (
     <div className={s.stack}>
       <Profile session={session} />
       <TwoStep session={session} />
       <Sessions />
+      {children}
     </div>
   );
 }

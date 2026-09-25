@@ -96,6 +96,9 @@ describe("PeopleAdmin", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send invite" }));
     expect(screen.getByText("Enter an email address, like name@company.com")).toBeInTheDocument();
     expect(screen.getByText("Add their name")).toBeInTheDocument();
+    // No role is picked for you: defaulting to the first (often Admin) could hand out full control.
+    expect(screen.getByLabelText("Role")).toHaveValue("");
+    expect(screen.getByText("Choose what they can do")).toBeInTheDocument();
     expect(invitesClient.create).not.toHaveBeenCalled();
   });
 
@@ -144,6 +147,7 @@ describe("PeopleAdmin", () => {
     render(<PeopleAdmin users={[]} invites={[]} roles={roles} session={admin()} />);
     await userEvent.type(screen.getByLabelText("Email"), "r@x.test");
     await userEvent.type(screen.getByLabelText("Name"), "Riya");
+    await userEvent.selectOptions(screen.getByLabelText("Role"), "r-sales");
     await userEvent.click(screen.getByRole("button", { name: "Send invite" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Someone with that email already uses LUME");
   });

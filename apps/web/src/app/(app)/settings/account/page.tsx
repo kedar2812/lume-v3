@@ -12,8 +12,9 @@ export default async function Page() {
       title="My account"
       description="Your name and look, how you sign in, and where you’re signed in."
     >
-      <MyAccount session={session} />
-      <ReplayTour />
+      <MyAccount session={session}>
+        <ReplayTour />
+      </MyAccount>
     </SettingsPage>
   );
 }

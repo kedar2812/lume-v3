@@ -312,8 +312,8 @@ function InviteForm({
 }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
-  const [errors, setErrors] = useState<{ email?: string; name?: string }>({});
+  const [roleId, setRoleId] = useState(""); // chosen on purpose, never defaulted to the first (often Admin)
+  const [errors, setErrors] = useState<{ email?: string; name?: string; role?: string }>({});
   const [busy, setBusy] = useState(false);
 
   return (
@@ -327,9 +327,10 @@ function InviteForm({
         const next = {
           email: EMAIL.test(email.trim()) ? undefined : "Enter an email address, like name@company.com",
           name: name.trim() ? undefined : "Add their name",
+          role: roleId || roles.length === 0 ? undefined : "Choose what they can do",
         };
         setErrors(next);
-        if (next.email || next.name) return;
+        if (next.email || next.name || next.role) return;
         setBusy(true);
         const sent = await onSend({
           email: email.trim(),
@@ -340,6 +341,7 @@ function InviteForm({
         if (sent) {
           setEmail("");
           setName("");
+          setRoleId("");
         }
       }}
     >
@@ -378,10 +380,19 @@ function InviteForm({
             />
           )}
         </Field>
-        <Field label="Role">
+        <Field label="Role" error={errors.role}>
           {(control) => (
-            <select {...control} value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-              {roles.length === 0 && <option value="">No role</option>}
+            <select
+              {...control}
+              value={roleId}
+              onChange={(e) => {
+                setRoleId(e.target.value);
+                setErrors((x) => ({ ...x, role: undefined }));
+              }}
+            >
+              <option value="" disabled={roles.length > 0}>
+                {roles.length ? "Choose a role" : "No role"}
+              </option>
               {roles.map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.name}

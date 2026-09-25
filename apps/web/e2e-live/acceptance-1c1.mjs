@@ -232,10 +232,10 @@ await owner.goto("/today?tour=1");
 await card.waitFor();
 await shot(owner, "03b-tour-obsidian");
 await owner.keyboard.press("Escape");
-await owner.goto("/settings");
+await owner.goto("/settings/account");
 await owner.getByRole("button", { name: /replay the tour/i }).click();
 await card.waitFor();
-ok("the tour replays from Settings");
+ok("the tour replays from Settings → My account");
 await owner.keyboard.press("Escape");
 
 // 4 ─ the admin's invite: two-step sign-in comes first ─────────────────────────────────────────────
