@@ -49,6 +49,8 @@ export type Stage = {
   position: number;
   kind: "open" | "won" | "lost";
   requiredFieldIds: string[];
+  /** Hours a lead may sit here before it counts as overdue; null for no limit. */
+  slaHours?: number | null;
 };
 export type Pipeline = { id: string; name: string; isDefault: boolean; stages: Stage[] };
 export type FieldDefView = {

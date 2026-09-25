@@ -453,3 +453,202 @@
   letter-spacing: var(--ls-sm);
   color: var(--text-2);
 }
+
+/* ── pipeline & stages ── */
+.inlineSelect {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.inlineSelect select {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text);
+}
+.extras {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatchBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.swatchBtn:hover {
+  background: var(--hover);
+}
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+}
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(7, 28px);
+  gap: 4px;
+  padding: 6px;
+}
+.swatchChoice {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.swatchChoice input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.swatchChoice:hover {
+  background: var(--hover);
+}
+.swatchChoice:has(input:checked) {
+  box-shadow: inset 0 0 0 1.5px var(--text-2);
+}
+.swatchChoice:has(input:focus-visible) {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.kind {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--sunk);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.kind[data-kind="won"] {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.kind[data-kind="lost"] {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+.needsBtn {
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.needsBtn:hover {
+  background: var(--hover);
+}
+.needsBtn[data-active] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.needs {
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+  padding: 6px;
+  border: 0;
+}
+.needs legend {
+  padding: 4px 6px 6px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 7px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  cursor: pointer;
+}
+.check:hover {
+  background: var(--hover);
+}
+.sla {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.sla input {
+  width: 48px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--sunk);
+  text-align: right;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  outline: 0;
+  appearance: textfield;
+}
+.sla input::-webkit-inner-spin-button {
+  display: none;
+}
+.sla input:focus {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.undo {
+  margin-left: 8px;
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+}
+.targets {
+  display: grid;
+  gap: 2px;
+  margin-top: 12px;
+}
+.target {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  cursor: pointer;
+}
+.target:hover {
+  background: var(--hover);
+}
+.target:has(input:checked) {
+  background: var(--accent-soft);
+}
+@media (max-width: 640px) {
+  .row:has(.extras) {
+    flex-wrap: wrap;
+  }
+  .row .extras {
+    order: 3;
+    width: 100%;
+    padding-left: 32px;
+  }
+}

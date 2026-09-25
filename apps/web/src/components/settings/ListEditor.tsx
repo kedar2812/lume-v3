@@ -19,6 +19,7 @@ export function ListEditor<T extends ListItem>({
   onReorder,
   onArchive,
   renderExtra,
+  askToArchive,
   archiveNote = "Leads keep it; it just can’t be picked any more.",
 }: {
   items: T[];
@@ -30,6 +31,8 @@ export function ListEditor<T extends ListItem>({
   onReorder?: (ids: string[]) => void;
   onArchive?: (id: string) => void;
   renderExtra?: (item: T) => ReactNode;
+  /** Ask about archiving yourself (when it needs a choice, like where a stage's leads go). */
+  askToArchive?: (id: string) => void;
   archiveNote?: string;
 }) {
   const [draft, setDraft] = useState("");
@@ -146,12 +149,12 @@ export function ListEditor<T extends ListItem>({
                     </svg>
                   </button>
                 )}
-                {onArchive && (
+                {(onArchive || askToArchive) && (
                   <button
                     type="button"
                     className={s.iconBtn}
                     aria-label={`Archive ${item.label}`}
-                    onClick={() => setAsking(item.id)}
+                    onClick={() => (askToArchive ? askToArchive(item.id) : setAsking(item.id))}
                   >
                     <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
                       <path
