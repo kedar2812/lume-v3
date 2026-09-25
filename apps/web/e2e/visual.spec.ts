@@ -84,11 +84,23 @@ for (const theme of ["porcelain", "obsidian"] as const) {
         await context.addCookies([{ name: "lume_theme", value: theme, url: "http://127.0.0.1:3100" }]);
         await page.goto(s.path);
         await s.ready(page);
+        await page.addStyleTag({ content: FREEZE_VOLATILE });
+        // Proven, not assumed: every visible relative time now takes exactly the same room.
+        const widths = await page
+          .locator("[data-volatile]")
+          .evaluateAll((els) =>
+            els
+              .filter((e) => e.getClientRects().length > 0)
+              .map((e) => Math.round(e.getBoundingClientRect().width)),
+          );
+        expect(
+          widths.every((w) => w === 88),
+          `relative-time boxes: ${widths.join(", ")}`,
+        ).toBe(true);
         await settle(page);
         await expect(page).toHaveScreenshot(`${s.name}-${theme}.png`, {
           fullPage: true,
           mask: volatile(page),
-          style: FREEZE_VOLATILE,
         });
       });
     });
