@@ -146,6 +146,21 @@ describe("NewLeadSheet", () => {
     expect(await screen.findByText("Enter a valid email address")).toBeInTheDocument();
   });
 
+  it("closes without asking when only the country list was searched", async () => {
+    const onClose = vi.fn();
+    render(
+      <CatalogProvider catalog={testCatalog()}>
+        <NewLeadSheet session={creator()} onCreated={vi.fn()} onClose={onClose} />
+      </CatalogProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Country code/ }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search countries" }), "ind");
+    await userEvent.keyboard("{Escape}"); // closes the list
+    await userEvent.keyboard("{Escape}"); // closes the sheet: nothing was typed into the lead
+    expect(onClose).toHaveBeenCalled();
+    expect(screen.queryByText("Discard this lead?")).not.toBeInTheDocument();
+  });
+
   it("offers an owner picker only to someone who may assign", () => {
     open();
     expect(screen.queryByLabelText("Owner")).not.toBeInTheDocument();

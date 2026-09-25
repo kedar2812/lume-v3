@@ -265,8 +265,30 @@ describe("LeadDrawer", () => {
     );
     const details = await screen.findByRole("region", { name: "Details" });
     expect(details).toHaveTextContent("Deal value");
-    for (const label of ["Handled by (owner)", "Stage", "Source"])
-      expect(details).not.toHaveTextContent(label);
+    for (const label of ["Handled by (owner)", "Stage"]) expect(details).not.toHaveTextContent(label);
+  });
+
+  it("says where a lead came from in its details", async () => {
+    const cat = testCatalog();
+    cat.fields.push({
+      id: "f-source",
+      key: "source",
+      label: "Source",
+      type: "text",
+      options: [],
+      isCore: true,
+      isRequired: false,
+      archived: false,
+      access: "view",
+    });
+    vi.mocked(leadsClient.get).mockResolvedValue(ok({ lead: testLead({ sourceId: null }) }));
+    render(
+      <CatalogProvider catalog={cat}>
+        <LeadDrawer id="l1" session={rep()} neighbours={["l1"]} {...handlers()} />
+      </CatalogProvider>,
+    );
+    const details = await screen.findByRole("region", { name: "Details" });
+    expect(details).toHaveTextContent("SourceAdded in LUME");
   });
 
   it("shows the history in words", async () => {

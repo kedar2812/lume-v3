@@ -56,6 +56,30 @@ describe("PhoneInput", () => {
     expect(value()).toBe("+919820012345");
   });
 
+  it("searches by country name and by number alike, however they're typed", async () => {
+    render(<Harness />);
+    await userEvent.click(country());
+    const search = screen.getByRole("combobox", { name: "Search countries" });
+    expect(search).toHaveAttribute("placeholder", "Country name or code, like India or 91");
+    const first = () => within(screen.getByRole("listbox")).getAllByRole("option")[0];
+    for (const [query, expected] of [
+      ["india", "India +91"],
+      ["IND", "India +91"],
+      ["91", "India +91"],
+      ["+91", "India +91"],
+      ["0091", "India +91"],
+      ["india 91", "India +91"],
+      ["91 ind", "India +91"],
+      ["971501234567", "United Arab Emirates +971"], // a whole number finds its country
+      ["+44 20 7946", "United Kingdom +44"],
+      ["united 44", "United Kingdom +44"],
+    ] as const) {
+      await userEvent.clear(search);
+      await userEvent.type(search, query);
+      expect(first(), query).toHaveAccessibleName(expected);
+    }
+  });
+
   it("works from the keyboard: arrows choose, Enter picks, Escape closes without picking", async () => {
     render(<Harness />);
     await userEvent.click(country());

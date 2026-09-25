@@ -237,7 +237,10 @@ export function NewLeadSheet({
         className={d.drawer}
         onSubmit={submit}
         onKeyDown={trap}
-        onChange={() => {
+        onChange={(e) => {
+          // Searching a picker's list (it floats in a portal, but its events reach the form) isn't
+          // typing into the lead.
+          if ((e.target as HTMLElement).closest("[data-search-panel]")) return;
           setDirty(true);
           setConfirmDiscard(false);
         }}

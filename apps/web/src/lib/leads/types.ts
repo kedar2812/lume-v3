@@ -24,6 +24,8 @@ export type Lead = {
   value?: number | null;
   currency?: string | null;
   productId?: string | null;
+  /** Where the lead came in from (an intake source); null when someone added it in LUME. */
+  sourceId?: string | null;
   lostReasonId?: string | null;
   lostNote?: string | null;
   wonAt?: string | null;

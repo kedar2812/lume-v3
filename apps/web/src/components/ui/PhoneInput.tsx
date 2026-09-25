@@ -44,23 +44,57 @@ export function countries(): Country[] {
   return cached;
 }
 
-/** Search by name ("ind", "emirats" without accents), ISO code, or calling code ("+44", "971"). */
+const NUMBER = /^(\+|00)?\d+$/;
+const digitsOf = (w: string) => w.replace(/^(\+|00)/, "");
+
+/** Rank for a dialling-code search: the exact code (its main country first), then codes at the front of
+ * a longer number (the longest first), then codes that start with what was typed (the shortest first). */
+function byNumber(all: Country[], digits: string): Country[] {
+  const rank = (c: Country) =>
+    c.code === digits
+      ? MAIN[c.code] === c.iso || !MAIN[c.code]
+        ? 0
+        : 1
+      : digits.startsWith(c.code)
+        ? 2 + (10 - c.code.length) / 100
+        : 3 + c.code.length / 100;
+  return all
+    .filter((c) => c.code.startsWith(digits) || digits.startsWith(c.code))
+    .sort((a, b) => rank(a) - rank(b) || (MAIN[a.code] === a.iso ? -1 : MAIN[b.code] === b.iso ? 1 : 0));
+}
+
+/**
+ * Search by country name ("ind", "emirats" without accents), ISO code ("IN"), dialling code ("91",
+ * "+91", "0091"), a whole number ("+971 50 123 4567" finds its country), or both ("india 91").
+ */
 export function searchCountries(all: Country[], query: string, preferred: string | null): Country[] {
   const q = fold(query.trim());
   if (!q) {
     const first = all.find((c) => c.iso === preferred);
     return first ? [first, ...all.filter((c) => c !== first)] : all;
   }
-  const digits = q.replace(/^\+|\s/g, "");
-  if (/^\d+$/.test(digits)) {
-    const rank = (c: Country) => (c.code === digits ? (MAIN[c.code] === c.iso ? 0 : 1) : 2);
-    return all
-      .filter((c) => c.code.startsWith(digits))
-      .sort((a, b) => rank(a) - rank(b) || a.code.length - b.code.length);
-  }
+  const compact = q.replace(/[\s\-().]/g, "");
+  if (NUMBER.test(compact)) return byNumber(all, digitsOf(compact));
+  const words = q.split(/\s+/).filter(Boolean);
+  const nums = words.filter((w) => NUMBER.test(w)).map(digitsOf);
+  const names = words.filter((w) => !NUMBER.test(w));
+  const first = names[0] ?? "";
   const rank = (c: Country) =>
-    c.key.startsWith(q) ? 0 : c.key.split(/[\s-]/).some((w) => w.startsWith(q)) ? 1 : 2;
-  return all.filter((c) => c.key.includes(q) || c.iso.toLowerCase() === q).sort((a, b) => rank(a) - rank(b));
+    (nums.some((d) => d === c.code) ? 0 : 1) * 10 +
+    (c.iso.toLowerCase() === first
+      ? 0
+      : c.key.startsWith(first)
+        ? 1
+        : c.key.split(/[\s-]/).some((w) => w.startsWith(first))
+          ? 2
+          : 3);
+  return all
+    .filter(
+      (c) =>
+        names.every((n) => c.key.includes(n) || c.iso.toLowerCase() === n) &&
+        nums.every((d) => c.code.startsWith(d) || d.startsWith(c.code)),
+    )
+    .sort((a, b) => rank(a) - rank(b));
 }
 
 type Props = {
@@ -184,7 +218,7 @@ export function PhoneInput({
           selected={country}
           searchLabel="Search countries"
           listLabel="Countries"
-          placeholder="Country or code"
+          placeholder="Country name or code, like India or 91"
           emptyText={(q) => `No country matches “${q}”`}
           onPick={(item) => {
             setCountry(item.id);
