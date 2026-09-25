@@ -239,9 +239,11 @@ export function NewLeadSheet({
           setDirty(true);
           setConfirmDiscard(false);
         }}
-        initial={reduce ? { opacity: 0 } : { x: "calc(100% + 24px)" }}
-        animate={reduce ? { opacity: 1 } : { x: 0 }}
-        exit={reduce ? { opacity: 0 } : { x: "calc(100% + 24px)" }}
+        // The resting state names both properties: the server can't know the motion preference, so a
+        // drawer rendered there may start off-screen even for someone who then gets the fade.
+        initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
         transition={toMotion(SPRINGS.drawer)}
       >
         <div className={d.top}>

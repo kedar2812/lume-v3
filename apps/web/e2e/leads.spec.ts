@@ -45,6 +45,16 @@ test.describe("the owner works leads", () => {
     await expect(drawer.getByText("Moved to Call booked")).toBeVisible();
   });
 
+  test("a link to a lead opens its drawer on screen, also for someone who prefers less motion", async ({
+    page,
+  }) => {
+    await page.goto("/leads?q=Karim");
+    await page.getByRole("button", { name: "Open Karim Aziz" }).click();
+    const link = page.url();
+    await page.goto(link); // the drawer now arrives server-rendered, before the browser knows the preference
+    await expect(page.getByRole("dialog", { name: "Karim Aziz" })).toBeInViewport({ ratio: 0.9 });
+  });
+
   test("@smoke reassign: the previous rep loses the lead at once", async ({ page, browser }) => {
     await page.goto("/leads?q=Priya");
     await page.getByRole("button", { name: "Open Priya Menon" }).click();
@@ -60,7 +70,7 @@ test.describe("the owner works leads", () => {
     await p.locator("html[data-hydrated]").waitFor({ state: "attached" });
     await expect(p.getByRole("button", { name: "Open Priya Menon" })).toHaveCount(0);
     await p.goto(url.replace(/^.*?(\/leads)/, "$1"));
-    await expect(p.getByText(/isn’t available to you/i)).toBeVisible();
+    await expect(p.getByText(/isn’t available to you/i)).toBeInViewport(); // on screen, not just in the DOM
     await rep.close();
   });
 

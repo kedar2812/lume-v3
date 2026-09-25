@@ -311,5 +311,17 @@ await rep.waitForURL(/\/today$/);
 await shot(rep, "06-rep-signed-in-after-reset");
 ok("Riya signs in with the new password");
 
+// Hand the three signed-in sessions to acceptance-1c2.mjs when it runs next, in the same throwaway
+// container (the passwords and two-step keys above are random and never written anywhere).
+if (process.env.ACCEPT_STATE_DIR) {
+  mkdirSync(process.env.ACCEPT_STATE_DIR, { recursive: true });
+  for (const [who, page] of [
+    ["owner", owner],
+    ["admin", admin],
+    ["rep", rep],
+  ])
+    await page.context().storageState({ path: path.join(process.env.ACCEPT_STATE_DIR, `${who}.json`) });
+}
+
 await browser.close();
 console.log("acceptance 1C-1 passed");

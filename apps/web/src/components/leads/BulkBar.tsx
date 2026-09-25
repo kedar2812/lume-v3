@@ -90,9 +90,9 @@ export function BulkBar({
       aria-label="Bulk actions"
       aria-busy={busy || undefined}
       className={s.bar}
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 24 }}
-      animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
-      exit={reduce ? { opacity: 0 } : { opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: reduce ? 0 : 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: reduce ? 0 : 24 }}
       transition={toMotion(SPRINGS.default)}
     >
       {confirmDelete ? (
