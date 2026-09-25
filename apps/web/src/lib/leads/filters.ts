@@ -1,5 +1,5 @@
 import type { PhoneStatus } from "@lume/core/shared";
-import type { Catalog } from "./types";
+import type { Catalog, FieldDefView } from "./types";
 
 export type Sort = "newest" | "oldest" | "updated" | "name";
 export type ListFilters = {
@@ -12,7 +12,25 @@ export type ListFilters = {
   to?: string;
   sort: Sort;
   pipelineId?: string;
+  /** Custom-field filters: an option id, a person id, or true/false, by field key. */
+  custom?: Record<string, string | boolean>;
 };
+
+/** The custom-field types the API can filter on (a JSON containment probe). */
+export const FILTERABLE_TYPES = new Set(["select", "multi_select", "boolean", "user"]);
+export const filterableFields = (cat: Catalog): FieldDefView[] =>
+  cat.fields.filter((f) => !f.isCore && !f.archived && f.access !== "hidden" && FILTERABLE_TYPES.has(f.type));
+
+function customValue(def: FieldDefView, raw: string, cat: Catalog): string | boolean | undefined {
+  switch (def.type) {
+    case "boolean":
+      return raw === "true" ? true : raw === "false" ? false : undefined;
+    case "user":
+      return cat.people.some((p) => p.id === raw) ? raw : undefined;
+    default:
+      return def.options.some((o) => o.id === raw && !o.archived) ? raw : undefined;
+  }
+}
 export const EMPTY_FILTERS: ListFilters = { stageIds: [], sort: "newest" };
 
 const SORTS: Sort[] = ["newest", "oldest", "updated", "name"];
@@ -37,6 +55,14 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
   const pipeline = p.get("pipeline");
   const from = realDate(p.get("from"));
   const to = realDate(p.get("to"));
+  const fields = new Map(filterableFields(cat).map((f) => [f.key, f]));
+  const custom: Record<string, string | boolean> = {};
+  for (const [k, raw] of p) {
+    if (!k.startsWith("cf.")) continue;
+    const def = fields.get(k.slice(3));
+    const v = def ? customValue(def, raw, cat) : undefined;
+    if (def && v !== undefined) custom[def.key] = v;
+  }
   return {
     ...(q ? { q } : {}),
     stageIds: [...new Set((p.get("stage") ?? "").split(",").filter((id) => stages.has(id)))].slice(0, 20),
@@ -47,6 +73,7 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
     ...(to ? { to } : {}),
     sort: sort && SORTS.includes(sort) ? sort : "newest",
     ...(pipeline && cat.pipelines.some((x) => x.id === pipeline) ? { pipelineId: pipeline } : {}),
+    ...(Object.keys(custom).length ? { custom } : {}),
   };
 }
 
@@ -61,6 +88,7 @@ export function filtersToParams(f: ListFilters): URLSearchParams {
   if (f.to) p.set("to", f.to);
   if (f.sort !== "newest") p.set("sort", f.sort);
   if (f.pipelineId) p.set("pipeline", f.pipelineId);
+  for (const [k, v] of Object.entries(f.custom ?? {})) p.set(`cf.${k}`, String(v));
   return p;
 }
 
@@ -75,9 +103,11 @@ export function apiQuery(f: ListFilters): string {
   if (f.from) p.set("createdFrom", f.from);
   if (f.to) p.set("createdTo", f.to);
   if (f.pipelineId) p.set("pipelineId", f.pipelineId);
+  if (f.custom && Object.keys(f.custom).length) p.set("custom", JSON.stringify(f.custom));
   p.set("sort", f.sort);
   return p.toString();
 }
 
 export const activeFilterCount = (f: ListFilters): number =>
-  [f.q, f.stageIds.length > 0, f.owner, f.tagId, f.phoneStatus, f.from || f.to].filter(Boolean).length;
+  [f.q, f.stageIds.length > 0, f.owner, f.tagId, f.phoneStatus, f.from || f.to].filter(Boolean).length +
+  Object.keys(f.custom ?? {}).length;

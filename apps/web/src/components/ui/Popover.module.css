@@ -1,0 +1,43 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 32px));
+  max-height: min(420px, 60vh);
+  overflow: auto;
+  padding: 6px;
+  border-radius: 13px;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  transform-origin: top left;
+  animation: in 0.22s var(--spring) both;
+}
+.panel[data-align="end"] {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+@keyframes in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .panel {
+    backdrop-filter: none;
+    background: var(--raised);
+  }
+}

@@ -1,20 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { tokenColor } from "@/lib/leads/colors";
 import type { OnboardingActions, Pipeline, Stage } from "@/lib/onboarding-client";
 import s from "../onboarding.module.css";
 import { PanelHead } from "./Head";
 
-/** Stage colours are token names in the API; these are the matching CSS variables. */
-const COLOR: Record<string, string> = {
-  accent: "var(--accent)",
-  ok: "var(--ok)",
-  warn: "var(--warn)",
-  danger: "var(--danger)",
-  meet: "var(--meet)",
-  cyan: "var(--cyan)",
-  neutral: "var(--text-3)",
-};
 const KIND: Record<string, string> = { open: "Open", won: "Won", lost: "Lost" };
 
 /** Rename in place (saved on blur) and reorder with buttons, so it works from the keyboard too. */
@@ -95,7 +86,7 @@ export function PipelinePanel({
         <ol className={s.pipe} aria-label={pipeline.name}>
           {pipeline.stages.map((st, i) => (
             <li key={st.id} className={s.stageRow}>
-              <span className={s.dot} style={{ background: COLOR[st.color] ?? COLOR.neutral }} aria-hidden />
+              <span className={s.dot} style={{ background: tokenColor(st.color) }} aria-hidden />
               <input
                 aria-label={`Stage ${i + 1} name`}
                 className={s.stageName}

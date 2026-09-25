@@ -1,0 +1,423 @@
+/* The leads table. Sizes follow docs/design/prototypes/key-screens.html (.lrow, .stg). */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.filters,
+.right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  width: 240px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text-3);
+  transition: box-shadow 0.2s;
+}
+.search:focus-within {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: none;
+  outline: 0;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+.search input::placeholder {
+  color: var(--text-3);
+}
+.tool,
+.select,
+.clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  font-weight: 560;
+  color: var(--text-2);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.2s;
+}
+.tool:hover,
+.select:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.tool:active {
+  transform: scale(0.97);
+}
+.tool[data-active="true"],
+.select[data-active="true"] {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.35);
+}
+.select {
+  position: relative;
+  padding: 0;
+}
+.select select {
+  appearance: none;
+  height: 100%;
+  padding: 0 28px 0 11px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  outline: 0;
+}
+.select:focus-within {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.select .caret {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+}
+.caret {
+  opacity: 0.7;
+}
+.clear {
+  background: none;
+  box-shadow: none;
+  color: var(--accent-ink);
+}
+.clear:hover {
+  background: var(--accent-soft);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Lists inside popovers: stages, columns. */
+.pick {
+  list-style: none;
+  display: grid;
+  gap: 1px;
+}
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+}
+.pickRow:hover {
+  background: var(--hover);
+}
+.pickRow label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.pickRow input {
+  accent-color: var(--accent);
+}
+.pickMove {
+  display: flex;
+  gap: 2px;
+  padding-right: 4px;
+}
+.pickMove button {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  background: none;
+  cursor: pointer;
+}
+.pickMove button:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+.pickMove button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.dates {
+  display: grid;
+  gap: 10px;
+  padding: 8px;
+  min-width: 220px;
+}
+.dates label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.dates input,
+.dates select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: 0.8125rem;
+  color: var(--text);
+  outline: 0;
+}
+.linkish {
+  display: block;
+  margin: 6px 8px 4px;
+  font-size: 0.75rem;
+  font-weight: 560;
+  color: var(--accent-ink);
+  background: none;
+  cursor: pointer;
+}
+.views {
+  display: flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.views > * {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 0.8125rem;
+  font-weight: 580;
+  color: var(--text-2);
+}
+.views > [aria-current="page"] {
+  background: var(--raised);
+  color: var(--text);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.views a:hover {
+  color: var(--text);
+}
+
+/* ── Table ────────────────────────────────────────────────────────────────────────────────────── */
+.tableWrap {
+  overflow: auto;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+.table {
+  width: 100%;
+  min-width: max-content;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 36px;
+  padding: 0 14px;
+  text-align: left;
+  font-size: 0.71875rem;
+  font-weight: 620;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  background: var(--sheet);
+  box-shadow: inset 0 -0.5px 0 var(--line-2);
+  white-space: nowrap;
+}
+.table th[data-align="end"],
+.table td[data-align="end"] {
+  text-align: right;
+}
+.sortBtn {
+  font: inherit;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}
+.sortBtn:hover {
+  color: var(--text);
+}
+.row td {
+  height: 50px;
+  padding: 0 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--sheet);
+  transition: background 0.15s;
+}
+.row td:first-child {
+  border-radius: 10px 0 0 10px;
+}
+.row td:last-child {
+  border-radius: 0 10px 10px 0;
+}
+.row {
+  cursor: pointer;
+}
+.row:hover td {
+  background: color-mix(in srgb, var(--sheet) 94%, var(--text));
+}
+.row[data-open="true"] td {
+  background: color-mix(in srgb, var(--sheet) 90%, var(--accent));
+}
+.body[data-dim="true"] {
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+/* The name column stays put while the rest scrolls sideways. */
+.sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.table th.sticky {
+  z-index: 3;
+}
+.check {
+  width: 44px;
+  text-align: center !important;
+}
+.open {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  font-weight: 580;
+  color: var(--text);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.open span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 8px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 560;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.stage i,
+.tag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.contact,
+.num,
+.when {
+  font-variant-numeric: tabular-nums;
+}
+.contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lock {
+  color: var(--text-3);
+}
+.when {
+  color: var(--text-2);
+}
+.tags {
+  display: inline-flex;
+  gap: 4px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 0.71875rem;
+  font-weight: 560;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.moreTags {
+  font-size: 0.71875rem;
+  color: var(--text-3);
+  align-self: center;
+}
+.muted {
+  color: var(--text-3);
+}
+.loadMore {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+/* ── Small screens: name, stage and owner are what matters on a phone ─────────────────────────── */
+@media (max-width: 720px) {
+  .search {
+    width: 100%;
+  }
+  .filters,
+  .right {
+    width: 100%;
+  }
+}

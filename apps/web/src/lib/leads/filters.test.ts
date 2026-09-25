@@ -57,4 +57,16 @@ describe("lead filters in the URL", () => {
     expect(activeFilterCount(EMPTY_FILTERS)).toBe(0);
     expect(activeFilterCount({ ...EMPTY_FILTERS, q: "x", stageIds: [s1!.id, s2!.id], owner: "me" })).toBe(3);
   });
+
+  it("carries custom-field filters, dropping fields and options that no longer exist", () => {
+    const params = new URLSearchParams("cf.struggles=o1&cf.handled_by=u-riya&cf.gone=x&cf.struggles2=o9");
+    const f = parseFilters(params, cat);
+    expect(f.custom).toEqual({ struggles: "o1", handled_by: "u-riya" });
+    expect(parseFilters(filtersToParams(f), cat)).toEqual(f);
+    expect(parseFilters(new URLSearchParams("cf.struggles=deleted-option"), cat).custom).toBeUndefined();
+    expect(new URLSearchParams(apiQuery(f)).get("custom")).toBe(
+      JSON.stringify({ struggles: "o1", handled_by: "u-riya" }),
+    );
+    expect(activeFilterCount(f)).toBe(2);
+  });
 });
