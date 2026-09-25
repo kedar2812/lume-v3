@@ -9,6 +9,7 @@ export * from "./rbac/engine";
 export * from "./rbac/defaults";
 export * from "./leads/phone";
 export * from "./money/currencies";
+export * from "./legal/documents";
 export * from "./leads/mask";
 export * from "./leads/custom-fields";
 export * from "./leads/field-access";

@@ -77,6 +77,16 @@ export const users = pgTable("users", {
   disabledAt: tz("disabled_at"),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
+  agreedVersion: text("agreed_version"),
+});
+
+export const legalAcceptances = pgTable("legal_acceptances", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: uuid("user_id").notNull(),
+  version: text("version").notNull(),
+  acceptedAt: tz("accepted_at").notNull().defaultNow(),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
 });
 
 export type LoginHours = { days: number[]; from: string; to: string }; // business timezone, "HH:MM"

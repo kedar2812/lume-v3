@@ -2,7 +2,14 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { mergePreferences, needsOnboarding, needsTour, requiresTwoFactor } from "@lume/core";
+import {
+  LEGAL_VERSION,
+  mergePreferences,
+  needsAgreement,
+  needsOnboarding,
+  needsTour,
+  requiresTwoFactor,
+} from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
@@ -89,7 +96,10 @@ export async function authRoutes(
       onboarding,
       tour,
       capabilities: CAPABILITIES,
+      agreement: { version: u.agreedVersion ?? null, current: LEGAL_VERSION },
       flags: {
+        // The licence agreement, terms and privacy policy come before everything, onboarding included.
+        needsAgreement: needsAgreement(u.agreedVersion),
         needsOnboarding: needsOnboarding(onboarding),
         needsTwoFactorEnrolment: requiresTwoFactor(a) && !a.twoFactorEnabled,
         // Onboarding itself offers the tour, so the tour is only outstanding on its own afterwards.

@@ -15,6 +15,15 @@ const stepIds = ONBOARDING_STEPS.map((s) => s.id) as [OnboardingStepId, ...Onboa
 export async function meRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
+  // Comes before everything else, including a required two-step enrolment.
+  r.post(
+    "/api/v1/me/agreement",
+    { config: enrol, schema: { body: z.object({ version: z.string().min(1).max(40) }).strict() } },
+    async (req, reply) => {
+      await me.agree(req, req.body.version);
+      return reply.code(204).send();
+    },
+  );
   r.get("/api/v1/me/sessions", { config: self }, (req) => me.listSessions(req));
   r.delete(
     "/api/v1/me/sessions/:id",

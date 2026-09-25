@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
+  LEGAL_VERSION,
   EMPTY_ONBOARDING,
   EMPTY_TOUR,
   TOUR_VERSION,
@@ -23,7 +24,7 @@ import { audit } from "../../audit/audit";
 import { setSessionCookie } from "../../auth/cookies";
 import { createSession, revokeSession, revokeUserSessions } from "../../auth/sessions";
 import { THROTTLE, checkThrottle, clearThrottle, recordFailure } from "../../auth/throttle";
-import { badRequest, forbidden, notFound, tooMany } from "../../http/errors";
+import { HttpError, badRequest, forbidden, notFound, tooMany } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
 
 export async function listSessions(req: FastifyRequest) {
@@ -268,4 +269,27 @@ export async function updateTour(
   };
   await req.db.update(schema.users).set({ tour: next }).where(eq(schema.users.id, userId));
   return { tour: next };
+}
+
+/**
+ * The person agrees to the licence agreement, terms and privacy policy, as shown to them. Only the
+ * current version can be agreed to (their screen may be out of date). The acceptance is kept as
+ * evidence: version, time, network address and browser.
+ */
+export async function agree(req: FastifyRequest, version: string) {
+  if (version !== LEGAL_VERSION)
+    throw new HttpError(
+      409,
+      "STALE_TERMS",
+      "These documents have changed. Reload to read the current version.",
+    );
+  const userId = req.actor!.userId;
+  await req.db.insert(schema.legalAcceptances).values({
+    userId,
+    version,
+    ip: req.ip ?? null,
+    userAgent: req.headers["user-agent"]?.slice(0, 400) ?? null,
+  });
+  await req.db.update(schema.users).set({ agreedVersion: version }).where(eq(schema.users.id, userId));
+  await audit(req, { action: "user.agreed", entityType: "user", entityId: userId, diff: { version } });
 }

@@ -118,7 +118,12 @@ describe("preferences, onboarding and tour state (spec §4.2)", () => {
     const c = await h.signIn(await h.seedUser({ grants: [] }));
     const me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
     expect(me.preferences).toEqual(PREFERENCES_DEFAULTS);
-    expect(me.flags).toEqual({ needsOnboarding: true, needsTwoFactorEnrolment: false, needsTour: false });
+    expect(me.flags).toEqual({
+      needsAgreement: true,
+      needsOnboarding: true,
+      needsTwoFactorEnrolment: false,
+      needsTour: false,
+    });
     const r = await c.inject({
       method: "PATCH",
       url: "/api/v1/me",

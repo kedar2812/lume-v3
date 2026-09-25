@@ -93,6 +93,7 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ from: "ZZZ", to: "USD", rate: 1 }),
   },
   "GET /api/v1/about": { access: "auth.self" },
+  "POST /api/v1/me/agreement": { access: "auth.self", body: () => ({ version: "2020-01-01" }) },
   "GET /api/v1/users": { access: "users.manage" },
   "PATCH /api/v1/users/:id": {
     access: "users.manage",
