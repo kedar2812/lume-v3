@@ -1015,3 +1015,209 @@
   opacity: 0.35;
   cursor: default;
 }
+
+/* ── roles & access ── */
+.rolesLayout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .rolesLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.fieldRowName .swatch {
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 14px;
+  box-shadow: inset 0 -0.5px 0 var(--line);
+}
+.tab {
+  position: relative;
+  padding: 10px 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  transition: color 0.15s;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab[aria-selected="true"] {
+  color: var(--text);
+}
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.matrix {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 12px;
+}
+.summary {
+  position: sticky;
+  top: 8px;
+  z-index: 1;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--glass);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.summaryTitle {
+  margin-bottom: 6px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.05em;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.summaryList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+}
+.summaryList li {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+}
+.summaryScope {
+  font-weight: var(--fw-regular);
+  opacity: 0.85;
+}
+.permGroup {
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  overflow: hidden;
+}
+.permGroup legend {
+  float: left;
+  width: 100%;
+  padding: 8px 14px;
+  background: var(--sunk);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.05em;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.permRow {
+  clear: both;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 14px;
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.permRow input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.permText {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.permLabel {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+.permRow:not([data-on]) .permLabel {
+  color: var(--text-2);
+}
+.permHint {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.scopeSelect {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text);
+}
+.accessTable {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 12px;
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+}
+.accessTable thead th {
+  padding: 8px 14px;
+  background: var(--sunk);
+  text-align: center;
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.05em;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.accessTable thead th:first-child {
+  text-align: left;
+  border-radius: 12px 0 0 0;
+}
+.accessTable thead th:last-child {
+  border-radius: 0 12px 0 0;
+}
+.accessTable tbody th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: var(--fw-medium);
+}
+.accessTable td {
+  width: 88px;
+  text-align: center;
+}
+.accessTable tbody tr + tr {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.accessTable tbody tr[data-level="hidden"] th {
+  color: var(--text-3);
+}
+.accessTable input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.accessTable input:disabled {
+  opacity: 0.3;
+  cursor: default;
+}

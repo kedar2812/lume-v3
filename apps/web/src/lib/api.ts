@@ -98,5 +98,5 @@ export const api = {
   patchIf: <T>(path: string, version: number, body?: unknown) =>
     send<T>("PATCH", path, body, true, { "if-match": `"${version}"` }),
   put: <T>(path: string, body?: unknown) => send<T>("PUT", path, body),
-  del: <T>(path: string) => send<T>("DELETE", path),
+  del: <T>(path: string, body?: unknown) => send<T>("DELETE", path, body),
 };
