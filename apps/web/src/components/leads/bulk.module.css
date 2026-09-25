@@ -1,0 +1,140 @@
+/* The bulk actions bar: a floating glass bar over the bottom of the table. */
+
+.bar {
+  position: sticky;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 12px auto 0;
+  padding: 6px 6px 6px 16px;
+  border-radius: 14px;
+  background: var(--hud);
+  color: var(--hud-text);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    0 16px 40px -8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bar {
+    background: #16181e;
+    backdrop-filter: none;
+  }
+}
+
+.count {
+  font-size: 13px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.note {
+  font-weight: 500;
+  opacity: 0.7;
+}
+.clear,
+.action,
+.danger {
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 580;
+  color: inherit;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+.clear {
+  opacity: 0.75;
+}
+.clear:hover,
+.action:hover,
+.action[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 1;
+}
+.danger {
+  color: #ff8f93;
+}
+.danger:hover {
+  background: rgba(229, 72, 77, 0.22);
+}
+.clear:active,
+.action:active,
+.danger:active {
+  transform: scale(0.96);
+}
+.clear:disabled,
+.action:disabled,
+.danger:disabled {
+  opacity: 0.5;
+}
+.divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.confirm {
+  margin-right: 6px;
+  font-size: 13px;
+  font-weight: 620;
+}
+.confirm span {
+  font-weight: 450;
+  opacity: 0.75;
+}
+
+/* popover contents (they sit on the normal surface, not the dark bar) */
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+  list-style: none;
+}
+.menu button {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text);
+}
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--hover);
+}
+.tagMenu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+}
+.groupTitle {
+  padding: 6px 10px 2px;
+  font-size: 11.5px;
+  font-weight: 620;
+  color: var(--text-3);
+}
+.lostPanel {
+  width: 320px;
+  max-width: calc(100vw - 48px);
+  padding: 14px;
+}
+.panelTitle {
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 650;
+}

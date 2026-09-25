@@ -12,6 +12,7 @@ import { availableColumns, loadColumnChoice, resolveColumns, saveColumnChoice } 
 import { activeFilterCount, filtersToParams, type ListFilters, type Sort } from "@/lib/leads/filters";
 import type { Catalog, Lead, LeadPage } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
+import { BulkBar } from "./BulkBar";
 import { CatalogProvider } from "./CatalogProvider";
 import { ColumnPicker } from "./ColumnPicker";
 import { LeadDrawer } from "./drawer/LeadDrawer";
@@ -116,6 +117,9 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
   const [chosen, setChosen] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const mayCreate = can(session.actor, "leads.create");
+  const mayBulk = can(session.actor, "leads.bulk_edit");
+  const [selected, setSelected] = useState<string[]>([]);
+  const anchor = useRef<string | null>(null);
   const editor = useLeadEditor(list.replace);
 
   // The saved column choice lives in this browser, so it's read after mount (the server can't know it).
@@ -130,6 +134,30 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
     const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     if (url !== window.location.pathname + window.location.search) window.history.replaceState(null, "", url);
   }, [filters, openId]);
+
+  // Selection survives paging and sorting, but a different set of filters starts afresh.
+  const filterKey = JSON.stringify({ ...filters, sort: undefined });
+  useEffect(() => {
+    setSelected([]);
+    anchor.current = null;
+  }, [filterKey]);
+  const toggle = (id: string, range: boolean) => {
+    const ids = list.rows.map((r) => r.id);
+    const from = anchor.current;
+    setSelected((prev) => {
+      const on = !prev.includes(id);
+      if (range && from && ids.includes(from)) {
+        const [start, end] = [ids.indexOf(from), ids.indexOf(id)].sort((x, y) => x - y) as [number, number];
+        const span = ids.slice(start, end + 1);
+        return on ? [...new Set([...prev, ...span])] : prev.filter((x) => !span.includes(x));
+      }
+      return on ? [...prev, id] : prev.filter((x) => x !== id);
+    });
+    anchor.current = id;
+  };
+  const loadedIds = list.rows.map((r) => r.id);
+  const allLoaded = loadedIds.length > 0 && loadedIds.every((id) => selected.includes(id));
+  const someLoaded = !allLoaded && loadedIds.some((id) => selected.includes(id));
 
   // Scrolling near the end loads the next page; the Load more button stays for keyboard and screen readers.
   const { hasMore, loadMore } = list;
@@ -196,6 +224,35 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
           onSort={(sort) => setFilters({ ...filters, sort })}
           openId={openId}
           onOpen={setOpenId}
+          selection={
+            mayBulk
+              ? {
+                  header: (
+                    <HeaderCheck
+                      checked={allLoaded}
+                      mixed={someLoaded}
+                      onToggle={() =>
+                        setSelected((prev) =>
+                          allLoaded
+                            ? prev.filter((id) => !loadedIds.includes(id))
+                            : [...new Set([...prev, ...loadedIds])],
+                        )
+                      }
+                    />
+                  ),
+                  cell: (lead) => (
+                    <input
+                      type="checkbox"
+                      className={s.checkbox}
+                      aria-label={`Select ${lead.name ?? "lead"}`}
+                      checked={selected.includes(lead.id)}
+                      onChange={() => undefined}
+                      onClick={(e) => toggle(lead.id, e.shiftKey)}
+                    />
+                  ),
+                }
+              : undefined
+          }
           renderCell={(lead, col, content) => {
             const def =
               col.fieldKey && col.id !== "name"
@@ -268,6 +325,21 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
         </div>
       </div>
       {body}
+      <AnimatePresence>
+        {mayBulk && selected.length > 0 && (
+          <BulkBar
+            key="bulk"
+            session={session}
+            selected={selected}
+            allLoaded={allLoaded && list.hasMore}
+            onClear={() => setSelected([])}
+            onDone={(result) => {
+              list.reload();
+              setSelected(result.skipped.map((x) => x.id));
+            }}
+          />
+        )}
+      </AnimatePresence>
       {/* One drawer for the whole visit: J/K swap the lead inside it rather than remounting it. */}
       <AnimatePresence>
         {openId && (
@@ -302,5 +374,31 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
         )}
       </AnimatePresence>
     </section>
+  );
+}
+
+/** "Select all loaded": checked, unchecked, or mixed when only some loaded rows are selected. */
+function HeaderCheck({
+  checked,
+  mixed,
+  onToggle,
+}: {
+  checked: boolean;
+  mixed: boolean;
+  onToggle: () => void;
+}) {
+  const box = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (box.current) box.current.indeterminate = mixed;
+  }, [mixed]);
+  return (
+    <input
+      ref={box}
+      type="checkbox"
+      className={s.checkbox}
+      aria-label="Select all loaded"
+      checked={checked}
+      onChange={onToggle}
+    />
   );
 }

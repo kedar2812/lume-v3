@@ -21,6 +21,7 @@ vi.mock("@/lib/leads/client", () => ({
     remove: vi.fn(),
     create: vi.fn(),
     duplicates: vi.fn(),
+    bulk: vi.fn(),
   },
   PAGE_SIZE: 50,
 }));
@@ -82,6 +83,7 @@ const admin = () =>
       { key: "leads.create", scope: null },
       { key: "leads.contact.full", scope: "all" },
       { key: "leads.bulk_edit", scope: "all" },
+      { key: "leads.delete", scope: "all" },
     ],
   });
 
@@ -289,6 +291,62 @@ describe("LeadsScreen", () => {
     expect(screen.queryByRole("dialog", { name: "New lead" })).not.toBeInTheDocument();
     expect(screen.getAllByTestId("lead-row")[0]).toHaveTextContent("Noor Ahmed");
     expect(address()).toBe("/leads?lead=l-new");
+  });
+
+  it("selects rows for bulk actions, a range with Shift, and keeps only the skipped ones selected after", async () => {
+    const rows = ["Aisha Khan", "Omar Farouk", "Sara Ali", "Zain Malik"].map((name, i) =>
+      lead({ id: `l${i + 1}`, name }),
+    );
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: rows, nextCursor: null },
+    });
+    vi.mocked(leadsClient.bulk).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { updated: ["l1", "l2"], skipped: [{ id: "l3", code: "FORBIDDEN" }] },
+    });
+    const user = userEvent.setup();
+    view({ session: admin(), first: { items: rows, nextCursor: null } });
+    await user.click(screen.getByRole("checkbox", { name: "Select Aisha Khan" }));
+    await user.keyboard("{Shift>}");
+    await user.click(screen.getByRole("checkbox", { name: "Select Sara Ali" }));
+    await user.keyboard("{/Shift}");
+    const bar = screen.getByRole("toolbar", { name: "Bulk actions" });
+    expect(within(bar).getByText("3 selected")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select all loaded" })).toHaveProperty("indeterminate", true);
+    await user.click(within(bar).getByRole("button", { name: "Delete" }));
+    await user.click(within(bar).getByRole("button", { name: "Delete 3 leads" }));
+    expect(leadsClient.bulk).toHaveBeenCalledWith(["l1", "l2", "l3"], { type: "delete" });
+    await vi.waitFor(() =>
+      expect(within(screen.getByRole("toolbar")).getByText("1 selected")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("checkbox", { name: "Select Sara Ali" })).toBeChecked();
+    expect(leadsClient.list).toHaveBeenCalled(); // the list reloads after a bulk action
+  });
+
+  it("selects every loaded row from the header, and a filter change clears the selection", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    view({
+      session: admin(),
+      first: { items: [lead(), lead({ id: "l2", name: "Omar Farouk" })], nextCursor: null },
+    });
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select all loaded" }));
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search leads" }), "zz");
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("toolbar", { name: "Bulk actions" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows no selection column to someone without bulk editing", () => {
+    view();
+    expect(screen.queryByRole("checkbox", { name: /^Select/ })).not.toBeInTheDocument();
   });
 
   it("offers no editing where the person can't edit", () => {
