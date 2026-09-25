@@ -405,6 +405,52 @@
 .muted {
   color: var(--text-3);
 }
+
+/* In-place editing: a pencil appears on hover or focus; the editor floats over the cell. */
+.editable {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.editValue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pencil {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  background: none;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+.row:hover .pencil,
+.pencil:focus-visible {
+  opacity: 1;
+}
+.pencil:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.row td:has([data-editing]) {
+  overflow: visible;
+  position: relative;
+  z-index: 4;
+}
+.editing {
+  position: relative;
+  z-index: 5;
+  min-width: 180px;
+}
 .loadMore {
   display: flex;
   justify-content: center;

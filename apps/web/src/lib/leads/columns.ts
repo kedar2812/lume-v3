@@ -20,7 +20,7 @@ const CORE: ColumnDef[] = [
   { id: "instagram", label: "Instagram", width: 150, fieldKey: "instagram" },
   { id: "value", label: "Value", width: 120, fieldKey: "value", align: "end" },
   { id: "tags", label: "Tags", width: 170 },
-  { id: "created", label: "Enquiry date", width: 130 },
+  { id: "created", label: "Enquiry date", width: 130, fieldKey: "lead_created_at" },
   { id: "updated", label: "Last activity", width: 130, sortable: "updated" },
 ];
 const CONTACT = new Set(["phone", "email", "instagram"]);

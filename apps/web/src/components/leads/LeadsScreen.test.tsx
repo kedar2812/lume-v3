@@ -12,7 +12,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/leads",
 }));
 const address = () => window.location.pathname + window.location.search;
-vi.mock("@/lib/leads/client", () => ({ leadsClient: { list: vi.fn(), get: vi.fn() }, PAGE_SIZE: 50 }));
+vi.mock("@/lib/leads/client", () => ({
+  leadsClient: { list: vi.fn(), get: vi.fn(), patch: vi.fn() },
+  PAGE_SIZE: 50,
+}));
+vi.mock("@/components/feedback/ToastProvider", () => ({
+  useToast: () => ({ toast: vi.fn(), dismiss: vi.fn() }),
+}));
 
 const rep = () =>
   fakeSession({
@@ -175,5 +181,26 @@ describe("LeadsScreen", () => {
       ),
     );
     expect(address()).toBe("/leads?cf.struggles=o1");
+  });
+
+  it("edits a value in place, saving with the version it saw", async () => {
+    vi.mocked(leadsClient.patch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { lead: lead({ value: 5200, version: 2 }) },
+    });
+    view();
+    await userEvent.click(screen.getByRole("button", { name: "Edit Deal value for Aisha Khan" }));
+    const box = screen.getByRole("textbox", { name: "Deal value" });
+    await userEvent.clear(box);
+    await userEvent.type(box, "5200{Enter}");
+    expect(leadsClient.patch).toHaveBeenCalledWith("l1", 1, { value: 5200 });
+    expect(await screen.findByText("AED 5,200")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Deal value" })).not.toBeInTheDocument();
+  });
+
+  it("offers no editing where the person can't edit", () => {
+    view({ first: { items: [lead({ can: { ...lead().can, edit: false } })], nextCursor: null } });
+    expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
   });
 });

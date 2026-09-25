@@ -12,8 +12,10 @@ import type { Catalog, Lead, LeadPage } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
 import { CatalogProvider } from "./CatalogProvider";
 import { ColumnPicker } from "./ColumnPicker";
+import { EditableCell } from "./EditableCell";
 import { FilterBar } from "./FilterBar";
 import { LeadsTable } from "./LeadsTable";
+import { editable, useLeadEditor } from "./useLeadEditor";
 import s from "./leads.module.css";
 
 type Props = {
@@ -64,6 +66,11 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
     return () => clearTimeout(t);
   }, [fetchPage, filters]);
 
+  const replace = useCallback(
+    (lead: Lead) => setRows((prev) => prev.map((x) => (x.id === lead.id ? lead : x))),
+    [],
+  );
+
   return {
     rows,
     loading,
@@ -73,7 +80,7 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
       if (cursor && !loading) void fetchPage(cursor);
     },
     reload: () => void fetchPage(),
-    replace: (lead: Lead) => setRows((prev) => prev.map((x) => (x.id === lead.id ? lead : x))),
+    replace,
     removeRow: (id: string) => setRows((prev) => prev.filter((x) => x.id !== id)),
     prepend: (lead: Lead) => setRows((prev) => [lead, ...prev.filter((x) => x.id !== lead.id)]),
   };
@@ -86,14 +93,16 @@ const SORTS: { value: Sort; label: string }[] = [
   { value: "name", label: "Name" },
 ];
 
-export function LeadsScreen({
-  session,
-  catalog,
-  contactsVisible,
-  initialFilters,
-  first,
-  initialLeadId = null,
-}: Props) {
+/** The leads table. The catalog is provided around it, so every part below can look things up. */
+export function LeadsScreen(props: Props) {
+  return (
+    <CatalogProvider catalog={props.catalog}>
+      <Screen {...props} />
+    </CatalogProvider>
+  );
+}
+
+function Screen({ session, catalog, contactsVisible, initialFilters, first, initialLeadId = null }: Props) {
   const [filters, setFilters] = useState<ListFilters>(initialFilters);
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
   const list = useLeadList(filters, first);
@@ -101,6 +110,7 @@ export function LeadsScreen({
   const [chosen, setChosen] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const mayCreate = can(session.actor, "leads.create");
+  const editor = useLeadEditor(list.replace);
 
   // The saved column choice lives in this browser, so it's read after mount (the server can't know it).
   useEffect(() => setChosen(loadColumnChoice(session.user.id)), [session.user.id]);
@@ -174,6 +184,28 @@ export function LeadsScreen({
           onSort={(sort) => setFilters({ ...filters, sort })}
           openId={openId}
           onOpen={setOpenId}
+          renderCell={(lead, col, content) => {
+            const def =
+              col.fieldKey && col.id !== "name"
+                ? catalog.fields.find((f) => f.key === col.fieldKey)
+                : undefined;
+            if (!def || !editable(lead, def)) return content;
+            return (
+              <EditableCell
+                lead={lead}
+                def={def}
+                save={editor.save}
+                error={
+                  editor.error?.leadId === lead.id && editor.error.key === def.key
+                    ? editor.error.message
+                    : null
+                }
+                onDismissError={editor.clearError}
+              >
+                {content}
+              </EditableCell>
+            );
+          }}
         />
         {list.hasMore && (
           <div className={s.loadMore} ref={sentinel}>
@@ -187,41 +219,39 @@ export function LeadsScreen({
   })();
 
   return (
-    <CatalogProvider catalog={catalog}>
-      <section className={s.screen}>
-        <div className={s.toolbar}>
-          <FilterBar
-            session={session}
-            catalog={catalog}
-            filters={filters}
-            onChange={setFilters}
-            contactsVisible={contactsVisible}
-          />
-          <div className={s.right}>
-            <label className={s.select}>
-              <span className={s.srOnly}>Sort</span>
-              <select
-                aria-label="Sort"
-                value={filters.sort}
-                onChange={(e) => setFilters({ ...filters, sort: e.target.value as Sort })}
-              >
-                {SORTS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <ColumnPicker available={available} chosen={columns.map((c) => c.id)} onChange={chooseColumns} />
-            <nav className={s.views} aria-label="View">
-              <span aria-current="page">Table</span>
-              <Link href={boardHref}>Board</Link>
-            </nav>
-            {mayCreate && <Button variant="primary">New lead</Button>}
-          </div>
+    <section className={s.screen}>
+      <div className={s.toolbar}>
+        <FilterBar
+          session={session}
+          catalog={catalog}
+          filters={filters}
+          onChange={setFilters}
+          contactsVisible={contactsVisible}
+        />
+        <div className={s.right}>
+          <label className={s.select}>
+            <span className={s.srOnly}>Sort</span>
+            <select
+              aria-label="Sort"
+              value={filters.sort}
+              onChange={(e) => setFilters({ ...filters, sort: e.target.value as Sort })}
+            >
+              {SORTS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ColumnPicker available={available} chosen={columns.map((c) => c.id)} onChange={chooseColumns} />
+          <nav className={s.views} aria-label="View">
+            <span aria-current="page">Table</span>
+            <Link href={boardHref}>Board</Link>
+          </nav>
+          {mayCreate && <Button variant="primary">New lead</Button>}
         </div>
-        {body}
-      </section>
-    </CatalogProvider>
+      </div>
+      {body}
+    </section>
   );
 }
