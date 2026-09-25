@@ -817,3 +817,201 @@
   display: flex;
   gap: 6px;
 }
+
+/* ── people ── */
+.inviteGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  .inviteGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+.panelHead .muted {
+  margin-top: 2px;
+}
+.peopleList {
+  list-style: none;
+  padding: 6px 0;
+}
+.personRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 58px;
+  padding: 8px 20px;
+}
+.personRow + .personRow {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.personRow[data-off] > :not(.personActions) {
+  opacity: 0.55;
+}
+.personRow[data-asking] {
+  background: var(--danger-soft);
+}
+.personText {
+  display: flex;
+  flex: 1;
+  min-width: 180px;
+  flex-direction: column;
+  gap: 1px;
+}
+.personName {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
+}
+.personMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.you {
+  font-weight: var(--fw-regular);
+  color: var(--text-3);
+}
+.chips {
+  display: flex;
+  gap: 6px;
+}
+.chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-2xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.chip[data-tone="danger"] {
+  background: var(--danger-soft);
+  box-shadow: none;
+  color: var(--danger-ink);
+}
+.chip[data-tone="warn"] {
+  background: var(--warn-soft);
+  box-shadow: none;
+  color: var(--warn-ink);
+}
+.roleSelect,
+.dialogSelect {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text);
+}
+.dialogSelect {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+}
+.roleText {
+  min-width: 90px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.personActions {
+  display: flex;
+  gap: 2px;
+}
+.inviteState {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.inviteState[data-expired] {
+  color: var(--warn-ink);
+}
+
+/* ── teams ── */
+.addTeam {
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.teamHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 10px 14px 10px 20px;
+  border-radius: 14px 14px 0 0;
+}
+.teamHead[data-asking] {
+  background: var(--danger-soft);
+}
+.teamHead .panelTitle,
+.teamHead .rename {
+  margin-right: auto;
+}
+.teamHead .rename {
+  flex: 0 1 260px;
+}
+.teamCount {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.teamTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+}
+.teamTable thead th {
+  padding: 8px 20px;
+  background: var(--sunk);
+  text-align: left;
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.05em;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.teamTable thead th + th,
+.teamTable td {
+  width: 120px;
+  text-align: center;
+}
+.teamTable tbody th {
+  padding: 10px 20px;
+  text-align: left;
+  font-weight: var(--fw-medium);
+}
+.teamTable tbody tr + tr {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.teamTable tbody tr:last-child th {
+  border-radius: 0 0 0 14px;
+}
+.teamTable input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.teamTable input:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
