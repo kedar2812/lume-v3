@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { can } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/feedback/ToastProvider";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { leadsClient } from "@/lib/leads/client";
@@ -17,6 +18,7 @@ import { LeadDrawer } from "./drawer/LeadDrawer";
 import { EditableCell } from "./EditableCell";
 import { FilterBar } from "./FilterBar";
 import { LeadsTable } from "./LeadsTable";
+import { NewLeadSheet } from "./NewLeadSheet";
 import { editable, useLeadEditor } from "./useLeadEditor";
 import s from "./leads.module.css";
 
@@ -107,6 +109,8 @@ export function LeadsScreen(props: Props) {
 function Screen({ session, catalog, contactsVisible, initialFilters, first, initialLeadId = null }: Props) {
   const [filters, setFilters] = useState<ListFilters>(initialFilters);
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
+  const [creating, setCreating] = useState(false);
+  const { toast } = useToast();
   const list = useLeadList(filters, first);
   const available = useMemo(() => availableColumns(catalog, contactsVisible), [catalog, contactsVisible]);
   const [chosen, setChosen] = useState<string[] | null>(null);
@@ -172,7 +176,13 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
         <EmptyState
           title="No leads yet"
           body="New leads from your forms, or ones you add, will appear here."
-          action={mayCreate ? <Button variant="primary">New lead</Button> : undefined}
+          action={
+            mayCreate ? (
+              <Button variant="primary" onClick={() => setCreating(true)}>
+                New lead
+              </Button>
+            ) : undefined
+          }
         />
       );
     return (
@@ -250,7 +260,11 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             <span aria-current="page">Table</span>
             <Link href={boardHref}>Board</Link>
           </nav>
-          {mayCreate && <Button variant="primary">New lead</Button>}
+          {mayCreate && (
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              New lead
+            </Button>
+          )}
         </div>
       </div>
       {body}
@@ -268,6 +282,21 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             onGone={(id) => {
               list.removeRow(id);
               setOpenId(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {creating && (
+          <NewLeadSheet
+            key="new"
+            session={session}
+            onClose={() => setCreating(false)}
+            onCreated={(lead) => {
+              setCreating(false);
+              list.prepend(lead);
+              setOpenId(lead.id);
+              toast({ tone: "ok", title: "Lead added", detail: lead.name });
             }}
           />
         )}

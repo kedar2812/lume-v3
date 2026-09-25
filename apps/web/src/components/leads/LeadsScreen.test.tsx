@@ -13,7 +13,15 @@ vi.mock("next/navigation", () => ({
 }));
 const address = () => window.location.pathname + window.location.search;
 vi.mock("@/lib/leads/client", () => ({
-  leadsClient: { list: vi.fn(), get: vi.fn(), patch: vi.fn(), activities: vi.fn(), remove: vi.fn() },
+  leadsClient: {
+    list: vi.fn(),
+    get: vi.fn(),
+    patch: vi.fn(),
+    activities: vi.fn(),
+    remove: vi.fn(),
+    create: vi.fn(),
+    duplicates: vi.fn(),
+  },
   PAGE_SIZE: 50,
 }));
 // jsdom runs no animations, so AnimatePresence would wait forever for the drawer's exit.
@@ -261,6 +269,26 @@ describe("LeadsScreen", () => {
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Open Aisha Khan" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Omar Farouk" })).toBeInTheDocument();
+  });
+
+  it("adds a lead from New lead, puts it at the top, and opens it", async () => {
+    const added = lead({ id: "l-new", name: "Noor Ahmed" });
+    vi.mocked(leadsClient.duplicates).mockResolvedValue({ ok: true, status: 200, data: { duplicates: [] } });
+    vi.mocked(leadsClient.create).mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: { lead: added, duplicates: [] },
+    });
+    vi.mocked(leadsClient.get).mockResolvedValue({ ok: true, status: 200, data: { lead: added } });
+    view({ session: admin(), contactsVisible: true });
+    await userEvent.click(screen.getAllByRole("button", { name: "New lead" })[0]!);
+    const sheet = await screen.findByRole("dialog", { name: "New lead" });
+    await userEvent.type(within(sheet).getByLabelText("Name"), "Noor Ahmed");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Create lead" }));
+    expect(await screen.findByRole("dialog", { name: "Noor Ahmed" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "New lead" })).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("lead-row")[0]).toHaveTextContent("Noor Ahmed");
+    expect(address()).toBe("/leads?lead=l-new");
   });
 
   it("offers no editing where the person can't edit", () => {
