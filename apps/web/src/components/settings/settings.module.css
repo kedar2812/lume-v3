@@ -285,3 +285,171 @@
   box-shadow: inset 0 0.5px 0 var(--line);
   background: var(--sunk);
 }
+
+/* ── panels (a page's cards) ── */
+.stack {
+  display: grid;
+  gap: 16px;
+  max-width: 720px;
+}
+.panel {
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.panelHead {
+  padding: 16px 20px 0;
+}
+.panelTitle {
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+}
+.panelBody {
+  padding: 14px 20px 4px;
+}
+.panelFoot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px 20px;
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+.saved,
+.problem {
+  margin-right: auto;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.problem {
+  color: var(--danger-ink);
+}
+.muted {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+
+/* ── currency ── */
+.currencyRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px 16px;
+}
+.currencyText {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.currencyName {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
+}
+.code {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+.pickRow > button:first-child {
+  flex: 1;
+}
+.dialogTitle {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.25;
+}
+.rateLine {
+  margin-top: 12px;
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.dialogMeta {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.dialogText {
+  margin-top: 10px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text-2);
+}
+.rateField {
+  margin-top: 14px;
+}
+.rateField label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.rateField input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-variant-numeric: tabular-nums;
+  outline: 0;
+}
+.rateField input:focus {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.rateField input[aria-invalid="true"] {
+  box-shadow:
+    inset 0 0 0 1.5px var(--danger),
+    0 0 0 3px var(--danger-soft);
+}
+.dialogProblem {
+  margin-top: 12px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.switched {
+  padding: 0 20px 16px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
