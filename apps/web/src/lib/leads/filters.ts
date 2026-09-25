@@ -32,6 +32,8 @@ function customValue(def: FieldDefView, raw: string, cat: Catalog): string | boo
   }
 }
 export const EMPTY_FILTERS: ListFilters = { stageIds: [], sort: "newest" };
+/** Cards per board column, per fetch (the first paint and each Show more). */
+export const BOARD_PAGE = 25;
 
 const SORTS: Sort[] = ["newest", "oldest", "updated", "name"];
 const PHONE: PhoneStatus[] = ["valid", "needs_country", "invalid", "missing"];

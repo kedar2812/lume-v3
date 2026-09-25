@@ -1,0 +1,194 @@
+/* The pipeline board: a column per stage (after the customise prototype's `.kb`/`.kc`/`.cd`). */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.board {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 2px 2px 16px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.board[data-dragging] {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
+}
+
+.column {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 180px);
+  min-height: 160px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  scroll-snap-align: start;
+  transition:
+    box-shadow 0.2s,
+    background 0.2s;
+}
+.column[data-over] {
+  background: color-mix(in srgb, var(--sheet), var(--accent) 5%);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    inset 0 0 0 1.5px rgba(var(--accent-rgb), 0.5);
+}
+
+.columnHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  font-size: 12.5px;
+  font-weight: 620;
+  white-space: nowrap;
+}
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c, var(--accent));
+}
+.columnName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.count {
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.total {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--ok-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 60px;
+  padding: 0 8px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.emptyColumn {
+  padding: 18px 0;
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--text-3);
+}
+.more {
+  align-self: center;
+  margin-top: 2px;
+}
+
+.card,
+.lift {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 10px 14px;
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow:
+    inset 3px 0 0 var(--c, transparent),
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(12, 18, 32, 0.04);
+  text-align: left;
+  user-select: none;
+}
+.card {
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s,
+    opacity 0.2s;
+}
+.card:hover {
+  box-shadow:
+    inset 3px 0 0 var(--c, transparent),
+    0 0 0 0.5px var(--line-2),
+    0 4px 12px -4px rgba(12, 18, 32, 0.14);
+}
+.card:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 3px 0 0 var(--c, transparent),
+    var(--focus-ring);
+}
+.card[data-picked] {
+  box-shadow:
+    inset 3px 0 0 var(--c, transparent),
+    0 0 0 2px var(--accent),
+    var(--shadow-lift);
+}
+.card[data-ghost] {
+  opacity: 0.35;
+}
+
+.lift {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  box-shadow:
+    inset 3px 0 0 var(--c, transparent),
+    var(--shadow-pop);
+}
+
+.cardName {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.cardValue {
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.cardOwner {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+@media (max-width: 720px) {
+  .column {
+    flex-basis: 84vw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .column {
+    transition: none;
+  }
+}
