@@ -1,0 +1,50 @@
+import { seesFullContacts } from "@lume/core/shared";
+import { apiQuery, parseFilters, type ListFilters } from "@/lib/leads/filters";
+import type {
+  Catalog,
+  FieldDefView,
+  LeadPage,
+  LostReason,
+  Person,
+  Pipeline,
+  Product,
+  Tag,
+} from "@/lib/leads/types";
+import { apiGet } from "./api";
+import type { Session } from "./session";
+
+/**
+ * The catalog, fetched in parallel on the server with the visitor's cookie. A list the caller can't read
+ * (403) is simply empty; the screens then leave that control out.
+ */
+export async function loadCatalog(): Promise<Catalog> {
+  const [pipelines, fields, people, tags, reasons, products, settings] = await Promise.all([
+    apiGet<{ pipelines: Pipeline[] }>("/api/v1/pipelines"),
+    apiGet<{ fields: FieldDefView[] }>("/api/v1/fields"),
+    apiGet<{ people: Person[] }>("/api/v1/people"),
+    apiGet<{ tags: Tag[] }>("/api/v1/tags"),
+    apiGet<{ lostReasons: LostReason[] }>("/api/v1/lost-reasons"),
+    apiGet<{ products: Product[] }>("/api/v1/products"),
+    apiGet<{ currency: string }>("/api/v1/settings"),
+  ]);
+  return {
+    pipelines: pipelines.data?.pipelines ?? [],
+    fields: fields.data?.fields ?? [],
+    people: people.data?.people ?? [],
+    tags: tags.data?.tags ?? [],
+    lostReasons: reasons.data?.lostReasons ?? [],
+    products: products.data?.products ?? [],
+    currency: settings.data?.currency ?? "AED",
+  };
+}
+
+/** Everything the leads table needs for its first paint: the catalog, and page one for the URL's filters. */
+export async function loadLeadsPage(
+  session: Session,
+  search: URLSearchParams,
+): Promise<{ catalog: Catalog; filters: ListFilters; first: LeadPage | null; contactsVisible: boolean }> {
+  const catalog = await loadCatalog();
+  const filters = parseFilters(search, catalog);
+  const first = await apiGet<LeadPage>(`/api/v1/leads?${apiQuery(filters)}&limit=50`);
+  return { catalog, filters, first: first.data, contactsVisible: seesFullContacts(session.actor) };
+}

@@ -28,10 +28,19 @@ async function csrfToken(force = false): Promise<string | null> {
   }
 }
 
-async function send<T>(method: string, path: string, body?: unknown, retry = true): Promise<ApiResult<T>> {
+async function send<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  retry = true,
+  extra: Record<string, string> = {},
+): Promise<ApiResult<T>> {
   const token = await csrfToken();
   // A read changes nothing, so it carries no Idempotency-Key.
-  const headers: Record<string, string> = method === "GET" ? {} : { "idempotency-key": crypto.randomUUID() };
+  const headers: Record<string, string> = {
+    ...extra,
+    ...(method === "GET" ? {} : { "idempotency-key": crypto.randomUUID() }),
+  };
   if (token) headers["x-csrf-token"] = token;
   if (body !== undefined) headers["content-type"] = "application/json";
   let res: Response;
@@ -52,7 +61,7 @@ async function send<T>(method: string, path: string, body?: unknown, retry = tru
   // A stale CSRF cookie (a long-open tab) is worth exactly one silent retry.
   if (res.status === 403 && err?.code === "CSRF" && retry) {
     await csrfToken(true);
-    return send<T>(method, path, body, false);
+    return send<T>(method, path, body, false, extra);
   }
   return {
     ok: false,
@@ -67,6 +76,9 @@ export const api = {
   get: <T>(path: string) => send<T>("GET", path),
   post: <T>(path: string, body?: unknown) => send<T>("POST", path, body),
   patch: <T>(path: string, body?: unknown) => send<T>("PATCH", path, body),
+  /** A PATCH that only applies to the version the caller edited (optimistic concurrency, report §4.4). */
+  patchIf: <T>(path: string, version: number, body?: unknown) =>
+    send<T>("PATCH", path, body, true, { "if-match": `"${version}"` }),
   put: <T>(path: string, body?: unknown) => send<T>("PUT", path, body),
   del: <T>(path: string) => send<T>("DELETE", path),
 };
