@@ -29,10 +29,17 @@ export async function userRoutes(app: FastifyInstance, d: AppDeps): Promise<void
       return reply.code(204).send();
     },
   );
-  r.post("/api/v1/users/:id/disable", { config: cfg, schema: { params } }, async (req, reply) => {
-    await users.setDisabled(req, d, req.params.id, true);
-    return reply.code(204).send();
-  });
+  r.post(
+    "/api/v1/users/:id/disable",
+    {
+      config: cfg,
+      schema: { params, body: z.object({ reassignTo: z.uuid().nullable().optional() }).nullish() },
+    },
+    async (req, reply) => {
+      await users.setDisabled(req, d, req.params.id, true, req.body?.reassignTo);
+      return reply.code(204).send();
+    },
+  );
   r.post("/api/v1/users/:id/enable", { config: cfg, schema: { params } }, async (req, reply) => {
     await users.setDisabled(req, d, req.params.id, false);
     return reply.code(204).send();

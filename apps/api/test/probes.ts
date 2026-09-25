@@ -75,6 +75,9 @@ export const PROBES: Record<string, Probe> = {
     access: "users.manage",
     body: () => ({ email: `new-${Date.now()}@test.lume`, name: "New", roleIds: [] }),
   },
+  "GET /api/v1/invites": { access: "users.manage" },
+  "POST /api/v1/invites/:id/resend": { access: "users.manage", path: () => `/api/v1/invites/${uuid}/resend` },
+  "DELETE /api/v1/invites/:id": { access: "users.manage", path: () => `/api/v1/invites/${uuid}` },
   "GET /api/v1/invites/:token": { access: "public", path: (f) => `/api/v1/invites/${f.inviteToken}` },
   "POST /api/v1/invites/:token/accept": {
     access: "public",

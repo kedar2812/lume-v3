@@ -116,4 +116,67 @@ describe("users admin", () => {
     });
     expect(invite.json().error.code).toBe("ESCALATION");
   });
+
+  it("disabling someone can hand their leads to a colleague", async () => {
+    const leaving = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
+    const taking = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
+    const one = await h.seedLead({ ownerId: leaving.id });
+    const two = await h.seedLead({ ownerId: leaving.id });
+    const r = await admin.inject({
+      method: "POST",
+      url: `/api/v1/users/${leaving.id}/disable`,
+      payload: { reassignTo: taking.id },
+    });
+    expect(r.statusCode).toBe(204);
+    for (const id of [one, two])
+      expect((await admin.inject({ method: "GET", url: `/api/v1/leads/${id}` })).json().lead.ownerId).toBe(
+        taking.id,
+      );
+    const logged = await h.pool.query(
+      "SELECT diff FROM audit_log WHERE action = 'user.disabled' AND entity_id = $1",
+      [leaving.id],
+    );
+    expect(logged.rows[0].diff).toEqual({ reassignedTo: taking.id, leads: 2 });
+  });
+
+  it("disabling someone can leave their leads unassigned, or keep them as they are", async () => {
+    const a = await h.seedUser({ grants: [] });
+    const lead = await h.seedLead({ ownerId: a.id });
+    await admin.inject({
+      method: "POST",
+      url: `/api/v1/users/${a.id}/disable`,
+      payload: { reassignTo: null },
+    });
+    expect(
+      (await admin.inject({ method: "GET", url: `/api/v1/leads/${lead}` })).json().lead.ownerId,
+    ).toBeNull();
+    const b = await h.seedUser({ grants: [] });
+    const kept = await h.seedLead({ ownerId: b.id });
+    await admin.inject({ method: "POST", url: `/api/v1/users/${b.id}/disable`, payload: {} });
+    expect((await admin.inject({ method: "GET", url: `/api/v1/leads/${kept}` })).json().lead.ownerId).toBe(
+      b.id,
+    );
+  });
+
+  it("refuses to disable yourself or the owner, or to hand leads to someone who can't take them", async () => {
+    const me = await h.seedUser({ grants: ALL_GRANTS, totp: true });
+    const c = await h.signIn(me);
+    const self = await c.inject({ method: "POST", url: `/api/v1/users/${me.id}/disable`, payload: {} });
+    expect(self.json().error.code).toBe("SELF");
+    const target = await h.seedUser({ grants: [] });
+    const bad = await c.inject({
+      method: "POST",
+      url: `/api/v1/users/${target.id}/disable`,
+      payload: { reassignTo: "0190e0c0-0000-7000-8000-00000000dead" },
+    });
+    expect(bad.json().error.code).toBe("UNKNOWN_USER");
+    // The owner account can't be disabled by anyone else at all (so LUME always has its owner).
+    let ownerId = (await h.pool.query<{ id: string }>("SELECT id FROM users WHERE is_owner")).rows[0]?.id;
+    if (!ownerId) {
+      ownerId = target.id;
+      await h.ownerPool.query("UPDATE users SET is_owner = true WHERE id = $1", [ownerId]);
+    }
+    const owner = await c.inject({ method: "POST", url: `/api/v1/users/${ownerId}/disable`, payload: {} });
+    expect(owner.json().error.code).toBe("OWNER_PROTECTED");
+  });
 });

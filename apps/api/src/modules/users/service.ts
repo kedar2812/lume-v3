@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
@@ -76,18 +76,47 @@ export async function updateUser(
   });
 }
 
-export async function setDisabled(req: FastifyRequest, d: AppDeps, id: string, disabled: boolean) {
+/**
+ * Disable or enable someone. Disabling can hand every lead they own to a colleague (`reassignTo`), or
+ * leave them unassigned (`null`); leaving it out keeps them where they are.
+ */
+export async function setDisabled(
+  req: FastifyRequest,
+  d: AppDeps,
+  id: string,
+  disabled: boolean,
+  reassignTo?: string | null,
+) {
   const u = await target(req, id);
   ownerGuard(u);
   if (id === req.actor!.userId) throw forbidden("SELF", "You can't disable yourself");
+  if (disabled && reassignTo) {
+    const [to] = await req.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(and(eq(schema.users.id, reassignTo), eq(schema.users.status, "active")));
+    if (!to || reassignTo === id) throw badRequest("UNKNOWN_USER", "Pick someone active to take the leads");
+  }
   const now = d.clock();
   await req.db
     .update(schema.users)
     .set({ status: disabled ? "disabled" : "active", disabledAt: disabled ? now : null })
     .where(eq(schema.users.id, id));
   if (disabled) await revokeUserSessions(req.db, id, "user_disabled", now);
+  let leads: number | undefined;
+  if (disabled && reassignTo !== undefined) {
+    const r = await req.db.execute<{ n: number }>(
+      sql`SELECT reassign_all_leads(${id}, ${reassignTo}, ${req.actor!.userId}) AS n`,
+    );
+    leads = Number(r.rows[0]?.n ?? 0);
+  }
   await notifyRbac(req, id);
-  await audit(req, { action: disabled ? "user.disabled" : "user.enabled", entityType: "user", entityId: id });
+  await audit(req, {
+    action: disabled ? "user.disabled" : "user.enabled",
+    entityType: "user",
+    entityId: id,
+    ...(leads !== undefined ? { diff: { reassignedTo: reassignTo, leads } } : {}),
+  });
 }
 
 export async function killSessions(req: FastifyRequest, d: AppDeps, id: string) {

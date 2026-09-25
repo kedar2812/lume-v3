@@ -154,3 +154,72 @@ export async function acceptInvite(
   });
   return reply.code(201).send({ userId });
 }
+
+async function openInvite(req: FastifyRequest, id: string) {
+  const [inv] = await req.db
+    .select()
+    .from(schema.userInvites)
+    .where(
+      and(
+        eq(schema.userInvites.id, id),
+        isNull(schema.userInvites.acceptedAt),
+        isNull(schema.userInvites.revokedAt),
+      ),
+    );
+  if (!inv) throw notFound("INVITE_NOT_FOUND", "That invite isn't open any more");
+  return inv;
+}
+
+/** Invites still waiting for an answer (Settings -> People), newest first, with who sent them. */
+export async function listInvites(req: FastifyRequest, d: AppDeps) {
+  const rows = await req.db
+    .select()
+    .from(schema.userInvites)
+    .where(and(isNull(schema.userInvites.acceptedAt), isNull(schema.userInvites.revokedAt)));
+  const roleIds = [...new Set(rows.flatMap((r) => r.roleIds))];
+  const inviterIds = [...new Set(rows.map((r) => r.invitedBy).filter((x): x is string => !!x))];
+  const roles = roleIds.length
+    ? await req.db
+        .select({ id: schema.roles.id, name: schema.roles.name })
+        .from(schema.roles)
+        .where(inArray(schema.roles.id, roleIds))
+    : [];
+  const inviters = inviterIds.length
+    ? await req.db
+        .select({ id: schema.users.id, name: schema.users.name })
+        .from(schema.users)
+        .where(inArray(schema.users.id, inviterIds))
+    : [];
+  const now = d.clock();
+  return {
+    invites: rows
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => ({
+        id: r.id,
+        email: r.email,
+        name: r.name,
+        roles: roles.filter((x) => r.roleIds.includes(x.id)),
+        invitedBy: inviters.find((x) => x.id === r.invitedBy)?.name ?? null,
+        expiresAt: r.expiresAt,
+        expired: r.expiresAt.getTime() < now.getTime(),
+      })),
+  };
+}
+
+/** A fresh link for the same person and roles; the old link stops working. */
+export async function resendInvite(req: FastifyRequest, d: AppDeps, id: string) {
+  const inv = await openInvite(req, id);
+  const out = await createInvite(req, d, { email: inv.email, name: inv.name, roleIds: inv.roleIds });
+  await audit(req, {
+    action: "invite.resent",
+    entityType: "invite",
+    entityId: out.invite.id,
+    diff: { replaces: id },
+  });
+}
+
+export async function revokeInvite(req: FastifyRequest, d: AppDeps, id: string) {
+  await openInvite(req, id);
+  await req.db.update(schema.userInvites).set({ revokedAt: d.clock() }).where(eq(schema.userInvites.id, id));
+  await audit(req, { action: "invite.revoked", entityType: "invite", entityId: id });
+}

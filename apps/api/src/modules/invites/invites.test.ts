@@ -1,3 +1,4 @@
+import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "../../../test/harness";
 
@@ -154,5 +155,50 @@ describe("password reset (report §12.1: emailed single-use token, 30 min)", () 
       expect(r.statusCode).toBe(202);
     }
     expect(h.mail.length - before).toBe(3);
+  });
+});
+
+describe("open invites (Settings -> People)", () => {
+  it("lists open invites, resends one with a fresh link, and revokes another", async () => {
+    const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+    for (const [email, name] of [
+      ["a@x.test", "Ada"],
+      ["b@x.test", "Bilal"],
+    ])
+      expect(
+        (
+          await admin.inject({
+            method: "POST",
+            url: "/api/v1/invites",
+            payload: { email, name, roleIds: [] },
+          })
+        ).statusCode,
+      ).toBe(201);
+    const list = (await admin.inject({ method: "GET", url: "/api/v1/invites" })).json().invites;
+    const mine = list.filter((i: { email: string }) => i.email.endsWith("@x.test"));
+    expect(mine.map((i: { email: string }) => i.email).sort()).toEqual(["a@x.test", "b@x.test"]);
+    expect(mine[0]).toMatchObject({ roles: [], expired: false, invitedBy: expect.any(String) });
+    const first = mine.find((i: { email: string }) => i.email === "a@x.test");
+    const before = h.mail.length;
+    expect(
+      (await admin.inject({ method: "POST", url: `/api/v1/invites/${first.id}/resend` })).statusCode,
+    ).toBe(204);
+    expect(h.mail.length).toBe(before + 1);
+    expect(h.mail.at(-1)!.to).toBe("a@x.test");
+    const second = mine.find((i: { email: string }) => i.email === "b@x.test");
+    expect((await admin.inject({ method: "DELETE", url: `/api/v1/invites/${second.id}` })).statusCode).toBe(
+      204,
+    );
+    const after = (await admin.inject({ method: "GET", url: "/api/v1/invites" })).json().invites;
+    expect(after.map((i: { email: string }) => i.email)).toContain("a@x.test");
+    expect(after.map((i: { email: string }) => i.email)).not.toContain("b@x.test");
+    expect((await admin.inject({ method: "DELETE", url: `/api/v1/invites/${second.id}` })).statusCode).toBe(
+      404,
+    );
+  });
+
+  it("keeps invite management to people who manage users", async () => {
+    const rep = await h.signIn(await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] }));
+    expect((await rep.inject({ method: "GET", url: "/api/v1/invites" })).statusCode).toBe(403);
   });
 });
