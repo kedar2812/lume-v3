@@ -1,0 +1,287 @@
+/* Settings: a section nav beside one page at a time; cards on the home; shared list editing. */
+
+.layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── section nav ── */
+.nav {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.navLink {
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.navLink:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.navLink[aria-current="page"] {
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.navSelect {
+  display: none;
+}
+.navSelect select {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+}
+@media (max-width: 900px) {
+  .nav {
+    display: none;
+  }
+  .navSelect {
+    display: block;
+  }
+}
+
+/* ── page frame ── */
+.page {
+  min-width: 0;
+}
+.pageHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.pageTitle {
+  font-size: var(--fs-3xl);
+  letter-spacing: var(--ls-3xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.15;
+}
+.pageLede {
+  margin-top: 6px;
+  max-width: 62ch;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text-2);
+}
+.pageActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── home ── */
+.home {
+  display: grid;
+  gap: 28px;
+}
+.groupTitle {
+  margin-bottom: 10px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  list-style: none;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  transition:
+    box-shadow 0.2s,
+    transform 0.1s;
+}
+.card:hover {
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 6px 18px -8px rgba(12, 18, 32, 0.18);
+}
+.card:active {
+  transform: scale(0.99);
+}
+.cardTitle {
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.cardBlurb {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+
+/* ── access changed ── */
+.changed {
+  padding: 28px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.changed h2 {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+}
+.changed p {
+  margin-top: 6px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text-2);
+}
+.changedLink {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+}
+
+/* ── list editor ── */
+.listEditor {
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  overflow: hidden;
+}
+.rows {
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 6px 10px 6px 8px;
+}
+.row + .row {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.row[data-asking] {
+  background: var(--danger-soft);
+}
+.handle {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-3);
+  cursor: grab;
+}
+.handle:hover {
+  background: var(--hover);
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+}
+.rename,
+.addInput {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  outline: 0;
+}
+.addInput {
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.addInput:focus {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--text-3);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.iconBtn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.ask {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ask p {
+  flex: 1;
+  min-width: 200px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.addRow {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  box-shadow: inset 0 0.5px 0 var(--line);
+  background: var(--sunk);
+}
