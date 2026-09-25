@@ -6,6 +6,7 @@ import { Field } from "@/components/ui/Field";
 import type { ApiResult } from "@/lib/api";
 import type { Catalog, FieldDefView } from "@/lib/leads/types";
 import { fieldsClient, type FieldPatch } from "@/lib/settings/fields";
+import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import { FieldPreview } from "./FieldPreview";
 import { ListEditor } from "./ListEditor";
@@ -110,7 +111,7 @@ export function FieldsEditor({ catalog }: { catalog: Catalog }) {
 
   const landed = <T,>(r: ApiResult<T>): r is Extract<ApiResult<T>, { ok: true }> => {
     if (r.ok) return true;
-    if (r.status === 403) setForbidden(true);
+    if (accessGone(r)) setForbidden(true);
     else setProblem(r.message || "That couldn’t be saved. Try again.");
     return false;
   };

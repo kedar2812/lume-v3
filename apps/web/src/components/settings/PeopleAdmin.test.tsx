@@ -147,4 +147,20 @@ describe("PeopleAdmin", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send invite" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Someone with that email already uses LUME");
   });
+
+  it("a refusal to hand out more access than you hold is explained, not treated as lost access", async () => {
+    vi.mocked(usersClient.setRoles).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      code: "ESCALATION",
+      message: "You can only give access you have yourself",
+    });
+    render(<PeopleAdmin users={[riya]} invites={[]} roles={roles} session={admin()} />);
+    await userEvent.selectOptions(screen.getByLabelText("Role for Riya Sharma"), "r-lead");
+    expect(await screen.findByRole("alert")).toHaveTextContent("You can only give access you have yourself");
+    expect(
+      screen.queryByRole("heading", { name: "Your access to this page changed" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Role for Riya Sharma")).toHaveValue("r-sales");
+  });
 });

@@ -40,4 +40,14 @@ describe("useSettingsResource", () => {
     expect(result.current.data).toEqual({ name: "LUME" });
     expect(load).not.toHaveBeenCalled();
   });
+
+  it("keeps the page for a refusal that isn't about access (a 403 with its own reason)", async () => {
+    const load = vi.fn().mockResolvedValue({ ok: true, status: 200, data: 1 });
+    const { result } = renderHook(() => useSettingsResource(load));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    act(() => {
+      result.current.guard({ ok: false, status: 403, code: "ESCALATION", message: "no" });
+    });
+    expect(result.current.state).toBe("ready");
+  });
 });

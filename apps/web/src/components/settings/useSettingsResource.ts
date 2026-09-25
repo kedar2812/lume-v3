@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiResult } from "@/lib/api";
+import { accessGone } from "@/lib/settings/access";
 
 export type ResourceState = "loading" | "ready" | "access-changed" | "error";
 
 /**
- * One Settings page's data. A 403 — on load or on any save passed through `guard` — means the
+ * One Settings page's data. A plain 403 (no permission) — on load or on any save passed through `guard` — means the
  * person's access changed while the page was open (another admin edited their role): the page then
  * says so calmly instead of showing an error or a half-saved form (spec §7).
  */
@@ -18,7 +19,7 @@ export function useSettingsResource<T>(load: () => Promise<ApiResult<T>>, opts: 
 
   const guard = useCallback(<R>(r: ApiResult<R>): r is Extract<ApiResult<R>, { ok: true }> => {
     if (r.ok) return true;
-    if (r.status === 403) setState("access-changed");
+    if (accessGone(r)) setState("access-changed");
     return false;
   }, []);
 
@@ -27,7 +28,7 @@ export function useSettingsResource<T>(load: () => Promise<ApiResult<T>>, opts: 
     if (r.ok) {
       setData(r.data);
       setState("ready");
-    } else setState(r.status === 403 ? "access-changed" : "error");
+    } else setState(accessGone(r) ? "access-changed" : "error");
   }, []);
 
   useEffect(() => {

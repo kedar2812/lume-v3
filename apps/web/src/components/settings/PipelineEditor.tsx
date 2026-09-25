@@ -7,6 +7,7 @@ import type { ApiResult } from "@/lib/api";
 import { tokenColor } from "@/lib/leads/colors";
 import type { FieldDefView, Pipeline, Stage } from "@/lib/leads/types";
 import { pipelinesClient, type StagePatch } from "@/lib/settings/pipelines";
+import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import { ColourPicker } from "./ColourPicker";
 import { ListEditor } from "./ListEditor";
@@ -52,7 +53,7 @@ export function PipelineEditor({
   /** Whether a result went through; a refusal is said out loud, and a 403 means access changed. */
   const landed = <T,>(r: ApiResult<T>): r is Extract<ApiResult<T>, { ok: true }> => {
     if (r.ok) return true;
-    if (r.status === 403) setForbidden(true);
+    if (accessGone(r)) setForbidden(true);
     else setNote({ text: r.message || "That change couldn’t be saved.", tone: "problem" });
     return false;
   };

@@ -5,6 +5,7 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import type { ApiResult } from "@/lib/api";
 import type { Catalog, LostReason, Product, Tag } from "@/lib/leads/types";
 import { listsClient } from "@/lib/settings/lists";
+import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import { COLOURS, ColourPicker } from "./ColourPicker";
 import { ListEditor } from "./ListEditor";
@@ -52,7 +53,7 @@ export function Lists({
         setNotes((n) => ({ ...n, [section]: { text: "Saved" } }));
         return true;
       }
-      if (r.status === 403) setForbidden(true);
+      if (accessGone(r)) setForbidden(true);
       else
         setNotes((n) => ({
           ...n,

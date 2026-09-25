@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import type { ApiResult } from "@/lib/api";
 import type { Person } from "@/lib/leads/types";
 import { teamsClient, type Team, type TeamMember } from "@/lib/settings/teams";
+import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import s from "./settings.module.css";
 
@@ -23,7 +24,7 @@ export function TeamsAdmin({ teams: initial, people }: { teams: Team[]; people: 
 
   const landed = <T,>(r: ApiResult<T>): r is Extract<ApiResult<T>, { ok: true }> => {
     if (r.ok) return true;
-    if (r.status === 403) setForbidden(true);
+    if (accessGone(r)) setForbidden(true);
     else setNote({ text: r.message || "That couldn’t be saved.", problem: true });
     return false;
   };

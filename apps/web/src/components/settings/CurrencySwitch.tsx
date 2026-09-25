@@ -7,6 +7,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { currencyName } from "@/components/ui/currencies";
 import { Flag } from "@/components/ui/SearchList";
 import { settingsClient, type CurrencyQuote } from "@/lib/settings/client";
+import { accessGone } from "@/lib/settings/access";
 import s from "./settings.module.css";
 
 type Step =
@@ -72,7 +73,7 @@ export function CurrencySwitch({
     if (to === current) return setStep({ kind: "idle" });
     setStep({ kind: "confirm", to, quote: null, loading: true, rate: "", busy: false, problem: null });
     const r = await settingsClient.quoteCurrency(to);
-    if (!r.ok && r.status === 403) return onForbidden();
+    if (accessGone(r)) return onForbidden();
     setStep((st) =>
       st.kind === "confirm" && st.to === to
         ? r.ok
@@ -102,7 +103,7 @@ export function CurrencySwitch({
       onSwitched(r.data.currency);
       return;
     }
-    if (r.status === 403) return onForbidden();
+    if (accessGone(r)) return onForbidden();
     setStep({
       ...confirm,
       busy: false,

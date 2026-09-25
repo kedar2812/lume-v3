@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Field } from "@/components/ui/Field";
 import { TimezonePicker } from "@/components/ui/TimezonePicker";
 import { settingsClient, type BusinessSettings } from "@/lib/settings/client";
+import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import { CurrencySwitch } from "./CurrencySwitch";
 import { useSettingsResource } from "./useSettingsResource";
@@ -70,7 +71,7 @@ export function BusinessForm({ initial }: { initial?: BusinessSettings }) {
     const r = await settingsClient.patch(changes);
     setBusy(false);
     if (!res.guard(r)) {
-      if (r.status !== 403) setProblem("Your changes couldn’t be saved. Try again.");
+      if (!accessGone(r)) setProblem(r.message || "Your changes couldn’t be saved. Try again.");
       return;
     }
     res.setData(r.data);

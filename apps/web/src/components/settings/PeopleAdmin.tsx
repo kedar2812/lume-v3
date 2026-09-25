@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/Field";
 import type { ApiResult } from "@/lib/api";
 import { invitesClient, usersClient, type Invite, type RoleRef, type UserRow } from "@/lib/settings/people";
 import type { Session } from "@/server/session";
+import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import s from "./settings.module.css";
 
@@ -48,7 +49,7 @@ export function PeopleAdmin({
 
   const landed = <T,>(r: ApiResult<T>): r is Extract<ApiResult<T>, { ok: true }> => {
     if (r.ok) return true;
-    if (r.status === 403 && r.code !== "OWNER_PROTECTED" && r.code !== "SELF") setForbidden(true);
+    if (accessGone(r)) setForbidden(true);
     else setNote({ text: r.message || "That didn’t work. Try again.", problem: true });
     return false;
   };
