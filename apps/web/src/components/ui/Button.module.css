@@ -89,6 +89,12 @@
 .btn {
   position: relative;
 }
+/* Text and icon stay on one line, whatever the icon's display (the reset makes svg a block). */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
 .hidden {
   opacity: 0;
 }

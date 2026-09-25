@@ -368,8 +368,7 @@
   color: var(--text-3);
 }
 .arrow {
-  margin-left: 8px;
-  vertical-align: -2px;
+  margin-left: 1px; /* with the button's 7px gap: the arrow sits just off the words */
 }
 
 /* ── Panel content ────────────────────────────────────────────────────────────────────────────── */
@@ -543,23 +542,23 @@
   background: #fff;
 }
 .preview[data-look="obsidian"] {
-  background: #060708;
+  background: #141518;
 }
 .preview[data-look="obsidian"] .pvSide i {
-  background: #b4b8c0;
+  background: #bcc0c8;
 }
 .preview[data-look="obsidian"] .pvMain {
-  background: #0e0f12;
+  background: #212328;
   box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08);
 }
 .preview[data-look="system"] {
-  background: linear-gradient(135deg, #eef0f3 50%, #060708 50%);
+  background: linear-gradient(135deg, #eef0f3 50%, #141518 50%);
 }
 .preview[data-look="system"] .pvSide i {
   background: #888;
 }
 .preview[data-look="system"] .pvMain {
-  background: linear-gradient(135deg, #fff 50%, #0e0f12 50%);
+  background: linear-gradient(135deg, #fff 50%, #212328 50%);
 }
 
 /* Day */

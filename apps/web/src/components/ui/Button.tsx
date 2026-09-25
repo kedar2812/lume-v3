@@ -30,7 +30,7 @@ export function Button({
       {...rest}
     >
       {/* The label stays (transparent) while loading: keeps the accessible name and the button width. */}
-      <span className={loading ? s.hidden : undefined}>{children}</span>
+      <span className={loading ? `${s.label} ${s.hidden}` : s.label}>{children}</span>
       {loading && <span className={s.spinner} aria-hidden />}
     </button>
   );

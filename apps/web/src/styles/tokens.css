@@ -1,5 +1,6 @@
 /* LUME design tokens. Spec: docs/superpowers/specs/2026-09-21-lume-frontend-design.md §3–4.
-   Components use only these variables. "system" follows the OS: light = Porcelain, dark = Obsidian. */
+   Components use only these variables. "system" follows the OS: light = Porcelain, dark = Obsidian (the Carbon shade:
+   a soft black whose cards and popovers step up clearly from the page). */
 
 @font-face {
   font-family: "Inter";
@@ -113,114 +114,117 @@
 
 [data-theme="obsidian"] {
   color-scheme: dark;
-  --canvas: #060708;
-  --side-text: #b4b8c0;
-  --sheet: #0e0f12;
-  --raised: #15171b;
-  --sunk: #0a0b0d;
-  --line: rgba(255, 255, 255, 0.065);
-  --line-2: rgba(255, 255, 255, 0.11);
+  --canvas: #141518;
+  --side-text: #bcc0c8;
+  --sheet: #212328;
+  --raised: #2b2e34;
+  --sunk: #18191c;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.12);
   --text: #eef0f3;
   --text-2: #9ca1ab;
-  --text-3: #80858e; /* ≥ 4.79:1 on every dark surface, glass included */
+  --text-3: #9297a0; /* ≥ 4.6:1 on every Carbon surface, the popover and glass included */
   --accent: #5b84ff;
   --accent-rgb: 91, 132, 255;
-  --accent-soft: rgba(91, 132, 255, 0.12);
+  --accent-soft: rgba(91, 132, 255, 0.15);
   --accent-ink: #8aa7ff;
-  --hover: rgba(255, 255, 255, 0.04);
-  --press: rgba(255, 255, 255, 0.07);
+  --hover: rgba(255, 255, 255, 0.045);
+  --press: rgba(255, 255, 255, 0.08);
   --danger: #ff5c61;
-  --danger-soft: rgba(255, 92, 97, 0.12);
+  --danger-soft: rgba(255, 92, 97, 0.14);
   --danger-ink: #ff8a8e;
   --warn: #ffb224;
-  --warn-soft: rgba(255, 178, 36, 0.12);
+  --warn-soft: rgba(255, 178, 36, 0.14);
   --warn-ink: #ffc75c;
   --meet: #9582ff;
-  --meet-soft: rgba(149, 130, 255, 0.14);
+  --meet-soft: rgba(149, 130, 255, 0.16);
   --meet-ink: #b3a6ff;
   --ok: #2fd08a;
-  --ok-soft: rgba(47, 208, 138, 0.12);
+  --ok-soft: rgba(47, 208, 138, 0.14);
   --ok-ink: #5fe0a8;
   --cyan: #22c3d6;
   --wa: #25c366;
   --accent-fill: #2a5bff;
   --wa-fill: #0f7f44;
   --danger-fill: #d12f35;
-  --glass: rgba(22, 24, 29, 0.72);
-  --glass-rail: rgba(10, 11, 13, 0.5);
-  --veil: rgba(4, 5, 6, 0.55);
-  --hud: rgba(38, 41, 48, 0.86);
+  --glass: rgba(41, 44, 50, 0.76);
+  --glass-rail: rgba(24, 25, 28, 0.6);
+  --veil: rgba(10, 11, 13, 0.55);
+  --hud: rgba(54, 58, 66, 0.9);
   --hud-text: #f4f5f7;
-  --scrim: rgba(0, 0, 0, 0.5);
-  --skel: #17191d;
-  --skel-hi: #1f2227;
-  --glow: rgba(91, 132, 255, 0.16);
+  --scrim: rgba(6, 7, 9, 0.55);
+  --skel: #26282d;
+  --skel-hi: #2f3238;
+  --glow: rgba(91, 132, 255, 0.18);
   --sb: rgba(255, 255, 255, 0.14);
   --sb-hover: rgba(255, 255, 255, 0.26);
   --sb-active: rgba(255, 255, 255, 0.38);
   --shadow-sheet:
-    0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 20px 60px -20px rgba(0, 0, 0, 0.8);
+    0 0 0 0.5px rgba(255, 255, 255, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.28), 0 18px 48px -22px rgba(0, 0, 0, 0.75);
   --shadow-pop:
-    0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 30px 80px -10px rgba(0, 0, 0, 0.8);
-  --shadow-lift: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.8);
+    0 0 0 0.5px rgba(255, 255, 255, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 2px 6px rgba(0, 0, 0, 0.3), 0 30px 80px -12px rgba(0, 0, 0, 0.75);
+  --shadow-lift:
+    0 0 0 0.5px rgba(255, 255, 255, 0.15), 0 2px 6px rgba(0, 0, 0, 0.3), 0 18px 44px -10px rgba(0, 0, 0, 0.75);
 }
 
 @media (prefers-color-scheme: dark) {
   [data-theme="system"] {
     color-scheme: dark;
-    --canvas: #060708;
-    --side-text: #b4b8c0;
-    --sheet: #0e0f12;
-    --raised: #15171b;
-    --sunk: #0a0b0d;
-    --line: rgba(255, 255, 255, 0.065);
-    --line-2: rgba(255, 255, 255, 0.11);
+    --canvas: #141518;
+    --side-text: #bcc0c8;
+    --sheet: #212328;
+    --raised: #2b2e34;
+    --sunk: #18191c;
+    --line: rgba(255, 255, 255, 0.07);
+    --line-2: rgba(255, 255, 255, 0.12);
     --text: #eef0f3;
     --text-2: #9ca1ab;
-    --text-3: #80858e; /* ≥ 4.79:1 on every dark surface, glass included */
+    --text-3: #9297a0; /* ≥ 4.6:1 on every Carbon surface, the popover and glass included */
     --accent: #5b84ff;
     --accent-rgb: 91, 132, 255;
-    --accent-soft: rgba(91, 132, 255, 0.12);
+    --accent-soft: rgba(91, 132, 255, 0.15);
     --accent-ink: #8aa7ff;
-    --hover: rgba(255, 255, 255, 0.04);
-    --press: rgba(255, 255, 255, 0.07);
+    --hover: rgba(255, 255, 255, 0.045);
+    --press: rgba(255, 255, 255, 0.08);
     --danger: #ff5c61;
-    --danger-soft: rgba(255, 92, 97, 0.12);
+    --danger-soft: rgba(255, 92, 97, 0.14);
     --danger-ink: #ff8a8e;
     --warn: #ffb224;
-    --warn-soft: rgba(255, 178, 36, 0.12);
+    --warn-soft: rgba(255, 178, 36, 0.14);
     --warn-ink: #ffc75c;
     --meet: #9582ff;
-    --meet-soft: rgba(149, 130, 255, 0.14);
+    --meet-soft: rgba(149, 130, 255, 0.16);
     --meet-ink: #b3a6ff;
     --ok: #2fd08a;
-    --ok-soft: rgba(47, 208, 138, 0.12);
+    --ok-soft: rgba(47, 208, 138, 0.14);
     --ok-ink: #5fe0a8;
     --cyan: #22c3d6;
     --wa: #25c366;
     --accent-fill: #2a5bff;
     --wa-fill: #0f7f44;
     --danger-fill: #d12f35;
-    --glass: rgba(22, 24, 29, 0.72);
-    --glass-rail: rgba(10, 11, 13, 0.5);
-    --veil: rgba(4, 5, 6, 0.55);
-    --hud: rgba(38, 41, 48, 0.86);
+    --glass: rgba(41, 44, 50, 0.76);
+    --glass-rail: rgba(24, 25, 28, 0.6);
+    --veil: rgba(10, 11, 13, 0.55);
+    --hud: rgba(54, 58, 66, 0.9);
     --hud-text: #f4f5f7;
-    --scrim: rgba(0, 0, 0, 0.5);
-    --skel: #17191d;
-    --skel-hi: #1f2227;
-    --glow: rgba(91, 132, 255, 0.16);
+    --scrim: rgba(6, 7, 9, 0.55);
+    --skel: #26282d;
+    --skel-hi: #2f3238;
+    --glow: rgba(91, 132, 255, 0.18);
     --sb: rgba(255, 255, 255, 0.14);
     --sb-hover: rgba(255, 255, 255, 0.26);
     --sb-active: rgba(255, 255, 255, 0.38);
     --shadow-sheet:
-      0 0 0 0.5px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.03),
-      0 20px 60px -20px rgba(0, 0, 0, 0.8);
+      0 0 0 0.5px rgba(255, 255, 255, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.045),
+      0 1px 2px rgba(0, 0, 0, 0.28), 0 18px 48px -22px rgba(0, 0, 0, 0.75);
     --shadow-pop:
-      0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      0 30px 80px -10px rgba(0, 0, 0, 0.8);
-    --shadow-lift: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.8);
+      0 0 0 0.5px rgba(255, 255, 255, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 2px 6px rgba(0, 0, 0, 0.3), 0 30px 80px -12px rgba(0, 0, 0, 0.75);
+    --shadow-lift:
+      0 0 0 0.5px rgba(255, 255, 255, 0.15), 0 2px 6px rgba(0, 0, 0, 0.3),
+      0 18px 44px -10px rgba(0, 0, 0, 0.75);
   }
 }

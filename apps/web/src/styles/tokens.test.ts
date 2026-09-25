@@ -66,8 +66,16 @@ describe("theme tokens", () => {
     ["porcelain", light],
     ["obsidian", dark],
   ])("%s: tertiary text is real text too: 4.5:1 on every surface it sits on", (_name, t) => {
-    for (const bg of ["--sheet", "--sunk", "--canvas"]) {
+    for (const bg of ["--sheet", "--sunk", "--canvas", "--raised"]) {
       expect(contrastRatio(t["--text-3"]!, t[bg]!), bg).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it("obsidian: every layer steps clearly up from the one below (page → card → popover)", () => {
+    // Too little step and cards melt into the page (the owner's call: "blended in").
+    expect(contrastRatio(dark["--sheet"]!, dark["--canvas"]!)).toBeGreaterThanOrEqual(1.14);
+    expect(contrastRatio(dark["--raised"]!, dark["--sheet"]!)).toBeGreaterThanOrEqual(1.1);
+    // Inputs and table headers sit recessed inside a card, never above it.
+    expect(contrastRatio(dark["--sheet"]!, dark["--sunk"]!)).toBeGreaterThanOrEqual(1.1);
   });
 });
