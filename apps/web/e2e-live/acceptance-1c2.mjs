@@ -260,9 +260,17 @@ assert(
 await owner.goto("/leads");
 const strip = owner.getByRole("group", { name: "Stages" });
 await strip.getByRole("button", { name: /^Call booked, 2 leads$/ }).click();
-await owner.getByRole("button", { name: "Open Sara Nasser" }).waitFor();
+const filtered = await owner
+  .waitForFunction(() => document.querySelectorAll('[data-testid="lead-row"]').length === 2, null, {
+    timeout: 10_000,
+  })
+  .then(() => true)
+  .catch(async () => {
+    await owner.screenshot({ path: path.join(SHOTS, "FAILED-06b.png") });
+    return false;
+  });
 assert(
-  (await owner.getByTestId("lead-row").count()) === 2,
+  filtered && (await owner.getByRole("button", { name: "Open Sara Nasser" }).count()) === 1,
   "Call booked shows its two leads, as its count said",
 );
 await shot(owner, "06b-stage-strip");

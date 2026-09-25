@@ -2872,3 +2872,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" && git push origin main
 **Test order.** Spec files run alphabetically, so the leads specs use Noor, a sales rep onboarded by the seed, and not Riya, whose onboarding `onboarding.spec.ts` tests later.
 
 **Type consistency.** `Lead`, `LeadCan`, `Catalog`, `Stage`, `BulkAction` and `BulkResult` are defined once in Task 2 and used unchanged in Tasks 3–9. `useStageMove().request(lead, stage) → Promise<Lead | null>` is the same in Tasks 5, 7 and 8. `leadsClient` method names match between Task 2 and every later use. The `can` block's keys (`edit, move, reveal, assign, delete, message`) match between Task 1's serializer and Task 2's `LeadCan`.
+
+## Execution notes (2026-09-25)
+
+Executed inline, task by task, with every decision ledgered as a ruling (`.superpowers/sdd/2026-09-25-phase-1c2-leads/progress.md`, summarised in the acceptance runbook). The deviations that change what was built:
+
+- **Additions asked for mid-phase:** the phone country picker (`PhoneInput`, with `splitPhone`/`joinPhone`/`dialCountries` in `@lume/core`), and the leads-page pass: stage strip with counts replacing the table's Stage popover, a two-row toolbar, clearer filter labels, and the `N` key.
+- **The API's validation shape** is `VALIDATION_FAILED` with `instancePath`, not `issues[].path`; the tests use the real shape through `fieldErrors`.
+- **Board drag** lifts a fixed copy that follows the pointer (a card dragged in place is clipped by the scrolling columns); touch doesn't drag (it scrolls; phones move leads from the drawer or keyboard).
+- **URL sync** uses `history.replaceState`, not `router.replace` (no server round trip per keystroke).
+- **The New lead sheet** asks before discarding typed data; the note endpoint returns a complete activity.
+- **Fixed along the way:** custom-field PATCH SQL, edge rate limits, reduced-motion deep links, and the UI defects listed in the runbook.

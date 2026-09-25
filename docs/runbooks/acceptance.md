@@ -242,3 +242,78 @@ These were found by running the real stack. None would have shown up in unit tes
 The dev database was **reset to a genuine first run** after the walkthrough (`scripts/dev.sh reset-db`). The accounts above were throwaway and are gone. The owner's real account should be created by the owner, with their own password and authenticator app, so its credentials exist only in their password manager and never in this repo or on this machine. The new setup token is in `scripts/dev.sh logs api`.
 
 **Status: Phase 1C-1 accepted on the temp build host.**
+
+# Phase 1C-2 — Leads screens (2026-09-25)
+
+**Commits:** `ec61717` … `64b4247` plus the docs after them · **Host:** temp build host `lumedev`, dev stack behind Caddy (`https://lume.localhost:8443`).
+
+## Live walkthrough
+
+`apps/web/e2e-live/acceptance-1c2.mjs` runs straight after `acceptance-1c1.mjs` in the same throwaway container. It uses the three signed-in sessions that script hands over in `ACCEPT_STATE_DIR`, a temp directory deleted with the container (the command is in the script's header). Screenshots are in [`screenshots-1c2/`](screenshots-1c2/); they show throwaway data only.
+
+```
+ok   the phone's country is picked from a searchable list with flags
+ok   the new lead opens in the drawer, and the address names it
+ok   the saved number carries the picked code, trunk zero dropped, valid for WhatsApp
+ok   typing a known number warns, naming the lead and who handles it
+ok   closing a filled sheet asks first, then discards
+ok   Call booked asks for Struggles, saves it, then moves
+ok   the history tells the story in words
+ok   the rep sees Aisha's number masked
+ok   the owner finds Riya's reveal in the audit log
+ok   Priya is gone from Riya's list
+ok   a drawer opened from a link is on screen
+ok   Riya's old link to Priya explains itself instead of erroring
+ok   the skipped lead stays selected, ready to fix and retry
+ok   a masked rep's table has no contact column
+ok   and no export
+ok   search says it's by name
+ok   the API agrees: contacts arrive masked, and a number finds nothing
+ok   Call booked shows its two leads, as its count said
+ok   the count moves with the card
+ok   the drag sticks after a reload
+acceptance 1C-2 passed
+```
+
+| Plan step | Outcome | Screenshot |
+|---|---|---|
+| 1. Create a lead (country from the picker, code added for you); a second with the same number shows the duplicate warning, naming the owner | ✅ | 01a–01d |
+| 2. Move stages: Call booked asks for Struggles first; Lost asks for a reason; History tells it in words | ✅ | 02a–02c |
+| 3. The rep reveals a masked contact ("recorded in the audit log"); the owner finds the reveal in the audit log | ✅ | 03a, 03b |
+| 4. Reassign one of the rep's leads to the admin; it leaves the rep's list, and the rep's old link explains itself | ✅ | 04a, 04b |
+| 5. Bulk move of three: "2 moved, 1 skipped: missing required fields"; the skipped one stays selected | ✅ | 05 |
+| 6. Masked role: no contact column, no export, name-only search in the UI and the API | ✅ | 06 |
+| Also: the stage strip filters with its counts; a real pointer drag on the board; the drawer in Obsidian | ✅ | 06b, 07, 08 |
+
+## Automated
+
+- **Unit and integration:** 92 files, 543 tests (`pnpm test`), plus lint, typecheck and the production web build, all in the gate.
+- **End to end:** 75 Playwright tests on a fresh database behind an edge proxy that mirrors Caddy. They cover the leads specs (create and duplicate warning, the country picker, stage prompts, reassign, bulk skips, the masked rep, WhatsApp hand-off with the tab stubbed, and a deep link under reduced motion) and the board specs (pointer drag, keyboard move). They also include axe checks in both themes for the table, the rep's table, the drawer, the New lead sheet with the country list open and the board, screenshots of the leads table, drawer and board in both themes, and role snapshots of the toolbar, the table header and a drawer for the owner and for a sales rep. There are no retries, and the last full run passed 75/75 with no snapshot updates.
+- **Edge limits:** `infra/scripts/check-rate-limits.mjs` passes against the dev stack. Static files are never limited. Two sessions on one address get 450 requests each without a 429. A client without a session is limited after 600.
+
+## Findings fixed during acceptance
+
+The unit tests would have caught none of these. They came from the real stack, the e2e suite, or from reviewing the screenshots before accepting them.
+
+- **Saving a custom field failed with a 500.** A PATCH that set custom fields without clearing any (or only cleared) built `- ()::text[]`, which is invalid SQL. It now builds `ARRAY[...]`, and a test covers set, set-and-clear, and clear.
+- **Offices would have been locked out by the edge.** Every JS chunk, font and flag counted against 600 requests a minute per IP, so three browsers on one address got 429s mid-walkthrough. Static files are now exempt, the limit is per session, and there's a per-address ceiling. The client also retries a read once after `Retry-After`, then says the network is busy (never "check your connection"). The API's own sign-in lockouts pass through, and an error page that isn't JSON no longer throws.
+- **A lead opened from a link was invisible for people who prefer less motion.** The server rendered the slide's start (off-screen), and the browser switched to a fade that never moved it back. Every animated surface now names its full resting state, and an e2e `toBeInViewport` check covers it.
+- **The drawer's Details repeated owner, stage and source** as empty rows. **Unassigned board cards showed "UN"** as if it were a person. **Money in editable cells wasn't right-aligned.** **The board's columns touched the toolbar.**
+- **The country list failed contrast in Obsidian** (4.39:1 on the highlighted row); the codes now use a stronger ink.
+- **A CI screenshot differed by 412 pixels.** A masked relative time's width ("just now" vs "1m ago") moved the owner's name; visual shots now give every relative time a fixed box.
+- **The search box drew two focus rings.**
+
+## Asked for during the phase, and built
+
+- **Phone country picker:** the country is its own control. It's a searchable list of every country with its flag, name and calling code (search by name, ISO or code). The code is added automatically, a pasted international number picks its own country, and a typed trunk "0" is dropped. It's used in the New lead sheet, inline edits and the required-fields prompt. The flags are self-hosted SVGs (country-flag-icons, MIT), refreshed with `node scripts/sync-flags.mjs`.
+- **Leads page:**
+  - A stage strip with live counts: one click shows a stage, Ctrl or ⌘ adds more.
+  - A two-row toolbar by job: stages, view and New lead first, then search, filters, sort and columns.
+  - Filters that say what they filter.
+  - `N` for a new lead, alongside `/` for search.
+
+## State left behind
+
+The dev database was **reset to a genuine first run** after the walkthrough (`scripts/dev.sh reset-db`). The accounts were throwaway and are gone; the owner still does the real first run. The new setup token is in `scripts/dev.sh logs api`.
+
+**Status: Phase 1C-2 accepted on the temp build host.**
