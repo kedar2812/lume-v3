@@ -84,6 +84,15 @@ export const PROBES: Record<string, Probe> = {
     path: () => `/api/v1/invites/${"x".repeat(43)}/accept`,
     body: () => ({ password: "a long and lovely passphrase" }),
   },
+  "GET /api/v1/settings/currency/quote": {
+    access: "settings.manage",
+    path: () => "/api/v1/settings/currency/quote?to=USD",
+  },
+  "POST /api/v1/settings/currency": {
+    access: "settings.manage",
+    body: () => ({ from: "ZZZ", to: "USD", rate: 1 }),
+  },
+  "GET /api/v1/about": { access: "auth.self" },
   "GET /api/v1/users": { access: "users.manage" },
   "PATCH /api/v1/users/:id": {
     access: "users.manage",

@@ -23,6 +23,8 @@ import { meRoutes } from "./modules/me/routes";
 import { pipelineRoutes } from "./modules/pipelines/routes";
 import { roleRoutes } from "./modules/roles/routes";
 import { settingsRoutes } from "./modules/settings/routes";
+import { aboutRoutes } from "./modules/about/routes";
+import type { RateSource } from "./money/rates";
 import { memoSettings } from "./modules/settings/service";
 import { setupRoutes } from "./modules/setup/routes";
 import { teamRoutes } from "./modules/teams/routes";
@@ -32,7 +34,7 @@ import { syncPermissionCatalog } from "./rbac/sync";
 import { buildServer } from "./server";
 
 export type Clock = () => Date;
-export type AppConfig = { publicUrl: string; cookieSecure: boolean };
+export type AppConfig = { publicUrl: string; cookieSecure: boolean; version?: string };
 export type AppDeps = {
   pool: pg.Pool;
   keyring: Keyring;
@@ -42,6 +44,8 @@ export type AppDeps = {
   setupTokens: SetupTokens;
   isBreached: (pw: string) => boolean;
   argon2: Argon2Params;
+  /** Exchange rates for switching the business currency (defaults to open.er-api.com). */
+  rates?: RateSource;
   logger?: FastifyServerOptions["logger"];
   /** Observes every `lume_rbac` notification after the cache has handled it (tests). */
   onRbacEvent?: (payload: string) => void;
@@ -85,7 +89,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(userRoutes, deps);
         await scope.register(roleRoutes);
         await scope.register(teamRoutes);
-        await scope.register(settingsRoutes);
+        await scope.register(settingsRoutes, deps);
+        await scope.register(aboutRoutes, deps);
         await scope.register(auditRoutes);
         await scope.register(pipelineRoutes);
         await scope.register(fieldRoutes);

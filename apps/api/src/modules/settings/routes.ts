@@ -5,7 +5,10 @@ import { z } from "zod";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { bumpFieldDefs } from "../../leads/fields";
-import { notFound } from "../../http/errors";
+import { badRequest, notFound } from "../../http/errors";
+import type { AppDeps } from "../../app";
+import { openErApi } from "../../money/rates";
+import { quoteCurrency, switchCurrency } from "./service";
 import { countrySchema, currencySchema, timezoneSchema } from "../../http/schemas";
 
 const shape = (s: typeof schema.settings.$inferSelect) => ({
@@ -17,7 +20,8 @@ const shape = (s: typeof schema.settings.$inferSelect) => ({
   industryPreset: s.industryPreset,
 });
 
-export async function settingsRoutes(app: FastifyInstance): Promise<void> {
+export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
+  const rates = d.rates ?? openErApi();
   const r = app.withTypeProvider<ZodTypeProvider>();
   // Readable before a required two-step enrolment is done: onboarding shows the business name throughout.
   r.get(
@@ -38,7 +42,8 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
           .object({
             businessName: z.string().trim().min(1).max(120),
             timezone: timezoneSchema,
-            currency: currencySchema,
+            // Only through POST /settings/currency, which converts every amount (one currency, owner 2026-09-25).
+            currency: z.string(),
             defaultCountry: countrySchema,
             weekStart: z.number().int().min(0).max(6),
           })
@@ -47,7 +52,12 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (req) => {
-      const { defaultCountry, ...rest } = req.body;
+      const { defaultCountry, currency, ...rest } = req.body;
+      if (currency !== undefined)
+        throw badRequest(
+          "USE_DEDICATED_ENDPOINT",
+          "Change the currency with Settings → Business, which converts every amount",
+        );
       if (defaultCountry) await bumpFieldDefs(req); // compiled phone validators depend on it
       const [s] = await req.db
         .update(schema.settings)
@@ -57,5 +67,22 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       await audit(req, { action: "settings.updated", entityType: "settings", entityId: "1", diff: req.body });
       return shape(s!);
     },
+  );
+  r.get(
+    "/api/v1/settings/currency/quote",
+    { config: { permission: "settings.manage" }, schema: { querystring: z.object({ to: currencySchema }) } },
+    (req) => quoteCurrency(req, rates, req.query.to),
+  );
+  r.post(
+    "/api/v1/settings/currency",
+    {
+      config: { permission: "settings.manage" },
+      schema: {
+        body: z
+          .object({ from: currencySchema, to: currencySchema, rate: z.number().positive().max(1_000_000) })
+          .strict(),
+      },
+    },
+    (req) => switchCurrency(req, req.body),
   );
 }

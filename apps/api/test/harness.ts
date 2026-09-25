@@ -26,6 +26,7 @@ import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
+import { fixedRates } from "../src/money/rates";
 import { seedConfiguration } from "../src/modules/pipelines/seed";
 import { loadActor, type ActorRecord } from "../src/rbac/actor";
 
@@ -187,6 +188,7 @@ export async function createHarness(
     setupTokens,
     isBreached: createBreachedChecker(Buffer.alloc(0)),
     argon2: TEST_ARGON2,
+    rates: fixedRates("AED:USD=0.27"),
     onRbacEvent: (payload) => {
       waiters.get(payload)?.();
     },

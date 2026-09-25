@@ -55,6 +55,13 @@ export const apiSchema = base.extend({
   SMTP_URL: optional(z.url({ protocol: /^smtps?$/ })),
   MAIL_FROM: optional(z.string().min(3).max(200)),
   BREACHED_LIST_FILE: z.string().min(1).default("/app/data/breached-sha1.bin"),
+  /** Exchange rates for switching the business currency (owner's choice: open.er-api.com). */
+  LUME_FX_PROVIDER: z.enum(["open-er-api", "openexchangerates", "fixed"]).default("open-er-api"),
+  /** Key for openexchangerates; a fixed table ("AED:USD=0.27,…") for "fixed" (tests, e2e). */
+  LUME_FX_KEY: optional(z.string().min(1).max(200)),
+  LUME_FX_FIXED: optional(z.string().min(1).max(2000)),
+  /** Shown on Settings → About; the image tag in production. */
+  LUME_VERSION: optional(z.string().min(1).max(60)),
 });
 
 export const workerSchema = base.extend({
