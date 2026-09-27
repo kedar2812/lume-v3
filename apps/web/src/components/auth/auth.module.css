@@ -241,26 +241,7 @@
   color: var(--text-2);
   margin-top: 6px;
 }
-.withReveal {
-  position: relative;
-  display: block;
-}
-.revealBtn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  font-size: var(--fs-xs);
-  letter-spacing: var(--ls-xs);
-  font-weight: var(--fw-semibold);
-  color: var(--text-2);
-  background: var(--raised);
-  box-shadow: 0 0 0 0.5px var(--line-2);
-  cursor: pointer;
-}
+
 .done {
   text-align: center;
   display: grid;

@@ -12,6 +12,7 @@ import { deviceName } from "@/lib/settings/device";
 import { shortDateTime } from "@/lib/settings/format";
 import type { Session } from "@/server/session";
 import s from "./settings.module.css";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 /**
  * The signed-in person's own account: their name and look, two-step sign-in (on, off where the role
@@ -214,9 +215,8 @@ function TwoStep({ session }: { session: Session }) {
           </p>
           <Field label="Your password" error={st.error}>
             {(control) => (
-              <input
+              <PasswordInput
                 {...control}
-                type="password"
                 autoComplete="current-password"
                 autoFocus
                 value={password}

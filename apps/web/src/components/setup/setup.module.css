@@ -1,14 +1,16 @@
 /* First-run setup: the sign-in canvas, a wider glass card, one step at a time. */
-/* A scroll container clips shadows at its padding edge, so it gets room for the card's soft shadow
-   (with negative margins, the layout is unchanged). Without it the shadow ends in a hard rectangle. */
+/* The card always fits the window: when a step is taller than the room left, the step scrolls inside the
+   card (its outline and the progress bar stay put) instead of the whole page moving. The page is one
+   full-height row, so the cap follows the window exactly (viewport units can lag a resize). */
+.page {
+  grid-template-rows: minmax(0, 1fr);
+}
 .wrap {
   position: relative;
   width: min(480px, calc(100vw - 32px));
-  box-sizing: content-box;
-  max-height: calc(100dvh - 32px - 168px);
-  overflow-y: auto;
-  padding: 48px 48px 120px; /* --shadow-pop reaches ~116px below the card */
-  margin: -48px -48px -120px;
+  max-height: calc(100% - 48px);
+  display: flex;
+  flex-direction: column;
   text-align: center;
 }
 .mark {
@@ -28,8 +30,12 @@
   animation: rise 1.1s var(--spring-soft) 0.3s both;
 }
 .card {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   margin-top: 22px;
-  padding: 24px;
+  padding: 24px 24px 0;
   border-radius: 22px;
   background: var(--glass);
   backdrop-filter: blur(30px) saturate(180%);
@@ -37,6 +43,27 @@
   text-align: left;
   overflow: hidden;
   animation: rise 1.4s var(--spring-soft) 0.5s both;
+}
+
+/* One step: the part that scrolls when it must, edge to edge inside the card. */
+.frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -24px;
+  padding: 0 24px 24px;
+}
+/* A step's buttons stay in reach at the bottom, on the card's own frosted material. */
+.frame .row {
+  position: sticky;
+  bottom: -24px;
+  z-index: 1;
+  margin: 18px -24px -24px;
+  padding: 14px 24px 24px;
+  background: color-mix(in srgb, var(--sheet) 93%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 -0.5px 0 var(--line);
 }
 
 /* Progress: the same slim bar the tour uses. */

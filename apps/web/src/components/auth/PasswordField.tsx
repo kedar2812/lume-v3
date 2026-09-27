@@ -1,8 +1,9 @@
 "use client";
-import { useId, useState } from "react";
+import { useId } from "react";
 import s from "@/components/auth/auth.module.css";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
-/** One password field, used by reset, invite acceptance and setup: same hint, same show/hide. */
+/** One password field, used by reset, invite acceptance and setup: same hint, same eye, same Caps Lock hint. */
 export function PasswordField({
   label,
   name,
@@ -19,27 +20,20 @@ export function PasswordField({
   autoComplete?: string;
 }) {
   const id = useId();
-  const [shown, setShown] = useState(false);
   return (
     <div className={s.field}>
       <label htmlFor={id}>{label}</label>
-      <span className={s.withReveal}>
-        <input
-          id={id}
-          name={name}
-          type={shown ? "text" : "password"}
-          autoComplete={autoComplete}
-          required
-          className={s.input}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-error` : `${id}-hint`}
-        />
-        <button type="button" className={s.revealBtn} onClick={() => setShown((v) => !v)}>
-          {shown ? "Hide" : "Show"}
-        </button>
-      </span>
+      <PasswordInput
+        id={id}
+        name={name}
+        autoComplete={autoComplete}
+        required
+        className={s.input}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : `${id}-hint`}
+      />
       {error ? (
         <p id={`${id}-error`} role="alert" className={s.error}>
           {error}

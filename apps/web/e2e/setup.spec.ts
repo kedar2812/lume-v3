@@ -22,6 +22,23 @@ test("@smoke first run: the wizard creates the business and the owner, with two-
   await page.getByLabel("Setup token").fill(await readSetupToken());
   await page.getByRole("button", { name: "Continue" }).click();
 
+  // In a short window the card still fits: the step scrolls inside it, never the page.
+  await expect(page.getByLabel("Business name")).toBeVisible();
+  await expect(page.getByLabel("Setup token")).toHaveCount(0); // the previous step has gone
+  await page.setViewportSize({ width: 1366, height: 560 });
+  const fits = await page.evaluate(() => {
+    const card = document.querySelector("form")!.closest("[class*='card']")!;
+    const frame = document.querySelector("form")!.parentElement!;
+    return {
+      pageScrolls: document.scrollingElement!.scrollHeight > window.innerHeight,
+      cardBottom: card.getBoundingClientRect().bottom,
+      frameScrolls: frame.scrollHeight > frame.clientHeight,
+    };
+  });
+  expect(fits.pageScrolls).toBe(false);
+  expect(fits.cardBottom).toBeLessThanOrEqual(560);
+  expect(fits.frameScrolls).toBe(true);
+  await page.setViewportSize({ width: 1366, height: 800 });
   await page.getByLabel("Business name").fill("Brightpath Studio");
   await page.getByLabel("Timezone").fill("Dubai");
   await page.getByRole("option", { name: /Dubai/ }).first().click();
@@ -42,7 +59,7 @@ test("@smoke first run: the wizard creates the business and the owner, with two-
 
   await page.getByLabel("Your name").fill(PEOPLE.owner.name);
   await page.getByLabel("Email").fill(PEOPLE.owner.email);
-  await page.getByLabel("Password").fill(PEOPLE.owner.password);
+  await page.getByLabel("Password", { exact: true }).fill(PEOPLE.owner.password);
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("img", { name: /QR code/ })).toBeVisible();

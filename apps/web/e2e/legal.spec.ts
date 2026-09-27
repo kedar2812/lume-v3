@@ -28,7 +28,7 @@ test.describe("the first-use agreement", () => {
     await p.goto("/sign-in");
     await hydrated(p);
     await p.getByLabel("Email").fill(PEOPLE.fresh.email);
-    await p.getByLabel("Password").fill(PEOPLE.fresh.password);
+    await p.getByLabel("Password", { exact: true }).fill(PEOPLE.fresh.password);
     await p.getByRole("button", { name: "Sign in" }).click();
     await expect(p).toHaveURL(/\/agree$/);
     await hydrated(p);

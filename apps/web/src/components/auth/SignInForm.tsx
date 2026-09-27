@@ -6,6 +6,7 @@ import type { AuthStep, SignInResult } from "@/lib/auth-client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { OtpInput } from "./OtpInput";
 import s from "./auth.module.css";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 type Props = {
   businessName: string;
@@ -132,10 +133,9 @@ export function SignInForm({ businessName, onSignIn, onVerify, onVerifyRecovery,
               </div>
               <div className={s.field}>
                 <label htmlFor="password">Password</label>
-                <input
+                <PasswordInput
                   id="password"
                   name="password"
-                  type="password"
                   autoComplete="current-password"
                   required
                   className={s.input}

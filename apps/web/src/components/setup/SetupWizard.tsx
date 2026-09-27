@@ -122,6 +122,7 @@ export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
   const frame = (key: string, title: string, sub: string, body: ReactNode) => (
     <motion.div
       key={key}
+      className={s.frame}
       initial={{ opacity: 0, x: 22 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -22 }}

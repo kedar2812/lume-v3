@@ -59,7 +59,7 @@ test.describe("the tour, as a sales rep", () => {
     await page.goto("/sign-in");
     await hydrated(page);
     await page.getByLabel("Email").fill(PEOPLE.rep.email);
-    await page.getByLabel("Password").fill(PEOPLE.rep.password);
+    await page.getByLabel("Password", { exact: true }).fill(PEOPLE.rep.password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/today$/);
     await page.getByRole("button", { name: /Riya/ }).click();

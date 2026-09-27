@@ -9,7 +9,7 @@ import w from "./setup.module.css";
 export function SetupScreen() {
   const router = useRouter();
   return (
-    <div className={s.page}>
+    <div className={`${s.page} ${w.page}`}>
       <div className={s.aura} aria-hidden>
         <i />
         <i />
