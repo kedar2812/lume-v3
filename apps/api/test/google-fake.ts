@@ -27,6 +27,9 @@ export type GoogleFake = {
   unshare(id: string): void;
   share(id: string): void;
   remove(id: string): void;
+  /** Connect with Google (2B-2): the user takes LUME's access away at Google, and gives it back. */
+  revokeGrant(): void;
+  restoreGrant(): void;
   /** The next `count` Google calls (not the token) answer with this HTTP status (and error reason). */
   fail(status: number, count?: number, reason?: string): void;
   /** Every Google call's method and path, in order ("GET /v4/spreadsheets/abc"). */
@@ -41,6 +44,8 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
   const sheets = new Map<string, FakeSpreadsheet & { modified: number }>();
   const tokens = new Set<string>();
+  const oauthTokens = new Set<string>();
+  let revoked = false;
   const calls: string[] = [];
   let clock = Date.parse("2026-09-27T00:00:00Z");
   let failing: { status: number; left: number; reason?: string } | null = null;
@@ -110,6 +115,25 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     }
     if (u.pathname === "/token" && req.method === "POST") {
       const form = new URLSearchParams(await readBody(req));
+      // OAuth (the relay, 2B-2): "good-code" signs in; "rt-good" refreshes until the grant is revoked. A
+      // token from a grant reads any sheet, as drive.file lets a picked file through.
+      const grant = form.get("grant_type");
+      if (grant === "authorization_code" || grant === "refresh_token") {
+        const good =
+          grant === "authorization_code"
+            ? form.get("code") === "good-code"
+            : form.get("refresh_token") === "rt-good" && !revoked;
+        if (!good) return send(res, 400, { error: "invalid_grant" });
+        const token = randomBytes(16).toString("hex");
+        tokens.add(token);
+        oauthTokens.add(token);
+        return send(res, 200, {
+          access_token: token,
+          expires_in: 3600,
+          token_type: "Bearer",
+          ...(grant === "authorization_code" ? { refresh_token: "rt-good" } : {}),
+        });
+      }
       const [h, c, sig] = (form.get("assertion") ?? "").split(".");
       const ok =
         !!h &&
@@ -125,6 +149,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       return send(res, 200, { access_token: token, expires_in: 3600, token_type: "Bearer" });
     }
     calls.push(`${req.method} ${u.pathname}`);
+    const viaGrant = oauthTokens.has((req.headers.authorization ?? "").replace(/^Bearer /, ""));
     if (!tokens.has((req.headers.authorization ?? "").replace(/^Bearer /, "")))
       return googleError(res, 401, "UNAUTHENTICATED", "Request had invalid authentication credentials.");
     if (failing && failing.left > 0) {
@@ -147,7 +172,8 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     const drive = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname);
     if (drive) {
       const s = sheets.get(decodeURIComponent(drive[1]!));
-      if (!s || !s.sharedWith.includes(EMAIL)) return googleError(res, 404, "NOT_FOUND", "File not found.");
+      if (!s || (!viaGrant && !s.sharedWith.includes(EMAIL)))
+        return googleError(res, 404, "NOT_FOUND", "File not found.");
       return send(res, 200, { modifiedTime: new Date(s.modified).toISOString() });
     }
     const meta = /^\/v4\/spreadsheets\/([^/:]+)$/.exec(u.pathname);
@@ -156,7 +182,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     const s = sheets.get(id);
     if (!meta && !values) return googleError(res, 404, "NOT_FOUND", "Unknown path.");
     if (!s) return googleError(res, 404, "NOT_FOUND", "Requested entity was not found.");
-    if (!s.sharedWith.includes(EMAIL))
+    if (!viaGrant && !s.sharedWith.includes(EMAIL))
       return googleError(res, 403, "PERMISSION_DENIED", "The caller does not have permission");
     if (meta)
       return send(res, 200, {
@@ -223,6 +249,12 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     },
     remove(id) {
       sheets.delete(id);
+    },
+    revokeGrant() {
+      revoked = true;
+    },
+    restoreGrant() {
+      revoked = false;
     },
     fail(status, count = 1, reason) {
       failing = { status, left: count, ...(reason ? { reason } : {}) };
