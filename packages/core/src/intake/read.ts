@@ -116,7 +116,7 @@ function detectHeader(records: string[][]): number {
   return 0;
 }
 
-function nameHeaders(raw: string[]): string[] {
+export function nameHeaders(raw: string[]): string[] {
   const seen = new Map<string, number>();
   return raw.map((h, i) => {
     const base = h.trim() || `Column ${columnLetter(i)}`;
