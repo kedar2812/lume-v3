@@ -71,3 +71,64 @@ describe("0015_intake", () => {
     expect((await query("lume_owner", `SELECT count(*)::int AS n FROM import_rows`)).rows[0].n).toBe(0);
   });
 });
+
+const SHEET = "00000000-0000-7000-8000-00000000f001";
+describe("0016_sheets", () => {
+  it("keeps a sheet source's sync state, with sane defaults and limits", async () => {
+    await query(
+      "lume_owner",
+      `INSERT INTO lead_sources (id, type, name, status) VALUES ('${SHEET}', 'google_sheet', 'Enquiries', 'draft')`,
+    );
+    const { rows } = await query(
+      "lume_owner",
+      `SELECT poll_seconds, rows_read, config_version, baseline, new_columns FROM lead_sources WHERE id = '${SHEET}'`,
+    );
+    expect(rows[0]).toEqual({
+      poll_seconds: 120,
+      rows_read: 0,
+      config_version: 1,
+      baseline: false,
+      new_columns: [],
+    });
+    await expect(
+      query("lume_owner", `UPDATE lead_sources SET poll_seconds = 30 WHERE id = '${SHEET}'`),
+    ).rejects.toThrow(/lead_sources_poll/);
+  });
+
+  it("deals with each sheet row once, per source", async () => {
+    await query(
+      "lume_owner",
+      `INSERT INTO source_rows (source_id, fingerprint, result, row_number) VALUES ('${SHEET}', 'fp1', 'created', 2)`,
+    );
+    await expect(
+      query(
+        "lume_owner",
+        `INSERT INTO source_rows (source_id, fingerprint, result, row_number) VALUES ('${SHEET}', 'fp1', 'error', 3)`,
+      ),
+    ).rejects.toThrow(/source_rows_once/);
+    await query(
+      "lume_owner",
+      `INSERT INTO imports (id, source_id, kind, status, file_sha256, file_name, file_bytes)
+       VALUES ('00000000-0000-7000-8000-00000000f002', '${SHEET}', 'sheet', 'draft', 'x', 'Enquiries', 1)`,
+    );
+  });
+
+  it("lets the worker sweep old sync history, and nothing else", async () => {
+    await expect(query("lume_worker", "SELECT fingerprint FROM source_rows")).rejects.toThrow(/permission/);
+    await query("lume_worker", "DELETE FROM source_syncs WHERE requested_at < now() - interval '30 days'");
+    await query("lume_worker", "DELETE FROM source_refreshes WHERE created_at < now() - interval '1 day'");
+  });
+
+  it("adds the seen-Leads marker and the integrations switchboard", async () => {
+    const u = await query(
+      "lume_owner",
+      "SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'leads_seen_at'",
+    );
+    expect(u.rowCount).toBe(1);
+    const s = await query(
+      "lume_owner",
+      "SELECT column_default FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'integrations'",
+    );
+    expect(s.rows[0].column_default).toContain("{}");
+  });
+});

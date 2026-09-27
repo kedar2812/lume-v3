@@ -37,6 +37,11 @@ export const settings = pgTable("settings", {
     .notNull()
     .default(sql`'{}'::jsonb`),
   fieldDefsVersion: integer("field_defs_version").notNull().default(0),
+  /** Optional modules switched on for this instance (2B spec §3); off unless set. */
+  integrations: jsonb("integrations")
+    .$type<{ googleSheets?: { enabled: boolean } }>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
@@ -68,6 +73,8 @@ export const users = pgTable("users", {
     .$type<Partial<TourState>>()
     .notNull()
     .default(sql`'{}'::jsonb`),
+  /** When this person last left Leads (2B amendment A8): what arrived after it glows. */
+  leadsSeenAt: tz("leads_seen_at"),
   totpSecretEnc: bytea("totp_secret_enc"),
   totpPendingEnc: bytea("totp_pending_enc"),
   totpEnabled: boolean("totp_enabled").notNull().default(false),

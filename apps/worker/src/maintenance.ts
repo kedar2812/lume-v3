@@ -3,6 +3,7 @@ import type pg from "pg";
 export type MaintenanceJobs = {
   purgeIdempotencyKeys(): Promise<number>;
   purgeImportFiles(): Promise<{ files: number; rows: number; drafts: number }>;
+  purgeSheetSyncs(): Promise<{ syncs: number; refreshes: number }>;
 };
 
 /** Housekeeping as lume_worker. Idempotency keys live 24 h (report §4.4). */
@@ -38,6 +39,18 @@ export function makeMaintenanceJobs(pool: pg.Pool, now: () => Date = () => new D
         [draftBefore],
       );
       return { files: files.rowCount ?? 0, rows: rows.rowCount ?? 0, drafts: drafts.rowCount ?? 0 };
+    },
+
+    /** 2B spec §4: sync history is kept 30 days, and a Refresh's record 1 day. Nothing else is touched. */
+    async purgeSheetSyncs() {
+      const t = now().getTime();
+      const syncs = await pool.query("DELETE FROM source_syncs WHERE requested_at < $1", [
+        new Date(t - 30 * 86_400_000),
+      ]);
+      const refreshes = await pool.query("DELETE FROM source_refreshes WHERE created_at < $1", [
+        new Date(t - 86_400_000),
+      ]);
+      return { syncs: syncs.rowCount ?? 0, refreshes: refreshes.rowCount ?? 0 };
     },
   };
 }

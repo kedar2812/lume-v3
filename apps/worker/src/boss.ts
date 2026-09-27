@@ -34,5 +34,10 @@ export async function startQueue(opts: {
     const r = await opts.maintenance.purgeImportFiles();
     opts.log.info(r, "import files purged");
   });
+  await boss.schedule("sheets.retention", "41 3 * * *", {}, { tz: "UTC" });
+  await boss.work("sheets.retention", { batchSize: 1 }, async () => {
+    const r = await opts.maintenance.purgeSheetSyncs();
+    opts.log.info(r, "sheet sync history purged");
+  });
   return boss;
 }

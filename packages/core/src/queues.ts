@@ -5,5 +5,7 @@ export const QUEUE_NAMES = [
   "ops.idempotency-cleanup",
   "imports.run",
   "imports.retention",
+  "sheets.sync",
+  "sheets.retention",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

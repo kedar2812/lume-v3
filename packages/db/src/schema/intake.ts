@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigserial, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import { bigserial, boolean, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 export const leadSources = pgTable("lead_sources", {
@@ -14,7 +14,7 @@ export const leadSources = pgTable("lead_sources", {
     .notNull()
     .default(sql`'{}'::jsonb`),
   status: text("status")
-    .$type<"active" | "paused" | "needs_attention" | "archived">()
+    .$type<"draft" | "active" | "paused" | "needs_attention" | "archived">()
     .notNull()
     .default("active"),
   lastSyncedAt: tz("last_synced_at"),
@@ -22,6 +22,33 @@ export const leadSources = pgTable("lead_sources", {
   createdBy: uuid("created_by"),
   createdAt: tz("created_at").notNull().defaultNow(),
   archivedAt: tz("archived_at"),
+  // Phase 2B-1: a sheet's saved header, how it reads, who it runs as, and where it read to.
+  headers: jsonb("headers")
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  columnSettings: jsonb("column_settings")
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  runAs: uuid("run_as"),
+  pollSeconds: integer("poll_seconds").notNull().default(120),
+  nextSyncAt: tz("next_sync_at"),
+  lastModified: text("last_modified"),
+  rowsRead: integer("rows_read").notNull().default(0),
+  headHash: text("head_hash"),
+  fullReadAt: tz("full_read_at"),
+  currentSyncId: uuid("current_sync_id"),
+  syncLockUntil: tz("sync_lock_until"),
+  rrCursor: integer("rr_cursor").notNull().default(0),
+  failures: integer("failures").notNull().default(0),
+  attentionCode: text("attention_code"),
+  newColumns: jsonb("new_columns")
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  configVersion: integer("config_version").notNull().default(1),
+  syncedConfigVersion: integer("synced_config_version"),
+  baseline: boolean("baseline").notNull().default(false),
 });
 
 export type ImportStatus =
@@ -30,7 +57,7 @@ export type ImportStatus =
 export const imports = pgTable("imports", {
   id: uuid("id").primaryKey(),
   sourceId: uuid("source_id").notNull(),
-  kind: text("kind").$type<"csv">().notNull(),
+  kind: text("kind").$type<"csv" | "sheet">().notNull(),
   status: text("status").$type<ImportStatus>().notNull(),
   fileEnc: bytea("file_enc"),
   fileSha256: text("file_sha256").notNull(),
@@ -73,6 +100,8 @@ export const imports = pgTable("imports", {
   seenAt: tz("seen_at"),
   stopReason: text("stop_reason"),
   purgedAt: tz("purged_at"),
+  /** A sheet draft that edits a live sheet names it (2B amendment A1). */
+  targetSourceId: uuid("target_source_id"),
 });
 
 export const importRows = pgTable(
@@ -107,4 +136,58 @@ export const importMappingMemory = pgTable("import_mapping_memory", {
   rules: jsonb("rules").notNull(),
   updatedBy: uuid("updated_by"),
   updatedAt: tz("updated_at").notNull().defaultNow(),
+});
+
+export type SourceRowResult =
+  "pending" | "created" | "merged" | "skipped" | "error" | "dismissed" | "superseded";
+/** Every sheet row LUME has dealt with, per source, recognised by its fingerprint (2B spec §4). */
+export const sourceRows = pgTable(
+  "source_rows",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    sourceId: uuid("source_id").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    result: text("result").$type<SourceRowResult>().notNull(),
+    leadId: uuid("lead_id"),
+    syncId: uuid("sync_id"),
+    rowNumber: integer("row_number").notNull(),
+    problems: jsonb("problems")
+      .$type<{ column: number | null; code: string; message: string }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    warnings: jsonb("warnings")
+      .$type<{ column: number | null; code: string; message: string }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    rawEnc: bytea("raw_enc"),
+    firstSeenAt: tz("first_seen_at").notNull().defaultNow(),
+    lastTriedAt: tz("last_tried_at").notNull().defaultNow(),
+  },
+  (t) => [unique("source_rows_once").on(t.sourceId, t.fingerprint)],
+);
+
+export type SyncTrigger = "schedule" | "refresh" | "connect" | "manual";
+export const sourceSyncs = pgTable("source_syncs", {
+  id: uuid("id").primaryKey(),
+  sourceId: uuid("source_id").notNull(),
+  trigger: text("trigger").$type<SyncTrigger>().notNull(),
+  requestedBy: uuid("requested_by"),
+  status: text("status").$type<"queued" | "running" | "done" | "failed">().notNull(),
+  rowsTotal: integer("rows_total").notNull().default(0),
+  rowsRead: integer("rows_read").notNull().default(0),
+  created: integer("created").notNull().default(0),
+  merged: integer("merged").notNull().default(0),
+  skipped: integer("skipped").notNull().default(0),
+  errors: integer("errors").notNull().default(0),
+  requestedAt: tz("requested_at").notNull().defaultNow(),
+  startedAt: tz("started_at"),
+  finishedAt: tz("finished_at"),
+  error: text("error"),
+});
+
+export const sourceRefreshes = pgTable("source_refreshes", {
+  id: uuid("id").primaryKey(),
+  requestedBy: uuid("requested_by").notNull(),
+  syncIds: uuid("sync_ids").array().notNull(),
+  createdAt: tz("created_at").notNull().defaultNow(),
 });

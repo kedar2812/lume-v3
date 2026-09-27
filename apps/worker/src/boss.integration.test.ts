@@ -18,10 +18,11 @@ describe("worker queue as lume_worker", () => {
     const backup = vi.fn(async () => ({ name: "x", bytes: 1, deleted: [] }));
     const log = { info: vi.fn(), error: vi.fn() };
     const purgeImportFiles = vi.fn(async () => ({ files: 0, rows: 0, drafts: 0 }));
+    const purgeSheetSyncs = vi.fn(async () => ({ syncs: 0, refreshes: 0 }));
     const boss = await startQueue({
       connectionString: db.url("lume_worker"),
       jobs: { backup, restoreTest: vi.fn() },
-      maintenance: { purgeIdempotencyKeys: vi.fn(async () => 0), purgeImportFiles },
+      maintenance: { purgeIdempotencyKeys: vi.fn(async () => 0), purgeImportFiles, purgeSheetSyncs },
       log,
     });
     cleanup.push(() => boss.stop({ graceful: false, wait: true }));
@@ -32,6 +33,7 @@ describe("worker queue as lume_worker", () => {
       ["ops.backup", "0 */6 * * *"],
       ["ops.idempotency-cleanup", "17 * * * *"],
       ["ops.restore-test", "0 4 * * 1"],
+      ["sheets.retention", "41 3 * * *"],
     ]);
     await boss.send("ops.backup", {});
     await vi.waitFor(() => expect(backup).toHaveBeenCalledTimes(1), { timeout: 15_000, interval: 250 });
@@ -40,9 +42,14 @@ describe("worker queue as lume_worker", () => {
       timeout: 15_000,
       interval: 250,
     });
+    await boss.send("sheets.retention", {});
+    await vi.waitFor(() => expect(purgeSheetSyncs).toHaveBeenCalledTimes(1), {
+      timeout: 15_000,
+      interval: 250,
+    });
     // Cron delivery goes through pg-boss's internal queue. pg-boss swallows the error when it can't
     // create it, so check it exists; otherwise scheduled backups would silently never fire.
     expect(await boss.getQueue("__pgboss__send-it")).toBeTruthy();
     expect(log.error).not.toHaveBeenCalled();
-  });
+  }, 60_000);
 });

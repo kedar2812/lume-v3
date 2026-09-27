@@ -79,4 +79,29 @@ describe("maintenance jobs (as lume_worker)", () => {
     expect(await jobs.purgeImportFiles()).toEqual({ files: 0, rows: 0, drafts: 0 }); // nothing twice
     await owner.end();
   });
+
+  it("deletes sheet sync history after 30 days and refresh records after 1 day, nothing newer", async () => {
+    const owner = new pg.Client({ connectionString: db.url("lume_owner") });
+    await owner.connect();
+    const src = "00000000-0000-7000-8000-0000000000c1";
+    await owner.query(
+      "INSERT INTO lead_sources (id, type, name, status) VALUES ($1, 'google_sheet', 'Sheet', 'active')",
+      [src],
+    );
+    await owner.query(
+      `INSERT INTO source_syncs (id, source_id, trigger, status, requested_at) VALUES
+        ('00000000-0000-7000-8000-0000000000d1', $1, 'schedule', 'done', now() - interval '31 days'),
+        ('00000000-0000-7000-8000-0000000000d2', $1, 'schedule', 'done', now() - interval '1 day')`,
+      [src],
+    );
+    await owner.query(
+      `INSERT INTO source_refreshes (id, requested_by, sync_ids, created_at) VALUES
+        ('00000000-0000-7000-8000-0000000000e1', '0190e0c0-0000-7000-8000-000000000001', '{}', now() - interval '2 days'),
+        ('00000000-0000-7000-8000-0000000000e2', '0190e0c0-0000-7000-8000-000000000001', '{}', now() - interval '1 hour')`,
+    );
+    const jobs = makeMaintenanceJobs(pool);
+    expect(await jobs.purgeSheetSyncs()).toEqual({ syncs: 1, refreshes: 1 });
+    expect(await jobs.purgeSheetSyncs()).toEqual({ syncs: 0, refreshes: 0 });
+    await owner.end();
+  });
 });
