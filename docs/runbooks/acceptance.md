@@ -438,7 +438,7 @@ Passed live:
 - **Re-imports:** the same file again merges all 500; a shuffled copy creates nothing.
 - **The failed-rows download** is a CSV with defused formulas.
 
-Still to run live: the steps after the download (the bulk phone fix, Settings → Imports, and the Obsidian report). The check for the download's byte-order mark was itself wrong (it read the file as text, which drops the BOM) and is fixed. The rerun resets the dev database, so it waits until the owner has finished with the demo workspace they set up there. The same steps pass in e2e.
+**Update 2026-09-28:** the rest now passes live too: the bulk phone fix, Settings → Imports, and the Obsidian report. Two checks in the script were wrong (one asked once instead of waiting for the list; one matched two headings) and are fixed. The whole chain (1C-1 → 1C-2 → 1C-3 → 2A) ran on a freshly reset dev database, with the owner's go-ahead for the overnight run.
 
 ## Findings fixed during acceptance
 
@@ -469,4 +469,62 @@ Still to run live: the steps after the download (the bulk phone fix, Settings �
 
 The dev stack runs the owner's own demo workspace, set up by the owner through the wizard. `docs/demo/sample-leads.csv` holds 42 fictional leads to import. Reach the stack through `ssh -N -L 8443:127.0.0.1:8443 -L 8025:127.0.0.1:8025 lumedev`, then https://lume.localhost:8443 (mail at http://localhost:8025).
 
-**Status: Phase 2A built; accepted in CI and on the dev stack, except the last live steps listed above.**
+**Status: Phase 2A built and fully accepted, in CI and on the dev stack.**
+
+---
+
+# Phase 2B-1 — Google Sheets, Refresh and the arrival glow
+
+Plan: `docs/superpowers/plans/2026-09-27-phase-2b1-sheets-refresh.md`. Spec: `docs/superpowers/specs/2026-09-27-phase-2b-google-sheets-design.md` (with amendments A1–A13).
+
+## Automated
+
+- **Unit and integration tests:**
+  - the Google client against a fake Google over real HTTP (tokens, retries, 403 rate limits, setup problems);
+  - reading rows, header drift, fingerprints and anchors;
+  - the sync engine: incremental reads, re-sorts, problem retries, pauses, lost access, renamed tabs, the row limit, "only rows from now on", and edits that change how rows are recognised;
+  - `requestSync` concurrency;
+  - the sheets API, Refresh and arrivals (per-viewer counts under row-level security);
+  - every screen.
+- **End to end** (`sheets.spec.ts`, against a fake Google on the real stack):
+  - the wizard;
+  - Refresh with the real count and the glow;
+  - a rep's own count;
+  - Reduce Motion;
+  - Sheets off hides Refresh;
+  - screenshots of Integrations and a sheet's page in both themes;
+  - axe on Settings → Integrations.
+
+## Final review (fresh reviewer, whole branch)
+
+It found one Critical and eight Important issues, all fixed with a failing test first.
+
+**Critical:**
+- An edit that changed how rows are recognised re-imported the whole sheet.
+
+**Important:**
+- A gap filled in mid-sheet could be missed for ever.
+- A stopped or restarted sync held its lock for 15 minutes.
+- Pause and Remove didn't stop a running sync.
+- Drive's 403 rate limits read as lost access.
+- A row typed over two syncs made two leads.
+- A date's display format was part of a row's identity.
+- The problem-rows download ignored contact masking.
+- Editing reset the check interval.
+
+Eleven minors are deferred; they are listed in the overnight summary.
+
+## Live walkthrough
+
+`apps/web/e2e-live/acceptance-2b1.mjs` runs after 2A in the same chain. On 2026-09-28 it passed step 1 (Settings → Integrations shows Google Sheets off, and without a key says who can set it up).
+
+**Steps 2–3 need the owner:**
+1. A Google Cloud service account with the Sheets and Drive APIs enabled. Its JSON key goes on the box at `/root/lume-dev/secrets/google-sa.json` (mode 600, never in git); `dev.sh up` picks it up.
+2. A test sheet shared with the key's `client_email` as a Viewer.
+3. Then run: `ACCEPT_SHEET_LINK='https://docs.google.com/spreadsheets/d/…' node apps/web/e2e-live/acceptance-2b1.mjs`.
+
+By hand, once: sort the sheet (nothing new); rename a mapped column (the sheet pauses, and Leads shows the banner); fix it (Open columns → Save).
+
+## State left behind
+
+The dev database was reset for the run. It now holds the fictional Brightpath Studio workspace from the acceptance scripts (owner Maya Kapoor), not the owner's own demo account. **Status: Phase 2B-1 built; accepted in CI and on the dev stack, except the steps that need a real Google key.**

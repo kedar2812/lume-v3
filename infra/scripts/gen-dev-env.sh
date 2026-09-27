@@ -5,7 +5,17 @@ set -euo pipefail
 ROOT="${LUME_DEV_ROOT:?}"
 SECRETS="$ROOT/secrets"
 mkdir -p "$SECRETS" && chmod 700 "$SECRETS"
-[ -f "$ROOT/.env" ] && { echo ".env exists, leaving it untouched"; exit 0; }
+# Google Sheets (2B): the owner's service-account key, if they've put one on the box (never in git).
+# Kept in step on every run, so adding or replacing the key needs no new .env.
+google_key() {
+  [ -f "$ROOT/.env" ] || return 0
+  sed -i '/^GOOGLE_SERVICE_ACCOUNT_JSON=/d' "$ROOT/.env"
+  if [ -f "$SECRETS/google-sa.json" ]; then
+    echo "GOOGLE_SERVICE_ACCOUNT_JSON=$(base64 -w0 < "$SECRETS/google-sa.json")" >> "$ROOT/.env"
+    echo "Google Sheets key picked up from secrets/google-sa.json"
+  fi
+}
+[ -f "$ROOT/.env" ] && { google_key; echo ".env exists, leaving the rest untouched"; exit 0; }
 
 gen() { openssl rand -hex 24; }
 keygen() { docker run --rm lumedev-toolbox:latest age-keygen 2>/dev/null; }
@@ -37,4 +47,5 @@ LOG_LEVEL=info
 LUME_IMAGE_PREFIX=lume
 LUME_TAG=dev
 EOF
+google_key
 echo "generated $ROOT/.env and age keys (fetch secrets/offline.agekey to the owner's PC, then delete it)"

@@ -84,6 +84,9 @@ services:
       DATABASE_URL_APP: postgres://lume_app:${LUME_APP_PASSWORD:?}@db:5432/lume
       LUME_PUBLIC_URL: ${LUME_PUBLIC_URL:-}
       SMTP_URL: ${SMTP_URL:-}
+      # Google Sheets (optional module): the service-account key, base64. Unset: Sheets can't be switched on.
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${GOOGLE_SERVICE_ACCOUNT_JSON:-}
+      LUME_SHEETS_MAX_ROWS: ${LUME_SHEETS_MAX_ROWS:-50000}
       MAIL_FROM: ${MAIL_FROM:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     networks: [frontend, backend]
