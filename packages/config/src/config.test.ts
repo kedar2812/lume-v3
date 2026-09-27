@@ -32,6 +32,32 @@ function issuesOf(fn: () => unknown): string[] {
 }
 
 describe("loadConfig", () => {
+  it("Google Sheets settings are optional; a key must be a base64 service-account JSON", () => {
+    const none = loadConfig(apiSchema, apiEnv);
+    expect(none.GOOGLE_SERVICE_ACCOUNT_JSON).toBeUndefined();
+    expect(none.LUME_SHEETS_MAX_ROWS).toBe(50_000);
+    const key = Buffer.from(
+      JSON.stringify({
+        type: "service_account",
+        client_email: "lume@p.iam.gserviceaccount.com",
+        private_key: "-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----\n",
+      }),
+    ).toString("base64");
+    const ok = loadConfig(apiSchema, {
+      ...apiEnv,
+      GOOGLE_SERVICE_ACCOUNT_JSON: key,
+      LUME_GOOGLE_ENDPOINT: "http://127.0.0.1:3112",
+    });
+    expect(ok.GOOGLE_SERVICE_ACCOUNT_JSON).toBe(key);
+    const bad = issuesOf(() =>
+      loadConfig(apiSchema, { ...apiEnv, GOOGLE_SERVICE_ACCOUNT_JSON: "bm90IGpzb24=" }),
+    );
+    expect(bad.join("\n")).toMatch(/GOOGLE_SERVICE_ACCOUNT_JSON/);
+    expect(issuesOf(() => loadConfig(apiSchema, { ...apiEnv, LUME_SHEETS_MAX_ROWS: "10" })).join()).toMatch(
+      /LUME_SHEETS_MAX_ROWS/,
+    );
+  });
+
   it("accepts a valid api env and applies defaults", () => {
     const c = loadConfig(apiSchema, apiEnv);
     expect(c.API_PORT).toBe(3001);

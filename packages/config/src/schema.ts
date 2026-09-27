@@ -62,6 +62,24 @@ export const apiSchema = base.extend({
   LUME_FX_FIXED: optional(z.string().min(1).max(2000)),
   /** Shown on Settings → About; the image tag in production. */
   LUME_VERSION: optional(z.string().min(1).max(60)),
+  /**
+   * Google Sheets (2B spec §3): the key file Google gives for a service account, base64-encoded. Only its
+   * client_email is ever shown; the key never leaves the environment. Unset: Sheets can't be switched on.
+   */
+  GOOGLE_SERVICE_ACCOUNT_JSON: optional(
+    z.string().refine((v) => {
+      try {
+        const j = JSON.parse(Buffer.from(v, "base64").toString("utf8")) as Record<string, unknown>;
+        return typeof j.client_email === "string" && typeof j.private_key === "string";
+      } catch {
+        return false;
+      }
+    }, "must be the service account's JSON key file, base64-encoded"),
+  ),
+  /** Tests and e2e only: where the Google APIs are (the fake). Unset: Google's own endpoints. */
+  LUME_GOOGLE_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
+  /** The most rows a connected sheet may have (2B spec §5.5). */
+  LUME_SHEETS_MAX_ROWS: z.coerce.number().int().min(1000).max(500_000).default(50_000),
 });
 
 export const workerSchema = base.extend({
