@@ -51,7 +51,7 @@ describe("password policy (report §12.1: length + breach list, no composition r
     expect(passwordProblems("short", { isBreached })).toEqual(["too_short"]);
     expect(passwordProblems("passwordpassword", { isBreached })).toEqual(["breached"]);
     expect(passwordProblems("x".repeat(257), { isBreached })).toEqual(["too_long"]);
-    expect(passwordProblems("tasneem.work!2026", { email: "tasneem@nupuur.com", isBreached })).toEqual([
+    expect(passwordProblems("leila.work!2026", { email: "leila@brightpath.test", isBreached })).toEqual([
       "contains_email",
     ]);
   });

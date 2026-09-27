@@ -49,7 +49,7 @@ describe("TeamsAdmin", () => {
         people={people}
       />,
     );
-    expect(screen.getByRole("radio", { name: "Tasneem Shaikh leads Dubai" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Leila Haddad leads Dubai" })).toBeDisabled();
     await userEvent.click(screen.getByRole("checkbox", { name: "Riya Sharma in Dubai" }));
     expect(teamsClient.setMembers).toHaveBeenLastCalledWith("t1", []);
   });

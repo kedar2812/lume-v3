@@ -21,14 +21,14 @@ describe("invites (report §12.1: invite-only, single-use, 72 h)", () => {
     const res = await admin.inject({
       method: "POST",
       url: "/api/v1/invites",
-      payload: { email: "riya@nupuur.com", name: "Riya", roleIds: [role.id] },
+      payload: { email: "riya@brightpath.test", name: "Riya", roleIds: [role.id] },
     });
     expect(res.statusCode).toBe(201);
-    expect(h.mail.at(-1)).toMatchObject({ to: "riya@nupuur.com", kind: "invite" });
+    expect(h.mail.at(-1)).toMatchObject({ to: "riya@brightpath.test", kind: "invite" });
     const token = tokenFrom(res.json().url);
 
     expect((await h.app.inject({ method: "GET", url: `/api/v1/invites/${token}` })).json()).toMatchObject({
-      email: "riya@nupuur.com",
+      email: "riya@brightpath.test",
       name: "Riya",
     });
     const c = await h.csrf();
@@ -48,7 +48,7 @@ describe("invites (report §12.1: invite-only, single-use, 72 h)", () => {
     expect(ok.statusCode).toBe(201);
     expect(ok.cookies.some((x) => x.name === "__Host-lume_session")).toBe(true);
     const { rows } = await h.pool.query(
-      "SELECT u.status, ur.role_id FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE u.email = 'riya@nupuur.com'",
+      "SELECT u.status, ur.role_id FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE u.email = 'riya@brightpath.test'",
     );
     expect(rows).toEqual([{ status: "active", role_id: role.id }]);
     // single use
@@ -71,7 +71,7 @@ describe("invites (report §12.1: invite-only, single-use, 72 h)", () => {
     const res = await admin.inject({
       method: "POST",
       url: "/api/v1/invites",
-      payload: { email: "late@nupuur.com", name: "Late", roleIds: [] },
+      payload: { email: "late@brightpath.test", name: "Late", roleIds: [] },
     });
     h.clock.advance(72 * 3600_000 + 1);
     expect(

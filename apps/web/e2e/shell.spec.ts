@@ -5,7 +5,7 @@ test("root redirects to Today and the shell shows the lockup", async ({ page }) 
   await expect(page).toHaveURL(/\/today$/);
   const lockup = page.getByTestId("lockup");
   await expect(lockup).toContainText("LUME");
-  await expect(lockup).toContainText("Nupuur Coaching");
+  await expect(lockup).toContainText("Brightpath Studio");
 });
 
 test("sidebar navigation updates the URL, title and current item", async ({ page }) => {

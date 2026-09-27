@@ -11,7 +11,7 @@ vi.mock("@/lib/settings/client", () => ({
 }));
 
 const initial: BusinessSettings = {
-  businessName: "Nupuur Coaching",
+  businessName: "Brightpath Studio",
   timezone: "Asia/Dubai",
   currency: "AED",
   defaultCountry: "AE",
@@ -26,15 +26,15 @@ describe("BusinessForm", () => {
     vi.mocked(settingsClient.patch).mockResolvedValue({
       ok: true,
       status: 200,
-      data: { ...initial, businessName: "Nupuur Coaching Co", weekStart: 0 },
+      data: { ...initial, businessName: "Brightpath Studio Co", weekStart: 0 },
     });
     render(<BusinessForm initial={initial} />);
     const name = screen.getByLabelText("Business name");
     await userEvent.clear(name);
-    await userEvent.type(name, "Nupuur Coaching Co");
+    await userEvent.type(name, "Brightpath Studio Co");
     await userEvent.selectOptions(screen.getByLabelText("Week starts on"), "0");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    expect(settingsClient.patch).toHaveBeenCalledWith({ businessName: "Nupuur Coaching Co", weekStart: 0 });
+    expect(settingsClient.patch).toHaveBeenCalledWith({ businessName: "Brightpath Studio Co", weekStart: 0 });
     expect(await screen.findByRole("status")).toHaveTextContent("Saved");
     expect(refresh).toHaveBeenCalled(); // the business name shows in the sidebar
   });

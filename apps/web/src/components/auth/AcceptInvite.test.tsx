@@ -3,13 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AcceptInvite } from "./AcceptInvite";
 
-const invite = { email: "riya@nupuur.com", name: "Riya", businessName: "Nupuur Coaching" };
+const invite = { email: "riya@brightpath.test", name: "Riya", businessName: "Brightpath Studio" };
 
 describe("AcceptInvite", () => {
   it("shows who the invite is for, and the address cannot be changed", () => {
     render(<AcceptInvite invite={invite} onAccept={async () => ({ status: "ok" })} onDone={() => {}} />);
-    expect(screen.getByText(/Nupuur Coaching/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Email")).toHaveValue("riya@nupuur.com");
+    expect(screen.getByText(/Brightpath Studio/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toHaveValue("riya@brightpath.test");
     expect(screen.getByLabelText("Email")).toBeDisabled();
   });
 

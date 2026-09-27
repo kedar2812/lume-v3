@@ -51,7 +51,7 @@ const actions = () =>
     })),
     confirmEnrolment: vi.fn(async () => ({ ok: true as const, recoveryCodes: ["AAAAA-BBBBB"] })),
     listPeople: vi.fn(async () => [
-      { id: "u9", name: "Nupuur Patil", email: "n@x.com", role: "Owner", pending: false },
+      { id: "u9", name: "Maya Kapoor", email: "n@x.com", role: "Owner", pending: false },
     ]),
     listRoles: vi.fn(async () => [
       { id: "r-admin", name: "Admin" },
@@ -89,7 +89,7 @@ const owner = (caps = { sheets: false, calendar: false }) =>
   fakeSession({
     user: {
       id: "u3",
-      name: "Nupuur Patil",
+      name: "Maya Kapoor",
       email: "n@x.com",
       isOwner: true,
       theme: "system",
@@ -217,7 +217,7 @@ describe("Onboarding", () => {
     const admin = fakeSession({
       user: {
         id: "u2",
-        name: "Tasneem Shaikh",
+        name: "Leila Haddad",
         email: "t@x.com",
         isOwner: false,
         theme: "system",
@@ -264,7 +264,7 @@ describe("Onboarding", () => {
     const admin = fakeSession({
       user: {
         id: "u2",
-        name: "Tasneem Shaikh",
+        name: "Leila Haddad",
         email: "t@x.com",
         isOwner: false,
         theme: "system",
@@ -287,11 +287,11 @@ describe("Onboarding", () => {
     render(<Onboarding session={owner()} actions={a} onFinished={() => {}} />);
     await userEvent.click(screen.getByRole("button", { name: /let’s go/i }));
     for (let i = 0; i < 4; i++) await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText("Nupuur Patil")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Email"), "riya@nupuur.com");
+    expect(await screen.findByText("Maya Kapoor")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Email"), "riya@brightpath.test");
     expect(screen.getByLabelText("Name")).toHaveValue("Riya");
     await userEvent.click(screen.getByRole("button", { name: "Invite" }));
-    expect(a.invite).toHaveBeenCalledWith("riya@nupuur.com", "Riya", "r-sales");
+    expect(a.invite).toHaveBeenCalledWith("riya@brightpath.test", "Riya", "r-sales");
     expect(await screen.findByText(/invite sent/i)).toBeInTheDocument();
   });
 

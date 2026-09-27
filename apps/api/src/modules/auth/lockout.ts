@@ -6,7 +6,7 @@ import { lockoutMail } from "../../mail/templates";
 import { sendAfterCommit } from "../../mail/mailer";
 import type { LockoutHook } from "./service";
 
-/** "t•••@nupuur.com": enough for an admin to recognise the account, useless to anyone else. */
+/** "m•••@example.com": enough for an admin to recognise the account, useless to anyone else. */
 export function emailHint(email: string): string {
   const [local = "", domain = ""] = email.split("@");
   return `${local.slice(0, 1)}•••@${domain}`;

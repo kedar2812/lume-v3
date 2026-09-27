@@ -48,9 +48,9 @@ function totp(secret) {
 }
 
 const pw = () => `accept ${randomBytes(9).toString("base64url")} passphrase`;
-const OWNER = { name: "Nupuur Patil", email: "nupuur@nupuur.test", password: pw() };
-const ADMIN = { name: "Tasneem Shaikh", email: "tasneem@nupuur.test", password: pw() };
-const REP = { name: "Riya Sharma", email: "riya@nupuur.test", password: pw() };
+const OWNER = { name: "Maya Kapoor", email: "maya@brightpath.test", password: pw() };
+const ADMIN = { name: "Leila Haddad", email: "leila@brightpath.test", password: pw() };
+const REP = { name: "Riya Sharma", email: "riya@brightpath.test", password: pw() };
 
 async function mailTo(address, kind, since) {
   for (let i = 0; i < 60; i++) {
@@ -145,7 +145,7 @@ assert(
 );
 await owner.getByLabel("Setup token").fill(TOKEN);
 await owner.getByRole("button", { name: "Continue" }).click();
-await owner.getByLabel("Business name").fill("Nupuur Coaching");
+await owner.getByLabel("Business name").fill("Brightpath Studio");
 await owner.getByLabel("Timezone").fill("Dubai");
 await owner.getByRole("option", { name: /Dubai/ }).first().click();
 await shot(owner, "01a-setup-business");
@@ -240,7 +240,7 @@ await owner.keyboard.press("Escape");
 
 // 4 ─ the admin's invite: two-step sign-in comes first ─────────────────────────────────────────────
 const adminMail = await mailTo(ADMIN.email, "invite", invitedAt);
-ok(`Tasneem's invite arrived: “${adminMail.subject}”`);
+ok(`Leila's invite arrived: “${adminMail.subject}”`);
 const admin = await newPage();
 await admin.goto(adminMail.link);
 await admin.getByLabel("Choose a password").fill(ADMIN.password);
@@ -261,7 +261,7 @@ await admin.getByTestId("recovery-codes").waitFor();
 await admin.getByRole("checkbox", { name: /saved/i }).check();
 await admin.getByRole("button", { name: "Continue" }).click();
 await skipThrough(admin);
-ok("Tasneem is enrolled and in the app");
+ok("Leila is enrolled and in the app");
 
 // 5 ─ the sales rep: her own tour, her own nav ─────────────────────────────────────────────────────
 const repMail = await mailTo(REP.email, "invite", invitedAt);

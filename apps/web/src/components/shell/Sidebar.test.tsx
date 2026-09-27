@@ -15,12 +15,12 @@ vi.mock("next/navigation", () => ({
 describe("Sidebar", () => {
   it("puts LUME on top and the client's name below", () => {
     render(
-      <Sidebar businessName="Nupuur Coaching" user={{ name: "Tasneem", role: "Admin" }} can={() => true} />,
+      <Sidebar businessName="Brightpath Studio" user={{ name: "Leila", role: "Admin" }} can={() => true} />,
     );
     const lockup = screen.getByTestId("lockup");
-    const [brand, client] = within(lockup).getAllByText(/LUME|Nupuur Coaching/);
+    const [brand, client] = within(lockup).getAllByText(/LUME|Brightpath Studio/);
     expect(brand).toHaveTextContent("LUME");
-    expect(client).toHaveTextContent("Nupuur Coaching");
+    expect(client).toHaveTextContent("Brightpath Studio");
   });
 
   it("marks the current section and omits sections the role can't use", () => {
@@ -38,7 +38,7 @@ describe("Sidebar", () => {
           permissions: ALL_PERMISSIONS,
           tour: { version: 1, step: 0, completedAt: "2026-09-20T10:00:00Z", skippedAt: null },
         })}
-        businessName="Nupuur Coaching"
+        businessName="Brightpath Studio"
         theme="porcelain"
       >
         <div />

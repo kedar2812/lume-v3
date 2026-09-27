@@ -6,16 +6,16 @@ describe("mail templates", () => {
     const m = inviteMail({
       to: "r@x.com",
       name: "<script>Riya</script>",
-      businessName: "Nupuur & Co",
-      inviterName: "Tasneem",
+      businessName: "Maya & Co",
+      inviterName: "Leila",
       url: "https://lume.test/invite/abc",
       expiresAt: new Date("2026-09-24T09:00:00Z"),
     });
     expect(m.html).not.toContain("<script>");
     expect(m.html).toContain("&lt;script&gt;Riya&lt;/script&gt;");
-    expect(m.html).toContain("Nupuur &amp; Co");
+    expect(m.html).toContain("Maya &amp; Co");
     expect(m.text).toContain("https://lume.test/invite/abc");
-    expect(m.subject).toBe("Tasneem invited you to LUME for Nupuur & Co");
+    expect(m.subject).toBe("Leila invited you to LUME for Maya & Co");
   });
 
   it("reset mail says it expires in 30 minutes", () => {

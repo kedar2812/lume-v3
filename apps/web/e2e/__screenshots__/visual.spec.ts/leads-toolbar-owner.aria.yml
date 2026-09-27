@@ -21,9 +21,10 @@
         - option "My leads"
         - option "Unassigned"
         - option "Aman Verma"
+        - option "Leila Haddad"
         - option "Noor Ahmed"
         - option "Riya S"
-        - option "Tasneem Shaikh"
+        - option "Zara Malik"
     - text: Phone status
     - combobox "Phone status":
         - option "Any phone" [selected]

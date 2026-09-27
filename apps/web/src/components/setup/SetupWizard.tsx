@@ -11,7 +11,7 @@ import { SPRINGS, toMotion } from "@/lib/motion";
 import type { SetupInput, SetupResult } from "@/lib/setup-client";
 import { CountryPicker } from "@/components/ui/CountryPicker";
 import { CurrencyPicker } from "@/components/ui/CurrencyPicker";
-import { guessTimezone } from "@/lib/timezones";
+import { guessRegion, guessTimezone } from "@/lib/timezones";
 import { QrCode } from "./QrCode";
 import { RecoveryCodes } from "./RecoveryCodes";
 import s from "./setup.module.css";
@@ -23,17 +23,18 @@ type Props = {
 };
 
 const STEPS = 4;
+// The generic starter comes first and is the default (licensing spec §0 rule 4); industry starters are a choice.
 const PRESETS = [
+  {
+    id: "general" as const,
+    name: "General sales",
+    detail: "New → Contacted → Qualified → Proposal → Won / Lost. A plain pipeline you can rename later.",
+  },
   {
     id: "coaching" as const,
     name: "Coaching / consulting",
     detail:
       "New → Message sent → Replied → Call booked → Call done → Follow-up later → Won / Lost, plus Struggles and Handled by.",
-  },
-  {
-    id: "general" as const,
-    name: "General sales",
-    detail: "New → Contacted → Interested → Quoted → Won / Lost. A plain pipeline you can rename later.",
   },
 ];
 
@@ -45,8 +46,8 @@ const PRESETS = [
 export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | "codes">(1);
   const [token, setToken] = useState("");
-  const [business, setBusiness] = useState({ name: "", timezone: "", currency: "AED", defaultCountry: "AE" });
-  const [preset, setPreset] = useState<"coaching" | "general">("coaching");
+  const [business, setBusiness] = useState({ name: "", timezone: "", currency: "", defaultCountry: "" });
+  const [preset, setPreset] = useState<"coaching" | "general">("general");
   const [owner, setOwner] = useState({ name: "", email: "", password: "" });
   const [totp, setTotp] = useState<{ secret: string; otpauthUri: string } | null>(null);
   const [code, setCode] = useState("");
@@ -57,7 +58,16 @@ export function SetupWizard({ onStartTotp, onComplete, onDone }: Props) {
 
   // After mount, because the server cannot know which zone this person is in.
   useEffect(() => {
-    setBusiness((b) => (b.timezone ? b : { ...b, timezone: guessTimezone() }));
+    // Guesses from this browser (after mount: the server can't know them), each only if still unset.
+    setBusiness((b) => {
+      const region = guessRegion();
+      return {
+        ...b,
+        timezone: b.timezone || guessTimezone(),
+        currency: b.currency || region.currency,
+        defaultCountry: b.defaultCountry || region.country,
+      };
+    });
   }, []);
 
   async function submitToken(e: FormEvent) {

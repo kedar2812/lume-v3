@@ -113,7 +113,7 @@ export function testCatalog(over: Partial<Catalog> = {}): Catalog {
     ],
     people: [
       { id: "u-riya", name: "Riya Sharma", active: true },
-      { id: "u-tas", name: "Tasneem Shaikh", active: true },
+      { id: "u-tas", name: "Leila Haddad", active: true },
     ],
     tags: [{ id: "t-hot", label: "Hot", color: "danger" }],
     lostReasons: [{ id: "r-price", label: "Price", position: 0 }],

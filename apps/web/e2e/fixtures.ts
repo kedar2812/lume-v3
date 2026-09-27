@@ -8,15 +8,15 @@ export type Who = "owner" | "admin" | "rep" | "seller" | "fresh";
 export const stateFile = (who: Who) => path.join(ARTIFACTS, `${who}.json`);
 
 export const PEOPLE = {
-  owner: { email: "owner@nupuur.test", name: "Nupuur Patil", password: "a long and lovely passphrase" },
-  admin: { email: "tasneem@nupuur.test", name: "Tasneem Shaikh", password: "sunrise over the creek at five" },
-  rep: { email: "riya@nupuur.test", name: "Riya Sharma", password: "sunrise over the creek at five" },
+  owner: { email: "maya@brightpath.test", name: "Maya Kapoor", password: "a long and lovely passphrase" },
+  admin: { email: "leila@brightpath.test", name: "Leila Haddad", password: "sunrise over the creek at five" },
+  rep: { email: "riya@brightpath.test", name: "Riya Sharma", password: "sunrise over the creek at five" },
   /** For the password-reset spec, which signs him out everywhere; nobody else relies on his session. */
-  aman: { email: "aman@nupuur.test", name: "Aman Verma", password: "sunrise over the creek at five" },
+  aman: { email: "aman@brightpath.test", name: "Aman Verma", password: "sunrise over the creek at five" },
   /** Sales, onboarded at seed time (through the API), so the leads specs can use a rep straight away. */
-  seller: { email: "noor@nupuur.test", name: "Noor Ahmed", password: "sunrise over the creek at five" },
+  seller: { email: "noor@brightpath.test", name: "Noor Ahmed", password: "sunrise over the creek at five" },
   /** Joined but hasn't agreed to the licence agreement, terms and privacy policy yet (the gate's own specs). */
-  fresh: { email: "zara@nupuur.test", name: "Zara Malik", password: "sunrise over the creek at five" },
+  fresh: { email: "zara@brightpath.test", name: "Zara Malik", password: "sunrise over the creek at five" },
 } as const;
 
 /** The token the API printed at boot, read the way an operator reads it: from the log. */

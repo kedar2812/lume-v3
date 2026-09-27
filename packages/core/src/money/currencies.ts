@@ -172,3 +172,33 @@ export function currencyCountry(code: string): string | null {
   if (code.startsWith("X")) return null;
   return code.slice(0, 2);
 }
+
+const EUROZONE = new Set([
+  "AT",
+  "BE",
+  "CY",
+  "DE",
+  "EE",
+  "ES",
+  "FI",
+  "FR",
+  "GR",
+  "HR",
+  "IE",
+  "IT",
+  "LT",
+  "LU",
+  "LV",
+  "MT",
+  "NL",
+  "PT",
+  "SI",
+  "SK",
+]);
+
+/** The currency a country uses (the reverse of currencyCountry), for a first guess; null when there's no single one. */
+export function currencyForCountry(country: string): string | null {
+  const iso = country.toUpperCase();
+  if (EUROZONE.has(iso)) return "EUR";
+  return CURRENCIES.find((c) => c.startsWith(iso) && !c.startsWith("X")) ?? null;
+}

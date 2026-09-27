@@ -60,10 +60,10 @@ async function fillToTwoFactor(p: ReturnType<typeof props>) {
   render(<SetupWizard {...p} />);
   await userEvent.type(screen.getByLabelText("Setup token"), "token-from-the-server-logs");
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-  await userEvent.type(await screen.findByLabelText("Business name"), "Nupuur Coaching");
+  await userEvent.type(await screen.findByLabelText("Business name"), "Brightpath Studio");
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-  await userEvent.type(await screen.findByLabelText("Your name"), "Nupuur Patil");
-  await userEvent.type(screen.getByLabelText("Email"), "nupuur@nupuur.com");
+  await userEvent.type(await screen.findByLabelText("Your name"), "Maya Kapoor");
+  await userEvent.type(screen.getByLabelText("Email"), "maya@brightpath.test");
   await userEvent.type(screen.getByLabelText("Password"), "a long and lovely passphrase");
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 }
@@ -87,9 +87,9 @@ describe("SetupWizard", () => {
     const sent = p.onComplete.mock.calls[0]![0];
     expect(sent).toMatchObject({
       token: "token-from-the-server-logs",
-      preset: "coaching",
-      business: { name: "Nupuur Coaching", currency: "AED", defaultCountry: "AE" },
-      owner: { name: "Nupuur Patil", email: "nupuur@nupuur.com" },
+      preset: "general", // the generic starter is the default; industry starters are a choice
+      business: { name: "Brightpath Studio", currency: "USD", defaultCountry: "US" }, // guessed from the browser (en-US)
+      owner: { name: "Maya Kapoor", email: "maya@brightpath.test" },
       totp: { secret, code: "123456" },
     });
     expect(sent.business.timezone).toMatch(/^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/);
@@ -100,7 +100,7 @@ describe("SetupWizard", () => {
     render(<SetupWizard {...p} />);
     await userEvent.type(screen.getByLabelText("Setup token"), "token-from-the-server-logs");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await userEvent.type(await screen.findByLabelText("Business name"), "Nupuur Coaching");
+    await userEvent.type(await screen.findByLabelText("Business name"), "Brightpath Studio");
     await userEvent.click(screen.getByRole("button", { name: /^Currency:/ }));
     await userEvent.type(screen.getByRole("combobox", { name: "Search currencies" }), "rupee{Enter}");
     await userEvent.click(screen.getByRole("button", { name: /^Most leads are in:/ }));
@@ -109,8 +109,8 @@ describe("SetupWizard", () => {
       "Currency: Indian Rupee, INR",
     );
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await userEvent.type(await screen.findByLabelText("Your name"), "Nupuur Patil");
-    await userEvent.type(screen.getByLabelText("Email"), "nupuur@nupuur.com");
+    await userEvent.type(await screen.findByLabelText("Your name"), "Maya Kapoor");
+    await userEvent.type(screen.getByLabelText("Email"), "maya@brightpath.test");
     await userEvent.type(screen.getByLabelText("Password"), "a long and lovely passphrase");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await typeCode("123456");
@@ -157,17 +157,28 @@ describe("SetupWizard", () => {
     expect(screen.getByLabelText("Password")).toHaveValue("a long and lovely passphrase");
   });
 
+  it("guesses the country and currency from the browser's locale", async () => {
+    const lang = vi.spyOn(navigator, "language", "get").mockReturnValue("en-IN");
+    const p = props();
+    await fillToTwoFactor(p);
+    await typeCode("123456");
+    await userEvent.click(screen.getByRole("button", { name: "Finish setup" }));
+    await screen.findByText("CODE0-XXXXX");
+    expect(p.onComplete.mock.calls[0]![0].business).toMatchObject({ currency: "INR", defaultCountry: "IN" });
+    lang.mockRestore();
+  });
+
   it("sends the second preset when it is chosen, and lets someone go back to change it", async () => {
     const p = props();
     render(<SetupWizard {...p} />);
     await userEvent.type(screen.getByLabelText("Setup token"), "tok");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.type(await screen.findByLabelText("Business name"), "Acme Sales");
-    await userEvent.click(screen.getByRole("radio", { name: /general sales/i }));
+    await userEvent.click(screen.getByRole("radio", { name: /coaching/i }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.click(await screen.findByRole("button", { name: "Back" }));
     expect(await screen.findByLabelText("Business name")).toHaveValue("Acme Sales");
-    expect(screen.getByRole("radio", { name: /general sales/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /coaching/i })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.type(await screen.findByLabelText("Your name"), "Ravi");
     await userEvent.type(screen.getByLabelText("Email"), "ravi@acme.test");
@@ -176,6 +187,6 @@ describe("SetupWizard", () => {
     await typeCode("123456");
     await userEvent.click(screen.getByRole("button", { name: "Finish setup" }));
     await screen.findByText("CODE0-XXXXX");
-    expect(p.onComplete.mock.calls[0]![0]).toMatchObject({ preset: "general" });
+    expect(p.onComplete.mock.calls[0]![0]).toMatchObject({ preset: "coaching" });
   });
 });

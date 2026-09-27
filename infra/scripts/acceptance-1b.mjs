@@ -83,15 +83,15 @@ function browser(name) {
 const owner = browser("owner");
 await owner.start();
 
-// 1. First run with Nupuur's preset
+// 1. First run with the coaching preset
 const setupSecret = (await owner.post("/api/v1/setup/totp", { token: SETUP_TOKEN })).body.secret;
 let r = await owner.post("/api/v1/setup", {
   token: SETUP_TOKEN,
-  business: { name: "Nupuur Coaching", timezone: "Asia/Dubai", currency: "AED", defaultCountry: "AE" },
+  business: { name: "Brightpath Studio", timezone: "Asia/Dubai", currency: "AED", defaultCountry: "AE" },
   preset: "coaching",
   owner: {
-    name: "Nupuur Patil",
-    email: "owner@nupuur.local",
+    name: "Maya Kapoor",
+    email: "owner@maya.local",
     password: `acceptance ${randomBytes(6).toString("hex")} passphrase`,
   },
   totp: { secret: setupSecret, code: totp(setupSecret) },
@@ -103,7 +103,7 @@ assert(
   pipelines.length === 1 &&
     pipelines[0].stages.map((s) => s.name).join(",") ===
       "New,Message sent,Replied,Call booked,Call done,Follow-up later,Won,Lost",
-  "the preset seeded Nupuur's pipeline and stages",
+  "the coaching preset seeded its pipeline and stages",
 );
 const fieldKeys = (await owner.get("/api/v1/fields")).body.fields.map((f) => f.key);
 assert(
@@ -113,7 +113,7 @@ assert(
 
 // 2. Riya joins as Sales
 const sales = (await owner.get("/api/v1/roles")).body.roles.find((x) => x.name === "Sales");
-const riyaEmail = `riya+${randomBytes(3).toString("hex")}@nupuur.local`;
+const riyaEmail = `riya+${randomBytes(3).toString("hex")}@maya.local`;
 r = await owner.post("/api/v1/invites", { email: riyaEmail, name: "Riya", roleIds: [sales.id] });
 assert(r.status === 201, "owner invites Riya as Sales");
 let link = null;

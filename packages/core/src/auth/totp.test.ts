@@ -47,8 +47,12 @@ describe("TOTP (RFC 6238)", () => {
   it("makes 160-bit secrets and a standard otpauth URI", () => {
     const s = newTotpSecret();
     expect(base32Decode(s)).toHaveLength(20);
-    const uri = otpauthUri({ secret: s, account: "tasneem@nupuur.com", issuer: "LUME · Nupuur Coaching" });
-    expect(uri).toMatch(/^otpauth:\/\/totp\/LUME%20%C2%B7%20Nupuur%20Coaching:tasneem%40nupuur\.com\?/);
+    const uri = otpauthUri({
+      secret: s,
+      account: "leila@brightpath.test",
+      issuer: "LUME · Brightpath Studio",
+    });
+    expect(uri).toMatch(/^otpauth:\/\/totp\/LUME%20%C2%B7%20Brightpath%20Studio:leila%40brightpath\.test\?/);
     expect(uri).toContain(`secret=${s}`);
     expect(uri).toContain("algorithm=SHA1&digits=6&period=30");
   });

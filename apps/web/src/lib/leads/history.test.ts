@@ -8,20 +8,20 @@ const a = (type: string, payload: Record<string, unknown> = {}) => ({
   type,
   payload,
   occurredAt: "2026-09-24T10:00:00Z",
-  user: { id: "u-tas", name: "Tasneem Shaikh" },
+  user: { id: "u-tas", name: "Leila Haddad" },
 });
 
 describe("describeActivity", () => {
   it("tells each kind of event in plain words, with who did it", () => {
     expect(describeActivity(a("stage_changed", { from: "s-new", to: "s-sent" }), cat)).toMatchObject({
       title: "Moved to Message sent",
-      detail: "by Tasneem Shaikh",
+      detail: "by Leila Haddad",
     });
     expect(
       describeActivity(a("stage_changed", { to: "s-lost", lostReasonId: "r-price" }), cat),
     ).toMatchObject({
       title: "Marked as lost",
-      detail: "Price · by Tasneem Shaikh",
+      detail: "Price · by Leila Haddad",
       tone: "danger",
     });
     expect(describeActivity(a("stage_changed", { to: "s-won" }), cat)).toMatchObject({
@@ -29,7 +29,7 @@ describe("describeActivity", () => {
       tone: "ok",
     });
     expect(describeActivity(a("assigned", { from: "u-riya", to: "u-tas" }), cat).title).toBe(
-      "Handed to Tasneem Shaikh",
+      "Handed to Leila Haddad",
     );
     expect(describeActivity(a("assigned", { from: "u-riya", to: null }), cat).title).toBe("Unassigned");
     expect(describeActivity(a("contact_revealed"), cat).title).toBe("Contact revealed");

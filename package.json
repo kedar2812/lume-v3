@@ -8,7 +8,7 @@
     "pnpm": ">=10"
   },
   "scripts": {
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint . && prettier --check . && node --test scripts/check-client-names.test.mjs && node scripts/check-client-names.mjs",
     "format": "prettier --write .",
     "typecheck": "pnpm -r --parallel typecheck",
     "test": "vitest run",

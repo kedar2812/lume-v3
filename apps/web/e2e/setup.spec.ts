@@ -22,10 +22,21 @@ test("@smoke first run: the wizard creates the business and the owner, with two-
   await page.getByLabel("Setup token").fill(await readSetupToken());
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await page.getByLabel("Business name").fill("Nupuur Coaching");
+  await page.getByLabel("Business name").fill("Brightpath Studio");
   await page.getByLabel("Timezone").fill("Dubai");
   await page.getByRole("option", { name: /Dubai/ }).first().click();
   await expect(page.getByLabel("Timezone")).toHaveValue(/Dubai/);
+  // The browser's guess (en-US → US Dollar) is only a starting point: this business trades in dirhams.
+  await expect(page.getByRole("button", { name: /^Currency: US Dollar, USD/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Currency:/ }).click();
+  await page.getByRole("combobox", { name: "Search currencies" }).fill("AED");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: /^Currency: .*, AED$/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Most leads are in:/ }).click();
+  await page.getByRole("combobox", { name: "Search countries" }).fill("United Arab Emirates");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Most leads are in: United Arab Emirates" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /General sales/ })).toBeChecked();
   await page.getByRole("radio", { name: /Coaching/ }).check();
   await page.getByRole("button", { name: "Continue" }).click();
 

@@ -29,7 +29,7 @@ vi.mock("motion/react", async () => {
 });
 
 const fill = async () => {
-  await userEvent.type(screen.getByLabelText("Email"), "t@nupuur.com");
+  await userEvent.type(screen.getByLabelText("Email"), "t@brightpath.test");
   await userEvent.type(screen.getByLabelText("Password"), "correct horse");
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 };
@@ -38,7 +38,7 @@ describe("SignInForm", () => {
   it("shows the brand: LUME above the client name", () => {
     render(
       <SignInForm
-        businessName="Nupuur Coaching"
+        businessName="Brightpath Studio"
         onSignIn={vi.fn()}
         onVerify={vi.fn()}
         onVerifyRecovery={vi.fn()}
@@ -46,7 +46,7 @@ describe("SignInForm", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: "LUME" })).toBeInTheDocument();
-    expect(screen.getByText("Nupuur Coaching")).toBeInTheDocument();
+    expect(screen.getByText("Brightpath Studio")).toBeInTheDocument();
   });
 
   // Before hydration a submit is a native one; with no method it would be a GET that puts the email and
@@ -128,7 +128,7 @@ describe("SignInForm", () => {
     const onVerifyRecovery = vi.fn(async () => "ok" as const);
     render(
       <SignInForm
-        businessName="Nupuur Coaching"
+        businessName="Brightpath Studio"
         onSignIn={async () => ({ status: "otp_required" })}
         onVerify={async () => "invalid"}
         onVerifyRecovery={onVerifyRecovery}
@@ -147,7 +147,7 @@ describe("SignInForm", () => {
   it("says how long a lockout lasts", async () => {
     render(
       <SignInForm
-        businessName="Nupuur Coaching"
+        businessName="Brightpath Studio"
         onSignIn={async () => ({ status: "locked", retryAfterSec: 900 })}
         onVerify={async () => "ok"}
         onVerifyRecovery={async () => "ok"}

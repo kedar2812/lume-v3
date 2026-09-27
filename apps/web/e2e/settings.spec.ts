@@ -122,7 +122,7 @@ test("@smoke invite, then disable someone: their session dies and their leads mo
   browser,
 }) => {
   const person = {
-    email: "omar.test@nupuur.test",
+    email: "omar.test@brightpath.test",
     name: "Omar Test",
     password: "sunrise over the creek at five",
   };
@@ -231,7 +231,7 @@ test("a page whose access is removed mid-visit says so", async ({ page, browser 
       await expect(name).toBeVisible();
       const take = await callApi(page, "PATCH", `/api/v1/roles/${sales.id}`, { grants: sales.grants });
       expect(take.status, JSON.stringify(take.data)).toBe(200);
-      await name.fill("Nupuur Coaching (renamed)");
+      await name.fill("Brightpath Studio (renamed)");
       await p.getByRole("button", { name: "Save changes" }).click();
       await expect(p.getByRole("heading", { name: "Your access to this page changed" })).toBeVisible();
     });

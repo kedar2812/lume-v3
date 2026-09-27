@@ -3,7 +3,7 @@ import { AUDIT_ACTIONS, auditPhrase, type AuditEntry } from "./audit";
 
 const people = [
   { id: "u-riya", name: "Riya Sharma", active: true },
-  { id: "u-tas", name: "Tasneem Shaikh", active: true },
+  { id: "u-tas", name: "Leila Haddad", active: true },
 ];
 const entry = (action: string, over: Partial<AuditEntry> = {}): AuditEntry => ({
   id: 1,

@@ -66,13 +66,11 @@ describe("useLeadEditor", () => {
     vi.mocked(leadsClient.get).mockResolvedValue({
       ok: true,
       status: 200,
-      data: { lead: lead({ name: "Aisha (by Tasneem)", version: 5 }) },
+      data: { lead: lead({ name: "Aisha (by Leila)", version: 5 }) },
     });
     const { result } = renderHook(() => useLeadEditor(onUpdated), { wrapper });
     await act(async () => expect(await result.current.save(lead(), field("name"), "Mine")).toBe("conflict"));
-    expect(onUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Aisha (by Tasneem)", version: 5 }),
-    );
+    expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ name: "Aisha (by Leila)", version: 5 }));
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: expect.stringMatching(/changed by someone else/i) }),
     );

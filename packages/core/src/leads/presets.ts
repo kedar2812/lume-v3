@@ -32,7 +32,7 @@ export const CORE_FIELDS: { key: string; label: string; type: FieldType; isRequi
 export const CORE_FIELD_KEYS: ReadonlySet<string> = new Set(CORE_FIELDS.map((f) => f.key));
 
 export const PRESETS: Record<PresetKey, Preset> = {
-  // Nupuur's install (report §15.3, spec §1 #7). Options and lost reasons are starters Tasneem can edit.
+  // An industry starter: the stages, options and lost reasons are examples the admin edits.
   coaching: {
     key: "coaching",
     label: "Coaching / consulting",

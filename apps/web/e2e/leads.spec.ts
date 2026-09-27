@@ -81,7 +81,7 @@ test.describe("the owner works leads", () => {
     const drawer = page.getByRole("dialog", { name: "Priya Menon" });
     await drawer.getByRole("button", { name: /owner: noor ahmed/i }).click();
     await page.getByRole("menuitem", { name: PEOPLE.admin.name }).click();
-    await expect(drawer.getByRole("button", { name: /owner: tasneem shaikh/i })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /owner: leila haddad/i })).toBeVisible();
 
     const rep = await browser.newContext({ storageState: stateFile("seller") });
     const p = await rep.newPage();

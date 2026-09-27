@@ -15,7 +15,7 @@ const admin = () =>
   fakeSession({
     user: {
       id: "u-me",
-      name: "Nupuur Patil",
+      name: "Maya Kapoor",
       email: "n@x.test",
       isOwner: true,
       theme: "system",
@@ -35,7 +35,7 @@ const person = (over: Partial<UserRow>): UserRow => ({
   ...over,
 });
 const riya = person({ roles: [{ id: "r-sales", name: "Sales" }] });
-const tas = person({ id: "u-tas", name: "Tasneem Shaikh", email: "t@x.test" });
+const tas = person({ id: "u-tas", name: "Leila Haddad", email: "t@x.test" });
 const roles = [
   { id: "r-sales", name: "Sales" },
   { id: "r-lead", name: "Team lead" },
@@ -45,7 +45,7 @@ const invite: Invite = {
   email: "b@x.test",
   name: "Bilal",
   roles: [{ id: "r-sales", name: "Sales" }],
-  invitedBy: "Nupuur Patil",
+  invitedBy: "Maya Kapoor",
   expiresAt: "2026-10-02T00:00:00Z",
   expired: false,
 };
@@ -112,7 +112,7 @@ describe("PeopleAdmin", () => {
       within(to)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Leave them unassigned", "Tasneem Shaikh"]);
+    ).toEqual(["Leave them unassigned", "Leila Haddad"]);
     await userEvent.selectOptions(to, "u-tas");
     await userEvent.click(within(ask).getByRole("button", { name: "Disable" }));
     expect(usersClient.disable).toHaveBeenCalledWith("u-riya", { reassignTo: "u-tas" });
@@ -130,11 +130,11 @@ describe("PeopleAdmin", () => {
 
   it("never offers to change the owner or yourself", () => {
     const owner = person({ id: "u-owner", name: "Omar Owner", isOwner: true });
-    const me = person({ id: "u-me", name: "Nupuur Patil" });
+    const me = person({ id: "u-me", name: "Maya Kapoor" });
     render(<PeopleAdmin users={[owner, me]} invites={[]} roles={roles} session={admin()} />);
     expect(screen.queryByRole("button", { name: "Disable Omar Owner" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Role for Omar Owner")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Disable Nupuur Patil" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Disable Maya Kapoor" })).not.toBeInTheDocument();
   });
 
   it("shows the API's reason when an invite is refused", async () => {

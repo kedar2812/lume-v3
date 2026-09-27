@@ -10,9 +10,9 @@ afterAll(async () => h.close());
 
 const body = (secret: string, code: string, token = h.setupToken) => ({
   token,
-  business: { name: "Nupuur Coaching", timezone: "Asia/Dubai", currency: "AED", defaultCountry: "AE" },
+  business: { name: "Brightpath Studio", timezone: "Asia/Dubai", currency: "AED", defaultCountry: "AE" },
   preset: "coaching",
-  owner: { name: "Nupuur Patil", email: "nupuur@nupuur.com", password: "a long and lovely passphrase" },
+  owner: { name: "Maya Kapoor", email: "maya@brightpath.test", password: "a long and lovely passphrase" },
   totp: { secret, code },
 });
 

@@ -78,8 +78,8 @@ await owner.goto("/leads");
 const { people } = (await api(owner, "GET", "/api/v1/people")).data;
 const idOf = (name) => people.find((p) => p.name === name)?.id;
 const RIYA = idOf("Riya Sharma");
-const TASNEEM = idOf("Tasneem Shaikh");
-assert(RIYA && TASNEEM, "Riya and Tasneem are on the team", people);
+const LEILA = idOf("Leila Haddad");
+assert(RIYA && LEILA, "Riya and Leila are on the team", people);
 const { pipelines } = (await api(owner, "GET", "/api/v1/pipelines")).data;
 const booked = pipelines[0].stages.find((s) => s.name === "Call booked");
 const { fields } = (await api(owner, "GET", "/api/v1/fields")).data;
@@ -94,7 +94,7 @@ for (const l of [
   { name: "Omar Haddad", phone: "+971502223344", ownerId: RIYA },
   { name: "Sara Nasser", phone: "+971503334455", ownerId: RIYA, custom: { struggles: [confidence] } },
   { name: "Priya Menon", phone: "+971504445566", ownerId: RIYA },
-  { name: "Karim Aziz", phone: "+971505556677", ownerId: TASNEEM, custom: { struggles: [confidence] } },
+  { name: "Karim Aziz", phone: "+971505556677", ownerId: LEILA, custom: { struggles: [confidence] } },
   { name: "Lina Farah", phone: "+971506667788", ownerId: null },
 ]) {
   const r = await api(owner, "POST", "/api/v1/leads", l);
@@ -200,8 +200,8 @@ await owner.goto("/leads?q=Priya");
 await owner.getByRole("button", { name: "Open Priya Menon" }).click();
 const priya = owner.getByRole("dialog", { name: "Priya Menon" });
 await priya.getByRole("button", { name: /owner: riya sharma/i }).click();
-await owner.getByRole("menuitem", { name: "Tasneem Shaikh" }).click();
-await priya.getByRole("button", { name: /owner: tasneem shaikh/i }).waitFor();
+await owner.getByRole("menuitem", { name: "Leila Haddad" }).click();
+await priya.getByRole("button", { name: /owner: leila haddad/i }).waitFor();
 await shot(owner, "04a-reassigned");
 await rep.goto("/leads");
 await rep.getByTestId("lead-row").first().waitFor();

@@ -79,7 +79,7 @@ function browser(name) {
   };
 }
 
-const ownerEmail = "owner@nupuur.local";
+const ownerEmail = "owner@maya.local";
 const ownerPassword = `acceptance ${randomBytes(6).toString("hex")} passphrase`;
 const owner = browser("owner");
 await owner.start();
@@ -94,9 +94,9 @@ assert(r.status === 200 && /^[A-Z2-7]{32}$/.test(r.body.secret), "setup hands ou
 const secret = r.body.secret;
 r = await owner.post("/api/v1/setup", {
   token: SETUP_TOKEN,
-  business: { name: "Nupuur Coaching", timezone: "Asia/Dubai", currency: "AED", defaultCountry: "AE" },
+  business: { name: "Brightpath Studio", timezone: "Asia/Dubai", currency: "AED", defaultCountry: "AE" },
   preset: "coaching",
-  owner: { name: "Nupuur Patil", email: ownerEmail, password: ownerPassword },
+  owner: { name: "Maya Kapoor", email: ownerEmail, password: ownerPassword },
   totp: { secret, code: totp(secret) },
 });
 assert(
@@ -137,7 +137,7 @@ assert((await owner.get("/api/v1/auth/me")).status === 200, "owner is back in");
 const roles = (await owner.get("/api/v1/roles")).body.roles;
 const sales = roles.find((x) => x.name === "Sales");
 assert(sales && roles.some((x) => x.name === "Admin"), "setup seeded the Admin and Sales roles");
-const riyaEmail = `riya+${randomBytes(3).toString("hex")}@nupuur.local`;
+const riyaEmail = `riya+${randomBytes(3).toString("hex")}@maya.local`;
 r = await owner.post("/api/v1/invites", { email: riyaEmail, name: "Riya", roleIds: [sales.id] });
 assert(r.status === 201, "owner invites Riya as Sales", r.body);
 
@@ -158,7 +158,7 @@ const riya = browser("riya");
 await riya.start();
 r = await riya.get(`/api/v1/invites/${link}`);
 assert(
-  r.status === 200 && r.body.email === riyaEmail && r.body.businessName === "Nupuur Coaching",
+  r.status === 200 && r.body.email === riyaEmail && r.body.businessName === "Brightpath Studio",
   "the invite page knows who it is for",
 );
 r = await riya.post(`/api/v1/invites/${link}/accept`, { password: "password123456" });

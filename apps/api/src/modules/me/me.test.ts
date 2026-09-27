@@ -207,7 +207,7 @@ describe("preferences, onboarding and tour state (spec §4.2)", () => {
     const saved = await c.inject({
       method: "PATCH",
       url: "/api/v1/me",
-      payload: { name: "Tasneem S", timezone: "Asia/Dubai", preferences: { workStart: "10:00" } },
+      payload: { name: "Leila S", timezone: "Asia/Dubai", preferences: { workStart: "10:00" } },
     });
     expect(saved.statusCode).toBe(200);
     const settings = await c.inject({ method: "GET", url: "/api/v1/settings" });

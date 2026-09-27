@@ -3,6 +3,8 @@
  * so the lists stay correct as the browser's ICU is updated (spec §4.2: the timezone is what every
  * "today", digest and reminder in LUME is measured against, so it has to be a real IANA id).
  */
+import { currencyForCountry } from "@lume/core/shared";
+
 export type TimezoneOption = { id: string; label: string; offset: string };
 
 const supportedValues = (key: string): string[] => {
@@ -76,6 +78,21 @@ export function guessTimezone(): string {
   const raw = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const guess = RENAMED[raw] ?? raw;
   return timezoneOptions().some((z) => z.id === guess) ? guess : "UTC";
+}
+
+/**
+ * A first guess at the business's country and currency, from the browser's locale ("en-IN" → India,
+ * INR). Only a starting point in setup: nothing about any one client is a default.
+ */
+export function guessRegion(): { country: string; currency: string } {
+  let country = "";
+  try {
+    country = new Intl.Locale(navigator.language).maximize().region ?? "";
+  } catch {
+    country = "";
+  }
+  const currency = (country && currencyForCountry(country)) || "USD";
+  return { country: country || "US", currency };
 }
 
 /** The current time in a zone, so the choice can be checked at a glance. */

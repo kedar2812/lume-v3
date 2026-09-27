@@ -210,7 +210,7 @@ describe("presets (report §15.3, spec §1 #7)", () => {
     }
   });
 
-  it("Nupuur's preset is the report's pipeline and fields", () => {
+  it("the coaching preset has its pipeline and fields", () => {
     const c = PRESETS.coaching;
     expect(c.pipeline.stages.map((s) => s.name)).toEqual([
       "New",

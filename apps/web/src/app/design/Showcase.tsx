@@ -113,7 +113,7 @@ export function Showcase({ theme }: { theme: ThemePref }) {
           </Chip>
           <Avatar name="Aisha Khan" />
           <Avatar name="Rohan Malik" />
-          <Avatar name="Tasneem" size={40} />
+          <Avatar name="Leila" size={40} />
         </div>
       </section>
 

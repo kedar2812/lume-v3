@@ -8,7 +8,7 @@ test("@smoke signing in: the door, a wrong password, then in — and back to whe
   await page.goto("/leads");
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fleads$/);
   // Strangers never see whose workspace this is: the signed-out screens say only "LUME".
-  await expect(page.getByText("Nupuur Coaching")).toHaveCount(0);
+  await expect(page.getByText("Brightpath Studio")).toHaveCount(0);
 
   await page.getByLabel("Email").fill(PEOPLE.aman.email);
   await page.getByLabel("Password").fill("not the password at all");

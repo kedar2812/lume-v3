@@ -39,7 +39,7 @@ describe("login throttle (report §12.1: progressive delay, 15-min lockout after
   });
 
   it("keys accounts by a hash of the normalised email (unknown emails throttle identically)", () => {
-    expect(accountKey(" Tasneem@Nupuur.com ")).toBe(accountKey("tasneem@nupuur.com"));
+    expect(accountKey(" Leila@Brightpath.TEST ")).toBe(accountKey("leila@brightpath.test"));
     expect(accountKey("x@y.z")).toMatch(/^acct:[0-9a-f]{64}$/);
   });
 });

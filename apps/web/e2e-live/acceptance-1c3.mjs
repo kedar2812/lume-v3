@@ -180,7 +180,7 @@ await shot(owner, "07-roles-matrix");
 // 5 ─ invite someone, then disable them: their session ends and their leads move ──────────────────
 const OMAR = {
   name: "Omar Test",
-  email: "omar@nupuur.test",
+  email: "omar@brightpath.test",
   password: `accept ${randomBytes(9).toString("base64url")} pass`,
 };
 await owner.goto("/settings/people");
@@ -255,7 +255,7 @@ assert(
 // 7 ─ the audit log, in words ─────────────────────────────────────────────────────────────────────
 await owner.goto("/settings/audit");
 await owner.getByLabel("What").selectOption({ label: "Changed the currency" });
-const line = owner.getByText(/Nupuur Patil changed the currency from AED to USD at /);
+const line = owner.getByText(/Maya Kapoor changed the currency from AED to USD at /);
 await line.waitFor();
 assert(await line.isVisible(), "the audit log says who changed the currency, and at what rate");
 await owner.getByLabel("What").selectOption({ label: "Anything" });

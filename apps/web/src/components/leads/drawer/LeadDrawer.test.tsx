@@ -149,9 +149,9 @@ describe("LeadDrawer", () => {
     );
     await userEvent.click(await screen.findByRole("button", { name: /owner: riya sharma/i }));
     expect(screen.queryByRole("menuitem", { name: "Unassigned" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("menuitem", { name: "Tasneem Shaikh" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Leila Haddad" }));
     await vi.waitFor(() => expect(h.onGone).toHaveBeenCalledWith("l1", "handed"));
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Handed to Tasneem Shaikh" }));
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Handed to Leila Haddad" }));
   });
 
   it("explains a lead that isn't available any more instead of an error screen", async () => {
@@ -301,7 +301,7 @@ describe("LeadDrawer", () => {
             type: "stage_changed",
             payload: { to: "s-sent" },
             occurredAt: "2026-09-25T10:00:00Z",
-            user: { id: "u-tas", name: "Tasneem Shaikh" },
+            user: { id: "u-tas", name: "Leila Haddad" },
           },
         ],
         nextCursor: null,

@@ -6,7 +6,7 @@ import { ResetForm } from "./ResetForm";
 describe("ResetForm", () => {
   it("explains a refused password in plain words and keeps the person on the page", async () => {
     const onReset = vi.fn(async () => ({ status: "weak" as const, problems: ["breached", "too_short"] }));
-    render(<ResetForm businessName="Nupuur Coaching" onReset={onReset} onDone={() => {}} />);
+    render(<ResetForm businessName="Brightpath Studio" onReset={onReset} onDone={() => {}} />);
     await userEvent.type(screen.getByLabelText("New password"), "password1");
     await userEvent.click(screen.getByRole("button", { name: "Save password" }));
     const alert = await screen.findByRole("alert");
@@ -18,7 +18,7 @@ describe("ResetForm", () => {
   it("says plainly when the link has expired, and offers a new one", async () => {
     render(
       <ResetForm
-        businessName="Nupuur Coaching"
+        businessName="Brightpath Studio"
         onReset={async () => ({ status: "expired" })}
         onDone={() => {}}
       />,

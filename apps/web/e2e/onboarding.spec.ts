@@ -52,7 +52,7 @@ test.describe("a sales rep", () => {
     expect(me.onboarding.completedAt).not.toBeNull();
     await page.goto("/welcome");
     await expect(page).toHaveURL(/\/today$/);
-    await expect(page.getByTestId("lockup")).toContainText("Nupuur Coaching");
+    await expect(page.getByTestId("lockup")).toContainText("Brightpath Studio");
   });
 });
 

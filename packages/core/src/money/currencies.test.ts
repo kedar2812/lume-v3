@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CURRENCIES, currencyCountry, isCurrency } from "./currencies";
+import { CURRENCIES, currencyCountry, currencyForCountry, isCurrency } from "./currencies";
 
 describe("currencies", () => {
   it("lists the currencies in use today, once each, and not retired ones", () => {
@@ -22,5 +22,13 @@ describe("currencies", () => {
     expect(currencyCountry("GBP")).toBe("GB");
     expect(currencyCountry("EUR")).toBe("EU");
     expect(currencyCountry("XOF")).toBeNull(); // shared by several countries: no single flag
+  });
+
+  it("finds the currency a country uses, for a first guess in setup", () => {
+    expect(currencyForCountry("IN")).toBe("INR");
+    expect(currencyForCountry("AE")).toBe("AED");
+    expect(currencyForCountry("us")).toBe("USD");
+    expect(currencyForCountry("DE")).toBe("EUR");
+    expect(currencyForCountry("ZZ")).toBeNull();
   });
 });

@@ -38,8 +38,8 @@ describe("Avatar", () => {
     expect(initials("Aisha Khan")).toBe("AK");
     expect(initials("  riya  ")).toBe("RI");
     expect(initials("Mary Ann de la Cruz")).toBe("MC");
-    render(<Avatar name="Tasneem" />);
-    expect(screen.getByLabelText("Tasneem")).toHaveTextContent("TA");
+    render(<Avatar name="Leila" />);
+    expect(screen.getByLabelText("Leila")).toHaveTextContent("LE");
   });
 });
 
