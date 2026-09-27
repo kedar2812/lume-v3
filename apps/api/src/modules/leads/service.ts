@@ -1,13 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import {
-  canOnRecord,
-  normalizeInstagram,
-  normalizePhone,
-  newId,
-  scopeOf,
-  type NormalizedPhone,
-} from "@lume/core";
+import { canOnRecord, normalizeInstagram, normalizePhone, scopeOf, type NormalizedPhone } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, forbidden, notFound } from "../../http/errors";
@@ -15,6 +8,9 @@ import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
 import { assertOneCurrency } from "../settings/service";
 import { findDuplicates } from "./duplicates";
 import { isFieldEditable, serializeLead, type LeadRow } from "./serialize";
+import { insertLead, recordActivity } from "./writer";
+
+export { recordActivity };
 
 const L = schema.leads;
 
@@ -70,17 +66,6 @@ export async function leadViewFor(req: FastifyRequest, row: LeadRow, fields?: Fi
     fields: fields ?? (await loadFieldRegistry(req)),
     tagIds: await tagIdsOf(req, row.id),
   });
-}
-
-export async function recordActivity(
-  req: FastifyRequest,
-  leadId: string,
-  type: string,
-  payload: Record<string, unknown> = {},
-) {
-  await req.db
-    .insert(schema.activities)
-    .values({ id: newId(), leadId, userId: req.actor!.userId, type, payload });
 }
 
 function assertWritable(req: FastifyRequest, fields: FieldRegistry, input: LeadInput) {
@@ -164,6 +149,14 @@ async function resolveOwner(
   return requested;
 }
 
+async function stageKindOf(req: FastifyRequest, stageId: string): Promise<"open" | "won" | "lost"> {
+  const [s] = await req.db
+    .select({ kind: schema.stages.kind })
+    .from(schema.stages)
+    .where(eq(schema.stages.id, stageId));
+  return s?.kind ?? "open";
+}
+
 async function resolveStage(
   req: FastifyRequest,
   pipelineId: string | undefined,
@@ -230,37 +223,34 @@ export async function createLead(req: FastifyRequest, input: LeadInput & { name:
     instagram: contact.instagramHandle,
   });
 
-  const id = newId();
+  const stageKind = await stageKindOf(req, stageId);
   const now = new Date();
-  await req.db.insert(L).values({
-    id,
+  const id = await insertLead(req, {
     pipelineId,
     stageId,
     ownerId,
     name: input.name,
-    ...contact,
+    contact: {
+      phoneRaw: contact.phoneRaw ?? null,
+      phoneE164: contact.phoneE164 ?? null,
+      phoneCountryIso: contact.phoneCountryIso ?? null,
+      phoneStatus: contact.phoneStatus ?? "missing",
+      email: contact.email ?? null,
+      instagramHandle: contact.instagramHandle ?? null,
+    },
     value: input.value ?? null,
-    currency: null, // always the business currency (assertOneCurrency)
     productId: input.productId ?? null,
     leadCreatedAt: input.leadCreatedAt ?? null,
-    custom: Object.fromEntries(Object.entries(custom).filter(([, v]) => v !== null)),
-    createdBy: req.actor!.userId,
-    lastActivityAt: now,
+    custom,
+    tagIds: input.tagIds ?? [],
+    sourceId: null,
+    lostReasonId: null,
+    closedAt: stageKind === "open" ? null : now,
+    stageKind,
     stageEnteredAt: now,
+    activity: { type: "lead_created", payload: { source: "manual" } },
+    assignReason: "created",
   });
-  if (input.tagIds) await setTags(req, id, input.tagIds);
-  await req.db
-    .insert(schema.leadStageHistory)
-    .values({ leadId: id, fromStageId: null, toStageId: stageId, pipelineId, changedBy: req.actor!.userId });
-  if (ownerId)
-    await req.db.insert(schema.leadAssignmentHistory).values({
-      leadId: id,
-      fromUserId: null,
-      toUserId: ownerId,
-      changedBy: req.actor!.userId,
-      reason: "created",
-    });
-  await recordActivity(req, id, "lead_created", { source: "manual" });
   await audit(req, { action: "lead.create", entityType: "lead", entityId: id, diff: { ownerId, stageId } });
   return { lead: await leadViewFor(req, await visibleLead(req, id), fields), duplicates };
 }
