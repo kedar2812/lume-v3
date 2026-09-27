@@ -19,7 +19,7 @@ Decided with the owner (2026-09-27):
 - On a match with an existing lead the default is **Merge**.
 - Rows are processed by a **server job with one engine**, so every door behaves identically.
 
-This document specifies 2A completely, and 2B and 2C at the level needed to keep the engine's shape right for them. 2B and 2C get their own detailed sections before their plans are written.
+LUME is a multi-client product (root `CLAUDE.md`): nothing here is specific to one client, and every fixture uses fictional data. This document specifies 2A completely, and 2B and 2C at the level needed to keep the engine's shape right for them. 2B and 2C get their own detailed sections before their plans are written.
 
 ## 2. Principles (all of Phase 2)
 
@@ -108,11 +108,12 @@ Each CSV import creates one `csv` source named after the file, so the leads list
 
 `header_signature text pk` (sha256 of the lower-cased, trimmed header list in order), `mapping jsonb`, `rules jsonb`, `updated_by`, `updated_at`. When a file with the same headers is uploaded, its mapping and rules start from the remembered ones, re-validated against today's fields and stages (anything that no longer exists is dropped and flagged).
 
-### 4.5 Row-level security
+### 4.5 Access (amended 2026-09-27 while planning)
 
-- `lead_sources`, `imports` and `import_mapping_memory` are readable by anyone with `leads.import`, and written through the API only.
-- `import_rows` is readable by an import's starter, and by the §3 "raw values" holders. Everyone else with `leads.import` sees counts only, never rows.
-- The job itself runs as `lume_worker`. For each row it sets `lume.user_id` to the importer and `lume.lead_scope` to `all`, inside that row's transaction only (the pattern of migration 0012). The duplicate check must see every lead; the importer still learns only what their own scope allows (§6.8).
+- The intake tables (`lead_sources`, `imports`, `import_rows`, `import_mapping_memory`) are configuration-like, like `settings` and `field_definitions`: they have **no row-level security**, and the API enforces §3's permissions on every route. Drafts belong to their uploader; `import_rows` (raw values included) are returned only to an import's starter and the §3 "raw values" holders; everyone else with `leads.import` sees counts only.
+- What must never leak — which lead a row merged into, and who owns it — is protected by the **lead tables'** RLS: the API describes a matched lead through the importer's own scope (§6.11).
+- **The job runs inside the API process, as `lume_app`, not in the worker.** Migration 0009 revokes every lead table from `lume_worker` on purpose; weakening that boundary would be worse than running a pg-boss consumer in the API. For each row, the job opens one transaction acting as the importer (`lume.user_id`) with `lume.lead_scope = 'all'` for that transaction only, so the duplicate check sees every lead (the pattern of migration 0012).
+- `lume_worker` is granted exactly what the retention sweep needs (§4.6): read a few columns of `imports`, clear `imports.file_enc` and `import_rows.raw_enc`, delete old drafts and their sources. Nothing else.
 
 ### 4.6 Retention
 
@@ -172,6 +173,7 @@ Returns `{ encoding, delimiter, headerRow, headers, rows, fileWarnings }`, or a 
   - `status`, `stage` → Stage.
 - A header matches at most one field, and a field is suggested for at most one column (except Name's first+last combine and multi-choice).
 - Anything unsure is left as "Ignore". A wrong suggestion is worse than none.
+- **"Source" is never a target** (amended 2026-09-27): a lead's source is the import itself, and the core Source field has no column of its own. A column like "Lead source" goes to "New field…" (for example "Original source").
 
 ### 5.3 Mapping shape
 
@@ -377,7 +379,7 @@ Returns `{ draft, warnings }` or `{ problems, warnings }`. A draft holds the lea
   - or, when all four are empty, of all mapped cells.
 
   2B uses it to recognise a row it has already imported; for CSV it's recorded for traceability.
-- The lead-writing path is **extracted from the API's `createLead` into a shared module** (`packages/db`), used by both the API and the worker. There's no second copy of "what creating a lead means".
+- The lead-writing path is **extracted from the API's `createLead` into `apps/api/src/modules/leads/writer.ts`** (`insertLead`, `mergeIntoLead`), used by hand-made leads and the import job alike (the job reaches it through a request-shaped transaction; §4.5). There's no second copy of "what creating a lead means" (amended 2026-09-27: the job runs in the API, so the module stays there).
 
 ### 6.11 Preview — `POST /imports/:id/preview`
 
@@ -407,7 +409,13 @@ Returns `{ draft, warnings }` or `{ problems, warnings }`. A draft holds the lea
 - Works on numbers the actor sees masked. The response and the UI reveal no digits.
 - The result uses the existing "N fixed, M skipped: reason" bulk summary.
 
+### 6.14 Fields needed on every lead (added 2026-09-27)
+
+Custom fields marked "Needed before a lead is saved" are enforced on imports exactly as on hand-made leads. A row with no value for one is an error — unless the importer chose a default for that field in the Rules step (`rules.requiredDefaults`), which then fills every row that lacks it. The Columns step lists each such field that no column covers, and Preview stays locked until each is mapped or given a default.
+
 ## 7. The job
+
+Licence read-only (see `docs/LUME_LICENSING_DEPLOYMENT_SPEC.md` §2.2): when that system lands, the job checks the licence state before every batch, as it checks the importer's permissions, and stops with `stopped_license` (same resume path) the moment writes are blocked. Nothing in 2A depends on it.
 
 ### 7.1 States
 
@@ -548,6 +556,7 @@ Built to the existing design system (Porcelain and Carbon, the settings panel la
 
 ## 12. 2B — Google Sheets (outline; detailed before its plan)
 
+- **An optional module** (root `CLAUDE.md`): switched on per instance in Settings → Integrations, off by default. With it off, nothing Sheets-related shows or runs, and LUME works fully.
 - **Auth:** one Google service account per installation. Its key is pasted once in Settings → Integrations and stored encrypted. The screen shows the account's email with Copy, and "Test access" per sheet. Read-only by construction.
 - **Setup:** paste a sheet link → tabs listed → tab and header row → the same Columns and Rules steps as CSV → Preview → backfill choice (all existing rows, or only rows added from now) → Save.
 - **Sync:** job `sheets.sync` every `poll_interval_sec` (default 120, minimum 60) plus "Sync now". It reads the mapped range in batches with backoff on 429/5xx, and runs each row through the same `mapRow`, dedupe and write path.
@@ -559,6 +568,7 @@ Built to the existing design system (Porcelain and Carbon, the settings panel la
 
 ## 13. 2C — Inbound webhooks, with ManyChat (outline; detailed before its plan)
 
+- **An optional module**, like Sheets: on per instance in Settings → Integrations, off by default. CSV import (2A) is core, not an integration.
 - **Endpoint:** `POST /webhooks/in/:sourceId` returns `202` at once, and processing is queued through the same engine. The mapping uses JSON paths instead of columns.
 - **Two security modes, chosen per source:**
   - **Signed:** HMAC-SHA256 of the raw body in `X-Lume-Signature`, plus `X-Lume-Timestamp` within 5 minutes. For Zapier, Make, custom website code, and SuperReply if it can sign.
