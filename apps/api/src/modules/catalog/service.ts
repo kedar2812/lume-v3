@@ -99,7 +99,7 @@ export async function listSources(req: FastifyRequest) {
     sources: await req.db
       .select({ id: schema.leadSources.id, name: schema.leadSources.name, type: schema.leadSources.type })
       .from(schema.leadSources)
-      .where(isNull(schema.leadSources.archivedAt))
+      .where(and(isNull(schema.leadSources.archivedAt), ne(schema.leadSources.status, "draft")))
       .orderBy(desc(schema.leadSources.createdAt)),
   };
 }

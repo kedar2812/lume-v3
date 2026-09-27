@@ -55,7 +55,7 @@ export async function mine(req: FastifyRequest, id: string): Promise<ImportRow> 
 }
 
 /** The default pipeline and its first open stage (spec §6.5). */
-async function defaultRules(req: FastifyRequest, country: string | null): Promise<Rules> {
+export async function defaultRules(req: FastifyRequest, country: string | null): Promise<Rules> {
   const [pipeline] = await req.db
     .select()
     .from(schema.pipelines)
@@ -122,21 +122,37 @@ export async function draftView(req: FastifyRequest, d: AppDeps, imp: ImportRow)
 }
 export type DraftView = Awaited<ReturnType<typeof draftView>>;
 
-export async function uploadImport(req: FastifyRequest, d: AppDeps, bytes: Buffer, rawName: string) {
-  const fileName = safeName(rawName);
-  if (bytes.length > INTAKE_LIMITS.bytes)
-    throw badRequest("FILE_TOO_BIG", "This file is over 10 MB. Split it into smaller files.");
-  const file = readCsv(new Uint8Array(bytes), { fileName });
+/** A draft from bytes the 2A reader understands: a CSV upload, or a sheet's snapshot (2B, amendment A1). */
+export async function createDraftFrom(
+  req: FastifyRequest,
+  d: AppDeps,
+  o: {
+    bytes: Buffer;
+    fileName: string;
+    kind: "csv" | "sheet";
+    sourceId: string;
+    headerRow?: number;
+    mapping?: Mapping;
+    rules?: Rules;
+    targetSourceId?: string;
+  },
+): Promise<DraftView> {
+  const file = readCsv(new Uint8Array(o.bytes), {
+    fileName: o.fileName,
+    ...(o.headerRow ? { headerRow: o.headerRow } : {}),
+  });
   if (!file.ok) throw badRequest(file.code, file.message);
   const [settings] = await req.db.select().from(schema.settings).where(eq(schema.settings.id, 1));
-  let rules = await defaultRules(req, settings!.defaultCountryIso);
-  const [memory] = await req.db
-    .select()
-    .from(schema.importMappingMemory)
-    .where(eq(schema.importMappingMemory.headerSignature, signature(file.headers)));
+  let rules = o.rules ?? (await defaultRules(req, settings!.defaultCountryIso));
+  const [memory] = o.mapping
+    ? []
+    : await req.db
+        .select()
+        .from(schema.importMappingMemory)
+        .where(eq(schema.importMappingMemory.headerSignature, signature(file.headers)));
   // Remembered rules apply only while their pipeline and stage still exist.
   const remembered = memory?.rules as Rules | undefined;
-  if (remembered) {
+  if (remembered && !o.rules) {
     const ctx = await loadMapContext(req, {
       pipelineId: remembered.pipelineId,
       headerCount: file.headers.length,
@@ -144,24 +160,22 @@ export async function uploadImport(req: FastifyRequest, d: AppDeps, bytes: Buffe
     if (ctx.stages.some((s) => s.id === remembered.stageId)) rules = { ...rules, ...remembered };
   }
   const ctx = await loadMapContext(req, { pipelineId: rules.pipelineId, headerCount: file.headers.length });
-  const mapping = suggestMapping(file.headers, ctx.fields, (memory?.mapping as Mapping | undefined) ?? null);
-
-  const sourceId = newId();
+  // A given mapping (an edit of a live sheet) keeps only columns the sheet still has.
+  const mapping = o.mapping
+    ? { ...o.mapping, columns: o.mapping.columns.filter((c) => c.column < file.headers.length) }
+    : suggestMapping(file.headers, ctx.fields, (memory?.mapping as Mapping | undefined) ?? null);
   const id = newId();
-  await req.db
-    .insert(schema.leadSources)
-    .values({ id: sourceId, type: "csv", name: fileName, createdBy: req.actor!.userId });
   const [imp] = await req.db
     .insert(I)
     .values({
       id,
-      sourceId,
-      kind: "csv",
+      sourceId: o.sourceId,
+      kind: o.kind,
       status: "draft",
-      fileEnc: sealFile(d.keyring, id, bytes),
-      fileSha256: sha(bytes),
-      fileName,
-      fileBytes: bytes.length,
+      fileEnc: sealFile(d.keyring, id, o.bytes),
+      fileSha256: sha(o.bytes),
+      fileName: o.fileName,
+      fileBytes: o.bytes.length,
       encoding: file.encoding,
       delimiter: file.delimiter,
       headerRow: file.headerRow,
@@ -170,9 +184,22 @@ export async function uploadImport(req: FastifyRequest, d: AppDeps, bytes: Buffe
       mapping,
       rules,
       createdBy: req.actor!.userId,
+      targetSourceId: o.targetSourceId ?? null,
     })
     .returning();
   return draftView(req, d, imp!);
+}
+
+export async function uploadImport(req: FastifyRequest, d: AppDeps, bytes: Buffer, rawName: string) {
+  const fileName = safeName(rawName);
+  if (bytes.length > INTAKE_LIMITS.bytes)
+    throw badRequest("FILE_TOO_BIG", "This file is over 10 MB. Split it into smaller files.");
+  const sourceId = newId();
+  await req.db
+    .insert(schema.leadSources)
+    .values({ id: sourceId, type: "csv", name: fileName, createdBy: req.actor!.userId });
+  // A file LUME can't read throws inside this request's transaction, so the source above is never kept.
+  return createDraftFrom(req, d, { bytes, fileName, kind: "csv", sourceId });
 }
 
 export type ImportPatch = {
@@ -467,7 +494,8 @@ const PAGE = 50;
 
 /** Newest first. Ids are time-ordered (UUIDv7), so the last id on a page is an exact cursor. */
 export async function listImports(req: FastifyRequest, cursor?: string) {
-  const visible = or(ne(I.status, "draft"), eq(I.createdBy, req.actor!.userId));
+  // Sheet drafts are how a Google Sheet is set up (2B amendment A1), never an import to list.
+  const visible = and(ne(I.kind, "sheet"), or(ne(I.status, "draft"), eq(I.createdBy, req.actor!.userId)));
   const rows = await req.db
     .select({ imp: I, startedByName: schema.users.name })
     .from(I)

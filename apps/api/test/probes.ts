@@ -34,6 +34,43 @@ export type Probe = {
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
 export const PROBES: Record<string, Probe> = {
   "GET /api/v1/sources": { access: "leads.view" },
+  "GET /api/v1/integrations": { access: "integrations.manage" },
+  "PUT /api/v1/integrations/google-sheets": {
+    access: "integrations.manage",
+    body: () => ({ enabled: false }),
+  },
+  "POST /api/v1/sheets/inspect": { access: "integrations.manage", body: () => ({ link: "not a link" }) },
+  "POST /api/v1/sheets/drafts": { access: "integrations.manage", body: () => ({ sourceId: uuid }) },
+  "POST /api/v1/sheets/sources": {
+    access: "integrations.manage",
+    body: () => ({ importId: uuid, name: "S", pollSeconds: 120, startFrom: "all" }),
+  },
+  "GET /api/v1/sheets/sources": { access: "integrations.manage" },
+  "GET /api/v1/sheets/sources/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/sheets/sources/${uuid}`,
+  },
+  "PATCH /api/v1/sheets/sources/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/sheets/sources/${uuid}`,
+    body: () => ({ paused: true }),
+  },
+  "DELETE /api/v1/sheets/sources/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/sheets/sources/${uuid}`,
+  },
+  "POST /api/v1/sheets/sources/:id/sync": {
+    access: "integrations.manage",
+    path: () => `/api/v1/sheets/sources/${uuid}/sync`,
+  },
+  "POST /api/v1/sheets/sources/:id/rows/:rowId/dismiss": {
+    access: "integrations.manage",
+    path: () => `/api/v1/sheets/sources/${uuid}/rows/1/dismiss`,
+  },
+  "GET /api/v1/sheets/sources/:id/problems.csv": {
+    access: "integrations.manage",
+    path: () => `/api/v1/sheets/sources/${uuid}/problems.csv`,
+  },
   "POST /api/v1/imports": { access: "leads.import", body: () => ({ not: "a file" }) },
   "GET /api/v1/imports": { access: "leads.import" },
   "GET /api/v1/imports/:id": { access: "leads.import", path: () => `/api/v1/imports/${uuid}` },

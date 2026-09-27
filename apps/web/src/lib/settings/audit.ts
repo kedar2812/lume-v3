@@ -46,6 +46,24 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "import.stopped": { area: "Leads", phrase: "had an import stopped when their access changed" },
   "import.failed": { area: "Leads", phrase: "had an import fail" },
   "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
+  "integration.enabled": { area: "Settings", phrase: "switched on Google Sheets" },
+  "integration.disabled": { area: "Settings", phrase: "switched off Google Sheets" },
+  "sheet.connected": { area: "Leads", phrase: (d) => `connected the Google Sheet “${String(d.name ?? "")}”` },
+  "sheet.mapping_changed": {
+    area: "Leads",
+    phrase: (d) => `changed the columns or rules of “${String(d.name ?? "")}”`,
+  },
+  "sheet.paused": { area: "Leads", phrase: (d) => `paused the Google Sheet “${String(d.name ?? "")}”` },
+  "sheet.resumed": { area: "Leads", phrase: (d) => `resumed the Google Sheet “${String(d.name ?? "")}”` },
+  "sheet.removed": { area: "Leads", phrase: (d) => `removed the Google Sheet “${String(d.name ?? "")}”` },
+  "sheet.needs_attention": {
+    area: "Leads",
+    phrase: (d) => `paused “${String(d.name ?? "")}” until someone looks at it`,
+  },
+  "sheet.row_dismissed": {
+    area: "Leads",
+    phrase: (d) => `dismissed a problem row in “${String(d.name ?? "")}”`,
+  },
   // Sign-in and account
   "user.login": { area: "Sign-in", phrase: "signed in" },
   "user.login.password_ok": { area: "Sign-in", phrase: "entered the right password" },

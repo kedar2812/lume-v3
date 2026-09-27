@@ -7,7 +7,9 @@ import {
   resolveColumnSettings,
   validateMapping,
   type ColumnMap,
+  type DateOrder,
   type Mapping,
+  type ReadCsv,
   type Rules,
 } from "@lume/core";
 import { schema } from "@lume/db";
@@ -45,16 +47,22 @@ export function tagParts(c: ColumnMap, cell: string): string[] {
     .filter(Boolean);
 }
 
+export type ColumnSettings = {
+  dateOrders: Record<number, DateOrder>;
+  decimalMarks: Record<number, "." | ",">;
+};
+
 /**
- * Spec §7.1. Re-checks the mapping and rules against today's fields and stages, and the whole file's date
- * columns; then creates the chosen new fields, options and tags, points the mapping at them, remembers
- * the mapping for files with these columns, and queues the run. One transaction: a refusal leaves nothing.
+ * 2A spec §7.1's checks and creations, shared by Start and by saving a sheet (2B): re-check the mapping
+ * against today's fields and stages, then create the chosen new fields, options and tags and point the
+ * mapping at them. A sheet keeps creating missing tags for rows still to come (keepCreatingTags).
  */
-export async function startImport(req: FastifyRequest, d: AppDeps, id: string) {
-  // Lock first, so two Starts at once queue one run: the second waits here, then sees it's no longer a draft.
-  await req.db.execute(sql`SELECT 1 FROM imports WHERE id = ${id} FOR UPDATE`);
-  const imp = await mine(req, id);
-  if (imp.status !== "draft") throw new HttpError(409, "NOT_DRAFT", "This import has already started.");
+export async function prepareStart(
+  req: FastifyRequest,
+  d: AppDeps,
+  imp: typeof I.$inferSelect,
+  o: { keepCreatingTags?: boolean } = {},
+): Promise<{ file: ReadCsv; mapping: Mapping; rules: Rules; columnSettings: ColumnSettings }> {
   const file = readImportFile(d.keyring, imp);
   const rules = imp.rules as Rules;
   const draftMapping = imp.mapping as Mapping;
@@ -114,8 +122,25 @@ export async function startImport(req: FastifyRequest, d: AppDeps, id: string) {
           await createTag(req, { label: part });
         }
   }
-  const mapping: Mapping = { columns, createMissingTags: false };
+  const mapping: Mapping = {
+    columns,
+    createMissingTags: o.keepCreatingTags ? draftMapping.createMissingTags : false,
+  };
   const columnSettings = { dateOrders: settings.dateOrders, decimalMarks: settings.decimalMarks };
+  return { file, mapping, rules, columnSettings };
+}
+
+/**
+ * Spec §7.1. Re-checks the mapping and rules against today's fields and stages, and the whole file's date
+ * columns; then creates the chosen new fields, options and tags, points the mapping at them, remembers
+ * the mapping for files with these columns, and queues the run. One transaction: a refusal leaves nothing.
+ */
+export async function startImport(req: FastifyRequest, d: AppDeps, id: string) {
+  // Lock first, so two Starts at once queue one run: the second waits here, then sees it's no longer a draft.
+  await req.db.execute(sql`SELECT 1 FROM imports WHERE id = ${id} FOR UPDATE`);
+  const imp = await mine(req, id);
+  if (imp.status !== "draft") throw new HttpError(409, "NOT_DRAFT", "This import has already started.");
+  const { file, mapping, rules, columnSettings } = await prepareStart(req, d, imp);
 
   await req.db
     .insert(schema.importMappingMemory)

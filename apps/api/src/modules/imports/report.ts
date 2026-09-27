@@ -10,7 +10,7 @@ const R = schema.importRows;
 const PAGE = 100;
 // A cell a spreadsheet would run as a formula gets a leading apostrophe (CSV injection).
 const FORMULA = /^[=+\-@\t\r]/;
-const safeCell = (v: string) => (FORMULA.test(v) ? `'${v}` : v);
+export const safeCell = (v: string) => (FORMULA.test(v) ? `'${v}` : v);
 
 /** Row detail is for whoever ran the import, or someone who could see every lead's full contact anyway. */
 async function rowsAllowed(req: FastifyRequest, id: string) {
