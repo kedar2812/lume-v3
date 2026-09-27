@@ -4,6 +4,8 @@ import { ARGON2_PRODUCTION } from "@lume/core/password";
 import { apiSchema, loadConfig } from "@lume/config";
 import { buildApp } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
+import { createGoogleSheets, parseServiceAccount } from "./modules/sheets/google";
+import { startSheetsQueue } from "./modules/sheets/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
 import { REDACT_PATHS } from "./logger";
@@ -17,10 +19,10 @@ const pool = new pg.Pool({
   max: 10,
   connectionTimeoutMillis: 10_000,
 });
-// Imports (the job, and a preview's lookup beside its request) get their own connections.
+// Imports (the job, and a preview's lookup beside its request) and the sheet sync get their own connections.
 const jobPool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
-  max: 4,
+  max: 5,
   connectionTimeoutMillis: 30_000,
 });
 const publicUrl = cfg.LUME_PUBLIC_URL ?? `https://${cfg.LUME_PUBLIC_HOST}`;
@@ -29,12 +31,21 @@ const { rows } = await pool.query<{ has_users: boolean }>("SELECT EXISTS (SELECT
 const keyring = await loadKeyring(pool, masterKeyFromBase64(cfg.LUME_MASTER_KEY));
 // Filled in once the queue is up (it needs the built app); the queue starts before the API listens.
 const imports: { enqueue(id: string): Promise<void> } = { enqueue: async () => undefined };
+// Google Sheets (2B): only on a server with a service-account key; without one the module can't be switched on.
+const account = parseServiceAccount(cfg.GOOGLE_SERVICE_ACCOUNT_JSON);
+const google = account ? createGoogleSheets({ account, endpoint: cfg.LUME_GOOGLE_ENDPOINT }) : null;
+const sheets: { enqueue(id: string): Promise<void>; maxRows: number } = {
+  enqueue: async () => undefined,
+  maxRows: cfg.LUME_SHEETS_MAX_ROWS,
+};
 
 const app = await buildApp({
   pool,
   keyring,
   imports,
   jobPool,
+  google,
+  sheets,
   mailer: createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`),
   config: { publicUrl, cookieSecure: true, version: cfg.LUME_VERSION },
   rates:
@@ -52,10 +63,22 @@ const app = await buildApp({
 });
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;
+const sheetQueue = google
+  ? await startSheetsQueue({
+      connectionString: cfg.DATABASE_URL_APP,
+      app,
+      pool: jobPool,
+      keyring,
+      google,
+      maxRows: cfg.LUME_SHEETS_MAX_ROWS,
+    })
+  : null;
+if (sheetQueue) sheets.enqueue = sheetQueue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {
+    await sheetQueue?.stop();
     await queue.stop();
     await app.close();
     await jobPool.end();
