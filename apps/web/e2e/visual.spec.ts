@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, stateFile, test, type Who } from "./fixtures";
+import { chooseFile, next, openImportSheet } from "./imports-helpers";
 import { settle } from "./settle";
 
 /** Anything that changes from run to run (clocks, QR codes, secrets) is masked, never allowed to drift. */
@@ -24,6 +25,22 @@ const FREEZE_VOLATILE = `[data-volatile] {
 }`;
 
 type Shot = { name: string; path: string; who: Who | null; ready: (p: Page) => Promise<unknown> };
+
+// The Import sheet's steps, from small fictional files that never create a lead the other shots would see.
+const SHOW_CSV = [
+  "Full name,Mobile,Stage",
+  "Visual One,050 720 0001,New",
+  "Visual Two,050 720 0002,Hot lead",
+  "",
+].join("\n");
+const REPORT_CSV = ["Name,Stage", "Visual Report,Nowhere", ""].join("\n");
+const importAt = async (p: Page, file: string, text: string, steps: number) => {
+  // Over an empty list: nothing behind the sheet changes between runs (or needs a mask on top of it).
+  const sheet = await openImportSheet(p, "/leads?q=nobody-matches-this");
+  await chooseFile(sheet, file, text);
+  for (let i = 0; i < steps; i++) await next(sheet);
+  return sheet;
+};
 const SHOTS: Shot[] = [
   {
     name: "design",
@@ -72,6 +89,32 @@ const SHOTS: Shot[] = [
         .getByRole("dialog", { name: "Karim Aziz" })
         .getByRole("heading", { name: "Karim Aziz" })
         .waitFor();
+    },
+  },
+  {
+    name: "import-columns",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) =>
+      (await importAt(p, "visual-columns.csv", SHOW_CSV, 1))
+        .getByRole("region", { name: "Values LUME doesn't recognise" })
+        .waitFor(),
+  },
+  {
+    name: "import-preview",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) =>
+      (await importAt(p, "visual-preview.csv", SHOW_CSV, 3)).getByText("1 create · 1 error").waitFor(),
+  },
+  {
+    name: "import-report",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) => {
+      const sheet = await importAt(p, "visual-report.csv", REPORT_CSV, 3);
+      await sheet.getByRole("button", { name: "Import 1 row" }).click();
+      await sheet.getByRole("heading", { name: /^visual-report\.csv was checked/ }).waitFor();
     },
   },
   {

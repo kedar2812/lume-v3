@@ -67,7 +67,7 @@ export function ImportsList() {
           body="Bring leads in from a CSV with Import on the Leads page. Every import and its report shows here."
         />
       ) : (
-        <section className={s.panel} aria-label="Imports" aria-busy={items === null || undefined}>
+        <section className={s.panel} aria-label="Past imports" aria-busy={items === null || undefined}>
           {items === null ? (
             <p className={`${s.muted} ${s.panelBody}`}>Loading…</p>
           ) : (

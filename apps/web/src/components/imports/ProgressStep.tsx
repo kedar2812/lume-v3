@@ -98,15 +98,23 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
 
   const c = view.counts;
   const done = handled(c);
+  const one = (v: number, singular: string, plural: string): [number, string] => [
+    v,
+    v === 1 ? singular : plural,
+  ];
   const lines: [number, string][] = [
     [c.created, "created"],
     [c.merged, "merged into existing leads"],
     [c.skipped, "skipped"],
-    [c.empty, "empty rows"],
+    one(c.empty, "empty row", "empty rows"),
     [c.errors, "with problems"],
     [c.nameFromContact, "used the contact as the name"],
-    [c.phoneNeedsCountry, "need a country code for their phone"],
-    [c.missingStageFields, "are missing fields their stage asks for"],
+    one(c.phoneNeedsCountry, "needs a country code for its phone", "need a country code for their phone"),
+    one(
+      c.missingStageFields,
+      "is missing fields its stage asks for",
+      "are missing fields their stage asks for",
+    ),
   ];
 
   return (
@@ -137,8 +145,26 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
           </>
         ) : (
           <>
+            {view.status === "done" && c.created + c.merged > 0 && (
+              <span className={s.doneMark} aria-hidden>
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                  <path
+                    d="M6 12.5 10 16.5 18 8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            )}
             <h3 id="import-run-title" className={s.stepTitle}>
-              {view.status === "done" ? `${view.fileName} is in LUME` : view.fileName}
+              {view.status !== "done"
+                ? view.fileName
+                : c.created + c.merged > 0
+                  ? `${view.fileName} is in LUME`
+                  : `${view.fileName} was checked — nothing was added`}
             </h3>
             {view.status === "cancelled" && (
               <p className={s.lede}>
@@ -164,12 +190,16 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
                 ))}
             </ul>
             <div className={s.reportLinks}>
-              <a className={s.linkButton} href={`/leads?source=${view.sourceId}`}>
-                View imported leads
-              </a>
+              {c.created > 0 && (
+                <a className={s.linkButton} href={`/leads?source=${view.sourceId}`}>
+                  View imported leads
+                </a>
+              )}
               {c.errors > 0 && view.canSeeRows && (
                 <a className={s.linkQuiet} href={`/api/v1/imports/${view.id}/errors.csv`} download>
-                  Download the {n(c.errors)} rows with problems
+                  {c.errors === 1
+                    ? "Download the row with problems"
+                    : `Download the ${n(c.errors)} rows with problems`}
                 </a>
               )}
             </div>

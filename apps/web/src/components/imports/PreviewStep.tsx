@@ -141,26 +141,30 @@ export function PreviewStep({
                       {CHIP[r.outcome]}
                     </span>
                   </td>
-                  <td className={s.leadCell}>
-                    {r.name ?? <span className={s.muted}>—</span>}
-                    {mergeText(r) && <span className={s.mergeLine}>{mergeText(r)}</span>}
-                    {r.alsoMatches > 0 && (
-                      <span className={s.mergeLine}>
-                        Also matches {r.alsoMatches} more {r.alsoMatches === 1 ? "lead" : "leads"}
-                      </span>
-                    )}
+                  <td>
+                    <div className={s.leadCell}>
+                      {r.name ?? <span className={s.muted}>—</span>}
+                      {mergeText(r) && <span className={s.mergeLine}>{mergeText(r)}</span>}
+                      {r.alsoMatches > 0 && (
+                        <span className={s.mergeLine}>
+                          Also matches {r.alsoMatches} more {r.alsoMatches === 1 ? "lead" : "leads"}
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td className={s.notes}>
-                    {r.problems.map((p, i) => (
-                      <span key={`p${i}`} className={s.noteProblem}>
-                        {p.message}
-                      </span>
-                    ))}
-                    {r.warnings.map((w, i) => (
-                      <span key={`w${i}`} className={s.noteWarn}>
-                        {w.message}
-                      </span>
-                    ))}
+                  <td>
+                    <div className={s.notes}>
+                      {r.problems.map((p, i) => (
+                        <span key={`p${i}`} className={s.noteProblem}>
+                          {p.message}
+                        </span>
+                      ))}
+                      {r.warnings.map((w, i) => (
+                        <span key={`w${i}`} className={s.noteWarn}>
+                          {w.message}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -242,36 +242,38 @@ export function ColumnsStep({
                       </span>
                     </th>
                     <td>
-                      <select
-                        className={s.select}
-                        aria-label={`${header} goes to`}
-                        value={choiceOf(c)}
-                        onChange={(e) =>
-                          change(withColumn(mapping, columnFor(column, e.target.value, header, c)))
-                        }
-                      >
-                        <option value="ignore">Ignore</option>
-                        {byGroup.map(
-                          ([g, list]) =>
-                            list.length > 0 && (
-                              <optgroup key={g} label={g}>
-                                {list.map((t) => (
-                                  <option key={t.key} value={fieldChoice(t.key)}>
-                                    {t.label}
-                                  </option>
-                                ))}
-                                {g === "Lead" && (
-                                  <>
-                                    <option value="name_part:first">First name</option>
-                                    <option value="name_part:last">Last name</option>
-                                  </>
-                                )}
-                              </optgroup>
-                            ),
-                        )}
-                        {draft.can.manageFields && <option value="new_field">New field…</option>}
-                      </select>
-                      {transformLine(c, header)}
+                      <div className={s.cell}>
+                        <select
+                          className={s.select}
+                          aria-label={`${header} goes to`}
+                          value={choiceOf(c)}
+                          onChange={(e) =>
+                            change(withColumn(mapping, columnFor(column, e.target.value, header, c)))
+                          }
+                        >
+                          <option value="ignore">Ignore</option>
+                          {byGroup.map(
+                            ([g, list]) =>
+                              list.length > 0 && (
+                                <optgroup key={g} label={g}>
+                                  {list.map((t) => (
+                                    <option key={t.key} value={fieldChoice(t.key)}>
+                                      {t.label}
+                                    </option>
+                                  ))}
+                                  {g === "Lead" && (
+                                    <>
+                                      <option value="name_part:first">First name</option>
+                                      <option value="name_part:last">Last name</option>
+                                    </>
+                                  )}
+                                </optgroup>
+                              ),
+                          )}
+                          {draft.can.manageFields && <option value="new_field">New field…</option>}
+                        </select>
+                        {transformLine(c, header)}
+                      </div>
                     </td>
                   </tr>
                 );

@@ -444,7 +444,7 @@
   width: 44%;
   font-weight: var(--fw-regular);
 }
-.columns tbody td {
+.cell {
   display: grid;
   gap: 10px;
   justify-items: start;
@@ -853,6 +853,154 @@
   display: flex;
   justify-content: flex-start;
   margin-top: 12px;
+}
+
+/* ── Import: running, then the report ─────────────────────────────────────────────────────────── */
+.running {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-top: 26px;
+}
+.ring {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex: none;
+}
+.ringArc {
+  transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ringText {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ringText b {
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+}
+.ringText span {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.liveCounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.liveCounts .lede {
+  flex-basis: 100%;
+  margin-top: 6px;
+}
+.countChip {
+  padding: 4px 11px;
+  border-radius: 99px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  background: var(--sunk);
+}
+.countChip[data-tone="ok"] {
+  color: var(--ok-ink);
+  background: var(--ok-soft);
+}
+.countChip[data-tone="accent"] {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.countChip[data-tone="danger"] {
+  color: var(--danger-ink);
+  background: var(--danger-soft);
+}
+.doneMark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  color: var(--ok-ink);
+  background: var(--ok-soft);
+}
+.report {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  margin-top: 22px;
+  list-style: none;
+}
+.report li {
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+.report li:first-child {
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-bold);
+}
+.reportLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.linkButton,
+.linkQuiet {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-ctl);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.linkButton {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.linkButton:hover {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.linkQuiet {
+  color: var(--text);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.linkQuiet:hover {
+  background: var(--hover);
+}
+.hintLine {
+  margin-top: 12px;
+  max-width: 60ch;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+@media (max-width: 720px) {
+  .running {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /* ── Keep for later? ──────────────────────────────────────────────────────────────────────────── */

@@ -97,4 +97,19 @@ describe("ProgressStep", () => {
       "LUME stopped this import because your access changed",
     );
   });
+
+  it("doesn't claim a file is in LUME when nothing was added", () => {
+    const counts = { ...view().counts, created: 0, merged: 0, errors: 2 };
+    render(
+      <ProgressStep
+        initial={view({ status: "done", counts, seenAt: "2026-09-27T09:05:00Z" })}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "leads.csv was checked — nothing was added" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View imported leads" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download the 2 rows with problems" })).toBeInTheDocument();
+  });
 });

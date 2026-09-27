@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { expect, stateFile, test, type Who } from "./fixtures";
+import { chooseFile, next, openImportSheet } from "./imports-helpers";
 import { settle } from "./settle";
 
 async function axe(page: Page) {
@@ -13,6 +14,15 @@ async function axe(page: Page) {
       `${v.id}: ${v.nodes.map((n) => `${n.target.join(" ")} (${n.any[0]?.message ?? n.failureSummary})`).join(" | ")}`,
   );
 }
+
+// A one-row file whose stage LUME doesn't know: every step has something to show, and no lead is ever made.
+const A11Y_CSV = ["Name,Stage", "Axe Check,Nowhere", ""].join("\n");
+const importAt = async (p: Page, steps: number) => {
+  const sheet = await openImportSheet(p);
+  await chooseFile(sheet, "a11y-check.csv", A11Y_CSV);
+  for (let i = 0; i < steps; i++) await next(sheet);
+  return sheet;
+};
 
 type Check = { name: string; path: string; who: Who | null; ready: (p: Page) => Promise<unknown> };
 const CHECKS: Check[] = [
@@ -174,6 +184,47 @@ const CHECKS: Check[] = [
         .click();
       await p.getByRole("listbox", { name: "Countries" }).waitFor(); // checked with the country list open
     },
+  },
+  {
+    name: "import: the file as read",
+    path: "/leads",
+    who: "owner",
+    ready: (p) => importAt(p, 0),
+  },
+  {
+    name: "import: columns, with a value LUME doesn't recognise",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) =>
+      (await importAt(p, 1)).getByRole("region", { name: "Values LUME doesn't recognise" }).waitFor(),
+  },
+  {
+    name: "import: rules",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) => (await importAt(p, 2)).getByRole("heading", { name: "How to add them" }).waitFor(),
+  },
+  {
+    name: "import: preview",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) => (await importAt(p, 3)).getByText("1 error").waitFor(),
+  },
+  {
+    name: "import: the report",
+    path: "/leads",
+    who: "owner",
+    ready: async (p) => {
+      const sheet = await importAt(p, 3);
+      await sheet.getByRole("button", { name: "Import 1 row" }).click();
+      await sheet.getByRole("heading", { name: /^a11y-check\.csv was checked/ }).waitFor();
+    },
+  },
+  {
+    name: "settings: imports",
+    path: "/settings/imports",
+    who: "owner",
+    ready: (p) => p.getByRole("region", { name: "Past imports" }).waitFor(),
   },
   {
     name: "pipeline board",
