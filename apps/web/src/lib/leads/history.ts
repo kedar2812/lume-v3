@@ -60,6 +60,18 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
         detail: join(p.source === "sheet" ? "from the Google Sheet" : undefined, by(a)),
         tone: "accent",
       };
+    case "imported":
+    case "imported_again": {
+      // Where it came from, and any other numbers typed into the same cell (masked for masked roles).
+      const from = p.file ? `from ${String(p.file)}${p.row ? `, row ${String(p.row)}` : ""}` : undefined;
+      const extra = Array.isArray(p.extraPhones) && p.extraPhones.length ? p.extraPhones.map(String) : null;
+      return {
+        title: a.type === "imported" ? "Imported" : "Enquired again",
+        detail: join(from, by(a)),
+        tone: "accent",
+        ...(extra ? { quote: `Also gave ${extra.join(", ")}` } : {}),
+      };
+    }
     case "note":
       return { title: "Note", detail: by(a), tone: "neutral", quote: String(p.body ?? "") };
     default:

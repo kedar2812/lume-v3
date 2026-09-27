@@ -213,4 +213,24 @@ describe("a run", () => {
     const rep = await h.signIn(await h.seedUser({ grants: [{ key: "leads.import", scope: null }] }));
     expect((await rep.inject({ method: "GET", url: `/api/v1/imports/${d.id}/rows` })).statusCode).toBe(403);
   });
+
+  it("keeps extra numbers from a cell in the history, masked for anyone who sees masked contacts", async () => {
+    const repUser = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
+    const rep = await h.signIn(repUser);
+    const d = await upload(admin, ["Name,Phone", "Two Numbers,050 111 2299 / 055 333 4499", ""].join("\n"));
+    await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/imports/${d.id}`,
+      payload: { rules: { ...d.rules, owner: { mode: "user", userId: repUser.id } } },
+    });
+    await start(admin, d.id);
+    await h.runImports();
+    const [lead] = await leadsNamed("Two Numbers");
+    const history = async (c: AuthedClient) =>
+      (await c.inject({ method: "GET", url: `/api/v1/leads/${lead!.id}/activities` })).json().items;
+    const repView = JSON.stringify(await history(rep));
+    expect(repView).toContain("extraPhones");
+    expect(repView).not.toMatch(/3334499|333 4499/);
+    expect(JSON.stringify(await history(admin))).toContain("055 333 4499");
+  });
 });

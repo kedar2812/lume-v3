@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { canOnRecord, newId, scopeOf } from "@lume/core";
+import { canOnRecord, maskPhone, newId, scopeOf } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, forbidden } from "../../http/errors";
@@ -198,11 +198,18 @@ export async function listActivities(
     .orderBy(desc(A.id))
     .limit(q.limit + 1);
   const page = rows.slice(0, q.limit);
+  // Contacts inside a payload (an import's extra numbers) follow the same masking as the lead's own.
+  const full = canOnRecord(req.actor!, "leads.contact.full", lead.ownerId);
+  const masked = (payload: unknown) => {
+    const p = payload as Record<string, unknown> | null;
+    if (full || !p || !Array.isArray(p.extraPhones)) return payload;
+    return { ...p, extraPhones: p.extraPhones.map((raw) => maskPhone({ e164: null, raw: String(raw) })) };
+  };
   return {
     items: page.map((r) => ({
       id: r.id,
       type: r.type,
-      payload: r.payload,
+      payload: masked(r.payload),
       occurredAt: r.occurredAt,
       user: r.userId ? { id: r.userId, name: r.userName } : null,
     })),

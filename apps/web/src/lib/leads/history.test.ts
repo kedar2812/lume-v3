@@ -44,6 +44,19 @@ describe("describeActivity", () => {
     expect(describeActivity(a("lead_created", { source: "manual" }), cat).title).toBe("Lead added");
   });
 
+  it("says where an imported lead came from, and when it enquired again", () => {
+    const first = describeActivity(a("imported", { file: "march.csv", row: 14 }), cat);
+    expect(first.title).toBe("Imported");
+    expect(first.detail).toMatch(/^from march\.csv, row 14/);
+    const again = describeActivity(
+      a("imported_again", { file: "april.csv", row: 3, extraPhones: ["055 ••• ••44"] }),
+      cat,
+    );
+    expect(again.title).toBe("Enquired again");
+    expect(again.detail).toMatch(/^from april\.csv, row 3/);
+    expect(again.quote).toBe("Also gave 055 ••• ••44");
+  });
+
   it("never throws on an event type or stage it doesn't know", () => {
     expect(describeActivity(a("something_new"), cat).title).toBe("Updated");
     expect(describeActivity(a("stage_changed", { to: "gone" }), cat).title).toBe("Moved to another stage");
