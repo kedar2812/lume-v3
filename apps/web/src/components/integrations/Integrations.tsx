@@ -1,0 +1,108 @@
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import { AddSheetSheet } from "@/components/sheets/AddSheetSheet";
+import { Button } from "@/components/ui/Button";
+import { Switch } from "@/components/ui/Switch";
+import { sheetsClient } from "@/lib/sheets/client";
+import type { IntegrationsView, SheetSourceView } from "@/lib/sheets/types";
+import { AttentionBanner } from "./AttentionBanner";
+import { SheetSourceList } from "./SheetSourceList";
+import s from "./integrations.module.css";
+
+/** Spec §7.1: each optional module is one card — what it does, a switch, and what it needs from you. */
+export function Integrations() {
+  const [view, setView] = useState<IntegrationsView | null>(null);
+  const [sources, setSources] = useState<SheetSourceView[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadSources = useCallback(async () => {
+    const r = await sheetsClient.list();
+    if (r.ok) setSources(r.data.sources);
+  }, []);
+  useEffect(() => {
+    void sheetsClient.integrations().then((r) => {
+      if (!r.ok) return setError(r.message);
+      setView(r.data);
+      if (r.data.googleSheets.enabled) void loadSources();
+    });
+  }, [loadSources]);
+
+  if (error)
+    return (
+      <p role="alert" className={s.error}>
+        {error}
+      </p>
+    );
+  if (!view) return null;
+  const g = view.googleSheets;
+
+  const toggle = async (enabled: boolean) => {
+    setError(null);
+    const r = await sheetsClient.setEnabled(enabled);
+    if (!r.ok) return setError(r.message);
+    setView(r.data);
+    if (enabled) void loadSources();
+  };
+  const copy = async () => {
+    if (!g.email) return;
+    await navigator.clipboard.writeText(g.email);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+
+  return (
+    <>
+      <AttentionBanner items={(sources ?? []).filter((x) => x.status === "needs_attention")} />
+      <article className={s.card} aria-labelledby="gs-title">
+        <header className={s.cardHead}>
+          <span className={s.brandTile}>
+            <img src="/brand/google-sheets.png" alt="" width={28} height={28} />
+          </span>
+          <div className={s.cardText}>
+            <h2 id="gs-title" className={s.cardTitle}>
+              Google Sheets
+            </h2>
+            <p className={s.cardLede}>
+              New rows in your sheets become leads — every few minutes, or at once with Refresh.
+            </p>
+          </div>
+          {g.available && (
+            <Switch checked={g.enabled} onChange={(v) => void toggle(v)} label="Google Sheets" />
+          )}
+        </header>
+        {!g.available && (
+          <p className={s.note}>
+            Google Sheets isn't set up on this server yet. The person who installed LUME can add its Google
+            key.
+          </p>
+        )}
+        {g.enabled && g.email && (
+          <>
+            <div className={s.share}>
+              <span className={s.shareLabel}>Share each sheet with LUME as a Viewer:</span>
+              <code className={s.email}>{g.email}</code>
+              <Button size="sm" aria-label={copied ? "Copied" : "Copy email"} onClick={() => void copy()}>
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            {sources && <SheetSourceList sources={sources} />}
+            <div className={s.cardFoot}>
+              <Button variant="primary" onClick={() => setAdding(true)}>
+                Add a sheet
+              </Button>
+            </div>
+          </>
+        )}
+      </article>
+      <AddSheetSheet
+        open={adding}
+        onClose={() => {
+          setAdding(false);
+          void loadSources();
+        }}
+      />
+    </>
+  );
+}

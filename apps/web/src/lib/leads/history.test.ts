@@ -57,6 +57,12 @@ describe("describeActivity", () => {
     expect(again.quote).toBe("Also gave 055 ••• ••44");
   });
 
+  it("a lead from a Google Sheet says which sheet and row", () => {
+    const d = describeActivity(a("imported", { sourceId: "s1", sheet: "Website enquiries", row: 14 }), cat);
+    expect(d.title).toBe("Imported");
+    expect(d.detail).toMatch(/^from Website enquiries, row 14/);
+  });
+
   it("never throws on an event type or stage it doesn't know", () => {
     expect(describeActivity(a("something_new"), cat).title).toBe("Updated");
     expect(describeActivity(a("stage_changed", { to: "gone" }), cat).title).toBe("Moved to another stage");

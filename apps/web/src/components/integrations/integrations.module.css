@@ -1,0 +1,155 @@
+.card {
+  background: var(--raised);
+  border-radius: var(--r-card);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+.cardHead {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+/* The official mark on a white tile in both themes, never recoloured. */
+.brandTile {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0 0 0.5px rgba(12, 18, 32, 0.12),
+    0 2px 8px rgba(12, 18, 32, 0.08);
+}
+.cardTitle {
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+.cardLede,
+.note,
+.empty {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  margin: 2px 0 0;
+}
+.share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+}
+.shareLabel {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.email {
+  font: var(--fw-medium) var(--fs-sm) / 1.4 var(--font);
+  user-select: all;
+  word-break: break-all;
+}
+.sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--r-ctl);
+  box-shadow: 0 0 0 0.5px var(--line);
+  overflow: hidden;
+}
+.sources li + li {
+  border-top: 0.5px solid var(--line);
+}
+.source {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-areas: "name pill chev" "meta pill chev";
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 120ms ease-out;
+}
+.source:hover {
+  background: var(--hover);
+}
+.source:active {
+  background: var(--press);
+}
+.sourceName {
+  grid-area: name;
+  font-weight: var(--fw-semibold);
+}
+.sourceMeta {
+  grid-area: meta;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.pill {
+  grid-area: pill;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.pill[data-status="paused"] {
+  background: var(--sunk);
+  color: var(--text-2);
+}
+.pill[data-status="needs_attention"],
+.pill[data-status="failing"] {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.chev {
+  grid-area: chev;
+  color: var(--text-3);
+}
+.cardFoot {
+  display: flex;
+  justify-content: flex-end;
+}
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--r-ctl);
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+.bannerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.bannerLink {
+  margin-left: auto;
+  color: inherit;
+  font-weight: var(--fw-semibold);
+}
+.error {
+  color: var(--danger-ink);
+}
+@media (max-width: 640px) {
+  .cardHead {
+    grid-template-columns: auto 1fr;
+  }
+  .cardHead > :last-child {
+    grid-column: 1 / -1;
+  }
+}

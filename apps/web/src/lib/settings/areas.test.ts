@@ -39,6 +39,11 @@ describe("areasFor", () => {
     expect(areasFor(importer.actor).map((a) => a.id)).toEqual(["imports", "account", "about"]);
   });
 
+  it("shows Integrations to whoever may manage integrations", () => {
+    const integrator = fakeSession({ permissions: [{ key: "integrations.manage", scope: null }] });
+    expect(areasFor(integrator.actor).map((a) => a.id)).toEqual(["integrations", "account", "about"]);
+  });
+
   it("opens the lists to whoever may change any of them", () => {
     const pipelinesOnly = fakeSession({ permissions: [{ key: "pipelines.manage", scope: null }] });
     expect(areasFor(pipelinesOnly.actor).map((a) => a.id)).toContain("lists");

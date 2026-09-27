@@ -53,6 +53,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "integrations",
+    title: "Integrations",
+    blurb: "Google Sheets and other optional connections",
+    href: "/settings/integrations",
+    anyOf: ["integrations.manage"],
+    group: "workspace",
+  },
+  {
     id: "people",
     title: "People",
     blurb: "Invite, disable, and hand leads over",
