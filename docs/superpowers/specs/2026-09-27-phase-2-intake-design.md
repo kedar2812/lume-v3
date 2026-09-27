@@ -47,7 +47,7 @@ The job re-checks `leads.import` (and `leads.assign` when the rules need it) bef
 
 ## 4. Data model (2A)
 
-New migration `0015_intake.sql`, mirrored in `packages/db/src/schema/intake.ts`. All tables get row-level security like the rest of the schema; the policies are in §4.5.
+New migration `0015_intake.sql`, mirrored in `packages/db/src/schema/intake.ts`. They are configuration-like and have no row-level security: the API enforces the permissions (§4.5).
 
 ### 4.1 `lead_sources` — where leads come from
 
