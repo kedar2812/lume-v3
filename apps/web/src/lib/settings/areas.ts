@@ -45,6 +45,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "imports",
+    title: "Imports",
+    blurb: "Past imports, their reports, and drafts to finish",
+    href: "/settings/imports",
+    anyOf: ["leads.import"],
+    group: "workspace",
+  },
+  {
     id: "people",
     title: "People",
     blurb: "Invite, disable, and hand leads over",

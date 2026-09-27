@@ -222,6 +222,19 @@ export function FilterBar({
         </Popover>
       )}
 
+      {filters.source && (
+        <button
+          type="button"
+          className={s.sourceChip}
+          aria-label={`Remove filter: From ${catalog.sources.find((x) => x.id === filters.source)?.name ?? "an import"}`}
+          onClick={() => set({ source: undefined })}
+        >
+          From {catalog.sources.find((x) => x.id === filters.source)?.name ?? "an import"}
+          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
       {count > 0 && (
         <button
           type="button"

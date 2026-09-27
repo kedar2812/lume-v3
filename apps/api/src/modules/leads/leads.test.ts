@@ -164,6 +164,24 @@ describe("listing and search (report §14, §12.2)", () => {
     expect(found.map((l: { name: string }) => l.name)).toContain("Zoya Findme");
   });
 
+  it("filters by the source a lead came from, and names the sources", async () => {
+    const src = "0190e0c0-0000-7000-8000-00000000c5c5";
+    await h.ownerPool.query(
+      "INSERT INTO lead_sources (id, type, name) VALUES ($1, 'csv', 'leads-march.csv')",
+      [src],
+    );
+    const imported = await h.seedLead({ ownerId: null, name: "From The File" });
+    await h.seedLead({ ownerId: null, name: "Made By Hand" });
+    await h.queryAll("UPDATE leads SET source_id = $1 WHERE id = $2", [src, imported]);
+    const items = (await admin.inject({ method: "GET", url: `/api/v1/leads?source=${src}` })).json().items;
+    expect(items.map((l: { name: string }) => l.name)).toEqual(["From The File"]);
+    expect((await admin.inject({ method: "GET", url: "/api/v1/leads?source=not-a-uuid" })).statusCode).toBe(
+      400,
+    );
+    const { sources } = (await admin.inject({ method: "GET", url: "/api/v1/sources" })).json();
+    expect(sources).toContainEqual({ id: src, name: "leads-march.csv", type: "csv" });
+  });
+
   it("masked roles cannot search by phone or email (no enumeration)", async () => {
     await create(rep, { name: "Contact Search", phone: "+971501239999", email: "hunt@example.com" });
     expect((await rep.inject({ method: "GET", url: "/api/v1/leads?q=1239999" })).json().items).toHaveLength(

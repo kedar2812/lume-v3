@@ -8,6 +8,8 @@ export type ListFilters = {
   owner?: "me" | "none" | string;
   tagId?: string;
   phoneStatus?: PhoneStatus;
+  /** Leads from one source (an import's file): "From leads-march.csv". */
+  source?: string;
   from?: string;
   to?: string;
   sort: Sort;
@@ -15,6 +17,9 @@ export type ListFilters = {
   /** Custom-field filters: an option id, a person id, or true/false, by field key. */
   custom?: Record<string, string | boolean>;
 };
+
+// A source is named by the catalog when it can be; any well-formed id still filters (the chip says "an import").
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The custom-field types the API can filter on (a JSON containment probe). */
 export const FILTERABLE_TYPES = new Set(["select", "multi_select", "boolean", "user"]);
@@ -53,6 +58,7 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
   const owner = p.get("owner");
   const tag = p.get("tag");
   const phone = p.get("phone") as PhoneStatus | null;
+  const source = p.get("source");
   const sort = p.get("sort") as Sort | null;
   const pipeline = p.get("pipeline");
   const from = realDate(p.get("from"));
@@ -71,6 +77,7 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
     ...(owner === "me" || owner === "none" || (owner && people.has(owner)) ? { owner } : {}),
     ...(tag && cat.tags.some((t) => t.id === tag) ? { tagId: tag } : {}),
     ...(phone && PHONE.includes(phone) ? { phoneStatus: phone } : {}),
+    ...(source && UUID.test(source) ? { source } : {}),
     ...(from ? { from } : {}),
     ...(to ? { to } : {}),
     sort: sort && SORTS.includes(sort) ? sort : "newest",
@@ -86,6 +93,7 @@ export function filtersToParams(f: ListFilters): URLSearchParams {
   if (f.owner) p.set("owner", f.owner);
   if (f.tagId) p.set("tag", f.tagId);
   if (f.phoneStatus) p.set("phone", f.phoneStatus);
+  if (f.source) p.set("source", f.source);
   if (f.from) p.set("from", f.from);
   if (f.to) p.set("to", f.to);
   if (f.sort !== "newest") p.set("sort", f.sort);
@@ -102,6 +110,7 @@ export function apiQuery(f: ListFilters): string {
   if (f.owner) p.set("ownerId", f.owner);
   if (f.tagId) p.set("tagId", f.tagId);
   if (f.phoneStatus) p.set("phoneStatus", f.phoneStatus);
+  if (f.source) p.set("source", f.source);
   if (f.from) p.set("createdFrom", f.from);
   if (f.to) p.set("createdTo", f.to);
   if (f.pipelineId) p.set("pipelineId", f.pipelineId);
@@ -111,5 +120,5 @@ export function apiQuery(f: ListFilters): string {
 }
 
 export const activeFilterCount = (f: ListFilters): number =>
-  [f.q, f.stageIds.length > 0, f.owner, f.tagId, f.phoneStatus, f.from || f.to].filter(Boolean).length +
-  Object.keys(f.custom ?? {}).length;
+  [f.q, f.stageIds.length > 0, f.owner, f.tagId, f.phoneStatus, f.source, f.from || f.to].filter(Boolean)
+    .length + Object.keys(f.custom ?? {}).length;

@@ -1434,3 +1434,71 @@
 .restoreDot[data-ok] {
   background: var(--ok);
 }
+
+/* Settings → Imports: one row per import, its outcome and what can be done with it. */
+.importList {
+  list-style: none;
+}
+.importRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 0.5px solid var(--line);
+}
+.importRow:last-child {
+  border-bottom: 0;
+}
+.importMain {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.importName {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.importMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.importWhen {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.statusChip {
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  background: var(--sunk);
+}
+.statusChip[data-status="done"] {
+  color: var(--ok-ink);
+  background: var(--ok-soft);
+}
+.statusChip[data-status="running"],
+.statusChip[data-status="queued"],
+.statusChip[data-status="draft"] {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.statusChip[data-status="failed"],
+.statusChip[data-status="stopped_access"] {
+  color: var(--danger-ink);
+  background: var(--danger-soft);
+}

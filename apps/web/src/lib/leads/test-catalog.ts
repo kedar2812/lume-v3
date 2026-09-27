@@ -120,6 +120,7 @@ export function testCatalog(over: Partial<Catalog> = {}): Catalog {
     products: [{ id: "pr-sig", name: "Signature 12-week", defaultValue: 4500, currency: "AED" }],
     currency: "AED",
     country: "AE",
+    sources: [{ id: "0190e0c0-0000-7000-8000-00000000c5c5", name: "leads-march.csv", type: "csv" }],
     ...over,
   };
 }

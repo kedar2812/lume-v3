@@ -24,6 +24,7 @@ describe("lead filters in the URL", () => {
       from: "2026-09-01",
       to: "2026-09-30",
       sort: "updated",
+      source: "0190e0c0-0000-7000-8000-00000000c5c5",
     };
     expect(parseFilters(filtersToParams(f), cat)).toEqual(f);
   });
@@ -39,6 +40,7 @@ describe("lead filters in the URL", () => {
       sort: "chaos",
       pipeline: "gone",
       cursor: "should-never-be-trusted",
+      source: "not-a-source",
     });
     expect(parseFilters(junk, cat)).toEqual({ ...EMPTY_FILTERS, stageIds: [s1!.id] });
   });
@@ -51,6 +53,9 @@ describe("lead filters in the URL", () => {
     expect(q.get("q")).toBe("riya");
     expect(q.get("stageId")).toBe(s1!.id);
     expect(q.has("cursor")).toBe(false);
+    const src = "0190e0c0-0000-7000-8000-00000000c5c5";
+    expect(new URLSearchParams(apiQuery({ ...EMPTY_FILTERS, source: src })).get("source")).toBe(src);
+    expect(activeFilterCount({ ...EMPTY_FILTERS, source: src })).toBe(1);
   });
 
   it("counts what the person has narrowed, so the bar can say so", () => {

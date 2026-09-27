@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, max, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { newId } from "@lume/core";
 import { schema } from "@lume/db";
@@ -92,6 +92,17 @@ export async function archiveLostReason(req: FastifyRequest, id: string) {
 
 // ── Tags ───────────────────────────────────────────────────────────────────────
 const tagView = (t: typeof schema.tags.$inferSelect) => ({ id: t.id, label: t.label, color: t.color });
+
+/** Where leads came from (an import's file, later a sheet or a webhook), to name the "From …" filter. */
+export async function listSources(req: FastifyRequest) {
+  return {
+    sources: await req.db
+      .select({ id: schema.leadSources.id, name: schema.leadSources.name, type: schema.leadSources.type })
+      .from(schema.leadSources)
+      .where(isNull(schema.leadSources.archivedAt))
+      .orderBy(desc(schema.leadSources.createdAt)),
+  };
+}
 
 export async function listTags(req: FastifyRequest) {
   return { tags: (await req.db.select().from(schema.tags).orderBy(asc(schema.tags.label))).map(tagView) };

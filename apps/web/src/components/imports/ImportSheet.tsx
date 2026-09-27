@@ -50,11 +50,14 @@ const FOCUSABLE =
 export function ImportSheet({
   open,
   draftId,
+  importId,
   onClose,
 }: {
   open: boolean;
   /** Reopen a kept draft at its Columns step. */
   draftId?: string;
+  /** Open a started import: its progress while it runs, then its report. */
+  importId?: string;
   onClose(): void;
 }) {
   const reduce = useReducedMotion();
@@ -78,6 +81,19 @@ export function ImportSheet({
       live = false;
     };
   }, [open, draftId]);
+
+  useEffect(() => {
+    if (!open || !importId) return;
+    let live = true;
+    void importsClient.get(importId).then((r) => {
+      if (!live || !r.ok) return;
+      setRun(r.data);
+      setStep("run");
+    });
+    return () => {
+      live = false;
+    };
+  }, [open, importId]);
 
   // Focus moves into the sheet when it opens and goes back where it was when it closes.
   useEffect(() => {

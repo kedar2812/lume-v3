@@ -81,6 +81,8 @@ export type Catalog = {
   currency: string;
   /** The business country (settings, ISO 3166 alpha-2): the phone picker's default. */
   country: string | null;
+  /** Where leads came from (imports), to name the "From …" filter. */
+  sources: { id: string; name: string; type: string }[];
 };
 
 export type Activity = {

@@ -33,6 +33,7 @@ export type Probe = {
 
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
 export const PROBES: Record<string, Probe> = {
+  "GET /api/v1/sources": { access: "leads.view" },
   "POST /api/v1/imports": { access: "leads.import", body: () => ({ not: "a file" }) },
   "GET /api/v1/imports": { access: "leads.import" },
   "GET /api/v1/imports/:id": { access: "leads.import", path: () => `/api/v1/imports/${uuid}` },

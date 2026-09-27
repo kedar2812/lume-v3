@@ -14,6 +14,8 @@ export type ListQuery = {
   stageId?: string; // comma-separated
   ownerId?: string; // uuid | "me" | "none"
   tagId?: string;
+  /** Leads that came from one source (an import's file). */
+  source?: string;
   phoneStatus?: "valid" | "needs_country" | "invalid" | "missing";
   q?: string;
   createdFrom?: string;
@@ -75,6 +77,7 @@ export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRe
   else if (q.ownerId) where.push(eq(L.ownerId, q.ownerId));
   if (q.tagId)
     where.push(sql`EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = ${L.id} AND t.tag_id = ${q.tagId})`);
+  if (q.source) where.push(eq(L.sourceId, q.source));
   if (q.phoneStatus) {
     if (!isFieldVisible(ctx, "phone")) throw badRequest("UNKNOWN_FIELD", "Unknown filter");
     where.push(eq(L.phoneStatus, q.phoneStatus));

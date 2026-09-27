@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ImportSheet } from "@/components/imports/ImportSheet";
+import { importsClient } from "@/lib/imports/client";
 import { leadsClient } from "@/lib/leads/client";
 import { availableColumns, loadColumnChoice, resolveColumns, saveColumnChoice } from "@/lib/leads/columns";
 import { activeFilterCount, filtersToParams, type ListFilters, type Sort } from "@/lib/leads/filters";
@@ -156,6 +158,24 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
   const sentinel = useRef<HTMLDivElement>(null);
   const mayCreate = can(session.actor, "leads.create");
   const mayBulk = can(session.actor, "leads.bulk_edit");
+  const mayImport = can(session.actor, "leads.import");
+  const [importing, setImporting] = useState(false);
+  // A finished import of yours not looked at yet: Import wears a dot, and opens its report first.
+  const [unseenImport, setUnseenImport] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mayImport) return;
+    let live = true;
+    void importsClient.list().then((r) => {
+      if (!live || !r.ok) return;
+      const waiting = r.data.imports.find(
+        (i) => i.mine && ["done", "failed", "stopped_access"].includes(i.status) && !i.seenAt,
+      );
+      setUnseenImport(waiting?.id ?? null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [mayImport]);
   const [selected, setSelected] = useState<string[]>([]);
   const anchor = useRef<string | null>(null);
   const editor = useLeadEditor(list.replace);
@@ -379,6 +399,16 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
               <span aria-current="page">Table</span>
               <Link href={boardHref}>Board</Link>
             </nav>
+            {mayImport && (
+              <Button
+                variant="secondary"
+                aria-label={unseenImport ? "Import — a finished import to look at" : "Import"}
+                onClick={() => setImporting(true)}
+              >
+                Import
+                {unseenImport && <span className={s.dot} aria-hidden />}
+              </Button>
+            )}
             {mayCreate && (
               <Button variant="primary" title="New lead (N)" onClick={() => setCreating(true)}>
                 New lead
@@ -436,6 +466,16 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
           />
         )}
       </AnimatePresence>
+      <ImportSheet
+        open={importing}
+        {...(unseenImport ? { importId: unseenImport } : {})}
+        onClose={() => {
+          setImporting(false);
+          setUnseenImport(null);
+          list.reload();
+          recount();
+        }}
+      />
       {/* One drawer for the whole visit: J/K swap the lead inside it rather than remounting it. */}
       <AnimatePresence>
         {openId && (

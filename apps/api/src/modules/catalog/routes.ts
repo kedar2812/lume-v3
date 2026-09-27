@@ -53,6 +53,7 @@ export async function catalogRoutes(app: FastifyInstance): Promise<void> {
   );
 
   r.get("/api/v1/tags", { config: read }, (req) => svc.listTags(req));
+  r.get("/api/v1/sources", { config: read }, (req) => svc.listSources(req));
   r.post(
     "/api/v1/tags",
     { config: settings, schema: { body: z.object({ label, color: z.enum(COLORS).optional() }) } },

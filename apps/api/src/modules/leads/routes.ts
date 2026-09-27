@@ -40,6 +40,7 @@ const listQuery = z.object({
     .optional(),
   ownerId: z.union([z.uuid(), z.enum(["me", "none"])]).optional(),
   tagId: z.uuid().optional(),
+  source: z.uuid().optional(),
   phoneStatus: z.enum(["valid", "needs_country", "invalid", "missing"]).optional(),
   q: z.string().trim().min(1).max(100).optional(),
   createdFrom: z.iso.date().optional(),

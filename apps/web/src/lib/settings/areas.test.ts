@@ -34,6 +34,11 @@ describe("areasFor", () => {
     ]);
   });
 
+  it("shows Imports to whoever may import leads", () => {
+    const importer = fakeSession({ permissions: [{ key: "leads.import", scope: null }] });
+    expect(areasFor(importer.actor).map((a) => a.id)).toEqual(["imports", "account", "about"]);
+  });
+
   it("opens the lists to whoever may change any of them", () => {
     const pipelinesOnly = fakeSession({ permissions: [{ key: "pipelines.manage", scope: null }] });
     expect(areasFor(pipelinesOnly.actor).map((a) => a.id)).toContain("lists");

@@ -44,6 +44,4 @@ export const importsClient = {
     const s = qs.toString();
     return api.get<{ rows: RowView[]; nextCursor: number | null }>(`${base}/${id}/rows${s ? `?${s}` : ""}`);
   },
-  /** Where the failed-rows CSV downloads from (a plain link: the browser saves it). */
-  errorsCsvUrl: (id: string) => `${base}/${id}/errors.csv`,
 };
