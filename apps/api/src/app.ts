@@ -16,6 +16,7 @@ import { catalogRoutes } from "./modules/catalog/routes";
 import { fieldRoutes } from "./modules/fields/routes";
 import { leadRoutes } from "./modules/leads/routes";
 import { importRoutes } from "./modules/imports/routes";
+import type { GoogleSheets } from "./modules/sheets/google";
 import { peopleRoutes } from "./modules/people/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
@@ -57,6 +58,10 @@ export type AppDeps = {
    * request (the import job). Never the request pool: a request must not wait on the pool it holds.
    */
   jobPool?: pg.Pool;
+  /** Google Sheets (2B spec): the read-only client when this server has a service-account key, else null. */
+  google?: GoogleSheets | null;
+  /** The sheet sync queue in this process, and the most rows a sheet may have (LUME_SHEETS_MAX_ROWS). */
+  sheets?: { enqueue(syncId: string): Promise<void>; maxRows: number };
   /** Tests only: extra routes registered inside the authenticated scope. */
   extraRoutes?: (app: FastifyInstance) => void;
 };

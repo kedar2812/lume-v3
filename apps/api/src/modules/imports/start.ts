@@ -37,7 +37,7 @@ function fieldKey(label: string, taken: Set<string>): string {
 }
 
 /** The cells of a tags column, split the way mapRow splits them. */
-function tagParts(c: ColumnMap, cell: string): string[] {
+export function tagParts(c: ColumnMap, cell: string): string[] {
   const on = c.to !== "ignore" ? c.transform?.splitOn : undefined;
   return cell
     .split(on ? new RegExp(`\\s*\\${on}\\s*`) : /\s*[,;]\s*/)

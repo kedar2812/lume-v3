@@ -25,11 +25,14 @@ import {
 import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
 import { runImport, type RunHooks } from "../src/modules/imports/runner";
+import { createGoogleSheets, parseServiceAccount, type GoogleSheets } from "../src/modules/sheets/google";
+import { runSync } from "../src/modules/sheets/sync";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
 import { fixedRates } from "../src/money/rates";
 import { seedConfiguration } from "../src/modules/pipelines/seed";
 import { loadActor, type ActorRecord } from "../src/rbac/actor";
+import { startGoogleFake, type GoogleFake } from "./google-fake";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
@@ -125,6 +128,11 @@ export type Harness = {
   }): Promise<string>;
   /** Runs every queued import now, as the job would (tests steer it with the hooks). */
   runImports(o?: RunHooks & { parallel?: boolean }): Promise<void>;
+  /** The fake Google (with `google: true`), and the client pointed at it. */
+  fake: GoogleFake | null;
+  google: GoogleSheets | null;
+  /** Runs every requested sheet sync now, as the queue would. */
+  runSyncs(): Promise<void>;
   /** Takes one permission away from every role the user has, and waits until the API has noticed. */
   revokeGrant(userId: string, key: string): Promise<void>;
   close(): Promise<void>;
@@ -137,6 +145,8 @@ export async function createHarness(
     preset?: PresetKey;
     /** Start with no first-run token, as a restarted API with a wiped database would. */
     forgetSetupToken?: boolean;
+    /** Google Sheets (2B): a fake Google on a local port, and the real client pointed at it. */
+    google?: boolean;
   } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
@@ -184,6 +194,15 @@ export async function createHarness(
   };
   const waiters = new Map<string, () => void>();
   const queued: string[] = [];
+  const fake = opts.google ? await startGoogleFake() : null;
+  const google = fake
+    ? createGoogleSheets({
+        account: parseServiceAccount(fake.env)!,
+        endpoint: fake.url,
+        sleep: async () => undefined,
+      })
+    : null;
+  const syncs: string[] = [];
 
   const app = await buildApp({
     pool,
@@ -200,6 +219,8 @@ export async function createHarness(
     },
     extraRoutes: opts.extraRoutes,
     imports: { enqueue: async (id) => void queued.push(id) },
+    google,
+    sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
   });
 
   const addRole = async (userId: string, grants: Grant[]) => {
@@ -379,8 +400,15 @@ export async function createHarness(
       );
       return id;
     },
+    fake,
+    google,
+    async runSyncs() {
+      for (let id = syncs.shift(); id; id = syncs.shift())
+        await runSync({ app, pool, keyring, google: google!, maxRows: 50 }, id);
+    },
     async close() {
       await app.close();
+      await fake?.close();
       await pool.end();
       await ownerPool.end();
       await tdb.drop();
