@@ -40,6 +40,11 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/leads/arrivals": { access: "leads.view" },
   "POST /api/v1/leads/arrivals/seen": { access: "leads.view" },
   "GET /api/v1/integrations": { access: "integrations.manage" },
+  "POST /api/v1/integrations/google/connect": { access: "integrations.manage" },
+  "POST /api/v1/integrations/google/complete": {
+    access: "integrations.manage",
+    body: () => ({ p: "x", s: "y" }),
+  },
   "PUT /api/v1/integrations/google-sheets": {
     access: "integrations.manage",
     body: () => ({ enabled: false }),

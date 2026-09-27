@@ -1,7 +1,18 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { createHash, randomBytes } from "node:crypto";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import Papa from "papaparse";
-import { can, newId, type Rules, type Mapping } from "@lume/core";
+import {
+  can,
+  instanceIdOf,
+  newId,
+  sign,
+  unseal,
+  verify,
+  type Handoff,
+  type Mapping,
+  type Rules,
+} from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
@@ -11,7 +22,14 @@ import { givesAway } from "../imports/runner";
 import { createDraftFrom, mine, type DraftView } from "../imports/service";
 import { prepareStart } from "../imports/start";
 import { openConfig, sealConfig, type SheetConfig } from "./config";
-import { GoogleError, isTransient, parseSheetLink, rowsRange, type GoogleSheets } from "./google";
+import {
+  GoogleError,
+  isTransient,
+  oauthClientFor,
+  parseSheetLink,
+  rowsRange,
+  type GoogleSheets,
+} from "./google";
 import { gridToCsv, identityKey } from "./grid";
 import { requestSync } from "./requests";
 
@@ -56,12 +74,18 @@ export async function sheetsOn(req: FastifyRequest): Promise<boolean> {
 
 export async function integrationsView(req: FastifyRequest, d: AppDeps) {
   return {
-    googleSheets: { enabled: await sheetsOn(req), available: !!d.google, email: d.google?.email ?? null },
+    googleSheets: {
+      enabled: await sheetsOn(req),
+      // Either way of reading sheets makes the module available: a service account, or Connect with Google.
+      available: !!d.google || !!d.googleOAuth,
+      email: d.google?.email ?? null,
+      connectWithGoogle: !!d.googleOAuth,
+    },
   };
 }
 
 export async function setSheetsEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
-  if (enabled && !d.google)
+  if (enabled && !d.google && !d.googleOAuth)
     throw new HttpError(
       409,
       "NOT_CONFIGURED",
@@ -78,15 +102,16 @@ export async function setSheetsEnabled(req: FastifyRequest, d: AppDeps, enabled:
   return integrationsView(req, d);
 }
 
-async function requireOn(req: FastifyRequest, d: AppDeps): Promise<GoogleSheets> {
-  if (!d.google) throw new HttpError(409, "NOT_CONFIGURED", "Google Sheets isn't set up on this server yet.");
+async function requireOn(req: FastifyRequest, d: AppDeps): Promise<GoogleSheets | null> {
+  if (!d.google && !d.googleOAuth)
+    throw new HttpError(409, "NOT_CONFIGURED", "Google Sheets isn't set up on this server yet.");
   if (!(await sheetsOn(req)))
     throw new HttpError(
       409,
       "SHEETS_OFF",
       "Google Sheets is switched off. Switch it on in Settings → Integrations.",
     );
-  return d.google;
+  return d.google ?? null;
 }
 
 /** A Google call from a screen: its refusals as the messages the screen shows. */
@@ -114,10 +139,118 @@ async function fromGoogle<T>(google: GoogleSheets, call: () => Promise<T>): Prom
   }
 }
 
+// ——— Connect with Google (spec §6, plan 2B-2) ———
+
+const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** A signed link to the relay, for this person; its nonce is single-use and expires with the hand-back. */
+export async function connectStart(req: FastifyRequest, d: AppDeps) {
+  await requireOn(req, d);
+  if (!d.googleOAuth)
+    throw new HttpError(409, "NOT_CONFIGURED", "Connect with Google isn't set up on this server.");
+  const { relayUrl, relayToken } = d.googleOAuth;
+  const nonce = randomBytes(24).toString("base64url");
+  await req.db
+    .insert(schema.oauthConnects)
+    .values({ id: newId(), userId: req.actor!.userId, nonceHash: sha256(nonce) });
+  const url = new URL("/start", relayUrl);
+  url.search = new URLSearchParams({
+    i: instanceIdOf(relayToken),
+    n: nonce,
+    s: sign(relayToken, nonce),
+  }).toString();
+  return { url: url.toString() };
+}
+
+/**
+ * Back from Google (Review Focus 1): the hand-back must be signed and sealed with this instance's token,
+ * fresh, and match a connect this same person started and hasn't finished. Its grant is then kept (sealed
+ * to this connect) until a sheet is made from the picked file.
+ */
+export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p: string; s: string }) {
+  await requireOn(req, d);
+  if (!d.googleOAuth)
+    throw new HttpError(409, "NOT_CONFIGURED", "Connect with Google isn't set up on this server.");
+  const token = d.googleOAuth.relayToken;
+  const invalid = () =>
+    badRequest("CONNECT_INVALID", "This connection isn't valid. Try Connect with Google again.");
+  if (!verify(token, body.p, body.s)) throw invalid();
+  const h = unseal<Handoff>(token, body.p);
+  if (!h || typeof h.nonce !== "string" || typeof h.refreshToken !== "string" || !h.file?.id) throw invalid();
+  if (h.exp < Date.now())
+    throw badRequest("CONNECT_EXPIRED", "This connection took too long. Try Connect with Google again.");
+  const OC = schema.oauthConnects;
+  const [row] = await req.db
+    .select()
+    .from(OC)
+    .where(and(eq(OC.nonceHash, sha256(h.nonce)), eq(OC.userId, req.actor!.userId), isNull(OC.completedAt)));
+  if (!row)
+    throw notFound("CONNECT_NOT_FOUND", "This connection was already used, or isn't yours. Try again.");
+  const file = { id: h.file.id, name: String(h.file.name ?? "").slice(0, 200) };
+  await req.db
+    .update(OC)
+    .set({
+      grantEnc: d.keyring.encrypt(h.refreshToken, `oauth-connect:${row.id}`),
+      fileId: file.id,
+      fileName: file.name,
+      completedAt: new Date(),
+    })
+    .where(eq(OC.id, row.id));
+  await audit(req, {
+    action: "sheet.google_connected",
+    entityType: "integration",
+    diff: { file: file.name },
+  });
+  return { connectId: row.id, file };
+}
+
+/** A finished connect of the caller's: its grant, the picked file, and a client that reads with it. */
+async function grantOf(req: FastifyRequest, d: AppDeps, connectId: string) {
+  const OC = schema.oauthConnects;
+  const [row] = await req.db
+    .select()
+    .from(OC)
+    .where(and(eq(OC.id, connectId), eq(OC.userId, req.actor!.userId)));
+  if (!row?.grantEnc || !row.fileId)
+    throw notFound("CONNECT_NOT_FOUND", "This connection was already used, or isn't yours. Try again.");
+  const refreshToken = d.keyring.decrypt(row.grantEnc, `oauth-connect:${row.id}`);
+  const client = oauthClientFor(d.googleOAuth, d.googleEndpoint)({ grant: refreshToken });
+  if (!client) throw new HttpError(409, "NOT_CONFIGURED", "Connect with Google isn't set up on this server.");
+  return { refreshToken, fileId: row.fileId, fileName: row.fileName ?? "", client };
+}
+
 // ——— Connecting (spec §7.2) ———
 
-export async function inspectSheet(req: FastifyRequest, d: AppDeps, link: string) {
-  const google = await requireOn(req, d);
+/** The service account's client, for the paste-a-link path; that path needs a key on this server. */
+function serviceAccount(d: AppDeps): GoogleSheets {
+  if (!d.google)
+    throw new HttpError(
+      409,
+      "NOT_CONFIGURED",
+      "This server has no Google key for shared sheets. Use Connect with Google.",
+    );
+  return d.google;
+}
+
+export async function inspectSheet(
+  req: FastifyRequest,
+  d: AppDeps,
+  body: { link: string } | { connectId: string },
+) {
+  await requireOn(req, d);
+  if ("connectId" in body) {
+    const g = await grantOf(req, d, body.connectId);
+    const meta = await fromGoogle(g.client, () => g.client.spreadsheet(g.fileId));
+    return {
+      spreadsheetId: g.fileId,
+      title: meta.title,
+      gid: null,
+      tabs: meta.tabs.map(({ sheetId, title }) => ({ sheetId, title })),
+      email: "",
+    };
+  }
+  const google = serviceAccount(d);
+  const link = body.link;
   const parsed = parseSheetLink(link);
   if (!parsed)
     throw badRequest(
@@ -169,9 +302,14 @@ export type SheetDraft = {
 export async function createSheetDraft(
   req: FastifyRequest,
   d: AppDeps,
-  body: { link: string; sheetId: number; headerRow?: number } | { sourceId: string },
+  body:
+    | { link: string; sheetId: number; headerRow?: number }
+    | { sourceId: string }
+    | { connectId: string; sheetId: number; headerRow?: number },
 ): Promise<SheetDraft> {
-  const google = await requireOn(req, d);
+  await requireOn(req, d);
+  let google: GoogleSheets | null = null;
+  let connectId: string | null = null;
   if (!can(req.actor!, "leads.import"))
     throw forbidden("CANNOT_IMPORT", "Connecting a sheet adds leads, which your role can't do.");
   let cfg: SheetConfig;
@@ -180,7 +318,24 @@ export async function createSheetDraft(
     target = await liveSource(req, body.sourceId);
     if (!canSeeRows(req, target)) throw rowsHidden();
     cfg = openConfig(d.keyring, target.id, target.configEnc!);
+    google = cfg.auth === "oauth" ? oauthClientFor(d.googleOAuth, d.googleEndpoint)(cfg) : serviceAccount(d);
+    if (!google)
+      throw new HttpError(409, "NOT_CONFIGURED", "Connect with Google isn't set up on this server any more.");
+  } else if ("connectId" in body) {
+    // A file picked with Connect with Google (2B-2): read with its own grant, which the sheet keeps.
+    const g = await grantOf(req, d, body.connectId);
+    google = g.client;
+    connectId = body.connectId;
+    cfg = {
+      spreadsheetId: g.fileId,
+      sheetId: body.sheetId,
+      tabTitle: "",
+      headerRow: body.headerRow ?? 0,
+      auth: "oauth",
+      grant: g.refreshToken,
+    };
   } else {
+    google = serviceAccount(d);
     const parsed = parseSheetLink(body.link);
     if (!parsed)
       throw badRequest(
@@ -195,7 +350,7 @@ export async function createSheetDraft(
       auth: "service_account",
     };
   }
-  const snap = await snapshot(google, cfg);
+  const snap = await snapshot(google!, cfg);
   const sourceId = newId();
   await req.db.insert(S).values({
     id: sourceId,
@@ -224,13 +379,15 @@ export async function createSheetDraft(
       }),
     })
     .where(eq(S.id, sourceId));
+  // The grant now lives (encrypted) in the sheet's own config; the connect it came in is done with.
+  if (connectId) await req.db.delete(schema.oauthConnects).where(eq(schema.oauthConnects.id, connectId));
   return {
     draft,
     sheet: {
       title: snap.meta.title,
       name: target?.name ?? snap.meta.title,
       tabTitle: snap.tab.title,
-      email: google.email,
+      email: google!.email,
       moreRows: snap.moreRows,
       editing: target?.id ?? null,
       pollSeconds: target?.pollSeconds ?? 120,

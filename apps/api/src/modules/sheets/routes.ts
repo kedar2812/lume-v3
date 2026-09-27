@@ -6,6 +6,8 @@ import {
   createSheetDraft,
   dismissRow,
   getSheet,
+  connectComplete,
+  connectStart,
   inspectSheet,
   integrationsView,
   listSheets,
@@ -26,6 +28,16 @@ const poll = z.number().int().min(60).max(3600);
 export async function sheetRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/integrations", { config: manage }, (req) => integrationsView(req, d));
+  // Connect with Google (2B-2): a signed start at the relay, and the sealed hand-back coming home.
+  r.post("/api/v1/integrations/google/connect", { config: manage }, (req) => connectStart(req, d));
+  r.post(
+    "/api/v1/integrations/google/complete",
+    {
+      config: manage,
+      schema: { body: z.object({ p: z.string().max(8000), s: z.string().max(200) }).strict() },
+    },
+    (req) => connectComplete(req, d, req.body),
+  );
   r.put(
     "/api/v1/integrations/google-sheets",
     { config: manage, schema: { body: z.object({ enabled: z.boolean() }).strict() } },
@@ -33,8 +45,16 @@ export async function sheetRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
   );
   r.post(
     "/api/v1/sheets/inspect",
-    { config: manage, schema: { body: z.object({ link: z.string().max(2000) }).strict() } },
-    (req) => inspectSheet(req, d, req.body.link),
+    {
+      config: manage,
+      schema: {
+        body: z.union([
+          z.object({ link: z.string().max(2000) }).strict(),
+          z.object({ connectId: z.uuid() }).strict(),
+        ]),
+      },
+    },
+    (req) => inspectSheet(req, d, req.body),
   );
   r.post(
     "/api/v1/sheets/drafts",
@@ -50,6 +70,13 @@ export async function sheetRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
             })
             .strict(),
           z.object({ sourceId: z.uuid() }).strict(),
+          z
+            .object({
+              connectId: z.uuid(),
+              sheetId: z.number().int().min(0),
+              headerRow: z.number().int().min(1).max(10).optional(),
+            })
+            .strict(),
         ]),
       },
     },

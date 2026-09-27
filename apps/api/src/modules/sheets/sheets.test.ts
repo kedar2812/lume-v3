@@ -67,7 +67,7 @@ describe("the Sheets module", () => {
   it("is off by default, and can't be switched on without a Google key", async () => {
     const b = await bare.signIn(await bare.seedUser({ grants: ALL_GRANTS, totp: true }));
     expect((await call(b, "GET", "/api/v1/integrations")).json()).toEqual({
-      googleSheets: { enabled: false, available: false, email: null },
+      googleSheets: { enabled: false, available: false, email: null, connectWithGoogle: false },
     });
     const off = await call(b, "PUT", "/api/v1/integrations/google-sheets", { enabled: true });
     expect(off.statusCode).toBe(409);
@@ -82,7 +82,7 @@ describe("the Sheets module", () => {
       (await call(admin, "PUT", "/api/v1/integrations/google-sheets", { enabled: true })).statusCode,
     ).toBe(200);
     expect((await call(admin, "GET", "/api/v1/integrations")).json()).toEqual({
-      googleSheets: { enabled: true, available: true, email: h.fake!.email },
+      googleSheets: { enabled: true, available: true, email: h.fake!.email, connectWithGoogle: false },
     });
     const [a] = await h.queryAll<{ action: string }>(
       "SELECT action FROM audit_log WHERE action = 'integration.enabled'",
