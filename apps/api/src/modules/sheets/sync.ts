@@ -20,7 +20,7 @@ import { jobServer, withJobRequest } from "../imports/job-request";
 import { writeRow } from "../imports/row";
 import { givesAway, isDataError, refusalReason } from "../imports/runner";
 import { tagParts } from "../imports/start";
-import { openConfig } from "./config";
+import { openConfig, type SheetConfig } from "./config";
 import { GoogleError, columnRange, isTransient, rowsRange, type GoogleSheets } from "./google";
 import { anchorHash, dateColumnOf, headerDrift, sheetFingerprint, toRows, type SheetRow } from "./grid";
 
@@ -35,7 +35,10 @@ export type SyncDeps = {
   app: FastifyInstance;
   pool: pg.Pool;
   keyring: Keyring;
-  google: GoogleSheets;
+  /** The service account's client, when this server has one. */
+  google: GoogleSheets | null;
+  /** A client for a sheet connected with Google (2B-2), from its grant. */
+  clientFor?: (cfg: SheetConfig) => GoogleSheets | null;
   maxRows: number;
   now?: () => Date;
   /** Tests only: called after each row is written (n counts from 1). */
@@ -253,6 +256,13 @@ async function syncSource(
   now: () => Date,
 ): Promise<Partial<typeof S.$inferInsert>> {
   const cfg = openConfig(o.keyring, src.id, src.configEnc!);
+  // Each sheet reads with its own credential: the service account, or its Google grant (2B-2).
+  const google = (cfg.auth === "oauth" ? o.clientFor?.(cfg) : o.google) ?? null;
+  if (!google)
+    throw new Attention(
+      "ACCESS_LOST",
+      "LUME can't read this sheet with the access it has. Connect it again.",
+    );
   const mapping = src.mapping as Mapping;
   const rules = src.rules as Rules;
   const saved = src.headers;
@@ -260,7 +270,7 @@ async function syncSource(
   await runAsActor(o, src, rules, mapping);
 
   // 1. Changed? Drive's modifiedTime is cheap; the Sheets quota is kept for sheets that changed.
-  const modified = await ask(o.google, () => changedAt(o.google, cfg.spreadsheetId));
+  const modified = await ask(google, () => changedAt(google, cfg.spreadsheetId));
   const configChanged = src.syncedConfigVersion !== src.configVersion;
   // A quiet sheet is still owed its hourly full read when it changed since the last one: an edit the
   // incremental read can't see (a gap filled in the middle) is found then (final review, finding 2).
@@ -270,13 +280,13 @@ async function syncSource(
     return {};
 
   // 2. The tab, by id (a renamed tab is followed), and its header, first row and last row read.
-  const meta = await ask(o.google, () => o.google.spreadsheet(cfg.spreadsheetId));
+  const meta = await ask(google, () => google.spreadsheet(cfg.spreadsheetId));
   const tab = meta.tabs.find((t) => t.sheetId === cfg.sheetId);
   if (!tab) throw new Attention("TAB_GONE", `The tab “${cfg.tabTitle}” is gone from the spreadsheet.`);
   const h = cfg.headerRow;
   const tailRow = h + src.rowsRead;
-  const [headRaw = [], firstRaw = [], tailRaw = []] = await ask(o.google, () =>
-    o.google.values(cfg.spreadsheetId, [
+  const [headRaw = [], firstRaw = [], tailRaw = []] = await ask(google, () =>
+    google.values(cfg.spreadsheetId, [
       rowsRange(tab.title, h, h),
       rowsRange(tab.title, h + 1, h + 1),
       rowsRange(tab.title, tailRow, tailRow),
@@ -303,7 +313,7 @@ async function syncSource(
   // 3. Read everything under the header, or only what's past the last row read.
   const from = full ? h + 1 : tailRow + 1;
   const raw = await readSheetRows({
-    google: o.google,
+    google: google,
     spreadsheetId: cfg.spreadsheetId,
     tab: tab.title,
     from,
@@ -327,8 +337,8 @@ async function syncSource(
   // The date column once more, as stored (unformatted), for recognising rows (final review, finding 7).
   const dateCol = dateColumnOf(mapping);
   if (dateCol !== null && raw.length) {
-    const [stored = []] = await ask(o.google, () =>
-      o.google.values(cfg.spreadsheetId, [columnRange(tab.title, dateCol, from, from + raw.length - 1)], {
+    const [stored = []] = await ask(google, () =>
+      google.values(cfg.spreadsheetId, [columnRange(tab.title, dateCol, from, from + raw.length - 1)], {
         unformatted: true,
       }),
     );
@@ -350,16 +360,16 @@ async function syncSource(
   let candidates = rows;
   const superseded: number[] = [];
   if (!full && openErrors.length) {
-    const again = await ask(o.google, () =>
-      o.google.values(
+    const again = await ask(google, () =>
+      google.values(
         cfg.spreadsheetId,
         openErrors.map((e) => rowsRange(tab.title, e.rowNumber, e.rowNumber)),
       ),
     );
     const reread = again.flatMap((g, i) => toRows(g, openErrors[i]!.rowNumber, width));
     if (dateCol !== null && reread.length) {
-      const stored = await ask(o.google, () =>
-        o.google.values(
+      const stored = await ask(google, () =>
+        google.values(
           cfg.spreadsheetId,
           reread.map((r) => columnRange(tab.title, dateCol, r.number, r.number)),
           { unformatted: true },

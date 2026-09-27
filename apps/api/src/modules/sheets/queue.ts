@@ -5,6 +5,7 @@ import PgBoss from "pg-boss";
 import type pg from "pg";
 import type { Keyring } from "@lume/core";
 import { schema } from "@lume/db";
+import type { SheetConfig } from "./config";
 import type { GoogleSheets } from "./google";
 import { requestSync, type TxLike } from "./requests";
 import { runSync } from "./sync";
@@ -45,7 +46,9 @@ export async function startSheetsQueue(o: {
   app: FastifyInstance;
   pool: pg.Pool;
   keyring: Keyring;
-  google: GoogleSheets;
+  google: GoogleSheets | null;
+  /** Clients for sheets connected with Google (2B-2), when that's configured here. */
+  clientFor?: (cfg: SheetConfig) => GoogleSheets | null;
   maxRows: number;
   tickMs?: number;
 }) {
@@ -66,7 +69,14 @@ export async function startSheetsQueue(o: {
     async ([job]) => {
       if (job)
         await runSync(
-          { app: o.app, pool: o.pool, keyring: o.keyring, google: o.google, maxRows: o.maxRows },
+          {
+            app: o.app,
+            pool: o.pool,
+            keyring: o.keyring,
+            google: o.google,
+            ...(o.clientFor ? { clientFor: o.clientFor } : {}),
+            maxRows: o.maxRows,
+          },
           job.data.id,
         );
     },

@@ -95,22 +95,20 @@ export const rowsRange = (tab: string, from: number, to: number): string =>
 
 const b64url = (v: object) => Buffer.from(JSON.stringify(v)).toString("base64url");
 
-export function createGoogleSheets(o: {
-  account: ServiceAccount;
-  endpoint?: string;
-  fetch?: typeof fetch;
-  sleep?: (ms: number) => Promise<void>;
-  now?: () => number;
-}): GoogleSheets {
-  const http = o.fetch ?? fetch;
-  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  const now = o.now ?? Date.now;
-  const sheetsBase = o.endpoint ?? "https://sheets.googleapis.com";
-  const driveBase = o.endpoint ?? "https://www.googleapis.com";
-  let token: { value: string; until: number } | null = null;
+/** Where access tokens come from; `force` skips the cache (after a 401). */
+export type TokenSource = (force?: boolean) => Promise<string>;
 
-  async function accessToken(): Promise<string> {
-    if (token && now() < token.until) return token.value;
+/** The service account (2B-1): a signed JWT exchanged for an hour's access token, cached until near expiry. */
+export function serviceAccountTokens(o: {
+  account: ServiceAccount;
+  fetch?: typeof fetch;
+  now?: () => number;
+}): TokenSource {
+  const http = o.fetch ?? fetch;
+  const now = o.now ?? Date.now;
+  let token: { value: string; until: number } | null = null;
+  return async (force = false) => {
+    if (!force && token && now() < token.until) return token.value;
     const iat = Math.floor(now() / 1000);
     const unsigned = `${b64url({ alg: "RS256", typ: "JWT" })}.${b64url({
       iss: o.account.clientEmail,
@@ -142,7 +140,86 @@ export function createGoogleSheets(o: {
     const j = (await res.json()) as { access_token: string; expires_in: number };
     token = { value: j.access_token, until: now() + (j.expires_in - 60) * 1000 };
     return token.value;
-  }
+  };
+}
+
+/** "Connect with Google" (2B §6): access tokens come from the relay, which alone holds the client secret. */
+export function relayTokens(o: {
+  relayUrl: string;
+  relayToken: string;
+  refreshToken: string;
+  fetch?: typeof fetch;
+  now?: () => number;
+}): TokenSource {
+  const http = o.fetch ?? fetch;
+  const now = o.now ?? Date.now;
+  let token: { value: string; until: number } | null = null;
+  return async (force = false) => {
+    if (!force && token && now() < token.until) return token.value;
+    let res: Response;
+    try {
+      res = await http(`${o.relayUrl}/refresh`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${o.relayToken}`, "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken: o.refreshToken }),
+      });
+    } catch {
+      throw new GoogleError("unavailable", "LUME couldn't reach its Google connector.");
+    }
+    const j = (await res.json().catch(() => ({}))) as {
+      accessToken?: string;
+      expiresIn?: number;
+      error?: string;
+    };
+    if (res.status === 400 && j.error === "revoked")
+      throw new GoogleError("access", "Google access for this sheet was removed. Connect it again.");
+    if (!res.ok || !j.accessToken)
+      throw new GoogleError("unavailable", "LUME's Google connector didn't answer.");
+    token = { value: j.accessToken, until: now() + ((j.expiresIn ?? 3600) - 60) * 1000 };
+    return token.value;
+  };
+}
+
+/** A client for one OAuth-connected sheet; null when Connect with Google isn't configured here. */
+export const oauthClientFor =
+  (oauth: { relayUrl: string; relayToken: string } | null | undefined, endpoint?: string) =>
+  (cfg: { grant?: string }): GoogleSheets | null =>
+    oauth && cfg.grant
+      ? createGoogleSheets({
+          tokens: relayTokens({ ...oauth, refreshToken: cfg.grant }),
+          email: "",
+          ...(endpoint ? { endpoint } : {}),
+        })
+      : null;
+
+/** The read-only client, from a service account (2B-1) or any token source (Connect with Google, 2B-2). */
+export function createGoogleSheets(
+  o: ({ account: ServiceAccount } | { tokens: TokenSource; email: string }) & {
+    endpoint?: string;
+    fetch?: typeof fetch;
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
+  },
+): GoogleSheets {
+  const http = o.fetch ?? fetch;
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const sheetsBase = o.endpoint ?? "https://sheets.googleapis.com";
+  const driveBase = o.endpoint ?? "https://www.googleapis.com";
+  const tokens =
+    "tokens" in o
+      ? o.tokens
+      : serviceAccountTokens({
+          account: o.account,
+          ...(o.fetch ? { fetch: o.fetch } : {}),
+          ...(o.now ? { now: o.now } : {}),
+        });
+  const email = "tokens" in o ? o.email : o.account.clientEmail;
+  let force = false;
+  const accessToken = async () => {
+    const t = await tokens(force);
+    force = false;
+    return t;
+  };
 
   async function call<T>(url: string): Promise<T> {
     let refreshed = false;
@@ -158,7 +235,7 @@ export function createGoogleSheets(o: {
       const status = res?.status ?? 503;
       if (status === 401 && !refreshed) {
         refreshed = true;
-        token = null;
+        force = true;
         attempt--;
         continue;
       }
@@ -184,7 +261,7 @@ export function createGoogleSheets(o: {
 
   const enc = encodeURIComponent;
   return {
-    email: o.account.clientEmail,
+    email,
     async modifiedTime(id) {
       const j = await call<{ modifiedTime: string }>(
         `${driveBase}/drive/v3/files/${enc(id)}?fields=modifiedTime&supportsAllDrives=true`,

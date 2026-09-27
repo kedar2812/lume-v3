@@ -63,6 +63,10 @@ export type AppDeps = {
   google?: GoogleSheets | null;
   /** The sheet sync queue in this process, and the most rows a sheet may have (LUME_SHEETS_MAX_ROWS). */
   sheets?: { enqueue(syncId: string): Promise<void>; maxRows: number };
+  /** Connect with Google (2B-2): the owner's relay and this instance's token there; null when not set up. */
+  googleOAuth?: { relayUrl: string; relayToken: string } | null;
+  /** Tests and e2e only: where the Google APIs are (the fake). */
+  googleEndpoint?: string;
   /** Tests only: extra routes registered inside the authenticated scope. */
   extraRoutes?: (app: FastifyInstance) => void;
 };

@@ -25,7 +25,12 @@ import {
 import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
 import { runImport, type RunHooks } from "../src/modules/imports/runner";
-import { createGoogleSheets, parseServiceAccount, type GoogleSheets } from "../src/modules/sheets/google";
+import {
+  createGoogleSheets,
+  oauthClientFor,
+  parseServiceAccount,
+  type GoogleSheets,
+} from "../src/modules/sheets/google";
 import { runSync } from "../src/modules/sheets/sync";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
@@ -132,7 +137,9 @@ export type Harness = {
   fake: GoogleFake | null;
   google: GoogleSheets | null;
   /** Runs every requested sheet sync now, as the queue would. */
-  runSyncs(): Promise<void>;
+  runSyncs(ids?: string[]): Promise<void>;
+  /** Where the relay is (it listens on a port the test picks). */
+  setRelayUrl(url: string): void;
   /** Takes one permission away from every role the user has, and waits until the API has noticed. */
   revokeGrant(userId: string, key: string): Promise<void>;
   close(): Promise<void>;
@@ -147,6 +154,8 @@ export async function createHarness(
     forgetSetupToken?: boolean;
     /** Google Sheets (2B): a fake Google on a local port, and the real client pointed at it. */
     google?: boolean;
+    /** Connect with Google (2B-2): this instance's relay token; set the relay's address with setRelayUrl. */
+    oauth?: { relayToken: string };
   } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
@@ -203,6 +212,8 @@ export async function createHarness(
       })
     : null;
   const syncs: string[] = [];
+  const googleOAuth = opts.oauth ? { relayUrl: "", relayToken: opts.oauth.relayToken } : null;
+  const clientFor = oauthClientFor(googleOAuth, fake?.url);
 
   const app = await buildApp({
     pool,
@@ -221,6 +232,8 @@ export async function createHarness(
     imports: { enqueue: async (id) => void queued.push(id) },
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
+    googleOAuth,
+    ...(fake ? { googleEndpoint: fake.url } : {}),
   });
 
   const addRole = async (userId: string, grants: Grant[]) => {
@@ -402,9 +415,13 @@ export async function createHarness(
     },
     fake,
     google,
-    async runSyncs() {
+    async runSyncs(ids = []) {
+      syncs.push(...ids);
       for (let id = syncs.shift(); id; id = syncs.shift())
-        await runSync({ app, pool, keyring, google: google!, maxRows: 50 }, id);
+        await runSync({ app, pool, keyring, google, clientFor, maxRows: 50 }, id);
+    },
+    setRelayUrl(url) {
+      if (googleOAuth) googleOAuth.relayUrl = url;
     },
     async close() {
       await app.close();

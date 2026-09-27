@@ -8,7 +8,10 @@ export type SheetConfig = {
   tabTitle: string;
   /** 1-based row of the header in the sheet. */
   headerRow: number;
-  auth: "service_account";
+  /** How LUME reads it: the server's service account, or a Google grant from Connect with Google (2B-2). */
+  auth: "service_account" | "oauth";
+  /** The refresh token, for auth "oauth"; it lives only here, encrypted with the rest. */
+  grant?: string;
 };
 const context = (sourceId: string) => `sheet-source:${sourceId}`;
 export const sealConfig = (k: Keyring, sourceId: string, c: SheetConfig): Buffer =>

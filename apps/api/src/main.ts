@@ -4,7 +4,7 @@ import { ARGON2_PRODUCTION } from "@lume/core/password";
 import { apiSchema, loadConfig } from "@lume/config";
 import { buildApp } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
-import { createGoogleSheets, parseServiceAccount } from "./modules/sheets/google";
+import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
@@ -34,6 +34,9 @@ const imports: { enqueue(id: string): Promise<void> } = { enqueue: async () => u
 // Google Sheets (2B): only on a server with a service-account key; without one the module can't be switched on.
 const account = parseServiceAccount(cfg.GOOGLE_SERVICE_ACCOUNT_JSON);
 const google = account ? createGoogleSheets({ account, endpoint: cfg.LUME_GOOGLE_ENDPOINT }) : null;
+const googleOAuth = cfg.GOOGLE_OAUTH_RELAY_URL
+  ? { relayUrl: cfg.GOOGLE_OAUTH_RELAY_URL.replace(/\/$/, ""), relayToken: cfg.GOOGLE_OAUTH_RELAY_TOKEN! }
+  : null;
 const sheets: { enqueue(id: string): Promise<void>; maxRows: number } = {
   enqueue: async () => undefined,
   maxRows: cfg.LUME_SHEETS_MAX_ROWS,
@@ -46,6 +49,8 @@ const app = await buildApp({
   jobPool,
   google,
   sheets,
+  googleOAuth,
+  ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   mailer: createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`),
   config: { publicUrl, cookieSecure: true, version: cfg.LUME_VERSION },
   rates:
@@ -63,16 +68,19 @@ const app = await buildApp({
 });
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;
-const sheetQueue = google
-  ? await startSheetsQueue({
-      connectionString: cfg.DATABASE_URL_APP,
-      app,
-      pool: jobPool,
-      keyring,
-      google,
-      maxRows: cfg.LUME_SHEETS_MAX_ROWS,
-    })
-  : null;
+// Sheets sync when either way of reading them is set up here: a service account, or Connect with Google.
+const sheetQueue =
+  google || googleOAuth
+    ? await startSheetsQueue({
+        connectionString: cfg.DATABASE_URL_APP,
+        app,
+        pool: jobPool,
+        keyring,
+        google,
+        clientFor: oauthClientFor(googleOAuth, cfg.LUME_GOOGLE_ENDPOINT),
+        maxRows: cfg.LUME_SHEETS_MAX_ROWS,
+      })
+    : null;
 if (sheetQueue) sheets.enqueue = sheetQueue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 
