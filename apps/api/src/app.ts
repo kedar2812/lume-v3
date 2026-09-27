@@ -52,6 +52,11 @@ export type AppDeps = {
   onRbacEvent?: (payload: string) => void;
   /** Where a started import is queued (pg-boss in production, an inline list in tests). */
   imports?: { enqueue(id: string): Promise<void> };
+  /**
+   * Connections for work that runs beside a request (an import preview's all-leads lookup) or with no
+   * request (the import job). Never the request pool: a request must not wait on the pool it holds.
+   */
+  jobPool?: pg.Pool;
   /** Tests only: extra routes registered inside the authenticated scope. */
   extraRoutes?: (app: FastifyInstance) => void;
 };

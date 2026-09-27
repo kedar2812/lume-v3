@@ -17,7 +17,9 @@ import { runSetup } from "./service";
 
 export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
-  r.get("/api/v1/setup/status", { config: { public: true } }, async () => {
+  // One read, no transaction: holding a request transaction while asking the same pool for this query
+  // deadlocked the API under a burst of page loads (every connection held, each waiting for another).
+  r.get("/api/v1/setup/status", { config: { public: true, db: false } }, async () => {
     const { rows } = await d.pool.query<{ has_users: boolean }>(
       "SELECT EXISTS (SELECT 1 FROM users) AS has_users",
     );

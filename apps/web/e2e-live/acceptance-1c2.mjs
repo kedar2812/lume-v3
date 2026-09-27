@@ -285,7 +285,13 @@ await owner.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
 await owner.mouse.down();
 await owner.mouse.move(a.x + a.width / 2 + 20, a.y + a.height / 2, { steps: 4 });
 await owner.mouse.move(b.x + b.width / 2, b.y + 120, { steps: 12 });
+// The card lands at once (optimistic); wait for the save itself before reloading, or the reload can
+// render the board from before it.
+const moveSaved = owner.waitForResponse(
+  (r) => r.request().method() === "POST" && /\/api\/v1\/leads\/[^/]+\/stage$/.test(new URL(r.url()).pathname),
+);
 await owner.mouse.up();
+assert((await moveSaved).ok(), "the move is saved");
 await col("Message sent")
   .getByRole("button", { name: /Aisha Khan/ })
   .waitFor();

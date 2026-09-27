@@ -23,6 +23,19 @@ describe("first-run setup (report §15.3)", () => {
     });
   });
 
+  it("answers a burst of status checks larger than the connection pool (no pool deadlock)", async () => {
+    // Found in live acceptance: each check held its request transaction while waiting for a second
+    // connection from the same pool; ten at once took every connection and the API stopped answering.
+    const burst = Array.from({ length: 24 }, () =>
+      h.app.inject({ method: "GET", url: "/api/v1/setup/status" }),
+    );
+    const timeout = new Promise<never>((_, no) =>
+      setTimeout(() => no(new Error("the API stopped answering")), 10_000),
+    );
+    const answers = await Promise.race([Promise.all(burst), timeout]);
+    expect(answers.every((r) => r.statusCode === 200)).toBe(true);
+  });
+
   it("refuses a wrong token and a wrong two-step code", async () => {
     const c = await h.csrf();
     const t = await h.app.inject({

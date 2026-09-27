@@ -148,6 +148,14 @@ await owner.getByRole("button", { name: "Continue" }).click();
 await owner.getByLabel("Business name").fill("Brightpath Studio");
 await owner.getByLabel("Timezone").fill("Dubai");
 await owner.getByRole("option", { name: /Dubai/ }).first().click();
+// The browser's guess (US Dollar, United States) is only a start: this business is in Dubai, and coaches.
+await owner.getByRole("button", { name: /^Currency:/ }).click();
+await owner.getByRole("combobox", { name: "Search currencies" }).fill("AED");
+await owner.keyboard.press("Enter");
+await owner.getByRole("button", { name: /^Most leads are in:/ }).click();
+await owner.getByRole("combobox", { name: "Search countries" }).fill("United Arab Emirates");
+await owner.keyboard.press("Enter");
+await owner.getByRole("radio", { name: /Coaching/ }).check();
 await shot(owner, "01a-setup-business");
 await owner.getByRole("button", { name: "Continue" }).click();
 await owner.getByLabel("Your name").fill(OWNER.name);
@@ -157,7 +165,16 @@ await owner.getByRole("button", { name: "Continue" }).click();
 await shot(owner, "01b-setup-two-step");
 await code(owner);
 await owner.getByRole("button", { name: "Finish setup" }).click();
-await owner.getByTestId("recovery-codes").waitFor();
+await owner
+  .getByTestId("recovery-codes")
+  .waitFor()
+  .catch(async (e) => {
+    // Say what the wizard showed instead, so a failed first run explains itself.
+    await shot(owner, "01x-setup-failed");
+    const alerts = await owner.locator('[role="alert"]').allTextContents();
+    console.error(`FAIL setup didn't finish: ${JSON.stringify(alerts.filter(Boolean))}`);
+    throw e;
+  });
 assert(
   (await owner.getByTestId("recovery-codes").getByRole("listitem").count()) === 10,
   "setup shows ten recovery codes",

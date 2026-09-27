@@ -336,7 +336,13 @@ export async function previewImport(
   const matchesOf = new Map<LeadDraft, { leadId: string }[]>();
   if (drafts.length && rules.matchOn.length)
     await withJobRequest(
-      { app: req.server, pool: d.pool, actor: req.actor!, requestId: `${req.id}:preview`, allLeads: true },
+      {
+        app: req.server,
+        pool: d.jobPool ?? d.pool,
+        actor: req.actor!,
+        requestId: `${req.id}:preview`,
+        allLeads: true,
+      },
       async (all) => {
         for (const draft of drafts) matchesOf.set(draft, await findMatches(all, draft, rules.matchOn));
       },

@@ -11,7 +11,18 @@ import { createMailer } from "./mail/mailer";
 import { fixedRates, openErApi, openExchangeRates } from "./money/rates";
 
 const cfg = loadConfig(apiSchema);
-const pool = new pg.Pool({ connectionString: cfg.DATABASE_URL_APP, max: 10 });
+// A request never waits long for a connection: exhaustion fails loudly instead of hanging the API.
+const pool = new pg.Pool({
+  connectionString: cfg.DATABASE_URL_APP,
+  max: 10,
+  connectionTimeoutMillis: 10_000,
+});
+// Imports (the job, and a preview's lookup beside its request) get their own connections.
+const jobPool = new pg.Pool({
+  connectionString: cfg.DATABASE_URL_APP,
+  max: 4,
+  connectionTimeoutMillis: 30_000,
+});
 const publicUrl = cfg.LUME_PUBLIC_URL ?? `https://${cfg.LUME_PUBLIC_HOST}`;
 const { rows } = await pool.query<{ has_users: boolean }>("SELECT EXISTS (SELECT 1 FROM users) AS has_users");
 
@@ -23,6 +34,7 @@ const app = await buildApp({
   pool,
   keyring,
   imports,
+  jobPool,
   mailer: createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`),
   config: { publicUrl, cookieSecure: true, version: cfg.LUME_VERSION },
   rates:
@@ -38,7 +50,7 @@ const app = await buildApp({
   argon2: ARGON2_PRODUCTION,
   logger: { level: cfg.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: "[redacted]" } },
 });
-const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool, keyring });
+const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 
@@ -46,6 +58,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {
     await queue.stop();
     await app.close();
+    await jobPool.end();
     await pool.end();
     process.exit(0);
   });
