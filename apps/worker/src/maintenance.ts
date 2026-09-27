@@ -3,7 +3,7 @@ import type pg from "pg";
 export type MaintenanceJobs = {
   purgeIdempotencyKeys(): Promise<number>;
   purgeImportFiles(): Promise<{ files: number; rows: number; drafts: number }>;
-  purgeSheetSyncs(): Promise<{ syncs: number; refreshes: number }>;
+  purgeSheetSyncs(): Promise<{ syncs: number; refreshes: number; connects: number }>;
 };
 
 /** Housekeeping as lume_worker. Idempotency keys live 24 h (report §4.4). */
@@ -50,7 +50,15 @@ export function makeMaintenanceJobs(pool: pg.Pool, now: () => Date = () => new D
       const refreshes = await pool.query("DELETE FROM source_refreshes WHERE created_at < $1", [
         new Date(t - 86_400_000),
       ]);
-      return { syncs: syncs.rowCount ?? 0, refreshes: refreshes.rowCount ?? 0 };
+      // A "Connect with Google" never finished (or finished and made its sheet) is kept a day at most.
+      const connects = await pool.query("DELETE FROM oauth_connects WHERE created_at < $1", [
+        new Date(t - 86_400_000),
+      ]);
+      return {
+        syncs: syncs.rowCount ?? 0,
+        refreshes: refreshes.rowCount ?? 0,
+        connects: connects.rowCount ?? 0,
+      };
     },
   };
 }

@@ -32,6 +32,30 @@ function issuesOf(fn: () => unknown): string[] {
 }
 
 describe("loadConfig", () => {
+  it("Connect with Google needs both the relay's address and this instance's token", () => {
+    expect(loadConfig(apiSchema, apiEnv).GOOGLE_OAUTH_RELAY_URL).toBeUndefined();
+    const ok = loadConfig(apiSchema, {
+      ...apiEnv,
+      GOOGLE_OAUTH_RELAY_URL: "https://connect.lumecrm.in",
+      GOOGLE_OAUTH_RELAY_TOKEN: "x".repeat(40),
+    });
+    expect(ok.GOOGLE_OAUTH_RELAY_URL).toBe("https://connect.lumecrm.in");
+    expect(
+      issuesOf(() =>
+        loadConfig(apiSchema, { ...apiEnv, GOOGLE_OAUTH_RELAY_URL: "https://connect.lumecrm.in" }),
+      ).join(),
+    ).toMatch(/GOOGLE_OAUTH_RELAY_TOKEN/);
+    expect(
+      issuesOf(() =>
+        loadConfig(apiSchema, {
+          ...apiEnv,
+          GOOGLE_OAUTH_RELAY_URL: "https://c.test",
+          GOOGLE_OAUTH_RELAY_TOKEN: "short",
+        }),
+      ).join(),
+    ).toMatch(/GOOGLE_OAUTH_RELAY_TOKEN/);
+  });
+
   it("Google Sheets settings are optional; a key must be a base64 service-account JSON", () => {
     const none = loadConfig(apiSchema, apiEnv);
     expect(none.GOOGLE_SERVICE_ACCOUNT_JSON).toBeUndefined();

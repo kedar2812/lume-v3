@@ -193,3 +193,15 @@ export const sourceRefreshes = pgTable("source_refreshes", {
   syncIds: uuid("sync_ids").array().notNull(),
   createdAt: tz("created_at").notNull().defaultNow(),
 });
+
+/** A "Connect with Google" in progress or just finished (2B §6); swept after a day. */
+export const oauthConnects = pgTable("oauth_connects", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id").notNull(),
+  nonceHash: text("nonce_hash").notNull().unique("oauth_connects_nonce"),
+  createdAt: tz("created_at").notNull().defaultNow(),
+  completedAt: tz("completed_at"),
+  grantEnc: bytea("grant_enc"),
+  fileId: text("file_id"),
+  fileName: text("file_name"),
+});

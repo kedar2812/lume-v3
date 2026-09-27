@@ -132,3 +132,23 @@ describe("0016_sheets", () => {
     expect(s.rows[0].column_default).toContain("{}");
   });
 });
+
+describe("0018_oauth_connects", () => {
+  it("keeps one pending connect per nonce, and the worker can't read it", async () => {
+    await query(
+      "lume_owner",
+      "INSERT INTO users (id, email, name, status) VALUES ('00000000-0000-7000-8000-00000000c0c0', 'c@x.test', 'C', 'active')",
+    );
+    await query(
+      "lume_owner",
+      "INSERT INTO oauth_connects (id, user_id, nonce_hash) VALUES ('00000000-0000-7000-8000-00000000c0c1', '00000000-0000-7000-8000-00000000c0c0', 'h1')",
+    );
+    await expect(
+      query(
+        "lume_owner",
+        "INSERT INTO oauth_connects (id, user_id, nonce_hash) VALUES ('00000000-0000-7000-8000-00000000c0c2', '00000000-0000-7000-8000-00000000c0c0', 'h1')",
+      ),
+    ).rejects.toThrow(/oauth_connects_nonce/);
+    await expect(query("lume_worker", "SELECT grant_enc FROM oauth_connects")).rejects.toThrow(/permission/);
+  });
+});

@@ -44,43 +44,55 @@ const base = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 });
 
-export const apiSchema = base.extend({
-  LUME_PUBLIC_HOST: z.string().min(1),
-  LUME_MASTER_KEY: masterKey,
-  DATABASE_URL_APP: pgUrl("lume_app"),
-  API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
-  /** Base URL for links in emails; defaults to https://LUME_PUBLIC_HOST (set it when a port is involved). */
-  LUME_PUBLIC_URL: optional(z.url({ protocol: /^https?$/ })),
-  /** smtp(s)://user:pass@host:port. Unset: mail is not sent and invite links are only shown to the admin. */
-  SMTP_URL: optional(z.url({ protocol: /^smtps?$/ })),
-  MAIL_FROM: optional(z.string().min(3).max(200)),
-  BREACHED_LIST_FILE: z.string().min(1).default("/app/data/breached-sha1.bin"),
-  /** Exchange rates for switching the business currency (owner's choice: open.er-api.com). */
-  LUME_FX_PROVIDER: z.enum(["open-er-api", "openexchangerates", "fixed"]).default("open-er-api"),
-  /** Key for openexchangerates; a fixed table ("AED:USD=0.27,…") for "fixed" (tests, e2e). */
-  LUME_FX_KEY: optional(z.string().min(1).max(200)),
-  LUME_FX_FIXED: optional(z.string().min(1).max(2000)),
-  /** Shown on Settings → About; the image tag in production. */
-  LUME_VERSION: optional(z.string().min(1).max(60)),
-  /**
-   * Google Sheets (2B spec §3): the key file Google gives for a service account, base64-encoded. Only its
-   * client_email is ever shown; the key never leaves the environment. Unset: Sheets can't be switched on.
-   */
-  GOOGLE_SERVICE_ACCOUNT_JSON: optional(
-    z.string().refine((v) => {
-      try {
-        const j = JSON.parse(Buffer.from(v, "base64").toString("utf8")) as Record<string, unknown>;
-        return typeof j.client_email === "string" && typeof j.private_key === "string";
-      } catch {
-        return false;
-      }
-    }, "must be the service account's JSON key file, base64-encoded"),
-  ),
-  /** Tests and e2e only: where the Google APIs are (the fake). Unset: Google's own endpoints. */
-  LUME_GOOGLE_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
-  /** The most rows a connected sheet may have (2B spec §5.5). */
-  LUME_SHEETS_MAX_ROWS: z.coerce.number().int().min(1000).max(500_000).default(50_000),
-});
+export const apiSchema = base
+  .extend({
+    LUME_PUBLIC_HOST: z.string().min(1),
+    LUME_MASTER_KEY: masterKey,
+    DATABASE_URL_APP: pgUrl("lume_app"),
+    API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
+    /** Base URL for links in emails; defaults to https://LUME_PUBLIC_HOST (set it when a port is involved). */
+    LUME_PUBLIC_URL: optional(z.url({ protocol: /^https?$/ })),
+    /** smtp(s)://user:pass@host:port. Unset: mail is not sent and invite links are only shown to the admin. */
+    SMTP_URL: optional(z.url({ protocol: /^smtps?$/ })),
+    MAIL_FROM: optional(z.string().min(3).max(200)),
+    BREACHED_LIST_FILE: z.string().min(1).default("/app/data/breached-sha1.bin"),
+    /** Exchange rates for switching the business currency (owner's choice: open.er-api.com). */
+    LUME_FX_PROVIDER: z.enum(["open-er-api", "openexchangerates", "fixed"]).default("open-er-api"),
+    /** Key for openexchangerates; a fixed table ("AED:USD=0.27,…") for "fixed" (tests, e2e). */
+    LUME_FX_KEY: optional(z.string().min(1).max(200)),
+    LUME_FX_FIXED: optional(z.string().min(1).max(2000)),
+    /** Shown on Settings → About; the image tag in production. */
+    LUME_VERSION: optional(z.string().min(1).max(60)),
+    /**
+     * Google Sheets (2B spec §3): the key file Google gives for a service account, base64-encoded. Only its
+     * client_email is ever shown; the key never leaves the environment. Unset: Sheets can't be switched on.
+     */
+    GOOGLE_SERVICE_ACCOUNT_JSON: optional(
+      z.string().refine((v) => {
+        try {
+          const j = JSON.parse(Buffer.from(v, "base64").toString("utf8")) as Record<string, unknown>;
+          return typeof j.client_email === "string" && typeof j.private_key === "string";
+        } catch {
+          return false;
+        }
+      }, "must be the service account's JSON key file, base64-encoded"),
+    ),
+    /** Tests and e2e only: where the Google APIs are (the fake). Unset: Google's own endpoints. */
+    LUME_GOOGLE_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
+    /** The most rows a connected sheet may have (2B spec §5.5). */
+    LUME_SHEETS_MAX_ROWS: z.coerce.number().int().min(1000).max(500_000).default(50_000),
+    /** "Connect with Google" (2B §6): the owner's relay, and this instance's own token there. Unset: hidden. */
+    GOOGLE_OAUTH_RELAY_URL: optional(z.url({ protocol: /^https?$/ })),
+    GOOGLE_OAUTH_RELAY_TOKEN: optional(z.string().min(32).max(200)),
+  })
+  .superRefine((c, ctx) => {
+    if (!!c.GOOGLE_OAUTH_RELAY_URL !== !!c.GOOGLE_OAUTH_RELAY_TOKEN)
+      ctx.addIssue({
+        code: "custom",
+        path: ["GOOGLE_OAUTH_RELAY_TOKEN"],
+        message: "set both GOOGLE_OAUTH_RELAY_URL and GOOGLE_OAUTH_RELAY_TOKEN, or neither",
+      });
+  });
 
 export const workerSchema = base.extend({
   LUME_MASTER_KEY: masterKey,

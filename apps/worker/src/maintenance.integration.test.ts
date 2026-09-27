@@ -100,8 +100,8 @@ describe("maintenance jobs (as lume_worker)", () => {
         ('00000000-0000-7000-8000-0000000000e2', '0190e0c0-0000-7000-8000-000000000001', '{}', now() - interval '1 hour')`,
     );
     const jobs = makeMaintenanceJobs(pool);
-    expect(await jobs.purgeSheetSyncs()).toEqual({ syncs: 1, refreshes: 1 });
-    expect(await jobs.purgeSheetSyncs()).toEqual({ syncs: 0, refreshes: 0 });
+    expect(await jobs.purgeSheetSyncs()).toEqual({ syncs: 1, refreshes: 1, connects: 0 });
+    expect(await jobs.purgeSheetSyncs()).toEqual({ syncs: 0, refreshes: 0, connects: 0 });
     await owner.end();
   });
 });
