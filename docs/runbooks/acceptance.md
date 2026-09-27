@@ -401,3 +401,72 @@ These came from the real stack, the e2e suite, or reviewing the screenshots befo
 The dev database was **reset to a genuine first run** after the walkthrough (`scripts/dev.sh reset-db`). The accounts were throwaway and are gone; the owner still does the real first run. The new setup token is in `scripts/dev.sh logs api`.
 
 **Status: Phase 1C-3 accepted on the temp build host.**
+
+---
+
+# Phase 2A — CSV import
+
+Plan: `docs/superpowers/plans/2026-09-27-phase-2a-intake-csv.md`. Spec: `docs/superpowers/specs/2026-09-27-phase-2-intake-design.md`.
+
+## Automated
+
+- **Unit and integration: 979 tests**, including:
+  - the engine: reading, values, mapping, and `mapRow`;
+  - drafts, the run, the queue and the report;
+  - a 500-row spec §11 acceptance test;
+  - the real pg-boss queue running as `lume_app`;
+  - retention and the bulk phone fix.
+- **End to end: 151 Playwright tests** against the real stack, including `imports.spec.ts`:
+  - a CSV end to end;
+  - the European file (semicolons, dd.mm.yyyy dates, comma decimals);
+  - cancel, then import the rest;
+  - the bulk phone fix;
+  - a rep without Import leads.
+
+  Axe checks cover each import step and Settings → Imports, in both themes. Screenshots cover Columns, Preview and the report.
+
+## Live walkthrough
+
+`apps/web/e2e-live/acceptance-2a.mjs` runs after 1C-1 → 1C-2 → 1C-3 in one container.
+
+Passed live:
+- **1C-1, 1C-2 and 1C-3**, re-run with the fictional Brightpath Studio. 1C-1 now picks the Dubai coaching business explicitly, since setup no longer defaults to it.
+- **The 500-row messy file through the UI:** File → Columns → Rules → Preview → Import → report.
+- **The counts:** 400 created and 100 merged, with no problems.
+- **Zero duplicates:** every email belongs to exactly one lead.
+- **Phone statuses:** 388 valid, 4 invalid, 8 missing.
+- **Re-imports:** the same file again merges all 500; a shuffled copy creates nothing.
+- **The failed-rows download** is a CSV with defused formulas.
+
+Still to run live: the steps after the download (the bulk phone fix, Settings → Imports, and the Obsidian report). The check for the download's byte-order mark was itself wrong (it read the file as text, which drops the BOM) and is fixed. The rerun resets the dev database, so it waits until the owner has finished with the demo workspace they set up there. The same steps pass in e2e.
+
+## Findings fixed during acceptance
+
+- **The API could stop answering under a burst of page loads (pool deadlock).**
+  - Cause: `GET /api/v1/setup/status` held its request transaction while asking the same pool for its query. About nine at once (the pool of 10, less the RBAC listener) held every connection, each waiting for another.
+  - Fix: the check now runs without a transaction; import work uses its own `jobPool`; and the API pool times out instead of hanging.
+  - Test: a 24-request burst.
+- **One row the database refused failed the whole import.** A 13-digit amount overflowed `numeric(14,2)`, the run retried five times, then failed.
+  - Fix: amounts now have the lead form's ceiling (`AMOUNT_TOO_LARGE`), and a data or constraint error on one row rolls back only that row (`ROW_NOT_SAVED`).
+- **Extra phone numbers in the history were unmasked for masked roles.** They are now masked by the lead's own rule.
+- **The import report:**
+  - it had no styles;
+  - the table rows were misaligned;
+  - an import that added nothing claimed "is in LUME" with a tick;
+  - its lines didn't agree in number when the count was 1.
+
+  All fixed, from screenshot review.
+- **A board-move reload race** in the 1C-2 script. The script now waits for the save.
+
+## Asked for during the phase, and built
+
+- **Ownership:** LUME is owned and created by Kedar Uttam Gurav. This is in `LICENSE`, `package.json`, Settings → About, and the licence agreement, whose version moved on so everyone agrees again.
+- **Password fields:** every one has an eye to show or hide the password, and an announced "Caps Lock is on".
+- **First-run setup:** the card fits the window, and a tall step scrolls inside it.
+- **2B (spec §12):** Refresh on Leads with a sync card, "{n} new leads", and a 5-second arrival highlight.
+
+## State left behind
+
+The dev stack runs the owner's own demo workspace, set up by the owner through the wizard. `docs/demo/sample-leads.csv` holds 42 fictional leads to import. Reach the stack through `ssh -N -L 8443:127.0.0.1:8443 -L 8025:127.0.0.1:8025 lumedev`, then https://lume.localhost:8443 (mail at http://localhost:8025).
+
+**Status: Phase 2A built; accepted in CI and on the dev stack, except the last live steps listed above.**
