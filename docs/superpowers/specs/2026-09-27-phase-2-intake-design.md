@@ -474,6 +474,8 @@ Phase 3 builds automations. So they can't misfire later, every imported lead's c
 
 ## 10. Screens (2A)
 
+**Voice:** the product speaks as **LUME** in its own copy ("LUME will let you know", "LUME couldn't read row 42"), never a faceless "we" — the owner wants people to recognise LUME as the one doing the work for them.
+
 Built to the existing design system (Porcelain and Carbon, the settings panel language, Apple-grade motion), with every state designed: loading, empty, error, partial and done.
 
 - **Leads toolbar → "Import"** (for `leads.import` holders) opens a full-screen sheet with a step rail: **File → Columns → Rules → Preview → Import**. Back and forward keep everything, and closing a draft asks "Keep this draft?".
@@ -498,7 +500,7 @@ Built to the existing design system (Porcelain and Carbon, the settings panel la
   - a summary line ("16 create · 2 merge · 2 errors");
   - "Show rows with errors" (up to 20 errors from the whole file) jumps back to fix the mapping.
 - **Import:**
-  - a progress ring and live counts, "You can close this — it keeps going, and Settings → Imports shows when it's done", and Cancel;
+  - a progress ring and live counts, "You can close this — LUME will let you know when it's done" (until Phase 3, LUME does that with the Done badge; §7.2), and Cancel;
   - at the end, the report with "Download failed rows" and "View imported leads" (the leads list filtered to this source).
 - **Settings → Imports** (a new Settings area for `leads.import`): past imports with status, counts, who and when; open one for its report; Resume where allowed.
 - **Leads table:**
