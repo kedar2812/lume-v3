@@ -294,3 +294,22 @@ This spec is delivered in two plans, each ending in live acceptance:
 - Two-way sync.
 - A notification centre: admins see banners for now, and the bell gets its own phase.
 - Webhooks and ManyChat (2C).
+
+## 14. Amendments (from planning 2B-1, 2026-09-27)
+
+- **A1. Setting up a sheet reuses the import draft.**
+  - A CSV snapshot of the sheet's first 20,000 rows becomes an `imports` row of kind `sheet`, so Columns, Rules and Preview are the 2A steps and endpoints.
+  - Connecting a sheet therefore needs both Manage integrations (`integrations.manage`, the catalogue's permission for "Sheets, Calendly, webhooks") and Import leads (`leads.import`).
+  - The draft's source is a `lead_sources` row with status `draft`. It becomes the real source on save. An edit uses a throwaway draft source, so the 7-day draft sweep can never delete a live source.
+- **A2. A sheet runs as the person who last saved it** (`run_as`). If they can no longer import leads, or no longer give leads to others while the rules do, the source needs attention until an admin saves it again.
+- **A3. "Only rows added from now on"** records every row already in the sheet as a baseline (by fingerprint, result `skipped`, code `BEFORE_START`) on the first sync, without creating leads. Rows are recognised by identity, not position.
+- **A4. `head_hash` covers the header, the first data row and the last row read.** A full re-read happens when it changes, and at least hourly while the sheet keeps changing. This catches rows inserted or removed anywhere above the end.
+- **A5. Health counts are computed when asked** (from `source_rows` and `source_syncs`), not kept in a `stats` column. The saved header list (`headers`) replaces `header_signature`.
+- **A6. A sheet row's fingerprint** is the raw date cell (time included, when a column is mapped to the lead's date) plus phone, email and Instagram. A repeat enquiry with a new timestamp is a new row. Without a date column, LUME tells the admin a repeat can't be told apart.
+- **A7. Progress is counted per row** in the row's own transaction, which is exact, rather than every 50 rows.
+- **A8. The "last seen Leads" marker is `users.leads_seen_at`,** set with the server's clock by `POST /api/v1/leads/arrivals/seen`. It is not stored in `preferences`, whose merge rebuilds the object.
+- **A9. Refresh is cheap to press twice.** A second press by the same person within 3 s returns the same refresh. Every press joins syncs already under way. A source synced in the last 10 s reuses that result.
+- **A10. The board gets Refresh too;** the glow is table-only.
+- **A11. The Google client retries 429/5xx itself,** 3 times (1 s, 2 s, 4 s). A sync that still fails backs off: the next try is `poll_seconds × 2^failures`, capped at 1 hour.
+- **A12. Remove archives the source.** Its leads keep it, so "From {sheet}" still reads right. Nothing more syncs.
+- **A13. Integrations are managed with `integrations.manage`.** That is the catalogue's permission for "Sheets, Calendly, webhooks", and the 2A spec's own table uses it. It replaces `settings.manage` everywhere this spec names it for Sheets: the switch, connecting, looking after sheets, and the attention banner.
