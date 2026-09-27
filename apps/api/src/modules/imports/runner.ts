@@ -6,10 +6,7 @@ import type pg from "pg";
 import {
   INTAKE_LIMITS,
   can,
-  mapRow,
-  startOfDayUtc,
   type DateOrder,
-  type Issue,
   type Keyring,
   type LeadDraft,
   type Mapping,
@@ -17,12 +14,11 @@ import {
 } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
-import { loadFieldRegistry } from "../../leads/fields";
 import { loadActor, type ActorRecord } from "../../rbac/actor";
-import { insertLead, mergeFill, mergeIntoLead } from "../leads/writer";
-import { contactProbes, findMatches, loadMapContext, type FullMapContext } from "./context";
+import { loadMapContext, type FullMapContext } from "./context";
 import { readImportFile } from "./files";
 import { jobServer, withJobRequest } from "./job-request";
+import { writeRow } from "./row";
 
 const I = schema.imports;
 const R = schema.importRows;
@@ -47,14 +43,8 @@ const fingerprint = (d: LeadDraft, cells: string[]) => {
   return createHash("sha256").update(JSON.stringify(basis)).digest("hex");
 };
 
-/** A transaction-scoped lock on one contact key (its first 64 bits), so two runs can't both create it. */
-const lockContact = (hex: string) =>
-  sql`SELECT pg_advisory_xact_lock(('x' || ${hex.slice(0, 16)})::bit(64)::bigint)`;
-
-/** Does this run give leads to people other than the starter? Then it needs leads.assign as well. */
-function givesAway(imp: ImportRow, actor: ActorRecord): boolean {
-  const rules = imp.rules as Rules;
-  const mapping = imp.mapping as Mapping;
+/** Does this run give leads to people other than the person it runs as? Then it needs leads.assign too. */
+export function givesAway(rules: Rules, mapping: Mapping, actor: ActorRecord): boolean {
   return (
     rules.owner.mode === "round_robin" ||
     (rules.owner.mode === "user" && rules.owner.userId !== actor.userId) ||
@@ -133,7 +123,11 @@ async function runRows(o: RunDeps, db: Db, imp: ImportRow) {
     }
     // Permissions, people and fields are read afresh before every batch (spec §7.3).
     const actor = await loadActor(o.pool, startedBy);
-    if (!actor || !can(actor, "leads.import") || (givesAway(imp, actor) && !can(actor, "leads.assign"))) {
+    if (
+      !actor ||
+      !can(actor, "leads.import") ||
+      (givesAway(imp.rules as Rules, imp.mapping as Mapping, actor) && !can(actor, "leads.assign"))
+    ) {
       await db
         .update(I)
         .set({ status: "stopped_access", stopReason: "access_changed", finishedAt: new Date() })
@@ -185,17 +179,22 @@ async function runRows(o: RunDeps, db: Db, imp: ImportRow) {
 }
 
 /** Postgres data exceptions (class 22) and integrity violations (class 23), however the driver wraps them. */
-function isDataError(e: unknown): boolean {
+export function isDataError(e: unknown): boolean {
   const code =
     (e as { code?: unknown; cause?: { code?: unknown } })?.code ??
     (e as { cause?: { code?: unknown } })?.cause?.code;
   return typeof code === "string" && /^2[23]/.test(code);
 }
 
+/** Why the database refused a row, in a line short enough for a report. */
+export const refusalReason = (e: unknown): string =>
+  String((e as { cause?: { message?: unknown } })?.cause?.message ?? (e as Error)?.message ?? e).slice(
+    0,
+    200,
+  );
+
 async function refuseRow(req: FastifyRequest, importId: string, rowNumber: number, e: unknown) {
-  const reason = String(
-    (e as { cause?: { message?: unknown } })?.cause?.message ?? (e as Error)?.message ?? e,
-  ).slice(0, 200);
+  const reason = refusalReason(e);
   const [row] = await req.db
     .insert(R)
     .values({
@@ -215,28 +214,7 @@ async function refuseRow(req: FastifyRequest, importId: string, rowNumber: numbe
 }
 
 type Run = { imp: ImportRow; rules: Rules; mapping: Mapping };
-type Counter =
-  | "created"
-  | "merged"
-  | "skipped"
-  | "empty"
-  | "errors"
-  | "warnings"
-  | "name_from_contact"
-  | "missing_stage_fields"
-  | "phone_needs_country";
-type Saved = {
-  leadId?: string | null;
-  problems?: Issue[];
-  warnings?: Issue[];
-  alsoMatched?: string[];
-  fingerprint?: string | null;
-};
-
-/**
- * Spec §6.9–§6.10 for one row, inside its own transaction (every lead visible, acting as the importer).
- * Claim → map → lock the contacts → match → create, merge or skip → record the result and the counts.
- */
+/** Claim the row, write it through the shared engine (row.ts), record its result and the counts. */
 async function oneRow(
   req: FastifyRequest,
   keyring: Keyring,
@@ -258,243 +236,36 @@ async function oneRow(
     .returning({ id: R.id });
   if (!claimed) return; // an earlier attempt already finished this row
 
-  const save = async (
-    result: "created" | "merged" | "skipped" | "error",
-    f: Saved,
-    counters: Partial<Record<Counter, number>>,
-  ) => {
-    await req.db
-      .update(R)
-      .set({
-        result,
-        leadId: f.leadId ?? null,
-        problems: f.problems ?? [],
-        warnings: f.warnings ?? [],
-        alsoMatched: f.alsoMatched ?? [],
-        fingerprint: f.fingerprint ?? null,
-      })
-      .where(eq(R.id, claimed.id));
-    const sets = Object.entries(counters)
-      .filter(([, n]) => n)
-      .map(([k, n]) => sql`${sql.identifier(k)} = ${sql.identifier(k)} + ${n}`);
-    await req.db.execute(
-      sql`UPDATE imports SET ${sql.join([...sets, sql`cursor_row = GREATEST(cursor_row, ${rowNumber})`], sql`, `)} WHERE id = ${imp.id}`,
-    );
-  };
-  const warned = (w: Issue[]) => (w.length ? 1 : 0);
-
-  const outcome = mapRow(cells, mapping, rules, ctx);
-  if (outcome.kind === "empty")
-    return save(
-      "skipped",
-      { problems: [{ column: null, code: "EMPTY_ROW", message: "Empty row" }] },
-      { empty: 1 },
-    );
-  if (outcome.kind === "error")
-    return save(
-      "error",
-      { problems: outcome.problems, warnings: outcome.warnings },
-      { errors: 1, warnings: warned(outcome.warnings) },
-    );
-
-  const draft = outcome.draft;
-  const warnings = [...outcome.warnings];
-  const fp = fingerprint(draft, cells);
-  // A safety net behind mapRow: the field registry's own create schema, exactly as a hand-made lead meets it.
-  const custom = (await loadFieldRegistry(req)).custom.create.safeParse(draft.custom);
-  if (!custom.success)
-    return save(
-      "error",
-      {
-        problems: custom.error.issues.map((i) => ({
-          column: null,
-          code: "INVALID_FIELD",
-          message: `${i.path.join(".")}: ${i.message}`,
-        })),
-        warnings,
-      },
-      { errors: 1, warnings: warned(warnings) },
-    );
-  const customData = custom.data as Record<string, unknown>;
-
-  for (const p of contactProbes(draft, rules.matchOn).sort((a, b) => a.hash.localeCompare(b.hash)))
-    await req.db.execute(lockContact(p.hash));
-  const matches = rules.matchOn.length ? await findMatches(req, draft, rules.matchOn) : [];
-  const contact = {
-    phoneRaw: draft.phone.raw,
-    phoneE164: draft.phone.e164,
-    phoneCountryIso: draft.phone.countryIso,
-    phoneStatus: draft.phone.status,
-    email: draft.email,
-    instagramHandle: draft.instagram,
-  };
-  const also = matches.slice(1).map((m) => m.leadId);
-
-  if (matches.length && rules.onMatch !== "duplicate") {
-    const target = matches[0]!.leadId;
-    if (rules.onMatch === "skip")
-      return save(
-        "skipped",
-        {
-          leadId: target,
-          warnings,
-          alsoMatched: also,
-          fingerprint: fp,
-          problems: [
-            { column: null, code: "MATCHED_SKIPPED", message: "Matches an existing lead; skipped." },
-          ],
-        },
-        { skipped: 1, warnings: warned(warnings) },
-      );
-    const [lead] = await req.db.select().from(schema.leads).where(eq(schema.leads.id, target));
-    const tagIds = (
-      await req.db
-        .select({ id: schema.leadTags.tagId })
-        .from(schema.leadTags)
-        .where(eq(schema.leadTags.leadId, target))
-    ).map((t) => t.id);
-    // A merge takes an owner only from the row's owner column; the owner rule is for leads it creates.
-    const { fill, filled } = mergeFill(
-      lead!,
-      {
-        contact,
-        value: draft.value,
-        leadCreatedAt: draft.leadCreatedAt,
-        ownerId: draft.ownerId ?? null,
-        custom: customData,
-        tagIds: draft.tagIds,
-      },
-      tagIds,
-      rules.reopenClosedTo,
-    );
-    await mergeIntoLead(req, lead!, fill, {
-      type: "imported_again",
-      payload: {
-        importId: imp.id,
-        file: imp.fileName,
-        row: rowNumber,
-        filled,
-        extraPhones: draft.extraPhones,
-        warnings: warnings.map((w) => w.code),
-      },
-    });
-    return save(
-      "merged",
-      { leadId: target, warnings, alsoMatched: also, fingerprint: fp },
-      { merged: 1, warnings: warned(warnings) },
-    );
-  }
-
-  // Create: the owner from the row, else the owner rule (turn-taking in a fixed order: by name, then id).
-  let ownerId: string | null = draft.ownerId ?? null;
-  if (draft.ownerId === undefined) {
-    if (rules.owner.mode === "user") {
-      const chosen = rules.owner.userId;
-      ownerId = ctx.people.find((p) => p.id === chosen && p.active)?.id ?? null;
-      if (!ownerId)
-        warnings.push({
-          column: null,
-          code: "OWNER_RULE_INACTIVE",
-          message: "The chosen owner can't take leads now; left unassigned.",
-        });
-    } else if (rules.owner.mode === "round_robin") {
-      const ids = rules.owner.userIds;
-      const turns = ctx.people
-        .filter((p) => p.active && ids.includes(p.id))
-        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-      if (!turns.length)
-        warnings.push({
-          column: null,
-          code: "OWNER_RULE_INACTIVE",
-          message: "Nobody chosen to take turns can take leads now; left unassigned.",
-        });
-      else {
-        const { rows } = await req.db.execute<{ n: number }>(
-          sql`UPDATE imports SET rr_cursor = rr_cursor + 1 WHERE id = ${imp.id} RETURNING rr_cursor - 1 AS n`,
-        );
-        ownerId = turns[Number(rows[0]!.n) % turns.length]!.id;
-      }
-    }
-  }
-  const stageId = draft.stageId ?? rules.stageId;
-  const stage = ctx.stagesFull.find((s) => s.id === stageId);
-  if (!stage)
-    return save(
-      "error",
-      {
-        problems: [
-          { column: null, code: "STAGE_GONE", message: "The stage for new leads no longer exists." },
-        ],
-        warnings,
-      },
-      { errors: 1, warnings: warned(warnings) },
-    );
-  // The lead's own date, when the file has one, is when it entered its stage (and closed, if closed).
-  const origin = draft.leadCreatedAt ? startOfDayUtc(draft.leadCreatedAt, ctx.timezone) : null;
-  const leadId = await insertLead(req, {
-    pipelineId: rules.pipelineId,
-    stageId,
-    ownerId,
-    name: draft.name,
-    contact,
-    value: draft.value,
-    productId: null,
-    leadCreatedAt: draft.leadCreatedAt,
-    custom: customData,
-    tagIds: draft.tagIds,
+  const r = await writeRow(req, {
     sourceId: imp.sourceId,
-    lostReasonId: draft.lostReasonId,
-    closedAt: stage.kind === "open" ? null : (origin ?? new Date()),
-    stageKind: stage.kind,
-    stageEnteredAt: origin ?? new Date(),
-    activity: {
-      type: "imported",
-      payload: {
-        importId: imp.id,
-        file: imp.fileName,
-        row: rowNumber,
-        extraPhones: draft.extraPhones,
-        warnings: warnings.map((w) => w.code),
-      },
+    rules,
+    mapping,
+    ctx,
+    cells,
+    origin: { importId: imp.id, file: imp.fileName, row: rowNumber },
+    nextTurn: async () => {
+      const { rows } = await req.db.execute<{ n: number }>(
+        sql`UPDATE imports SET rr_cursor = rr_cursor + 1 WHERE id = ${imp.id} RETURNING rr_cursor - 1 AS n`,
+      );
+      return Number(rows[0]!.n);
     },
-    assignReason: "imported",
   });
-  // A stage's required fields aren't enforced on import (spec §6.5), but the leads missing them are counted.
-  const core: Record<string, unknown> = {
-    name: draft.name,
-    phone: draft.phone.raw,
-    email: draft.email,
-    instagram: draft.instagram,
-    value: draft.value,
-    lead_created_at: draft.leadCreatedAt,
-    owner: ownerId,
-    stage: stageId,
-    source: imp.sourceId,
-  };
-  const filledIds = new Set(
-    ctx.fields
-      .filter((f) => {
-        const v = f.isCore ? core[f.key] : customData[f.key];
-        return v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && !v.length);
-      })
-      .map((f) => f.id),
-  );
-  const missing = stage.requiredFieldIds.some((id) => !filledIds.has(id));
-  if (missing)
-    warnings.push({
-      column: null,
-      code: "MISSING_STAGE_FIELDS",
-      message: `${stage.name} asks for fields this lead doesn't have yet.`,
-    });
-  return save(
-    "created",
-    { leadId, warnings, alsoMatched: also, fingerprint: fp },
-    {
-      created: 1,
-      warnings: warned(warnings),
-      name_from_contact: draft.nameFromContact ? 1 : 0,
-      phone_needs_country: draft.phone.status === "needs_country" ? 1 : 0,
-      missing_stage_fields: missing ? 1 : 0,
-    },
+  await req.db
+    .update(R)
+    .set({
+      result: r.result,
+      leadId: r.leadId,
+      problems: r.problems,
+      warnings: r.warnings,
+      alsoMatched: r.alsoMatched,
+      // Only a row that became (or matched) a lead has a person to recognise again.
+      fingerprint: r.draft && r.result !== "error" ? fingerprint(r.draft, cells) : null,
+    })
+    .where(eq(R.id, claimed.id));
+  const sets = Object.entries(r.counters)
+    .filter(([, n]) => n)
+    .map(([k, n]) => sql`${sql.identifier(k)} = ${sql.identifier(k)} + ${n}`);
+  await req.db.execute(
+    sql`UPDATE imports SET ${sql.join([...sets, sql`cursor_row = GREATEST(cursor_row, ${rowNumber})`], sql`, `)} WHERE id = ${imp.id}`,
   );
 }
