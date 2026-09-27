@@ -565,6 +565,10 @@ Built to the existing design system (Porcelain and Carbon, the settings panel la
 - **Header changes:** a mapped header renamed or removed → the source becomes `needs_attention`, sync pauses, and admins are notified. A broken mapping is never imported.
 - **Health:** last sync, rows seen and imported, errors with fix-and-retry, and the source's status on a Sources page.
 - **Onboarding copy:** once live, remove the sales team's access to the sheet (report §8.1).
+- **Refresh on the Leads page** (owner's request, 2026-09-27): a Refresh button beside Import, shown when at least one sheet source is active and the viewer may import. It runs "Sync now" on every active sheet source.
+  - **The sync pop-up:** a small floating card (not a blocking dialog) where file and row glyphs drift from the sheet toward LUME along a soft path, over a smooth blue-gradient progress bar that fills with rows read. Springs, never a looping spinner. Reduced motion: a plain progress bar and the count.
+  - **The count:** when the sync ends, the card settles on "{n} new leads" (or "Up to date — nothing new") and a "merged into existing leads" line when there were merges, then fades on its own after a few seconds. No sound: new rows aren't an achievement (sound policy).
+  - **The arrival highlight:** leads created by that sync (or by a CSV import the viewer just ran, when they open "View imported leads") appear in the table with a gentle accent wash that settles in on arrival and fades out over 5 s. Like light passing, not a flash: an eased opacity fade on a soft tint, no bounce or pulse, and staggered a few frames per row so it reads as a wave. Reduced motion: the tint fades without movement. The highlight is per viewer and per visit, never stored.
 
 ## 13. 2C — Inbound webhooks, with ManyChat (outline; detailed before its plan)
 
