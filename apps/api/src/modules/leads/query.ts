@@ -16,6 +16,8 @@ export type ListQuery = {
   tagId?: string;
   /** Leads that came from one source (an import's file). */
   source?: string;
+  /** Leads that arrived after this instant (2B spec §8.3: "N new since yesterday · Show only these"). */
+  arrivedAfter?: string;
   phoneStatus?: "valid" | "needs_country" | "invalid" | "missing";
   q?: string;
   createdFrom?: string;
@@ -25,6 +27,13 @@ export type ListQuery = {
 
 const L = schema.leads;
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/**
+ * Spec §8.3: a lead "arrived" after `since` unless the viewer made it themselves — a sheet's leads always
+ * arrive, even for the admin the sheet runs as. Row-level security still decides which leads are seen.
+ */
+export const arrivalsWhere = (since: Date, me: string) =>
+  sql`(${L.createdAt} > ${since} AND (${L.createdBy} IS DISTINCT FROM ${me} OR EXISTS (SELECT 1 FROM lead_sources s WHERE s.id = ${L.sourceId} AND s.type = 'google_sheet')))`;
 
 function encodeCursor(sort: ListQuery["sort"], row: LeadRow): string {
   const v =
@@ -78,6 +87,7 @@ export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRe
   if (q.tagId)
     where.push(sql`EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = ${L.id} AND t.tag_id = ${q.tagId})`);
   if (q.source) where.push(eq(L.sourceId, q.source));
+  if (q.arrivedAfter) where.push(arrivalsWhere(new Date(q.arrivedAfter), req.actor!.userId));
   if (q.phoneStatus) {
     if (!isFieldVisible(ctx, "phone")) throw badRequest("UNKNOWN_FIELD", "Unknown filter");
     where.push(eq(L.phoneStatus, q.phoneStatus));

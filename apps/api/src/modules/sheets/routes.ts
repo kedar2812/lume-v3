@@ -16,6 +16,7 @@ import {
   setSheetsEnabled,
   syncNow,
 } from "./service";
+import { refreshProgress, sheetsStatus, startRefresh } from "./refresh";
 
 const manage = { permission: "integrations.manage" as const };
 const params = z.object({ id: z.uuid() });
@@ -111,5 +112,11 @@ export async function sheetRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
         .header("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`)
         .send(body);
     },
+  );
+  const view = { permission: "leads.view" as const };
+  r.get("/api/v1/sheets/status", { config: view }, (req) => sheetsStatus(req, d));
+  r.post("/api/v1/sheets/refresh", { config: { ...view, idempotent: false } }, (req) => startRefresh(req, d));
+  r.get("/api/v1/sheets/refresh/:id", { config: view, schema: { params } }, (req) =>
+    refreshProgress(req, req.params.id),
   );
 }

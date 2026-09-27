@@ -34,6 +34,11 @@ export type Probe = {
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
 export const PROBES: Record<string, Probe> = {
   "GET /api/v1/sources": { access: "leads.view" },
+  "GET /api/v1/sheets/status": { access: "leads.view" },
+  "POST /api/v1/sheets/refresh": { access: "leads.view" },
+  "GET /api/v1/sheets/refresh/:id": { access: "leads.view", path: () => `/api/v1/sheets/refresh/${uuid}` },
+  "GET /api/v1/leads/arrivals": { access: "leads.view" },
+  "POST /api/v1/leads/arrivals/seen": { access: "leads.view" },
   "GET /api/v1/integrations": { access: "integrations.manage" },
   "PUT /api/v1/integrations/google-sheets": {
     access: "integrations.manage",

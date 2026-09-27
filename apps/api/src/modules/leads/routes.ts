@@ -4,7 +4,9 @@ import { z } from "zod";
 import { INSTAGRAM_RE, dialCountries, normalizePhone } from "@lume/core";
 import { loadFieldRegistry } from "../../leads/fields";
 import { findDuplicates } from "./duplicates";
-import { countLeads, listLeads } from "./query";
+import { arrivalsWhere, countLeads, listLeads } from "./query";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { schema } from "@lume/db";
 import { confirmMessage, prepareMessage } from "./messages";
 import { runBulk } from "./bulk";
 import { revealContact } from "./reveal";
@@ -45,6 +47,7 @@ const listQuery = z.object({
   q: z.string().trim().min(1).max(100).optional(),
   createdFrom: z.iso.date().optional(),
   createdTo: z.iso.date().optional(),
+  arrivedAfter: z.iso.datetime({ offset: true }).optional(),
   custom: z.string().max(2000).optional(),
 });
 
@@ -96,6 +99,30 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
       };
     },
   );
+  r.get("/api/v1/leads/arrivals", { config: { permission: "leads.view" } }, async (req) => {
+    const [u] = await req.db
+      .select({ at: schema.users.leadsSeenAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, req.actor!.userId));
+    if (!u?.at) return { since: null, count: 0, ids: [] };
+    const where = and(isNull(schema.leads.deletedAt), arrivalsWhere(u.at, req.actor!.userId));
+    const [c] = await req.db.select({ n: count() }).from(schema.leads).where(where);
+    const ids = await req.db
+      .select({ id: schema.leads.id })
+      .from(schema.leads)
+      .where(where)
+      .orderBy(desc(schema.leads.createdAt))
+      .limit(20);
+    return { since: u.at.toISOString(), count: Number(c?.n ?? 0), ids: ids.map((x) => x.id) };
+  });
+  // The marker moves with the server's clock (amendment A8): leaving Leads, or hiding its tab.
+  r.post("/api/v1/leads/arrivals/seen", { config: { permission: "leads.view" } }, async (req, reply) => {
+    await req.db
+      .update(schema.users)
+      .set({ leadsSeenAt: new Date() })
+      .where(eq(schema.users.id, req.actor!.userId));
+    return reply.code(204).send();
+  });
   r.get("/api/v1/leads/:id", { config: { permission: "leads.view" }, schema: { params } }, (req) =>
     svc.getLead(req, req.params.id),
   );
