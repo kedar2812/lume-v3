@@ -11,7 +11,7 @@ const bad = (code: string, message: string): Parsed<never> => ({ ok: false, issu
 
 /** Lower-case, accents removed, spaces collapsed — for matching labels. */
 export const fold = (s: string): string =>
-  s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 // ── dates ─────────────────────────────────────────────────────────────────────
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
