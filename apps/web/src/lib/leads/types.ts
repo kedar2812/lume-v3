@@ -98,5 +98,6 @@ export type BulkAction =
   | { type: "stage"; stageId: string; lostReasonId?: string; lostNote?: string }
   | { type: "assign"; ownerId: string | null }
   | { type: "tags"; add?: string[]; remove?: string[] }
-  | { type: "delete" };
+  | { type: "delete" }
+  | { type: "set_phone_country"; country: string };
 export type BulkResult = { updated: string[]; skipped: { id: string; code: string }[] };

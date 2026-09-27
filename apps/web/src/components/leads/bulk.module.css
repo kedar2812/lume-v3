@@ -144,3 +144,7 @@
   letter-spacing: var(--ls-md);
   font-weight: var(--fw-bold);
 }
+.country {
+  width: 240px;
+  max-width: 40vw;
+}

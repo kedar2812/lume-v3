@@ -422,6 +422,11 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             session={session}
             selected={selected}
             allLoaded={allLoaded && list.hasMore}
+            phoneFixable={list.rows.some(
+              (r) =>
+                selected.includes(r.id) &&
+                (r.phone?.status === "needs_country" || r.phone?.status === "invalid"),
+            )}
             onClear={() => setSelected([])}
             onDone={(result) => {
               list.reload();

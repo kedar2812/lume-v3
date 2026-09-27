@@ -17,13 +17,20 @@ const admin = fakeSession({
     { key: "leads.assign", scope: "all" },
     { key: "leads.delete", scope: "all" },
     { key: "leads.change_stage", scope: "all" },
+    { key: "leads.edit", scope: "all" },
   ],
 });
-const bar = (selected = ["a", "b", "c", "d"]) => {
+const bar = (selected = ["a", "b", "c", "d"], o: { phoneFixable?: boolean } = {}) => {
   const onDone = vi.fn();
   render(
     <CatalogProvider catalog={testCatalog()}>
-      <BulkBar session={admin} selected={selected} onDone={onDone} onClear={vi.fn()} />
+      <BulkBar
+        session={admin}
+        selected={selected}
+        phoneFixable={o.phoneFixable}
+        onDone={onDone}
+        onClear={vi.fn()}
+      />
     </CatalogProvider>,
   );
   return onDone;
@@ -100,5 +107,36 @@ describe("BulkBar", () => {
     expect(leadsClient.bulk).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Delete 2 leads" }));
     expect(leadsClient.bulk).toHaveBeenCalledWith(["a", "b"], { type: "delete" });
+  });
+
+  it("gives unreadable numbers a country, starting from the business's, and reports the result", async () => {
+    vi.mocked(leadsClient.bulk).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { updated: ["l1"], skipped: [{ id: "l2", code: "STILL_INVALID" }] },
+    });
+    bar(["l1", "l2"], { phoneFixable: true });
+    await userEvent.click(screen.getByRole("button", { name: "Set country…" }));
+    expect(screen.getByRole("button", { name: "Country: United Arab Emirates" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Country:/ }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search countries" }), "india{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: "Set country" }));
+    expect(leadsClient.bulk).toHaveBeenCalledWith(["l1", "l2"], { type: "set_phone_country", country: "IN" });
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "1 fixed, 1 skipped: still not a number LUME can read" }),
+    );
+  });
+
+  it("offers Set country only when a selected number needs one", async () => {
+    bar(["a"]);
+    expect(screen.queryByRole("button", { name: "Set country…" })).not.toBeInTheDocument();
+  });
+
+  it("goes back to the bar on Cancel without changing anything", async () => {
+    bar(["a"], { phoneFixable: true });
+    await userEvent.click(screen.getByRole("button", { name: "Set country…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Set country…" })).toBeInTheDocument();
+    expect(leadsClient.bulk).not.toHaveBeenCalled();
   });
 });

@@ -94,3 +94,60 @@ describe("bulk actions (report §14)", () => {
     ).toBe(400);
   });
 });
+
+describe("set_phone_country (spec §10: the bulk phone fix)", () => {
+  const setCountry = (c: AuthedClient, ids: string[], country: string) =>
+    bulk(c, { ids, action: { type: "set_phone_country", country } });
+
+  it("gives unreadable numbers a country, and leaves the rest alone with reasons", async () => {
+    const a = await h.seedLead({ ownerId: null, phoneRaw: "0501234567", phoneStatus: "needs_country" });
+    const b = await h.seedLead({ ownerId: null, phone: "+971509998888" });
+    const c = await h.seedLead({ ownerId: null });
+    const d = await h.seedLead({ ownerId: null, phoneRaw: "123", phoneStatus: "invalid" });
+    const r = (await setCountry(admin, [a, b, c, d], "AE")).json();
+    expect(r.updated).toEqual([a]);
+    expect(r.skipped).toEqual([
+      { id: b, code: "ALREADY_VALID" },
+      { id: c, code: "NO_NUMBER" },
+      { id: d, code: "STILL_INVALID" },
+    ]);
+    const [lead] = await h.queryAll(
+      "SELECT phone_e164, phone_status, phone_country_iso FROM leads WHERE id = $1",
+      [a],
+    );
+    expect(lead).toEqual({ phone_e164: "+971501234567", phone_status: "valid", phone_country_iso: "AE" });
+    const [act] = await h.queryAll(
+      "SELECT type, payload FROM activities WHERE lead_id = $1 ORDER BY occurred_at DESC LIMIT 1",
+      [a],
+    );
+    expect(act).toEqual({ type: "phone_country_set", payload: { country: "AE" } }); // no digits in the history
+  });
+
+  it("works on a masked rep's own leads without revealing a digit, and never on others'", async () => {
+    const repUser = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.edit", scope: "own" },
+        { key: "leads.bulk_edit", scope: "own" },
+      ],
+    });
+    const rep = await h.signIn(repUser);
+    const mine = await h.seedLead({
+      ownerId: repUser.id,
+      phoneRaw: "0501112222",
+      phoneStatus: "needs_country",
+    });
+    const theirs = await h.seedLead({ ownerId: null, phoneRaw: "0503334444", phoneStatus: "needs_country" });
+    const res = await setCountry(rep, [mine, theirs], "AE");
+    const r = res.json();
+    expect(r.updated).toEqual([mine]);
+    expect(r.skipped.map((s: { id: string }) => s.id)).toEqual([theirs]);
+    expect(res.body).not.toMatch(/501112222|503334444/);
+  });
+
+  it("refuses an unknown country", async () => {
+    const a = await h.seedLead({ ownerId: null, phoneRaw: "0501234567", phoneStatus: "needs_country" });
+    expect((await setCountry(admin, [a], "ZZ")).statusCode).toBe(400);
+    expect((await setCountry(admin, [a], "ae")).statusCode).toBe(400);
+  });
+});

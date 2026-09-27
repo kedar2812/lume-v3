@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { INSTAGRAM_RE, normalizePhone } from "@lume/core";
+import { INSTAGRAM_RE, dialCountries, normalizePhone } from "@lume/core";
 import { loadFieldRegistry } from "../../leads/fields";
 import { findDuplicates } from "./duplicates";
 import { countLeads, listLeads } from "./query";
@@ -214,6 +214,13 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
               remove: z.array(z.uuid()).max(20).optional(),
             }),
             z.object({ type: z.literal("delete") }),
+            z.object({
+              type: z.literal("set_phone_country"),
+              country: z
+                .string()
+                .regex(/^[A-Z]{2}$/)
+                .refine((c) => dialCountries().some((d) => d.iso === c), "Unknown country"),
+            }),
           ]),
         }),
       },

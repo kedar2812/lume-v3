@@ -4,6 +4,7 @@ import { useState } from "react";
 import { can, scopeOf } from "@lume/core/shared";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
+import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Popover } from "@/components/ui/Popover";
 import { bulkSummary, runBulkInChunks } from "@/lib/leads/bulk";
 import type { BulkAction, BulkResult, Stage } from "@/lib/leads/types";
@@ -56,6 +57,7 @@ export function BulkBar({
   session,
   selected,
   allLoaded = false,
+  phoneFixable = false,
   onDone,
   onClear,
 }: {
@@ -63,6 +65,8 @@ export function BulkBar({
   selected: string[];
   /** The selection is every loaded row (the header checkbox), which may not be every match. */
   allLoaded?: boolean;
+  /** Some selected lead's number needs a country (or can't be read yet): offer to set one for all. */
+  phoneFixable?: boolean;
   onDone: (result: BulkResult) => void;
   onClear: () => void;
 }) {
@@ -71,6 +75,8 @@ export function BulkBar({
   const reduce = useReducedMotion();
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [country, setCountry] = useState(catalog.country ?? "");
   const n = selected.length;
   const actor = session.actor;
   const pipeline = catalog.pipelines.find((p) => p.isDefault) ?? catalog.pipelines[0];
@@ -82,6 +88,7 @@ export function BulkBar({
     const result = await runBulkInChunks(selected, action);
     setBusy(false);
     setConfirmDelete(false);
+    setFixing(false);
     toast({ tone: result.skipped.length ? "warn" : "ok", title: bulkSummary(action, result) });
     onDone(result);
   };
@@ -97,7 +104,27 @@ export function BulkBar({
       exit={{ opacity: 0, y: reduce ? 0 : 24 }}
       transition={toMotion(SPRINGS.default)}
     >
-      {confirmDelete ? (
+      {fixing ? (
+        <>
+          <p className={s.confirm}>
+            Read their numbers as <span>Numbers LUME can already read stay as they are.</span>
+          </p>
+          <div className={s.country}>
+            <CountryPicker label="Country" value={country} onChange={setCountry} />
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => setFixing(false)}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            loading={busy}
+            disabled={!country}
+            onClick={() => void run({ type: "set_phone_country", country })}
+          >
+            Set country
+          </Button>
+        </>
+      ) : confirmDelete ? (
         <>
           <p className={s.confirm}>
             Delete {plural(n)}? <span>This can’t be undone from here.</span>
@@ -211,6 +238,11 @@ export function BulkBar({
                 </div>
               )}
             </Popover>
+          )}
+          {phoneFixable && can(actor, "leads.edit") && (
+            <button type="button" className={s.action} disabled={busy} onClick={() => setFixing(true)}>
+              Set country…
+            </button>
           )}
           {can(actor, "leads.delete") && (
             <button type="button" className={s.danger} disabled={busy} onClick={() => setConfirmDelete(true)}>

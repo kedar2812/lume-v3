@@ -10,6 +10,7 @@ const VERB: Record<BulkAction["type"], string> = {
   assign: "reassigned",
   tags: "updated",
   delete: "deleted",
+  set_phone_country: "fixed",
 };
 const WHY: Record<string, string> = {
   LOST_REASON_REQUIRED: "needs a lost reason",
@@ -22,6 +23,9 @@ const WHY: Record<string, string> = {
   UNKNOWN_STAGE: "that stage is gone",
   UNKNOWN_USER: "that person can’t take leads",
   OFFLINE: "the connection dropped",
+  ALREADY_VALID: "already readable",
+  NO_NUMBER: "have no number",
+  STILL_INVALID: "still not a number LUME can read",
 };
 const why = (code: string) => WHY[code] ?? "couldn’t be changed";
 
