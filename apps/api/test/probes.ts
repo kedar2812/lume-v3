@@ -33,6 +33,21 @@ export type Probe = {
 
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
 export const PROBES: Record<string, Probe> = {
+  "POST /api/v1/imports": { access: "leads.import", body: () => ({ not: "a file" }) },
+  "GET /api/v1/imports": { access: "leads.import" },
+  "GET /api/v1/imports/:id": { access: "leads.import", path: () => `/api/v1/imports/${uuid}` },
+  "GET /api/v1/imports/:id/draft": { access: "leads.import", path: () => `/api/v1/imports/${uuid}/draft` },
+  "PATCH /api/v1/imports/:id": {
+    access: "leads.import",
+    path: () => `/api/v1/imports/${uuid}`,
+    body: () => ({ headerRow: 1 }),
+  },
+  "POST /api/v1/imports/:id/preview": {
+    access: "leads.import",
+    path: () => `/api/v1/imports/${uuid}/preview`,
+    body: () => ({}),
+  },
+  "DELETE /api/v1/imports/:id": { access: "leads.import", path: () => `/api/v1/imports/${uuid}` },
   "GET /api/v1/auth/csrf": { access: "public" },
   "POST /api/v1/auth/login": {
     access: "public",
