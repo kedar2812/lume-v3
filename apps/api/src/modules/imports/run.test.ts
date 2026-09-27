@@ -233,4 +233,19 @@ describe("a run", () => {
     expect(repView).not.toMatch(/3334499|333 4499/);
     expect(JSON.stringify(await history(admin))).toContain("055 333 4499");
   });
+
+  it("a row the database refuses is that row's problem, and the rest of the file still imports", async () => {
+    const d = await upload(admin, ["Name", "Kept One", "Kept Two", "Refused Row", ""].join("\n"));
+    await start(admin, d.id);
+    await h.runImports({ breakRow: 4 }); // row 4 hits a real database error inside its transaction
+    const done = await imp(d.id);
+    expect(done).toMatchObject({ status: "done", created: 2, errors: 1 });
+    const rows = await h.pool.query(
+      "SELECT row_index, result, problems FROM import_rows WHERE import_id = $1 ORDER BY row_index",
+      [d.id],
+    );
+    expect(rows.rows.map((r: { result: string }) => r.result)).toEqual(["created", "created", "error"]);
+    expect(rows.rows[2].problems[0].code).toBe("ROW_NOT_SAVED");
+    expect(await leadsNamed("Refused Row")).toHaveLength(0);
+  });
 });

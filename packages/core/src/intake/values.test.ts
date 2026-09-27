@@ -111,6 +111,9 @@ describe("numbers and money", () => {
       "This amount is in USD; LUME works in AED — convert it before importing.",
     );
     expect(code(parseMoney("-50", ".", "AED"))).toBe("NEGATIVE_AMOUNT");
+    // The largest amount a lead can hold (numeric(14,2)), as the lead form allows.
+    expect(val(parseMoney("999,999,999,999.99", ".", "AED"))).toBe(999999999999.99);
+    expect(code(parseMoney("1,000,000,000,000", ".", "AED"))).toBe("AMOUNT_TOO_LARGE");
     const r = parseMoney("10.005", ".", "AED");
     expect(val(r)).toBe(10.01);
     expect(r.ok && r.warning?.code).toBe("AMOUNT_ROUNDED");

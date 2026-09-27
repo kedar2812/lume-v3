@@ -256,6 +256,9 @@ const CURRENCY_CODES: ReadonlySet<string> = new Set(
   typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("currency") : Object.values(SYMBOLS),
 );
 
+/** The most a lead's value can hold (numeric(14, 2)), the same ceiling the lead form has. */
+const MAX_AMOUNT = 999_999_999_999.99;
+
 /** Half-up to cents from the decimal digits (10.005 → 10.01), not from the float's binary approximation. */
 const toCents = (v: number): number => {
   const [m, e = "0"] = String(v).split("e");
@@ -284,6 +287,11 @@ export function parseMoney(raw: string, decimal: "." | ",", currency: string): P
   const n = parseNumber(s, decimal);
   if (!n.ok) return n;
   if (n.value < 0) return bad("NEGATIVE_AMOUNT", "An amount can't be negative.");
+  if (n.value > MAX_AMOUNT)
+    return bad(
+      "AMOUNT_TOO_LARGE",
+      "This amount is too large (the most a lead can hold is 999,999,999,999.99).",
+    );
   const rounded = toCents(n.value);
   return rounded === n.value
     ? okv(rounded)

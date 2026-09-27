@@ -29,7 +29,12 @@ const R = schema.importRows;
 /** pg-boss retries a thrown run (the queues are created with retryLimit 5); the fifth failure is final. */
 export const MAX_ATTEMPTS = 5;
 
-export type RunHooks = { crashAfterRows?: number; beforeBatch?: (n: number) => Promise<void> };
+export type RunHooks = {
+  crashAfterRows?: number;
+  beforeBatch?: (n: number) => Promise<void>;
+  /** Tests: this row meets a real database error inside its own transaction. */
+  breakRow?: number;
+};
 export type RunDeps = { app: FastifyInstance; pool: pg.Pool; keyring: Keyring; testHooks?: RunHooks };
 type ImportRow = typeof I.$inferSelect;
 type Db = ReturnType<typeof drizzle<typeof schema>>;
@@ -149,9 +154,17 @@ async function runRows(o: RunDeps, db: Db, imp: ImportRow) {
     const end = Math.min(at + INTAKE_LIMITS.batch, file.rows.length);
     for (let i = at; i < end; i++) {
       const rowNumber = file.rowNumbers[i]!;
-      await withJobRequest(job(String(rowNumber)), (req) =>
-        oneRow(req, o.keyring, { imp, rules, mapping }, ctx, file.rows[i]!, rowNumber),
-      );
+      try {
+        await withJobRequest(job(String(rowNumber)), async (req) => {
+          if (o.testHooks?.breakRow === rowNumber) await req.db.execute(sql`SELECT 1 / 0`);
+          await oneRow(req, o.keyring, { imp, rules, mapping }, ctx, file.rows[i]!, rowNumber);
+        });
+      } catch (e) {
+        // A row the database refuses (a value out of range, a broken constraint) is that row's problem:
+        // its transaction rolled back, it's recorded as an error, and the rest of the file carries on.
+        if (!isDataError(e)) throw e;
+        await withJobRequest(job(`${rowNumber}:refused`), (req) => refuseRow(req, imp.id, rowNumber, e));
+      }
       committed++;
       if (o.testHooks?.crashAfterRows !== undefined && committed >= o.testHooks.crashAfterRows)
         throw new Error("test crash");
@@ -169,6 +182,36 @@ async function runRows(o: RunDeps, db: Db, imp: ImportRow) {
       errors: I.errors,
     });
   if (done) await auditAs(o, startedBy, "import.finished", imp.id, done);
+}
+
+/** Postgres data exceptions (class 22) and integrity violations (class 23), however the driver wraps them. */
+function isDataError(e: unknown): boolean {
+  const code =
+    (e as { code?: unknown; cause?: { code?: unknown } })?.code ??
+    (e as { cause?: { code?: unknown } })?.cause?.code;
+  return typeof code === "string" && /^2[23]/.test(code);
+}
+
+async function refuseRow(req: FastifyRequest, importId: string, rowNumber: number, e: unknown) {
+  const reason = String(
+    (e as { cause?: { message?: unknown } })?.cause?.message ?? (e as Error)?.message ?? e,
+  ).slice(0, 200);
+  const [row] = await req.db
+    .insert(R)
+    .values({
+      importId,
+      rowIndex: rowNumber,
+      result: "error",
+      problems: [
+        { column: null, code: "ROW_NOT_SAVED", message: `LUME couldn't save this row (${reason}).` },
+      ],
+    })
+    .onConflictDoNothing()
+    .returning({ id: R.id });
+  if (!row) return;
+  await req.db.execute(
+    sql`UPDATE imports SET errors = errors + 1, cursor_row = GREATEST(cursor_row, ${rowNumber}) WHERE id = ${importId}`,
+  );
 }
 
 type Run = { imp: ImportRow; rules: Rules; mapping: Mapping };
