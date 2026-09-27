@@ -7,6 +7,12 @@ import { testCatalog, testLead as lead } from "@/lib/leads/test-catalog";
 import { fakeSession } from "@/server/session";
 import { LeadsScreen } from "./LeadsScreen";
 
+// Sheets aren't connected in these tests: no Refresh, no banner.
+vi.mock("@/lib/sheets/client", () => ({
+  sheetsClient: {
+    status: vi.fn().mockResolvedValue({ ok: true, status: 200, data: { refresh: false, attention: [] } }),
+  },
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => "/leads",

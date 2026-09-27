@@ -1,0 +1,241 @@
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+.button[data-phase]:not([data-phase="idle"]) {
+  cursor: default;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.landed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok-ink);
+  font-weight: var(--fw-bold);
+}
+.landed[data-warn] {
+  color: var(--warn-ink);
+}
+/* The one shape: the button's own size at first, then the pill, then the card, then the button again. */
+.morph {
+  position: absolute;
+  z-index: 30;
+  overflow: hidden;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  transition:
+    background 0.35s ease,
+    box-shadow 0.35s ease,
+    backdrop-filter 0.35s ease;
+}
+.morph[data-glass] {
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+}
+.layer {
+  position: absolute;
+  inset: 0;
+}
+.pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.card {
+  padding: 16px 18px;
+}
+.route {
+  position: relative;
+  height: 58px;
+}
+.end {
+  position: absolute;
+  top: 6px;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 4px 14px rgba(0, 0, 0, 0.08);
+}
+/* The official Sheets mark sits on white in both themes. */
+.sheet {
+  left: 0;
+  background: #fff;
+}
+.lume {
+  right: 0;
+}
+.glyph {
+  position: absolute;
+  left: 22px;
+  top: 18px;
+  width: 14px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px rgba(var(--accent-rgb), 0.45),
+    0 3px 8px rgba(var(--accent-rgb), 0.3);
+  opacity: 0;
+  offset-path: path("M 0 10 C 70 -24, 180 -24, 250 10");
+  offset-rotate: auto;
+}
+.glyph::before,
+.glyph::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(var(--accent-rgb), 0.55);
+  top: 5px;
+}
+.glyph::after {
+  top: 10px;
+  right: 6px;
+}
+.route[data-flowing] .glyph {
+  animation: fly 1.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: calc(var(--i) * 0.25s);
+}
+@keyframes fly {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+.title,
+.resultTitle {
+  margin: 8px 0 0;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
+}
+.resultTitle {
+  margin: 0;
+}
+.sub {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+/* The one blue, and a cyan sheen through it. */
+.bar {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(var(--accent-rgb), 0.14);
+  margin-top: 11px;
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--cyan), var(--accent));
+  background-size: 200% 100%;
+  animation: sheen 1.6s linear infinite;
+}
+@keyframes sheen {
+  to {
+    background-position: -200% 0;
+  }
+}
+.result {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px;
+}
+.check {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--ok);
+  background: var(--ok-soft);
+  font-weight: var(--fw-bold);
+}
+.result[data-warn] .check {
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+}
+.count {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.attention {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--warn-ink);
+  font-weight: var(--fw-semibold);
+}
+.face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--ok-ink);
+  white-space: nowrap;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin,
+  .bar i {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .morph[data-glass] {
+    background: var(--raised);
+    backdrop-filter: none;
+  }
+}
+@media (max-width: 480px) {
+  .morph {
+    max-width: calc(100vw - 32px);
+  }
+}

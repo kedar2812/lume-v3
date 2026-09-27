@@ -2,13 +2,17 @@
 import { AnimatePresence } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { can } from "@lume/core/shared";
+import { can, scopeOf } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ImportSheet } from "@/components/imports/ImportSheet";
+import { AttentionBanner } from "@/components/integrations/AttentionBanner";
+import { RefreshButton } from "@/components/sheets/RefreshButton";
 import { importsClient } from "@/lib/imports/client";
+import { sheetsClient } from "@/lib/sheets/client";
+import type { SheetsStatus } from "@/lib/sheets/types";
 import { leadsClient } from "@/lib/leads/client";
 import { availableColumns, loadColumnChoice, resolveColumns, saveColumnChoice } from "@/lib/leads/columns";
 import { activeFilterCount, filtersToParams, type ListFilters, type Sort } from "@/lib/leads/filters";
@@ -176,6 +180,18 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
       live = false;
     };
   }, [mayImport]);
+  // 2B spec §8.1: Refresh shows once a sheet is connected; admins also hear which sheet needs them.
+  const [sheets, setSheets] = useState<SheetsStatus | null>(null);
+  useEffect(() => {
+    let live = true;
+    void sheetsClient.status().then((r) => {
+      if (live && r.ok) setSheets(r.data);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const personal = scopeOf(session.actor, "leads.view") !== "all";
   const [selected, setSelected] = useState<string[]>([]);
   const anchor = useRef<string | null>(null);
   const editor = useLeadEditor(list.replace);
@@ -366,6 +382,7 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
 
   return (
     <section className={s.screen}>
+      {sheets && <AttentionBanner items={sheets.attention} />}
       <div className={s.toolbar} data-testid="leads-toolbar">
         <div className={`${s.bar} ${s.stagesBar}`}>
           {multiPipeline && pipeline && (
@@ -399,6 +416,15 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
               <span aria-current="page">Table</span>
               <Link href={boardHref}>Board</Link>
             </nav>
+            {sheets?.refresh && (
+              <RefreshButton
+                personal={personal}
+                onArrived={() => {
+                  list.reload();
+                  recount();
+                }}
+              />
+            )}
             {mayImport && (
               <Button
                 variant="secondary"

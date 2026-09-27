@@ -11,7 +11,10 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { can, seesFullContacts } from "@lume/core/shared";
+import { can, scopeOf, seesFullContacts } from "@lume/core/shared";
+import { RefreshButton } from "@/components/sheets/RefreshButton";
+import { sheetsClient } from "@/lib/sheets/client";
+import type { SheetsStatus } from "@/lib/sheets/types";
 import { useSound } from "@/components/feedback/SoundProvider";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { CatalogProvider } from "@/components/leads/CatalogProvider";
@@ -108,6 +111,18 @@ function Board({
   const liftX = useMotionValue(0);
   const liftY = useMotionValue(0);
   const mayCreate = can(session.actor, "leads.create");
+  // 2B spec §8.1 and amendment A10: Refresh on the board too; it reloads the board (the glow is table-only).
+  const [sheets, setSheets] = useState<SheetsStatus | null>(null);
+  useEffect(() => {
+    let live = true;
+    void sheetsClient.status().then((r) => {
+      if (live && r.ok) setSheets(r.data);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const personal = scopeOf(session.actor, "leads.view") !== "all";
   const contactsVisible = seesFullContacts(session.actor);
 
   const keysRef = useRef(keys);
@@ -488,6 +503,9 @@ function Board({
               <Link href={tableHref}>Table</Link>
               <span aria-current="page">Board</span>
             </nav>
+            {sheets?.refresh && (
+              <RefreshButton personal={personal} onArrived={() => setReloadTick((n) => n + 1)} />
+            )}
             {mayCreate && (
               <Button variant="primary" onClick={() => setCreating(true)}>
                 New lead
