@@ -18,3 +18,4 @@ export * from "./leads/contact-access";
 export * from "./users/preferences";
 export * from "./onboarding/steps";
 export * from "./tour/steps";
+export { INTAKE_LIMITS } from "./intake/limits";
