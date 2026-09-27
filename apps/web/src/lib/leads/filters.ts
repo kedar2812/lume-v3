@@ -10,6 +10,8 @@ export type ListFilters = {
   phoneStatus?: PhoneStatus;
   /** Leads from one source (an import's file): "From leads-march.csv". */
   source?: string;
+  /** Leads that arrived after this instant (the "N new since yesterday" line); never in the address bar. */
+  arrivedAfter?: string;
   from?: string;
   to?: string;
   sort: Sort;
@@ -113,6 +115,7 @@ export function apiQuery(f: ListFilters): string {
   if (f.source) p.set("source", f.source);
   if (f.from) p.set("createdFrom", f.from);
   if (f.to) p.set("createdTo", f.to);
+  if (f.arrivedAfter) p.set("arrivedAfter", f.arrivedAfter);
   if (f.pipelineId) p.set("pipelineId", f.pipelineId);
   if (f.custom && Object.keys(f.custom).length) p.set("custom", JSON.stringify(f.custom));
   p.set("sort", f.sort);
@@ -120,5 +123,13 @@ export function apiQuery(f: ListFilters): string {
 }
 
 export const activeFilterCount = (f: ListFilters): number =>
-  [f.q, f.stageIds.length > 0, f.owner, f.tagId, f.phoneStatus, f.source, f.from || f.to].filter(Boolean)
-    .length + Object.keys(f.custom ?? {}).length;
+  [
+    f.q,
+    f.stageIds.length > 0,
+    f.owner,
+    f.tagId,
+    f.phoneStatus,
+    f.source,
+    f.from || f.to,
+    f.arrivedAfter,
+  ].filter(Boolean).length + Object.keys(f.custom ?? {}).length;

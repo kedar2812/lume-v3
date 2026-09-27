@@ -631,3 +631,100 @@
   background: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
+
+/* Spec §8.3: a new row slides in, carries a blue wash and a 3 px edge, and settles over 5 s — light
+   passing, no bounce. The rows follow each other 70 ms apart (--d). */
+.row[data-arrived] {
+  animation: rowIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.row[data-arrived] td {
+  animation: wash 5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+.row[data-arrived] td:first-child {
+  animation:
+    wash 5s cubic-bezier(0.22, 1, 0.36, 1) both,
+    edge 5s ease-out both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes wash {
+  0% {
+    background: rgba(var(--accent-rgb), 0);
+  }
+  8% {
+    background: rgba(var(--accent-rgb), 0.12);
+  }
+  45% {
+    background: rgba(var(--accent-rgb), 0.08);
+  }
+  100% {
+    background: rgba(var(--accent-rgb), 0);
+  }
+}
+@keyframes edge {
+  0% {
+    box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0);
+  }
+  8% {
+    box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0.9);
+  }
+  60% {
+    box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0.35);
+  }
+  100% {
+    box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0);
+  }
+}
+.newTag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  color: var(--accent-ink);
+  opacity: 0;
+  animation: tag 5s ease both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes tag {
+  8%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.arrivals {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.arrivals button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+/* Reduce Motion: no slide; the wash is a plain fade. */
+@media (prefers-reduced-motion: reduce) {
+  .row[data-arrived] {
+    animation: none;
+  }
+  .row[data-arrived] td,
+  .row[data-arrived] td:first-child {
+    animation: wash 5s linear both;
+  }
+}

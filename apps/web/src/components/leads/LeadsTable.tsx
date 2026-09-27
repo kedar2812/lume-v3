@@ -1,5 +1,5 @@
 "use client";
-import type { MouseEvent, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { ColumnDef } from "@/lib/leads/columns";
@@ -20,6 +20,8 @@ type Props = {
   onOpen: (id: string) => void;
   /** Renders a cell's contents; lets the screen swap in inline editors (Task 4) and selection (Task 8). */
   renderCell?: (lead: Lead, col: ColumnDef, fallback: ReactNode) => ReactNode;
+  /** Leads that just arrived (2B §8.3): each glows, staggered by its index. */
+  glowing?: Map<string, number>;
   /** A leading checkbox column for bulk selection (Task 8). */
   selection?: { header: ReactNode; cell: (lead: Lead) => ReactNode };
 };
@@ -66,6 +68,7 @@ export function LeadsTable({
   onOpen,
   renderCell,
   selection,
+  glowing,
 }: Props) {
   const skeleton = loading && rows.length === 0;
   // A click anywhere on the row opens it, unless it landed on something interactive inside the row.
@@ -136,6 +139,12 @@ export function LeadsTable({
                   data-testid="lead-row"
                   data-lead-id={l.id}
                   data-open={l.id === openId || undefined}
+                  data-arrived={glowing?.has(l.id) || undefined}
+                  style={
+                    glowing?.has(l.id)
+                      ? ({ ["--d" as string]: `${glowing.get(l.id)! * 70}ms` } as CSSProperties)
+                      : undefined
+                  }
                   onClick={(e) => rowClick(e, l.id)}
                 >
                   {selection && <td className={s.check}>{selection.cell(l)}</td>}
@@ -150,6 +159,11 @@ export function LeadsTable({
                         >
                           <Avatar name={l.name ?? "?"} size={26} />
                           <span>{l.name ?? "—"}</span>
+                          {glowing?.has(l.id) && (
+                            <span className={s.newTag} aria-hidden>
+                              NEW
+                            </span>
+                          )}
                         </button>
                       ) : (
                         cellContent(l, c, catalog)

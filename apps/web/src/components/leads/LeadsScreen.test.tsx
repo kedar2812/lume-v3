@@ -11,6 +11,8 @@ import { LeadsScreen } from "./LeadsScreen";
 vi.mock("@/lib/sheets/client", () => ({
   sheetsClient: {
     status: vi.fn().mockResolvedValue({ ok: true, status: 200, data: { refresh: false, attention: [] } }),
+    arrivals: vi.fn().mockResolvedValue({ ok: true, status: 200, data: { since: null, count: 0, ids: [] } }),
+    seen: vi.fn().mockResolvedValue({ ok: true, status: 204, data: null }),
   },
 }));
 vi.mock("next/navigation", () => ({

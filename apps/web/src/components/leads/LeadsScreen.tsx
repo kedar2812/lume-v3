@@ -28,6 +28,7 @@ import { LeadsTable } from "./LeadsTable";
 import { NewLeadSheet } from "./NewLeadSheet";
 import { StageStrip } from "./StageStrip";
 import { editable, useLeadEditor } from "./useLeadEditor";
+import { useArrivals } from "./useArrivals";
 import s from "./leads.module.css";
 
 type Props = {
@@ -125,6 +126,18 @@ function useStageCounts(filters: ListFilters, pipelineId: string | undefined, ti
   return data;
 }
 
+/** "since yesterday", "since this morning", "since Monday" — when the last visit was, in words. */
+function sinceWords(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const days = Math.floor(
+    (new Date(now.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86_400_000,
+  );
+  if (days <= 0) return d.getHours() < 12 ? "this morning" : "earlier today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return d.toLocaleDateString("en", { weekday: "long" });
+  return d.toLocaleDateString("en", { day: "numeric", month: "short" });
+}
+
 const SORTS: { value: Sort; label: string }[] = [
   { value: "newest", label: "Newest first" },
   { value: "oldest", label: "Oldest first" },
@@ -192,6 +205,7 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
     };
   }, []);
   const personal = scopeOf(session.actor, "leads.view") !== "all";
+  const arrivals = useArrivals();
   const [selected, setSelected] = useState<string[]>([]);
   const anchor = useRef<string | null>(null);
   const editor = useLeadEditor(list.replace);
@@ -308,7 +322,16 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
       );
     return (
       <>
+        {arrivals.count > 20 && arrivals.since && !filters.arrivedAfter && (
+          <p className={s.arrivals}>
+            {arrivals.count.toLocaleString("en")} new since {sinceWords(arrivals.since)} ·
+            <button type="button" onClick={() => setFilters({ ...filters, arrivedAfter: arrivals.since! })}>
+              Show only these
+            </button>
+          </p>
+        )}
         <LeadsTable
+          glowing={arrivals.glowing}
           catalog={catalog}
           columns={columns}
           rows={list.rows}
@@ -419,9 +442,10 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             {sheets?.refresh && (
               <RefreshButton
                 personal={personal}
-                onArrived={() => {
+                onArrived={(p) => {
                   list.reload();
                   recount();
+                  arrivals.flash(p.leadIds);
                 }}
               />
             )}

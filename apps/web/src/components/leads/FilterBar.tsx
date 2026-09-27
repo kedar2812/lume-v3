@@ -235,6 +235,19 @@ export function FilterBar({
           </svg>
         </button>
       )}
+      {filters.arrivedAfter && (
+        <button
+          type="button"
+          className={s.sourceChip}
+          aria-label="Remove filter: New since your last visit"
+          onClick={() => set({ arrivedAfter: undefined })}
+        >
+          New since your last visit
+          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
       {count > 0 && (
         <button
           type="button"

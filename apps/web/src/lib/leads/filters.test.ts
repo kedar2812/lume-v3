@@ -13,6 +13,12 @@ const cat = testCatalog();
 const [s1, s2] = cat.pipelines[0]!.stages;
 
 describe("lead filters in the URL", () => {
+  it("arrivedAfter goes to the API, not into the address bar", () => {
+    const f = { stageIds: [], sort: "newest" as const, arrivedAfter: "2026-09-26T18:00:00.000Z" };
+    expect(apiQuery(f)).toContain("arrivedAfter=2026-09-26T18%3A00%3A00.000Z");
+    expect(filtersToParams(f).has("arrivedAfter")).toBe(false);
+  });
+
   it("round-trips every filter through the address bar", () => {
     const f: ListFilters = {
       ...EMPTY_FILTERS,
