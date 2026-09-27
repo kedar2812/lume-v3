@@ -101,7 +101,11 @@ const rep = await signedIn("rep");
 // 1 ─ Settings home: what each person can reach ───────────────────────────────────────────────────
 await owner.goto("/settings");
 const ownerNav = await owner.getByRole("navigation", { name: "Settings" }).getByRole("link").allInnerTexts();
-assert(ownerNav.length === 11, "the owner reaches every settings page", ownerNav);
+assert(
+  ownerNav.length === 12 && ownerNav.includes("Imports"),
+  "the owner reaches every settings page, Imports included",
+  ownerNav,
+);
 await shot(owner, "01-settings-home-owner");
 await rep.goto("/settings");
 const repNav = await rep.getByRole("navigation", { name: "Settings" }).getByRole("link").allInnerTexts();

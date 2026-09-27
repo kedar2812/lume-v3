@@ -6,6 +6,17 @@ import { About } from "./About";
 vi.mock("@/lib/settings/about", () => ({ aboutClient: { get: vi.fn() } }));
 
 describe("About", () => {
+  it("says who made LUME and owns it", async () => {
+    vi.mocked(aboutClient.get).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { version: "1.3.0", lastRestoreTest: null },
+    });
+    render(<About />);
+    expect(await screen.findByText("Created and owned by Kedar Uttam Gurav")).toBeInTheDocument();
+    expect(screen.getByText(/© \d{4} Kedar Uttam Gurav\. All rights reserved\./)).toBeInTheDocument();
+  });
+
   it("shows the version and the last restore test in plain words", async () => {
     vi.mocked(aboutClient.get)
       .mockResolvedValueOnce({

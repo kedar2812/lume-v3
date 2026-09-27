@@ -5,10 +5,13 @@
  *
  * DRAFT: written in plain language from how LUME actually works (self-hosted per business, masked
  * contacts, audit log). It has not been reviewed by a lawyer. Before real customers use LUME, have it
- * reviewed for the countries you sell in, fill in the provider's legal name and the governing law,
+ * reviewed for the countries you sell in, confirm the owner's legal name and fill in the governing law,
  * then set LEGAL_DRAFT to false and move LEGAL_VERSION on.
  */
-export const LEGAL_VERSION = "2026-09-25";
+/** LUME's creator and owner, who licenses it to every business that runs it. */
+export const LUME_OWNER = "Kedar Uttam Gurav";
+
+export const LEGAL_VERSION = "2026-09-27";
 export const LEGAL_DRAFT = true;
 
 export type LegalSection = { heading: string; paragraphs: string[] };
@@ -28,7 +31,7 @@ export const LEGAL_DOCUMENTS: LegalDocument[] = [
       {
         heading: "Who this is between",
         paragraphs: [
-          "LUME is software made by its provider (“we”, “us”) and licensed to the business that runs it (“the Business”). You use LUME because the Business has given you an account.",
+          `LUME is software created and owned by ${LUME_OWNER} (“we”, “us”) and licensed to the business that runs it (“the Business”). You use LUME because the Business has given you an account.`,
           "By selecting “I agree” you accept this licence agreement, the terms of service and the privacy policy that follow, for your use of LUME on the Business’s behalf.",
         ],
       },

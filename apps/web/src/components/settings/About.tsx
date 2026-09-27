@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { LUME_OWNER } from "@lume/core/shared";
 import { aboutClient, type AboutInfo } from "@/lib/settings/about";
 import { shortDate } from "@/lib/settings/format";
 import s from "./settings.module.css";
@@ -33,6 +34,13 @@ export function About() {
           <div>
             <dt>Running</dt>
             <dd>Version {info.version}</dd>
+          </div>
+          <div>
+            <dt>Made by</dt>
+            <dd>Created and owned by {LUME_OWNER}</dd>
+            <dd className={s.muted}>
+              © {new Date().getFullYear()} {LUME_OWNER}. All rights reserved.
+            </dd>
           </div>
           <div>
             <dt>Backups</dt>

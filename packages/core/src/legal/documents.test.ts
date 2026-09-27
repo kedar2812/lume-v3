@@ -21,6 +21,11 @@ describe("legal documents", () => {
     expect(needsAgreement(LEGAL_VERSION)).toBe(false);
   });
 
+  it("names LUME's owner as the licensor", () => {
+    const licence = JSON.stringify(LEGAL_DOCUMENTS.find((d) => d.id === "licence"));
+    expect(licence).toContain("Kedar Uttam Gurav");
+  });
+
   it("tells people that a changed version will be put in front of them again", () => {
     const text = JSON.stringify(LEGAL_DOCUMENTS);
     expect(text).toMatch(/asked to agree again/i);

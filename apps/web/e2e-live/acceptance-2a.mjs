@@ -215,11 +215,17 @@ assert(
 );
 const csv = await owner.evaluate(async (id) => {
   const r = await fetch(`/api/v1/imports/${id}/errors.csv`);
-  return { type: r.headers.get("content-type"), body: await r.text() };
+  // Raw bytes: text() drops a leading BOM, which is exactly what's being checked.
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  return {
+    type: r.headers.get("content-type"),
+    bom: bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf,
+    body: new TextDecoder().decode(bytes),
+  };
 }, bad.id);
 assert(csv.type.startsWith("text/csv"), "the failed rows download as CSV", csv.type);
 assert(
-  csv.body.startsWith("﻿Problem,Name,Stage,Note"),
+  csv.bom && csv.body.startsWith("Problem,Name,Stage,Note"),
   "with a BOM and the file's own headers",
   csv.body.slice(0, 40),
 );
