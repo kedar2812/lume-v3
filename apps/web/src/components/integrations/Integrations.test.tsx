@@ -6,14 +6,21 @@ import type { SheetSourceView } from "@/lib/sheets/types";
 import { Integrations } from "./Integrations";
 
 vi.mock("@/lib/sheets/client", () => ({
-  sheetsClient: { integrations: vi.fn(), setEnabled: vi.fn(), list: vi.fn() },
+  sheetsClient: { integrations: vi.fn(), setEnabled: vi.fn(), list: vi.fn(), connect: vi.fn() },
 }));
 vi.mock("@/components/sheets/AddSheetSheet", () => ({
   AddSheetSheet: ({ open }: { open: boolean }) =>
     open ? <div role="dialog" aria-label="Add a sheet" /> : null,
 }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
-const on = { googleSheets: { enabled: true, available: true, email: "lume@p.iam.gserviceaccount.com" } };
+const on = {
+  googleSheets: {
+    enabled: true,
+    available: true,
+    email: "lume@p.iam.gserviceaccount.com",
+    connectWithGoogle: false,
+  },
+};
 const src = (over: Partial<SheetSourceView>): SheetSourceView => ({
   id: "s1",
   name: "Website enquiries",
@@ -53,7 +60,7 @@ describe("Settings → Integrations", () => {
 
   it("without a Google key on the server, says who can set it up instead of a switch", async () => {
     vi.mocked(sheetsClient.integrations).mockResolvedValue(
-      ok({ googleSheets: { enabled: false, available: false, email: null } }),
+      ok({ googleSheets: { enabled: false, available: false, email: null, connectWithGoogle: false } }),
     );
     render(<Integrations />);
     expect(await screen.findByText(/isn't set up on this server yet/)).toBeInTheDocument();
@@ -117,5 +124,22 @@ describe("Settings → Integrations", () => {
     await act(async () => void (await vi.advanceTimersByTimeAsync(2100)));
     expect(await screen.findByText(/2 new today/)).toBeInTheDocument();
     vi.useRealTimers();
+  });
+  it("with Google verified, Connect with Google comes first and the service account moves under Other ways", async () => {
+    vi.mocked(sheetsClient.integrations).mockResolvedValue(
+      ok({ googleSheets: { ...on.googleSheets, connectWithGoogle: true } }),
+    );
+    vi.mocked(sheetsClient.list).mockResolvedValue(ok({ sources: [] }));
+    vi.mocked(sheetsClient.connect).mockResolvedValue(
+      ok({ url: "https://connect.lumecrm.in/start?i=a&n=b&s=c" }),
+    );
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true });
+    render(<Integrations />);
+    const connect = await screen.findByRole("button", { name: "Connect with Google" });
+    expect(document.querySelector('img[src="/brand/google-g.png"]')).not.toBeNull();
+    expect(screen.getByText("Other ways")).toBeInTheDocument();
+    await userEvent.click(connect);
+    expect(assign).toHaveBeenCalledWith("https://connect.lumecrm.in/start?i=a&n=b&s=c");
   });
 });

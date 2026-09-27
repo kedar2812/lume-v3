@@ -160,4 +160,28 @@ describe("Add a sheet", () => {
     expect(importsClient.discard).toHaveBeenCalledWith("d1");
     expect(onClose).toHaveBeenCalledWith(undefined);
   });
+  it("from a picked file, it lists that file's tabs — no link to paste", async () => {
+    vi.mocked(sheetsClient.inspect).mockResolvedValue(
+      ok({
+        spreadsheetId: "f",
+        title: "Picked leads",
+        gid: null,
+        tabs: [{ sheetId: 3, title: "Leads" }],
+        email: "",
+      }),
+    );
+    vi.mocked(sheetsClient.draft).mockResolvedValue({ ...ok(sheetDraft), status: 201 });
+    render(
+      <AddSheetSheet
+        open
+        connect={{ connectId: "c1", file: { id: "f", name: "Picked leads" } }}
+        onClose={() => undefined}
+      />,
+    );
+    expect(screen.queryByLabelText("Sheet link")).toBeNull();
+    expect(await screen.findByLabelText("Tab")).toHaveValue("3");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(sheetsClient.inspect).toHaveBeenCalledWith({ connectId: "c1" });
+    expect(sheetsClient.draft).toHaveBeenCalledWith({ connectId: "c1", sheetId: 3 });
+  });
 });

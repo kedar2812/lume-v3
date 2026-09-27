@@ -37,6 +37,16 @@ export function Integrations() {
     return () => clearTimeout(t);
   }, [checking, sources, loadSources]);
 
+  const share = (email: string) => (
+    <div className={s.share}>
+      <span className={s.shareLabel}>Share each sheet with LUME as a Viewer:</span>
+      <code className={s.email}>{email}</code>
+      <Button size="sm" aria-label={copied ? "Copied" : "Copy email"} onClick={() => void copy()}>
+        {copied ? "Copied" : "Copy"}
+      </Button>
+    </div>
+  );
+
   if (error)
     return (
       <p role="alert" className={s.error}>
@@ -52,6 +62,12 @@ export function Integrations() {
     if (!r.ok) return setError(r.message);
     setView(r.data);
     if (enabled) void loadSources();
+  };
+  const startConnect = async () => {
+    setError(null);
+    const r = await sheetsClient.connect();
+    if (!r.ok) return setError(r.message);
+    window.location.assign(r.data.url);
   };
   const copy = async () => {
     if (!g.email) return;
@@ -86,21 +102,39 @@ export function Integrations() {
             key.
           </p>
         )}
-        {g.enabled && g.email && (
+        {g.enabled && (g.email || g.connectWithGoogle) && (
           <>
-            <div className={s.share}>
-              <span className={s.shareLabel}>Share each sheet with LUME as a Viewer:</span>
-              <code className={s.email}>{g.email}</code>
-              <Button size="sm" aria-label={copied ? "Copied" : "Copy email"} onClick={() => void copy()}>
-                {copied ? "Copied" : "Copy"}
-              </Button>
-            </div>
+            {g.connectWithGoogle && (
+              <div className={s.connect}>
+                <button type="button" className={s.googleButton} onClick={() => void startConnect()}>
+                  <img src="/brand/google-g.png" alt="" width={18} height={18} />
+                  Connect with Google
+                </button>
+                <p className={s.cardLede}>
+                  Sign in to Google and pick the sheet. LUME can open only the sheets you pick.
+                </p>
+              </div>
+            )}
+            {g.email &&
+              (g.connectWithGoogle ? (
+                <details className={s.other}>
+                  <summary>Other ways</summary>
+                  {share(g.email)}
+                </details>
+              ) : (
+                share(g.email)
+              ))}
             {sources && <SheetSourceList sources={sources} />}
-            <div className={s.cardFoot}>
-              <Button variant="primary" onClick={() => setAdding(true)}>
-                Add a sheet
-              </Button>
-            </div>
+            {g.email && (
+              <div className={s.cardFoot}>
+                <Button
+                  variant={g.connectWithGoogle ? "secondary" : "primary"}
+                  onClick={() => setAdding(true)}
+                >
+                  {g.connectWithGoogle ? "Add a sheet by its link" : "Add a sheet"}
+                </Button>
+              </div>
+            )}
           </>
         )}
       </article>

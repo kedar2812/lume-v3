@@ -17,9 +17,21 @@ export const sheetsClient = {
   integrations: () => api.get<IntegrationsView>("/api/v1/integrations"),
   setEnabled: (enabled: boolean) =>
     api.put<IntegrationsView>("/api/v1/integrations/google-sheets", { enabled }),
-  inspect: (link: string) => api.post<InspectView>("/api/v1/sheets/inspect", { link }),
-  draft: (b: { link: string; sheetId: number; headerRow?: number } | { sourceId: string }) =>
-    api.post<SheetDraft>("/api/v1/sheets/drafts", b),
+  inspect: (arg: string | { connectId: string }) =>
+    api.post<InspectView>("/api/v1/sheets/inspect", typeof arg === "string" ? { link: arg } : arg),
+  /** Connect with Google (2B-2): where to send the browser, and the hand-back when it returns. */
+  connect: () => api.post<{ url: string }>("/api/v1/integrations/google/connect"),
+  complete: (b: { p: string; s: string }) =>
+    api.post<{ connectId: string; file: { id: string; name: string } }>(
+      "/api/v1/integrations/google/complete",
+      b,
+    ),
+  draft: (
+    b:
+      | { link: string; sheetId: number; headerRow?: number }
+      | { sourceId: string }
+      | { connectId: string; sheetId: number; headerRow?: number },
+  ) => api.post<SheetDraft>("/api/v1/sheets/drafts", b),
   save: (b: { importId: string; name: string; pollSeconds: number; startFrom: "all" | "new" }) =>
     api.post<SheetSourceView>("/api/v1/sheets/sources", b),
   list: () => api.get<{ sources: SheetSourceView[] }>("/api/v1/sheets/sources"),

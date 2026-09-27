@@ -1,8 +1,10 @@
 import type { DraftView } from "@/lib/imports/types";
 
 export type IntegrationsView = {
-  googleSheets: { enabled: boolean; available: boolean; email: string | null };
+  googleSheets: { enabled: boolean; available: boolean; email: string | null; connectWithGoogle: boolean };
 };
+/** A file picked with Connect with Google, ready to be set up. */
+export type PickedFile = { connectId: string; file: { id: string; name: string } };
 export type InspectView = {
   spreadsheetId: string;
   title: string;

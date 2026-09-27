@@ -13,7 +13,7 @@ import { importsClient } from "@/lib/imports/client";
 import type { DraftView } from "@/lib/imports/types";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { sheetsClient } from "@/lib/sheets/client";
-import type { SheetDraft } from "@/lib/sheets/types";
+import type { PickedFile, SheetDraft } from "@/lib/sheets/types";
 import { SheetStep } from "./SheetStep";
 import { StartFromStep } from "./StartFromStep";
 
@@ -29,10 +29,13 @@ const FOCUSABLE =
 export function AddSheetSheet({
   open,
   sourceId,
+  connect,
   onClose,
 }: {
   open: boolean;
   sourceId?: string;
+  /** Back from Connect with Google with a picked file (2B-2): start on its tabs. */
+  connect?: PickedFile;
   onClose(savedId?: string): void;
 }) {
   const reduce = useReducedMotion();
@@ -102,7 +105,7 @@ export function AddSheetSheet({
 
   if (!open || typeof document === "undefined") return null;
 
-  const choose = async (o: { link: string; sheetId: number }) => {
+  const choose = async (o: { link: string; sheetId: number } | { connectId: string; sheetId: number }) => {
     setBusy(true);
     setError(null);
     if (draft) void importsClient.discard(draft.id); // a different tab: the old draft goes
@@ -208,7 +211,13 @@ export function AddSheetSheet({
               {error}
             </p>
           )}
-          {step === "sheet" && <SheetStep busy={busy} onChoose={(o) => void choose(o)} />}
+          {step === "sheet" && (
+            <SheetStep
+              busy={busy}
+              {...(connect ? { picked: connect } : {})}
+              onChoose={(o) => void choose(o)}
+            />
+          )}
           {step === "columns" && draft && (
             <ColumnsStep
               draft={draft}
