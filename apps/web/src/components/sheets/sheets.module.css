@@ -1,0 +1,78 @@
+/* Add a sheet (2B §7.2): what the Import sheet's own styles don't already cover. */
+.field {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.field input,
+.field select {
+  width: 100%;
+}
+.linkRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+.found {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+}
+.foundTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+.inlineMark {
+  border-radius: 4px;
+  background: #fff;
+  padding: 1px;
+}
+.hint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-ctl);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+}
+.choices {
+  border: 0;
+  padding: 0;
+  margin: 16px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.choices legend {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--r-ctl);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+}
+.choice:has(input:checked) {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.choice small {
+  display: block;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}

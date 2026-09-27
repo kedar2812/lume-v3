@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { CountryPicker } from "@/components/ui/CountryPicker";
 import { importsClient } from "@/lib/imports/client";
@@ -79,11 +79,14 @@ export function ColumnsStep({
   onDraft,
   blocked,
   onContinue,
+  notice,
 }: {
   draft: DraftView;
   onDraft(d: DraftView): void;
   blocked: boolean;
   onContinue(): void;
+  /** A line above the columns from whoever opened this step (a sheet asks for its date column, 2B A6). */
+  notice?: ReactNode;
 }) {
   // Edits show at once; the server's answer (re-analysed, with problems) replaces them when it arrives.
   const [mapping, setMapping] = useState<Mapping>(draft.mapping);
@@ -192,6 +195,7 @@ export function ColumnsStep({
           LUME matched what it could. Check each column, and choose where the rest go — anything set to Ignore
           stays out.
         </p>
+        {notice}
         {(problems.length > 0 || failed) && (
           <ul className={s.problems}>
             {failed && (

@@ -42,10 +42,13 @@ export function PreviewStep({
   draft,
   onFix,
   onStarted,
+  onContinue,
 }: {
   draft: DraftView;
   onFix(to: Step): void;
-  onStarted(v: ImportView): void;
+  onStarted?(v: ImportView): void;
+  /** A sheet's wizard (2B) continues to its last step instead of starting an import. */
+  onContinue?(): void;
 }) {
   const [rows, setRows] = useState<PreviewRow[] | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Outcome, number>>>({});
@@ -78,7 +81,7 @@ export function PreviewStep({
     setStarting(true);
     setRefused(null);
     const r = await importsClient.start(draft.id);
-    if (r.ok) return onStarted(r.data);
+    if (r.ok) return onStarted?.(r.data);
     started.current = false;
     setStarting(false);
     setRefused({ message: r.message, to: fixStep("details" in r ? r.details : undefined) });
@@ -184,15 +187,25 @@ export function PreviewStep({
         </div>
       </section>
       <footer className={s.foot}>
-        <p className={s.footNote}>Rows with problems are left out and listed in the report.</p>
-        <Button
-          variant="primary"
-          loading={starting}
-          disabled={!rows && !loadFailed}
-          onClick={() => void start()}
-        >
-          Import {rowsLabel}
-        </Button>
+        <p className={s.footNote}>
+          {onContinue
+            ? "Rows with problems are listed on the sheet's page, and tried again when the sheet changes."
+            : "Rows with problems are left out and listed in the report."}
+        </p>
+        {onContinue ? (
+          <Button variant="primary" disabled={!rows && !loadFailed} onClick={onContinue}>
+            Continue
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            loading={starting}
+            disabled={!rows && !loadFailed}
+            onClick={() => void start()}
+          >
+            Import {rowsLabel}
+          </Button>
+        )}
       </footer>
     </>
   );
