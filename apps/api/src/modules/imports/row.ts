@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { mapRow, startOfDayUtc, type Issue, type LeadDraft, type Mapping, type Rules } from "@lume/core";
 import { schema } from "@lume/db";
@@ -36,6 +36,11 @@ export type RowInput = {
   origin: Record<string, unknown>;
   /** The next turn in round-robin ownership, from a counter the caller's run keeps. */
   nextTurn: () => Promise<number>;
+  /**
+   * A sheet row that was still being typed when it was first read (2B final review, finding 6): fill in
+   * the lead it made, whatever its contacts now match, and say so in its history with this activity.
+   */
+  mergeInto?: { leadId: string; activity: string };
 };
 
 /** A transaction-scoped lock on one contact key (its first 64 bits), so two runs can't both create it. */
@@ -110,9 +115,15 @@ export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowRes
   };
   const also = matches.slice(1).map((m) => m.leadId);
 
-  if (matches.length && rules.onMatch !== "duplicate") {
-    const target = matches[0]!.leadId;
-    if (rules.onMatch === "skip")
+  const [forced] = o.mergeInto
+    ? await req.db
+        .select({ id: schema.leads.id })
+        .from(schema.leads)
+        .where(and(eq(schema.leads.id, o.mergeInto.leadId), isNull(schema.leads.deletedAt)))
+    : [];
+  if ((matches.length && rules.onMatch !== "duplicate") || forced) {
+    const target = forced ? forced.id : matches[0]!.leadId;
+    if (!forced && rules.onMatch === "skip")
       return out(
         "skipped",
         {
@@ -148,7 +159,7 @@ export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowRes
       rules.reopenClosedTo,
     );
     await mergeIntoLead(req, lead!, fill, {
-      type: "imported_again",
+      type: forced ? o.mergeInto!.activity : "imported_again",
       payload: { ...o.origin, filled, extraPhones: draft.extraPhones, warnings: warnings.map((w) => w.code) },
     });
     return out(

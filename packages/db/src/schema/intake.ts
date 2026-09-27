@@ -49,6 +49,8 @@ export const leadSources = pgTable("lead_sources", {
   configVersion: integer("config_version").notNull().default(1),
   syncedConfigVersion: integer("synced_config_version"),
   baseline: boolean("baseline").notNull().default(false),
+  rekeyThrough: integer("rekey_through"),
+  fullReadModified: text("full_read_modified"),
 });
 
 export type ImportStatus =

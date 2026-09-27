@@ -57,6 +57,15 @@ describe("describeActivity", () => {
     expect(again.quote).toBe("Also gave 055 ••• ••44");
   });
 
+  it("a sheet row finished after it was first read says it was filled in", () => {
+    const d = describeActivity(
+      a("sheet_row_updated", { sourceId: "s1", sheet: "Website enquiries", row: 9 }),
+      cat,
+    );
+    expect(d.title).toBe("Filled in from the sheet");
+    expect(d.detail).toMatch(/^from Website enquiries, row 9/);
+  });
+
   it("a lead from a Google Sheet says which sheet and row", () => {
     const d = describeActivity(a("imported", { sourceId: "s1", sheet: "Website enquiries", row: 14 }), cat);
     expect(d.title).toBe("Imported");

@@ -173,7 +173,7 @@ export function SourceDetail({ id }: { id: string }) {
             {v.status === "paused" ? "Resume" : "Pause"}
           </Button>
         )}
-        <Button onClick={() => setEditing(true)}>Edit columns and rules</Button>
+        {v.canSeeRows && <Button onClick={() => setEditing(true)}>Edit columns and rules</Button>}
         <label className={s.every}>
           <span className={s.srOnly}>How often</span>
           <select
@@ -229,9 +229,11 @@ export function SourceDetail({ id }: { id: string }) {
             <h3 id="problems-title" className={s.sectionTitle}>
               Problem rows
             </h3>
-            <a href={sheetsClient.problemsUrl(id)} download>
-              Download problem rows
-            </a>
+            {v.canSeeRows && (
+              <a href={sheetsClient.problemsUrl(id)} download>
+                Download problem rows
+              </a>
+            )}
           </div>
           <p className={s.cardLede}>Fix a row in the sheet and LUME tries it again on its next check.</p>
           <ul className={s.problems}>

@@ -19,6 +19,8 @@ export type SheetDraft = {
     email: string;
     moreRows: boolean;
     editing: string | null;
+    /** When editing, the sheet's own check interval, so saving doesn't change it (final review, 9). */
+    pollSeconds: number;
   };
 };
 export type SheetStatus = "active" | "paused" | "needs_attention";
@@ -40,6 +42,8 @@ export type SheetSourceView = {
   newAllTime: number;
   problems: number;
   runAs: { id: string; name: string } | null;
+  /** Whether this person may see the sheet's raw rows (they hold contacts): download and edit need it. */
+  canSeeRows: boolean;
 };
 export type SyncView = {
   id: string;

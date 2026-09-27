@@ -12,7 +12,7 @@ import { createDraftFrom, mine, type DraftView } from "../imports/service";
 import { prepareStart } from "../imports/start";
 import { openConfig, sealConfig, type SheetConfig } from "./config";
 import { GoogleError, isTransient, parseSheetLink, rowsRange, type GoogleSheets } from "./google";
-import { gridToCsv } from "./grid";
+import { gridToCsv, identityKey } from "./grid";
 import { requestSync } from "./requests";
 
 const S = schema.leadSources;
@@ -157,6 +157,8 @@ export type SheetDraft = {
     email: string;
     moreRows: boolean;
     editing: string | null;
+    /** When editing, the sheet's own check interval, so saving doesn't change it (final review, 9). */
+    pollSeconds: number;
   };
 };
 
@@ -176,6 +178,7 @@ export async function createSheetDraft(
   let target: Source | null = null;
   if ("sourceId" in body) {
     target = await liveSource(req, body.sourceId);
+    if (!canSeeRows(req, target)) throw rowsHidden();
     cfg = openConfig(d.keyring, target.id, target.configEnc!);
   } else {
     const parsed = parseSheetLink(body.link);
@@ -230,6 +233,7 @@ export async function createSheetDraft(
       email: google.email,
       moreRows: snap.moreRows,
       editing: target?.id ?? null,
+      pollSeconds: target?.pollSeconds ?? 120,
     },
   };
 }
@@ -281,6 +285,11 @@ export async function saveSheet(
   if (imp.targetSourceId) {
     // Editing a live sheet: it takes the new columns and rules, runs as whoever saved, and reads afresh.
     const target = await liveSource(req, imp.targetSourceId);
+    // If the edit changes how rows are recognised, rows already read are recognised again, not re-imported.
+    const before = openConfig(d.keyring, target.id, target.configEnc!);
+    const rekeyed =
+      identityKey(target.mapping as Mapping, target.headers.length) !==
+      identityKey(mapping, file.headers.length);
     await req.db
       .update(S)
       .set({
@@ -291,6 +300,7 @@ export async function saveSheet(
         attentionCode: null,
         lastError: null,
         headHash: null,
+        rekeyThrough: rekeyed ? before.headerRow + target.rowsRead : target.rekeyThrough,
       })
       .where(eq(S.id, target.id));
     await req.db.delete(S).where(eq(S.id, draftSrc!.id)); // the throwaway source, and its draft with it
@@ -345,6 +355,25 @@ async function assertNotConnected(req: FastifyRequest, d: AppDeps, cfg: SheetCon
     throw new HttpError(409, "SHEET_ALREADY_CONNECTED", `This tab is already connected as “${same.name}”.`);
 }
 
+/**
+ * A sheet's raw rows (problem cells, the edit preview) show contacts. As 2A's report: only the person it runs
+ * as, whoever connected it, or someone who sees every lead's full contact may see them (final review, 8).
+ */
+function canSeeRows(req: FastifyRequest, s: Source): boolean {
+  const a = req.actor!;
+  return (
+    s.runAs === a.userId ||
+    s.createdBy === a.userId ||
+    (can(a, "leads.view", "all") && can(a, "leads.contact.full"))
+  );
+}
+const rowsHidden = () =>
+  new HttpError(
+    403,
+    "ROWS_HIDDEN",
+    "Only the person this sheet runs as, or someone who can see every lead's contact details, can see its rows.",
+  );
+
 // ——— Looking after a sheet (spec §7.1, §7.3) ———
 
 export type SheetSourceView = Awaited<ReturnType<typeof sourceView>>;
@@ -385,6 +414,7 @@ async function sourceView(req: FastifyRequest, d: AppDeps, s: Source) {
     newAllTime: c.all,
     problems: c.problems,
     runAs: s.runAs && c.run_as ? { id: s.runAs, name: c.run_as } : null,
+    canSeeRows: canSeeRows(req, s),
   };
 }
 
@@ -517,6 +547,7 @@ export async function dismissRow(req: FastifyRequest, id: string, rowId: number)
 /** Problem rows as a CSV that opens cleanly in Excel (BOM, CRLF, no live formulas), as 2A's report. */
 export async function problemsCsv(req: FastifyRequest, d: AppDeps, id: string) {
   const s = await liveSource(req, id);
+  if (!canSeeRows(req, s)) throw rowsHidden();
   const rows = await req.db
     .select()
     .from(SR)

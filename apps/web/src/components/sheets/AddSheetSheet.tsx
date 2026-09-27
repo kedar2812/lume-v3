@@ -243,6 +243,7 @@ export function AddSheetSheet({
           {step === "start" && draft && made && (
             <StartFromStep
               defaultName={made.sheet.name}
+              defaultPoll={made.sheet.pollSeconds}
               rowCount={draft.rowCount}
               moreRows={made.sheet.moreRows}
               editing={editing}

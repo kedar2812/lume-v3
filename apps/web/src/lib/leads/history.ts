@@ -61,13 +61,19 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
         tone: "accent",
       };
     case "imported":
-    case "imported_again": {
+    case "imported_again":
+    case "sheet_row_updated": {
       // Where it came from, and any other numbers typed into the same cell (masked for masked roles).
       const origin = p.file ?? p.sheet;
       const from = origin ? `from ${String(origin)}${p.row ? `, row ${String(p.row)}` : ""}` : undefined;
       const extra = Array.isArray(p.extraPhones) && p.extraPhones.length ? p.extraPhones.map(String) : null;
       return {
-        title: a.type === "imported" ? "Imported" : "Enquired again",
+        title:
+          a.type === "imported"
+            ? "Imported"
+            : a.type === "sheet_row_updated"
+              ? "Filled in from the sheet"
+              : "Enquired again",
         detail: join(from, by(a)),
         tone: "accent",
         ...(extra ? { quote: `Also gave ${extra.join(", ")}` } : {}),

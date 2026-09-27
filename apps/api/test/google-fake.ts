@@ -11,7 +11,9 @@ import type { AddressInfo } from "node:net";
  * - modifiedTime moves on every change.
  * Tests drive it through its methods; e2e drives it through /__fake/*.
  */
-export type FakeTab = { sheetId: number; title: string; rows: string[][] };
+/** A cell as shown (v) and, when it differs, as stored (u): a date's serial number, say. */
+export type FakeCell = string | { v: string; u: string };
+export type FakeTab = { sheetId: number; title: string; rows: FakeCell[][] };
 export type FakeSpreadsheet = { title: string; tabs: FakeTab[]; sharedWith: string[] };
 export type GoogleFake = {
   url: string;
@@ -19,8 +21,8 @@ export type GoogleFake = {
   /** The service-account key file, base64, as GOOGLE_SERVICE_ACCOUNT_JSON holds it. */
   env: string;
   put(id: string, s: FakeSpreadsheet): void;
-  append(id: string, tab: string, rows: string[][]): void;
-  setRows(id: string, tab: string, rows: string[][]): void;
+  append(id: string, tab: string, rows: FakeCell[][]): void;
+  setRows(id: string, tab: string, rows: FakeCell[][]): void;
   renameTab(id: string, from: string, to: string): void;
   unshare(id: string): void;
   share(id: string): void;
@@ -53,6 +55,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     if (!t) throw new Error(`fake: no tab ${title} in ${id}`);
     return t;
   };
+  const shown = (c: FakeCell, raw: boolean) => (typeof c === "string" ? c : raw ? c.u : c.v);
   const trimmed = (rows: string[][]) => {
     const out = rows.map((r) => {
       const c = [...r];
@@ -75,10 +78,12 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       req.on("end", () => resolve(b));
     });
   // "'Tab ''x'''!5:104" → { tab: "Tab 'x'", from: 5, to: 104 }
+  // …or "'Tab'!C5:C104": one column of those rows.
   const parseRange = (r: string) => {
-    const m = /^'((?:[^']|'')*)'!(\d+):(\d+)$/.exec(r);
-    if (!m) return null;
-    return { tab: m[1]!.replace(/''/g, "'"), from: Number(m[2]), to: Number(m[3]) };
+    const m = /^'((?:[^']|'')*)'!([A-Z]*)(\d+):([A-Z]*)(\d+)$/.exec(r);
+    if (!m || m[2] !== m[4]) return null;
+    const col = m[2] ? [...m[2]].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1 : null;
+    return { tab: m[1]!.replace(/''/g, "'"), from: Number(m[3]), to: Number(m[5]), col };
   };
 
   const server = http.createServer(async (req, res) => {
@@ -169,7 +174,12 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       const p = parseRange(r);
       const tab = p && s.tabs.find((t) => t.title === p.tab);
       if (!p || !tab) return googleError(res, 400, "INVALID_ARGUMENT", `Unable to parse range: ${r}`);
-      const rows = trimmed(tab.rows.slice(p.from - 1, p.to));
+      const raw = u.searchParams.get("valueRenderOption") === "UNFORMATTED_VALUE";
+      const rows = trimmed(
+        tab.rows
+          .slice(p.from - 1, p.to)
+          .map((row) => (p.col === null ? row : row.slice(p.col, p.col + 1)).map((c) => shown(c, raw))),
+      );
       valueRanges.push({ range: r, majorDimension: "ROWS", ...(rows.length ? { values: rows } : {}) });
     }
     return send(res, 200, { spreadsheetId: id, valueRanges });

@@ -21,8 +21,8 @@ import { writeRow } from "../imports/row";
 import { givesAway, isDataError, refusalReason } from "../imports/runner";
 import { tagParts } from "../imports/start";
 import { openConfig } from "./config";
-import { GoogleError, isTransient, rowsRange, type GoogleSheets } from "./google";
-import { anchorHash, headerDrift, sheetFingerprint, toRows, type SheetRow } from "./grid";
+import { GoogleError, columnRange, isTransient, rowsRange, type GoogleSheets } from "./google";
+import { anchorHash, dateColumnOf, headerDrift, sheetFingerprint, toRows, type SheetRow } from "./grid";
 
 const S = schema.leadSources;
 const SY = schema.sourceSyncs;
@@ -47,7 +47,10 @@ const CHECK_EVERY = 25;
 type Source = typeof S.$inferSelect;
 type Db = NodePgDatabase<typeof schema>;
 type ColumnSettings = { dateOrders: Record<number, DateOrder>; decimalMarks: Record<number, "." | ","> };
-type Todo = { row: SheetRow; fp: string };
+/** fillIn: this row is the one that made that lead minutes ago, finished since (final review, finding 6). */
+type Todo = { row: SheetRow; fp: string; fillIn?: { leadId: string; replaces: number } };
+/** How long after a row makes a lead a change to it counts as finishing it, not a new enquiry. */
+const FILL_IN_MINUTES = 30;
 
 export type AttentionCode =
   | "ACCESS_LOST"
@@ -259,7 +262,12 @@ async function syncSource(
   // 1. Changed? Drive's modifiedTime is cheap; the Sheets quota is kept for sheets that changed.
   const modified = await ask(o.google, () => changedAt(o.google, cfg.spreadsheetId));
   const configChanged = src.syncedConfigVersion !== src.configVersion;
-  if (modified === src.lastModified && !configChanged && !src.baseline) return {};
+  // A quiet sheet is still owed its hourly full read when it changed since the last one: an edit the
+  // incremental read can't see (a gap filled in the middle) is found then (final review, finding 2).
+  const hourly = !src.fullReadAt || now().getTime() - src.fullReadAt.getTime() > HOUR;
+  const owed = hourly && src.fullReadModified !== modified;
+  if (modified === src.lastModified && !configChanged && !src.baseline && src.rekeyThrough === null && !owed)
+    return {};
 
   // 2. The tab, by id (a renamed tab is followed), and its header, first row and last row read.
   const meta = await ask(o.google, () => o.google.spreadsheet(cfg.spreadsheetId));
@@ -290,11 +298,7 @@ async function syncSource(
   const first = firstRaw[0] ?? [];
   const anchorNow = anchorHash(header.slice(0, width), first, src.rowsRead ? (tailRaw[0] ?? []) : undefined);
   const full =
-    src.baseline ||
-    !src.headHash ||
-    anchorNow !== src.headHash ||
-    !src.fullReadAt ||
-    now().getTime() - src.fullReadAt.getTime() > HOUR;
+    src.baseline || src.rekeyThrough !== null || !src.headHash || anchorNow !== src.headHash || hourly;
 
   // 3. Read everything under the header, or only what's past the last row read.
   const from = full ? h + 1 : tailRow + 1;
@@ -313,11 +317,23 @@ async function syncSource(
     rowsRead,
     headHash: anchorHash(header.slice(0, width), first, rowsRead ? (lastRaw ?? []) : undefined),
     fullReadAt: full ? now() : src.fullReadAt,
+    fullReadModified: full ? modified : src.fullReadModified,
+    rekeyThrough: null,
     syncedConfigVersion: src.configVersion,
     newColumns: drift.added,
     baseline: false,
   };
   const rows = toRows(raw, from, width);
+  // The date column once more, as stored (unformatted), for recognising rows (final review, finding 7).
+  const dateCol = dateColumnOf(mapping);
+  if (dateCol !== null && raw.length) {
+    const [stored = []] = await ask(o.google, () =>
+      o.google.values(cfg.spreadsheetId, [columnRange(tab.title, dateCol, from, from + raw.length - 1)], {
+        unformatted: true,
+      }),
+    );
+    for (const r of rows) r.dateKey = stored[r.number - from]?.[0] ?? "";
+  }
 
   // 4. What's known, and the problem rows to look at again (a full read sees them anyway).
   const known = new Map(
@@ -341,9 +357,19 @@ async function syncSource(
       ),
     );
     const reread = again.flatMap((g, i) => toRows(g, openErrors[i]!.rowNumber, width));
+    if (dateCol !== null && reread.length) {
+      const stored = await ask(o.google, () =>
+        o.google.values(
+          cfg.spreadsheetId,
+          reread.map((r) => columnRange(tab.title, dateCol, r.number, r.number)),
+          { unformatted: true },
+        ),
+      );
+      reread.forEach((r, i) => (r.dateKey = stored[i]?.[0]?.[0] ?? ""));
+    }
     openErrors.forEach((e) => {
       const now = reread.find((r) => r.number === e.rowNumber);
-      if (!now || sheetFingerprint(now.cells, mapping) !== e.fp) superseded.push(e.id);
+      if (!now || sheetFingerprint(now.cells, mapping, now.dateKey) !== e.fp) superseded.push(e.id);
     });
     candidates = [...reread, ...rows];
   }
@@ -351,7 +377,7 @@ async function syncSource(
   // 5. Baseline ("only rows from now on", amendment A3): record what's there, create nothing.
   if (src.baseline) {
     for (const r of rows) {
-      const fp = sheetFingerprint(r.cells, mapping);
+      const fp = sheetFingerprint(r.cells, mapping, r.dateKey);
       await db
         .insert(SR)
         .values({
@@ -371,14 +397,70 @@ async function syncSource(
 
   // 6. What to write: new rows, and problem rows (fixed or under new rules). Same fingerprint twice in one
   // read is one enquiry.
+  // After an edit that changed how rows are recognised, a row already read is recognised again by where it
+  // is, and keeps its lead; only a row that was a problem is tried again (final review, finding 1).
+  const before = new Map<number, { result: string; leadId: string | null }>();
+  if (src.rekeyThrough !== null) {
+    const { rows: old } = await db.execute<{
+      row_number: number;
+      result: string;
+      lead_id: string | null;
+    }>(sql`
+      SELECT DISTINCT ON (row_number) row_number, result, lead_id FROM source_rows
+      WHERE source_id = ${src.id} AND row_number <= ${src.rekeyThrough} AND result NOT IN ('superseded', 'dismissed')
+      ORDER BY row_number, id DESC`);
+    for (const o of old) before.set(o.row_number, { result: o.result, leadId: o.lead_id });
+  }
+  // A row still being typed when it was read (a name first, the phone a minute later): on a full read, a
+  // new fingerprint where a lead was made minutes ago, whose old fingerprint is gone from the whole sheet,
+  // is that same row finished — it fills in that lead instead of making a second one.
+  const recent = new Map<number, { id: number; fp: string; leadId: string }>();
+  if (full && candidates.length) {
+    const { rows: made } = await db.execute<{
+      id: string;
+      row_number: number;
+      fingerprint: string;
+      lead_id: string;
+    }>(sql`
+      SELECT DISTINCT ON (row_number) id, row_number, fingerprint, lead_id FROM source_rows
+      WHERE source_id = ${src.id} AND result = 'created' AND lead_id IS NOT NULL
+        AND first_seen_at > now() - make_interval(mins => ${FILL_IN_MINUTES})
+      ORDER BY row_number, id DESC`);
+    const everywhere = new Set(candidates.map((r) => sheetFingerprint(r.cells, mapping, r.dateKey)));
+    for (const m of made)
+      if (!everywhere.has(m.fingerprint))
+        recent.set(m.row_number, { id: Number(m.id), fp: m.fingerprint, leadId: m.lead_id });
+  }
   const seen = new Set<string>();
   const todo: Todo[] = [];
   for (const r of candidates) {
-    const fp = sheetFingerprint(r.cells, mapping);
+    const fp = sheetFingerprint(r.cells, mapping, r.dateKey);
     if (seen.has(fp)) continue;
     seen.add(fp);
     const was = known.get(fp);
-    if (was === undefined || was === "error") todo.push({ row: r, fp });
+    if (was === undefined && src.rekeyThrough !== null && r.number <= src.rekeyThrough) {
+      const old = before.get(r.number);
+      if (old?.result !== "error") {
+        await db
+          .insert(SR)
+          .values({
+            sourceId: src.id,
+            fingerprint: fp,
+            result: "skipped",
+            leadId: old?.leadId ?? null,
+            syncId,
+            rowNumber: r.number,
+            problems: [
+              { column: null, code: "REKEYED", message: "Recognised again after the columns changed." },
+            ],
+          })
+          .onConflictDoNothing();
+        continue;
+      }
+    }
+    const made = was === undefined ? recent.get(r.number) : undefined;
+    if (made) todo.push({ row: r, fp, fillIn: { leadId: made.leadId, replaces: made.id } });
+    else if (was === undefined || was === "error") todo.push({ row: r, fp });
   }
   await db.update(SY).set({ rowsTotal: todo.length }).where(eq(SY.id, syncId));
 
@@ -463,6 +545,7 @@ async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) 
     ctx,
     cells: t.row.cells,
     origin: { sourceId: src.id, sheet: src.name, row: t.row.number },
+    ...(t.fillIn ? { mergeInto: { leadId: t.fillIn.leadId, activity: "sheet_row_updated" } } : {}),
     nextTurn: async () => {
       const { rows } = await req.db.execute<{ n: number }>(
         sql`UPDATE lead_sources SET rr_cursor = rr_cursor + 1 WHERE id = ${src.id} RETURNING rr_cursor - 1 AS n`,
@@ -470,10 +553,12 @@ async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) 
       return Number(rows[0]!.n);
     },
   });
+  // A finished row keeps the standing of the lead it made ("created"), and isn't counted as a merge.
+  const fillIn = !!t.fillIn && r.result === "merged";
   await req.db
     .update(SR)
     .set({
-      result: r.result,
+      result: fillIn ? "created" : r.result,
       leadId: r.leadId,
       problems: r.problems,
       warnings: r.warnings,
@@ -484,9 +569,14 @@ async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) 
           : null,
     })
     .where(eq(SR.id, Number(id)));
+  // The row's first reading is replaced by this one: it was the same row, not a second enquiry.
+  if (t.fillIn && r.result !== "error")
+    await req.db.update(SR).set({ result: "superseded" }).where(eq(SR.id, t.fillIn.replaces));
   const column = r.result === "error" ? "errors" : r.result;
   await req.db.execute(
-    sql`UPDATE source_syncs SET rows_read = rows_read + 1, ${sql.identifier(column)} = ${sql.identifier(column)} + 1 WHERE id = ${syncId}`,
+    fillIn
+      ? sql`UPDATE source_syncs SET rows_read = rows_read + 1 WHERE id = ${syncId}`
+      : sql`UPDATE source_syncs SET rows_read = rows_read + 1, ${sql.identifier(column)} = ${sql.identifier(column)} + 1 WHERE id = ${syncId}`,
   );
 }
 

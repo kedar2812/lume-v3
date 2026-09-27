@@ -1,4 +1,5 @@
 import { createSign } from "node:crypto";
+import { columnLetter } from "@lume/core";
 
 /** The key file Google issues for a service account, as LUME needs it. */
 export type ServiceAccount = { clientEmail: string; privateKey: string; tokenUri: string };
@@ -45,8 +46,11 @@ export type GoogleSheets = {
   readonly email: string;
   modifiedTime(spreadsheetId: string): Promise<string>;
   spreadsheet(spreadsheetId: string): Promise<SpreadsheetMeta>;
-  /** Each A1 range's rows as Google formats them: trailing empty cells and rows are left out. */
-  values(spreadsheetId: string, ranges: string[]): Promise<string[][][]>;
+  /**
+   * Each A1 range's rows as Google formats them (or, unformatted, as stored: a date as its serial number):
+   * trailing empty cells and rows are left out.
+   */
+  values(spreadsheetId: string, ranges: string[], o?: { unformatted?: boolean }): Promise<string[][][]>;
 };
 
 const SCOPES = [
@@ -82,6 +86,10 @@ export function parseSheetLink(link: string): { spreadsheetId: string; gid: numb
 }
 
 /** Whole rows `from`..`to` of one tab, in A1 notation, the title quoted as Google requires. */
+/** One column (0-based) of rows `from`..`to`, in A1 notation. */
+export const columnRange = (tab: string, column: number, from: number, to: number): string =>
+  `'${tab.replace(/'/g, "''")}'!${columnLetter(column)}${from}:${columnLetter(column)}${to}`;
+
 export const rowsRange = (tab: string, from: number, to: number): string =>
   `'${tab.replace(/'/g, "''")}'!${from}:${to}`;
 
@@ -199,10 +207,13 @@ export function createGoogleSheets(o: {
         })),
       };
     },
-    async values(id, ranges) {
+    async values(id, ranges, o = {}) {
       const qs = ranges.map((r) => `ranges=${enc(r)}`).join("&");
+      const render = o.unformatted
+        ? "valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER"
+        : "valueRenderOption=FORMATTED_VALUE";
       const j = await call<{ valueRanges?: { values?: unknown[][] }[] }>(
-        `${sheetsBase}/v4/spreadsheets/${enc(id)}/values:batchGet?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE&${qs}`,
+        `${sheetsBase}/v4/spreadsheets/${enc(id)}/values:batchGet?majorDimension=ROWS&${render}&${qs}`,
       );
       return ranges.map((_, i) =>
         (j.valueRanges?.[i]?.values ?? []).map((row) => row.map((c) => String(c ?? ""))),

@@ -249,6 +249,50 @@ describe("looking after a sheet", () => {
     });
   });
 
+  it("Critical (final review): editing which columns recognise a row never re-imports what was there", async () => {
+    const id = sheet([r(20), r(21), r(22)]);
+    const s = await connect(admin, id);
+    await h.runSyncs();
+    expect((await call(admin, "GET", `/api/v1/sheets/sources/${s.id}`)).json()).toMatchObject({
+      newAllTime: 3,
+    });
+    // Edit: stop using the Timestamp column (it was part of how rows are recognised).
+    const edit = (await call(admin, "POST", "/api/v1/sheets/drafts", { sourceId: s.id })).json();
+    const mapping = {
+      ...edit.draft.mapping,
+      columns: edit.draft.mapping.columns.map((c: { column: number }) =>
+        c.column === 0 ? { column: 0, to: "ignore" } : c,
+      ),
+    };
+    expect((await call(admin, "PATCH", `/api/v1/imports/${edit.draft.id}`, { mapping })).statusCode).toBe(
+      200,
+    );
+    await call(admin, "POST", "/api/v1/sheets/sources", {
+      importId: edit.draft.id,
+      name: s.name,
+      pollSeconds: 120,
+      startFrom: "all",
+    });
+    await h.runSyncs();
+    const leads = await h.queryAll<{ id: string }>(
+      "SELECT id FROM leads WHERE source_id = $1 AND deleted_at IS NULL",
+      [s.id],
+    );
+    expect(leads).toHaveLength(3);
+    const again = await h.queryAll(
+      "SELECT 1 FROM activities WHERE type = 'imported_again' AND lead_id = ANY($1)",
+      [leads.map((l) => l.id)],
+    );
+    expect(again).toHaveLength(0);
+    // …and a row added after the edit still comes in.
+    h.fake!.append(id, "Form responses", [r(23)]);
+    await call(admin, "POST", `/api/v1/sheets/sources/${s.id}/sync`);
+    await h.runSyncs();
+    expect(
+      await h.queryAll("SELECT 1 FROM leads WHERE source_id = $1 AND deleted_at IS NULL", [s.id]),
+    ).toHaveLength(4);
+  });
+
   it("pause, resume, remove (leads keep their source), and Test again after access comes back", async () => {
     const id = sheet([r(10)]);
     const s = await connect(admin, id);
@@ -287,6 +331,34 @@ describe("looking after a sheet", () => {
     expect(
       await h.queryAll("SELECT 1 FROM leads WHERE source_id = $1 AND deleted_at IS NULL", [s.id]),
     ).toHaveLength(2);
+  });
+
+  it("a sheet's raw rows are shown only to whoever runs it or sees every contact (finding 8)", async () => {
+    const id = sheet([r(30), ["not a date", "Hidden Row", "0508800031"]]);
+    const s = await connect(admin, id);
+    await h.runSyncs();
+    const masked = await h.signIn(
+      await h.seedUser({
+        grants: [
+          { key: "integrations.manage", scope: null },
+          { key: "leads.import", scope: null },
+          { key: "leads.view", scope: "all" },
+        ],
+        totp: true,
+      }),
+    );
+    const csv = await call(masked, "GET", `/api/v1/sheets/sources/${s.id}/problems.csv`);
+    expect(csv.statusCode).toBe(403);
+    expect(csv.json().error.code).toBe("ROWS_HIDDEN");
+    expect((await call(masked, "POST", "/api/v1/sheets/drafts", { sourceId: s.id })).json().error.code).toBe(
+      "ROWS_HIDDEN",
+    );
+    expect((await call(masked, "GET", `/api/v1/sheets/sources/${s.id}`)).json()).toMatchObject({
+      canSeeRows: false,
+    });
+    expect((await call(admin, "GET", `/api/v1/sheets/sources/${s.id}`)).json()).toMatchObject({
+      canSeeRows: true,
+    });
   });
 
   it("problem rows are listed, downloadable, and can be dismissed", async () => {

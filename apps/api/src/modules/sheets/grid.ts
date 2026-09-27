@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import Papa from "papaparse";
 import type { Mapping } from "@lume/core";
 
-export type SheetRow = { number: number; cells: string[] };
+/** A row as numbered in the sheet; dateKey is its date cell as stored (unformatted), when there is one. */
+export type SheetRow = { number: number; cells: string[]; dateKey?: string };
 export type Drift = { broken: { column: number; was: string; now: string | null }[]; added: string[] };
 
 const sha = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
@@ -56,9 +57,11 @@ const IDENTITY = ["lead_created_at", "phone", "email", "instagram"] as const;
  * cells alone, never from the mapped lead, so a change to fields, tags or rules can't make an old row
  * look new. A row with none of those filled is recognised by all its cells.
  */
-export function sheetFingerprint(cells: string[], mapping: Mapping): string {
+export function sheetFingerprint(cells: string[], mapping: Mapping, dateKey?: string): string {
   const identity = IDENTITY.map((key) => {
     const c = mapping.columns.find((x) => x.to === "field" && x.field === key);
+    // The date as stored, when known, so changing how the column looks doesn't make old rows new.
+    if (c && key === "lead_created_at" && dateKey !== undefined) return dateKey.trim();
     return c ? (cells[c.column] ?? "").trim().toLowerCase() : "";
   });
   if (identity.some(Boolean)) return sha(["lead", ...identity]);
@@ -71,3 +74,19 @@ export const gridToCsv = (rows: string[][]): string =>
     rows.map((r) => (r.length ? r : [""])),
     { newline: "\n" },
   );
+
+/** The column mapped to the lead's date, if any: its stored value is part of a row's identity. */
+export const dateColumnOf = (mapping: Mapping): number | null =>
+  mapping.columns.find((x) => x.to === "field" && x.field === "lead_created_at")?.column ?? null;
+
+/**
+ * What a row's fingerprint depends on (amendment A6): which columns hold the date and the contacts, and
+ * (for rows with none of those) how wide a row is. When an edit changes this, rows already dealt with
+ * must be recognised again rather than imported again (final review, finding 1).
+ */
+export function identityKey(mapping: Mapping, width: number): string {
+  const cols = IDENTITY.map(
+    (key) => mapping.columns.find((x) => x.to === "field" && x.field === key)?.column ?? null,
+  );
+  return JSON.stringify([cols, width]);
+}

@@ -37,7 +37,7 @@ A webhook source gives each of these a private address. Anything posted there be
 | Arrival | Webhook leads glow on Leads like a sheet's (2B §8.3): the arrivals rule counts `webhook` sources as arriving. Refresh doesn't apply, because webhooks are already instant. |
 | Health | For each source: status, last event, events today and all time, leads created and merged, problems, rejected (bad signature, stale timestamp, bad token, too big, not JSON, rate-limited) with the last reason, and the address, its mode, and rotate. |
 
-## 3. Data (migration `0018_webhooks.sql`)
+## 3. Data (migration `0019_webhooks.sql`)
 
 **`lead_sources`**, `type = 'webhook'`:
 - `config_enc` holds `{ mode: "signed" | "token", secret, preset }`.

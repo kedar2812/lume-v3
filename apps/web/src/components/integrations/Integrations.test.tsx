@@ -32,6 +32,7 @@ const src = (over: Partial<SheetSourceView>): SheetSourceView => ({
   newAllTime: 340,
   problems: 0,
   runAs: { id: "u1", name: "Riya Sharma" },
+  canSeeRows: true,
   ...over,
 });
 

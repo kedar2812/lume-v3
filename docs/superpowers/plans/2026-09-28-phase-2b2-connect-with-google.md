@@ -58,7 +58,7 @@
 
 **Files:**
 - Modify: `packages/config/src/schema.ts` and `config.test.ts`: `GOOGLE_OAUTH_RELAY_URL` and `GOOGLE_OAUTH_RELAY_TOKEN`.
-- Create: `packages/db/migrations/0017_oauth_connects.sql`.
+- Create: `packages/db/migrations/0018_oauth_connects.sql`.
 - Modify: `packages/db/src/schema/intake.ts` (`oauthConnects`) and `packages/db/src/intake.test.ts`.
 - Create: `packages/core/src/relay/protocol.ts`, `packages/core/src/relay/protocol.test.ts`.
 - Modify: `packages/core/src/index.ts` (export it, server-side only; never from `shared`).
@@ -109,7 +109,7 @@ describe("the relay protocol (Review Focus 1)", () => {
 Append to `packages/db/src/intake.test.ts`:
 
 ```ts
-describe("0017_oauth_connects", () => {
+describe("0018_oauth_connects", () => {
   it("keeps one pending connect per nonce, and the worker can't read it", async () => {
     await query(
       "lume_owner",
@@ -193,7 +193,7 @@ export function unseal<T>(token: string, sealed: string): T | null {
 
 In `packages/core/src/index.ts`, add `export * from "./relay/protocol";`. It must not be added to `shared.ts`, because it uses `node:crypto`.
 
-`packages/db/migrations/0017_oauth_connects.sql`:
+`packages/db/migrations/0018_oauth_connects.sql`:
 
 ```sql
 -- Phase 2B-2 (spec 2B §6): a "Connect with Google" in progress. The nonce is single-use and bound to the

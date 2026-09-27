@@ -40,6 +40,7 @@ const detail = (over: Partial<SheetSourceDetail> = {}): SheetSourceDetail => ({
   newAllTime: 120,
   problems: 1,
   runAs: { id: "u1", name: "Riya Sharma" },
+  canSeeRows: true,
   syncs: [
     {
       id: "y1",
@@ -126,6 +127,14 @@ describe("a sheet's page", () => {
     render(<SourceDetail id="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "Open columns" }));
     expect(screen.getByRole("dialog", { name: "Sheet columns" })).toHaveAttribute("data-source", "s1");
+  });
+
+  it("someone who can't see the sheet's contacts gets no download and no column editing", async () => {
+    vi.mocked(sheetsClient.get).mockResolvedValue(ok(detail({ canSeeRows: false })));
+    render(<SourceDetail id="s1" />);
+    await screen.findByRole("heading", { name: "Website enquiries" });
+    expect(screen.queryByRole("link", { name: "Download problem rows" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit columns and rules" })).toBeNull();
   });
 
   it("pause, dismiss a problem, and remove only after saying the leads stay", async () => {

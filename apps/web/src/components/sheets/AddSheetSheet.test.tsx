@@ -41,7 +41,8 @@ const sheetDraft = {
     tabTitle: "Form responses",
     email: "lume@x.iam.gserviceaccount.com",
     moreRows: false,
-    editing: null,
+    editing: null as string | null,
+    pollSeconds: 120,
   },
 };
 
@@ -131,6 +132,20 @@ describe("Add a sheet", () => {
       expect.objectContaining({ importId: "d1", startFrom: "all" }),
     );
     expect(onClose).toHaveBeenCalledWith("s1");
+  });
+
+  it("editing keeps the sheet's own check interval (finding 9)", async () => {
+    vi.mocked(sheetsClient.draft).mockResolvedValue({
+      ...ok({ ...sheetDraft, sheet: { ...sheetDraft.sheet, editing: "s1", pollSeconds: 3600 } }),
+      status: 201,
+    });
+    vi.mocked(sheetsClient.save).mockResolvedValue(ok({ id: "s1" } as never));
+    render(<AddSheetSheet open sourceId="s1" onClose={() => undefined} />);
+    await screen.findByRole("heading", { name: "Columns" });
+    for (let i = 0; i < 3; i++) await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByLabelText("Check for new rows")).toHaveValue("3600");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(sheetsClient.save).toHaveBeenCalledWith(expect.objectContaining({ pollSeconds: 3600 }));
   });
 
   it("closing part-way throws the draft away (nothing half-made is kept)", async () => {

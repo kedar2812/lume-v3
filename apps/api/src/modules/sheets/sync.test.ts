@@ -2,6 +2,7 @@ import { ALL_GRANTS, DEFAULT_RULES, newId, type Mapping, type Rules } from "@lum
 import { schema } from "@lume/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { FakeCell } from "../../../test/google-fake";
 import { createHarness, type Harness } from "../../../test/harness";
 import { sealConfig } from "./config";
 import { requestSync } from "./requests";
@@ -43,7 +44,7 @@ beforeAll(async () => {
 afterAll(async () => h.close());
 
 /** A connected, active sheet source (what Task 8's save does), with the fake holding its rows. */
-async function connect(rows: string[][], over: Record<string, unknown> = {}) {
+async function connect(rows: FakeCell[][], over: Record<string, unknown> = {}) {
   const spreadsheetId = `ss-${newId()}`;
   h.fake!.put(spreadsheetId, {
     title: "Website enquiries",
@@ -320,6 +321,56 @@ describe("stopping and locks (final review)", () => {
     expect(await source(s.id)).toMatchObject({ current_sync_id: null, sync_lock_until: null });
     await h.pool.query("UPDATE lead_sources SET status = 'active' WHERE id = $1", [s.id]);
     expect(await sync(s.id)).toMatchObject({ status: "done", created: 1 });
+  });
+});
+
+describe("rows nobody would expect to lose or repeat (final review)", () => {
+  it("changing how the date column looks doesn't make old rows new (finding 7)", async () => {
+    const at = (shown: string): FakeCell => ({ v: shown, u: "46261.4270833333" }); // the same moment, stored
+    const s = await connect([[at("2026-08-27 10:15"), "Format Lead", "0507700500", ""]]);
+    expect(await sync(s.id)).toMatchObject({ created: 1 });
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [
+      HEAD,
+      [at("2026/08/27 10:15:00"), "Format Lead", "0507700500", ""],
+    ]);
+    expect(await sync(s.id)).toMatchObject({ created: 0, merged: 0 });
+  });
+
+  it("a row filled in over two syncs is one lead, completed — not two (finding 6)", async () => {
+    const s = await connect([["", "Ravi Typing", "", ""]]);
+    expect(await sync(s.id)).toMatchObject({ created: 1 });
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [
+      HEAD,
+      ["2026-08-20 09:00", "Ravi Typing", "0507700600", ""],
+    ]);
+    expect(await sync(s.id)).toMatchObject({ created: 0, merged: 0 });
+    const standing = await h.queryAll<{ result: string }>(
+      "SELECT result FROM source_rows WHERE source_id = $1 ORDER BY id",
+      [s.id],
+    );
+    expect(standing.map((x) => x.result)).toEqual(["superseded", "created"]); // still one lead "new all time"
+    const leads = await h.queryAll<{ id: string; phone_e164: string | null }>(
+      "SELECT id, phone_e164 FROM leads WHERE source_id = $1 AND deleted_at IS NULL",
+      [s.id],
+    );
+    expect(leads).toHaveLength(1);
+    expect(leads[0]!.phone_e164).toBe("+971507700600");
+    const acts = await h.queryAll<{ type: string }>("SELECT type FROM activities WHERE lead_id = $1", [
+      leads[0]!.id,
+    ]);
+    expect(acts.map((a) => a.type)).toContain("sheet_row_updated");
+  });
+
+  it("a lead typed into a gap in the middle still comes in, at the next full read", async () => {
+    const s = await connect([row(40), [], row(42)]);
+    await sync(s.id);
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [HEAD, row(40), row(41), row(42)]);
+    await sync(s.id); // incremental: the first and last rows didn't change, so the gap isn't read
+    await h.pool.query("UPDATE lead_sources SET full_read_at = now() - interval '2 hours' WHERE id = $1", [
+      s.id,
+    ]);
+    await sync(s.id); // the sheet changed since the last full read, and an hour has passed
+    expect((await leadsFrom(s.id)).map((l) => l.name)).toContain("Sheet Lead 41");
   });
 });
 

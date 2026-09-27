@@ -16,6 +16,7 @@ const EVERY = [
 /** Step 5 (spec §7.2): name it, say how often to look, and whether the rows already there come in too. */
 export function StartFromStep({
   defaultName,
+  defaultPoll = 120,
   rowCount,
   moreRows,
   editing,
@@ -24,6 +25,8 @@ export function StartFromStep({
   onSave,
 }: {
   defaultName: string;
+  /** The sheet's own interval when editing, so saving the columns doesn't change how often it's checked. */
+  defaultPoll?: number;
   rowCount: number;
   moreRows: boolean;
   editing: boolean;
@@ -32,7 +35,7 @@ export function StartFromStep({
   onSave(o: { name: string; pollSeconds: number; startFrom: "all" | "new" }): void;
 }) {
   const [name, setName] = useState(defaultName);
-  const [pollSeconds, setPoll] = useState(120);
+  const [pollSeconds, setPoll] = useState(defaultPoll);
   const [startFrom, setStartFrom] = useState<"all" | "new">("all");
   const count = `${rowCount.toLocaleString("en")}${moreRows ? "+" : ""}`;
   return (
