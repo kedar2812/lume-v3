@@ -24,6 +24,7 @@ import {
 } from "@lume/db";
 import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
+import { runImport, type RunHooks } from "../src/modules/imports/runner";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
 import { fixedRates } from "../src/money/rates";
@@ -122,6 +123,10 @@ export type Harness = {
     phoneRaw?: string;
     phoneStatus?: "valid" | "needs_country" | "invalid" | "missing";
   }): Promise<string>;
+  /** Runs every queued import now, as the job would (tests steer it with the hooks). */
+  runImports(o?: RunHooks & { parallel?: boolean }): Promise<void>;
+  /** Takes one permission away from every role the user has, and waits until the API has noticed. */
+  revokeGrant(userId: string, key: string): Promise<void>;
   close(): Promise<void>;
 };
 
@@ -178,6 +183,7 @@ export async function createHarness(
     burn: () => void (token = null),
   };
   const waiters = new Map<string, () => void>();
+  const queued: string[] = [];
 
   const app = await buildApp({
     pool,
@@ -193,6 +199,7 @@ export async function createHarness(
       waiters.get(payload)?.();
     },
     extraRoutes: opts.extraRoutes,
+    imports: { enqueue: async (id) => void queued.push(id) },
   });
 
   const addRole = async (userId: string, grants: Grant[]) => {
@@ -303,6 +310,24 @@ export async function createHarness(
       waiters.delete(marker);
     },
     actorOf: (userId) => loadActor(pool, userId),
+    async runImports(o = {}) {
+      const ids = queued.splice(0);
+      const once = (id: string) =>
+        runImport({ app, pool, keyring, testHooks: o }, id).catch((e: unknown) => {
+          if (!String(e).includes("test crash")) throw e;
+          queued.push(id); // what pg-boss would do: run it again
+        });
+      if (o.parallel) await Promise.all(ids.map(once));
+      else for (const id of ids) await once(id);
+    },
+    async revokeGrant(userId, key) {
+      await ownerPool.query(
+        "DELETE FROM role_permissions rp USING user_roles ur WHERE ur.role_id = rp.role_id AND ur.user_id = $1 AND rp.permission_key = $2",
+        [userId, key],
+      );
+      await ownerPool.query("SELECT pg_notify('lume_rbac', $1)", [userId]);
+      await h.waitForRbacNotify();
+    },
     async queryAll(sql, params = []) {
       return withAllScope(ownerPool, async (c) => (await c.query(sql, params)).rows);
     },

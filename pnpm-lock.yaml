@@ -59,9 +59,15 @@ importers:
       nodemailer:
         specifier: ^10.0.10
         version: 10.0.10
+      papaparse:
+        specifier: ^5.7.0
+        version: 5.7.0
       pg:
         specifier: ^8.23.0
         version: 8.23.0
+      pg-boss:
+        specifier: ^10.4.2
+        version: 10.4.2
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -75,6 +81,9 @@ importers:
       '@types/nodemailer':
         specifier: ^8.0.2
         version: 8.0.2
+      '@types/papaparse':
+        specifier: ^5.5.2
+        version: 5.5.2
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1

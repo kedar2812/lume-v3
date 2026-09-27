@@ -1,4 +1,4 @@
-import type { FieldType } from "../leads/custom-fields";
+import { FIELD_TYPES, type FieldType } from "../leads/custom-fields";
 import { fold, type DateOrder } from "./values";
 
 export type Transform = {
@@ -205,6 +205,8 @@ export function suggestMapping(headers: string[], fields: IntakeField[], memory?
 }
 
 const issue = (column: number | null, code: string, message: string): Issue => ({ column, code, message });
+/** The Fields screen's own limit, which a field made by an import meets too. */
+const NEW_FIELD_LABEL_MAX = 60;
 
 /** Spec §5.3–§5.4 and amendment 3. Empty means the import may start. */
 export function validateMapping(m: Mapping, r: Rules, ctx: MapContext): Issue[] {
@@ -245,6 +247,16 @@ export function validateMapping(m: Mapping, r: Rules, ctx: MapContext): Issue[] 
       if (!label) out.push(issue(c.column, "NEW_FIELD_LABEL_TAKEN", "Give the new field a name."));
       else if (ctx.fields.some((f) => !f.archived && fold(f.label) === label) || newLabels.has(label))
         out.push(issue(c.column, "NEW_FIELD_LABEL_TAKEN", `A field called “${c.label}” already exists.`));
+      if (c.label.trim().length > NEW_FIELD_LABEL_MAX)
+        out.push(
+          issue(
+            c.column,
+            "NEW_FIELD_LABEL_TOO_LONG",
+            `A field name can be up to ${NEW_FIELD_LABEL_MAX} characters.`,
+          ),
+        );
+      if (!(FIELD_TYPES as readonly string[]).includes(c.type))
+        out.push(issue(c.column, "NEW_FIELD_TYPE", "Choose what kind of field this is."));
       newLabels.add(label);
     }
   }

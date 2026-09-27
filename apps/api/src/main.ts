@@ -3,6 +3,7 @@ import { loadBreachedChecker, masterKeyFromBase64 } from "@lume/core";
 import { ARGON2_PRODUCTION } from "@lume/core/password";
 import { apiSchema, loadConfig } from "@lume/config";
 import { buildApp } from "./app";
+import { startImportQueue } from "./modules/imports/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
 import { REDACT_PATHS } from "./logger";
@@ -14,9 +15,14 @@ const pool = new pg.Pool({ connectionString: cfg.DATABASE_URL_APP, max: 10 });
 const publicUrl = cfg.LUME_PUBLIC_URL ?? `https://${cfg.LUME_PUBLIC_HOST}`;
 const { rows } = await pool.query<{ has_users: boolean }>("SELECT EXISTS (SELECT 1 FROM users) AS has_users");
 
+const keyring = await loadKeyring(pool, masterKeyFromBase64(cfg.LUME_MASTER_KEY));
+// Filled in once the queue is up (it needs the built app); the queue starts before the API listens.
+const imports: { enqueue(id: string): Promise<void> } = { enqueue: async () => undefined };
+
 const app = await buildApp({
   pool,
-  keyring: await loadKeyring(pool, masterKeyFromBase64(cfg.LUME_MASTER_KEY)),
+  keyring,
+  imports,
   mailer: createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`),
   config: { publicUrl, cookieSecure: true, version: cfg.LUME_VERSION },
   rates:
@@ -32,10 +38,13 @@ const app = await buildApp({
   argon2: ARGON2_PRODUCTION,
   logger: { level: cfg.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: "[redacted]" } },
 });
+const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool, keyring });
+imports.enqueue = queue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {
+    await queue.stop();
     await app.close();
     await pool.end();
     process.exit(0);

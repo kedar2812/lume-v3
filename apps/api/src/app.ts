@@ -50,6 +50,8 @@ export type AppDeps = {
   logger?: FastifyServerOptions["logger"];
   /** Observes every `lume_rbac` notification after the cache has handled it (tests). */
   onRbacEvent?: (payload: string) => void;
+  /** Where a started import is queued (pg-boss in production, an inline list in tests). */
+  imports?: { enqueue(id: string): Promise<void> };
   /** Tests only: extra routes registered inside the authenticated scope. */
   extraRoutes?: (app: FastifyInstance) => void;
 };

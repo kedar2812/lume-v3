@@ -90,6 +90,13 @@ describe("validateMapping", () => {
     expect(codes(m("Referred by"), testRules(), testContext({ canManageFields: false }))).toContain(
       "NEW_FIELD_NOT_ALLOWED",
     );
+    // The import creates the field itself, so it holds the new field to the Fields screen's own limits.
+    expect(codes(m("x".repeat(61)))).toContain("NEW_FIELD_LABEL_TOO_LONG");
+    const badType: Mapping = {
+      columns: [{ column: 0, to: "new_field", label: "Odd", type: "spreadsheet" as never }],
+      createMissingTags: false,
+    };
+    expect(codes(badType)).toContain("NEW_FIELD_TYPE");
   });
 
   it("asks for a default for every required custom field no column covers (spec amendment 3)", () => {

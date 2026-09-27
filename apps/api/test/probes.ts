@@ -48,6 +48,15 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({}),
   },
   "DELETE /api/v1/imports/:id": { access: "leads.import", path: () => `/api/v1/imports/${uuid}` },
+  "POST /api/v1/imports/:id/start": { access: "leads.import", path: () => `/api/v1/imports/${uuid}/start` },
+  "POST /api/v1/imports/:id/cancel": { access: "leads.import", path: () => `/api/v1/imports/${uuid}/cancel` },
+  "POST /api/v1/imports/:id/resume": { access: "leads.import", path: () => `/api/v1/imports/${uuid}/resume` },
+  "POST /api/v1/imports/:id/seen": { access: "leads.import", path: () => `/api/v1/imports/${uuid}/seen` },
+  "GET /api/v1/imports/:id/rows": { access: "leads.import", path: () => `/api/v1/imports/${uuid}/rows` },
+  "GET /api/v1/imports/:id/errors.csv": {
+    access: "leads.import",
+    path: () => `/api/v1/imports/${uuid}/errors.csv`,
+  },
   "GET /api/v1/auth/csrf": { access: "public" },
   "POST /api/v1/auth/login": {
     access: "public",

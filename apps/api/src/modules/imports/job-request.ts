@@ -6,6 +6,15 @@ import { applyRequestScope } from "../../db/context";
 import type { ActorRecord } from "../../rbac/actor";
 
 /**
+ * The app as a job sees it. Per-app caches (the field registry's) are decorated inside the authenticated
+ * scope, which the root app a job is handed doesn't have; a job gets its own, rebuilt as fields change.
+ */
+export function jobServer(app: FastifyInstance): FastifyInstance {
+  if (app.hasDecorator("fieldRegistryCache")) return app;
+  return Object.assign(Object.create(app) as FastifyInstance, { fieldRegistryCache: { value: null } });
+}
+
+/**
  * One transaction that looks like a request to the service code (db, actor, server, id, ip, log), so a job
  * writes leads through exactly the same functions a person does. `allLeads` widens lead_scope to 'all'
  * for this transaction only (the duplicate check must see every lead); everything else stays the actor's.

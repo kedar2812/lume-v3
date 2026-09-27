@@ -4,6 +4,7 @@ import { z } from "zod";
 import { INTAKE_LIMITS } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { HttpError } from "../../http/errors";
+import { errorsCsv, listRows } from "./report";
 import {
   discardImport,
   getDraft,
@@ -14,6 +15,7 @@ import {
   uploadImport,
   type ImportPatch,
 } from "./service";
+import { cancelImport, markSeen, resumeImport, startImport } from "./start";
 
 const cfg = { permission: "leads.import" as const };
 const params = z.object({ id: z.uuid() });
@@ -130,4 +132,38 @@ export async function importRoutes(app: FastifyInstance, d: AppDeps): Promise<vo
     (req) => listImports(req, req.query.cursor),
   );
   r.get("/api/v1/imports/:id", { config: cfg, schema: { params } }, (req) => getImport(req, req.params.id));
+  r.post("/api/v1/imports/:id/start", { config: cfg, schema: { params } }, (req) =>
+    startImport(req, d, req.params.id),
+  );
+  r.post("/api/v1/imports/:id/cancel", { config: cfg, schema: { params } }, (req) =>
+    cancelImport(req, req.params.id),
+  );
+  r.post("/api/v1/imports/:id/resume", { config: cfg, schema: { params } }, (req) =>
+    resumeImport(req, d, req.params.id),
+  );
+  r.post("/api/v1/imports/:id/seen", { config: cfg, schema: { params } }, async (req, reply) => {
+    await markSeen(req, req.params.id);
+    return reply.code(204).send();
+  });
+  r.get(
+    "/api/v1/imports/:id/rows",
+    {
+      config: cfg,
+      schema: {
+        params,
+        querystring: z.object({
+          result: z.enum(["created", "merged", "skipped", "error"]).optional(),
+          cursor: z.coerce.number().int().min(0).optional(),
+        }),
+      },
+    },
+    (req) => listRows(req, d, req.params.id, req.query),
+  );
+  r.get("/api/v1/imports/:id/errors.csv", { config: cfg, schema: { params } }, async (req, reply) => {
+    const { fileName, body } = await errorsCsv(req, d, req.params.id);
+    return reply
+      .header("content-type", "text/csv; charset=utf-8")
+      .header("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`)
+      .send(body);
+  });
 }
