@@ -388,7 +388,10 @@ export async function listSheets(req: FastifyRequest, d: AppDeps) {
     .from(S)
     .where(and(eq(S.type, "google_sheet"), inArray(S.status, ["active", "paused", "needs_attention"])))
     .orderBy(asc(S.createdAt));
-  return { sources: await Promise.all(rows.map((s) => sourceView(req, d, s))) };
+  // One after another: they share this request's connection, which runs one query at a time.
+  const sources = [];
+  for (const s of rows) sources.push(await sourceView(req, d, s));
+  return { sources };
 }
 
 export async function getSheet(req: FastifyRequest, d: AppDeps, id: string) {

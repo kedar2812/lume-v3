@@ -43,6 +43,14 @@ export default defineConfig({
     },
   ],
   webServer: [
+    // The fake Google (2B §11) first: the API reads its key at boot. No test ever calls Google.
+    {
+      command:
+        "node ../../scripts/bundle.mjs . e2e/google-fake.ts e2e/.artifacts/google-fake.mjs && node e2e/.artifacts/google-fake.mjs",
+      url: "http://127.0.0.1:3112/__fake/key",
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
     {
       command: "node e2e/smtp-sink.mjs",
       url: "http://127.0.0.1:3111/messages",

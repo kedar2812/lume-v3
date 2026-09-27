@@ -138,6 +138,7 @@ export async function createDraftFrom(
   },
 ): Promise<DraftView> {
   const file = readCsv(new Uint8Array(o.bytes), {
+    allowNoRows: o.kind === "sheet",
     fileName: o.fileName,
     ...(o.headerRow ? { headerRow: o.headerRow } : {}),
   });

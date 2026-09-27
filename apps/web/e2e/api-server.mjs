@@ -1,7 +1,7 @@
 // Starts the real API (built bundle) against the e2e database, logging to e2e/.artifacts/api.log so the
 // tests can read the first-run setup token exactly as an operator would.
 import { spawn } from "node:child_process";
-import { createWriteStream, mkdirSync } from "node:fs";
+import { createWriteStream, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const here = import.meta.dirname;
@@ -33,6 +33,9 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     // Never the live rates site in tests: a fixed table, so a switch quotes the same rate every run.
     LUME_FX_PROVIDER: "fixed",
     LUME_FX_FIXED: "AED:USD=0.27",
+    // Google Sheets against the fake Google (e2e/google-fake.ts), never the real one.
+    GOOGLE_SERVICE_ACCOUNT_JSON: readFileSync(path.join(here, ".artifacts/google-key.b64"), "utf8"),
+    LUME_GOOGLE_ENDPOINT: `http://127.0.0.1:${process.env.E2E_GOOGLE_PORT ?? 3112}`,
   },
   stdio: ["ignore", "pipe", "pipe"],
 });

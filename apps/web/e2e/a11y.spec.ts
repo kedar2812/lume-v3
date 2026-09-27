@@ -76,6 +76,12 @@ const CHECKS: Check[] = [
     ready: (p) => p.locator("#settings-title", { hasText: "Settings" }).waitFor(),
   },
   {
+    name: "settings: integrations",
+    path: "/settings/integrations",
+    who: "owner",
+    ready: (p) => p.locator("#settings-title", { hasText: "Integrations" }).waitFor(),
+  },
+  {
     name: "settings: business",
     path: "/settings/business",
     who: "owner",

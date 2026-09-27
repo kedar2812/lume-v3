@@ -130,7 +130,14 @@ export function nameHeaders(raw: string[]): string[] {
 /** Spec §5.1: bytes → a table, or the one reason LUME can't read it. */
 export function readCsv(
   bytes: Uint8Array,
-  opts: { fileName?: string; encoding?: Encoding; delimiter?: Delimiter; headerRow?: number } = {},
+  opts: {
+    fileName?: string;
+    encoding?: Encoding;
+    delimiter?: Delimiter;
+    headerRow?: number;
+    /** A header with nothing under it is fine (a brand-new form sheet, 2B); a CSV upload refuses it. */
+    allowNoRows?: boolean;
+  } = {},
 ): ReadCsv | FileRefusal {
   if (bytes.length > INTAKE_LIMITS.bytes)
     return refuse("FILE_TOO_BIG", "This file is over 10 MB. Split it into smaller files.");
@@ -159,7 +166,8 @@ export function readCsv(
 
   let body = records.slice(headerIndex + 1).map((r, i) => ({ cells: r, number: headerIndex + i + 2 }));
   while (body.length && blank(body[body.length - 1]!.cells)) body.pop();
-  if (!body.length) return refuse("FILE_EMPTY", "LUME found a header but no rows under it.");
+  if (!body.length && !opts.allowNoRows)
+    return refuse("FILE_EMPTY", "LUME found a header but no rows under it.");
   if (body.length > INTAKE_LIMITS.rows)
     return refuse(
       "TOO_MANY_ROWS",

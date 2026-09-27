@@ -166,6 +166,27 @@ describe("connecting a sheet", () => {
     });
   });
 
+  it("a brand-new form sheet with only its header can be connected, and its first row comes in", async () => {
+    const id = sheet([]);
+    const d = await call(admin, "POST", "/api/v1/sheets/drafts", { link: link(id), sheetId: 5 });
+    expect(d.statusCode).toBe(201);
+    expect(d.json().draft).toMatchObject({ headers: HEAD, rowCount: 0 });
+    const saved = await call(admin, "POST", "/api/v1/sheets/sources", {
+      importId: d.json().draft.id,
+      name: "Fresh form",
+      pollSeconds: 120,
+      startFrom: "all",
+    });
+    expect(saved.statusCode).toBe(201);
+    await h.runSyncs();
+    h.fake!.append(id, "Form responses", [r(13)]);
+    await call(admin, "POST", `/api/v1/sheets/sources/${saved.json().id}/sync`);
+    await h.runSyncs();
+    expect((await call(admin, "GET", `/api/v1/sheets/sources/${saved.json().id}`)).json()).toMatchObject({
+      newAllTime: 1,
+    });
+  });
+
   it("the same tab can't be connected twice", async () => {
     const id = sheet([r(6)]);
     await connect(admin, id);

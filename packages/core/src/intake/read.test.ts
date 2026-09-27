@@ -162,4 +162,13 @@ describe("columnLetter", () => {
     [701, "ZZ"],
     [702, "AAA"],
   ])("%i → %s", (i, l) => expect(columnLetter(i)).toBe(l));
+  it("a header with no rows is refused, unless the caller allows it (a new form sheet, 2B)", () => {
+    const bytes = new TextEncoder().encode("Name,Phone\n");
+    expect(readCsv(bytes)).toMatchObject({ ok: false, code: "FILE_EMPTY" });
+    expect(readCsv(bytes, { allowNoRows: true })).toMatchObject({
+      ok: true,
+      headers: ["Name", "Phone"],
+      rows: [],
+    });
+  });
 });

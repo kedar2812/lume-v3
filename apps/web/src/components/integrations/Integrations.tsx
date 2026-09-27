@@ -29,6 +29,14 @@ export function Integrations() {
     });
   }, [loadSources]);
 
+  // While any sheet is checking, look again every 2 seconds, so "Checking now" turns into what it found.
+  const checking = !!sources?.some((x) => x.syncing);
+  useEffect(() => {
+    if (!checking) return;
+    const t = setTimeout(() => void loadSources(), 2000);
+    return () => clearTimeout(t);
+  }, [checking, sources, loadSources]);
+
   if (error)
     return (
       <p role="alert" className={s.error}>
@@ -69,7 +77,7 @@ export function Integrations() {
             </p>
           </div>
           {g.available && (
-            <Switch checked={g.enabled} onChange={(v) => void toggle(v)} label="Google Sheets" />
+            <Switch checked={g.enabled} onChange={(v) => void toggle(v)} label="Google Sheets" labelHidden />
           )}
         </header>
         {!g.available && (

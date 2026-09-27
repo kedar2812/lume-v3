@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sheetsClient } from "@/lib/sheets/client";
@@ -103,5 +103,18 @@ describe("Settings → Integrations", () => {
     await userEvent.click(await screen.findByRole("switch", { name: "Google Sheets" }));
     expect(sheetsClient.setEnabled).toHaveBeenCalledWith(true);
     expect(await screen.findByText(/No sheets yet/)).toBeInTheDocument();
+  });
+
+  it("while a sheet is checking, the list looks again until it's done", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(sheetsClient.integrations).mockResolvedValue(ok(on));
+    vi.mocked(sheetsClient.list)
+      .mockResolvedValueOnce(ok({ sources: [src({ syncing: true, newToday: 0 })] }))
+      .mockResolvedValue(ok({ sources: [src({ syncing: false, newToday: 2 })] }));
+    render(<Integrations />);
+    expect(await screen.findByText(/Checking now · 0 new today/)).toBeInTheDocument();
+    await act(async () => void (await vi.advanceTimersByTimeAsync(2100)));
+    expect(await screen.findByText(/2 new today/)).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });

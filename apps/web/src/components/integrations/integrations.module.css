@@ -302,3 +302,11 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+.cardLede a {
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+.cardLede a:hover {
+  text-decoration: underline;
+}

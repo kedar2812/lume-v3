@@ -14,7 +14,7 @@ export const openFile = (keyring: Keyring, importId: string, sealed: Buffer): Bu
 /** The import's file, read with its saved settings. 409 once the retention sweep has removed it. */
 export function readImportFile(
   keyring: Keyring,
-  imp: Pick<ImportRow, "id" | "fileEnc" | "fileName" | "encoding" | "delimiter" | "headerRow">,
+  imp: Pick<ImportRow, "id" | "kind" | "fileEnc" | "fileName" | "encoding" | "delimiter" | "headerRow">,
 ): ReadCsv {
   if (!imp.fileEnc) throw new HttpError(409, "FILE_PURGED", "This import's file was removed after 30 days.");
   const r = readCsv(new Uint8Array(openFile(keyring, imp.id, imp.fileEnc)), {
@@ -22,6 +22,7 @@ export function readImportFile(
     encoding: (imp.encoding as Encoding | null) ?? undefined,
     delimiter: (imp.delimiter as Delimiter | null) ?? undefined,
     headerRow: imp.headerRow ?? undefined,
+    allowNoRows: imp.kind === "sheet",
   });
   if (!r.ok) throw new HttpError(400, r.code, r.message);
   return r;
