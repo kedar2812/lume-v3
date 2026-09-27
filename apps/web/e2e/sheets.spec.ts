@@ -9,6 +9,33 @@ const row = (i: number, name: string) => [
 ];
 
 test.describe("Google Sheets", () => {
+  // Leave the workspace as it was: later specs (visual.spec's approved screenshots) must not see these
+  // sheets' leads, and Sheets goes back to off.
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: stateFile("owner") });
+    const page = await ctx.newPage();
+    await page.goto("/leads");
+    const { sources } = (await callApi<{ sources: { id: string }[] }>(page, "GET", "/api/v1/sheets/sources"))
+      .data ?? {
+      sources: [],
+    };
+    for (const s of sources) {
+      for (;;) {
+        const { items } = (
+          await callApi<{ items: { id: string }[] }>(page, "GET", `/api/v1/leads?source=${s.id}&limit=100`)
+        ).data;
+        if (!items.length) break;
+        await callApi(page, "POST", "/api/v1/leads/bulk", {
+          ids: items.map((l) => l.id),
+          action: { type: "delete" },
+        });
+      }
+      await callApi(page, "DELETE", `/api/v1/sheets/sources/${s.id}`);
+    }
+    await callApi(page, "PUT", "/api/v1/integrations/google-sheets", { enabled: false });
+    await ctx.close();
+  });
+
   test("Settings → Integrations: switch on, add a sheet through the steps, and its leads arrive", async ({
     page,
   }) => {
