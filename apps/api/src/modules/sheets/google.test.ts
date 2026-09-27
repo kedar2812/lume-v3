@@ -85,13 +85,25 @@ describe("the Google client", () => {
     expect(isTransient(new GoogleError("access", "x"))).toBe(false);
   });
 
-  it("a broken key is refused as access, not retried forever", async () => {
+  it("Drive's 403 rate limits are retried and then passing; a disabled API is a setup problem, not lost access", async () => {
+    slept.length = 0;
+    fake.fail(403, 2, "userRateLimitExceeded");
+    await expect(g.modifiedTime("s1")).resolves.toBeTruthy();
+    expect(slept).toEqual([1000, 2000]);
+    fake.fail(403, 4, "rateLimitExceeded");
+    await expect(g.modifiedTime("s1")).rejects.toMatchObject({ kind: "rate" });
+    fake.fail(403, 1, "accessNotConfigured");
+    await expect(g.spreadsheet("s1")).rejects.toMatchObject({ kind: "setup" });
+    fake.fail(403, 0);
+  });
+
+  it("a broken key is a setup problem, not retried forever", async () => {
     const bad = createGoogleSheets({
       account: { ...parseServiceAccount(fake.env)!, clientEmail: "someone-else@x.iam.gserviceaccount.com" },
       endpoint: fake.url,
       sleep: async () => undefined,
     });
-    await expect(bad.spreadsheet("s1")).rejects.toMatchObject({ kind: "access" });
+    await expect(bad.spreadsheet("s1")).rejects.toMatchObject({ kind: "setup" });
   });
 });
 

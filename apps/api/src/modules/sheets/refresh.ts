@@ -21,6 +21,7 @@ const ATTENTION_CODES = new Set([
   "COLUMNS_CHANGED",
   "TOO_MANY_ROWS",
   "RUN_AS_ACCESS",
+  "GOOGLE_SETUP",
 ]);
 
 export type RefreshProgress = {

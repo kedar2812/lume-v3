@@ -4,7 +4,28 @@ import { createSign } from "node:crypto";
 export type ServiceAccount = { clientEmail: string; privateKey: string; tokenUri: string };
 export type SheetTab = { sheetId: number; title: string; rowCount: number };
 export type SpreadsheetMeta = { title: string; tabs: SheetTab[] };
-export type GoogleErrorKind = "access" | "not_found" | "rate" | "unavailable" | "bad_request";
+/** access: this sheet isn't shared (or was unshared); setup: LUME's own Google key or project needs fixing. */
+export type GoogleErrorKind = "access" | "not_found" | "rate" | "unavailable" | "bad_request" | "setup";
+
+/** Google's error reasons that mean "slow down", which Drive sends as 403 (not 429). */
+const RATE_REASONS = new Set([
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+  "quotaExceeded",
+  "dailyLimitExceeded",
+]);
+/** Reasons that mean the Google project itself isn't set up for LUME (an API not enabled, a bad key). */
+const SETUP_REASONS = new Set(["accessNotConfigured", "SERVICE_DISABLED", "keyInvalid", "projectNotLinked"]);
+type GoogleErrorBody = {
+  error?: {
+    message?: string;
+    status?: string;
+    errors?: { reason?: string }[];
+    details?: { reason?: string }[];
+  };
+};
+const reasonsOf = (b: GoogleErrorBody) =>
+  [...(b.error?.errors ?? []), ...(b.error?.details ?? [])].map((x) => x.reason ?? "").filter(Boolean);
 
 export class GoogleError extends Error {
   constructor(
@@ -105,7 +126,11 @@ export function createGoogleSheets(o: {
       throw new GoogleError("unavailable", "LUME couldn't reach Google.");
     }
     if (res.status >= 500) throw new GoogleError("unavailable", "Google's sign-in service is unavailable.");
-    if (!res.ok) throw new GoogleError("access", "Google refused LUME's service-account key.");
+    if (!res.ok)
+      throw new GoogleError(
+        "setup",
+        "Google refused LUME's service-account key (it may have been deleted or disabled).",
+      );
     const j = (await res.json()) as { access_token: string; expires_in: number };
     token = { value: j.access_token, until: now() + (j.expires_in - 60) * 1000 };
     return token.value;
@@ -129,16 +154,19 @@ export function createGoogleSheets(o: {
         attempt--;
         continue;
       }
-      if ((status === 429 || status >= 500) && attempt < RETRIES.length) {
+      const body = res ? ((await res.json().catch(() => ({}))) as GoogleErrorBody) : {};
+      const reasons = reasonsOf(body);
+      const rate =
+        status === 429 ||
+        body.error?.status === "RESOURCE_EXHAUSTED" ||
+        reasons.some((r) => RATE_REASONS.has(r));
+      if ((rate || status >= 500) && attempt < RETRIES.length) {
         await sleep(RETRIES[attempt]!);
         continue;
       }
-      const body = res
-        ? ((await res.json().catch(() => ({}))) as { error?: { message?: string; status?: string } })
-        : {};
       const message = body.error?.message ?? `Google answered ${status}.`;
-      if (status === 429 || body.error?.status === "RESOURCE_EXHAUSTED")
-        throw new GoogleError("rate", message);
+      if (rate) throw new GoogleError("rate", message);
+      if (reasons.some((r) => SETUP_REASONS.has(r))) throw new GoogleError("setup", message);
       if (status >= 500) throw new GoogleError("unavailable", message);
       if (status === 404) throw new GoogleError("not_found", message);
       if (status === 401 || status === 403) throw new GoogleError("access", message);

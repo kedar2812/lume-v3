@@ -216,6 +216,15 @@ describe("a sync", () => {
     expect(await source(b.id)).toMatchObject({ attention_code: "SHEET_GONE" });
   });
 
+  it("a Google project problem needs attention with a message for whoever installed LUME", async () => {
+    const s = await connect([row(32)]);
+    h.fake!.fail(403, 1, "accessNotConfigured");
+    await sync(s.id);
+    expect(await source(s.id)).toMatchObject({ status: "needs_attention", attention_code: "GOOGLE_SETUP" });
+    expect((await source(s.id)).last_error).toMatch(/person who installed LUME/);
+    h.fake!.fail(403, 0);
+  });
+
   it("Google being down is a passing failure: the sheet stays active and backs off", async () => {
     const s = await connect([row(24)]);
     h.fake!.fail(503, 8);
@@ -262,6 +271,55 @@ describe("a sync", () => {
     const s = await connect(Array.from({ length: 51 }, (_, i) => row(i + 100)));
     await sync(s.id);
     expect(await source(s.id)).toMatchObject({ status: "needs_attention", attention_code: "TOO_MANY_ROWS" });
+  });
+});
+
+describe("stopping and locks (final review)", () => {
+  it("pausing (or removing) a sheet stops a sync under way within 25 rows", async () => {
+    const s = await connect(Array.from({ length: 40 }, (_, i) => row(i + 200)));
+    const r = await db().transaction((tx) =>
+      requestSync(tx, { sourceId: s.id, trigger: "manual", requestedBy: null }),
+    );
+    await runSync(
+      {
+        app: h.app,
+        pool: h.pool,
+        keyring: h.keyring,
+        google: h.google!,
+        maxRows: 50,
+        testHooks: {
+          afterRow: async (n) => {
+            // What Pause does: the sheet stops being active and lets go of its sync.
+            if (n === 5)
+              await h.pool.query(
+                "UPDATE lead_sources SET status = 'paused', current_sync_id = NULL WHERE id = $1",
+                [s.id],
+              );
+          },
+        },
+      },
+      r!.syncId,
+    );
+    const [y] = (
+      await h.pool.query("SELECT status, error, created FROM source_syncs WHERE id = $1", [r!.syncId])
+    ).rows;
+    expect(y).toMatchObject({ status: "failed", error: "stopped", created: 25 });
+    expect(await leadsFrom(s.id)).toHaveLength(25);
+  });
+
+  it("a sync that finds its sheet paused lets go of the lock, so Resume syncs at once", async () => {
+    const s = await connect([row(31)]);
+    const r = await db().transaction((tx) =>
+      requestSync(tx, { sourceId: s.id, trigger: "manual", requestedBy: null }),
+    );
+    await h.pool.query("UPDATE lead_sources SET status = 'paused' WHERE id = $1", [s.id]);
+    await runSync(
+      { app: h.app, pool: h.pool, keyring: h.keyring, google: h.google!, maxRows: 50 },
+      r!.syncId,
+    );
+    expect(await source(s.id)).toMatchObject({ current_sync_id: null, sync_lock_until: null });
+    await h.pool.query("UPDATE lead_sources SET status = 'active' WHERE id = $1", [s.id]);
+    expect(await sync(s.id)).toMatchObject({ status: "done", created: 1 });
   });
 });
 

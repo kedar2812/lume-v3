@@ -38,14 +38,25 @@ export type SyncDeps = {
   google: GoogleSheets;
   maxRows: number;
   now?: () => Date;
+  /** Tests only: called after each row is written (n counts from 1). */
+  testHooks?: { afterRow?: (n: number) => Promise<void> };
 };
+/** The sheet was paused or removed mid-sync, or another sync took over: stop, and change nothing more. */
+class Stopped extends Error {}
+const CHECK_EVERY = 25;
 type Source = typeof S.$inferSelect;
 type Db = NodePgDatabase<typeof schema>;
 type ColumnSettings = { dateOrders: Record<number, DateOrder>; decimalMarks: Record<number, "." | ","> };
 type Todo = { row: SheetRow; fp: string };
 
 export type AttentionCode =
-  "ACCESS_LOST" | "SHEET_GONE" | "TAB_GONE" | "COLUMNS_CHANGED" | "TOO_MANY_ROWS" | "RUN_AS_ACCESS";
+  | "ACCESS_LOST"
+  | "SHEET_GONE"
+  | "TAB_GONE"
+  | "COLUMNS_CHANGED"
+  | "TOO_MANY_ROWS"
+  | "RUN_AS_ACCESS"
+  | "GOOGLE_SETUP";
 /** Something only a person can fix: the sheet waits (needs attention) until they do. */
 export class Attention extends Error {
   constructor(
@@ -68,6 +79,11 @@ async function ask<T>(google: GoogleSheets, call: () => Promise<T>): Promise<T> 
       );
     if (e instanceof GoogleError && e.kind === "not_found")
       throw new Attention("SHEET_GONE", "This spreadsheet was deleted, or moved where LUME can't reach it.");
+    if (e instanceof GoogleError && e.kind === "setup")
+      throw new Attention(
+        "GOOGLE_SETUP",
+        `LUME's Google connection isn't set up right (Google said: ${e.message}). Tell the person who installed LUME.`,
+      );
     throw e;
   }
 }
@@ -155,6 +171,12 @@ export async function runSync(o: SyncDeps, syncId: string): Promise<void> {
       .update(SY)
       .set({ status: "failed", error: "stopped", finishedAt: now() })
       .where(eq(SY.id, syncId));
+    // Let go of the lock if it's still ours, so Resume (or the next request) syncs at once.
+    if (src?.currentSyncId === syncId)
+      await db
+        .update(S)
+        .set({ currentSyncId: null, syncLockUntil: null })
+        .where(and(eq(S.id, src.id), eq(S.currentSyncId, syncId)));
     return;
   }
   // Close the sync and free the source, but only while the source still points at this sync.
@@ -182,6 +204,14 @@ export async function runSync(o: SyncDeps, syncId: string): Promise<void> {
       },
     );
   } catch (e) {
+    if (e instanceof Stopped) {
+      // Paused or removed mid-way: what's written stays; the sheet is no longer this sync's to change.
+      await db
+        .update(SY)
+        .set({ status: "failed", error: "stopped", finishedAt: now() })
+        .where(eq(SY.id, syncId));
+      return;
+    }
     if (e instanceof Attention) {
       await settle(
         { status: "failed", error: e.code },
@@ -353,6 +383,7 @@ async function syncSource(
   await db.update(SY).set({ rowsTotal: todo.length }).where(eq(SY.id, syncId));
 
   const columnSettings = src.columnSettings as ColumnSettings;
+  let written = 0;
   for (let i = 0; i < todo.length; i += INTAKE_LIMITS.batch) {
     const slice = todo.slice(i, i + INTAKE_LIMITS.batch);
     // Permissions, people and fields are read afresh before every batch, as an import does.
@@ -364,9 +395,6 @@ async function syncSource(
       requestId: `sheet:${syncId}:${suffix}`,
       allLeads: true,
     });
-    await db.execute(
-      sql`UPDATE lead_sources SET sync_lock_until = now() + interval '15 minutes' WHERE id = ${src.id} AND current_sync_id = ${syncId}`,
-    );
     if (mapping.createMissingTags)
       await withJobRequest(job("tags"), (req) =>
         createMissingTags(
@@ -379,6 +407,13 @@ async function syncSource(
       loadMapContext(req, { pipelineId: rules.pipelineId, headerCount: width, columnSettings }),
     );
     for (const t of slice) {
+      // Every 25 rows: still ours? Extends the lock if so; Pause and Remove let go of it, and that stops us.
+      if (written % CHECK_EVERY === 0) {
+        const held = await db.execute(
+          sql`UPDATE lead_sources SET sync_lock_until = now() + interval '15 minutes' WHERE id = ${src.id} AND current_sync_id = ${syncId} AND status IN ('active', 'needs_attention')`,
+        );
+        if (!held.rowCount) throw new Stopped();
+      }
       try {
         await withJobRequest(job(String(t.row.number)), (req) =>
           oneRow(req, o.keyring, { src, rules, mapping, ctx, syncId }, t),
@@ -390,6 +425,8 @@ async function syncSource(
           refuseRow(req, o.keyring, src.id, syncId, t, refusalReason(e)),
         );
       }
+      written++;
+      await o.testHooks?.afterRow?.(written);
     }
   }
 

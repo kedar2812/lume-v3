@@ -102,8 +102,8 @@ const rep = await signedIn("rep");
 await owner.goto("/settings");
 const ownerNav = await owner.getByRole("navigation", { name: "Settings" }).getByRole("link").allInnerTexts();
 assert(
-  ownerNav.length === 12 && ownerNav.includes("Imports"),
-  "the owner reaches every settings page, Imports included",
+  ownerNav.length === 13 && ownerNav.includes("Imports") && ownerNav.includes("Integrations"),
+  "the owner reaches every settings page, Imports and Integrations included",
   ownerNav,
 );
 await shot(owner, "01-settings-home-owner");

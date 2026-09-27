@@ -24,7 +24,7 @@ type Source = typeof S.$inferSelect;
 const SNAPSHOT_ROWS = 20_000;
 const MAX_SHEETS = 20;
 /** Attention a press of "Test again" can clear; the others need the columns opened and saved. */
-const RETRYABLE = new Set(["ACCESS_LOST", "SHEET_GONE", "TAB_GONE", "TOO_MANY_ROWS"]);
+const RETRYABLE = new Set(["ACCESS_LOST", "SHEET_GONE", "TAB_GONE", "TOO_MANY_ROWS", "GOOGLE_SETUP"]);
 
 export type SyncView = {
   id: string;
@@ -102,6 +102,12 @@ async function fromGoogle<T>(google: GoogleSheets, call: () => Promise<T>): Prom
       );
     if (e instanceof GoogleError && e.kind === "not_found")
       throw new HttpError(404, "SHEET_NOT_FOUND", "LUME couldn't find this sheet. Check the link.");
+    if (e instanceof GoogleError && e.kind === "setup")
+      throw new HttpError(
+        503,
+        "GOOGLE_SETUP",
+        "LUME's Google connection isn't set up right. Tell the person who installed LUME.",
+      );
     if (isTransient(e))
       throw new HttpError(503, "GOOGLE_UNAVAILABLE", "LUME couldn't reach Google. Try again in a minute.");
     throw e;
@@ -443,7 +449,9 @@ export async function patchSheet(
   const set: Partial<typeof S.$inferInsert> = {};
   if (p.name !== undefined) set.name = p.name.trim();
   if (p.pollSeconds !== undefined) set.pollSeconds = p.pollSeconds;
-  if (p.paused === true && s.status === "active") set.status = "paused";
+  // Pausing lets go of a sync under way, which stops it within 25 rows (sync.ts).
+  if (p.paused === true && s.status === "active")
+    Object.assign(set, { status: "paused", currentSyncId: null, syncLockUntil: null });
   if (p.paused === false && s.status === "paused")
     Object.assign(set, { status: "active", nextSyncAt: new Date() });
   if (Object.keys(set).length) await req.db.update(S).set(set).where(eq(S.id, id));

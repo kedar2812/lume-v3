@@ -258,6 +258,12 @@ assert(fixed.length === 3, "the bulk fix gives all three their country", fixed.l
 // 5 ─ Settings → Imports, in both themes ─────────────────────────────────────────────────────────
 await owner.goto("/settings/imports");
 await owner.getByRole("region", { name: "Past imports" }).waitFor();
+// The list arrives after the page: wait for it rather than asking once.
+await owner
+  .getByRole("heading", { name: "messy-500.csv" })
+  .first()
+  .waitFor({ timeout: 10_000 })
+  .catch(() => undefined);
 assert(
   await owner.getByRole("heading", { name: "messy-500.csv" }).first().isVisible(),
   "Settings → Imports lists the import",
@@ -266,7 +272,7 @@ await shot(owner, "08-settings-imports");
 const dark = await signedIn("owner", "obsidian");
 await dark.goto("/settings/imports");
 await dark.getByRole("button", { name: "Open the report for messy-500-shuffled.csv" }).click();
-await dark.getByRole("heading", { name: /messy-500-shuffled\.csv/ }).waitFor();
+await dark.getByRole("heading", { name: "messy-500-shuffled.csv is in LUME" }).waitFor();
 await shot(dark, "09-report-obsidian");
 
 // 6 ─ someone without Import leads sees no Import ────────────────────────────────────────────────

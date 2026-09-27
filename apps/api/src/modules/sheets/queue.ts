@@ -22,6 +22,20 @@ export async function dueSources(db: TxLike): Promise<string[]> {
 }
 
 /**
+ * On start-up: a sync still queued or running was cut off by a restart (one API per instance runs every
+ * sync). Close it and free its sheet, so nothing waits out a 15-minute lock for a sync that isn't coming.
+ */
+export async function recoverStaleSyncs(db: TxLike): Promise<number> {
+  const { rows } = await db.execute<{ id: string }>(
+    sql`UPDATE source_syncs SET status = 'failed', error = 'stopped', finished_at = now() WHERE status IN ('queued', 'running') RETURNING id`,
+  );
+  await db.execute(
+    sql`UPDATE lead_sources SET current_sync_id = NULL, sync_lock_until = NULL WHERE current_sync_id IS NOT NULL`,
+  );
+  return rows.length;
+}
+
+/**
  * Sheet syncs run in the API process, as lume_app (like imports, 2A amendment 1), one at a time. Once a
  * minute, due sources are asked to sync. A sync that died with its process is picked up again when its
  * lock runs out: the next request replaces it.
@@ -44,6 +58,7 @@ export async function startSheetsQueue(o: {
     max: 2,
   });
   boss.on("error", (err) => o.app.log.error({ err }, "sheets queue error"));
+  await recoverStaleSyncs(drizzle(o.pool, { schema }));
   await boss.start();
   await boss.work<{ id: string }>(
     "sheets.sync",

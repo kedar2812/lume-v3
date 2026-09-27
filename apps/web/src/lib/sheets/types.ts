@@ -72,4 +72,4 @@ export type RefreshProgress = {
 };
 export type Arrivals = { since: string | null; count: number; ids: string[] };
 /** Attention that "Test again" can clear; the rest need the columns opened and saved. */
-export const RETRYABLE = new Set(["ACCESS_LOST", "SHEET_GONE", "TAB_GONE", "TOO_MANY_ROWS"]);
+export const RETRYABLE = new Set(["ACCESS_LOST", "SHEET_GONE", "TAB_GONE", "TOO_MANY_ROWS", "GOOGLE_SETUP"]);

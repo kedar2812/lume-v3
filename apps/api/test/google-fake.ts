@@ -25,8 +25,8 @@ export type GoogleFake = {
   unshare(id: string): void;
   share(id: string): void;
   remove(id: string): void;
-  /** The next `count` Google calls (not the token) answer with this HTTP status. */
-  fail(status: number, count?: number): void;
+  /** The next `count` Google calls (not the token) answer with this HTTP status (and error reason). */
+  fail(status: number, count?: number, reason?: string): void;
   /** Every Google call's method and path, in order ("GET /v4/spreadsheets/abc"). */
   calls: string[];
   close(): Promise<void>;
@@ -41,7 +41,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const tokens = new Set<string>();
   const calls: string[] = [];
   let clock = Date.parse("2026-09-27T00:00:00Z");
-  let failing: { status: number; left: number } | null = null;
+  let failing: { status: number; left: number; reason?: string } | null = null;
   let url = "";
 
   const touch = (id: string) => {
@@ -90,7 +90,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       const [, , what, id, action] = u.pathname.split("/");
       if (what === "key") return send(res, 200, { env: api.env, email: EMAIL });
       if (what === "fail") {
-        api.fail(Number(body.status), Number(body.count ?? 1));
+        api.fail(Number(body.status), Number(body.count ?? 1), body.reason ? String(body.reason) : undefined);
         return send(res, 200, {});
       }
       if (what === "spreadsheets" && id) {
@@ -124,6 +124,14 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       return googleError(res, 401, "UNAUTHENTICATED", "Request had invalid authentication credentials.");
     if (failing && failing.left > 0) {
       failing.left--;
+      if (failing.reason)
+        return send(res, failing.status, {
+          error: {
+            code: failing.status,
+            message: `fake ${failing.reason}`,
+            errors: [{ reason: failing.reason }],
+          },
+        });
       return googleError(
         res,
         failing.status,
@@ -206,8 +214,8 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     remove(id) {
       sheets.delete(id);
     },
-    fail(status, count = 1) {
-      failing = { status, left: count };
+    fail(status, count = 1, reason) {
+      failing = { status, left: count, ...(reason ? { reason } : {}) };
     },
     calls,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
