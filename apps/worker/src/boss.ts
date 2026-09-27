@@ -29,5 +29,10 @@ export async function startQueue(opts: {
     const purged = await opts.maintenance.purgeIdempotencyKeys();
     opts.log.info({ purged }, "idempotency keys purged");
   });
+  await boss.schedule("imports.retention", "23 3 * * *", {}, { tz: "UTC" });
+  await boss.work("imports.retention", { batchSize: 1 }, async () => {
+    const r = await opts.maintenance.purgeImportFiles();
+    opts.log.info(r, "import files purged");
+  });
   return boss;
 }

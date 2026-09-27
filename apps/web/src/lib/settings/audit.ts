@@ -35,6 +35,17 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "lead.delete": { area: "Leads", phrase: "deleted a lead" },
   "lead.contact.reveal": { area: "Leads", phrase: "revealed a lead’s contact" },
   "lead.whatsapp.prepare": { area: "Leads", phrase: "opened WhatsApp for a lead" },
+  "import.started": { area: "Leads", phrase: "started an import" },
+  "import.finished": {
+    area: "Leads",
+    phrase: (d) =>
+      `imported leads: ${n(d.created)} created, ${n(d.merged)} merged, ${n(d.errors)} with problems`,
+  },
+  "import.cancelled": { area: "Leads", phrase: "cancelled an import" },
+  "import.resumed": { area: "Leads", phrase: "resumed an import" },
+  "import.stopped": { area: "Leads", phrase: "had an import stopped when their access changed" },
+  "import.failed": { area: "Leads", phrase: "had an import fail" },
+  "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
   // Sign-in and account
   "user.login": { area: "Sign-in", phrase: "signed in" },
   "user.login.password_ok": { area: "Sign-in", phrase: "entered the right password" },

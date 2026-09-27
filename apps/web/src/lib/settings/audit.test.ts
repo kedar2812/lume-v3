@@ -19,6 +19,13 @@ const entry = (action: string, over: Partial<AuditEntry> = {}): AuditEntry => ({
 
 /** Every action the API writes today (grep `action: "` in apps/api/src). A new one must be phrased here too. */
 const WRITTEN = [
+  "import.cancelled",
+  "import.discarded",
+  "import.failed",
+  "import.finished",
+  "import.resumed",
+  "import.started",
+  "import.stopped",
   "field.archived",
   "field.created",
   "field.updated",
@@ -85,6 +92,12 @@ const WRITTEN = [
 ];
 
 describe("auditPhrase", () => {
+  it("says what an import did", () => {
+    expect(
+      auditPhrase(entry("import.finished", { diff: { created: 812, merged: 40, errors: 3 } }), people),
+    ).toBe("Riya Sharma imported leads: 812 created, 40 merged, 3 with problems");
+  });
+
   it.each(WRITTEN)("phrases %s in words", (action) => {
     expect(AUDIT_ACTIONS[action], action).toBeDefined();
     const phrase = auditPhrase(entry(action), people);

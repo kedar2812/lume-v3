@@ -39,4 +39,44 @@ describe("maintenance jobs (as lume_worker)", () => {
     expect(await makeMaintenanceJobs(pool).purgeIdempotencyKeys()).toBe(1);
     expect((await pool.query("SELECT key FROM idempotency_keys")).rows).toEqual([{ key: "new-key-0001" }]);
   });
+
+  it("clears import files and raw rows 30 days after they finish, and deletes drafts never started after 7", async () => {
+    const owner = new pg.Client({ connectionString: db.url("lume_owner") });
+    await owner.connect();
+    const S = (n: number) => `00000000-0000-7000-8000-0000000000a${n}`;
+    const I = (n: number) => `00000000-0000-7000-8000-0000000000b${n}`;
+    await owner.query(
+      `INSERT INTO lead_sources (id, type, name) VALUES ($1, 'csv', 'x'), ($2, 'csv', 'y'), ($3, 'csv', 'z'), ($4, 'csv', 'w')`,
+      [S(1), S(2), S(3), S(4)],
+    );
+    await owner.query(
+      `INSERT INTO imports (id, source_id, kind, status, file_enc, file_sha256, file_name, file_bytes, finished_at, created_at) VALUES
+        ($1, $5, 'csv', 'done', 'x', 's', 'old.csv', 1, now() - interval '31 days', now() - interval '31 days'),
+        ($2, $6, 'csv', 'done', 'x', 's', 'new.csv', 1, now() - interval '2 days', now() - interval '2 days'),
+        ($3, $7, 'csv', 'draft', 'x', 's', 'draft.csv', 1, NULL, now() - interval '8 days'),
+        ($4, $8, 'csv', 'running', 'x', 's', 'busy.csv', 1, NULL, now() - interval '40 days')`,
+      [I(1), I(2), I(3), I(4), S(1), S(2), S(3), S(4)],
+    );
+    await owner.query(
+      `INSERT INTO import_rows (import_id, row_index, result, raw_enc) VALUES ($1, 2, 'created', 'x')`,
+      [I(1)],
+    );
+    const jobs = makeMaintenanceJobs(pool);
+    expect(await jobs.purgeImportFiles()).toEqual({ files: 1, rows: 1, drafts: 1 });
+    const left = (
+      await owner.query(
+        "SELECT id, file_enc IS NULL AS purged, purged_at IS NOT NULL AS stamped FROM imports ORDER BY id",
+      )
+    ).rows;
+    expect(left).toEqual([
+      { id: I(1), purged: true, stamped: true },
+      { id: I(2), purged: false, stamped: false },
+      { id: I(4), purged: false, stamped: false }, // still running: never touched, however old
+    ]);
+    expect((await owner.query("SELECT raw_enc IS NULL AS purged FROM import_rows")).rows).toEqual([
+      { purged: true },
+    ]);
+    expect(await jobs.purgeImportFiles()).toEqual({ files: 0, rows: 0, drafts: 0 }); // nothing twice
+    await owner.end();
+  });
 });

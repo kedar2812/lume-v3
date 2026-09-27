@@ -20,6 +20,7 @@ import {
 } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
+import { audit } from "../../audit/audit";
 import { HttpError, badRequest, notFound } from "../../http/errors";
 import { contactProbes, findMatches, loadMapContext } from "./context";
 import { readImportFile, sealFile } from "./files";
@@ -403,6 +404,12 @@ export async function discardImport(req: FastifyRequest, id: string) {
   const imp = await mine(req, id);
   if (imp.status !== "draft") throw new HttpError(409, "NOT_DRAFT", "Only a draft can be discarded.");
   await req.db.delete(schema.leadSources).where(eq(schema.leadSources.id, imp.sourceId)); // cascades to the import
+  await audit(req, {
+    action: "import.discarded",
+    entityType: "import",
+    entityId: id,
+    diff: { file: imp.fileName },
+  });
 }
 
 function view(req: FastifyRequest, imp: ImportRow, startedByName: string | null) {
