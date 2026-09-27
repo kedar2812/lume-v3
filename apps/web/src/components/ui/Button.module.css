@@ -104,3 +104,18 @@
   top: 50%;
   margin: -8px 0 0 -8px;
 }
+/* A third party's official mark sits unmodified on a small white tile (Google's guidance for its icons,
+   and the only way a green WhatsApp mark stays visible on the WhatsApp-green button). */
+.brandTile {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+.brandTile img {
+  display: block;
+}

@@ -181,6 +181,14 @@ describe("LeadDrawer", () => {
     expect(h.onClose).toHaveBeenCalled();
   });
 
+  it("shows WhatsApp's own official mark on its button, never a drawn look-alike", async () => {
+    open();
+    const button = await screen.findByRole("button", { name: "WhatsApp" });
+    const mark = button.querySelector("img");
+    expect(mark).toHaveAttribute("src", "/brand/whatsapp.svg");
+    expect(button.querySelector("svg")).toBeNull();
+  });
+
   it("opens WhatsApp in a new tab from a server-built link, then asks whether it was sent", async () => {
     const tab = { location: { href: "" }, close: vi.fn(), opener: {} as unknown };
     vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);

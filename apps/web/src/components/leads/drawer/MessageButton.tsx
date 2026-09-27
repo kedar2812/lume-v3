@@ -71,15 +71,10 @@ export function MessageButton({ lead, onLogged }: { lead: Lead; onLogged: () => 
         disabled={!!blocked}
         trigger={
           <>
-            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-              <path
-                d="M8 1.8a6.2 6.2 0 0 0-5.3 9.4L2 14l2.9-.7A6.2 6.2 0 1 0 8 1.8z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-            </svg>
+            {/* WhatsApp's own mark, unmodified, on a white tile (public/brand/README.md) */}
+            <span className={b.brandTile} aria-hidden>
+              <img src="/brand/whatsapp.svg" alt="" width={14} height={14} />
+            </span>
             WhatsApp
           </>
         }
