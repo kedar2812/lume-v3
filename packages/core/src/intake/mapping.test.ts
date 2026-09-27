@@ -104,6 +104,10 @@ describe("validateMapping", () => {
       fields: ctx.fields.map((x) => (x.key === "tier" ? { ...x, isRequired: true } : x)),
     });
     expect(codes(mapOf(["name"]), testRules(), c)).toContain("REQUIRED_FIELD_UNCOVERED");
+    // It names the field, so the Rules screen can ask for exactly that default.
+    expect(validateMapping(mapOf(["name"]), testRules(), c)).toContainEqual(
+      expect.objectContaining({ code: "REQUIRED_FIELD_UNCOVERED", field: "tier" }),
+    );
     expect(codes(mapOf(["name"]), testRules({ requiredDefaults: { tier: "o-gold" } }), c)).toEqual([]);
     expect(codes(mapOf(["name", "tier"]), testRules(), c)).toEqual([]);
   });

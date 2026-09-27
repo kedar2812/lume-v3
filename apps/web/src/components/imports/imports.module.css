@@ -609,6 +609,252 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Rules ──────────────────────────────────────────────────────────────────────────────────── */
+.panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  padding: 20px;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+.panelTitle {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-bold);
+}
+.matchChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.toggleChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 99px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+.toggleChip[aria-pressed="true"] {
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.order {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: var(--accent);
+}
+.choices {
+  display: grid;
+  gap: 8px;
+}
+.choicesRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+.choicesRow .stackTitle {
+  grid-column: 1 / -1;
+}
+.choice {
+  padding: 11px 14px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.choice[data-on] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.choice[data-disabled] {
+  opacity: 0.6;
+}
+.choiceHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.choice[data-disabled] .choiceHead {
+  cursor: default;
+}
+.choiceHead input {
+  accent-color: var(--accent);
+}
+.choiceLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: var(--fw-semibold);
+}
+.badge {
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-2xs);
+  font-weight: var(--fw-bold);
+  color: var(--ok-ink);
+  background: var(--ok-soft);
+}
+.choiceHint {
+  margin: 3px 0 0 26px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.choiceMore {
+  margin: 10px 0 0 26px;
+}
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  cursor: pointer;
+}
+.check input {
+  accent-color: var(--accent);
+}
+.pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.stack {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.stackTitle {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+
+/* ── Preview ──────────────────────────────────────────────────────────────────────────────────── */
+.summary {
+  margin-top: 14px;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.refusal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.preview {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.preview th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  background: var(--sunk);
+  border-bottom: 0.5px solid var(--line);
+}
+.preview td {
+  padding: 11px 14px;
+  vertical-align: top;
+  border-bottom: 0.5px solid var(--line);
+}
+.preview tbody tr:last-child td {
+  border-bottom: 0;
+}
+.num {
+  width: 56px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.outcome {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  background: var(--sunk);
+}
+.outcome[data-outcome="create"] {
+  color: var(--ok-ink);
+  background: var(--ok-soft);
+}
+.outcome[data-outcome="merge"] {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.outcome[data-outcome="error"] {
+  color: var(--danger-ink);
+  background: var(--danger-soft);
+}
+.leadCell,
+.notes {
+  display: grid;
+  gap: 3px;
+}
+.leadCell {
+  font-weight: var(--fw-medium);
+}
+.mergeLine,
+.noteWarn {
+  font-weight: var(--fw-regular);
+  color: var(--text-2);
+}
+.noteProblem {
+  color: var(--danger-ink);
+}
+.muted {
+  color: var(--text-3);
+}
+.previewActions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
 /* ── Keep for later? ──────────────────────────────────────────────────────────────────────────── */
 .veil {
   position: absolute;

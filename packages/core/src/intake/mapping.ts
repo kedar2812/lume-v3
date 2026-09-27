@@ -61,7 +61,8 @@ export type MapContext = {
   dateOrders: Record<number, DateOrder>;
   decimalMarks: Record<number, "." | ",">;
 };
-export type Issue = { column: number | null; code: string; message: string };
+/** A reason, in LUME's words; `field` names the field it's about when a screen needs to act on it. */
+export type Issue = { column: number | null; code: string; message: string; field?: string };
 
 /** Targets that aren't field definitions but can take a column. */
 export const PSEUDO_TARGETS = [
@@ -285,13 +286,14 @@ export function validateMapping(m: Mapping, r: Rules, ctx: MapContext): Issue[] 
       !seen.has(f.key) &&
       r.requiredDefaults[f.key] === undefined
     )
-      out.push(
-        issue(
+      out.push({
+        ...issue(
           null,
           "REQUIRED_FIELD_UNCOVERED",
           `${f.label} is needed on every lead: map a column to it or choose a default.`,
         ),
-      );
+        field: f.key,
+      });
 
   const stage = ctx.stages.find((s) => s.id === r.stageId);
   if (!stage) out.push(issue(null, "UNKNOWN_STAGE", "Choose the stage new leads enter."));
