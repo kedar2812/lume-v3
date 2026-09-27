@@ -528,3 +528,31 @@ By hand, once: sort the sheet (nothing new); rename a mapped column (the sheet p
 ## State left behind
 
 The dev database was reset for the run. It now holds the fictional Brightpath Studio workspace from the acceptance scripts (owner Maya Kapoor), not the owner's own demo account. **Status: Phase 2B-1 built; accepted in CI and on the dev stack, except the steps that need a real Google key.**
+
+---
+
+# Phase 2B-2 — Connect with Google (behind its switch)
+
+Plan: `docs/superpowers/plans/2026-09-28-phase-2b2-connect-with-google.md`. Owner's setup: `docs/runbooks/connect-with-google.md`.
+
+## Automated
+
+- The relay protocol: signing, sealing, and refusing tampering or another instance's token.
+- The relay (`apps/connect`), against the fake Google's OAuth endpoints:
+  - start refuses unknown instances and bad signatures, and never redirects elsewhere;
+  - consent asks only for `drive.file`;
+  - the Picker page;
+  - the sealed hand-back goes to the registered instance only;
+  - refresh, and revocation.
+- The instance:
+  - each sheet reads with its own credential;
+  - a revoked grant pauses the sheet;
+  - the relay down is a passing failure;
+  - start is signed for this instance;
+  - complete is single-use, for the person who started it, and refuses tampered, foreign and expired hand-backs;
+  - a sheet is made from the picked file.
+- The screens: Connect with Google first, "Other ways", the page Google returns to, and the picked file's tabs.
+
+## Live
+
+This waits on the owner's steps: Google's verification of the consent screen, and the relay's deployment. Until `GOOGLE_OAUTH_RELAY_URL` is set on an instance, nothing about it shows there.
