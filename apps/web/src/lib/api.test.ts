@@ -30,6 +30,37 @@ describe("browser API client", () => {
     expect(init.credentials).toBe("same-origin");
   });
 
+  it("uploads a file as the raw body, its name in a header", async () => {
+    const fetchMock = vi.fn(async (url: string | URL) =>
+      String(url).endsWith("/auth/csrf") ? csrfResponse() : json(201, { id: "d1" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["Name,Phone"], "März leads.csv", { type: "text/csv" });
+    expect(await api.upload("/api/v1/imports", file)).toEqual({ ok: true, status: 201, data: { id: "d1" } });
+    const [, init] = fetchMock.mock.calls[1]! as unknown as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(init.body).toBe(file);
+    expect(headers.get("content-type")).toBe("application/octet-stream");
+    expect(headers.get("x-file-name")).toBe("M%C3%A4rz%20leads.csv");
+    expect(headers.get("x-csrf-token")).toBe("csrf-token-value");
+  });
+
+  it("explains a body the edge refused as too big", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url).endsWith("/auth/csrf")
+          ? csrfResponse()
+          : new Response("<html>413</html>", { status: 413 }),
+      ),
+    );
+    expect(await api.upload("/api/v1/imports", new File(["x"], "big.csv"))).toMatchObject({
+      ok: false,
+      status: 413,
+      code: "FILE_TOO_BIG",
+    });
+  });
+
   it("fetches the CSRF token once and reuses it", async () => {
     const fetchMock = vi.fn(async (url: string | URL) =>
       String(url).endsWith("/auth/csrf") ? csrfResponse() : json(200, {}),

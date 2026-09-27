@@ -1,0 +1,450 @@
+/* The Import sheet (spec §9): a large glass sheet over the app, a step rail, one step at a time. It shares
+   the onboarding sheet's material, rail and step circles, so the two feel like one family. */
+
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+.sheet {
+  position: relative;
+  width: min(1080px, calc(100vw - 32px));
+  height: calc(100dvh - 48px);
+  max-height: 820px;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  border-radius: var(--r-sheet);
+  overflow: hidden;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+}
+/* The bright top edge: light catching the material. */
+.sheet::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  pointer-events: none;
+}
+:global([data-theme="obsidian"]) .sheet::after {
+  background: linear-gradient(90deg, transparent, rgba(170, 190, 255, 0.4), transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :global([data-theme="system"]) .sheet::after {
+    background: linear-gradient(90deg, transparent, rgba(170, 190, 255, 0.4), transparent);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sheet {
+    background: var(--sheet);
+    backdrop-filter: none;
+  }
+}
+
+/* ── The rail ─────────────────────────────────────────────────────────────────────────────────── */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 14px;
+  background: var(--glass-rail);
+  border-right: 0.5px solid var(--line);
+  overflow: auto;
+}
+.title {
+  padding: 0 10px;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-bold);
+}
+.steps ol {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  text-align: left;
+  background: none;
+  cursor: pointer;
+  transition:
+    color 0.25s,
+    background 0.25s;
+}
+.step:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.step:not(:disabled):not([aria-current="step"]):hover {
+  background: var(--hover);
+}
+.step[aria-current="step"] {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.circle {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  transition:
+    background 0.3s,
+    box-shadow 0.3s,
+    color 0.3s;
+}
+.step[data-done] .circle {
+  background: var(--ok);
+  color: #fff;
+  box-shadow: none;
+}
+.step[aria-current="step"] .circle {
+  color: var(--accent-ink);
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.railFoot {
+  margin-top: auto;
+  padding: 0 10px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+/* ── The pane ─────────────────────────────────────────────────────────────────────────────────── */
+.pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 30px 34px 24px;
+}
+.stepTitle {
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.15;
+  padding-right: 40px;
+}
+.lede {
+  max-width: 60ch;
+  margin-top: 8px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+/* The footer stays put while the step scrolls; a soft edge where content meets it. */
+.foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 34px 18px;
+  border-top: 0.5px solid var(--line);
+}
+.footNote {
+  margin-right: auto;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+
+/* ── File ─────────────────────────────────────────────────────────────────────────────────────── */
+.drop {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  padding: 34px 20px;
+  border-radius: var(--r-card);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  outline: 1.5px dashed transparent;
+  outline-offset: -8px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    outline-color 0.25s,
+    transform 0.35s var(--spring-soft, ease);
+}
+.drop:hover {
+  outline-color: var(--line-2);
+}
+.drop:focus-within {
+  box-shadow:
+    inset 0 0 0 1px var(--line-2),
+    0 0 0 3px var(--focus-ring);
+}
+.drop[data-over] {
+  background: var(--accent-soft);
+  outline-color: var(--accent);
+  transform: scale(1.01);
+}
+.drop[data-busy] {
+  cursor: progress;
+  opacity: 0.75;
+}
+.drop[data-compact] {
+  padding: 16px 20px;
+}
+.dropIcon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--accent-ink);
+  background: var(--raised);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.dropTitle {
+  font-weight: var(--fw-semibold);
+}
+.dropHint {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-3);
+}
+.readout {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+.fileLine {
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 99px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.chip:hover,
+.chip[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
+.menu {
+  display: grid;
+  min-width: 190px;
+  padding: 4px;
+}
+.menuItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  text-align: left;
+  background: none;
+  cursor: pointer;
+}
+.menuItem:hover {
+  background: var(--hover);
+}
+.menuItem[aria-checked="true"] {
+  font-weight: var(--fw-semibold);
+}
+.menuItem[aria-checked="true"]::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.note {
+  padding: 10px 12px;
+  border-radius: var(--r-ctl);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.5;
+}
+.warn {
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+}
+.problem {
+  margin-top: 14px;
+  color: var(--danger-ink);
+  background: var(--danger-soft);
+}
+
+/* The first rows, as LUME read them: a quiet table that scrolls sideways when it must. */
+.sampleWrap {
+  overflow: auto;
+  max-width: 100%;
+  border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.sample {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-variant-numeric: tabular-nums;
+}
+.sample th,
+.sample td {
+  max-width: 220px;
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 0.5px solid var(--line);
+}
+.sample th {
+  position: sticky;
+  top: 0;
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  background: var(--sunk);
+}
+.sample tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ── Keep for later? ──────────────────────────────────────────────────────────────────────────── */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: var(--veil);
+}
+.ask {
+  width: min(380px, calc(100% - 32px));
+  padding: 22px;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: var(--shadow-pop);
+}
+.ask h3 {
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-bold);
+}
+.ask p {
+  margin-top: 6px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.askActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Small screens: the sheet fills the screen, the rail becomes a row of steps ───────────────── */
+@media (max-width: 720px) {
+  .sheet {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .rail {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 0.5px solid var(--line);
+    overflow-x: auto;
+  }
+  .title,
+  .railFoot {
+    display: none;
+  }
+  .steps ol {
+    display: flex;
+  }
+  .step {
+    width: auto;
+    white-space: nowrap;
+  }
+  .body {
+    padding: 22px 18px;
+  }
+  .foot {
+    padding: 12px 18px 16px;
+  }
+}

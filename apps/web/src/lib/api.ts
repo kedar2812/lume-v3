@@ -45,14 +45,16 @@ async function send<T>(
     ...(method === "GET" ? {} : { "idempotency-key": crypto.randomUUID() }),
   };
   if (token) headers["x-csrf-token"] = token;
-  if (body !== undefined) headers["content-type"] = "application/json";
+  // A file goes as itself (an import upload); everything else as JSON.
+  const raw = typeof Blob !== "undefined" && body instanceof Blob;
+  if (body !== undefined) headers["content-type"] = raw ? "application/octet-stream" : "application/json";
   let res: Response;
   try {
     res = await fetch(path, {
       method,
       credentials: "same-origin",
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     });
   } catch {
     return { ok: false, status: 0, code: "OFFLINE", message: OFFLINE };
@@ -76,6 +78,14 @@ async function send<T>(
     }
     return { ok: false, status: 429, code: "RATE_LIMITED", message: BUSY };
   }
+  // The edge refuses a body over its limit before the API sees it.
+  if (res.status === 413 && !err?.code)
+    return {
+      ok: false,
+      status: 413,
+      code: "FILE_TOO_BIG",
+      message: "This file is over 10 MB. Split it into smaller files.",
+    };
   // A stale CSRF cookie (a long-open tab) is worth exactly one silent retry.
   if (res.status === 403 && err?.code === "CSRF" && retry) {
     await csrfToken(true);
@@ -99,4 +109,7 @@ export const api = {
     send<T>("PATCH", path, body, true, { "if-match": `"${version}"` }),
   put: <T>(path: string, body?: unknown) => send<T>("PUT", path, body),
   del: <T>(path: string, body?: unknown) => send<T>("DELETE", path, body),
+  /** A file as the request body, its name in a header (the import upload). */
+  upload: <T>(path: string, file: File) =>
+    send<T>("POST", path, file, true, { "x-file-name": encodeURIComponent(file.name) }),
 };

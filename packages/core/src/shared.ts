@@ -19,3 +19,9 @@ export * from "./users/preferences";
 export * from "./onboarding/steps";
 export * from "./tour/steps";
 export { INTAKE_LIMITS } from "./intake/limits";
+// The intake engine's shapes, for the Import screens: types only (erased at build), so the engine itself
+// — Papa Parse included — never reaches the browser.
+export type { Delimiter, Encoding, FileWarning } from "./intake/read";
+export type { DateOrder } from "./intake/values";
+export type { ColumnMap, IntakeField, Issue, Mapping, OwnerRule, Rules, Transform } from "./intake/mapping";
+export type { ColumnAnalysis } from "./intake/map-row";
