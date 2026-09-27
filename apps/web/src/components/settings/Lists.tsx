@@ -65,14 +65,12 @@ export function Lists({
   // ── lost reasons ──
   const reasonsOk = landed("reasons");
   const reorderReasons = async (ids: string[]) => {
+    // One call: the server takes the whole order or none of it, so a refusal can't leave it half-moved.
     const before = reasons;
-    const next = ids.map((id, position) => ({ ...reasons.find((r) => r.id === id)!, position }));
-    setReasons(next);
-    for (const r of next) {
-      if (before.find((b) => b.id === r.id)!.position === r.position) continue;
-      if (!reasonsOk(await listsClient.patchReason(r.id, { position: r.position })))
-        return setReasons(before);
-    }
+    setReasons(ids.map((id, position) => ({ ...reasons.find((r) => r.id === id)!, position })));
+    const r = await listsClient.reorderReasons(ids);
+    if (reasonsOk(r)) setReasons(r.data.lostReasons);
+    else setReasons(before);
   };
 
   // ── tags ──

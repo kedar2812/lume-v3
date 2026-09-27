@@ -49,6 +49,9 @@ export function RoleMatrix({
   };
 
   const granted = catalog.filter((p) => held(p.key));
+  // Every permission, each at its widest: one line says it better than thirty chips.
+  const everything =
+    catalog.length > 0 && catalog.every((p) => held(p.key) && (!p.scoped || held(p.key)!.scope === "all"));
 
   return (
     <div className={s.matrix}>
@@ -56,7 +59,9 @@ export function RoleMatrix({
         <h3 id={summaryId} className={s.summaryTitle}>
           What {role.name} can do
         </h3>
-        {granted.length === 0 ? (
+        {everything ? (
+          <p className={s.summaryAll}>Everything, for everyone’s leads</p>
+        ) : granted.length === 0 ? (
           <p className={s.muted}>
             Nothing yet. People with only this role can sign in and see an empty LUME.
           </p>

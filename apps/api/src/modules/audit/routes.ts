@@ -29,13 +29,15 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
       if (q.actorUserId) where.push(eq(schema.auditLog.actorUserId, q.actorUserId));
       if (q.entityType) where.push(eq(schema.auditLog.entityType, q.entityType));
       if (q.entityId) where.push(eq(schema.auditLog.entityId, q.entityId));
+      // Who did it, by name, so reading the log needs no other access (the people list needs leads.view).
       const rows = await req.db
-        .select()
+        .select({ entry: schema.auditLog, actorName: schema.users.name })
         .from(schema.auditLog)
+        .leftJoin(schema.users, eq(schema.users.id, schema.auditLog.actorUserId))
         .where(and(...where))
         .orderBy(desc(schema.auditLog.id))
         .limit(q.limit + 1);
-      const page = rows.slice(0, q.limit);
+      const page = rows.slice(0, q.limit).map((r) => ({ ...r.entry, actorName: r.actorName ?? null }));
       return { entries: page, nextCursor: rows.length > q.limit ? page.at(-1)!.id : null };
     },
   );

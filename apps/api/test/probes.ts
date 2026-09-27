@@ -209,6 +209,10 @@ export const PROBES: Record<string, Probe> = {
     access: "pipelines.manage",
     body: () => ({ label: `LR-${Math.random()}`.slice(0, 30) }),
   },
+  "PUT /api/v1/lost-reasons/order": {
+    access: "pipelines.manage",
+    body: () => ({ ids: [uuid] }),
+  },
   "PATCH /api/v1/lost-reasons/:id": {
     access: "pipelines.manage",
     path: (f) => `/api/v1/lost-reasons/${f.lostReasonId}`,

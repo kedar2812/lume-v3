@@ -111,4 +111,17 @@ describe("RoleMatrix", () => {
     expect(summary).toHaveTextContent("Use templates");
     expect(summary).not.toHaveTextContent("Change settings");
   });
+
+  it("says 'Everything' for a role that holds every permission at its widest", () => {
+    const all = permissionCatalog();
+    const admin = {
+      ...salesRole(),
+      name: "Admin",
+      grants: all.map((p) => ({ key: p.key, scope: p.scoped ? ("all" as const) : null })),
+    };
+    render(<RoleMatrix role={admin} catalog={all} onChange={vi.fn()} />);
+    const summary = screen.getByRole("region", { name: "What Admin can do" });
+    expect(summary).toHaveTextContent("Everything, for everyone’s leads");
+    expect(within(summary).queryByText("See leads")).not.toBeInTheDocument();
+  });
 });

@@ -29,6 +29,32 @@ describe("lost reasons, tags, products", () => {
     expect(after.some((x: { label: string }) => x.label === "Relocated")).toBe(false);
   });
 
+  it("reorders lost reasons all at once, or not at all", async () => {
+    const get = async () =>
+      (await admin.inject({ method: "GET", url: "/api/v1/lost-reasons" })).json().lostReasons as {
+        id: string;
+      }[];
+    const before = (await get()).map((r) => r.id);
+    const reversed = [...before].reverse();
+    const ok = await admin.inject({
+      method: "PUT",
+      url: "/api/v1/lost-reasons/order",
+      payload: { ids: reversed },
+    });
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect((await get()).map((r) => r.id)).toEqual(reversed);
+
+    // A list that leaves one out changes nothing: no half-reordered screen.
+    const partial = await admin.inject({
+      method: "PUT",
+      url: "/api/v1/lost-reasons/order",
+      payload: { ids: before.slice(1) },
+    });
+    expect(partial.statusCode).toBe(400);
+    expect(partial.json().error.code).toBe("ORDER_INCOMPLETE");
+    expect((await get()).map((r) => r.id)).toEqual(reversed);
+  });
+
   it("tags are unique case-insensitively and deletable", async () => {
     const t = (
       await admin.inject({ method: "POST", url: "/api/v1/tags", payload: { label: "VIP", color: "warn" } })

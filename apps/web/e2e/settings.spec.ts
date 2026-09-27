@@ -208,8 +208,10 @@ test("switch the currency with a typed rate: every amount converts once", async 
     await switchTo("usd", "US Dollar", "USD", "0.25");
     await aishaValue("USD 1,125");
   } finally {
-    // And back, exactly: whole amounts × 0.25 × 4 come home unchanged.
-    await switchTo("AED", "United Arab Emirates Dirham", "AED", "4");
+    // And back, exactly: whole amounts × 0.25 × 4 come home unchanged. Only if the switch happened,
+    // so a failure above is reported as itself rather than as a missing dialog here.
+    const now = await callApi<{ currency: string }>(page, "GET", "/api/v1/settings");
+    if (now.data.currency === "USD") await switchTo("AED", "United Arab Emirates Dirham", "AED", "4");
   }
   await aishaValue("AED 4,500");
 });

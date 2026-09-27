@@ -35,6 +35,7 @@ const WRITTEN = [
   "lead.whatsapp.prepare",
   "lost_reason.archived",
   "lost_reason.created",
+  "lost_reason.reordered",
   "lost_reason.updated",
   "pipeline.archived",
   "pipeline.created",
@@ -109,6 +110,12 @@ describe("auditPhrase", () => {
     expect(
       auditPhrase(entry("lead.bulk", { diff: { type: "assign", updated: 12, skipped: 0 } }), people),
     ).toBe("Riya Sharma changed 12 leads at once");
+  });
+
+  it("prefers the name the entry carries, so the log reads without the people list", () => {
+    expect(auditPhrase(entry("lead.view", { actorUserId: "u-new", actorName: "Omar Test" }), [])).toBe(
+      "Omar Test opened a lead",
+    );
   });
 
   it("falls back to the raw action for one it doesn't know yet", () => {

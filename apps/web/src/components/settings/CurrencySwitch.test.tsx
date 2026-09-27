@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsClient } from "@/lib/settings/client";
@@ -29,6 +29,25 @@ describe("CurrencySwitch", () => {
     render(<CurrencySwitch current="AED" onSwitched={vi.fn()} onForbidden={vi.fn()} />);
     expect(screen.getByText("United Arab Emirates Dirham")).toBeInTheDocument();
     expect(screen.getByText("Every amount in LUME is in this currency.")).toBeInTheDocument();
+  });
+
+  it("a double click converts once, and never reports someone else's change after a success", async () => {
+    vi.mocked(settingsClient.quoteCurrency).mockResolvedValue({ ok: true, status: 200, data: quote });
+    let finish!: (v: unknown) => void;
+    vi.mocked(settingsClient.switchCurrency).mockReturnValue(
+      new Promise((r) => {
+        finish = r;
+      }) as never,
+    );
+    render(<CurrencySwitch current="AED" onSwitched={vi.fn()} onForbidden={vi.fn()} />);
+    await pickUsd();
+    const convert = await screen.findByRole("button", { name: "Convert to USD" });
+    fireEvent.click(convert);
+    fireEvent.click(convert); // before React has re-rendered the busy state
+    finish({ ok: true, status: 200, data: { currency: "USD", converted: { leads: 42, products: 3 } } });
+    expect(await screen.findByRole("status")).toHaveTextContent("Every amount is now in US Dollar.");
+    expect(settingsClient.switchCurrency).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("quotes the live rate, shows what changes, and converts only after the admin confirms", async () => {

@@ -25,6 +25,11 @@ export async function catalogRoutes(app: FastifyInstance): Promise<void> {
     { config: pipelines, schema: { body: z.object({ label }) } },
     async (req, reply) => reply.code(201).send(await svc.createLostReason(req, req.body.label)),
   );
+  r.put(
+    "/api/v1/lost-reasons/order",
+    { config: pipelines, schema: { body: z.object({ ids: z.array(z.uuid()).min(1).max(200) }) } },
+    (req) => svc.reorderLostReasons(req, req.body.ids),
+  );
   r.patch(
     "/api/v1/lost-reasons/:id",
     {

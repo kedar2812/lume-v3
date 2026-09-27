@@ -5,6 +5,8 @@ export type AuditEntry = {
   id: number;
   at: string;
   actorUserId: string | null;
+  /** The actor's name, from the log itself (so reading it needs no other access). */
+  actorName?: string | null;
   actorIp: string | null;
   action: string;
   entityType: string;
@@ -87,6 +89,7 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "field.archived": { area: "Settings", phrase: "archived a field" },
   "lost_reason.created": { area: "Settings", phrase: "added a lost reason" },
   "lost_reason.updated": { area: "Settings", phrase: "changed a lost reason" },
+  "lost_reason.reordered": { area: "Settings", phrase: "reordered the lost reasons" },
   "lost_reason.archived": { area: "Settings", phrase: "archived a lost reason" },
   "tag.created": { area: "Settings", phrase: "added a tag" },
   "tag.updated": { area: "Settings", phrase: "changed a tag" },
@@ -98,7 +101,9 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
 
 /** "Riya Sharma revealed a lead's contact": who (LUME for the system itself), then what, in words. */
 export function auditPhrase(e: AuditEntry, people: Person[]): string {
-  const who = e.actorUserId ? (people.find((p) => p.id === e.actorUserId)?.name ?? "Someone") : "LUME";
+  const who = e.actorUserId
+    ? (e.actorName ?? people.find((p) => p.id === e.actorUserId)?.name ?? "Someone")
+    : "LUME";
   const def = AUDIT_ACTIONS[e.action];
   if (!def) return `${who}: ${e.action}`;
   return `${who} ${typeof def.phrase === "function" ? def.phrase(e.diff ?? {}) : def.phrase}`;

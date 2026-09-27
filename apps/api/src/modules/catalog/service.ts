@@ -3,7 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { newId } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
-import { conflict, notFound } from "../../http/errors";
+import { badRequest, conflict, notFound } from "../../http/errors";
 import { assertOneCurrency } from "../settings/service";
 
 // ── Lost reasons ───────────────────────────────────────────────────────────────
@@ -63,6 +63,21 @@ export async function updateLostReason(
   if (!row) throw notFound("LOST_REASON_NOT_FOUND", "Lost reason not found");
   await audit(req, { action: "lost_reason.updated", entityType: "lost_reason", entityId: id, diff: patch });
   return { lostReason: reasonView(row) };
+}
+
+/** The whole order in one go, inside the request's transaction: every live reason exactly once, or nothing moves. */
+export async function reorderLostReasons(req: FastifyRequest, ids: string[]) {
+  const live = await req.db
+    .select({ id: schema.lostReasons.id })
+    .from(schema.lostReasons)
+    .where(isNull(schema.lostReasons.archivedAt));
+  const want = new Set(ids);
+  if (want.size !== ids.length || want.size !== live.length || live.some((r) => !want.has(r.id)))
+    throw badRequest("ORDER_INCOMPLETE", "List every lost reason exactly once");
+  for (const [position, id] of ids.entries())
+    await req.db.update(schema.lostReasons).set({ position }).where(eq(schema.lostReasons.id, id));
+  await audit(req, { action: "lost_reason.reordered", entityType: "lost_reason", diff: { ids } });
+  return listLostReasons(req);
 }
 
 export async function archiveLostReason(req: FastifyRequest, id: string) {

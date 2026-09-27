@@ -1109,6 +1109,12 @@
   font-weight: var(--fw-medium);
   color: var(--accent-ink);
 }
+.summaryAll {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+}
 .summaryScope {
   font-weight: var(--fw-regular);
 }

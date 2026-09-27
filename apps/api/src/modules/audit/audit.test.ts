@@ -26,4 +26,15 @@ describe("GET /audit", () => {
     const c = await h.signIn(await h.seedUser({ grants: [{ key: "audit.view", scope: null }] }));
     expect((await c.inject({ method: "GET", url: "/api/v1/audit?limit=500" })).statusCode).toBe(400);
   });
+
+  it("names who did it, so an auditor needs no other access to read the log", async () => {
+    const actor = await h.seedUser({ grants: [], name: "Dana Actor" });
+    await h.pool.query(
+      "INSERT INTO audit_log (action, entity_type, actor_user_id) VALUES ('t.named', 't', $1)",
+      [actor.id],
+    );
+    const c = await h.signIn(await h.seedUser({ grants: [{ key: "audit.view", scope: null }] }));
+    const { entries } = (await c.inject({ method: "GET", url: "/api/v1/audit?action=t.named" })).json();
+    expect(entries[0]).toMatchObject({ actorUserId: actor.id, actorName: "Dana Actor" });
+  });
 });

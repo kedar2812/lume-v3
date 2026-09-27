@@ -7,6 +7,8 @@ export const listsClient = {
   createReason: (label: string) => api.post<{ lostReason: LostReason }>("/api/v1/lost-reasons", { label }),
   patchReason: (id: string, patch: { label?: string; position?: number }) =>
     api.patch<{ lostReason: LostReason }>(`/api/v1/lost-reasons/${id}`, patch),
+  reorderReasons: (ids: string[]) =>
+    api.put<{ lostReasons: LostReason[] }>("/api/v1/lost-reasons/order", { ids }),
   archiveReason: (id: string) => api.post<null>(`/api/v1/lost-reasons/${id}/archive`),
   createTag: (input: { label: string; color: string }) => api.post<{ tag: Tag }>("/api/v1/tags", input),
   patchTag: (id: string, patch: { label?: string; color?: string }) =>

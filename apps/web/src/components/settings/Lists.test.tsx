@@ -9,6 +9,7 @@ vi.mock("@/lib/settings/lists", () => ({
   listsClient: {
     createReason: vi.fn(),
     patchReason: vi.fn(),
+    reorderReasons: vi.fn(),
     archiveReason: vi.fn(),
     createTag: vi.fn(),
     patchTag: vi.fn(),
@@ -91,12 +92,39 @@ describe("Lists", () => {
     expect(listsClient.patchProduct).toHaveBeenCalledWith("pr-sig", { defaultValue: 5000 });
   });
 
-  it("reorders lost reasons, saving only the ones that moved", async () => {
+  it("reorders lost reasons in one call, so a refusal can't leave them half-moved", async () => {
+    vi.mocked(listsClient.reorderReasons).mockImplementation(async (ids) =>
+      ok({
+        lostReasons: ids.map((id, position) => ({
+          ...catalog.lostReasons.find((r) => r.id === id)!,
+          position,
+        })),
+      }),
+    );
     render(<Lists catalog={catalog} manage={all} />);
     fireEvent.keyDown(screen.getByRole("button", { name: "Move Timing" }), { key: "ArrowUp", altKey: true });
-    await vi.waitFor(() => expect(listsClient.patchReason).toHaveBeenCalledTimes(2));
-    expect(listsClient.patchReason).toHaveBeenCalledWith("r-time", { position: 0 });
-    expect(listsClient.patchReason).toHaveBeenCalledWith("r-price", { position: 1 });
+    await vi.waitFor(() => expect(listsClient.reorderReasons).toHaveBeenCalledTimes(1));
+    expect(listsClient.reorderReasons).toHaveBeenCalledWith(["r-time", "r-price", "r-ghost"]);
+    expect(listsClient.patchReason).not.toHaveBeenCalled();
+  });
+
+  it("puts the order back and says why when a reorder is refused", async () => {
+    vi.mocked(listsClient.reorderReasons).mockResolvedValue({
+      ok: false,
+      status: 400,
+      code: "ORDER_INCOMPLETE",
+      message: "List every lost reason exactly once",
+    });
+    render(<Lists catalog={catalog} manage={all} />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Move Timing" }), { key: "ArrowUp", altKey: true });
+    const reasons = screen.getByRole("region", { name: "Lost reasons" });
+    expect(await within(reasons).findByRole("alert")).toHaveTextContent(
+      "List every lost reason exactly once",
+    );
+    const order = within(reasons)
+      .getAllByRole("button", { name: /^Move / })
+      .map((b) => b.getAttribute("aria-label"));
+    expect(order).toEqual(["Move Price", "Move Timing", "Move No reply"]);
   });
 
   it("recolours a tag, and removing one says it comes off every lead", async () => {
