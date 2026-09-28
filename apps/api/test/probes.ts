@@ -52,6 +52,11 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ enabled: false }),
   },
   "GET /api/v1/today": { access: "auth.self" },
+  "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
+  "PUT /api/v1/settings/follow-ups": {
+    access: "settings.manage",
+    body: () => ({ escalation: { enabled: true, hours: 24 } }),
+  },
   "GET /api/v1/notifications": { access: "auth.self" },
   "POST /api/v1/notifications/read": { access: "auth.self", body: () => ({ all: true }) },
   "GET /api/v1/stream": { access: "auth.self", stream: true },

@@ -50,6 +50,15 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
   "integration.enabled": { area: "Settings", phrase: (d) => `switched on ${moduleName(d.module)}` },
   "integration.disabled": { area: "Settings", phrase: (d) => `switched off ${moduleName(d.module)}` },
+  "settings.follow_ups": {
+    area: "Settings",
+    phrase: (d) => {
+      const e = (d.escalation ?? {}) as { enabled?: boolean; hours?: number };
+      return e.enabled === false
+        ? "turned off escalation of overdue follow-ups"
+        : `set overdue follow-ups to reach managers after ${Number(e.hours ?? 24)} hours`;
+    },
+  },
   "task.changed_for_other": {
     area: "Leads",
     phrase: (d) => `${String(d.what ?? "changed")} someone else's follow-up “${String(d.title ?? "")}”`,

@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { bigserial, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  bigserial,
+  date,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import type { Recurrence } from "@lume/core";
 import { tz } from "./types";
 
@@ -30,6 +40,8 @@ export const tasks = pgTable("tasks", {
   doneAt: tz("done_at"),
   doneBy: uuid("done_by"),
   cancelledAt: tz("cancelled_at"),
+  /** When its managers were told it was left overdue (3B); cleared when it's moved or snoozed. */
+  escalatedAt: tz("escalated_at"),
   version: integer("version").notNull().default(1),
 });
 
@@ -63,3 +75,15 @@ export const notifications = pgTable("notifications", {
   createdAt: tz("created_at").notNull().defaultNow(),
   readAt: tz("read_at"),
 });
+
+/** One digest a person a local day (3B): sent, and how many items it held. */
+export const digestRuns = pgTable(
+  "digest_runs",
+  {
+    userId: uuid("user_id").notNull(),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    sentAt: tz("sent_at").notNull().defaultNow(),
+    items: integer("items").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.localDate] })],
+);

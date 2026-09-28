@@ -37,6 +37,11 @@ export const settings = pgTable("settings", {
     .notNull()
     .default(sql`'{}'::jsonb`),
   fieldDefsVersion: integer("field_defs_version").notNull().default(0),
+  /** Follow-ups (3B): when an overdue follow-up reaches its assignee's managers. */
+  followUps: jsonb("follow_ups")
+    .$type<FollowUpSettings>()
+    .notNull()
+    .default(sql`'{"escalation":{"enabled":true,"hours":24}}'::jsonb`),
   /** Optional modules switched on for this instance (2B spec §3); off unless set. */
   integrations: jsonb("integrations")
     .$type<{ googleSheets?: { enabled: boolean }; webhooks?: { enabled: boolean } }>()
@@ -45,6 +50,8 @@ export const settings = pgTable("settings", {
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
+
+export type FollowUpSettings = { escalation: { enabled: boolean; hours: number } };
 
 export type SecuritySettings = {
   sessionIdleHours?: number;

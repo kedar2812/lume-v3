@@ -68,6 +68,31 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
       return shape(s!);
     },
   );
+  // Follow-ups (3B): when an overdue follow-up reaches the people who manage its assignee.
+  const followUps = z
+    .object({
+      escalation: z.object({ enabled: z.boolean(), hours: z.number().int().min(1).max(168) }).strict(),
+    })
+    .strict();
+  r.get("/api/v1/settings/follow-ups", { config: { permission: "settings.manage" } }, async (req) => {
+    const [s] = await req.db.select({ f: schema.settings.followUps }).from(schema.settings);
+    if (!s) throw notFound();
+    return s.f;
+  });
+  r.put(
+    "/api/v1/settings/follow-ups",
+    { config: { permission: "settings.manage" }, schema: { body: followUps } },
+    async (req) => {
+      await req.db.update(schema.settings).set({ followUps: req.body }).where(eq(schema.settings.id, 1));
+      await audit(req, {
+        action: "settings.follow_ups",
+        entityType: "settings",
+        entityId: "1",
+        diff: req.body,
+      });
+      return req.body;
+    },
+  );
   r.get(
     "/api/v1/settings/currency/quote",
     { config: { permission: "settings.manage" }, schema: { querystring: z.object({ to: currencySchema }) } },
