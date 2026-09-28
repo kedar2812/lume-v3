@@ -4,6 +4,7 @@ import type pg from "pg";
 import { fire, sweep } from "./engine";
 import { escalate } from "./escalation";
 import { runDigests } from "./digest";
+import { noTouch } from "./no-touch";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -39,6 +40,15 @@ export async function startTaskQueue(o: {
       if (job) await fire(deps, job.data.id);
     },
   );
+  /** One job per reminder, at its time; the same reminder queued twice runs once. */
+  const enqueue = async (reminders: { id: number; fireAt: Date }[]) => {
+    for (const r of reminders)
+      await boss.send(
+        "tasks.fire",
+        { id: r.id },
+        { startAfter: r.fireAt, singletonKey: String(r.id), retryLimit: 5, retryBackoff: true },
+      );
+  };
   let lastSweepAt: Date | null = null;
   const sweepNow = async () => {
     try {
@@ -52,7 +62,7 @@ export async function startTaskQueue(o: {
   // Reminders come first and never wait on mail: escalation and the digest run beside the clock, one run of
   // each at a time, so a slow mail server can neither hold up a sweep nor start a second digest run
   // (3B final review, Important 1).
-  const busy = { escalate: false, digest: false };
+  const busy = { escalate: false, digest: false, noTouch: false };
   const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
     if (busy[key]) return;
     busy[key] = true;
@@ -77,6 +87,8 @@ export async function startTaskQueue(o: {
           () => runDigests({ pool: o.pool, ...o.digest!, log: o.app.log }),
           "daily digests failed",
         );
+      // Every hour (and at start-up): leads gone quiet come back to their owners (3C).
+      if (n % 60 === 0) beside("noTouch", () => noTouch({ ...deps, enqueue }), "leads gone quiet failed");
     } finally {
       ticking = false;
     }
@@ -85,15 +97,7 @@ export async function startTaskQueue(o: {
   const timer = setInterval(() => void tick(), o.tickMs ?? SWEEP_MS);
   timer.unref();
   return {
-    /** One job per reminder, at its time; the same reminder queued twice runs once. */
-    enqueue: async (reminders: { id: number; fireAt: Date }[]) => {
-      for (const r of reminders)
-        await boss.send(
-          "tasks.fire",
-          { id: r.id },
-          { startAfter: r.fireAt, singletonKey: String(r.id), retryLimit: 5, retryBackoff: true },
-        );
-    },
+    enqueue,
     lastSweepAt: () => lastSweepAt,
     stop: async () => {
       clearInterval(timer);

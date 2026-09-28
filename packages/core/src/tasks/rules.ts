@@ -8,6 +8,9 @@ import type { DuePresetDef, WorkingHours } from "./time";
 
 export const DEFAULT_WORKING_HOURS: WorkingHours = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
 
+/** The rule id a "leads gone quiet" follow-up carries (3C): LUME's own rule, not a stage's. */
+export const NO_TOUCH_RULE_ID = "00000000-0000-7000-8000-00000000c0de";
+
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 09:00");
 const unique = <T>(xs: T[]) => new Set(xs).size === xs.length;
 
