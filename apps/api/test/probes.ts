@@ -29,6 +29,8 @@ export type Probe = {
   path?: (f: Fixtures) => string;
   body?: (f: Fixtures) => unknown;
   query?: string;
+  /** A stream that never ends by itself: only its refusals are checked here (notifications.test covers it). */
+  stream?: true;
 };
 
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
@@ -49,6 +51,28 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     body: () => ({ enabled: false }),
   },
+  "GET /api/v1/today": { access: "auth.self" },
+  "GET /api/v1/notifications": { access: "auth.self" },
+  "POST /api/v1/notifications/read": { access: "auth.self", body: () => ({ all: true }) },
+  "GET /api/v1/stream": { access: "auth.self", stream: true },
+  "GET /api/v1/leads/:id/tasks": { access: "leads.view", path: () => `/api/v1/leads/${uuid}/tasks` },
+  "POST /api/v1/leads/:id/tasks": {
+    access: "leads.view",
+    path: () => `/api/v1/leads/${uuid}/tasks`,
+    body: () => ({ due: { preset: "in_1h" } }),
+  },
+  "PATCH /api/v1/tasks/:id": {
+    access: "leads.view",
+    path: () => `/api/v1/tasks/${uuid}`,
+    body: () => ({ title: "x" }),
+  },
+  "POST /api/v1/tasks/:id/done": { access: "leads.view", path: () => `/api/v1/tasks/${uuid}/done` },
+  "POST /api/v1/tasks/:id/snooze": {
+    access: "leads.view",
+    path: () => `/api/v1/tasks/${uuid}/snooze`,
+    body: () => ({ preset: "1h" }),
+  },
+  "POST /api/v1/tasks/:id/cancel": { access: "leads.view", path: () => `/api/v1/tasks/${uuid}/cancel` },
   "PUT /api/v1/integrations/webhooks": { access: "integrations.manage", body: () => ({ enabled: false }) },
   "POST /api/v1/webhooks/sources": {
     access: "integrations.manage",

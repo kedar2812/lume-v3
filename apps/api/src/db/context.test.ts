@@ -59,8 +59,8 @@ describe("per-request transaction", () => {
 
   it("returns every connection to the pool", async () => {
     await Promise.all(Array.from({ length: 12 }, () => h.app.inject({ method: "GET", url: "/t/scope" })));
-    // Only the lume_rbac LISTEN connection stays checked out.
-    expect(h.pool.totalCount - h.pool.idleCount).toBe(1);
+    // Only the two LISTEN connections stay checked out: lume_rbac, and lume_notifications (Phase 3).
+    expect(h.pool.totalCount - h.pool.idleCount).toBe(2);
   });
 
   it("runs after-commit callbacks only when the transaction commits", async () => {

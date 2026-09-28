@@ -21,6 +21,8 @@ import type { GoogleSheets } from "./modules/sheets/google";
 import type { Limiter } from "./modules/webhooks/limits";
 import { receiveRoutes } from "./modules/webhooks/receive";
 import { webhookRoutes } from "./modules/webhooks/routes";
+import { taskRoutes } from "./modules/tasks/routes";
+import { notificationRoutes } from "./modules/notifications/routes";
 import { peopleRoutes } from "./modules/people/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
@@ -72,6 +74,8 @@ export type AppDeps = {
   googleEndpoint?: string;
   /** Webhooks (2C): where an accepted post is queued, and (tests) the rate limiter to use. */
   webhooks?: { enqueue(eventId: number): Promise<void>; limiter?: Limiter };
+  /** Follow-ups (Phase 3): where a reminder is queued for its time. */
+  tasks?: { enqueue(reminders: { id: number; fireAt: Date }[]): Promise<void> };
   /** LUME_MANYCHAT_PRESET=on: offer the ManyChat preset (hidden until verified, 2C spec §2). */
   manychatPreset?: boolean;
   /** Tests only: extra routes registered inside the authenticated scope. */
@@ -125,6 +129,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(importRoutes, deps);
         await scope.register(sheetRoutes, deps);
         await scope.register(webhookRoutes, deps);
+        await scope.register(taskRoutes, deps);
+        await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);
         deps.extraRoutes?.(scope);
       },

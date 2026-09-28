@@ -142,6 +142,8 @@ export type Harness = {
   runSyncs(ids?: string[]): Promise<void>;
   /** Webhook events queued for processing (2C), in the order they were accepted. */
   webhookQueue: number[];
+  /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
+  reminderQueue: { id: number; fireAt: Date }[];
   /** Processes every queued webhook event now, as the queue would. */
   runWebhooks(): Promise<void>;
   /** Where the relay is (it listens on a port the test picks). */
@@ -219,6 +221,7 @@ export async function createHarness(
     : null;
   const syncs: string[] = [];
   const webhookQueue: number[] = [];
+  const reminderQueue: { id: number; fireAt: Date }[] = [];
   const googleOAuth = opts.oauth ? { relayUrl: "", relayToken: opts.oauth.relayToken } : null;
   const clientFor = oauthClientFor(googleOAuth, fake?.url);
 
@@ -239,6 +242,7 @@ export async function createHarness(
     imports: { enqueue: async (id) => void queued.push(id) },
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
+    tasks: { enqueue: async (r) => void reminderQueue.push(...r) },
     webhooks: {
       enqueue: async (id) => void webhookQueue.push(id),
       limiter: createLimiter({ perSource: 60, perInstance: 600, windowMs: 60_000 }),
@@ -427,6 +431,7 @@ export async function createHarness(
     fake,
     google,
     webhookQueue,
+    reminderQueue,
     async runWebhooks() {
       for (let id = webhookQueue.shift(); id; id = webhookQueue.shift())
         await processEvent({ app, pool, keyring }, id);
