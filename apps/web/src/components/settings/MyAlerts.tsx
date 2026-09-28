@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Preferences } from "@lume/core/shared";
 import { Field } from "@/components/ui/Field";
 import { Switch } from "@/components/ui/Switch";
@@ -24,6 +24,7 @@ const SWITCHES: { key: keyof Alerts; label: string; hint: string }[] = [
 export function MyAlerts({ initial }: { initial: Preferences }) {
   const [alerts, setAlerts] = useState<Alerts>(initial.alerts);
   const [digestTime, setDigestTime] = useState(initial.digestTime);
+  const savedTime = useRef(initial.digestTime); // what LUME last kept, so changing it back saves too
   const [problem, setProblem] = useState<string | null>(null);
 
   const save = async (preferences: Record<string, unknown>) => {
@@ -63,8 +64,9 @@ export function MyAlerts({ initial }: { initial: Preferences }) {
               value={digestTime}
               onChange={(e) => setDigestTime(e.target.value)}
               onBlur={() => {
-                if (/^\d{2}:\d{2}$/.test(digestTime) && digestTime !== initial.digestTime)
-                  void save({ digestTime });
+                if (!/^\d{2}:\d{2}$/.test(digestTime) || digestTime === savedTime.current) return;
+                const time = digestTime;
+                void save({ digestTime: time }).then((ok) => ok && (savedTime.current = time));
               }}
             />
           )}

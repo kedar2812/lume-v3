@@ -6,7 +6,11 @@ import { Switch } from "@/components/ui/Switch";
 import { api } from "@/lib/api";
 import s from "./settings.module.css";
 
-export type FollowUpConfig = { escalation: { enabled: boolean; hours: number } };
+export type FollowUpConfig = {
+  escalation: { enabled: boolean; hours: number };
+  /** The morning email for the whole business (an optional module; on unless switched off). */
+  digest?: { enabled: boolean };
+};
 
 /**
  * Settings → Follow-ups (3B): when a follow-up is left overdue, how long before it reaches the people who
@@ -15,6 +19,7 @@ export type FollowUpConfig = { escalation: { enabled: boolean; hours: number } }
 export function FollowUpSettings({ initial }: { initial: FollowUpConfig }) {
   const [enabled, setEnabled] = useState(initial.escalation.enabled);
   const [hours, setHours] = useState(String(initial.escalation.hours));
+  const [digest, setDigest] = useState(initial.digest?.enabled ?? true);
   const [status, setStatus] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,6 +32,7 @@ export function FollowUpSettings({ initial }: { initial: FollowUpConfig }) {
     setProblem(null);
     const r = await api.put<FollowUpConfig>("/api/v1/settings/follow-ups", {
       escalation: { enabled, hours: n },
+      digest: { enabled: digest },
     });
     setBusy(false);
     if (!r.ok) return setProblem(r.message);
@@ -76,6 +82,23 @@ export function FollowUpSettings({ initial }: { initial: FollowUpConfig }) {
             />
           )}
         </Field>
+      </div>
+      <div className={s.panelHead}>
+        <h2 className={s.panelTitle}>Morning emails</h2>
+        <p className={s.muted}>
+          Each person&apos;s day ahead, at the time they choose in My account: first names and times only.
+          Switched off here, nobody gets one.
+        </p>
+      </div>
+      <div className={s.panelBody}>
+        <Switch
+          checked={digest}
+          onChange={(v) => {
+            setDigest(v);
+            setStatus(null);
+          }}
+          label="Send the morning email"
+        />
       </div>
       <div className={s.panelFoot}>
         {status && (

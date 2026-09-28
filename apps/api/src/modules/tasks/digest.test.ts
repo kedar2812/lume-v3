@@ -1,6 +1,6 @@
 import { ALL_GRANTS, newId, type Grant } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { OutgoingMail } from "../../mail/mailer";
+import type { Mailer, OutgoingMail } from "../../mail/mailer";
 import { createHarness, type Harness } from "../../../test/harness";
 import { runDigests } from "./digest";
 
@@ -10,8 +10,8 @@ const repGrants: Grant[] = (["leads.view", "leads.edit"] as const).map((key) => 
   scope: "own" as const,
 }));
 const sent: OutgoingMail[] = [];
-const mailer = { send: async (m: OutgoingMail) => void sent.push(m) };
-const run = (now: string, m = mailer) =>
+const mailer: Mailer = { send: async (m: OutgoingMail) => void sent.push(m) };
+const run = (now: string, m: Mailer = mailer) =>
   runDigests({ pool: h.pool, mailer: m, publicUrl: "https://crm.example.test" }, new Date(now));
 const to = (email: string) => sent.filter((m) => m.to === email);
 
@@ -94,7 +94,7 @@ describe("the daily digest (3B Task 4)", () => {
     );
     await run("2026-10-05T03:00:00Z"); // Monday 08:30 in Kolkata
     const [m] = to(u.email);
-    expect(m!.text).toContain("Aisha: Call back (Sun 11:30)");
+    expect(m!.text).toContain("Aisha: Call back (27 Sep 11:30)"); // more than six days ago: its date
     expect(m!.text).toContain("Aisha: Send the plan (07:30)");
   });
 
@@ -114,5 +114,87 @@ describe("the daily digest (3B Task 4)", () => {
     await run("2026-10-02T03:00:00Z");
     const [m] = to(admin.email);
     expect(m!.text).toMatch(/new leads? (has|have) no one yet/);
+  });
+
+  it("within the week, an overdue follow-up says its weekday", async () => {
+    const u = await person("Asia/Kolkata");
+    await run("2026-09-29T03:00:00Z"); // Tuesday 08:30; the follow-up was Sunday 11:30
+    expect(to(u.email)[0]!.text).toContain("Aisha: Call back (Sun 11:30)");
+  });
+
+  it("Review Focus 1, exactly: 23:30 on someone's day before, in the same UTC hour as Kolkata's 08:00", async () => {
+    const kolkata = await person("Asia/Kolkata");
+    const saoPaulo = await person("America/Sao_Paulo"); // UTC-3
+    await run("2026-10-06T02:31:00Z"); // Tuesday 08:01 in Kolkata; Monday 23:31 in São Paulo
+    expect(to(kolkata.email)).toHaveLength(1);
+    expect(to(saoPaulo.email)).toHaveLength(1); // Monday's, late in their own Monday
+    await run("2026-10-06T03:00:00Z");
+    expect(to(saoPaulo.email)).toHaveLength(1);
+    await run("2026-10-06T11:05:00Z"); // Tuesday 08:05 in São Paulo: Tuesday's
+    expect(to(saoPaulo.email)).toHaveLength(2);
+    expect(to(kolkata.email)).toHaveLength(1);
+  });
+});
+
+describe("the daily digest: 3B final review", () => {
+  it("Important 1: two runs at once send one mail per person", async () => {
+    const u = await person("Asia/Kolkata");
+    const slow = {
+      send: async (m: OutgoingMail) => {
+        await new Promise((r) => setTimeout(r, 200));
+        sent.push(m);
+      },
+    };
+    await Promise.all([run("2026-10-07T03:00:00Z", slow), run("2026-10-07T03:00:00Z", slow)]);
+    expect(to(u.email)).toHaveLength(1);
+  });
+
+  it("Important 6: a follow-up's own words never carry a phone number or an email out", async () => {
+    const u = await person("Asia/Kolkata");
+    const id = newId();
+    await h.queryAll(
+      "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Call +971 50 765 4321 or aisha.secret@leads.test', '2026-10-08T02:00:00Z', $1)",
+      [id, u.lead, u.id],
+    );
+    await run("2026-10-08T03:00:00Z");
+    const [m] = to(u.email);
+    expect(m!.text).toContain("Aisha: Call");
+    for (const body of [m!.text, m!.html]) expect(body).not.toMatch(/765|4321|aisha\.secret|@leads/);
+  });
+
+  it("Important 7: someone LUME can't read doesn't stop anyone else's", async () => {
+    const broken = await person("Asia/Kolkata");
+    await h.ownerPool.query("UPDATE users SET timezone = 'Nowhere/Invalid' WHERE id = $1", [broken.id]);
+    const fine = await person("Asia/Kolkata");
+    const logged: unknown[] = [];
+    await runDigests(
+      {
+        pool: h.pool,
+        mailer,
+        publicUrl: "https://crm.example.test",
+        log: { error: (o: unknown) => void logged.push(o) },
+      },
+      new Date("2026-10-09T03:00:00Z"),
+    );
+    expect(to(fine.email)).toHaveLength(1);
+    expect(JSON.stringify(logged)).toContain(broken.id);
+    await h.ownerPool.query("UPDATE users SET status = 'disabled' WHERE id = $1", [broken.id]);
+  });
+
+  it("Important 8: switched off for everyone in Settings, or with no mail server, nobody gets one", async () => {
+    const u = await person("Asia/Kolkata");
+    await h.ownerPool.query(
+      `UPDATE settings SET follow_ups = follow_ups || '{"digest":{"enabled":false}}'::jsonb WHERE id = 1`,
+    );
+    await run("2026-10-12T03:00:00Z");
+    expect(to(u.email)).toHaveLength(0);
+    await h.ownerPool.query(
+      `UPDATE settings SET follow_ups = follow_ups || '{"digest":{"enabled":true}}'::jsonb WHERE id = 1`,
+    );
+    const unconfigured = { configured: false, send: async (m: OutgoingMail) => void sent.push(m) };
+    await run("2026-10-12T03:15:00Z", unconfigured);
+    expect(to(u.email)).toHaveLength(0);
+    await run("2026-10-12T03:30:00Z");
+    expect(to(u.email)).toHaveLength(1);
   });
 });

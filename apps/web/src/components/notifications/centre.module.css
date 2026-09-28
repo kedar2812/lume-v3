@@ -1,4 +1,8 @@
 /* The notification centre (3B; frontend spec §8.5, the key-screens prototype): a glass panel from the bell. */
+/* It takes focus when it opens (so its keys work at once); that focus isn't a keyboard ring. */
+.panel:focus {
+  outline: none;
+}
 .panel {
   position: fixed;
   top: 64px;

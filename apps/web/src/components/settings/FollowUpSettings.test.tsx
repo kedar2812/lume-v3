@@ -20,6 +20,7 @@ describe("Settings → Follow-ups (3B Task 6)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(api.put).toHaveBeenCalledWith("/api/v1/settings/follow-ups", {
       escalation: { enabled: true, hours: 6 },
+      digest: { enabled: true },
     });
     expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
@@ -38,6 +39,19 @@ describe("Settings → Follow-ups (3B Task 6)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(api.put).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent("between 1 and 168");
+  });
+
+  it("3B final review: the morning email can be switched off for everyone", async () => {
+    vi.mocked(api.put).mockResolvedValue(ok(null));
+    render(
+      <FollowUpSettings initial={{ escalation: { enabled: true, hours: 24 }, digest: { enabled: true } }} />,
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "Send the morning email" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(api.put).toHaveBeenCalledWith("/api/v1/settings/follow-ups", {
+      escalation: { enabled: true, hours: 24 },
+      digest: { enabled: false },
+    });
   });
 });
 
@@ -69,5 +83,18 @@ describe("My account → Notifications (3B Task 6)", () => {
     render(<MyAlerts initial={prefs} />);
     await userEvent.click(screen.getByRole("switch", { name: "Morning email" }));
     expect(screen.getByLabelText("Send it at")).toBeDisabled();
+  });
+
+  it("3B final review: changing the time back to what it was is saved too", async () => {
+    vi.mocked(api.patch).mockResolvedValue(ok(null));
+    render(<MyAlerts initial={prefs} />);
+    const time = screen.getByLabelText("Send it at");
+    await userEvent.clear(time);
+    await userEvent.type(time, "09:00");
+    await userEvent.tab();
+    await userEvent.clear(time);
+    await userEvent.type(time, "08:00");
+    await userEvent.tab();
+    expect(api.patch).toHaveBeenLastCalledWith("/api/v1/me", { preferences: { digestTime: "08:00" } });
   });
 });

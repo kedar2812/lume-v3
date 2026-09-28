@@ -1,4 +1,5 @@
 import { ALL_GRANTS, type Grant } from "@lume/core";
+import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
 
@@ -293,5 +294,74 @@ describe("Remind them (3B Task 5)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.title).toMatch(/asks about your follow-up with Aisha Khan/);
     expect((await call(rep, "POST", `/api/v1/tasks/${t.id}/nudge`)).statusCode).toBe(400);
+  });
+});
+
+describe("3B final review", () => {
+  /** Runs `sql` as `userId` (notifications are only ever their own: row-level security). */
+  const asUser = async <T extends pg.QueryResultRow>(userId: string, sql: string, params: unknown[]) => {
+    const c = await h.ownerPool.connect();
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('lume.user_id', $1, true)", [userId]);
+    const { rows } = await c.query<T>(sql, params);
+    await c.query("COMMIT");
+    c.release();
+    return rows;
+  };
+  const unreadFor = async (userId: string, taskId: string, kind = "%") =>
+    (
+      await asUser<{ n: number }>(
+        userId,
+        "SELECT count(*)::int AS n FROM notifications WHERE task_id = $1 AND kind LIKE $2 AND read_at IS NULL",
+        [taskId, kind],
+      )
+    )[0]!.n;
+  const remindedOf = (taskId: string) =>
+    asUser(
+      repId,
+      "INSERT INTO notifications (user_id, kind, task_id, lead_id, title) VALUES ($1, 'follow_up_due', $2, $3, 'Follow up with Aisha Khan — now')",
+      [repId, taskId, lead],
+    );
+
+  it("Important 2: a follow-up's reminders stop counting as unread once it's done, cancelled or moved — by anyone", async () => {
+    const acts: [AuthedClient, string, Record<string, unknown> | undefined][] = [
+      [rep, "done", undefined],
+      [rep, "cancel", undefined],
+      [rep, "snooze", { preset: "1h" }],
+      [admin, "done", undefined], // a manager finishing the rep's
+    ];
+    for (const [who, act, body] of acts) {
+      const t = (await create(rep, lead)).json();
+      await remindedOf(t.id);
+      expect(await unreadFor(repId, t.id)).toBe(1);
+      expect((await call(who, "POST", `/api/v1/tasks/${t.id}/${act}`, body)).statusCode).toBeLessThan(300);
+      await new Promise((res) => setTimeout(res, 100));
+      expect(await unreadFor(repId, t.id)).toBe(0);
+    }
+  });
+
+  it("Remind them always reaches the assignee, even with their due reminders switched off", async () => {
+    await h.queryAll(
+      `UPDATE users SET preferences = jsonb_set(coalesce(preferences, '{}'::jsonb), '{alerts}', '{"dueFollowUps":false,"assigned":true,"emailDigest":true}') WHERE id = $1`,
+      [repId],
+    );
+    const t = (await create(admin, lead, { assigneeId: repId, title: "Call back" })).json();
+    expect((await call(admin, "POST", `/api/v1/tasks/${t.id}/nudge`)).statusCode).toBe(202);
+    await new Promise((res) => setTimeout(res, 100));
+    expect(await unreadFor(repId, t.id, "follow_up_nudge")).toBe(1);
+    await h.queryAll("UPDATE users SET preferences = preferences - 'alerts' WHERE id = $1", [repId]);
+  });
+
+  it("handing a follow-up to someone else lets its new managers hear if it's left overdue", async () => {
+    const t = (await create(admin, lead, { assigneeId: repId })).json();
+    await h.queryAll("UPDATE tasks SET escalated_at = now() WHERE id = $1", [t.id]);
+    const newcomer = (await h.seedUser({ grants: ALL_GRANTS, totp: true })).id;
+    const r = await call(admin, "PATCH", `/api/v1/tasks/${t.id}`, { assigneeId: newcomer });
+    expect(r.statusCode).toBe(200);
+    const [row] = await h.queryAll<{ escalated_at: Date | null }>(
+      "SELECT escalated_at FROM tasks WHERE id = $1",
+      [t.id],
+    );
+    expect(row!.escalated_at).toBeNull();
   });
 });

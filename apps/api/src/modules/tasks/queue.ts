@@ -40,17 +40,7 @@ export async function startTaskQueue(o: {
     },
   );
   let lastSweepAt: Date | null = null;
-  let ticks = 0;
-  const tick = async () => {
-    // Every fifth minute: follow-ups left overdue reach their managers (3B).
-    if (ticks % 5 === 0)
-      await escalate(deps).catch((err: unknown) => o.app.log.error({ err }, "follow-up escalation failed"));
-    // Every quarter hour: whoever's morning it is gets their digest (3B).
-    if (o.digest && ticks % 15 === 0)
-      await runDigests({ pool: o.pool, ...o.digest }).catch((err: unknown) =>
-        o.app.log.error({ err }, "daily digests failed"),
-      );
-    ticks++;
+  const sweepNow = async () => {
     try {
       const fired = await sweep(deps);
       lastSweepAt = new Date();
@@ -59,7 +49,39 @@ export async function startTaskQueue(o: {
       o.app.log.error({ err }, "follow-up sweep failed");
     }
   };
-  await tick(); // anything missed while LUME was down fires before it takes requests
+  // Reminders come first and never wait on mail: escalation and the digest run beside the clock, one run of
+  // each at a time, so a slow mail server can neither hold up a sweep nor start a second digest run
+  // (3B final review, Important 1).
+  const busy = { escalate: false, digest: false };
+  const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
+    if (busy[key]) return;
+    busy[key] = true;
+    void job()
+      .catch((err: unknown) => o.app.log.error({ err }, what))
+      .finally(() => (busy[key] = false));
+  };
+  let ticks = 0;
+  let ticking = false;
+  const tick = async () => {
+    if (ticking) return;
+    ticking = true;
+    const n = ticks++;
+    try {
+      await sweepNow();
+      // Every fifth minute: follow-ups left overdue reach their managers (3B).
+      if (n % 5 === 0) beside("escalate", () => escalate(deps), "follow-up escalation failed");
+      // Every quarter hour: whoever's morning it is gets their digest (3B).
+      if (o.digest && n % 15 === 0)
+        beside(
+          "digest",
+          () => runDigests({ pool: o.pool, ...o.digest!, log: o.app.log }),
+          "daily digests failed",
+        );
+    } finally {
+      ticking = false;
+    }
+  };
+  await tick(); // anything missed while LUME was down fires before it takes requests; mail goes on beside
   const timer = setInterval(() => void tick(), o.tickMs ?? SWEEP_MS);
   timer.unref();
   return {

@@ -7,7 +7,7 @@ import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { relativeTime } from "@/lib/leads/format";
-import { notificationsClient, type NotificationView } from "@/lib/notifications/client";
+import { notificationsClient, sayUnread, type NotificationView } from "@/lib/notifications/client";
 import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
 import { timezoneOf, whenInWords } from "@/lib/tasks/format";
@@ -64,13 +64,20 @@ export function NotificationCentre({
   const load = useCallback(async () => {
     const [t, n] = await Promise.all([tasksClient.today(), notificationsClient.list()]);
     if (t.ok) setDay(t.data);
-    if (n.ok) setNotes(n.data.items);
-    if (!t.ok || !n.ok) setError((!t.ok ? t.message : !n.ok ? n.message : null) ?? null);
+    if (n.ok) {
+      setNotes(n.data.items);
+      sayUnread(n.data.unread); // the bell and the title keep up while it's open
+    }
+    setError(!t.ok ? t.message : !n.ok ? n.message : null);
   }, []);
   useEffect(() => {
     if (open) void load();
     else setFull(false);
   }, [open, load]);
+  // Opened, it takes focus (a dialog does), so its keys are live from the first press wherever focus was.
+  useEffect(() => {
+    if (open) panel.current?.focus({ preventScroll: true });
+  }, [open]);
   useStream(() => {
     if (open) void load();
   });
@@ -119,11 +126,22 @@ export function NotificationCentre({
   );
   const unread = notes.filter((n) => !n.read).length;
 
-  const done = async (t: TaskView) => {
+  /** Done; with the keyboard, focus goes on to the row that takes its place, so E, E, E works down the list. */
+  const done = async (t: TaskView, focusNext?: string) => {
     const r = await tasksClient.done(t.id);
     if (!r.ok) return setError(r.message);
     sound.play(r.data.clearedToday ? "cleared" : "done");
     await load();
+    if (focusNext)
+      setTimeout(
+        () => panel.current?.querySelector<HTMLElement>(`[data-entry="${CSS.escape(focusNext)}"]`)?.focus(),
+        0,
+      );
+  };
+  /** Open the lead, and step the centre out of its way (it would sit over the lead's drawer). */
+  const openLead = (leadId: string) => {
+    router.push(`/leads?lead=${leadId}`);
+    onClose();
   };
   const snooze = async (t: TaskView, preset: (typeof SNOOZE)[number]["preset"]) => {
     const r = await tasksClient.snooze(t.id, { preset });
@@ -137,19 +155,31 @@ export function NotificationCentre({
   };
   const leadOf = (e: Entry) => (e.type === "task" ? e.task.leadId : e.n.leadId);
 
-  // The keyboard, while it's open (and nobody is typing in a field).
+  // The keyboard, while it's open: only when focus is in the panel, or nowhere with no other sheet open —
+  // never the keys of a lead's drawer or a sheet in front (3B final review, Important 3).
   const onKey = useRef<(e: KeyboardEvent) => void>(() => undefined);
   onKey.current = (e) => {
     const t = e.target as HTMLElement | null;
     if (e.metaKey || e.ctrlKey || e.altKey || (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    const root = panel.current;
+    if (!root) return;
+    const focused = document.activeElement as HTMLElement | null;
+    const inside = !!focused && root.contains(focused);
+    const nowhere = !focused || focused === document.body;
+    const otherSheet = [...document.querySelectorAll('[aria-modal="true"]')].some((d) => !root.contains(d));
+    if (!inside && (!nowhere || otherSheet)) return;
+    // A Snooze menu that's open keeps its own keys (its Esc closes it, not the centre).
+    if (root.querySelector('[role="menu"]')) return;
     if (e.key === "Escape") {
       e.preventDefault();
       if (full) setFull(false);
       else onClose();
       return;
     }
-    const items = [...(panel.current?.querySelectorAll<HTMLElement>("[data-entry]") ?? [])];
-    const at = items.indexOf(document.activeElement as HTMLElement);
+    const items = [...root.querySelectorAll<HTMLElement>("[data-entry]")];
+    // The row that has focus, or holds the button or link that has it (3B final review, Important 4).
+    const row = focused?.closest<HTMLElement>("[data-entry]") ?? null;
+    const at = row ? items.indexOf(row) : -1;
     const current = at >= 0 ? shown.find((x) => x.key === items[at]!.dataset.entry) : undefined;
     const key = e.key.toLowerCase();
     if (key === "j" || key === "k") {
@@ -161,13 +191,13 @@ export function NotificationCentre({
       setFull((v) => !v);
     } else if (key === "e" && current?.type === "task" && current.task.canEdit) {
       e.preventDefault();
-      void done(current.task);
+      void done(current.task, (items[at + 1] ?? items[at - 1])?.dataset.entry);
     } else if (key === "s" && current?.type === "task") {
       e.preventDefault();
       items[at]!.querySelector<HTMLButtonElement>("[data-snooze] button[aria-haspopup]")?.click();
-    } else if (e.key === "Enter" && current && leadOf(current)) {
+    } else if (e.key === "Enter" && current && leadOf(current) && focused === row) {
       e.preventDefault();
-      router.push(`/leads?lead=${leadOf(current)}`);
+      openLead(leadOf(current)!);
     }
   };
   useEffect(() => {
@@ -183,6 +213,7 @@ export function NotificationCentre({
         <motion.div
           ref={panel}
           role="dialog"
+          tabIndex={-1}
           aria-labelledby={titleId}
           className={s.panel}
           data-full={full || undefined}
@@ -380,11 +411,7 @@ export function NotificationCentre({
               </Popover>
             </span>
           )}
-          <button
-            type="button"
-            className={`${s.btn} ${s.ghost}`}
-            onClick={() => router.push(`/leads?lead=${e.task.leadId}`)}
-          >
+          <button type="button" className={`${s.btn} ${s.ghost}`} onClick={() => openLead(e.task.leadId)}>
             Open
           </button>
         </>
@@ -393,7 +420,7 @@ export function NotificationCentre({
     return (
       <>
         {n.leadId && (
-          <button type="button" className={s.btn} onClick={() => router.push(`/leads?lead=${n.leadId}`)}>
+          <button type="button" className={s.btn} onClick={() => openLead(n.leadId!)}>
             Open lead
           </button>
         )}

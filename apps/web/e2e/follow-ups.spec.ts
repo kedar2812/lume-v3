@@ -63,7 +63,8 @@ test.describe("Follow-ups", () => {
     const item = centre.getByRole("listitem", { name: /^Follow Up Person/ });
     await item.getByRole("button", { name: "Done" }).click();
     await expect(item).toBeHidden();
-    await page.getByRole("button", { name: "Mark all read" }).click();
+    // Done reads its reminder too (3B final review, Important 2): nothing is left to mark read.
+    await expect(centre.getByRole("button", { name: "Mark all read" })).toBeDisabled();
     await page.keyboard.press("Escape");
     await openApp(page, "/today");
     await expect(page.getByRole("heading", { name: "All clear" })).toBeVisible();

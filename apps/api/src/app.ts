@@ -23,6 +23,7 @@ import { receiveRoutes } from "./modules/webhooks/receive";
 import { webhookRoutes } from "./modules/webhooks/routes";
 import { taskRoutes } from "./modules/tasks/routes";
 import { notificationRoutes } from "./modules/notifications/routes";
+import { readAs } from "./modules/notifications/hub";
 import { notify, type NewNotification } from "./modules/notifications/notify";
 import { peopleRoutes } from "./modules/people/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
@@ -103,6 +104,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         scope.decorate("fieldRegistryCache", { value: null });
         // Notifications (3B): sent as their recipient, if they want that kind.
         scope.decorate("notify", (userId: string, n: NewNotification) => notify(deps.pool, userId, n));
+        scope.decorate("settleReminders", (userId: string, taskId: string) =>
+          readAs(deps.pool, userId, async (c) => {
+            await c.query(
+              `UPDATE notifications SET read_at = now()
+                WHERE task_id = $1 AND read_at IS NULL AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
+              [taskId],
+            );
+          }),
+        );
         scope.decorate("notifyNameOf", async (userId: string) => {
           const { rows } = await deps.pool.query<{ name: string }>("SELECT name FROM users WHERE id = $1", [
             userId,

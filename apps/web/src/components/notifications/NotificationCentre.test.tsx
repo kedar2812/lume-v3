@@ -1,7 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { notificationsClient, type NotificationView } from "@/lib/notifications/client";
+import { notificationsClient, sayUnread, type NotificationView } from "@/lib/notifications/client";
 import { tasksClient } from "@/lib/tasks/client";
 import type { TaskView, TodayView } from "@/lib/tasks/types";
 import { NotificationCentre } from "./NotificationCentre";
@@ -15,6 +15,7 @@ vi.mock("@/lib/tasks/client", () => ({
 }));
 vi.mock("@/lib/notifications/client", () => ({
   notificationsClient: { list: vi.fn(), read: vi.fn(), readAll: vi.fn() },
+  sayUnread: vi.fn(),
   READ_EVENT: "lume:notifications-read",
 }));
 let live: ((n: unknown) => void) | null = null;
@@ -153,8 +154,10 @@ describe("the notification centre (3B Task 5)", () => {
     expect(push).toHaveBeenCalledWith("/leads?lead=l-b");
     await userEvent.keyboard("e");
     expect(tasksClient.done).toHaveBeenCalledWith("b");
+    // Focus goes on to the next row, so E, E, E works down the list.
+    await vi.waitFor(() => expect(screen.getByRole("listitem", { name: /^Sara Pinto/ })).toHaveFocus());
     await userEvent.keyboard("k");
-    expect(screen.getByRole("listitem", { name: /^Aisha Khan/ })).toHaveFocus();
+    expect(screen.getByRole("listitem", { name: /^Omar Ali/ })).toHaveFocus();
   });
 
   it("F goes full screen; Esc comes back, then closes", async () => {
@@ -199,5 +202,78 @@ describe("the notification centre (3B Task 5)", () => {
     vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
     render(<NotificationCentre open onClose={vi.fn()} />);
     expect(await screen.findByText("You're all caught up")).toBeInTheDocument();
+  });
+});
+
+describe("the notification centre: 3B final review", () => {
+  it("Important 3: Open, and Enter, open the lead and step the centre out of its way", async () => {
+    const onClose = await open();
+    await userEvent.click(
+      within(screen.getByRole("list", { name: "Overdue" })).getByRole("button", { name: "Open" }),
+    );
+    expect(push).toHaveBeenCalledWith("/leads?lead=l-a");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await userEvent.keyboard("j");
+    await userEvent.keyboard("{Enter}");
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("Important 3: with a lead's drawer in front, its keys are the drawer's", async () => {
+    const onClose = vi.fn();
+    render(
+      <>
+        <NotificationCentre open onClose={onClose} />
+        <div role="dialog" aria-modal="true" aria-label="Aisha Khan">
+          <button type="button">In the drawer</button>
+        </div>
+      </>,
+    );
+    await screen.findByRole("list", { name: "Overdue" });
+    screen.getByRole("button", { name: "In the drawer" }).focus();
+    await userEvent.keyboard("j");
+    expect(screen.getByRole("button", { name: "In the drawer" })).toHaveFocus();
+    await userEvent.keyboard("f");
+    expect(screen.getByRole("dialog", { name: "Notifications" })).not.toHaveAttribute("data-full");
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("Important 4: J from a row's button goes to the next row, not back to the first", async () => {
+    await open();
+    within(screen.getByRole("list", { name: "Due now" }))
+      .getByRole("button", { name: "Done" })
+      .focus();
+    await userEvent.keyboard("j");
+    expect(screen.getByRole("listitem", { name: /^Sara Pinto/ })).toHaveFocus();
+  });
+
+  it("Important 4 (Review Focus 4): an open Snooze menu keeps its keys; E never finishes another row", async () => {
+    await open();
+    await userEvent.keyboard("jj"); // Omar Ali
+    await userEvent.keyboard("s");
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    await userEvent.keyboard("j");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: /^Sara Pinto/ })).not.toHaveFocus();
+    await userEvent.keyboard("e");
+    expect(tasksClient.done).not.toHaveBeenCalled();
+  });
+
+  it("opened, it takes focus, so its keys work wherever focus was", async () => {
+    render(
+      <>
+        <button type="button">Somewhere on the page</button>
+        <NotificationCentre open onClose={vi.fn()} />
+      </>,
+    );
+    await screen.findByRole("list", { name: "Overdue" });
+    expect(screen.getByRole("dialog", { name: "Notifications" })).toHaveFocus();
+    await userEvent.keyboard("f");
+    expect(screen.getByRole("dialog", { name: "Notifications" })).toHaveAttribute("data-full");
+  });
+
+  it("Important 5: loading tells the bell how many are unread", async () => {
+    await open();
+    expect(sayUnread).toHaveBeenCalledWith(1);
   });
 });

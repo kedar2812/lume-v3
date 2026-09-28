@@ -21,7 +21,7 @@ import { loadActor } from "../../rbac/actor";
 import { recordActivity } from "../leads/writer";
 import { visibleLead } from "../leads/service";
 import { cancelReminders, pendingOf, schedule } from "./engine";
-import { refreshNextDue } from "./lifecycle";
+import { refreshNextDue, settleReminders } from "./lifecycle";
 
 const T = schema.tasks;
 const L = schema.leads;
@@ -273,8 +273,10 @@ export async function updateTask(req: FastifyRequest, d: AppDeps, id: string, bo
     const lead = await visibleLead(req, t.leadId);
     await checkAssignee(req, d, body.assigneeId, lead.ownerId);
     set.assigneeId = body.assigneeId;
+    set.escalatedAt = null; // their managers hear if it's left overdue (3B final review)
   }
   const [u] = await req.db.update(T).set(set).where(eq(T.id, id)).returning();
+  if (body.due || set.assigneeId) await settleReminders(req, t);
   if (set.assigneeId) tellAssignee(req, u!, (await visibleLead(req, t.leadId)).name);
   await schedule(req.db, u!, now);
   await refreshNextDue(req, t.leadId);
@@ -311,6 +313,7 @@ export async function cancelTask(req: FastifyRequest, id: string) {
     .where(eq(T.id, id))
     .returning();
   await cancelReminders(req.db, id);
+  await settleReminders(req, t);
   await refreshNextDue(req, t.leadId);
   await recordActivity(req, t.leadId, "follow_up_cancelled", { taskId: id, title: t.title });
   await auditForOther(req, t, "cancelled");
@@ -343,6 +346,7 @@ export async function doneTask(req: FastifyRequest, d: AppDeps, id: string) {
     .where(eq(T.id, id))
     .returning();
   await cancelReminders(req.db, id);
+  await settleReminders(req, t);
   await recordActivity(req, t.leadId, "follow_up_done", { taskId: id, title: t.title });
   await auditForOther(req, t, "done");
 

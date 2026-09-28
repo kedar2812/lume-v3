@@ -13,9 +13,12 @@ export default async function Page() {
       title="Follow-ups"
       description="Nothing is left waiting: when a follow-up is overdue, the right people hear about it."
     >
-      <FollowUpSettings
-        initial={r.status === 200 && r.data ? r.data : { escalation: { enabled: true, hours: 24 } }}
-      />
+      {r.status === 200 && r.data ? (
+        <FollowUpSettings initial={r.data} />
+      ) : (
+        // Never defaults in place of what's saved: Save would write them over it (3B final review).
+        <p role="alert">LUME couldn&apos;t load these settings just now. Reload the page to try again.</p>
+      )}
     </SettingsPage>
   );
 }

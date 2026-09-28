@@ -1,5 +1,5 @@
-import { eq } from "drizzle-orm";
-import type { FastifyInstance } from "fastify";
+import { eq, sql } from "drizzle-orm";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { schema } from "@lume/db";
@@ -69,28 +69,44 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
     },
   );
   // Follow-ups (3B): when an overdue follow-up reaches the people who manage its assignee.
+  // Each section is optional and changes on its own; what's stored is read over the defaults.
   const followUps = z
     .object({
       escalation: z.object({ enabled: z.boolean(), hours: z.number().int().min(1).max(168) }).strict(),
+      // The morning email, for the whole business (an optional module: 3B final review, Important 8).
+      digest: z.object({ enabled: z.boolean() }).strict(),
     })
+    .partial()
     .strict();
-  r.get("/api/v1/settings/follow-ups", { config: { permission: "settings.manage" } }, async (req) => {
+  const FOLLOW_UP_DEFAULTS = { escalation: { enabled: true, hours: 24 }, digest: { enabled: true } };
+  const readFollowUps = async (req: FastifyRequest) => {
     const [s] = await req.db.select({ f: schema.settings.followUps }).from(schema.settings);
     if (!s) throw notFound();
-    return s.f;
-  });
+    return { ...FOLLOW_UP_DEFAULTS, ...(s.f as object) } as typeof FOLLOW_UP_DEFAULTS;
+  };
+  r.get("/api/v1/settings/follow-ups", { config: { permission: "settings.manage" } }, (req) =>
+    readFollowUps(req),
+  );
   r.put(
     "/api/v1/settings/follow-ups",
     { config: { permission: "settings.manage" }, schema: { body: followUps } },
     async (req) => {
-      await req.db.update(schema.settings).set({ followUps: req.body }).where(eq(schema.settings.id, 1));
+      const before = await readFollowUps(req);
+      const next = { ...before, ...req.body };
+      await req.db.update(schema.settings).set({ followUps: next }).where(eq(schema.settings.id, 1));
+      // Switched on, escalation starts from now: what was already overdue doesn't flood managers at once
+      // (3B final review). Anything moved or snoozed from here on is watched as usual.
+      if (!before.escalation.enabled && next.escalation.enabled)
+        await req.db.execute(
+          sql`UPDATE tasks SET escalated_at = now() WHERE status = 'open' AND escalated_at IS NULL AND due_at < now()`,
+        );
       await audit(req, {
         action: "settings.follow_ups",
         entityType: "settings",
         entityId: "1",
         diff: req.body,
       });
-      return req.body;
+      return next;
     },
   );
   r.get(

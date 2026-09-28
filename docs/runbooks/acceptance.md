@@ -728,6 +728,29 @@ Plan: `docs/superpowers/plans/2026-09-28-phase-3b-notification-centre-digest.md`
   - the morning email arrives through the SMTP sink with first names and times, and no contact details;
   - screenshots and axe in both themes; full copies in `apps/web/e2e/__review__/notifications/`.
 
+## Final review (fresh reviewer)
+
+No Critical findings. Eight Important ones, all fixed with a failing test first:
+- **Two digest runs at once could both send, and a hung mail server held up start-up and the reminder sweep.** Reminders are swept first; escalation and the digest now run beside the clock, one run of each at a time. The day is claimed before sending, and handed back if the send fails. The mail server gets explicit timeouts.
+- **A done, cancelled or moved follow-up left its reminder unread,** with no row to read it from. Its reminders are now read for its assignee, whoever did it.
+- **"Open" and Enter left the centre over the lead's drawer, and the centre took the drawer's keys.** Opening a lead closes the centre. Its keys work only when focus is in it, or nowhere with no other sheet open.
+- **J/K from a row's button jumped to the first row, and an open Snooze menu didn't keep its keys.** The current row is the one holding focus. An open menu keeps its keys, and after E, focus moves on to the next row.
+- **The window's "(n)" was lost on the next page,** and hover-reading didn't update the bell. Every read now says how many are left.
+- **A follow-up's own words could carry a phone number or email into the email.** They're taken out; the title stays.
+- **One person LUME couldn't read stopped everyone's digest,** and failures left no trace. Each person is on their own, and failures are logged by user id.
+- **The digest had no instance switch.** Settings → Follow-ups → Morning emails turns it off for everyone. With no mail server it isn't attempted.
+
+Also fixed:
+- reassigning a follow-up lets the new assignee's managers hear about it;
+- switching escalation on starts from now, so what was already overdue doesn't flood managers;
+- "Remind them" is never muted;
+- overdue items older than six days show their date;
+- overdue items can't crowd today's out of the email;
+- changing the digest time back is saved;
+- a failed load of Settings → Follow-ups says so instead of showing defaults.
+
+The deferred minors are in the plan ledger.
+
 ## Live
 
 `acceptance-3b.mjs set` (with 3A's set) → the chain forgets the owner's digest for today → `docker restart lumedev-api-1` (a restart runs the digest at once) → `acceptance-3b.mjs check`: the morning email arrives in Mailpit with first names and times only, and `.` opens the centre. Screenshots are in `docs/runbooks/screenshots-3b/`, unmasked, including the email as it renders.

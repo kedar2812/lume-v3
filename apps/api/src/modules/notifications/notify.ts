@@ -24,11 +24,13 @@ export type NewNotification = {
 const SWITCH: Partial<Record<NotifyKind, keyof Preferences["alerts"]>> = {
   follow_up_due: "dueFollowUps",
   follow_up_soon: "dueFollowUps",
-  follow_up_nudge: "dueFollowUps",
   follow_up_assigned: "assigned",
   lead_assigned: "assigned",
 };
-/** Whether this person wants this kind (escalations to managers always go: they're the safety net). */
+/**
+ * Whether this person wants this kind. Escalations to managers, and a manager's "Remind them", always go:
+ * they're the safety net, and a manager who asked is told it was sent (3B final review).
+ */
 export function wants(stored: unknown, kind: NotifyKind): boolean {
   const s = SWITCH[kind];
   return !s || mergePreferences(stored, {}).alerts[s];
@@ -63,6 +65,8 @@ declare module "fastify" {
     notify?: (userId: string, n: NewNotification) => Promise<number | null>;
     /** A person's first name, for notices ("assigned to you by Maya"). */
     notifyNameOf?: (userId: string) => Promise<string | null>;
+    /** Mark a follow-up's reminders read for its assignee: it was done, cancelled or moved (3B final review). */
+    settleReminders?: (userId: string, taskId: string) => Promise<void>;
   }
 }
 
