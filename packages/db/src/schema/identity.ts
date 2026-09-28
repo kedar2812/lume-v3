@@ -39,7 +39,7 @@ export const settings = pgTable("settings", {
   fieldDefsVersion: integer("field_defs_version").notNull().default(0),
   /** Optional modules switched on for this instance (2B spec §3); off unless set. */
   integrations: jsonb("integrations")
-    .$type<{ googleSheets?: { enabled: boolean } }>()
+    .$type<{ googleSheets?: { enabled: boolean }; webhooks?: { enabled: boolean } }>()
     .notNull()
     .default(sql`'{}'::jsonb`),
   createdAt: tz("created_at").notNull().defaultNow(),

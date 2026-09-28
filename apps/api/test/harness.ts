@@ -38,6 +38,7 @@ import { fixedRates } from "../src/money/rates";
 import { seedConfiguration } from "../src/modules/pipelines/seed";
 import { loadActor, type ActorRecord } from "../src/rbac/actor";
 import { startGoogleFake, type GoogleFake } from "./google-fake";
+import { createLimiter } from "../src/modules/webhooks/limits";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
@@ -138,6 +139,8 @@ export type Harness = {
   google: GoogleSheets | null;
   /** Runs every requested sheet sync now, as the queue would. */
   runSyncs(ids?: string[]): Promise<void>;
+  /** Webhook events queued for processing (2C), in the order they were accepted. */
+  webhookQueue: number[];
   /** Where the relay is (it listens on a port the test picks). */
   setRelayUrl(url: string): void;
   /** Takes one permission away from every role the user has, and waits until the API has noticed. */
@@ -212,6 +215,7 @@ export async function createHarness(
       })
     : null;
   const syncs: string[] = [];
+  const webhookQueue: number[] = [];
   const googleOAuth = opts.oauth ? { relayUrl: "", relayToken: opts.oauth.relayToken } : null;
   const clientFor = oauthClientFor(googleOAuth, fake?.url);
 
@@ -232,6 +236,10 @@ export async function createHarness(
     imports: { enqueue: async (id) => void queued.push(id) },
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
+    webhooks: {
+      enqueue: async (id) => void webhookQueue.push(id),
+      limiter: createLimiter({ perSource: 60, perInstance: 600, windowMs: 60_000 }),
+    },
     googleOAuth,
     ...(fake ? { googleEndpoint: fake.url } : {}),
   });
@@ -415,6 +423,7 @@ export async function createHarness(
     },
     fake,
     google,
+    webhookQueue,
     async runSyncs(ids = []) {
       syncs.push(...ids);
       for (let id = syncs.shift(); id; id = syncs.shift())

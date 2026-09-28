@@ -18,6 +18,8 @@ import { leadRoutes } from "./modules/leads/routes";
 import { importRoutes } from "./modules/imports/routes";
 import { sheetRoutes } from "./modules/sheets/routes";
 import type { GoogleSheets } from "./modules/sheets/google";
+import type { Limiter } from "./modules/webhooks/limits";
+import { receiveRoutes } from "./modules/webhooks/receive";
 import { peopleRoutes } from "./modules/people/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
@@ -67,6 +69,8 @@ export type AppDeps = {
   googleOAuth?: { relayUrl: string; relayToken: string } | null;
   /** Tests and e2e only: where the Google APIs are (the fake). */
   googleEndpoint?: string;
+  /** Webhooks (2C): where an accepted post is queued, and (tests) the rate limiter to use. */
+  webhooks?: { enqueue(eventId: number): Promise<void>; limiter?: Limiter };
   /** Tests only: extra routes registered inside the authenticated scope. */
   extraRoutes?: (app: FastifyInstance) => void;
 };
@@ -80,6 +84,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const app = await buildServer({
       checks: dbChecks(deps.pool),
       logger: deps.logger,
+      open: (a) => receiveRoutes(a, deps),
       configure: (a) => {
         a.setValidatorCompiler(validatorCompiler);
         a.setSerializerCompiler(serializerCompiler);
