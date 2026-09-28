@@ -86,6 +86,16 @@ describe("loadConfig", () => {
     );
   });
 
+  it("the follow-up clock ticks every minute unless tests ask for faster, never under a second", () => {
+    expect(loadConfig(apiSchema, apiEnv).LUME_FOLLOW_UP_TICK_MS).toBe(60_000);
+    expect(loadConfig(apiSchema, { ...apiEnv, LUME_FOLLOW_UP_TICK_MS: "2000" }).LUME_FOLLOW_UP_TICK_MS).toBe(
+      2000,
+    );
+    expect(issuesOf(() => loadConfig(apiSchema, { ...apiEnv, LUME_FOLLOW_UP_TICK_MS: "10" })).join()).toMatch(
+      /LUME_FOLLOW_UP_TICK_MS/,
+    );
+  });
+
   it("accepts a valid api env and applies defaults", () => {
     const c = loadConfig(apiSchema, apiEnv);
     expect(c.API_PORT).toBe(3001);

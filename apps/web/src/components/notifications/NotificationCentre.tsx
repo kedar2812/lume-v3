@@ -6,6 +6,7 @@ import { useSound } from "@/components/feedback/SoundProvider";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
+import { relativeTime } from "@/lib/leads/format";
 import { notificationsClient, type NotificationView } from "@/lib/notifications/client";
 import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
@@ -300,8 +301,11 @@ export function NotificationCentre({
                               <b>{e.type === "task" ? e.task.leadName : e.n.title}</b>
                               <time data-volatile>
                                 {e.type === "task"
-                                  ? whenInWords(e.task.dueAt, new Date(), tz)
-                                  : whenInWords(e.n.createdAt, new Date(), tz).replace(" (overdue)", "")}
+                                  ? // Its group and its red label already say overdue; the time says when.
+                                    whenInWords(e.task.dueAt, new Date(), tz)
+                                      .replace(" (overdue)", "")
+                                      .replace(/ min overdue$/, " min ago")
+                                  : relativeTime(e.n.createdAt)}
                               </time>
                             </div>
                             <p className={s.meta}>

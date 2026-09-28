@@ -18,6 +18,8 @@ export async function startTaskQueue(o: {
   pool: pg.Pool;
   /** The daily digest (3B): how mail goes, and the address its links point at. */
   digest?: { mailer: Mailer; publicUrl: string };
+  /** How often the clock ticks (LUME_FOLLOW_UP_TICK_MS); a minute unless tests ask for faster. */
+  tickMs?: number;
 }) {
   const boss = new PgBoss({
     connectionString: o.connectionString,
@@ -58,7 +60,7 @@ export async function startTaskQueue(o: {
     }
   };
   await tick(); // anything missed while LUME was down fires before it takes requests
-  const timer = setInterval(() => void tick(), SWEEP_MS);
+  const timer = setInterval(() => void tick(), o.tickMs ?? SWEEP_MS);
   timer.unref();
   return {
     /** One job per reminder, at its time; the same reminder queued twice runs once. */

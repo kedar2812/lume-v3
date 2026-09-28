@@ -81,6 +81,9 @@ export const apiSchema = base
     LUME_GOOGLE_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
     /** The most rows a connected sheet may have (2B spec §5.5). */
     LUME_SHEETS_MAX_ROWS: z.coerce.number().int().min(1000).max(500_000).default(50_000),
+    /** How often the follow-up clock ticks: the sweeper, escalation (every 5th) and digests (every 15th).
+     *  A minute in production; e2e sets it to seconds so the escalation and the digest arrive in a test. */
+    LUME_FOLLOW_UP_TICK_MS: z.coerce.number().int().min(1000).max(600_000).default(60_000),
     /** Webhooks (2C): the ManyChat preset stays hidden until verified against a real ManyChat Pro account. */
     LUME_MANYCHAT_PRESET: z.enum(["on", "off"]).default("off"),
     /** "Connect with Google" (2B §6): the owner's relay, and this instance's own token there. Unset: hidden. */

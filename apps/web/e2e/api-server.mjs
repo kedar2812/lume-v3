@@ -35,6 +35,8 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     LUME_FX_FIXED: "AED:USD=0.27",
     // Google Sheets against the fake Google (e2e/google-fake.ts), never the real one.
     GOOGLE_SERVICE_ACCOUNT_JSON: readFileSync(path.join(here, ".artifacts/google-key.b64"), "utf8"),
+    // The follow-up clock in seconds, so an escalation and a morning email arrive within a test (3B).
+    LUME_FOLLOW_UP_TICK_MS: "2000",
     LUME_GOOGLE_ENDPOINT: `http://127.0.0.1:${process.env.E2E_GOOGLE_PORT ?? 3112}`,
   },
   stdio: ["ignore", "pipe", "pipe"],

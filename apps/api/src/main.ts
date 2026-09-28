@@ -108,6 +108,7 @@ const taskQueue = await startTaskQueue({
   app,
   pool: jobPool,
   digest: { mailer, publicUrl },
+  tickMs: cfg.LUME_FOLLOW_UP_TICK_MS,
 });
 tasks.enqueue = taskQueue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });

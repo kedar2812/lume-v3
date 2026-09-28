@@ -701,3 +701,33 @@ Two Critical, six Important, and nine Minor findings. Four Minor ones were re-gr
 ## Live
 
 `acceptance-3a.mjs set` → `docker restart lumedev-api-1` → `acceptance-3a.mjs check`: a follow-up due 90 s after being set, with the API restarted in between, still reminds exactly once. Screenshots are in `docs/runbooks/screenshots-3a/`, unmasked.
+
+# Phase 3B — The notification centre, escalation and the morning email
+
+Plan: `docs/superpowers/plans/2026-09-28-phase-3b-notification-centre-digest.md`. Spec: `docs/superpowers/specs/2026-09-28-phase-3-follow-ups-design.md`.
+
+## Automated
+
+- **Your own alerts** (`notify.test.ts`): each person's alert settings decide what reaches them; assignment notices are one per bulk action and name the lead only.
+- **Escalation** (`escalation.test.ts`):
+  - a follow-up overdue past Settings → Follow-ups' hours reaches the owner and team leads who manage its assignee, once;
+  - never the assignee, never someone who can't see the lead;
+  - off means off.
+- **The morning email** (`digest.test.ts`):
+  - once a local day, at the person's own time, on their working days;
+  - first names and times only: no phones, emails or full names;
+  - a mail that fails leaves no record, so the next run tries again.
+- **Web:**
+  - the centre: groups, filters, read after 600 ms under the pointer, Mark all read, Done / Snooze / Remind them, J/K/E/Enter/F/Esc, live arrivals, the empty state;
+  - an update's time says how long ago it arrived; an overdue follow-up says "overdue" once;
+  - Settings → Follow-ups (hours 1–168, refused in LUME's words before the server is asked);
+  - My account → Notifications (each switch saves as it flips; the email time steps back when the email is off).
+- **End to end** (`notifications.spec.ts`), on the real stack with the follow-up clock at 2 s (`LUME_FOLLOW_UP_TICK_MS`):
+  - an overdue follow-up reaches the owner live, after Settings → Follow-ups is set to an hour;
+  - `.` opens the centre; F goes full screen and Esc steps back; J then E finishes a follow-up; Remind them; Mark all read;
+  - the morning email arrives through the SMTP sink with first names and times, and no contact details;
+  - screenshots and axe in both themes; full copies in `apps/web/e2e/__review__/notifications/`.
+
+## Live
+
+`acceptance-3b.mjs set` (with 3A's set) → the chain forgets the owner's digest for today → `docker restart lumedev-api-1` (a restart runs the digest at once) → `acceptance-3b.mjs check`: the morning email arrives in Mailpit with first names and times only, and `.` opens the centre. Screenshots are in `docs/runbooks/screenshots-3b/`, unmasked, including the email as it renders.

@@ -176,6 +176,24 @@ describe("the notification centre (3B Task 5)", () => {
     await vi.waitFor(() => expect(notificationsClient.list).toHaveBeenCalledTimes(2));
   });
 
+  it("times read as people say them: an update is 'ago', and overdue is said once, not twice", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({
+        items: [
+          note(3, "task_escalated", "Riya's follow-up with Aisha Khan is 26 h overdue", {
+            createdAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+          }),
+        ],
+        unread: 1,
+      }),
+    );
+    await open();
+    const update = screen.getByRole("listitem", { name: /26 h overdue/ });
+    expect(within(update).getByText("5m ago")).toBeInTheDocument();
+    const late = screen.getByRole("listitem", { name: /^Aisha Khan/ });
+    expect(late.querySelector("time")?.textContent).not.toMatch(/overdue/);
+  });
+
   it("nothing at all: You're all caught up", async () => {
     vi.mocked(tasksClient.today).mockResolvedValue(ok(today({ overdue: [], soon: [], later: [], total: 0 })));
     vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));

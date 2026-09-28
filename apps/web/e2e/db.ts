@@ -27,3 +27,19 @@ export async function resetE2eDatabase(repoRoot: string): Promise<void> {
   // Explicit: this runs from a bundle, where a path relative to the module would point elsewhere.
   await migrate(ownerUrl, path.join(repoRoot, "packages/db/migrations"));
 }
+
+/** Forget today's (and any) morning email for one person, so the next digest run sends it again. */
+export async function forgetDigests(email: string): Promise<void> {
+  // As the test database's superuser: this is test housekeeping, outside anyone's row-level scope.
+  const url = new URL(adminUrl());
+  url.pathname = `/${DB}`;
+  const owner = new pg.Client({ connectionString: url.toString() });
+  await owner.connect();
+  try {
+    await owner.query("DELETE FROM digest_runs WHERE user_id = (SELECT id FROM users WHERE email = $1)", [
+      email,
+    ]);
+  } finally {
+    await owner.end();
+  }
+}
