@@ -53,15 +53,21 @@ test.describe("Follow-ups", () => {
     await callApi(page, "PATCH", `/api/v1/tasks/${tasks[0]!.id}`, {
       due: { at: new Date(Date.now() + 5_000).toISOString() },
     });
-    await expect(page.getByRole("button", { name: "Notifications, new ones waiting" })).toBeVisible({
+    await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible({
       timeout: 70_000,
     });
 
+    // The bell opens the notification centre (3B): it's done there, and Today is then all clear.
     await page.getByRole("button", { name: /^Notifications/ }).click();
-    await expect(page).toHaveURL(/\/today$/);
-    await page.getByRole("button", { name: "Done: Follow up — Follow Up Person" }).click();
+    const centre = page.getByRole("dialog", { name: "Notifications" });
+    const item = centre.getByRole("listitem", { name: /^Follow Up Person/ });
+    await item.getByRole("button", { name: "Done" }).click();
+    await expect(item).toBeHidden();
+    await page.getByRole("button", { name: "Mark all read" }).click();
+    await page.keyboard.press("Escape");
+    await openApp(page, "/today");
     await expect(page.getByRole("heading", { name: "All clear" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Notifications" })).toBeVisible(); // read on Today
+    await expect(page.getByRole("button", { name: "Notifications" })).toBeVisible(); // all read
   });
 
   test("screenshots and axe: Today, the drawer's next follow-up, and the sheet — both themes", async ({

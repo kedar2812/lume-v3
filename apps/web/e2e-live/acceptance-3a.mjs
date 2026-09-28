@@ -106,7 +106,7 @@ if (MODE === "set") {
     !/\+?\d{7,}|@/.test(`${found[0].title} ${found[0].body}`),
     "it names the lead only, no contact details",
   );
-  await page.getByRole("button", { name: "Notifications, new ones waiting" }).waitFor({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^Notifications, \d+ unread$/ }).waitFor({ timeout: 10_000 });
   ok("the bell shows it");
   await go("/today");
   await page.getByRole("button", { name: "Done: Follow up — Acceptance Follow Up" }).click();
