@@ -25,6 +25,7 @@ describe("areasFor", () => {
       "pipeline",
       "fields",
       "lists",
+      "follow-ups",
       "people",
       "roles",
       "teams",

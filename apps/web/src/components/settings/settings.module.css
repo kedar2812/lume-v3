@@ -1502,3 +1502,11 @@
   color: var(--danger-ink);
   background: var(--danger-soft);
 }
+/* A switch with its explanation under it (My account → Notifications). */
+.switchRow {
+  display: grid;
+  gap: 2px;
+}
+.switchRow + .switchRow {
+  margin-top: 6px;
+}

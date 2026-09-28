@@ -11,6 +11,7 @@ import { accountClient, type MySession } from "@/lib/settings/account";
 import { deviceName } from "@/lib/settings/device";
 import { shortDateTime } from "@/lib/settings/format";
 import type { Session } from "@/server/session";
+import { MyAlerts } from "./MyAlerts";
 import s from "./settings.module.css";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 
@@ -22,6 +23,7 @@ export function MyAccount({ session, children }: { session: Session; children?: 
   return (
     <div className={s.stack}>
       <Profile session={session} />
+      <MyAlerts initial={session.preferences} />
       <TwoStep session={session} />
       <Sessions />
       {children}

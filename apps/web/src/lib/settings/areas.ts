@@ -45,6 +45,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "follow-ups",
+    title: "Follow-ups",
+    blurb: "When an overdue follow-up reaches the people who manage it",
+    href: "/settings/follow-ups",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
     id: "imports",
     title: "Imports",
     blurb: "Past imports, their reports, and drafts to finish",
@@ -95,7 +103,7 @@ export const SETTINGS_AREAS: SettingsArea[] = [
   {
     id: "account",
     title: "My account",
-    blurb: "Your sessions, two-step sign-in and the tour",
+    blurb: "Your notifications, sessions, two-step sign-in and the tour",
     href: "/settings/account",
     anyOf: ["auth.self"],
     group: "you",
