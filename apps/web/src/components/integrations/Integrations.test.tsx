@@ -8,6 +8,8 @@ import { Integrations } from "./Integrations";
 vi.mock("@/lib/sheets/client", () => ({
   sheetsClient: { integrations: vi.fn(), setEnabled: vi.fn(), list: vi.fn(), connect: vi.fn() },
 }));
+// The Webhooks card has its own tests.
+vi.mock("./WebhooksCard", () => ({ WebhooksCard: () => null }));
 vi.mock("@/components/sheets/AddSheetSheet", () => ({
   AddSheetSheet: ({ open }: { open: boolean }) =>
     open ? <div role="dialog" aria-label="Add a sheet" /> : null,
@@ -20,6 +22,7 @@ const on = {
     email: "lume@p.iam.gserviceaccount.com",
     connectWithGoogle: false,
   },
+  webhooks: { enabled: false, manychat: false },
 };
 const src = (over: Partial<SheetSourceView>): SheetSourceView => ({
   id: "s1",
@@ -49,7 +52,7 @@ beforeEach(() => vi.clearAllMocks());
 describe("Settings → Integrations", () => {
   it("is off by default: one switch, and nothing else to do", async () => {
     vi.mocked(sheetsClient.integrations).mockResolvedValue(
-      ok({ googleSheets: { ...on.googleSheets, enabled: false } }),
+      ok({ ...on, googleSheets: { ...on.googleSheets, enabled: false } }),
     );
     render(<Integrations />);
     const sw = await screen.findByRole("switch", { name: "Google Sheets" });
@@ -61,7 +64,10 @@ describe("Settings → Integrations", () => {
 
   it("without a Google key on the server, says who can set it up instead of a switch", async () => {
     vi.mocked(sheetsClient.integrations).mockResolvedValue(
-      ok({ googleSheets: { enabled: false, available: false, email: null, connectWithGoogle: false } }),
+      ok({
+        ...on,
+        googleSheets: { enabled: false, available: false, email: null, connectWithGoogle: false },
+      }),
     );
     render(<Integrations />);
     expect(await screen.findByText(/isn't set up on this server yet/)).toBeInTheDocument();
@@ -104,7 +110,7 @@ describe("Settings → Integrations", () => {
 
   it("switching on asks the server, then shows what's there", async () => {
     vi.mocked(sheetsClient.integrations).mockResolvedValue(
-      ok({ googleSheets: { ...on.googleSheets, enabled: false } }),
+      ok({ ...on, googleSheets: { ...on.googleSheets, enabled: false } }),
     );
     vi.mocked(sheetsClient.setEnabled).mockResolvedValue(ok(on));
     vi.mocked(sheetsClient.list).mockResolvedValue(ok({ sources: [] }));
@@ -128,7 +134,7 @@ describe("Settings → Integrations", () => {
   });
   it("with Google verified, Connect with Google comes first and the service account moves under Other ways", async () => {
     vi.mocked(sheetsClient.integrations).mockResolvedValue(
-      ok({ googleSheets: { ...on.googleSheets, connectWithGoogle: true } }),
+      ok({ ...on, googleSheets: { ...on.googleSheets, connectWithGoogle: true } }),
     );
     vi.mocked(sheetsClient.list).mockResolvedValue(ok({ sources: [] }));
     vi.mocked(sheetsClient.connect).mockResolvedValue(

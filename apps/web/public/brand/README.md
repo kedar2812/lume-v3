@@ -13,4 +13,12 @@ Show each one at its natural aspect ratio on a white tile (Google asks for its i
 The Connect button follows Google's sign-in branding guidance: a white (light) or `#131314` (dark) button with a
 `#747775` / `#8e918f` outline, the "G" on the left, Roboto where available.
 
+**Not here yet** (2C webhooks): the presets show their names on a neutral tile until the official files are added.
+
+| File           | TODO(owner): add the official mark, from the company's own brand or press page |
+| -------------- | ------------------------------------------------------------------------------ |
+| `zapier.png`   | Zapier                                                                         |
+| `make.png`     | Make                                                                           |
+| `manychat.png` | ManyChat (its preset is hidden until verified)                                 |
+
 Every third-party logo in LUME comes from this folder, animations included; nothing is drawn to look like one. The WhatsApp mark is green, so on the WhatsApp-green button it sits on the same white tile.

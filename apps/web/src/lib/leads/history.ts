@@ -64,7 +64,7 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
     case "imported_again":
     case "sheet_row_updated": {
       // Where it came from, and any other numbers typed into the same cell (masked for masked roles).
-      const origin = p.file ?? p.sheet;
+      const origin = p.file ?? p.sheet ?? p.webhook;
       const from = origin ? `from ${String(origin)}${p.row ? `, row ${String(p.row)}` : ""}` : undefined;
       const extra = Array.isArray(p.extraPhones) && p.extraPhones.length ? p.extraPhones.map(String) : null;
       return {

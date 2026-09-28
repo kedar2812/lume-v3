@@ -72,6 +72,13 @@ describe("describeActivity", () => {
     expect(d.detail).toMatch(/^from Website enquiries, row 14/);
   });
 
+  it("a lead from a webhook says which webhook", () => {
+    const d = describeActivity(a("imported", { sourceId: "w1", webhook: "Landing page", event: 12 }), cat);
+    expect(d.title).toBe("Imported");
+    expect(d.detail).toMatch(/^from Landing page/);
+    expect(d.detail).not.toMatch(/row/);
+  });
+
   it("never throws on an event type or stage it doesn't know", () => {
     expect(describeActivity(a("something_new"), cat).title).toBe("Updated");
     expect(describeActivity(a("stage_changed", { to: "gone" }), cat).title).toBe("Moved to another stage");

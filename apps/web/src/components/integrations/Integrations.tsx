@@ -7,6 +7,7 @@ import { sheetsClient } from "@/lib/sheets/client";
 import type { IntegrationsView, SheetSourceView } from "@/lib/sheets/types";
 import { AttentionBanner } from "./AttentionBanner";
 import { SheetSourceList } from "./SheetSourceList";
+import { WebhooksCard } from "./WebhooksCard";
 import s from "./integrations.module.css";
 
 /** Spec §7.1: each optional module is one card — what it does, a switch, and what it needs from you. */
@@ -138,6 +139,7 @@ export function Integrations() {
           </>
         )}
       </article>
+      <WebhooksCard webhooks={view.webhooks} onView={setView} />
       <AddSheetSheet
         open={adding}
         onClose={() => {

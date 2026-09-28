@@ -2,6 +2,8 @@ import type { DraftView } from "@/lib/imports/types";
 
 export type IntegrationsView = {
   googleSheets: { enabled: boolean; available: boolean; email: string | null; connectWithGoogle: boolean };
+  /** Webhooks (2C): on or off, and whether this server offers the ManyChat preset. */
+  webhooks: { enabled: boolean; manychat: boolean };
 };
 /** A file picked with Connect with Google, ready to be set up. */
 export type PickedFile = { connectId: string; file: { id: string; name: string } };
