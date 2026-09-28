@@ -13,6 +13,8 @@ describe("QUEUE_NAMES", () => {
       "sheets.retention",
       "webhooks.process",
       "webhooks.retention",
+      "tasks.fire",
+      "notifications.retention",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });

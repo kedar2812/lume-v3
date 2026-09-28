@@ -44,5 +44,10 @@ export async function startQueue(opts: {
     const r = await opts.maintenance.purgeWebhookEvents();
     opts.log.info(r, "webhook events purged");
   });
+  await boss.schedule("notifications.retention", "53 3 * * *", {}, { tz: "UTC" });
+  await boss.work("notifications.retention", { batchSize: 1 }, async () => {
+    const r = await opts.maintenance.purgeNotifications();
+    opts.log.info(r, "notifications purged");
+  });
   return boss;
 }

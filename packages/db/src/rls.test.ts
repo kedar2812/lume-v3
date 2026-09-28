@@ -196,3 +196,94 @@ describe("contact keys (cross-scope duplicate detection without exposing contact
     expect(after).toBe(0); // deleted leads no longer count as duplicates
   });
 });
+
+describe("0021_follow_ups: follow-ups are seen with their lead; notifications only by whom they're for", () => {
+  const T = { rep: "0190e0c0-0000-7000-8000-0000000001a1", mate: "0190e0c0-0000-7000-8000-0000000001b1" };
+  const task = (id: string, lead: string, assignee: string) =>
+    as("lume_owner", { scope: "all" }, (c) =>
+      c.query(
+        "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Follow up', now() + interval '1 hour', $1)",
+        [id, lead, assignee],
+      ),
+    );
+  beforeAll(async () => {
+    await task(T.rep, L.rep, U.rep);
+    await task(T.mate, L.mate, U.mate);
+    // FORCE row-level security binds the table's owner too: each is written as its recipient.
+    for (const [user, title] of [
+      [U.rep, "For rep"],
+      [U.mate, "For mate"],
+    ])
+      await as("lume_owner", { scope: "all", user }, (c) =>
+        c.query("INSERT INTO notifications (user_id, kind, title) VALUES ($1, 'follow_up_due', $2)", [
+          user,
+          title,
+        ]),
+      );
+  });
+
+  it("a rep sees the follow-ups on their own leads only; team and all widen it as leads do", async () => {
+    expect(await ids("lume_app", { scope: "own" }, "SELECT id FROM tasks")).toEqual([T.rep]);
+    expect(await ids("lume_app", { scope: "team", team: [U.rep, U.mate] }, "SELECT id FROM tasks")).toEqual(
+      [T.rep, T.mate].sort(),
+    );
+    await expect(
+      as("lume_app", { scope: "own" }, (c) =>
+        c.query(
+          "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES (gen_random_uuid(), $1, $2, 'x', now(), gen_random_uuid())",
+          [L.mate, U.rep],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    expect(
+      (
+        await as("lume_app", { scope: "own" }, (c) =>
+          c.query("UPDATE tasks SET title = 'Moved' WHERE id = $1", [T.mate]),
+        )
+      ).rowCount,
+    ).toBe(0);
+  });
+
+  it("notifications are only ever their recipient's, even with scope all", async () => {
+    const titles = (s: Scope) =>
+      as("lume_app", s, async (c) =>
+        (await c.query<{ title: string }>("SELECT title FROM notifications")).rows.map((r) => r.title),
+      );
+    expect(await titles({ scope: "own" })).toEqual(["For rep"]);
+    expect(await titles({ scope: "all", user: U.mate })).toEqual(["For mate"]);
+    await expect(
+      as("lume_app", { scope: "all" }, (c) =>
+        c.query("INSERT INTO notifications (user_id, kind, title) VALUES ($1, 'follow_up_due', 'Sneaky')", [
+          U.mate,
+        ]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("each reminder is kept once, and the lists are enforced", async () => {
+    const add = () =>
+      as("lume_owner", { scope: "all" }, (c) =>
+        c.query(
+          "INSERT INTO scheduled_notifications (task_id, offset_minutes, fire_at) VALUES ($1, 15, now())",
+          [T.rep],
+        ),
+      );
+    await add();
+    await expect(add()).rejects.toThrow(/sn_once/);
+    await expect(
+      as("lume_owner", { scope: "all" }, (c) =>
+        c.query("UPDATE tasks SET status = 'nope' WHERE id = $1", [T.rep]),
+      ),
+    ).rejects.toThrow(/tasks_status/);
+  });
+
+  it("the worker may sweep old notifications and read nothing in them", async () => {
+    await as("lume_worker", { scope: null }, (c) =>
+      c.query("SELECT id, read_at, created_at FROM notifications"),
+    );
+    await as("lume_worker", { scope: null }, (c) => c.query("DELETE FROM notifications WHERE false"));
+    await expect(
+      as("lume_worker", { scope: null }, (c) => c.query("SELECT title FROM notifications")),
+    ).rejects.toThrow(/permission/);
+  });
+});

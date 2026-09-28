@@ -136,4 +136,29 @@ describe("maintenance jobs (as lume_worker)", () => {
     expect(await jobs.purgeWebhookEvents()).toEqual({ cleared: 0, deleted: 0 });
     await owner.end();
   });
+
+  it("deletes read notifications after 90 days; unread ones stay however old", async () => {
+    const owner = new pg.Client({ connectionString: db.url("lume_owner") });
+    await owner.connect();
+    const u = "00000000-0000-7000-8000-0000000000f2";
+    await owner.query("INSERT INTO users (id, email, name, status) VALUES ($1, 'n@x.test', 'N', 'active')", [
+      u,
+    ]);
+    // FORCE row-level security binds the owner too: write them as their recipient.
+    await owner.query("SELECT set_config('lume.user_id', $1, false)", [u]);
+    await owner.query(
+      `INSERT INTO notifications (user_id, kind, title, created_at, read_at) VALUES
+        ($1, 'follow_up_due', 'old read', now() - interval '91 days', now() - interval '90 days'),
+        ($1, 'follow_up_due', 'old unread', now() - interval '200 days', NULL),
+        ($1, 'follow_up_due', 'new read', now() - interval '3 days', now())`,
+      [u],
+    );
+    const jobs = makeMaintenanceJobs(pool);
+    expect(await jobs.purgeNotifications()).toEqual({ deleted: 1 });
+    const left = (await owner.query("SELECT title FROM notifications ORDER BY title")).rows.map(
+      (r) => r.title,
+    );
+    expect(left).toEqual(["new read", "old unread"]);
+    await owner.end();
+  });
 });

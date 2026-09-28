@@ -20,6 +20,7 @@ describe("worker queue as lume_worker", () => {
     const purgeImportFiles = vi.fn(async () => ({ files: 0, rows: 0, drafts: 0 }));
     const purgeSheetSyncs = vi.fn(async () => ({ syncs: 0, refreshes: 0, connects: 0 }));
     const purgeWebhookEvents = vi.fn(async () => ({ cleared: 0, deleted: 0 }));
+    const purgeNotifications = vi.fn(async () => ({ deleted: 0 }));
     const boss = await startQueue({
       connectionString: db.url("lume_worker"),
       jobs: { backup, restoreTest: vi.fn() },
@@ -28,6 +29,7 @@ describe("worker queue as lume_worker", () => {
         purgeImportFiles,
         purgeSheetSyncs,
         purgeWebhookEvents,
+        purgeNotifications,
       },
       log,
     });
@@ -36,6 +38,7 @@ describe("worker queue as lume_worker", () => {
     const schedules = await boss.getSchedules();
     expect(schedules.map((s) => [s.name, s.cron]).sort()).toEqual([
       ["imports.retention", "23 3 * * *"],
+      ["notifications.retention", "53 3 * * *"],
       ["ops.backup", "0 */6 * * *"],
       ["ops.idempotency-cleanup", "17 * * * *"],
       ["ops.restore-test", "0 4 * * 1"],

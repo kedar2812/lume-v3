@@ -9,5 +9,7 @@ export const QUEUE_NAMES = [
   "sheets.retention",
   "webhooks.process",
   "webhooks.retention",
+  "tasks.fire",
+  "notifications.retention",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
