@@ -47,7 +47,9 @@ export function AddWebhookSheet({
   const titleId = useId();
   const sheet = useRef<HTMLDivElement>(null);
   const editing = !!sourceId && !finishing;
-  const [step, setStep] = useState<Step>("from");
+  // Where it opens: a new webhook at "Where from", one being set up at its test, an edit at Columns.
+  const first: Step = !sourceId ? "from" : finishing ? "test" : "columns";
+  const [step, setStep] = useState<Step>(first);
   const [made, setMade] = useState<WebhookCreated | null>(null);
   const [draft, setDraft] = useState<DraftView | null>(null);
   const [keepTest, setKeepTest] = useState(true);
@@ -70,15 +72,14 @@ export function AddWebhookSheet({
 
   useEffect(() => {
     if (!open) {
-      setStep("from");
+      setStep(first);
       setMade(null);
       setDraft(null);
       setKeepTest(true);
       setError(null);
       return;
     }
-    if (!sourceId) return;
-    if (finishing) return setStep("test");
+    if (!sourceId || finishing) return;
     let live = true;
     setBusy(true);
     void webhooksClient.draft(sourceId).then((r) => {
@@ -91,7 +92,7 @@ export function AddWebhookSheet({
     return () => {
       live = false;
     };
-  }, [open, sourceId, finishing]);
+  }, [open, sourceId, finishing, first]);
 
   useEffect(() => {
     if (!open) return;
@@ -251,6 +252,11 @@ export function AddWebhookSheet({
             />
           )}
           {step === "test" && id && <TestStep id={id} busy={busy} onUse={() => void takeTest()} />}
+          {step === "columns" && !draft && !error && (
+            <section className={s.body} aria-busy="true">
+              <p className={s.lede}>Reading this webhook's fields…</p>
+            </section>
+          )}
           {step === "columns" && draft && (
             <ColumnsStep
               draft={draft}

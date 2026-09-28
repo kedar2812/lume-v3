@@ -149,6 +149,36 @@ describe("the Webhooks module (2C spec §7)", () => {
     expect((await post(w.id, { name: "New Secret" }, secret)).statusCode).toBe(202);
   });
 
+  it("final review, Important 7: a webhook whose posts are past retention can still have its fields edited", async () => {
+    const w = await setUp("Quiet form");
+    await h.pool.query("UPDATE webhook_events SET payload_enc = NULL WHERE source_id = $1", [w.id]);
+    const d = await call(admin, "POST", `/api/v1/webhooks/sources/${w.id}/draft`);
+    expect(d.statusCode).toBe(201);
+    expect(d.json()).toMatchObject({ headers: ["name", "contact.phone", "email"], rowCount: 0 });
+    const saved = await call(admin, "POST", `/api/v1/webhooks/sources/${w.id}/save`, {
+      importId: d.json().id,
+      keepTest: false,
+    });
+    expect(saved.json()).toMatchObject({ status: "active" });
+  });
+
+  it("final review, Important 4: a new secret is never kept for replay, even with an idempotency key", async () => {
+    const w = await setUp("Replay form");
+    const rotate = () =>
+      admin.inject({
+        method: "POST",
+        url: `/api/v1/webhooks/sources/${w.id}/rotate`,
+        headers: { "idempotency-key": "rotate-once" },
+      });
+    const first = (await rotate()).json().secret;
+    const second = (await rotate()).json().secret;
+    expect(second).not.toBe(first);
+    const kept = await h.ownerPool.query("SELECT 1 FROM idempotency_keys WHERE response::text LIKE $1", [
+      `%${second}%`,
+    ]);
+    expect(kept.rowCount).toBe(0);
+  });
+
   it("paused asks senders to come back later; resumed takes posts again", async () => {
     const w = await setUp("Pausing form");
     expect(

@@ -346,7 +346,7 @@ export async function fire(o: EngineDeps, id: number): Promise<"fired" | "skippe
     - after commit, it enqueues the new reminder ids.
   - A visibility check for the assignee:
     - `loadActor(assignee)`;
-    - `can(actor, "leads.view", scopeFor(lead.owner_id))`, using the same owner-scope rule as `lume_can_see_owner`, via a SQL helper `lume_actor_can_see_owner(actor_id, owner_id)` added in this task's migration `0022_task_helpers.sql`, mirroring `lume_can_see_owner` for another user.
+    - `can(actor, "leads.view", scopeFor(lead.owner_id))`, using the same owner-scope rule as `lume_can_see_owner`, via a SQL helper `lume_actor_can_see_owner(actor_id, owner_id)` added in this task's migration `0023_task_helpers.sql`, mirroring `lume_can_see_owner` for another user.
 
 - [ ] **Step 4: Run** (pass). **Step 5: Gate, commit.** Message: `feat(api): follow-ups on leads — set, move, snooze, done (and the next one), with the lead's next date kept`.
 

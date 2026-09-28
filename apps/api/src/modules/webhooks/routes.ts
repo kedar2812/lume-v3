@@ -69,8 +69,11 @@ export async function webhookRoutes(app: FastifyInstance, d: AppDeps): Promise<v
     },
     (req) => patchWebhook(req, d, req.params.id, req.body),
   );
-  r.post("/api/v1/webhooks/sources/:id/rotate", { config: manage, schema: { params } }, (req) =>
-    rotateSecret(req, d, req.params.id),
+  // Never replayed or stored for replay: the answer is a secret (final review, Important 4).
+  r.post(
+    "/api/v1/webhooks/sources/:id/rotate",
+    { config: { ...manage, idempotent: false }, schema: { params } },
+    (req) => rotateSecret(req, d, req.params.id),
   );
   r.post(
     "/api/v1/webhooks/sources/:id/events/:eventId/retry",

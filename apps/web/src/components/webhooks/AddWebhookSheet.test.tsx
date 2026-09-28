@@ -102,6 +102,20 @@ describe("Add a webhook", () => {
     expect(onClose).toHaveBeenCalledWith("w1");
   });
 
+  it("final review, Important 7: editing never shows the new-webhook picker, even when the draft fails", async () => {
+    vi.mocked(webhooksClient.draft).mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "NO_TEST_POST",
+      message: "LUME couldn't read this webhook's fields.",
+    } as never);
+    render(<AddWebhookSheet open manychat={false} sourceId="w1" onClose={vi.fn()} />);
+    expect(screen.getByRole("dialog", { name: "Webhook fields" })).toBeInTheDocument();
+    expect(screen.queryByText("Where will leads come from?")).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("couldn't read");
+    expect(screen.queryByRole("button", { name: "Create webhook" })).not.toBeInTheDocument();
+  });
+
   it("offers ManyChat only when the server has it switched on", () => {
     render(<AddWebhookSheet open manychat onClose={vi.fn()} />);
     expect(screen.getByRole("radio", { name: /ManyChat/ })).toBeInTheDocument();

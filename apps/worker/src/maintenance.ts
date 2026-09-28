@@ -36,11 +36,21 @@ export function makeMaintenanceJobs(pool: pg.Pool, now: () => Date = () => new D
       const rows = ids.length
         ? await pool.query("UPDATE import_rows SET raw_enc = NULL WHERE import_id = ANY($1)", [ids])
         : { rowCount: 0 };
+      // A CSV's or sheet's draft has a throwaway source of its own, which goes with it. A webhook's draft
+      // belongs to the webhook itself (2C): only the draft goes, never the webhook and its posts.
       const drafts = await pool.query(
-        "DELETE FROM lead_sources WHERE id IN (SELECT source_id FROM imports WHERE status = 'draft' AND created_at < $1)",
+        "DELETE FROM lead_sources WHERE id IN (SELECT source_id FROM imports WHERE status = 'draft' AND kind <> 'webhook' AND created_at < $1)",
         [draftBefore],
       );
-      return { files: files.rowCount ?? 0, rows: rows.rowCount ?? 0, drafts: drafts.rowCount ?? 0 };
+      const webhookDrafts = await pool.query(
+        "DELETE FROM imports WHERE status = 'draft' AND kind = 'webhook' AND created_at < $1",
+        [draftBefore],
+      );
+      return {
+        files: files.rowCount ?? 0,
+        rows: rows.rowCount ?? 0,
+        drafts: (drafts.rowCount ?? 0) + (webhookDrafts.rowCount ?? 0),
+      };
     },
 
     /** 2B spec §4: sync history is kept 30 days, and a Refresh's record 1 day. Nothing else is touched. */

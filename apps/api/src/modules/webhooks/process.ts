@@ -16,6 +16,8 @@ const S = schema.leadSources;
 const E = schema.webhookEvents;
 /** A longer value is a problem for the post, not something to write (Review Focus 4). */
 const CELL_MAX = 10_000;
+const NEW_PER_POST = 50;
+const NEW_MAX = 100;
 
 export type ProcessDeps = { app: FastifyInstance; pool: pg.Pool; keyring: Keyring };
 export const eventContext = (sourceId: string, eventKey: string) => `webhook-event:${sourceId}:${eventKey}`;
@@ -101,7 +103,12 @@ export async function processEvent(o: ProcessDeps, eventId: number): Promise<voi
   const headers = src.headers as string[];
   const unknown = [...cells.keys()].filter((p) => !headers.includes(p));
   const known = (src.newColumns as string[] | null) ?? [];
-  const fresh = unknown.filter((p) => !known.includes(p));
+  // Offered, within reason: a sender whose keys change every time can't grow the list without end (final
+  // review, Important 8). 50 from any one post, 100 waiting in all.
+  const have = new Set(known);
+  const fresh = unknown
+    .filter((p) => !have.has(p))
+    .slice(0, Math.min(NEW_PER_POST, Math.max(0, NEW_MAX - known.length)));
   if (fresh.length)
     await db
       .update(S)

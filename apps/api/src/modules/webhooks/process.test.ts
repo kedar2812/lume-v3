@@ -2,6 +2,7 @@ import { ALL_GRANTS, DEFAULT_RULES, newId, type Mapping, type Rules } from "@lum
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
 import { processEvent } from "./process";
+import { sweepStale } from "./queue";
 import { sealWebhook, signFor } from "./secret";
 
 let h: Harness;
@@ -175,5 +176,50 @@ describe("processing a post (2C spec §5)", () => {
     const id = await source();
     await send(id, { name: "Arrival Hook", contact: { phone: "+971501230007" } });
     expect((await admin.inject({ method: "GET", url: "/api/v1/leads/arrivals" })).json().count).toBe(1);
+  });
+});
+
+describe("final review, Important 8: new fields are offered, within reason", () => {
+  it("a sender whose keys change every time offers at most 50 from a post and 100 in all", async () => {
+    const id = await source();
+    const many = (from: number) =>
+      Object.fromEntries(Array.from({ length: 80 }, (_, i) => [`k${from + i}`, "x"]));
+    await send(id, { name: "Key Churn A", contact: { phone: "+971501230101" }, ...many(0) });
+    expect((await src(id)).new_columns).toHaveLength(50);
+    await send(id, { name: "Key Churn B", contact: { phone: "+971501230102" }, ...many(100) });
+    await send(id, { name: "Key Churn C", contact: { phone: "+971501230103" }, ...many(200) });
+    expect((await src(id)).new_columns).toHaveLength(100);
+  });
+});
+
+describe("final review, Important 6: nothing waits for ever", () => {
+  const queued = async (id: string, key: string, age: string) =>
+    Number(
+      (
+        await h.pool.query(
+          `INSERT INTO webhook_events (source_id, event_key, payload_enc, status, received_at)
+           VALUES ($1, $2, $3, 'queued', now() - $4::interval) RETURNING id`,
+          [id, key, h.keyring.encrypt(JSON.stringify({ name: key }), `webhook-event:${id}:${key}`), age],
+        )
+      ).rows[0].id,
+    );
+
+  it("a post left queued is queued again; one queued a day becomes a problem you can retry", async () => {
+    const id = await source();
+    const lost = await queued(id, "lost-job", "5 minutes");
+    const fresh = await queued(id, "just-now", "10 seconds");
+    const stuck = await queued(id, "a-day-old", "25 hours");
+    const paused = await source();
+    await h.pool.query("UPDATE lead_sources SET status = 'paused' WHERE id = $1", [paused]);
+    const waiting = await queued(paused, "while-paused", "2 hours");
+
+    const again = await sweepStale(h.pool);
+    expect(again).toContain(lost);
+    expect(again).not.toContain(fresh);
+    expect(again).not.toContain(waiting); // a paused webhook's posts wait for Resume
+    expect(again).not.toContain(stuck);
+    const [s] = (await h.pool.query("SELECT status, problems FROM webhook_events WHERE id = $1", [stuck]))
+      .rows;
+    expect(s).toMatchObject({ status: "error", problems: [{ code: "NOT_PROCESSED" }] });
   });
 });

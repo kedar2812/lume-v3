@@ -141,7 +141,8 @@ export async function createDraftFrom(
   },
 ): Promise<DraftView> {
   const file = readCsv(new Uint8Array(o.bytes), {
-    allowNoRows: o.kind === "sheet",
+    // A new form sheet, or a webhook edited after its posts' payloads are gone, has a header and no rows.
+    allowNoRows: o.kind !== "csv",
     fileName: o.fileName,
     // A sheet's or webhook's CSV is LUME's own (gridToCsv), always comma-separated: nothing to guess.
     ...(o.kind === "csv" ? {} : { delimiter: "," as const }),

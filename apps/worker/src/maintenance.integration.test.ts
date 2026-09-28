@@ -40,6 +40,33 @@ describe("maintenance jobs (as lume_worker)", () => {
     expect((await pool.query("SELECT key FROM idempotency_keys")).rows).toEqual([{ key: "new-key-0001" }]);
   });
 
+  it("2C final review, Critical 1: an old webhook draft goes, and the webhook it edits stays", async () => {
+    const owner = new pg.Client({ connectionString: db.url("lume_owner") });
+    await owner.connect();
+    const hook = "00000000-0000-7000-8000-0000000000e1";
+    const draft = "00000000-0000-7000-8000-0000000000e2";
+    await owner.query(
+      "INSERT INTO lead_sources (id, type, name, status) VALUES ($1, 'webhook', 'Site form', 'active')",
+      [hook],
+    );
+    await owner.query(
+      "INSERT INTO webhook_events (source_id, event_key, status) VALUES ($1, 'k', 'queued')",
+      [hook],
+    );
+    await owner.query(
+      `INSERT INTO imports (id, source_id, kind, status, file_enc, file_sha256, file_name, file_bytes, target_source_id, created_at)
+       VALUES ($1, $2, 'webhook', 'draft', 'x', 's', 'Site form', 1, $2, now() - interval '8 days')`,
+      [draft, hook],
+    );
+    const jobs = makeMaintenanceJobs(pool);
+    expect((await jobs.purgeImportFiles()).drafts).toBe(1);
+    expect((await owner.query("SELECT 1 FROM imports WHERE id = $1", [draft])).rowCount).toBe(0);
+    expect((await owner.query("SELECT 1 FROM lead_sources WHERE id = $1", [hook])).rowCount).toBe(1);
+    expect((await owner.query("SELECT 1 FROM webhook_events WHERE source_id = $1", [hook])).rowCount).toBe(1);
+    await owner.query("DELETE FROM lead_sources WHERE id = $1", [hook]); // leave the tables as they were
+    await owner.end();
+  });
+
   it("clears import files and raw rows 30 days after they finish, and deletes drafts never started after 7", async () => {
     const owner = new pg.Client({ connectionString: db.url("lume_owner") });
     await owner.connect();

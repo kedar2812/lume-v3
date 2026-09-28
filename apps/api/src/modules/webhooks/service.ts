@@ -218,20 +218,22 @@ export async function createWebhookDraft(req: FastifyRequest, d: AppDeps, id: st
   const s = await liveWebhook(req, id);
   const editing = s.status !== "draft";
   const e = await newestEvent(req, id, !editing);
-  if (!e)
+  // A new webhook needs its test post. An edit can go without one (its posts may all be past the 30 days
+  // their payloads are kept): its saved paths are the columns, with no row to preview (final review, 7).
+  if (!e && !editing)
     throw new HttpError(
       409,
       "NO_TEST_POST",
       "LUME hasn't had a post to this webhook yet. Send a test post first.",
     );
-  const { cells } = flatten(payloadOf(d, e));
+  const cells = e ? flatten(payloadOf(d, e)).cells : new Map<string, string>();
   const saved = editing ? s.headers : [];
   const paths = [...saved, ...[...cells.keys()].filter((p) => !saved.includes(p))];
   const cfg = openWebhook(d.keyring, id, s.configEnc!);
   // Drafts made before (going back a step) are replaced by this one.
   await req.db.delete(I).where(and(eq(I.sourceId, id), eq(I.status, "draft"), eq(I.kind, "webhook")));
   return createDraftFrom(req, d, {
-    bytes: Buffer.from(gridToCsv([paths, cellsFor(paths, cells)])),
+    bytes: Buffer.from(gridToCsv(e ? [paths, cellsFor(paths, cells)] : [paths])),
     fileName: s.name,
     kind: "webhook",
     sourceId: id,

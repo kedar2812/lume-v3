@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { newId } from "@lume/core";
 import { createHarness, type Harness } from "../../../test/harness";
 import { sealWebhook, signFor, type WebhookConfig } from "./secret";
@@ -71,7 +71,9 @@ describe("a signed source (2C spec §4)", () => {
     expect((await post(id, raw, signed(raw, old))).statusCode).toBe(401);
     expect((await post(id, raw)).statusCode).toBe(401);
     expect(await events(id)).toHaveLength(0);
-    expect(await counts(id)).toMatchObject({ rejected: 3, last_rejected_reason: "bad_signature" });
+    await vi.waitFor(async () =>
+      expect(await counts(id)).toMatchObject({ rejected: 3, last_rejected_reason: "bad_signature" }),
+    );
   });
 
   it("Review Focus 2: the signature covers the raw body, so whitespace matters", async () => {
@@ -86,7 +88,9 @@ describe("a token source", () => {
     const id = await source({ mode: "token" });
     expect((await post(id, '{"name":"A"}', { "x-lume-token": SECRET })).statusCode).toBe(202);
     expect((await post(id, '{"name":"B"}', { "x-lume-token": "t".repeat(43) })).statusCode).toBe(401);
-    expect(await counts(id)).toMatchObject({ rejected: 1, last_rejected_reason: "bad_token" });
+    await vi.waitFor(async () =>
+      expect(await counts(id)).toMatchObject({ rejected: 1, last_rejected_reason: "bad_token" }),
+    );
   });
 });
 
@@ -165,7 +169,9 @@ describe("limits and shapes", () => {
     const r = await post(id, raw, signed(raw));
     expect(r.statusCode).toBe(429);
     expect(Number(r.headers["retry-after"])).toBeGreaterThan(0);
-    expect(await counts(id)).toMatchObject({ rejected: 1, last_rejected_reason: "rate_limited" });
+    await vi.waitFor(async () =>
+      expect(await counts(id)).toMatchObject({ rejected: 1, last_rejected_reason: "rate_limited" }),
+    );
   });
 
   it("too big is 413, a text body 415, bad JSON 400 — each counted, none stored", async () => {
@@ -175,7 +181,9 @@ describe("limits and shapes", () => {
     expect((await post(id, "name=A", signed("name=A"), "text/plain")).statusCode).toBe(415);
     expect((await post(id, "{nope", signed("{nope"))).statusCode).toBe(400);
     expect(await events(id)).toHaveLength(0);
-    expect(await counts(id)).toMatchObject({ rejected: 3, last_rejected_reason: "bad_json" });
+    await vi.waitFor(async () =>
+      expect(await counts(id)).toMatchObject({ rejected: 3, last_rejected_reason: "bad_json" }),
+    );
   });
 
   it("a plain HTML form's body is accepted", async () => {
@@ -194,5 +202,42 @@ describe("while setting up", () => {
     const [e] = await events(id);
     expect(e).toMatchObject({ status: "test" });
     expect(h.webhookQueue).not.toContain(Number(e!.id));
+  });
+});
+
+describe("final review", () => {
+  it("Important 3: posts to addresses that don't exist never spend a real sender's share", async () => {
+    const id = await source();
+    for (let i = 0; i < 610; i++) await post(newId(), "{}", signed("{}"));
+    const raw = '{"name":"Real sender"}';
+    expect((await post(id, raw, signed(raw))).statusCode).toBe(202);
+  });
+
+  it("Important 5: an unknown address and a wrong secret do the same work before answering", async () => {
+    const id = await source();
+    const raw = '{"a":1}';
+    const spy = vi.spyOn(h.keyring, "decrypt");
+    await post(newId(), raw, signed(raw));
+    const forUnknown = spy.mock.calls.length;
+    spy.mockClear();
+    await post(id, raw, signed(raw, now(), "x".repeat(43)));
+    expect(spy.mock.calls.length).toBe(forUnknown);
+    spy.mockRestore();
+  });
+
+  it("Important 5: counting a refusal never holds up the answer", async () => {
+    const id = await source();
+    const holder = await h.ownerPool.connect();
+    await holder.query("BEGIN");
+    await holder.query("SELECT 1 FROM lead_sources WHERE id = $1 FOR UPDATE", [id]); // the counter's row, held
+    const raw = '{"a":1}';
+    const started = Date.now();
+    const r = await post(id, raw, signed(raw, now(), "x".repeat(43)));
+    const took = Date.now() - started;
+    await holder.query("ROLLBACK");
+    holder.release();
+    expect(r.statusCode).toBe(401);
+    expect(took).toBeLessThan(1000);
+    await vi.waitFor(async () => expect((await counts(id)).rejected).toBe(1));
   });
 });

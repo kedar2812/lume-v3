@@ -22,7 +22,7 @@ export function readImportFile(
     encoding: (imp.encoding as Encoding | null) ?? undefined,
     delimiter: (imp.delimiter as Delimiter | null) ?? undefined,
     headerRow: imp.headerRow ?? undefined,
-    allowNoRows: imp.kind === "sheet",
+    allowNoRows: imp.kind !== "csv",
   });
   if (!r.ok) throw new HttpError(400, r.code, r.message);
   return r;
