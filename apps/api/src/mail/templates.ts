@@ -67,3 +67,63 @@ export function lockoutMail(a: {
     kind: "lockout",
   };
 }
+
+export type DigestItem = { who: string; what: string; when: string };
+
+/**
+ * The daily digest (report §10.7): lead first names and times only, never a phone number or email; every
+ * item leads back into LUME, where signing in is required.
+ */
+export function digestMail(a: {
+  to: string;
+  firstName: string;
+  businessName: string;
+  url: string;
+  overdue: DigestItem[];
+  today: DigestItem[];
+  assigned: number;
+  admin: { unassigned: number; sources: string[] } | null;
+}): OutgoingMail {
+  const line = (i: DigestItem) => `${i.who}: ${i.what} (${i.when})`;
+  const sections: { title: string; lines: string[] }[] = [];
+  if (a.overdue.length) sections.push({ title: "Overdue", lines: a.overdue.map(line) });
+  if (a.today.length) sections.push({ title: "Today", lines: a.today.map(line) });
+  if (a.assigned)
+    sections.push({
+      title: "New for you",
+      lines: [a.assigned === 1 ? "1 lead was assigned to you" : `${a.assigned} leads were assigned to you`],
+    });
+  if (a.admin) {
+    const lines: string[] = [];
+    if (a.admin.unassigned)
+      lines.push(
+        a.admin.unassigned === 1
+          ? "1 new lead has no one yet"
+          : `${a.admin.unassigned} new leads have no one yet`,
+      );
+    for (const s of a.admin.sources) lines.push(`${s} needs attention`);
+    if (lines.length) sections.push({ title: "Needs you", lines });
+  }
+  const due = a.overdue.length + a.today.length;
+  const subject =
+    due === 0
+      ? `Your day at ${a.businessName}`
+      : `${due} follow-up${due === 1 ? "" : "s"} today${a.overdue.length ? `, ${a.overdue.length} overdue` : ""}`;
+  const text = [
+    `Good morning, ${a.firstName}.`,
+    ...sections.map((s) => `\n${s.title}\n${s.lines.map((l) => `- ${l}`).join("\n")}`),
+    `\nOpen Today in LUME: ${a.url}`,
+  ].join("\n");
+  const html = layout(
+    `Good morning, ${esc(a.firstName)}`,
+    sections
+      .map(
+        (s) =>
+          `<div style="margin-top:14px;font-weight:650;color:#0A0C11">${esc(s.title)}</div>` +
+          s.lines.map((l) => `<div style="margin-top:4px">${esc(l)}</div>`).join(""),
+      )
+      .join(""),
+    { label: "Open Today", url: a.url },
+  );
+  return { to: a.to, subject, text, html, kind: "digest" };
+}

@@ -194,7 +194,27 @@ export async function createTask(req: FastifyRequest, d: AppDeps, leadId: string
   });
   await auditForOther(req, t!, "set");
   await queueReminders(req, d, [id]);
+  tellAssignee(req, t!, lead.name);
   return viewOf(req, t!);
+}
+
+/** Someone else gave this person a follow-up: they hear, by the lead's name, once it's saved (3B). */
+function tellAssignee(req: FastifyRequest, t: Task, leadName: string) {
+  if (t.assigneeId === req.actor!.userId || !req.server.notify) return;
+  const by = req.actor!.userId;
+  req.afterCommit(
+    () =>
+      void (async () => {
+        const who = (await req.server.notifyNameOf?.(by)) ?? "Someone";
+        await req.server.notify!(t.assigneeId, {
+          kind: "follow_up_assigned",
+          title: `${who} gave you a follow-up — ${leadName}`,
+          body: t.title,
+          leadId: t.leadId,
+          taskId: t.id,
+        });
+      })().catch((err: unknown) => req.log.error({ err }, "couldn't tell the assignee")),
+  );
 }
 
 /** The follow-up, locked for this request, still open, and the caller's to change. */
@@ -220,7 +240,10 @@ export async function updateTask(req: FastifyRequest, d: AppDeps, id: string, bo
   const set: Partial<typeof T.$inferInsert> = { updatedAt: now, version: t.version + 1 };
   if (body.title !== undefined) set.title = body.title.trim() || "Follow up";
   if (body.note !== undefined) set.note = body.note;
-  if (body.due) set.dueAt = resolveDue(body.due, await timezoneOf(req, req.actor!.userId), now);
+  if (body.due) {
+    set.dueAt = resolveDue(body.due, await timezoneOf(req, req.actor!.userId), now);
+    set.escalatedAt = null; // a new time: if it's left overdue again, its managers hear again (3B)
+  }
   if (body.remindMinutes) set.remindMinutes = body.remindMinutes;
   if (body.recurrence !== undefined) set.recurrence = body.recurrence;
   if (body.assigneeId && body.assigneeId !== t.assigneeId) {
@@ -229,6 +252,7 @@ export async function updateTask(req: FastifyRequest, d: AppDeps, id: string, bo
     set.assigneeId = body.assigneeId;
   }
   const [u] = await req.db.update(T).set(set).where(eq(T.id, id)).returning();
+  if (set.assigneeId) tellAssignee(req, u!, (await visibleLead(req, t.leadId)).name);
   await schedule(req.db, u!, now);
   await refreshNextDue(req, t.leadId);
   await recordActivity(req, t.leadId, "follow_up_changed", {

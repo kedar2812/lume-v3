@@ -51,6 +51,8 @@ const tasks: { enqueue(r: { id: number; fireAt: Date }[]): Promise<void> } = {
   enqueue: async () => undefined,
 };
 
+const mailer = createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`);
+
 const app = await buildApp({
   pool,
   keyring,
@@ -63,7 +65,7 @@ const app = await buildApp({
   manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",
   googleOAuth,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
-  mailer: createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`),
+  mailer,
   config: { publicUrl, cookieSecure: true, version: cfg.LUME_VERSION },
   rates:
     cfg.LUME_FX_PROVIDER === "fixed"
@@ -101,7 +103,12 @@ const webhookQueue = await startWebhookQueue({
   keyring,
 });
 webhooks.enqueue = webhookQueue.enqueue;
-const taskQueue = await startTaskQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool });
+const taskQueue = await startTaskQueue({
+  connectionString: cfg.DATABASE_URL_APP,
+  app,
+  pool: jobPool,
+  digest: { mailer, publicUrl },
+});
 tasks.enqueue = taskQueue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 

@@ -2,6 +2,9 @@ import type { FastifyInstance } from "fastify";
 import PgBoss from "pg-boss";
 import type pg from "pg";
 import { fire, sweep } from "./engine";
+import { escalate } from "./escalation";
+import { runDigests } from "./digest";
+import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
 
@@ -9,7 +12,13 @@ const SWEEP_MS = 60_000;
  * Follow-up reminders fire in the API process, as lume_app (Phase 3 spec §3): a pg-boss job per reminder
  * at its time, and a sweeper every minute (and once before the API listens) for any the queue lost.
  */
-export async function startTaskQueue(o: { connectionString: string; app: FastifyInstance; pool: pg.Pool }) {
+export async function startTaskQueue(o: {
+  connectionString: string;
+  app: FastifyInstance;
+  pool: pg.Pool;
+  /** The daily digest (3B): how mail goes, and the address its links point at. */
+  digest?: { mailer: Mailer; publicUrl: string };
+}) {
   const boss = new PgBoss({
     connectionString: o.connectionString,
     schema: "pgboss",
@@ -29,7 +38,17 @@ export async function startTaskQueue(o: { connectionString: string; app: Fastify
     },
   );
   let lastSweepAt: Date | null = null;
+  let ticks = 0;
   const tick = async () => {
+    // Every fifth minute: follow-ups left overdue reach their managers (3B).
+    if (ticks % 5 === 0)
+      await escalate(deps).catch((err: unknown) => o.app.log.error({ err }, "follow-up escalation failed"));
+    // Every quarter hour: whoever's morning it is gets their digest (3B).
+    if (o.digest && ticks % 15 === 0)
+      await runDigests({ pool: o.pool, ...o.digest }).catch((err: unknown) =>
+        o.app.log.error({ err }, "daily digests failed"),
+      );
+    ticks++;
     try {
       const fired = await sweep(deps);
       lastSweepAt = new Date();
