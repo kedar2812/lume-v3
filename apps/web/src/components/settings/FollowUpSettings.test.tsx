@@ -18,10 +18,10 @@ describe("Settings → Follow-ups (3B Task 6)", () => {
     await userEvent.clear(hours);
     await userEvent.type(hours, "6");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(api.put).toHaveBeenCalledWith("/api/v1/settings/follow-ups", {
-      escalation: { enabled: true, hours: 6 },
-      digest: { enabled: true },
-    });
+    expect(api.put).toHaveBeenCalledWith(
+      "/api/v1/settings/follow-ups",
+      expect.objectContaining({ escalation: { enabled: true, hours: 6 }, digest: { enabled: true } }),
+    );
     expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
 
@@ -48,10 +48,56 @@ describe("Settings → Follow-ups (3B Task 6)", () => {
     );
     await userEvent.click(screen.getByRole("switch", { name: "Send the morning email" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(api.put).toHaveBeenCalledWith(
+      "/api/v1/settings/follow-ups",
+      expect.objectContaining({ escalation: { enabled: true, hours: 24 }, digest: { enabled: false } }),
+    );
+  });
+});
+
+describe("Settings → Follow-ups (3C Task 6)", () => {
+  const full = {
+    escalation: { enabled: true, hours: 24 },
+    digest: { enabled: true },
+    noTouch: { enabled: false, days: 7 },
+    shiftToWorkingHours: true,
+  };
+  const hours = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+  it("leads gone quiet: off until switched on, then after how many days; saved with the rest", async () => {
+    vi.mocked(api.put).mockResolvedValue(ok(null));
+    render(<FollowUpSettings initial={full} workingHours={hours} />);
+    const days = screen.getByLabelText("After how many days");
+    expect(days).toBeDisabled();
+    await userEvent.click(screen.getByRole("switch", { name: "Bring back leads that have gone quiet" }));
+    await userEvent.clear(days);
+    await userEvent.type(days, "10");
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Keep LUME's follow-ups inside working hours" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(api.put).toHaveBeenCalledWith("/api/v1/settings/follow-ups", {
       escalation: { enabled: true, hours: 24 },
-      digest: { enabled: false },
+      digest: { enabled: true },
+      noTouch: { enabled: true, days: 10 },
+      shiftToWorkingHours: false,
     });
+  });
+
+  it("says the working hours in words, and where to change them; days outside 1–90 are refused", async () => {
+    render(
+      <FollowUpSettings initial={{ ...full, noTouch: { enabled: true, days: 7 } }} workingHours={hours} />,
+    );
+    expect(screen.getByText("Monday to Friday, 09:00–18:00")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change them in Business" })).toHaveAttribute(
+      "href",
+      "/settings/business",
+    );
+    const days = screen.getByLabelText("After how many days");
+    await userEvent.clear(days);
+    await userEvent.type(days, "120");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("between 1 and 90");
+    expect(api.put).not.toHaveBeenCalled();
   });
 });
 

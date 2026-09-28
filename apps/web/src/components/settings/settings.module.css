@@ -1510,3 +1510,102 @@
 .switchRow + .switchRow {
   margin-top: 6px;
 }
+
+/* ── time choices (3C): when one lands ── */
+.ruleForm {
+  display: grid;
+  gap: 10px;
+  min-width: 250px;
+}
+.ruleField {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.ruleRow {
+  display: flex;
+  gap: 8px;
+}
+.ruleForm select,
+.ruleForm input {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line-2);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.ruleRow input[type="number"] {
+  width: 72px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── working hours (3C) ── */
+.dayPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.dayPill {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.dayPill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.dayPill:active {
+  transform: scale(0.96);
+}
+.dayPill[data-on] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+.dayPill:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.hoursRow {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+.hoursRow input {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line-2);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dayPill:active {
+    transform: none;
+  }
+}

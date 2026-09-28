@@ -22,6 +22,7 @@ export function ListEditor<T extends ListItem>({
   askToArchive,
   archiveVerb = "Archive",
   archiveNote = "Leads keep it; it just can’t be picked any more.",
+  listLabel,
 }: {
   items: T[];
   /** What one item is called ("Reason"): used in every control's name. */
@@ -37,6 +38,8 @@ export function ListEditor<T extends ListItem>({
   /** What taking an item away is called here: "Archive", or "Remove" when it really goes. */
   archiveVerb?: string;
   archiveNote?: string;
+  /** The list's accessible name, when a page holds more than one. */
+  listLabel?: string;
 }) {
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
@@ -67,7 +70,7 @@ export function ListEditor<T extends ListItem>({
 
   return (
     <div className={s.listEditor}>
-      <ul ref={list} className={s.rows}>
+      <ul ref={list} className={s.rows} aria-label={listLabel}>
         {items.map((item, i) => (
           <li key={item.id} className={s.row} data-asking={asking === item.id || undefined}>
             {asking === item.id ? (
