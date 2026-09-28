@@ -81,7 +81,38 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
     }
     case "note":
       return { title: "Note", detail: by(a), tone: "neutral", quote: String(p.body ?? "") };
+    // Follow-ups (Phase 3): what, and for when, in this browser's time.
+    case "follow_up_set":
+    case "follow_up_changed": {
+      const due = typeof p.dueAt === "string" ? dueWords(p.dueAt) : undefined;
+      return {
+        title: a.type === "follow_up_set" ? "Follow-up set" : "Follow-up moved",
+        detail: join([p.title ? `“${String(p.title)}”` : "", due ?? ""].filter(Boolean).join(", "), by(a)),
+        tone: "accent",
+      };
+    }
+    case "follow_up_done":
+      return {
+        title: "Follow-up done",
+        detail: join(p.title ? `“${String(p.title)}”` : undefined, by(a)),
+        tone: "ok",
+      };
+    case "follow_up_cancelled":
+      return {
+        title: "Follow-up cancelled",
+        detail: join(p.title ? `“${String(p.title)}”` : undefined, by(a)),
+        tone: "neutral",
+      };
     default:
       return { title: "Updated", detail: by(a), tone: "neutral" };
   }
 }
+
+const dueWords = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));

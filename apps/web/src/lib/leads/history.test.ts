@@ -79,6 +79,26 @@ describe("describeActivity", () => {
     expect(d.detail).not.toMatch(/row/);
   });
 
+  it("follow-ups: set (with its time), moved, done and cancelled", () => {
+    const set = describeActivity(
+      a("follow_up_set", { taskId: "t1", title: "Call back", dueAt: "2026-09-29T06:00:00.000Z" }),
+      cat,
+    );
+    expect(set.title).toBe("Follow-up set");
+    expect(set.detail).toMatch(/^“Call back”, 29 Sept? 2026/);
+    expect(
+      describeActivity(a("follow_up_changed", { title: "Call back", dueAt: "2026-09-30T06:00:00.000Z" }), cat)
+        .title,
+    ).toBe("Follow-up moved");
+    expect(describeActivity(a("follow_up_done", { title: "Call back" }), cat)).toMatchObject({
+      title: "Follow-up done",
+      tone: "ok",
+    });
+    expect(describeActivity(a("follow_up_cancelled", { title: "Call back" }), cat).title).toBe(
+      "Follow-up cancelled",
+    );
+  });
+
   it("never throws on an event type or stage it doesn't know", () => {
     expect(describeActivity(a("something_new"), cat).title).toBe("Updated");
     expect(describeActivity(a("stage_changed", { to: "gone" }), cat).title).toBe("Moved to another stage");

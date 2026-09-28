@@ -1,0 +1,253 @@
+/* Follow-ups (Phase 3 §6): the drawer's sheet and next line, and the rows Today shares with them. */
+
+.trigger {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.trigger:active {
+  transform: scale(0.96);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  padding: 16px;
+}
+.formTitle {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-bold);
+}
+.field {
+  display: grid;
+  gap: 6px;
+}
+.label {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.input {
+  width: 100%;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font: inherit;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text);
+}
+.input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.15s,
+    transform 0.1s;
+}
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.chip:hover {
+  background: var(--hover);
+}
+.chip:active {
+  transform: scale(0.96);
+}
+.chip[data-on] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.chip:has(:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pair:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+.hint {
+  margin: -4px 0 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.problem {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.save {
+  width: 100%;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The lead's next follow-up, under the drawer's actions. */
+.next {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 4px 0 12px;
+  border-radius: var(--r-row);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  overflow: hidden;
+}
+.tick {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.15s,
+    transform 0.1s;
+}
+.tick:hover {
+  color: var(--ok-ink);
+  box-shadow: inset 0 0 0 1.5px var(--ok);
+}
+.tick:active {
+  transform: scale(0.9);
+  background: var(--ok);
+  color: #fff;
+}
+.tick:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.nextText {
+  display: grid;
+  min-width: 0;
+}
+.nextTitle {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nextMeta {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.nextMeta [data-overdue] {
+  color: var(--warn-ink);
+  font-weight: var(--fw-semibold);
+}
+.more {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--text-2);
+  letter-spacing: 1px;
+}
+.more:hover,
+.more[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
+.menu {
+  display: grid;
+  min-width: 190px;
+  padding: 6px;
+}
+.menuTitle {
+  padding: 6px 10px 4px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+.menuItem {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.menuItem:hover,
+.menuItem:focus-visible {
+  outline: none;
+  background: var(--hover);
+}
+.menuDanger {
+  color: var(--danger-ink);
+}
+.menuRule {
+  border: 0;
+  border-top: 0.5px solid var(--line);
+  margin: 4px 6px;
+}

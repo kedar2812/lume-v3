@@ -15,6 +15,10 @@ import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { Popover } from "@/components/ui/Popover";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { FollowUpSheet } from "@/components/tasks/FollowUpSheet";
+import { NextFollowUp } from "@/components/tasks/NextFollowUp";
+import { can } from "@lume/core/shared";
+import { timezoneOf } from "@/lib/tasks/format";
 import { leadsClient } from "@/lib/leads/client";
 import { formatMoney, personName, relativeTime } from "@/lib/leads/format";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -107,6 +111,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const [lead, setLead] = useState<Lead | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "gone">("loading");
   const [tab, setTab] = useState<Tab>("details");
+  // Bumped when a follow-up is set here, so the next-follow-up line and the history look again.
+  const [followUps, setFollowUps] = useState(0);
+  const tz = timezoneOf(session.user.timezone);
   const [burst, setBurst] = useState<{ x: number; y: number } | null>(null);
   const activities = useActivities(id);
   const move = useStageMove();
@@ -168,7 +175,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     [index, neighbours, onStep],
   );
 
-  // J/K/W/N and Escape, only when the person isn't typing and no question is open over the drawer.
+  // J/K/W/F/N and Escape, only when the person isn't typing and no question is open over the drawer.
   const asking = move.ui !== null;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -185,6 +192,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
         panel.current
           ?.querySelector<HTMLButtonElement>("[data-whatsapp] button[aria-haspopup]:not(:disabled)")
           ?.click();
+      else if (key === "f")
+        panel.current?.querySelector<HTMLButtonElement>("[data-follow-up] button[aria-haspopup]")?.click();
       else if (key === "n") {
         setTab("notes");
         requestAnimationFrame(() =>
@@ -514,6 +523,20 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
 
               <div className={s.actions}>
                 {lead.can.message && <MessageButton lead={lead} onLogged={logged} />}
+                <span data-follow-up>
+                  <FollowUpSheet
+                    key={lead.id}
+                    lead={{ id: lead.id, name: lead.name ?? "" }}
+                    tz={tz}
+                    meId={session.user.id}
+                    canAssign={can(session.actor, "tasks.manage_others")}
+                    people={catalog.people}
+                    onSaved={() => {
+                      setFollowUps((v) => v + 1);
+                      logged();
+                    }}
+                  />
+                </span>
                 {lead.can.move && (
                   <div className={s.outcomes}>
                     {wonStage && stage?.kind !== "won" && (
@@ -529,6 +552,15 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   </div>
                 )}
               </div>
+
+              <NextFollowUp
+                key={lead.id}
+                leadId={lead.id}
+                tz={tz}
+                meId={session.user.id}
+                version={followUps}
+                onChange={logged}
+              />
 
               <StageTrack
                 lead={lead}

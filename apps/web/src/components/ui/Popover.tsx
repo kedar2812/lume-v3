@@ -8,6 +8,8 @@ type Props = {
   /** What the trigger button shows. */
   trigger: ReactNode;
   triggerClassName?: string;
+  /** The trigger's accessible name, when what it shows isn't words (an icon, "···"). */
+  triggerLabel?: string;
   /** "dialog" for a small form or chooser, "menu" for a list of actions. */
   role?: "dialog" | "menu";
   align?: "start" | "end";
@@ -25,6 +27,7 @@ export function Popover({
   label,
   trigger,
   triggerClassName,
+  triggerLabel,
   role = "dialog",
   align = "start",
   active,
@@ -69,6 +72,7 @@ export function Popover({
         ref={button}
         type="button"
         className={triggerClassName}
+        aria-label={triggerLabel}
         aria-haspopup={role}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
