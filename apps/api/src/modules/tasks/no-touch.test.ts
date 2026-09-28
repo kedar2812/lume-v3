@@ -112,8 +112,16 @@ describe("leads gone quiet (3C Task 4)", () => {
   it("Review Focus 5: 500 a run, and two runs at once make one each", async () => {
     await turn(true, 7);
     await h.queryAll("UPDATE leads SET last_activity_at = now() WHERE deleted_at IS NULL"); // earlier tests' leads rest
-    const ids: string[] = [];
-    for (let i = 0; i < 600; i++) ids.push(await quiet(20, { name: `Quiet ${i}` }));
+    // 600 at once, in one statement (one by one is too slow for the per-package test timeout).
+    const cfg = await h.config();
+    const ids = (
+      await h.queryAll<{ id: string }>(
+        `INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, phone_status, last_activity_at)
+         SELECT gen_random_uuid(), $1, $2, $3, 'Quiet ' || i, 'missing', now() - interval '20 days'
+           FROM generate_series(1, 600) i RETURNING id`,
+        [cfg.pipelineId, cfg.stages["New"], owner],
+      )
+    ).map((r) => r.id);
     const made = async () =>
       Number(
         (
@@ -134,7 +142,7 @@ describe("leads gone quiet (3C Task 4)", () => {
       [ids],
     );
     expect(doubled).toHaveLength(0);
-  });
+  }, 60_000);
 
   it("its follow-up lands inside working hours", async () => {
     await turn(true, 7);
