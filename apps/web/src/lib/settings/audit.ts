@@ -19,6 +19,8 @@ type Phrase = string | ((diff: Record<string, unknown>) => string);
 type ActionDef = { area: string; phrase: Phrase };
 
 const n = (v: unknown) => (typeof v === "number" ? v : 0);
+/** The optional module an integration.enabled/disabled entry is about (2B: Google Sheets, 2C: Webhooks). */
+const moduleName = (m: unknown) => (m === "webhooks" ? "Webhooks" : "Google Sheets");
 
 /**
  * Every action the API records, in words ("revealed a lead's contact"), grouped by area for the filter.
@@ -46,8 +48,25 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "import.stopped": { area: "Leads", phrase: "had an import stopped when their access changed" },
   "import.failed": { area: "Leads", phrase: "had an import fail" },
   "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
-  "integration.enabled": { area: "Settings", phrase: "switched on Google Sheets" },
-  "integration.disabled": { area: "Settings", phrase: "switched off Google Sheets" },
+  "integration.enabled": { area: "Settings", phrase: (d) => `switched on ${moduleName(d.module)}` },
+  "integration.disabled": { area: "Settings", phrase: (d) => `switched off ${moduleName(d.module)}` },
+  "webhook.connected": { area: "Leads", phrase: (d) => `connected the webhook “${String(d.name ?? "")}”` },
+  "webhook.mapping_changed": {
+    area: "Leads",
+    phrase: (d) => `changed the fields or rules of the webhook “${String(d.name ?? "")}”`,
+  },
+  "webhook.paused": { area: "Leads", phrase: (d) => `paused the webhook “${String(d.name ?? "")}”` },
+  "webhook.resumed": { area: "Leads", phrase: (d) => `resumed the webhook “${String(d.name ?? "")}”` },
+  "webhook.renamed": { area: "Leads", phrase: (d) => `renamed a webhook to “${String(d.name ?? "")}”` },
+  "webhook.secret_rotated": {
+    area: "Leads",
+    phrase: (d) => `gave the webhook “${String(d.name ?? "")}” a new secret`,
+  },
+  "webhook.event_dismissed": {
+    area: "Leads",
+    phrase: (d) => `set aside a problem post to the webhook “${String(d.name ?? "")}”`,
+  },
+  "webhook.removed": { area: "Leads", phrase: (d) => `removed the webhook “${String(d.name ?? "")}”` },
   "sheet.connected": { area: "Leads", phrase: (d) => `connected the Google Sheet “${String(d.name ?? "")}”` },
   "sheet.mapping_changed": {
     area: "Leads",

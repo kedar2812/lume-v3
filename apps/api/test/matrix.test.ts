@@ -109,7 +109,8 @@ async function configFixtures(ownerId: string) {
   };
 }
 
-const apiRoutes = () => h.app.lumeRoutes.filter((r) => r.url.startsWith("/api/v1/"));
+const apiRoutes = () =>
+  h.app.lumeRoutes.filter((r) => r.url.startsWith("/api/v1/") || r.url.startsWith("/webhooks/"));
 const key = (r: { method: string; url: string }) => `${r.method} ${r.url}`;
 
 /** From the independent access table in probes.ts, never from the route's own declaration. */

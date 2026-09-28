@@ -49,6 +49,51 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     body: () => ({ enabled: false }),
   },
+  "PUT /api/v1/integrations/webhooks": { access: "integrations.manage", body: () => ({ enabled: false }) },
+  "POST /api/v1/webhooks/sources": {
+    access: "integrations.manage",
+    body: () => ({ preset: "manychat", name: "Probe" }),
+  },
+  "GET /api/v1/webhooks/sources": { access: "integrations.manage" },
+  "GET /api/v1/webhooks/sources/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}`,
+  },
+  "GET /api/v1/webhooks/sources/:id/test": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}/test`,
+  },
+  "POST /api/v1/webhooks/sources/:id/draft": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}/draft`,
+  },
+  "POST /api/v1/webhooks/sources/:id/save": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}/save`,
+    body: () => ({ importId: uuid, keepTest: false }),
+  },
+  "PATCH /api/v1/webhooks/sources/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}`,
+    body: () => ({ paused: true }),
+  },
+  "POST /api/v1/webhooks/sources/:id/rotate": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}/rotate`,
+  },
+  "POST /api/v1/webhooks/sources/:id/events/:eventId/retry": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}/events/1/retry`,
+  },
+  "POST /api/v1/webhooks/sources/:id/events/:eventId/dismiss": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}/events/1/dismiss`,
+  },
+  "DELETE /api/v1/webhooks/sources/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/webhooks/sources/${uuid}`,
+  },
+  "POST /webhooks/in/:id": { access: "public", path: () => `/webhooks/in/${uuid}`, body: () => ({}) },
   "POST /api/v1/sheets/inspect": { access: "integrations.manage", body: () => ({ link: "not a link" }) },
   "POST /api/v1/sheets/drafts": { access: "integrations.manage", body: () => ({ sourceId: uuid }) },
   "POST /api/v1/sheets/sources": {

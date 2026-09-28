@@ -54,6 +54,7 @@ const app = await buildApp({
   google,
   sheets,
   webhooks,
+  manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",
   googleOAuth,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   mailer: createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`),

@@ -13,6 +13,7 @@ import {
   resolveColumnSettings,
   suggestMapping,
   validateMapping,
+  type IntakeField,
   type Issue,
   type LeadDraft,
   type Mapping,
@@ -129,17 +130,21 @@ export async function createDraftFrom(
   o: {
     bytes: Buffer;
     fileName: string;
-    kind: "csv" | "sheet";
+    kind: "csv" | "sheet" | "webhook";
     sourceId: string;
     headerRow?: number;
     mapping?: Mapping;
     rules?: Rules;
     targetSourceId?: string;
+    /** A new webhook's columns are JSON paths: its preset knows them better than the usual guess (2C). */
+    suggest?: (headers: string[], fields: IntakeField[]) => Mapping;
   },
 ): Promise<DraftView> {
   const file = readCsv(new Uint8Array(o.bytes), {
     allowNoRows: o.kind === "sheet",
     fileName: o.fileName,
+    // A sheet's or webhook's CSV is LUME's own (gridToCsv), always comma-separated: nothing to guess.
+    ...(o.kind === "csv" ? {} : { delimiter: "," as const }),
     ...(o.headerRow ? { headerRow: o.headerRow } : {}),
   });
   if (!file.ok) throw badRequest(file.code, file.message);
@@ -164,7 +169,9 @@ export async function createDraftFrom(
   // A given mapping (an edit of a live sheet) keeps only columns the sheet still has.
   const mapping = o.mapping
     ? { ...o.mapping, columns: o.mapping.columns.filter((c) => c.column < file.headers.length) }
-    : suggestMapping(file.headers, ctx.fields, (memory?.mapping as Mapping | undefined) ?? null);
+    : o.suggest
+      ? o.suggest(file.headers, ctx.fields)
+      : suggestMapping(file.headers, ctx.fields, (memory?.mapping as Mapping | undefined) ?? null);
   const id = newId();
   const [imp] = await req.db
     .insert(I)

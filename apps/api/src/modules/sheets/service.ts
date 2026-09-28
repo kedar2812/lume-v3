@@ -73,14 +73,20 @@ export async function sheetsOn(req: FastifyRequest): Promise<boolean> {
 }
 
 export async function integrationsView(req: FastifyRequest, d: AppDeps) {
+  const [s] = await req.db
+    .select({ i: schema.settings.integrations })
+    .from(schema.settings)
+    .where(eq(schema.settings.id, 1));
   return {
     googleSheets: {
-      enabled: await sheetsOn(req),
+      enabled: !!s?.i.googleSheets?.enabled,
       // Either way of reading sheets makes the module available: a service account, or Connect with Google.
       available: !!d.google || !!d.googleOAuth,
       email: d.google?.email ?? null,
       connectWithGoogle: !!d.googleOAuth,
     },
+    // Webhooks (2C) need nothing on the server; ManyChat is offered only once it's verified.
+    webhooks: { enabled: !!s?.i.webhooks?.enabled, manychat: !!d.manychatPreset },
   };
 }
 
