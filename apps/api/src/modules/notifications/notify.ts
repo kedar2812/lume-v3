@@ -9,7 +9,9 @@ export type NotifyKind =
   | "follow_up_assigned"
   | "lead_assigned"
   | "task_escalated"
-  | "follow_up_nudge";
+  | "follow_up_nudge"
+  | "lead_stage"
+  | "system_alert";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */

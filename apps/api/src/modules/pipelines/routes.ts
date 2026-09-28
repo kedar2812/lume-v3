@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { onEnterSchema } from "@lume/core";
 import * as svc from "./service";
 
 const manage = { permission: "pipelines.manage" as const };
@@ -19,6 +20,8 @@ const stageBody = z.object({
     .nullable()
     .optional(),
   requiredFieldIds: z.array(z.uuid()).max(30).optional(),
+  // What LUME does when a lead enters the stage (3C): set a follow-up, clear them, tell someone.
+  onEnter: onEnterSchema.optional(),
 });
 
 export async function pipelineRoutes(app: FastifyInstance): Promise<void> {

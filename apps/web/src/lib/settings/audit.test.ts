@@ -63,6 +63,8 @@ const WRITTEN = [
   "stage.created",
   "stage.reordered",
   "stage.updated",
+  "stage.automations",
+  "settings.follow_ups",
   "tag.created",
   "tag.deleted",
   "tag.updated",
@@ -92,6 +94,25 @@ const WRITTEN = [
 ];
 
 describe("auditPhrase", () => {
+  it("3C: says which part of Settings → Follow-ups changed, and a stage's automations", () => {
+    const say = (diff: Record<string, unknown>) =>
+      auditPhrase(entry("settings.follow_ups", { entityType: "settings", diff }), people);
+    expect(say({ escalation: { enabled: true, hours: 6 } })).toBe(
+      "Riya Sharma set overdue follow-ups to reach managers after 6 hours",
+    );
+    expect(say({ digest: { enabled: false } })).toBe("Riya Sharma switched off the morning email");
+    expect(say({ noTouch: { enabled: true, days: 10 } })).toBe(
+      "Riya Sharma set leads gone quiet to come back after 10 days",
+    );
+    expect(say({ shiftToWorkingHours: false, duePresets: [] })).toBe(
+      "Riya Sharma let LUME's follow-ups fall outside working hours; changed the time choices",
+    );
+    expect(auditPhrase(entry("stage.automations", { entityType: "stage", diff: { rules: [{}, {}] } }), people)).toBe(
+      "Riya Sharma changed a stage's automations (2)",
+    );
+  });
+
+
   it("says what an import did", () => {
     expect(
       auditPhrase(entry("import.finished", { diff: { created: 812, merged: 40, errors: 3 } }), people),

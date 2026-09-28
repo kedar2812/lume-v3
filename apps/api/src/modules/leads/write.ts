@@ -8,6 +8,7 @@ import { HttpError, badRequest, forbidden } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
 import type { LeadRow } from "./serialize";
 import { recordActivity, visibleLead } from "./service";
+import { runOnEnter } from "../tasks/automations";
 
 const L = schema.leads;
 
@@ -101,6 +102,8 @@ export async function moveStage(
     entityId: lead.id,
     diff: { from: lead.stageId, to: target.id },
   });
+  // What the stage does when a lead enters it (3C), in this same transaction.
+  await runOnEnter(req, { id: lead.id, name: lead.name, ownerId: lead.ownerId }, target, "moved");
   return visibleLead(req, lead.id);
 }
 

@@ -23,7 +23,13 @@ const todayIn = (tz: string) =>
   }).format(new Date());
 
 export type FullMapContext = MapContext & {
-  stagesFull: { id: string; name: string; kind: "open" | "won" | "lost"; requiredFieldIds: string[] }[];
+  stagesFull: {
+    id: string;
+    name: string;
+    kind: "open" | "won" | "lost";
+    requiredFieldIds: string[];
+    onEnter: unknown;
+  }[];
 };
 
 /**
@@ -51,6 +57,7 @@ export async function loadMapContext(
       name: schema.stages.name,
       kind: schema.stages.kind,
       requiredFieldIds: schema.stages.requiredFieldIds,
+      onEnter: schema.stages.onEnter, // what a new lead's first stage does (3C)
     })
     .from(schema.stages)
     .where(and(eq(schema.stages.pipelineId, o.pipelineId), isNull(schema.stages.archivedAt)))

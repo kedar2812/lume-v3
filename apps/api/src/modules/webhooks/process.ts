@@ -154,6 +154,7 @@ export async function processEvent(o: ProcessDeps, eventId: number): Promise<voi
         ctx,
         cells: row,
         origin: { sourceId: src.id, webhook: src.name, event: eventId },
+        automations: { pool: o.pool }, // a live enquiry: its stage's automations run (3C)
         nextTurn: async () => {
           const { rows: t } = await req.db.execute<{ n: number }>(
             sql`UPDATE lead_sources SET rr_cursor = rr_cursor + 1 WHERE id = ${src.id} RETURNING rr_cursor - 1 AS n`,

@@ -23,6 +23,7 @@ import { tagParts } from "../imports/start";
 import { openConfig, type SheetConfig } from "./config";
 import { GoogleError, columnRange, isTransient, rowsRange, type GoogleSheets } from "./google";
 import { anchorHash, dateColumnOf, headerDrift, sheetFingerprint, toRows, type SheetRow } from "./grid";
+import type { AutomationDeps } from "../tasks/automations";
 
 const S = schema.leadSources;
 const SY = schema.sourceSyncs;
@@ -511,7 +512,12 @@ async function syncSource(
       }
       try {
         await withJobRequest(job(String(t.row.number)), (req) =>
-          oneRow(req, o.keyring, { src, rules, mapping, ctx, syncId }, t),
+          oneRow(
+            req,
+            o.keyring,
+            { src, rules, mapping, ctx, syncId, ...(src.lastSyncedAt ? { automations: { pool: o.pool } } : {}) },
+            t,
+          ),
         );
       } catch (e) {
         // A row the database refuses is that row's problem; the rest of the sheet carries on.
@@ -537,7 +543,15 @@ async function syncSource(
   return patch;
 }
 
-type Run = { src: Source; rules: Rules; mapping: Mapping; ctx: FullMapContext; syncId: string };
+type Run = {
+  src: Source;
+  rules: Rules;
+  mapping: Mapping;
+  ctx: FullMapContext;
+  syncId: string;
+  /** After a sheet's first sync, new rows are live enquiries: their stage's automations run (3C). */
+  automations?: AutomationDeps;
+};
 
 /** Claim the row (new, or a problem being retried), write it with the shared engine, and count it. */
 async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) {
@@ -558,6 +572,7 @@ async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) 
     ctx,
     cells: t.row.cells,
     origin: { sourceId: src.id, sheet: src.name, row: t.row.number },
+    ...(run.automations ? { automations: run.automations } : {}),
     ...(t.fillIn ? { mergeInto: { leadId: t.fillIn.leadId, activity: "sheet_row_updated" } } : {}),
     nextTurn: async () => {
       const { rows } = await req.db.execute<{ n: number }>(

@@ -104,6 +104,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         scope.decorate("fieldRegistryCache", { value: null });
         // Notifications (3B): sent as their recipient, if they want that kind.
         scope.decorate("notify", (userId: string, n: NewNotification) => notify(deps.pool, userId, n));
+        // Stage automations (3C) ask about people and queue their reminders.
+        scope.decorate("automationDeps", { pool: deps.pool, tasks: deps.tasks });
         scope.decorate("settleReminders", (userId: string, taskId: string) =>
           readAs(deps.pool, userId, async (c) => {
             await c.query(

@@ -10,6 +10,7 @@ import { findDuplicates } from "./duplicates";
 import { isFieldEditable, serializeLead, type LeadRow } from "./serialize";
 import { cancelLeadTasks } from "../tasks/lifecycle";
 import { insertLead, recordActivity } from "./writer";
+import { runOnEnter } from "../tasks/automations";
 
 export { recordActivity };
 
@@ -253,6 +254,9 @@ export async function createLead(req: FastifyRequest, input: LeadInput & { name:
     assignReason: "created",
   });
   await audit(req, { action: "lead.create", entityType: "lead", entityId: id, diff: { ownerId, stageId } });
+  // A new lead enters its first stage: that stage's automations run (3C).
+  const [stage] = await req.db.select().from(schema.stages).where(eq(schema.stages.id, stageId));
+  if (stage) await runOnEnter(req, { id, name: input.name, ownerId }, stage, "created");
   return { lead: await leadViewFor(req, await visibleLead(req, id), fields), duplicates };
 }
 

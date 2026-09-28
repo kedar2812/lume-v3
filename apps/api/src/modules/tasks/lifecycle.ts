@@ -35,7 +35,7 @@ export async function settleReminders(req: FastifyRequest, t: { id: string; assi
 }
 
 /** A lead removed: its open follow-ups are cancelled, and their reminders with them (spec §3). */
-export async function cancelLeadTasks(req: FastifyRequest, leadId: string) {
+export async function cancelLeadTasks(req: FastifyRequest, leadId: string): Promise<number> {
   const open = await req.db
     .update(T)
     .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
@@ -46,4 +46,5 @@ export async function cancelLeadTasks(req: FastifyRequest, leadId: string) {
     await settleReminders(req, t);
   }
   await refreshNextDue(req, leadId);
+  return open.length;
 }

@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { newId, scopeOf } from "@lume/core";
+import { newId, scopeOf, type OnEnter } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
@@ -13,6 +13,7 @@ export type StageInput = {
   winProbability?: number | null;
   slaHours?: number | null;
   requiredFieldIds?: string[];
+  onEnter?: OnEnter;
 };
 
 const stageView = (s: StageRow) => ({
@@ -24,7 +25,30 @@ const stageView = (s: StageRow) => ({
   winProbability: s.winProbability,
   slaHours: s.slaHours,
   requiredFieldIds: s.requiredFieldIds,
+  onEnter: (s.onEnter as OnEnter | null)?.rules ? (s.onEnter as OnEnter) : { rules: [] },
 });
+
+/** Every person a stage's automations name must be someone active here (3C). */
+async function assertRulePeople(req: FastifyRequest, onEnter: OnEnter | undefined) {
+  const ids = [
+    ...new Set(
+      (onEnter?.rules ?? []).flatMap((r) =>
+        r.type === "create_task"
+          ? [r.assignee]
+          : r.type === "notify"
+            ? r.to
+            : [],
+      ).flatMap((p) => (p === "lead_owner" ? [] : [p.userId])),
+    ),
+  ];
+  if (!ids.length) return;
+  const found = await req.db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(and(inArray(schema.users.id, ids), eq(schema.users.status, "active")));
+  if (found.length !== ids.length)
+    throw badRequest("UNKNOWN_USER", "One of the people in these automations doesn't exist or is disabled");
+}
 
 async function livePipeline(req: FastifyRequest, id: string) {
   const [p] = await req.db
@@ -183,6 +207,7 @@ export async function createStage(
 ) {
   await livePipeline(req, pipelineId);
   await assertFieldsExist(req, input.requiredFieldIds);
+  await assertRulePeople(req, input.onEnter);
   const current = await liveStages(req, pipelineId);
   if (current.some((s) => s.name.toLowerCase() === input.name.toLowerCase()))
     throw conflict("STAGE_EXISTS", "A stage with that name already exists");
@@ -205,6 +230,7 @@ export async function createStage(
 export async function updateStage(req: FastifyRequest, id: string, patch: StageInput) {
   const s = await liveStage(req, id);
   await assertFieldsExist(req, patch.requiredFieldIds);
+  await assertRulePeople(req, patch.onEnter);
   if (patch.kind && patch.kind !== s.kind) {
     const others = (await liveStages(req, s.pipelineId)).map((x) =>
       x.id === id ? { kind: patch.kind! } : x,
@@ -213,7 +239,10 @@ export async function updateStage(req: FastifyRequest, id: string, patch: StageI
   }
   if (Object.keys(patch).length)
     await req.db.update(schema.stages).set(patch).where(eq(schema.stages.id, id));
-  await audit(req, { action: "stage.updated", entityType: "stage", entityId: id, diff: patch });
+  const { onEnter, ...rest } = patch;
+  if (Object.keys(rest).length)
+    await audit(req, { action: "stage.updated", entityType: "stage", entityId: id, diff: rest });
+  if (onEnter) await audit(req, { action: "stage.automations", entityType: "stage", entityId: id, diff: onEnter });
   return { stage: stageView(await liveStage(req, id)) };
 }
 

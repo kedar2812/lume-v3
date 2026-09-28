@@ -39,6 +39,8 @@ export async function seedConfiguration(db: Db, presetKey: PresetKey): Promise<v
       color: s.color,
       winProbability: s.winProbability,
       position: i,
+      // A new install's Won and Lost stages clear open follow-ups (3C): a closed lead needs none.
+      onEnter: s.kind === "open" ? {} : { rules: [{ id: newId(), type: "cancel_open_tasks" as const }] },
     })),
   );
   if (preset.lostReasons.length) {

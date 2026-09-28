@@ -4,6 +4,7 @@ import { mapRow, startOfDayUtc, type Issue, type LeadDraft, type Mapping, type R
 import { schema } from "@lume/db";
 import { loadFieldRegistry } from "../../leads/fields";
 import { insertLead, mergeFill, mergeIntoLead } from "../leads/writer";
+import { runOnEnter, type AutomationDeps } from "../tasks/automations";
 import { contactProbes, findMatches, type FullMapContext } from "./context";
 
 export type RowCounter =
@@ -41,6 +42,11 @@ export type RowInput = {
    * the lead it made, whatever its contacts now match, and say so in its history with this activity.
    */
   mergeInto?: { leadId: string; activity: string };
+  /**
+   * Run the first stage's automations for a lead this row creates (3C): live intake (webhooks, a sheet's
+   * syncs after its first) passes them; CSV imports and a sheet's first sync are history and don't.
+   */
+  automations?: AutomationDeps;
 };
 
 /** A transaction-scoped lock on one contact key (its first 64 bits), so two runs can't both create it. */
@@ -233,6 +239,8 @@ export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowRes
     },
     assignReason: "imported",
   });
+  if (o.automations)
+    await runOnEnter(req, { id: leadId, name: draft.name, ownerId }, stage, "created", o.automations);
   // A stage's required fields aren't enforced on import (2A spec §6.5), but the leads missing them are counted.
   const core: Record<string, unknown> = {
     name: draft.name,
