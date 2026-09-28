@@ -127,3 +127,18 @@ export function digestMail(a: {
   );
   return { to: a.to, subject, text, html, kind: "digest" };
 }
+
+/** A word to an admin when LUME isn't keeping a promise (3C System health): what, and where to look. */
+export function opsAlertMail(a: {
+  to: string;
+  businessName: string;
+  words: string;
+  url: string;
+}): OutgoingMail {
+  const subject = `LUME needs a look at ${a.businessName}`;
+  const text = `${a.words}
+
+System health in LUME: ${a.url}`;
+  const html = layout("LUME needs a look", esc(a.words), { label: "Open System health", url: a.url });
+  return { to: a.to, subject, text, html, kind: "ops_alert" };
+}

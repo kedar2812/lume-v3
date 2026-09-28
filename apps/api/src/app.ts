@@ -22,6 +22,7 @@ import type { Limiter } from "./modules/webhooks/limits";
 import { receiveRoutes } from "./modules/webhooks/receive";
 import { webhookRoutes } from "./modules/webhooks/routes";
 import { taskRoutes } from "./modules/tasks/routes";
+import { healthRoutes } from "./modules/health/routes";
 import { notificationRoutes } from "./modules/notifications/routes";
 import { readAs } from "./modules/notifications/hub";
 import { notify, type NewNotification } from "./modules/notifications/notify";
@@ -77,7 +78,11 @@ export type AppDeps = {
   /** Webhooks (2C): where an accepted post is queued, and (tests) the rate limiter to use. */
   webhooks?: { enqueue(eventId: number): Promise<void>; limiter?: Limiter };
   /** Follow-ups (Phase 3): where a reminder is queued for its time. */
-  tasks?: { enqueue(reminders: { id: number; fireAt: Date }[]): Promise<void> };
+  tasks?: {
+    enqueue(reminders: { id: number; fireAt: Date }[]): Promise<void>;
+    /** When the sweeper last ran (3C System health); set once the queue is running. */
+    lastSweepAt?: () => Date | null;
+  };
   /** LUME_MANYCHAT_PRESET=on: offer the ManyChat preset (hidden until verified, 2C spec §2). */
   manychatPreset?: boolean;
   /** Tests only: extra routes registered inside the authenticated scope. */
@@ -151,6 +156,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(sheetRoutes, deps);
         await scope.register(webhookRoutes, deps);
         await scope.register(taskRoutes, deps);
+        await scope.register(healthRoutes, deps);
         await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);
         deps.extraRoutes?.(scope);

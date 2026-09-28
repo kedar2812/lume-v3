@@ -2,7 +2,7 @@ import pg from "pg";
 import { loadBreachedChecker, masterKeyFromBase64 } from "@lume/core";
 import { ARGON2_PRODUCTION } from "@lume/core/password";
 import { apiSchema, loadConfig } from "@lume/config";
-import { buildApp } from "./app";
+import { buildApp, type AppDeps } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
@@ -47,7 +47,7 @@ const sheets: { enqueue(id: string): Promise<void>; maxRows: number } = {
 // Webhooks (2C): the queue always runs; the module switch gates receiving, not processing what was accepted.
 const webhooks: { enqueue(id: number): Promise<void> } = { enqueue: async () => undefined };
 // Follow-ups (Phase 3): filled once the queue is up; its sweeper fires anything missed before the API listens.
-const tasks: { enqueue(r: { id: number; fireAt: Date }[]): Promise<void> } = {
+const tasks: NonNullable<AppDeps["tasks"]> = {
   enqueue: async () => undefined,
 };
 
@@ -111,6 +111,7 @@ const taskQueue = await startTaskQueue({
   tickMs: cfg.LUME_FOLLOW_UP_TICK_MS,
 });
 tasks.enqueue = taskQueue.enqueue;
+tasks.lastSweepAt = taskQueue.lastSweepAt;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {

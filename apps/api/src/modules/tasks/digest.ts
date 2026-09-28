@@ -89,6 +89,12 @@ export async function runDigests(d: DigestDeps, now: Date = new Date()): Promise
       if (await digestFor(d, u, biz[0].business_name, now)) mailed++;
     } catch (err) {
       d.log?.error({ err, userId: u.id }, "a morning email failed; the next run tries again");
+      // Written down for System health (3C): who, never what.
+      await d.pool
+        .query("INSERT INTO ops_events (kind, ok, detail) VALUES ('digest.failed', false, $1)", [
+          { userId: u.id },
+        ])
+        .catch(() => undefined);
     }
   }
   return mailed;

@@ -5,6 +5,7 @@ import { fire, sweep } from "./engine";
 import { escalate } from "./escalation";
 import { runDigests } from "./digest";
 import { noTouch } from "./no-touch";
+import { opsAlerts } from "../health/service";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -62,7 +63,7 @@ export async function startTaskQueue(o: {
   // Reminders come first and never wait on mail: escalation and the digest run beside the clock, one run of
   // each at a time, so a slow mail server can neither hold up a sweep nor start a second digest run
   // (3B final review, Important 1).
-  const busy = { escalate: false, digest: false, noTouch: false };
+  const busy = { escalate: false, digest: false, noTouch: false, alerts: false };
   const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
     if (busy[key]) return;
     busy[key] = true;
@@ -86,6 +87,19 @@ export async function startTaskQueue(o: {
           "digest",
           () => runDigests({ pool: o.pool, ...o.digest!, log: o.app.log }),
           "daily digests failed",
+        );
+      // Every quarter hour: anything wrong reaches the admins, once a business day (3C System health).
+      if (n % 15 === 0)
+        beside(
+          "alerts",
+          () =>
+            opsAlerts({
+              app: o.app,
+              pool: o.pool,
+              lastSweepAt: () => lastSweepAt,
+              ...(o.digest ? { mailer: o.digest.mailer, publicUrl: o.digest.publicUrl } : {}),
+            }),
+          "system alerts failed",
         );
       // Every hour (and at start-up): leads gone quiet come back to their owners (3C).
       if (n % 60 === 0) beside("noTouch", () => noTouch({ ...deps, enqueue }), "leads gone quiet failed");
