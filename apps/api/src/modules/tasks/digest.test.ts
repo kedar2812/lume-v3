@@ -39,7 +39,7 @@ async function person(tz: string, o: { alerts?: Record<string, boolean>; grants?
     "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Call back', '2026-09-27T06:00:00Z', $1)",
     [id, lead, u.id],
   );
-  return u;
+  return { ...u, lead };
 }
 
 beforeAll(async () => {
@@ -83,6 +83,19 @@ describe("the daily digest (3B Task 4)", () => {
       expect(body).not.toMatch(/7654321|aisha\.secret/);
     }
     expect(m!.text).toContain("https://crm.example.test/today");
+  });
+
+  it("overdue from earlier today reads as its time; from an earlier day, with the day", async () => {
+    const u = await person("Asia/Kolkata");
+    const id = newId();
+    await h.queryAll(
+      "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Send the plan', '2026-10-05T02:00:00Z', $1)",
+      [id, u.lead, u.id],
+    );
+    await run("2026-10-05T03:00:00Z"); // Monday 08:30 in Kolkata
+    const [m] = to(u.email);
+    expect(m!.text).toContain("Aisha: Call back (Sun 11:30)");
+    expect(m!.text).toContain("Aisha: Send the plan (07:30)");
   });
 
   it("Review Focus 5: a mail that fails is sent next time, and only once", async () => {

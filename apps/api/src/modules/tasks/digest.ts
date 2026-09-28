@@ -107,7 +107,7 @@ async function build(pool: pg.Pool, u: Person, now: Date) {
   try {
     await client.query("BEGIN");
     await applyRequestScope(client, actor);
-    const { end } = localDayBounds(now, u.tz);
+    const { start, end } = localDayBounds(now, u.tz);
     const tasks = (
       await client.query<{ lead: string; title: string; due_at: Date }>(
         `SELECT l.name AS lead, t.title, t.due_at FROM tasks t JOIN leads l ON l.id = t.lead_id
@@ -118,7 +118,11 @@ async function build(pool: pg.Pool, u: Person, now: Date) {
     ).rows;
     const overdue = tasks
       .filter((t) => t.due_at < now)
-      .map((t) => ({ who: first(t.lead), what: t.title, when: dayAndClock(t.due_at, u.tz) }));
+      .map((t) => ({
+        who: first(t.lead),
+        what: t.title,
+        when: t.due_at >= start ? clock(t.due_at, u.tz) : dayAndClock(t.due_at, u.tz), // the day only when not today
+      }));
     const today = tasks
       .filter((t) => t.due_at >= now)
       .map((t) => ({ who: first(t.lead), what: t.title, when: clock(t.due_at, u.tz) }));
