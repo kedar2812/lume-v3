@@ -1,14 +1,13 @@
-import { EmptyState } from "@/components/ui/EmptyState";
+import { Today } from "@/components/today/Today";
+import { requireSession } from "@/server/session";
 
 export const metadata = { title: "Today · LUME" };
 
-export default function Page() {
+export default async function Page() {
+  const session = await requireSession();
   return (
     <section data-stagger>
-      <EmptyState
-        title="Your day starts here"
-        body="Follow-ups, calls and new leads that need you will appear here in Phase 3."
-      />
+      <Today name={session.user.name} tz={session.user.timezone} />
     </section>
   );
 }

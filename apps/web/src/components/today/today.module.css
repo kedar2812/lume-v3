@@ -1,0 +1,314 @@
+/* Today (Phase 3 §6, the prototype's hero and "Up next"). */
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 8px 4px 48px;
+}
+.hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  padding-bottom: 28px;
+}
+.date {
+  margin: 0 0 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+.greet {
+  margin: 0;
+  font-size: var(--fs-4xl);
+  line-height: 1.08;
+  letter-spacing: var(--ls-4xl);
+  font-weight: var(--fw-bold);
+}
+.brief {
+  margin: 10px 0 0;
+  max-width: 560px;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  color: var(--text-2);
+}
+.ring {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ringText {
+  display: grid;
+  text-align: right;
+}
+.ringBig {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.ringCap {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.ringTrack {
+  stroke: var(--sunk);
+}
+.ringValue {
+  stroke: var(--accent);
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.error {
+  color: var(--danger-ink);
+}
+
+.secTitle {
+  margin: 0 0 6px;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-bold);
+}
+.group + .group {
+  margin-top: 4px;
+}
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 4px 6px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.groupHead i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.groupHead[data-group="overdue"] i {
+  background: var(--warn);
+}
+.groupHead[data-group="soon"] i {
+  background: var(--accent);
+}
+.count {
+  color: var(--text-3);
+  font-weight: var(--fw-medium);
+}
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  padding: 0 10px 0 12px;
+  border-radius: var(--r-row);
+  overflow: hidden;
+  transition: background 0.15s;
+}
+.row:hover,
+.row:focus-within {
+  background: var(--hover);
+}
+.row + .row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 56px;
+  right: 10px;
+  height: 0.5px;
+  background: var(--line);
+}
+.row:hover::before,
+.row:hover + .row::before {
+  opacity: 0;
+}
+.tick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  transition:
+    box-shadow 0.2s,
+    background 0.2s,
+    color 0.2s,
+    transform 0.12s;
+}
+.tick:hover {
+  color: var(--ok-ink);
+  box-shadow: inset 0 0 0 1.5px var(--ok);
+}
+.tick:active {
+  transform: scale(0.86);
+  background: var(--ok);
+  color: #fff;
+}
+.tick:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+}
+.who {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.name {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.name:hover {
+  text-decoration: underline;
+}
+.what {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.when {
+  flex: none;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.when[data-group="overdue"] {
+  color: var(--warn-ink);
+  font-weight: var(--fw-semibold);
+}
+/* Row actions appear on hover or focus; on touch (no hover) they're always there. */
+.acts {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transform: translateX(6px);
+  transition:
+    opacity 0.18s,
+    transform 0.25s;
+}
+.row:hover .acts,
+.row:focus-within .acts {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: none) {
+  .acts {
+    opacity: 1;
+    transform: none;
+  }
+}
+.act {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.act:hover,
+.act[aria-expanded="true"] {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.menu {
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+}
+.menuItem {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.menuItem:hover,
+.menuItem:focus-visible {
+  outline: none;
+  background: var(--hover);
+}
+
+.clear {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 48px 16px;
+  text-align: center;
+}
+.clearTitle {
+  margin: 10px 0 0;
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-bold);
+}
+
+.needs {
+  margin-top: 28px;
+}
+.needsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.needsList a {
+  display: block;
+  padding: 12px 14px;
+  border-radius: var(--r-row);
+  background: var(--sunk);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: var(--fw-medium);
+}
+.needsList a:hover {
+  background: var(--hover);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .ring {
+    margin-left: 0;
+  }
+  .greet {
+    font-size: var(--fs-3xl);
+  }
+}

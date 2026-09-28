@@ -240,3 +240,18 @@
     padding: 22px 16px 96px;
   }
 }
+
+/* The bell's dot (Phase 3): one quiet mark while anything is unread. */
+.bell {
+  position: relative;
+}
+.bellDot {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--canvas);
+}
