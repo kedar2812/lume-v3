@@ -205,7 +205,7 @@ function Form({
                 .filter((p) => p.active)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.id === meId ? `${p.name} (you)` : p.name}
+                    {p.id === meId ? "Me" : p.name}
                   </option>
                 ))}
             </select>
