@@ -627,3 +627,77 @@ Plan: `docs/superpowers/plans/2026-09-28-phase-2c-webhooks.md`. Spec: `docs/supe
 - A forged post is refused, nothing forged gets in, and the webhook's page says "1 refused · last for a bad signature".
 
 Screenshots: `docs/runbooks/screenshots-2c/`.
+
+# Phase 3A — Follow-ups and the scheduling engine
+
+Plan: `docs/superpowers/plans/2026-09-28-phase-3a-follow-ups-engine.md`. Spec: `docs/superpowers/specs/2026-09-28-phase-3-follow-ups-design.md`.
+
+## Automated
+
+- **The reliability suite** (report §10.4, `engine.test.ts`):
+  - fire-time accuracy (the sweeper leaves a reminder alone until 30 s after its time);
+  - the job twice, and the sweeper at the same time, make one notification;
+  - a reminder whose job never ran is fired by the sweeper once;
+  - **crash recovery:** a fire that locked the row and died is picked up by the next sweep, once;
+  - a done follow-up tells nobody;
+  - a lead the assignee can no longer see is never named;
+  - a moved follow-up's old job fires nothing;
+  - editing only its words never re-sends a fired reminder;
+  - a fire never waits on its own pool.
+- **Times** (`time.test.ts`):
+  - presets in Dubai, Kolkata and London;
+  - "Tomorrow 10:00" across the autumn change;
+  - the spring gap and the autumn overlap;
+  - weekly repeats keeping 10:00 local;
+  - a series three weeks overdue.
+- **The API:**
+  - set, move, snooze, done, cancel;
+  - the lead's next date;
+  - repeats and their stops (won, their last day, a reply);
+  - done twice at once;
+  - Manage others' follow-ups by scope;
+  - a follow-up on a lead its assignee can't see is refused;
+  - removing a lead cancels its follow-ups;
+  - a queue that's down never crashes LUME.
+- **Row-level security:** follow-ups are seen with their lead; notifications only by their recipient; backups hold both.
+- **The live stream** (real sockets):
+  - only its person receives a notification;
+  - a notification that commits after a later one still arrives;
+  - more than 50 missed are replayed;
+  - `?after=` resumes a stream;
+  - an open stream never holds up shutdown.
+- **Web:**
+  - the follow-up sheet and next follow-up;
+  - Today: groups, done, All clear with no sound on opening, and a repeat due again today;
+  - the bell;
+  - the stream reconnecting after a 502 and dropping repeats.
+- **End to end** (`follow-ups.spec.ts`), on the real stack:
+  - set from the drawer;
+  - on Today;
+  - due in 5 s, and the bell lights without a reload;
+  - done, and All clear;
+  - screenshots and axe in both themes.
+
+## Final review (fresh reviewer)
+
+Two Critical, six Important, and nine Minor findings. Four Minor ones were re-graded Important by their effect. All were fixed with a failing test first.
+
+**Critical:**
+- A moved or snoozed follow-up fired at its old time and never at its new one.
+- Backups held no follow-ups or notifications: the backup role had no read policy under FORCE row-level security.
+
+**Important:**
+- The stream lost notifications that committed out of id order, and replayed at most 50.
+- A browser's stream died for good after an API restart's 502.
+- The hub's LISTEN gave up after one failed reconnect.
+- Open streams kept the API from shutting down cleanly.
+- Today showed All clear while a repeat was due again today, and played a sound on opening.
+- Re-graded from Minor:
+  - fires could starve on the job pool;
+  - a queue failure crashed the API;
+  - J/K could show the previous lead's follow-up;
+  - the "For" picker showed choices that always fail.
+
+## Live
+
+`acceptance-3a.mjs set` → `docker restart lumedev-api-1` → `acceptance-3a.mjs check`: a follow-up due 90 s after being set, with the API restarted in between, still reminds exactly once. Screenshots are in `docs/runbooks/screenshots-3a/`, unmasked.

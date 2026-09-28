@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { test as base, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { test as base, expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { totpCode } from "@lume/core";
 
 const ARTIFACTS = path.resolve(import.meta.dirname, ".artifacts");
@@ -129,3 +129,13 @@ export const test = base.extend({
   },
 });
 export { expect };
+
+/**
+ * A full, unmasked copy of a screenshot, for people to look at (the owner asked: no strips). The copy the
+ * automatic check compares still masks what changes from run to run (times, dates, new addresses); this
+ * one shows everything. Saved to e2e/__review__/<spec>/<name>, which git ignores.
+ */
+export async function reviewCopy(target: Page | Locator, name: string): Promise<void> {
+  const spec = test.info().titlePath[0]!.replace(/\.spec\.ts$/, "");
+  await target.screenshot({ path: `e2e/__review__/${spec}/${name}`, animations: "disabled" });
+}

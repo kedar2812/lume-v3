@@ -8,9 +8,10 @@ You approved this before bed: finish phase 2, then phase 3, deciding things myse
 |---|---|
 | **2B-1: Google Sheets, Refresh, and the arrival glow** | ✅ Built, reviewed and fixed. Green in CI and on the dev box, except the steps that need a real Google key. |
 | **2A: CSV import** | ✅ Now **fully** accepted live, including the steps that were waiting. |
-| 2B-2: Connect with Google (behind its switch) | Planned (`docs/superpowers/plans/2026-09-28-phase-2b2-connect-with-google.md`) |
-| 2C: Webhooks (Website, Zapier, Make; ManyChat hidden until verified) | Spec and plan written (`docs/superpowers/specs/2026-09-28-phase-2c-webhooks-design.md`, `…/plans/2026-09-28-phase-2c-webhooks.md`) |
-| Phase 3: tasks, follow-ups, notifications | Not started yet |
+| **2B-2: Connect with Google** (behind its switch) | ✅ Built, reviewed and fixed. It stays invisible until you set up the relay (`docs/runbooks/connect-with-google.md`). |
+| **2C: Webhooks** (Website form, Zapier, Make; ManyChat hidden until verified) | ✅ Built, reviewed and fixed (1 Critical and 7 Important findings). Accepted live through Caddy. |
+| **Phase 3A: follow-ups and the engine** | 🟡 Tasks 1–7 of 8 built and committed; the end-to-end test and the live restart test are running. The fresh review comes next. |
+| Phase 3B (notification centre, escalation, email digest), 3C (stage automations, working hours, System health) | Spec written (`docs/superpowers/specs/2026-09-28-phase-3-follow-ups-design.md`); plans next |
 
 ## What you can try
 
@@ -28,6 +29,27 @@ You approved this before bed: finish phase 2, then phase 3, deciding things myse
 
 New rows slide in and glow for 5 seconds. Whatever arrived since your last visit glows the same way when you open Leads. When more than 20 arrived, a line says "37 new since yesterday · Show only these". No sound. Reduce Motion gets a still card.
 
+## What's new since 2B-1
+
+**Webhooks** (Settings → Integrations → Webhooks, off by default):
+- **Add a webhook** → Website form, Zapier or Make. LUME shows the address and a secret **once**, with a copy-paste code sample.
+- Send one test post, and LUME lists the fields it sent.
+- The usual Columns → Rules → Preview steps, then **Turn it on**.
+- From then on, every signed post is a lead within a second, merging with any duplicate.
+- Each webhook has its own page: posts in words, problem posts (Retry and Dismiss), what was refused and why ("last for a bad signature"), New secret, Pause, Edit fields, Remove.
+- Forged, unsigned, stale, oversized or flooding posts are refused, counted, and never stored.
+
+**Follow-ups** (Phase 3A):
+- The lead drawer has **Follow-up** (or **F**): two taps set one ("Tomorrow 10:00", "Remind me 1 hour before"), with an optional repeat that stops by itself once the lead replies, is won or is lost.
+- Under the actions: the **next follow-up** in words ("Tomorrow, 10:00"), with a tick for done and a menu to snooze or cancel it.
+- **Today** is real now:
+  - a greeting, whom to start with, and "n / N cleared today";
+  - Overdue, Due soon and Later today, each row with Done and Snooze;
+  - **All clear** (the mark, and the `cleared` sound once a day);
+  - for admins, what needs them.
+- Reminders fire on the minute, in each person's own timezone (DST included), exactly once. A sweeper catches anything a restart or crash missed.
+- The **bell** gets a live dot when one arrives. It's silent, per the sound policy.
+
 ## What I need from you
 
 1. **A Google service account**, to try Sheets for real:
@@ -36,8 +58,10 @@ New rows slide in and glow for 5 seconds. Whatever arrived since your last visit
    - Share a test sheet with the service account's email, as a Viewer.
 
    With that, the live steps finish: `docs/runbooks/acceptance.md` → Phase 2B-1.
-2. **Your dev demo account was replaced.** You'd OK'd resetting the dev DB, and the acceptance runs now leave the fictional "Brightpath Studio" workspace there. Before you wake, I'll reset it once more so you can run setup fresh; the setup token will be in my last message to you (it's not written into the repo, which is public).
-3. **To verify ManyChat** (when we get to 2C): a ManyChat Pro account.
+2. **Connect with Google** (optional): the Google Cloud and relay steps in `docs/runbooks/connect-with-google.md`.
+3. **Official marks for Zapier, Make and ManyChat**, as unmodified files in `apps/web/public/brand/`. I didn't download them while you were away. Until then the presets show their names on a neutral tile (`public/brand/README.md` lists them).
+4. **To verify ManyChat**: a ManyChat Pro account. The preset is built, and hidden behind `LUME_MANYCHAT_PRESET=on`.
+5. **Your dev demo account was replaced.** The acceptance runs reset the dev DB, as you'd OK'd. The fresh setup token will be in my message to you, not in the repo.
 
 ## Decisions I made for you (2B-1)
 
@@ -93,3 +117,65 @@ These are all in the spec's §14 amendments, or in the plan ledger:
 - One sync runs at a time across all sheets.
 - Two multi-sheet Refreshes could, rarely, deadlock (sheets aren't locked in a fixed order).
 - Reads are 5,000 rows at a time, where the spec said 1,000 (harmless).
+
+## Decisions I made for you (2B-2, 2C, 3A)
+
+All are in the plan ledgers (`.superpowers/sdd/*/progress.md`, `Ruling:` lines) with what each costs if wrong. The ones you'd notice:
+
+- **2B-2: Connect again.** A sheet whose Google access was removed shows **Connect again**, and it accepts only the same file.
+- **2C: receiving.**
+  - A stranger can't tell an unknown address from a wrong secret, or from a paused webhook. All three take the same work.
+  - Rate limits: 60 a minute per webhook and 600 for the instance, spent only by posts that proved themselves. Flooding junk is turned away before any database work.
+- **2C: queueing.**
+  - A post that can't be processed yet (the person it runs as lost access, or the queue dropped it) is queued again every minute.
+  - After a day it becomes a problem post you can retry.
+- **2C: setup.** Editing a webhook whose posts are older than their 30-day retention still works: its saved fields are the columns.
+- **3A: who sees what.**
+  - A follow-up is seen exactly when its lead is.
+  - Giving one to someone who can't see the lead is refused.
+  - Giving follow-ups to others follows **Manage others' follow-ups**: team reaches your teams, all reaches everyone.
+- **3A: repeats and times.**
+  - Repeats stop on won, lost, or a logged reply.
+  - "Nag" repeats (firing again while still open) aren't in v1.
+  - More than five reminders on one follow-up is refused, not cut.
+  - With no timezone set, the web shows times in the browser's zone.
+- **3A: Today.** Opening Today reads your notifications (the bell's dot goes), until 3B's notification centre gives them a place of their own.
+
+## Found and fixed since
+
+- **CI had been red since 2C Task 2, and I didn't notice overnight.** The cause was one Integrations screenshot whose mask matched only some rows, so the result depended on the machine's speed. It now masks every row.
+- A tamper test that, about one run in 64, didn't tamper.
+- Closing a webhook's setup deleted the webhook itself. The 2A discard removes a draft's source, which for a webhook is the webhook.
+- **The 2C reviewer's findings**, all fixed with a failing test first:
+  - **Critical:** the nightly draft purge deleted a live webhook, and every post, a week after an abandoned edit.
+  - The rate limiter could be grown without limit by random addresses, and junk used up real senders' share.
+  - A rotated secret was kept in plain text for idempotent replay.
+  - A wrong secret took measurably longer than an unknown address.
+  - Posts could stay queued for ever.
+  - A quiet webhook couldn't be edited, and its edit sheet showed the new-webhook picker.
+  - The "new fields seen" list could grow without end.
+
+## Deferred (small; your call)
+
+**2B-2:**
+- The relay:
+  - it never sweeps cancelled Pickers;
+  - a cancelled Picker is a dead end;
+  - `open()` shadows `window.open`;
+  - `https` isn't enforced for the relay URL;
+  - two security headers are missing.
+- A removed Google-connected sheet keeps its sealed grant.
+- The runbook should note Google's 100-refresh-token limit and the homepage and privacy URLs that verification needs.
+
+**2C:**
+- The event id isn't covered by the signature: a captured post could be replayed within 5 minutes under fresh ids.
+- "Stale timestamp" is counted as "bad signature".
+- The Website preset doesn't map `message` to notes.
+- Repeated form keys keep only the last value.
+- The test step doesn't stop polling after 10 minutes.
+- On a webhook's page:
+  - Pause is hidden while it needs attention;
+  - Retry and Dismiss aren't disabled while busy;
+  - Rotate and Remove failures show nothing in their dialogs.
+- A backdrop click closes the secret step before the secret is copied (it's recoverable with New secret).
+- There's no audit entry for creating a webhook or retrying a post.
