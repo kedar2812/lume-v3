@@ -16,7 +16,7 @@ import {
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
-import { HttpError, forbidden, notFound } from "../../http/errors";
+import { HttpError, badRequest, forbidden, notFound } from "../../http/errors";
 import { loadActor } from "../../rbac/actor";
 import { recordActivity } from "../leads/writer";
 import { visibleLead } from "../leads/service";
@@ -196,6 +196,29 @@ export async function createTask(req: FastifyRequest, d: AppDeps, leadId: string
   await queueReminders(req, d, [id]);
   tellAssignee(req, t!, lead.name);
   return viewOf(req, t!);
+}
+
+/** "Remind them" (3B, from an escalation): the assignee hears that someone who manages them is asking. */
+export async function nudgeTask(req: FastifyRequest, id: string) {
+  const t = await openForChange(req, id);
+  if (t.assigneeId === req.actor!.userId)
+    throw badRequest("OWN_FOLLOW_UP", "This follow-up is yours: there's no one to remind.");
+  const lead = await visibleLead(req, t.leadId);
+  const by = req.actor!.userId;
+  req.afterCommit(
+    () =>
+      void (async () => {
+        const who = (await req.server.notifyNameOf?.(by)) ?? "Someone";
+        await req.server.notify?.(t.assigneeId, {
+          kind: "follow_up_nudge",
+          title: `${who} asks about your follow-up with ${lead.name}`,
+          body: t.title,
+          leadId: t.leadId,
+          taskId: t.id,
+        });
+      })().catch((err: unknown) => req.log.error({ err }, "couldn't send a reminder")),
+  );
+  await auditForOther(req, t, "reminded");
 }
 
 /** Someone else gave this person a follow-up: they hear, by the lead's name, once it's saved (3B). */

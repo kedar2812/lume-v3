@@ -77,6 +77,7 @@ export const PROBES: Record<string, Probe> = {
     path: () => `/api/v1/tasks/${uuid}/snooze`,
     body: () => ({ preset: "1h" }),
   },
+  "POST /api/v1/tasks/:id/nudge": { access: "leads.view", path: () => `/api/v1/tasks/${uuid}/nudge` },
   "POST /api/v1/tasks/:id/cancel": { access: "leads.view", path: () => `/api/v1/tasks/${uuid}/cancel` },
   "PUT /api/v1/integrations/webhooks": { access: "integrations.manage", body: () => ({ enabled: false }) },
   "POST /api/v1/webhooks/sources": {

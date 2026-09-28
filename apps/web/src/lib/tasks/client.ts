@@ -14,5 +14,7 @@ export const tasksClient = {
   snooze: (id: string, b: { until: string } | { preset: SnoozePreset }) =>
     api.post<TaskView>(`${task(id)}/snooze`, b),
   cancel: (id: string) => api.post<TaskView>(`${task(id)}/cancel`),
+  /** "Remind them": the assignee hears that someone who manages them is asking (3B). */
+  nudge: (id: string) => api.post<{ reminded: true }>(`${task(id)}/nudge`),
   today: () => api.get<TodayView>("/api/v1/today"),
 };

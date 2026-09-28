@@ -1,9 +1,10 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import s from "./Button.module.css";
 
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label"> & {
   label: string;
   children: ReactNode;
+  ref?: Ref<HTMLButtonElement>;
 };
 
 /** Icon-only button. `label` is mandatory: it's the accessible name and the tooltip. */

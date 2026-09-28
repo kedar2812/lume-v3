@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
-import { cancelTask, createTask, doneTask, leadTasks, snoozeTask, updateTask } from "./service";
+import { cancelTask, createTask, doneTask, leadTasks, nudgeTask, snoozeTask, updateTask } from "./service";
 import { today } from "./today";
 
 const view = { permission: "leads.view" as const };
@@ -61,6 +61,10 @@ export async function taskRoutes(app: FastifyInstance, d: AppDeps): Promise<void
     },
     (req) => snoozeTask(req, d, req.params.id, req.body),
   );
+  r.post("/api/v1/tasks/:id/nudge", { config: view, schema: { params } }, async (req, reply) => {
+    await nudgeTask(req, req.params.id);
+    return reply.code(202).send({ reminded: true });
+  });
   r.post("/api/v1/tasks/:id/cancel", { config: view, schema: { params } }, (req) =>
     cancelTask(req, req.params.id),
   );

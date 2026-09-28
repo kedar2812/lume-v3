@@ -61,7 +61,7 @@ describe("Today", () => {
     );
     expect(screen.getByRole("list", { name: "Due soon" })).toHaveTextContent("Omar Ali");
     expect(screen.getByRole("list", { name: "Later today" })).toHaveTextContent("Sara Pinto");
-    expect(notificationsClient.readAll).toHaveBeenCalled(); // opening Today reads what the bell was holding
+    expect(notificationsClient.readAll).not.toHaveBeenCalled(); // the notification centre does the reading (3B)
   });
 
   it("done takes the row away, moves the ring, and plays done", async () => {

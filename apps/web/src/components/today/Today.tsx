@@ -6,7 +6,6 @@ import { useSound } from "@/components/feedback/SoundProvider";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
-import { notificationsClient } from "@/lib/notifications/client";
 import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
 import { timezoneOf, whenInWords } from "@/lib/tasks/format";
@@ -71,7 +70,6 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
   }, []);
   useEffect(() => {
     void load();
-    void notificationsClient.readAll(); // Today is where the bell's news is read
   }, [load]);
   useStream(() => void load());
 

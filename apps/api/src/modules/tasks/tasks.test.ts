@@ -275,3 +275,23 @@ describe("3A final review", () => {
     expect(await pending(r.json().id)).toEqual([{ offset_minutes: 0 }]); // the sweeper will fire it on time
   });
 });
+
+describe("Remind them (3B Task 5)", () => {
+  it("a manager nudges the assignee about their follow-up; the assignee can't nudge themselves", async () => {
+    const t = (await create(admin, lead, { assigneeId: repId, title: "Call back" })).json();
+    const r = await call(admin, "POST", `/api/v1/tasks/${t.id}/nudge`);
+    expect(r.statusCode).toBe(202);
+    await new Promise((res) => setTimeout(res, 100));
+    const c = await h.ownerPool.connect();
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('lume.user_id', $1, true)", [repId]);
+    const { rows } = await c.query<{ title: string }>(
+      "SELECT title FROM notifications WHERE kind = 'follow_up_nudge'",
+    );
+    await c.query("COMMIT");
+    c.release();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.title).toMatch(/asks about your follow-up with Aisha Khan/);
+    expect((await call(rep, "POST", `/api/v1/tasks/${t.id}/nudge`)).statusCode).toBe(400);
+  });
+});

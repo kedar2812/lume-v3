@@ -69,7 +69,7 @@ export function AppShell({ session, businessName, theme, children }: Props) {
         <div className={s.app}>
           <Sidebar businessName={businessName} user={user} can={can} />
           <main className={s.main}>
-            <TopBar theme={theme} onSearch={() => setPalette(true)} />
+            <TopBar theme={theme} tz={session.user.timezone} onSearch={() => setPalette(true)} />
             <div className={s.scroll} data-scroll>
               <div className={s.page}>
                 <PageContent>{children}</PageContent>

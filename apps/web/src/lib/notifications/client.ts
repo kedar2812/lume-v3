@@ -18,6 +18,7 @@ export const READ_EVENT = "lume:notifications-read";
 
 export const notificationsClient = {
   list: () => api.get<{ items: NotificationView[]; unread: number }>("/api/v1/notifications"),
+  read: (ids: number[]) => api.post<{ unread: number }>("/api/v1/notifications/read", { ids }),
   readAll: async () => {
     const r = await api.post<{ unread: number }>("/api/v1/notifications/read", { all: true });
     if (r.ok && typeof window !== "undefined") window.dispatchEvent(new Event(READ_EVENT));
