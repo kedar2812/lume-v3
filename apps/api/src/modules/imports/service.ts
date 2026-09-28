@@ -444,7 +444,10 @@ export async function previewImport(
 export async function discardImport(req: FastifyRequest, id: string) {
   const imp = await mine(req, id);
   if (imp.status !== "draft") throw new HttpError(409, "NOT_DRAFT", "Only a draft can be discarded.");
-  await req.db.delete(schema.leadSources).where(eq(schema.leadSources.id, imp.sourceId)); // cascades to the import
+  // A webhook's draft belongs to the webhook itself (2C): only the draft goes. Otherwise the draft's own
+  // throwaway source goes, and the import with it.
+  if (imp.kind === "webhook") await req.db.delete(I).where(eq(I.id, imp.id));
+  else await req.db.delete(schema.leadSources).where(eq(schema.leadSources.id, imp.sourceId)); // cascades
   await audit(req, {
     action: "import.discarded",
     entityType: "import",

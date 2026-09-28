@@ -196,6 +196,17 @@ describe("the Webhooks module (2C spec §7)", () => {
     expect(s!.status).toBe("archived");
   });
 
+  it("closing the setup throws away only its draft, never the webhook or its posts", async () => {
+    const w = await setUp("Kept form");
+    const d = (await call(admin, "POST", `/api/v1/webhooks/sources/${w.id}/draft`)).json();
+    expect((await call(admin, "DELETE", `/api/v1/imports/${d.id}`)).statusCode).toBe(204);
+    expect((await call(admin, "GET", `/api/v1/webhooks/sources/${w.id}`)).json()).toMatchObject({
+      status: "active",
+      eventsAllTime: 1,
+    });
+    expect(await h.queryAll("SELECT 1 FROM imports WHERE id = $1", [d.id])).toHaveLength(0);
+  });
+
   it("someone who can manage integrations but can't add leads can't set up the columns", async () => {
     const made = (
       await call(admin, "POST", "/api/v1/webhooks/sources", { preset: "website", name: "Manager form" })
