@@ -4,12 +4,14 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { cancelTask, createTask, doneTask, leadTasks, nudgeTask, snoozeTask, updateTask } from "./service";
 import { today } from "./today";
+import { readFollowUps } from "../settings/follow-ups";
 
 const view = { permission: "leads.view" as const };
 const params = z.object({ id: z.uuid() });
 const due = z.union([
   z.object({ at: z.iso.datetime({ offset: true }) }).strict(),
-  z.object({ preset: z.enum(["in_1h", "in_3h", "tomorrow_10", "in_2d", "next_monday"]) }).strict(),
+  // One of Settings → Follow-ups' time choices, by id (3C); the service knows which exist right now.
+  z.object({ preset: z.string().regex(/^[a-z0-9_]{1,40}$/) }).strict(),
 ]);
 const recurrence = z
   .object({
@@ -31,6 +33,10 @@ const fields = {
 export async function taskRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/today", { config: { permission: "auth.self" } }, (req) => today(req, d));
+  // The time choices for the follow-up sheet (3C): names only, in the admin's order.
+  r.get("/api/v1/follow-ups/presets", { config: { permission: "auth.self" } }, async (req) => ({
+    presets: (await readFollowUps(req)).duePresets.map(({ id, label }) => ({ id, label })),
+  }));
   r.get("/api/v1/leads/:id/tasks", { config: view, schema: { params } }, (req) =>
     leadTasks(req, req.params.id),
   );

@@ -52,6 +52,7 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ enabled: false }),
   },
   "GET /api/v1/today": { access: "auth.self" },
+  "GET /api/v1/follow-ups/presets": { access: "auth.self" },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "PUT /api/v1/settings/follow-ups": {
     access: "settings.manage",

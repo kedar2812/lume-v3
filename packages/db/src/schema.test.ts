@@ -55,6 +55,20 @@ describe("Phase 0 schema and grants", () => {
     expect((await as<{ ok: boolean }>("lume_app", "SELECT ok FROM ops_restore_tests")).length).toBe(1);
   });
 
+  it("3C ops events: the app writes and reads them, nobody changes one, the worker only clears old ones", async () => {
+    await as("lume_app", "INSERT INTO ops_events (kind, ok, detail) VALUES ('digest.failed', false, '{}')");
+    await expect(
+      as("lume_app", "INSERT INTO ops_events (kind, ok) VALUES ('Not A Kind!', true)"),
+    ).rejects.toThrow(/ops_events_kind_check/);
+    await expect(as("lume_app", "UPDATE ops_events SET ok = true")).rejects.toThrow(/permission denied/);
+    await expect(as("lume_app", "DELETE FROM ops_events")).rejects.toThrow(/permission denied/);
+    await expect(
+      as("lume_worker", "INSERT INTO ops_events (kind, ok) VALUES ('x.y', true)"),
+    ).rejects.toThrow(/permission denied/);
+    await as("lume_worker", "DELETE FROM ops_events WHERE at < now() - interval '30 days'");
+    expect((await as("lume_readonly_backup", "SELECT kind FROM ops_events")).length).toBe(1);
+  });
+
   it("backup role reads everything but writes nothing", async () => {
     expect((await as("lume_readonly_backup", "SELECT name FROM schema_migrations")).length).toBe(
       (await listMigrations(MIGRATIONS_DIR_DEFAULT)).length,

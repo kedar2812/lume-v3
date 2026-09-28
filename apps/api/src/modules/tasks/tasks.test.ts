@@ -1,4 +1,4 @@
-import { ALL_GRANTS, type Grant } from "@lume/core";
+import { ALL_GRANTS, DEFAULT_DUE_PRESETS, type Grant } from "@lume/core";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
@@ -118,6 +118,30 @@ describe("setting a follow-up (Phase 3 spec §7)", () => {
     const theirs = await h.seedLead({ ownerId: member.id, name: "Team Lead Case" });
     expect((await create(teamLead, theirs, { assigneeId: member.id })).statusCode).toBe(201);
     expect((await create(teamLead, theirs, { assigneeId: otherId })).statusCode).toBe(403);
+  });
+});
+
+describe("time choices an admin set (3C Task 2)", () => {
+  it("a custom one sets the right time; a removed one is refused in words; 3A's ids work while listed", async () => {
+    await admin.inject({
+      method: "PUT",
+      url: "/api/v1/settings/follow-ups",
+      payload: {
+        duePresets: [
+          { id: "in_30m", label: "In 30 minutes", rule: { in: { n: 30, unit: "minute" } } },
+          { id: "in_1h", label: "In 1 hour", rule: { in: { n: 1, unit: "hour" } } },
+        ],
+      },
+    });
+    const before = Date.now();
+    const t = (await create(rep, lead, { due: { preset: "in_30m" } })).json();
+    expect(new Date(t.dueAt).getTime() - before).toBeGreaterThanOrEqual(30 * MIN - 5_000);
+    expect(new Date(t.dueAt).getTime() - before).toBeLessThan(30 * MIN + 60_000);
+    expect((await create(rep, lead, { due: { preset: "in_1h" } })).statusCode).toBe(201);
+    const gone = await create(rep, lead, { due: { preset: "tomorrow_10" } });
+    expect(gone.statusCode).toBe(400);
+    expect(gone.json().error).toMatchObject({ code: "UNKNOWN_PRESET", message: "That time choice was just changed. Pick another." });
+    await admin.inject({ method: "PUT", url: "/api/v1/settings/follow-ups", payload: { duePresets: DEFAULT_DUE_PRESETS } });
   });
 });
 

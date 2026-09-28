@@ -5,7 +5,7 @@ export type MaintenanceJobs = {
   purgeImportFiles(): Promise<{ files: number; rows: number; drafts: number }>;
   purgeSheetSyncs(): Promise<{ syncs: number; refreshes: number; connects: number }>;
   purgeWebhookEvents(): Promise<{ cleared: number; deleted: number }>;
-  purgeNotifications(): Promise<{ deleted: number }>;
+  purgeNotifications(): Promise<{ deleted: number; opsEvents: number }>;
 };
 
 /** Housekeeping as lume_worker. Idempotency keys live 24 h (report §4.4). */
@@ -85,12 +85,16 @@ export function makeMaintenanceJobs(pool: pg.Pool, now: () => Date = () => new D
       ]);
       return { cleared: cleared.rowCount ?? 0, deleted: deleted.rowCount ?? 0 };
     },
-    /** Phase 3 spec §4: read notifications go after 90 days; unread ones stay until someone reads them. */
+    /**
+     * Phase 3 spec §4: read notifications go after 90 days; unread ones stay until someone reads them.
+     * LUME's own ops events (3C, System health) go after 30.
+     */
     async purgeNotifications() {
       const r = await pool.query(
         "DELETE FROM notifications WHERE read_at IS NOT NULL AND created_at < now() - interval '90 days'",
       );
-      return { deleted: r.rowCount ?? 0 };
+      const ops = await pool.query("DELETE FROM ops_events WHERE at < now() - interval '30 days'");
+      return { deleted: r.rowCount ?? 0, opsEvents: ops.rowCount ?? 0 };
     },
   };
 }

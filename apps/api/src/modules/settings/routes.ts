@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { schema } from "@lume/db";
@@ -10,6 +10,8 @@ import type { AppDeps } from "../../app";
 import { openErApi } from "../../money/rates";
 import { quoteCurrency, switchCurrency } from "./service";
 import { countrySchema, currencySchema, timezoneSchema } from "../../http/schemas";
+import { workingHoursSchema } from "@lume/core";
+import { followUpsBody, readFollowUps, workingHoursFrom } from "./follow-ups";
 
 const shape = (s: typeof schema.settings.$inferSelect) => ({
   businessName: s.businessName,
@@ -18,6 +20,7 @@ const shape = (s: typeof schema.settings.$inferSelect) => ({
   defaultCountry: s.defaultCountryIso,
   weekStart: s.weekStart,
   industryPreset: s.industryPreset,
+  workingHours: workingHoursFrom(s.workingHours),
 });
 
 export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
@@ -46,6 +49,8 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
             currency: z.string(),
             defaultCountry: countrySchema,
             weekStart: z.number().int().min(0).max(6),
+            // The business's working week (3C): LUME's own follow-ups land inside it.
+            workingHours: workingHoursSchema,
           })
           .partial()
           .strict(),
@@ -68,28 +73,14 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
       return shape(s!);
     },
   );
-  // Follow-ups (3B): when an overdue follow-up reaches the people who manage its assignee.
+  // Follow-ups (3B, 3C): escalation, the morning email, leads gone quiet, working hours and time choices.
   // Each section is optional and changes on its own; what's stored is read over the defaults.
-  const followUps = z
-    .object({
-      escalation: z.object({ enabled: z.boolean(), hours: z.number().int().min(1).max(168) }).strict(),
-      // The morning email, for the whole business (an optional module: 3B final review, Important 8).
-      digest: z.object({ enabled: z.boolean() }).strict(),
-    })
-    .partial()
-    .strict();
-  const FOLLOW_UP_DEFAULTS = { escalation: { enabled: true, hours: 24 }, digest: { enabled: true } };
-  const readFollowUps = async (req: FastifyRequest) => {
-    const [s] = await req.db.select({ f: schema.settings.followUps }).from(schema.settings);
-    if (!s) throw notFound();
-    return { ...FOLLOW_UP_DEFAULTS, ...(s.f as object) } as typeof FOLLOW_UP_DEFAULTS;
-  };
   r.get("/api/v1/settings/follow-ups", { config: { permission: "settings.manage" } }, (req) =>
     readFollowUps(req),
   );
   r.put(
     "/api/v1/settings/follow-ups",
-    { config: { permission: "settings.manage" }, schema: { body: followUps } },
+    { config: { permission: "settings.manage" }, schema: { body: followUpsBody } },
     async (req) => {
       const before = await readFollowUps(req);
       const next = { ...before, ...req.body };

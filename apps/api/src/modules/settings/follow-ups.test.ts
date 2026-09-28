@@ -88,3 +88,54 @@ describe("0024: what escalation and the digest remember", () => {
     await h.ownerPool.query("SELECT escalated_at FROM tasks LIMIT 0");
   });
 });
+
+describe("Settings → Follow-ups (3C Task 2)", () => {
+  it("reads over its defaults: leads gone quiet off (7 days), working hours kept, 3A's five time choices", async () => {
+    const r = (await admin.inject({ method: "GET", url })).json();
+    expect(r.noTouch).toEqual({ enabled: false, days: 7 });
+    expect(r.shiftToWorkingHours).toBe(true);
+    expect(r.duePresets.map((p: { id: string }) => p.id)).toEqual([
+      "in_1h",
+      "in_3h",
+      "tomorrow_10",
+      "in_2d",
+      "next_monday",
+    ]);
+  });
+
+  it("each new section saves on its own and is refused in words when it's wrong", async () => {
+    const put = (payload: Record<string, unknown>) => admin.inject({ method: "PUT", url, payload });
+    expect((await put({ noTouch: { enabled: true, days: 10 } })).json()).toMatchObject({
+      noTouch: { enabled: true, days: 10 },
+      escalation: { enabled: true },
+    });
+    for (const days of [0, 91]) expect((await put({ noTouch: { enabled: true, days } })).statusCode).toBe(400);
+    expect((await put({ shiftToWorkingHours: false })).json().shiftToWorkingHours).toBe(false);
+    const presets = [
+      { id: "in_30m", label: "In 30 minutes", rule: { in: { n: 30, unit: "minute" } } },
+      { id: "tomorrow_10", label: "Tomorrow 10:00", rule: { at: { days: 1, time: "10:00" } } },
+    ];
+    expect((await put({ duePresets: presets })).json().duePresets).toEqual(presets);
+    expect((await put({ duePresets: [presets[0], presets[0]] })).statusCode).toBe(400);
+    expect((await put({ duePresets: [] })).statusCode).toBe(400);
+    expect((await admin.inject({ method: "GET", url })).json().noTouch.days).toBe(10);
+    await put({ noTouch: { enabled: false, days: 7 }, shiftToWorkingHours: true });
+  });
+
+  it("anyone signed in reads the time choices, for the follow-up sheet", async () => {
+    const r = await rep.inject({ method: "GET", url: "/api/v1/follow-ups/presets" });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().presets[0]).toEqual({ id: "in_30m", label: "In 30 minutes" });
+  });
+
+  it("working hours: the business's own, Monday to Friday 9 to 6 until changed; no days is refused", async () => {
+    const s = (await admin.inject({ method: "GET", url: "/api/v1/settings" })).json();
+    expect(s.workingHours).toEqual({ days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" });
+    const set = (workingHours: unknown) =>
+      admin.inject({ method: "PATCH", url: "/api/v1/settings", payload: { workingHours } });
+    const sat = { days: [1, 2, 3, 4, 5, 6], start: "10:00", end: "19:00" };
+    expect((await set(sat)).json().workingHours).toEqual(sat);
+    expect((await set({ days: [], start: "10:00", end: "19:00" })).statusCode).toBe(400);
+    expect((await set({ days: [1], start: "19:00", end: "10:00" })).statusCode).toBe(400);
+  });
+});

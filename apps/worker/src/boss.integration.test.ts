@@ -20,7 +20,7 @@ describe("worker queue as lume_worker", () => {
     const purgeImportFiles = vi.fn(async () => ({ files: 0, rows: 0, drafts: 0 }));
     const purgeSheetSyncs = vi.fn(async () => ({ syncs: 0, refreshes: 0, connects: 0 }));
     const purgeWebhookEvents = vi.fn(async () => ({ cleared: 0, deleted: 0 }));
-    const purgeNotifications = vi.fn(async () => ({ deleted: 0 }));
+    const purgeNotifications = vi.fn(async () => ({ deleted: 0, opsEvents: 0 }));
     const boss = await startQueue({
       connectionString: db.url("lume_worker"),
       jobs: { backup, restoreTest: vi.fn() },

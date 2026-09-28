@@ -180,8 +180,13 @@ describe("maintenance jobs (as lume_worker)", () => {
         ($1, 'follow_up_due', 'new read', now() - interval '3 days', now())`,
       [u],
     );
+    await owner.query(
+      `INSERT INTO ops_events (kind, ok, at) VALUES ('digest.failed', false, now() - interval '31 days'),
+        ('digest.failed', false, now() - interval '2 days')`,
+    );
     const jobs = makeMaintenanceJobs(pool);
-    expect(await jobs.purgeNotifications()).toEqual({ deleted: 1 });
+    // 3C: LUME's own ops events go after 30 days, in the same nightly job.
+    expect(await jobs.purgeNotifications()).toEqual({ deleted: 1, opsEvents: 1 });
     const left = (await owner.query("SELECT title FROM notifications ORDER BY title")).rows.map(
       (r) => r.title,
     );

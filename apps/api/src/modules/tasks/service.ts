@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import {
   dueFromPreset,
+  dueFromPresetDef,
   leadScope,
   localDayBounds,
   newId,
@@ -9,7 +10,6 @@ import {
   scopeOf,
   snoozeUntil,
   type Actor,
-  type DuePreset,
   type Recurrence,
   type SnoozePreset,
 } from "@lume/core";
@@ -22,11 +22,12 @@ import { recordActivity } from "../leads/writer";
 import { visibleLead } from "../leads/service";
 import { cancelReminders, pendingOf, schedule } from "./engine";
 import { refreshNextDue, settleReminders } from "./lifecycle";
+import { readFollowUps } from "../settings/follow-ups";
 
 const T = schema.tasks;
 const L = schema.leads;
 type Task = typeof T.$inferSelect;
-export type Due = { at: string } | { preset: DuePreset };
+export type Due = { at: string } | { preset: string };
 export type TaskInput = {
   title?: string;
   note?: string | null;
@@ -63,8 +64,13 @@ async function timezoneOf(req: FastifyRequest, userId: string): Promise<string> 
   return rows[0]?.tz ?? "UTC";
 }
 
-const resolveDue = (due: Due, tz: string, now: Date) =>
-  "at" in due ? new Date(due.at) : dueFromPreset(due.preset, now, tz);
+/** A due time: as given, or from one of the time choices Settings → Follow-ups has right now (3C). */
+async function resolveDue(req: FastifyRequest, due: Due, tz: string, now: Date): Promise<Date> {
+  if ("at" in due) return new Date(due.at);
+  const def = (await readFollowUps(req)).duePresets.find((p) => p.id === due.preset);
+  if (!def) throw badRequest("UNKNOWN_PRESET", "That time choice was just changed. Pick another.");
+  return dueFromPresetDef(def, now, tz);
+}
 
 // ——— Keeping everything around a follow-up true ———
 
@@ -167,7 +173,9 @@ export async function createTask(req: FastifyRequest, d: AppDeps, leadId: string
   const assigneeId = body.assigneeId ?? actor.userId;
   await checkAssignee(req, d, assigneeId, lead.ownerId);
   const now = new Date();
-  const dueAt = resolveDue(body.due ?? { preset: "tomorrow_10" }, await timezoneOf(req, actor.userId), now);
+  // No time given: tomorrow at 10:00, whatever the choices are (3A's default).
+  const tz = await timezoneOf(req, actor.userId);
+  const dueAt = body.due ? await resolveDue(req, body.due, tz, now) : dueFromPreset("tomorrow_10", now, tz);
   const id = newId();
   const [t] = await req.db
     .insert(T)
@@ -264,7 +272,7 @@ export async function updateTask(req: FastifyRequest, d: AppDeps, id: string, bo
   if (body.title !== undefined) set.title = body.title.trim() || "Follow up";
   if (body.note !== undefined) set.note = body.note;
   if (body.due) {
-    set.dueAt = resolveDue(body.due, await timezoneOf(req, req.actor!.userId), now);
+    set.dueAt = await resolveDue(req, body.due, await timezoneOf(req, req.actor!.userId), now);
     set.escalatedAt = null; // a new time: if it's left overdue again, its managers hear again (3B)
   }
   if (body.remindMinutes) set.remindMinutes = body.remindMinutes;
