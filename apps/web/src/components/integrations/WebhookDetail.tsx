@@ -127,7 +127,7 @@ export function WebhookDetail({ id }: { id: string }) {
 
       <div className={s.share}>
         <span className={s.shareLabel}>Posts go to</span>
-        <code className={s.email}>{v.address}</code>
+        <code className={s.address}>{v.address}</code>
       </div>
 
       <dl className={s.health}>

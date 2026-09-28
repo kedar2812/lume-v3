@@ -19,6 +19,10 @@
   transform-origin: top left;
   animation: in 0.22s var(--spring) both;
 }
+/* A small form (a follow-up): as tall as it needs, up to most of the window. */
+.panel[data-size="form"] {
+  max-height: min(640px, calc(100vh - 96px));
+}
 .panel[data-align="end"] {
   left: auto;
   right: 0;

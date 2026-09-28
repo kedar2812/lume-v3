@@ -181,7 +181,8 @@ describe("access matrix (report §7.5)", () => {
       }
     }
     expect(failures).toEqual([]);
-  });
+    // Every route × every actor, over real requests: it grows with each phase (60 s, not the default 5).
+  }, 60_000);
 });
 
 describe("lead scope across every lead route (report §7.5: in and out of scope)", () => {

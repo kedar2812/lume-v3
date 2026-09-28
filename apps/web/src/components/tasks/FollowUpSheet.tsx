@@ -52,7 +52,13 @@ export function FollowUpSheet({
 }) {
   const first = lead.name.split(" ")[0] || "this lead";
   return (
-    <Popover label={`Follow up with ${first}`} trigger="Follow-up" triggerClassName={s.trigger} align="start">
+    <Popover
+      label={`Follow up with ${first}`}
+      trigger="Follow-up"
+      triggerClassName={s.trigger}
+      align="start"
+      size="form"
+    >
       {(close) => (
         <Form
           lead={lead}

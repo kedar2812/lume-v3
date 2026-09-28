@@ -55,6 +55,17 @@
   user-select: all;
   word-break: break-all;
 }
+/* A webhook's address: a code, so monospaced (every id the same width). */
+.address {
+  font:
+    var(--fw-medium) var(--fs-sm) / 1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  user-select: all;
+  word-break: break-all;
+}
 .sources {
   list-style: none;
   margin: 0;

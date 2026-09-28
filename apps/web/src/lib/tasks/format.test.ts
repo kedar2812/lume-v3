@@ -9,6 +9,7 @@ const KOLKATA = "Asia/Kolkata";
 describe("whenInWords", () => {
   it("soon, today, tomorrow, this week, and later — in the person's own day", () => {
     expect(whenInWords("2026-09-28T08:45:00Z", now, DUBAI)).toBe("In 45 min");
+    expect(whenInWords("2026-09-28T08:59:50Z", now, DUBAI)).toBe("Today, 12:59"); // never "In 60 min"
     expect(whenInWords("2026-09-28T12:30:00Z", now, DUBAI)).toBe("Today, 16:30");
     expect(whenInWords("2026-09-29T06:00:00Z", now, DUBAI)).toBe("Tomorrow, 10:00");
     expect(whenInWords("2026-10-01T06:00:00Z", now, DUBAI)).toBe("Thu, 10:00");

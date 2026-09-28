@@ -29,8 +29,10 @@ const clock = (p: Parts) => `${String(p.hh).padStart(2, "0")}:${String(p.mm).pad
 export function whenInWords(iso: string, now: Date, tz: string): string {
   const at = new Date(iso);
   const diff = at.getTime() - now.getTime();
-  if (diff >= 0 && diff < 60 * MIN) return `In ${Math.max(1, Math.round(diff / MIN))} min`;
-  if (diff < 0 && diff > -60 * MIN) return `${Math.max(1, Math.round(-diff / MIN))} min overdue`;
+  // Under an hour, in minutes; from "60 min" on, the clock reads better ("Today, 16:30").
+  const mins = Math.round(Math.abs(diff) / MIN);
+  if (diff >= 0 && mins < 60) return `In ${Math.max(1, mins)} min`;
+  if (diff < 0 && mins < 60) return `${Math.max(1, mins)} min overdue`;
   const a = parts(at, tz);
   const days = dayNumber(a) - dayNumber(parts(now, tz));
   const day =

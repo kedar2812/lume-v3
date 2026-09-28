@@ -27,9 +27,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 368px;
+  width: 348px;
   max-width: calc(100vw - 48px);
-  padding: 16px;
+  padding: 12px;
 }
 .formTitle {
   font-size: var(--fs-md);

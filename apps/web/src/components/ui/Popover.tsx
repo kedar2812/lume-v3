@@ -10,6 +10,8 @@ type Props = {
   triggerClassName?: string;
   /** The trigger's accessible name, when what it shows isn't words (an icon, "···"). */
   triggerLabel?: string;
+  /** "form": a taller panel for a small form (the default suits a menu or a chooser). */
+  size?: "menu" | "form";
   /** "dialog" for a small form or chooser, "menu" for a list of actions. */
   role?: "dialog" | "menu";
   align?: "start" | "end";
@@ -28,6 +30,7 @@ export function Popover({
   trigger,
   triggerClassName,
   triggerLabel,
+  size = "menu",
   role = "dialog",
   align = "start",
   active,
@@ -83,7 +86,15 @@ export function Popover({
         {trigger}
       </button>
       {open && (
-        <div ref={panel} id={id} role={role} aria-label={label} className={s.panel} data-align={align}>
+        <div
+          ref={panel}
+          id={id}
+          role={role}
+          aria-label={label}
+          className={s.panel}
+          data-align={align}
+          data-size={size}
+        >
           {typeof children === "function" ? children(close) : children}
         </div>
       )}
