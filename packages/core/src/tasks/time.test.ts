@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_DUE_PRESETS,
   dueFromPreset,
+  dueFromPresetDef,
+  shiftToWorkingHours,
+  type DuePresetDef,
   localDayBounds,
   nextOccurrence,
   reminderTimes,
@@ -143,5 +147,72 @@ describe("localDayBounds", () => {
     const b = localDayBounds(at("2026-09-28T21:00:00Z"), DUBAI); // already the 29th in Dubai
     expect(b.start.toISOString()).toBe("2026-09-28T20:00:00.000Z");
     expect(b.end.toISOString()).toBe("2026-09-29T20:00:00.000Z");
+  });
+});
+
+describe("shiftToWorkingHours (3C)", () => {
+  const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" } as const;
+  const shift = (iso: string, tz: string) =>
+    shiftToWorkingHours(at(iso), { ...wh, days: [...wh.days] }, tz).toISOString();
+  it("inside working hours, nothing moves", () => {
+    expect(shift("2026-09-29T06:00:00Z", DUBAI)).toBe("2026-09-29T06:00:00.000Z"); // Tue 10:00
+  });
+  it("before the day starts, to that day's start", () => {
+    expect(shift("2026-09-29T03:00:00Z", DUBAI)).toBe("2026-09-29T05:00:00.000Z"); // Tue 07:00 → 09:00
+  });
+  it("at or after the end, to the next working day's start", () => {
+    expect(shift("2026-09-29T14:00:00Z", DUBAI)).toBe("2026-09-30T05:00:00.000Z"); // Tue 18:00 → Wed 09:00
+  });
+  it("Review Focus 2: a Friday evening lands on Monday morning", () => {
+    expect(shift("2026-10-02T15:30:00Z", DUBAI)).toBe("2026-10-05T05:00:00.000Z"); // Fri 19:30 → Mon 09:00
+  });
+  it("a weekend in Kolkata", () => {
+    expect(shift("2026-09-27T06:30:00Z", KOLKATA)).toBe("2026-09-28T03:30:00.000Z"); // Sun 12:00 → Mon 09:00
+  });
+  it("keeps 09:00 local across the autumn change", () => {
+    // Saturday 24 Oct 12:00 BST → Monday 26 Oct 09:00, which is GMT by then.
+    expect(shift("2026-10-24T11:00:00Z", LONDON)).toBe("2026-10-26T09:00:00.000Z");
+  });
+});
+
+describe("dueFromPresetDef (3C)", () => {
+  const now = at("2026-09-28T08:15:00Z"); // Monday 12:15 in Dubai
+  const due = (rule: DuePresetDef["rule"], tz = DUBAI, n = now) =>
+    dueFromPresetDef({ id: "x", label: "x", rule }, n, tz).toISOString();
+  it("in N minutes, hours or days is a plain duration", () => {
+    expect(due({ in: { n: 30, unit: "minute" } })).toBe("2026-09-28T08:45:00.000Z");
+    expect(due({ in: { n: 2, unit: "hour" } })).toBe("2026-09-28T10:15:00.000Z");
+    expect(due({ in: { n: 2, unit: "day" } })).toBe("2026-09-30T08:15:00.000Z");
+  });
+  it("a day and a time, in the person's own day", () => {
+    expect(due({ at: { days: 1, time: "10:00" } })).toBe("2026-09-29T06:00:00.000Z");
+    expect(due({ at: { days: 1, time: "10:00" } }, KOLKATA)).toBe("2026-09-29T04:30:00.000Z");
+    expect(due({ at: { days: 0, time: "17:00" } })).toBe("2026-09-28T13:00:00.000Z");
+  });
+  it("today at a time already gone means tomorrow at it", () => {
+    expect(due({ at: { days: 0, time: "09:00" } })).toBe("2026-09-29T05:00:00.000Z");
+  });
+  it("the next such weekday, never today", () => {
+    expect(due({ weekday: { day: 1, time: "10:00" } })).toBe("2026-10-05T06:00:00.000Z"); // Monday → next Monday
+    expect(due({ weekday: { day: 3, time: "09:30" } })).toBe("2026-09-30T05:30:00.000Z"); // Wednesday
+  });
+  it("a time in the spring gap moves forward", () => {
+    expect(due({ at: { days: 1, time: "01:30" } }, LONDON, at("2026-03-28T12:00:00Z"))).toBe(
+      "2026-03-29T01:00:00.000Z",
+    );
+  });
+  it("3A's five presets are the defaults, and give what they always gave", () => {
+    expect(DEFAULT_DUE_PRESETS.map((p) => p.id)).toEqual([
+      "in_1h",
+      "in_3h",
+      "tomorrow_10",
+      "in_2d",
+      "next_monday",
+    ]);
+    for (const p of DEFAULT_DUE_PRESETS)
+      for (const tz of [DUBAI, KOLKATA, LONDON])
+        expect(dueFromPresetDef(p, now, tz).toISOString()).toBe(
+          dueFromPreset(p.id as Parameters<typeof dueFromPreset>[0], now, tz).toISOString(),
+        );
   });
 });

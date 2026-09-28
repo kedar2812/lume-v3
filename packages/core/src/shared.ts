@@ -26,3 +26,4 @@ export type { DateOrder } from "./intake/values";
 export type { ColumnMap, IntakeField, Issue, Mapping, OwnerRule, Rules, Transform } from "./intake/mapping";
 export type { ColumnAnalysis } from "./intake/map-row";
 export * from "./tasks/time";
+export * from "./tasks/rules";

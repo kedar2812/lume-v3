@@ -99,6 +99,63 @@ export function dueFromPreset(p: DuePreset, now: Date, tz: string): Date {
   }
 }
 
+/** A due-time choice an admin can edit (3C; report §10.2). `at.days`: 0 today, 1 tomorrow. */
+export type DuePresetDef = {
+  id: string;
+  label: string;
+  rule:
+    | { in: { n: number; unit: "minute" | "hour" | "day" } }
+    | { at: { days: number; time: string } }
+    | { weekday: { day: number; time: string } };
+};
+
+/** 3A's five choices, with their ids, so anything that sends one keeps working. */
+export const DEFAULT_DUE_PRESETS: DuePresetDef[] = [
+  { id: "in_1h", label: "In 1 hour", rule: { in: { n: 1, unit: "hour" } } },
+  { id: "in_3h", label: "In 3 hours", rule: { in: { n: 3, unit: "hour" } } },
+  { id: "tomorrow_10", label: "Tomorrow 10:00", rule: { at: { days: 1, time: "10:00" } } },
+  { id: "in_2d", label: "In 2 days", rule: { in: { n: 2, unit: "day" } } },
+  { id: "next_monday", label: "Next Monday", rule: { weekday: { day: 1, time: "10:00" } } },
+];
+
+const hhmm = (t: string) => t.split(":").map(Number) as [number, number];
+const UNIT_MS = { minute: MIN, hour: HOUR, day: 24 * HOUR } as const;
+
+export function dueFromPresetDef(def: DuePresetDef, now: Date, tz: string): Date {
+  const r = def.rule;
+  if ("in" in r) return new Date(now.getTime() + r.in.n * UNIT_MS[r.in.unit]);
+  const today = local(now, tz);
+  if ("at" in r) {
+    const [hh, mm] = hhmm(r.at.time);
+    const due = at(addDays(today, r.at.days), hh, mm, tz);
+    // "Today at 17:00" asked for at 18:00 means tomorrow at 17:00, never a time already gone.
+    return due.getTime() > now.getTime() ? due : at(addDays(today, r.at.days + 1), hh, mm, tz);
+  }
+  const [hh, mm] = hhmm(r.weekday.time);
+  return at(addDays(today, (r.weekday.day - weekday(today) + 7) % 7 || 7), hh, mm, tz);
+}
+
+/** The business's working week (0 = Sunday), in its own timezone. */
+export type WorkingHours = { days: number[]; start: string; end: string };
+
+/**
+ * A time LUME picked itself, moved into working hours (report §10.2): unchanged inside them, else the
+ * start of the next working day (today's, when it's still before the start).
+ */
+export function shiftToWorkingHours(when: Date, wh: WorkingHours, tz: string): Date {
+  const l = local(when, tz);
+  const [sh, sm] = hhmm(wh.start);
+  const [eh, em] = hhmm(wh.end);
+  const now = l.hh * 60 + l.mm;
+  for (let k = 0; k < 8; k++) {
+    const day = addDays(l, k);
+    if (!wh.days.includes(weekday(day))) continue;
+    if (k > 0 || now < sh * 60 + sm) return at(day, sh, sm, tz);
+    if (now < eh * 60 + em) return when;
+  }
+  return when; // no working days: nothing to shift into
+}
+
 export function snoozeUntil(p: SnoozePreset, now: Date, tz: string): Date {
   const today = local(now, tz);
   switch (p) {
