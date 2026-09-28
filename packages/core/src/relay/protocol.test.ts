@@ -20,7 +20,10 @@ describe("the relay protocol (Review Focus 1)", () => {
     const sealed = seal(token, { refreshToken: "rt-123", n: 1 });
     expect(unseal(token, sealed)).toEqual({ refreshToken: "rt-123", n: 1 });
     expect(unseal(other, sealed)).toBeNull();
-    const flipped = sealed.slice(0, -2) + (sealed.endsWith("A") ? "B" : "A") + sealed.slice(-1);
+    // Change one character in the middle, always to a different one (flipping a character that was
+    // already the replacement left it untouched about one run in 64).
+    const k = Math.floor(sealed.length / 2);
+    const flipped = sealed.slice(0, k) + (sealed[k] === "A" ? "B" : "A") + sealed.slice(k + 1);
     expect(unseal(token, flipped)).toBeNull();
     expect(unseal(token, "not-sealed")).toBeNull();
   });

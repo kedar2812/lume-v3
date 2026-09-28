@@ -122,7 +122,9 @@ test.describe("Google Sheets", () => {
       await openApp(page, "/settings/integrations");
       await expect(page.getByRole("link", { name: /Website enquiries/ }).first()).toBeVisible();
       await expect(page.locator("main")).toHaveScreenshot(`integrations-${theme}.png`, {
-        mask: [page.getByText(/Checked .* ago|Checking now|Not checked yet/)],
+        // Every row's health line (its time and today's count), found by structure: which rows read "just now"
+        // and how many are new today depend on the machine's speed, so masking by text left some unmasked.
+        mask: [page.locator("a[href^='/settings/integrations/'] > span:nth-child(2)")],
       });
       await openApp(page, `/settings/integrations/${sourceId}`);
       await expect(page.getByRole("table", { name: "Recent syncs" })).toBeVisible();
