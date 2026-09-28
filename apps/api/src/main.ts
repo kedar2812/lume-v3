@@ -7,6 +7,7 @@ import { startImportQueue } from "./modules/imports/queue";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
 import { startWebhookQueue } from "./modules/webhooks/queue";
+import { startTaskQueue } from "./modules/tasks/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
 import { REDACT_PATHS } from "./logger";
@@ -45,6 +46,10 @@ const sheets: { enqueue(id: string): Promise<void>; maxRows: number } = {
 
 // Webhooks (2C): the queue always runs; the module switch gates receiving, not processing what was accepted.
 const webhooks: { enqueue(id: number): Promise<void> } = { enqueue: async () => undefined };
+// Follow-ups (Phase 3): filled once the queue is up; its sweeper fires anything missed before the API listens.
+const tasks: { enqueue(r: { id: number; fireAt: Date }[]): Promise<void> } = {
+  enqueue: async () => undefined,
+};
 
 const app = await buildApp({
   pool,
@@ -54,6 +59,7 @@ const app = await buildApp({
   google,
   sheets,
   webhooks,
+  tasks,
   manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",
   googleOAuth,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
@@ -95,10 +101,13 @@ const webhookQueue = await startWebhookQueue({
   keyring,
 });
 webhooks.enqueue = webhookQueue.enqueue;
+const taskQueue = await startTaskQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool });
+tasks.enqueue = taskQueue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {
+    await taskQueue.stop();
     await webhookQueue.stop();
     await sheetQueue?.stop();
     await queue.stop();
