@@ -303,12 +303,14 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-.cardLede a {
+.cardLede a,
+.table a {
   color: var(--accent-ink);
   font-weight: var(--fw-medium);
   text-decoration: none;
 }
-.cardLede a:hover {
+.cardLede a:hover,
+.table a:hover {
   text-decoration: underline;
 }
 /* Connect with Google (2B-2), styled as Google's branding guidelines ask: white, the G on the left,

@@ -51,6 +51,15 @@
   background: var(--sunk);
   color: var(--text-2);
 }
+/* A module's tile beside Google Sheets' (44 px): the same size and weight, in LUME's own greys. */
+.glyphLarge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 2px 8px rgba(12, 18, 32, 0.08);
+}
 .presetName {
   font-weight: var(--fw-semibold);
 }

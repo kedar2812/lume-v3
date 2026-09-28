@@ -48,7 +48,7 @@ export function WebhooksCard({
   return (
     <article className={s.card} aria-labelledby="wh-title">
       <header className={s.cardHead}>
-        <PresetGlyph />
+        <PresetGlyph large />
         <div className={s.cardText}>
           <h2 id="wh-title" className={s.cardTitle}>
             Webhooks

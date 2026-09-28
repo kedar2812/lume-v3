@@ -556,3 +556,64 @@ Plan: `docs/superpowers/plans/2026-09-28-phase-2b2-connect-with-google.md`. Owne
 ## Live
 
 This waits on the owner's steps: Google's verification of the consent screen, and the relay's deployment. Until `GOOGLE_OAUTH_RELAY_URL` is set on an instance, nothing about it shows there.
+
+## Final review (fresh reviewer, whole branch)
+
+No Critical issues. Four Important issues, all fixed with a failing test first:
+- A grant someone removed in their Google account said "share it with…". Now it says what happened, and the sheet's page offers **Connect again**, which accepts the same file only.
+- A picked file could be drafted only once, so going back a step failed. The hand-back also stayed in the address.
+- The relay was asked for a token on every sync. Tokens are now reused for their hour.
+- A relay that doesn't know this instance was treated as a passing failure. It's now a setup problem the page names.
+
+The ten Minor findings are listed in the overnight summary (`docs/overnight-2026-09-27.md`).
+
+# Phase 2C — Webhooks (website forms, Zapier, Make; ManyChat hidden)
+
+Plan: `docs/superpowers/plans/2026-09-28-phase-2c-webhooks.md`. Spec: `docs/superpowers/specs/2026-09-28-phase-2c-webhooks-design.md`.
+
+## Automated
+
+- **Pure:**
+  - reading JSON and form bodies;
+  - paths with arrays and deep nesting;
+  - the presets' mappings;
+  - the rate limiter.
+- **Receiving** (the real route):
+  - signed and token modes, each with its failures: a bad or stale signature, whitespace changing the body, a wrong token;
+  - an unknown source answers exactly like a bad secret;
+  - paused gives 503 with Retry-After, and the module switched off gives 401;
+  - replays and five identical posts at once make one event;
+  - 429, 413, 415 and 400 are counted and never stored;
+  - form bodies;
+  - a draft keeps its test post.
+- **Processing:**
+  - a post becomes a lead through the 2A engine, and its history names the webhook;
+  - the same person again merges;
+  - a post that can't be read is a problem, and goes through after a fix;
+  - a huge value is a problem, not a crash;
+  - posts wait while the person it runs as can't add leads;
+  - new paths are offered;
+  - webhook leads count as arrivals.
+- **Managing:**
+  - off by default, and switching it on is audited;
+  - the secret is shown once;
+  - ManyChat stays hidden;
+  - test post → draft → save;
+  - a new secret stops the old one;
+  - pause and resume;
+  - retry and dismiss;
+  - remove;
+  - closing the setup keeps the webhook;
+  - someone who can't add leads can't set up its columns;
+  - every route is in the access matrix, the public receiver included.
+- **End to end** (`webhooks.spec.ts`):
+  - switch on, Add a webhook, read the address and secret, and a signed post from the test runner;
+  - the usual steps, then Turn it on: the lead arrives and glows;
+  - the same phone again merges ("Enquired again");
+  - a forged post is refused and counted;
+  - screenshots of the card, the webhook's page and the secret step (codes masked);
+  - axe on both pages in both themes.
+
+## Found and fixed during the build
+
+- Throwing away a webhook's draft (closing the setup) deleted the webhook itself, because the 2A discard removes a draft's source. Only the draft goes now. Test: "closing the setup throws away only its draft".

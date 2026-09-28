@@ -84,7 +84,7 @@ export function WebhookDetail({ id }: { id: string }) {
         Integrations
       </Link>
       <header className={s.detailHead}>
-        <PresetGlyph />
+        <PresetGlyph large />
         <div>
           <h2 className={s.cardTitle}>{v.name}</h2>
           <p className={s.cardLede}>

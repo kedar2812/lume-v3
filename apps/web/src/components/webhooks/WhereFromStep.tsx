@@ -15,10 +15,11 @@ const HINT: Record<WebhookPreset, string> = {
 };
 
 /** A neutral mark: LUME has no official files for these yet, and draws no one's logo. */
-export function PresetGlyph() {
+export function PresetGlyph({ large = false }: { large?: boolean }) {
+  const px = large ? 20 : 15;
   return (
-    <span className={w.glyph} aria-hidden>
-      <svg viewBox="0 0 16 16" width="15" height="15">
+    <span className={large ? `${w.glyph} ${w.glyphLarge}` : w.glyph} aria-hidden>
+      <svg viewBox="0 0 16 16" width={px} height={px}>
         <path
           d="M8 2.5v7m0 0L5 6.5m3 3 3-3M3 11v1.5c0 .6.4 1 1 1h8c.6 0 1-.4 1-1V11"
           fill="none"
