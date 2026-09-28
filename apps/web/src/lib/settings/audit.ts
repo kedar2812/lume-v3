@@ -50,6 +50,10 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
   "integration.enabled": { area: "Settings", phrase: (d) => `switched on ${moduleName(d.module)}` },
   "integration.disabled": { area: "Settings", phrase: (d) => `switched off ${moduleName(d.module)}` },
+  "task.changed_for_other": {
+    area: "Leads",
+    phrase: (d) => `${String(d.what ?? "changed")} someone else's follow-up “${String(d.title ?? "")}”`,
+  },
   "webhook.connected": { area: "Leads", phrase: (d) => `connected the webhook “${String(d.name ?? "")}”` },
   "webhook.mapping_changed": {
     area: "Leads",

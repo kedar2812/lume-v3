@@ -1,0 +1,261 @@
+import { ALL_GRANTS, type Grant } from "@lume/core";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
+
+let h: Harness;
+let admin: AuthedClient;
+let rep: AuthedClient;
+let repId: string;
+let otherId: string;
+let lead: string; // the rep's own lead
+let othersLead: string; // someone else's
+const MIN = 60_000;
+const repGrants: Grant[] = (["leads.view", "leads.create", "leads.edit"] as const).map((key) => ({
+  key,
+  scope: "own" as const,
+}));
+
+beforeAll(async () => {
+  h = await createHarness({ preset: "general" });
+  admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+  const r = await h.seedUser({ grants: repGrants, totp: true });
+  repId = r.id;
+  rep = await h.signIn(r);
+  otherId = (await h.seedUser({ grants: repGrants, totp: true })).id;
+  lead = await h.seedLead({ ownerId: repId, name: "Aisha Khan" });
+  othersLead = await h.seedLead({ ownerId: otherId, name: "Not Yours" });
+});
+afterAll(() => h.close());
+
+const call = (c: AuthedClient, method: "GET" | "POST" | "PATCH", url: string, payload?: unknown) =>
+  c.inject({
+    method,
+    url,
+    ...(payload !== undefined ? { payload: payload as Record<string, unknown> } : {}),
+  });
+const inAnHour = () => new Date(Date.now() + 60 * MIN).toISOString();
+const create = (c: AuthedClient, leadId: string, body: Record<string, unknown> = {}) =>
+  call(c, "POST", `/api/v1/leads/${leadId}/tasks`, { due: { at: inAnHour() }, ...body });
+const nextDue = async (leadId: string) =>
+  (
+    await h.queryAll<{ next_task_due_at: Date | null }>("SELECT next_task_due_at FROM leads WHERE id = $1", [
+      leadId,
+    ])
+  )[0]!.next_task_due_at;
+const pending = (taskId: string) =>
+  h.queryAll<{ offset_minutes: number }>(
+    "SELECT offset_minutes FROM scheduled_notifications WHERE task_id = $1 AND status = 'pending' ORDER BY offset_minutes",
+    [taskId],
+  );
+const history = async (leadId: string) =>
+  (
+    await h.queryAll<{ type: string }>(
+      "SELECT type FROM activities WHERE lead_id = $1 ORDER BY occurred_at",
+      [leadId],
+    )
+  ).map((a) => a.type);
+
+describe("setting a follow-up (Phase 3 spec §7)", () => {
+  it("for yourself on your lead: its reminders are scheduled, the lead's next date is set, and its history says so", async () => {
+    const r = await create(rep, lead, { title: "Call back", remindMinutes: [0, 15] });
+    expect(r.statusCode).toBe(201);
+    const t = r.json();
+    expect(t).toMatchObject({
+      leadId: lead,
+      leadName: "Aisha Khan",
+      title: "Call back",
+      status: "open",
+      canEdit: true,
+    });
+    expect(t.assignee).toMatchObject({ id: repId });
+    expect(await pending(t.id)).toEqual([{ offset_minutes: 0 }, { offset_minutes: 15 }]);
+    const ids = await h.queryAll<{ id: string }>(
+      "SELECT id FROM scheduled_notifications WHERE task_id = $1 AND status = 'pending'",
+      [t.id],
+    );
+    expect(h.reminderQueue.map((q) => q.id)).toEqual(expect.arrayContaining(ids.map((i) => Number(i.id))));
+    expect((await nextDue(lead))?.toISOString()).toBe(t.dueAt);
+    expect(await history(lead)).toContain("follow_up_set");
+  });
+
+  it("a preset is read in the caller's own timezone", async () => {
+    await h.queryAll("UPDATE users SET timezone = 'Asia/Kolkata' WHERE id = $1", [repId]);
+    const t = (await create(rep, lead, { due: { preset: "tomorrow_10" } })).json();
+    expect(new Date(t.dueAt).toISOString()).toMatch(/T04:30:00\.000Z$/); // 10:00 in Kolkata
+    await h.queryAll("UPDATE users SET timezone = NULL WHERE id = $1", [repId]);
+  });
+
+  it("a lead you can't see is not found; giving one to someone else needs tasks.manage_others", async () => {
+    expect((await create(rep, othersLead)).statusCode).toBe(404);
+    const r = await create(rep, lead, { assigneeId: otherId });
+    expect(r.statusCode).toBe(403);
+    expect(r.json().error.code).toBe("CANNOT_ASSIGN_TASK");
+  });
+
+  it("Review Focus 4: nobody gets a follow-up on a lead they can't see", async () => {
+    const r = await create(admin, lead, { assigneeId: otherId }); // the other rep sees only their own leads
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error.code).toBe("ASSIGNEE_CANT_SEE_LEAD");
+    const ok = await create(admin, othersLead, { assigneeId: otherId });
+    expect(ok.statusCode).toBe(201);
+    const audited = await h.queryAll(
+      "SELECT 1 FROM audit_log WHERE action = 'task.changed_for_other' AND entity_id = $1",
+      [ok.json().id],
+    );
+    expect(audited).toHaveLength(1);
+  });
+
+  it("tasks.manage_others at team scope reaches the members of your teams, and no one else", async () => {
+    const leadUser = await h.seedUser({
+      grants: [...repGrants, { key: "tasks.manage_others", scope: "team" }],
+      totp: true,
+    });
+    const member = await h.seedUser({ grants: repGrants, totp: true });
+    await h.seedTeam(leadUser.id, [member.id]);
+    await h.grant(leadUser.id, [{ key: "leads.view", scope: "team" }]);
+    const teamLead = await h.signIn(leadUser);
+    const theirs = await h.seedLead({ ownerId: member.id, name: "Team Lead Case" });
+    expect((await create(teamLead, theirs, { assigneeId: member.id })).statusCode).toBe(201);
+    expect((await create(teamLead, theirs, { assigneeId: otherId })).statusCode).toBe(403);
+  });
+});
+
+describe("changing a follow-up", () => {
+  it("moving it reschedules its reminders and the lead's next date follows", async () => {
+    const t = (await create(rep, lead, { remindMinutes: [0] })).json();
+    const later = new Date(Date.now() + 5 * 60 * MIN).toISOString();
+    const r = await call(rep, "PATCH", `/api/v1/tasks/${t.id}`, { due: { at: later } });
+    expect(r.json().dueAt).toBe(later);
+    const [p] = await h.queryAll<{ fire_at: Date }>(
+      "SELECT fire_at FROM scheduled_notifications WHERE task_id = $1 AND status = 'pending'",
+      [t.id],
+    );
+    expect(p!.fire_at.toISOString()).toBe(later);
+  });
+
+  it("snooze moves it, by preset or to a time", async () => {
+    const t = (await create(rep, lead)).json();
+    const until = new Date(Date.now() + 3 * 60 * MIN).toISOString();
+    expect((await call(rep, "POST", `/api/v1/tasks/${t.id}/snooze`, { until })).json().dueAt).toBe(until);
+    const r = await call(rep, "POST", `/api/v1/tasks/${t.id}/snooze`, { preset: "1h" });
+    expect(new Date(r.json().dueAt).getTime()).toBeGreaterThan(Date.now() + 50 * MIN);
+  });
+
+  it("cancel stops its reminders and the lead's next date moves on", async () => {
+    const lone = await h.seedLead({ ownerId: repId, name: "Cancel Case" });
+    const t = (await create(rep, lone)).json();
+    expect((await call(rep, "POST", `/api/v1/tasks/${t.id}/cancel`)).json().status).toBe("cancelled");
+    expect(await pending(t.id)).toEqual([]);
+    expect(await nextDue(lone)).toBeNull();
+    expect(await history(lone)).toContain("follow_up_cancelled");
+  });
+});
+
+describe("done", () => {
+  it("stops its reminders, moves the lead's next date on, and says when the day is clear", async () => {
+    const own = await h.seedLead({ ownerId: repId, name: "Done Case" });
+    const soon = (
+      await create(rep, own, { due: { at: new Date(Date.now() + 10 * MIN).toISOString() } })
+    ).json();
+    const later = (
+      await create(rep, own, { due: { at: new Date(Date.now() + 26 * 60 * MIN).toISOString() } })
+    ).json();
+    const d = await call(rep, "POST", `/api/v1/tasks/${soon.id}/done`);
+    expect(d.json()).toMatchObject({ task: { status: "done" }, next: null });
+    expect(await pending(soon.id)).toEqual([]);
+    expect((await nextDue(own))?.toISOString()).toBe(later.dueAt);
+    expect(await history(own)).toContain("follow_up_done");
+    // Anything else of the rep's due today still open?
+    const open = await h.queryAll(
+      "SELECT 1 FROM tasks WHERE assignee_id = $1 AND status = 'open' AND due_at < now() + interval '12 hours'",
+      [repId],
+    );
+    expect(d.json().clearedToday).toBe(open.length === 0);
+  });
+
+  it("done twice at once: one wins, the other is told it's no longer open", async () => {
+    const t = (await create(rep, lead)).json();
+    const [a, b] = await Promise.all([
+      call(rep, "POST", `/api/v1/tasks/${t.id}/done`),
+      call(rep, "POST", `/api/v1/tasks/${t.id}/done`),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+    expect([a, b].find((x) => x.statusCode === 409)!.json().error.code).toBe("NOT_OPEN");
+  });
+
+  it("a repeating one makes the next, in the same series, due in the future", async () => {
+    const t = (
+      await create(rep, lead, {
+        due: { at: new Date(Date.now() - 2 * 24 * 60 * MIN).toISOString() },
+        recurrence: { every: 1, unit: "week", until: null, stopOn: ["won", "lost"] },
+      })
+    ).json();
+    const { next } = (await call(rep, "POST", `/api/v1/tasks/${t.id}/done`)).json();
+    expect(next).toMatchObject({ status: "open", title: t.title, recurrence: t.recurrence });
+    expect(new Date(next.dueAt).getTime()).toBeGreaterThan(Date.now());
+    const series = await h.queryAll<{ series_id: string }>(
+      "SELECT series_id FROM tasks WHERE id IN ($1, $2)",
+      [t.id, next.id],
+    );
+    expect(new Set(series.map((s) => s.series_id)).size).toBe(1);
+  });
+
+  it("a repeat stops once the lead is won, once its last day has passed, and once they've replied", async () => {
+    const weekly = { every: 1, unit: "week", until: null, stopOn: ["won", "lost", "reply_logged"] };
+    const won = await h.seedLead({ ownerId: repId, name: "Won Case" });
+    const a = (await create(rep, won, { recurrence: weekly })).json();
+    await h.queryAll(
+      "UPDATE leads SET stage_id = (SELECT id FROM stages WHERE kind = 'won' LIMIT 1) WHERE id = $1",
+      [won],
+    );
+    expect((await call(rep, "POST", `/api/v1/tasks/${a.id}/done`)).json().next).toBeNull();
+
+    const b = (
+      await create(rep, lead, { recurrence: { ...weekly, until: new Date().toISOString().slice(0, 10) } })
+    ).json();
+    expect((await call(rep, "POST", `/api/v1/tasks/${b.id}/done`)).json().next).toBeNull();
+
+    const replied = await h.seedLead({ ownerId: repId, name: "Replied Case" });
+    const c = (await create(rep, replied, { recurrence: weekly })).json();
+    await h.queryAll(
+      "INSERT INTO activities (id, lead_id, type) VALUES (gen_random_uuid(), $1, 'reply_logged')",
+      [replied],
+    );
+    expect((await call(rep, "POST", `/api/v1/tasks/${c.id}/done`)).json().next).toBeNull();
+  });
+});
+
+describe("a lead's follow-ups", () => {
+  it("lists open ones first, soonest first, then recent done ones", async () => {
+    const own = await h.seedLead({ ownerId: repId, name: "List Case" });
+    const late = (
+      await create(rep, own, { due: { at: new Date(Date.now() + 90 * MIN).toISOString() } })
+    ).json();
+    const early = (
+      await create(rep, own, { due: { at: new Date(Date.now() + 30 * MIN).toISOString() } })
+    ).json();
+    const gone = (await create(rep, own)).json();
+    await call(rep, "POST", `/api/v1/tasks/${gone.id}/done`);
+    const list = (await call(rep, "GET", `/api/v1/leads/${own}/tasks`)).json().items;
+    expect(list.map((t: { id: string }) => t.id)).toEqual([early.id, late.id, gone.id]);
+  });
+
+  it("removing the lead cancels its open follow-ups and their reminders", async () => {
+    const own = await h.seedLead({ ownerId: repId, name: "Removed Case" });
+    const t = (await create(admin, own, { assigneeId: repId })).json();
+    expect((await admin.inject({ method: "DELETE", url: `/api/v1/leads/${own}` })).statusCode).toBe(204);
+    const [row] = await h.queryAll<{ status: string }>("SELECT status FROM tasks WHERE id = $1", [t.id]);
+    expect(row!.status).toBe("cancelled");
+    expect(await pending(t.id)).toEqual([]);
+  });
+
+  it("someone else's follow-up can't be changed without tasks.manage_others", async () => {
+    const t = (await create(admin, lead, { assigneeId: repId })).json();
+    const mine = (await create(rep, lead)).json();
+    const other = await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }], totp: true });
+    const viewer = await h.signIn(other);
+    const r = await call(viewer, "POST", `/api/v1/tasks/${mine.id}/done`);
+    expect(r.statusCode).toBe(403);
+    expect((await call(rep, "POST", `/api/v1/tasks/${t.id}/done`)).statusCode).toBe(200); // their own, set by admin
+  });
+});

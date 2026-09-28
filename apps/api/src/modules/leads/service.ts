@@ -8,6 +8,7 @@ import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
 import { assertOneCurrency } from "../settings/service";
 import { findDuplicates } from "./duplicates";
 import { isFieldEditable, serializeLead, type LeadRow } from "./serialize";
+import { cancelLeadTasks } from "../tasks/lifecycle";
 import { insertLead, recordActivity } from "./writer";
 
 export { recordActivity };
@@ -353,5 +354,6 @@ export async function deleteLead(req: FastifyRequest, id: string) {
     .update(L)
     .set({ deletedAt: new Date(), version: sql`${L.version} + 1` })
     .where(eq(L.id, id));
+  await cancelLeadTasks(req, id); // its follow-ups stop with it (Phase 3 spec §3)
   await audit(req, { action: "lead.delete", entityType: "lead", entityId: id });
 }
