@@ -148,3 +148,42 @@ describe("PipelineEditor", () => {
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", { slaHours: 24 });
   });
 });
+
+describe("PipelineEditor: automations (3C Task 6)", () => {
+  it("each stage says what it does when a lead enters; the sheet saves its automations with the stage", async () => {
+    const withRule: Pipeline[] = catalog.pipelines.map((p) => ({
+      ...p,
+      stages: p.stages.map((st) =>
+        st.id === "s-sent"
+          ? {
+              ...st,
+              onEnter: {
+                rules: [
+                  {
+                    id: "0192f0a0-0000-7000-8000-000000000001",
+                    type: "create_task" as const,
+                    title: "Send the plan",
+                    dueIn: { n: 2, unit: "day" as const },
+                    assignee: "lead_owner" as const,
+                  },
+                ],
+              },
+            }
+          : st,
+      ),
+    }));
+    render(<PipelineEditor pipelines={withRule} fields={catalog.fields} people={catalog.people} />);
+    const summary = screen.getByRole("list", { name: "What each stage does" });
+    expect(
+      within(summary).getByText("Sets a follow-up for the lead's owner in 2 days: Send the plan"),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Clear open follow-ups" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", {
+      onEnter: { rules: [{ id: expect.any(String), type: "cancel_open_tasks" }] },
+    });
+    expect(await within(summary).findByText("Clears the lead's open follow-ups")).toBeInTheDocument();
+  });
+});

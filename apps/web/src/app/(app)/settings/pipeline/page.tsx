@@ -7,13 +7,13 @@ export const metadata = { title: "Pipeline · Settings · LUME" };
 
 export default async function Page() {
   await requirePermission("pipelines.manage");
-  const { pipelines, fields } = await loadCatalog();
+  const { pipelines, fields, people } = await loadCatalog();
   return (
     <SettingsPage
       title="Pipeline & stages"
       description="The steps a lead moves through. Changes save as you make them."
     >
-      <PipelineEditor pipelines={pipelines} fields={fields} />
+      <PipelineEditor pipelines={pipelines} fields={fields} people={people} />
     </SettingsPage>
   );
 }

@@ -1,4 +1,4 @@
-import type { FieldOption, FieldType, PhoneStatus } from "@lume/core/shared";
+import type { FieldOption, FieldType, OnEnter, PhoneStatus } from "@lume/core/shared";
 
 export type ContactView = { display: string; masked: boolean; status?: PhoneStatus };
 export type LeadCan = {
@@ -51,6 +51,8 @@ export type Stage = {
   requiredFieldIds: string[];
   /** Hours a lead may sit here before it counts as overdue; null for no limit. */
   slaHours?: number | null;
+  /** What LUME does when a lead enters it (3C). */
+  onEnter?: OnEnter;
 };
 export type Pipeline = { id: string; name: string; isDefault: boolean; stages: Stage[] };
 export type FieldDefView = {

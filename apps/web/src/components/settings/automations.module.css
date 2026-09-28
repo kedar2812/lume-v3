@@ -1,0 +1,219 @@
+/* A stage's automations (3C): numbered cards that read as sentences, shaped in place. */
+.cards {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--r-card);
+  background: var(--sunk);
+  border: 1px solid var(--line);
+}
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.step {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.sentence {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
+  color: var(--text);
+}
+.remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--text-3);
+}
+.remove:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.remove:active {
+  transform: scale(0.94);
+}
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0 32px;
+}
+.fields input,
+.fields select {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line-2);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.title {
+  flex: 1 1 100%;
+}
+.num {
+  width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+.word {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0 32px;
+  padding: 0;
+  border: 0;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.pill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.pill[data-on] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
+}
+.pill:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.none {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: var(--r-card);
+  border: 1px dashed var(--line-2);
+  text-align: center;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.addBtn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+.addBtn:hover:not(:disabled) {
+  background: var(--hover);
+}
+.addBtn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.addBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.addBtn span {
+  color: var(--accent);
+  margin-right: 2px;
+}
+/* The editor's line under the stages: what each stage does, in words. */
+.summary {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.summaryRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-radius: var(--r-row);
+  background: var(--sunk);
+  text-align: left;
+  width: 100%;
+}
+.summaryRow:hover {
+  background: var(--hover);
+}
+.summaryStage {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.summaryWhat {
+  display: grid;
+  gap: 2px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+@media (max-width: 560px) {
+  .summaryRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .fields,
+  .who {
+    margin-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .remove:active,
+  .addBtn:active:not(:disabled) {
+    transform: none;
+  }
+}

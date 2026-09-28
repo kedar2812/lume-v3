@@ -1,16 +1,19 @@
 "use client";
 import { useState } from "react";
+import { describeRule, type OnEnter } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Popover } from "@/components/ui/Popover";
 import type { ApiResult } from "@/lib/api";
 import { tokenColor } from "@/lib/leads/colors";
-import type { FieldDefView, Pipeline, Stage } from "@/lib/leads/types";
+import type { FieldDefView, Person, Pipeline, Stage } from "@/lib/leads/types";
 import { pipelinesClient, type StagePatch } from "@/lib/settings/pipelines";
 import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import { ColourPicker } from "./ColourPicker";
 import { ListEditor } from "./ListEditor";
+import { StageAutomations } from "./StageAutomations";
+import a from "./automations.module.css";
 import s from "./settings.module.css";
 
 const KINDS = [
@@ -30,14 +33,18 @@ const sorted = (p: Pipeline) => [...p.stages].sort((a, b) => a.position - b.posi
 export function PipelineEditor({
   pipelines: initial,
   fields,
+  people = [],
 }: {
   pipelines: Pipeline[];
   fields: FieldDefView[];
+  /** Who a stage's automations can name (3C). */
+  people?: Person[];
 }) {
   const [pipelines, setPipelines] = useState(initial);
   const [pipelineId, setPipelineId] = useState(initial.find((p) => p.isDefault)?.id ?? initial[0]?.id);
   const [note, setNote] = useState<Note | null>(null);
   const [archiving, setArchiving] = useState<Stage | null>(null);
+  const [automating, setAutomating] = useState<Stage | null>(null);
   const [forbidden, setForbidden] = useState(false);
 
   const pipeline = pipelines.find((p) => p.id === pipelineId);
@@ -109,6 +116,25 @@ export function PipelineEditor({
     if (landed(fresh)) setPipelines(fresh.data.pipelines);
     setNote({ text: `${stage.name} archived; its leads moved` });
   };
+
+  /** A stage's automations, saved with it (3C): LUME's words back when refused. */
+  const saveAutomations = async (stage: Stage, onEnter: OnEnter): Promise<string | null> => {
+    const r = await pipelinesClient.patchStage(stage.id, { onEnter });
+    if (!r.ok) {
+      if (accessGone(r)) setForbidden(true);
+      return r.message || "Those automations couldn’t be saved.";
+    }
+    setPipelines((all) =>
+      all.map((p) => ({
+        ...p,
+        stages: p.stages.map((x) => (x.id === stage.id ? { ...x, ...r.data.stage, onEnter } : x)),
+      })),
+    );
+    setNote({ text: `Saved what ${stage.name} does` });
+    return null;
+  };
+  const names = new Map(people.map((p) => [p.id, p.name]));
+  const acting = stages.filter((x) => x.onEnter?.rules.length);
 
   const needable = fields.filter((f) => !f.archived && f.key !== "name");
 
@@ -194,9 +220,46 @@ export function PipelineEditor({
               </fieldset>
             </Popover>
             <SlaInput stage={stage} onSave={(slaHours) => void patch(stage, { slaHours })} />
+            <button
+              type="button"
+              className={s.needsBtn}
+              data-active={stage.onEnter?.rules.length ? true : undefined}
+              aria-label={`Automations for ${stage.name}`}
+              onClick={() => setAutomating(stage)}
+            >
+              <span aria-hidden>
+                Does{stage.onEnter?.rules.length ? ` ${stage.onEnter.rules.length}` : ""}
+              </span>
+            </button>
           </div>
         )}
       />
+      <section className={s.stack} aria-labelledby="stage-automations">
+        <h3 id="stage-automations" className={s.panelTitle}>
+          When a lead enters a stage
+        </h3>
+        {acting.length ? (
+          <ul className={a.summary} aria-label="What each stage does">
+            {acting.map((x) => (
+              <li key={x.id}>
+                <button type="button" className={a.summaryRow} onClick={() => setAutomating(x)}>
+                  <span className={a.summaryStage}>{x.name}</span>
+                  <span className={a.summaryWhat}>
+                    {x.onEnter!.rules.map((r) => (
+                      <span key={r.id}>{describeRule(r, names)}</span>
+                    ))}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className={s.muted}>
+            No stage does anything on its own yet. Pick Does on a stage to have LUME set a follow-up, clear
+            them, or tell someone when a lead arrives.
+          </p>
+        )}
+      </section>
       {note &&
         (note.tone === "problem" ? (
           <p role="alert" className={s.problem}>
@@ -220,6 +283,15 @@ export function PipelineEditor({
             )}
           </p>
         ))}
+      {automating && (
+        <StageAutomations
+          stage={automating}
+          rules={automating.onEnter?.rules ?? []}
+          people={people}
+          onSave={(onEnter) => saveAutomations(automating, onEnter)}
+          onClose={() => setAutomating(null)}
+        />
+      )}
       {archiving && (
         <ArchiveStage
           stage={archiving}

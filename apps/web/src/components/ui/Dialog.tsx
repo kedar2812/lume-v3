@@ -13,10 +13,13 @@ export function Dialog({
   label,
   onClose,
   children,
+  wide = false,
 }: {
   label: string;
   onClose: () => void;
   children: ReactNode;
+  /** Room for a small form (a stage's automations), not just a question. */
+  wide?: boolean;
 }) {
   const panel = useRef<HTMLDivElement>(null);
 
@@ -34,7 +37,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={s.panel}
+        className={wide ? `${s.panel} ${s.wide}` : s.panel}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.stopPropagation();

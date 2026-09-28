@@ -23,6 +23,10 @@
   box-shadow: var(--shadow-pop);
   animation: pop 0.32s var(--spring) both;
 }
+.wide {
+  width: min(560px, 100%);
+  padding: 22px;
+}
 @keyframes fade {
   from {
     opacity: 0;
