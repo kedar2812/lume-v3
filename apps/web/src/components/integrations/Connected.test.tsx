@@ -4,9 +4,10 @@ import { sheetsClient } from "@/lib/sheets/client";
 import { Connected } from "./Connected";
 
 const search = new URLSearchParams({ p: "sealed", s: "sig" });
+const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => search,
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace }),
 }));
 vi.mock("@/lib/sheets/client", () => ({ sheetsClient: { complete: vi.fn(), connect: vi.fn() } }));
 vi.mock("@/components/sheets/AddSheetSheet", () => ({
@@ -29,6 +30,25 @@ describe("back from Google", () => {
     expect(sheetsClient.complete).toHaveBeenCalledWith({ p: "sealed", s: "sig" });
     expect(await screen.findByRole("dialog", { name: "Add a sheet" })).toHaveTextContent("Picked leads");
   });
+  it("takes the used hand-back out of the address, so a reload doesn't spend it twice", async () => {
+    vi.mocked(sheetsClient.complete).mockResolvedValue(
+      ok({ connectId: "c1", file: { id: "f", name: "Picked leads" } }),
+    );
+    window.history.replaceState(null, "", "/settings/integrations/connected?p=sealed&s=sig");
+    render(<Connected />);
+    await screen.findByRole("dialog", { name: "Add a sheet" });
+    expect(window.location.search).toBe("");
+  });
+
+  it("Connect again goes straight back to that sheet", async () => {
+    vi.mocked(sheetsClient.complete).mockResolvedValue(
+      ok({ reconnected: "s1", file: { id: "f", name: "Website enquiries" } }) as never,
+    );
+    render(<Connected />);
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/settings/integrations/s1"));
+    expect(screen.queryByRole("dialog", { name: "Add a sheet" })).not.toBeInTheDocument();
+  });
+
   it("says what went wrong, with a way to try again", async () => {
     vi.mocked(sheetsClient.complete).mockResolvedValue({
       ok: false,

@@ -20,12 +20,13 @@ export const sheetsClient = {
   inspect: (arg: string | { connectId: string }) =>
     api.post<InspectView>("/api/v1/sheets/inspect", typeof arg === "string" ? { link: arg } : arg),
   /** Connect with Google (2B-2): where to send the browser, and the hand-back when it returns. */
-  connect: () => api.post<{ url: string }>("/api/v1/integrations/google/connect"),
+  connect: (b?: { sourceId: string }) => api.post<{ url: string }>("/api/v1/integrations/google/connect", b),
+  /** A new sheet's pick gives a connect to draft from; "Connect again" gives back the sheet it reconnected. */
   complete: (b: { p: string; s: string }) =>
-    api.post<{ connectId: string; file: { id: string; name: string } }>(
-      "/api/v1/integrations/google/complete",
-      b,
-    ),
+    api.post<
+      | { connectId: string; file: { id: string; name: string } }
+      | { reconnected: string; file: { id: string; name: string } }
+    >("/api/v1/integrations/google/complete", b),
   draft: (
     b:
       | { link: string; sheetId: number; headerRow?: number }

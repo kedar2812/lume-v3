@@ -251,7 +251,10 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       sheets.delete(id);
     },
     revokeGrant() {
+      // As Google does: removing access also ends the access tokens already given out.
       revoked = true;
+      for (const tok of oauthTokens) tokens.delete(tok);
+      oauthTokens.clear();
     },
     restoreGrant() {
       revoked = false;

@@ -40,6 +40,7 @@ const src = (over: Partial<SheetSourceView>): SheetSourceView => ({
   problems: 0,
   runAs: { id: "u1", name: "Riya Sharma" },
   canSeeRows: true,
+  auth: "service_account",
   ...over,
 });
 

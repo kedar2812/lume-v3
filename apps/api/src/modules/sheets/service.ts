@@ -144,15 +144,19 @@ async function fromGoogle<T>(google: GoogleSheets, call: () => Promise<T>): Prom
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 /** A signed link to the relay, for this person; its nonce is single-use and expires with the hand-back. */
-export async function connectStart(req: FastifyRequest, d: AppDeps) {
+export async function connectStart(req: FastifyRequest, d: AppDeps, body: { sourceId?: string } = {}) {
   await requireOn(req, d);
   if (!d.googleOAuth)
     throw new HttpError(409, "NOT_CONFIGURED", "Connect with Google isn't set up on this server.");
   const { relayUrl, relayToken } = d.googleOAuth;
   const nonce = randomBytes(24).toString("base64url");
-  await req.db
-    .insert(schema.oauthConnects)
-    .values({ id: newId(), userId: req.actor!.userId, nonceHash: sha256(nonce) });
+  await req.db.insert(schema.oauthConnects).values({
+    id: newId(),
+    userId: req.actor!.userId,
+    nonceHash: sha256(nonce),
+    // "Connect again": this connect gives an existing sheet a new grant (2B-2 final review).
+    targetSourceId: body.sourceId ? (await liveSource(req, body.sourceId)).id : null,
+  });
   const url = new URL("/start", relayUrl);
   url.search = new URLSearchParams({
     i: instanceIdOf(relayToken),
@@ -187,6 +191,7 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
   if (!row)
     throw notFound("CONNECT_NOT_FOUND", "This connection was already used, or isn't yours. Try again.");
   const file = { id: h.file.id, name: String(h.file.name ?? "").slice(0, 200) };
+  if (row.targetSourceId) return reconnect(req, d, row.id, row.targetSourceId, h.refreshToken, file);
   await req.db
     .update(OC)
     .set({
@@ -202,6 +207,43 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
     diff: { file: file.name },
   });
   return { connectId: row.id, file };
+}
+
+/** "Connect again": the same file, a new grant; the sheet reads again at once. */
+async function reconnect(
+  req: FastifyRequest,
+  d: AppDeps,
+  connectId: string,
+  sourceId: string,
+  refreshToken: string,
+  file: { id: string; name: string },
+) {
+  const s = await liveSource(req, sourceId);
+  const cfg = openConfig(d.keyring, s.id, s.configEnc!);
+  if (cfg.spreadsheetId !== file.id)
+    throw new HttpError(
+      409,
+      "CONNECT_WRONG_FILE",
+      `That's a different file. Pick the sheet “${s.name}” was connected to.`,
+    );
+  await req.db
+    .update(S)
+    .set({
+      configEnc: sealConfig(d.keyring, s.id, { ...cfg, auth: "oauth", grant: refreshToken }),
+      ...(s.status === "needs_attention" ? { status: "active", attentionCode: null, lastError: null } : {}),
+      nextSyncAt: new Date(),
+    })
+    .where(eq(S.id, s.id));
+  await req.db.delete(schema.oauthConnects).where(eq(schema.oauthConnects.id, connectId));
+  await audit(req, {
+    action: "sheet.reconnected",
+    entityType: "lead_source",
+    entityId: s.id,
+    diff: { name: s.name },
+  });
+  const r = await requestSync(req.db, { sourceId: s.id, trigger: "manual", requestedBy: req.actor!.userId });
+  if (r?.fresh) req.afterCommit(() => void d.sheets?.enqueue(r.syncId));
+  return { reconnected: s.id, file };
 }
 
 /** A finished connect of the caller's: its grant, the picked file, and a client that reads with it. */
@@ -379,8 +421,8 @@ export async function createSheetDraft(
       }),
     })
     .where(eq(S.id, sourceId));
-  // The grant now lives (encrypted) in the sheet's own config; the connect it came in is done with.
-  if (connectId) await req.db.delete(schema.oauthConnects).where(eq(schema.oauthConnects.id, connectId));
+  // The connect stays until the sheet is saved (going back a step drafts again); the daily sweep ends it.
+  void connectId;
   return {
     draft,
     sheet: {
@@ -480,6 +522,16 @@ export async function saveSheet(
       })
       .where(eq(S.id, draftSrc!.id));
     await req.db.delete(I).where(eq(I.id, imp.id));
+    // Made from a file picked with Connect with Google: that connect is done with now.
+    if (cfg.auth === "oauth")
+      await req.db
+        .delete(schema.oauthConnects)
+        .where(
+          and(
+            eq(schema.oauthConnects.userId, actor.userId),
+            eq(schema.oauthConnects.fileId, cfg.spreadsheetId),
+          ),
+        );
     await audit(req, {
       action: "sheet.connected",
       entityType: "lead_source",
@@ -571,6 +623,7 @@ async function sourceView(req: FastifyRequest, d: AppDeps, s: Source) {
     newAllTime: c.all,
     problems: c.problems,
     runAs: s.runAs && c.run_as ? { id: s.runAs, name: c.run_as } : null,
+    auth: cfg.auth,
     canSeeRows: canSeeRows(req, s),
   };
 }

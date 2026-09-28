@@ -44,6 +44,8 @@ export type SheetSourceView = {
   newAllTime: number;
   problems: number;
   runAs: { id: string; name: string } | null;
+  /** How LUME reads it: shared with its service account, or a Google grant from Connect with Google. */
+  auth: "service_account" | "oauth";
   /** Whether this person may see the sheet's raw rows (they hold contacts): download and edit need it. */
   canSeeRows: boolean;
 };

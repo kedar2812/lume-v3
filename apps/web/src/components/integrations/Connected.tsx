@@ -22,8 +22,14 @@ export function Connected() {
     const sig = params.get("s");
     if (!p || !sig)
       return setError("This page is for coming back from Google. Start from Settings → Integrations.");
-    void sheetsClient.complete({ p, s: sig }).then((r) => (r.ok ? setPicked(r.data) : setError(r.message)));
-  }, [params]);
+    void sheetsClient.complete({ p, s: sig }).then((r) => {
+      // The hand-back is single-use: take it out of the address so a reload doesn't try to spend it again.
+      window.history.replaceState(null, "", window.location.pathname);
+      if (!r.ok) return setError(r.message);
+      if ("reconnected" in r.data) return router.replace(`/settings/integrations/${r.data.reconnected}`);
+      setPicked(r.data);
+    });
+  }, [params, router]);
   const again = async () => {
     const r = await sheetsClient.connect();
     if (r.ok) window.location.assign(r.data.url);

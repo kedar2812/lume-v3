@@ -78,6 +78,18 @@ export function SourceDetail({ id }: { id: string }) {
     await load();
   };
   const retryable = v.attention && RETRYABLE.has(v.attention.code);
+  // A Google grant that was taken back can't be retried, only given again (2B-2 final review).
+  const reconnect = v.auth === "oauth" && v.attention?.code === "ACCESS_LOST";
+  const connectAgain = async () => {
+    setBusy(true);
+    setError(null);
+    const r = await sheetsClient.connect({ sourceId: id });
+    if (!r.ok) {
+      setBusy(false);
+      return setError(r.message);
+    }
+    window.location.assign(r.data.url);
+  };
 
   return (
     <div className={s.detail}>
@@ -112,7 +124,11 @@ export function SourceDetail({ id }: { id: string }) {
       {v.attention && (
         <section className={s.attention} aria-label="Needs attention">
           <p>{v.attention.message}</p>
-          {retryable ? (
+          {reconnect ? (
+            <Button variant="primary" loading={busy} onClick={() => void connectAgain()}>
+              Connect again
+            </Button>
+          ) : retryable ? (
             <Button variant="primary" loading={busy} onClick={() => void act(() => sheetsClient.sync(id))}>
               Test again
             </Button>

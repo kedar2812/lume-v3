@@ -168,4 +168,92 @@ describe("Connect with Google (Review Focus 1)", () => {
       ).json().error.code,
     ).toBe("CONNECT_EXPIRED");
   });
+
+  describe("after connecting (final review)", () => {
+    /** Start a connect (optionally for an existing sheet) and complete it with a hand-back for this file. */
+    async function connectFile(fileId: string, body?: { sourceId: string }) {
+      const { url } = (await call(admin, "POST", "/api/v1/integrations/google/connect", body)).json();
+      const nonce = new URL(url).searchParams.get("n")!;
+      const p = seal(RELAY_TOKEN, {
+        nonce,
+        refreshToken: "rt-good",
+        file: { id: fileId, name: "Picked" },
+        exp: Date.now() + 60_000,
+      });
+      return call(admin, "POST", "/api/v1/integrations/google/complete", { p, s: sign(RELAY_TOKEN, p) });
+    }
+    const pickable = () => {
+      const id = `picked-${newId()}`;
+      h.fake!.put(id, {
+        title: "Picked",
+        sharedWith: [],
+        tabs: [
+          {
+            sheetId: 3,
+            title: "Leads",
+            rows: [
+              ["Name", "Phone"],
+              ["Picked Again", "0507123888"],
+            ],
+          },
+          { sheetId: 4, title: "Other", rows: [["Name"]] },
+        ],
+      });
+      return id;
+    };
+
+    it("a picked file can be drafted again after going back a step (Important 2)", async () => {
+      const done = (await connectFile(pickable())).json();
+      expect(
+        (await call(admin, "POST", "/api/v1/sheets/drafts", { connectId: done.connectId, sheetId: 4 }))
+          .statusCode,
+      ).toBe(201);
+      const d = await call(admin, "POST", "/api/v1/sheets/drafts", { connectId: done.connectId, sheetId: 3 });
+      expect(d.statusCode).toBe(201);
+      await call(admin, "POST", "/api/v1/sheets/sources", {
+        importId: d.json().draft.id,
+        name: "Picked again",
+        pollSeconds: 120,
+        startFrom: "all",
+      });
+      expect(await h.queryAll("SELECT 1 FROM oauth_connects WHERE id = $1", [done.connectId])).toHaveLength(
+        0,
+      );
+    });
+
+    it("Connect again gives a sheet whose access was removed a new grant, for the same file only (Important 1)", async () => {
+      const fileId = pickable();
+      const done = (await connectFile(fileId)).json();
+      const d = (
+        await call(admin, "POST", "/api/v1/sheets/drafts", { connectId: done.connectId, sheetId: 3 })
+      ).json();
+      const s = (
+        await call(admin, "POST", "/api/v1/sheets/sources", {
+          importId: d.draft.id,
+          name: "Reconnect me",
+          pollSeconds: 120,
+          startFrom: "all",
+        })
+      ).json();
+      await h.runSyncs();
+      h.fake!.revokeGrant();
+      await call(admin, "POST", `/api/v1/sheets/sources/${s.id}/sync`);
+      await h.runSyncs();
+      const paused = (await call(admin, "GET", `/api/v1/sheets/sources/${s.id}`)).json();
+      expect(paused).toMatchObject({
+        status: "needs_attention",
+        auth: "oauth",
+        attention: { code: "ACCESS_LOST" },
+      });
+      h.fake!.restoreGrant();
+      const wrong = await connectFile(pickable(), { sourceId: s.id });
+      expect(wrong.json().error.code).toBe("CONNECT_WRONG_FILE");
+      const again = await connectFile(fileId, { sourceId: s.id });
+      expect(again.json()).toMatchObject({ reconnected: s.id });
+      expect((await call(admin, "GET", `/api/v1/sheets/sources/${s.id}`)).json()).toMatchObject({
+        status: "active",
+        attention: null,
+      });
+    });
+  });
 });

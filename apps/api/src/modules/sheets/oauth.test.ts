@@ -13,21 +13,24 @@ const RELAY_TOKEN = "r".repeat(40);
 let h: Harness;
 let relay: http.Server;
 let adminId: string;
+let refreshes = 0;
 
 beforeAll(async () => {
   h = await createHarness({ preset: "general", google: true, oauth: { relayToken: RELAY_TOKEN } });
-  relay = http.createServer(
-    createRelay({
-      publicUrl: "http://relay.test",
-      clientId: "cid",
-      clientSecret: "cs",
-      pickerKey: "pk",
-      appId: "1",
-      secret: "s".repeat(40),
-      instances: [{ url: "https://lume.test", token: RELAY_TOKEN }],
-      googleTokenUrl: `${h.fake!.url}/token`,
-    }),
-  );
+  const listener = createRelay({
+    publicUrl: "http://relay.test",
+    clientId: "cid",
+    clientSecret: "cs",
+    pickerKey: "pk",
+    appId: "1",
+    secret: "s".repeat(40),
+    instances: [{ url: "https://lume.test", token: RELAY_TOKEN }],
+    googleTokenUrl: `${h.fake!.url}/token`,
+  });
+  relay = http.createServer((req, res) => {
+    if (req.url === "/refresh") refreshes++;
+    listener(req, res);
+  });
   await new Promise<void>((r) => relay.listen(0, "127.0.0.1", r));
   h.setRelayUrl(`http://127.0.0.1:${(relay.address() as AddressInfo).port}`);
   adminId = (await h.seedUser({ grants: ALL_GRANTS, totp: true })).id;
@@ -119,5 +122,47 @@ describe("reading with either credential (Review Focus 4)", () => {
     const [s] = (await h.pool.query("SELECT failures FROM lead_sources WHERE id = $1", [id])).rows;
     expect(s.failures).toBe(1);
     h.setRelayUrl(`http://127.0.0.1:${(relay.address() as AddressInfo).port}`);
+  });
+
+  describe("the relay under real use (final review)", () => {
+    it('a revoked grant says what happened and what to do — not "share it with" (Important 1)', async () => {
+      const id = await source("oauth", false);
+      h.fake!.revokeGrant();
+      await sync(id);
+      const [s] = (await h.pool.query("SELECT last_error FROM lead_sources WHERE id = $1", [id])).rows;
+      expect(s.last_error).toMatch(/Connect it again/);
+      expect(s.last_error).not.toMatch(/Share it with/);
+      h.fake!.restoreGrant();
+    });
+
+    it("access tokens are reused between syncs, so the relay isn't asked every time (Important 3)", async () => {
+      const id = await source("oauth", false);
+      await sync(id);
+      const before = refreshes;
+      await h.pool.query("UPDATE lead_sources SET last_modified = NULL WHERE id = $1", [id]);
+      await sync(id);
+      expect(refreshes).toBe(before);
+    });
+
+    it("an instance the relay doesn't know is a setup problem, not a passing failure (Important 4)", async () => {
+      const stranger = http.createServer(
+        createRelay({
+          publicUrl: "http://relay.test",
+          clientId: "cid",
+          clientSecret: "cs",
+          pickerKey: "pk",
+          appId: "1",
+          secret: "s".repeat(40),
+          instances: [{ url: "https://someone-else.test", token: "z".repeat(40) }],
+          googleTokenUrl: `${h.fake!.url}/token`,
+        }),
+      );
+      await new Promise<void>((r) => stranger.listen(0, "127.0.0.1", r));
+      h.setRelayUrl(`http://127.0.0.1:${(stranger.address() as AddressInfo).port}`);
+      const id = await source("oauth", false);
+      expect(await sync(id)).toMatchObject({ status: "needs_attention", attention_code: "GOOGLE_SETUP" });
+      stranger.close();
+      h.setRelayUrl(`http://127.0.0.1:${(relay.address() as AddressInfo).port}`);
+    });
   });
 });

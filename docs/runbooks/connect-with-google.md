@@ -61,5 +61,5 @@ Run it behind TLS at `connect.lumecrm.in` (any reverse proxy; it listens on 3200
 
 - **Rotating a client's token:** change it in both places (the relay's list and the client's `.env`). Sheets already connected keep working, because their grants are held by Google and are refreshed through the relay with the new token.
 - **Removing a client:** take its entry out of `RELAY_INSTANCES`. Its Google-connected sheets stop refreshing, and they show "needs attention" at their next sync.
-- **A person who removes LUME's access** in their Google account: that sheet shows "needs attention" ("Google access for this sheet was removed. Connect it again.").
+- **A person who removes LUME's access** in their Google account: that sheet shows "needs attention" ("Google access for this sheet was removed. Connect it again.") with a **Connect again** button. The admin picks the same file in Google's Picker, and the sheet carries on from where it stopped.
 - **The relay down** is a passing failure for sheets: they back off and try again, and nothing is lost.

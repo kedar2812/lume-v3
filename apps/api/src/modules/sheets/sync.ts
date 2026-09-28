@@ -81,7 +81,10 @@ async function ask<T>(google: GoogleSheets, call: () => Promise<T>): Promise<T> 
     if (e instanceof GoogleError && e.kind === "access")
       throw new Attention(
         "ACCESS_LOST",
-        `LUME can't open this sheet any more. Share it with ${google.email} as a Viewer, then press Test again.`,
+        // A sheet connected with Google (no service-account email) says what Google said: connect again.
+        google.email
+          ? `LUME can't open this sheet any more. Share it with ${google.email} as a Viewer, then press Test again.`
+          : e.message,
       );
     if (e instanceof GoogleError && e.kind === "not_found")
       throw new Attention("SHEET_GONE", "This spreadsheet was deleted, or moved where LUME can't reach it.");

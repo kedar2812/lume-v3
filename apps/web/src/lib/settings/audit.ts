@@ -64,6 +64,10 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     area: "Leads",
     phrase: (d) => `connected Google to pick “${String(d.file ?? "")}”`,
   },
+  "sheet.reconnected": {
+    area: "Leads",
+    phrase: (d) => `connected “${String(d.name ?? "")}” to Google again`,
+  },
   "sheet.row_dismissed": {
     area: "Leads",
     phrase: (d) => `dismissed a problem row in “${String(d.name ?? "")}”`,

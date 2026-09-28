@@ -1,4 +1,4 @@
-import { createSign } from "node:crypto";
+import { createHash, createSign } from "node:crypto";
 import { columnLetter } from "@lume/core";
 
 /** The key file Google issues for a service account, as LUME needs it. */
@@ -171,6 +171,12 @@ export function relayTokens(o: {
       expiresIn?: number;
       error?: string;
     };
+    // The relay doesn't know this instance (removed, or its token changed on one side only).
+    if (res.status === 401)
+      throw new GoogleError(
+        "setup",
+        "This LUME isn't registered with its Google connector (the relay) any more.",
+      );
     if (res.status === 400 && j.error === "revoked")
       throw new GoogleError("access", "Google access for this sheet was removed. Connect it again.");
     if (!res.ok || !j.accessToken)
@@ -180,17 +186,30 @@ export function relayTokens(o: {
   };
 }
 
+/**
+ * Token sources for OAuth-connected sheets, kept across syncs so an access token (good for an hour) is
+ * reused rather than asked of the relay on every sync (2B-2 final review, Important 3). Keyed by the relay,
+ * this instance's token and the grant, so a changed token or a new grant starts fresh.
+ */
+const relaySources = new Map<string, TokenSource>();
+const RELAY_SOURCES_MAX = 1000;
+
 /** A client for one OAuth-connected sheet; null when Connect with Google isn't configured here. */
 export const oauthClientFor =
   (oauth: { relayUrl: string; relayToken: string } | null | undefined, endpoint?: string) =>
-  (cfg: { grant?: string }): GoogleSheets | null =>
-    oauth && cfg.grant
-      ? createGoogleSheets({
-          tokens: relayTokens({ ...oauth, refreshToken: cfg.grant }),
-          email: "",
-          ...(endpoint ? { endpoint } : {}),
-        })
-      : null;
+  (cfg: { grant?: string }): GoogleSheets | null => {
+    if (!oauth || !cfg.grant) return null;
+    const key = createHash("sha256")
+      .update(`${oauth.relayUrl}\n${oauth.relayToken}\n${cfg.grant}`)
+      .digest("hex");
+    let tokens = relaySources.get(key);
+    if (!tokens) {
+      if (relaySources.size >= RELAY_SOURCES_MAX) relaySources.delete(relaySources.keys().next().value!);
+      tokens = relayTokens({ ...oauth, refreshToken: cfg.grant });
+      relaySources.set(key, tokens);
+    }
+    return createGoogleSheets({ tokens, email: "", ...(endpoint ? { endpoint } : {}) });
+  };
 
 /** The read-only client, from a service account (2B-1) or any token source (Connect with Google, 2B-2). */
 export function createGoogleSheets(

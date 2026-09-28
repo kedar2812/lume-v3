@@ -14,6 +14,7 @@ vi.mock("@/lib/sheets/client", () => ({
     patch: vi.fn(),
     remove: vi.fn(),
     dismiss: vi.fn(),
+    connect: vi.fn(),
     problemsUrl: (id: string) => `/api/v1/sheets/sources/${id}/problems.csv`,
   },
 }));
@@ -41,6 +42,7 @@ const detail = (over: Partial<SheetSourceDetail> = {}): SheetSourceDetail => ({
   problems: 1,
   runAs: { id: "u1", name: "Riya Sharma" },
   canSeeRows: true,
+  auth: "service_account",
   syncs: [
     {
       id: "y1",
@@ -127,6 +129,31 @@ describe("a sheet's page", () => {
     render(<SourceDetail id="s1" />);
     await userEvent.click(await screen.findByRole("button", { name: "Open columns" }));
     expect(screen.getByRole("dialog", { name: "Sheet columns" })).toHaveAttribute("data-source", "s1");
+  });
+
+  it("a sheet connected with Google whose access was removed offers Connect again, for this sheet", async () => {
+    vi.mocked(sheetsClient.get).mockResolvedValue(
+      ok(
+        detail({
+          status: "needs_attention",
+          auth: "oauth",
+          attention: {
+            code: "ACCESS_LOST",
+            message: "Google access for this sheet was removed. Connect it again.",
+          },
+        }),
+      ),
+    );
+    vi.mocked(sheetsClient.connect).mockResolvedValue(ok({ url: "https://connect.example.test/start?n=1" }));
+    const assign = vi.fn();
+    const was = window.location;
+    Object.defineProperty(window, "location", { value: { ...was, assign }, writable: true });
+    render(<SourceDetail id="s1" />);
+    expect(screen.queryByRole("button", { name: "Test again" })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Connect again" }));
+    expect(sheetsClient.connect).toHaveBeenCalledWith({ sourceId: "s1" });
+    expect(assign).toHaveBeenCalledWith("https://connect.example.test/start?n=1");
+    Object.defineProperty(window, "location", { value: was, writable: true });
   });
 
   it("someone who can't see the sheet's contacts gets no download and no column editing", async () => {

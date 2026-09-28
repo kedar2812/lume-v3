@@ -29,7 +29,11 @@ export async function sheetRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/integrations", { config: manage }, (req) => integrationsView(req, d));
   // Connect with Google (2B-2): a signed start at the relay, and the sealed hand-back coming home.
-  r.post("/api/v1/integrations/google/connect", { config: manage }, (req) => connectStart(req, d));
+  r.post(
+    "/api/v1/integrations/google/connect",
+    { config: manage, schema: { body: z.object({ sourceId: z.uuid().optional() }).strict().nullish() } },
+    (req) => connectStart(req, d, req.body ?? {}),
+  );
   r.post(
     "/api/v1/integrations/google/complete",
     {

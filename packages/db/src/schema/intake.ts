@@ -208,6 +208,8 @@ export const oauthConnects = pgTable("oauth_connects", {
   grantEnc: bytea("grant_enc"),
   fileId: text("file_id"),
   fileName: text("file_name"),
+  /** "Connect again" (2B-2 final review): the existing sheet this connect gives a new grant to. */
+  targetSourceId: uuid("target_source_id"),
 });
 
 export type WebhookEventStatus = "test" | "queued" | "done" | "error" | "dismissed";
