@@ -6,6 +6,7 @@
 //   (the chain forgets today's digest for the owner, then restarts the API)
 //   node acceptance-3b.mjs check  — the digest arrives in Mailpit with first names and times only; the
 //                                    centre opens with "." and shows the overdue follow-up
+// Run check before 3A's check: this lead's overdue follow-up would keep 3A's Today from All clear until it's removed.
 // Screenshots go to docs/runbooks/screenshots-3b, full content (owner, 2026-09-28). Needs ACCEPT_STATE_DIR.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";

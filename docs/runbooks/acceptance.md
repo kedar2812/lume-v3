@@ -731,3 +731,5 @@ Plan: `docs/superpowers/plans/2026-09-28-phase-3b-notification-centre-digest.md`
 ## Live
 
 `acceptance-3b.mjs set` (with 3A's set) → the chain forgets the owner's digest for today → `docker restart lumedev-api-1` (a restart runs the digest at once) → `acceptance-3b.mjs check`: the morning email arrives in Mailpit with first names and times only, and `.` opens the centre. Screenshots are in `docs/runbooks/screenshots-3b/`, unmasked, including the email as it renders.
+
+Found in the live run: a follow-up overdue from earlier the same day read "(Mon 15:14)" in the email. It now reads "(15:14)"; only an earlier day carries its weekday. Test: "overdue from earlier today reads as its time". (The committed screenshot is from before the fix.)
