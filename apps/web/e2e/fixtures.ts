@@ -139,3 +139,14 @@ export async function reviewCopy(target: Page | Locator, name: string): Promise<
   const spec = test.info().titlePath[0]!.replace(/\.spec\.ts$/, "");
   await target.screenshot({ path: `e2e/__review__/${spec}/${name}`, animations: "disabled" });
 }
+
+/**
+ * For the compared copy only: every run-to-run value (data-volatile) gets the same fixed box, so a masked
+ * "In 45 min" and a masked "Today, 13:52" can't move what follows them. Call after reviewCopy.
+ */
+export async function freezeVolatile(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `[data-volatile] { display: inline-block !important; width: 88px !important; height: 1.25em !important;
+      overflow: hidden !important; white-space: nowrap !important; vertical-align: bottom !important; }`,
+  });
+}

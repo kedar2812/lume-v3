@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { callApi, expect, openApp, reviewCopy, stateFile, test } from "./fixtures";
+import { callApi, expect, freezeVolatile, openApp, reviewCopy, stateFile, test } from "./fixtures";
 import { settle } from "./settle";
 
 async function axe(page: Page) {
@@ -80,6 +80,7 @@ test.describe("Follow-ups", () => {
       await openApp(page, "/today");
       await expect(page.getByRole("list", { name: "Overdue" })).toContainText("Shot Overdue");
       await reviewCopy(page.locator("main"), `today-${theme}.png`);
+      await freezeVolatile(page);
       await expect(page.locator("main")).toHaveScreenshot(`today-${theme}.png`, { mask: volatile(page) });
       expect(await axe(page)).toEqual([]);
 
@@ -88,6 +89,7 @@ test.describe("Follow-ups", () => {
       const next = drawer.getByRole("region", { name: "Next follow-up" });
       await expect(next).toContainText("Call back");
       await reviewCopy(drawer, `drawer-next-follow-up-${theme}.png`);
+      await freezeVolatile(page);
       await expect(drawer).toHaveScreenshot(`drawer-next-follow-up-${theme}.png`, { mask: volatile(page) });
       await drawer.getByRole("button", { name: "Follow-up", exact: true }).click();
       const sheet = page.getByRole("dialog", { name: "Follow up with Shot" });
