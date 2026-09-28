@@ -144,6 +144,8 @@ export type Harness = {
   webhookQueue: number[];
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
   reminderQueue: { id: number; fireAt: Date }[];
+  /** Make the reminder queue refuse (it's down), to test that nothing depends on it succeeding. */
+  failReminderQueue(on: boolean): void;
   /** Processes every queued webhook event now, as the queue would. */
   runWebhooks(): Promise<void>;
   /** Where the relay is (it listens on a port the test picks). */
@@ -222,6 +224,7 @@ export async function createHarness(
   const syncs: string[] = [];
   const webhookQueue: number[] = [];
   const reminderQueue: { id: number; fireAt: Date }[] = [];
+  let reminderQueueDown = false;
   const googleOAuth = opts.oauth ? { relayUrl: "", relayToken: opts.oauth.relayToken } : null;
   const clientFor = oauthClientFor(googleOAuth, fake?.url);
 
@@ -242,7 +245,12 @@ export async function createHarness(
     imports: { enqueue: async (id) => void queued.push(id) },
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
-    tasks: { enqueue: async (r) => void reminderQueue.push(...r) },
+    tasks: {
+      enqueue: async (r) => {
+        if (reminderQueueDown) throw new Error("the reminder queue is down");
+        reminderQueue.push(...r);
+      },
+    },
     webhooks: {
       enqueue: async (id) => void webhookQueue.push(id),
       limiter: createLimiter({ perSource: 60, perInstance: 600, windowMs: 60_000 }),
@@ -432,6 +440,9 @@ export async function createHarness(
     google,
     webhookQueue,
     reminderQueue,
+    failReminderQueue(on) {
+      reminderQueueDown = on;
+    },
     async runWebhooks() {
       for (let id = webhookQueue.shift(); id; id = webhookQueue.shift())
         await processEvent({ app, pool, keyring }, id);

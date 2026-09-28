@@ -26,13 +26,15 @@ type GrantRow = {
 };
 
 /** Everything the permission check and RLS need for one user, in four indexed queries. Null = not an active user. */
-export async function loadActor(pool: pg.Pool, userId: string): Promise<ActorRecord | null> {
-  const [u, grants, team, fa] = await Promise.all([
+export async function loadActor(pool: pg.Pool | pg.PoolClient, userId: string): Promise<ActorRecord | null> {
+  // A pool runs the four at once; one connection (a job's own transaction) takes them in turn.
+  const readUser = () =>
     pool.query<{ is_owner: boolean; totp_enabled: boolean; status: string }>(
       "SELECT is_owner, totp_enabled, status FROM users WHERE id = $1",
       [userId],
-    ),
-    // The key comes from `permissions`, so a retired permission silently stops granting anything.
+    );
+  // The key comes from `permissions`, so a retired permission silently stops granting anything.
+  const readGrants = () =>
     pool.query<GrantRow>(
       `SELECT p.key, rp.scope, r.id AS role_id, r.login_hours, r.ip_allowlist::text[] AS ip_allowlist
          FROM user_roles ur
@@ -41,14 +43,16 @@ export async function loadActor(pool: pg.Pool, userId: string): Promise<ActorRec
          LEFT JOIN permissions p ON p.key = rp.permission_key AND NOT p.retired
         WHERE ur.user_id = $1`,
       [userId],
-    ),
+    );
+  const readTeam = () =>
     pool.query<{ user_id: string }>(
       `SELECT DISTINCT m.user_id FROM team_members lead
          JOIN teams t ON t.id = lead.team_id AND t.deleted_at IS NULL
          JOIN team_members m ON m.team_id = lead.team_id
         WHERE lead.user_id = $1 AND lead.is_lead`,
       [userId],
-    ),
+    );
+  const readFieldAccess = () =>
     pool.query<{ role_id: string; field_id: string; access: FieldAccess }>(
       `SELECT rfa.role_id, rfa.field_id, rfa.access
          FROM role_field_access rfa
@@ -56,8 +60,11 @@ export async function loadActor(pool: pg.Pool, userId: string): Promise<ActorRec
          JOIN roles r ON r.id = rfa.role_id AND r.deleted_at IS NULL
         WHERE ur.user_id = $1`,
       [userId],
-    ),
-  ]);
+    );
+  const [u, grants, team, fa] =
+    "release" in pool
+      ? ([await readUser(), await readGrants(), await readTeam(), await readFieldAccess()] as const)
+      : await Promise.all([readUser(), readGrants(), readTeam(), readFieldAccess()]);
   const user = u.rows[0];
   if (!user || user.status !== "active") return null;
   const restrictions = new Map<string, RoleRestriction>();

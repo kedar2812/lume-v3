@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localInputToIso, whenInWords } from "./format";
+import { assignable, localInputToIso, whenInWords } from "./format";
 
 // 2026-09-28 is a Monday. 08:00Z is 12:00 in Dubai and 13:30 in Kolkata.
 const now = new Date("2026-09-28T08:00:00Z");
@@ -33,5 +33,28 @@ describe("localInputToIso", () => {
     expect(localInputToIso("2026-09-29T10:00", DUBAI)).toBe("2026-09-29T06:00:00.000Z");
     expect(localInputToIso("2026-09-29T10:00", KOLKATA)).toBe("2026-09-29T04:30:00.000Z");
     expect(localInputToIso("not a time", DUBAI)).toBeNull();
+  });
+});
+
+describe("assignable (3A final review, Minor 9)", () => {
+  const people = [
+    { id: "me", name: "Maya", active: true },
+    { id: "team", name: "Riya", active: true },
+    { id: "other", name: "Omar", active: true },
+    { id: "gone", name: "Sam", active: false },
+  ];
+  const actor = (scope: "own" | "team" | "all" | null) => ({
+    userId: "me",
+    isOwner: false,
+    perms: new Map(scope ? [["tasks.manage_others", scope]] : []),
+    teamMemberIds: ["me", "team"],
+    twoFactorEnabled: true,
+    roleIds: [],
+  });
+  it("nobody else at own (so no picker), the team at team, everyone active at all", () => {
+    expect(assignable(actor(null) as never, people)).toEqual([]);
+    expect(assignable(actor("own") as never, people)).toEqual([]);
+    expect(assignable(actor("team") as never, people).map((p) => p.id)).toEqual(["me", "team"]);
+    expect(assignable(actor("all") as never, people).map((p) => p.id)).toEqual(["me", "team", "other"]);
   });
 });

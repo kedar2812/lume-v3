@@ -54,19 +54,21 @@ export async function schedule(
           : sql`true`,
       ),
     );
-  const ids: number[] = [];
-  for (const w of wanted) {
-    const [r] = await db
-      .insert(SN)
-      .values({ taskId: task.id, offsetMinutes: w.offset, fireAt: w.at, status: "pending" })
-      .onConflictDoUpdate({
-        target: [SN.taskId, SN.offsetMinutes],
-        set: { fireAt: w.at, status: "pending", firedAt: null },
-      })
-      .returning({ id: SN.id });
-    ids.push(r!.id);
-  }
-  return ids;
+  // Only a reminder whose time changed (or that was cancelled) is armed again: an edit to the words alone
+  // never re-sends one that already fired (3A final review, Critical 1 and Minor 7).
+  for (const w of wanted)
+    await db.execute(sql`
+      INSERT INTO scheduled_notifications (task_id, offset_minutes, fire_at, status)
+      VALUES (${task.id}, ${w.offset}, ${w.at}, 'pending')
+      ON CONFLICT (task_id, offset_minutes) DO UPDATE
+        SET fire_at = EXCLUDED.fire_at, status = 'pending', fired_at = NULL
+        WHERE scheduled_notifications.fire_at IS DISTINCT FROM EXCLUDED.fire_at
+           OR scheduled_notifications.status = 'cancelled'`);
+  const pending = await db
+    .select({ id: SN.id })
+    .from(SN)
+    .where(and(eq(SN.taskId, task.id), eq(SN.status, "pending")));
+  return pending.map((r) => r.id);
 }
 
 export async function cancelReminders(db: Db, taskId: string): Promise<void> {
@@ -81,15 +83,18 @@ export async function cancelReminders(db: Db, taskId: string): Promise<void> {
  * the job and the sweeper together write one notification. It's written as the assignee, under their own
  * lead scope: a lead they can no longer see is never named (Review Focus 4).
  */
-export async function fire(o: EngineDeps, id: number): Promise<"fired" | "skipped"> {
+export async function fire(o: EngineDeps, id: number, now: Date = new Date()): Promise<"fired" | "skipped"> {
   const client = await o.pool.connect();
   let broken = false;
   try {
     await client.query("BEGIN");
     const { rows } = await client.query<{ task_id: string; offset_minutes: number }>(
       `SELECT task_id, offset_minutes FROM scheduled_notifications
-        WHERE id = $1 AND status = 'pending' FOR UPDATE SKIP LOCKED`,
-      [id],
+        WHERE id = $1 AND status = 'pending' AND fire_at <= $2::timestamptz + interval '2 seconds'
+        FOR UPDATE SKIP LOCKED`,
+      // A job queued for a time the reminder has since moved from finds it not yet due, and leaves it for
+      // the job queued for its new time (3A final review, Critical 1).
+      [id, now],
     );
     const sn = rows[0];
     if (!sn) {
@@ -108,7 +113,8 @@ export async function fire(o: EngineDeps, id: number): Promise<"fired" | "skippe
       }>("SELECT status, assignee_id, lead_id, title, due_at FROM tasks WHERE id = $1", [sn.task_id])
     ).rows[0];
     let notified: number | null = null;
-    const actor = task?.status === "open" ? await loadActor(o.pool, task.assignee_id) : null;
+    // On this connection: waiting on the pool it already holds one of could wait for ever (Minor 1).
+    const actor = task?.status === "open" ? await loadActor(client, task.assignee_id) : null;
     if (task && actor) {
       await applyRequestScope(client, actor);
       const lead = (
@@ -166,7 +172,7 @@ export async function sweep(o: EngineDeps, now: Date = new Date()): Promise<numb
     [now],
   );
   let fired = 0;
-  for (const r of rows) if ((await fire(o, Number(r.id))) === "fired") fired++;
+  for (const r of rows) if ((await fire(o, Number(r.id), now)) === "fired") fired++;
   return fired;
 }
 

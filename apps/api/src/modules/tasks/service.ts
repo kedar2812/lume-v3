@@ -71,7 +71,17 @@ const resolveDue = (due: Due, tz: string, now: Date) =>
 /** Once this request commits, each pending reminder of these follow-ups goes to the queue for its time. */
 async function queueReminders(req: FastifyRequest, d: AppDeps, taskIds: string[]) {
   const pending = await pendingOf(req.db, taskIds);
-  if (pending.length) req.afterCommit(() => void d.tasks?.enqueue(pending));
+  // Never an unhandled rejection (it would take the API down): a queue that's down leaves the reminders
+  // pending, and the sweeper fires them on time (3A final review, Minor 3).
+  if (pending.length)
+    req.afterCommit(
+      () =>
+        void d.tasks
+          ?.enqueue(pending)
+          .catch((err: unknown) =>
+            req.log.error({ err }, "couldn't queue follow-up reminders; the sweeper will"),
+          ),
+    );
 }
 
 // ——— What the screens see ———

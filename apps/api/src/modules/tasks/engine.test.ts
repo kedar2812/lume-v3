@@ -183,3 +183,38 @@ describe("fire (the reliability suite, spec §8)", () => {
     expect(heard.map((p) => JSON.parse(p))).toContainEqual({ u: rep, n: Number(n!.id) });
   });
 });
+
+describe("3A final review", () => {
+  it("Critical 1: a moved follow-up's old job fires nothing; its reminder waits for the new time", async () => {
+    const t = await followUp({ due: new Date(Date.now() - 10_000) }); // the old job is due now
+    const later = new Date(Date.now() + 60 * MIN);
+    const again = await schedule(
+      db(),
+      { id: t.id, dueAt: later, remindMinutes: [0], status: "open" },
+      new Date(),
+    );
+    expect(await fire(deps(), t.ids[0]!)).toBe("skipped"); // the stale job runs
+    expect(await notes(t.id)).toHaveLength(0);
+    expect((await row(again[0]!)).status).toBe("pending"); // still armed for 11:00
+  });
+
+  it("Critical 1: editing only its words doesn't re-arm a reminder that already fired", async () => {
+    const due = new Date(Date.now() - 5_000);
+    const t = await followUp({ due });
+    await fire(deps(), t.ids[0]!);
+    await schedule(db(), { id: t.id, dueAt: due, remindMinutes: [0], status: "open" }, new Date());
+    expect((await row(t.ids[0]!)).status).toBe("fired");
+  });
+
+  it("Minor 1 (re-graded): a fire never waits on its own pool for the assignee's permissions", async () => {
+    const { default: pgm } = await import("pg");
+    const one = new pgm.Pool({ connectionString: h.url("lume_app"), max: 1 });
+    const t = await followUp({ due: new Date(Date.now() - 5_000) });
+    const r = await Promise.race([
+      fire({ app: h.app, pool: one }, t.ids[0]!),
+      new Promise((res) => setTimeout(() => res("stuck"), 5000)),
+    ]);
+    await one.end();
+    expect(r).toBe("fired");
+  });
+});

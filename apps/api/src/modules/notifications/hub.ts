@@ -53,15 +53,27 @@ export async function readAs<T>(
 }
 
 /** What a reconnecting stream missed: the person's notifications after the last one it had, oldest first. */
+/**
+ * What a reconnecting stream missed: the person's notifications after `afterId`, oldest first, all of them
+ * (a page at a time, up to 1,000). Callers start a little before the last id they had: ids are handed out
+ * when a row is written, not when it commits, so a slower writer's lower id can arrive after a higher one
+ * (3A final review, Important 3). The stream drops the ones it already sent.
+ */
 export const missedSince = (pool: pg.Pool, userId: string, afterId: number) =>
-  readAs(pool, userId, async (c) =>
-    (
-      await c.query<Row>(
-        "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at FROM notifications WHERE id > $1 ORDER BY id LIMIT 50",
-        [afterId],
-      )
-    ).rows.map(toView),
-  );
+  readAs(pool, userId, async (c) => {
+    const out: NotificationView[] = [];
+    let after = afterId;
+    for (let page = 0; page < 5; page++) {
+      const { rows } = await c.query<Row>(
+        "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at FROM notifications WHERE id > $1 ORDER BY id LIMIT 200",
+        [after],
+      );
+      out.push(...rows.map(toView));
+      if (rows.length < 200) break;
+      after = Number(rows.at(-1)!.id);
+    }
+    return out;
+  });
 
 /**
  * One `LISTEN lume_notifications` for the whole API (Phase 3 spec §3 Live updates). Each payload names a
@@ -70,6 +82,9 @@ export const missedSince = (pool: pg.Pool, userId: string, afterId: number) =>
  */
 export async function startHub(pool: pg.Pool) {
   const subscribers = new Map<string, Set<(n: NotificationView) => void>>();
+  /** Told when the listener comes back after losing its connection: whatever arrived meanwhile wasn't heard. */
+  const resyncs = new Set<() => void>();
+  let failures = 0;
   let client: pg.PoolClient | null = null;
   let stopped = false;
   let retry: NodeJS.Timeout | undefined;
@@ -93,6 +108,22 @@ export async function startHub(pool: pg.Pool) {
     );
     if (row) for (const send of subs) send(row);
   };
+  /** Keeps trying, backing off to 30 s, until it listens again (3A final review, Important 5). */
+  const again = () => {
+    if (stopped) return;
+    const wait = Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5));
+    retry = setTimeout(
+      () =>
+        void connect().then(
+          () => {
+            failures = 0;
+            for (const r of resyncs) r();
+          },
+          () => again(),
+        ),
+      wait,
+    );
+  };
   const connect = async (): Promise<void> => {
     const c = await pool.connect();
     c.on("notification", (m) => {
@@ -101,7 +132,7 @@ export async function startHub(pool: pg.Pool) {
     c.on("error", () => {
       if (client === c) client = null;
       c.release(true);
-      if (!stopped) retry = setTimeout(() => void connect().catch(() => undefined), 1000);
+      again();
     });
     await c.query("LISTEN lume_notifications");
     client = c;
@@ -109,13 +140,15 @@ export async function startHub(pool: pg.Pool) {
   await connect();
 
   return {
-    subscribe(userId: string, send: (n: NotificationView) => void): () => void {
+    subscribe(userId: string, send: (n: NotificationView) => void, resync?: () => void): () => void {
       let set = subscribers.get(userId);
       if (!set) subscribers.set(userId, (set = new Set()));
       set.add(send);
+      if (resync) resyncs.add(resync);
       return () => {
         set.delete(send);
         if (!set.size) subscribers.delete(userId);
+        if (resync) resyncs.delete(resync);
       };
     },
     async stop() {

@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -39,8 +39,13 @@ export function NextFollowUp({
   const [next, setNext] = useState<TaskView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Only the newest answer counts: stepping through leads with J/K must never show the one before's
+  // follow-up when its answer arrives late (3A final review, Minor 4).
+  const asked = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++asked.current;
     const r = await tasksClient.forLead(leadId);
+    if (mine !== asked.current) return;
     if (r.ok) setNext(r.data.items.find((t) => t.status === "open") ?? null);
   }, [leadId]);
   useEffect(() => void load(), [load, version]);
@@ -71,23 +76,28 @@ export function NextFollowUp({
           exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
           transition={toMotion(SPRINGS.default)}
         >
-          <button
-            type="button"
-            className={s.tick}
-            aria-label={`Mark “${next.title}” done`}
-            onClick={() => void done(next)}
-          >
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-              <path
-                d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          {/* Only someone who may change it gets the tick (for anyone else it could only fail). */}
+          {!next.canEdit ? (
+            <span className={s.dot} aria-hidden />
+          ) : (
+            <button
+              type="button"
+              className={s.tick}
+              aria-label={`Mark “${next.title}” done`}
+              onClick={() => void done(next)}
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+                <path
+                  d="M3.5 8.5 6.5 11.5 12.5 4.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
           <div className={s.nextText}>
             <span className={s.nextTitle}>{next.title}</span>
             <span className={s.nextMeta}>

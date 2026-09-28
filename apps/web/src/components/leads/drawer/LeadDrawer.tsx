@@ -17,8 +17,7 @@ import { Popover } from "@/components/ui/Popover";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { FollowUpSheet } from "@/components/tasks/FollowUpSheet";
 import { NextFollowUp } from "@/components/tasks/NextFollowUp";
-import { can } from "@lume/core/shared";
-import { timezoneOf } from "@/lib/tasks/format";
+import { assignable, timezoneOf } from "@/lib/tasks/format";
 import { leadsClient } from "@/lib/leads/client";
 import { formatMoney, personName, relativeTime } from "@/lib/leads/format";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -114,6 +113,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   // Bumped when a follow-up is set here, so the next-follow-up line and the history look again.
   const [followUps, setFollowUps] = useState(0);
   const tz = timezoneOf(session.user.timezone);
+  const forWhom = assignable(session.actor, catalog.people);
   const [burst, setBurst] = useState<{ x: number; y: number } | null>(null);
   const activities = useActivities(id);
   const move = useStageMove();
@@ -529,8 +529,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                     lead={{ id: lead.id, name: lead.name ?? "" }}
                     tz={tz}
                     meId={session.user.id}
-                    canAssign={can(session.actor, "tasks.manage_others")}
-                    people={catalog.people}
+                    canAssign={forWhom.some((p) => p.id !== session.user.id)}
+                    people={forWhom}
                     onSaved={() => {
                       setFollowUps((v) => v + 1);
                       logged();

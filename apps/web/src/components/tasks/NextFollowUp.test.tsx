@@ -80,3 +80,25 @@ describe("Next follow-up", () => {
     expect(play).not.toHaveBeenCalled(); // snooze is silent (sound policy)
   });
 });
+
+describe("3A final review", () => {
+  it("Minor 4: stepping to another lead never shows the previous lead's follow-up", async () => {
+    let slow: (v: unknown) => void = () => undefined;
+    vi.mocked(tasksClient.forLead)
+      .mockReturnValueOnce(new Promise((r) => (slow = r)) as never)
+      .mockResolvedValueOnce(ok({ items: [task({ id: "t2", leadId: "l2", title: "The second lead's" })] }));
+    const { rerender } = render(<NextFollowUp leadId="l1" tz="Asia/Dubai" meId="u-me" version={0} />);
+    rerender(<NextFollowUp leadId="l2" tz="Asia/Dubai" meId="u-me" version={0} />);
+    expect(await screen.findByText("The second lead's")).toBeInTheDocument();
+    slow(ok({ items: [task({ title: "The first lead's" })] })); // the first answer arrives late
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByText("The first lead's")).not.toBeInTheDocument();
+  });
+
+  it("Minor 4: someone who can't change it sees it, without a tick that would only fail", async () => {
+    vi.mocked(tasksClient.forLead).mockResolvedValue(ok({ items: [task({ canEdit: false })] }));
+    render(<NextFollowUp leadId="l1" tz="Asia/Dubai" meId="u-me" version={0} />);
+    expect(await screen.findByText("Call back")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /done$/ })).not.toBeInTheDocument();
+  });
+});

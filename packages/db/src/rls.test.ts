@@ -287,3 +287,16 @@ describe("0021_follow_ups: follow-ups are seen with their lead; notifications on
     ).rejects.toThrow(/permission/);
   });
 });
+
+describe("3A final review, Critical 2: backups", () => {
+  it("the backup role reads every follow-up and every notification (pg_dump --enable-row-security)", async () => {
+    const tasks = await ids("lume_readonly_backup", { scope: null }, "SELECT id FROM tasks");
+    expect(tasks.length).toBeGreaterThanOrEqual(2);
+    const n = await as(
+      "lume_readonly_backup",
+      { scope: null },
+      async (c) => (await c.query("SELECT id FROM notifications")).rowCount,
+    );
+    expect(n).toBeGreaterThanOrEqual(2);
+  });
+});

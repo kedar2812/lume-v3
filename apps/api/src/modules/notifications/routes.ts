@@ -1,4 +1,5 @@
 import { and, desc, inArray, isNull, sql } from "drizzle-orm";
+import type { ServerResponse } from "node:http";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -9,6 +10,9 @@ import { missedSince, startHub, type NotificationView } from "./hub";
 const N = schema.notifications;
 const self = { permission: "auth.self" as const };
 const HEARTBEAT_MS = 25_000;
+/** How far before the last id a replay starts (ids can commit out of order), and how many ids a stream remembers. */
+const OVERLAP = 50;
+const SENT_MAX = 2000;
 
 const unreadOf = async (req: FastifyRequest) =>
   (
@@ -20,6 +24,13 @@ const unreadOf = async (req: FastifyRequest) =>
 /** Phase 3 spec §7: a person's notifications, and the live stream of new ones. */
 export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const hub = await startHub(d.pool);
+  // Open streams would hold the server open for ever (a heartbeat every 25 s): end them first, so an update
+  // restarts cleanly and the pools close (3A final review, Important 6).
+  const open = new Set<ServerResponse>();
+  app.addHook("preClose", async () => {
+    for (const res of open) res.end();
+    open.clear();
+  });
   app.addHook("onClose", async () => hub.stop());
   const r = app.withTypeProvider<ZodTypeProvider>();
 
@@ -65,37 +76,59 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
    * the browser missed (Last-Event-ID) is replayed first; anything arriving meanwhile waits its turn, and
    * nothing is sent twice.
    */
-  r.get("/api/v1/stream", { config: { ...self, db: false } }, async (req, reply) => {
-    const userId = req.actor!.userId;
-    const lastSeen = Number(req.headers["last-event-id"]) || 0;
-    reply.hijack();
-    const res = reply.raw;
-    res.writeHead(200, {
-      "content-type": "text/event-stream; charset=utf-8",
-      "cache-control": "no-cache, no-transform",
-      connection: "keep-alive",
-      "x-accel-buffering": "no",
-    });
-    res.write("retry: 3000\n: connected\n\n");
-    let high = lastSeen;
-    let replaying = true;
-    const waiting: NotificationView[] = [];
-    const send = (n: NotificationView) => {
-      if (n.id <= high) return;
-      high = n.id;
-      res.write(`id: ${n.id}\nevent: notification\ndata: ${JSON.stringify(n)}\n\n`);
-    };
-    const unsubscribe = hub.subscribe(userId, (n) => (replaying ? waiting.push(n) : send(n)));
-    const beat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
-    req.raw.on("close", () => {
-      clearInterval(beat);
-      unsubscribe();
-    });
-    try {
-      if (lastSeen) for (const n of await missedSince(d.pool, userId, lastSeen)) send(n);
-    } finally {
-      replaying = false;
-      for (const n of waiting.sort((a, b) => a.id - b.id)) send(n);
-    }
-  });
+  r.get(
+    "/api/v1/stream",
+    {
+      config: { ...self, db: false },
+      schema: { querystring: z.object({ after: z.coerce.number().int().min(0).optional() }) },
+    },
+    async (req, reply) => {
+      const userId = req.actor!.userId;
+      // Where to resume: the browser's own Last-Event-ID, or ?after= when LUME reconnects by hand after
+      // the browser gave up (an API restart answers 502 for a moment; 3A final review, Important 4).
+      const lastSeen = Number(req.headers["last-event-id"]) || req.query.after || 0;
+      reply.hijack();
+      const res = reply.raw;
+      res.writeHead(200, {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "x-accel-buffering": "no",
+      });
+      res.write("retry: 3000\n: connected\n\n");
+      open.add(res);
+      // Each id once, whatever order they commit in (Important 3). Bounded: the oldest are forgotten first.
+      const sent = new Set<number>();
+      let high = lastSeen;
+      const send = (n: NotificationView) => {
+        if (sent.has(n.id)) return;
+        sent.add(n.id);
+        if (sent.size > SENT_MAX) sent.delete(sent.values().next().value!);
+        high = Math.max(high, n.id);
+        res.write(`id: ${n.id}\nevent: notification\ndata: ${JSON.stringify(n)}\n\n`);
+      };
+      let replaying = true;
+      const waiting: NotificationView[] = [];
+      const replay = async (from: number) => {
+        for (const n of await missedSince(d.pool, userId, Math.max(0, from - OVERLAP))) send(n);
+      };
+      const unsubscribe = hub.subscribe(
+        userId,
+        (n) => (replaying ? waiting.push(n) : send(n)),
+        () => void replay(high).catch(() => undefined),
+      );
+      const beat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
+      req.raw.on("close", () => {
+        clearInterval(beat);
+        unsubscribe();
+        open.delete(res);
+      });
+      try {
+        if (lastSeen) await replay(lastSeen);
+      } finally {
+        replaying = false;
+        for (const n of waiting.sort((a, b) => a.id - b.id)) send(n);
+      }
+    },
+  );
 }

@@ -97,6 +97,34 @@ describe("Today", () => {
     expect(play).not.toHaveBeenCalled();
   });
 
+  it("Important 8: opening Today on a day already cleared shows All clear, silently", async () => {
+    vi.mocked(tasksClient.today).mockResolvedValue(
+      ok(view({ overdue: [], soon: [], later: [], done: 5, total: 5 })),
+    );
+    render(<Today name="Maya Kapoor" tz="Asia/Dubai" />);
+    expect(await screen.findByRole("heading", { name: "All clear" })).toBeInTheDocument();
+    expect(play).not.toHaveBeenCalled(); // sounds follow actions, never a page opening
+  });
+
+  it("Important 7: done on a repeating one that's due again today isn't All clear", async () => {
+    const one = view({ overdue: [t("a", "Aisha Khan", -14)], soon: [], later: [], done: 0, total: 1 });
+    const again = view({ overdue: [], soon: [], later: [t("n", "Aisha Khan", 10)], done: 1, total: 2 });
+    vi.mocked(tasksClient.today).mockResolvedValueOnce(ok(one)).mockResolvedValue(ok(again));
+    vi.mocked(tasksClient.done).mockResolvedValue(
+      ok({
+        task: { ...t("a", "Aisha Khan", -14), status: "done" },
+        next: t("n", "Aisha Khan", 10),
+        clearedToday: false,
+      }),
+    );
+    render(<Today name="Maya Kapoor" tz="Asia/Dubai" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Done: Follow up — Aisha Khan" }));
+    expect(await screen.findByRole("list", { name: "Later today" })).toHaveTextContent("Aisha Khan");
+    expect(screen.queryByRole("heading", { name: "All clear" })).not.toBeInTheDocument();
+    expect(play).toHaveBeenCalledWith("done");
+    expect(play).not.toHaveBeenCalledWith("cleared");
+  });
+
   it("nothing due today is a calm empty day, not a celebration", async () => {
     vi.mocked(tasksClient.today).mockResolvedValue(
       ok(view({ overdue: [], soon: [], later: [], done: 0, total: 0 })),

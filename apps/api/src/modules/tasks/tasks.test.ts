@@ -259,3 +259,19 @@ describe("a lead's follow-ups", () => {
     expect((await call(rep, "POST", `/api/v1/tasks/${t.id}/done`)).statusCode).toBe(200); // their own, set by admin
   });
 });
+
+describe("3A final review", () => {
+  it("Minor 3 (re-graded): a queue that refuses a reminder never crashes LUME; the sweeper still has it", async () => {
+    const crashes: unknown[] = [];
+    const catcher = (e: unknown) => void crashes.push(e);
+    process.on("unhandledRejection", catcher);
+    h.failReminderQueue(true);
+    const r = await create(rep, lead);
+    await new Promise((res) => setTimeout(res, 50));
+    h.failReminderQueue(false);
+    process.off("unhandledRejection", catcher);
+    expect(r.statusCode).toBe(201);
+    expect(crashes).toEqual([]);
+    expect(await pending(r.json().id)).toEqual([{ offset_minutes: 0 }]); // the sweeper will fire it on time
+  });
+});

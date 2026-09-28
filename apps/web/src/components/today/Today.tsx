@@ -1,7 +1,7 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
@@ -62,8 +62,6 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
   const sound = useSound();
   const [v, setV] = useState<TodayView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [cleared, setCleared] = useState(false);
-  const celebrated = useRef(false);
 
   const load = useCallback(async () => {
     const r = await tasksClient.today();
@@ -78,13 +76,9 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
   useStream(() => void load());
 
   const remaining = v ? v.overdue.length + v.soon.length + v.later.length : 0;
-  // Everything due today done (and there was something): All clear, with its sound once a day.
-  useEffect(() => {
-    if (!v || v.total === 0 || remaining > 0 || celebrated.current) return;
-    celebrated.current = true;
-    setCleared(true);
-    if (firstClearToday(tz)) sound.play("cleared");
-  }, [v, remaining, sound, tz]);
+  // Everything due today done (and there was something): All clear. It plays its sound only when a Done
+  // here clears the day — never because the page opened (sound policy; 3A final review, Important 8).
+  const cleared = !!v && v.total > 0 && remaining === 0;
 
   if (error && !v)
     return (
@@ -97,12 +91,10 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
   const done = async (t: TaskView) => {
     const r = await tasksClient.done(t.id);
     if (!r.ok) return setError(r.message);
-    const last = r.data.clearedToday;
-    if (last) {
-      celebrated.current = true;
-      setCleared(true);
-      if (firstClearToday(tz)) sound.play("cleared");
-    } else sound.play("done");
+    if (r.data.clearedToday && firstClearToday(tz)) sound.play("cleared");
+    else sound.play("done");
+    // A repeat made the next one: it may be due today, so ask again rather than guess (Important 7).
+    if (r.data.next) return void (await load());
     setV(
       (cur) =>
         cur && {
@@ -123,21 +115,30 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
   const first = name.split(" ")[0] || name;
   const oldest = v.overdue[0];
   const brief =
-    v.total === 0
-      ? "Nothing's due today."
-      : oldest
-        ? `${oldest.leadName} has been waiting since ${whenInWords(oldest.dueAt, new Date(), tz).replace(" (overdue)", "")}, so start there.`
-        : remaining
-          ? `Nothing's overdue. ${remaining === 1 ? "One follow-up" : `${remaining} follow-ups`} still to go today.`
-          : "Everything due today is done.";
+    v.total === 0 ? (
+      "Nothing's due today."
+    ) : oldest ? (
+      <>
+        {oldest.leadName} has been waiting since{" "}
+        <span data-volatile>{whenInWords(oldest.dueAt, new Date(), tz).replace(" (overdue)", "")}</span>, so
+        start there.
+      </>
+    ) : remaining ? (
+      `Nothing's overdue. ${remaining === 1 ? "One follow-up" : `${remaining} follow-ups`} still to go today.`
+    ) : (
+      "Everything due today is done."
+    );
 
   return (
     <div className={s.page}>
       <section className={s.hero}>
         <div>
-          <p className={s.date}>{dateLine(tz)}</p>
+          {/* The date and the time of day change between visits: marked volatile for the screenshots. */}
+          <p className={s.date}>
+            <span data-volatile>{dateLine(tz)}</span>
+          </p>
           <h1 className={s.greet}>
-            {greeting(tz)}, {first}
+            <span data-volatile>{greeting(tz)}</span>, {first}
           </h1>
           <p className={s.brief}>{brief}</p>
         </div>
@@ -150,7 +151,7 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
         </p>
       )}
 
-      {cleared && remaining === 0 ? (
+      {cleared ? (
         <motion.section
           className={s.clear}
           initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}

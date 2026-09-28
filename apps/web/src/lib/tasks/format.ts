@@ -1,4 +1,4 @@
-import { wallTime } from "@lume/core/shared";
+import { scopeOf, wallTime, type Actor } from "@lume/core/shared";
 
 const MIN = 60_000;
 type Parts = { y: number; m: number; d: number; hh: number; mm: number; wd: string; mon: string };
@@ -56,3 +56,15 @@ export function localInputToIso(value: string, tz: string): string | null {
 /** The person's timezone: their own setting, else the browser's (LUME stores it; the browser always knows one). */
 export const timezoneOf = (userTz: string | null | undefined): string =>
   userTz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+/**
+ * Whom this person may give a follow-up to (the API's rule, 3A final review Minor 9): with Manage others'
+ * follow-ups at `all`, everyone active; at `team`, their teams' members; otherwise nobody (no "For" picker).
+ */
+export function assignable<P extends { id: string; active: boolean }>(actor: Actor, people: P[]): P[] {
+  const scope = scopeOf(actor, "tasks.manage_others");
+  if (scope === "all") return people.filter((p) => p.active);
+  if (scope === "team")
+    return people.filter((p) => p.active && (p.id === actor.userId || actor.teamMemberIds.includes(p.id)));
+  return [];
+}

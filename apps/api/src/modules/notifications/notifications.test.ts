@@ -123,7 +123,77 @@ describe("the live stream", () => {
     const first = await stream(me, { until: 1, after: () => notify(meId, "Before the drop") });
     const seen = first.events[0]!.id;
     await notify(meId, "While away");
-    const again = await stream(me, { lastEventId: seen, until: 2 });
-    expect(again.events.map((e) => e.title)).toEqual(["While away"]);
+    const again = await stream(me, { lastEventId: seen, until: 50 });
+    // What was missed arrives once. The replay starts a little before Last-Event-ID (ids can commit out of
+    // order, final review Important 3), so earlier ones may come again; the browser drops those by id.
+    expect(again.events.filter((e) => e.title === "While away")).toHaveLength(1);
+    expect(new Set(again.events.map((e) => e.id)).size).toBe(again.events.length);
+  });
+});
+
+describe("3A final review", () => {
+  it("Important 3: a notification that commits after a later one still arrives", async () => {
+    const early = await h.pool.connect();
+    await early.query("BEGIN");
+    await early.query("SELECT set_config('lume.user_id', $1, true)", [meId]);
+    const { rows } = await early.query<{ id: string }>(
+      "INSERT INTO notifications (user_id, kind, title) VALUES ($1, 'follow_up_due', 'Slow to commit') RETURNING id",
+      [meId],
+    );
+    const got = await stream(me, {
+      until: 2,
+      after: async () => {
+        await notify(meId, "Quick to commit"); // a later id, committed first
+        await early.query("SELECT pg_notify('lume_notifications', $1)", [
+          JSON.stringify({ u: meId, n: Number(rows[0]!.id) }),
+        ]);
+        await early.query("COMMIT");
+        early.release();
+      },
+    });
+    expect(got.events.map((e) => e.title).sort()).toEqual(["Quick to commit", "Slow to commit"]);
+  });
+
+  it("Important 3: more than 50 missed are all replayed", async () => {
+    const first = await stream(me, { until: 1, after: () => notify(meId, "Anchor") });
+    for (let i = 0; i < 60; i++) await notify(meId, `Missed ${i}`);
+    const again = await stream(me, { lastEventId: first.events[0]!.id, until: 60 });
+    expect(new Set(again.events.map((e) => e.title)).size).toBeGreaterThanOrEqual(60);
+  });
+
+  it("Important 4: the stream also takes where to resume from as ?after=, for a browser reconnecting by hand", async () => {
+    const first = await stream(me, { until: 1, after: () => notify(meId, "Before a restart") });
+    await notify(meId, "During the restart");
+    const ac = new AbortController();
+    const res = await fetch(`${base}/api/v1/stream?after=${first.events[0]!.id}`, {
+      headers: { cookie: cookie(me) },
+      signal: ac.signal,
+    });
+    const reader = res.body!.getReader();
+    let text = "";
+    const stop = setTimeout(() => ac.abort(), 2000);
+    try {
+      while (!text.includes("During the restart"))
+        text += new TextDecoder().decode((await reader.read()).value);
+    } catch {
+      // aborted
+    }
+    clearTimeout(stop);
+    ac.abort();
+    expect(text).toContain("During the restart");
+  });
+
+  it("Important 6: an open stream never holds up the API shutting down", async () => {
+    const other = await createHarness({ preset: "general" });
+    const u = await other.seedUser({ grants: [{ key: "leads.view", scope: "own" }], totp: true });
+    const c = await other.signIn(u);
+    await other.app.listen({ port: 0, host: "127.0.0.1" });
+    const url = `http://127.0.0.1:${(other.app.server.address() as AddressInfo).port}/api/v1/stream`;
+    const ac = new AbortController();
+    await fetch(url, { headers: { cookie: cookie(c) }, signal: ac.signal });
+    const started = Date.now();
+    await other.close();
+    ac.abort();
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 });

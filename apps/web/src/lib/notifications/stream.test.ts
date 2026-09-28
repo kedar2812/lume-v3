@@ -4,7 +4,10 @@ import { subscribe, useStream } from "./stream";
 
 class FakeSource {
   static made: FakeSource[] = [];
+  static CLOSED = 2;
   closed = false;
+  readyState = 1;
+  onerror: (() => void) | null = null;
   handlers: ((e: MessageEvent<string>) => void)[] = [];
   constructor(public url: string) {
     FakeSource.made.push(this);
@@ -15,8 +18,14 @@ class FakeSource {
   close() {
     this.closed = true;
   }
-  emit(data: unknown) {
-    for (const h of this.handlers) h({ data: JSON.stringify(data) } as MessageEvent<string>);
+  emit(data: { id: number } & Record<string, unknown>) {
+    for (const h of this.handlers)
+      h({ data: JSON.stringify(data), lastEventId: String(data.id) } as MessageEvent<string>);
+  }
+  /** The server went away for good (a 502 during a restart): the browser gives up on this one. */
+  die() {
+    this.readyState = FakeSource.CLOSED;
+    this.onerror?.();
   }
 }
 beforeEach(() => {
@@ -49,5 +58,31 @@ describe("the live stream", () => {
     expect(on).toHaveBeenCalledTimes(1);
     unmount();
     expect(FakeSource.made[0]!.closed).toBe(true);
+  });
+});
+
+describe("3A final review", () => {
+  it("Important 4: when the browser gives up (a restart's 502), LUME opens a new one from where it was", async () => {
+    vi.useFakeTimers();
+    const on = vi.fn();
+    const off = subscribe(on);
+    const first = FakeSource.made[0]!;
+    first.emit({ id: 41, title: "Before" });
+    first.die();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(FakeSource.made).toHaveLength(2);
+    expect(FakeSource.made[1]!.url).toBe("/api/v1/stream?after=41");
+    off();
+    vi.useRealTimers();
+  });
+
+  it("Important 3: the same notification twice (a replay's overlap) reaches listeners once", () => {
+    const on = vi.fn();
+    const off = subscribe(on);
+    const s = FakeSource.made[0]!;
+    s.emit({ id: 7, title: "Once" });
+    s.emit({ id: 7, title: "Once" });
+    expect(on).toHaveBeenCalledTimes(1);
+    off();
   });
 });
