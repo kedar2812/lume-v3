@@ -47,8 +47,16 @@ export const SETTINGS_AREAS: SettingsArea[] = [
   {
     id: "follow-ups",
     title: "Follow-ups",
-    blurb: "When an overdue follow-up reaches the people who manage it",
+    blurb: "Escalation, the morning email, leads gone quiet and time choices",
     href: "/settings/follow-ups",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
+    id: "health",
+    title: "System health",
+    blurb: "Whether every reminder, email and sync is running",
+    href: "/settings/health",
     anyOf: ["settings.manage"],
     group: "workspace",
   },

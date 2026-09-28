@@ -1,0 +1,158 @@
+/* Settings → System health (3C): a calm headline, then one card per promise. Numbers never jump. */
+.page {
+  display: grid;
+  gap: 16px;
+}
+.headline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: var(--r-card);
+  background: var(--warn-soft);
+  color: var(--text);
+}
+.headline[data-fine] {
+  background: var(--ok-soft);
+}
+.glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--warn);
+  color: #fff;
+}
+.headline[data-fine] .glyph {
+  background: var(--ok);
+}
+.title {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+}
+.checked {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.checked time {
+  font-variant-numeric: tabular-nums;
+}
+.problems {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.problems li {
+  padding: 10px 14px;
+  border-radius: var(--r-row);
+  border-left: 3px solid var(--warn);
+  background: var(--sunk);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  border: 1px solid var(--line);
+}
+.card[data-warn] {
+  border-color: var(--warn);
+}
+.cardTitle {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.cardBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 22px;
+}
+.figure {
+  display: grid;
+  gap: 2px;
+}
+.n {
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.figure[data-warn] .n {
+  color: var(--warn-ink);
+}
+.nLabel {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.line {
+  flex-basis: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.line b {
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.off {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.sources {
+  flex-basis: 100%;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sources li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.sourceName {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sourceState {
+  flex: none;
+  color: var(--text-2);
+}
+.sources li[data-warn] .sourceState {
+  color: var(--warn-ink);
+  font-weight: var(--fw-medium);
+}

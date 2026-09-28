@@ -26,6 +26,7 @@ describe("areasFor", () => {
       "fields",
       "lists",
       "follow-ups",
+      "health",
       "people",
       "roles",
       "teams",
