@@ -34,7 +34,8 @@ describe("the bell", () => {
     vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 2 }));
     render(<TopBar theme="system" onSearch={vi.fn()} />);
     const bell = await screen.findByRole("button", { name: "Notifications, 2 unread" });
-    expect(document.title).toBe("(2) Leads · LUME");
+    // The title follows in an effect, after the render that named the bell.
+    await vi.waitFor(() => expect(document.title).toBe("(2) Leads · LUME"));
     await userEvent.click(bell);
     expect(screen.getByRole("dialog", { name: "Notifications" })).toBeInTheDocument();
   });

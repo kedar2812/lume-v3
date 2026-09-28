@@ -82,14 +82,20 @@ async function setFollowUp(
   deps: AutomationDeps,
   lead: Lead,
   rule: Extract<StageRule, { type: "create_task" }>,
-  ctx: { settings: ReturnType<typeof followUpsFrom>; hours: ReturnType<typeof workingHoursFrom>; tz: string; now: Date },
+  ctx: {
+    settings: ReturnType<typeof followUpsFrom>;
+    hours: ReturnType<typeof workingHoursFrom>;
+    tz: string;
+    now: Date;
+  },
 ) {
   // The named person, else the lead's owner (Review Focus 3); with neither, nothing.
   const wanted = rule.assignee === "lead_owner" ? lead.ownerId : rule.assignee.userId;
   let assigneeId: string | null = null;
   if (wanted && (await canTake(deps.pool, wanted, lead.ownerId))) assigneeId = wanted;
   else if (lead.ownerId && (await canTake(deps.pool, lead.ownerId, lead.ownerId))) assigneeId = lead.ownerId;
-  if (!assigneeId) return say(req, lead, rule, "skipped", { reason: lead.ownerId ? "owner_unavailable" : "no_owner" });
+  if (!assigneeId)
+    return say(req, lead, rule, "skipped", { reason: lead.ownerId ? "owner_unavailable" : "no_owner" });
   // One open follow-up per rule per lead: moving out and back in doesn't stack them (Review Focus 1).
   const open = await req.db.execute(
     sql`SELECT 1 FROM tasks WHERE lead_id = ${lead.id} AND auto_rule_id = ${rule.id} AND status = 'open' LIMIT 1`,
@@ -115,14 +121,21 @@ async function setFollowUp(
     .returning();
   await schedule(req.db, t!, ctx.now);
   await refreshNextDue(req, lead.id);
-  await say(req, lead, rule, "done", { taskId: id, assigneeId, title: rule.title, dueAt: dueAt.toISOString() });
+  await say(req, lead, rule, "done", {
+    taskId: id,
+    assigneeId,
+    title: rule.title,
+    dueAt: dueAt.toISOString(),
+  });
   const pending = await pendingOf(req.db, [id]);
   const by = req.actor!.userId;
   req.afterCommit(() => {
     if (pending.length)
       void deps.tasks
         ?.enqueue(pending)
-        .catch((err: unknown) => req.log.error({ err }, "couldn't queue a rule's reminder; the sweeper will"));
+        .catch((err: unknown) =>
+          req.log.error({ err }, "couldn't queue a rule's reminder; the sweeper will"),
+        );
     // The assignee hears, unless they made the move themselves.
     if (assigneeId !== by)
       void notify(deps.pool, assigneeId!, {
@@ -149,7 +162,8 @@ async function tell(
   const told: string[] = [];
   for (const id of ids) if (await canTake(deps.pool, id, lead.ownerId)) told.push(id);
   await say(req, lead, rule, told.length ? "done" : "skipped", told.length ? { told } : { reason: "nobody" });
-  const title = why === "moved" ? `${lead.name} moved to ${stage.name}` : `${lead.name} arrived in ${stage.name}`;
+  const title =
+    why === "moved" ? `${lead.name} moved to ${stage.name}` : `${lead.name} arrived in ${stage.name}`;
   req.afterCommit(() => {
     for (const id of told)
       void notify(deps.pool, id, { kind: "lead_stage", title, leadId: lead.id }).catch((err: unknown) =>

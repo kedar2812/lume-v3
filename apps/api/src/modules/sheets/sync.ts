@@ -515,7 +515,14 @@ async function syncSource(
           oneRow(
             req,
             o.keyring,
-            { src, rules, mapping, ctx, syncId, ...(src.lastSyncedAt ? { automations: { pool: o.pool } } : {}) },
+            {
+              src,
+              rules,
+              mapping,
+              ctx,
+              syncId,
+              ...(src.lastSyncedAt ? { automations: { pool: o.pool } } : {}),
+            },
             t,
           ),
         );

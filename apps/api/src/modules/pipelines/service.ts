@@ -32,13 +32,9 @@ const stageView = (s: StageRow) => ({
 async function assertRulePeople(req: FastifyRequest, onEnter: OnEnter | undefined) {
   const ids = [
     ...new Set(
-      (onEnter?.rules ?? []).flatMap((r) =>
-        r.type === "create_task"
-          ? [r.assignee]
-          : r.type === "notify"
-            ? r.to
-            : [],
-      ).flatMap((p) => (p === "lead_owner" ? [] : [p.userId])),
+      (onEnter?.rules ?? [])
+        .flatMap((r) => (r.type === "create_task" ? [r.assignee] : r.type === "notify" ? r.to : []))
+        .flatMap((p) => (p === "lead_owner" ? [] : [p.userId])),
     ),
   ];
   if (!ids.length) return;
@@ -242,7 +238,8 @@ export async function updateStage(req: FastifyRequest, id: string, patch: StageI
   const { onEnter, ...rest } = patch;
   if (Object.keys(rest).length)
     await audit(req, { action: "stage.updated", entityType: "stage", entityId: id, diff: rest });
-  if (onEnter) await audit(req, { action: "stage.automations", entityType: "stage", entityId: id, diff: onEnter });
+  if (onEnter)
+    await audit(req, { action: "stage.automations", entityType: "stage", entityId: id, diff: onEnter });
   return { stage: stageView(await liveStage(req, id)) };
 }
 

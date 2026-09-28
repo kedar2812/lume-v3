@@ -52,12 +52,38 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "integration.disabled": { area: "Settings", phrase: (d) => `switched off ${moduleName(d.module)}` },
   "settings.follow_ups": {
     area: "Settings",
+    // Each part changes on its own (3B, 3C): say the ones this change touched.
     phrase: (d) => {
-      const e = (d.escalation ?? {}) as { enabled?: boolean; hours?: number };
-      return e.enabled === false
-        ? "turned off escalation of overdue follow-ups"
-        : `set overdue follow-ups to reach managers after ${Number(e.hours ?? 24)} hours`;
+      const parts: string[] = [];
+      const e = d.escalation as { enabled?: boolean; hours?: number } | undefined;
+      if (e)
+        parts.push(
+          e.enabled === false
+            ? "turned off escalation of overdue follow-ups"
+            : `set overdue follow-ups to reach managers after ${Number(e.hours ?? 24)} hours`,
+        );
+      const m = d.digest as { enabled?: boolean } | undefined;
+      if (m) parts.push(m.enabled ? "switched on the morning email" : "switched off the morning email");
+      const q = d.noTouch as { enabled?: boolean; days?: number } | undefined;
+      if (q)
+        parts.push(
+          q.enabled
+            ? `set leads gone quiet to come back after ${Number(q.days ?? 7)} days`
+            : "turned off the alert for leads gone quiet",
+        );
+      if (typeof d.shiftToWorkingHours === "boolean")
+        parts.push(
+          d.shiftToWorkingHours
+            ? "kept LUME's follow-ups inside working hours"
+            : "let LUME's follow-ups fall outside working hours",
+        );
+      if (d.duePresets) parts.push("changed the time choices");
+      return parts.join("; ") || "changed the follow-up settings";
     },
+  },
+  "stage.automations": {
+    area: "Settings",
+    phrase: (d) => `changed a stage's automations (${Array.isArray(d.rules) ? d.rules.length : 0})`,
   },
   "task.changed_for_other": {
     area: "Leads",

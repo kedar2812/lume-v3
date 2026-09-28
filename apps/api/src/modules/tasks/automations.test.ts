@@ -47,7 +47,11 @@ const followUp = (o: Partial<Extract<StageRule, { type: "create_task" }>> = {}):
   ...o,
 });
 const setRules = (stage: string, rules: StageRule[]) =>
-  admin.inject({ method: "PATCH", url: `/api/v1/stages/${cfg.stages[stage]}`, payload: { onEnter: { rules } } });
+  admin.inject({
+    method: "PATCH",
+    url: `/api/v1/stages/${cfg.stages[stage]}`,
+    payload: { onEnter: { rules } },
+  });
 const move = (c: AuthedClient, leadId: string, stage: string, extra: Record<string, unknown> = {}) =>
   c.inject({
     method: "POST",
@@ -69,8 +73,9 @@ async function inbox(userId: string) {
   try {
     await c.query("BEGIN");
     await c.query("SELECT set_config('lume.user_id', $1, true)", [userId]);
-    return (await c.query<{ kind: string; title: string }>("SELECT kind, title FROM notifications ORDER BY id"))
-      .rows;
+    return (
+      await c.query<{ kind: string; title: string }>("SELECT kind, title FROM notifications ORDER BY id")
+    ).rows;
   } finally {
     await c.query("COMMIT");
     c.release();
@@ -90,10 +95,16 @@ describe("stage automations (3C Task 3)", () => {
     expect(t!.due_at.getTime() - before).toBeGreaterThanOrEqual(48 * H - 5_000);
     expect(t!.due_at.getTime() - before).toBeLessThan(48 * H + 60_000);
     const [line] = await automationLines(lead);
-    expect(line!.payload).toMatchObject({ ruleId: rule.id, rule: "create_task", result: "done", taskId: t!.id });
-    const pending = await h.queryAll("SELECT 1 FROM scheduled_notifications WHERE task_id = $1 AND status = 'pending'", [
-      t!.id,
-    ]);
+    expect(line!.payload).toMatchObject({
+      ruleId: rule.id,
+      rule: "create_task",
+      result: "done",
+      taskId: t!.id,
+    });
+    const pending = await h.queryAll(
+      "SELECT 1 FROM scheduled_notifications WHERE task_id = $1 AND status = 'pending'",
+      [t!.id],
+    );
     expect(pending).toHaveLength(1);
   });
 
@@ -169,11 +180,19 @@ describe("stage automations (3C Task 3)", () => {
     const wd = dubai.find((p) => p.type === "weekday")!.value;
     expect(["Sat", "Sun"]).not.toContain(wd);
     expect(hh >= 9 && hh < 18).toBe(true);
-    await admin.inject({ method: "PUT", url: "/api/v1/settings/follow-ups", payload: { shiftToWorkingHours: false } });
+    await admin.inject({
+      method: "PUT",
+      url: "/api/v1/settings/follow-ups",
+      payload: { shiftToWorkingHours: false },
+    });
     const before = Date.now();
     const plain = await wh();
     expect(plain.getTime() - before).toBeLessThan(H + 60_000);
-    await admin.inject({ method: "PUT", url: "/api/v1/settings/follow-ups", payload: { shiftToWorkingHours: true } });
+    await admin.inject({
+      method: "PUT",
+      url: "/api/v1/settings/follow-ups",
+      payload: { shiftToWorkingHours: true },
+    });
     await h.ownerPool.query(
       `UPDATE settings SET working_hours = '{"days":[0,1,2,3,4,5,6],"start":"00:00","end":"23:59"}' WHERE id = 1`,
     );
@@ -196,15 +215,21 @@ describe("stage automations (3C Task 3)", () => {
       [lead],
     );
     expect(pending).toHaveLength(0);
-    const [l] = await h.queryAll<{ next_task_due_at: Date | null }>("SELECT next_task_due_at FROM leads WHERE id = $1", [
-      lead,
-    ]);
+    const [l] = await h.queryAll<{ next_task_due_at: Date | null }>(
+      "SELECT next_task_due_at FROM leads WHERE id = $1",
+      [lead],
+    );
     expect(l!.next_task_due_at).toBeNull();
-    expect((await automationLines(lead))[0]!.payload).toMatchObject({ rule: "cancel_open_tasks", cancelled: 2 });
+    expect((await automationLines(lead))[0]!.payload).toMatchObject({
+      rule: "cancel_open_tasks",
+      cancelled: 2,
+    });
   });
 
   it("telling someone: the owner hears, never the one who moved it, never someone who can't see it; names only", async () => {
-    await setRules("Proposal", [{ id: rid(), type: "notify", to: ["lead_owner", { userId: riya }, { userId: adminId }] }]);
+    await setRules("Proposal", [
+      { id: rid(), type: "notify", to: ["lead_owner", { userId: riya }, { userId: adminId }] },
+    ]);
     const lead = await h.seedLead({ ownerId: repId, name: "Told Lead", phone: "+971507654321" });
     await move(admin, lead, "Proposal");
     await settle();

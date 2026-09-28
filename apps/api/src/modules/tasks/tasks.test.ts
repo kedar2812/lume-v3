@@ -140,8 +140,15 @@ describe("time choices an admin set (3C Task 2)", () => {
     expect((await create(rep, lead, { due: { preset: "in_1h" } })).statusCode).toBe(201);
     const gone = await create(rep, lead, { due: { preset: "tomorrow_10" } });
     expect(gone.statusCode).toBe(400);
-    expect(gone.json().error).toMatchObject({ code: "UNKNOWN_PRESET", message: "That time choice was just changed. Pick another." });
-    await admin.inject({ method: "PUT", url: "/api/v1/settings/follow-ups", payload: { duePresets: DEFAULT_DUE_PRESETS } });
+    expect(gone.json().error).toMatchObject({
+      code: "UNKNOWN_PRESET",
+      message: "That time choice was just changed. Pick another.",
+    });
+    await admin.inject({
+      method: "PUT",
+      url: "/api/v1/settings/follow-ups",
+      payload: { duePresets: DEFAULT_DUE_PRESETS },
+    });
   });
 });
 

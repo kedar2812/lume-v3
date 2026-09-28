@@ -62,9 +62,9 @@ describe("Phase 0 schema and grants", () => {
     ).rejects.toThrow(/ops_events_kind_check/);
     await expect(as("lume_app", "UPDATE ops_events SET ok = true")).rejects.toThrow(/permission denied/);
     await expect(as("lume_app", "DELETE FROM ops_events")).rejects.toThrow(/permission denied/);
-    await expect(
-      as("lume_worker", "INSERT INTO ops_events (kind, ok) VALUES ('x.y', true)"),
-    ).rejects.toThrow(/permission denied/);
+    await expect(as("lume_worker", "INSERT INTO ops_events (kind, ok) VALUES ('x.y', true)")).rejects.toThrow(
+      /permission denied/,
+    );
     await as("lume_worker", "DELETE FROM ops_events WHERE at < now() - interval '30 days'");
     expect((await as("lume_readonly_backup", "SELECT kind FROM ops_events")).length).toBe(1);
   });

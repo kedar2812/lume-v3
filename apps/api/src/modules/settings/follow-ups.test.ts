@@ -109,7 +109,8 @@ describe("Settings → Follow-ups (3C Task 2)", () => {
       noTouch: { enabled: true, days: 10 },
       escalation: { enabled: true },
     });
-    for (const days of [0, 91]) expect((await put({ noTouch: { enabled: true, days } })).statusCode).toBe(400);
+    for (const days of [0, 91])
+      expect((await put({ noTouch: { enabled: true, days } })).statusCode).toBe(400);
     expect((await put({ shiftToWorkingHours: false })).json().shiftToWorkingHours).toBe(false);
     const presets = [
       { id: "in_30m", label: "In 30 minutes", rule: { in: { n: 30, unit: "minute" } } },

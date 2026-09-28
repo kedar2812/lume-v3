@@ -107,11 +107,10 @@ describe("auditPhrase", () => {
     expect(say({ shiftToWorkingHours: false, duePresets: [] })).toBe(
       "Riya Sharma let LUME's follow-ups fall outside working hours; changed the time choices",
     );
-    expect(auditPhrase(entry("stage.automations", { entityType: "stage", diff: { rules: [{}, {}] } }), people)).toBe(
-      "Riya Sharma changed a stage's automations (2)",
-    );
+    expect(
+      auditPhrase(entry("stage.automations", { entityType: "stage", diff: { rules: [{}, {}] } }), people),
+    ).toBe("Riya Sharma changed a stage's automations (2)");
   });
-
 
   it("says what an import did", () => {
     expect(
