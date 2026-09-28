@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import type { AppDeps } from "../../app";
 import { createLimiter } from "./limits";
 import { parseBody } from "./payload";
+import { eventContext } from "./process";
 import { checkSignature, checkToken, openWebhook } from "./secret";
 
 const S = schema.leadSources;
@@ -131,7 +132,8 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
         .values({
           sourceId: id,
           eventKey,
-          payloadEnc: d.keyring.encrypt(raw.toString("utf8"), `webhook-event:${id}:${eventKey}`),
+          // Kept as the JSON it read as (a form's fields too), so processing needs no content type.
+          payloadEnc: d.keyring.encrypt(JSON.stringify(body.value), eventContext(id, eventKey)),
           status,
         })
         .onConflictDoNothing({ target: [E.sourceId, E.eventKey] })

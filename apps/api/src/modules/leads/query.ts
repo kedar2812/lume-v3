@@ -33,7 +33,7 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
  * arrive, even for the admin the sheet runs as. Row-level security still decides which leads are seen.
  */
 export const arrivalsWhere = (since: Date, me: string) =>
-  sql`(${L.createdAt} > ${since} AND (${L.createdBy} IS DISTINCT FROM ${me} OR EXISTS (SELECT 1 FROM lead_sources s WHERE s.id = ${L.sourceId} AND s.type = 'google_sheet')))`;
+  sql`(${L.createdAt} > ${since} AND (${L.createdBy} IS DISTINCT FROM ${me} OR EXISTS (SELECT 1 FROM lead_sources s WHERE s.id = ${L.sourceId} AND s.type IN ('google_sheet', 'webhook'))))`;
 
 function encodeCursor(sort: ListQuery["sort"], row: LeadRow): string {
   const v =

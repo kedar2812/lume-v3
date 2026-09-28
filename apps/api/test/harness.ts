@@ -39,6 +39,7 @@ import { seedConfiguration } from "../src/modules/pipelines/seed";
 import { loadActor, type ActorRecord } from "../src/rbac/actor";
 import { startGoogleFake, type GoogleFake } from "./google-fake";
 import { createLimiter } from "../src/modules/webhooks/limits";
+import { processEvent } from "../src/modules/webhooks/process";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
@@ -141,6 +142,8 @@ export type Harness = {
   runSyncs(ids?: string[]): Promise<void>;
   /** Webhook events queued for processing (2C), in the order they were accepted. */
   webhookQueue: number[];
+  /** Processes every queued webhook event now, as the queue would. */
+  runWebhooks(): Promise<void>;
   /** Where the relay is (it listens on a port the test picks). */
   setRelayUrl(url: string): void;
   /** Takes one permission away from every role the user has, and waits until the API has noticed. */
@@ -424,6 +427,10 @@ export async function createHarness(
     fake,
     google,
     webhookQueue,
+    async runWebhooks() {
+      for (let id = webhookQueue.shift(); id; id = webhookQueue.shift())
+        await processEvent({ app, pool, keyring }, id);
+    },
     async runSyncs(ids = []) {
       syncs.push(...ids);
       for (let id = syncs.shift(); id; id = syncs.shift())

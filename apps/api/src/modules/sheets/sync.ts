@@ -614,7 +614,7 @@ async function refuseRow(
 }
 
 /** A sheet chosen to create missing tags keeps doing so for new rows (spec §5.2, as 2A's Start does). */
-async function createMissingTags(req: FastifyRequest, mapping: Mapping, rows: string[][]) {
+export async function createMissingTags(req: FastifyRequest, mapping: Mapping, rows: string[][]) {
   const have = new Set(
     (await req.db.select({ label: schema.tags.label }).from(schema.tags)).map((t) => fold(t.label)),
   );

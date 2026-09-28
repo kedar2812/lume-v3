@@ -6,6 +6,7 @@ import { buildApp } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
+import { startWebhookQueue } from "./modules/webhooks/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
 import { REDACT_PATHS } from "./logger";
@@ -42,6 +43,9 @@ const sheets: { enqueue(id: string): Promise<void>; maxRows: number } = {
   maxRows: cfg.LUME_SHEETS_MAX_ROWS,
 };
 
+// Webhooks (2C): the queue always runs; the module switch gates receiving, not processing what was accepted.
+const webhooks: { enqueue(id: number): Promise<void> } = { enqueue: async () => undefined };
+
 const app = await buildApp({
   pool,
   keyring,
@@ -49,6 +53,7 @@ const app = await buildApp({
   jobPool,
   google,
   sheets,
+  webhooks,
   googleOAuth,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   mailer: createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`),
@@ -82,10 +87,18 @@ const sheetQueue =
       })
     : null;
 if (sheetQueue) sheets.enqueue = sheetQueue.enqueue;
+const webhookQueue = await startWebhookQueue({
+  connectionString: cfg.DATABASE_URL_APP,
+  app,
+  pool: jobPool,
+  keyring,
+});
+webhooks.enqueue = webhookQueue.enqueue;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {
+    await webhookQueue.stop();
     await sheetQueue?.stop();
     await queue.stop();
     await app.close();
