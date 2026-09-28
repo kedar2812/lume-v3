@@ -617,3 +617,13 @@ Plan: `docs/superpowers/plans/2026-09-28-phase-2c-webhooks.md`. Spec: `docs/supe
 ## Found and fixed during the build
 
 - Throwing away a webhook's draft (closing the setup) deleted the webhook itself, because the 2A discard removes a draft's source. Only the draft goes now. Test: "closing the setup throws away only its draft".
+
+## Live walkthrough (2026-09-28, the dev stack through Caddy's TLS)
+
+`acceptance-2c.mjs`, run after the whole chain (1C-1 → 1C-2 → 1C-3 → 2A → 2B-1) on a freshly reset stack:
+- Webhooks are off until switched on, and ManyChat isn't offered.
+- Add a webhook → Website form. Its address is `https://lume.localhost:8443/webhooks/in/<id>`.
+- A signed test post from outside, through Caddy, is accepted. The test post becomes one lead after the usual steps.
+- A forged post is refused, nothing forged gets in, and the webhook's page says "1 refused · last for a bad signature".
+
+Screenshots: `docs/runbooks/screenshots-2c/`.
