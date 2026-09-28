@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { describeActivity } from "./history";
 import { testCatalog } from "./test-catalog";
+import type { Activity } from "./types";
 
 const cat = testCatalog();
 const a = (type: string, payload: Record<string, unknown> = {}) => ({
@@ -103,5 +104,38 @@ describe("describeActivity", () => {
     expect(describeActivity(a("something_new"), cat).title).toBe("Updated");
     expect(describeActivity(a("stage_changed", { to: "gone" }), cat).title).toBe("Moved to another stage");
     expect(describeActivity({ ...a("contact_revealed"), user: null }, cat).detail).toBeUndefined();
+  });
+});
+
+describe("LUME's own work, in the lead's history (3C Task 6)", () => {
+  const cat = testCatalog();
+  const auto = (payload: Record<string, unknown>, user: Activity["user"] = null): Activity =>
+    ({ id: "a", type: "automation", payload, occurredAt: "2026-09-28T10:00:00Z", user }) as Activity;
+  const who = cat.people[0]!;
+  it("says what LUME did, and why it couldn't", () => {
+    expect(
+      describeActivity(
+        auto({ rule: "create_task", result: "done", assigneeId: who.id, title: "Send the plan" }),
+        cat,
+      ),
+    ).toMatchObject({ title: "LUME set a follow-up", detail: expect.stringContaining(`for ${who.name}`) });
+    expect(
+      describeActivity(auto({ rule: "create_task", result: "skipped", reason: "no_owner" }), cat),
+    ).toMatchObject({
+      title: "LUME couldn't set a follow-up",
+      detail: "this lead has no owner",
+    });
+    expect(
+      describeActivity(auto({ rule: "cancel_open_tasks", result: "done", cancelled: 2 }), cat).title,
+    ).toBe("LUME cleared 2 open follow-ups");
+    expect(
+      describeActivity(auto({ rule: "cancel_open_tasks", result: "done", cancelled: 0 }), cat).title,
+    ).toBe("No open follow-ups to clear");
+    expect(describeActivity(auto({ rule: "notify", result: "done", told: [who.id] }), cat).title).toBe(
+      `LUME told ${who.name}`,
+    );
+    expect(describeActivity(auto({ rule: "no_touch", result: "done", days: 7 }), cat).title).toBe(
+      "LUME set a follow-up: no contact for 7 days",
+    );
   });
 });

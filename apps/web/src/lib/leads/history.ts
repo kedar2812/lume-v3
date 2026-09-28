@@ -103,8 +103,57 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
         detail: join(p.title ? `“${String(p.title)}”` : undefined, by(a)),
         tone: "neutral",
       };
+    // LUME's own work (3C): a stage's automations, and leads gone quiet.
+    case "automation":
+      return automationLine(p, cat);
     default:
       return { title: "Updated", detail: by(a), tone: "neutral" };
+  }
+}
+
+const WHY: Record<string, string> = {
+  no_owner: "this lead has no owner",
+  owner_unavailable: "its owner can't take it",
+  already_open: "one from this stage is still open",
+  nobody: "there was no one to tell",
+};
+function automationLine(p: Record<string, unknown>, cat: Catalog): HistoryLine {
+  const done = p.result === "done";
+  const quoted = p.title ? `“${String(p.title)}”` : undefined;
+  const due = typeof p.dueAt === "string" ? dueWords(p.dueAt) : undefined;
+  switch (p.rule) {
+    case "no_touch":
+      return { title: `LUME set a follow-up: no contact for ${Number(p.days ?? 0)} days`, tone: "accent" };
+    case "create_task":
+      return done
+        ? {
+            title: "LUME set a follow-up",
+            detail: join(
+              p.assigneeId ? `for ${personName(cat, p.assigneeId as string)}` : undefined,
+              quoted,
+              due,
+            ),
+            tone: "accent",
+          }
+        : { title: "LUME couldn't set a follow-up", detail: WHY[String(p.reason)], tone: "neutral" };
+    case "cancel_open_tasks": {
+      const n = Number(p.cancelled ?? 0);
+      return {
+        title: n ? `LUME cleared ${n} open follow-up${n === 1 ? "" : "s"}` : "No open follow-ups to clear",
+        tone: "neutral",
+      };
+    }
+    case "notify": {
+      const told = Array.isArray(p.told) ? p.told.map((id) => personName(cat, String(id))) : [];
+      return told.length
+        ? {
+            title: `LUME told ${told.length > 1 ? `${told.slice(0, -1).join(", ")} and ${told.at(-1)}` : told[0]}`,
+            tone: "meet",
+          }
+        : { title: "LUME had no one to tell", tone: "neutral" };
+    }
+    default:
+      return { title: "LUME did something automatically", tone: "neutral" };
   }
 }
 

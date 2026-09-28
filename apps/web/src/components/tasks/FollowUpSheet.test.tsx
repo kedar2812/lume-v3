@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tasksClient } from "@/lib/tasks/client";
 import { FollowUpSheet } from "./FollowUpSheet";
 
-vi.mock("@/lib/tasks/client", () => ({ tasksClient: { create: vi.fn() } }));
+vi.mock("@/lib/tasks/client", () => ({ tasksClient: { create: vi.fn(), presets: vi.fn() } }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 201, data });
 const people = [
   { id: "u-me", name: "Maya Kapoor", active: true },
@@ -27,9 +27,17 @@ const open = async (o: { canAssign?: boolean } = {}) => {
   return onSaved;
 };
 
+const DEFAULTS = [
+  { id: "in_1h", label: "In 1 hour" },
+  { id: "in_3h", label: "In 3 hours" },
+  { id: "tomorrow_10", label: "Tomorrow 10:00" },
+  { id: "in_2d", label: "In 2 days" },
+  { id: "next_monday", label: "Next Monday" },
+];
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(tasksClient.create).mockResolvedValue(ok({ id: "t1" } as never));
+  vi.mocked(tasksClient.presets).mockResolvedValue(ok({ presets: DEFAULTS }));
 });
 
 describe("Follow-up", () => {
@@ -83,5 +91,38 @@ describe("Follow-up", () => {
     await userEvent.selectOptions(who, "Riya Sharma");
     await userEvent.click(screen.getByRole("button", { name: "Set follow-up" }));
     expect(tasksClient.create).toHaveBeenCalledWith("l1", expect.objectContaining({ assigneeId: "u-riya" }));
+  });
+});
+
+describe("Follow-up: the time choices an admin set (3C Task 6)", () => {
+  it("shows them, in their order, and sends the one picked", async () => {
+    vi.mocked(tasksClient.presets).mockResolvedValue(
+      ok({ presets: [{ id: "in_30_minutes", label: "In 30 minutes" }, ...DEFAULTS.slice(2)] }),
+    );
+    await open();
+    await userEvent.click(await screen.findByRole("radio", { name: "In 30 minutes" }));
+    expect(screen.queryByRole("radio", { name: "In 1 hour" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Set follow-up" }));
+    expect(tasksClient.create).toHaveBeenCalledWith(
+      "l1",
+      expect.objectContaining({ due: { preset: "in_30_minutes" } }),
+    );
+  });
+
+  it("a choice removed while the sheet was open: LUME says so, and shows the new ones", async () => {
+    vi.mocked(tasksClient.create).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      code: "UNKNOWN_PRESET",
+      message: "That time choice was just changed. Pick another.",
+    });
+    await open();
+    await userEvent.click(await screen.findByRole("radio", { name: "Next Monday" }));
+    vi.mocked(tasksClient.presets).mockResolvedValue(ok({ presets: DEFAULTS.slice(0, 4) }));
+    await userEvent.click(screen.getByRole("button", { name: "Set follow-up" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That time choice was just changed");
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("radio", { name: "Next Monday" })).not.toBeInTheDocument(),
+    );
   });
 });

@@ -277,3 +277,20 @@ describe("the notification centre: 3B final review", () => {
     expect(sayUnread).toHaveBeenCalledWith(1);
   });
 });
+
+describe("the notification centre: 3C", () => {
+  it("a system alert is an ask, and opens System health", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({
+        items: [note(7, "system_alert", "Morning emails aren't going out.", { leadId: null })],
+        unread: 1,
+      }),
+    );
+    const onClose = await open();
+    await userEvent.click(screen.getByRole("radio", { name: "Needs you" }));
+    const item = screen.getByRole("listitem", { name: /Morning emails/ });
+    await userEvent.click(within(item).getByRole("button", { name: "Open System health" }));
+    expect(push).toHaveBeenCalledWith("/settings/health");
+    expect(onClose).toHaveBeenCalled();
+  });
+});

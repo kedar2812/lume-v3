@@ -1,21 +1,24 @@
 "use client";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import type { Person } from "@/lib/leads/types";
 import { tasksClient } from "@/lib/tasks/client";
 import { localInputToIso } from "@/lib/tasks/format";
-import type { DuePreset, Recurrence, TaskView } from "@/lib/tasks/types";
+import type { Recurrence, TaskView } from "@/lib/tasks/types";
 import s from "./tasks.module.css";
 
-const DUE: { id: DuePreset | "pick"; label: string }[] = [
+type Choice = { id: string; label: string };
+/** 3A's five, until Settings → Follow-ups' own choices arrive (3C); usually the same. */
+const FIRST_CHOICES: Choice[] = [
   { id: "in_1h", label: "In 1 hour" },
   { id: "in_3h", label: "In 3 hours" },
   { id: "tomorrow_10", label: "Tomorrow 10:00" },
   { id: "in_2d", label: "In 2 days" },
   { id: "next_monday", label: "Next Monday" },
-  { id: "pick", label: "Pick a time" },
 ];
+/** Each time the sheet opens: the choices are few, and a stale one would only be refused on save. */
+const loadChoices = () => tasksClient.presets().then((r) => (r.ok ? r.data.presets : FIRST_CHOICES));
 const REMIND = [
   { minutes: 0, label: "At the time" },
   { minutes: 15, label: "15 min before" },
@@ -96,13 +99,27 @@ function Form({
 }) {
   const id = useId();
   const [title, setTitle] = useState("Follow up");
-  const [due, setDue] = useState<DuePreset | "pick">("tomorrow_10");
+  const [choices, setChoices] = useState<Choice[]>(FIRST_CHOICES);
+  const [due, setDue] = useState<string>("tomorrow_10");
   const [picked, setPicked] = useState("");
   const [remind, setRemind] = useState<Set<number>>(new Set([0]));
   const [repeat, setRepeat] = useState(0);
   const [assignee, setAssignee] = useState(meId);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void loadChoices().then((c) => {
+      if (!live) return;
+      setChoices(c);
+      // Tomorrow at 10 when it's there; otherwise the first choice.
+      setDue((d) => (d === "pick" || c.some((x) => x.id === d) ? d : (c[0]?.id ?? "pick")));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const save = async () => {
     const at = due === "pick" ? localInputToIso(picked, tz) : null;
@@ -112,13 +129,22 @@ function Form({
     setProblem(null);
     const res = await tasksClient.create(lead.id, {
       title: title.trim() || "Follow up",
-      due: at ? { at } : { preset: due as DuePreset },
+      due: at ? { at } : { preset: due },
       remindMinutes: [...remind].sort((a, b) => a - b),
       recurrence: r ? { ...r, until: null, stopOn: STOP_ON } : null,
       ...(assignee !== meId ? { assigneeId: assignee } : {}),
     });
     setBusy(false);
-    if (!res.ok) return setProblem(res.message);
+    if (!res.ok) {
+      setProblem(res.message);
+      // A choice an admin just changed: show the ones there are now.
+      if (res.code === "UNKNOWN_PRESET") {
+        const c = await loadChoices();
+        setChoices(c);
+        setDue(c.some((x) => x.id === "tomorrow_10") ? "tomorrow_10" : (c[0]?.id ?? "pick"));
+      }
+      return;
+    }
     onSaved(res.data);
   };
   const toggle = (m: number) =>
@@ -145,7 +171,7 @@ function Form({
       <fieldset className={s.group}>
         <legend className={s.label}>When</legend>
         <div className={s.chips}>
-          {DUE.map((d) => (
+          {[...choices, { id: "pick", label: "Pick a time" }].map((d) => (
             <label key={d.id} className={s.chip} data-on={due === d.id || undefined}>
               <input type="radio" name={`${id}-due`} checked={due === d.id} onChange={() => setDue(d.id)} />
               {d.label}

@@ -23,7 +23,7 @@ const GROUPS: { id: GroupId; label: string }[] = [
   { id: "updates", label: "Updates" },
 ];
 /** Updates that are really asks (they sit under Needs you too). */
-const ASKS = new Set(["task_escalated", "follow_up_nudge", "follow_up_assigned"]);
+const ASKS = new Set(["task_escalated", "follow_up_nudge", "follow_up_assigned", "system_alert"]);
 /** Due and soon reminders are the follow-ups themselves (shown from Today's list, not twice). */
 const REMINDERS = new Set(["follow_up_due", "follow_up_soon"]);
 const READ_AFTER_MS = 600;
@@ -137,6 +137,11 @@ export function NotificationCentre({
         () => panel.current?.querySelector<HTMLElement>(`[data-entry="${CSS.escape(focusNext)}"]`)?.focus(),
         0,
       );
+  };
+  /** System health (3C), for an alert that something isn't running. */
+  const openHealth = () => {
+    router.push("/settings/health");
+    onClose();
   };
   /** Open the lead, and step the centre out of its way (it would sit over the lead's drawer). */
   const openLead = (leadId: string) => {
@@ -424,6 +429,11 @@ export function NotificationCentre({
             Open lead
           </button>
         )}
+        {n.kind === "system_alert" && (
+          <button type="button" className={`${s.btn} ${s.primary}`} onClick={() => openHealth()}>
+            Open System health
+          </button>
+        )}
         {n.kind === "task_escalated" &&
           n.taskId &&
           (reminded.has(n.taskId) ? (
@@ -449,7 +459,7 @@ function icon(e: Entry): ReactNode {
   const path =
     e.type === "task"
       ? "M8 3.5v4.5l3 2M14.5 8a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" // a clock: a follow-up
-      : e.n.kind === "task_escalated"
+      : e.n.kind === "task_escalated" || e.n.kind === "system_alert"
         ? "M8 2 14.5 13.5h-13L8 2Zm0 4.5V9m0 2.2v.1" // a warning triangle
         : e.n.kind === "lead_assigned"
           ? "M5.5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M12 5v5m-2.5-2.5h5" // a person, added

@@ -17,4 +17,6 @@ export const tasksClient = {
   /** "Remind them": the assignee hears that someone who manages them is asking (3B). */
   nudge: (id: string) => api.post<{ reminded: true }>(`${task(id)}/nudge`),
   today: () => api.get<TodayView>("/api/v1/today"),
+  /** The time choices Settings → Follow-ups has right now (3C), in their order. */
+  presets: () => api.get<{ presets: { id: string; label: string }[] }>("/api/v1/follow-ups/presets"),
 };

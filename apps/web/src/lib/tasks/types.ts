@@ -17,7 +17,8 @@ export type TaskView = {
   doneAt: string | null;
   canEdit: boolean;
 };
-export type Due = { at: string } | { preset: DuePreset };
+/** A time as given, or one of Settings → Follow-ups' time choices by id (3C). */
+export type Due = { at: string } | { preset: string };
 export type TaskInput = {
   title?: string;
   note?: string | null;
