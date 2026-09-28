@@ -6,6 +6,7 @@ import { reminderTimes } from "@lume/core";
 import { schema } from "@lume/db";
 import { applyRequestScope } from "../../db/context";
 import { loadActor } from "../../rbac/actor";
+import { wants } from "../notifications/notify";
 
 const SN = schema.scheduledNotifications;
 type Db = NodePgDatabase<typeof schema>;
@@ -115,7 +116,17 @@ export async function fire(o: EngineDeps, id: number, now: Date = new Date()): P
     let notified: number | null = null;
     // On this connection: waiting on the pool it already holds one of could wait for ever (Minor 1).
     const actor = task?.status === "open" ? await loadActor(client, task.assignee_id) : null;
-    if (task && actor) {
+    // The person may have switched due reminders off (3B): it still counts as fired, and stays on Today.
+    const prefs =
+      task && actor
+        ? (
+            await client.query<{ preferences: unknown }>("SELECT preferences FROM users WHERE id = $1", [
+              task.assignee_id,
+            ])
+          ).rows[0]
+        : undefined;
+    const kind = sn.offset_minutes === 0 ? "follow_up_due" : "follow_up_soon";
+    if (task && actor && wants(prefs?.preferences, kind)) {
       await applyRequestScope(client, actor);
       const lead = (
         await client.query<{ name: string }>("SELECT name FROM leads WHERE id = $1 AND deleted_at IS NULL", [

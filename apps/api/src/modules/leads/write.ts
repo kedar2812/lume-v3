@@ -1,5 +1,6 @@
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import { noteAssigned } from "../notifications/notify";
 import { canOnRecord, maskPhone, newId, scopeOf } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
@@ -141,6 +142,7 @@ export async function assignLead(
     .set({ ownerId: input.ownerId, lastActivityAt: new Date(), version: sql`${L.version} + 1` })
     .where(eq(L.id, lead.id));
   await req.db.execute(sql`SELECT set_config('lume.handoff_lead', '', true)`);
+  if (input.ownerId) noteAssigned(req, input.ownerId, { id: lead.id, name: lead.name });
   await audit(req, {
     action: "lead.assign",
     entityType: "lead",
