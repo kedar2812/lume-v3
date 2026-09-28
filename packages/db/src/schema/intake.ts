@@ -51,6 +51,10 @@ export const leadSources = pgTable("lead_sources", {
   baseline: boolean("baseline").notNull().default(false),
   rekeyThrough: integer("rekey_through"),
   fullReadModified: text("full_read_modified"),
+  // Phase 2C: what a webhook refused (only counted, never kept), and when it last got a post.
+  rejected: integer("rejected").notNull().default(0),
+  lastRejectedReason: text("last_rejected_reason"),
+  lastEventAt: tz("last_event_at"),
 });
 
 export type ImportStatus =
@@ -59,7 +63,7 @@ export type ImportStatus =
 export const imports = pgTable("imports", {
   id: uuid("id").primaryKey(),
   sourceId: uuid("source_id").notNull(),
-  kind: text("kind").$type<"csv" | "sheet">().notNull(),
+  kind: text("kind").$type<"csv" | "sheet" | "webhook">().notNull(),
   status: text("status").$type<ImportStatus>().notNull(),
   fileEnc: bytea("file_enc"),
   fileSha256: text("file_sha256").notNull(),
@@ -205,3 +209,26 @@ export const oauthConnects = pgTable("oauth_connects", {
   fileId: text("file_id"),
   fileName: text("file_name"),
 });
+
+export type WebhookEventStatus = "test" | "queued" | "done" | "error" | "dismissed";
+/** One accepted post to a webhook source (2C spec §3), kept encrypted until it's dealt with. */
+export const webhookEvents = pgTable(
+  "webhook_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    sourceId: uuid("source_id").notNull(),
+    eventKey: text("event_key").notNull(),
+    payloadEnc: bytea("payload_enc"),
+    receivedAt: tz("received_at").notNull().defaultNow(),
+    status: text("status").$type<WebhookEventStatus>().notNull(),
+    result: text("result").$type<"created" | "merged" | "skipped">(),
+    leadId: uuid("lead_id"),
+    problems: jsonb("problems")
+      .$type<{ column: number | null; code: string; message: string }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    processedAt: tz("processed_at"),
+    purgedAt: tz("purged_at"),
+  },
+  (t) => [unique("webhook_events_once").on(t.sourceId, t.eventKey)],
+);

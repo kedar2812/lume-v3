@@ -152,3 +152,49 @@ describe("0018_oauth_connects", () => {
     await expect(query("lume_worker", "SELECT grant_enc FROM oauth_connects")).rejects.toThrow(/permission/);
   });
 });
+
+const HOOK = "00000000-0000-7000-8000-00000000d001";
+describe("0019_webhooks", () => {
+  it("keeps each accepted post once per source, and counts what it refused", async () => {
+    await query(
+      "lume_owner",
+      `INSERT INTO lead_sources (id, type, name, status) VALUES ('${HOOK}', 'webhook', 'Site form', 'active')`,
+    );
+    const { rows } = await query(
+      "lume_owner",
+      `SELECT rejected, last_rejected_reason, last_event_at FROM lead_sources WHERE id = '${HOOK}'`,
+    );
+    expect(rows[0]).toEqual({ rejected: 0, last_rejected_reason: null, last_event_at: null });
+    await query(
+      "lume_owner",
+      `INSERT INTO webhook_events (source_id, event_key, status) VALUES ('${HOOK}', 'k1', 'queued')`,
+    );
+    await expect(
+      query(
+        "lume_owner",
+        `INSERT INTO webhook_events (source_id, event_key, status) VALUES ('${HOOK}', 'k1', 'queued')`,
+      ),
+    ).rejects.toThrow(/webhook_events_once/);
+    await expect(
+      query(
+        "lume_owner",
+        `INSERT INTO webhook_events (source_id, event_key, status) VALUES ('${HOOK}', 'k2', 'nope')`,
+      ),
+    ).rejects.toThrow(/webhook_events_status/);
+    await query(
+      "lume_owner",
+      `INSERT INTO imports (id, source_id, kind, status, file_sha256, file_name, file_bytes)
+       VALUES ('00000000-0000-7000-8000-00000000d002', '${HOOK}', 'webhook', 'draft', 'x', 'Site form', 1)`,
+    );
+  });
+
+  it("lets the worker sweep old events, and read nothing in them", async () => {
+    await query("lume_worker", "SELECT id, status, processed_at, received_at FROM webhook_events");
+    await query("lume_worker", "UPDATE webhook_events SET payload_enc = NULL WHERE false");
+    await query("lume_worker", "DELETE FROM webhook_events WHERE false");
+    await expect(query("lume_worker", "SELECT payload_enc FROM webhook_events")).rejects.toThrow(
+      /permission/,
+    );
+    await expect(query("lume_worker", "SELECT problems FROM webhook_events")).rejects.toThrow(/permission/);
+  });
+});

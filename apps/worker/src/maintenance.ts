@@ -4,6 +4,7 @@ export type MaintenanceJobs = {
   purgeIdempotencyKeys(): Promise<number>;
   purgeImportFiles(): Promise<{ files: number; rows: number; drafts: number }>;
   purgeSheetSyncs(): Promise<{ syncs: number; refreshes: number; connects: number }>;
+  purgeWebhookEvents(): Promise<{ cleared: number; deleted: number }>;
 };
 
 /** Housekeeping as lume_worker. Idempotency keys live 24 h (report §4.4). */
@@ -59,6 +60,19 @@ export function makeMaintenanceJobs(pool: pg.Pool, now: () => Date = () => new D
         refreshes: refreshes.rowCount ?? 0,
         connects: connects.rowCount ?? 0,
       };
+    },
+
+    /** 2C spec §3: a handled post's payload goes after 30 days; every event after 90. Problems keep theirs. */
+    async purgeWebhookEvents() {
+      const t = now().getTime();
+      const cleared = await pool.query(
+        "UPDATE webhook_events SET payload_enc = NULL, purged_at = $2 WHERE status = 'done' AND processed_at < $1 AND purged_at IS NULL",
+        [new Date(t - 30 * 86_400_000), new Date(t)],
+      );
+      const deleted = await pool.query("DELETE FROM webhook_events WHERE received_at < $1", [
+        new Date(t - 90 * 86_400_000),
+      ]);
+      return { cleared: cleared.rowCount ?? 0, deleted: deleted.rowCount ?? 0 };
     },
   };
 }

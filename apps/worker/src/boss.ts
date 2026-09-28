@@ -39,5 +39,10 @@ export async function startQueue(opts: {
     const r = await opts.maintenance.purgeSheetSyncs();
     opts.log.info(r, "sheet sync history purged");
   });
+  await boss.schedule("webhooks.retention", "47 3 * * *", {}, { tz: "UTC" });
+  await boss.work("webhooks.retention", { batchSize: 1 }, async () => {
+    const r = await opts.maintenance.purgeWebhookEvents();
+    opts.log.info(r, "webhook events purged");
+  });
   return boss;
 }

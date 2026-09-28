@@ -496,7 +496,7 @@ const PAGE = 50;
 /** Newest first. Ids are time-ordered (UUIDv7), so the last id on a page is an exact cursor. */
 export async function listImports(req: FastifyRequest, cursor?: string) {
   // Sheet drafts are how a Google Sheet is set up (2B amendment A1), never an import to list.
-  const visible = and(ne(I.kind, "sheet"), or(ne(I.status, "draft"), eq(I.createdBy, req.actor!.userId)));
+  const visible = and(eq(I.kind, "csv"), or(ne(I.status, "draft"), eq(I.createdBy, req.actor!.userId)));
   const rows = await req.db
     .select({ imp: I, startedByName: schema.users.name })
     .from(I)

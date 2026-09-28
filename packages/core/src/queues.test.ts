@@ -11,6 +11,8 @@ describe("QUEUE_NAMES", () => {
       "imports.retention",
       "sheets.sync",
       "sheets.retention",
+      "webhooks.process",
+      "webhooks.retention",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });

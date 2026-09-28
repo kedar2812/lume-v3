@@ -81,6 +81,8 @@ export const apiSchema = base
     LUME_GOOGLE_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
     /** The most rows a connected sheet may have (2B spec §5.5). */
     LUME_SHEETS_MAX_ROWS: z.coerce.number().int().min(1000).max(500_000).default(50_000),
+    /** Webhooks (2C): the ManyChat preset stays hidden until verified against a real ManyChat Pro account. */
+    LUME_MANYCHAT_PRESET: z.enum(["on", "off"]).default("off"),
     /** "Connect with Google" (2B §6): the owner's relay, and this instance's own token there. Unset: hidden. */
     GOOGLE_OAUTH_RELAY_URL: optional(z.url({ protocol: /^https?$/ })),
     GOOGLE_OAUTH_RELAY_TOKEN: optional(z.string().min(32).max(200)),

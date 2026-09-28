@@ -32,6 +32,10 @@ function issuesOf(fn: () => unknown): string[] {
 }
 
 describe("loadConfig", () => {
+  it("the ManyChat preset stays hidden until it's switched on (it isn't verified yet)", () => {
+    expect(loadConfig(apiSchema, apiEnv).LUME_MANYCHAT_PRESET).toBe("off");
+    expect(loadConfig(apiSchema, { ...apiEnv, LUME_MANYCHAT_PRESET: "on" }).LUME_MANYCHAT_PRESET).toBe("on");
+  });
   it("Connect with Google needs both the relay's address and this instance's token", () => {
     expect(loadConfig(apiSchema, apiEnv).GOOGLE_OAUTH_RELAY_URL).toBeUndefined();
     const ok = loadConfig(apiSchema, {

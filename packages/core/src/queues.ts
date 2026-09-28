@@ -7,5 +7,7 @@ export const QUEUE_NAMES = [
   "imports.retention",
   "sheets.sync",
   "sheets.retention",
+  "webhooks.process",
+  "webhooks.retention",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

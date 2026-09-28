@@ -104,4 +104,36 @@ describe("maintenance jobs (as lume_worker)", () => {
     expect(await jobs.purgeSheetSyncs()).toEqual({ syncs: 0, refreshes: 0, connects: 0 });
     await owner.end();
   });
+
+  it("clears handled webhook posts after 30 days and deletes every event after 90; problems keep theirs", async () => {
+    const owner = new pg.Client({ connectionString: db.url("lume_owner") });
+    await owner.connect();
+    const src = "00000000-0000-7000-8000-0000000000f1";
+    await owner.query(
+      "INSERT INTO lead_sources (id, type, name, status) VALUES ($1, 'webhook', 'Hook', 'active')",
+      [src],
+    );
+    await owner.query(
+      `INSERT INTO webhook_events (source_id, event_key, payload_enc, status, processed_at, received_at) VALUES
+        ($1, 'old-done', 'x', 'done', now() - interval '31 days', now() - interval '31 days'),
+        ($1, 'new-done', 'x', 'done', now() - interval '2 days', now() - interval '2 days'),
+        ($1, 'old-error', 'x', 'error', now() - interval '40 days', now() - interval '40 days'),
+        ($1, 'ancient', 'x', 'done', now() - interval '95 days', now() - interval '95 days')`,
+      [src],
+    );
+    const jobs = makeMaintenanceJobs(pool);
+    expect(await jobs.purgeWebhookEvents()).toEqual({ cleared: 2, deleted: 1 });
+    const left = (
+      await owner.query(
+        "SELECT event_key, payload_enc IS NULL AS cleared FROM webhook_events ORDER BY event_key",
+      )
+    ).rows;
+    expect(left).toEqual([
+      { event_key: "new-done", cleared: false },
+      { event_key: "old-done", cleared: true },
+      { event_key: "old-error", cleared: false },
+    ]);
+    expect(await jobs.purgeWebhookEvents()).toEqual({ cleared: 0, deleted: 0 });
+    await owner.end();
+  });
 });
