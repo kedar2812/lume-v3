@@ -249,7 +249,7 @@ export function PipelineEditor({
       />
       <section className={s.stack} aria-labelledby="stage-automations">
         <h3 id="stage-automations" className={s.panelTitle}>
-          When a lead enters a stage
+          What each stage does
         </h3>
         {acting.length ? (
           <ul className={a.summary} aria-label="What each stage does">

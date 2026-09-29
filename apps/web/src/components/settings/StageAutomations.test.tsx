@@ -21,7 +21,7 @@ const open = (
   onSave = vi.fn<(o: OnEnter) => Promise<string | null>>(async () => null),
 ) => {
   render(<StageAutomations stage={stage} rules={rules} people={people} onSave={onSave} onClose={vi.fn()} />);
-  return { onSave, sheet: screen.getByRole("dialog", { name: "When a lead enters Contacted" }) };
+  return { onSave, sheet: screen.getByRole("dialog", { name: "What Contacted does" }) };
 };
 
 describe("a stage's automations (3C Task 6)", () => {
@@ -120,7 +120,7 @@ describe("a stage's automations: 3C final review", () => {
         onClose={vi.fn()}
       />,
     );
-    const sheet = screen.getByRole("dialog", { name: "When a lead enters Contacted" });
+    const sheet = screen.getByRole("dialog", { name: "What Contacted does" });
     expect(within(sheet).getByLabelText("For")).toHaveDisplayValue("Zara Malik (no longer active)");
     expect(
       within(sheet).getByText(/Sets a follow-up for Zara Malik \(no longer active\)/),

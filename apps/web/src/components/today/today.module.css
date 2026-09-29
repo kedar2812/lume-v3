@@ -220,7 +220,8 @@
     transform 0.25s;
 }
 .row:hover .acts,
-.row:focus-within .acts {
+.row:focus-within .acts,
+.acts:has([data-live]) {
   opacity: 1;
   transform: none;
 }

@@ -19,10 +19,12 @@ export function whatsappBlocked(lead: Lead): string | null {
 export function MessageButton({
   lead,
   suggest,
+  promptSlot,
   onChange,
 }: {
   lead: Lead;
   suggest?: TemplateCategory;
+  promptSlot?: HTMLElement | null;
   onChange: () => void;
 }) {
   const blocked = whatsappBlocked(lead);
@@ -32,6 +34,7 @@ export function MessageButton({
         lead={{ id: lead.id, name: lead.name ?? "Unnamed lead" }}
         blocked={blocked}
         {...(suggest ? { suggest } : {})}
+        promptSlot={promptSlot ?? null}
         onChange={onChange}
       />
       {blocked && <p className={s.why}>{blocked}</p>}

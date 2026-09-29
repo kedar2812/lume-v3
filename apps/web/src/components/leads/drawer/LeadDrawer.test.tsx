@@ -212,6 +212,19 @@ describe("LeadDrawer", () => {
     expect(leadsClient.confirmMessage).toHaveBeenCalledWith("l1", true, undefined);
   });
 
+  it("the Sent prompt takes its own row under the actions, so it never covers the stage track", async () => {
+    const tab = { location: { href: "" }, close: vi.fn(), opener: {} as unknown };
+    vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    vi.mocked(leadsClient.prepareMessage).mockResolvedValue(ok({ url: "https://wa.me/971501234567" }));
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "WhatsApp" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open WhatsApp" }));
+    await vi.waitFor(() => expect(tab.location.href).toBe("https://wa.me/971501234567"));
+    window.dispatchEvent(new Event("focus"));
+    const prompt = await screen.findByRole("group", { name: "Was the WhatsApp message sent?" });
+    expect(prompt.closest("[data-sent-slot]")).not.toBeNull();
+  });
+
   it("They replied: one tap (or R), the sent sound, and the move it made, with Undo", async () => {
     vi.mocked(leadsClient.replied).mockResolvedValue(
       ok({ moved: { stageId: "s-booked", stageName: "Call booked", fromStageId: "s-new" } }),

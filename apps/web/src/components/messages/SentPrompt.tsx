@@ -20,27 +20,38 @@ export function SentPrompt({
   asking,
   outcome,
   align = "start",
+  inline = false,
   onAnswer,
   onUndo,
 }: {
   asking: boolean;
   outcome: Outcome | null;
   align?: "start" | "end";
+  /** In a row of its own (the drawer), opening room for itself rather than floating over what's below. */
+  inline?: boolean;
   onAnswer: (sent: boolean) => void;
   onUndo: () => void;
 }) {
   const reduce = useReducedMotion();
-  const from = reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.9 };
+  const spring = reduce ? { duration: 0.15 } : toMotion(SPRINGS.default);
+  // Floating, a pill rises from the button; in its own row, the row opens once and the pill's contents
+  // change in place ("Sent?" → the tick), so nothing below jumps twice.
+  const from = reduce
+    ? { opacity: 0 }
+    : inline
+      ? { opacity: 0, scale: 0.97 }
+      : { opacity: 0, y: -8, scale: 0.9 };
   const pill = {
     className: s.prompt,
     "data-align": align,
+    "data-inline": inline || undefined,
     initial: from,
     animate: { opacity: 1, y: 0, scale: 1 },
     exit: from,
-    transition: reduce ? { duration: 0.15 } : toMotion(SPRINGS.default),
+    transition: spring,
   };
-  return (
-    <AnimatePresence mode="wait">
+  const pills = (
+    <AnimatePresence mode="wait" initial={!inline}>
       {asking && (
         <motion.div key="ask" role="group" aria-label="Was the WhatsApp message sent?" {...pill}>
           <span className={s.ask}>Sent?</span>
@@ -85,6 +96,23 @@ export function SentPrompt({
               Undo
             </button>
           )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+  if (!inline) return pills;
+  return (
+    <AnimatePresence>
+      {(asking || outcome) && (
+        <motion.div
+          key="row"
+          className={s.promptRow}
+          initial={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+          animate={reduce ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+          exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+          transition={spring}
+        >
+          {pills}
         </motion.div>
       )}
     </AnimatePresence>

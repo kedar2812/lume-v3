@@ -88,6 +88,13 @@ describe("the send sheet (4A Task 6)", () => {
     ]);
   });
 
+  it("each template's first line names its variables as chips, never {{code}}", async () => {
+    const { dialog } = await sheet();
+    const hello = within(dialog).getByRole("option", { name: /First hello/ });
+    expect(within(hello).getByText("First name", { selector: "[data-token]" })).toBeInTheDocument();
+    expect(hello).not.toHaveTextContent("{{");
+  });
+
   it("a lost lead's sheet starts with Re-engagement", async () => {
     const { dialog } = await sheet({ suggest: "re_engagement" });
     expect(names(dialog)[0]).toBe("Come back");
@@ -203,6 +210,15 @@ describe("the Sent prompt (4A Task 6)", () => {
     expect(status).toHaveTextContent("Sent");
     await vi.waitFor(() => expect(status).toHaveTextContent("Fill in Package before moving to Message sent"));
     expect(within(status).queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+  });
+
+  it("while it asks or answers, the sheet says it's live, so a row that hides its actions keeps them shown", async () => {
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(ok({ moved: null }) as never);
+    const { prompt, onSettled } = await sendAndReturn();
+    expect(prompt.closest("[data-whatsapp]")).toHaveAttribute("data-live");
+    await userEvent.click(within(prompt).getByRole("button", { name: "Not sent" }));
+    await vi.waitFor(() => expect(onSettled).toHaveBeenCalled());
+    expect(document.querySelector("[data-whatsapp]")).not.toHaveAttribute("data-live");
   });
 
   it("Not sent: logged quietly, no sound, and the prompt goes", async () => {

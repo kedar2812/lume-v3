@@ -1,4 +1,5 @@
 "use client";
+import { createPortal } from "react-dom";
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { TEMPLATE_CATEGORIES, render, type RenderContext, type TemplateCategory } from "@lume/core/shared";
 import { useSound } from "@/components/feedback/SoundProvider";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { leadsClient } from "@/lib/leads/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
+import { TokenLine } from "@/components/templates/TokenLine";
 import { SentPrompt, type Outcome } from "./SentPrompt";
 import s from "./messages.module.css";
 
@@ -40,6 +42,7 @@ export function SendSheet({
   blocked,
   compact,
   align = "start",
+  promptSlot,
   onChange,
   onSettled,
 }: {
@@ -52,6 +55,8 @@ export function SendSheet({
   /** An icon button, for a row. */
   compact?: boolean;
   align?: "start" | "end";
+  /** Where the Sent prompt takes a row of its own (the drawer); otherwise it floats from the button. */
+  promptSlot?: HTMLElement | null;
   /** Something was logged or moved: history and stage may have changed. */
   onChange?: () => void;
   /** The prompt has gone; `sent` says how it ended. */
@@ -119,7 +124,13 @@ export function SendSheet({
   };
 
   return (
-    <div className={s.send} data-whatsapp data-sent={flash || undefined}>
+    <div
+      className={s.send}
+      data-whatsapp
+      data-sent={flash || undefined}
+      // Asking or answering: a row that shows its actions only on hover keeps them shown (Today).
+      data-live={asking || outcome ? true : undefined}
+    >
       <Popover
         label={`WhatsApp ${lead.name}`}
         size="form"
@@ -151,13 +162,27 @@ export function SendSheet({
           />
         )}
       </Popover>
-      <SentPrompt
-        asking={asking}
-        outcome={outcome}
-        align={align}
-        onAnswer={(sent) => void answer(sent)}
-        onUndo={() => void undo()}
-      />
+      {promptSlot
+        ? createPortal(
+            <SentPrompt
+              inline
+              asking={asking}
+              outcome={outcome}
+              onAnswer={(sent) => void answer(sent)}
+              onUndo={() => void undo()}
+            />,
+            promptSlot,
+          )
+        : null}
+      {!promptSlot && (
+        <SentPrompt
+          asking={asking}
+          outcome={outcome}
+          align={align}
+          onAnswer={(sent) => void answer(sent)}
+          onUndo={() => void undo()}
+        />
+      )}
     </div>
   );
 }
@@ -292,7 +317,11 @@ function SheetBody({
                 }}
               >
                 <span className={s.optName}>{name}</span>
-                {c.kind === "template" && <span className={s.optLine}>{firstLine(c.t.body)}</span>}
+                {c.kind === "template" && (
+                  <span className={s.optLine}>
+                    <TokenLine text={firstLine(c.t.body)} fields={ctx?.fields ?? []} />
+                  </span>
+                )}
               </div>
             );
           })

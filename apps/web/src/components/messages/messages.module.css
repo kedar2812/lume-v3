@@ -213,6 +213,17 @@
   letter-spacing: var(--ls-sm);
   color: var(--text);
 }
+/* In a row of its own: it opens room below the button, and the page moves down to make it. */
+.promptRow {
+  overflow: hidden;
+}
+.prompt[data-inline] {
+  position: static;
+  margin: 10px 0 2px;
+  background: var(--sunk);
+  backdrop-filter: none;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
 .prompt[data-align="end"] {
   left: auto;
   right: 0;
@@ -288,4 +299,9 @@
     background: var(--raised);
     backdrop-filter: none;
   }
+}
+
+/* A variable chip in the chosen template sits on its own blue: it turns plain so it still reads. */
+.option[aria-selected="true"] [data-token] {
+  background: var(--raised);
 }

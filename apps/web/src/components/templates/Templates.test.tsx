@@ -72,7 +72,15 @@ describe("the template library (4A Task 5)", () => {
     expect(groups).toEqual(["First touch", "Follow-up", "Custom"]);
     const followUps = screen.getByRole("list", { name: "Follow-up" });
     expect(within(followUps).getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.getByText("Hi {{lead.first_name}}, this is {{owner.first_name}}.")).toBeInTheDocument();
+    // The first line reads as words: each variable by its name, as a chip, never {{code}}.
+    const hello = screen.getByRole("button", { name: /^First hello/ });
+    expect(hello).toHaveTextContent("Hi First name, this is Owner's first name.");
+    expect(within(hello).getByText("First name", { selector: "[data-token]" })).toBeInTheDocument();
+    expect(hello).not.toHaveTextContent("{{");
+    // WhatsApp's *bold* reads as bold in the list, never as asterisks.
+    const after = screen.getByRole("button", { name: /^After the call/ });
+    expect(after).toHaveTextContent("Thanks for your time today.");
+    expect(within(after).getByText("today").tagName).toBe("STRONG");
     expect(within(screen.getByRole("list", { name: "Custom" })).getByText("Partners")).toBeInTheDocument();
     expect(
       within(screen.getByRole("list", { name: "First touch" })).getByText("Everyone"),

@@ -254,8 +254,10 @@ export function TemplateEditor({
                 readOnly={readOnly}
                 value={body}
                 placeholder="Hi {{lead.first_name}}, …"
+                // A textbox may say it suggests and which suggestion is on; "expanded" is a combobox's word.
                 aria-autocomplete="list"
-                aria-expanded={!!suggest}
+                aria-controls={suggest ? `${bodyId}-vars` : undefined}
+                aria-activedescendant={suggest ? `${bodyId}-var${suggest.active}` : undefined}
                 onChange={(e) => {
                   setBody(e.target.value);
                   touched();
@@ -265,10 +267,11 @@ export function TemplateEditor({
                 onBlur={() => setSuggest(null)}
               />
               {suggest && (
-                <ul role="listbox" aria-label="Variables" className={s.suggest}>
+                <ul id={`${bodyId}-vars`} role="listbox" aria-label="Variables" className={s.suggest}>
                   {suggest.options.map((v, i) => (
                     <li
                       key={v.token}
+                      id={`${bodyId}-var${i}`}
                       role="option"
                       aria-selected={i === suggest.active}
                       className={s.suggestItem}

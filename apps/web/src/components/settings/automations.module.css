@@ -228,10 +228,9 @@
   border-radius: var(--r-card);
   background: var(--sunk);
 }
-.movesHead {
-  float: left;
-  width: 100%;
-  margin-bottom: 2px;
+.movesHead,
+.sectionHead {
+  margin: 0 0 2px;
   padding: 0;
   font-size: var(--fs-xs);
   letter-spacing: 0.06em;
@@ -262,4 +261,12 @@
     grid-template-columns: 1fr;
     gap: 6px;
   }
+}
+
+.movesHead {
+  float: left;
+  width: 100%;
+}
+.sectionHead {
+  margin-top: 4px;
 }

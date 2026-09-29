@@ -178,7 +178,7 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
       within(summary).getByText("Sets a follow-up for the lead's owner in 2 days: Send the plan"),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
-    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    const sheet = screen.getByRole("dialog", { name: "What New does" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Clear open follow-ups" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", {
@@ -190,7 +190,7 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
   it("Moves (4A): where a lead goes after a message or a reply, chosen in Does and saved with the stage", async () => {
     render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} people={catalog.people} />);
     await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
-    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    const sheet = screen.getByRole("dialog", { name: "What New does" });
     const moves = within(sheet).getByRole("group", { name: "Moves" });
     const sent = within(moves).getByRole("combobox", { name: "After a message is sent, move to" });
     // This pipeline's other stages; never Lost, which always needs a reason a send can't give.
@@ -225,7 +225,7 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
     } as never);
     render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} people={catalog.people} />);
     await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
-    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    const sheet = screen.getByRole("dialog", { name: "What New does" });
     await userEvent.selectOptions(
       within(sheet).getByRole("combobox", { name: "After a reply, move to" }),
       "Call booked",
@@ -243,7 +243,7 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
     render(<PipelineEditor pipelines={moving} fields={catalog.fields} people={catalog.people} />);
     expect(screen.getByText("After a message is sent: moves to Message sent")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
-    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    const sheet = screen.getByRole("dialog", { name: "What New does" });
     const sent = within(sheet).getByRole("combobox", { name: "After a message is sent, move to" });
     expect(sent).toHaveValue("s-sent");
     await userEvent.selectOptions(sent, "Stay here");

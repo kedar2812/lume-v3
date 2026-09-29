@@ -7,6 +7,7 @@ import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { templatesClient, type RoleName, type TemplateView } from "@/lib/templates/client";
 import { TemplateEditor, type EditorField } from "./TemplateEditor";
+import { TokenLine } from "./TokenLine";
 import s from "./templates.module.css";
 
 /** One opening of the editor: its key stays the same while it's open, so a save updates it in place. */
@@ -126,6 +127,7 @@ export function TemplateLibrary({
                 <Card
                   key={t.id}
                   t={t}
+                  fields={fields}
                   who={
                     t.allowedRoleIds.length
                       ? t.allowedRoleIds.map((id) => roleName.get(id) ?? "A role").join(", ")
@@ -198,6 +200,7 @@ function Card({
   who,
   canManage,
   fresh,
+  fields,
   reduce,
   onOpen,
   onArchive,
@@ -206,6 +209,7 @@ function Card({
 }: {
   t: TemplateView;
   who: string;
+  fields: EditorField[];
   canManage: boolean;
   /** Set just after a save: the card glows once, so the eye finds what changed. */
   fresh: string | null;
@@ -257,7 +261,9 @@ function Card({
       )}
       <button type="button" className={s.cardMain} onClick={onOpen}>
         <span className={s.cardName}>{t.name}</span>
-        <span className={s.cardLine}>{firstLine(t.body)}</span>
+        <span className={s.cardLine}>
+          <TokenLine text={firstLine(t.body)} fields={fields} />
+        </span>
         <span className={s.who}>{who}</span>
       </button>
       {canManage && (

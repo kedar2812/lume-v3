@@ -78,8 +78,8 @@ export function StageAutomations({
   };
 
   return (
-    <Dialog label={`When a lead enters ${stage.name}`} onClose={onClose} wide>
-      <h2 className={s.dialogTitle}>When a lead enters {stage.name}</h2>
+    <Dialog label={`What ${stage.name} does`} onClose={onClose} wide>
+      <h2 className={s.dialogTitle}>What {stage.name} does</h2>
       <fieldset className={a.moves}>
         <legend className={a.movesHead}>Moves</legend>
         {MOVES.map((m) => (
@@ -103,6 +103,7 @@ export function StageAutomations({
           </div>
         ))}
       </fieldset>
+      <h3 className={a.sectionHead}>When a lead enters</h3>
       <p className={s.dialogText}>
         LUME does these, in order. Runs when a lead moves here, or arrives here from a webhook or a sheet.
         Imports don&apos;t run it.

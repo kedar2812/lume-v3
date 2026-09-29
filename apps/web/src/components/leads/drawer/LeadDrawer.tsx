@@ -121,6 +121,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const panel = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const wonAnchor = useRef<HTMLSpanElement>(null);
+  // Where the Sent prompt opens room for itself, under the actions (never over the stage track).
+  const [sentSlot, setSentSlot] = useState<HTMLDivElement | null>(null);
   const headingId = useId();
   const tabsId = useId();
 
@@ -570,6 +572,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   <MessageButton
                     lead={lead}
                     {...(stage?.kind === "lost" ? { suggest: "re_engagement" as const } : {})}
+                    promptSlot={sentSlot}
                     onChange={() => void refresh()}
                   />
                 )}
@@ -637,6 +640,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                 )}
               </div>
 
+              <div ref={setSentSlot} data-sent-slot />
               <NextFollowUp
                 key={lead.id}
                 leadId={lead.id}
