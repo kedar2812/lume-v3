@@ -15,6 +15,8 @@ type Props = {
   /** "dialog" for a small form or chooser, "menu" for a list of actions. */
   role?: "dialog" | "menu";
   align?: "start" | "end";
+  /** "above" for a trigger near the bottom of the window (the bulk bar): it grows up from it. */
+  side?: "below" | "above";
   /** Marks the trigger as holding a value (a filter that is set). */
   active?: boolean;
   disabled?: boolean;
@@ -33,6 +35,7 @@ export function Popover({
   size = "menu",
   role = "dialog",
   align = "start",
+  side = "below",
   active,
   disabled,
   children,
@@ -93,6 +96,7 @@ export function Popover({
           aria-label={label}
           className={s.panel}
           data-align={align}
+          data-side={side}
           data-size={size}
         >
           {typeof children === "function" ? children(close) : children}

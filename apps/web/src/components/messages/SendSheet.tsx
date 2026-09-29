@@ -1,13 +1,14 @@
 "use client";
 import { createPortal } from "react-dom";
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { TEMPLATE_CATEGORIES, render, type RenderContext, type TemplateCategory } from "@lume/core/shared";
+import { render, type RenderContext, type TemplateCategory } from "@lume/core/shared";
 import { useSound } from "@/components/feedback/SoundProvider";
 import b from "@/components/ui/Button.module.css";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { leadsClient } from "@/lib/leads/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
+import { ordered } from "@/lib/templates/order";
 import { TokenLine } from "@/components/templates/TokenLine";
 import { SentPrompt, type Outcome } from "./SentPrompt";
 import s from "./messages.module.css";
@@ -18,17 +19,6 @@ const missingIn = (text: string) => [...new Set([...text.matchAll(TOKEN)].map((m
 const firstLine = (body: string) => body.split("\n").find((l) => l.trim()) ?? "";
 
 type Choice = { kind: "template"; t: TemplateView } | { kind: "own" };
-
-/** The context's kind first (a follow-up suggests Follow-up; a lost lead, Re-engagement), then the rest. */
-function ordered(templates: TemplateView[], suggest?: TemplateCategory): TemplateView[] {
-  const kinds = TEMPLATE_CATEGORIES.map((c) => c.key);
-  const rank = (c: TemplateCategory) => (c === suggest ? -1 : kinds.indexOf(c));
-  return templates
-    .filter((t) => t.usable)
-    .map((t, i) => ({ t, i }))
-    .sort((x, y) => rank(x.t.category) - rank(y.t.category) || x.i - y.i)
-    .map((x) => x.t);
-}
 
 /**
  * WhatsApp from wherever a lead is (4A): the drawer, Today, the notification centre. A template renders in

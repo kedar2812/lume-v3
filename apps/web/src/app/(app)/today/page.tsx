@@ -12,6 +12,7 @@ export default async function Page() {
         name={session.user.name}
         tz={session.user.timezone}
         canMessage={can(session.actor, "messages.send")}
+        canQueue={can(session.actor, "messages.send_queue")}
       />
     </section>
   );

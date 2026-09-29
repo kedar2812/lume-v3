@@ -73,6 +73,7 @@ export function AppShell({ session, businessName, theme, children }: Props) {
               theme={theme}
               tz={session.user.timezone}
               canMessage={canCore(session.actor, "messages.send")}
+              canQueue={canCore(session.actor, "messages.send_queue")}
               onSearch={() => setPalette(true)}
             />
             <div className={s.scroll} data-scroll>

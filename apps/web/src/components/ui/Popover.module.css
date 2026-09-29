@@ -28,6 +28,21 @@
   right: 0;
   transform-origin: top right;
 }
+.panel[data-side="above"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+  transform-origin: bottom left;
+  animation-name: up;
+}
+.panel[data-side="above"][data-align="end"] {
+  transform-origin: bottom right;
+}
+@keyframes up {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+}
 @keyframes in {
   from {
     opacity: 0;

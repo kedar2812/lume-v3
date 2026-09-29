@@ -4,6 +4,7 @@ import { motion, useAnimationControls, useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { NotificationCentre } from "@/components/notifications/NotificationCentre";
+import { ResumeRun } from "@/components/queue/ResumeRun";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { IconButton } from "@/components/ui/IconButton";
 import { Kbd } from "@/components/ui/Kbd";
@@ -17,11 +18,14 @@ export function TopBar({
   theme,
   tz,
   canMessage,
+  canQueue,
   onSearch,
 }: {
   theme: ThemePref;
   tz?: string | null;
   canMessage?: boolean;
+  /** A send queue left open is picked up again from here (4C). */
+  canQueue?: boolean;
   onSearch(): void;
 }) {
   const pathname = usePathname();
@@ -80,6 +84,7 @@ export function TopBar({
         Search leads, actions…
         <Kbd>Ctrl K</Kbd>
       </button>
+      {canQueue && <ResumeRun variant="pill" />}
       <ThemeToggle initial={theme} />
       <IconButton
         ref={bell}

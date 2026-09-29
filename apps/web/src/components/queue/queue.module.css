@@ -1,0 +1,337 @@
+/* The send queue (4C): starting a run, and picking one up again. */
+
+/* "Message these" beside a view's name: a quiet accent action, like Save view. */
+.trigger {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease-out;
+}
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  background: var(--accent-soft);
+}
+.trigger:active {
+  transform: scale(0.97);
+}
+
+/* The start sheet. */
+.start {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  padding: 10px 8px 8px;
+}
+.who {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 6px;
+}
+.count {
+  margin: 0;
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.leftOutBtn {
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--warn-ink, var(--text-2));
+  transition: background 0.12s ease;
+}
+.leftOutBtn::before {
+  content: "· ";
+  color: var(--text-3);
+}
+.leftOutBtn:hover,
+.leftOutBtn[aria-expanded="true"] {
+  background: var(--hover);
+}
+.leftOut {
+  display: grid;
+  gap: 2px;
+  margin: 0 6px;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+.leftOut li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--sunk);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+}
+.leftName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+.leftWhy {
+  flex: none;
+  color: var(--text-2);
+}
+.more {
+  margin: -4px 6px 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+
+/* Which words: the leads' kind first, then the rest, then their own. */
+.templates {
+  display: grid;
+  gap: 1px;
+  max-height: 232px;
+  overflow-y: auto;
+  padding: 2px;
+  border-radius: 10px;
+  overscroll-behavior: contain;
+}
+.template {
+  position: relative;
+  display: block;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    transform 0.1s ease-out;
+}
+.template:hover {
+  background: var(--hover);
+}
+.template:active {
+  transform: scale(0.985);
+}
+.template input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.template:has(input:checked) {
+  background: var(--accent-soft);
+}
+.template:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.tplText {
+  display: grid;
+  gap: 1px;
+}
+.tplName {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.template:has(input:checked) .tplName {
+  color: var(--accent-ink);
+}
+.template[data-own] .tplName {
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.tplLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+
+.foot,
+.openRun {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 6px 2px;
+  border-top: 0.5px solid var(--line);
+}
+.today {
+  margin: 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.todayNote {
+  color: var(--text-3);
+}
+.openNote {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.error {
+  margin: 0 6px;
+  font-size: var(--fs-xs);
+  color: var(--danger-ink, var(--danger));
+}
+.skeleton,
+.skeletonWide {
+  display: block;
+  height: 38px;
+  margin: 2px 6px;
+  border-radius: 8px;
+  background: var(--sunk);
+}
+.skeletonWide {
+  width: 40%;
+  height: 24px;
+}
+
+/* Resume: the one action that takes a person back into their run. */
+.resumeBtn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-ctl);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease-out;
+}
+.resumeBtn:hover {
+  filter: brightness(1.08);
+}
+.resumeBtn:active {
+  transform: scale(0.97);
+}
+.resumeBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* In the top bar: a quiet pill with a ring that fills as the run goes. */
+.pillWrap {
+  display: inline-flex;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: transform 0.1s ease-out;
+}
+.pill:active {
+  transform: scale(0.97);
+}
+.pill:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.pillRing {
+  flex: none;
+}
+.ringTrack {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.22;
+  stroke-width: 2.2;
+}
+.ringFill {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+/* On Today: where it came from, how far it got, and Resume. */
+.resumeCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.resumeText {
+  flex: 1;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.resumeTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.resumeLine {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.resumeBar {
+  display: block;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--sunk);
+  overflow: hidden;
+}
+.resumeBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.5s var(--spring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .resumeBar span {
+    transition: none;
+  }
+}

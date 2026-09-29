@@ -122,6 +122,60 @@ async function leadsOfSelection(req: FastifyRequest, leadIds: string[]) {
   };
 }
 
+type Source = { viewId?: string; leadIds?: string[] };
+type LeftOut = { name: string; reason: string };
+
+/** Who a run from this view or selection would hold, in order; the start and its preview share it. */
+async function planLeads(req: FastifyRequest, body: Source) {
+  const { rows, source, sourceName } = body.viewId
+    ? await leadsOfView(req, body.viewId)
+    : await leadsOfSelection(req, body.leadIds ?? []);
+  const { queueSize } = await readMessaging(req);
+  const picked: LeadRow[] = [];
+  const leftOut: LeftOut[] = [];
+  let more = 0;
+  for (const r of rows) {
+    const why = whyNot(req, r);
+    if (why) leftOut.push({ name: r.name, reason: why });
+    else if (picked.length < queueSize) picked.push(r);
+    else more += 1;
+  }
+  return { picked, leftOut, more, source, sourceName };
+}
+
+/**
+ * What a run would hold, before it starts (the start sheet, Task 3): how many, who's left out and why, the
+ * day's count against the cap, and the run already open, if any. Nothing is created.
+ */
+export async function planQueue(
+  req: FastifyRequest,
+  body: Source,
+): Promise<{
+  total: number;
+  leftOut: LeftOut[];
+  more: number;
+  today: { sent: number; cap: number };
+  open: { id: string; status: QueueRow["status"]; sourceName: string; done: number; total: number } | null;
+}> {
+  const { picked, leftOut, more } = await planLeads(req, body);
+  const run = await openRun(req);
+  const open = run ? await queueView(req, run.id) : null;
+  const { dailyCap } = await readMessaging(req);
+  return {
+    total: picked.length,
+    leftOut,
+    more,
+    today: { sent: await sentToday(req), cap: dailyCap },
+    open: open && {
+      id: open.id,
+      status: open.status,
+      sourceName: open.sourceName,
+      done: open.done.sent + open.done.notSent + open.done.skipped,
+      total: open.total,
+    },
+  };
+}
+
 /**
  * Plans a run (spec §5): the leads, under the caller's own row-level security, in the view's order (or the
  * selection's), up to the run size. The list is fixed now (plan ruling R2). Who can't be messaged is left
@@ -129,8 +183,8 @@ async function leadsOfSelection(req: FastifyRequest, leadIds: string[]) {
  */
 export async function startQueue(
   req: FastifyRequest,
-  body: { viewId?: string; leadIds?: string[]; templateId?: string },
-): Promise<{ queue: QueueView; leftOut: { name: string; reason: string }[]; more: number }> {
+  body: Source & { templateId?: string },
+): Promise<{ queue: QueueView; leftOut: LeftOut[]; more: number }> {
   await lockPerson(req);
   if (await openRun(req)) throw conflict("QUEUE_OPEN", "Finish or end your current run first");
   let versionId: string | null = null;
@@ -139,19 +193,7 @@ export async function startQueue(
     if (!t.usable) throw forbidden("TEMPLATE_NOT_YOURS", "That template isn't one your role can use");
     versionId = t.versionId;
   }
-  const { rows, source, sourceName } = body.viewId
-    ? await leadsOfView(req, body.viewId)
-    : await leadsOfSelection(req, body.leadIds ?? []);
-  const { queueSize } = await readMessaging(req);
-  const picked: LeadRow[] = [];
-  const leftOut: { name: string; reason: string }[] = [];
-  let more = 0;
-  for (const r of rows) {
-    const why = whyNot(req, r);
-    if (why) leftOut.push({ name: r.name, reason: why });
-    else if (picked.length < queueSize) picked.push(r);
-    else more += 1;
-  }
+  const { picked, leftOut, more, source, sourceName } = await planLeads(req, body);
   if (!picked.length)
     throw new HttpError(422, "NOTHING_TO_SEND", "None of these leads can get a WhatsApp message", {
       leftOut,

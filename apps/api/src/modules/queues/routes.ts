@@ -33,6 +33,19 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
     },
     async (req, reply) => reply.code(201).send(await svc.startQueue(req, req.body)),
   );
+  r.post(
+    "/api/v1/queues/plan",
+    {
+      config: run,
+      schema: {
+        body: z.union([
+          z.object({ viewId: z.uuid() }).strict(),
+          z.object({ leadIds: z.array(z.uuid()).min(1).max(500) }).strict(),
+        ]),
+      },
+    },
+    (req) => svc.planQueue(req, req.body),
+  );
   r.get("/api/v1/queues/current", { config: run }, (req) => svc.currentQueue(req));
   r.get("/api/v1/queues/:id", { config: run, schema: { params } }, (req) =>
     svc.queueView(req, req.params.id),

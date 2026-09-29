@@ -26,6 +26,8 @@ import {
 import { tokenColor } from "@/lib/leads/colors";
 import { viewsChanged, viewsClient, type ViewView } from "@/lib/views/client";
 import { SaveView } from "@/components/views/SaveView";
+import { StartRun } from "@/components/queue/StartRun";
+import { suggestFor } from "@/lib/templates/order";
 import type { Catalog, Lead, LeadPage } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
 import { BulkBar } from "./BulkBar";
@@ -459,6 +461,18 @@ function Screen({
               <Button size="sm" variant="secondary" onClick={() => void updateView()}>
                 Update view
               </Button>
+            )}
+            {/* 4C: a run through the view's leads, as the view is saved (plan ruling R2). */}
+            {can(session.actor, "messages.send_queue") && (
+              <StartRun
+                source={{ viewId: activeView.id }}
+                suggest={suggestFor(
+                  activeView.filters,
+                  catalog.pipelines.flatMap((p) =>
+                    p.stages.filter((st) => st.kind === "lost").map((st) => st.id),
+                  ),
+                )}
+              />
             )}
             <button
               type="button"

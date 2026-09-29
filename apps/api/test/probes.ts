@@ -96,6 +96,7 @@ export const PROBES: Record<string, Probe> = {
   },
   // 4C: the send queue is a person's own run (row-level security); items re-check each lead.
   "POST /api/v1/queues": { access: "messages.send_queue", body: (f) => ({ leadIds: [f.leadId] }) },
+  "POST /api/v1/queues/plan": { access: "messages.send_queue", body: (f) => ({ leadIds: [f.leadId] }) },
   "GET /api/v1/queues/current": { access: "messages.send_queue" },
   "GET /api/v1/queues/:id": {
     access: "messages.send_queue",

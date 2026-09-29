@@ -11,6 +11,7 @@ import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
 import { timezoneOf, whenInWords } from "@/lib/tasks/format";
 import type { TaskView, TodayView } from "@/lib/tasks/types";
+import { ResumeRun } from "@/components/queue/ResumeRun";
 import s from "./today.module.css";
 
 type Group = { id: "overdue" | "soon" | "later"; label: string };
@@ -60,11 +61,14 @@ export function Today({
   name,
   tz: userTz,
   canMessage = false,
+  canQueue = false,
 }: {
   name: string;
   tz: string | null;
   /** WhatsApp on each row, for someone who may send messages (4A). */
   canMessage?: boolean;
+  /** A send queue left open, picked up again here (4C). */
+  canQueue?: boolean;
 }) {
   const tz = timezoneOf(userTz);
   const reduce = useReducedMotion();
@@ -160,6 +164,8 @@ export function Today({
         </div>
         {v.total > 0 && <Ring done={v.done} total={v.total} reduce={!!reduce} />}
       </section>
+
+      {canQueue && <ResumeRun variant="card" />}
 
       {error && (
         <p role="alert" className={s.error}>

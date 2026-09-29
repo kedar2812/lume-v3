@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Popover } from "@/components/ui/Popover";
+import { StartRun } from "@/components/queue/StartRun";
 import { bulkSummary, runBulkInChunks } from "@/lib/leads/bulk";
 import type { BulkAction, BulkResult, Stage } from "@/lib/leads/types";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -207,6 +208,14 @@ export function BulkBar({
                 </ul>
               )}
             </Popover>
+          )}
+          {can(actor, "messages.send_queue") && (
+            <StartRun
+              source={{ leadIds: selected }}
+              label="Message"
+              triggerClassName={s.action}
+              side="above"
+            />
           )}
           {catalog.tags.length > 0 && can(actor, "leads.edit") && (
             <Popover label="Tags" role="menu" triggerClassName={s.action} trigger="Tags" disabled={busy}>

@@ -188,6 +188,31 @@ describe("planning a run (4C Task 2)", () => {
     expect((await start(rep, { leadIds: [a] })).statusCode).toBe(201);
   });
 
+  it("a plan first (Task 3): who'd be in, who's left out, today's count, and any open run — and nothing starts", async () => {
+    const [a, b] = await leads(2, "Planonly");
+    const bare = await h.seedLead({ ownerId: repId, name: "Planonly Z", phoneStatus: "missing" });
+    const r = await post(rep, "/api/v1/queues/plan", { leadIds: [a, bare, b] });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({
+      total: 2,
+      leftOut: [{ name: "Planonly Z", reason: "No WhatsApp number" }],
+      more: 0,
+      today: { sent: expect.any(Number), cap: 150 },
+      open: null,
+    });
+    expect((await get(rep, "/api/v1/queues/current")).json()).toBeNull();
+    // With a run open, the plan says so, and how far it has got.
+    const q = (await start(rep, { leadIds: [a, b] })).json().queue;
+    await post(rep, item(q.id, 0, "skip"));
+    expect((await post(rep, "/api/v1/queues/plan", { leadIds: [a] })).json().open).toEqual({
+      id: q.id,
+      status: "active",
+      sourceName: "Your selection",
+      done: 1,
+      total: 2,
+    });
+  });
+
   it("a run is its person's alone", async () => {
     const [a] = await leads(1, "Private");
     const q = (await start(rep, { leadIds: [a] })).json().queue;
