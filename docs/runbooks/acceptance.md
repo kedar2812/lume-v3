@@ -782,3 +782,14 @@ Plan: `docs/superpowers/plans/2026-09-28-phase-3c-automations-health.md`. Spec: 
 
 - CI ran each package's tests with vitest's 5 s default: the 600-lead test timed out there, and the run it left holding the lock failed the next test. It now seeds in one statement.
 - Formatted files copied back from the build box once overwrote a real change (the audit log's words) with an older copy left by a stash check. Restored, and the build notes now say when copying back is safe.
+
+## Live (2026-09-29, the dev stack through Caddy's TLS, on a fresh install)
+
+The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 3A → 3B` (with 3B's and 3A's checks after an API restart), on a reset stack:
+- a new install's Won stage clears open follow-ups;
+- the second open stage is given "set a follow-up in 2 days" through Pipeline & stages; a lead moved there has it, the drawer shows it, and its history says "LUME set a follow-up";
+- moving that lead to Won clears it;
+- Settings → Follow-ups (leads gone quiet, working hours, time choices) and Business → Working hours;
+- System health says "Everything is running".
+
+Screenshots: `docs/runbooks/screenshots-3c/`, unmasked. (1C-3's settings count moved from 14 to 15 pages with System health.)
