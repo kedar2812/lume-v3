@@ -15,3 +15,4 @@ export * from "./intake";
 export * from "./tasks";
 export * from "./messaging";
 export * from "./relay/protocol";
+export * from "./licence";

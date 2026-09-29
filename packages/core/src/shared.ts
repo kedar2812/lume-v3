@@ -28,3 +28,5 @@ export type { ColumnAnalysis } from "./intake/map-row";
 export * from "./tasks/time";
 export * from "./tasks/rules";
 export * from "./messaging/render";
+// The licence as people see it (no crypto: safe for the browser).
+export * from "./licence/state";
