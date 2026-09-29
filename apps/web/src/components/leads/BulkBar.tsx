@@ -80,6 +80,8 @@ export function BulkBar({
   const [country, setCountry] = useState(catalog.country ?? "");
   const n = selected.length;
   const actor = session.actor;
+  // The bulk actions are for bulk editors; Message (4C) for anyone who may run a send queue.
+  const bulk = can(actor, "leads.bulk_edit");
   const pipeline = catalog.pipelines.find((p) => p.isDefault) ?? catalog.pipelines[0];
   const stages = [...(pipeline?.stages ?? [])].sort((a, b) => a.position - b.position);
   const people = catalog.people.filter((p) => p.active);
@@ -147,7 +149,7 @@ export function BulkBar({
             Clear
           </button>
           <span className={s.divider} aria-hidden />
-          {can(actor, "leads.change_stage") && (
+          {bulk && can(actor, "leads.change_stage") && (
             <Popover
               label="Move to stage"
               role="menu"
@@ -167,7 +169,7 @@ export function BulkBar({
               )}
             </Popover>
           )}
-          {can(actor, "leads.assign") && (
+          {bulk && can(actor, "leads.assign") && (
             <Popover
               label="Assign to"
               role="menu"
@@ -214,10 +216,10 @@ export function BulkBar({
               source={{ leadIds: selected }}
               label="Message"
               triggerClassName={s.action}
-              side="above"
+              side="auto"
             />
           )}
-          {catalog.tags.length > 0 && can(actor, "leads.edit") && (
+          {bulk && catalog.tags.length > 0 && can(actor, "leads.edit") && (
             <Popover label="Tags" role="menu" triggerClassName={s.action} trigger="Tags" disabled={busy}>
               {(close) => (
                 <div className={s.tagMenu}>
@@ -248,12 +250,12 @@ export function BulkBar({
               )}
             </Popover>
           )}
-          {phoneFixable && can(actor, "leads.edit") && (
+          {bulk && phoneFixable && can(actor, "leads.edit") && (
             <button type="button" className={s.action} disabled={busy} onClick={() => setFixing(true)}>
               Set country…
             </button>
           )}
-          {can(actor, "leads.delete") && (
+          {bulk && can(actor, "leads.delete") && (
             <button type="button" className={s.danger} disabled={busy} onClick={() => setConfirmDelete(true)}>
               Delete
             </button>

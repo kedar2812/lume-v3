@@ -20,12 +20,15 @@ const admin = fakeSession({
     { key: "leads.edit", scope: "all" },
   ],
 });
-const bar = (selected = ["a", "b", "c", "d"], o: { phoneFixable?: boolean } = {}) => {
+const bar = (
+  selected = ["a", "b", "c", "d"],
+  o: { phoneFixable?: boolean; session?: ReturnType<typeof fakeSession> } = {},
+) => {
   const onDone = vi.fn();
   render(
     <CatalogProvider catalog={testCatalog()}>
       <BulkBar
-        session={admin}
+        session={o.session ?? admin}
         selected={selected}
         phoneFixable={o.phoneFixable}
         onDone={onDone}
@@ -39,6 +42,24 @@ const bar = (selected = ["a", "b", "c", "d"], o: { phoneFixable?: boolean } = {}
 beforeEach(() => vi.clearAllMocks());
 
 describe("BulkBar", () => {
+  it("4C: someone who may run a send queue but not edit in bulk gets Message, and only Message", () => {
+    const rep = fakeSession({
+      permissions: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.edit", scope: "own" },
+        { key: "leads.change_stage", scope: "own" },
+        { key: "leads.delete", scope: "own" },
+        { key: "messages.send", scope: "own" },
+        { key: "messages.send_queue", scope: "own" },
+      ],
+    });
+    bar(["a", "b"], { session: rep, phoneFixable: true });
+    expect(screen.getByRole("button", { name: "Message" })).toBeInTheDocument();
+    for (const name of ["Move to stage", "Assign", "Tags", "Delete"])
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /country/i })).not.toBeInTheDocument();
+  });
+
   it("moves the selection and reports what was skipped and why", async () => {
     vi.mocked(leadsClient.bulk).mockResolvedValue({
       ok: true,

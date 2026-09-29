@@ -435,6 +435,22 @@ describe("LeadsScreen", () => {
     expect(address()).toBe("/leads?lead=l-new");
   });
 
+  it("4C: a rep who may run a send queue selects their leads to message them, and nothing else", async () => {
+    const queuer = fakeSession({
+      permissions: [
+        { key: "leads.view", scope: "own" },
+        { key: "messages.send", scope: "own" },
+        { key: "messages.send_queue", scope: "own" },
+      ],
+    });
+    view({ session: queuer });
+    expect(screen.getByRole("checkbox", { name: "Select all loaded" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select all loaded" }));
+    const bar = screen.getByRole("toolbar", { name: "Bulk actions" });
+    expect(within(bar).getByRole("button", { name: "Message" })).toBeInTheDocument();
+    expect(within(bar).queryByRole("button", { name: "Move to stage" })).not.toBeInTheDocument();
+  });
+
   it("selects rows for bulk actions, a range with Shift, and keeps only the skipped ones selected after", async () => {
     const rows = ["Aisha Khan", "Omar Farouk", "Sara Ali", "Zain Malik"].map((name, i) =>
       lead({ id: `l${i + 1}`, name }),

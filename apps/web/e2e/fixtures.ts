@@ -70,9 +70,11 @@ export async function callApi<T = unknown>(
   method: string,
   url: string,
   body?: unknown,
+  /** Extra headers (If-Match for a lead's edit). */
+  extra: Record<string, string> = {},
 ): Promise<{ status: number; data: T }> {
   return page.evaluate(
-    async ({ method, url, body }) => {
+    async ({ method, url, body, extra }) => {
       const { token } = await (await fetch("/api/v1/auth/csrf")).json();
       const res = await fetch(url, {
         method,
@@ -80,13 +82,14 @@ export async function callApi<T = unknown>(
           "x-csrf-token": token,
           ...(method === "GET" ? {} : { "idempotency-key": crypto.randomUUID() }),
           ...(body === undefined ? {} : { "content-type": "application/json" }),
+          ...extra,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       const text = await res.text();
       return { status: res.status, data: text ? JSON.parse(text) : null };
     },
-    { method, url, body },
+    { method, url, body, extra },
   );
 }
 

@@ -276,6 +276,16 @@ describe("running it", () => {
     expect((await get(rep, `/api/v1/queues/${own.id}`)).json().items[0].status).toBe("pending");
   });
 
+  it("skipping a lead that can't be sent any more records why, not just that it was skipped", async () => {
+    const [a, b] = await leads(2, "Skipwhy");
+    const q = (await start(rep, { leadIds: [a, b] })).json().queue;
+    await h.queryAll("UPDATE leads SET phone_e164 = NULL, phone_status = 'missing' WHERE id = $1", [a]);
+    await post(rep, item(q.id, 0, "skip"));
+    await post(rep, item(q.id, 1, "skip"));
+    const items = (await get(rep, `/api/v1/queues/${q.id}`)).json().items;
+    expect(items.map((i: { reason: string }) => i.reason)).toEqual(["No WhatsApp number", "Skipped"]);
+  });
+
   it("sent, not sent and skip are each once per lead", async () => {
     const [a, b] = await leads(2, "Onceeach");
     const q = (await start(rep, { leadIds: [a, b] })).json().queue;

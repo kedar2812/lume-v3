@@ -481,7 +481,15 @@ export async function skipItem(req: FastifyRequest, id: string, position: number
   const it = await itemAt(req, id, position);
   if (it.status !== "pending" && it.status !== "sending")
     throw conflict("ITEM_DONE", "That lead is done in this run");
-  await settle(req, id, position, "skipped", "Skipped");
+  // A lead that can't be sent any more is skipped for that reason, so the summary says why.
+  let reason = "Skipped";
+  try {
+    reason = whyNot(req, await visibleLead(req, it.leadId)) ?? reason;
+  } catch (err) {
+    if (!(err instanceof HttpError)) throw err;
+    reason = WHY.gone;
+  }
+  await settle(req, id, position, "skipped", reason);
   return step(req, id, position);
 }
 

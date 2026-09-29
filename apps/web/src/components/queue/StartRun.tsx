@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import type { TemplateCategory } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
+import { TokenLine } from "@/components/templates/TokenLine";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { queueChanged, queuesClient, type QueuePlan, type QueueSource } from "@/lib/queues/client";
@@ -33,14 +34,14 @@ export function StartRun({
   suggest?: TemplateCategory;
   label?: string;
   triggerClassName?: string;
-  side?: "below" | "above";
+  side?: "below" | "above" | "auto";
 }) {
   return (
     <Popover
       label="Start a send queue"
       size="form"
       align="end"
-      side={side}
+      side={side ?? "auto"}
       trigger={label}
       triggerClassName={triggerClassName ?? s.trigger}
     >
@@ -169,7 +170,9 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
             />
             <span className={s.tplText}>
               <span className={s.tplName}>{o.name}</span>
-              <span className={s.tplLine}>{o.line}</span>
+              <span className={s.tplLine}>
+                {o.id === OWN ? o.line : <TokenLine text={o.line} fields={[]} />}
+              </span>
             </span>
           </label>
         ))}

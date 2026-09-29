@@ -219,6 +219,8 @@ function Screen({
   const sentinel = useRef<HTMLDivElement>(null);
   const mayCreate = can(session.actor, "leads.create");
   const mayBulk = can(session.actor, "leads.bulk_edit");
+  // 4C: a rep who may run a send queue selects leads to message them, even without bulk edits.
+  const maySelect = mayBulk || can(session.actor, "messages.send_queue");
   const mayImport = can(session.actor, "leads.import");
   const [importing, setImporting] = useState(false);
   // A finished import of yours not looked at yet: Import wears a dot, and opens its report first.
@@ -387,7 +389,7 @@ function Screen({
           openId={openId}
           onOpen={setOpenId}
           selection={
-            mayBulk
+            maySelect
               ? {
                   header: (
                     <HeaderCheck
@@ -585,7 +587,7 @@ function Screen({
       </div>
       {body}
       <AnimatePresence>
-        {mayBulk && selected.length > 0 && (
+        {maySelect && selected.length > 0 && (
           <BulkBar
             key="bulk"
             session={session}

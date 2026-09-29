@@ -15,6 +15,7 @@ export const DEFAULT_ROLES: RoleSeed[] = [
       { key: "leads.change_stage", scope: "own" },
       { key: "leads.contact.reveal", scope: "own" },
       { key: "messages.send", scope: "own" },
+      { key: "messages.send_queue", scope: "own" },
       { key: "templates.use", scope: null },
       { key: "calendar.view", scope: "own" },
       { key: "calendar.connect", scope: null },

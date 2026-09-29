@@ -917,3 +917,57 @@ Deferred minors:
 - the web's fixed filter choices vs the API's ranges;
 - an archived pipeline or deleted select option isn't treated as stale;
 - a personal and a shared view may share a name.
+
+# Phase 4C — The send queue
+
+Plan: `docs/superpowers/plans/2026-09-29-phase-4c-send-queue.md`. Spec: `docs/superpowers/specs/2026-09-29-phase-4-whatsapp-templates-design.md`.
+
+## Automated
+
+- **Settings → Messages** (`messaging.test.ts`, `MessagingSettings.test.tsx`): 50 leads a run and 150 queued messages a day until changed; each changes on its own, in range, audited; for people who manage settings.
+- **Row-level security** (`rls.test.ts`, raw SQL): a run and its items are their person's alone; backups hold them all.
+- **The queue** (`queues.test.ts`, API):
+  - planning from a view (in its order) and from a selection (its own order), capped at the run size, with who's left out and why;
+  - a plan before Start that creates nothing;
+  - one run at a time; a run is its person's alone;
+  - each lead's words before Send, from the planned version;
+  - prepare, then Sent? then the next lead, logged as a queued send;
+  - sent, not sent and skip once each;
+  - two tabs on one lead (one sends, the other is told and moves on);
+  - a lead reassigned, deleted, left without a number, or the rep's rights changed mid-run: skipped with why, and the run goes on;
+  - a template edited, then archived, mid-run still sends the planned words;
+  - pause, resume and cancel;
+  - the daily cap counted from midnight in the person's own timezone (not the business's), pausing the run with its words;
+  - a masked rep's every response without the number (the WhatsApp link aside);
+  - audit words.
+- **Grants** (`queue-grant.test.ts`): existing roles that send messages get the queue at the same scope; new installs' Sales role has it.
+- **Web:**
+  - the start sheet (who's in, left-out reasons one tap away, the view's kind of template first, today's count, Start, "finish or end your current run first");
+  - Resume on Today and in the top bar;
+  - the run (Send, Sent? Yes / Not sent, Skip, keys, your own words, a lead that can't be sent, the cap, pause / resume / Esc, back after a reload, the summary and `cleared`, reduced motion, the leaving card inert);
+  - selection for someone who may run a queue but not edit in bulk;
+  - Popover placement.
+- **End to end** (`queue.spec.ts`), with review copies in `apps/web/e2e/__review__/queue/` and axe in both themes:
+  - a masked rep runs a three-lead queue from "Lost — re-engage" (sent, skipped, not sent), and the number is never on the page;
+  - pause, leave, then Resume from Today;
+  - a lead's number taken away mid-run is skipped with why;
+  - the daily cap pauses the run in LUME's words.
+
+## Found and fixed during the build
+
+- The Settings screenshots in CI predated the new Messages area: baselines refreshed on the full suite.
+- Sales couldn't run a queue at all (no permission by default), and a rep without bulk edits couldn't select leads to message. Sales now has the queue (existing installs through 0030, at the scope each role sends at). Selection is for anyone who may run a queue, and the bulk bar shows only what each person may do.
+- The card sliding out stayed pressable and findable (two Send buttons for a moment, and Enter could reach it): it's inert and hidden while it leaves.
+- A lead that can't be sent showed an empty message box and a dead Send: it now says why, and Skip (and Enter) is the way on. Skipping it records the real reason for the summary.
+- The start sheet opened off the top of the window from a bulk bar high on a short list: popovers now pick the side with room and fit it. Templates' lines show their variables as named chips.
+
+## Live (2026-09-30, the dev stack through Caddy's TLS, on a fresh install)
+
+The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 4A → 4B → 4C → 3A → 3B`, on a reset stack, all passing:
+- Settings → Messages shows the run size and the daily limit;
+- a masked rep selects two of their leads and starts a queue from the bulk bar (First hello first; today's count);
+- Send opens WhatsApp in its own tab, cut off from LUME, and the page never shows the number;
+- Yes moves on; Esc leaves the run paused, and Today offers Resume · 1 of 2 (the top bar too);
+- Skip, then the summary: 1 sent, 1 skipped.
+
+Screenshots: `docs/runbooks/screenshots-4c/`, unmasked.

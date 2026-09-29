@@ -1,4 +1,5 @@
 "use client";
+import { useIsPresent } from "motion/react";
 import { useEffect, useId, useState } from "react";
 import { SentPrompt, type Outcome } from "@/components/messages/SentPrompt";
 import { Button } from "@/components/ui/Button";
@@ -36,6 +37,8 @@ export function QueueCard({
   onAnswer: (sent: boolean) => void;
 }) {
   const id = useId();
+  // Leaving (sliding out as the next comes in): nothing on it can be pressed, typed or found by a key.
+  const present = useIsPresent();
   const [text, setText] = useState("");
   const [original, setOriginal] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState<string | null>(null);
@@ -68,11 +71,16 @@ export function QueueCard({
   const why = note ?? unavailable;
   return (
     <form
-      data-queue-form
+      data-queue-form={present ? "" : undefined}
+      inert={!present}
+      aria-hidden={present ? undefined : true}
       className={s.card}
       onSubmit={(e) => {
         e.preventDefault();
-        if (!ready || !text.trim()) return;
+        if (!ready) return;
+        // A lead that can't be sent: Enter (and the primary) skips it, with its reason.
+        if (unavailable) return onSkip();
+        if (!text.trim()) return;
         // Unchanged, the server sends the version the run planned with; changed, these words.
         onSend(text === original ? undefined : text);
       }}
@@ -87,25 +95,29 @@ export function QueueCard({
         </p>
       </div>
 
-      <label htmlFor={`${id}-text`} className={s.label}>
-        Message
-      </label>
-      <textarea
-        id={`${id}-text`}
-        className={s.text}
-        rows={6}
-        maxLength={4096}
-        value={text}
-        disabled={!ready}
-        placeholder={original === "" ? `Hi ${item.name.split(" ")[0] ?? ""},` : undefined}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            e.currentTarget.form?.requestSubmit();
-          }
-        }}
-      />
+      {!unavailable && (
+        <>
+          <label htmlFor={`${id}-text`} className={s.label}>
+            Message
+          </label>
+          <textarea
+            id={`${id}-text`}
+            className={s.text}
+            rows={6}
+            maxLength={4096}
+            value={text}
+            disabled={!ready}
+            placeholder={original === "" ? `Hi ${item.name.split(" ")[0] ?? ""},` : undefined}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
+          />
+        </>
+      )}
 
       {why && (
         <p role="status" className={s.note}>
@@ -127,12 +139,20 @@ export function QueueCard({
 
       {(phase === "ready" || phase === "away") && (
         <div className={s.actions}>
-          <Button type="button" variant="ghost" onClick={onSkip} disabled={phase !== "ready" || !!note}>
-            Skip
-          </Button>
-          <Button type="submit" variant="whatsapp" disabled={!ready || !text.trim() || !!unavailable}>
-            Send
-          </Button>
+          {unavailable ? (
+            <Button type="submit" variant="primary" disabled={!ready}>
+              Skip
+            </Button>
+          ) : (
+            <>
+              <Button type="button" variant="ghost" onClick={onSkip} disabled={phase !== "ready" || !!note}>
+                Skip
+              </Button>
+              <Button type="submit" variant="whatsapp" disabled={!ready || !text.trim()}>
+                Send
+              </Button>
+            </>
+          )}
         </div>
       )}
       <p className={s.keys} aria-hidden>
@@ -142,7 +162,15 @@ export function QueueCard({
           </>
         ) : (
           <>
-            <Kbd>↵</Kbd> Send · <Kbd>S</Kbd> Skip · <Kbd>P</Kbd> Pause · <Kbd>Esc</Kbd> Leave
+            {unavailable ? (
+              <>
+                <Kbd>↵</Kbd> Skip · <Kbd>P</Kbd> Pause · <Kbd>Esc</Kbd> Leave
+              </>
+            ) : (
+              <>
+                <Kbd>↵</Kbd> Send · <Kbd>S</Kbd> Skip · <Kbd>P</Kbd> Pause · <Kbd>Esc</Kbd> Leave
+              </>
+            )}
           </>
         )}
       </p>

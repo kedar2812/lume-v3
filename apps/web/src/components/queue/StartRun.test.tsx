@@ -88,6 +88,16 @@ describe("StartRun (4C Task 3)", () => {
     expect(within(dialog).getByText("37 / 150")).toBeInTheDocument();
   });
 
+  it("a template's line reads as words, its variables as named chips", async () => {
+    vi.mocked(templatesClient.list).mockResolvedValue(
+      ok({ templates: [{ ...t("t9", "Hello", "first_touch"), body: "Hi {{lead.first_name}}, welcome" }] }),
+    );
+    const dialog = await open();
+    const option = within(dialog).getByRole("radio", { name: /Hello/ }).closest("label")!;
+    expect(option).not.toHaveTextContent("{{");
+    expect(option).toHaveTextContent("First name");
+  });
+
   it("the left-out reasons are one tap away", async () => {
     const dialog = await open();
     const reasons = within(dialog).getByRole("button", { name: "3 left out" });

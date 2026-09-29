@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import s from "./Popover.module.css";
 
 type Props = {
@@ -15,8 +15,11 @@ type Props = {
   /** "dialog" for a small form or chooser, "menu" for a list of actions. */
   role?: "dialog" | "menu";
   align?: "start" | "end";
-  /** "above" for a trigger near the bottom of the window (the bulk bar): it grows up from it. */
-  side?: "below" | "above";
+  /**
+   * "above" grows up from the trigger; "auto" picks whichever side has room (a trigger low in the window,
+   * like the bulk bar, opens upward). Either way the panel is never taller than the room it has.
+   */
+  side?: "below" | "above" | "auto";
   /** Marks the trigger as holding a value (a filter that is set). */
   active?: boolean;
   disabled?: boolean;
@@ -45,6 +48,17 @@ export function Popover({
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<{ side: "below" | "above"; room: number } | null>(null);
+  // Measured as it opens, before it paints: which side, and how tall it may be there.
+  useLayoutEffect(() => {
+    if (!open) return setPlace(null);
+    const r = root.current?.getBoundingClientRect();
+    if (!r) return;
+    const below = window.innerHeight - r.bottom - 12;
+    const above = r.top - 12;
+    const chosen = side === "auto" ? (below < 420 && above > below ? "above" : "below") : side;
+    setPlace({ side: chosen, room: Math.max(160, Math.floor(chosen === "above" ? above : below)) });
+  }, [open, side]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -96,7 +110,14 @@ export function Popover({
           aria-label={label}
           className={s.panel}
           data-align={align}
-          data-side={side}
+          data-side={place?.side ?? (side === "above" ? "above" : "below")}
+          style={
+            place
+              ? {
+                  maxHeight: `min(${size === "form" ? "640px, calc(100vh - 96px)" : "420px, 60vh"}, ${place.room}px)`,
+                }
+              : undefined
+          }
           data-size={size}
         >
           {typeof children === "function" ? children(close) : children}

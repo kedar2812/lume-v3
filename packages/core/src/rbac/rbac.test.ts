@@ -109,6 +109,7 @@ describe("seeded roles", () => {
       "leads.change_stage": "own",
       "leads.contact.reveal": "own",
       "messages.send": "own",
+      "messages.send_queue": "own",
       "templates.use": null,
       "calendar.view": "own",
       "calendar.connect": null,

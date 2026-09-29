@@ -161,6 +161,21 @@ describe("QueueRun (4C Task 4)", () => {
     expect(await screen.findByRole("heading", { name: "Bea Lopez" }, { timeout: 3000 })).toBeInTheDocument();
   });
 
+  it("a lead that can't be sent before Send says why, and Skip is the way on (Enter too)", async () => {
+    vi.mocked(queuesClient.text).mockResolvedValueOnce(ok({ unavailable: "No WhatsApp number" }));
+    render(<QueueRun id="q1" />);
+    await lead("Aisha Khan");
+    expect(await screen.findByText("No WhatsApp number")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skip" })).toHaveAttribute("data-variant", "primary");
+    // Nothing to write for a lead that can't be sent: no message box.
+    expect(screen.queryByRole("textbox", { name: "Message" })).not.toBeInTheDocument();
+    await userEvent.keyboard("{Enter}");
+    expect(queuesClient.skip).toHaveBeenCalledWith("q1", 0);
+    expect(queuesClient.prepare).not.toHaveBeenCalled();
+    await lead("Bea Lopez");
+  });
+
   it("the daily cap pauses the run, in LUME's words", async () => {
     const w = tab();
     const words = "You've sent today's 150; the run is paused until tomorrow";
@@ -220,6 +235,16 @@ describe("QueueRun (4C Task 4)", () => {
     );
     await userEvent.click(within(summary).getByRole("button", { name: "Done" }));
     expect(push).toHaveBeenCalledWith("/today");
+  });
+
+  it("the card sliding out can't be pressed while the next comes in", async () => {
+    tab();
+    render(<QueueRun id="q1" />);
+    await screen.findByDisplayValue("Hi Aisha, just checking in.");
+    await userEvent.keyboard("s");
+    await lead("Bea Lopez");
+    // Whatever is still leaving is inert; only the new card answers to Send.
+    expect(screen.getAllByRole("button", { name: "Send" })).toHaveLength(1);
   });
 
   it("reduced motion: the cards cross-fade instead of sliding", async () => {

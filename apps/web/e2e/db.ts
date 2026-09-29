@@ -43,3 +43,20 @@ export async function forgetDigests(email: string): Promise<void> {
     await owner.end();
   }
 }
+
+/** Lost this many days ago (a view such as "Lost — re-engage" wants leads lost a while back). */
+export async function backdateLost(leadIds: string[], days: number): Promise<void> {
+  // As the test database's superuser: test housekeeping, outside anyone's row-level scope.
+  const url = new URL(adminUrl());
+  url.pathname = `/${DB}`;
+  const owner = new pg.Client({ connectionString: url.toString() });
+  await owner.connect();
+  try {
+    await owner.query(
+      "UPDATE leads SET lost_at = now() - make_interval(days => $2) WHERE id = ANY($1::uuid[])",
+      [leadIds, days],
+    );
+  } finally {
+    await owner.end();
+  }
+}
