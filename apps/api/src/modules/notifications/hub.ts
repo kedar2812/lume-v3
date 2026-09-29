@@ -82,6 +82,8 @@ export const missedSince = (pool: pg.Pool, userId: string, afterId: number) =>
  */
 export async function startHub(pool: pg.Pool) {
   const subscribers = new Map<string, Set<(n: NotificationView) => void>>();
+  /** Told whenever leads change (4B): no payload, so nothing about whose or which. */
+  const leadListeners = new Set<() => void>();
   /** Told when the listener comes back after losing its connection: whatever arrived meanwhile wasn't heard. */
   const resyncs = new Set<() => void>();
   let failures = 0;
@@ -128,6 +130,7 @@ export async function startHub(pool: pg.Pool) {
     const c = await pool.connect();
     c.on("notification", (m) => {
       if (m.channel === "lume_notifications") void deliver(m.payload ?? "").catch(() => undefined);
+      else if (m.channel === "lume_leads") for (const l of leadListeners) l();
     });
     c.on("error", () => {
       if (client === c) client = null;
@@ -135,6 +138,7 @@ export async function startHub(pool: pg.Pool) {
       again();
     });
     await c.query("LISTEN lume_notifications");
+    await c.query("LISTEN lume_leads");
     client = c;
   };
   await connect();
@@ -151,6 +155,11 @@ export async function startHub(pool: pg.Pool) {
         if (resync) resyncs.delete(resync);
       };
     },
+    /** Leads changed somewhere (4B): each stream decides how often to say so. */
+    onLeads(listener: () => void): () => void {
+      leadListeners.add(listener);
+      return () => void leadListeners.delete(listener);
+    },
     async stop() {
       stopped = true;
       clearTimeout(retry);
@@ -158,6 +167,7 @@ export async function startHub(pool: pg.Pool) {
       client = null;
       if (c) {
         await c.query("UNLISTEN lume_notifications").catch(() => undefined);
+        await c.query("UNLISTEN lume_leads").catch(() => undefined);
         c.release();
       }
     },

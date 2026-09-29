@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { subscribe, useStream } from "./stream";
+import { subscribe, useLeadsChanged, useStream } from "./stream";
 
 class FakeSource {
   static made: FakeSource[] = [];
@@ -9,11 +9,17 @@ class FakeSource {
   readyState = 1;
   onerror: (() => void) | null = null;
   handlers: ((e: MessageEvent<string>) => void)[] = [];
+  named: Record<string, (() => void)[]> = {};
   constructor(public url: string) {
     FakeSource.made.push(this);
   }
-  addEventListener(_: string, h: (e: MessageEvent<string>) => void) {
-    this.handlers.push(h);
+  addEventListener(name: string, h: (e: MessageEvent<string>) => void) {
+    if (name === "notification") this.handlers.push(h);
+    else (this.named[name] ??= []).push(() => h({ data: "{}" } as MessageEvent<string>));
+  }
+  /** Leads changed somewhere (4B): an event with no id and no data worth reading. */
+  emitLeads() {
+    for (const h of this.named.leads ?? []) h();
   }
   close() {
     this.closed = true;
@@ -84,5 +90,37 @@ describe("3A final review", () => {
     s.emit({ id: 7, title: "Once" });
     expect(on).toHaveBeenCalledTimes(1);
     off();
+  });
+});
+
+describe("leads changed (4B Task 4)", () => {
+  const setVisible = (v: "visible" | "hidden") => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => v });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+  afterEach(() => setVisible("visible"));
+
+  it("useLeadsChanged fires on `leads`, not on a notification, sharing the tab's one stream", () => {
+    const on = vi.fn();
+    const note = vi.fn();
+    renderHook(() => useLeadsChanged(on));
+    renderHook(() => useStream(note));
+    expect(FakeSource.made).toHaveLength(1);
+    FakeSource.made[0]!.emit({ id: 9, title: "A note" });
+    expect(on).not.toHaveBeenCalled();
+    FakeSource.made[0]!.emitLeads();
+    expect(on).toHaveBeenCalledTimes(1);
+    expect(note).toHaveBeenCalledTimes(1);
+  });
+
+  it("a hidden tab doesn't ask; shown again, it asks once", () => {
+    const on = vi.fn();
+    renderHook(() => useLeadsChanged(on));
+    setVisible("hidden");
+    FakeSource.made[0]!.emitLeads();
+    FakeSource.made[0]!.emitLeads();
+    expect(on).not.toHaveBeenCalled();
+    setVisible("visible");
+    expect(on).toHaveBeenCalledTimes(1);
   });
 });

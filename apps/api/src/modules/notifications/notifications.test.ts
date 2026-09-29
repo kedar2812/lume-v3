@@ -197,3 +197,68 @@ describe("3A final review", () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 });
+
+/** Open the stream for `ms` and collect every event block, raw: its event name, and whether it had an id. */
+async function blocks(c: AuthedClient, o: { ms: number; after?: () => Promise<unknown> }) {
+  const ac = new AbortController();
+  const res = await fetch(`${base}/api/v1/stream`, { headers: { cookie: cookie(c) }, signal: ac.signal });
+  const out: { event: string; id: string | null }[] = [];
+  const reader = res.body!.getReader();
+  const text = new TextDecoder();
+  let buf = "";
+  const timer = setTimeout(() => ac.abort(), o.ms);
+  setTimeout(() => void o.after?.(), 100);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += text.decode(value);
+      for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
+        const block = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const event = /^event: (\w+)$/m.exec(block)?.[1];
+        if (event) out.push({ event, id: /^id: (\d+)$/m.exec(block)?.[1] ?? null });
+      }
+    }
+  } catch {
+    // the time ran out: whatever arrived is the answer
+  } finally {
+    clearTimeout(timer);
+    ac.abort();
+  }
+  return out;
+}
+
+describe("leads changed on the live stream (4B Task 4)", () => {
+  it("a lead change reaches an open stream as one `leads` event, with no id and nothing about the lead", async () => {
+    const got = await blocks(me, {
+      ms: 1500,
+      after: () => h.seedLead({ ownerId: someoneId, name: "Not yours" }),
+    });
+    const leads = got.filter((b) => b.event === "leads");
+    expect(leads).toEqual([{ event: "leads", id: null }]);
+  });
+
+  it("Review Focus 4: ten changes within a second arrive as at most two", async () => {
+    const got = await blocks(me, {
+      ms: 4500,
+      after: async () => {
+        for (let i = 0; i < 10; i++) await h.seedLead({ ownerId: meId, name: `Burst ${i}` });
+      },
+    });
+    const n = got.filter((b) => b.event === "leads").length;
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(n).toBeLessThanOrEqual(2);
+  }, 10_000);
+
+  it("a notification after a `leads` event still carries its id", async () => {
+    const got = await blocks(me, {
+      ms: 2000,
+      after: async () => {
+        await h.seedLead({ ownerId: meId, name: "Then a note" });
+        await notify(meId, "After leads");
+      },
+    });
+    expect(got.find((b) => b.event === "notification")?.id).toMatch(/^\d+$/);
+  });
+});

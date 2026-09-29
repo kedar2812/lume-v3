@@ -10,6 +10,8 @@ import { missedSince, startHub, type NotificationView } from "./hub";
 const N = schema.notifications;
 const self = { permission: "auth.self" as const };
 const HEARTBEAT_MS = 25_000;
+/** At most one "leads changed" per stream in this long: a burst (an import) becomes one or two (4B). */
+const LEADS_EVERY_MS = 3000;
 /** How far before the last id a replay starts (ids can commit out of order), and how many ids a stream remembers. */
 const OVERLAP = 50;
 const SENT_MAX = 2000;
@@ -118,8 +120,26 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         () => void replay(high).catch(() => undefined),
       );
       const beat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
+      // Leads changed (4B): the first at once, then at most one trailing per window. No id, so the
+      // browser's Last-Event-ID stays the notifications'; no data, so nothing about whose or which.
+      let lastLeads = 0;
+      let trailing: NodeJS.Timeout | undefined;
+      const sayLeads = () => {
+        lastLeads = Date.now();
+        res.write("event: leads\ndata: {}\n\n");
+      };
+      const offLeads = hub.onLeads(() => {
+        const wait = lastLeads + LEADS_EVERY_MS - Date.now();
+        if (wait <= 0) return sayLeads();
+        trailing ??= setTimeout(() => {
+          trailing = undefined;
+          sayLeads();
+        }, wait);
+      });
       req.raw.on("close", () => {
         clearInterval(beat);
+        clearTimeout(trailing);
+        offLeads();
         unsubscribe();
         open.delete(res);
       });
