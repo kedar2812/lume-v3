@@ -5,6 +5,8 @@ import {
   apiQuery,
   filtersToParams,
   parseFilters,
+  toViewFilters,
+  fromViewFilters,
   type ListFilters,
 } from "./filters";
 import { testCatalog } from "./test-catalog";
@@ -56,6 +58,37 @@ describe("lead filters in the URL", () => {
       createdDays: "1",
     });
     expect(activeFilterCount(f)).toBe(5);
+  });
+
+  it("4B: a saved view keeps the list's API filters, and opens as the same filters", () => {
+    const f: ListFilters = {
+      ...EMPTY_FILTERS,
+      q: "aisha",
+      stageIds: [s1!.id],
+      owner: "me",
+      tagId: cat.tags[0]!.id,
+      from: "2026-09-01",
+      sort: "updated",
+      noReplyDays: 3,
+      lostDaysAgo: 30,
+      lostReasonId: "r-price",
+      followUpOverdue: true,
+      createdDays: 7,
+      custom: { struggles: "o1" },
+    };
+    const saved = toViewFilters(f);
+    expect(saved).toMatchObject({
+      stageId: s1!.id,
+      ownerId: "me",
+      noReplyDays: "3",
+      followUpOverdue: "true",
+    });
+    expect(fromViewFilters(saved, cat)).toEqual(f);
+    // A view naming a stage that's gone opens without it, rather than breaking the page (Review Focus 2).
+    expect(fromViewFilters({ stageId: "0".repeat(36), noReplyDays: "3" }, cat)).toEqual({
+      ...EMPTY_FILTERS,
+      noReplyDays: 3,
+    });
   });
 
   it("4B: a quiet filter it can't vouch for is dropped", () => {

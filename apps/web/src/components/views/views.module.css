@@ -1,0 +1,285 @@
+/* Saved views (Phase 4B): a quiet section under the main navigation, and one small form. */
+
+.section {
+  display: grid;
+  gap: 4px;
+  margin-top: 18px;
+  min-height: 0;
+}
+.head {
+  margin: 0 10px 2px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+.list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  max-height: 40vh;
+}
+/* The row: the handle and the edit button show on hover or focus, so the list reads as names first. */
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.row:hover,
+.row:focus-within {
+  background: var(--hover);
+}
+.row[data-on] {
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.handle,
+.more {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 30px;
+  border-radius: 6px;
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.handle {
+  cursor: grab;
+  touch-action: none;
+}
+.more {
+  width: 26px;
+}
+.row:hover .handle,
+.row:hover .more,
+.handle:focus-visible,
+.more:focus-visible,
+.more[aria-expanded="true"] {
+  opacity: 1;
+}
+.link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 4px 0 2px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  transition: transform 0.1s ease-out;
+}
+.link:active {
+  transform: scale(0.985);
+}
+.link[aria-current="page"] {
+  color: var(--text);
+}
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.count {
+  flex: none;
+  min-width: 2ch;
+  text-align: right;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Save view, at the end of the filter bar. */
+.saveBtn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease-out;
+}
+.saveBtn:hover {
+  background: var(--accent-soft);
+}
+.saveBtn:active {
+  transform: scale(0.97);
+}
+
+/* The form: a view's name, colour and who sees it. */
+.form {
+  display: grid;
+  gap: 12px;
+  width: 280px;
+  max-width: calc(100vw - 48px);
+  padding: 12px;
+}
+.field {
+  display: grid;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.field input {
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font: inherit;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-regular);
+  color: var(--text);
+  outline: 0;
+}
+.field input:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.swatches {
+  display: flex;
+  gap: 8px;
+}
+.swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s ease-out;
+}
+.swatch:active {
+  transform: scale(0.9);
+}
+.swatch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.swatch span {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.swatch[data-on] {
+  box-shadow: 0 0 0 2px var(--text);
+}
+.swatch:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.who {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.who legend {
+  margin-bottom: 4px;
+  padding: 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text);
+}
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.pill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.pill[data-on] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
+}
+.pill:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.problem {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.delete {
+  margin-right: auto;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.delete:hover {
+  background: var(--hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link:active,
+  .swatch:active,
+  .saveBtn:active {
+    transform: none;
+  }
+}

@@ -5,6 +5,7 @@ import { leadsClient } from "@/lib/leads/client";
 import { EMPTY_FILTERS } from "@/lib/leads/filters";
 import { testCatalog, testLead as lead } from "@/lib/leads/test-catalog";
 import { fakeSession } from "@/server/session";
+import { viewsClient } from "@/lib/views/client";
 import { LeadsScreen } from "./LeadsScreen";
 
 // Sheets aren't connected in these tests: no Refresh, no banner.
@@ -20,6 +21,10 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/leads",
 }));
 const address = () => window.location.pathname + window.location.search;
+vi.mock("@/lib/views/client", async (orig) => ({
+  ...(await orig<typeof import("@/lib/views/client")>()),
+  viewsClient: { list: vi.fn(), update: vi.fn(), create: vi.fn() },
+}));
 vi.mock("@/lib/leads/client", () => ({
   leadsClient: {
     list: vi.fn(),
@@ -273,6 +278,69 @@ describe("LeadsScreen", () => {
     await vi.waitFor(() => expect(address()).toBe("/leads?lost=30&reason=r-price&overdue=1&new=1"));
     await userEvent.click(screen.getByRole("button", { name: "Clear all filters" }));
     await vi.waitFor(() => expect(address()).toBe("/leads"));
+  });
+
+  it("4B: Save view is there once a filter is set, not before", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    view();
+    expect(screen.queryByRole("button", { name: "Save view" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /more filters/i }));
+    await userEvent.selectOptions(screen.getByLabelText("No reply for"), "3");
+    expect(await screen.findByRole("button", { name: "Save view" })).toBeInTheDocument();
+  });
+
+  it("4B: a view opens under its name; changing a filter offers Update view, which saves the new filters", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    vi.mocked(viewsClient.update).mockImplementation(async (id, b) => ({
+      ok: true,
+      status: 200,
+      data: {
+        id,
+        name: "Chase list",
+        color: "warn",
+        filters: b.filters!,
+        sharedRoleIds: [],
+        shared: false,
+        mine: true,
+        canEdit: true,
+      },
+    }));
+    view({
+      initialFilters: { ...EMPTY_FILTERS, noReplyDays: 3 },
+      view: {
+        id: "v1",
+        name: "Chase list",
+        color: "warn",
+        filters: { noReplyDays: "3", sort: "newest" },
+        sharedRoleIds: [],
+        shared: false,
+        mine: true,
+        canEdit: true,
+      },
+    });
+    expect(screen.getByRole("heading", { name: "Chase list" })).toBeInTheDocument();
+    await vi.waitFor(() => expect(address()).toBe("/leads?view=v1&noreply=3"));
+    expect(screen.queryByRole("button", { name: "Update view" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /more filters/i }));
+    await userEvent.selectOptions(screen.getByLabelText("No reply for"), "7");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(await screen.findByRole("button", { name: "Update view" }));
+    expect(viewsClient.update).toHaveBeenCalledWith("v1", {
+      filters: expect.objectContaining({ noReplyDays: "7" }),
+    });
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Update view" })).not.toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close view" }));
+    await vi.waitFor(() => expect(address()).toBe("/leads?noreply=7"));
   });
 
   it("edits a value in place, saving with the version it saw", async () => {

@@ -40,6 +40,7 @@ export function FilterBar({
   onChange,
   contactsVisible,
   hideStage = false,
+  trailing,
 }: {
   session: Session;
   catalog: Catalog;
@@ -47,6 +48,8 @@ export function FilterBar({
   onChange: (f: ListFilters) => void;
   contactsVisible: boolean;
   hideStage?: boolean;
+  /** At the end of the bar, after the chips it acts on (4B: Save view). */
+  trailing?: ReactNode;
 }) {
   const search = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<ListFilters>) => onChange({ ...filters, ...patch });
@@ -364,6 +367,7 @@ export function FilterBar({
           Clear · {count}
         </button>
       )}
+      {trailing}
     </div>
   );
 }

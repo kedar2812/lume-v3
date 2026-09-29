@@ -180,3 +180,50 @@ export const activeFilterCount = (f: ListFilters): number =>
 export const moreFilterCount = (f: ListFilters): number =>
   [f.noReplyDays, f.lostDaysAgo, f.followUpOverdue, f.createdDays].filter(Boolean).length +
   Object.keys(f.custom ?? {}).length;
+
+/** A saved view keeps the list's own API filters (4B), as strings; paging and "new since" are left out. */
+export function toViewFilters(f: ListFilters): Record<string, string> {
+  const p = new URLSearchParams(apiQuery(f));
+  p.delete("arrivedAfter");
+  return Object.fromEntries(p);
+}
+
+/** The API's names for the address bar's (a view stores the first, the screen reads the second). */
+const API_TO_URL: Record<string, string> = {
+  q: "q",
+  stageId: "stage",
+  ownerId: "owner",
+  tagId: "tag",
+  phoneStatus: "phone",
+  source: "source",
+  createdFrom: "from",
+  createdTo: "to",
+  pipelineId: "pipeline",
+  sort: "sort",
+  noReplyDays: "noreply",
+  lostDaysAgo: "lost",
+  lostReasonId: "reason",
+  createdDays: "new",
+};
+
+/** A view's filters as the address bar holds them, so opening it is just a link. */
+export function viewParams(api: Record<string, string>): URLSearchParams {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(api)) {
+    if (k === "custom") {
+      try {
+        for (const [key, val] of Object.entries(JSON.parse(v) as Record<string, unknown>))
+          p.set(`cf.${key}`, String(val));
+      } catch {
+        // an unreadable custom filter is dropped, like any stale part
+      }
+    } else if (k === "followUpOverdue") {
+      if (v === "true") p.set("overdue", "1");
+    } else if (API_TO_URL[k]) p.set(API_TO_URL[k]!, v);
+  }
+  return p;
+}
+
+/** A view's filters for this screen, dropping anything no longer there (Review Focus 2). */
+export const fromViewFilters = (api: Record<string, string>, cat: Catalog): ListFilters =>
+  parseFilters(viewParams(api), cat);

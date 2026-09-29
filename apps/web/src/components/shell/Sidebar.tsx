@@ -2,6 +2,8 @@
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { SidebarViews } from "@/components/views/SidebarViews";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { NavIcon } from "./icons";
 import { NAV_ITEMS, activeNav, visibleNav } from "./nav";
@@ -56,6 +58,11 @@ export function Sidebar({ businessName, user, can }: Props) {
           );
         })}
       </nav>
+      {can("leads.view") && (
+        <Suspense fallback={null}>
+          <SidebarViews canShare={can("views.manage")} />
+        </Suspense>
+      )}
       <div className={s.spacer} />
       <ProfileMenu user={user} />
     </aside>

@@ -15,7 +15,17 @@ import { sheetsClient } from "@/lib/sheets/client";
 import type { SheetsStatus } from "@/lib/sheets/types";
 import { leadsClient } from "@/lib/leads/client";
 import { availableColumns, loadColumnChoice, resolveColumns, saveColumnChoice } from "@/lib/leads/columns";
-import { activeFilterCount, filtersToParams, type ListFilters, type Sort } from "@/lib/leads/filters";
+import {
+  activeFilterCount,
+  filtersToParams,
+  fromViewFilters,
+  toViewFilters,
+  type ListFilters,
+  type Sort,
+} from "@/lib/leads/filters";
+import { tokenColor } from "@/lib/leads/colors";
+import { viewsChanged, viewsClient, type ViewView } from "@/lib/views/client";
+import { SaveView } from "@/components/views/SaveView";
 import type { Catalog, Lead, LeadPage } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
 import { BulkBar } from "./BulkBar";
@@ -39,7 +49,13 @@ type Props = {
   first: LeadPage | null;
   /** The lead open in the drawer when the page loaded (`?lead=`). */
   initialLeadId?: string | null;
+  /** The saved view the page opened (`?view=`, 4B): its name above the filters, and Update view. */
+  view?: ViewView | null;
 };
+
+/** Two sets of saved filters say the same thing (order and stale parts aside). */
+const sameFilters = (a: Record<string, string>, b: Record<string, string>) =>
+  JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 
 /**
  * The list behind the table, fetched page by page. Every new set of filters starts a new "generation",
@@ -154,8 +170,27 @@ export function LeadsScreen(props: Props) {
   );
 }
 
-function Screen({ session, catalog, contactsVisible, initialFilters, first, initialLeadId = null }: Props) {
+function Screen({
+  session,
+  catalog,
+  contactsVisible,
+  initialFilters,
+  first,
+  initialLeadId = null,
+  view = null,
+}: Props) {
   const [filters, setFilters] = useState<ListFilters>(initialFilters);
+  const [activeView, setActiveView] = useState<ViewView | null>(view);
+  // What the view says, read as this screen reads it, so a stale part never counts as "changed".
+  const viewSays = activeView ? toViewFilters(fromViewFilters(activeView.filters, catalog)) : null;
+  const viewChanged = !!viewSays && !sameFilters(viewSays, toViewFilters(filters));
+  const updateView = async () => {
+    if (!activeView) return;
+    const r = await viewsClient.update(activeView.id, { filters: toViewFilters(filters) });
+    if (!r.ok) return;
+    setActiveView(r.data);
+    viewsChanged();
+  };
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
@@ -233,12 +268,14 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
 
   // The address bar mirrors the filters and the open lead, without a server round trip per keystroke.
   useEffect(() => {
-    const p = filtersToParams(filters);
+    // An open view leads the address, so a reload or a shared link opens it again.
+    const p = new URLSearchParams(activeView ? { view: activeView.id } : {});
+    for (const [k, v] of filtersToParams(filters)) p.set(k, v);
     if (openId) p.set("lead", openId);
     const qs = p.toString();
     const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     if (url !== window.location.pathname + window.location.search) window.history.replaceState(null, "", url);
-  }, [filters, openId]);
+  }, [filters, openId, activeView]);
 
   // Selection survives paging and sorting, but a different set of filters starts afresh.
   const filterKey = JSON.stringify({ ...filters, sort: undefined });
@@ -407,6 +444,28 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
     <section className={s.screen}>
       {sheets && <AttentionBanner items={sheets.attention} />}
       <div className={s.toolbar} data-testid="leads-toolbar">
+        {activeView && (
+          <div className={s.viewHead}>
+            <span className={s.viewDot} style={{ background: tokenColor(activeView.color) }} aria-hidden />
+            <h2 className={s.viewName}>{activeView.name}</h2>
+            {viewChanged && activeView.canEdit && (
+              <Button size="sm" variant="secondary" onClick={() => void updateView()}>
+                Update view
+              </Button>
+            )}
+            <button
+              type="button"
+              className={s.viewClose}
+              aria-label="Close view"
+              title="Close view (keeps the filters)"
+              onClick={() => setActiveView(null)}
+            >
+              <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+                <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        )}
         <div className={`${s.bar} ${s.stagesBar}`}>
           {multiPipeline && pipeline && (
             <label className={s.select}>
@@ -474,6 +533,16 @@ function Screen({ session, catalog, contactsVisible, initialFilters, first, init
             onChange={setFilters}
             contactsVisible={contactsVisible}
             hideStage
+            trailing={
+              activeFilterCount({ ...filters, stageIds: [] }) + filters.stageIds.length > 0 && (
+                <SaveView
+                  filters={filters}
+                  catalog={catalog}
+                  canShare={can(session.actor, "views.manage")}
+                  onSaved={setActiveView}
+                />
+              )
+            }
           />
           <div className={s.right}>
             <label className={s.select}>

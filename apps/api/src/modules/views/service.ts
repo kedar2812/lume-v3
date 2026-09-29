@@ -75,7 +75,9 @@ function assertEditable(req: FastifyRequest, r: Row) {
 }
 
 /** The caller's views in their own order (4B ruling R2); any not placed yet come after, oldest first. */
-export async function listViews(req: FastifyRequest): Promise<{ views: ViewView[] }> {
+export async function listViews(
+  req: FastifyRequest,
+): Promise<{ views: ViewView[]; roles?: { id: string; name: string }[] }> {
   const rows = await visible(req);
   const [u] = await req.db
     .select({ order: schema.users.viewOrder })
@@ -89,7 +91,14 @@ export async function listViews(req: FastifyRequest): Promise<{ views: ViewView[
   const sorted = [...rows].sort(
     (a, b) => at(a.id) - at(b.id) || a.createdAt.getTime() - b.createdAt.getTime(),
   );
-  return { views: sorted.map((r) => toView(req, r)) };
+  // Whoever may share also gets the roles to share with (as templates do).
+  const roles = manages(req)
+    ? await req.db
+        .select({ id: schema.roles.id, name: schema.roles.name })
+        .from(schema.roles)
+        .orderBy(schema.roles.name)
+    : undefined;
+  return { views: sorted.map((r) => toView(req, r)), ...(roles ? { roles } : {}) };
 }
 
 export async function createView(req: FastifyRequest, input: ViewInput): Promise<ViewView> {

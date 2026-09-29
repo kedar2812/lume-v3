@@ -163,6 +163,12 @@ describe("saved views (4B Task 3)", () => {
     expect(await list(admin)).toEqual(adminBefore);
   });
 
+  it("a manager's list carries the roles to share with; a rep's doesn't", async () => {
+    const m = (await call(admin, "GET", "/api/v1/views")).json();
+    expect(m.roles).toEqual(expect.arrayContaining([expect.objectContaining({ id: repRole })]));
+    expect((await call(rep, "GET", "/api/v1/views")).json().roles).toBeUndefined();
+  });
+
   it("the starter views are views LUME can count", async () => {
     for (const s of STARTER_VIEWS) {
       const r = await create(admin, { name: `Starter ${s.name}`, color: s.color, filters: s.filters });

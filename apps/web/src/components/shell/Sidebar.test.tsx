@@ -9,7 +9,16 @@ const ALL_PERMISSIONS = PERMISSIONS.map((p) => ({ key: p.key, scope: p.scoped ? 
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/leads",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }),
+}));
+// Saved views (4B) have their own tests; here the sidebar has none.
+vi.mock("@/lib/views/client", async (orig) => ({
+  ...(await orig<typeof import("@/lib/views/client")>()),
+  viewsClient: {
+    list: vi.fn(async () => ({ ok: true, status: 200, data: { views: [] } })),
+    counts: vi.fn(async () => ({ ok: true, status: 200, data: { counts: {} } })),
+  },
 }));
 
 describe("Sidebar", () => {
