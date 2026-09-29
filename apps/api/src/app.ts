@@ -1,3 +1,4 @@
+import { exportRoutes } from "./export/routes";
 import { licenceGuard } from "./licence/enforce";
 import cookie from "@fastify/cookie";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
@@ -186,6 +187,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(templateRoutes);
         await scope.register(viewRoutes);
         await scope.register(licenceRoutes);
+        await scope.register(exportRoutes, deps);
         await scope.register(queueRoutes, deps);
         await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);

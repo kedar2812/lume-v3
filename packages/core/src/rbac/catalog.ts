@@ -168,6 +168,13 @@ export const PERMISSIONS = [
     description: "Custom fields",
   },
   {
+    key: "data.export",
+    group: "Admin",
+    scoped: false,
+    label: "Export all data",
+    description: "Download everything LUME holds, unmasked, in any licence state",
+  },
+  {
     key: "settings.manage",
     group: "Admin",
     scoped: false,

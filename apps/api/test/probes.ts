@@ -139,6 +139,7 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/licence": { access: "auth.self" },
   "POST /api/v1/licence/check": { access: "settings.manage" },
   "POST /api/v1/licence/notice/dismiss": { access: "auth.self" },
+  "GET /api/v1/export": { access: "data.export" },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "GET /api/v1/settings/messaging": { access: "settings.manage" },
   "PUT /api/v1/settings/messaging": { access: "settings.manage", body: () => ({ queueSize: 50 }) },
