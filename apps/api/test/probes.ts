@@ -102,6 +102,10 @@ export const PROBES: Record<string, Probe> = {
     access: "messages.send_queue",
     path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd",
   },
+  "GET /api/v1/queues/:id/items/:pos/text": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/text",
+  },
   "POST /api/v1/queues/:id/items/:pos/prepare": {
     access: "messages.send_queue",
     path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/prepare",

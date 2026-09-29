@@ -59,6 +59,9 @@ export const queuesClient = {
     }),
   current: () => api.get<QueueView | null>("/api/v1/queues/current"),
   get: (id: string) => api.get<QueueView>(one(id)),
+  /** A lead's words before Send, from the version the run planned with; or why it can't be sent now. */
+  text: (id: string, pos: number) =>
+    api.get<{ text: string; missing: string[] } | { unavailable: string }>(item(id, pos, "text")),
   prepare: (id: string, pos: number, text?: string) =>
     api.post<{ url: string; text: string } | ({ skipped: string } & QueueStep)>(
       item(id, pos, "prepare"),

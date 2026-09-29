@@ -50,6 +50,9 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
   r.get("/api/v1/queues/:id", { config: run, schema: { params } }, (req) =>
     svc.queueView(req, req.params.id),
   );
+  r.get("/api/v1/queues/:id/items/:pos/text", { config: run, schema: { params: itemParams } }, (req) =>
+    svc.itemText(req, req.params.id, req.params.pos),
+  );
   r.post(
     "/api/v1/queues/:id/items/:pos/prepare",
     {

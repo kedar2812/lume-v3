@@ -354,6 +354,42 @@ async function step(req: FastifyRequest, id: string, position: number): Promise<
   return { next: null, finished: true };
 }
 
+/** The planned version's words, in this lead's words (4A's render; never a contact). */
+async function plannedText(req: FastifyRequest, versionId: string, lead: LeadRow) {
+  const [v] = await req.db
+    .select({ body: schema.templateVersions.body })
+    .from(schema.templateVersions)
+    .where(eq(schema.templateVersions.id, versionId));
+  if (!v) throw notFound("TEMPLATE_NOT_FOUND", "That template no longer exists");
+  return render(v.body, await contextFor(req, lead));
+}
+
+/**
+ * A lead's words before Send (the run screen, Task 4): the version the run planned with, rendered for
+ * them; "" for a run in the person's own words. A lead that can't be sent now says why, and nothing
+ * changes: Send is what skips it.
+ */
+export async function itemText(
+  req: FastifyRequest,
+  id: string,
+  position: number,
+): Promise<{ text: string; missing: string[] } | { unavailable: string }> {
+  const q = await queueRow(req, id);
+  const it = await itemAt(req, id, position);
+  let lead: LeadRow;
+  try {
+    lead = await visibleLead(req, it.leadId);
+  } catch (err) {
+    if (!(err instanceof HttpError)) throw err;
+    return { unavailable: WHY.gone };
+  }
+  const why = whyNot(req, lead);
+  if (why) return { unavailable: why };
+  if (it.textOverride) return { text: it.textOverride, missing: [] };
+  if (!q.templateVersionId) return { text: "", missing: [] };
+  return plannedText(req, q.templateVersionId, lead);
+}
+
 /**
  * Opens WhatsApp for one lead of the run (spec §5): claims it (one send per item, Review Focus 1), checks
  * the lead again (Review Focus 3), renders the version the run planned with unless the person edited it
@@ -396,12 +432,7 @@ export async function prepareItem(
   let text = own;
   if (!text) {
     if (!q.templateVersionId) throw badRequest("TEXT_REQUIRED", "Write the message for this lead");
-    const [v] = await req.db
-      .select({ body: schema.templateVersions.body })
-      .from(schema.templateVersions)
-      .where(eq(schema.templateVersions.id, q.templateVersionId));
-    if (!v) throw notFound("TEMPLATE_NOT_FOUND", "That template no longer exists");
-    text = render(v.body, await contextFor(req, lead)).text;
+    text = (await plannedText(req, q.templateVersionId, lead)).text;
   }
   await req.db
     .update(I)

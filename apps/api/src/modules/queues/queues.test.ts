@@ -256,6 +256,26 @@ describe("running it", () => {
     expect((await get(rep, "/api/v1/queues/current")).json()).toBeNull();
   });
 
+  it("each lead's words before Send (Task 4): the planned template in their words, with nothing claimed", async () => {
+    const [a] = await leads(1, "Wordsfirst");
+    const t = await template("First hello");
+    const q = (await start(rep, { leadIds: [a], templateId: t.id })).json().queue;
+    const r = await get(rep, item(q.id, 0, "text"));
+    expect(r.statusCode).toBe(200);
+    expect(r.json().text).toMatch(/^Hi Wordsfirst, this is Riya from /);
+    expect(r.json().missing).toEqual([]);
+    expect(r.body).not.toMatch(/7654321/);
+    expect((await get(rep, `/api/v1/queues/${q.id}`)).json().items[0].status).toBe("pending");
+    // Own words: nothing to show yet. A lead that can't be sent any more: why, and nothing skipped yet.
+    const [b] = await leads(1, "Wordsown");
+    await post(rep, `/api/v1/queues/${q.id}/cancel`);
+    const own = (await start(rep, { leadIds: [b] })).json().queue;
+    expect((await get(rep, item(own.id, 0, "text"))).json()).toEqual({ text: "", missing: [] });
+    await h.queryAll("UPDATE leads SET phone_e164 = NULL, phone_status = 'missing' WHERE id = $1", [b]);
+    expect((await get(rep, item(own.id, 0, "text"))).json()).toEqual({ unavailable: "No WhatsApp number" });
+    expect((await get(rep, `/api/v1/queues/${own.id}`)).json().items[0].status).toBe("pending");
+  });
+
   it("sent, not sent and skip are each once per lead", async () => {
     const [a, b] = await leads(2, "Onceeach");
     const q = (await start(rep, { leadIds: [a, b] })).json().queue;
