@@ -121,6 +121,22 @@ describe("the template library (4A Task 5)", () => {
     );
   });
 
+  it("a new template saves in place: the editor stays open, says so, and the card joins its group", async () => {
+    vi.mocked(templatesClient.create).mockImplementation(
+      async (b) => ok({ ...t("t9", b.name, b.category, b.body), version: 1 }) as never,
+    );
+    library();
+    await userEvent.click(screen.getByRole("button", { name: "New template" }));
+    const sheet = screen.getByRole("dialog", { name: "New template" });
+    await userEvent.type(within(sheet).getByLabelText("Name"), "Welcome back");
+    await userEvent.type(within(sheet).getByLabelText("Message"), "Hello again");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Saved as version 1");
+    expect(screen.getAllByRole("dialog")).toHaveLength(1); // the same sheet, not a second one sliding in
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Welcome back");
+    expect(screen.getByRole("list", { name: "First touch" })).toHaveTextContent("Welcome back");
+  });
+
   it("reorder within a group by keyboard: Alt+↓ on the handle", async () => {
     library();
     screen.getByRole("button", { name: "Move Gentle nudge" }).focus();

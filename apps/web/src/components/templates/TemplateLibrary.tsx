@@ -9,7 +9,8 @@ import { templatesClient, type RoleName, type TemplateView } from "@/lib/templat
 import { TemplateEditor, type EditorField } from "./TemplateEditor";
 import s from "./templates.module.css";
 
-type Editing = { template?: TemplateView } | null;
+/** One opening of the editor: its key stays the same while it's open, so a save updates it in place. */
+type Editing = { key: string; template?: TemplateView } | null;
 const firstLine = (body: string) => body.split("\n").find((l) => l.trim()) ?? "";
 
 /**
@@ -93,7 +94,7 @@ export function TemplateLibrary({
           {canManage ? ". Write once; everyone sends it in two taps." : ". Pick one when you message a lead."}
         </p>
         {canManage && (
-          <Button variant="primary" onClick={() => setEditing({})}>
+          <Button variant="primary" onClick={() => setEditing({ key: crypto.randomUUID() })}>
             New template
           </Button>
         )}
@@ -133,7 +134,7 @@ export function TemplateLibrary({
                   canManage={canManage}
                   fresh={fresh === `${t.id}:${t.version}` ? fresh : null}
                   reduce={!!reduce}
-                  onOpen={() => setEditing({ template: t })}
+                  onOpen={() => setEditing({ key: t.id, template: t })}
                   onArchive={() => void archive(t)}
                   onMove={(step) => move(t, step)}
                   onDropped={() => void saveOrder(templates)}
@@ -175,14 +176,14 @@ export function TemplateLibrary({
       <AnimatePresence>
         {editing && (
           <TemplateEditor
-            key={editing.template?.id ?? "new"}
+            key={editing.key}
             {...(editing.template ? { template: editing.template } : {})}
             roles={roles}
             fields={fields}
             readOnly={!canManage}
             onSaved={(t) => {
               saved(t);
-              setEditing({ template: t });
+              setEditing((e) => e && { ...e, template: t });
             }}
             onClose={() => setEditing(null)}
           />
