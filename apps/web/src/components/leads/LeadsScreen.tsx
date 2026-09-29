@@ -181,6 +181,13 @@ function Screen({
 }: Props) {
   const [filters, setFilters] = useState<ListFilters>(initialFilters);
   const [activeView, setActiveView] = useState<ViewView | null>(view);
+  // Opened again from the sidebar (after Close view, or to start over): the page sends the view afresh,
+  // and it opens as saved (4B review).
+  useEffect(() => {
+    if (!view) return;
+    setActiveView(view);
+    setFilters(initialFilters);
+  }, [view]);
   // What the view says, read as this screen reads it, so a stale part never counts as "changed".
   const viewSays = activeView ? toViewFilters(fromViewFilters(activeView.filters, catalog)) : null;
   const viewChanged = !!viewSays && !sameFilters(viewSays, toViewFilters(filters));

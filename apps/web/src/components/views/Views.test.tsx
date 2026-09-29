@@ -20,8 +20,10 @@ vi.mock("@/lib/views/client", async (orig) => ({
   },
 }));
 let leadsChanged: (() => void) | null = null;
+let notified: (() => void) | null = null;
 vi.mock("@/lib/notifications/stream", () => ({
   useLeadsChanged: (fn: () => void) => void (leadsChanged = fn),
+  useStream: (fn: () => void) => void (notified = fn),
 }));
 let search = "";
 const push = vi.fn();
@@ -102,6 +104,53 @@ describe("the Views section (4B Task 6)", () => {
     await vi.waitFor(() => expect(viewsClient.counts).toHaveBeenCalledTimes(2));
     await new Promise((r) => setTimeout(r, 400));
     expect(viewsClient.counts).toHaveBeenCalledTimes(2);
+  });
+
+  it("4B review: counts that don't match the list (sharing changed elsewhere) reload the list", async () => {
+    await sidebar();
+    await vi.waitFor(() => expect(viewsClient.list).toHaveBeenCalledTimes(1));
+    vi.mocked(viewsClient.counts).mockResolvedValue(ok({ counts: { v1: 4, v2: 12 } }) as never);
+    vi.mocked(viewsClient.list).mockResolvedValue(ok({ views: VIEWS.slice(0, 2) }) as never);
+    act(() => leadsChanged!());
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("link", { name: /Team pipeline/ })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("4B review: coming back to the tab, or a follow-up reminder arriving, refreshes the counts (no polling)", async () => {
+    await sidebar();
+    await vi.waitFor(() => expect(viewsClient.counts).toHaveBeenCalledTimes(1));
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await vi.waitFor(() => expect(viewsClient.counts).toHaveBeenCalledTimes(2));
+    act(() => notified!());
+    await vi.waitFor(() => expect(viewsClient.counts).toHaveBeenCalledTimes(3));
+  });
+
+  it("4B review: Alt+↓ keeps focus on the moved view's handle, so it can move again", async () => {
+    const list = await sidebar();
+    const handle = within(list).getByRole("button", { name: "Move My overdue" });
+    handle.focus();
+    fireEvent.keyDown(handle, { key: "ArrowDown", altKey: true });
+    await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName("Move My overdue"));
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown", altKey: true });
+    expect(viewsClient.order).toHaveBeenLastCalledWith(["v2", "v3", "v1"]);
+  });
+
+  it("4B review: a shared view that isn't yours can't be made private from here", async () => {
+    vi.mocked(viewsClient.list).mockResolvedValue(
+      ok({
+        views: [
+          v("v5", "Their shared", { shared: true, mine: false, canEdit: true, sharedRoleIds: ["r-sales"] }),
+        ],
+        roles: ROLES,
+      }) as never,
+    );
+    render(<SidebarViews canShare />);
+    const list = await screen.findByRole("list", { name: "Views" });
+    await userEvent.click(within(list).getByRole("button", { name: "Edit Their shared" }));
+    const form = screen.getByRole("dialog", { name: "Edit Their shared" });
+    expect(within(form).queryByRole("radio", { name: "Just me" })).not.toBeInTheDocument();
+    expect(within(form).getByRole("checkbox", { name: "Sales" })).toBeChecked();
   });
 
   it("a view saved anywhere arrives in the sidebar", async () => {

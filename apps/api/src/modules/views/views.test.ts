@@ -149,6 +149,48 @@ describe("saved views (4B Task 3)", () => {
     expect(v.id).toBeTruthy();
   });
 
+  it("4B review, Important 1: a manager can't make someone else's shared view private, and hears why", async () => {
+    const other = await h.seedUser({ grants: ALL_GRANTS, totp: true, name: "Other Manager" });
+    const otherClient = await h.signIn(other);
+    const v = (
+      await create(otherClient, {
+        name: "Theirs, shared",
+        color: "ok",
+        filters: {},
+        sharedRoleIds: [repRole],
+      })
+    ).json();
+    const r = await call(admin, "PATCH", `/api/v1/views/${v.id}`, { sharedRoleIds: [] });
+    expect(r.statusCode).toBe(403);
+    expect(r.json().error.message).toBe("Only its owner can make a shared view private");
+    // Sharing it with other roles is still a manager's to change.
+    expect((await call(admin, "PATCH", `/api/v1/views/${v.id}`, { color: "warn" })).statusCode).toBe(200);
+  });
+
+  it("4B review, Important 2: a view naming no pipeline counts the default one, as its list shows", async () => {
+    const p = (await call(admin, "POST", "/api/v1/pipelines", { name: "Partners" })).json().pipeline;
+    const lead = await h.seedLead({ ownerId: adminUser.id, name: "In Partners" });
+    await h.queryAll("UPDATE leads SET pipeline_id = $2, stage_id = $3 WHERE id = $1", [
+      lead,
+      p.id,
+      p.stages[0].id,
+    ]);
+    const all = (await create(admin, { name: "All of them", color: "neutral", filters: {} })).json();
+    const inPartners = (
+      await create(admin, { name: "Partners only", color: "neutral", filters: { pipelineId: p.id } })
+    ).json();
+    const c = await counts(admin);
+    const list = (await call(admin, "GET", "/api/v1/leads?limit=100")).json().items as { name: string }[];
+    const defaultTotal = (
+      await h.queryAll<{ n: number }>(
+        "SELECT count(*)::int AS n FROM leads l JOIN pipelines p ON p.id = l.pipeline_id WHERE p.is_default AND l.deleted_at IS NULL",
+      )
+    )[0]!.n;
+    expect(c[all.id]).toBe(defaultTotal);
+    expect(c[inPartners.id]).toBe(1);
+    expect(list.length).toBeGreaterThan(0);
+  });
+
   it("order is each person's own: a rep's drag doesn't reorder the admin's sidebar", async () => {
     const mine = await list(rep);
     const reversed = [...mine].reverse();

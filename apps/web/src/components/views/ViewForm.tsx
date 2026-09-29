@@ -15,12 +15,15 @@ export type ViewFormValue = { name: string; color: string; sharedRoleIds: string
 export function ViewForm({
   initial = { name: "", color: "accent", sharedRoleIds: [] },
   canShare,
+  canMakePrivate = true,
   roles,
   onSubmit,
   onDelete,
 }: {
   initial?: ViewFormValue;
   canShare: boolean;
+  /** False for a shared view someone else owns: only they can make it private. */
+  canMakePrivate?: boolean;
   roles: RoleName[] | null;
   /** Resolves to LUME's words when refused, else null. */
   onSubmit: (v: ViewFormValue) => Promise<string | null>;
@@ -75,10 +78,12 @@ export function ViewForm({
       {canShare && (
         <fieldset className={s.who}>
           <legend>Who sees it</legend>
-          <label className={s.radio}>
-            <input type="radio" name={`${id}-who`} checked={!share} onChange={() => setShare(false)} />
-            Just me
-          </label>
+          {canMakePrivate && (
+            <label className={s.radio}>
+              <input type="radio" name={`${id}-who`} checked={!share} onChange={() => setShare(false)} />
+              Just me
+            </label>
+          )}
           <label className={s.radio}>
             <input
               type="radio"

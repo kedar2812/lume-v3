@@ -123,6 +123,9 @@ export async function updateView(req: FastifyRequest, id: string, patch: Partial
   // Sharing or un-sharing is a manager's call either way.
   if (patch.sharedRoleIds !== undefined && !manages(req))
     throw forbidden("CANT_SHARE", "Sharing views is for people who manage them");
+  // Private means its owner's alone: only they can take it back (4B review, Important 1).
+  if (patch.sharedRoleIds?.length === 0 && r.sharedRoleIds.length > 0 && r.ownerId !== req.actor!.userId)
+    throw forbidden("CANT_UNSHARE", "Only its owner can make a shared view private");
   if (patch.name) await assertNameFree(req, patch.name, id);
   await req.db
     .update(V)
@@ -180,6 +183,12 @@ export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<
   const fields = await loadFieldRegistry(req);
   const counts: Record<string, number | null> = {};
   const parts: { id: string; where: SQL }[] = [];
+  // A view naming no pipeline opens on the default one (the list shows one pipeline at a time), so it
+  // counts that one too (4B review, Important 2).
+  const [byDefault] = await req.db
+    .select({ id: schema.pipelines.id })
+    .from(schema.pipelines)
+    .where(eq(schema.pipelines.isDefault, true));
   for (const r of rows) {
     const parsed = filterQuerySchema.safeParse(r.filters);
     if (!parsed.success || (await stale(req, parsed.data))) {
@@ -187,7 +196,9 @@ export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<
       continue;
     }
     try {
-      parts.push({ id: r.id, where: and(...leadFilters(req, parsed.data, fields))! });
+      const q =
+        parsed.data.pipelineId || !byDefault ? parsed.data : { ...parsed.data, pipelineId: byDefault.id };
+      parts.push({ id: r.id, where: and(...leadFilters(req, q, fields))! });
     } catch (e) {
       if (!(e instanceof HttpError)) throw e;
       counts[r.id] = null;

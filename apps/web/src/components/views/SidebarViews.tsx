@@ -8,7 +8,7 @@ import { usePageNav } from "@/components/shell/PageTransition";
 import { Popover } from "@/components/ui/Popover";
 import { tokenColor } from "@/lib/leads/colors";
 import { SPRINGS, toMotion } from "@/lib/motion";
-import { useLeadsChanged } from "@/lib/notifications/stream";
+import { useLeadsChanged, useStream } from "@/lib/notifications/stream";
 import { VIEWS_CHANGED, viewsChanged, viewsClient, type RoleName, type ViewView } from "@/lib/views/client";
 import { ViewForm, type ViewFormValue } from "./ViewForm";
 import s from "./views.module.css";
@@ -32,17 +32,24 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
   const [roles, setRoles] = useState<RoleName[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number | null>>({});
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const listed = useRef<string[]>([]);
 
   const loadViews = useCallback(async () => {
     const r = await viewsClient.list();
     if (!r.ok) return;
+    listed.current = r.data.views.map((v) => v.id);
     setViews(r.data.views);
     setRoles(r.data.roles ?? null);
   }, []);
   const loadCounts = useCallback(async () => {
     const r = await viewsClient.counts();
-    if (r.ok) setCounts(r.data.counts);
-  }, []);
+    if (!r.ok) return;
+    setCounts(r.data.counts);
+    // Counts cover exactly the views this person may see now: a difference means someone shared or
+    // un-shared a view elsewhere, so the list looks again (4B review, Important 3).
+    const seen = Object.keys(r.data.counts).sort().join();
+    if (seen !== [...listed.current].sort().join()) void loadViews();
+  }, [loadViews]);
   useEffect(() => {
     void loadViews();
     void loadCounts();
@@ -57,9 +64,22 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
     };
   }, [loadViews, loadCounts]);
   // A burst of changes (an import) asks once.
-  useLeadsChanged(() => {
+  const soon = () => {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => void loadCounts(), 250);
+  };
+  useLeadsChanged(soon);
+  // Time moves counts too (a follow-up falls due; a day turns): a reminder arriving, or coming back to
+  // the tab, asks again. Never a timer (spec §3 View counts).
+  useStream(soon);
+  useEffect(() => {
+    const back = () => document.visibilityState !== "hidden" && soon();
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", back);
+    };
   });
 
   const saveOrder = (next: ViewView[]) => void viewsClient.order(next.map((v) => v.id));
@@ -255,6 +275,8 @@ function Row({
             <ViewForm
               initial={{ name: v.name, color: v.color, sharedRoleIds: v.sharedRoleIds }}
               canShare={canShare}
+              // Only its owner can take a shared view back to private (4B review, Important 1).
+              canMakePrivate={v.mine || !v.shared}
               roles={roles}
               onSubmit={async (value) => {
                 const refused = await onEdit(value);

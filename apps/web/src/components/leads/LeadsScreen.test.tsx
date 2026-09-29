@@ -343,6 +343,38 @@ describe("LeadsScreen", () => {
     await vi.waitFor(() => expect(address()).toBe("/leads?noreply=7"));
   });
 
+  it("4B review: after Close view, opening the same view again opens it", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    const chase = () => ({
+      id: "v1",
+      name: "Chase list",
+      color: "warn",
+      filters: { noReplyDays: "3", sort: "newest" },
+      sharedRoleIds: [],
+      shared: false,
+      mine: true,
+      canEdit: true,
+    });
+    const props = {
+      session: rep(),
+      catalog: testCatalog(),
+      contactsVisible: false,
+      first: { items: [lead()], nextCursor: null },
+    };
+    const { rerender } = render(
+      <LeadsScreen {...props} initialFilters={{ ...EMPTY_FILTERS, noReplyDays: 3 }} view={chase()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close view" }));
+    expect(screen.queryByRole("heading", { name: "Chase list" })).not.toBeInTheDocument();
+    // The sidebar navigates to /leads?view=v1 again: the server sends the view afresh.
+    rerender(<LeadsScreen {...props} initialFilters={{ ...EMPTY_FILTERS, noReplyDays: 3 }} view={chase()} />);
+    expect(await screen.findByRole("heading", { name: "Chase list" })).toBeInTheDocument();
+  });
+
   it("edits a value in place, saving with the version it saw", async () => {
     vi.mocked(leadsClient.patch).mockResolvedValue({
       ok: true,

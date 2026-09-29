@@ -116,8 +116,11 @@ test.describe("Saved views (4B)", () => {
       .focus();
     await page.keyboard.press("Alt+ArrowDown");
     await expect.poll(async () => (await names())[1]).toBe(first);
+    // Focus stays on the handle, so the keyboard can move it again (4B review).
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect.poll(async () => (await names())[2]).toBe(first);
     await page.reload();
-    await expect.poll(async () => (await names())[1]).toBe(first); // the order is kept, as this person's own
+    await expect.poll(async () => (await names())[2]).toBe(first); // the order is kept, as this person's own
     await page.keyboard.press("Escape");
 
     await row(page, "Chase list").hover();
