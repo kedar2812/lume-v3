@@ -48,17 +48,20 @@ describe("a stage's automations (3C Task 6)", () => {
     ).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onSave).toHaveBeenCalledWith({
-      rules: [
-        {
-          id: expect.any(String),
-          type: "create_task",
-          title: "Call within the hour",
-          dueIn: { n: 1, unit: "hour" },
-          assignee: { userId: people[0]!.id },
-        },
-      ],
-    });
+    expect(onSave).toHaveBeenCalledWith(
+      {
+        rules: [
+          {
+            id: expect.any(String),
+            type: "create_task",
+            title: "Call within the hour",
+            dueIn: { n: 1, unit: "hour" },
+            assignee: { userId: people[0]!.id },
+          },
+        ],
+      },
+      {}, // no moves changed
+    );
   });
 
   it("tells chosen people; removing one leaves the rest", async () => {
@@ -67,9 +70,10 @@ describe("a stage's automations (3C Task 6)", () => {
     await userEvent.click(within(sheet).getByRole("checkbox", { name: "Omar Ali" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Remove automation 1" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
-    expect(onSave).toHaveBeenCalledWith({
-      rules: [{ id: expect.any(String), type: "notify", to: [{ userId: people[1]!.id }] }],
-    });
+    expect(onSave).toHaveBeenCalledWith(
+      { rules: [{ id: expect.any(String), type: "notify", to: [{ userId: people[1]!.id }] }] },
+      {},
+    );
   });
 
   it("says what's wrong in LUME's words before asking the server", async () => {
@@ -125,11 +129,14 @@ describe("a stage's automations: 3C final review", () => {
     await userEvent.click(within(sheet).getByRole("checkbox", { name: "Zara Malik (no longer active)" }));
     await userEvent.click(within(sheet).getByRole("checkbox", { name: "The lead's owner" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
-    expect(onSave).toHaveBeenCalledWith({
-      rules: [
-        expect.objectContaining({ assignee: "lead_owner" }),
-        expect.objectContaining({ to: ["lead_owner"] }),
-      ],
-    });
+    expect(onSave).toHaveBeenCalledWith(
+      {
+        rules: [
+          expect.objectContaining({ assignee: "lead_owner" }),
+          expect.objectContaining({ to: ["lead_owner"] }),
+        ],
+      },
+      {},
+    );
   });
 });

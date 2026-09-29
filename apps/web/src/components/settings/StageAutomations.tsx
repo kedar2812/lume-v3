@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { describeRule, onEnterSchema, type OnEnter, type StageRule } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -10,6 +10,11 @@ import a from "./automations.module.css";
 import s from "./settings.module.css";
 
 const MAX = 5;
+export type Moves = { afterSentStageId: string | null; afterReplyStageId: string | null };
+const MOVES: { key: keyof Moves; label: string }[] = [
+  { key: "afterSentStageId", label: "After a message is sent, move to" },
+  { key: "afterReplyStageId", label: "After a reply, move to" },
+];
 const OWNER = "lead_owner";
 const newRule = (type: StageRule["type"]): StageRule =>
   type === "create_task"
@@ -25,19 +30,27 @@ const newRule = (type: StageRule["type"]): StageRule =>
 export function StageAutomations({
   stage,
   rules: initial,
+  moves: initialMoves = { afterSentStageId: null, afterReplyStageId: null },
+  targets = [],
   people,
   onSave,
   onClose,
 }: {
   stage: { id: string; name: string };
   rules: StageRule[];
+  /** Where a lead here goes after a message or a reply (4A). */
+  moves?: Moves;
+  /** Where it may go: this pipeline's other stages that a move can reach. */
+  targets?: { id: string; name: string }[];
   people: Person[];
-  /** Saves; resolves to LUME's words when it was refused, else null. */
-  onSave: (onEnter: OnEnter) => Promise<string | null>;
+  /** Saves (the moves only when they changed); resolves to LUME's words when refused, else null. */
+  onSave: (onEnter: OnEnter, moves: Partial<Moves>) => Promise<string | null>;
   onClose: () => void;
 }) {
   const reduce = useReducedMotion();
   const [rules, setRules] = useState<StageRule[]>(initial);
+  const [moves, setMoves] = useState<Moves>(initialMoves);
+  const moveId = useId();
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const active = people.filter((p) => p.active);
@@ -55,7 +68,10 @@ export function StageAutomations({
     const parsed = onEnterSchema.safeParse({ rules });
     if (!parsed.success) return setProblem(parsed.error.issues[0]?.message ?? "Something here isn't right.");
     setBusy(true);
-    const refused = await onSave(parsed.data);
+    const changed = Object.fromEntries(
+      MOVES.filter((m) => moves[m.key] !== initialMoves[m.key]).map((m) => [m.key, moves[m.key]]),
+    ) as Partial<Moves>;
+    const refused = await onSave(parsed.data, changed);
     setBusy(false);
     if (refused) setProblem(refused);
     else onClose();
@@ -64,6 +80,29 @@ export function StageAutomations({
   return (
     <Dialog label={`When a lead enters ${stage.name}`} onClose={onClose} wide>
       <h2 className={s.dialogTitle}>When a lead enters {stage.name}</h2>
+      <fieldset className={a.moves}>
+        <legend className={a.movesHead}>Moves</legend>
+        {MOVES.map((m) => (
+          <div key={m.key} className={a.moveRow}>
+            <label htmlFor={`${moveId}-${m.key}`}>{m.label}</label>
+            <select
+              id={`${moveId}-${m.key}`}
+              value={moves[m.key] ?? ""}
+              onChange={(e) => {
+                setMoves((cur) => ({ ...cur, [m.key]: e.target.value || null }));
+                setProblem(null);
+              }}
+            >
+              <option value="">Stay here</option>
+              {targets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </fieldset>
       <p className={s.dialogText}>
         LUME does these, in order. Runs when a lead moves here, or arrives here from a webhook or a sheet.
         Imports don&apos;t run it.

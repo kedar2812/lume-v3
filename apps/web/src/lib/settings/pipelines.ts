@@ -3,7 +3,17 @@ import { api } from "@/lib/api";
 import type { Pipeline, Stage } from "@/lib/leads/types";
 
 export type StagePatch = Partial<
-  Pick<Stage, "name" | "color" | "kind" | "requiredFieldIds" | "slaHours" | "onEnter">
+  Pick<
+    Stage,
+    | "name"
+    | "color"
+    | "kind"
+    | "requiredFieldIds"
+    | "slaHours"
+    | "onEnter"
+    | "afterSentStageId"
+    | "afterReplyStageId"
+  >
 >;
 
 /** The pipeline and stage calls Settings makes. Each returns ApiResult, so a refusal can be shown as it is. */

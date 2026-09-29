@@ -53,6 +53,9 @@ export type Stage = {
   slaHours?: number | null;
   /** What LUME does when a lead enters it (3C). */
   onEnter?: OnEnter;
+  /** Where a lead here goes after a message is sent, and after a reply (4A); null to stay. */
+  afterSentStageId?: string | null;
+  afterReplyStageId?: string | null;
 };
 export type Pipeline = { id: string; name: string; isDefault: boolean; stages: Stage[] };
 export type FieldDefView = {

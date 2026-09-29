@@ -217,3 +217,49 @@
     transform: none;
   }
 }
+
+/* Moves (4A): where a lead goes after a message or a reply, first in the sheet, as two plain choices. */
+.moves {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 18px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--sunk);
+}
+.movesHead {
+  float: left;
+  width: 100%;
+  margin-bottom: 2px;
+  padding: 0;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.moveRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 220px);
+  align-items: center;
+  gap: 12px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text);
+}
+.moveRow select {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--line-2);
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+}
+@media (max-width: 560px) {
+  .moveRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

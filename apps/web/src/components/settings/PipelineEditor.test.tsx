@@ -186,4 +186,71 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
     });
     expect(await within(summary).findByText("Clears the lead's open follow-ups")).toBeInTheDocument();
   });
+
+  it("Moves (4A): where a lead goes after a message or a reply, chosen in Does and saved with the stage", async () => {
+    render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} people={catalog.people} />);
+    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    const moves = within(sheet).getByRole("group", { name: "Moves" });
+    const sent = within(moves).getByRole("combobox", { name: "After a message is sent, move to" });
+    // This pipeline's other stages; never Lost, which always needs a reason a send can't give.
+    expect(
+      within(sent)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Stay here", "Message sent", "Call booked", "Won"]);
+    await userEvent.selectOptions(sent, "Message sent");
+    await userEvent.selectOptions(
+      within(moves).getByRole("combobox", { name: "After a reply, move to" }),
+      "Call booked",
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", {
+      onEnter: { rules: [] },
+      afterSentStageId: "s-sent",
+      afterReplyStageId: "s-booked",
+    });
+    const summary = await screen.findByRole("list", { name: "What each stage does" });
+    expect(within(summary).getByText("After a message is sent: moves to Message sent")).toBeInTheDocument();
+    expect(within(summary).getByText("After a reply: moves to Call booked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Automations for New" })).toHaveTextContent("Does 2");
+  });
+
+  it("Moves: a refusal keeps the sheet open with LUME's words, and nothing changes", async () => {
+    vi.mocked(pipelinesClient.patchStage).mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      code: "VALIDATION",
+      message: "Pick a stage in this pipeline",
+    } as never);
+    render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} people={catalog.people} />);
+    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    await userEvent.selectOptions(
+      within(sheet).getByRole("combobox", { name: "After a reply, move to" }),
+      "Call booked",
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(await within(sheet).findByText("Pick a stage in this pipeline")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "What each stage does" })).not.toBeInTheDocument();
+  });
+
+  it("a stage that already moves leads shows it, and Stay here takes it off", async () => {
+    const moving = catalog.pipelines.map((p) => ({
+      ...p,
+      stages: p.stages.map((st) => (st.id === "s-new" ? { ...st, afterSentStageId: "s-sent" } : st)),
+    }));
+    render(<PipelineEditor pipelines={moving} fields={catalog.fields} people={catalog.people} />);
+    expect(screen.getByText("After a message is sent: moves to Message sent")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    const sheet = screen.getByRole("dialog", { name: "When a lead enters New" });
+    const sent = within(sheet).getByRole("combobox", { name: "After a message is sent, move to" });
+    expect(sent).toHaveValue("s-sent");
+    await userEvent.selectOptions(sent, "Stay here");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", {
+      onEnter: { rules: [] },
+      afterSentStageId: null,
+    });
+  });
 });

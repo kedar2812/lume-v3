@@ -12,7 +12,7 @@ import { accessGone } from "@/lib/settings/access";
 import { AccessChanged } from "./AccessChanged";
 import { ColourPicker } from "./ColourPicker";
 import { ListEditor } from "./ListEditor";
-import { StageAutomations } from "./StageAutomations";
+import { StageAutomations, type Moves } from "./StageAutomations";
 import a from "./automations.module.css";
 import s from "./settings.module.css";
 
@@ -118,8 +118,12 @@ export function PipelineEditor({
   };
 
   /** A stage's automations, saved with it (3C): LUME's words back when refused. */
-  const saveAutomations = async (stage: Stage, onEnter: OnEnter): Promise<string | null> => {
-    const r = await pipelinesClient.patchStage(stage.id, { onEnter });
+  const saveAutomations = async (
+    stage: Stage,
+    onEnter: OnEnter,
+    moves: Partial<Moves>,
+  ): Promise<string | null> => {
+    const r = await pipelinesClient.patchStage(stage.id, { onEnter, ...moves });
     if (!r.ok) {
       if (accessGone(r)) setForbidden(true);
       return r.message || "Those automations couldn’t be saved.";
@@ -127,14 +131,25 @@ export function PipelineEditor({
     setPipelines((all) =>
       all.map((p) => ({
         ...p,
-        stages: p.stages.map((x) => (x.id === stage.id ? { ...x, ...r.data.stage, onEnter } : x)),
+        stages: p.stages.map((x) => (x.id === stage.id ? { ...x, ...r.data.stage, onEnter, ...moves } : x)),
       })),
     );
     setNote({ text: `Saved what ${stage.name} does` });
     return null;
   };
   const names = new Map(people.map((p) => [p.id, p.active ? p.name : `${p.name} (no longer active)`]));
-  const acting = stages.filter((x) => x.onEnter?.rules.length);
+  const stageName = new Map(stages.map((x) => [x.id, x.name]));
+  /** What a stage does, as sentences: its moves after a message or a reply (4A), then its automations. */
+  const doing = (x: Stage) => [
+    ...(x.afterSentStageId
+      ? [`After a message is sent: moves to ${stageName.get(x.afterSentStageId) ?? "another stage"}`]
+      : []),
+    ...(x.afterReplyStageId
+      ? [`After a reply: moves to ${stageName.get(x.afterReplyStageId) ?? "another stage"}`]
+      : []),
+    ...(x.onEnter?.rules ?? []).map((r) => describeRule(r, names)),
+  ];
+  const acting = stages.filter((x) => doing(x).length);
 
   const needable = fields.filter((f) => !f.archived && f.key !== "name");
 
@@ -223,13 +238,11 @@ export function PipelineEditor({
             <button
               type="button"
               className={s.needsBtn}
-              data-active={stage.onEnter?.rules.length ? true : undefined}
+              data-active={doing(stage).length ? true : undefined}
               aria-label={`Automations for ${stage.name}`}
               onClick={() => setAutomating(stage)}
             >
-              <span aria-hidden>
-                Does{stage.onEnter?.rules.length ? ` ${stage.onEnter.rules.length}` : ""}
-              </span>
+              <span aria-hidden>Does{doing(stage).length ? ` ${doing(stage).length}` : ""}</span>
             </button>
           </div>
         )}
@@ -245,8 +258,8 @@ export function PipelineEditor({
                 <button type="button" className={a.summaryRow} onClick={() => setAutomating(x)}>
                   <span className={a.summaryStage}>{x.name}</span>
                   <span className={a.summaryWhat}>
-                    {x.onEnter!.rules.map((r) => (
-                      <span key={r.id}>{describeRule(r, names)}</span>
+                    {doing(x).map((line, i) => (
+                      <span key={i}>{line}</span>
                     ))}
                   </span>
                 </button>
@@ -256,7 +269,7 @@ export function PipelineEditor({
         ) : (
           <p className={s.muted}>
             No stage does anything on its own yet. Pick Does on a stage to have LUME set a follow-up, clear
-            them, or tell someone when a lead arrives.
+            them, or tell someone when a lead arrives, or to move a lead on after a message or a reply.
           </p>
         )}
       </section>
@@ -287,8 +300,14 @@ export function PipelineEditor({
         <StageAutomations
           stage={automating}
           rules={automating.onEnter?.rules ?? []}
+          moves={{
+            afterSentStageId: automating.afterSentStageId ?? null,
+            afterReplyStageId: automating.afterReplyStageId ?? null,
+          }}
+          // Never Lost: it always needs a reason, which a send or a reply can't give.
+          targets={stages.filter((x) => x.id !== automating.id && x.kind !== "lost")}
           people={people}
-          onSave={(onEnter) => saveAutomations(automating, onEnter)}
+          onSave={(onEnter, moves) => saveAutomations(automating, onEnter, moves)}
           onClose={() => setAutomating(null)}
         />
       )}
