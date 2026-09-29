@@ -111,6 +111,10 @@ test.describe("Saved views (4B)", () => {
     const names = async () =>
       (await views(page).getByRole("link").allInnerTexts()).map((t) => t.split("\n")[0]!.trim());
     const first = (await names())[0]!;
+    // Leave the order as found: other specs' screenshots show the sidebar.
+    const original = (
+      await callApi<{ views: { id: string }[] }>(page, "GET", "/api/v1/views")
+    ).data.views.map((v) => v.id);
     await views(page)
       .getByRole("button", { name: `Move ${first}` })
       .focus();
@@ -121,6 +125,7 @@ test.describe("Saved views (4B)", () => {
     await expect.poll(async () => (await names())[2]).toBe(first);
     await page.reload();
     await expect.poll(async () => (await names())[2]).toBe(first); // the order is kept, as this person's own
+    await callApi(page, "PUT", "/api/v1/views/order", { ids: original });
     await page.keyboard.press("Escape");
 
     await row(page, "Chase list").hover();
