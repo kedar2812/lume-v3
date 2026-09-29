@@ -84,6 +84,13 @@ export const PERMISSIONS = [
     description: "CSV import and lead sources",
   },
   {
+    key: "views.manage",
+    group: "Leads",
+    scoped: false,
+    label: "Share views",
+    description: "Share saved views with roles, and manage shared ones",
+  },
+  {
     key: "messages.send",
     group: "Messaging",
     scoped: true,

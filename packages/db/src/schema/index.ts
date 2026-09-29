@@ -4,3 +4,4 @@ export * from "./leads";
 export * from "./intake";
 export * from "./tasks";
 export * from "./messaging";
+export * from "./views";

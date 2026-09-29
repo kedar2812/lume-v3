@@ -1,7 +1,7 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
-import { leadScope, type Actor } from "@lume/core";
+import { can, leadScope, type Actor } from "@lume/core";
 import { schema } from "@lume/db";
 import type { ActorRecord } from "../rbac/actor";
 
@@ -37,11 +37,22 @@ export function markRequestFailed(req: FastifyRequest): void {
   if (h) h.failed = true;
 }
 
-/** Row-level security reads these three settings (0007_rls_helpers.sql); is_local=true gives SET LOCAL semantics. */
+/**
+ * Row-level security reads these settings (0007_rls_helpers.sql; 0027 adds roles and views management);
+ * is_local=true gives SET LOCAL semantics.
+ */
 export async function applyRequestScope(client: pg.PoolClient, actor: Actor): Promise<void> {
   await client.query(
-    "SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', $2, true), set_config('lume.team_member_ids', $3, true)",
-    [actor.userId, leadScope(actor) ?? "", `{${actor.teamMemberIds.join(",")}}`],
+    `SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', $2, true),
+            set_config('lume.team_member_ids', $3, true), set_config('lume.role_ids', $4, true),
+            set_config('lume.manage_views', $5, true)`,
+    [
+      actor.userId,
+      leadScope(actor) ?? "",
+      `{${actor.teamMemberIds.join(",")}}`,
+      `{${actor.roleIds.join(",")}}`,
+      can(actor, "views.manage") ? "on" : "off",
+    ],
   );
 }
 

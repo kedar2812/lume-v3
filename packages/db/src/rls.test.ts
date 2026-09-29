@@ -300,3 +300,123 @@ describe("3A final review, Critical 2: backups", () => {
     expect(n).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("0027_saved_views (4B): a view is its owner's, or shared by role; managers see every shared one", () => {
+  const R = { sales: "0190e0c0-0000-7000-8000-0000000000e1", admin: "0190e0c0-0000-7000-8000-0000000000e2" };
+  const V = {
+    repPersonal: "0190e0c0-0000-7000-8000-0000000000c7",
+    mateShared: "0190e0c0-0000-7000-8000-0000000000c8",
+    otherPersonal: "0190e0c0-0000-7000-8000-0000000000c9",
+    adminOnly: "0190e0c0-0000-7000-8000-0000000000ca",
+  };
+  type Who = { user: string; roles: string[]; manage?: boolean };
+  async function asV<T>(role: DbRole, w: Who, fn: (c: pg.Client) => Promise<T>): Promise<T> {
+    const c = new pg.Client({ connectionString: db.url(role) });
+    await c.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        `SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'own', true),
+                set_config('lume.team_member_ids', '{}', true), set_config('lume.role_ids', $2, true),
+                set_config('lume.manage_views', $3, true)`,
+        [w.user, `{${w.roles.join(",")}}`, w.manage ? "on" : "off"],
+      );
+      const out = await fn(c);
+      await c.query("COMMIT");
+      return out;
+    } catch (e) {
+      await c.query("ROLLBACK");
+      throw e;
+    } finally {
+      await c.end();
+    }
+  }
+  const seen = (w: Who) =>
+    asV("lume_app", w, async (c) =>
+      (await c.query("SELECT id FROM saved_views ORDER BY id")).rows.map((r) => r.id),
+    );
+
+  beforeAll(async () => {
+    for (const [id, owner, shared] of [
+      [V.repPersonal, U.rep, []],
+      [V.mateShared, U.mate, [R.sales]],
+      [V.otherPersonal, U.other, []],
+      [V.adminOnly, U.other, [R.admin]],
+    ] as const)
+      await asV("lume_app", { user: owner, roles: [] }, (c) =>
+        c.query(
+          "INSERT INTO saved_views (id, name, color, filters, owner_id, shared_role_ids) VALUES ($1, $2, 'accent', '{}', $3, $4)",
+          [id, `View ${id.slice(-2)}`, owner, shared],
+        ),
+      );
+  });
+
+  it("a rep reads their own and those shared with their role, never someone else's personal one", async () => {
+    expect(await seen({ user: U.rep, roles: [R.sales] })).toEqual([V.repPersonal, V.mateShared]);
+    expect(await seen({ user: U.rep, roles: [] })).toEqual([V.repPersonal]);
+  });
+
+  it("a manager reads every shared view, and still not others' personal ones", async () => {
+    expect(await seen({ user: U.rep, roles: [], manage: true })).toEqual([
+      V.repPersonal,
+      V.mateShared,
+      V.adminOnly,
+    ]);
+  });
+
+  it("a rep can't change or delete a shared view they don't own; a manager can", async () => {
+    const renamed = await asV("lume_app", { user: U.rep, roles: [R.sales] }, (c) =>
+      c.query("UPDATE saved_views SET name = 'Mine now' WHERE id = $1", [V.mateShared]),
+    );
+    expect(renamed.rowCount).toBe(0);
+    const gone = await asV("lume_app", { user: U.rep, roles: [R.sales] }, (c) =>
+      c.query("DELETE FROM saved_views WHERE id = $1", [V.mateShared]),
+    );
+    expect(gone.rowCount).toBe(0);
+    const managed = await asV("lume_app", { user: U.rep, roles: [], manage: true }, (c) =>
+      c.query("UPDATE saved_views SET color = 'ok' WHERE id = $1", [V.mateShared]),
+    );
+    expect(managed.rowCount).toBe(1);
+  });
+
+  it("nobody creates a view in someone else's name", async () => {
+    await expect(
+      asV("lume_app", { user: U.rep, roles: [] }, (c) =>
+        c.query(
+          "INSERT INTO saved_views (id, name, color, filters, owner_id) VALUES (gen_random_uuid(), 'Sneaky', 'accent', '{}', $1)",
+          [U.other],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("the backup role reads every view; the worker none", async () => {
+    const all = await as(
+      "lume_readonly_backup",
+      { scope: null },
+      async (c) => (await c.query("SELECT id FROM saved_views")).rowCount,
+    );
+    expect(all).toBe(4);
+    await expect(
+      as("lume_worker", { scope: null }, (c) => c.query("SELECT id FROM saved_views")),
+    ).rejects.toThrow(/permission/);
+  });
+
+  it("leads changing says so on lume_leads, once for a many-row change in one transaction", async () => {
+    const listener = new pg.Client({ connectionString: db.url("lume_owner") });
+    await listener.connect();
+    const heard: string[] = [];
+    listener.on("notification", (m) => heard.push(m.channel));
+    await listener.query("LISTEN lume_leads");
+    try {
+      await as("lume_owner", { scope: "all", user: U.rep }, async (c) => {
+        await c.query("UPDATE leads SET name = name || '' WHERE id = ANY($1)", [[L.rep, L.mate, L.other]]);
+        await c.query("UPDATE leads SET name = name || '' WHERE id = $1", [L.none]);
+      });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(heard).toEqual(["lume_leads"]);
+    } finally {
+      await listener.end();
+    }
+  });
+});

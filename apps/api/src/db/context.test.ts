@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ALL_GRANTS } from "@lume/core";
 import { createHarness, type Harness } from "../../test/harness";
 import { HttpError } from "../http/errors";
 
@@ -20,6 +21,12 @@ beforeAll(async () => {
         const r = await req.db.execute(sql`SELECT lume_user()::text AS u, lume_scope() AS s`);
         return r.rows[0];
       });
+      app.get("/t/views-scope", { config: { permission: "auth.self" } }, async (req) => {
+        const r = await req.db.execute(
+          sql`SELECT lume_role_ids()::text[] AS roles, lume_manages_views() AS manage`,
+        );
+        return r.rows[0];
+      });
       app.post("/t/after-ok", { config: { public: true } }, async (req) => {
         req.afterCommit(() => committed.push("ok"));
         return { ok: true };
@@ -38,6 +45,21 @@ afterAll(async () => h.close());
 
 const count = async (action: string) =>
   (await h.pool.query("SELECT count(*)::int AS n FROM audit_log WHERE action = $1", [action])).rows[0].n;
+
+describe("the request scope for saved views (4B)", () => {
+  it("carries the caller's roles, and whether they manage views", async () => {
+    const adminUser = await h.seedUser({ grants: ALL_GRANTS, totp: true });
+    const repUser = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }], totp: true });
+    const admin = await (await h.signIn(adminUser)).inject({ method: "GET", url: "/t/views-scope" });
+    const rep = await (await h.signIn(repUser)).inject({ method: "GET", url: "/t/views-scope" });
+    expect(admin.json().manage).toBe(true);
+    expect(rep.json().manage).toBe(false);
+    const [roleOf] = await h.pool
+      .query<{ role_id: string }>("SELECT role_id FROM user_roles WHERE user_id = $1", [repUser.id])
+      .then((r) => r.rows);
+    expect(rep.json().roles).toEqual([roleOf!.role_id]);
+  });
+});
 
 describe("per-request transaction", () => {
   it("rolls back when the handler throws", async () => {
