@@ -805,3 +805,40 @@ The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 3A �
 - System health says "Everything is running".
 
 Screenshots: `docs/runbooks/screenshots-3c/`, unmasked. (1C-3's settings count moved from 14 to 15 pages with System health.)
+
+# Phase 4A — Templates, and sending from them
+
+Plan: `docs/superpowers/plans/2026-09-29-phase-4a-templates-sending.md`. Spec: `docs/superpowers/specs/2026-09-29-phase-4-whatsapp-templates-design.md`.
+
+## Automated
+
+- **Rendering** (`render.test.ts`, in `@lume/core`): every field type in the lead's own words (a date as "12 Oct", a time in the business's zone, money as "AED 1,200", a choice by its label); what's missing is left as written and listed; no contact field is ever a variable; WhatsApp's *bold* and _italic_.
+- **Templates API** (`templates.test.ts`): each edit to the words is a new version, and a version is never changed or deleted; a manager sees every template, anyone else only their role's; archive, restore (while the name is free) and order; the audit log in words.
+- **Sending** (`sending.test.ts`): the preview's context has names and non-contact fields only; the version a person saw still sends after an edit, and history names the template as it was called; Sent is logged once, finishes the follow-up it came from once, and moves the lead once, saying where it came from; a move the stage refuses leaves the send logged and says why; They replied logs, moves and stops "until they reply" repeats; a lost lead moved back is reopened; a masked rep never gets the number back, except in the wa.me link.
+- **Web:**
+  - Templates: grouped by kind, each first line in words (variables as chips, *bold* as bold); drag or Alt+↑/↓ to reorder; archive with Undo; the editor's `{{` suggestions, the count, "Saved as version N", roles, preview as a real lead (fetched once, then local); a new template's editor stays open when saved.
+  - The send sheet: the context's kind first; a template in the lead's words, still editable; what's missing underlined and said; ↑/↓, Enter, Ctrl/⌘+Enter; the version and the follow-up it came from.
+  - The Sent prompt: the `sent` sound, the move and its Undo, a refused move's words; Not sent is quiet. In the drawer it opens its own row, so it never covers the stage track.
+  - The drawer: They replied (and R), Reopen for a lost lead. Today and the notification centre: WhatsApp on each follow-up, and Sent finishes it (the centre's keys wait while its sheet is open).
+  - Pipeline & stages: Moves in each stage's Does sheet, and the summary's sentences.
+- **End to end** (`messaging.spec.ts`): a manager writes a template with one of the business's fields and sees it as WhatsApp will; a masked rep sends from the drawer (a real new tab, the number never on the page), confirms Sent and sees the move, logs a reply; WhatsApp from Today finishes the follow-up; Reopen a lost lead; screenshots (full copies in `apps/web/e2e/__review__/messaging/`) and axe in both themes.
+
+## Found and fixed during the build
+
+- Saving a new template slid a second editor in and lost "Saved as version 1": the editor now stays for the whole time it's open.
+- The message field said "expanded", a word only a combobox may use (axe): it now names its suggestions and the one that's on.
+- The Sent prompt covered the drawer's stage track (axe's target size, and it hid the stage names): in the drawer it now opens a row of its own.
+- Template lines showed `{{lead.first_name}}`: they show "First name" as a chip, and the chip stays readable on a chosen template.
+- Today hid a row's actions unless hovered, and with them its Sent prompt: they stay shown while it asks.
+- The live run found the Sent prompt still offering Undo after They replied had moved the lead on (it would have sent the lead back past the reply): Undo now leaves once the lead is somewhere else.
+- CI's e2e had been red since Task 4 (the Pipeline screenshot moved when leads.spec's confirmed send started moving Sara Nasser on); caught at Task 8 and the baselines reviewed and updated then. Lesson recorded: read CI after every push, not at the end.
+
+## Live (2026-09-29, the dev stack through Caddy's TLS, on a fresh install)
+
+The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 4A → 3A → 3B`, on a reset stack, all passing:
+- a fresh install has LUME's six starter templates (a first touch and a follow-up among them), and its first stage moves a lead on once a message is sent;
+- a masked rep sends a starter from a lead's drawer: it renders in the lead's words, WhatsApp opens in its own tab cut off from LUME, and the page never shows the number or the link;
+- Sent moves the lead on as its stage says; They replied moves it on again; the history says which template was sent, and the reply;
+- Moves, where an admin sets them.
+
+Screenshots: `docs/runbooks/screenshots-4a/`, unmasked.
