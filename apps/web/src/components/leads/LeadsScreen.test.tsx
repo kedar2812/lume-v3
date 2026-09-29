@@ -247,6 +247,34 @@ describe("LeadsScreen", () => {
     expect(address()).toBe("/leads?cf.struggles=o1");
   });
 
+  it("4B: More filters finds what's gone quiet — each sets its filter, its address and a chip that removes it", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    view();
+    await userEvent.click(screen.getByRole("button", { name: /more filters/i }));
+    await userEvent.selectOptions(screen.getByLabelText("No reply for"), "3");
+    await vi.waitFor(() =>
+      expect(leadsClient.list).toHaveBeenCalledWith(expect.objectContaining({ noReplyDays: 3 }), undefined),
+    );
+    expect(address()).toBe("/leads?noreply=3");
+    await userEvent.click(screen.getByRole("switch", { name: "Overdue follow-up" }));
+    await userEvent.selectOptions(screen.getByLabelText("Added"), "1");
+    expect(screen.queryByLabelText("Reason")).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Lost"), "30");
+    await userEvent.selectOptions(screen.getByLabelText("Reason"), "r-price");
+    await vi.waitFor(() => expect(address()).toBe("/leads?noreply=3&lost=30&reason=r-price&overdue=1&new=1"));
+    await userEvent.keyboard("{Escape}");
+    for (const chip of ["No reply 3+ days", "Lost 30+ days ago · Price", "Overdue follow-up", "Added today"])
+      expect(screen.getByRole("button", { name: `Remove filter: ${chip}` })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remove filter: No reply 3+ days" }));
+    await vi.waitFor(() => expect(address()).toBe("/leads?lost=30&reason=r-price&overdue=1&new=1"));
+    await userEvent.click(screen.getByRole("button", { name: "Clear all filters" }));
+    await vi.waitFor(() => expect(address()).toBe("/leads"));
+  });
+
   it("edits a value in place, saving with the version it saw", async () => {
     vi.mocked(leadsClient.patch).mockResolvedValue({
       ok: true,

@@ -35,6 +35,40 @@ describe("lead filters in the URL", () => {
     expect(parseFilters(filtersToParams(f), cat)).toEqual(f);
   });
 
+  it("4B: what's gone quiet round-trips through the address bar, and reaches the API by its own names", () => {
+    const f: ListFilters = {
+      ...EMPTY_FILTERS,
+      noReplyDays: 3,
+      lostDaysAgo: 30,
+      lostReasonId: "r-price",
+      followUpOverdue: true,
+      createdDays: 1,
+    };
+    const url = filtersToParams(f);
+    expect(url.toString()).toBe("noreply=3&lost=30&reason=r-price&overdue=1&new=1");
+    expect(parseFilters(url, cat)).toEqual(f);
+    const api = new URLSearchParams(apiQuery(f));
+    expect(Object.fromEntries(api)).toMatchObject({
+      noReplyDays: "3",
+      lostDaysAgo: "30",
+      lostReasonId: "r-price",
+      followUpOverdue: "true",
+      createdDays: "1",
+    });
+    expect(activeFilterCount(f)).toBe(5);
+  });
+
+  it("4B: a quiet filter it can't vouch for is dropped", () => {
+    const junk = new URLSearchParams({
+      noreply: "0",
+      lost: "abc",
+      reason: "r-gone",
+      overdue: "yes",
+      new: "999",
+    });
+    expect(parseFilters(junk, cat)).toEqual(EMPTY_FILTERS);
+  });
+
   it("drops anything it can't vouch for, instead of breaking the page", () => {
     const junk = new URLSearchParams({
       stage: `${s1!.id},not-a-stage,${"0".repeat(36)}`,

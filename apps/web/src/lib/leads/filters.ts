@@ -18,6 +18,24 @@ export type ListFilters = {
   pipelineId?: string;
   /** Custom-field filters: an option id, a person id, or true/false, by field key. */
   custom?: Record<string, string | boolean>;
+  /** 4B: what's gone quiet. Messaged N+ days ago and not answered since. */
+  noReplyDays?: number;
+  /** Lost at least N days ago, and (optionally) for this reason. */
+  lostDaysAgo?: number;
+  lostReasonId?: string;
+  /** Has an open follow-up whose time has passed. */
+  followUpOverdue?: boolean;
+  /** Added within today and the N−1 days before it (1 = today), in the business's timezone. */
+  createdDays?: number;
+};
+
+/** The choices More filters offers (4B); a link can only ever carry one of these. */
+export const NO_REPLY_DAYS = [1, 3, 7, 14] as const;
+export const LOST_DAYS = [7, 30, 90] as const;
+export const CREATED_DAYS = [1, 7] as const;
+const oneOf = (raw: string | null, allowed: readonly number[]) => {
+  const n = Number(raw);
+  return raw && allowed.includes(n) ? n : undefined;
 };
 
 // A source is named by the catalog when it can be; any well-formed id still filters (the chip says "an import").
@@ -64,6 +82,10 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
   const sort = p.get("sort") as Sort | null;
   const pipeline = p.get("pipeline");
   const from = realDate(p.get("from"));
+  const noReply = oneOf(p.get("noreply"), NO_REPLY_DAYS);
+  const lost = oneOf(p.get("lost"), LOST_DAYS);
+  const reason = p.get("reason");
+  const created = oneOf(p.get("new"), CREATED_DAYS);
   const to = realDate(p.get("to"));
   const fields = new Map(filterableFields(cat).map((f) => [f.key, f]));
   const custom: Record<string, string | boolean> = {};
@@ -85,6 +107,11 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
     sort: sort && SORTS.includes(sort) ? sort : "newest",
     ...(pipeline && cat.pipelines.some((x) => x.id === pipeline) ? { pipelineId: pipeline } : {}),
     ...(Object.keys(custom).length ? { custom } : {}),
+    ...(noReply ? { noReplyDays: noReply } : {}),
+    ...(lost ? { lostDaysAgo: lost } : {}),
+    ...(reason && cat.lostReasons.some((r) => r.id === reason) ? { lostReasonId: reason } : {}),
+    ...(p.get("overdue") === "1" ? { followUpOverdue: true } : {}),
+    ...(created ? { createdDays: created } : {}),
   };
 }
 
@@ -101,6 +128,11 @@ export function filtersToParams(f: ListFilters): URLSearchParams {
   if (f.sort !== "newest") p.set("sort", f.sort);
   if (f.pipelineId) p.set("pipeline", f.pipelineId);
   for (const [k, v] of Object.entries(f.custom ?? {})) p.set(`cf.${k}`, String(v));
+  if (f.noReplyDays) p.set("noreply", String(f.noReplyDays));
+  if (f.lostDaysAgo) p.set("lost", String(f.lostDaysAgo));
+  if (f.lostReasonId) p.set("reason", f.lostReasonId);
+  if (f.followUpOverdue) p.set("overdue", "1");
+  if (f.createdDays) p.set("new", String(f.createdDays));
   return p;
 }
 
@@ -118,6 +150,11 @@ export function apiQuery(f: ListFilters): string {
   if (f.arrivedAfter) p.set("arrivedAfter", f.arrivedAfter);
   if (f.pipelineId) p.set("pipelineId", f.pipelineId);
   if (f.custom && Object.keys(f.custom).length) p.set("custom", JSON.stringify(f.custom));
+  if (f.noReplyDays) p.set("noReplyDays", String(f.noReplyDays));
+  if (f.lostDaysAgo) p.set("lostDaysAgo", String(f.lostDaysAgo));
+  if (f.lostReasonId) p.set("lostReasonId", f.lostReasonId);
+  if (f.followUpOverdue) p.set("followUpOverdue", "true");
+  if (f.createdDays) p.set("createdDays", String(f.createdDays));
   p.set("sort", f.sort);
   return p.toString();
 }
@@ -132,4 +169,14 @@ export const activeFilterCount = (f: ListFilters): number =>
     f.source,
     f.from || f.to,
     f.arrivedAfter,
+    f.noReplyDays,
+    f.lostDaysAgo,
+    f.lostReasonId,
+    f.followUpOverdue,
+    f.createdDays,
   ].filter(Boolean).length + Object.keys(f.custom ?? {}).length;
+
+/** How many of More filters' own are set (4B, and the business's fields). */
+export const moreFilterCount = (f: ListFilters): number =>
+  [f.noReplyDays, f.lostDaysAgo, f.followUpOverdue, f.createdDays].filter(Boolean).length +
+  Object.keys(f.custom ?? {}).length;

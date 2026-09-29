@@ -3,7 +3,15 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { scopeOf, type PhoneStatus } from "@lume/core/shared";
 import { Popover } from "@/components/ui/Popover";
 import { tokenColor } from "@/lib/leads/colors";
-import { activeFilterCount, filterableFields, type ListFilters } from "@/lib/leads/filters";
+import {
+  CREATED_DAYS,
+  LOST_DAYS,
+  NO_REPLY_DAYS,
+  activeFilterCount,
+  filterableFields,
+  moreFilterCount,
+  type ListFilters,
+} from "@/lib/leads/filters";
 import type { Catalog, FieldDefView } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
 import s from "./leads.module.css";
@@ -191,36 +199,128 @@ export function FilterBar({
         </div>
       </Popover>
 
-      {extra.length > 0 && (
-        <Popover
-          label="More filters"
-          triggerClassName={s.tool}
-          active={Object.keys(filters.custom ?? {}).length > 0}
-          trigger={
-            <>
-              More filters{filters.custom ? ` · ${Object.keys(filters.custom).length}` : ""}
-              <Caret />
-            </>
-          }
+      <Popover
+        label="More filters"
+        size="form"
+        triggerClassName={s.tool}
+        active={moreFilterCount(filters) > 0}
+        trigger={
+          <>
+            More filters{moreFilterCount(filters) ? ` · ${moreFilterCount(filters)}` : ""}
+            <Caret />
+          </>
+        }
+      >
+        <div className={s.more}>
+          {/* 4B: what's gone quiet — the filters saved views are made of. */}
+          <p className={s.moreHead}>Follow-ups and replies</p>
+          <label className={s.switchRow}>
+            <span>Overdue follow-up</span>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Overdue follow-up"
+              checked={!!filters.followUpOverdue}
+              onChange={(e) => set({ followUpOverdue: e.target.checked || undefined })}
+            />
+          </label>
+          <label>
+            No reply for
+            <select
+              aria-label="No reply for"
+              value={filters.noReplyDays ?? ""}
+              onChange={(e) => set({ noReplyDays: Number(e.target.value) || undefined })}
+            >
+              <option value="">Any</option>
+              {NO_REPLY_DAYS.map((d) => (
+                <option key={d} value={d}>
+                  {d === 1 ? "1 day" : `${d} days`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Lost
+            <select
+              aria-label="Lost"
+              value={filters.lostDaysAgo ?? ""}
+              onChange={(e) => {
+                const d = Number(e.target.value) || undefined;
+                set({ lostDaysAgo: d, ...(d ? {} : { lostReasonId: undefined }) });
+              }}
+            >
+              <option value="">Any</option>
+              {LOST_DAYS.map((d) => (
+                <option key={d} value={d}>
+                  {`${d}+ days ago`}
+                </option>
+              ))}
+            </select>
+          </label>
+          {filters.lostDaysAgo && catalog.lostReasons.length > 0 && (
+            <label>
+              Reason
+              <select
+                aria-label="Reason"
+                value={filters.lostReasonId ?? ""}
+                onChange={(e) => set({ lostReasonId: e.target.value || undefined })}
+              >
+                <option value="">Any reason</option>
+                {catalog.lostReasons.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label>
+            Added
+            <select
+              aria-label="Added"
+              value={filters.createdDays ?? ""}
+              onChange={(e) => set({ createdDays: Number(e.target.value) || undefined })}
+            >
+              <option value="">Any time</option>
+              {CREATED_DAYS.map((d) => (
+                <option key={d} value={d}>
+                  {d === 1 ? "Today" : `Last ${d} days`}
+                </option>
+              ))}
+            </select>
+          </label>
+          {extra.length > 0 && <p className={s.moreHead}>{"The business's fields"}</p>}
+          {extra.map((def) => (
+            <CustomFilter
+              key={def.key}
+              def={def}
+              catalog={catalog}
+              value={filters.custom?.[def.key]}
+              onChange={(v) => {
+                const next = { ...(filters.custom ?? {}) };
+                if (v === undefined) delete next[def.key];
+                else next[def.key] = v;
+                set({ custom: Object.keys(next).length ? next : undefined });
+              }}
+            />
+          ))}
+        </div>
+      </Popover>
+
+      {quietChips(filters, catalog).map((c) => (
+        <button
+          key={c.label}
+          type="button"
+          className={s.sourceChip}
+          aria-label={`Remove filter: ${c.label}`}
+          onClick={() => set(c.clear)}
         >
-          <div className={s.dates}>
-            {extra.map((def) => (
-              <CustomFilter
-                key={def.key}
-                def={def}
-                catalog={catalog}
-                value={filters.custom?.[def.key]}
-                onChange={(v) => {
-                  const next = { ...(filters.custom ?? {}) };
-                  if (v === undefined) delete next[def.key];
-                  else next[def.key] = v;
-                  set({ custom: Object.keys(next).length ? next : undefined });
-                }}
-              />
-            ))}
-          </div>
-        </Popover>
-      )}
+          {c.label}
+          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      ))}
 
       {filters.source && (
         <button
@@ -266,6 +366,38 @@ export function FilterBar({
       )}
     </div>
   );
+}
+
+/** Each of 4B's filters that's set, in words, with what removing it clears. */
+function quietChips(f: ListFilters, cat: Catalog): { label: string; clear: Partial<ListFilters> }[] {
+  const reason = cat.lostReasons.find((r) => r.id === f.lostReasonId)?.label;
+  return [
+    ...(f.noReplyDays
+      ? [
+          {
+            label: `No reply ${f.noReplyDays}+ day${f.noReplyDays === 1 ? "" : "s"}`,
+            clear: { noReplyDays: undefined },
+          },
+        ]
+      : []),
+    ...(f.lostDaysAgo
+      ? [
+          {
+            label: `Lost ${f.lostDaysAgo}+ days ago${reason ? ` · ${reason}` : ""}`,
+            clear: { lostDaysAgo: undefined, lostReasonId: undefined },
+          },
+        ]
+      : []),
+    ...(f.followUpOverdue ? [{ label: "Overdue follow-up", clear: { followUpOverdue: undefined } }] : []),
+    ...(f.createdDays
+      ? [
+          {
+            label: f.createdDays === 1 ? "Added today" : `Added in the last ${f.createdDays} days`,
+            clear: { createdDays: undefined },
+          },
+        ]
+      : []),
+  ];
 }
 
 function Select({

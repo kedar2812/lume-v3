@@ -728,3 +728,92 @@
     animation: wash 5s linear both;
   }
 }
+
+/* More filters (4B): what's gone quiet first, then the business's own fields. */
+.more {
+  display: grid;
+  gap: 10px;
+  padding: 8px;
+  width: 260px;
+}
+.more label {
+  display: grid;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.more select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text);
+  outline: 0;
+}
+.more select:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.moreHead {
+  margin: 4px 0 -2px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+.more .switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 36px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+/* A switch drawn from the checkbox itself: the knob slides with the default spring's curve. */
+.switchRow input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 22px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--line-2);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.switchRow input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.28s var(--spring);
+}
+.switchRow input:checked {
+  background: var(--accent);
+}
+.switchRow input:checked::after {
+  transform: translateX(14px);
+}
+.switchRow input:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switchRow input,
+  .switchRow input::after {
+    transition: none;
+  }
+}
