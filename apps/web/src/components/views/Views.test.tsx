@@ -24,10 +24,11 @@ vi.mock("@/lib/notifications/stream", () => ({
   useLeadsChanged: (fn: () => void) => void (leadsChanged = fn),
 }));
 let search = "";
+const push = vi.fn();
 vi.mock("next/navigation", () => ({
   usePathname: () => "/leads",
   useSearchParams: () => new URLSearchParams(search),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push, replace: vi.fn() }),
 }));
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
@@ -84,6 +85,12 @@ describe("the Views section (4B Task 6)", () => {
     expect(within(links[2]!).getByText("—")).toHaveAttribute("title", "LUME can't count this view any more");
   });
 
+  it("already on Leads, a view opens in place (no page fade), as a link would", async () => {
+    const list = await sidebar();
+    await userEvent.click(within(list).getByRole("link", { name: /^My overdue/ }));
+    expect(push).toHaveBeenCalledWith("/leads?view=v1");
+  });
+
   it("leads changing elsewhere refreshes the counts, once for a burst", async () => {
     await sidebar();
     await vi.waitFor(() => expect(viewsClient.counts).toHaveBeenCalledTimes(1));
@@ -116,6 +123,15 @@ describe("the Views section (4B Task 6)", () => {
     const list = await sidebar();
     expect(within(list).getByRole("button", { name: "Edit My overdue" })).toBeInTheDocument();
     expect(within(list).queryByRole("button", { name: "Edit Team pipeline" })).not.toBeInTheDocument();
+  });
+
+  it("rows line up: a view you can't edit keeps the edit button's place; counts are marked as live", async () => {
+    const list = await sidebar();
+    const [mine, , shared] = within(list).getAllByRole("listitem");
+    expect(mine!.querySelector("[data-slot]")).toBeNull();
+    expect(shared!.querySelector("[data-slot]")).not.toBeNull();
+    for (const link of within(list).getAllByRole("link"))
+      expect(link.querySelector("[data-live-count]")).not.toBeNull();
   });
 
   it("edit: rename and recolour; delete goes at once, with Undo", async () => {

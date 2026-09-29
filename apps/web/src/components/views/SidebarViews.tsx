@@ -1,7 +1,7 @@
 "use client";
 import { AnimatePresence, Reorder, motion, useDragControls, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { usePageNav } from "@/components/shell/PageTransition";
@@ -24,6 +24,7 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
   const reduce = useReducedMotion();
   const { toast } = useToast();
   const { go } = usePageNav();
+  const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const active = pathname === "/leads" ? params.get("view") : null;
@@ -128,7 +129,8 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
               reduce={!!reduce}
               canShare={canShare}
               roles={roles}
-              onGo={() => go(href(v))}
+              // Already on Leads, a view opens in place; from elsewhere, with the page transition.
+              onGo={() => (pathname === "/leads" ? router.push(href(v)) : go(href(v)))}
               onMove={(step) => move(v, step)}
               onDropped={() => saveOrder(views)}
               onEdit={(value) => edit(v, value)}
@@ -219,6 +221,8 @@ function Row({
           <motion.span
             key={String(count)}
             className={s.count}
+            // Counts change from run to run: the visual checks mask them (they are not times, so never resized).
+            data-live-count
             {...(count === null ? { title: "LUME can't count this view any more" } : {})}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -229,6 +233,7 @@ function Row({
           </motion.span>
         </AnimatePresence>
       </Link>
+      {!v.canEdit && <span className={s.slot} data-slot aria-hidden />}
       {v.canEdit && (
         <Popover
           label={`Edit ${v.name}`}

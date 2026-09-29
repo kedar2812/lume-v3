@@ -46,7 +46,7 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
+  width: 24px;
   height: 30px;
   border-radius: 6px;
   color: var(--text-3);
@@ -282,4 +282,10 @@
   .saveBtn:active {
     transform: none;
   }
+}
+
+/* A view someone can't edit keeps the edit button's place, so every count lines up. */
+.slot {
+  flex: none;
+  width: 26px;
 }

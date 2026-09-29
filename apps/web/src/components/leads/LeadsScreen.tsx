@@ -533,18 +533,17 @@ function Screen({
             onChange={setFilters}
             contactsVisible={contactsVisible}
             hideStage
-            trailing={
-              activeFilterCount({ ...filters, stageIds: [] }) + filters.stageIds.length > 0 && (
-                <SaveView
-                  filters={filters}
-                  catalog={catalog}
-                  canShare={can(session.actor, "views.manage")}
-                  onSaved={setActiveView}
-                />
-              )
-            }
           />
           <div className={s.right}>
+            {/* Save view (4B): beside the filters it saves, with the list's own controls. */}
+            {activeFilterCount({ ...filters, stageIds: [] }) + filters.stageIds.length > 0 && (
+              <SaveView
+                filters={filters}
+                catalog={catalog}
+                canShare={can(session.actor, "views.manage")}
+                onSaved={setActiveView}
+              />
+            )}
             <label className={s.select}>
               <span className={s.srOnly}>Sort</span>
               <select

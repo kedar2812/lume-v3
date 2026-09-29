@@ -39,6 +39,8 @@ export default async function Page({
   const lead = params.get("lead");
   return (
     <LeadsScreen
+      // A different view is a different screen: its own filters, fresh.
+      key={view?.id ?? "leads"}
       session={session}
       catalog={catalog}
       contactsVisible={contactsVisible}
