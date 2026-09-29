@@ -135,6 +135,10 @@ export const PROBES: Record<string, Probe> = {
     access: "messages.send_queue",
     path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/cancel",
   },
+  // Licensing L-A: anyone signed in sees the licence; Check now for people who manage settings.
+  "GET /api/v1/licence": { access: "auth.self" },
+  "POST /api/v1/licence/check": { access: "settings.manage" },
+  "POST /api/v1/licence/notice/dismiss": { access: "auth.self" },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "GET /api/v1/settings/messaging": { access: "settings.manage" },
   "PUT /api/v1/settings/messaging": { access: "settings.manage", body: () => ({ queueSize: 50 }) },

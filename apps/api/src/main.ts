@@ -13,6 +13,8 @@ import { loadKeyring } from "./crypto/keyring-store";
 import { REDACT_PATHS } from "./logger";
 import { createMailer } from "./mail/mailer";
 import { fixedRates, openErApi, openExchangeRates } from "./money/rates";
+import { isReleaseBuild, resolveLicence } from "./licence/options";
+import pkg from "../package.json" with { type: "json" };
 
 const cfg = loadConfig(apiSchema);
 // A request never waits long for a connection: exhaustion fails loudly instead of hanging the API.
@@ -79,6 +81,12 @@ const app = await buildApp({
   isBreached: await loadBreachedChecker(cfg.BREACHED_LIST_FILE),
   argon2: ARGON2_PRODUCTION,
   logger: { level: cfg.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: "[redacted]" } },
+  // The licence (L-A): a release image checks and enforces; a development build is always active.
+  licence: resolveLicence({
+    env: process.env,
+    release: isReleaseBuild(),
+    version: cfg.LUME_VERSION ?? pkg.version,
+  }),
 });
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;
@@ -113,6 +121,8 @@ const taskQueue = await startTaskQueue({
 tasks.enqueue = taskQueue.enqueue;
 tasks.lastSweepAt = taskQueue.lastSweepAt;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
+// At start and every 6 hours (licensing L-A); the state is enforced from the database meanwhile.
+app.licence.start();
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {

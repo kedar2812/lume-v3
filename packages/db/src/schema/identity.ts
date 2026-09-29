@@ -182,6 +182,8 @@ export const sessions = pgTable("sessions", {
   expiresAt: tz("expires_at").notNull(),
   revokedAt: tz("revoked_at"),
   revokedReason: text("revoked_reason"),
+  /** The payment reminder closed for this session only ("I'll sort it", licensing L-A). */
+  noticeDismissed: text("notice_dismissed"),
 });
 
 export const recoveryCodes = pgTable("recovery_codes", {

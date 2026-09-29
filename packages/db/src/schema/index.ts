@@ -6,3 +6,4 @@ export * from "./tasks";
 export * from "./messaging";
 export * from "./views";
 export * from "./queues";
+export * from "./licence";

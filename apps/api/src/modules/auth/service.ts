@@ -81,6 +81,8 @@ export async function login(
   });
   setSessionCookie(reply, s.token, s.expiresAt, d.config.cookieSecure);
   if (stage === "full") {
+    // A sign-in asks the licence server again if the last try is stale (L-A), in the background.
+    req.server.licence.checkIfStale();
     await req.db.update(schema.users).set({ lastLoginAt: now }).where(eq(schema.users.id, user.id));
     await audit(req, { action: "user.login", entityType: "user", entityId: user.id, actorUserId: user.id });
   } else {
@@ -114,6 +116,8 @@ async function completeSignIn(
   });
   setSessionCookie(reply, s.token, s.expiresAt, d.config.cookieSecure);
   await clearThrottle(req.db, mfaKey(userId), now);
+  // As a password-only sign-in does: the licence server again if the last try is stale (L-A).
+  req.server.licence.checkIfStale();
   await req.db.update(schema.users).set({ lastLoginAt: now }).where(eq(schema.users.id, userId));
   await audit(req, {
     action: "user.login",

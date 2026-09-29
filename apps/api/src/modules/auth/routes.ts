@@ -1,3 +1,4 @@
+import { licenceFor } from "../../licence/routes";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
@@ -97,6 +98,8 @@ export async function authRoutes(
       tour,
       capabilities: CAPABILITIES,
       agreement: { version: u.agreedVersion ?? null, current: LEGAL_VERSION },
+      // The licence as this person sees it (L-A): with the rest, so nothing flashes on load.
+      licence: await licenceFor(req),
       flags: {
         // The licence agreement, terms and privacy policy come before everything, onboarding included.
         needsAgreement: needsAgreement(u.agreedVersion),

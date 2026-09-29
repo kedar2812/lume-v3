@@ -15,6 +15,9 @@ import { auditRoutes } from "./modules/audit/routes";
 import { catalogRoutes } from "./modules/catalog/routes";
 import { fieldRoutes } from "./modules/fields/routes";
 import { leadRoutes } from "./modules/leads/routes";
+import { LicenceKeeper } from "./licence/keeper";
+import { licenceRoutes } from "./licence/routes";
+import type { LicenceOptions } from "./licence/options";
 import { queueRoutes } from "./modules/queues/routes";
 import { importRoutes } from "./modules/imports/routes";
 import { sheetRoutes } from "./modules/sheets/routes";
@@ -90,19 +93,36 @@ export type AppDeps = {
   manychatPreset?: boolean;
   /** Tests only: extra routes registered inside the authenticated scope. */
   extraRoutes?: (app: FastifyInstance) => void;
+  /** The licence (licensing L-A): how it's checked. Unset: a development build's licence, always active. */
+  licence?: LicenceOptions;
 };
+
+declare module "fastify" {
+  interface FastifyInstance {
+    /** What this instance knows of its licence, and the one place that checks it (licensing L-A). */
+    licence: LicenceKeeper;
+  }
+}
 
 /** Composition root: every dependency comes in through `deps`, so tests build the real app. */
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await syncPermissionCatalog(deps.pool);
   const cache = new ActorCache(deps.pool);
   const stopListener = await startRbacListener(deps.pool, cache, deps.onRbacEvent);
+  const licence = new LicenceKeeper(
+    deps.pool,
+    deps.licence ?? { mode: "dev", instanceId: null, licenseKey: null, url: "", keys: {}, version: "dev" },
+    deps.clock,
+  );
+  await licence.refresh();
   try {
     const app = await buildServer({
       checks: dbChecks(deps.pool),
       logger: deps.logger,
       open: (a) => receiveRoutes(a, deps),
       configure: (a) => {
+        a.decorate("licence", licence);
+        a.addHook("onClose", async () => licence.stop());
         a.setValidatorCompiler(validatorCompiler);
         a.setSerializerCompiler(serializerCompiler);
       },
@@ -162,6 +182,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(healthRoutes, deps);
         await scope.register(templateRoutes);
         await scope.register(viewRoutes);
+        await scope.register(licenceRoutes);
         await scope.register(queueRoutes, deps);
         await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);
