@@ -23,6 +23,19 @@ export type ListQuery = {
   createdFrom?: string;
   createdTo?: string;
   custom?: string; // JSON object: { fieldKey: value }
+  /** 4B: an open lead messaged at least this many days ago, and not answered since. */
+  noReplyDays?: number;
+  /** 4B: lost at least this many days ago. */
+  lostDaysAgo?: number;
+  /** 4B: lost for this reason. */
+  lostReasonId?: string;
+  /** 4B: has an open follow-up whose time has passed. */
+  followUpOverdue?: boolean;
+  /**
+   * 4B: added within today and the days before it (1 = today), in the business's timezone: by the enquiry
+   * date when the lead has one (a sheet's), else by when it reached LUME, as the drawer's "Enquiry" line.
+   */
+  createdDays?: number;
 };
 
 const L = schema.leads;
@@ -94,6 +107,30 @@ export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRe
   }
   if (q.createdFrom) where.push(sql`${L.leadCreatedAt} >= ${q.createdFrom}::date`);
   if (q.createdTo) where.push(sql`${L.leadCreatedAt} <= ${q.createdTo}::date`);
+
+  // 4B: what's gone quiet. Stage kinds, not names: no client's stages are ever assumed.
+  const kind = (k: "open" | "lost") =>
+    sql`EXISTS (SELECT 1 FROM stages s WHERE s.id = ${L.stageId} AND s.kind = ${k})`;
+  if (q.noReplyDays)
+    where.push(
+      sql`${L.lastMessageAt} <= now() - make_interval(days => ${q.noReplyDays}) AND (${L.lastReplyAt} IS NULL OR ${L.lastReplyAt} < ${L.lastMessageAt})`,
+      kind("open"),
+    );
+  if (q.lostDaysAgo !== undefined)
+    where.push(kind("lost"), sql`${L.lostAt} <= now() - make_interval(days => ${q.lostDaysAgo})`);
+  if (q.lostReasonId) where.push(kind("lost"), eq(L.lostReasonId, q.lostReasonId));
+  // Row-level security on tasks follows the lead, so this never reveals anyone else's.
+  if (q.followUpOverdue)
+    where.push(
+      sql`EXISTS (SELECT 1 FROM tasks t WHERE t.lead_id = ${L.id} AND t.status = 'open' AND t.due_at < now())`,
+    );
+  if (q.createdDays) {
+    // Midnight where the business is, whatever zone the server runs in (Review Focus 5).
+    const tz = sql`(SELECT timezone FROM settings LIMIT 1)`;
+    where.push(
+      sql`COALESCE(${L.leadCreatedAt}, (${L.createdAt} AT TIME ZONE ${tz})::date) >= (now() AT TIME ZONE ${tz})::date - ${q.createdDays - 1}::int`,
+    );
+  }
 
   if (q.q) {
     const term = `%${likeEscape(q.q.trim())}%`;

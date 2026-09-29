@@ -51,7 +51,18 @@ const listQuery = z.object({
   createdTo: z.iso.date().optional(),
   arrivedAfter: z.iso.datetime({ offset: true }).optional(),
   custom: z.string().max(2000).optional(),
+  // 4B: what's gone quiet (saved views are made of these).
+  noReplyDays: z.coerce.number().int().min(1).max(365).optional(),
+  lostDaysAgo: z.coerce.number().int().min(0).max(3650).optional(),
+  lostReasonId: z.uuid().optional(),
+  followUpOverdue: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+  createdDays: z.coerce.number().int().min(1).max(365).optional(),
 });
+/** The list's filters and sort, without paging: what a saved view stores (4B). */
+export const filterQuerySchema = listQuery.omit({ cursor: true, limit: true });
 
 export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
