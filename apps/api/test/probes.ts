@@ -55,6 +55,19 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/follow-ups/presets": { access: "auth.self" },
   "GET /api/v1/system/health": { access: "settings.manage" },
   "GET /api/v1/templates": { access: "templates.use" },
+  "GET /api/v1/leads/:id/messages/context": {
+    access: "messages.send",
+    path: (f) => `/api/v1/leads/${f.leadId}/messages/context`,
+  },
+  "POST /api/v1/leads/:id/messages/render": {
+    access: "messages.send",
+    path: (f) => `/api/v1/leads/${f.leadId}/messages/render`,
+    body: () => ({ text: "Hi" }),
+  },
+  "POST /api/v1/leads/:id/replied": {
+    access: "leads.edit",
+    path: (f) => `/api/v1/leads/${f.leadId}/replied`,
+  },
   "POST /api/v1/templates": { access: "templates.manage" },
   "PUT /api/v1/templates/order": { access: "templates.manage" },
   "PATCH /api/v1/templates/:id": { access: "templates.manage" },

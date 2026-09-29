@@ -7,7 +7,9 @@ import { findDuplicates } from "./duplicates";
 import { arrivalsWhere, countLeads, listLeads } from "./query";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { schema } from "@lume/db";
-import { confirmMessage, prepareMessage } from "./messages";
+import { prepareMessage } from "./messages";
+import { confirmSend, logReply, messageContext, renderFor } from "./sending";
+import type { AppDeps } from "../../app";
 import { runBulk } from "./bulk";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
@@ -51,7 +53,7 @@ const listQuery = z.object({
   custom: z.string().max(2000).optional(),
 });
 
-export async function leadRoutes(app: FastifyInstance): Promise<void> {
+export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get(
     "/api/v1/leads",
@@ -206,20 +208,50 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
     "/api/v1/leads/:id/messages/prepare",
     {
       config: { permission: "messages.send" },
-      schema: { params, body: z.object({ text: z.string().max(4096).default("") }) },
+      schema: {
+        params,
+        body: z.object({
+          text: z.string().max(4096).default(""),
+          templateVersionId: z.uuid().optional(),
+          taskId: z.uuid().optional(),
+        }),
+      },
     },
     async (req, reply) => {
       void reply.header("cache-control", "no-store");
-      return prepareMessage(req, req.params.id, req.body.text);
+      const { text, ...from } = req.body;
+      return prepareMessage(req, req.params.id, text, from);
     },
   );
   r.post(
     "/api/v1/leads/:id/messages/confirm",
-    { config: { permission: "messages.send" }, schema: { params, body: z.object({ sent: z.boolean() }) } },
-    async (req, reply) => {
-      await confirmMessage(req, req.params.id, req.body.sent);
-      return reply.code(204).send();
+    {
+      config: { permission: "messages.send" },
+      schema: { params, body: z.object({ sent: z.boolean(), taskId: z.uuid().optional() }) },
     },
+    (req) => confirmSend(req, d, req.params.id, req.body),
+  );
+  // Templates in this lead's words (4A): the preview's context, and the server's own render.
+  r.get(
+    "/api/v1/leads/:id/messages/context",
+    { config: { permission: "messages.send" }, schema: { params } },
+    (req) => messageContext(req, req.params.id),
+  );
+  r.post(
+    "/api/v1/leads/:id/messages/render",
+    {
+      config: { permission: "messages.send" },
+      schema: {
+        params,
+        body: z
+          .object({ templateId: z.uuid().optional(), text: z.string().max(4096).optional() })
+          .refine((b) => !!b.templateId !== (b.text !== undefined), "A template or your own text"),
+      },
+    },
+    (req) => renderFor(req, req.params.id, req.body),
+  );
+  r.post("/api/v1/leads/:id/replied", { config: { permission: "leads.edit" }, schema: { params } }, (req) =>
+    logReply(req, req.params.id),
   );
   r.post(
     "/api/v1/leads/bulk",

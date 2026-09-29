@@ -54,13 +54,15 @@ describe("WhatsApp hand-off (report §11.2)", () => {
     const theirs = await h.seedLead({ ownerId: other.id, phone: "+971501234567" });
     expect((await prepare(c, theirs)).statusCode).toBe(404);
     const mine = await h.seedLead({ ownerId: seller.id, phone: "+971501234567" });
+    expect((await prepare(c, mine)).statusCode).toBe(200); // "Sent?" answers a WhatsApp that was opened (4A)
     const r = await c.inject({
       method: "POST",
       url: `/api/v1/leads/${mine}/messages/confirm`,
       payload: { sent: true },
     });
-    expect(r.statusCode).toBe(204);
+    expect(r.statusCode).toBe(200);
     const acts = (await c.inject({ method: "GET", url: `/api/v1/leads/${mine}/activities` })).json().items;
-    expect(acts[0].type).toBe("whatsapp_confirmed_sent");
+    // Logged; the stage's after-send move (4A) may follow it in the history.
+    expect(acts.map((x: { type: string }) => x.type)).toContain("whatsapp_confirmed_sent");
   });
 });

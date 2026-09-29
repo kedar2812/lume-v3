@@ -87,6 +87,13 @@ export async function moveStage(
     pipelineId: target.pipelineId,
     changedBy: actor.userId,
   });
+  // A lost lead back in an open stage is reopened (4A; report §11.3), for "lost → reopened → won".
+  const [was] = await req.db
+    .select({ kind: schema.stages.kind })
+    .from(schema.stages)
+    .where(eq(schema.stages.id, lead.stageId));
+  if (was?.kind === "lost" && target.kind === "open")
+    await recordActivity(req, lead.id, "reopened", { from: lead.stageId, to: target.id });
   await recordActivity(req, lead.id, "stage_changed", {
     from: lead.stageId,
     to: target.id,

@@ -152,7 +152,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(pipelineRoutes);
         await scope.register(fieldRoutes);
         await scope.register(catalogRoutes);
-        await scope.register(leadRoutes);
+        await scope.register(leadRoutes, deps);
         await scope.register(importRoutes, deps);
         await scope.register(sheetRoutes, deps);
         await scope.register(webhookRoutes, deps);
