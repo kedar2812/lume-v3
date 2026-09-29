@@ -897,3 +897,23 @@ The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 4A �
 - the masked rep sees it with their own count (1), their list agrees, never shows the owner's lead, and offers no edit.
 
 Screenshots: `docs/runbooks/screenshots-4b/`, unmasked.
+
+## Final review (fresh reviewer, whole branch)
+
+No Critical findings. Three Important, and two Minor re-graded Important by their effect, all fixed with a failing test first (bcf59eb):
+- **A manager un-sharing someone else's view got a 500.** Only a view's owner can make it private; a manager hears so in words, and the form offers no "Just me" there.
+- **Counts didn't match the list with several pipelines.** A view naming no pipeline counts the default one, as it opens.
+- **Sharing changes never reached open sidebars.** Counts that don't match the listed views reload the list.
+- Re-graded: counts that time moves ("My overdue") now refresh when a reminder arrives or the tab comes back (never a timer); opening the same view again after Close view works.
+- Checked and not reproduced: keyboard reordering keeps focus in Chromium (the e2e now moves a view two places).
+
+Deferred minors:
+- a malformed stage id stored through the API can break its viewers' counts;
+- the sidebar's requests have no guard against arriving out of order;
+- a future enquiry date counts as "new today";
+- `leads` events reach people who can't see leads, and a hub reconnect doesn't refresh counts;
+- a failed Undo or Update view says nothing;
+- each lead change costs every visible tab a count scan (the stale checks could be batched);
+- the web's fixed filter choices vs the API's ranges;
+- an archived pipeline or deleted select option isn't treated as stale;
+- a personal and a shared view may share a name.
