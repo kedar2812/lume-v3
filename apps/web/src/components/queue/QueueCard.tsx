@@ -24,6 +24,7 @@ export function QueueCard({
   onSend,
   onSkip,
   onAnswer,
+  onBack,
 }: {
   runId: string;
   item: QueueItem;
@@ -35,6 +36,8 @@ export function QueueCard({
   onSend: (text: string | undefined) => void;
   onSkip: () => void;
   onAnswer: (sent: boolean) => void;
+  /** Back from WhatsApp without LUME noticing (a phone, a tab left in the background): ask Sent? now. */
+  onBack: () => void;
 }) {
   const id = useId();
   // Leaving (sliding out as the next comes in): nothing on it can be pressed, typed or found by a key.
@@ -125,9 +128,14 @@ export function QueueCard({
         </p>
       )}
       {phase === "away" && (
-        <p role="status" className={s.away}>
-          WhatsApp is open. Come back here once it&apos;s sent.
-        </p>
+        <div className={s.awayRow}>
+          <p role="status" className={s.away}>
+            WhatsApp is open. Come back here once it&apos;s sent.
+          </p>
+          <Button size="sm" variant="secondary" onClick={onBack}>
+            Back from WhatsApp
+          </Button>
+        </div>
       )}
       <SentPrompt
         asking={phase === "asking"}

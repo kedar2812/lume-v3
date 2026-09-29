@@ -54,6 +54,7 @@ const tab = () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   reduce = false;
   q = {
     id: "q1",
@@ -86,6 +87,12 @@ beforeEach(() => {
   vi.mocked(queuesClient.skip).mockImplementation(async (_id, pos) => settle(pos, "skipped", "Skipped"));
   vi.mocked(queuesClient.pause).mockImplementation(async () => {
     q.status = "paused";
+    return ok(structuredClone(q));
+  });
+  vi.mocked(queuesClient.cancel).mockImplementation(async () => {
+    q.status = "cancelled";
+    for (const i of q.items) if (i.status === "sending") i.status = "not_sent";
+    counts();
     return ok(structuredClone(q));
   });
   vi.mocked(queuesClient.resume).mockImplementation(async () => {
@@ -209,6 +216,8 @@ describe("QueueRun (4C Task 4)", () => {
 
   it("back after a reload mid-send: Sent? first", async () => {
     q.items[0]!.status = "sending";
+    // This tab opened WhatsApp for it before the reload.
+    sessionStorage.setItem("lume.queue.q1.claimed", "[0]");
     render(<QueueRun id="q1" />);
     expect(await screen.findByRole("group", { name: "Was the WhatsApp message sent?" })).toBeInTheDocument();
     expect(queuesClient.prepare).not.toHaveBeenCalled();
@@ -245,6 +254,103 @@ describe("QueueRun (4C Task 4)", () => {
     await lead("Bea Lopez");
     // Whatever is still leaving is inert; only the new card answers to Send.
     expect(screen.getAllByRole("button", { name: "Send" })).toHaveLength(1);
+  });
+
+  it("final review #1: a lead another tab has open — this tab moves on, and never asks Sent? for it", async () => {
+    const w = tab();
+    vi.mocked(queuesClient.prepare).mockImplementationOnce(async () => {
+      q.items[0]!.status = "sending"; // the other tab's
+      return {
+        ok: false as const,
+        status: 409,
+        code: "ITEM_TAKEN",
+        message: "That lead is open in another tab",
+        details: { next: 1 },
+      };
+    });
+    render(<QueueRun id="q1" />);
+    await screen.findByDisplayValue("Hi Aisha, just checking in.");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(w.close).toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { name: "Bea Lopez" }, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Was the WhatsApp message sent?" })).not.toBeInTheDocument();
+  });
+
+  it("a lead left open elsewhere is asked about once nothing else is left", async () => {
+    q.items[0]!.status = "sending";
+    q.items[1]!.status = "sent";
+    q.items[2]!.status = "sent";
+    counts();
+    render(<QueueRun id="q1" />);
+    await lead("Aisha Khan");
+    expect(await screen.findByRole("group", { name: "Was the WhatsApp message sent?" })).toBeInTheDocument();
+  });
+
+  it("final review #2: End run, after a word to confirm, ends it here", async () => {
+    render(<QueueRun id="q1" />);
+    await lead("Aisha Khan");
+    await userEvent.click(screen.getByRole("button", { name: "End run" }));
+    const ask = screen.getByRole("group", { name: "End this run?" });
+    await userEvent.click(within(ask).getByRole("button", { name: "Keep going" }));
+    expect(queuesClient.cancel).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "End run" }));
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "End this run?" })).getByRole("button", { name: "End it" }),
+    );
+    expect(queuesClient.cancel).toHaveBeenCalledWith("q1");
+    expect(await screen.findByRole("region", { name: "Run ended" })).toBeInTheDocument();
+  });
+
+  it("final review #2: a run the daily cap paused can be ended too", async () => {
+    q.status = "paused";
+    q.pausedReason = "daily_cap";
+    render(<QueueRun id="q1" />);
+    await screen.findByText("Paused");
+    await userEvent.click(screen.getByRole("button", { name: "End run" }));
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "End this run?" })).getByRole("button", { name: "End it" }),
+    );
+    expect(queuesClient.cancel).toHaveBeenCalledWith("q1");
+  });
+
+  it("final review #5: keys pressed outside the run don't reach it; Esc in the message box only leaves the box", async () => {
+    render(
+      <>
+        <div tabIndex={0} data-testid="outside">
+          elsewhere
+        </div>
+        <QueueRun id="q1" />
+      </>,
+    );
+    const box = await screen.findByDisplayValue("Hi Aisha, just checking in.");
+    screen.getByTestId("outside").focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("s");
+    expect(queuesClient.prepare).not.toHaveBeenCalled();
+    expect(queuesClient.skip).not.toHaveBeenCalled();
+    await userEvent.click(box);
+    await userEvent.keyboard("{Escape}");
+    expect(push).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(box);
+  });
+
+  it("final review #7: if LUME never hears the tab come back, Back from WhatsApp asks Sent?", async () => {
+    tab();
+    render(<QueueRun id="q1" />);
+    await screen.findByDisplayValue("Hi Aisha, just checking in.");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Back from WhatsApp" }));
+    expect(await screen.findByRole("group", { name: "Was the WhatsApp message sent?" })).toBeInTheDocument();
+  });
+
+  it("final review #7: the page becoming visible again counts as coming back", async () => {
+    tab();
+    render(<QueueRun id="q1" />);
+    await screen.findByDisplayValue("Hi Aisha, just checking in.");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByRole("button", { name: "Back from WhatsApp" });
+    await act(async () => void document.dispatchEvent(new Event("visibilitychange")));
+    expect(await screen.findByRole("group", { name: "Was the WhatsApp message sent?" })).toBeInTheDocument();
   });
 
   it("reduced motion: the cards cross-fade instead of sliding", async () => {

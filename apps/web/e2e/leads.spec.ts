@@ -117,7 +117,13 @@ test.describe("a masked sales rep", () => {
     await expect(page.getByRole("button", { name: /export/i })).toHaveCount(0);
     await expect(page.getByRole("searchbox")).toHaveAttribute("placeholder", "Search by name");
     await expect(page.getByRole("button", { name: "New lead" })).toHaveCount(0); // Sales can't create
-    await expect(page.getByRole("checkbox", { name: "Select all loaded" })).toHaveCount(0); // nor bulk edit
+    // Sales selects leads only to message them (4C): the bar offers Message, and no bulk edits.
+    await page.getByRole("checkbox", { name: "Select all loaded" }).check();
+    const bar = page.getByRole("toolbar", { name: "Bulk actions" });
+    await expect(bar.getByRole("button", { name: "Message" })).toBeVisible();
+    for (const name of ["Move to stage", "Assign", "Tags", "Delete"])
+      await expect(bar.getByRole("button", { name })).toHaveCount(0);
+    await bar.getByRole("button", { name: "Clear" }).click();
 
     // The API agrees: contacts arrive masked, and a phone search matches nothing (names only).
     const list = await callApi<{ items: { name: string; phone: { masked: boolean } }[] }>(

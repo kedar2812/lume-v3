@@ -218,7 +218,8 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
   r.post(
     "/api/v1/leads/:id/messages/prepare",
     {
-      config: { permission: "messages.send" },
+      // Never kept for replay: the answer carries the wa.me link, with the number (4C final review #8).
+      config: { permission: "messages.send", idempotent: false },
       schema: {
         params,
         body: z.object({

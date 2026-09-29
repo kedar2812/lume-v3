@@ -5,7 +5,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
 import { Button } from "@/components/ui/Button";
 import { SPRINGS, toMotion } from "@/lib/motion";
-import { doneOf, queueChanged, queuesClient, type QueueStep, type QueueView } from "@/lib/queues/client";
+import {
+  doneOf,
+  queueChanged,
+  queuesClient,
+  type QueueItem,
+  type QueueStep,
+  type QueueView,
+} from "@/lib/queues/client";
 import { QueueCard, type CardPhase } from "./QueueCard";
 import { QueueSummary } from "./QueueSummary";
 import s from "./run.module.css";
@@ -17,6 +24,36 @@ const TICK_MS = 700;
 
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+
+/**
+ * The leads this tab opened WhatsApp for (final review #1): per tab, and kept across a reload. Only this
+ * tab's own open lead asks Sent? here; another tab's is left to it, unless nothing else is left to do.
+ */
+const claimsKey = (id: string) => `lume.queue.${id}.claimed`;
+function readClaims(id: string): number[] {
+  try {
+    const v: unknown = JSON.parse(sessionStorage.getItem(claimsKey(id)) ?? "[]");
+    return Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
+}
+function writeClaims(id: string, claims: number[]) {
+  try {
+    sessionStorage.setItem(claimsKey(id), JSON.stringify(claims));
+  } catch {
+    // Private windows may refuse storage: this tab then just asks about every open lead.
+  }
+}
+function pickCurrent(q: QueueView | null, claims: number[]): QueueItem | null {
+  if (!q) return null;
+  return (
+    q.items.find((i) => i.status === "sending" && claims.includes(i.position)) ??
+    q.items.find((i) => i.status === "pending") ??
+    q.items.find((i) => i.status === "sending") ??
+    null
+  );
+}
 
 /**
  * The run (4C): a focused mode over the app, one lead at a time. Send opens WhatsApp (4A's hand-off);
@@ -35,11 +72,17 @@ export function QueueRun({ id }: { id: string }) {
   const [finishedHere, setFinishedHere] = useState(false);
   const [outcome, setOutcome] = useState<{ moved?: string; refused?: string } | null>(null);
   const [skippedLeaving, setSkippedLeaving] = useState(false);
+  const [ending, setEnding] = useState(false);
   const busy = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const root = useRef<HTMLDivElement>(null);
+  const claims = useRef<number[]>([]);
+  const claim = (pos: number, on: boolean) => {
+    claims.current = on ? [...new Set([...claims.current, pos])] : claims.current.filter((p) => p !== pos);
+    writeClaims(id, claims.current);
+  };
 
-  const current =
-    q?.items.find((i) => i.status === "sending") ?? q?.items.find((i) => i.status === "pending") ?? null;
+  const current = pickCurrent(q, claims.current);
 
   const load = useCallback(async () => {
     const r = await queuesClient.get(id);
@@ -47,14 +90,16 @@ export function QueueRun({ id }: { id: string }) {
     setError(null);
     setQ(r.data);
     setOutcome(null);
-    // Back after a reload (or from another tab) with WhatsApp already opened: Sent? first.
-    setPhase(r.data.items.some((i) => i.status === "sending") ? "asking" : "ready");
+    // Back after a reload with WhatsApp already opened from this tab (or a lead nobody answered for,
+    // once nothing else is left): Sent? first.
+    setPhase(pickCurrent(r.data, claims.current)?.status === "sending" ? "asking" : "ready");
     return r.data;
   }, [id]);
   useEffect(() => {
+    claims.current = readClaims(id);
     void load();
     return () => clearTimeout(timer.current);
-  }, [load]);
+  }, [id, load]);
 
   const after = async (step: QueueStep) => {
     if (step.finished) {
@@ -103,16 +148,25 @@ export function QueueRun({ id }: { id: string }) {
       }, NOTE_MS);
       return;
     }
+    claim(current.position, true);
     tab.location.href = r.data.url;
     setPhase("away");
   };
 
-  // "Sent?" rises the next time LUME has focus again after WhatsApp was opened (as 4A).
+  // "Sent?" rises the next time LUME has focus again after WhatsApp was opened (as 4A), or the page is
+  // shown again (a phone handing WhatsApp to its app); Back from WhatsApp is there if neither comes.
   useEffect(() => {
     if (phase !== "away") return;
     const back = () => setPhase("asking");
+    const shown = () => {
+      if (document.visibilityState === "visible") back();
+    };
     window.addEventListener("focus", back, { once: true });
-    return () => window.removeEventListener("focus", back);
+    document.addEventListener("visibilitychange", shown);
+    return () => {
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", shown);
+    };
   }, [phase]);
 
   const answer = async (sent: boolean) => {
@@ -124,9 +178,16 @@ export function QueueRun({ id }: { id: string }) {
       : await queuesClient.notSent(id, current.position);
     busy.current = false;
     if (!r.ok) {
+      // Answered elsewhere, or the run ended meanwhile: look again rather than ask about stale state.
+      if (r.status === 409) {
+        claim(current.position, false);
+        await load();
+        return;
+      }
       setPhase("asking");
       return setError(r.message);
     }
+    claim(current.position, false);
     if (!sent) return after(r.data);
     // Logged: the sound and the tick together; the stage's move says where the lead went.
     sound.play("sent");
@@ -165,6 +226,17 @@ export function QueueRun({ id }: { id: string }) {
     queueChanged();
     await load();
   };
+  // End the run (final review #2): leads not sent yet stay as they are; the summary says how far it got.
+  const end = async () => {
+    clearTimeout(timer.current);
+    const r = await queuesClient.cancel(id);
+    setEnding(false);
+    if (!r.ok) return setError(r.message);
+    claims.current = [];
+    writeClaims(id, []);
+    queueChanged();
+    await load();
+  };
   const leave = async () => {
     clearTimeout(timer.current);
     if (q?.status === "active") {
@@ -175,16 +247,22 @@ export function QueueRun({ id }: { id: string }) {
   };
 
   // Keys (the plan's Interaction section): Enter sends, S skips, Y / N answer Sent?, P pauses, Esc leaves.
-  const keys = useRef({ send, skip, answer, pause, resume, leave, phase, q });
-  keys.current = { send, skip, answer, pause, resume, leave, phase, q };
+  const keys = useRef({ send, skip, answer, pause, resume, leave, phase, q, note, ending });
+  keys.current = { send, skip, answer, pause, resume, leave, phase, q, note, ending };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = keys.current;
+      // Only keys meant for the run: pressed in it, or with nothing in particular focused (final review #5).
+      const t = e.target as Node | null;
+      if (t && t !== document.body && t !== document.documentElement && !root.current?.contains(t)) return;
       if (e.key === "Escape") {
         e.preventDefault();
+        // In the message box, Esc only leaves the box; with End run asked, it keeps going.
+        if (isTyping(e.target)) return void (e.target as HTMLElement).blur();
+        if (k.ending) return void setEnding(false);
         return void k.leave();
       }
-      if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || k.note) return;
       if (e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) {
         if (e.key === "Enter" || e.key === " ") return; // the focused control answers for itself
       }
@@ -211,6 +289,7 @@ export function QueueRun({ id }: { id: string }) {
   return (
     <div className={s.scrim}>
       <motion.div
+        ref={root}
         className={s.run}
         role="dialog"
         aria-modal="true"
@@ -236,10 +315,29 @@ export function QueueRun({ id }: { id: string }) {
                 {q?.today.sent ?? 0} / {q?.today.cap ?? 0}
               </span>
             </p>
-            {q?.status === "active" && (
-              <Button size="sm" variant="ghost" onClick={() => void pause()}>
-                Pause
-              </Button>
+            {ending ? (
+              <div role="group" aria-label="End this run?" className={s.endAsk}>
+                <span className={s.endWords}>End this run? Leads not sent yet stay as they are.</span>
+                <Button size="sm" variant="ghost" onClick={() => setEnding(false)}>
+                  Keep going
+                </Button>
+                <Button size="sm" variant="danger" onClick={() => void end()}>
+                  End it
+                </Button>
+              </div>
+            ) : (
+              <>
+                {q?.status === "active" && (
+                  <Button size="sm" variant="ghost" onClick={() => void pause()}>
+                    Pause
+                  </Button>
+                )}
+                {q && !over && (
+                  <Button size="sm" variant="ghost" onClick={() => setEnding(true)}>
+                    End run
+                  </Button>
+                )}
+              </>
             )}
             <button type="button" className={s.close} aria-label="Leave the run" onClick={() => void leave()}>
               <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
@@ -307,6 +405,7 @@ export function QueueRun({ id }: { id: string }) {
                     onSend={(text) => void send(text)}
                     onSkip={() => void skip()}
                     onAnswer={(sent) => void answer(sent)}
+                    onBack={() => setPhase("asking")}
                   />
                 </motion.div>
               </AnimatePresence>

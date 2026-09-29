@@ -293,7 +293,7 @@ async function sentToday(req: FastifyRequest, alsoOpen = false): Promise<number>
       and(
         eq(Q.userId, me),
         alsoOpen
-          ? sql`(${I.status} = 'sending' OR (${I.status} = 'sent' AND ${I.doneAt} >= ${start}))`
+          ? sql`((${I.status} = 'sending' AND ${Q.status} IN ('active', 'paused')) OR (${I.status} = 'sent' AND ${I.doneAt} >= ${start}))`
           : sql`${I.status} = 'sent' AND ${I.doneAt} >= ${start}`,
       ),
     );
@@ -456,7 +456,8 @@ export async function answerItem(
   position: number,
   sent: boolean,
 ): Promise<Step> {
-  await queueRow(req, id, true);
+  const q = await queueRow(req, id, true);
+  if (q.status === "finished" || q.status === "cancelled") throw conflict("QUEUE_OVER", "This run is over");
   const it = await itemAt(req, id, position);
   if (it.status === "pending") throw conflict("NOT_OPENED", "WhatsApp hasn't been opened for that lead yet");
   if (it.status !== "sending") throw conflict("ITEM_DONE", "That lead is done in this run");
@@ -477,10 +478,13 @@ export async function answerItem(
 }
 
 export async function skipItem(req: FastifyRequest, id: string, position: number): Promise<Step> {
-  await queueRow(req, id, true);
+  const q = await queueRow(req, id, true);
+  if (q.status === "finished" || q.status === "cancelled") throw conflict("QUEUE_OVER", "This run is over");
   const it = await itemAt(req, id, position);
-  if (it.status !== "pending" && it.status !== "sending")
-    throw conflict("ITEM_DONE", "That lead is done in this run");
+  // WhatsApp is open for it (here or in another tab): Sent? decides, or Not sent lets it go (final review #1).
+  if (it.status === "sending")
+    throw conflict("ITEM_TAKEN", "WhatsApp is open for that lead: say whether it was sent, or Not sent");
+  if (it.status !== "pending") throw conflict("ITEM_DONE", "That lead is done in this run");
   // A lead that can't be sent any more is skipped for that reason, so the summary says why.
   let reason = "Skipped";
   try {
@@ -516,6 +520,11 @@ export async function cancelQueue(req: FastifyRequest, id: string): Promise<Queu
   const q = await queueRow(req, id, true);
   if (q.status === "finished" || q.status === "cancelled") throw conflict("QUEUE_OVER", "This run is over");
   await req.db.update(Q).set({ status: "cancelled", finishedAt: new Date() }).where(eq(Q.id, id));
+  // A lead left with WhatsApp open is let go, so it never counts against the daily cap (final review #3).
+  await req.db
+    .update(I)
+    .set({ status: "not_sent", reason: "Ended before Sent? was answered", doneAt: new Date() })
+    .where(and(eq(I.queueId, id), eq(I.status, "sending")));
   const view = await queueView(req, id);
   await audit(req, {
     action: "queue.cancelled",

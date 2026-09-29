@@ -297,3 +297,22 @@
   font-size: var(--fs-sm);
   color: var(--danger-ink);
 }
+
+/* End run, asked in place of the header's tools. */
+.endAsk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.endWords {
+  margin-right: 4px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.awayRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

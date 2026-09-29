@@ -335,3 +335,31 @@
     transition: none;
   }
 }
+
+/* The run left open: end it here, or go back to it. */
+.openActions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.endBtn {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-ctl);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.endBtn:hover {
+  background: var(--hover);
+}
+.endBtn[data-sure] {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-weight: var(--fw-semibold);
+}

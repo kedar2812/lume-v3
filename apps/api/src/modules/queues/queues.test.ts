@@ -517,6 +517,58 @@ describe("running it", () => {
     expect([b, c]).toHaveLength(2);
   });
 
+  it("final review #1: a lead open in another tab can't be skipped from this one; Not sent is the way to let it go", async () => {
+    const [a, b] = await leads(2, "Skipsending");
+    const q = (await start(rep, { leadIds: [a, b] })).json().queue;
+    await post(rep, item(q.id, 0, "prepare"), { text: "Hi" });
+    expect((await post(rep, item(q.id, 0, "skip"))).json().error).toMatchObject({ code: "ITEM_TAKEN" });
+    expect((await post(rep, item(q.id, 0, "not-sent"))).statusCode).toBe(200);
+  });
+
+  it("final review #3: ending a run lets go of a lead left open, so it never counts against the cap", async () => {
+    const k = await h.seedUser({ grants: repGrants, totp: true, name: "Cap Keeper" });
+    const who = await h.signIn(k);
+    const [a, b, c] = await leads(3, "Endopen", { ownerId: k.id });
+    const q = (await start(who, { leadIds: [a, b] })).json().queue;
+    await post(who, item(q.id, 0, "prepare"), { text: "Hi" });
+    const ended = (await post(who, `/api/v1/queues/${q.id}/cancel`)).json();
+    expect(ended.items[0]).toMatchObject({ status: "not_sent", reason: "Ended before Sent? was answered" });
+    // Nothing can move in an ended run.
+    expect((await post(who, item(q.id, 1, "skip"))).json().error).toMatchObject({ code: "QUEUE_OVER" });
+    expect((await post(who, item(q.id, 0, "sent"))).json().error).toMatchObject({ code: "QUEUE_OVER" });
+    // A cap of one: the lead left open in the ended run doesn't use it up.
+    await setMessaging({ dailyCap: 1 });
+    try {
+      const next = (await start(who, { leadIds: [c] })).json().queue;
+      expect(next.today).toEqual({ sent: 0, cap: 1 });
+      expect((await post(who, item(next.id, 0, "prepare"), { text: "Hi" })).statusCode).toBe(200);
+      await post(who, `/api/v1/queues/${next.id}/cancel`);
+    } finally {
+      await setMessaging({ dailyCap: 150 });
+    }
+  });
+
+  it("final review #8: the WhatsApp link (with the number) is never kept for replay", async () => {
+    const [a] = await leads(1, "Noreplay");
+    const q = (await start(rep, { leadIds: [a] })).json().queue;
+    const r = await rep.inject({
+      method: "POST",
+      url: item(q.id, 0, "prepare"),
+      payload: { text: "Hi" },
+      headers: { "idempotency-key": "prepare-once-0001" },
+    });
+    expect(r.statusCode).toBe(200);
+    const drawer = await rep.inject({
+      method: "POST",
+      url: `/api/v1/leads/${a}/messages/prepare`,
+      payload: { text: "Hi" },
+      headers: { "idempotency-key": "prepare-once-0002" },
+    });
+    expect(drawer.statusCode).toBe(200);
+    const kept = await h.queryAll("SELECT key FROM idempotency_keys WHERE response::text LIKE '%7654321%'");
+    expect(kept).toEqual([]);
+  });
+
   it("is audited in words", async () => {
     const [a] = await leads(1, "Audited");
     const q = (await start(rep, { leadIds: [a] })).json().queue;

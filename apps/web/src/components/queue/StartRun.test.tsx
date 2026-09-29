@@ -9,7 +9,7 @@ import { StartRun } from "./StartRun";
 vi.mock("@/lib/templates/client", () => ({ templatesClient: { list: vi.fn() } }));
 vi.mock("@/lib/queues/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/queues/client")>()),
-  queuesClient: { plan: vi.fn(), start: vi.fn(), current: vi.fn() },
+  queuesClient: { plan: vi.fn(), start: vi.fn(), current: vi.fn(), cancel: vi.fn() },
 }));
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
@@ -153,6 +153,23 @@ describe("StartRun (4C Task 3)", () => {
       "href",
       "/queue/q9",
     );
+  });
+
+  it("final review #2: the run left open can be ended right here, and then this one starts", async () => {
+    vi.mocked(queuesClient.plan)
+      .mockResolvedValueOnce(
+        ok({
+          ...PLAN,
+          open: { id: "q9", status: "paused", sourceName: "No reply 3+ days", done: 12, total: 40 },
+        }),
+      )
+      .mockResolvedValue(ok(PLAN));
+    vi.mocked(queuesClient.cancel).mockResolvedValue(ok({ ...RUN, status: "cancelled" }));
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("button", { name: "End that run" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Sure? End it" }));
+    expect(queuesClient.cancel).toHaveBeenCalledWith("q9");
+    expect(await within(dialog).findByRole("button", { name: "Start" })).toBeEnabled();
   });
 
   it("says why when Start is refused, and when nothing can be sent", async () => {

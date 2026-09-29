@@ -56,7 +56,8 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
   r.post(
     "/api/v1/queues/:id/items/:pos/prepare",
     {
-      config: run,
+      // Never kept for replay: the answer carries the wa.me link, with the number (final review #8).
+      config: { ...run, idempotent: false },
       schema: { params: itemParams, body: z.object({ text: z.string().max(4096).optional() }).strict() },
     },
     async (req, reply) => {

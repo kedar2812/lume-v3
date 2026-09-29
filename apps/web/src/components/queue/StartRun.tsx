@@ -79,6 +79,21 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
     };
   }, [key, suggest]);
 
+  // The run left open, ended right here (final review #2): once to ask, again to end it.
+  const [sure, setSure] = useState(false);
+  const endOpen = async () => {
+    if (!plan?.open) return;
+    if (!sure) return setSure(true);
+    setBusy(true);
+    const r = await queuesClient.cancel(plan.open.id);
+    setBusy(false);
+    setSure(false);
+    if (!r.ok) return setError(r.message);
+    queueChanged();
+    const again = await queuesClient.plan(JSON.parse(key) as QueueSource);
+    if (again.ok) setPlan(again.data);
+  };
+
   const start = async () => {
     setBusy(true);
     setError(null);
@@ -186,9 +201,20 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
       {plan.open ? (
         <div className={s.openRun}>
           <p className={s.openNote}>Finish or end your current run first</p>
-          <Link href={`/queue/${plan.open.id}`} className={s.resumeBtn}>
-            Resume · {plan.open.done} of {plan.open.total}
-          </Link>
+          <span className={s.openActions}>
+            <button
+              type="button"
+              className={s.endBtn}
+              data-sure={sure || undefined}
+              onClick={() => void endOpen()}
+              disabled={busy}
+            >
+              {sure ? "Sure? End it" : "End that run"}
+            </button>
+            <Link href={`/queue/${plan.open.id}`} className={s.resumeBtn}>
+              Resume · {plan.open.done} of {plan.open.total}
+            </Link>
+          </span>
         </div>
       ) : (
         <div className={s.foot}>
