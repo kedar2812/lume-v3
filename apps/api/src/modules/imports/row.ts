@@ -240,7 +240,10 @@ export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowRes
     assignReason: "imported",
   });
   if (o.automations)
-    await runOnEnter(req, { id: leadId, name: draft.name, ownerId }, stage, "created", o.automations);
+    await runOnEnter(req, { id: leadId, name: draft.name, ownerId }, stage, "created", {
+      deps: o.automations,
+      intake: true,
+    });
   // A stage's required fields aren't enforced on import (2A spec §6.5), but the leads missing them are counted.
   const core: Record<string, unknown> = {
     name: draft.name,

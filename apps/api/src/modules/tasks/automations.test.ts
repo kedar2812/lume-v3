@@ -351,3 +351,134 @@ describe("new installs (3C Task 3)", () => {
     }
   });
 });
+
+describe("stage automations: 3C final review", () => {
+  const SECRET = "q".repeat(43);
+  async function webhookFor(runAs: string) {
+    await h.ownerPool.query(
+      `UPDATE settings SET integrations = integrations || '{"webhooks":{"enabled":true}}'::jsonb WHERE id = 1`,
+    );
+    const rules = DEFAULT_RULES({ pipelineId: cfg.pipelineId, stageId: cfg.stages["New"]!, country: "AE" });
+    rules.owner = { mode: "user", userId: repId };
+    const id = newId();
+    await h.pool.query(
+      `INSERT INTO lead_sources (id, type, name, status, config_enc, mapping, rules, headers, column_settings, run_as)
+       VALUES ($1, 'webhook', 'Site form', 'active', $2, $3, $4, $5, $6, $7)`,
+      [
+        id,
+        sealWebhook(h.keyring, id, { mode: "signed", secret: SECRET, preset: "website" }),
+        {
+          columns: [
+            { column: 0, to: "field", field: "name" },
+            { column: 1, to: "field", field: "phone" },
+          ],
+          createMissingTags: false,
+        },
+        rules,
+        JSON.stringify(["name", "phone"]),
+        { dateOrders: {}, decimalMarks: {} },
+        runAs,
+      ],
+    );
+    return async (body: Record<string, unknown>) => {
+      const raw = JSON.stringify(body);
+      const ts = String(Math.floor(h.clock.now.getTime() / 1000));
+      await h.app.inject({
+        method: "POST",
+        url: `/webhooks/in/${id}`,
+        headers: {
+          "content-type": "application/json",
+          "x-lume-timestamp": ts,
+          "x-lume-signature": signFor(SECRET, ts, Buffer.from(raw)),
+        },
+        payload: raw,
+      });
+      await h.runWebhooks();
+    };
+  }
+
+  it("Important 1: a lead from a webhook tells the person the webhook runs as, and its follow-up has no author", async () => {
+    await setRules("New", [
+      { id: rid(), type: "notify", to: [{ userId: adminId }] },
+      followUp({ title: "Call the enquiry" }),
+    ]);
+    const post = await webhookFor(adminId);
+    await post({ name: "Web Two", phone: "+971501110002" });
+    await settle();
+    expect((await inbox(adminId)).map((n) => n.title)).toContain("Web Two arrived in New");
+    const [lead] = await h.queryAll<{ id: string }>("SELECT id FROM leads WHERE name = 'Web Two'");
+    const [t] = await h.queryAll<{ created_by: string | null }>(
+      "SELECT created_by FROM tasks WHERE lead_id = $1",
+      [lead!.id],
+    );
+    expect(t!.created_by).toBeNull();
+  });
+
+  it("Important 4: a bulk move tells each person once, not once per lead", async () => {
+    await setRules("Contacted", [
+      followUp({ title: "Chase" }),
+      { id: rid(), type: "notify", to: ["lead_owner"] },
+    ]);
+    const ids = (
+      await h.queryAll<{ id: string }>(
+        `INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, phone_status)
+         SELECT gen_random_uuid(), $1, $2, $3, 'Batch ' || i, 'missing' FROM generate_series(1, 20) i RETURNING id`,
+        [cfg.pipelineId, cfg.stages["New"], repId],
+      )
+    ).map((r) => r.id);
+    const before = (await inbox(repId)).length;
+    const r = await admin.inject({
+      method: "POST",
+      url: "/api/v1/leads/bulk",
+      payload: { ids, action: { type: "stage", stageId: cfg.stages["Contacted"] } },
+    });
+    expect(r.statusCode).toBe(200);
+    await settle();
+    const fresh = (await inbox(repId)).slice(before);
+    expect(fresh.map((n) => n.title).sort()).toEqual([
+      "20 leads moved to Contacted",
+      "LUME set you 20 follow-ups",
+    ]);
+  }, 60_000);
+
+  it("Important 5: a rule that fails is rolled back and said; the move, and the next rule, still happen", async () => {
+    await h.ownerPool.query(`
+      CREATE OR REPLACE FUNCTION test_boom() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'boom'; END $$;
+      CREATE TRIGGER test_boom BEFORE INSERT ON tasks FOR EACH ROW WHEN (NEW.title = 'Boom') EXECUTE FUNCTION test_boom();`);
+    try {
+      await setRules("Proposal", [
+        followUp({ title: "Boom" }),
+        { id: rid(), type: "notify", to: ["lead_owner"] },
+      ]);
+      const lead = await h.seedLead({ ownerId: repId, name: "Still Moves" });
+      expect((await move(admin, lead, "Proposal")).statusCode).toBe(200);
+      const [l] = await h.queryAll<{ stage_id: string }>("SELECT stage_id FROM leads WHERE id = $1", [lead]);
+      expect(l!.stage_id).toBe(cfg.stages["Proposal"]);
+      expect((await automationLines(lead)).map((a) => a.payload)).toEqual([
+        expect.objectContaining({ rule: "create_task", result: "skipped", reason: "failed" }),
+        expect.objectContaining({ rule: "notify", result: "done" }),
+      ]);
+      expect(await openTasks(lead)).toHaveLength(0);
+    } finally {
+      await h.ownerPool.query(
+        "DROP TRIGGER IF EXISTS test_boom ON tasks; DROP FUNCTION IF EXISTS test_boom()",
+      );
+    }
+  });
+
+  it("Important 6: saving a rule for someone no longer active says who, and in which automation", async () => {
+    const gone = await h.seedUser({ grants: repGrants, totp: true, name: "Gone Person" });
+    await h.ownerPool.query("UPDATE users SET status = 'disabled' WHERE id = $1", [gone.id]);
+    const r = await setRules("Contacted", [followUp(), followUp({ assignee: { userId: gone.id } })]);
+    expect(r.statusCode).toBe(400);
+    expect(r.json().error.message).toBe("Gone Person, in automation 2, is no longer active here");
+  });
+
+  it("clearing when there's nothing open writes nothing to the history", async () => {
+    await setRules("Won", [{ id: rid(), type: "cancel_open_tasks" }]);
+    const lead = await h.seedLead({ ownerId: repId, name: "Nothing Open" });
+    await move(rep, lead, "Won");
+    expect(await automationLines(lead)).toEqual([]);
+  });
+});

@@ -133,7 +133,7 @@ export function PipelineEditor({
     setNote({ text: `Saved what ${stage.name} does` });
     return null;
   };
-  const names = new Map(people.map((p) => [p.id, p.name]));
+  const names = new Map(people.map((p) => [p.id, p.active ? p.name : `${p.name} (no longer active)`]));
   const acting = stages.filter((x) => x.onEnter?.rules.length);
 
   const needable = fields.filter((f) => !f.archived && f.key !== "name");

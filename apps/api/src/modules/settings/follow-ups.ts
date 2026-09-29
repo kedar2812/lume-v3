@@ -56,10 +56,18 @@ export const workingHoursFrom = (stored: unknown): WorkingHours => {
   return r.success ? r.data : DEFAULT_WORKING_HOURS;
 };
 
-export async function readFollowUps(req: FastifyRequest): Promise<FollowUpSettings> {
-  const [s] = await req.db
+/**
+ * What's saved, over the defaults. `forUpdate` locks the row for this request, so a change reading it to
+ * merge one section can't lose another saved at the same moment (3C final review).
+ */
+export async function readFollowUps(
+  req: FastifyRequest,
+  o: { forUpdate?: boolean } = {},
+): Promise<FollowUpSettings> {
+  const q = req.db
     .select({ f: schema.settings.followUps })
     .from(schema.settings)
     .where(eq(schema.settings.id, 1));
+  const [s] = o.forUpdate ? await q.for("update") : await q;
   return followUpsFrom(s?.f);
 }

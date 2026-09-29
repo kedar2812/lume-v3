@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import { schema } from "@lume/db";
 import { canOnRecord } from "@lume/core";
 import { audit } from "../../audit/audit";
 import { HttpError, forbidden } from "../../http/errors";
@@ -22,6 +24,8 @@ export async function prepareMessage(req: FastifyRequest, id: string, text: stri
     throw new HttpError(422, "NO_WHATSAPP_NUMBER", "This lead has no WhatsApp number");
   const prepared = clickToSend.prepare({ e164: lead.phoneE164 }, text);
   await recordActivity(req, id, "whatsapp_opened", { text, channel: clickToSend.name });
+  // A message is contact: the lead isn't gone quiet (3C final review, Important 3).
+  await req.db.update(schema.leads).set({ lastActivityAt: new Date() }).where(eq(schema.leads.id, id));
   await audit(req, { action: "lead.whatsapp.prepare", entityType: "lead", entityId: id });
   return prepared;
 }

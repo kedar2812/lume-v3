@@ -57,14 +57,22 @@ export async function readHealth(
             count(*) FILTER (WHERE state = 'failed' AND completed_on > $1::timestamptz - interval '24 hours') AS failed
        FROM pgboss.job WHERE name NOT LIKE '\\_\\_pgboss%'`,
     [now],
-  ).catch(() => ({ waiting: "0", active: "0", retrying: "0", failed: "0" }));
-  const digest = await one<{ last: Date | null; today: string }>(
+  ).catch(() => null); // unreadable: said below, never shown as healthy zeros (3C final review)
+  const digest = await one<{ last: Date | null; today: string; sent24h: string }>(
     `SELECT max(sent_at) FILTER (WHERE items > 0) AS last,
-            count(*) FILTER (WHERE local_date = $1::date AND items > 0) AS today FROM digest_runs`,
-    [today],
+            count(*) FILTER (WHERE local_date = $1::date AND items > 0) AS today,
+            count(*) FILTER (WHERE items > 0 AND sent_at > $2::timestamptz - interval '24 hours') AS sent24h
+       FROM digest_runs`,
+    [today, now],
   );
-  const events = await one<{ digest_failed: string; no_touch_last: Date | null; no_touch_today: string }>(
+  const events = await one<{
+    digest_failed: string;
+    digest_failed_people: string;
+    no_touch_last: Date | null;
+    no_touch_today: string;
+  }>(
     `SELECT count(*) FILTER (WHERE kind = 'digest.failed' AND at > $1::timestamptz - interval '24 hours') AS digest_failed,
+            count(DISTINCT detail ->> 'userId') FILTER (WHERE kind = 'digest.failed' AND at > $1::timestamptz - interval '24 hours') AS digest_failed_people,
             max(at) FILTER (WHERE kind = 'tasks.no_touch') AS no_touch_last,
             coalesce(sum((detail ->> 'created')::int) FILTER (WHERE kind = 'tasks.no_touch' AND ok AND at >= $2), 0) AS no_touch_today
        FROM ops_events`,
@@ -97,14 +105,21 @@ export async function readHealth(
       key: "sweeper_stopped",
       words: "Follow-up reminders haven't been checked for over 5 minutes. Restart LUME's API.",
     });
-  const failed = n(jobs.failed);
+  if (!jobs)
+    problems.push({
+      key: "jobs_unreadable",
+      words: "LUME couldn't read its background jobs just now. If this stays, restart LUME's API.",
+    });
+  const failed = n(jobs?.failed);
   if (failed)
     problems.push({
       key: "jobs_failed",
       words: `${plural(failed, "background job", "background jobs")} failed in the last day, after 5 tries.`,
     });
   const digestFailed = n(events.digest_failed);
-  if (digestFailed >= 3)
+  // The mail server, not one bad address: failures for more than one person, or none sent at all
+  // (3C final review: one address retried every 15 minutes isn't SMTP).
+  if (digestFailed >= 3 && (n(events.digest_failed_people) >= 2 || n(digest.sent24h) === 0))
     problems.push({
       key: "digest_failing",
       words: "Morning emails aren't going out. Check the mail server settings (SMTP_URL in .env).",
@@ -130,9 +145,9 @@ export async function readHealth(
       firedToday: n(reminders.fired),
     },
     queue: {
-      waiting: n(jobs.waiting),
-      active: n(jobs.active),
-      retrying: n(jobs.retrying),
+      waiting: n(jobs?.waiting),
+      active: n(jobs?.active),
+      retrying: n(jobs?.retrying),
       failed24h: failed,
     },
     digest: { lastSentAt: iso(digest.last), sentToday: n(digest.today), failures24h: digestFailed },
@@ -180,17 +195,30 @@ export async function opsAlerts(
          JOIN role_permissions rp ON rp.role_id = r.id
         WHERE ur.user_id = u.id AND rp.permission_key = 'settings.manage'))`,
   );
-  let said = 0;
-  for (const p of h.problems) {
-    // Claimed first, so two processes never both say it.
-    const claim = await o.pool.query(
-      `INSERT INTO ops_events (kind, ok, detail, at)
-       SELECT 'ops.alert', false, jsonb_build_object('key', $1::text), $3
-        WHERE NOT EXISTS (SELECT 1 FROM ops_events WHERE kind = 'ops.alert' AND detail ->> 'key' = $1 AND at >= $2)`,
-      [p.key, start, now],
-    );
-    if (!claim.rowCount) continue;
-    said++;
+  // Claimed under one lock, so two processes (every API starts its clock at once) never both say it
+  // (3C final review, Important 2). Told only once the claim has committed.
+  const claimed: typeof h.problems = [];
+  const client = await o.pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('lume.ops_alerts'))");
+    for (const p of h.problems) {
+      const claim = await client.query(
+        `INSERT INTO ops_events (kind, ok, detail, at)
+         SELECT 'ops.alert', false, jsonb_build_object('key', $1::text), $3
+          WHERE NOT EXISTS (SELECT 1 FROM ops_events WHERE kind = 'ops.alert' AND detail ->> 'key' = $1 AND at >= $2)`,
+        [p.key, start, now],
+      );
+      if (claim.rowCount) claimed.push(p);
+    }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw e;
+  } finally {
+    client.release();
+  }
+  for (const p of claimed) {
     for (const a of admins) {
       await notify(o.pool, a.id, { kind: "system_alert", title: p.words }).catch((err: unknown) =>
         o.app.log.error({ err }, "couldn't tell an admin about a problem"),
@@ -208,5 +236,5 @@ export async function opsAlerts(
           .catch((err: unknown) => o.app.log.error({ err }, "couldn't email an admin about a problem"));
     }
   }
-  return said;
+  return claimed.length;
 }

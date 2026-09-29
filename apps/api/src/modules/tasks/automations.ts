@@ -6,7 +6,7 @@ import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { loadActor } from "../../rbac/actor";
 import { recordActivity } from "../leads/writer";
-import { notify } from "../notifications/notify";
+import { notify, type NewNotification } from "../notifications/notify";
 import { followUpsFrom, workingHoursFrom } from "../settings/follow-ups";
 import { pendingOf, schedule } from "./engine";
 import { cancelLeadTasks, refreshNextDue } from "./lifecycle";
@@ -25,8 +25,10 @@ type Lead = { id: string; name: string; ownerId: string | null };
 type Stage = { id: string; name: string; onEnter: unknown };
 const UNIT_MS = { hour: 3_600_000, day: 86_400_000 } as const;
 
-/** Whether a person is active here and could see a lead with this owner (`lume_can_see_owner`). */
-/** A person's access, looked up once per request: a bulk move of 100 leads asks about the same few people. */
+/**
+ * Whether a person is active here and could see a lead with this owner (`lume_can_see_owner`), looked up
+ * once per request: a bulk move of 100 leads asks about the same few people.
+ */
 const people = new WeakMap<FastifyRequest, Map<string, ReturnType<typeof loadActor>>>();
 async function canTake(
   req: FastifyRequest,
@@ -36,7 +38,14 @@ async function canTake(
 ): Promise<boolean> {
   let known = people.get(req);
   if (!known) people.set(req, (known = new Map()));
-  if (!known.has(userId)) known.set(userId, loadActor(pool, userId));
+  if (!known.has(userId))
+    known.set(
+      userId,
+      loadActor(pool, userId).catch((e: unknown) => {
+        known.delete(userId); // a lookup that failed is asked again, not remembered
+        throw e;
+      }),
+    );
   const a = await known.get(userId)!;
   if (!a) return false; // nobody who isn't active
   const s = leadScope(a);
@@ -55,8 +64,13 @@ export async function runOnEnter(
   lead: Lead,
   stage: Stage,
   why: "moved" | "created",
-  deps: AutomationDeps | undefined = req.server.automationDeps,
+  o: {
+    deps?: AutomationDeps | undefined;
+    /** A lead from a webhook or a sheet: nobody made the move (its source runs as someone, who hears). */
+    intake?: boolean;
+  } = {},
 ): Promise<void> {
+  const deps = o.deps ?? req.server.automationDeps;
   const parsed = onEnterSchema.safeParse(stage.onEnter);
   if (!deps || !parsed.success || !parsed.data.rules.length) return;
   const [s] = await req.db
@@ -68,14 +82,55 @@ export async function runOnEnter(
     hours: workingHoursFrom(s?.wh),
     tz: s?.tz ?? "UTC",
     now: new Date(),
+    mover: o.intake ? null : req.actor!.userId,
   };
   for (const rule of parsed.data.rules) {
-    if (rule.type === "create_task") await setFollowUp(req, deps, lead, rule, ctx);
-    else if (rule.type === "cancel_open_tasks") {
-      const cancelled = await cancelLeadTasks(req, lead.id);
-      await say(req, lead, rule, "done", { cancelled });
-    } else await tell(req, deps, lead, stage, rule, why);
+    // Each rule on its own: one that fails is rolled back and said, and the move and the next rule go on
+    // (3C final review, Important 5).
+    await req.db.execute(sql`SAVEPOINT lume_rule`);
+    try {
+      if (rule.type === "create_task") await setFollowUp(req, deps, lead, rule, ctx);
+      else if (rule.type === "cancel_open_tasks") {
+        const cancelled = await cancelLeadTasks(req, lead.id);
+        if (cancelled) await say(req, lead, rule, "done", { cancelled }); // nothing open: nothing to say
+      } else await tell(req, deps, lead, stage, rule, why, ctx.mover);
+      await req.db.execute(sql`RELEASE SAVEPOINT lume_rule`);
+    } catch (err) {
+      await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_rule`);
+      await req.db.execute(sql`RELEASE SAVEPOINT lume_rule`);
+      req.log.error({ err, ruleId: rule.id }, "a stage automation failed; the move went ahead");
+      await say(req, lead, rule, "skipped", { reason: "failed" });
+    }
   }
+}
+
+/**
+ * Notices from rules, gathered per request and said once each: a bulk move of 100 leads tells a person
+ * "LUME set you 100 follow-ups", not 100 times (3C final review, Important 4).
+ */
+type Notice = {
+  pool: pg.Pool;
+  userId: string;
+  one: NewNotification;
+  count: number;
+  many: (n: number) => NewNotification;
+};
+const notices = new WeakMap<FastifyRequest, Map<string, Notice>>();
+function gather(req: FastifyRequest, key: string, n: Omit<Notice, "count">) {
+  let all = notices.get(req);
+  if (!all) {
+    const fresh = new Map<string, Notice>();
+    notices.set(req, (all = fresh));
+    req.afterCommit(() => {
+      for (const x of fresh.values())
+        void notify(x.pool, x.userId, x.count === 1 ? x.one : x.many(x.count)).catch((err: unknown) =>
+          req.log.error({ err }, "couldn't tell someone what a stage did"),
+        );
+    });
+  }
+  const had = all.get(key);
+  if (had) had.count++;
+  else all.set(key, { ...n, count: 1 });
 }
 
 /** One line in the lead's history for each rule that ran: what it did, or why it couldn't. */
@@ -97,6 +152,7 @@ async function setFollowUp(
     hours: ReturnType<typeof workingHoursFrom>;
     tz: string;
     now: Date;
+    mover: string | null;
   },
 ) {
   // The named person, else the lead's owner (Review Focus 3); with neither, nothing.
@@ -126,7 +182,7 @@ async function setFollowUp(
       dueAt,
       remindMinutes: [0],
       seriesId: id,
-      createdBy: req.actor!.userId,
+      createdBy: ctx.mover, // a webhook's or sheet's follow-up has no author: LUME set it
       autoRuleId: rule.id,
     })
     .returning();
@@ -139,24 +195,29 @@ async function setFollowUp(
     dueAt: dueAt.toISOString(),
   });
   const pending = await pendingOf(req.db, [id]);
-  const by = req.actor!.userId;
-  req.afterCommit(() => {
-    if (pending.length)
-      void deps.tasks
-        ?.enqueue(pending)
-        .catch((err: unknown) =>
-          req.log.error({ err }, "couldn't queue a rule's reminder; the sweeper will"),
-        );
-    // The assignee hears, unless they made the move themselves.
-    if (assigneeId !== by)
-      void notify(deps.pool, assigneeId!, {
+  if (pending.length)
+    req.afterCommit(
+      () =>
+        void deps.tasks
+          ?.enqueue(pending)
+          .catch((err: unknown) =>
+            req.log.error({ err }, "couldn't queue a rule's reminder; the sweeper will"),
+          ),
+    );
+  // The assignee hears, unless they made the move themselves.
+  if (assigneeId !== ctx.mover)
+    gather(req, `assigned:${assigneeId}`, {
+      pool: deps.pool,
+      userId: assigneeId,
+      one: {
         kind: "follow_up_assigned",
         title: `LUME set you a follow-up — ${lead.name}`,
         body: rule.title,
         leadId: lead.id,
         taskId: id,
-      }).catch((err: unknown) => req.log.error({ err }, "couldn't tell the assignee"));
-  });
+      },
+      many: (n) => ({ kind: "follow_up_assigned", title: `LUME set you ${n} follow-ups` }),
+    });
 }
 
 async function tell(
@@ -166,19 +227,20 @@ async function tell(
   stage: Stage,
   rule: Extract<StageRule, { type: "notify" }>,
   why: "moved" | "created",
+  mover: string | null,
 ) {
   const ids = [...new Set(rule.to.map((p) => (p === "lead_owner" ? lead.ownerId : p.userId)))].filter(
-    (id): id is string => !!id && id !== req.actor!.userId, // never the person who made the move
+    (id): id is string => !!id && id !== mover, // never the person who made the move
   );
   const told: string[] = [];
   for (const id of ids) if (await canTake(req, deps.pool, id, lead.ownerId)) told.push(id);
   await say(req, lead, rule, told.length ? "done" : "skipped", told.length ? { told } : { reason: "nobody" });
-  const title =
-    why === "moved" ? `${lead.name} moved to ${stage.name}` : `${lead.name} arrived in ${stage.name}`;
-  req.afterCommit(() => {
-    for (const id of told)
-      void notify(deps.pool, id, { kind: "lead_stage", title, leadId: lead.id }).catch((err: unknown) =>
-        req.log.error({ err }, "couldn't tell someone a lead moved"),
-      );
-  });
+  const verb = why === "moved" ? "moved to" : "arrived in";
+  for (const id of told)
+    gather(req, `stage:${id}:${stage.id}:${why}`, {
+      pool: deps.pool,
+      userId: id,
+      one: { kind: "lead_stage", title: `${lead.name} ${verb} ${stage.name}`, leadId: lead.id },
+      many: (n) => ({ kind: "lead_stage", title: `${n} leads ${verb} ${stage.name}` }),
+    });
 }

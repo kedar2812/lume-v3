@@ -30,20 +30,23 @@ const stageView = (s: StageRow) => ({
 
 /** Every person a stage's automations name must be someone active here (3C). */
 async function assertRulePeople(req: FastifyRequest, onEnter: OnEnter | undefined) {
-  const ids = [
-    ...new Set(
-      (onEnter?.rules ?? [])
-        .flatMap((r) => (r.type === "create_task" ? [r.assignee] : r.type === "notify" ? r.to : []))
-        .flatMap((p) => (p === "lead_owner" ? [] : [p.userId])),
+  const named = (onEnter?.rules ?? []).flatMap((r, i) =>
+    (r.type === "create_task" ? [r.assignee] : r.type === "notify" ? r.to : []).flatMap((p) =>
+      p === "lead_owner" ? [] : [{ id: p.userId, rule: i + 1 }],
     ),
-  ];
-  if (!ids.length) return;
+  );
+  if (!named.length) return;
   const found = await req.db
-    .select({ id: schema.users.id })
+    .select({ id: schema.users.id, name: schema.users.name, status: schema.users.status })
     .from(schema.users)
-    .where(and(inArray(schema.users.id, ids), eq(schema.users.status, "active")));
-  if (found.length !== ids.length)
-    throw badRequest("UNKNOWN_USER", "One of the people in these automations doesn't exist or is disabled");
+    .where(inArray(schema.users.id, [...new Set(named.map((x) => x.id))]));
+  // Who, and in which automation (3C final review, Important 6).
+  for (const x of named) {
+    const u = found.find((f) => f.id === x.id);
+    if (!u) throw badRequest("UNKNOWN_USER", `Someone in automation ${x.rule} isn't here any more`);
+    if (u.status !== "active")
+      throw badRequest("UNKNOWN_USER", `${u.name}, in automation ${x.rule}, is no longer active here`);
+  }
 }
 
 async function livePipeline(req: FastifyRequest, id: string) {

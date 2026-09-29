@@ -1,10 +1,11 @@
 import { ALL_GRANTS, NO_TOUCH_RULE_ID, newId, type Grant } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHarness, type Harness } from "../../../test/harness";
+import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
 import { noTouch } from "./no-touch";
 
 let h: Harness;
 let owner: string;
+let ownerClient: AuthedClient;
 const repGrants: Grant[] = (["leads.view", "leads.edit"] as const).map((key) => ({
   key,
   scope: "own" as const,
@@ -13,7 +14,12 @@ const repGrants: Grant[] = (["leads.view", "leads.edit"] as const).map((key) => 
 beforeAll(async () => {
   h = await createHarness({ preset: "general" });
   await h.seedUser({ grants: ALL_GRANTS, totp: true });
-  owner = (await h.seedUser({ grants: repGrants, totp: true })).id;
+  const o = await h.seedUser({
+    grants: [...repGrants, { key: "messages.send", scope: "own" }, { key: "leads.create", scope: "own" }],
+    totp: true,
+  });
+  owner = o.id;
+  ownerClient = await h.signIn(o);
   await h.ownerPool.query(
     `UPDATE settings SET working_hours = '{"days":[0,1,2,3,4,5,6],"start":"00:00","end":"23:59"}' WHERE id = 1`,
   );
@@ -166,5 +172,33 @@ describe("leads gone quiet (3C Task 4)", () => {
       "SELECT detail FROM ops_events WHERE kind = 'tasks.no_touch' ORDER BY id DESC LIMIT 1",
     );
     expect(ev[0]!.detail.created).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("leads gone quiet: 3C final review", () => {
+  it("Important 3: finishing a follow-up, or opening WhatsApp, is touching the lead", async () => {
+    await turn(true, 7);
+    const done = await quiet(30, { name: "Called Yesterday" });
+    const t = (
+      await ownerClient.inject({
+        method: "POST",
+        url: `/api/v1/leads/${done}/tasks`,
+        payload: { title: "Call her", due: { at: new Date(Date.now() - 60_000).toISOString() } },
+      })
+    ).json();
+    await ownerClient.inject({ method: "POST", url: `/api/v1/tasks/${t.id}/done` });
+    const messaged = await h.seedLead({ ownerId: owner, name: "Messaged Today", phone: "+971507770001" });
+    await h.queryAll("UPDATE leads SET last_activity_at = now() - interval '30 days' WHERE id = $1", [
+      messaged,
+    ]);
+    const r = await ownerClient.inject({
+      method: "POST",
+      url: `/api/v1/leads/${messaged}/messages/prepare`,
+      payload: { text: "Hi" },
+    });
+    expect(r.statusCode).toBe(200);
+    await run();
+    expect((await tasksOf(done)).filter((x) => x.status === "open")).toHaveLength(0);
+    expect(await tasksOf(messaged)).toHaveLength(0);
   });
 });

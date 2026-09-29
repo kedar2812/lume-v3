@@ -41,7 +41,11 @@ export function StageAutomations({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const active = people.filter((p) => p.active);
-  const names = new Map(people.map((p) => [p.id, p.name]));
+  // Someone no longer active stays visible where a rule still names them, so they can be taken out
+  // (3C final review, Important 6).
+  const named = (p: Person) => (p.active ? p.name : `${p.name} (no longer active)`);
+  const names = new Map(people.map((p) => [p.id, named(p)]));
+  const inactiveIn = (ids: string[]) => people.filter((p) => !p.active && ids.includes(p.id));
   const change = (i: number, next: StageRule) => {
     setRules((rs) => rs.map((r, j) => (j === i ? next : r)));
     setProblem(null);
@@ -142,9 +146,9 @@ export function StageAutomations({
                     }
                   >
                     <option value={OWNER}>the lead&apos;s owner</option>
-                    {active.map((p) => (
+                    {[...active, ...inactiveIn(r.assignee === OWNER ? [] : [r.assignee.userId])].map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}
+                        {named(p)}
                       </option>
                     ))}
                   </select>
@@ -153,7 +157,11 @@ export function StageAutomations({
               {r.type === "notify" && (
                 <fieldset className={a.who}>
                   <legend className={s.srOnly}>Who to tell</legend>
-                  {[{ id: OWNER, name: "The lead's owner" }, ...active].map((p) => {
+                  {[
+                    { id: OWNER, name: "The lead's owner", active: true },
+                    ...active,
+                    ...inactiveIn(r.to.flatMap((t) => (t === OWNER ? [] : [t.userId]))),
+                  ].map((p) => {
                     const on = r.to.some((t) => (t === OWNER ? p.id === OWNER : t.userId === p.id));
                     return (
                       <label key={p.id} className={a.pill} data-on={on || undefined}>
@@ -166,7 +174,7 @@ export function StageAutomations({
                             change(i, { ...r, to });
                           }}
                         />
-                        {p.name}
+                        {p.id === OWNER ? p.name : named(p)}
                       </label>
                     );
                   })}

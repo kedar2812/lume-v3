@@ -82,7 +82,7 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
     "/api/v1/settings/follow-ups",
     { config: { permission: "settings.manage" }, schema: { body: followUpsBody } },
     async (req) => {
-      const before = await readFollowUps(req);
+      const before = await readFollowUps(req, { forUpdate: true });
       const next = { ...before, ...req.body };
       await req.db.update(schema.settings).set({ followUps: next }).where(eq(schema.settings.id, 1));
       // Switched on, escalation starts from now: what was already overdue doesn't flood managers at once

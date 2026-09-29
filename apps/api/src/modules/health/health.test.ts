@@ -145,3 +145,34 @@ describe("System health (3C Task 5)", () => {
     expect((await inbox(adminId)).filter((n) => n.kind === "system_alert")).toHaveLength(keys + still);
   });
 });
+
+describe("System health: 3C final review", () => {
+  it("Important 2: two processes at once say each problem once", async () => {
+    const sent: OutgoingMail[] = [];
+    const mailer = { send: async (m: OutgoingMail) => void sent.push(m) };
+    const day = new Date(Date.now() + 5 * 24 * 3_600_000);
+    const before = (await inbox(adminId)).filter((n) => n.kind === "system_alert").length;
+    const keys = (await readHealth(h.pool, { now: day })).problems.length;
+    expect(keys).toBeGreaterThan(0);
+    await Promise.all([
+      opsAlerts({ app: h.app, pool: h.pool, mailer }, day),
+      opsAlerts({ app: h.app, pool: h.pool, mailer }, day),
+    ]);
+    expect((await inbox(adminId)).filter((n) => n.kind === "system_alert").length - before).toBe(keys);
+    expect(sent).toHaveLength(keys);
+  });
+
+  it("one person's bad address, while others' emails go, isn't the mail server", async () => {
+    await h.queryAll("DELETE FROM ops_events WHERE kind = 'digest.failed'");
+    for (let i = 0; i < 4; i++)
+      await h.queryAll("INSERT INTO ops_events (kind, ok, detail) VALUES ('digest.failed', false, $1)", [
+        { userId: repId },
+      ]);
+    await h.queryAll(
+      "INSERT INTO digest_runs (user_id, local_date, items, sent_at) VALUES ($1, current_date, 2, now()) ON CONFLICT DO NOTHING",
+      [adminId],
+    );
+    const keys = (await health()).problems.map((p: { key: string }) => p.key);
+    expect(keys).not.toContain("digest_failing");
+  });
+});

@@ -356,6 +356,8 @@ export async function doneTask(req: FastifyRequest, d: AppDeps, id: string) {
   await cancelReminders(req.db, id);
   await settleReminders(req, t);
   await recordActivity(req, t.leadId, "follow_up_done", { taskId: id, title: t.title });
+  // A follow-up done is contact: the lead isn't gone quiet (3C final review, Important 3).
+  await req.db.update(L).set({ lastActivityAt: now }).where(eq(L.id, t.leadId));
   await auditForOther(req, t, "done");
 
   // A repeat: the next one, in the same series, unless it has reached a stop (spec §3 Recurrence).

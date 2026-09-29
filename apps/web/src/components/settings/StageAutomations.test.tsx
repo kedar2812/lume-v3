@@ -99,3 +99,37 @@ describe("a stage's automations (3C Task 6)", () => {
     expect(await within(sheet).findByRole("alert")).toHaveTextContent("doesn't exist or is disabled");
   });
 });
+
+describe("a stage's automations: 3C final review", () => {
+  it("Important 6: someone no longer active is shown as such, and can be taken out", async () => {
+    const gone = { id: "0192f0a0-0000-7000-8000-0000000000cc", name: "Zara Malik", active: false };
+    const onSave = vi.fn<(o: OnEnter) => Promise<string | null>>(async () => null);
+    render(
+      <StageAutomations
+        stage={stage}
+        rules={[
+          { ...task, assignee: { userId: gone.id } },
+          { id: "0192f0a0-0000-7000-8000-000000000009", type: "notify", to: [{ userId: gone.id }] },
+        ]}
+        people={[...people, gone]}
+        onSave={onSave}
+        onClose={vi.fn()}
+      />,
+    );
+    const sheet = screen.getByRole("dialog", { name: "When a lead enters Contacted" });
+    expect(within(sheet).getByLabelText("For")).toHaveDisplayValue("Zara Malik (no longer active)");
+    expect(
+      within(sheet).getByText(/Sets a follow-up for Zara Malik \(no longer active\)/),
+    ).toBeInTheDocument();
+    await userEvent.selectOptions(within(sheet).getByLabelText("For"), "the lead's owner");
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: "Zara Malik (no longer active)" }));
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: "The lead's owner" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith({
+      rules: [
+        expect.objectContaining({ assignee: "lead_owner" }),
+        expect.objectContaining({ to: ["lead_owner"] }),
+      ],
+    });
+  });
+});
