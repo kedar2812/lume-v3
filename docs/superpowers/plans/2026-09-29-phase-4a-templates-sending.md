@@ -25,6 +25,49 @@
 - Sound only on achievements: `sent` for a confirmed send and for a logged reply (frontend spec sound table). Opening WhatsApp is silent.
 - The gate (lint, typecheck, tests), TDD with RED watched, and CI green.
 
+## Interaction and motion (apple-design, binding for Tasks 5–7)
+
+These turn the design bar into checkable requirements. Every value comes from the existing tokens (`SPRINGS` in `apps/web/src/lib/motion.ts`, `tokens.css`), never a new ad-hoc curve.
+
+- **Response.**
+  - Every button, card and chip gives feedback on pointer-down: `:active` scale 0.97 over 100 ms, and never on release alone.
+  - The editor's preview updates on every keystroke **without a network round-trip**. The editor fetches the preview lead's `RenderContext` once and calls `render` locally; the server renders again only on send.
+- **Springs.**
+  - Everything that appears, moves or resizes uses `SPRINGS.default` (critically damped, response 0.38). Nothing overshoots unless it followed a flick.
+  - Drag-reorder in the library follows the pointer 1:1, respects the grab offset, and settles with `SPRINGS.default`.
+  - A drop is decided by the pointer's velocity projected forward (the drag's direction of travel), not only where it was released. Dragging past the ends rubber-bands.
+- **Interruptible.**
+  - Opening and closing sheets and popovers can be reversed mid-flight; closing a sheet as it opens reverses from where it is. No input is locked during a transition.
+  - A template picked while the previous one's text is still animating in replaces it from the current frame.
+- **Spatial consistency.**
+  - The send sheet and the Reopen menu grow from their trigger (`transform-origin` at the trigger) and return into it along the same path.
+  - The Sent prompt rises out of the WhatsApp button and, once answered, settles back into it.
+  - The editor sheet rises from the bottom and leaves downward.
+- **Materials.**
+  - The Sent prompt and the send sheet are glass, as the notification centre is: `backdrop-filter` blur with the `--glass` token and a bright top edge. They carry no scrim, so the drawer behind stays usable.
+  - The editor is a modal task, so it gets the scrim.
+  - With `prefers-reduced-transparency`, glass turns solid (`--raised`).
+- **Harmony.** The `sent` sound, the Sent prompt's tick drawing on, and the button's brief `ok` tint start on the same frame (the sound is triggered in the same handler that sets the state).
+- **Typography.**
+  - Template names are semibold at `--fs-md`, body previews regular in `--text-2`, and category headers `--fs-xs` in capitals with `--ls-xs` tracking.
+  - Counts use tabular numerals, so "412 / 1,000" never jitters.
+- **Placement.**
+  - One primary action per surface: "New template", "Save", "Open WhatsApp".
+  - Destructive actions (Archive) live in the overflow menu with undo, never beside the primary.
+  - The variable chips sit directly above the textarea they insert into. The preview sits beside the text it previews, and moves below it under 900 px.
+- **Keyboard.**
+  - The send sheet: ↑/↓ choose a template, Enter renders it into the text, ⌘/Ctrl+Enter opens WhatsApp, Esc closes.
+  - The drawer: W opens WhatsApp (as today), R marks They replied.
+- **Reduced motion.** Springs become 150 ms cross-fades. The bubble's re-flow is instant. Drag still tracks 1:1 (that's direct manipulation, not decoration).
+
+Each UI task's tests include:
+- the reduced-motion path;
+- the keyboard path;
+- that feedback shows on pointer-down, not on click only;
+- axe in both themes.
+
+Its full review copies are shown to the owner before the task is marked complete.
+
 ## Review Focus
 
 1. **A template edited while someone's send sheet is open.** Their send uses the version they saw: `prepare` takes the version id. An archived template's version still sends, and the history keeps its words.
@@ -151,6 +194,7 @@
     3. completes `taskId` if it's still open and the caller may change it (3A rules);
     4. applies `after_sent_stage_id` through `moveStage`.
     - A refused move leaves the lead where it is and returns `notMoved` in words.
+  - **`GET /api/v1/leads/:id/messages/context → RenderContext`** (`messages.send` on the lead): what `render` needs to preview locally in the editor and the send sheet. It carries only the name, the custom values of non-contact fields, the owner's name, business name, currency and timezone, fields and people. A test asserts that no phone, email or Instagram value is in it.
   - **`POST /api/v1/leads/:id/replied → { moved, notMoved? }`** (`leads.edit` on the lead): `reply_logged`, `last_reply_at`, `last_activity_at`, then the after-reply move.
   - **`moveStage`** writes a `reopened` activity (`{ from, to }`) whenever a lost lead moves to an open stage.
 
@@ -191,6 +235,7 @@
     - the character count (amber past 1,000, WhatsApp's practical limit);
     - "Who can use it" (Everyone, or roles).
   - **Right:** a WhatsApp-style bubble (a green-tinted bubble with a tail, and bold and italic rendered) previewing against a lead picked from a small search ("Preview as Aisha Khan"). Missing values show as amber tokens in the bubble.
+    - The preview renders **locally** with `render`, on every keystroke, from the `RenderContext` fetched once when a preview lead is chosen (`GET /api/v1/leads/:id/messages/context`, Task 4). It never waits on the network per keystroke.
   - Saving says "Saved as version N" in the save bar, and the library card updates in place with a highlight fade.
 - **Motion:**
   - the sheet rises with the default spring;
