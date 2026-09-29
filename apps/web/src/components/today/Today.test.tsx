@@ -1,6 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { leadsClient } from "@/lib/leads/client";
 import { notificationsClient } from "@/lib/notifications/client";
 import { tasksClient } from "@/lib/tasks/client";
 import type { TaskView, TodayView } from "@/lib/tasks/types";
@@ -10,6 +11,15 @@ const play = vi.fn();
 vi.mock("@/components/feedback/SoundProvider", () => ({ useSound: () => ({ play }) }));
 vi.mock("@/lib/tasks/client", () => ({ tasksClient: { today: vi.fn(), done: vi.fn(), snooze: vi.fn() } }));
 vi.mock("@/lib/notifications/client", () => ({ notificationsClient: { readAll: vi.fn() }, READ_EVENT: "x" }));
+vi.mock("@/lib/leads/client", () => ({
+  leadsClient: { prepareMessage: vi.fn(), confirmMessage: vi.fn(), move: vi.fn() },
+}));
+vi.mock("@/lib/templates/client", () => ({
+  templatesClient: {
+    list: vi.fn(async () => ({ ok: true, status: 200, data: { templates: [] } })),
+    context: vi.fn(async () => ({ ok: false, status: 403, code: "FORBIDDEN", message: "No" })),
+  },
+}));
 let live: ((n: unknown) => void) | null = null;
 vi.mock("@/lib/notifications/stream", () => ({ useStream: (on: (n: unknown) => void) => void (live = on) }));
 
@@ -75,6 +85,38 @@ describe("Today", () => {
     expect(play).toHaveBeenCalledWith("done");
     await vi.waitFor(() => expect(screen.queryByRole("list", { name: "Due soon" })).not.toBeInTheDocument());
     expect(screen.getByRole("img", { name: "3 of 5 cleared today" })).toBeInTheDocument();
+  });
+
+  it("WhatsApp from a row: the follow-up rides along, and Sent completes it — the row leaves", async () => {
+    vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
+    const tab = { location: { href: "" }, close: vi.fn(), opener: {} as unknown };
+    vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    vi.mocked(leadsClient.prepareMessage).mockResolvedValue(ok({ url: "https://wa.me/1" }));
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(ok({ moved: null }));
+    render(<Today name="Maya Kapoor" tz="Asia/Dubai" canMessage />);
+    await userEvent.click(await screen.findByRole("button", { name: "WhatsApp Omar Ali" }));
+    const sheet = screen.getByRole("dialog", { name: "WhatsApp Omar Ali" });
+    await within(sheet).findByRole("option", { name: "Write your own" });
+    await userEvent.type(within(sheet).getByRole("textbox", { name: "Message" }), "Hi Omar");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Open WhatsApp" }));
+    expect(leadsClient.prepareMessage).toHaveBeenCalledWith("l-b", "Hi Omar", { taskId: "b" });
+    window.dispatchEvent(new Event("focus"));
+    // The server completes the follow-up with the send: Today, asked again, no longer has it.
+    vi.mocked(tasksClient.today).mockResolvedValue(ok(view({ soon: [], done: 3 })));
+    await userEvent.click(await screen.findByRole("button", { name: "Yes, sent" }));
+    expect(leadsClient.confirmMessage).toHaveBeenCalledWith("l-b", true, "b");
+    expect(play).toHaveBeenCalledWith("sent");
+    await vi.waitFor(() => expect(screen.queryByRole("list", { name: "Due soon" })).not.toBeInTheDocument(), {
+      timeout: 4000,
+    });
+    expect(screen.getByRole("img", { name: "3 of 5 cleared today" })).toBeInTheDocument();
+  });
+
+  it("no WhatsApp on the rows for someone who can't send messages", async () => {
+    vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
+    render(<Today name="Maya Kapoor" tz="Asia/Dubai" />);
+    await screen.findByRole("list", { name: "Due soon" });
+    expect(screen.queryByRole("button", { name: /^WhatsApp / })).not.toBeInTheDocument();
   });
 
   it("the day's last one done: All clear, and the cleared sound once — not again the same day", async () => {

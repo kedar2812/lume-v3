@@ -11,6 +11,7 @@ import {
 import { useSound } from "@/components/feedback/SoundProvider";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Avatar } from "@/components/ui/Avatar";
+import b from "@/components/ui/Button.module.css";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { Popover } from "@/components/ui/Popover";
@@ -192,6 +193,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
         panel.current
           ?.querySelector<HTMLButtonElement>("[data-whatsapp] button[aria-haspopup]:not(:disabled)")
           ?.click();
+      else if (key === "r")
+        panel.current?.querySelector<HTMLButtonElement>("[data-replied]:not(:disabled)")?.click();
       else if (key === "f")
         panel.current?.querySelector<HTMLButtonElement>("[data-follow-up] button[aria-haspopup]")?.click();
       else if (key === "n") {
@@ -239,6 +242,47 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
       changed(moved);
       logged();
     }
+  };
+
+  /** After a send or a reply, the stage may have moved: the lead and its history, as they are now. */
+  const refresh = async () => {
+    if (!lead) return;
+    logged();
+    const fresh = await leadsClient.get(lead.id);
+    if (fresh.ok) changed(fresh.data.lead);
+  };
+  const moveBack = async (stageId: string) => {
+    if (!lead) return;
+    const r = await leadsClient.move(lead.id, stageId);
+    if (!r.ok) return toast({ tone: "danger", title: "Couldn’t move it back", detail: r.message });
+    changed(r.data.lead);
+    logged();
+  };
+
+  /** They replied (report §11.2 step 6): one tap, then whatever the stage does after a reply, undoable. */
+  const replied = async () => {
+    if (!lead) return;
+    const r = await leadsClient.replied(lead.id);
+    if (!r.ok) return toast({ tone: "danger", title: "The reply wasn’t logged", detail: r.message });
+    sound.play("sent");
+    const m = r.data.moved;
+    toast({
+      tone: "ok",
+      title: m ? `They replied · Moved to ${m.stageName}` : "They replied",
+      ...(r.data.notMoved ? { detail: r.data.notMoved.message } : {}),
+      ...(m ? { action: { label: "Undo", onClick: () => void moveBack(m.fromStageId) } } : {}),
+    });
+    void refresh();
+  };
+
+  /** A lost lead back into an open stage; the history says "Reopened". */
+  const reopen = async (target: Stage) => {
+    if (!lead) return;
+    const moved = await move.request(lead, target);
+    if (!moved) return;
+    changed(moved);
+    logged();
+    toast({ tone: "ok", title: `Reopened into ${target.name}` });
   };
 
   const markWon = async (change: WonChange) => {
@@ -522,7 +566,47 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
               </header>
 
               <div className={s.actions}>
-                {lead.can.message && <MessageButton lead={lead} onLogged={logged} />}
+                {lead.can.message && (
+                  <MessageButton
+                    lead={lead}
+                    {...(stage?.kind === "lost" ? { suggest: "re_engagement" as const } : {})}
+                    onChange={() => void refresh()}
+                  />
+                )}
+                {stage?.kind === "lost"
+                  ? lead.can.move && (
+                      <Popover label="Reopen" role="menu" trigger="Reopen" triggerClassName={b.btn}>
+                        {(close) => (
+                          <div className={s.menu}>
+                            {pipeline?.stages
+                              .filter((st) => st.kind === "open")
+                              .map((st) => (
+                                <button
+                                  key={st.id}
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    close();
+                                    void reopen(st);
+                                  }}
+                                >
+                                  {st.name}
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </Popover>
+                    )
+                  : lead.can.edit && (
+                      <Button
+                        data-replied
+                        aria-keyshortcuts="R"
+                        title="They replied (R)"
+                        onClick={() => void replied()}
+                      >
+                        They replied
+                      </Button>
+                    )}
                 <span data-follow-up>
                   <FollowUpSheet
                     key={lead.id}

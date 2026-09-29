@@ -1,0 +1,291 @@
+/* Sending (Phase 4A): the send sheet, and the Sent prompt that rises out of the WhatsApp button. */
+
+.send {
+  position: relative;
+  display: inline-flex;
+}
+/* Yes, sent: the button glows green for a moment, on the same frame as the tick and the sound. */
+.send > div > button[aria-haspopup] {
+  transition:
+    box-shadow 0.3s ease,
+    transform 0.1s ease-out;
+}
+.send[data-sent] > div > button[aria-haspopup] {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 32%, transparent);
+}
+.send > div > button[aria-haspopup]:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* A row's WhatsApp: the mark alone, quiet until pointed at. */
+.icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease-out;
+}
+.icon:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wa) 14%, transparent);
+}
+.icon:disabled {
+  opacity: 0.4;
+}
+
+/* ── the sheet ── */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  padding: 8px 8px 12px;
+}
+.list {
+  display: grid;
+  gap: 1px;
+  max-height: 216px;
+  overflow-y: auto;
+  padding: 2px;
+  border-radius: 10px;
+  overscroll-behavior: contain;
+}
+.list:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.option {
+  display: grid;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    transform 0.1s ease-out;
+}
+.option:hover,
+.option[data-active] {
+  background: var(--hover);
+}
+.option:active {
+  transform: scale(0.985);
+}
+.option[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+.option[aria-selected="true"] .optName {
+  color: var(--accent-ink);
+}
+.optName {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.optLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.option[data-name="Write your own"] .optName {
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.skeleton {
+  display: block;
+  height: 38px;
+  margin: 2px 0;
+  border-radius: 8px;
+  background: var(--sunk);
+}
+.label {
+  margin: 4px 4px 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+/* The textarea sits over a copy of its own words, so a gap can be underlined where it is. */
+.field {
+  position: relative;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.field:focus-within {
+  box-shadow: var(--focus-ring);
+}
+.ghost,
+.text {
+  margin: 0;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ghost {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+}
+.gap {
+  background: none;
+  color: transparent;
+  text-decoration: underline wavy var(--warn);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+.text {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+}
+.text:focus-visible {
+  outline: none;
+}
+.missing {
+  margin: 0 4px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--warn-ink);
+}
+.error {
+  margin: 0 4px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.primary {
+  width: 100%;
+  margin-top: 2px;
+}
+.hint {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+@media (pointer: coarse) {
+  .hint {
+    display: none;
+  }
+}
+
+/* ── the Sent prompt ── */
+.prompt {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 5px 5px 5px 12px;
+  border-radius: 999px;
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform-origin: top left;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text);
+}
+.prompt[data-align="end"] {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+.ask {
+  margin-right: 4px;
+  font-weight: var(--fw-semibold);
+}
+.pbtn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease-out;
+}
+.pbtn:hover {
+  background: var(--hover);
+}
+.pbtn:active,
+.undo:active {
+  transform: scale(0.97);
+}
+.yes {
+  background: var(--accent);
+  color: #fff;
+}
+.yes:hover {
+  background: var(--accent);
+  filter: brightness(1.06);
+}
+.tick {
+  flex: none;
+  color: var(--ok);
+}
+.said {
+  display: grid;
+  padding: 3px 0;
+  font-weight: var(--fw-medium);
+}
+.refused {
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.undo {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+}
+.undo:hover {
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option:active,
+  .pbtn:active,
+  .undo:active,
+  .send > div > button[aria-haspopup]:active:not(:disabled) {
+    transform: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .prompt {
+    background: var(--raised);
+    backdrop-filter: none;
+  }
+}

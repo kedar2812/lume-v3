@@ -13,7 +13,8 @@ import { moveStage } from "./write";
 
 const CONTACT = new Set(["phone", "email", "url", "instagram"]);
 export type MoveResult = {
-  moved: { stageId: string; stageName: string } | null;
+  /** Where it went, and where it was, so the answer can offer to move it back. */
+  moved: { stageId: string; stageName: string; fromStageId: string } | null;
   notMoved?: { code: string; message: string };
 };
 
@@ -114,7 +115,7 @@ async function applyMove(req: FastifyRequest, lead: LeadRow, to: string | null):
       .select({ name: schema.stages.name })
       .from(schema.stages)
       .where(eq(schema.stages.id, to));
-    return { moved: { stageId: to, stageName: s?.name ?? "" } };
+    return { moved: { stageId: to, stageName: s?.name ?? "", fromStageId: lead.stageId } };
   } catch (err) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_after_move`);
     await req.db.execute(sql`RELEASE SAVEPOINT lume_after_move`);
@@ -167,8 +168,20 @@ export async function confirmSend(
     await recordActivity(req, id, "whatsapp_not_sent");
     return { moved: null };
   }
+  // History names the template as it was called when sent.
+  const [used] = from.templateVersionId
+    ? await req.db
+        .select({ name: schema.messageTemplates.name })
+        .from(schema.templateVersions)
+        .innerJoin(
+          schema.messageTemplates,
+          eq(schema.messageTemplates.id, schema.templateVersions.templateId),
+        )
+        .where(eq(schema.templateVersions.id, from.templateVersionId))
+    : [];
   await recordActivity(req, id, "whatsapp_confirmed_sent", {
     ...(from.templateVersionId ? { templateVersionId: from.templateVersionId } : {}),
+    ...(used ? { template: used.name } : {}),
   });
   const now = new Date();
   await req.db

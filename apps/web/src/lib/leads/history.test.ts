@@ -45,6 +45,23 @@ describe("describeActivity", () => {
     expect(describeActivity(a("lead_created", { source: "manual" }), cat).title).toBe("Lead added");
   });
 
+  it("a send says which template, a reply is one line, and a lost lead coming back says where (4A)", () => {
+    expect(describeActivity(a("whatsapp_confirmed_sent", { template: "Gentle nudge" }), cat)).toMatchObject({
+      title: "WhatsApp sent",
+      detail: "from “Gentle nudge” · by Leila Haddad",
+      tone: "ok",
+    });
+    expect(describeActivity(a("reply_logged"), cat)).toMatchObject({
+      title: "They replied",
+      detail: "by Leila Haddad",
+      tone: "ok",
+    });
+    expect(describeActivity(a("reopened", { from: "s-lost", to: "s-new" }), cat)).toMatchObject({
+      title: "Reopened",
+      detail: "into New · by Leila Haddad",
+    });
+  });
+
   it("says where an imported lead came from, and when it enquired again", () => {
     const first = describeActivity(a("imported", { file: "march.csv", row: 14 }), cat);
     expect(first.title).toBe("Imported");

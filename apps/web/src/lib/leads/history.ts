@@ -43,7 +43,19 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
         ...(p.text ? { quote: String(p.text) } : {}),
       };
     case "whatsapp_confirmed_sent":
-      return { title: "WhatsApp sent", detail: by(a), tone: "ok" };
+      return {
+        title: "WhatsApp sent",
+        detail: join(p.template ? `from “${String(p.template)}”` : undefined, by(a)),
+        tone: "ok",
+      };
+    case "reply_logged":
+      return { title: "They replied", detail: by(a), tone: "ok" };
+    case "reopened":
+      return {
+        title: "Reopened",
+        detail: join(`into ${stageOf(cat, p.to as string | undefined)?.name ?? "an open stage"}`, by(a)),
+        tone: "accent",
+      };
     case "whatsapp_not_sent":
       return { title: "WhatsApp not sent", detail: by(a), tone: "neutral" };
     case "field_changed": {

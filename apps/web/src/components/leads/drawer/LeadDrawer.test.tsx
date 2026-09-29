@@ -19,7 +19,14 @@ vi.mock("@/lib/leads/client", () => ({
     note: vi.fn(),
     prepareMessage: vi.fn(),
     confirmMessage: vi.fn(),
+    replied: vi.fn(),
     remove: vi.fn(),
+  },
+}));
+vi.mock("@/lib/templates/client", () => ({
+  templatesClient: {
+    list: vi.fn(async () => ({ ok: true, status: 200, data: { templates: [] } })),
+    context: vi.fn(async () => ({ ok: false, status: 403, code: "FORBIDDEN", message: "No" })),
   },
 }));
 const play = vi.fn();
@@ -193,7 +200,7 @@ describe("LeadDrawer", () => {
     const tab = { location: { href: "" }, close: vi.fn(), opener: {} as unknown };
     vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
     vi.mocked(leadsClient.prepareMessage).mockResolvedValue(ok({ url: "https://wa.me/971501234567" }));
-    vi.mocked(leadsClient.confirmMessage).mockResolvedValue({ ok: true, status: 204, data: null });
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(ok({ moved: null }));
     open();
     await userEvent.click(await screen.findByRole("button", { name: "WhatsApp" }));
     await userEvent.click(screen.getByRole("button", { name: "Open WhatsApp" }));
@@ -202,7 +209,58 @@ describe("LeadDrawer", () => {
     expect(document.body.textContent).not.toMatch(/wa\.me/); // the link itself is never shown
     window.dispatchEvent(new Event("focus"));
     await userEvent.click(await screen.findByRole("button", { name: "Yes, sent" }));
-    expect(leadsClient.confirmMessage).toHaveBeenCalledWith("l1", true);
+    expect(leadsClient.confirmMessage).toHaveBeenCalledWith("l1", true, undefined);
+  });
+
+  it("They replied: one tap (or R), the sent sound, and the move it made, with Undo", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(
+      ok({ moved: { stageId: "s-booked", stageName: "Call booked", fromStageId: "s-new" } }),
+    );
+    vi.mocked(leadsClient.move).mockResolvedValue(ok({ lead: testLead() }));
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
+    expect(leadsClient.replied).toHaveBeenCalledWith("l1");
+    expect(play).toHaveBeenCalledWith("sent");
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "They replied · Moved to Call booked" }),
+      ),
+    );
+    const said = toast.mock.calls.at(-1)![0] as { action: { label: string; onClick(): void } };
+    expect(said.action.label).toBe("Undo");
+    said.action.onClick();
+    await vi.waitFor(() => expect(leadsClient.move).toHaveBeenCalledWith("l1", "s-new"));
+    (document.activeElement as HTMLElement | null)?.blur();
+    await userEvent.keyboard("r");
+    expect(leadsClient.replied).toHaveBeenCalledTimes(2);
+  });
+
+  it("a reply the stage couldn't follow says why", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(
+      ok({ moved: null, notMoved: { code: "REQUIRED_FIELDS", message: "Fill in Package first" } }),
+    );
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "They replied", detail: "Fill in Package first" }),
+      ),
+    );
+  });
+
+  it("a lost lead offers Reopen instead: the first open stage first, or any other", async () => {
+    vi.mocked(leadsClient.move).mockResolvedValue(ok({ lead: testLead({ stageId: "s-sent" }) }));
+    open(testLead({ stageId: "s-lost" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Reopen" }));
+    expect(screen.queryByRole("button", { name: "They replied" })).not.toBeInTheDocument();
+    const items = screen.getAllByRole("menuitem").map((m) => m.textContent);
+    expect(items).toEqual(["New", "Message sent", "Call booked"]);
+    expect(screen.getByRole("menuitem", { name: "New" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Message sent" }));
+    expect(leadsClient.move).toHaveBeenCalledWith("l1", "s-sent", {});
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Reopened into Message sent" })),
+    );
   });
 
   it("closes the blank tab and explains when WhatsApp can't be prepared", async () => {

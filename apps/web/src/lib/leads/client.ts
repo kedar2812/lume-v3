@@ -4,6 +4,11 @@ import { apiQuery, type ListFilters } from "./filters";
 import type { Activity, BulkAction, BulkResult, Duplicate, Lead, LeadPage } from "./types";
 
 export const PAGE_SIZE = 50;
+/** What a Sent or a reply did to the stage (4A): moved (and from where), or why it couldn't. */
+export type MoveResult = {
+  moved: { stageId: string; stageName: string; fromStageId: string } | null;
+  notMoved?: { code: string; message: string };
+};
 const enc = encodeURIComponent;
 
 /** Every lead call the screens make. Each returns ApiResult, so callers handle refusal explicitly. */
@@ -42,9 +47,11 @@ export const leadsClient = {
     const q = new URLSearchParams(Object.entries(c).filter((e): e is [string, string] => !!e[1]));
     return api.get<{ duplicates: Duplicate[] }>(`/api/v1/leads/duplicates?${q}`);
   },
-  prepareMessage: (id: string, text: string) =>
-    api.post<{ url: string }>(`/api/v1/leads/${id}/messages/prepare`, { text }),
-  confirmMessage: (id: string, sent: boolean) =>
-    api.post<null>(`/api/v1/leads/${id}/messages/confirm`, { sent }),
+  /** From a template, send its version (the words the person saw); from a follow-up, its id. */
+  prepareMessage: (id: string, text: string, from: { templateVersionId?: string; taskId?: string } = {}) =>
+    api.post<{ url: string }>(`/api/v1/leads/${id}/messages/prepare`, { text, ...from }),
+  confirmMessage: (id: string, sent: boolean, taskId?: string) =>
+    api.post<MoveResult>(`/api/v1/leads/${id}/messages/confirm`, { sent, ...(taskId ? { taskId } : {}) }),
+  replied: (id: string) => api.post<MoveResult>(`/api/v1/leads/${id}/replied`),
   remove: (id: string) => api.del<null>(`/api/v1/leads/${id}`),
 };

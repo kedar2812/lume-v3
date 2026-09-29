@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
+import { SendSheet } from "@/components/messages/SendSheet";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -42,10 +43,13 @@ export function NotificationCentre({
   open,
   onClose,
   tz: userTz,
+  canMessage = false,
 }: {
   open: boolean;
   onClose(): void;
   tz?: string | null;
+  /** WhatsApp on each follow-up, for someone who may send messages (4A). */
+  canMessage?: boolean;
 }) {
   const tz = timezoneOf(userTz);
   const reduce = useReducedMotion();
@@ -173,8 +177,8 @@ export function NotificationCentre({
     const nowhere = !focused || focused === document.body;
     const otherSheet = [...document.querySelectorAll('[aria-modal="true"]')].some((d) => !root.contains(d));
     if (!inside && (!nowhere || otherSheet)) return;
-    // A Snooze menu that's open keeps its own keys (its Esc closes it, not the centre).
-    if (root.querySelector('[role="menu"]')) return;
+    // A Snooze menu or a send sheet that's open keeps its own keys (its Esc closes it, not the centre).
+    if (root.querySelector('[role="menu"], [role="dialog"]')) return;
     if (e.key === "Escape") {
       e.preventDefault();
       if (full) setFull(false);
@@ -385,6 +389,16 @@ export function NotificationCentre({
             <button type="button" className={`${s.btn} ${s.primary}`} onClick={() => void done(e.task)}>
               Done
             </button>
+          )}
+          {canMessage && (
+            <SendSheet
+              compact
+              lead={{ id: e.task.leadId, name: e.task.leadName }}
+              taskId={e.task.id}
+              suggest="follow_up"
+              // Sent completed the follow-up on the server (and played `sent`): look again.
+              onSettled={(yes) => yes && void load()}
+            />
           )}
           {e.task.canEdit && (
             <span data-snooze>

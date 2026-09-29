@@ -1,9 +1,6 @@
 "use client";
-import { useEffect, useId, useState } from "react";
-import b from "@/components/ui/Button.module.css";
-import { Button } from "@/components/ui/Button";
-import { Popover } from "@/components/ui/Popover";
-import { leadsClient } from "@/lib/leads/client";
+import type { TemplateCategory } from "@lume/core/shared";
+import { SendSheet } from "@/components/messages/SendSheet";
 import type { Lead } from "@/lib/leads/types";
 import s from "./drawer.module.css";
 
@@ -16,113 +13,28 @@ export function whatsappBlocked(lead: Lead): string | null {
 }
 
 /**
- * The click-to-send hand-off (report §11.2). The link is built by the server and opened in a new tab
- * straight away; it is never shown. The tab is opened blank on the click itself and pointed at the link
- * once it arrives, because browsers block a new tab opened after waiting for the network. When the
- * person comes back to LUME, a quiet prompt asks whether it was sent.
+ * The drawer's WhatsApp (report §11.2; 4A): the send sheet, and a plain line saying why when a lead's
+ * number can't be messaged. The link is built by the server and never shown.
  */
-export function MessageButton({ lead, onLogged }: { lead: Lead; onLogged: () => void }) {
+export function MessageButton({
+  lead,
+  suggest,
+  onChange,
+}: {
+  lead: Lead;
+  suggest?: TemplateCategory;
+  onChange: () => void;
+}) {
   const blocked = whatsappBlocked(lead);
-  const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [awaiting, setAwaiting] = useState(false);
-  const [asking, setAsking] = useState(false);
-  const textId = useId();
-
-  // "Sent?" appears the next time LUME has focus again after WhatsApp was opened.
-  useEffect(() => {
-    if (!awaiting) return;
-    const back = () => {
-      setAwaiting(false);
-      setAsking(true);
-    };
-    window.addEventListener("focus", back, { once: true });
-    return () => window.removeEventListener("focus", back);
-  }, [awaiting]);
-
-  const open = async (close: () => void) => {
-    setError(null);
-    const tab = window.open("", "_blank");
-    if (!tab) return setError("Your browser blocked the new tab. Allow pop-ups for LUME, then try again.");
-    tab.opener = null;
-    const r = await leadsClient.prepareMessage(lead.id, text.trim());
-    if (!r.ok) {
-      tab.close();
-      return setError(r.message);
-    }
-    tab.location.href = r.data.url;
-    setText("");
-    close();
-    setAwaiting(true);
-    onLogged();
-  };
-
-  const answer = async (sent: boolean) => {
-    setAsking(false);
-    await leadsClient.confirmMessage(lead.id, sent);
-    onLogged();
-  };
-
   return (
-    <div className={s.message} data-whatsapp>
-      <Popover
-        label="WhatsApp message"
-        triggerClassName={`${b.btn} ${b.whatsapp}`}
-        disabled={!!blocked}
-        trigger={
-          <>
-            {/* WhatsApp's own mark, unmodified, on a white tile (public/brand/README.md) */}
-            <span className={b.brandTile} aria-hidden>
-              <img src="/brand/whatsapp.svg" alt="" width={14} height={14} />
-            </span>
-            WhatsApp
-          </>
-        }
-      >
-        {(close) => (
-          <form
-            method="post"
-            className={s.popForm}
-            onSubmit={(e) => {
-              e.preventDefault();
-              void open(close);
-            }}
-          >
-            <label htmlFor={textId} className={s.popLabel}>
-              Message (optional)
-            </label>
-            <textarea
-              id={textId}
-              rows={4}
-              maxLength={4096}
-              className={s.popText}
-              value={text}
-              placeholder={`Hi ${(lead.name ?? "").split(" ")[0]},`}
-              onChange={(e) => setText(e.target.value)}
-            />
-            {error && (
-              <p role="alert" className={s.popError}>
-                {error}
-              </p>
-            )}
-            <Button type="submit" variant="whatsapp" className={s.popPrimary}>
-              Open WhatsApp
-            </Button>
-          </form>
-        )}
-      </Popover>
+    <div className={s.message}>
+      <SendSheet
+        lead={{ id: lead.id, name: lead.name ?? "Unnamed lead" }}
+        blocked={blocked}
+        {...(suggest ? { suggest } : {})}
+        onChange={onChange}
+      />
       {blocked && <p className={s.why}>{blocked}</p>}
-      {asking && (
-        <div className={s.sent} role="group" aria-label="Was the WhatsApp message sent?">
-          <span>Sent?</span>
-          <Button size="sm" variant="primary" onClick={() => void answer(true)}>
-            Yes, sent
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => void answer(false)}>
-            Not sent
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

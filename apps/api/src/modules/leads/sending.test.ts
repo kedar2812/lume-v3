@@ -91,6 +91,13 @@ describe("sending (4A Task 4)", () => {
     expect((await activities(lead, "whatsapp_opened"))[0]!.payload).toMatchObject({
       templateVersionId: t.version,
     });
+    // History says which template it was, by the name it had when sent; a later rename doesn't rewrite it.
+    await post(rep, `/api/v1/leads/${lead}/messages/confirm`, { sent: true });
+    await admin.inject({ method: "PATCH", url: `/api/v1/templates/${t.id}`, payload: { name: "Renamed" } });
+    expect((await activities(lead, "whatsapp_confirmed_sent"))[0]!.payload).toMatchObject({
+      templateVersionId: t.version,
+      template: "Gentle nudge",
+    });
   });
 
   it("Review Focus 2: a masked rep never gets the number back, except in the WhatsApp link", async () => {
@@ -131,8 +138,11 @@ describe("sending (4A Task 4)", () => {
         due: { at: new Date(Date.now() + 3_600_000).toISOString() },
       })
     ).json();
+    const [before] = await h.queryAll("SELECT stage_id FROM leads WHERE id = $1", [lead]);
     const first = await sendAndConfirm(rep, lead, { taskId: task.id });
     expect(first.json()).toMatchObject({ moved: { stageName: "Message sent" } });
+    // Where it came from, so the prompt's Undo can move it back.
+    expect(first.json().moved.fromStageId).toBe(before!.stage_id);
     const again = await post(rep, `/api/v1/leads/${lead}/messages/confirm`, { sent: true, taskId: task.id });
     expect(again.json()).toEqual({ moved: null });
     expect(await activities(lead, "whatsapp_confirmed_sent")).toHaveLength(1);

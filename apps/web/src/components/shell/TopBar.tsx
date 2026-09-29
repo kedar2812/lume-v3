@@ -13,7 +13,17 @@ import type { ThemePref } from "@/lib/theme";
 import { NAV_ITEMS, activeNav } from "./nav";
 import s from "./shell.module.css";
 
-export function TopBar({ theme, tz, onSearch }: { theme: ThemePref; tz?: string | null; onSearch(): void }) {
+export function TopBar({
+  theme,
+  tz,
+  canMessage,
+  onSearch,
+}: {
+  theme: ThemePref;
+  tz?: string | null;
+  canMessage?: boolean;
+  onSearch(): void;
+}) {
   const pathname = usePathname();
   const title = activeNav(NAV_ITEMS, pathname)?.label ?? "LUME";
   const reduce = useReducedMotion();
@@ -85,7 +95,7 @@ export function TopBar({ theme, tz, onSearch }: { theme: ThemePref; tz?: string 
         </motion.span>
         {unread > 0 && <span className={s.bellDot} aria-hidden />}
       </IconButton>
-      <NotificationCentre open={open} onClose={close} tz={tz} />
+      <NotificationCentre open={open} onClose={close} tz={tz} canMessage={!!canMessage} />
     </header>
   );
 }

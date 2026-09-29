@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
+import { SendSheet } from "@/components/messages/SendSheet";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -55,7 +56,16 @@ function firstClearToday(tz: string): boolean {
  * Today (Phase 3 spec §6): whom to start with, how the day is going, and every follow-up that needs you,
  * grouped in your own day — each one a tick away from done. New reminders bring it up to date live.
  */
-export function Today({ name, tz: userTz }: { name: string; tz: string | null }) {
+export function Today({
+  name,
+  tz: userTz,
+  canMessage = false,
+}: {
+  name: string;
+  tz: string | null;
+  /** WhatsApp on each row, for someone who may send messages (4A). */
+  canMessage?: boolean;
+}) {
   const tz = timezoneOf(userTz);
   const reduce = useReducedMotion();
   const sound = useSound();
@@ -86,13 +96,8 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
     );
   if (!v) return <div className={s.page} aria-busy="true" />;
 
-  const done = async (t: TaskView) => {
-    const r = await tasksClient.done(t.id);
-    if (!r.ok) return setError(r.message);
-    if (r.data.clearedToday && firstClearToday(tz)) sound.play("cleared");
-    else sound.play("done");
-    // A repeat made the next one: it may be due today, so ask again rather than guess (Important 7).
-    if (r.data.next) return void (await load());
+  /** The row leaves with its done animation, and the ring moves on. */
+  const drop = (t: TaskView) =>
     setV(
       (cur) =>
         cur && {
@@ -103,6 +108,19 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
           done: cur.done + 1,
         },
     );
+  const done = async (t: TaskView) => {
+    const r = await tasksClient.done(t.id);
+    if (!r.ok) return setError(r.message);
+    if (r.data.clearedToday && firstClearToday(tz)) sound.play("cleared");
+    else sound.play("done");
+    // A repeat made the next one: it may be due today, so ask again rather than guess (Important 7).
+    if (r.data.next) return void (await load());
+    drop(t);
+  };
+  /** Sent from its row: the send completed the follow-up (it played `sent`), so it goes like a Done. */
+  const sent = (t: TaskView) => {
+    drop(t);
+    void load();
   };
   const snooze = async (t: TaskView, preset: (typeof SNOOZE)[number]["preset"]) => {
     const r = await tasksClient.snooze(t.id, { preset });
@@ -223,6 +241,16 @@ export function Today({ name, tz: userTz }: { name: string; tz: string | null })
                           {whenInWords(t.dueAt, new Date(), tz)}
                         </span>
                         <span className={s.acts}>
+                          {canMessage && (
+                            <SendSheet
+                              compact
+                              align="end"
+                              lead={{ id: t.leadId, name: t.leadName }}
+                              taskId={t.id}
+                              suggest="follow_up"
+                              onSettled={(yes) => yes && sent(t)}
+                            />
+                          )}
                           <Popover
                             label={`Snooze ${t.title} — ${t.leadName}`}
                             trigger="Snooze"

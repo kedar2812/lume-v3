@@ -1,6 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { leadsClient } from "@/lib/leads/client";
 import { notificationsClient, sayUnread, type NotificationView } from "@/lib/notifications/client";
 import { tasksClient } from "@/lib/tasks/client";
 import type { TaskView, TodayView } from "@/lib/tasks/types";
@@ -17,6 +18,15 @@ vi.mock("@/lib/notifications/client", () => ({
   notificationsClient: { list: vi.fn(), read: vi.fn(), readAll: vi.fn() },
   sayUnread: vi.fn(),
   READ_EVENT: "lume:notifications-read",
+}));
+vi.mock("@/lib/leads/client", () => ({
+  leadsClient: { prepareMessage: vi.fn(), confirmMessage: vi.fn(), move: vi.fn() },
+}));
+vi.mock("@/lib/templates/client", () => ({
+  templatesClient: {
+    list: vi.fn(async () => ({ ok: true, status: 200, data: { templates: [] } })),
+    context: vi.fn(async () => ({ ok: false, status: 403, code: "FORBIDDEN", message: "No" })),
+  },
 }));
 let live: ((n: unknown) => void) | null = null;
 vi.mock("@/lib/notifications/stream", () => ({ useStream: (on: (n: unknown) => void) => void (live = on) }));
@@ -139,6 +149,35 @@ describe("the notification centre (3B Task 5)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remind them" }));
     expect(tasksClient.nudge).toHaveBeenCalledWith("t-riya");
     expect(await screen.findByText("Reminded")).toBeInTheDocument();
+  });
+
+  it("WhatsApp from a follow-up: it rides along, and Sent completes it (4A)", async () => {
+    const tab = { location: { href: "" }, close: vi.fn(), opener: {} as unknown };
+    vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    vi.mocked(leadsClient.prepareMessage).mockResolvedValue(ok({ url: "https://wa.me/1" }));
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(ok({ moved: null }));
+    render(<NotificationCentre open onClose={vi.fn()} canMessage />);
+    await userEvent.click(await screen.findByRole("button", { name: "WhatsApp Omar Ali" }));
+    const sheet = screen.getByRole("dialog", { name: "WhatsApp Omar Ali" });
+    await within(sheet).findByRole("option", { name: "Write your own" });
+    await userEvent.type(within(sheet).getByRole("textbox", { name: "Message" }), "Hi Omar");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Open WhatsApp" }));
+    expect(leadsClient.prepareMessage).toHaveBeenCalledWith("l-b", "Hi Omar", { taskId: "b" });
+    window.dispatchEvent(new Event("focus"));
+    vi.mocked(tasksClient.today).mockResolvedValue(ok(today({ soon: [], done: 1 })));
+    await userEvent.click(await screen.findByRole("button", { name: "Yes, sent" }));
+    expect(leadsClient.confirmMessage).toHaveBeenCalledWith("l-b", true, "b");
+    expect(play).toHaveBeenCalledWith("sent");
+    await vi.waitFor(() => expect(screen.queryByText("Omar Ali")).not.toBeInTheDocument(), { timeout: 4000 });
+  });
+
+  it("a row's send sheet keeps its own keys: E there doesn't finish the follow-up", async () => {
+    render(<NotificationCentre open onClose={vi.fn()} canMessage />);
+    await userEvent.click(await screen.findByRole("button", { name: "WhatsApp Omar Ali" }));
+    const list = await screen.findByRole("listbox", { name: "Templates" });
+    list.focus();
+    await userEvent.keyboard("e");
+    expect(tasksClient.done).not.toHaveBeenCalled();
   });
 
   it("keyboard: J/K move, E finishes, Enter opens the lead", async () => {
