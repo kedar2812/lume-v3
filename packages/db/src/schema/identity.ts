@@ -68,6 +68,11 @@ export const users = pgTable("users", {
   isOwner: boolean("is_owner").notNull().default(false),
   timezone: text("timezone"),
   theme: text("theme").$type<"system" | "porcelain" | "obsidian">().notNull().default("system"),
+  /** Their own order of the saved views they see (4B). */
+  viewOrder: uuid("view_order")
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
   preferences: jsonb("preferences")
     .$type<Partial<Preferences>>()
     .notNull()

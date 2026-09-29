@@ -92,6 +92,10 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "template.archived": { area: "Settings", phrase: (d) => `archived the template “${String(d.name ?? "")}”` },
   "template.reordered": { area: "Settings", phrase: () => "reordered the templates" },
   "template.restored": { area: "Settings", phrase: (d) => `put back the template “${String(d.name ?? "")}”` },
+  "view.created": { area: "Leads", phrase: (d) => `saved the view “${String(d.name ?? "")}”` },
+  "view.updated": { area: "Leads", phrase: (d) => `changed the view “${String(d.name ?? "")}”` },
+  "view.deleted": { area: "Leads", phrase: (d) => `deleted the view “${String(d.name ?? "")}”` },
+  "view.restored": { area: "Leads", phrase: (d) => `put back the view “${String(d.name ?? "")}”` },
   "stage.automations": {
     area: "Settings",
     phrase: (d) => `changed a stage's automations (${Array.isArray(d.rules) ? d.rules.length : 0})`,

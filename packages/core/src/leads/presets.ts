@@ -55,6 +55,16 @@ const STARTER_TEMPLATES: TemplateSeed[] = [
     body: "Hi {{lead.first_name}}, it's been a while! Is now a better time to pick things up with {{business.name}}? Just reply here.",
   },
 ];
+/**
+ * Four views every new install starts with (4B), owned by the owner and shared with every role made at
+ * setup. They name no stage (kinds and dates only), so they suit any preset.
+ */
+export const STARTER_VIEWS: { name: string; color: string; filters: Record<string, string> }[] = [
+  { name: "My overdue", color: "danger", filters: { ownerId: "me", followUpOverdue: "true" } },
+  { name: "New today", color: "accent", filters: { createdDays: "1" } },
+  { name: "No reply 3+ days", color: "warn", filters: { noReplyDays: "3" } },
+  { name: "Lost — re-engage", color: "meet", filters: { lostDaysAgo: "30" } },
+];
 export type PresetKey = "coaching" | "general";
 
 /** Report §6: core fields are real columns on every install; they can be relabelled and hidden, never deleted. */

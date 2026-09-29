@@ -73,6 +73,27 @@ export const PROBES: Record<string, Probe> = {
   "PATCH /api/v1/templates/:id": { access: "templates.manage" },
   "POST /api/v1/templates/:id/archive": { access: "templates.manage" },
   "POST /api/v1/templates/:id/restore": { access: "templates.manage" },
+  // 4B: saved views are anyone's who sees leads; sharing is checked inside (views.manage).
+  "GET /api/v1/views": { access: "leads.view" },
+  "GET /api/v1/views/counts": { access: "leads.view" },
+  "POST /api/v1/views": {
+    access: "leads.view",
+    body: () => ({ name: `Probe ${Math.random().toString(36).slice(2, 8)}`, color: "accent", filters: {} }),
+  },
+  "PUT /api/v1/views/order": { access: "leads.view", body: () => ({ ids: [] }) },
+  "PATCH /api/v1/views/:id": {
+    access: "leads.view",
+    path: () => "/api/v1/views/0190e0c0-0000-7000-8000-00000000abcd",
+    body: () => ({ color: "ok" }),
+  },
+  "DELETE /api/v1/views/:id": {
+    access: "leads.view",
+    path: () => "/api/v1/views/0190e0c0-0000-7000-8000-00000000abcd",
+  },
+  "POST /api/v1/views/:id/restore": {
+    access: "leads.view",
+    path: () => "/api/v1/views/0190e0c0-0000-7000-8000-00000000abcd/restore",
+  },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "PUT /api/v1/settings/follow-ups": {
     access: "settings.manage",

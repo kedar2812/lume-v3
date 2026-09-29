@@ -110,6 +110,27 @@ describe("first-run setup (report §15.3)", () => {
       "Won",
       "Lost",
     ]);
+    // 4B: four starter views, the owner's, shared with every role made at setup.
+    const c2 = await h.pool.connect();
+    let views: { name: string; n: number }[] = [];
+    try {
+      await c2.query("BEGIN");
+      await c2.query("SELECT set_config('lume.user_id', (SELECT id::text FROM users WHERE is_owner), true)");
+      views = (
+        await c2.query(
+          "SELECT name::text AS name, cardinality(shared_role_ids) AS n FROM saved_views ORDER BY position",
+        )
+      ).rows;
+      await c2.query("COMMIT");
+    } finally {
+      c2.release();
+    }
+    expect(views).toEqual([
+      { name: "My overdue", n: 2 },
+      { name: "New today", n: 2 },
+      { name: "No reply 3+ days", n: 2 },
+      { name: "Lost — re-engage", n: 2 },
+    ]);
     const custom = await h.pool.query("SELECT key FROM field_definitions WHERE NOT is_core ORDER BY key");
     expect(custom.rows.map((r) => r.key)).toEqual(["handled_by", "struggles"]);
     // token is burned; a second setup is impossible

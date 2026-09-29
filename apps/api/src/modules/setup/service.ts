@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   DEFAULT_ROLES,
+  STARTER_VIEWS,
   generateRecoveryCodes,
   hashRecoveryCode,
   newId,
@@ -90,6 +91,20 @@ export async function runSetup(req: FastifyRequest, reply: FastifyReply, d: AppD
     .insert(schema.recoveryCodes)
     .values(codes.map((c) => ({ id: newId(), userId: ownerId, codeHash: hashRecoveryCode(c) })));
   await seedConfiguration(req.db, input.preset);
+  // The starter views (4B), as the owner: row-level security holds for the seed as for everything.
+  await req.db.execute(sql`SELECT set_config('lume.user_id', ${ownerId}, true)`);
+  const roleIds = (await req.db.select({ id: schema.roles.id }).from(schema.roles)).map((r) => r.id);
+  await req.db.insert(schema.savedViews).values(
+    STARTER_VIEWS.map((v, i) => ({
+      id: newId(),
+      name: v.name,
+      color: v.color,
+      filters: v.filters,
+      ownerId,
+      sharedRoleIds: roleIds,
+      position: i,
+    })),
+  );
   const s = await createSession(req.db, {
     userId: ownerId,
     stage: "full",

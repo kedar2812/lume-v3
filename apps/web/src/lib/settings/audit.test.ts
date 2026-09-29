@@ -69,6 +69,10 @@ const WRITTEN = [
   "template.archived",
   "template.reordered",
   "template.restored",
+  "view.created",
+  "view.updated",
+  "view.deleted",
+  "view.restored",
   "settings.follow_ups",
   "tag.created",
   "tag.deleted",
@@ -99,6 +103,23 @@ const WRITTEN = [
 ];
 
 describe("auditPhrase", () => {
+  it("4B: says what happened to a saved view", () => {
+    const say = (action: string, diff: Record<string, unknown>) =>
+      auditPhrase(entry(action, { entityType: "view", diff }), people);
+    expect(say("view.created", { name: "No reply 3+ days" })).toBe(
+      "Riya Sharma saved the view “No reply 3+ days”",
+    );
+    expect(say("view.updated", { name: "No reply 3+ days" })).toBe(
+      "Riya Sharma changed the view “No reply 3+ days”",
+    );
+    expect(say("view.deleted", { name: "No reply 3+ days" })).toBe(
+      "Riya Sharma deleted the view “No reply 3+ days”",
+    );
+    expect(say("view.restored", { name: "No reply 3+ days" })).toBe(
+      "Riya Sharma put back the view “No reply 3+ days”",
+    );
+  });
+
   it("4A: says what happened to a template, and when its words changed", () => {
     const say = (action: string, diff: Record<string, unknown>) =>
       auditPhrase(entry(action, { entityType: "template", diff }), people);
