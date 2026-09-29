@@ -833,6 +833,31 @@ Plan: `docs/superpowers/plans/2026-09-29-phase-4a-templates-sending.md`. Spec: `
 - The live run found the Sent prompt still offering Undo after They replied had moved the lead on (it would have sent the lead back past the reply): Undo now leaves once the lead is somewhere else.
 - CI's e2e had been red since Task 4 (the Pipeline screenshot moved when leads.spec's confirmed send started moving Sara Nasser on); caught at Task 8 and the baselines reviewed and updated then. Lesson recorded: read CI after every push, not at the end.
 
+## Final review (fresh reviewer, whole branch)
+
+No Critical findings. Seven Important, and three Minor ones re-graded Important by their effect, all fixed with a failing test first (c148f3a):
+- **A double-tap on "Yes, sent" logged the send twice.** The lead is locked while an answer is taken, and the prompt takes one answer per question.
+- **R with the send sheet open logged a reply**, and a held R repeated. The drawer's keys wait while a sheet or menu is open; the reply button rests a moment after each tap.
+- **A refused move said "Fill these in before moving to this stage".** It now says "It stays in New: Message sent needs Goal".
+- **A move to a stage later archived or turned Lost failed on every send.** Such moves are cleared, and Lost can't be a move.
+- **Undo re-ran stage automations.** Undo is offered only when neither stage has automations.
+- **A failed confirm showed a tick and chimed.** The tick and the sound now wait for the server.
+- **The template editor didn't take or return focus.** It does, and keeps Tab inside.
+- Re-graded: Esc discarded unsaved template words (it asks first now); Preview as couldn't be used by keyboard; the Sent question wasn't announced to screen readers.
+
+Deferred minors:
+- the render context returns lead and owner names even when a role can't see those core fields;
+- confirm and prepare accept a follow-up id from another lead;
+- two creates or restores with the same name at once give a 500 instead of 409;
+- reorder: a failure doesn't put the order back; a template added meanwhile shows "List every template exactly once"; two reorders at once interleave;
+- `confirmMessage` in `messages.ts` is dead code;
+- money renders "INR 5,000" rather than Intl's local form;
+- the send sheet's list doesn't scroll the active template into view (no Home/End either);
+- the send sheet closes without an exit animation; the editor under Reduce Motion uses a spring on opacity instead of a 150 ms cross-fade;
+- the reply toast's Undo has no stale-Undo guard.
+
+Left as they were (inherited from before 4A): "Sent?" is lost if the drawer steps with J/K or the notification centre closes while WhatsApp is open, and returning from WhatsApp is detected by window focus alone (may miss on mobile). 4C's send queue is the place to revisit both.
+
 ## Live (2026-09-29, the dev stack through Caddy's TLS, on a fresh install)
 
 The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 4A → 3A → 3B`, on a reset stack, all passing:
