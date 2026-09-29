@@ -16,7 +16,7 @@ export async function prepareMessage(
   req: FastifyRequest,
   id: string,
   text: string,
-  from: { templateVersionId?: string; taskId?: string } = {},
+  from: { templateVersionId?: string; taskId?: string; queueId?: string } = {},
 ) {
   const lead = await visibleLead(req, id);
   if (!canOnRecord(req.actor!, "messages.send", lead.ownerId)) throw forbidden();
@@ -36,6 +36,8 @@ export async function prepareMessage(
     channel: clickToSend.name,
     ...(from.templateVersionId ? { templateVersionId: from.templateVersionId } : {}),
     ...(from.taskId ? { taskId: from.taskId } : {}),
+    // A queued send (4C): its run, so the daily cap counts it.
+    ...(from.queueId ? { queueId: from.queueId } : {}),
   });
   // A message is contact: the lead isn't gone quiet (3C final review, Important 3).
   await req.db.update(schema.leads).set({ lastActivityAt: new Date() }).where(eq(schema.leads.id, id));

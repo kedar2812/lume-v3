@@ -94,6 +94,42 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.view",
     path: () => "/api/v1/views/0190e0c0-0000-7000-8000-00000000abcd/restore",
   },
+  // 4C: the send queue is a person's own run (row-level security); items re-check each lead.
+  "POST /api/v1/queues": { access: "messages.send_queue", body: (f) => ({ leadIds: [f.leadId] }) },
+  "GET /api/v1/queues/current": { access: "messages.send_queue" },
+  "GET /api/v1/queues/:id": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd",
+  },
+  "POST /api/v1/queues/:id/items/:pos/prepare": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/prepare",
+    body: () => ({ text: "Hi" }),
+  },
+  "POST /api/v1/queues/:id/items/:pos/sent": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/sent",
+  },
+  "POST /api/v1/queues/:id/items/:pos/not-sent": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/not-sent",
+  },
+  "POST /api/v1/queues/:id/items/:pos/skip": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/skip",
+  },
+  "POST /api/v1/queues/:id/pause": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/pause",
+  },
+  "POST /api/v1/queues/:id/resume": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/resume",
+  },
+  "POST /api/v1/queues/:id/cancel": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/cancel",
+  },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "GET /api/v1/settings/messaging": { access: "settings.manage" },
   "PUT /api/v1/settings/messaging": { access: "settings.manage", body: () => ({ queueSize: 50 }) },

@@ -56,6 +56,8 @@ async function visible(req: FastifyRequest): Promise<Row[]> {
   // Row-level security decides which views these are: the caller's own, and those shared with them.
   return req.db.select().from(V).where(isNull(V.deletedAt)).orderBy(desc(V.createdAt));
 }
+/** A view the caller sees (their own, or shared with them), for a send queue to plan from (4C). */
+export const viewById = (req: FastifyRequest, id: string) => one(req, id);
 async function one(req: FastifyRequest, id: string, withDeleted = false): Promise<Row> {
   const [r] = await req.db
     .select()
@@ -216,7 +218,7 @@ export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<
 }
 
 /** Filters that name something no longer there: the view can't be counted as it was meant. */
-async function stale(req: FastifyRequest, q: FilterQuery): Promise<boolean> {
+export async function stale(req: FastifyRequest, q: FilterQuery): Promise<boolean> {
   const live = async (table: string, id: string, extra = "") =>
     (
       await req.db.execute(

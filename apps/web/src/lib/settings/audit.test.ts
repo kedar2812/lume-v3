@@ -75,6 +75,10 @@ const WRITTEN = [
   "view.restored",
   "settings.follow_ups",
   "settings.messaging",
+  "queue.started",
+  "queue.paused",
+  "queue.resumed",
+  "queue.cancelled",
   "tag.created",
   "tag.deleted",
   "tag.updated",
@@ -147,6 +151,20 @@ describe("auditPhrase", () => {
     expect(say({ queueSize: 40, dailyCap: 120 })).toBe(
       "Riya Sharma set send queues to 40 leads a run, and the daily limit to 120 queued messages a person",
     );
+  });
+
+  it("4C: a send queue started, paused, resumed and ended", () => {
+    const say = (action: string, diff: Record<string, unknown>) =>
+      auditPhrase(entry(action, { entityType: "send_queue", diff }), people);
+    expect(say("queue.started", { source: "No reply 3+ days", leads: 12 })).toBe(
+      "Riya Sharma started a send queue of 12 leads from “No reply 3+ days”",
+    );
+    expect(say("queue.started", { source: "Your selection", leads: 1 })).toBe(
+      "Riya Sharma started a send queue of 1 lead from “Your selection”",
+    );
+    expect(say("queue.paused", {})).toBe("Riya Sharma paused a send queue");
+    expect(say("queue.resumed", {})).toBe("Riya Sharma resumed a send queue");
+    expect(say("queue.cancelled", { sent: 7 })).toBe("Riya Sharma ended a send queue after 7 messages");
   });
 
   it("3C: says which part of Settings → Follow-ups changed, and a stage's automations", () => {

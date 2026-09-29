@@ -57,7 +57,7 @@ async function assigneeCanSee(d: AppDeps, userId: string, ownerId: string | null
 }
 
 /** The caller's own timezone, else the business's (spec §3 Times). */
-async function timezoneOf(req: FastifyRequest, userId: string): Promise<string> {
+export async function timezoneOf(req: FastifyRequest, userId: string): Promise<string> {
   const { rows } = await req.db.execute<{ tz: string }>(
     sql`SELECT coalesce(u.timezone, s.timezone) AS tz FROM settings s LEFT JOIN users u ON u.id = ${userId} WHERE s.id = 1`,
   );

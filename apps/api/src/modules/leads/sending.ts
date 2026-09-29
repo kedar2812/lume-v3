@@ -200,7 +200,7 @@ export async function confirmSend(
     )
     .limit(1);
   if (answered.length) return { moved: null };
-  const from = (opened.payload ?? {}) as { templateVersionId?: string; taskId?: string };
+  const from = (opened.payload ?? {}) as { templateVersionId?: string; taskId?: string; queueId?: string };
   if (!body.sent) {
     await recordActivity(req, id, "whatsapp_not_sent");
     return { moved: null };
@@ -219,6 +219,7 @@ export async function confirmSend(
   await recordActivity(req, id, "whatsapp_confirmed_sent", {
     ...(from.templateVersionId ? { templateVersionId: from.templateVersionId } : {}),
     ...(used ? { template: used.name } : {}),
+    ...(from.queueId ? { queueId: from.queueId } : {}),
   });
   const now = new Date();
   await req.db

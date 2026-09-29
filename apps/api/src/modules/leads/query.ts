@@ -76,7 +76,7 @@ function cursorWhere(sort: ListQuery["sort"], cursor: string | undefined): SQL |
   }
 }
 
-const orderBy = (sort: ListQuery["sort"]) =>
+export const orderBy = (sort: ListQuery["sort"]) =>
   sort === "newest"
     ? [desc(L.id)]
     : sort === "oldest"

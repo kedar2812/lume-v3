@@ -15,6 +15,7 @@ import { auditRoutes } from "./modules/audit/routes";
 import { catalogRoutes } from "./modules/catalog/routes";
 import { fieldRoutes } from "./modules/fields/routes";
 import { leadRoutes } from "./modules/leads/routes";
+import { queueRoutes } from "./modules/queues/routes";
 import { importRoutes } from "./modules/imports/routes";
 import { sheetRoutes } from "./modules/sheets/routes";
 import type { GoogleSheets } from "./modules/sheets/google";
@@ -161,6 +162,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(healthRoutes, deps);
         await scope.register(templateRoutes);
         await scope.register(viewRoutes);
+        await scope.register(queueRoutes, deps);
         await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);
         deps.extraRoutes?.(scope);

@@ -50,6 +50,19 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
   "integration.enabled": { area: "Settings", phrase: (d) => `switched on ${moduleName(d.module)}` },
   "integration.disabled": { area: "Settings", phrase: (d) => `switched off ${moduleName(d.module)}` },
+  // The send queue (4C): a person's run through a list of leads.
+  "queue.started": {
+    area: "Leads",
+    phrase: (d) =>
+      `started a send queue of ${Number(d.leads ?? 0)} ${Number(d.leads) === 1 ? "lead" : "leads"} from “${String(d.source ?? "")}”`,
+  },
+  "queue.paused": { area: "Leads", phrase: "paused a send queue" },
+  "queue.resumed": { area: "Leads", phrase: "resumed a send queue" },
+  "queue.cancelled": {
+    area: "Leads",
+    phrase: (d) =>
+      `ended a send queue after ${Number(d.sent ?? 0)} ${Number(d.sent) === 1 ? "message" : "messages"}`,
+  },
   // Settings → Messages (4C): the run size and the daily cap, each on its own.
   "settings.messaging": {
     area: "Settings",
