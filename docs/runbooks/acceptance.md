@@ -783,6 +783,18 @@ Plan: `docs/superpowers/plans/2026-09-28-phase-3c-automations-health.md`. Spec: 
 - CI ran each package's tests with vitest's 5 s default: the 600-lead test timed out there, and the run it left holding the lock failed the next test. It now seeds in one statement.
 - Formatted files copied back from the build box once overwrote a real change (the audit log's words) with an older copy left by a stash check. Restored, and the build notes now say when copying back is safe.
 
+## Final review (fresh reviewer)
+
+No Critical findings. Six Important ones, all fixed with a failing test first:
+- **A rule that failed unexpectedly could fail the stage move**, or a whole bulk move. Each rule now runs in its own savepoint: it's rolled back, the history says LUME couldn't do it, and the move and the next rule go on.
+- **A bulk move sent one notice per lead.** Notices from rules are gathered per request: "LUME set you 20 follow-ups", "20 leads moved to Contacted", once each.
+- **A lead from a webhook or a sheet never told the person its source runs as**, and its follow-ups had them as author. Intake has no mover now: they hear, and the follow-up has no author.
+- **Two API processes could both send the same admin alert.** Claims are taken under an advisory lock.
+- **"Leads gone quiet" ignored finished follow-ups and WhatsApp.** Both count as contact now.
+- **A rule naming someone no longer active trapped the admin.** They show as "(no longer active)" and can be taken out, and the refusal names them and the automation.
+
+Also fixed: clearing with nothing open writes nothing; "morning emails aren't going out" needs more than one person failing, or none sent; unreadable background jobs are a problem, not zeros; Settings → Follow-ups saves can't overwrite each other. The deferred minors are in the plan ledger.
+
 ## Live (2026-09-29, the dev stack through Caddy's TLS, on a fresh install)
 
 The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 3A → 3B` (with 3B's and 3A's checks after an API restart), on a reset stack:

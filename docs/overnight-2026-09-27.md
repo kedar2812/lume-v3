@@ -1,4 +1,4 @@
-# Overnight build — 27→28 September 2026
+# Overnight build — 27→29 September 2026
 
 You approved this before bed: finish phase 2, then phase 3, deciding things myself and recording each decision for you to review. This page is that record. It is updated as work lands.
 
@@ -10,8 +10,11 @@ You approved this before bed: finish phase 2, then phase 3, deciding things myse
 | **2A: CSV import** | ✅ Now **fully** accepted live, including the steps that were waiting. |
 | **2B-2: Connect with Google** (behind its switch) | ✅ Built, reviewed and fixed. It stays invisible until you set up the relay (`docs/runbooks/connect-with-google.md`). |
 | **2C: Webhooks** (Website form, Zapier, Make; ManyChat hidden until verified) | ✅ Built, reviewed and fixed (1 Critical and 7 Important findings). Accepted live through Caddy. |
-| **Phase 3A: follow-ups and the engine** | 🟡 Tasks 1–7 of 8 built and committed; the end-to-end test and the live restart test are running. The fresh review comes next. |
-| Phase 3B (notification centre, escalation, email digest), 3C (stage automations, working hours, System health) | Spec written (`docs/superpowers/specs/2026-09-28-phase-3-follow-ups-design.md`); plans next |
+| **Phase 3A: follow-ups and the engine** | ✅ Built, reviewed (2 Critical, 6 Important, all fixed) and accepted live, including a reminder surviving an API restart. |
+| **Phase 3B: notification centre, escalation, morning email** | ✅ Built, reviewed (8 Important, all fixed) and accepted live through Mailpit. |
+| **Phase 3C: stage automations, leads gone quiet, working hours, time choices, System health** | ✅ Built, reviewed (6 Important, all fixed) and accepted live on a fresh install (29 Sep). |
+
+**Phase 3 is done.** The whole live chain (1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 3A → 3B) passes on a reset stack, except 2B-1's two steps that need a real Google key.
 
 ## What you can try
 
@@ -50,6 +53,29 @@ New rows slide in and glow for 5 seconds. Whatever arrived since your last visit
 - Reminders fire on the minute, in each person's own timezone (DST included), exactly once. A sweeper catches anything a restart or crash missed.
 - The **bell** gets a live dot when one arrives. It's silent, per the sound policy.
 
+**The notification centre** (Phase 3B): the bell, or **.** anywhere.
+- It groups Overdue, Due now, Later today and Updates, with filters (All, Needs you, Updates).
+- Each row has its action: Done and Snooze on a follow-up, Open on a lead, Remind them on an escalation, Open System health on an alert.
+- Keys: J/K move, E done, S snooze, Enter opens the lead (and steps the centre aside), F full screen, Esc back.
+- The window title says "(3) LUME" while three are unread.
+
+**Escalation and the morning email** (Settings → Follow-ups, and My account → Notifications):
+- A follow-up left overdue past N hours (24 by default) reaches the people who manage its assignee, once.
+- Each person gets a morning email of their day ahead, at the time they choose, on their working days. It carries first names and times only; phone numbers and emails are taken out of titles. It can be switched off for everyone.
+
+**Stages that act** (Settings → Pipeline & stages → **Does** on a stage):
+- Up to five automations per stage, each written as a sentence while you shape it: set a follow-up for the lead's owner (or someone) in N hours or days; clear open follow-ups; tell someone.
+- They run when a lead moves there, is added there, or arrives there from a webhook or a sheet. CSV imports don't run them.
+- A new install's Won and Lost clear open follow-ups. Your existing install doesn't change until you set it.
+- The lead's history says what LUME did, or why it couldn't.
+
+**Settings → Follow-ups** also has:
+- **Leads gone quiet** (off by default): a lead nobody has touched for N days comes back to its owner as a follow-up.
+- **Working hours**: follow-ups LUME sets itself wait for the next working hour. The hours live in **Settings → Business → Working hours**.
+- **Time choices**: the chips in the follow-up sheet. Rename, reorder, remove, and set when each lands ("in 30 minutes", "tomorrow at 10:00", "next Monday at 10:00").
+
+**Settings → System health**: one look says whether every reminder, email and sync is running. When something isn't, admins hear about it once a business day, in the app and by email.
+
 ## What I need from you
 
 1. **A Google service account**, to try Sheets for real:
@@ -61,7 +87,7 @@ New rows slide in and glow for 5 seconds. Whatever arrived since your last visit
 2. **Connect with Google** (optional): the Google Cloud and relay steps in `docs/runbooks/connect-with-google.md`.
 3. **Official marks for Zapier, Make and ManyChat**, as unmodified files in `apps/web/public/brand/`. I didn't download them while you were away. Until then the presets show their names on a neutral tile (`public/brand/README.md` lists them).
 4. **To verify ManyChat**: a ManyChat Pro account. The preset is built, and hidden behind `LUME_MANYCHAT_PRESET=on`.
-5. **Your dev demo account was replaced.** The acceptance runs reset the dev DB, as you'd OK'd. The fresh setup token will be in my message to you, not in the repo.
+5. **The dev DB was reset again on 29 Sep** for the live chain, as you OK'd. It now holds the acceptance workspace (fictional Brightpath Studio). To set up your own: `scripts/dev.sh reset-db`, then the setup token is in `scripts/dev.sh logs api`.
 
 ## Decisions I made for you (2B-1)
 
@@ -179,3 +205,62 @@ All are in the plan ledgers (`.superpowers/sdd/*/progress.md`, `Ruling:` lines) 
   - Rotate and Remove failures show nothing in their dialogs.
 - A backdrop click closes the secret step before the secret is copied (it's recoverable with New secret).
 - There's no audit entry for creating a webhook or retrying a post.
+
+## Decisions I made for you (3B, 3C)
+
+All are in the plan ledgers (`.superpowers/sdd/2026-09-28-phase-3b-*/progress.md` and `…-phase-3c-*/progress.md`, `Ruling:` lines). The ones you'd notice:
+
+- **3B: the morning email.**
+  - It keeps a follow-up's title but takes phone numbers and emails out of it.
+  - It can be switched off for everyone (Settings → Follow-ups → Morning emails). With no mail server it isn't attempted.
+  - The day is claimed before sending: nothing is ever sent twice, but a crash between claim and send loses that day's email.
+- **3B: escalation.** Switching it on starts from now, so long-overdue follow-ups don't flood managers. "Remind them" can't be muted by the person reminded.
+- **3C: stage rules.**
+  - They run inside the move, as its mover. The admin who set the rule decides who gets the follow-up, whatever the mover's own role allows.
+  - When the named person can't take a follow-up, it goes to the lead's owner. With no owner, nothing, and the history says why.
+  - Webhooks and a sheet's later syncs run them; CSV imports and a sheet's first sync don't.
+  - Notices are gathered per request ("LUME set you 20 follow-ups").
+- **3C: the rest.**
+  - Working hours are the business's, not each person's.
+  - "Leads gone quiet" is off by default (7 days when on). Finishing a follow-up or opening WhatsApp counts as contact.
+  - System health's "morning emails aren't going out" needs more than one person failing, or nothing sent in a day.
+
+## Found and fixed (Phase 3)
+
+- **3A review:** a moved follow-up fired at its old time; backups held no follow-ups or notifications; the live stream lost or stopped notifications in five ways; Today said All clear too early.
+- **3B review:**
+  - two digest runs could both send;
+  - a done follow-up's reminder stayed unread;
+  - the centre covered the lead it opened and took the drawer's keys;
+  - J/K could act on the wrong row;
+  - titles could carry contacts into the email;
+  - one bad account stopped everyone's digest;
+  - there was no switch to turn the digest off.
+- **3C review:**
+  - a failing rule could fail the move (each rule now has its own savepoint);
+  - a bulk move sent a notice per lead;
+  - webhook leads never told the person the webhook runs as;
+  - two API processes could both alert admins;
+  - "leads gone quiet" ignored finished follow-ups and WhatsApp;
+  - a rule naming someone no longer active trapped the admin.
+- **Along the way:**
+  - CI timeouts from tests that seeded hundreds of rows one at a time;
+  - formatting that only existed on the build box;
+  - a link that failed contrast;
+  - two Settings pages whose panels sat outside their column;
+  - the build box's toolbox image, pruned overnight and rebuilt.
+
+## Deferred (small; your call)
+
+**3B:**
+- The digest has no per-item links, and new assignments are a count only.
+- New arrivals in the centre have no highlight fade.
+- A digest time in the last quarter hour of a day can be skipped.
+- A delayed digest still says "Good morning".
+
+**3C:**
+- Reminders for follow-ups a webhook or sheet made wait for the sweeper (up to about 90 s).
+- "Reminders late — restart the API" can fire right after a long outage's restart.
+- Switching "leads gone quiet" on works through an old backlog at 500 an hour.
+- History lines give a follow-up's time in the browser's zone rather than yours (this predates 3C).
+
