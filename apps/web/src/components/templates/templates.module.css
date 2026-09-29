@@ -577,3 +577,15 @@
   line-height: 1.45;
   vertical-align: baseline;
 }
+
+/* Unsaved words and a close: the question sits where Save was, so the hand is already there. */
+.discard {
+  background: var(--warn-soft);
+}
+.discardText {
+  margin-right: auto;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--warn-ink);
+}

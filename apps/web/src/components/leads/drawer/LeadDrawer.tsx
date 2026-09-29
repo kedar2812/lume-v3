@@ -184,6 +184,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     const onKey = (e: KeyboardEvent) => {
       // In a field, Escape belongs to the field (it cancels an edit), and letters are just typing.
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || asking || typingIn(e.target)) return;
+      // A held key never repeats an action, and an open sheet or menu keeps its keys (4A review).
+      if (e.repeat || panel.current?.querySelector('[aria-haspopup][aria-expanded="true"]')) return;
       if (e.key === "Escape") {
         e.preventDefault();
         return onClose();
@@ -262,8 +264,12 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   };
 
   /** They replied (report §11.2 step 6): one tap, then whatever the stage does after a reply, undoable. */
+  // One reply per tap: the button rests for a moment after each, so a double-tap logs it once.
+  const [replying, setReplying] = useState(false);
   const replied = async () => {
-    if (!lead) return;
+    if (!lead || replying) return;
+    setReplying(true);
+    setTimeout(() => setReplying(false), 2000);
     const r = await leadsClient.replied(lead.id);
     if (!r.ok) return toast({ tone: "danger", title: "The reply wasn’t logged", detail: r.message });
     sound.play("sent");
@@ -272,7 +278,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
       tone: "ok",
       title: m ? `They replied · Moved to ${m.stageName}` : "They replied",
       ...(r.data.notMoved ? { detail: r.data.notMoved.message } : {}),
-      ...(m ? { action: { label: "Undo", onClick: () => void moveBack(m.fromStageId) } } : {}),
+      ...(m?.undoable ? { action: { label: "Undo", onClick: () => void moveBack(m.fromStageId) } } : {}),
     });
     void refresh();
   };
@@ -605,6 +611,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         data-replied
                         aria-keyshortcuts="R"
                         title="They replied (R)"
+                        disabled={replying}
                         onClick={() => void replied()}
                       >
                         They replied

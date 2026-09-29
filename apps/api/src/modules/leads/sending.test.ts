@@ -172,6 +172,8 @@ describe("sending (4A Task 4)", () => {
       const lead = await h.seedLead({ ownerId: repId, name: "Needs A Goal", phone: NUMBER });
       const r = await sendAndConfirm(rep, lead);
       expect(r.json()).toMatchObject({ moved: null, notMoved: { code: "REQUIRED_FIELDS" } });
+      // In LUME's words: where it stays, and what the stage needs (4A review, Important 3).
+      expect(r.json().notMoved.message).toBe("It stays in New: Message sent needs Goal");
       expect(await stageOf(lead)).toBe(cfg.stages["New"]);
       expect(await activities(lead, "whatsapp_confirmed_sent")).toHaveLength(1);
     } finally {
@@ -179,6 +181,54 @@ describe("sending (4A Task 4)", () => {
         method: "PATCH",
         url: `/api/v1/stages/${cfg.stages["Message sent"]}`,
         payload: { requiredFieldIds: [] },
+      });
+    }
+  });
+
+  it("4A review, Important 3: someone who may send but not move a lead hears why it stayed", async () => {
+    const u = await h.seedUser({
+      grants: [
+        ...(["leads.view", "messages.send"] as const).map((key) => ({ key, scope: "own" as const })),
+        { key: "templates.use", scope: null },
+      ],
+      totp: true,
+    });
+    const sender = await h.signIn(u);
+    const lead = await h.seedLead({ ownerId: u.id, name: "Stays Put", phone: NUMBER });
+    const r = await sendAndConfirm(sender, lead);
+    expect(r.json().notMoved.message).toBe("It stays in New: moving leads on isn't part of your role");
+  });
+
+  it("4A review, Important 1: two answers at once (a double-tap) log the send once and move it once", async () => {
+    const lead = await h.seedLead({ ownerId: repId, name: "Double Tap", phone: NUMBER });
+    expect((await post(rep, `/api/v1/leads/${lead}/messages/prepare`, { text: "Hi" })).statusCode).toBe(200);
+    const both = await Promise.all([
+      post(rep, `/api/v1/leads/${lead}/messages/confirm`, { sent: true }),
+      post(rep, `/api/v1/leads/${lead}/messages/confirm`, { sent: true }),
+    ]);
+    expect(both.map((r) => r.statusCode)).toEqual([200, 200]);
+    expect(await activities(lead, "whatsapp_confirmed_sent")).toHaveLength(1);
+    expect(both.filter((r) => r.json().moved).length).toBe(1);
+  });
+
+  it("4A review, Important 5: Undo is offered only when moving back undoes it — no stage automations either side", async () => {
+    const plain = await h.seedLead({ ownerId: repId, name: "Plain Move", phone: NUMBER });
+    expect((await sendAndConfirm(rep, plain)).json().moved).toMatchObject({ undoable: true });
+    await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/stages/${cfg.stages["Message sent"]}`,
+      payload: {
+        onEnter: { rules: [{ id: "0192f0a0-0000-7000-8000-00000000f001", type: "cancel_open_tasks" }] },
+      },
+    });
+    try {
+      const ruled = await h.seedLead({ ownerId: repId, name: "Ruled Move", phone: NUMBER });
+      expect((await sendAndConfirm(rep, ruled)).json().moved).toMatchObject({ undoable: false });
+    } finally {
+      await admin.inject({
+        method: "PATCH",
+        url: `/api/v1/stages/${cfg.stages["Message sent"]}`,
+        payload: { onEnter: { rules: [] } },
       });
     }
   });

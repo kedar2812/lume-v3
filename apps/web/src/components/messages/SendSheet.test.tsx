@@ -183,7 +183,7 @@ describe("the Sent prompt (4A Task 6)", () => {
 
   it("Yes, sent: the sound, the move it made, and Undo moves it back", async () => {
     vi.mocked(leadsClient.confirmMessage).mockResolvedValue(
-      ok({ moved: { stageId: "s2", stageName: "Message sent", fromStageId: "s1" } }) as never,
+      ok({ moved: { stageId: "s2", stageName: "Message sent", fromStageId: "s1", undoable: true } }) as never,
     );
     vi.mocked(leadsClient.move).mockResolvedValue(ok({ lead: {} }) as never);
     const { prompt, onChange } = await sendAndReturn({ taskId: "task-1" });
@@ -199,7 +199,7 @@ describe("the Sent prompt (4A Task 6)", () => {
 
   it("once the lead moves on again (a reply, a drag), the send's Undo goes: it would undo the wrong move", async () => {
     vi.mocked(leadsClient.confirmMessage).mockResolvedValue(
-      ok({ moved: { stageId: "s2", stageName: "Message sent", fromStageId: "s1" } }) as never,
+      ok({ moved: { stageId: "s2", stageName: "Message sent", fromStageId: "s1", undoable: true } }) as never,
     );
     tab();
     const onChange = vi.fn();
@@ -216,6 +216,51 @@ describe("the Sent prompt (4A Task 6)", () => {
     expect(within(status).getByRole("button", { name: "Undo" })).toBeInTheDocument();
     rerender(<SendSheet lead={LEAD} stageId="s3" onChange={onChange} />); // moved on since
     await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument());
+  });
+
+  it("4A review: a double-tap answers once", async () => {
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(ok({ moved: null }) as never);
+    const { prompt } = await sendAndReturn();
+    await userEvent.dblClick(within(prompt).getByRole("button", { name: "Yes, sent" }));
+    await screen.findByRole("status");
+    expect(leadsClient.confirmMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("4A review: a confirm that fails shows no tick and no chime, says why, and doesn't end the follow-up", async () => {
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue({
+      ok: false,
+      status: 0,
+      code: "NETWORK",
+      message: "LUME couldn't reach the server. Try again.",
+    } as never);
+    const { prompt, onSettled } = await sendAndReturn({ taskId: "task-1" });
+    await userEvent.click(within(prompt).getByRole("button", { name: "Yes, sent" }));
+    const status = await screen.findByRole("status");
+    await vi.waitFor(() => expect(status).toHaveTextContent("LUME couldn't reach the server. Try again."));
+    expect(status.querySelector("[data-tick]")).toBeNull();
+    expect(play).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(onSettled).toHaveBeenCalledWith(false), { timeout: 8000 });
+    expect(onSettled).not.toHaveBeenCalledWith(true);
+  }, 10_000);
+
+  it("4A review: no Undo when moving back wouldn't undo it (a stage with automations)", async () => {
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(
+      ok({
+        moved: { stageId: "s2", stageName: "Message sent", fromStageId: "s1", undoable: false },
+      }) as never,
+    );
+    const { prompt } = await sendAndReturn();
+    await userEvent.click(within(prompt).getByRole("button", { name: "Yes, sent" }));
+    const status = await screen.findByRole("status");
+    await vi.waitFor(() => expect(status).toHaveTextContent("Moved to Message sent"));
+    expect(within(status).queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+  });
+
+  it("4A review: coming back, the question is said aloud for a screen reader", async () => {
+    await sendAndReturn();
+    expect(document.querySelector("[aria-live='polite']")).toHaveTextContent(
+      "Back from WhatsApp. Was the message sent?",
+    );
   });
 
   it("a move the stage refused says why, in LUME's words, and the send still counts", async () => {

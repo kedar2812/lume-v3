@@ -14,7 +14,13 @@ import { moveStage } from "./write";
 const CONTACT = new Set(["phone", "email", "url", "instagram"]);
 export type MoveResult = {
   /** Where it went, and where it was, so the answer can offer to move it back. */
-  moved: { stageId: string; stageName: string; fromStageId: string } | null;
+  moved: {
+    stageId: string;
+    stageName: string;
+    fromStageId: string;
+    /** Moving back undoes it: neither stage runs automations a move back would repeat or leave behind. */
+    undoable: boolean;
+  } | null;
   notMoved?: { code: string; message: string };
 };
 
@@ -107,21 +113,50 @@ export async function assertVersion(req: FastifyRequest, versionId: string) {
  */
 async function applyMove(req: FastifyRequest, lead: LeadRow, to: string | null): Promise<MoveResult> {
   if (!to || to === lead.stageId) return { moved: null };
+  const both = await req.db
+    .select({ id: schema.stages.id, name: schema.stages.name, onEnter: schema.stages.onEnter })
+    .from(schema.stages)
+    .where(inArray(schema.stages.id, [lead.stageId, to]));
+  const from = both.find((s) => s.id === lead.stageId);
+  const target = both.find((s) => s.id === to);
+  const rules = (s: typeof target) => ((s?.onEnter as { rules?: unknown[] } | null)?.rules ?? []).length;
   await req.db.execute(sql`SAVEPOINT lume_after_move`);
   try {
     await moveStage(req, lead, { stageId: to });
     await req.db.execute(sql`RELEASE SAVEPOINT lume_after_move`);
-    const [s] = await req.db
-      .select({ name: schema.stages.name })
-      .from(schema.stages)
-      .where(eq(schema.stages.id, to));
-    return { moved: { stageId: to, stageName: s?.name ?? "", fromStageId: lead.stageId } };
+    return {
+      moved: {
+        stageId: to,
+        stageName: target?.name ?? "",
+        fromStageId: lead.stageId,
+        undoable: rules(from) === 0 && rules(target) === 0,
+      },
+    };
   } catch (err) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_after_move`);
     await req.db.execute(sql`RELEASE SAVEPOINT lume_after_move`);
     if (!(err instanceof HttpError)) throw err;
-    return { moved: null, notMoved: { code: err.code, message: err.message } };
+    return { moved: null, notMoved: { code: err.code, message: await whyItStayed(req, err, from, target) } };
   }
+}
+
+/** A refused move in LUME's words: where the lead stays, and why (4A review, Important 3). */
+async function whyItStayed(
+  req: FastifyRequest,
+  err: HttpError,
+  from: { name: string } | undefined,
+  to: { name: string } | undefined,
+): Promise<string> {
+  const stays = `It stays in ${from?.name ?? "its stage"}`;
+  if (err.code === "REQUIRED_FIELDS") {
+    const keys = (err.details as { fields?: string[] } | undefined)?.fields ?? [];
+    const registry = await loadFieldRegistry(req);
+    const labels = keys.map((k) => registry.defs.find((f) => f.key === k)?.label ?? k);
+    const list = labels.length > 1 ? `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}` : labels[0];
+    return `${stays}: ${to?.name ?? "the next stage"} needs ${list ?? "more details"}`;
+  }
+  if (err.status === 403) return `${stays}: moving leads on isn't part of your role`;
+  return `${stays}: ${err.message}`;
 }
 async function stageMoveOf(req: FastifyRequest, lead: LeadRow, which: "sent" | "reply") {
   const [s] = await req.db
@@ -142,6 +177,8 @@ export async function confirmSend(
   body: { sent: boolean; taskId?: string },
 ): Promise<MoveResult> {
   const lead = await sendable(req, id);
+  // One answer at a time per lead: a double-tap's second answer waits, then finds the first (Important 1).
+  await req.db.execute(sql`SELECT 1 FROM leads WHERE id = ${id} FOR UPDATE`);
   const A = schema.activities;
   const [opened] = await req.db
     .select({ id: A.id, payload: A.payload })

@@ -6,7 +6,8 @@ import type { Activity, BulkAction, BulkResult, Duplicate, Lead, LeadPage } from
 export const PAGE_SIZE = 50;
 /** What a Sent or a reply did to the stage (4A): moved (and from where), or why it couldn't. */
 export type MoveResult = {
-  moved: { stageId: string; stageName: string; fromStageId: string } | null;
+  /** undoable: moving back undoes it (neither stage runs automations a move back would repeat). */
+  moved: { stageId: string; stageName: string; fromStageId: string; undoable: boolean } | null;
   notMoved?: { code: string; message: string };
 };
 const enc = encodeURIComponent;

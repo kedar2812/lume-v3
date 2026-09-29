@@ -156,10 +156,9 @@ describe("templates and stage moves for new installs (4A Task 2)", () => {
         WHERE s.archived_at IS NULL AND (s.after_sent_stage_id IS NOT NULL OR s.after_reply_stage_id IS NOT NULL)
         ORDER BY s.position`,
     );
-    expect(moves).toEqual([
-      { name: "New", sent: "Message sent", reply: null },
-      { name: "Message sent", sent: null, reply: "Replied" },
-    ]);
+    // The preset's other move (Message sent → Replied after a reply) went when a test above archived
+    // Replied: a stage that's gone is no longer anyone's move (4A review, Important 4).
+    expect(moves).toEqual([{ name: "New", sent: "Message sent", reply: null }]);
   });
 
   it("a stage's moves: a stage of the same pipeline, or none; never another pipeline's", async () => {
@@ -187,5 +186,40 @@ describe("templates and stage moves for new installs (4A Task 2)", () => {
       url: `/api/v1/stages/${b!.id}`,
       payload: { afterSentStageId: null },
     });
+  });
+
+  it("4A review, Important 4: a move never points at Lost, and a stage archived or turned Lost stops being one", async () => {
+    const p = (
+      await admin.inject({ method: "POST", url: "/api/v1/pipelines", payload: { name: "Moves check" } })
+    ).json().pipeline as { id: string; stages: { id: string; kind: string }[] };
+    const add = async (name: string) =>
+      (
+        await admin.inject({
+          method: "POST",
+          url: `/api/v1/pipelines/${p.id}/stages`,
+          payload: { name, kind: "open" },
+        })
+      ).json().stage.id as string;
+    const [from, to, later] = [await add("From here"), await add("To here"), await add("Later lost")];
+    const lost = p.stages.find((s) => s.kind === "lost")!.id;
+    const patch = (id: string, payload: object) =>
+      admin.inject({ method: "PATCH", url: `/api/v1/stages/${id}`, payload });
+
+    const toLost = await patch(from, { afterReplyStageId: lost });
+    expect(toLost.statusCode).toBe(400);
+    expect(toLost.json().error.message).toBe(
+      "A lead can't move to a Lost stage after a message or a reply: Lost needs a reason",
+    );
+
+    expect((await patch(from, { afterSentStageId: to, afterReplyStageId: later })).statusCode).toBe(200);
+    expect(
+      (await admin.inject({ method: "POST", url: `/api/v1/stages/${to}/archive`, payload: {} })).statusCode,
+    ).toBeLessThan(300);
+    expect((await patch(later, { kind: "lost" })).statusCode).toBe(200);
+    const [row] = await h.queryAll<{ sent: string | null; reply: string | null }>(
+      "SELECT after_sent_stage_id AS sent, after_reply_stage_id AS reply FROM stages WHERE id = $1",
+      [from],
+    );
+    expect(row).toEqual({ sent: null, reply: null });
   });
 });

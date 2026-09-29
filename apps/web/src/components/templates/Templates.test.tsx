@@ -145,6 +145,32 @@ describe("the template library (4A Task 5)", () => {
     expect(screen.getByRole("list", { name: "First touch" })).toHaveTextContent("Welcome back");
   });
 
+  it("4A review: the editor takes focus on its Name, keeps Tab inside, and hands focus back when it closes", async () => {
+    library();
+    const opener = screen.getByRole("button", { name: "New template" });
+    await userEvent.click(opener);
+    const sheet = screen.getByRole("dialog", { name: "New template" });
+    await vi.waitFor(() => expect(within(sheet).getByLabelText("Name")).toHaveFocus());
+    await userEvent.tab({ shift: true });
+    expect(sheet.contains(document.activeElement)).toBe(true);
+    await userEvent.keyboard("{Escape}");
+    await vi.waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it("4A review: Esc with unsaved words asks first — Keep editing, or Discard", async () => {
+    library();
+    await userEvent.click(screen.getByRole("button", { name: "New template" }));
+    const sheet = screen.getByRole("dialog", { name: "New template" });
+    await userEvent.type(within(sheet).getByLabelText("Message"), "Half a thought");
+    await userEvent.keyboard("{Escape}");
+    const ask = within(sheet).getByRole("alertdialog", { name: "Discard your changes?" });
+    await userEvent.click(within(ask).getByRole("button", { name: "Keep editing" }));
+    expect(within(sheet).getByLabelText("Message")).toHaveValue("Half a thought");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Discard" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   it("reorder within a group by keyboard: Alt+↓ on the handle", async () => {
     library();
     screen.getByRole("button", { name: "Move Gentle nudge" }).focus();
@@ -261,6 +287,42 @@ describe("the template editor (4A Task 5)", () => {
     await userEvent.type(body(), "!");
     expect(bubble).toHaveTextContent("Hi Aisha, this is Riya.!");
     expect(templatesClient.context).toHaveBeenCalledTimes(1);
+  });
+
+  it("4A review: Preview as by keyboard — ↓ then Enter picks a lead", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue(
+      ok({
+        items: [
+          { id: "l1", name: "Aisha Khan" },
+          { id: "l2", name: "Aisha Duplicate" },
+        ],
+        nextCursor: null,
+        total: 2,
+      }) as never,
+    );
+    vi.mocked(templatesClient.context).mockResolvedValue(
+      ok({
+        lead: { name: "Aisha Duplicate", custom: {} },
+        owner: null,
+        business: { name: "Brightpath Studio", currency: "AED", timezone: "Asia/Dubai" },
+        fields: [],
+        people: [],
+      }) as never,
+    );
+    editor({ template: TEMPLATES[0]! });
+    const box = screen.getByRole("combobox", { name: "Preview as" });
+    await userEvent.type(box, "Ais");
+    await screen.findByRole("option", { name: "Aisha Duplicate" });
+    await userEvent.keyboard("{ArrowDown}");
+    expect(box).toHaveAttribute(
+      "aria-activedescendant",
+      screen.getByRole("option", { name: "Aisha Duplicate" }).id,
+    );
+    await userEvent.keyboard("{Enter}");
+    expect(templatesClient.context).toHaveBeenCalledWith("l2");
+    await vi.waitFor(() =>
+      expect(screen.getByRole("figure", { name: "Preview" })).toHaveTextContent("Hi Aisha,"),
+    );
   });
 
   it("read-only: nothing to change, nothing to save, the preview still works", () => {

@@ -71,12 +71,15 @@ export function SendSheet({
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [flash, setFlash] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // One answer per question: a double-tap's second press finds it answered, however fast the server was.
+  const answered = useRef(false);
 
   // "Sent?" rises the next time LUME has focus again after WhatsApp was opened.
   useEffect(() => {
     if (!away) return;
     const back = () => {
       setAway(false);
+      answered.current = false;
       setAsking(true);
     };
     window.addEventListener("focus", back, { once: true });
@@ -100,21 +103,22 @@ export function SendSheet({
   };
 
   const answer = async (sent: boolean) => {
+    if (answered.current) return;
+    answered.current = true;
     setAsking(false);
-    if (sent) {
-      // Sound, tick and the button's tint on the same frame: the click that caused them.
-      sound.play("sent");
-      setOutcome({});
-      setFlash(true);
-      setTimeout(() => setFlash(false), 900);
-    }
+    if (sent) setOutcome({ pending: true });
     const r = await leadsClient.confirmMessage(lead.id, sent, taskId);
     onChange?.();
     if (!sent) return onSettled?.(false);
     if (!r.ok) {
+      // Not logged: no tick, no chime, and a follow-up it came from stays (its row doesn't leave).
       setOutcome({ failed: r.message });
-      return settle(true, 6000);
+      return settle(false, 6000);
     }
+    // Logged: the sound, the tick and the button's tint together, on the frame LUME knows it.
+    sound.play("sent");
+    setFlash(true);
+    setTimeout(() => setFlash(false), 900);
     const said: Outcome = r.data.moved
       ? { moved: r.data.moved }
       : r.data.notMoved
@@ -141,6 +145,9 @@ export function SendSheet({
       // Asking or answering: a row that shows its actions only on hover keeps them shown (Today).
       data-live={asking || outcome ? true : undefined}
     >
+      <span className={s.srOnly} aria-live="polite">
+        {asking ? "Back from WhatsApp. Was the message sent?" : ""}
+      </span>
       <Popover
         label={`WhatsApp ${lead.name}`}
         size="form"

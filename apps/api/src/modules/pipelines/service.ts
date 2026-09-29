@@ -37,7 +37,7 @@ async function assertMoves(req: FastifyRequest, pipelineId: string, input: Stage
   for (const id of [input.afterSentStageId, input.afterReplyStageId]) {
     if (!id) continue;
     const [t] = await req.db
-      .select({ id: schema.stages.id })
+      .select({ id: schema.stages.id, kind: schema.stages.kind })
       .from(schema.stages)
       .where(
         and(
@@ -47,7 +47,25 @@ async function assertMoves(req: FastifyRequest, pipelineId: string, input: Stage
         ),
       );
     if (!t) throw badRequest("UNKNOWN_STAGE", "Pick a stage in this pipeline");
+    // Lost always asks why; a send or a reply can't answer, so the move would be refused every time.
+    if (t.kind === "lost")
+      throw badRequest(
+        "MOVE_TO_LOST",
+        "A lead can't move to a Lost stage after a message or a reply: Lost needs a reason",
+      );
   }
+}
+
+/** A stage that's gone, or now Lost, is no longer anyone's move after a message or a reply (4A review). */
+async function dropMovesTo(req: FastifyRequest, stageId: string) {
+  await req.db
+    .update(schema.stages)
+    .set({ afterSentStageId: null })
+    .where(eq(schema.stages.afterSentStageId, stageId));
+  await req.db
+    .update(schema.stages)
+    .set({ afterReplyStageId: null })
+    .where(eq(schema.stages.afterReplyStageId, stageId));
 }
 
 /** Every person a stage's automations name must be someone active here (3C). */
@@ -262,6 +280,7 @@ export async function updateStage(req: FastifyRequest, id: string, patch: StageI
   }
   if (Object.keys(patch).length)
     await req.db.update(schema.stages).set(patch).where(eq(schema.stages.id, id));
+  if (patch.kind === "lost") await dropMovesTo(req, id);
   const { onEnter, ...rest } = patch;
   if (Object.keys(rest).length)
     await audit(req, { action: "stage.updated", entityType: "stage", entityId: id, diff: rest });
@@ -317,6 +336,7 @@ export async function archiveStage(req: FastifyRequest, id: string, moveToStageI
        WHERE stage_id = ${id} AND deleted_at IS NULL`);
   }
   await req.db.update(schema.stages).set({ archivedAt: new Date() }).where(eq(schema.stages.id, id));
+  await dropMovesTo(req, id);
   await audit(req, {
     action: "stage.archived",
     entityType: "stage",

@@ -73,11 +73,62 @@ export function TemplateEditor({
   const variables = useMemo(() => VARIABLES(fields), [fields]);
   const [suggest, setSuggest] = useState<{ start: number; options: Variable[]; active: number } | null>(null);
 
+  const form = useRef<HTMLFormElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const [askDiscard, setAskDiscard] = useState(false);
+  // Unsaved: the words differ from the version last saved (or from nothing, for a new one).
+  const was = {
+    name: template?.name ?? "",
+    category: template?.category ?? "first_touch",
+    body: template?.body ?? "",
+    roles: (template?.allowedRoleIds ?? []).join(),
+  };
+  const dirty =
+    !readOnly &&
+    (name !== was.name ||
+      category !== was.category ||
+      body !== was.body ||
+      (onlyRoles ? roleIds : []).join() !== was.roles);
+  /** Closing with unsaved words asks first; nothing is lost to a stray Esc or click (4A review). */
+  const tryClose = () => (dirty ? setAskDiscard(true) : onClose());
+
   useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && !suggest && onClose();
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || suggest) return;
+      if (askDiscard) return setAskDiscard(false);
+      tryClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, suggest]);
+  });
+
+  // Focus goes in on open (the name, or the sheet when it can't be changed) and back where it was on close.
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    (readOnly ? form.current : nameRef.current)?.focus({ preventScroll: true });
+    return () => {
+      if (before?.isConnected) before.focus();
+    };
+  }, []);
+  /** Tab stays inside the sheet, as a modal task's should. */
+  const trap = (e: KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== "Tab" || !form.current) return;
+    const items = [
+      ...form.current.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), textarea, select, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      ),
+    ];
+    const first = items[0];
+    const last = items.at(-1);
+    if (!first || !last) return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   const ctx: RenderContext = context ?? {
     ...SAMPLE,
@@ -157,13 +208,16 @@ export function TemplateEditor({
     <>
       <motion.div
         className={d.scrim}
-        onClick={onClose}
+        onClick={tryClose}
         aria-hidden
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       />
       <motion.form
+        ref={form}
+        tabIndex={-1}
+        onKeyDown={trap}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -179,7 +233,7 @@ export function TemplateEditor({
         transition={toMotion(SPRINGS.drawer)}
       >
         <div className={d.top}>
-          <IconButton label="Close (Esc)" onClick={onClose}>
+          <IconButton label="Close (Esc)" onClick={tryClose}>
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
               <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
@@ -196,6 +250,7 @@ export function TemplateEditor({
               Name
             </label>
             <input
+              ref={nameRef}
               id={`${bodyId}-name`}
               className={s.input}
               aria-label="Name"
@@ -356,7 +411,18 @@ export function TemplateEditor({
           </aside>
         </div>
 
-        {!readOnly && (
+        {askDiscard && (
+          <div role="alertdialog" aria-label="Discard your changes?" className={`${s.foot} ${s.discard}`}>
+            <p className={s.discardText}>Discard your changes?</p>
+            <Button variant="ghost" autoFocus onClick={() => setAskDiscard(false)}>
+              Keep editing
+            </Button>
+            <Button variant="danger" onClick={onClose}>
+              Discard
+            </Button>
+          </div>
+        )}
+        {!readOnly && !askDiscard && (
           <div className={s.foot}>
             {problem ? (
               <p role="alert" className={s.problem}>
@@ -386,6 +452,8 @@ function PreviewAs({ onContext }: { onContext: (c: RenderContext | null) => void
   const [picked, setPicked] = useState<string | null>(null);
   const [options, setOptions] = useState<{ id: string; name: string }[]>([]);
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const asked = useRef(0);
 
   useEffect(() => {
     if (!q.trim() || picked === q) return setOptions([]);
@@ -394,6 +462,7 @@ function PreviewAs({ onContext }: { onContext: (c: RenderContext | null) => void
       void leadsClient.list({ q, stageIds: [], sort: "newest" }, undefined, 6).then((r) => {
         if (live && r.ok) {
           setOptions(r.data.items.map((l) => ({ id: l.id, name: l.name ?? "Unnamed lead" })));
+          setActive(0);
           setOpen(true);
         }
       });
@@ -408,8 +477,25 @@ function PreviewAs({ onContext }: { onContext: (c: RenderContext | null) => void
     setQ(l.name);
     setPicked(l.name);
     setOpen(false);
+    // Picks can answer out of order: only the latest one's words are shown.
+    const mine = ++asked.current;
     const r = await templatesClient.context(l.id);
-    onContext(r.ok ? r.data : null);
+    if (mine === asked.current) onContext(r.ok ? r.data : null);
+  };
+  const shown = open && options.length > 0;
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!shown) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((a) => (a + (e.key === "ArrowDown" ? 1 : options.length - 1)) % options.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const l = options[active];
+      if (l) void pick(l);
+    } else if (e.key === "Escape") {
+      e.preventDefault(); // closes the list, not the editor
+      setOpen(false);
+    }
   };
 
   return (
@@ -421,8 +507,10 @@ function PreviewAs({ onContext }: { onContext: (c: RenderContext | null) => void
         id={id}
         role="combobox"
         aria-label="Preview as"
-        aria-expanded={open && options.length > 0}
+        aria-expanded={shown}
         aria-controls={`${id}-list`}
+        aria-autocomplete="list"
+        aria-activedescendant={shown ? `${id}-o${active}` : undefined}
         className={s.input}
         placeholder="A sample lead · type a name"
         value={q}
@@ -431,14 +519,16 @@ function PreviewAs({ onContext }: { onContext: (c: RenderContext | null) => void
           setPicked(null);
           if (!e.target.value.trim()) onContext(null);
         }}
+        onKeyDown={onKey}
       />
       {open && options.length > 0 && (
         <ul id={`${id}-list`} role="listbox" aria-label="Leads" className={s.suggest}>
-          {options.map((l) => (
+          {options.map((l, i) => (
             <li
               key={l.id}
+              id={`${id}-o${i}`}
               role="option"
-              aria-selected={false}
+              aria-selected={i === active}
               className={s.suggestItem}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => void pick(l)}

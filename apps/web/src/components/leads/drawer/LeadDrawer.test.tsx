@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
@@ -227,7 +227,7 @@ describe("LeadDrawer", () => {
 
   it("They replied: one tap (or R), the sent sound, and the move it made, with Undo", async () => {
     vi.mocked(leadsClient.replied).mockResolvedValue(
-      ok({ moved: { stageId: "s-booked", stageName: "Call booked", fromStageId: "s-new" } }),
+      ok({ moved: { stageId: "s-booked", stageName: "Call booked", fromStageId: "s-new", undoable: true } }),
     );
     vi.mocked(leadsClient.move).mockResolvedValue(ok({ lead: testLead() }));
     open();
@@ -243,9 +243,44 @@ describe("LeadDrawer", () => {
     expect(said.action.label).toBe("Undo");
     said.action.onClick();
     await vi.waitFor(() => expect(leadsClient.move).toHaveBeenCalledWith("l1", "s-new"));
+    // The button rests a moment after each reply (a double-tap logs one), then R logs the next.
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "They replied" })).toBeEnabled(), {
+      timeout: 3000,
+    });
     (document.activeElement as HTMLElement | null)?.blur();
     await userEvent.keyboard("r");
     expect(leadsClient.replied).toHaveBeenCalledTimes(2);
+  }, 8000);
+
+  it("4A review: with the send sheet open, R is just a key — no reply is logged; and holding R logs one", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(ok({ moved: null }));
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "WhatsApp" }));
+    await screen.findByRole("listbox", { name: "Templates" });
+    await userEvent.keyboard("r");
+    expect(leadsClient.replied).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Escape}");
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(window, { key: "r", repeat: true });
+    expect(leadsClient.replied).not.toHaveBeenCalled();
+    const button = screen.getByRole("button", { name: "They replied" });
+    await userEvent.dblClick(button);
+    await vi.waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(leadsClient.replied).toHaveBeenCalledTimes(1);
+  });
+
+  it("4A review: a reply's move that moving back wouldn't undo offers no Undo", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(
+      ok({ moved: { stageId: "s-booked", stageName: "Call booked", fromStageId: "s-new", undoable: false } }),
+    );
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "They replied · Moved to Call booked" }),
+      ),
+    );
+    expect(toast.mock.calls.at(-1)![0]).not.toHaveProperty("action");
   });
 
   it("a reply the stage couldn't follow says why", async () => {
