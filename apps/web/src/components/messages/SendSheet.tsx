@@ -42,6 +42,7 @@ export function SendSheet({
   blocked,
   compact,
   align = "start",
+  stageId,
   promptSlot,
   onChange,
   onSettled,
@@ -55,6 +56,8 @@ export function SendSheet({
   /** An icon button, for a row. */
   compact?: boolean;
   align?: "start" | "end";
+  /** The lead's stage as the screen knows it: once it's no longer where Sent put it, Undo goes. */
+  stageId?: string;
   /** Where the Sent prompt takes a row of its own (the drawer); otherwise it floats from the button. */
   promptSlot?: HTMLElement | null;
   /** Something was logged or moved: history and stage may have changed. */
@@ -80,6 +83,13 @@ export function SendSheet({
     return () => window.removeEventListener("focus", back);
   }, [away]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  // The lead moved on since (a reply, a drag): undoing the send's move now would undo the wrong one. Still
+  // where it came from means the screen hasn't caught up yet; where Sent put it means nothing changed.
+  const moved = outcome?.moved && !outcome.undone ? outcome.moved : null;
+  useEffect(() => {
+    if (moved && stageId && stageId !== moved.stageId && stageId !== moved.fromStageId)
+      setOutcome((o) => (o?.moved ? { ...o, moved: null } : o));
+  }, [moved, stageId]);
 
   const settle = (sent: boolean, after: number) => {
     clearTimeout(timer.current);

@@ -35,6 +35,7 @@ export function MessageButton({
         blocked={blocked}
         {...(suggest ? { suggest } : {})}
         promptSlot={promptSlot ?? null}
+        stageId={lead.stageId}
         onChange={onChange}
       />
       {blocked && <p className={s.why}>{blocked}</p>}

@@ -197,6 +197,27 @@ describe("the Sent prompt (4A Task 6)", () => {
     expect(leadsClient.move).toHaveBeenCalledWith("l1", "s1");
   });
 
+  it("once the lead moves on again (a reply, a drag), the send's Undo goes: it would undo the wrong move", async () => {
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(
+      ok({ moved: { stageId: "s2", stageName: "Message sent", fromStageId: "s1" } }) as never,
+    );
+    tab();
+    const onChange = vi.fn();
+    const { rerender } = render(<SendSheet lead={LEAD} stageId="s1" onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "WhatsApp" }));
+    const dialog = screen.getByRole("dialog", { name: "WhatsApp Aisha Khan" });
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Open WhatsApp" }));
+    await vi.waitFor(() => expect(leadsClient.prepareMessage).toHaveBeenCalled());
+    window.dispatchEvent(new Event("focus"));
+    await userEvent.click(await screen.findByRole("button", { name: "Yes, sent" }));
+    const status = await screen.findByRole("status");
+    await vi.waitFor(() => expect(within(status).getByRole("button", { name: "Undo" })).toBeInTheDocument());
+    rerender(<SendSheet lead={LEAD} stageId="s2" onChange={onChange} />); // where the send put it: Undo stays
+    expect(within(status).getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    rerender(<SendSheet lead={LEAD} stageId="s3" onChange={onChange} />); // moved on since
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument());
+  });
+
   it("a move the stage refused says why, in LUME's words, and the send still counts", async () => {
     vi.mocked(leadsClient.confirmMessage).mockResolvedValue(
       ok({

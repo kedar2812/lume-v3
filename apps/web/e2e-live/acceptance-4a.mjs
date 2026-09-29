@@ -106,7 +106,7 @@ const leadId = made.data.lead.id;
 // 3. The rep sends a starter from the drawer.
 const rep = await signedIn("rep");
 await rep.goto(`/leads?lead=${leadId}`);
-const drawer = rep.getByRole("dialog", { name: "Acceptance Messaging" });
+const drawer = rep.getByRole("dialog", { name: "Acceptance Messaging", exact: true });
 await drawer.getByRole("button", { name: "WhatsApp" }).click();
 const sheet = rep.getByRole("dialog", { name: "WhatsApp Acceptance Messaging" });
 const firstTouch = templates.find((t) => t.category === "first_touch");

@@ -5,7 +5,7 @@ import s from "./messages.module.css";
 
 export type Outcome = {
   /** Set once the server has answered; until then the tick shows "Sent" alone. */
-  moved?: { stageName: string; fromStageId: string } | null;
+  moved?: { stageId: string; stageName: string; fromStageId: string } | null;
   refused?: string;
   failed?: string;
   undone?: boolean;
