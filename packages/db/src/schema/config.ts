@@ -30,6 +30,9 @@ export const stages = pgTable("stages", {
   onEnter: jsonb("on_enter")
     .notNull()
     .default(sql`'{}'::jsonb`),
+  /** Where a lead goes after a message is confirmed sent, or a reply is logged (Phase 4A). */
+  afterSentStageId: uuid("after_sent_stage_id"),
+  afterReplyStageId: uuid("after_reply_stage_id"),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
   archivedAt: tz("archived_at"),

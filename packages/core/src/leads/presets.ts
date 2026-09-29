@@ -1,3 +1,4 @@
+import type { TemplateCategory } from "../messaging/render";
 import type { FieldType } from "./custom-fields";
 
 export type StageKind = "open" | "won" | "lost";
@@ -8,13 +9,52 @@ export type FieldSeed = {
   type: FieldType;
   options?: { label: string; color?: string }[];
 };
+export type TemplateSeed = { name: string; category: TemplateCategory; body: string };
 export type Preset = {
   key: PresetKey;
   label: string;
   pipeline: { name: string; stages: StageSeed[] };
   fields: FieldSeed[];
   lostReasons: string[];
+  /** Starter WhatsApp templates (Phase 4A): generic wording the business makes its own. */
+  templates: TemplateSeed[];
+  /** Where a stage sends a lead after a message is sent, or a reply is logged: [from, to] by name. */
+  moves: { afterSent: [string, string][]; afterReply: [string, string][] };
 };
+
+/** Six starters every preset shares: examples to edit, never a client's own words. */
+const STARTER_TEMPLATES: TemplateSeed[] = [
+  {
+    name: "First hello",
+    category: "first_touch",
+    body: "Hi {{lead.first_name}}, this is {{owner.first_name}} from {{business.name}}. Thanks for reaching out! When would suit you for a quick call?",
+  },
+  {
+    name: "Gentle nudge",
+    category: "follow_up",
+    body: "Hi {{lead.first_name}}, just checking in on my last message. Happy to answer any questions. – {{owner.first_name}}",
+  },
+  {
+    name: "Call reminder (day before)",
+    category: "reminder",
+    body: "Hi {{lead.first_name}}, looking forward to our call tomorrow! If the time no longer works, just reply here. – {{owner.first_name}}",
+  },
+  {
+    name: "Call reminder (hour before)",
+    category: "reminder",
+    body: "Hi {{lead.first_name}}, we speak in about an hour. See you soon! – {{owner.first_name}}",
+  },
+  {
+    name: "After the call",
+    category: "follow_up",
+    body: "Thank you for your time today, {{lead.first_name}}. Let me know if any questions come up. – {{owner.first_name}}",
+  },
+  {
+    name: "Checking back in",
+    category: "re_engagement",
+    body: "Hi {{lead.first_name}}, it's been a while! Is now a better time to pick things up with {{business.name}}? Just reply here.",
+  },
+];
 export type PresetKey = "coaching" | "general";
 
 /** Report §6: core fields are real columns on every install; they can be relabelled and hidden, never deleted. */
@@ -73,6 +113,8 @@ export const PRESETS: Record<PresetKey, Preset> = {
       "Chose someone else",
       "Not a fit",
     ],
+    templates: STARTER_TEMPLATES,
+    moves: { afterSent: [["New", "Message sent"]], afterReply: [["Message sent", "Replied"]] },
   },
   general: {
     key: "general",
@@ -90,5 +132,7 @@ export const PRESETS: Record<PresetKey, Preset> = {
     },
     fields: [],
     lostReasons: ["Not interested", "Price", "No response", "Timing", "Went with a competitor"],
+    templates: STARTER_TEMPLATES,
+    moves: { afterSent: [["New", "Contacted"]], afterReply: [] },
   },
 };

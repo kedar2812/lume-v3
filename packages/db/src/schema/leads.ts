@@ -47,6 +47,8 @@ export const leads = pgTable("leads", {
   leadCreatedAt: date("lead_created_at", { mode: "string" }),
   lastActivityAt: tz("last_activity_at"),
   nextTaskDueAt: tz("next_task_due_at"),
+  lastMessageAt: tz("last_message_at"),
+  lastReplyAt: tz("last_reply_at"),
   stageEnteredAt: tz("stage_entered_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
   createdBy: uuid("created_by"),

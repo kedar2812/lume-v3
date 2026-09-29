@@ -22,6 +22,9 @@ const stageBody = z.object({
   requiredFieldIds: z.array(z.uuid()).max(30).optional(),
   // What LUME does when a lead enters the stage (3C): set a follow-up, clear them, tell someone.
   onEnter: onEnterSchema.optional(),
+  // Where a lead goes after a message is sent, or a reply is logged (4A): a stage of this pipeline.
+  afterSentStageId: z.uuid().nullable().optional(),
+  afterReplyStageId: z.uuid().nullable().optional(),
 });
 
 export async function pipelineRoutes(app: FastifyInstance): Promise<void> {

@@ -140,3 +140,52 @@ describe("pipelines & stages (report §6)", () => {
     ).toBe(204);
   });
 });
+
+describe("templates and stage moves for new installs (4A Task 2)", () => {
+  it("a new install starts with six templates at version 1, and its preset's moves", async () => {
+    const t = await h.queryAll<{ name: string; category: string; body: string }>(
+      `SELECT m.name, m.category, v.body FROM message_templates m
+         JOIN template_versions v ON v.id = m.current_version_id ORDER BY m.position`,
+    );
+    expect(t).toHaveLength(6);
+    expect(t[0]).toMatchObject({ name: "First hello", category: "first_touch" });
+    expect(t.every((x) => x.body.includes("{{lead.first_name}}"))).toBe(true);
+    const moves = await h.queryAll<{ name: string; sent: string | null; reply: string | null }>(
+      `SELECT s.name, a.name AS sent, r.name AS reply FROM stages s
+         LEFT JOIN stages a ON a.id = s.after_sent_stage_id LEFT JOIN stages r ON r.id = s.after_reply_stage_id
+        WHERE s.archived_at IS NULL AND (s.after_sent_stage_id IS NOT NULL OR s.after_reply_stage_id IS NOT NULL)
+        ORDER BY s.position`,
+    );
+    expect(moves).toEqual([
+      { name: "New", sent: "Message sent", reply: null },
+      { name: "Message sent", sent: null, reply: "Replied" },
+    ]);
+  });
+
+  it("a stage's moves: a stage of the same pipeline, or none; never another pipeline's", async () => {
+    const { pipelines } = (await admin.inject({ method: "GET", url: "/api/v1/pipelines" })).json();
+    const [a, b] = pipelines[0].stages as { id: string }[];
+    const ok = await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/stages/${b!.id}`,
+      payload: { afterSentStageId: a!.id, afterReplyStageId: null },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().stage).toMatchObject({ afterSentStageId: a!.id, afterReplyStageId: null });
+    const other = (
+      await admin.inject({ method: "POST", url: "/api/v1/pipelines", payload: { name: "Partners" } })
+    ).json().pipeline;
+    const refused = await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/stages/${b!.id}`,
+      payload: { afterReplyStageId: other.stages[0].id },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().error.message).toBe("Pick a stage in this pipeline");
+    await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/stages/${b!.id}`,
+      payload: { afterSentStageId: null },
+    });
+  });
+});

@@ -69,6 +69,29 @@ describe("Phase 0 schema and grants", () => {
     expect((await as("lume_readonly_backup", "SELECT kind FROM ops_events")).length).toBe(1);
   });
 
+  it("4A templates: a version is never changed; a category must be one of five; backups read both", async () => {
+    await as(
+      "lume_app",
+      "INSERT INTO message_templates (id, name, category) VALUES ('00000000-0000-7000-8000-0000000000a1', 'Hello', 'first_touch')",
+    );
+    await as(
+      "lume_app",
+      "INSERT INTO template_versions (id, template_id, body) VALUES ('00000000-0000-7000-8000-0000000000a2', '00000000-0000-7000-8000-0000000000a1', 'Hi')",
+    );
+    await expect(as("lume_app", "UPDATE template_versions SET body = 'Changed'")).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(as("lume_app", "DELETE FROM template_versions")).rejects.toThrow(/permission denied/);
+    await expect(
+      as(
+        "lume_app",
+        "INSERT INTO message_templates (id, name, category) VALUES (gen_random_uuid(), 'X', 'spam')",
+      ),
+    ).rejects.toThrow(/message_templates_category_check/);
+    expect(await as("lume_readonly_backup", "SELECT id FROM template_versions")).toHaveLength(1);
+    expect(await as("lume_readonly_backup", "SELECT id FROM message_templates")).toHaveLength(1);
+  });
+
   it("backup role reads everything but writes nothing", async () => {
     expect((await as("lume_readonly_backup", "SELECT name FROM schema_migrations")).length).toBe(
       (await listMigrations(MIGRATIONS_DIR_DEFAULT)).length,

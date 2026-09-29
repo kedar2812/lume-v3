@@ -14,6 +14,8 @@ export type StageInput = {
   slaHours?: number | null;
   requiredFieldIds?: string[];
   onEnter?: OnEnter;
+  afterSentStageId?: string | null;
+  afterReplyStageId?: string | null;
 };
 
 const stageView = (s: StageRow) => ({
@@ -26,7 +28,27 @@ const stageView = (s: StageRow) => ({
   slaHours: s.slaHours,
   requiredFieldIds: s.requiredFieldIds,
   onEnter: (s.onEnter as OnEnter | null)?.rules ? (s.onEnter as OnEnter) : { rules: [] },
+  afterSentStageId: s.afterSentStageId,
+  afterReplyStageId: s.afterReplyStageId,
 });
+
+/** A stage's moves (4A) point at live stages of its own pipeline, or nowhere. */
+async function assertMoves(req: FastifyRequest, pipelineId: string, input: StageInput) {
+  for (const id of [input.afterSentStageId, input.afterReplyStageId]) {
+    if (!id) continue;
+    const [t] = await req.db
+      .select({ id: schema.stages.id })
+      .from(schema.stages)
+      .where(
+        and(
+          eq(schema.stages.id, id),
+          eq(schema.stages.pipelineId, pipelineId),
+          isNull(schema.stages.archivedAt),
+        ),
+      );
+    if (!t) throw badRequest("UNKNOWN_STAGE", "Pick a stage in this pipeline");
+  }
+}
 
 /** Every person a stage's automations name must be someone active here (3C). */
 async function assertRulePeople(req: FastifyRequest, onEnter: OnEnter | undefined) {
@@ -207,6 +229,7 @@ export async function createStage(
   await livePipeline(req, pipelineId);
   await assertFieldsExist(req, input.requiredFieldIds);
   await assertRulePeople(req, input.onEnter);
+  await assertMoves(req, pipelineId, input);
   const current = await liveStages(req, pipelineId);
   if (current.some((s) => s.name.toLowerCase() === input.name.toLowerCase()))
     throw conflict("STAGE_EXISTS", "A stage with that name already exists");
@@ -230,6 +253,7 @@ export async function updateStage(req: FastifyRequest, id: string, patch: StageI
   const s = await liveStage(req, id);
   await assertFieldsExist(req, patch.requiredFieldIds);
   await assertRulePeople(req, patch.onEnter);
+  await assertMoves(req, s.pipelineId, patch);
   if (patch.kind && patch.kind !== s.kind) {
     const others = (await liveStages(req, s.pipelineId)).map((x) =>
       x.id === id ? { kind: patch.kind! } : x,
