@@ -60,7 +60,7 @@ test.describe("Stage automations, time choices and System health (3C)", () => {
   }) => {
     await openApp(page, "/settings/pipeline");
     await page.getByRole("button", { name: "Automations for Replied" }).click();
-    const sheet = page.getByRole("dialog", { name: "When a lead enters Replied" });
+    const sheet = page.getByRole("dialog", { name: "What Replied does" });
     await sheet.getByRole("button", { name: "Set a follow-up" }).click();
     await sheet.getByLabel("Follow-up title").fill("Send the plan");
     await sheet.getByLabel("How long after").fill("2");

@@ -73,7 +73,7 @@ assert(
 // 1. The automation, through the screen.
 await go("/settings/pipeline");
 await page.getByRole("button", { name: `Automations for ${target.name}` }).click();
-const sheet = page.getByRole("dialog", { name: `When a lead enters ${target.name}` });
+const sheet = page.getByRole("dialog", { name: `What ${target.name} does` });
 await sheet.getByRole("button", { name: "Set a follow-up" }).click();
 await sheet.getByLabel("Follow-up title").fill("Send the plan");
 await sheet.getByLabel("How long after").fill("2");

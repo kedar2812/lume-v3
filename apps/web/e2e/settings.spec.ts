@@ -178,6 +178,8 @@ test("@smoke invite, then disable someone: their session dies and their leads mo
 test("@smoke read the audit log", async ({ page }) => {
   await openApp(page, "/settings/audit");
   await expect(page.getByText("The audit log can’t be edited or deleted, by anyone.")).toBeVisible();
+  // Sign-ins, whatever else the run has done since (4A's sends and templates fill the first page).
+  await page.getByLabel("What").selectOption({ value: "user.login" });
   await expect(page.getByText(/ signed in$/).first()).toBeVisible();
   await page.getByLabel("What").selectOption({ label: "Invited someone" });
   await expect(page.getByText(`${PEOPLE.owner.name} invited someone`).first()).toBeVisible();
