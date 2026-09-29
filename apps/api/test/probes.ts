@@ -72,6 +72,7 @@ export const PROBES: Record<string, Probe> = {
   "PUT /api/v1/templates/order": { access: "templates.manage" },
   "PATCH /api/v1/templates/:id": { access: "templates.manage" },
   "POST /api/v1/templates/:id/archive": { access: "templates.manage" },
+  "POST /api/v1/templates/:id/restore": { access: "templates.manage" },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "PUT /api/v1/settings/follow-ups": {
     access: "settings.manage",

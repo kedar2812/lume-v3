@@ -38,4 +38,7 @@ export async function templateRoutes(app: FastifyInstance): Promise<void> {
   r.post("/api/v1/templates/:id/archive", { config: manage, schema: { params } }, (req) =>
     svc.archiveTemplate(req, req.params.id),
   );
+  r.post("/api/v1/templates/:id/restore", { config: manage, schema: { params } }, (req) =>
+    svc.restoreTemplate(req, req.params.id),
+  );
 }

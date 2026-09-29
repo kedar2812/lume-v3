@@ -91,6 +91,7 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   },
   "template.archived": { area: "Settings", phrase: (d) => `archived the template “${String(d.name ?? "")}”` },
   "template.reordered": { area: "Settings", phrase: () => "reordered the templates" },
+  "template.restored": { area: "Settings", phrase: (d) => `put back the template “${String(d.name ?? "")}”` },
   "stage.automations": {
     area: "Settings",
     phrase: (d) => `changed a stage's automations (${Array.isArray(d.rules) ? d.rules.length : 0})`,

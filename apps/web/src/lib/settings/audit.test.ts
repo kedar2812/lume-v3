@@ -68,6 +68,7 @@ const WRITTEN = [
   "template.updated",
   "template.archived",
   "template.reordered",
+  "template.restored",
   "settings.follow_ups",
   "tag.created",
   "tag.deleted",

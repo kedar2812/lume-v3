@@ -14,6 +14,8 @@ export type TemplateView = {
   category: TemplateCategory;
   allowedRoleIds: string[];
   versionId: string;
+  /** Which edit this is: 1 for the first words, 2 after the first change… */
+  version: number;
   body: string;
   position: number;
   updatedAt: string;
@@ -41,6 +43,7 @@ async function rows(req: FastifyRequest, id?: string) {
       allowedRoleIds: M.allowedRoleIds,
       versionId: M.currentVersionId,
       body: V.body,
+      version: sql<number>`(SELECT count(*)::int FROM template_versions tv WHERE tv.template_id = ${M.id})`,
       position: M.position,
       updatedAt: M.updatedAt,
     })
@@ -57,9 +60,18 @@ const view = (req: FastifyRequest, r: Awaited<ReturnType<typeof rows>>[number]):
 });
 
 /** The templates the caller may use; a manager sees them all (Phase 4 spec §3 "Role availability"). */
-export async function listTemplates(req: FastifyRequest): Promise<{ templates: TemplateView[] }> {
+export async function listTemplates(
+  req: FastifyRequest,
+): Promise<{ templates: TemplateView[]; roles?: { id: string; name: string }[] }> {
   const all = (await rows(req)).map((r) => view(req, r));
-  return { templates: managing(req) ? all : all.filter((t) => t.usable) };
+  if (!managing(req)) return { templates: all.filter((t) => t.usable) };
+  // A manager chooses who can use each template: the roles, by name.
+  const roles = await req.db
+    .select({ id: schema.roles.id, name: schema.roles.name })
+    .from(schema.roles)
+    .where(isNull(schema.roles.deletedAt))
+    .orderBy(asc(schema.roles.name));
+  return { templates: all, roles };
 }
 
 export async function oneTemplate(req: FastifyRequest, id: string): Promise<TemplateView> {
@@ -167,6 +179,21 @@ export async function archiveTemplate(req: FastifyRequest, id: string): Promise<
     diff: { name: t.name },
   });
   return { archived: true };
+}
+
+/** Archive, undone: the template comes back, if its name is still free. */
+export async function restoreTemplate(req: FastifyRequest, id: string): Promise<TemplateView> {
+  const [t] = await req.db.select({ name: M.name }).from(M).where(eq(M.id, id));
+  if (!t) throw notFound("TEMPLATE_NOT_FOUND", "That template no longer exists");
+  await assertNameFree(req, t.name, id);
+  await req.db.update(M).set({ archivedAt: null, updatedAt: new Date() }).where(eq(M.id, id));
+  await audit(req, {
+    action: "template.restored",
+    entityType: "template",
+    entityId: id,
+    diff: { name: t.name },
+  });
+  return oneTemplate(req, id);
 }
 
 export async function reorderTemplates(

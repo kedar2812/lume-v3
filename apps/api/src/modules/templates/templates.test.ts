@@ -142,3 +142,41 @@ describe("templates (4A Task 3)", () => {
     ]);
   });
 });
+
+describe("templates: what the screens need (4A Task 5)", () => {
+  it("each template says which version it's on", async () => {
+    const t = (await create({ name: "Counted", category: "custom", body: "One" })).json();
+    expect(t.version).toBe(1);
+    const r = await manager.inject({
+      method: "PATCH",
+      url: `/api/v1/templates/${t.id}`,
+      payload: { body: "Two" },
+    });
+    expect(r.json().version).toBe(2);
+  });
+
+  it("an archived template can be put back (Archive has an undo)", async () => {
+    const t = (await create({ name: "Undo me", category: "custom", body: "Hi" })).json();
+    await manager.inject({ method: "POST", url: `/api/v1/templates/${t.id}/archive` });
+    const r = await manager.inject({ method: "POST", url: `/api/v1/templates/${t.id}/restore` });
+    expect(r.statusCode).toBe(200);
+    expect((await list(manager)).some((x) => x.id === t.id)).toBe(true);
+    await create({ name: "Taken now", category: "custom", body: "x" });
+    const t2 = (await create({ name: "Taken later", category: "custom", body: "x" })).json();
+    await manager.inject({ method: "POST", url: `/api/v1/templates/${t2.id}/archive` });
+    await manager.inject({
+      method: "PATCH",
+      url: `/api/v1/templates/${t.id}`,
+      payload: { name: "Taken later" },
+    });
+    const clash = await manager.inject({ method: "POST", url: `/api/v1/templates/${t2.id}/restore` });
+    expect(clash.json().error.message).toBe("A template with that name already exists");
+  });
+
+  it("managers get the roles to choose from; people who only use templates don't", async () => {
+    const m = (await manager.inject({ method: "GET", url: "/api/v1/templates" })).json();
+    expect(m.roles.length).toBeGreaterThan(0);
+    expect(m.roles[0]).toEqual({ id: expect.any(String), name: expect.any(String) });
+    expect((await rep.inject({ method: "GET", url: "/api/v1/templates" })).json().roles).toBeUndefined();
+  });
+});
