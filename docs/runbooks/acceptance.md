@@ -867,3 +867,33 @@ The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 4A �
 - Moves, where an admin sets them.
 
 Screenshots: `docs/runbooks/screenshots-4a/`, unmasked.
+
+# Phase 4B — Saved views
+
+Plan: `docs/superpowers/plans/2026-09-29-phase-4b-saved-views.md`. Spec: `docs/superpowers/specs/2026-09-29-phase-4-whatsapp-templates-design.md`.
+
+## Automated
+
+- **Filters** (`filters.test.ts`, API): no reply for N days (messaged, not answered since, still open); lost N+ days ago, and for a reason; an overdue follow-up (a rep counts only their own); added today in the business's timezone (Auckland, across midnight), by the enquiry date when a lead has one; nonsense refused.
+- **Row-level security** (`rls.test.ts`, raw SQL): a view is its owner's or shared by role; managers see every shared one and never others' personal ones; a rep can't change a shared view; nobody saves a view in someone else's name; backups hold them all; leads changing notifies `lume_leads` once per transaction.
+- **Views** (`views.test.ts`): personal and shared; sharing is for people who manage views; a taken name in words; a shared "My overdue" counts each person's own and matches their list; a view naming an archived field counts "—" while the rest count; losing the role stops showing a view; each person's own order; the starter views count; audit words. `setup.test.ts`: a new install has the four, shared with Admin and Sales.
+- **The live stream** (`notifications.test.ts`): a lead change reaches an open stream as one `leads` event with no id and nothing about the lead; ten changes in a second arrive as at most two; notifications keep their ids.
+- **Web:** More filters' quiet group (each control, its address and its chip); views in the address bar and back; the sidebar section (counts, "—", links, in-place opening on Leads, a burst of changes asking once, a view saved elsewhere arriving, Alt+↑/↓, a shared view without Edit, rename, recolour, delete with Undo, lined-up counts); Save view (Just me, sharing for managers); an open view's name, Update view and Close view.
+- **End to end** (`views.spec.ts`): the four starter views with counts; a manager saves "Chase list" shared with Sales, a masked rep sees their own count and the list agrees; a lead change elsewhere moves the count without a reload; reorder by keyboard (kept after a reload); delete with Undo; screenshots (full copies in `apps/web/e2e/__review__/views/`) and axe in both themes.
+
+## Found and fixed during the build
+
+- Opening a view while already on Leads kept the old filters, and would have left the page faded: a view now opens in place, and the screen starts fresh for each view.
+- The views' drag handle was 20 px wide (axe target size): 24 px.
+- Save view at the end of the filters wrapped Sort and Columns onto a second row: it now sits with them, at the right of the bar.
+- A rep's counts sat further right than an owner's (no Edit button): every row keeps the button's place.
+- A view's count and the visual checks: counts carry `data-live-count` (masked), not `data-volatile` (which also resizes, and broke the relative-time check under the welcome sheet's scale).
+
+## Live (2026-09-29, the dev stack through Caddy's TLS, on a fresh install)
+
+The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 4A → 4B → 3A → 3B`, on a reset stack, all passing:
+- a fresh install has the four starter views in the sidebar, each with a count;
+- the owner filters (Overdue follow-up), saves "Acceptance chase" shared with Sales, and it opens as a view;
+- the masked rep sees it with their own count (1), their list agrees, never shows the owner's lead, and offers no edit.
+
+Screenshots: `docs/runbooks/screenshots-4b/`, unmasked.
