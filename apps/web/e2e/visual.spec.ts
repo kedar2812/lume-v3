@@ -9,6 +9,7 @@ const volatile = (page: Page) => [
   page.getByRole("img", { name: /QR code/ }),
   page.getByTestId("totp-secret"),
   page.locator("[data-volatile]"), // relative times: "3h ago", "In New since today"
+  page.locator("[data-live-count]"), // saved views' live counts (4B)
 ];
 
 /**
