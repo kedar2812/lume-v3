@@ -74,6 +74,7 @@ const WRITTEN = [
   "view.deleted",
   "view.restored",
   "settings.follow_ups",
+  "settings.messaging",
   "tag.created",
   "tag.deleted",
   "tag.updated",
@@ -136,6 +137,16 @@ describe("auditPhrase", () => {
       "Riya Sharma archived the template “Gentle nudge”",
     );
     expect(say("template.reordered", {})).toBe("Riya Sharma reordered the templates");
+  });
+
+  it("4C: says what changed in Settings → Messages", () => {
+    const say = (diff: Record<string, unknown>) =>
+      auditPhrase(entry("settings.messaging", { entityType: "settings", diff }), people);
+    expect(say({ queueSize: 80 })).toBe("Riya Sharma set send queues to 80 leads a run");
+    expect(say({ dailyCap: 300 })).toBe("Riya Sharma set the daily limit to 300 queued messages a person");
+    expect(say({ queueSize: 40, dailyCap: 120 })).toBe(
+      "Riya Sharma set send queues to 40 leads a run, and the daily limit to 120 queued messages a person",
+    );
   });
 
   it("3C: says which part of Settings → Follow-ups changed, and a stage's automations", () => {

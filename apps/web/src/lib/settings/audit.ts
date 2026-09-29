@@ -50,6 +50,16 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
   "integration.enabled": { area: "Settings", phrase: (d) => `switched on ${moduleName(d.module)}` },
   "integration.disabled": { area: "Settings", phrase: (d) => `switched off ${moduleName(d.module)}` },
+  // Settings → Messages (4C): the run size and the daily cap, each on its own.
+  "settings.messaging": {
+    area: "Settings",
+    phrase: (d) => {
+      const size = d.queueSize === undefined ? null : `send queues to ${Number(d.queueSize)} leads a run`;
+      const cap =
+        d.dailyCap === undefined ? null : `the daily limit to ${Number(d.dailyCap)} queued messages a person`;
+      return `set ${[size, cap].filter(Boolean).join(", and ") || "the messaging settings"}`;
+    },
+  },
   "settings.follow_ups": {
     area: "Settings",
     // Each part changes on its own (3B, 3C): say the ones this change touched.

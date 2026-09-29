@@ -12,6 +12,7 @@ import { quoteCurrency, switchCurrency } from "./service";
 import { countrySchema, currencySchema, timezoneSchema } from "../../http/schemas";
 import { workingHoursSchema } from "@lume/core";
 import { followUpsBody, readFollowUps, workingHoursFrom } from "./follow-ups";
+import { messagingBody, readMessaging } from "./messaging";
 
 const shape = (s: typeof schema.settings.$inferSelect) => ({
   businessName: s.businessName,
@@ -93,6 +94,25 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
         );
       await audit(req, {
         action: "settings.follow_ups",
+        entityType: "settings",
+        entityId: "1",
+        diff: req.body,
+      });
+      return next;
+    },
+  );
+  // Messages (4C): the send queue's run size and the daily cap.
+  r.get("/api/v1/settings/messaging", { config: { permission: "settings.manage" } }, (req) =>
+    readMessaging(req),
+  );
+  r.put(
+    "/api/v1/settings/messaging",
+    { config: { permission: "settings.manage" }, schema: { body: messagingBody } },
+    async (req) => {
+      const next = { ...(await readMessaging(req, { forUpdate: true })), ...req.body };
+      await req.db.update(schema.settings).set({ messaging: next }).where(eq(schema.settings.id, 1));
+      await audit(req, {
+        action: "settings.messaging",
         entityType: "settings",
         entityId: "1",
         diff: req.body,

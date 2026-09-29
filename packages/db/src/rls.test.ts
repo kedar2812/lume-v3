@@ -420,3 +420,76 @@ describe("0027_saved_views (4B): a view is its owner's, or shared by role; manag
     }
   });
 });
+
+describe("0029_send_queue (4C): a run and its items are only their person's", () => {
+  const Q = { rep: "0190e0c0-0000-7000-8000-0000000000d7", mate: "0190e0c0-0000-7000-8000-0000000000d8" };
+  const asUser = <T>(user: string, fn: (c: pg.Client) => Promise<T>) =>
+    as("lume_app", { scope: "all", user }, fn);
+
+  beforeAll(async () => {
+    for (const [id, user, lead] of [
+      [Q.rep, U.rep, L.rep],
+      [Q.mate, U.mate, L.mate],
+    ] as const)
+      await asUser(user, async (c) => {
+        await c.query(
+          "INSERT INTO send_queues (id, user_id, source, source_name) VALUES ($1, $2, 'selection', 'Your selection')",
+          [id, user],
+        );
+        await c.query("INSERT INTO send_queue_items (queue_id, position, lead_id) VALUES ($1, 0, $2)", [
+          id,
+          lead,
+        ]);
+      });
+  });
+
+  it("each person reads only their own runs and items, even seeing every lead", async () => {
+    const mine = await asUser(U.rep, async (c) => ({
+      queues: (await c.query("SELECT id FROM send_queues")).rows.map((r) => r.id),
+      items: (await c.query("SELECT queue_id FROM send_queue_items")).rows.map((r) => r.queue_id),
+    }));
+    expect(mine).toEqual({ queues: [Q.rep], items: [Q.rep] });
+  });
+
+  it("nobody starts a run in someone else's name, or adds to one", async () => {
+    await expect(
+      asUser(U.rep, (c) =>
+        c.query(
+          "INSERT INTO send_queues (id, user_id, source, source_name) VALUES (gen_random_uuid(), $1, 'selection', 'x')",
+          [U.mate],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asUser(U.rep, (c) =>
+        c.query("INSERT INTO send_queue_items (queue_id, position, lead_id) VALUES ($1, 1, $2)", [
+          Q.mate,
+          L.rep,
+        ]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("one open run per person", async () => {
+    await expect(
+      asUser(U.rep, (c) =>
+        c.query(
+          "INSERT INTO send_queues (id, user_id, source, source_name) VALUES (gen_random_uuid(), $1, 'selection', 'Again')",
+          [U.rep],
+        ),
+      ),
+    ).rejects.toThrow(/send_queues_one_open/);
+  });
+
+  it("the backup role reads every run; the worker none", async () => {
+    const n = await as(
+      "lume_readonly_backup",
+      { scope: null },
+      async (c) => (await c.query("SELECT queue_id FROM send_queue_items")).rowCount,
+    );
+    expect(n).toBe(2);
+    await expect(
+      as("lume_worker", { scope: null }, (c) => c.query("SELECT id FROM send_queues")),
+    ).rejects.toThrow(/permission/);
+  });
+});

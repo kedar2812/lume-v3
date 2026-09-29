@@ -95,6 +95,8 @@ export const PROBES: Record<string, Probe> = {
     path: () => "/api/v1/views/0190e0c0-0000-7000-8000-00000000abcd/restore",
   },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
+  "GET /api/v1/settings/messaging": { access: "settings.manage" },
+  "PUT /api/v1/settings/messaging": { access: "settings.manage", body: () => ({ queueSize: 50 }) },
   "PUT /api/v1/settings/follow-ups": {
     access: "settings.manage",
     body: () => ({ escalation: { enabled: true, hours: 24 } }),

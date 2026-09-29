@@ -42,6 +42,11 @@ export const settings = pgTable("settings", {
     .$type<FollowUpSettings>()
     .notNull()
     .default(sql`'{"escalation":{"enabled":true,"hours":24}}'::jsonb`),
+  /** Settings → Messages (4C): the send queue's run size and each person's daily cap; defaults when unset. */
+  messaging: jsonb("messaging")
+    .$type<{ queueSize?: number; dailyCap?: number }>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   /** Optional modules switched on for this instance (2B spec §3); off unless set. */
   integrations: jsonb("integrations")
     .$type<{ googleSheets?: { enabled: boolean }; webhooks?: { enabled: boolean } }>()

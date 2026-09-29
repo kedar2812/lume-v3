@@ -102,8 +102,9 @@ const rep = await signedIn("rep");
 await owner.goto("/settings");
 const ownerNav = await owner.getByRole("navigation", { name: "Settings" }).getByRole("link").allInnerTexts();
 assert(
-  ownerNav.length === 15 &&
+  ownerNav.length === 16 &&
     ownerNav.includes("Follow-ups") &&
+    ownerNav.includes("Messages") &&
     ownerNav.includes("System health") &&
     ownerNav.includes("Imports") &&
     ownerNav.includes("Integrations"),

@@ -53,6 +53,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "messages",
+    title: "Messages",
+    blurb: "The send queue: leads in a run, and a daily limit",
+    href: "/settings/messages",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
     id: "health",
     title: "System health",
     blurb: "Whether every reminder, email and sync is running",
