@@ -971,3 +971,24 @@ The whole chain, `1C-1 → 1C-2 → 1C-3 → 2A → 2B-1 → 2C → 3C → 4A �
 - Skip, then the summary: 1 sent, 1 skipped.
 
 Screenshots: `docs/runbooks/screenshots-4c/`, unmasked.
+
+## Final review (fresh reviewer, whole branch)
+
+No Critical findings. Three Important, and three Minor re-graded Important by their effect, all fixed with a failing test first (b0ef57d):
+- **A second tab could answer for the first.** The losing tab asked Sent? for the other tab's lead, and could log a real send as not sent. Each tab now asks only about the lead it opened, and the server won't skip an open lead.
+- **A run couldn't be ended.** End run is in the run's header (with a word to confirm) and in the start sheet.
+- **Ending a run left its open lead counting against the daily cap for ever.** It's now let go as Not sent, with why.
+- Re-graded:
+  - keys pressed behind the run (the notification centre) no longer reach it, and Esc in the message box only leaves the box;
+  - coming back from WhatsApp is noticed when the page is shown again, with Back from WhatsApp as a fallback;
+  - the WhatsApp link (with the number) is never kept in the replay store.
+
+Deferred minors:
+- a template's role access removed mid-run refuses the rest of the run;
+- "Message these" plans from the view as saved;
+- a lead lost after "Yes, sent" counts as skipped;
+- a Not sent lead can't be retried in the run;
+- no index behind the daily count;
+- a manual skip leaves like a done card;
+- 0030 widens existing roles (to go in the release notes);
+- the run on phone widths.
