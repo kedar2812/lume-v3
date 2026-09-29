@@ -54,6 +54,11 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/today": { access: "auth.self" },
   "GET /api/v1/follow-ups/presets": { access: "auth.self" },
   "GET /api/v1/system/health": { access: "settings.manage" },
+  "GET /api/v1/templates": { access: "templates.use" },
+  "POST /api/v1/templates": { access: "templates.manage" },
+  "PUT /api/v1/templates/order": { access: "templates.manage" },
+  "PATCH /api/v1/templates/:id": { access: "templates.manage" },
+  "POST /api/v1/templates/:id/archive": { access: "templates.manage" },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "PUT /api/v1/settings/follow-ups": {
     access: "settings.manage",

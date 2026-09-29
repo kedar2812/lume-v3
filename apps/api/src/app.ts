@@ -23,6 +23,7 @@ import { receiveRoutes } from "./modules/webhooks/receive";
 import { webhookRoutes } from "./modules/webhooks/routes";
 import { taskRoutes } from "./modules/tasks/routes";
 import { healthRoutes } from "./modules/health/routes";
+import { templateRoutes } from "./modules/templates/routes";
 import { notificationRoutes } from "./modules/notifications/routes";
 import { readAs } from "./modules/notifications/hub";
 import { notify, type NewNotification } from "./modules/notifications/notify";
@@ -157,6 +158,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(webhookRoutes, deps);
         await scope.register(taskRoutes, deps);
         await scope.register(healthRoutes, deps);
+        await scope.register(templateRoutes);
         await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);
         deps.extraRoutes?.(scope);

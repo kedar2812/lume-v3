@@ -64,6 +64,10 @@ const WRITTEN = [
   "stage.reordered",
   "stage.updated",
   "stage.automations",
+  "template.created",
+  "template.updated",
+  "template.archived",
+  "template.reordered",
   "settings.follow_ups",
   "tag.created",
   "tag.deleted",
@@ -94,6 +98,24 @@ const WRITTEN = [
 ];
 
 describe("auditPhrase", () => {
+  it("4A: says what happened to a template, and when its words changed", () => {
+    const say = (action: string, diff: Record<string, unknown>) =>
+      auditPhrase(entry(action, { entityType: "template", diff }), people);
+    expect(say("template.created", { name: "Gentle nudge" })).toBe(
+      "Riya Sharma added the template “Gentle nudge”",
+    );
+    expect(say("template.updated", { name: "Gentle nudge", newVersion: true })).toBe(
+      "Riya Sharma changed the words of “Gentle nudge”",
+    );
+    expect(say("template.updated", { name: "Gentle nudge" })).toBe(
+      "Riya Sharma changed the template “Gentle nudge”",
+    );
+    expect(say("template.archived", { name: "Gentle nudge" })).toBe(
+      "Riya Sharma archived the template “Gentle nudge”",
+    );
+    expect(say("template.reordered", {})).toBe("Riya Sharma reordered the templates");
+  });
+
   it("3C: says which part of Settings → Follow-ups changed, and a stage's automations", () => {
     const say = (diff: Record<string, unknown>) =>
       auditPhrase(entry("settings.follow_ups", { entityType: "settings", diff }), people);

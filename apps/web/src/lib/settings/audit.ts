@@ -81,6 +81,16 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
       return parts.join("; ") || "changed the follow-up settings";
     },
   },
+  "template.created": { area: "Settings", phrase: (d) => `added the template “${String(d.name ?? "")}”` },
+  "template.updated": {
+    area: "Settings",
+    phrase: (d) =>
+      d.newVersion
+        ? `changed the words of “${String(d.name ?? "")}”`
+        : `changed the template “${String(d.name ?? "")}”`,
+  },
+  "template.archived": { area: "Settings", phrase: (d) => `archived the template “${String(d.name ?? "")}”` },
+  "template.reordered": { area: "Settings", phrase: () => "reordered the templates" },
   "stage.automations": {
     area: "Settings",
     phrase: (d) => `changed a stage's automations (${Array.isArray(d.rules) ? d.rules.length : 0})`,
