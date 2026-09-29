@@ -13,4 +13,5 @@ export * from "./shared";
 // The intake engine is server-only (Papa Parse never reaches the browser bundle); its limits are in ./shared.
 export * from "./intake";
 export * from "./tasks";
+export * from "./messaging";
 export * from "./relay/protocol";
