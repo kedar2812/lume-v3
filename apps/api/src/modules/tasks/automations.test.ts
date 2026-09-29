@@ -110,8 +110,14 @@ describe("stage automations (3C Task 3)", () => {
 
   it("Review Focus 1: a bulk move makes one follow-up per lead; again, none; out and back while open, none", async () => {
     await setRules("Contacted", [followUp()]);
-    const ids: string[] = [];
-    for (let i = 0; i < 100; i++) ids.push(await h.seedLead({ ownerId: repId, name: `Bulk ${i}` }));
+    // 100 at once, in one statement (one by one is too slow for the per-package test timeout in CI).
+    const ids = (
+      await h.queryAll<{ id: string }>(
+        `INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, phone_status)
+         SELECT gen_random_uuid(), $1, $2, $3, 'Bulk ' || i, 'missing' FROM generate_series(1, 100) i RETURNING id`,
+        [cfg.pipelineId, cfg.stages["New"], repId],
+      )
+    ).map((r) => r.id);
     const bulk = (stage: string) =>
       rep.inject({
         method: "POST",
@@ -138,7 +144,7 @@ describe("stage automations (3C Task 3)", () => {
     await move(rep, ids[0]!, "New");
     await move(rep, ids[0]!, "Contacted"); // the first one done: another
     expect(await openTasks(ids[0]!)).toHaveLength(1);
-  });
+  }, 60_000);
 
   it("Review Focus 3: a person who can't take it hands it to the owner; with no owner, nothing, and the move still works", async () => {
     // Riya can't see the rep's leads; a disabled person can't take anything.

@@ -1609,3 +1609,14 @@
     transform: none;
   }
 }
+
+/* A link inside a sentence: the accent, underlined on hover. */
+.textLink {
+  color: var(--accent-ink); /* the accent tuned for text: it keeps its contrast at small sizes */
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+.textLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

@@ -2,6 +2,7 @@ import type { DuePresetDef, WorkingHours } from "@lume/core/shared";
 import { DuePresetsEditor } from "@/components/settings/DuePresetsEditor";
 import { FollowUpSettings, type FollowUpConfig } from "@/components/settings/FollowUpSettings";
 import { SettingsPage } from "@/components/settings/SettingsPage";
+import s from "@/components/settings/settings.module.css";
 import { apiGet } from "@/server/api";
 import { requirePermission } from "@/server/session";
 
@@ -19,13 +20,13 @@ export default async function Page() {
       description="Nothing is left waiting: when a follow-up is overdue, the right people hear about it."
     >
       {r.status === 200 && r.data ? (
-        <>
+        <div className={s.stack}>
           <FollowUpSettings
             initial={r.data}
             {...(biz.data ? { workingHours: biz.data.workingHours, weekStart: biz.data.weekStart } : {})}
           />
           <DuePresetsEditor initial={r.data.duePresets} />
-        </>
+        </div>
       ) : (
         // Never defaults in place of what's saved: Save would write them over it (3B final review).
         <p role="alert">LUME couldn&apos;t load these settings just now. Reload the page to try again.</p>

@@ -42,6 +42,10 @@ const RENAMED: Record<string, string> = {
   "Pacific/Truk": "Pacific/Chuuk",
 };
 
+/** "Dubai · UTC+4": how a timezone reads in a sentence (the Business form shows the same). */
+export const zoneInWords = (id: string, at: Date = new Date()): string =>
+  `${id.split("/").at(-1)!.replace(/_/g, " ")} · ${formatOffset(id, at)}`;
+
 /** The city is what people recognise; the full id stays searchable. */
 const labelOf = (id: string): string => id.split("/").at(-1)!.replace(/_/g, " ");
 

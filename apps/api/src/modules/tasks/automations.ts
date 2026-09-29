@@ -26,8 +26,18 @@ type Stage = { id: string; name: string; onEnter: unknown };
 const UNIT_MS = { hour: 3_600_000, day: 86_400_000 } as const;
 
 /** Whether a person is active here and could see a lead with this owner (`lume_can_see_owner`). */
-async function canTake(pool: pg.Pool, userId: string, ownerId: string | null): Promise<boolean> {
-  const a = await loadActor(pool, userId);
+/** A person's access, looked up once per request: a bulk move of 100 leads asks about the same few people. */
+const people = new WeakMap<FastifyRequest, Map<string, ReturnType<typeof loadActor>>>();
+async function canTake(
+  req: FastifyRequest,
+  pool: pg.Pool,
+  userId: string,
+  ownerId: string | null,
+): Promise<boolean> {
+  let known = people.get(req);
+  if (!known) people.set(req, (known = new Map()));
+  if (!known.has(userId)) known.set(userId, loadActor(pool, userId));
+  const a = await known.get(userId)!;
   if (!a) return false; // nobody who isn't active
   const s = leadScope(a);
   if (s === "all") return true;
@@ -92,8 +102,9 @@ async function setFollowUp(
   // The named person, else the lead's owner (Review Focus 3); with neither, nothing.
   const wanted = rule.assignee === "lead_owner" ? lead.ownerId : rule.assignee.userId;
   let assigneeId: string | null = null;
-  if (wanted && (await canTake(deps.pool, wanted, lead.ownerId))) assigneeId = wanted;
-  else if (lead.ownerId && (await canTake(deps.pool, lead.ownerId, lead.ownerId))) assigneeId = lead.ownerId;
+  if (wanted && (await canTake(req, deps.pool, wanted, lead.ownerId))) assigneeId = wanted;
+  else if (lead.ownerId && (await canTake(req, deps.pool, lead.ownerId, lead.ownerId)))
+    assigneeId = lead.ownerId;
   if (!assigneeId)
     return say(req, lead, rule, "skipped", { reason: lead.ownerId ? "owner_unavailable" : "no_owner" });
   // One open follow-up per rule per lead: moving out and back in doesn't stack them (Review Focus 1).
@@ -160,7 +171,7 @@ async function tell(
     (id): id is string => !!id && id !== req.actor!.userId, // never the person who made the move
   );
   const told: string[] = [];
-  for (const id of ids) if (await canTake(deps.pool, id, lead.ownerId)) told.push(id);
+  for (const id of ids) if (await canTake(req, deps.pool, id, lead.ownerId)) told.push(id);
   await say(req, lead, rule, told.length ? "done" : "skipped", told.length ? { told } : { reason: "nobody" });
   const title =
     why === "moved" ? `${lead.name} moved to ${stage.name}` : `${lead.name} arrived in ${stage.name}`;

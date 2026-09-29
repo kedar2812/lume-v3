@@ -1,6 +1,7 @@
 import type { WorkingHours as Hours } from "@lume/core/shared";
 import { BusinessForm } from "@/components/settings/BusinessForm";
 import { WorkingHours } from "@/components/settings/WorkingHours";
+import s from "@/components/settings/settings.module.css";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import type { BusinessSettings } from "@/lib/settings/client";
 import { apiGet } from "@/server/api";
@@ -16,10 +17,16 @@ export default async function Page() {
       title="Business"
       description="Your name, clock and currency — what every screen in LUME is measured in."
     >
-      <BusinessForm initial={r.status === 200 && r.data ? r.data : undefined} />
-      {r.status === 200 && r.data && (
-        <WorkingHours initial={r.data.workingHours} weekStart={r.data.weekStart} timezone={r.data.timezone} />
-      )}
+      <div className={s.stack}>
+        <BusinessForm initial={r.status === 200 && r.data ? r.data : undefined} />
+        {r.status === 200 && r.data && (
+          <WorkingHours
+            initial={r.data.workingHours}
+            weekStart={r.data.weekStart}
+            timezone={r.data.timezone}
+          />
+        )}
+      </div>
     </SettingsPage>
   );
 }

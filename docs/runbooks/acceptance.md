@@ -756,3 +756,29 @@ The deferred minors are in the plan ledger.
 `acceptance-3b.mjs set` (with 3A's set) → the chain forgets the owner's digest for today → `docker restart lumedev-api-1` (a restart runs the digest at once) → `acceptance-3b.mjs check`: the morning email arrives in Mailpit with first names and times only, and `.` opens the centre. Screenshots are in `docs/runbooks/screenshots-3b/`, unmasked, including the email as it renders.
 
 Found in the live run: a follow-up overdue from earlier the same day read "(Mon 15:14)" in the email. It now reads "(15:14)"; only an earlier day carries its weekday. Test: "overdue from earlier today reads as its time". (The committed screenshot is from before the fix.)
+
+# Phase 3C — Stage automations, leads gone quiet, working hours, time choices and System health
+
+Plan: `docs/superpowers/plans/2026-09-28-phase-3c-automations-health.md`. Spec: `docs/superpowers/specs/2026-09-28-phase-3-follow-ups-design.md`.
+
+## Automated
+
+- **Times and rules** (`rules.test.ts`, `time.test.ts`):
+  - working hours: Friday evening lands on Monday morning, a weekend in Kolkata, 09:00 kept across London's autumn change;
+  - time choices: in minutes, hours or days; a day and a time; the next weekday; a time gone today means tomorrow; 3A's five give what they always gave;
+  - the shapes refused in words: no working days, a day that ends before it starts, six automations, telling nobody.
+- **Stage automations** (`automations.test.ts`), on a real database:
+  - a bulk move of 100 leads makes one follow-up each; again, none; out and back while one is open, none;
+  - a person who can't take it hands it to the lead's owner; with no owner, nothing, and the history says why;
+  - LUME's own follow-up lands inside working hours, unless that's switched off;
+  - a win clears open follow-ups and their reminders; telling someone reaches the owner, never the mover, never someone who can't see the lead;
+  - a webhook's lead runs its first stage's rules, a CSV import's don't; a new install's Won and Lost clear open follow-ups.
+- **Leads gone quiet** (`no-touch.test.ts`): off by default; once per quiet window; never with an open follow-up, a closed lead or a disabled owner; 500 a run; two runs at once never give a lead two.
+- **System health** (`health.test.ts`): late reminders, failing morning emails, a source that needs attention and a failed restore test, each in words; each problem reaches admins once a business day, in the app and by email, never a rep.
+- **Web:** a stage's automations sheet (sentences as they're shaped, five at most, refused in words first); the summary under Pipeline & stages; time choices (add, rename, reorder, remove, set when each lands); working hours; Settings → Follow-ups' new switches; the follow-up sheet's choices from Settings (and a choice removed while it was open); history lines for LUME's own work; System health (healthy, what needs a look, checks every 30 s while on screen).
+- **End to end** (`automations.spec.ts`): an admin sets what a stage does through the screen and a lead moved there has its follow-up and the history line; a win clears follow-ups; a new time choice appears in the follow-up sheet and lands when it says; working hours and System health; screenshots (full copies in `apps/web/e2e/__review__/automations/`) and axe in both themes.
+
+## Found and fixed during the build
+
+- CI ran each package's tests with vitest's 5 s default: the 600-lead test timed out there, and the run it left holding the lock failed the next test. It now seeds in one statement.
+- Formatted files copied back from the build box once overwrote a real change (the audit log's words) with an older copy left by a stash check. Restored, and the build notes now say when copying back is safe.

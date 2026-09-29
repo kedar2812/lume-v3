@@ -177,7 +177,9 @@ export function FollowUpSettings({
         {workingHours && (
           <p className={s.muted}>
             <span>{hoursInWords(workingHours, weekStart)}</span>.{" "}
-            <Link href="/settings/business">Change them in Business</Link>
+            <Link href="/settings/business" className={s.textLink}>
+              Change them in Business
+            </Link>
           </p>
         )}
       </div>

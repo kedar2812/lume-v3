@@ -4,6 +4,7 @@ import { workingHoursSchema, type WorkingHours as Hours } from "@lume/core/share
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { DAY_NAMES, weekFrom } from "@/lib/settings/hours";
+import { zoneInWords } from "@/lib/timezones";
 import s from "./settings.module.css";
 
 /**
@@ -55,7 +56,8 @@ export function WorkingHours({
           Working hours
         </h2>
         <p className={s.muted}>
-          When your business is open, in {timezone}. Follow-ups LUME sets on its own land inside these hours.
+          When your business is open, in {zoneInWords(timezone)}. Follow-ups LUME sets on its own land inside
+          these hours.
         </p>
       </div>
       <div className={s.panelBody}>

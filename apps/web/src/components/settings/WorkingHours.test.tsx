@@ -19,7 +19,7 @@ describe("working hours (3C Task 6)", () => {
     const days = screen.getAllByRole("checkbox").map((c) => c.getAttribute("aria-label"));
     expect(days).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
     expect(screen.getByRole("checkbox", { name: "Saturday" })).not.toBeChecked();
-    expect(screen.getByText(/Asia\/Dubai/)).toBeInTheDocument();
+    expect(screen.getByText(/Dubai · UTC\+4/)).toBeInTheDocument();
   });
 
   it("saves the days in order, and the hours", async () => {
