@@ -1,3 +1,4 @@
+import { licenceGuard } from "./licence/enforce";
 import cookie from "@fastify/cookie";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
@@ -158,6 +159,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           publicOrigin: new URL(deps.config.publicUrl).origin,
           settings: memoSettings(deps.pool),
         });
+        // The licence (L-A): after authentication, so a 401 stays a 401; before any work.
+        licenceGuard(scope);
         dbContext(scope, { pool: deps.pool });
         idempotency(scope); // after dbContext: it needs the request transaction
         await scope.register(csrfRoutes, { secure: deps.config.cookieSecure });

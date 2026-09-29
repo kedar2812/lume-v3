@@ -1,3 +1,4 @@
+import { licenceGuard } from "../../licence/enforce";
 import { createHash } from "node:crypto";
 import { schema } from "@lume/db";
 import { and, eq, sql } from "drizzle-orm";
@@ -34,6 +35,8 @@ const unauthorized = (reply: FastifyReply) => reply.code(401).send({ error: "una
  * transaction. It answers at once and never says which check failed, nor names the source.
  */
 export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
+  // A read-only or paused LUME takes no new leads from outside (licensing L-A).
+  licenceGuard(app);
   const db = drizzle(d.pool, { schema }); // the intake tables have no row-level security (2A amendment 5)
   const limiter = d.webhooks?.limiter ?? createLimiter({ perSource: 60, perInstance: 600, windowMs: 60_000 });
   const dummy = sealWebhook(d.keyring, DUMMY_ID, { mode: "signed", secret: DUMMY, preset: "website" });
