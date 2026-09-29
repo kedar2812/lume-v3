@@ -64,6 +64,18 @@ describe("the licence token", () => {
     expect(verifyLicence(signLicence(payload(), k1.privateKey), KEYS, "LUME-0THR-1NST")).toBeNull();
   });
 
+  it("a payment reminder may say how to reach the provider", () => {
+    const notice = {
+      id: "n2",
+      kind: "payment_due" as const,
+      dueDate: null,
+      note: "",
+      contact: "mailto:billing@lumecrm.in",
+    };
+    const t = signLicence(payload({ notice }), k1.privateKey);
+    expect(verifyLicence(t, KEYS, "LUME-H4RB-8C2L")?.notice).toEqual(notice);
+  });
+
   it("refuses nonsense, and a signed payload that isn't a licence", () => {
     for (const t of ["", "abc", "a.b.c", "..", `${"x".repeat(5000)}.y`])
       expect(verifyLicence(t, KEYS, "x")).toBeNull();

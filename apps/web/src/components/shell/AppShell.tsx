@@ -1,4 +1,8 @@
 "use client";
+import { LicenceBanner } from "@/components/licence/LicenceBanner";
+import { LicenceProvider } from "@/components/licence/LicenceProvider";
+import { LockScreen } from "@/components/licence/LockScreen";
+import { PaymentReminder } from "@/components/licence/PaymentReminder";
 import { useEffect, useState, type ReactNode } from "react";
 import { can as canCore, isPermissionKey } from "@lume/core/shared";
 import type { ThemePref } from "@/lib/theme";
@@ -66,24 +70,30 @@ export function AppShell({ session, businessName, theme, children }: Props) {
   return (
     <PageTransitionProvider>
       <TourProvider session={session} client={tourClient} autoStart>
-        <div className={s.app}>
-          <Sidebar businessName={businessName} user={user} can={can} />
-          <main className={s.main}>
-            <TopBar
-              theme={theme}
-              tz={session.user.timezone}
-              canMessage={canCore(session.actor, "messages.send")}
-              canQueue={canCore(session.actor, "messages.send_queue")}
-              onSearch={() => setPalette(true)}
-            />
-            <div className={s.scroll} data-scroll>
-              <div className={s.page}>
-                <PageContent>{children}</PageContent>
+        <LicenceProvider session={session}>
+          <div className={s.app}>
+            <Sidebar businessName={businessName} user={user} can={can} />
+            <main className={s.main}>
+              {/* The licence (L-A): grace or read-only across the top; paused covers the whole page. */}
+              <LicenceBanner />
+              <TopBar
+                theme={theme}
+                tz={session.user.timezone}
+                canMessage={canCore(session.actor, "messages.send")}
+                canQueue={canCore(session.actor, "messages.send_queue")}
+                onSearch={() => setPalette(true)}
+              />
+              <div className={s.scroll} data-scroll>
+                <div className={s.page}>
+                  <PageContent>{children}</PageContent>
+                </div>
               </div>
-            </div>
-          </main>
-        </div>
-        <CommandPalette open={palette} onOpenChange={setPalette} can={can} />
+              <LockScreen />
+            </main>
+          </div>
+          <PaymentReminder businessName={businessName} />
+          <CommandPalette open={palette} onOpenChange={setPalette} can={can} />
+        </LicenceProvider>
       </TourProvider>
     </PageTransitionProvider>
   );

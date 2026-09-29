@@ -16,6 +16,7 @@ import {
   type Scope,
   type TourState,
 } from "@lume/core/shared";
+import type { LicenceForPerson } from "@/lib/licence/client";
 import { apiGet } from "./api";
 
 export type SessionUser = {
@@ -44,14 +45,35 @@ export type Session = {
   };
   /** The same Actor shape the API and core use, so gates call the very same `can()`. */
   actor: Actor;
+  /** The licence as this person sees it (licensing L-A): banners, the lock screen, the reminder. */
+  licence: LicenceForPerson;
 };
 
 /** Exactly what GET /auth/me sends. Permission keys stay loose here: a newer API may know more of them. */
-export type MePayload = Omit<Session, "actor" | "permissions" | "agreement" | "flags"> & {
+export type MePayload = Omit<Session, "actor" | "permissions" | "agreement" | "flags" | "licence"> & {
+  /** Absent from an API that predates licensing. */
+  licence?: LicenceForPerson;
   permissions: { key: string; scope: Scope | null }[];
   /** Absent from an API that predates the agreement. */
   agreement?: Session["agreement"];
   flags: Omit<Session["flags"], "needsAgreement"> & { needsAgreement?: boolean };
+};
+
+/** What a web app talking to an API from before licensing assumes: all is well, and quiet. */
+export const UNLICENSED_API: LicenceForPerson = {
+  state: "active",
+  reason: "dev",
+  graceEndsAt: null,
+  licenseType: null,
+  paidUntil: null,
+  trialEndsAt: null,
+  notice: null,
+  checkedAt: null,
+  dev: true,
+  instanceId: null,
+  nextCheckAt: null,
+  showNotice: false,
+  canCheck: false,
 };
 
 export function toSession(me: MePayload): Session {
@@ -69,6 +91,8 @@ export function toSession(me: MePayload): Session {
     agreement: me.agreement ?? { version: null, current: LEGAL_VERSION },
     // An API from before the agreement existed sends no flag: nobody is asked.
     flags: { ...me.flags, needsAgreement: me.flags.needsAgreement ?? false },
+    // An API from before licensing sends none: nothing is locked, nothing is said.
+    licence: me.licence ?? UNLICENSED_API,
     actor: {
       userId: me.user.id,
       isOwner: me.user.isOwner,

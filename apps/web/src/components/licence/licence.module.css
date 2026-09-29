@@ -1,0 +1,586 @@
+/* The licence (licensing L-A), to the approved canvas: banners, the lock screen, the reminder, About. */
+
+/* ─ Buttons ─ */
+.btnPrimary,
+.btnSecondary,
+.btnOnBlue,
+.btnDownload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--r-ctl);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    transform 0.1s ease-out,
+    background 0.15s ease,
+    filter 0.15s ease;
+}
+.btnPrimary:active,
+.btnSecondary:active,
+.btnOnBlue:active,
+.btnDownload:active {
+  transform: scale(0.97);
+}
+.btnPrimary:focus-visible,
+.btnSecondary:focus-visible,
+.btnOnBlue:focus-visible,
+.btnDownload:focus-visible,
+.bannerBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.btnPrimary {
+  background: var(--accent);
+  color: #fff;
+}
+.btnPrimary:hover {
+  filter: brightness(1.08);
+}
+.btnSecondary {
+  background: var(--raised);
+  color: var(--text);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.btnSecondary:hover {
+  background: var(--sunk);
+}
+.btnSecondary:disabled,
+.btnOnBlue:disabled {
+  opacity: 0.6;
+}
+/* On the read-only bar: white, the blue in the words (the owner's choice). */
+.btnOnBlue {
+  height: 30px;
+  background: #fff;
+  color: #1e47d9;
+}
+.btnDownload {
+  height: 30px;
+  background: var(--ok);
+  color: #fff;
+}
+
+/* ─ The banner: grace (amber, admins) and read-only (the accent blue, everyone) ─ */
+.bannerSlot {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+}
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+}
+.banner[data-tone="grace"] {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  border-bottom: 0.5px solid color-mix(in srgb, var(--warn-ink) 20%, transparent);
+}
+.banner[data-tone="read_only"] {
+  background: #2a5bff;
+  color: #fff;
+}
+.bannerIcon {
+  flex: none;
+}
+.bannerText {
+  flex: 1;
+  min-width: 0;
+}
+.bannerText strong {
+  font-weight: var(--fw-semibold);
+}
+.bannerBtn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--r-ctl);
+  background: var(--raised);
+  color: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, currentColor 30%, transparent);
+  white-space: nowrap;
+}
+
+/* ─ Suspended: the lock screen ─ */
+.lockScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--canvas) 62%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .lockScrim {
+    background: var(--canvas);
+    backdrop-filter: none;
+  }
+}
+.lockCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(460px, 100%);
+  padding: 34px 34px 28px;
+  border-radius: 22px;
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 30px 70px -30px rgba(12, 18, 32, 0.45);
+  text-align: center;
+  outline: none;
+}
+/* The owner's red for the padlock tile. */
+.padlock {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: #e5484d;
+}
+.lockTitle {
+  margin: 4px 0 0;
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+}
+.lockWords {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.lockFoot {
+  margin: 6px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* ─ Export all data, ticking through the files ─ */
+.exportBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+  text-align: left;
+}
+.exportBox > .btnPrimary {
+  align-self: center;
+  height: 40px;
+  padding: 0 18px;
+}
+.exportError {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+  text-align: center;
+}
+.exportBar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--sunk);
+  overflow: hidden;
+}
+.exportBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.35s var(--spring);
+}
+.exportFiles {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.exportFiles li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  transition: color 0.2s ease;
+}
+.exportFiles li[data-done] {
+  color: var(--text);
+}
+.fileMark {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+}
+.exportFiles li[data-done] .fileMark {
+  background: var(--ok);
+  box-shadow: none;
+}
+.exportReady {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+  font-size: var(--fs-sm);
+}
+.exportName {
+  flex: 1;
+  min-width: 0;
+}
+.exportName strong {
+  font-weight: var(--fw-semibold);
+}
+
+/* ─ The payment reminder ─ */
+.reminderScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+  backdrop-filter: blur(6px);
+}
+.reminder {
+  width: min(480px, 100%);
+  border-radius: 24px;
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 40px 90px -40px rgba(10, 12, 17, 0.6);
+  overflow: hidden;
+}
+.reminderHead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 32px 32px 0;
+  text-align: center;
+}
+.bellTile {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: #2a5bff;
+}
+.reminderTitle {
+  margin: 4px 0 0;
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+}
+.reminderWords {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.reminderWords strong {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.reminderNote {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 20px 32px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text);
+}
+.noteHead {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.06em;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.reminderActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 22px 32px 18px;
+}
+.reminderActions[data-single] {
+  grid-template-columns: 1fr;
+}
+.reminderActions > * {
+  height: 42px;
+}
+.reminderFoot {
+  margin: 0;
+  padding: 0 32px 24px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* ─ Settings → About: the licence ─ */
+.aboutStack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.licenceCard,
+.aboutCard {
+  border-radius: var(--r-card);
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(12, 18, 32, 0.04),
+    0 12px 32px -18px rgba(12, 18, 32, 0.18);
+}
+.licenceCard {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 26px;
+}
+.ringWrap {
+  position: relative;
+  flex: none;
+  width: 128px;
+  height: 128px;
+}
+.ringTrack {
+  fill: none;
+  stroke: var(--sunk);
+  stroke-width: 6;
+}
+.ringLine {
+  fill: none;
+  stroke: #2a5bff;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.ringMark {
+  position: absolute;
+  left: 36px;
+  top: 36px;
+}
+.verified {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 4px var(--raised);
+}
+.licenceFacts {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.licenceHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kicker {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.statePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+.statePill > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.statePill[data-state="active"] {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.statePill[data-state="grace"] {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.statePill[data-state="read_only"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.statePill[data-state="suspended"] {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+.statePill[data-halo] {
+  animation: halo 1.2s ease-out both;
+}
+@keyframes halo {
+  from {
+    box-shadow: 0 0 0 0 rgba(24, 165, 102, 0.45);
+  }
+  to {
+    box-shadow: 0 0 0 14px rgba(24, 165, 102, 0);
+  }
+}
+.licenceType {
+  margin: 0;
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+}
+.factGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 28px;
+  margin: 0;
+}
+.factGrid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: -4px;
+  padding: 4px;
+  border-radius: 8px;
+}
+.factGrid > div[data-flash] {
+  animation: flash 1s ease-out both;
+}
+@keyframes flash {
+  from {
+    background: var(--accent-soft);
+  }
+}
+.factGrid dt {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.factGrid dd {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+.checkNote {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.aboutPair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.aboutCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+}
+.aboutCardTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.aboutCardTitle svg {
+  color: #2a5bff;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+.aboutWords {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+@media (max-width: 760px) {
+  .licenceCard {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .aboutPair {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .statePill[data-halo],
+  .factGrid > div[data-flash] {
+    animation: none;
+  }
+  .exportBar span {
+    transition: none;
+  }
+}

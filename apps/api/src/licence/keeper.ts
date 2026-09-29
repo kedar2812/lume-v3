@@ -40,6 +40,15 @@ export class LicenceKeeper {
     return this.opts.mode === "dev";
   }
 
+  /** This installation's id, and when LUME will ask next (Settings → About). */
+  info(): { instanceId: string | null; nextCheckAt: string | null } {
+    const last = this.row?.last_attempt_at;
+    return {
+      instanceId: this.opts.instanceId,
+      nextCheckAt: !this.dev && last ? new Date(last.getTime() + CHECK_EVERY_MS).toISOString() : null,
+    };
+  }
+
   /** The state now (from memory; a stale copy is refreshed in the background). */
   view(): LicenceView {
     if (!this.dev && Date.now() - this.loadedAt > REFRESH_MS) void this.refresh().catch(() => undefined);

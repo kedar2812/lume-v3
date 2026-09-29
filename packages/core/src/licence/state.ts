@@ -14,6 +14,12 @@ export const licenceNoticeSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .nullable(),
     note: z.string().max(1000),
+    /** How to reach whoever licensed LUME about it: a mailto:, tel: or https: link (licence server settings). */
+    contact: z
+      .string()
+      .max(300)
+      .regex(/^(mailto:|tel:|https:)/)
+      .optional(),
   })
   .strict();
 export type LicenceNotice = z.infer<typeof licenceNoticeSchema>;

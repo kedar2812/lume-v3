@@ -111,7 +111,10 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     });
     expect(await view()).toMatchObject({ state: "active" });
     expect((await me(rep)).licence).toMatchObject({ state: "active", showNotice: false, canCheck: false });
-    expect((await me(admin)).licence).toMatchObject({ canCheck: true });
+    expect((await me(admin)).licence).toMatchObject({ canCheck: true, instanceId: INSTANCE });
+    // The next check is 6 hours after the last try.
+    const l = (await me(admin)).licence;
+    expect(Date.parse(l.nextCheckAt) - Date.parse(l.checkedAt)).toBe(6 * H);
   });
 
   it("sends only the six things it may, with real counts and never a lead", async () => {

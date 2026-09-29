@@ -91,6 +91,9 @@ async function send<T>(
     await csrfToken(true);
     return send<T>(method, path, body, false, extra);
   }
+  // A refusal for the licence (L-A): the shell looks again, so a banner or the lock screen shows at once.
+  if (res.status === 403 && err?.code?.startsWith("LICENSE_") && typeof window !== "undefined")
+    window.dispatchEvent(new CustomEvent("lume:licence-refused", { detail: err.code }));
   return {
     ok: false,
     status: res.status,

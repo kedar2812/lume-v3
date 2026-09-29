@@ -8,6 +8,8 @@ const manages = (req: FastifyRequest) =>
   !!req.actor && (req.actor.isOwner || can(req.actor, "settings.manage"));
 
 export type LicenceForPerson = LicenceView & {
+  instanceId: string | null;
+  nextCheckAt: string | null;
   /** Show the payment reminder now: there is one, this person runs the business, and not closed this session. */
   showNotice: boolean;
   canCheck: boolean;
@@ -26,6 +28,7 @@ export async function licenceFor(req: FastifyRequest): Promise<LicenceForPerson>
   }
   return {
     ...v,
+    ...req.server.licence.info(),
     showNotice: !!v.notice && manages(req) && dismissed !== v.notice.id,
     canCheck: manages(req),
   };

@@ -165,6 +165,8 @@
   display: block;
 }
 .main {
+  /* The licence's lock screen covers it (L-A). */
+  position: relative;
   margin: 8px 8px 8px 0;
   background: var(--sheet);
   border-radius: var(--r-sheet);
