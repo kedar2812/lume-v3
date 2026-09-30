@@ -99,12 +99,19 @@ export function computeAnalytics(o: {
   const at = (k: number) => Math.min(now.getTime(), startOf(k + 1) - 1);
   const monthOf = (d: Date | null) => (d ? keyOf(d) : null);
 
-  const priceAt = (c: AClient, k: number): number => {
+  /** The recurring price a client pays at the end of month k, or null if it isn't paying then. */
+  const recurringAt = (c: AClient, k: number) => {
     const t = at(k);
-    if (!c.payingSince || c.payingSince.getTime() > t) return 0;
-    if (c.endedAt && c.endedAt.getTime() <= t) return 0;
+    if (!c.payingSince || c.payingSince.getTime() > t) return null;
+    if (c.endedAt && c.endedAt.getTime() <= t) return null;
     const p = [...c.prices].reverse().find((x) => x.from.getTime() <= t) ?? c.prices[0];
-    if (!p || !p.periodMonths) return 0;
+    return p && p.periodMonths && p.amount > 0 ? p : null;
+  };
+  // Counting needs no rate: a client whose currency has no rate yet is still paying, only its rupees are unknown.
+  const isPaying = (c: AClient, k: number) => recurringAt(c, k) !== null;
+  const priceAt = (c: AClient, k: number): number => {
+    const p = recurringAt(c, k);
+    if (!p) return 0;
     const m = monthlyInr(p, rates);
     if (m === null) {
       missing.add(p.currency);
@@ -113,11 +120,10 @@ export function computeAnalytics(o: {
     return m;
   };
   const mrrAt = (k: number) => clients.reduce((t, c) => t + priceAt(c, k), 0);
-  const payingAt = (k: number) => clients.filter((c) => priceAt(c, k) > 0).length;
+  const payingAt = (k: number) => clients.filter((c) => isPaying(c, k)).length;
   const joinedIn = (k: number) =>
-    clients.filter((c) => monthOf(c.payingSince) === k && priceAt(c, k) > 0).length;
-  const leftIn = (k: number) =>
-    clients.filter((c) => monthOf(c.endedAt) === k && priceAt(c, k - 1) > 0).length;
+    clients.filter((c) => monthOf(c.payingSince) === k && isPaying(c, k)).length;
+  const leftIn = (k: number) => clients.filter((c) => monthOf(c.endedAt) === k && isPaying(c, k - 1)).length;
 
   const metricsAt = (end: number) => {
     const mrr = mrrAt(end);

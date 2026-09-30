@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
-import { day } from "@/lib/format";
+import { day, dayShort } from "@/lib/format";
 import { formatMoney, inr } from "@/lib/money";
 import { Bell } from "./Bell";
 import { Head } from "./Shell";
@@ -14,6 +14,7 @@ type Payment = {
   amount: number;
   currency: string;
   rateToInr: number | null;
+  rateDay: string | null;
   amountInr: number | null;
   paidAt: string;
   paidUntil: string | null;
@@ -71,7 +72,13 @@ export function PaymentsScreen() {
                     <td className="num">
                       {p.amountInr !== null ? inr(p.amountInr) : <span className="note">rate unknown</span>}
                       {p.currency !== "INR" && p.rateToInr !== null && (
-                        <span className="note"> · at ₹{p.rateToInr.toFixed(2)}</span>
+                        <span className="note">
+                          {" "}
+                          · at ₹{p.rateToInr.toFixed(2)}
+                          {p.rateDay &&
+                            p.rateDay !== p.paidAt.slice(0, 10) &&
+                            `, the rate of ${dayShort(p.rateDay)}`}
+                        </span>
                       )}
                     </td>
                     <td className="num">{p.paidUntil ? day(p.paidUntil) : "—"}</td>

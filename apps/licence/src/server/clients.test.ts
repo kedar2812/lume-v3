@@ -237,6 +237,20 @@ describe("a client's actions (spec §4.4)", () => {
     expect((await events(client.id)).map((e) => e.kind)).toContain("converted");
   });
 
+  it("a payment on a day with no fresh rate keeps the day its rate is from, not today", async () => {
+    const { client } = await create({
+      name: "Lantern Tutors",
+      plan: { type: "subscription", currency: "USD", amount: 25, periodMonths: 1 },
+    });
+    now = new Date("2026-10-02T09:00:00Z"); // the rate fetch failed on the 30th, 1st and 2nd
+    await admin.call("POST", `/api/clients/${client.id}/paid`, {});
+    expect((await detail(client.id)).payments[0]).toMatchObject({
+      rateToInr: 88.4,
+      rateDay: "2026-09-29",
+      amountInr: 2210,
+    });
+  });
+
   it("a payment in a currency with no known rate is kept, and says its rupees are unknown", async () => {
     const { client } = await create({
       name: "Kestrel Logistics",

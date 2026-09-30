@@ -96,6 +96,29 @@ describe("/v1/check (spec §4.3)", () => {
     expect((await post(`"${"x".repeat(20_000)}"`)).status).toBe(400);
   });
 
+  it("a huge body is refused once it passes 4 KB, without reading the rest", async () => {
+    let pulled = 0;
+    const chunk = new TextEncoder().encode("x".repeat(1024));
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled += chunk.length;
+        if (pulled > 1024 * 1024) c.close();
+        else c.enqueue(chunk);
+      },
+    });
+    const r = await handleCheck(
+      new Request("http://licence.test/v1/check", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-real-ip": "203.0.113.77" },
+        body: stream,
+        duplex: "half",
+      } as RequestInit),
+      ctx,
+    );
+    expect(r.status).toBe(400);
+    expect(pulled).toBeLessThanOrEqual(16 * 1024);
+  });
+
   it("records the check-in, and a new version or a new state is an event in the client's history", async () => {
     const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-10-10" });
     await post(body({ ...c, appVersion: "1.4.1" }));

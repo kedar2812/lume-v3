@@ -9,6 +9,7 @@ import { AnalyticsScreen } from "./AnalyticsScreen";
 import { Bell } from "./Bell";
 import { ClientScreen } from "./ClientScreen";
 import { ClientsScreen } from "./ClientsScreen";
+import { PaymentsScreen } from "./PaymentsScreen";
 import { SignIn } from "./SignIn";
 import { ThemeSwitch } from "./Shell";
 
@@ -470,6 +471,38 @@ describe("the chart's tooltip follows the trend rule too", () => {
     expect(tip).not.toHaveTextContent("0.0%");
     fireEvent.mouseEnter(container.querySelector('[data-month="2026-06"]')!);
     expect(container.querySelector(".tip")).toHaveTextContent("(\u2212");
+  });
+});
+
+describe("payments", () => {
+  it("a payment made on a day with no fresh rate says which day's rate it used", async () => {
+    const pay = (id: string, paidAt: string, rateDay: string) => ({
+      id,
+      clientId: "c" + id,
+      clientName: "Client " + id,
+      amount: 25,
+      currency: "USD",
+      rateToInr: 88.4,
+      rateDay,
+      amountInr: 2210,
+      paidAt,
+      paidUntil: "2026-11-02",
+      note: null,
+    });
+    vi.mocked(api.get).mockResolvedValue(
+      ok({
+        payments: [
+          pay("1", "2026-10-02T09:00:00Z", "2026-09-29"),
+          pay("2", "2026-09-29T09:00:00Z", "2026-09-29"),
+        ],
+      }) as never,
+    );
+    render(<PaymentsScreen />);
+    const late = (await screen.findByText("Client 1")).closest("tr")!;
+    expect(late).toHaveTextContent("at ₹88.40, the rate of 29 Sep");
+    const same = screen.getByText("Client 2").closest("tr")!;
+    expect(same).toHaveTextContent("at ₹88.40");
+    expect(same).not.toHaveTextContent("the rate of");
   });
 });
 

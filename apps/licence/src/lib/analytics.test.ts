@@ -105,6 +105,16 @@ describe("analytics, against the canvas's own numbers (spec §4.4)", () => {
     expect(r.mrr).toBeCloseTo(65926.7 - 120 * 68.9, 1);
   });
 
+  it("a missing rate leaves the client counted: paying, joined and left don't need a rate", () => {
+    const { SGD: _gone, ...rates } = CANVAS_RATES;
+    void _gone;
+    const r = run(CANVAS_CLIENTS, 12, rates);
+    expect(r.paying).toBe(a.paying);
+    expect(r.payingBefore).toBe(a.payingBefore);
+    expect(r.series.map((p) => [p.joined, p.left])).toEqual(a.series.map((p) => [p.joined, p.left]));
+    expect(r.churn).toBeCloseTo(a.churn, 10);
+  });
+
   it("nothing yet: zeros and no ideas, not errors", () => {
     const e = run([]);
     expect(e).toMatchObject({ mrr: 0, paying: 0, growth: 0, churn: 0, ltv: 0, belowList: 0 });

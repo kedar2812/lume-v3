@@ -37,6 +37,9 @@ services:
   migrate:
     image: ${LICENCE_IMAGE:-lume-licence:latest}
     command: ["node", "apps/licence/dist/migrate.mjs"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
     environment:
       DATABASE_URL: postgres://licence:${POSTGRES_PASSWORD:?}@db:5432/licence
     depends_on:
@@ -50,10 +53,17 @@ services:
     environment:
       DATABASE_URL: postgres://licence:${POSTGRES_PASSWORD:?}@db:5432/licence
       LICENCE_KID: ${LICENCE_KID:?}
-      LICENCE_MASTER_KEY: ${LICENCE_MASTER_KEY:?}
+      LICENCE_MASTER_KEY_FILE: /run/secrets/master.key
       LICENCE_SIGNING_KEY_FILE: /run/secrets/signing.pem
     volumes:
       - ./secrets/signing.pem:/run/secrets/signing.pem:ro
+      - ./secrets/master.key:/run/secrets/master.key:ro
+    # Nothing to add or change at run time: no capabilities, a read-only filesystem, scratch space in memory.
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/apps/licence/.next/cache
     ports:
       - "127.0.0.1:8480:8480"
     depends_on:

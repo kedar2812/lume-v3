@@ -4,3 +4,7 @@
 .git
 docs
 .superpowers
+# Secrets never enter a build context.
+**/.env*
+**/*.pem
+deploy/clients

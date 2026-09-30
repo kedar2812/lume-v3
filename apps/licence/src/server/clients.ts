@@ -257,6 +257,7 @@ type PaymentRow = {
   amount: string;
   currency: string;
   rate_to_inr: string | null;
+  rate_day: string | null;
   amount_inr: string | null;
   paid_at: Date;
   paid_until: string | null;
@@ -264,7 +265,7 @@ type PaymentRow = {
 };
 const PAYMENTS_SQL = `
   SELECT p.id::text, p.client_id, c.name AS client_name, p.amount::text, p.currency, p.rate_to_inr::text,
-         p.amount_inr::text, p.paid_at, to_char(p.paid_until, 'YYYY-MM-DD') AS paid_until, p.note
+         to_char(p.rate_day, 'YYYY-MM-DD') AS rate_day, p.amount_inr::text, p.paid_at, to_char(p.paid_until, 'YYYY-MM-DD') AS paid_until, p.note
     FROM payments p JOIN clients c ON c.id = p.client_id`;
 const CLIENT_PAYMENTS_SQL = PAYMENTS_SQL + " WHERE p.client_id = $1 ORDER BY p.paid_at DESC, p.id DESC";
 const ALL_PAYMENTS_SQL = PAYMENTS_SQL + " ORDER BY p.paid_at DESC, p.id DESC LIMIT 1000";
@@ -275,6 +276,8 @@ const paymentView = (p: PaymentRow) => ({
   amount: Number(p.amount),
   currency: p.currency,
   rateToInr: p.rate_to_inr === null ? null : Number(p.rate_to_inr),
+  /** The day the rate is from (a failed fetch leaves an older day's rate standing). */
+  rateDay: p.rate_day,
   amountInr: p.amount_inr === null ? null : Number(p.amount_inr),
   paidAt: p.paid_at.toISOString(),
   paidUntil: p.paid_until,
@@ -470,13 +473,14 @@ export async function markPaid(ctx: Ctx, id: string, note: string | null) {
       if (r.type === "trial") await event(c, id, now, "converted");
     }
     await c.query(
-      `INSERT INTO payments (client_id, amount, currency, rate_to_inr, amount_inr, paid_at, paid_until, note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO payments (client_id, amount, currency, rate_to_inr, rate_day, amount_inr, paid_at, paid_until, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         id,
         amount,
         r.currency,
         rate,
+        rate === null ? null : r.currency === "INR" ? today : rates.day,
         rate === null ? null : Math.round(amount * rate * 100) / 100,
         now,
         until,

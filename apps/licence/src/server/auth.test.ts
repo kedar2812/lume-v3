@@ -1,9 +1,15 @@
-import { totpCode } from "@lume/core";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { totpCode, verifyTotp } from "@lume/core";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { Limiter } from "@/lib/limit";
 import { createAdmin } from "./auth";
 import type { Ctx } from "./context";
 import { Jar, licenceDb, testCtx, type LicenceTestDb } from "./testing";
+
+// verifyTotp passes through; the spy only counts (a code step for an unknown email does the same work).
+vi.mock("@lume/core", async (original) => {
+  const m = await original<typeof import("@lume/core")>();
+  return { ...m, verifyTotp: vi.fn(m.verifyTotp) };
+});
 
 let t: LicenceTestDb;
 let now: Date;
@@ -79,6 +85,16 @@ describe("the admin's sign-in (spec §4.4, Review Focus 4)", () => {
       },
     });
     expect(await outcomes()).toEqual(["bad_password", "bad_code", "unknown_email"]);
+  });
+
+  it("an unknown email's code step does the same work as a known one's (no timing hint)", async () => {
+    const spy = vi.mocked(verifyTotp);
+    spy.mockClear();
+    await signIn(jar("203.0.113.40"), { email: "nobody@lume.test" });
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockClear();
+    await signIn(jar("203.0.113.41"), { password: "not the passphrase at all" });
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("a code used once is refused the second time, even inside its window", async () => {

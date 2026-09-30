@@ -43,7 +43,7 @@ import {
 } from "./clients";
 import type { Ctx } from "./context";
 import { currentRates } from "./fx";
-import { clientIp, json } from "./http";
+import { clientIp, json, readCapped } from "./http";
 
 type Call = { req: Request; ctx: Ctx; params: Record<string, string>; body: unknown; admin: Admin; url: URL };
 type Handler = (c: Call) => Promise<Response | unknown>;
@@ -268,11 +268,16 @@ export async function handleApi(req: Request, ctx: Ctx): Promise<Response> {
       }
     }
     if (!match) return json(404, { error: { code: "NOT_FOUND", message: "Nothing here." } });
-    const params = Object.fromEntries(match.r.keys.map((k, i) => [k, decodeURIComponent(match.m[i + 1]!)]));
+    let params: Record<string, string>;
+    try {
+      params = Object.fromEntries(match.r.keys.map((k, i) => [k, decodeURIComponent(match.m[i + 1]!)]));
+    } catch {
+      return json(404, { error: { code: "NOT_FOUND", message: "Nothing here." } });
+    }
     let body: unknown = undefined;
     if (WRITES.has(req.method)) {
-      const text = await req.text();
-      if (text.length > 64_000) throw new Refusal(400, "Too large.");
+      const text = await readCapped(req, 64_000);
+      if (text === null) throw new Refusal(400, "Too large.");
       try {
         body = text ? JSON.parse(text) : undefined;
       } catch {

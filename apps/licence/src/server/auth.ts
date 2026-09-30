@@ -109,6 +109,9 @@ export async function passwordStep(req: Request, ctx: Ctx, body: { email: string
   return { pending: token, expiresS: PENDING_MS / 1000 };
 }
 
+/** A secret no one holds, checked against an unknown email's code. */
+const DUMMY_TOTP = newTotpSecret();
+
 /** Step two: the six digits. Only here is the sign-in decided, and it doesn't say which part was wrong. */
 export async function codeStep(
   req: Request,
@@ -133,6 +136,9 @@ export async function codeStep(
     return { ok: false };
   }
   if (!p.admin_id) {
+    // The same work as a known email's code step, so the answer's timing says nothing.
+    await ctx.db.query("SELECT id FROM admins ORDER BY id LIMIT 1");
+    verifyTotp(DUMMY_TOTP, code, { nowMs: now.getTime(), lastUsedStep: null });
     await logSignIn(ctx.db, ip, p.email, "unknown_email", now);
     return { ok: false };
   }

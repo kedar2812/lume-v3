@@ -15,7 +15,8 @@ it is not part of any client's LUME.
 |---|---|---|
 | Signing key (private) | `/root/lume-licence/secrets/signing.pem` | mode 600. Never copy it anywhere else. Back it up **offline**. |
 | Signing key (public) | `packages/core/src/licence/keys.ts` (`LICENCE_KEYS`) | Committed. Every LUME release trusts only the keys listed there. |
-| Database password, master key, key id | `/root/lume-licence/.env` | mode 600. The master key seals your two-step secret. |
+| Database password, key id | `/root/lume-licence/.env` | mode 600. |
+| Master key | `/root/lume-licence/secrets/master.key` | mode 600. It seals your two-step secret: back it up offline with the signing key. |
 | Admin's first password and two-step secret | `/root/lume-licence/secrets/admin.txt` | Written once at deploy. Sign in, change the password and set up a new authenticator, then delete the file. |
 | Data | the `lume-licence_pgdata` Docker volume | Clients, licences, prices, payments, check-ins (180 days), events. |
 
@@ -36,13 +37,14 @@ cd /root/lume-licence
 umask 077
 cat > .env <<EOF
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
-LICENCE_MASTER_KEY=$(openssl rand -base64 32)
 LICENCE_KID=lume-1
 EOF
+# The master key is a file the app reads (an environment variable would show in `docker inspect`).
+openssl rand -base64 32 > secrets/master.key
 # The signing key pair: the private key stays here; the public key is printed.
 docker run --rm --user 0 -v /root/lume-licence/secrets:/out lume-licence:latest \
   node apps/licence/scripts/keygen.mjs /out/signing.pem --kid lume-1
-chown 1000:1000 secrets/signing.pem   # the app runs as the image's "node" user
+chown 1000:1000 secrets/signing.pem secrets/master.key   # the app runs as the image's "node" user
 ```
 
 Copy the printed `"lume-1": "…"` line into `LICENCE_KEYS` in `packages/core/src/licence/keys.ts`, commit,

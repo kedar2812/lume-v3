@@ -5,7 +5,7 @@ import { keyMatches } from "@/lib/keys";
 import { issueToken } from "@/lib/sign";
 import { serverState } from "@/lib/state";
 import type { Ctx } from "./context";
-import { clientIp, json } from "./http";
+import { clientIp, json, readCapped } from "./http";
 
 /** Exactly what an instance sends (core's checkBody): nothing else is accepted, and nothing about a lead. */
 const checkSchema = z
@@ -38,8 +38,8 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
   const byIp = ctx.limits.ip.take(ip, now.getTime());
   if (!byIp.ok) return limited(byIp.retryAfterS);
 
-  const text = await req.text();
-  if (text.length > MAX_BODY) return json(400, { error: { code: "BAD_REQUEST", message: "Too large." } });
+  const text = await readCapped(req, MAX_BODY);
+  if (text === null) return json(400, { error: { code: "BAD_REQUEST", message: "Too large." } });
   let raw: unknown;
   try {
     raw = JSON.parse(text);

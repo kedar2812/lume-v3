@@ -75,6 +75,11 @@ describe("the bell (spec §4.4, Review Focus 5)", () => {
 });
 
 describe("analytics and releases (spec §4.4)", () => {
+  it("a path with a broken %-escape is 404, not a server error", async () => {
+    const r = await admin.call("GET", "/api/clients/%E0%A4%A");
+    expect(r.status).toBe(404);
+  });
+
   it("analytics over the real data: this month's revenue in rupees, and the range asked for", async () => {
     const r = await admin.call("GET", "/api/analytics?range=6");
     expect(r.status).toBe(200);

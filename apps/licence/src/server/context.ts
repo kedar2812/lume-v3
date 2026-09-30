@@ -20,6 +20,13 @@ export type Ctx = {
 const HOUR = 3_600_000;
 let made: Ctx | null = null;
 
+/** A secret from the file NAME_FILE points at (compose mounts it read-only), else from NAME itself. */
+export function secretFrom(env: Record<string, string | undefined>, name: string): string | null {
+  const file = env[`${name}_FILE`];
+  if (file) return readFileSync(/*turbopackIgnore: true*/ file, "utf8").trim() || null;
+  return env[name]?.trim() || null;
+}
+
 /** The running server's context, from its environment (read once). */
 export function context(): Ctx {
   if (made) return made;
@@ -29,7 +36,8 @@ export function context(): Ctx {
   const kid = env.LICENCE_KID;
   if (!url) throw new Error("DATABASE_URL is not set");
   if (!kid) throw new Error("LICENCE_KID is not set (the id keygen printed with the public key)");
-  if (!env.LICENCE_MASTER_KEY) throw new Error("LICENCE_MASTER_KEY is not set");
+  const masterKey = secretFrom(env, "LICENCE_MASTER_KEY");
+  if (!masterKey) throw new Error("LICENCE_MASTER_KEY_FILE (or LICENCE_MASTER_KEY) is not set");
   const signer: Signer = {
     kid,
     privateKey: createPrivateKey(readFileSync(/*turbopackIgnore: true*/ keyFile)),
@@ -47,7 +55,7 @@ export function context(): Ctx {
       wrongKey: new Limiter(10, HOUR),
       signIn: new Limiter(10, 15 * 60_000),
     },
-    master: masterKeyFromBase64(env.LICENCE_MASTER_KEY),
+    master: masterKeyFromBase64(masterKey),
     fetch: globalThis.fetch,
   };
   return made;

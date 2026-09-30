@@ -5,3 +5,8 @@ packages:
 # Packages allowed to run install scripts (pnpm 10 blocks all others).
 onlyBuiltDependencies:
   - esbuild
+
+# uuid below 11.1.1 has a moderate advisory (GHSA-w5hq-g745-h8pq); exceljs 4.4 still asks for uuid 8 and only
+# uses its v4(), which 11 keeps.
+overrides:
+  "uuid@<11.1.1": "^11.1.1"
