@@ -6,8 +6,11 @@ import path from "node:path";
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 const STUBS = path.join(ROOT, "scripts/fleet/stubs");
 
-/** A staged answer: a call whose words match `match` exits with `code` and prints `out`. First match wins. */
-export type Answer = { match: RegExp; code?: number; out?: string };
+/**
+ * A staged answer: a call whose words match `match` exits with `code` and prints `out`. First match wins;
+ * with `times`, only for its first that many matches.
+ */
+export type Answer = { match: RegExp; code?: number; out?: string; times?: number };
 
 export type Run = { code: number; stdout: string; stderr: string; calls: string[]; dir: string };
 
@@ -43,7 +46,10 @@ export function run(
   writeFileSync(
     answers,
     (o.answers ?? [])
-      .map((a) => `${a.match.source}\t${a.code ?? 0}\t${(a.out ?? "").replace(/\n/g, "\\n")}`)
+      // \x1f (the unit separator), not a tab: bash's read would merge an empty field away.
+      .map((a) =>
+        [a.match.source, a.code ?? 0, (a.out ?? "").replace(/\n/g, "\\n"), a.times ?? ""].join("\x1f"),
+      )
       .join("\n") + "\n",
   );
   for (const s of ["_stub", "ssh", "scp", "docker", "curl", "dig"])

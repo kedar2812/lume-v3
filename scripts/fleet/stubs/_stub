@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A stand-in for ssh, scp, docker, curl and dig in the fleet tests: records the call, then answers from the
-# staged answers (tab-separated: a regex over the call, an exit code, the output; the first match wins).
+# staged answers (a regex over the call, an exit code, the output, and for how many calls; the first match wins).
 name="${STUB_NAME:-$(basename "$0")}"
 call="$name $*"
 printf '%s\n' "$call" >> "${STUB_LOG:?}"
@@ -11,9 +11,18 @@ if [ "$name" = scp ] && [ -n "${STUB_UPLOADS:-}" ] && [ $# -ge 2 ]; then
   dest="${args[$# - 1]}"
   cp "${args[$# - 2]}" "$STUB_UPLOADS/$(basename "${dest##*:}")"
 fi
-while IFS=$'\t' read -r pattern code out; do
+n=0
+# Fields are split on the unit separator (\x1f): with a tab, read would merge an empty field away.
+while IFS=$'\x1f' read -r pattern code out times; do
+  n=$((n + 1))
   [ -n "$pattern" ] || continue
   if [[ "$call" =~ $pattern ]]; then
+    # An answer staged for only its first <times> matches steps aside after that.
+    if [ -n "$times" ]; then
+      used="$(cat "$STUB_ANSWERS.$n" 2>/dev/null || echo 0)"
+      [ "$used" -lt "$times" ] || continue
+      echo $((used + 1)) > "$STUB_ANSWERS.$n"
+    fi
     [ -n "$out" ] && printf '%b\n' "$out"
     exit "${code:-0}"
   fi
