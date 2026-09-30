@@ -14,6 +14,7 @@
 2. **OAuth consent screen:**
    - **External**; app name "LUME"; your support email; the LUME logo (`lume-mark.png`).
    - Authorised domain `lumecrm.in`.
+   - **Application home page** `https://lumecrm.in` and **privacy policy** `https://lumecrm.in/privacy` (verification needs both, on the authorised domain, and the privacy policy must say what LUME does with Google data: reads only the sheets a person picks, to bring their rows in as leads).
    - Scope: **only** `https://www.googleapis.com/auth/drive.file`.
    - Submit for verification. `drive.file` is Google's least-sensitive Drive scope, so verification is the light kind.
 3. **Credentials → OAuth client ID → Web application:**
@@ -55,7 +56,7 @@ Run it behind TLS at `connect.lumecrm.in` (any reverse proxy; it listens on 3200
    ```
 
    Then restart its API.
-4. Check it: in the client's Settings → Integrations, Google Sheets shows **Connect with Google** first, and the service-account way sits under "Other ways" (only if that server also has a key).
+4. Check it: in the client's Settings → Integrations, Google Sheets shows **Continue with Google** first (Google's own wording for its sign-in button), and the service-account way sits under "Other ways" (only if that server also has a key).
 
 ## Looking after it
 
@@ -63,3 +64,4 @@ Run it behind TLS at `connect.lumecrm.in` (any reverse proxy; it listens on 3200
 - **Removing a client:** take its entry out of `RELAY_INSTANCES`. Its Google-connected sheets stop refreshing, and they show "needs attention" at their next sync.
 - **A person who removes LUME's access** in their Google account: that sheet shows "needs attention" ("Google access for this sheet was removed. Connect it again.") with a **Connect again** button. The admin picks the same file in Google's Picker, and the sheet carries on from where it stopped.
 - **The relay down** is a passing failure for sheets: they back off and try again, and nothing is lost.
+- **Google's limit of 100 refresh tokens per Google account, per OAuth client.** Each Continue with Google asks for consent again (so a grant always comes back), and each consent makes a new refresh token; past 100, Google silently ends the oldest. Someone who connects a great many sheets from one Google account (across all clients) would see the oldest ones ask to **Connect again**. That's rare; if it happens, connect those sheets from another Google account, or share them with the service account instead.

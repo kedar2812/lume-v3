@@ -91,6 +91,17 @@ export const apiSchema = base
     GOOGLE_OAUTH_RELAY_TOKEN: optional(z.string().min(32).max(200)),
   })
   .superRefine((c, ctx) => {
+    // The relay carries a Google grant back: https everywhere but a developer's own machine and tests.
+    if (
+      c.GOOGLE_OAUTH_RELAY_URL?.startsWith("http:") &&
+      c.NODE_ENV !== "development" &&
+      c.NODE_ENV !== "test"
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["GOOGLE_OAUTH_RELAY_URL"],
+        message: "GOOGLE_OAUTH_RELAY_URL must be https",
+      });
     if (!!c.GOOGLE_OAUTH_RELAY_URL !== !!c.GOOGLE_OAUTH_RELAY_TOKEN)
       ctx.addIssue({
         code: "custom",

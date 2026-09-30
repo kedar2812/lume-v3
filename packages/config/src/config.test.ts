@@ -36,6 +36,19 @@ describe("loadConfig", () => {
     expect(loadConfig(apiSchema, apiEnv).LUME_MANYCHAT_PRESET).toBe("off");
     expect(loadConfig(apiSchema, { ...apiEnv, LUME_MANYCHAT_PRESET: "on" }).LUME_MANYCHAT_PRESET).toBe("on");
   });
+  it("the relay is reached over https, except in development and tests", () => {
+    const env = {
+      ...apiEnv,
+      GOOGLE_OAUTH_RELAY_URL: "http://connect.lumecrm.in",
+      GOOGLE_OAUTH_RELAY_TOKEN: "x".repeat(40),
+    };
+    expect(issuesOf(() => loadConfig(apiSchema, { ...env, NODE_ENV: "production" })).join()).toMatch(
+      /GOOGLE_OAUTH_RELAY_URL/,
+    );
+    expect(loadConfig(apiSchema, { ...env, NODE_ENV: "test" }).GOOGLE_OAUTH_RELAY_URL).toBe(
+      "http://connect.lumecrm.in",
+    );
+  });
   it("Connect with Google needs both the relay's address and this instance's token", () => {
     expect(loadConfig(apiSchema, apiEnv).GOOGLE_OAUTH_RELAY_URL).toBeUndefined();
     const ok = loadConfig(apiSchema, {

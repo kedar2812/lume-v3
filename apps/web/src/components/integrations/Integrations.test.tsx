@@ -145,7 +145,7 @@ describe("Settings → Integrations", () => {
     const assign = vi.fn();
     Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true });
     render(<Integrations />);
-    const connect = await screen.findByRole("button", { name: "Connect with Google" });
+    const connect = await screen.findByRole("button", { name: "Continue with Google" });
     expect(document.querySelector('img[src="/brand/google-g.png"]')).not.toBeNull();
     expect(screen.getByText("Other ways")).toBeInTheDocument();
     await userEvent.click(connect);

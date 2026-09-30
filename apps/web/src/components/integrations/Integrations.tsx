@@ -109,7 +109,7 @@ export function Integrations() {
               <div className={s.connect}>
                 <button type="button" className={s.googleButton} onClick={() => void startConnect()}>
                   <img src="/brand/google-g.png" alt="" width={18} height={18} />
-                  Connect with Google
+                  Continue with Google
                 </button>
                 <p className={s.cardLede}>
                   Sign in to Google and pick the sheet. LUME can open only the sheets you pick.

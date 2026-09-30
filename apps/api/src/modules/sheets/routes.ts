@@ -119,7 +119,7 @@ export async function sheetRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
     (req) => patchSheet(req, d, req.params.id, req.body),
   );
   r.delete("/api/v1/sheets/sources/:id", { config: manage, schema: { params } }, async (req, reply) => {
-    await removeSheet(req, req.params.id);
+    await removeSheet(req, d, req.params.id);
     return reply.code(204).send();
   });
   r.post("/api/v1/sheets/sources/:id/sync", { config: manage, schema: { params } }, (req) =>

@@ -191,10 +191,12 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
   if (h.exp < Date.now())
     throw badRequest("CONNECT_EXPIRED", "This connection took too long. Try Connect with Google again.");
   const OC = schema.oauthConnects;
+  // Locked: two tabs completing the same hand-back at once — the second waits, then finds it used.
   const [row] = await req.db
     .select()
     .from(OC)
-    .where(and(eq(OC.nonceHash, sha256(h.nonce)), eq(OC.userId, req.actor!.userId), isNull(OC.completedAt)));
+    .where(and(eq(OC.nonceHash, sha256(h.nonce)), eq(OC.userId, req.actor!.userId), isNull(OC.completedAt)))
+    .for("update");
   if (!row)
     throw notFound("CONNECT_NOT_FOUND", "This connection was already used, or isn't yours. Try again.");
   const file = { id: h.file.id, name: String(h.file.name ?? "").slice(0, 200) };
@@ -720,11 +722,21 @@ export async function patchSheet(
 }
 
 /** Amendment A12: removed is archived; its leads keep it, so "From …" still reads right. */
-export async function removeSheet(req: FastifyRequest, id: string) {
+export async function removeSheet(req: FastifyRequest, d: AppDeps, id: string) {
   const s = await liveSource(req, id);
+  // A sheet connected with Google keeps no grant once removed: its config is sealed again without it.
+  const cfg = s.configEnc ? openConfig(d.keyring, s.id, s.configEnc) : null;
+  const { grant: _gone, ...kept } = cfg ?? {};
+  void _gone;
   await req.db
     .update(S)
-    .set({ status: "archived", archivedAt: new Date(), currentSyncId: null, syncLockUntil: null })
+    .set({
+      status: "archived",
+      archivedAt: new Date(),
+      currentSyncId: null,
+      syncLockUntil: null,
+      ...(cfg?.grant ? { configEnc: sealConfig(d.keyring, s.id, kept as typeof cfg) } : {}),
+    })
     .where(eq(S.id, id));
   await audit(req, {
     action: "sheet.removed",

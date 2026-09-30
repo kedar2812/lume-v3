@@ -14,6 +14,8 @@ export type RelayConfig = {
   instances: { url: string; token: string }[];
   googleAuthUrl?: string;
   googleTokenUrl?: string;
+  /** Google's API (Drive), to check a picked file is a spreadsheet. */
+  googleApiUrl?: string;
   now?: () => number;
 };
 
@@ -26,13 +28,42 @@ type State = { i: string; n: string; exp: number };
  * client secret and the Picker key; it hands each instance its grant sealed with that instance's token,
  * and only ever redirects to the URL registered for it. It never sees lead data.
  */
-export function createRelay(o: RelayConfig): http.RequestListener {
+export type Relay = http.RequestListener & {
+  /** Code tokens held in memory right now (expired ones are swept at each sign-in). */
+  pendingSize(): number;
+};
+
+/** Every page the relay serves: never framed, never sending the relay's address on. */
+const HARDENED = {
+  "cache-control": "no-store",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+};
+// Text and double-quoted attributes only, so an apostrophe needs nothing.
+const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+const escapeHtml = (v: string) => v.replace(/[&<>"]/g, (c) => ENTITIES[c]!);
+/** A short page in words, with a way back to LUME when the instance is known. */
+function wordsPage(title: string, text: string, back: string | null) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(title)} · LUME</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#eef0f3;color:#0a0c11}
+main{background:#fff;border-radius:16px;padding:28px 32px;box-shadow:0 0 0 .5px rgba(12,18,32,.1),0 18px 50px rgba(12,18,32,.12);max-width:420px;text-align:center}
+h1{font-size:18px;margin:0 0 6px}p{color:#5a606d;margin:0 0 16px}a{color:#2a5bff;font-weight:600}</style></head>
+<body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p>${back ? `<a href="${escapeHtml(back)}">Back to LUME</a>` : ""}</main></body></html>`;
+}
+
+export function createRelay(o: RelayConfig): Relay {
   const now = o.now ?? Date.now;
   const authUrl = o.googleAuthUrl ?? "https://accounts.google.com/o/oauth2/v2/auth";
   const tokenUrl = o.googleTokenUrl ?? "https://oauth2.googleapis.com/token";
+  const apiUrl = o.googleApiUrl ?? "https://www.googleapis.com";
   const byId = new Map(o.instances.map((x) => [instanceIdOf(x.token), x]));
   const byToken = new Map(o.instances.map((x) => [x.token, x]));
   const redirectUri = `${o.publicUrl}/callback`;
+  const backTo = (instanceId: string) => {
+    const inst = byId.get(instanceId);
+    return inst ? new URL("/settings/integrations", inst.url).toString() : null;
+  };
 
   const packState = (s: State) => {
     const body = Buffer.from(JSON.stringify(s)).toString("base64url");
@@ -46,8 +77,16 @@ export function createRelay(o: RelayConfig): http.RequestListener {
     return s.exp > now() && byId.has(s.i) ? s : null;
   };
   const plain = (res: http.ServerResponse, status: number, text: string) => {
-    res.writeHead(status, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+    res.writeHead(status, { "content-type": "text/plain; charset=utf-8", ...HARDENED });
     res.end(text);
+  };
+  const page = (res: http.ServerResponse, status: number, html: string) => {
+    res.writeHead(status, {
+      "content-type": "text/html; charset=utf-8",
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+      ...HARDENED,
+    });
+    res.end(html);
   };
   const json = (res: http.ServerResponse, status: number, body: unknown) => {
     res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
@@ -66,6 +105,21 @@ export function createRelay(o: RelayConfig): http.RequestListener {
     string,
     { refreshToken: string; accessToken: string; state: string; exp: number }
   >();
+  const sweep = () => {
+    const t = now();
+    for (const [k, v] of pending) if (v.exp < t) pending.delete(k);
+  };
+  /** Whether Drive says the picked file is a Google Sheet (asked with the grant just given); null: unknown. */
+  async function isSpreadsheet(fileId: string, accessToken: string): Promise<boolean | null> {
+    const r = await fetch(`${apiUrl}/drive/v3/files/${encodeURIComponent(fileId)}?fields=mimeType`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    }).catch(() => null);
+    if (!r) return null;
+    if (r.status === 404) return false;
+    if (!r.ok) return null;
+    const d = (await r.json().catch(() => ({}))) as { mimeType?: string };
+    return d.mimeType === "application/vnd.google-apps.spreadsheet";
+  }
 
   async function exchange(params: Record<string, string>) {
     const r = await fetch(tokenUrl, {
@@ -76,7 +130,7 @@ export function createRelay(o: RelayConfig): http.RequestListener {
     return { status: r.status, data: (await r.json().catch(() => ({}))) as Record<string, unknown> };
   }
 
-  return (req, res) => {
+  const listener = (req: http.IncomingMessage, res: http.ServerResponse) => {
     void (async () => {
       const u = new URL(req.url ?? "/", o.publicUrl);
       if (u.pathname === "/healthz") return json(res, 200, { status: "ok" });
@@ -103,9 +157,21 @@ export function createRelay(o: RelayConfig): http.RequestListener {
       }
 
       if (u.pathname === "/callback" && req.method === "GET") {
+        sweep();
         const raw = u.searchParams.get("state");
         const state = readState(raw);
         const code = u.searchParams.get("code");
+        // Consent turned down (or cancelled) at Google: said as it is, with a way back.
+        if (state && u.searchParams.get("error"))
+          return page(
+            res,
+            200,
+            wordsPage(
+              "LUME didn't get access",
+              "You didn't give LUME access to a sheet. Go back to LUME and choose Continue with Google when you're ready.",
+              backTo(state.i),
+            ),
+          );
         if (!state || !code)
           return plain(res, 400, "This sign-in expired or isn't valid. Go back to LUME and try again.");
         const t = await exchange({ grant_type: "authorization_code", code, redirect_uri: redirectUri });
@@ -117,12 +183,19 @@ export function createRelay(o: RelayConfig): http.RequestListener {
         pending.set(codeToken, { refreshToken, accessToken, state: raw!, exp: now() + TEN_MIN });
         res.writeHead(200, {
           "content-type": "text/html; charset=utf-8",
-          "cache-control": "no-store",
+          ...HARDENED,
           "content-security-policy":
-            "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://*.googleapis.com; frame-src https://docs.google.com https://*.google.com; connect-src https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:",
+            "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://*.googleapis.com; frame-src https://docs.google.com https://*.google.com; connect-src https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; frame-ancestors 'none'",
         });
         return res.end(
-          pickerPage({ accessToken, pickerKey: o.pickerKey, appId: o.appId, state: raw!, codeToken }),
+          pickerPage({
+            accessToken,
+            pickerKey: o.pickerKey,
+            appId: o.appId,
+            state: raw!,
+            codeToken,
+            back: backTo(state.i),
+          }),
         );
       }
 
@@ -140,6 +213,20 @@ export function createRelay(o: RelayConfig): http.RequestListener {
           !/^[A-Za-z0-9_-]{10,}$/.test(fileId)
         )
           return plain(res, 400, "This sign-in expired or isn't valid. Go back to LUME and try again.");
+        // drive.file lets through only what was picked, but the Picker is a page: check what it sent.
+        const sheet = await isSpreadsheet(fileId, p.accessToken);
+        if (sheet === false)
+          return page(
+            res,
+            400,
+            wordsPage(
+              "That isn't a Google Sheet",
+              "LUME reads Google Sheets only. Go back to LUME and pick a spreadsheet.",
+              backTo(state.i),
+            ),
+          );
+        if (sheet === null)
+          return plain(res, 502, "LUME couldn't check that file with Google. Go back to LUME and try again.");
         const inst = byId.get(state.i)!;
         const handoff: Handoff = {
           nonce: state.n,
@@ -168,4 +255,5 @@ export function createRelay(o: RelayConfig): http.RequestListener {
       return plain(res, 404, "Not found");
     })().catch(() => plain(res, 500, "Something went wrong. Go back to LUME and try again."));
   };
+  return Object.assign(listener, { pendingSize: () => pending.size });
 }

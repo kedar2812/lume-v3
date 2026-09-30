@@ -21,6 +21,8 @@ export type GoogleFake = {
   /** The service-account key file, base64, as GOOGLE_SERVICE_ACCOUNT_JSON holds it. */
   env: string;
   put(id: string, s: FakeSpreadsheet): void;
+  /** A Drive file that isn't a spreadsheet (a Google Doc, say), reachable through a grant. */
+  putFile(id: string, mimeType: string): void;
   append(id: string, tab: string, rows: FakeCell[][]): void;
   setRows(id: string, tab: string, rows: FakeCell[][]): void;
   renameTab(id: string, from: string, to: string): void;
@@ -43,6 +45,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
   const sheets = new Map<string, FakeSpreadsheet & { modified: number }>();
+  const files = new Map<string, string>();
   const tokens = new Set<string>();
   const oauthTokens = new Set<string>();
   let revoked = false;
@@ -171,10 +174,16 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     }
     const drive = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname);
     if (drive) {
+      const other = files.get(decodeURIComponent(drive[1]!));
+      if (other && viaGrant)
+        return send(res, 200, { mimeType: other, modifiedTime: new Date(0).toISOString() });
       const s = sheets.get(decodeURIComponent(drive[1]!));
       if (!s || (!viaGrant && !s.sharedWith.includes(EMAIL)))
         return googleError(res, 404, "NOT_FOUND", "File not found.");
-      return send(res, 200, { modifiedTime: new Date(s.modified).toISOString() });
+      return send(res, 200, {
+        mimeType: "application/vnd.google-apps.spreadsheet",
+        modifiedTime: new Date(s.modified).toISOString(),
+      });
     }
     const meta = /^\/v4\/spreadsheets\/([^/:]+)$/.exec(u.pathname);
     const values = /^\/v4\/spreadsheets\/([^/:]+)\/values:batchGet$/.exec(u.pathname);
@@ -226,6 +235,9 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     ).toString("base64"),
     put(id, s) {
       sheets.set(id, { ...structuredClone(s), modified: (clock += 1000) });
+    },
+    putFile(id, mimeType) {
+      files.set(id, mimeType);
     },
     append(id, tab, rows) {
       tabOf(id, tab).rows.push(...structuredClone(rows));

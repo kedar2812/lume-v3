@@ -4,6 +4,7 @@ import { ALL_GRANTS, instanceIdOf, newId, seal, sign, verify } from "@lume/core"
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRelay } from "../../../../connect/src/relay";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
+import { openConfig } from "./config";
 
 const RELAY_TOKEN = "c".repeat(40);
 let h: Harness;
@@ -124,6 +125,62 @@ describe("Connect with Google (Review Focus 1)", () => {
       newAllTime: 1,
     });
     expect(await h.queryAll("SELECT 1 FROM oauth_connects WHERE id = $1", [done.connectId])).toHaveLength(0);
+  });
+
+  /** A fresh hand-back for a new connect of the admin's, and its picked spreadsheet. */
+  async function handBack() {
+    const { url } = (await call(admin, "POST", "/api/v1/integrations/google/connect")).json();
+    const nonce = new URL(url).searchParams.get("n")!;
+    const spreadsheetId = `picked-${newId()}`;
+    h.fake!.put(spreadsheetId, {
+      title: "Picked",
+      sharedWith: [],
+      tabs: [{ sheetId: 3, title: "Leads", rows: [["Name", "Phone"]] }],
+    });
+    const p = seal(RELAY_TOKEN, {
+      nonce,
+      refreshToken: "rt-good",
+      file: { id: spreadsheetId, name: "Picked" },
+      exp: Date.now() + 60_000,
+    });
+    return { p, s: sign(RELAY_TOKEN, p) };
+  }
+
+  it("two tabs completing the same hand-back at once: exactly one wins", async () => {
+    const b = await handBack();
+    const [x, y] = await Promise.all([
+      call(admin, "POST", "/api/v1/integrations/google/complete", b),
+      call(admin, "POST", "/api/v1/integrations/google/complete", b),
+    ]);
+    expect([x.statusCode, y.statusCode].sort()).toEqual([200, 404]);
+  });
+
+  it("a removed sheet connected with Google keeps no grant", async () => {
+    const done = (await call(admin, "POST", "/api/v1/integrations/google/complete", await handBack())).json();
+    const d = (
+      await call(admin, "POST", "/api/v1/sheets/drafts", { connectId: done.connectId, sheetId: 3 })
+    ).json();
+    const saved = (
+      await call(admin, "POST", "/api/v1/sheets/sources", {
+        importId: d.draft.id,
+        name: "Picked to remove",
+        pollSeconds: 120,
+        startFrom: "all",
+      })
+    ).json();
+    const sealed = async () =>
+      openConfig(
+        h.keyring,
+        saved.id,
+        (
+          await h.queryAll<{ config_enc: Buffer }>("SELECT config_enc FROM lead_sources WHERE id = $1", [
+            saved.id,
+          ])
+        )[0]!.config_enc,
+      );
+    expect((await sealed()).grant).toBe("rt-good");
+    await admin.inject({ method: "DELETE", url: `/api/v1/sheets/sources/${saved.id}` });
+    expect((await sealed()).grant).toBeUndefined();
   });
 
   it("refuses a tampered, foreign or expired hand-back", async () => {
