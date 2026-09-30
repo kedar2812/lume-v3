@@ -1,4 +1,4 @@
-import { isLocked } from "../../licence/enforce";
+import { heldBack } from "../../licence/enforce";
 import type { FastifyInstance } from "fastify";
 import PgBoss from "pg-boss";
 import type pg from "pg";
@@ -76,7 +76,7 @@ export async function startTaskQueue(o: {
   let ticking = false;
   const tick = async () => {
     // Locked (L-A): the whole clock waits — reminders, escalation, the morning email, alerts, no-touch.
-    if (ticking || isLocked(o.app.licence.view().state)) return;
+    if (ticking || heldBack(o.app, "the follow-up clock")) return;
     ticking = true;
     const n = ticks++;
     try {

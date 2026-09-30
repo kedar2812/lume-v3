@@ -136,6 +136,11 @@ test.describe("The licence (L-A)", () => {
     await expect(download).toBeVisible({ timeout: 20_000 });
     await expect(download).toHaveAttribute("download", /^LUME-export-\d{4}-\d{2}-\d{2}\.zip$/);
     await reviewCopy(page, "paused-exported.png");
+    // The browser downloads the prepared zip itself: a real zip, named for the day.
+    const [file] = await Promise.all([page.waitForEvent("download"), download.click()]);
+    expect(file.suggestedFilename()).toMatch(/^LUME-export-\d{4}-\d{2}-\d{2}\.zip$/);
+    const { readFile } = await import("node:fs/promises");
+    expect((await readFile((await file.path())!)).subarray(0, 2).toString()).toBe("PK");
     const rep = await browser.newContext({ storageState: stateFile("seller") });
     const rp = await rep.newPage();
     await openApp(rp, "/today");

@@ -7,7 +7,7 @@ import {
   type LicencePayload,
   type LicenceStateName,
 } from "@lume/core";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../test/harness";
 import { fire, sweep } from "../modules/tasks/engine";
 
@@ -180,5 +180,26 @@ describe("the licence is enforced in the API (L-A Task 3)", () => {
     expect(await sweep(deps, later)).toBe(0);
     await become("active");
     expect(await sweep(deps, later)).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("work LUME holds back while locked says so in its log (spec §3.4)", () => {
+  it("once when a clock stops, once when it carries on — not every tick", async () => {
+    const { heldBack } = await import("./enforce");
+    let s: LicenceStateName = "active";
+    const info = vi.fn();
+    const app = { licence: { view: () => ({ state: s }) }, log: { info } } as never;
+    expect(heldBack(app, "the follow-up clock")).toBe(false);
+    s = "read_only";
+    expect(heldBack(app, "the follow-up clock")).toBe(true);
+    expect(heldBack(app, "the follow-up clock")).toBe(true);
+    expect(heldBack(app, "scheduled sheet syncs")).toBe(true);
+    expect(info.mock.calls.map((c) => c[1])).toEqual([
+      "the follow-up clock is held back while the licence is read_only",
+      "scheduled sheet syncs is held back while the licence is read_only",
+    ]);
+    s = "active";
+    expect(heldBack(app, "the follow-up clock")).toBe(false);
+    expect(info.mock.calls.at(-1)![1]).toBe("the follow-up clock carries on: the licence is active");
   });
 });

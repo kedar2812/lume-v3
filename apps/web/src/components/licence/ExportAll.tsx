@@ -1,6 +1,7 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { api } from "@/lib/api";
 import { EXPORT_URL } from "@/lib/licence/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import s from "./licence.module.css";
@@ -25,14 +26,7 @@ export function ExportAll({ variant = "secondary" }: { variant?: "primary" | "se
   const reduce = useReducedMotion();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const timer = useRef<ReturnType<typeof setInterval>>(undefined);
-  const url = useRef<string | null>(null);
-  useEffect(
-    () => () => {
-      clearInterval(timer.current);
-      if (url.current) URL.revokeObjectURL(url.current);
-    },
-    [],
-  );
+  useEffect(() => () => clearInterval(timer.current), []);
 
   const ticks = useRef(0);
   const start = async () => {
@@ -48,17 +42,11 @@ export function ExportAll({ variant = "secondary" }: { variant?: "primary" | "se
       reduce ? 60 : TICK_MS,
     );
     try {
-      const r = await fetch(EXPORT_URL, { credentials: "same-origin" });
+      // The server prepares the zip; the browser then downloads it itself (never through this page's memory).
+      const r = await api.post<{ id: string; name: string }>(EXPORT_URL);
       if (!r.ok)
-        throw new Error(
-          r.status === 403
-            ? "Exporting everything isn't part of your role."
-            : "The export didn't finish. Try again.",
-        );
-      const blob = await r.blob();
-      const name =
-        /filename="([^"]+)"/.exec(r.headers.get("content-disposition") ?? "")?.[1] ?? "LUME-export.zip";
-      url.current = URL.createObjectURL(blob);
+        throw new Error(r.status === 403 ? "Exporting everything isn't part of your role." : r.message);
+      const { id, name } = r.data;
       // Let the files finish ticking before the zip is offered.
       await new Promise<void>((done) => {
         const wait = setInterval(() => {
@@ -68,7 +56,7 @@ export function ExportAll({ variant = "secondary" }: { variant?: "primary" | "se
         }, 50);
       });
       clearInterval(timer.current);
-      setPhase({ kind: "ready", url: url.current, name });
+      setPhase({ kind: "ready", url: `${EXPORT_URL}/${encodeURIComponent(id)}`, name });
     } catch (e) {
       clearInterval(timer.current);
       setPhase({ kind: "failed", message: (e as Error).message });

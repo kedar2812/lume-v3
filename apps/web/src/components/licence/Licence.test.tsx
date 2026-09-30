@@ -93,6 +93,14 @@ describe("read-only", () => {
     expect(within(bar).queryByRole("button", { name: "Export all data" })).not.toBeInTheDocument();
   });
 
+  it("the bar only promises an export to people who can export", () => {
+    const { unmount } = shell(rep(L({ state: "read_only", reason: "overdue" })), <LicenceBanner />);
+    expect(screen.getByRole("status")).not.toHaveTextContent(/export/i);
+    unmount();
+    shell(admin(L({ state: "read_only", reason: "overdue" })), <LicenceBanner />);
+    expect(screen.getByRole("status")).toHaveTextContent("export everything");
+  });
+
   it("a write refused for the licence makes the shell look again", async () => {
     vi.mocked(licenceClient.get).mockResolvedValue(ok(L({ state: "read_only", reason: "overdue" })));
     shell(rep(L()), <LicenceBanner />);
@@ -117,15 +125,15 @@ describe("suspended: the lock screen", () => {
     expect(screen.getByRole("button", { name: "Export all data" })).toBeInTheDocument();
   });
 
-  it("Export all data ticks through the files, then the zip is ready to download", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("zip", {
-        status: 200,
-        headers: { "content-disposition": 'attachment; filename="LUME-export-2026-09-30.zip"' },
-      }),
-    );
+  it("Export all data ticks through the files while the server prepares the zip; the browser downloads it itself", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) =>
+        String(input).includes("/csrf")
+          ? new Response(JSON.stringify({ token: "t" }), { status: 200 })
+          : new Response(JSON.stringify({ id: "x1", name: "LUME-export-2026-09-30.zip" }), { status: 200 }),
+      );
     URL.createObjectURL = vi.fn(() => "blob:lume-export");
-    URL.revokeObjectURL = vi.fn();
     shell(admin(L({ state: "suspended", reason: "suspended" })), <LockScreen />);
     await userEvent.click(screen.getByRole("button", { name: "Export all data" }));
     const files = await screen.findByRole("list", { name: "Export" });
@@ -135,9 +143,25 @@ describe("suspended: the lock screen", () => {
         .map((li) => li.textContent),
     ).toEqual(["Leads.csv", "Notes.csv", "Activity.csv", "Follow-ups.csv", "Users.csv", "LUME-export.xlsx"]);
     const link = await screen.findByRole("link", { name: "Download" }, { timeout: 4000 });
-    expect(link).toHaveAttribute("href", "blob:lume-export");
+    expect(link).toHaveAttribute("href", "/api/v1/export/x1");
     expect(link).toHaveAttribute("download", "LUME-export-2026-09-30.zip");
     expect(screen.getByText("LUME-export-2026-09-30.zip")).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/export", expect.objectContaining({ method: "POST" }));
+    // The zip itself never passes through the page's memory.
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("an export that can't reach the server says so in LUME's words", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/csrf"))
+        return new Response(JSON.stringify({ token: "t" }), { status: 200 });
+      throw new TypeError("Failed to fetch");
+    });
+    shell(admin(L({ state: "suspended", reason: "suspended" })), <LockScreen />);
+    await userEvent.click(screen.getByRole("button", { name: "Export all data" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).not.toHaveTextContent("Failed to fetch");
+    expect(alert).toHaveTextContent(/LUME/);
   });
 
   it("people who may check can check again from the lock screen; a lifted pause lets LUME carry on", async () => {

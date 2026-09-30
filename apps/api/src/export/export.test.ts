@@ -1,4 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
+import { readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
 import archiver from "archiver";
 import ExcelJS from "exceljs";
 import { unzipSync, strFromU8 } from "fflate";
@@ -191,6 +193,45 @@ describe("export all data (L-A Task 4)", () => {
     expect(csv(files, "leads.csv").some((l) => l.Name === `'=HYPERLINK("https://x.test/?"&B2,"Open")`)).toBe(
       true,
     );
+  });
+
+  it("a deleted lead's notes, activity and follow-ups leave with it, as leads.csv does", async () => {
+    const lead = await h.seedLead({ ownerId: repId, name: "Deleted Lead" });
+    await admin.inject({ method: "POST", url: `/api/v1/leads/${lead}/notes`, payload: { body: "Gone." } });
+    await admin.inject({
+      method: "POST",
+      url: `/api/v1/leads/${lead}/tasks`,
+      payload: { title: "Never mind", due: { at: new Date(Date.now() + D).toISOString() } },
+    });
+    await h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1", [lead]);
+    const { files } = await download();
+    expect(csv(files, "leads.csv").some((l) => l["Lead ID"] === lead)).toBe(false);
+    for (const f of ["notes.csv", "activity.csv", "follow-ups.csv"])
+      expect(
+        csv(files, f).some((r) => r["Lead ID"] === lead),
+        f,
+      ).toBe(false);
+  });
+
+  it("prepared on the server, then downloaded by the browser itself: once, only by who asked", async () => {
+    for (const s of ["active", "suspended"] as const) {
+      await become(s);
+      const p = await admin.inject({ method: "POST", url: "/api/v1/export" });
+      expect(p.statusCode, s).toBe(200);
+      const { id, name } = p.json<{ id: string; name: string }>();
+      expect(name).toMatch(/^LUME-export-\d{4}-\d{2}-\d{2}\.zip$/);
+      const other = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true, name: `Omar ${s}` }));
+      expect((await other.inject({ method: "GET", url: `/api/v1/export/${id}` })).statusCode).toBe(404);
+      const r = await admin.inject({ method: "GET", url: `/api/v1/export/${id}` });
+      expect(r.statusCode).toBe(200);
+      expect(r.headers["content-disposition"]).toBe(`attachment; filename="${name}"`);
+      expect(Object.keys(unzipSync(new Uint8Array(r.rawPayload)))).toContain("leads.csv");
+      // Once: the file is gone from the server as soon as it's been downloaded.
+      expect((await admin.inject({ method: "GET", url: `/api/v1/export/${id}` })).statusCode).toBe(404);
+      expect(readdirSync(tmpdir()).filter((f) => f.includes(id))).toEqual([]);
+    }
+    await become("active");
+    expect((await rep.inject({ method: "POST", url: "/api/v1/export" })).statusCode).toBe(403);
   });
 
   it("a download abandoned half way lets go of its database connection", async () => {

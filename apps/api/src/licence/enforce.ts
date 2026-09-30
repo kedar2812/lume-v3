@@ -45,6 +45,31 @@ export function allowed(
 /** Whether LUME should hold back work it does on its own (the follow-up clock, scheduled syncs). */
 export const isLocked = (state: LicenceStateName) => state === "read_only" || state === "suspended";
 
+const holding = new WeakMap<object, Set<string>>();
+/**
+ * Whether `clock` (work LUME does on its own) waits for the licence, logged once when it stops and once when
+ * it carries on (spec §3.4) rather than at every tick.
+ */
+export function heldBack(
+  app: {
+    licence: { view: () => { state: LicenceStateName } };
+    log: { info: (o: object, m: string) => void };
+  },
+  clock: string,
+): boolean {
+  const state = app.licence.view().state;
+  const held = holding.get(app) ?? new Set<string>();
+  holding.set(app, held);
+  if (isLocked(state)) {
+    if (!held.has(clock))
+      app.log.info({ clock, state }, `${clock} is held back while the licence is ${state}`);
+    held.add(clock);
+    return true;
+  }
+  if (held.delete(clock)) app.log.info({ clock, state }, `${clock} carries on: the licence is ${state}`);
+  return false;
+}
+
 /** The licence enforced on every route of a scope (after authentication, so a 401 stays a 401). */
 export function licenceGuard(app: FastifyInstance): void {
   app.addHook("onRequest", async (req: FastifyRequest, reply: FastifyReply) => {

@@ -88,8 +88,10 @@ export function LicenceBanner() {
               <path d="M8 4.8V8.4M8 11v.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
             <span className={s.bannerText}>
-              <strong>Read-only.</strong> The licence needs attention: everyone can look and export, and
-              changes wait until it&apos;s sorted.
+              <strong>Read-only.</strong> The licence needs attention:{" "}
+              {canExport
+                ? "you can look around and export everything, and changes wait until it’s sorted."
+                : "you can look around, and changes wait until it’s sorted."}
             </span>
             {canExport && <ExportAll variant="bar" />}
           </motion.div>

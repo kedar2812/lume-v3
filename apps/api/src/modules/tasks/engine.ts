@@ -1,4 +1,4 @@
-import { isLocked } from "../../licence/enforce";
+import { heldBack } from "../../licence/enforce";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { FastifyInstance } from "fastify";
@@ -87,7 +87,7 @@ export async function cancelReminders(db: Db, taskId: string): Promise<void> {
  */
 export async function fire(o: EngineDeps, id: number, now: Date = new Date()): Promise<"fired" | "skipped"> {
   // A locked licence holds the follow-up clock; the sweeper fires what was missed once it's back (L-A).
-  if (isLocked(o.app.licence.view().state)) return "skipped";
+  if (heldBack(o.app, "follow-up reminders")) return "skipped";
   const client = await o.pool.connect();
   let broken = false;
   try {
@@ -179,7 +179,7 @@ export async function fire(o: EngineDeps, id: number, now: Date = new Date()): P
  * lost job, a restart or a clock step never loses one. A row another fire holds is skipped, not waited on.
  */
 export async function sweep(o: EngineDeps, now: Date = new Date()): Promise<number> {
-  if (isLocked(o.app.licence.view().state)) return 0;
+  if (heldBack(o.app, "follow-up reminders")) return 0;
   const { rows } = await o.pool.query<{ id: string }>(
     `SELECT id FROM scheduled_notifications
       WHERE status = 'pending' AND fire_at < $1::timestamptz - interval '30 seconds'

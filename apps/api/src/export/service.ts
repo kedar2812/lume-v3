@@ -1,9 +1,11 @@
 import { once } from "node:events";
 import { randomBytes } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough, type Writable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import archiver from "archiver";
 import ExcelJS from "exceljs";
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
@@ -153,7 +155,7 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
           cl,
           `SELECT a.id, a.lead_id, l.name AS lead, u.name AS author, a.payload->>'body' AS body, a.occurred_at
              FROM activities a JOIN leads l ON l.id = a.lead_id LEFT JOIN users u ON u.id = a.user_id
-            WHERE a.type = 'note' AND a.id > $1::uuid ORDER BY a.id LIMIT $2`,
+            WHERE a.type = 'note' AND l.deleted_at IS NULL AND a.id > $1::uuid ORDER BY a.id LIMIT $2`,
           "id",
           ZERO_UUID,
           (r) => [
@@ -174,7 +176,7 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
           cl,
           `SELECT a.id, a.lead_id, l.name AS lead, a.type, u.name AS who, a.occurred_at, a.payload
              FROM activities a JOIN leads l ON l.id = a.lead_id LEFT JOIN users u ON u.id = a.user_id
-            WHERE a.id > $1::uuid ORDER BY a.id LIMIT $2`,
+            WHERE l.deleted_at IS NULL AND a.id > $1::uuid ORDER BY a.id LIMIT $2`,
           "id",
           ZERO_UUID,
           (r) => [
@@ -196,7 +198,7 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
           cl,
           `SELECT t.id, t.lead_id, l.name AS lead, t.title, t.note, t.due_at, t.status, u.name AS assignee, t.done_at
              FROM tasks t JOIN leads l ON l.id = t.lead_id LEFT JOIN users u ON u.id = t.assignee_id
-            WHERE t.id > $1::uuid ORDER BY t.id LIMIT $2`,
+            WHERE l.deleted_at IS NULL AND t.id > $1::uuid ORDER BY t.id LIMIT $2`,
           "id",
           ZERO_UUID,
           (r) => [
@@ -275,7 +277,7 @@ export async function produceExport(o: {
   zip: archiver.Archiver;
   signal: AbortSignal;
   log: FastifyBaseLogger;
-}): Promise<void> {
+}): Promise<boolean> {
   const { zip, signal } = o;
   const bookFile = path.join(tmpdir(), `lume-export-${randomBytes(8).toString("hex")}.xlsx`);
   // The zip reads the workbook as it finishes; the file goes once the zip is done, however it ends.
@@ -332,11 +334,13 @@ export async function produceExport(o: {
     signal.throwIfAborted();
     zip.file(bookFile, { name: "LUME-export.xlsx" });
     await zip.finalize();
+    return true;
   } catch (err) {
     if (held) await c.query("ROLLBACK").catch(() => undefined);
     if (!signal.aborted) o.log.error({ err }, "export failed");
     zip.abort();
     cleanup();
+    return false;
   } finally {
     letGo();
   }
@@ -358,4 +362,85 @@ export async function exportAll(req: FastifyRequest, reply: FastifyReply, pool: 
   });
   void produceExport({ pool, userId: req.actor!.userId, zip, signal: ac.signal, log: req.log });
   return reply.send(zip);
+}
+
+/** A zip prepared for its download: kept until it's downloaded once, or for 10 minutes. */
+type Prepared = { userId: string; file: string; name: string; expires: number };
+const prepared = new Map<string, Prepared>();
+const KEEP_MS = 10 * 60_000;
+const forget = (id: string) => {
+  const p = prepared.get(id);
+  prepared.delete(id);
+  if (p) void rm(p.file, { force: true });
+};
+function sweepPrepared(now = Date.now()) {
+  for (const [id, p] of prepared) if (p.expires <= now) forget(id);
+}
+setInterval(sweepPrepared, 60_000).unref();
+
+/**
+ * Export all data, prepared (the screens' way): the zip is written to a private temporary file while the
+ * screen ticks through the files, then the browser downloads it itself (GET /export/:id), so the page never
+ * holds it in memory and a failure is said in LUME's words.
+ */
+export async function prepareExport(req: FastifyRequest, reply: FastifyReply, pool: pg.Pool) {
+  sweepPrepared();
+  await audit(req, { action: "data.export", entityType: "data" });
+  const id = randomBytes(16).toString("hex");
+  const file = path.join(tmpdir(), `lume-export-${id}.zip`);
+  const name = `LUME-export-${new Date().toISOString().slice(0, 10)}.zip`;
+  const zip = archiver("zip", { zlib: { level: 6 } });
+  const ac = new AbortController();
+  // The screen was closed before the zip was ready: stop, and leave nothing behind.
+  const onClose = () => {
+    if (!reply.sent) ac.abort();
+  };
+  req.raw.once("close", onClose);
+  const written = pipeline(zip, createWriteStream(file, { mode: 0o600 }), { signal: ac.signal });
+  let failed = false;
+  // A failed read stops the write too (an aborted zip may never end on its own).
+  const produced = produceExport({
+    pool,
+    userId: req.actor!.userId,
+    zip,
+    signal: ac.signal,
+    log: req.log,
+  }).then((whole) => {
+    if (!whole && !ac.signal.aborted) {
+      failed = true;
+      ac.abort();
+    }
+  });
+  try {
+    await Promise.all([written, produced]);
+    if (failed) throw new Error("the export stopped part way");
+  } catch (err) {
+    await rm(file, { force: true });
+    if (ac.signal.aborted && !failed) return reply;
+    req.log.error({ err }, "export failed");
+    return reply.code(500).send({
+      error: { code: "EXPORT_FAILED", message: "LUME couldn't finish the export. Try again." },
+    });
+  } finally {
+    req.raw.off("close", onClose);
+  }
+  prepared.set(id, { userId: req.actor!.userId, file, name, expires: Date.now() + KEEP_MS });
+  return { id, name };
+}
+
+/** The prepared zip, once, to the person who asked for it; then it's gone from the server. */
+export async function downloadPrepared(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+  const p = prepared.get(req.params.id);
+  if (!p || p.userId !== req.actor!.userId || p.expires <= Date.now())
+    return reply.code(404).send({
+      error: { code: "NOT_FOUND", message: "This export has gone. Export all data again." },
+    });
+  prepared.delete(req.params.id);
+  const body = createReadStream(p.file);
+  body.once("close", () => void rm(p.file, { force: true }));
+  return reply
+    .header("content-type", "application/zip")
+    .header("content-disposition", `attachment; filename="${p.name}"`)
+    .header("cache-control", "no-store")
+    .send(body);
 }

@@ -1,4 +1,4 @@
-import { isLocked } from "../../licence/enforce";
+import { heldBack } from "../../licence/enforce";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance } from "fastify";
@@ -90,7 +90,7 @@ export async function startSheetsQueue(o: {
   let ticking = false;
   const tick = async () => {
     // Locked (L-A): no scheduled syncs; one already queued finishes.
-    if (ticking || isLocked(o.app.licence.view().state)) return 0;
+    if (ticking || heldBack(o.app, "scheduled sheet syncs")) return 0;
     ticking = true;
     let started = 0;
     try {
