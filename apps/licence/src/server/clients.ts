@@ -642,7 +642,7 @@ export async function analyticsClients(db: pg.Pool): Promise<AClient[]> {
     prices: { currency: string; amount: number; period_months: number; from: string }[];
   }>(
     `SELECT c.id, c.name, c.country, c.region, c.source, l.type, c.created_at, l.paying_since,
-            coalesce(c.decommissioned_at, l.suspended_at) AS ended_at, to_char(l.trial_ends, 'YYYY-MM-DD') AS trial_ends,
+            coalesce(l.suspended_at, c.decommissioned_at) AS ended_at, to_char(l.trial_ends, 'YYYY-MM-DD') AS trial_ends,
             coalesce((SELECT json_agg(json_build_object('currency', p.currency, 'amount', p.amount, 'period_months', p.period_months,
                                                         'from', p.effective_from) ORDER BY p.effective_from, p.id)
                         FROM prices p WHERE p.client_id = c.id), '[]') AS prices

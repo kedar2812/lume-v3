@@ -31,6 +31,8 @@ export type Analytics = {
   month: string;
   mrr: number;
   mrrBefore: number;
+  /** The month before the range's first (the chart's first point compares with it). */
+  beforeRange: number;
   arr: number;
   paying: number;
   payingBefore: number;
@@ -293,6 +295,7 @@ export function computeAnalytics(o: {
     month: monthLabel(NOW),
     mrr,
     mrrBefore,
+    beforeRange: mrrAt(NOW - R - 1),
     arr: mrr * 12,
     paying: m.paying,
     payingBefore: payingAt(NOW - 1),

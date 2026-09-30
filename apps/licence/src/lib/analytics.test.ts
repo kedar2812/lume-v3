@@ -26,6 +26,9 @@ describe("analytics, against the canvas's own numbers (spec §4.4)", () => {
     expect(a.series.at(-1)!.month).toBe("2026-09");
     expect(a.series.at(-1)).toMatchObject({ joined: 2, left: 1 });
     expect(run(CANVAS_CLIENTS, 3).series).toHaveLength(4);
+    // The month before the range, so the chart's first point has something to compare with.
+    expect(run(CANVAS_CLIENTS, 3).beforeRange).toBeCloseTo(39672.1, 1);
+    expect(a.beforeRange).toBe(0);
   });
 
   it("average monthly growth, compounded from the first month with revenue", () => {

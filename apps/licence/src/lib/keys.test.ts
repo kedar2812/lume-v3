@@ -34,6 +34,19 @@ describe("instance ids and licence keys", () => {
   });
 });
 
+describe("the signing key at start", () => {
+  it("must be the one LUME's releases trust under its kid, or the server says why and won't start", async () => {
+    const { generateKeyPairSync } = await import("node:crypto");
+    const { signerProblem } = await import("./sign");
+    const pair = generateKeyPairSync("ed25519");
+    const other = generateKeyPairSync("ed25519");
+    const signer = { kid: "lume-1", privateKey: pair.privateKey };
+    expect(signerProblem(signer, { "lume-1": rawPublicKey(pair.publicKey) })).toBeNull();
+    expect(signerProblem(signer, {})).toMatch(/lume-1 isn't one of the keys LUME's releases trust/);
+    expect(signerProblem(signer, { "lume-1": rawPublicKey(other.publicKey) })).toMatch(/doesn't match/);
+  });
+});
+
 describe("keygen", () => {
   it("writes a private key readable only by its owner, prints the public one, and never overwrites", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "keygen-"));

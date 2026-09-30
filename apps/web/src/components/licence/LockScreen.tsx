@@ -14,7 +14,8 @@ import s from "./licence.module.css";
 export function LockScreen() {
   const { licence, canExport, set } = useLicence();
   const [checking, setChecking] = useState(false);
-  const [still, setStill] = useState(false);
+  /** What the last Check again found: still paused, or that it couldn't ask at all. */
+  const [said, setSaid] = useState<"" | "still" | "unreached">("");
   const reduce = useReducedMotion();
   const card = useRef<HTMLDivElement>(null);
   const on = licence.state === "suspended";
@@ -75,19 +76,23 @@ export function LockScreen() {
             {/* Once the pause is lifted, an admin needn't wait for the next check (every 6 hours). */}
             {licence.canCheck && (
               <p className={s.lockAgain} aria-live="polite">
-                {still && <span>Still paused. LUME checked just now.</span>}
+                {said === "still" && <span>Still paused. LUME checked just now.</span>}
+                {said === "unreached" && (
+                  <span>LUME couldn&apos;t reach its licence server just now. Try again in a minute.</span>
+                )}
                 <button
                   type="button"
                   className={s.lockAgainBtn}
                   disabled={checking}
                   onClick={async () => {
                     setChecking(true);
-                    setStill(false);
+                    setSaid("");
                     const r = await licenceClient.check();
                     setChecking(false);
-                    if (!r.ok) return;
+                    // No answer, or an answer without a fresh check: say so, never "checked just now".
+                    if (!r.ok || r.data.lastError) return setSaid("unreached");
                     set(r.data);
-                    setStill(r.data.state === "suspended");
+                    setSaid(r.data.state === "suspended" ? "still" : "");
                   }}
                 >
                   {checking ? "Checking…" : "Check again"}

@@ -99,7 +99,12 @@ async function signIn(req: Request, ctx: Ctx, step: "password" | "code"): Promis
   const ip = clientIp(req);
   const limit = ctx.limits.signIn.take(ip, ctx.now().getTime());
   if (!limit.ok) {
-    await ctx.db.query("INSERT INTO sign_ins (at, ip, outcome) VALUES ($1, $2, 'limited')", [ctx.now(), ip]);
+    // Logged once a window, so a flood of refusals can't fill the disk.
+    if (limit.first)
+      await ctx.db.query("INSERT INTO sign_ins (at, ip, outcome) VALUES ($1, $2, 'limited')", [
+        ctx.now(),
+        ip,
+      ]);
     return json(
       429,
       { error: { code: "RATE_LIMITED", message: "Too many tries. Wait a few minutes, then try again." } },
@@ -212,7 +217,12 @@ route("POST", "/api/settings/password", async ({ ctx, admin, body }) => {
   if (problem) throw new Refusal(400, problem);
   return { ok: true };
 });
-route("POST", "/api/settings/two-step", ({ ctx, admin }) => startTwoStep(ctx, admin));
+route("POST", "/api/settings/two-step", async ({ ctx, admin, body }) => {
+  const { code } = parse(z.object({ code: z.string().max(12) }).strict(), body ?? {});
+  const started = await startTwoStep(ctx, admin, code);
+  if (!started) throw new Refusal(400, "Type the six digits your current authenticator shows.");
+  return started;
+});
 route("POST", "/api/settings/two-step/confirm", async ({ ctx, admin, body }) => {
   const { code } = parse(z.object({ code: z.string().max(12) }).strict(), body);
   if (!(await confirmTwoStep(ctx, admin, code)))

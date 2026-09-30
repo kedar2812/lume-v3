@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/client";
@@ -438,6 +438,60 @@ describe("decommission (the source spec §6)", () => {
     render(<ClientScreen id="c2" />);
     await screen.findByRole("button", { name: "Suspend…" });
     expect(screen.queryByRole("button", { name: "Decommission…" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the chart's tooltip follows the trend rule too", () => {
+  it("a change that rounds to no change never shows +0.0%; the first month compares with the one before", async () => {
+    const base = computeAnalytics({
+      clients: CANVAS_CLIENTS,
+      rates: CANVAS_RATES,
+      now: CANVAS_NOW,
+      range: 3,
+      listPriceInr: CANVAS_LIST_PRICE,
+    });
+    const series = base.series.map((p, i) => ({ ...p, mrr: i === 3 ? 66010 : i === 2 ? 66000 : p.mrr }));
+    vi.mocked(api.get).mockImplementation(
+      async (p: string) =>
+        (p === "/api/alerts"
+          ? ok({ alerts: [] })
+          : ok({
+              ...base,
+              series,
+              beforeRange: 50000,
+              rates: { day: "2026-09-29", ageDays: 0, rates: CANVAS_RATES },
+            })) as never,
+    );
+    const { container } = render(<AnalyticsScreen />);
+    await screen.findByRole("region", { name: "Monthly growth" });
+    fireEvent.mouseEnter(container.querySelector('[data-month="2026-09"]')!);
+    const tip = container.querySelector(".tip")!;
+    expect(tip).toHaveTextContent("+₹10");
+    expect(tip).not.toHaveTextContent("0.0%");
+    fireEvent.mouseEnter(container.querySelector('[data-month="2026-06"]')!);
+    expect(container.querySelector(".tip")).toHaveTextContent("(\u2212");
+  });
+});
+
+describe("a paused client's price", () => {
+  it("says it isn't counted while paused, not that there's no rate", async () => {
+    const paused = {
+      ...DETAIL,
+      client: {
+        ...DETAIL.client,
+        state: "suspended",
+        suspendedAt: "2026-09-29T10:00:00Z",
+        price: { currency: "USD", amount: 948, periodMonths: 12 },
+        monthlyInr: 0,
+      },
+    };
+    vi.mocked(api.get).mockImplementation(
+      async (p: string) => (p === "/api/alerts" ? ok({ alerts: [] }) : ok(paused)) as never,
+    );
+    render(<ClientScreen id="c2" />);
+    const card = await screen.findByRole("region", { name: "Plan and price" });
+    expect(card).toHaveTextContent("not counted while paused");
+    expect(card).not.toHaveTextContent("no rate");
   });
 });
 

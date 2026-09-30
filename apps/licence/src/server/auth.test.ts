@@ -107,6 +107,14 @@ describe("the admin's sign-in (spec §4.4, Review Focus 4)", () => {
     expect(await outcomes()).toContain("limited");
     expect((await signIn(jar("198.51.100.21"))).status).toBe(200);
   });
+
+  it("a flood of refused sign-ins is logged once a window, not once a request", async () => {
+    ctx.limits.signIn = new Limiter(1, 15 * 60_000);
+    const j = jar("198.51.100.30");
+    for (let i = 0; i < 6; i++)
+      await j.call("POST", "/api/auth/password", { email: EMAIL, password: "x".repeat(12) });
+    expect((await outcomes()).filter((o) => o === "limited")).toHaveLength(1);
+  });
 });
 
 describe("sessions and CSRF", () => {

@@ -130,8 +130,16 @@ describe("the admin's own account (spec §4.4)", () => {
     expect((await signIn(new Jar(() => ctx))).status).toBe(200);
   });
 
+  it("a new two-step needs the current six digits first (a stolen session can't lock the admin out)", async () => {
+    expect((await admin.call("POST", "/api/settings/two-step", {})).status).toBe(400);
+    expect((await admin.call("POST", "/api/settings/two-step", { code: "000000" })).status).toBe(400);
+  });
+
   it("a new two-step: a fresh secret, switched only once a code from it is typed", async () => {
-    const start = await admin.call("POST", "/api/settings/two-step", {});
+    now = new Date(now.getTime() + 60_000);
+    const start = await admin.call("POST", "/api/settings/two-step", {
+      code: totpCode(secret, now.getTime()),
+    });
     expect(start.status).toBe(200);
     expect(start.data.uri).toMatch(/^otpauth:\/\/totp\/LUME%20Licences:/);
     const fresh = start.data.secret as string;

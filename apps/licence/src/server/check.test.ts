@@ -178,12 +178,22 @@ describe("/v1/check (spec §4.3)", () => {
     expect((await post(body(d), "198.51.100.8")).status).toBe(200);
   });
 
-  it("wrong keys count against the instance's limit too, so a key can't be guessed quickly", async () => {
+  it("wrong keys never spend a client's own allowance (an instance ID isn't a secret)", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
     ctx.limits.instance = new Limiter(2, 3_600_000);
-    await post(body({ ...c, licenseKey: "WRONG" }));
-    await post(body({ ...c, licenseKey: "WRONG" }));
-    expect((await post(body(c))).status).toBe(429);
+    for (let i = 0; i < 5; i++) await post(body({ ...c, licenseKey: "WRONG" }), `198.51.100.${40 + i}`);
+    expect((await post(body(c))).status).toBe(200);
+  });
+
+  it("wrong keys are limited per address and instance, so a key can't be guessed quickly", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    ctx.limits.wrongKey = new Limiter(2, 3_600_000);
+    expect((await post(body({ ...c, licenseKey: "WRONG" }), "198.51.100.50")).status).toBe(401);
+    expect((await post(body({ ...c, licenseKey: "WRONG" }), "198.51.100.50")).status).toBe(401);
+    expect((await post(body({ ...c, licenseKey: "WRONG" }), "198.51.100.50")).status).toBe(429);
+    // Even the right key from that address waits: it can't be told apart from the next guess.
+    expect((await post(body(c), "198.51.100.50")).status).toBe(429);
+    expect((await post(body(c), "198.51.100.51")).status).toBe(200);
   });
 
   it("keeps check-ins for 180 days", async () => {

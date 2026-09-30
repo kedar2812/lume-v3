@@ -162,6 +162,22 @@ describe("suspended: the lock screen", () => {
     expect(await screen.findByText("Still paused. LUME checked just now.")).toBeInTheDocument();
   });
 
+  it("Check again says so when the licence server couldn't be reached (no check happened)", async () => {
+    vi.mocked(licenceClient.check).mockResolvedValue(
+      ok({
+        ...L({ state: "suspended", reason: "suspended" }),
+        canCheck: true,
+        lastError: "LUME couldn't reach its licence server (fetch failed)",
+      }),
+    );
+    shell(admin(L({ state: "suspended", reason: "suspended" })), <LockScreen />);
+    await userEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(
+      await screen.findByText("LUME couldn't reach its licence server just now. Try again in a minute."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Still paused/)).not.toBeInTheDocument();
+  });
+
   it("nothing shows while the licence isn't suspended", () => {
     shell(admin(L()), <LockScreen />);
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

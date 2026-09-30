@@ -50,9 +50,11 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
   if (!parsed.success) return json(400, { error: { code: "BAD_REQUEST", message: "Not a licence check." } });
   const b = parsed.data;
 
-  // Counted before the key is looked at, so a wrong key costs a check too.
-  const byInstance = ctx.limits.instance.take(b.instanceId, now.getTime());
-  if (!byInstance.ok) return limited(byInstance.retryAfterS);
+  // Wrong keys are limited per address and instance, and never spend the client's own allowance: an
+  // instance ID isn't a secret, and anyone who knows one mustn't be able to stop that client checking in.
+  const pair = `${ip}|${b.instanceId}`;
+  const guessing = ctx.limits.wrongKey.check(pair, now.getTime());
+  if (!guessing.ok) return limited(guessing.retryAfterS);
 
   const { rows } = await ctx.db.query<Row>(
     `SELECT l.client_id, l.key_hash, l.type,
@@ -63,7 +65,12 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
     [b.instanceId],
   );
   const l = rows[0];
-  if (!keyMatches(b.licenseKey, l?.key_hash ?? null) || !l) return json(401, UNAUTHORIZED);
+  if (!keyMatches(b.licenseKey, l?.key_hash ?? null) || !l) {
+    ctx.limits.wrongKey.take(pair, now.getTime());
+    return json(401, UNAUTHORIZED);
+  }
+  const byInstance = ctx.limits.instance.take(b.instanceId, now.getTime());
+  if (!byInstance.ok) return limited(byInstance.retryAfterS);
 
   const { state, reason } = serverState(
     {

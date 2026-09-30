@@ -1,6 +1,7 @@
 import { checkBody, rawPublicKey, verifyLicence } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createAdmin } from "./auth";
+import { analyticsClients } from "./clients";
 import { handleCheck } from "./check";
 import type { Ctx } from "./context";
 import { adminSession, type Jar, licenceDb, TEST_PAIR, testCtx, type LicenceTestDb } from "./testing";
@@ -298,6 +299,19 @@ describe("a client's actions (spec §4.4)", () => {
     expect((await check(client.instanceId, r.data.licenseKey)).status).toBe(200);
     expect((await detail(client.id)).client.keyMasked).toMatch(new RegExp(`${r.data.licenseKey.slice(-4)}$`));
     expect((await events(client.id)).at(-1)?.kind).toBe("key_rotated");
+  });
+
+  it("decommissioning later doesn't rewrite the history: the client left when it was suspended", async () => {
+    const { client } = await create({ name: "Riverbend Studio" });
+    await t.pool.query("UPDATE licences SET suspended_at = '2026-08-20T09:00:00Z' WHERE client_id = $1", [
+      client.id,
+    ]);
+    const before = (await analyticsClients(t.pool)).find((c) => c.id === client.id)!;
+    expect(before.endedAt?.toISOString()).toBe("2026-08-20T09:00:00.000Z");
+    now = new Date("2026-09-05T09:00:00Z");
+    await admin.call("POST", `/api/clients/${client.id}/decommission`);
+    const after = (await analyticsClients(t.pool)).find((c) => c.id === client.id)!;
+    expect(after.endedAt?.toISOString()).toBe("2026-08-20T09:00:00.000Z");
   });
 
   it("decommission: only once suspended; it's for good, its record stays, marked", async () => {

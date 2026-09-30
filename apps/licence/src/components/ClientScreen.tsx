@@ -467,9 +467,11 @@ export function ClientScreen({ id }: { id: string }) {
                       : [
                           `${{ 1: "Monthly", 3: "Quarterly", 12: "Yearly" }[p.periodMonths] ?? ""} subscription`,
                           p.currency !== "INR" || p.periodMonths !== 1
-                            ? c.monthlyInr
-                              ? `≈ ${inr(c.monthlyInr)} a month`
-                              : "no rate yet"
+                            ? c.monthlyInr === null
+                              ? "no rate yet"
+                              : c.monthlyInr === 0
+                                ? "not counted while paused"
+                                : `≈ ${inr(c.monthlyInr)} a month`
                             : "",
                           c.monthlyInr ? vsShort(c.monthlyInr, d.listPriceInr) : "",
                         ]

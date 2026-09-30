@@ -229,7 +229,19 @@ export async function changePassword(
 }
 
 /** A new two-step secret, kept aside until a code from it confirms the switch (so nobody is locked out). */
-export async function startTwoStep(ctx: Ctx, admin: Admin): Promise<{ secret: string; uri: string }> {
+export async function startTwoStep(
+  ctx: Ctx,
+  admin: Admin,
+  code: string,
+): Promise<{ secret: string; uri: string } | null> {
+  // The current six digits first: a session alone can't swap the only admin's authenticator.
+  const a = (await ctx.db.query<AdminRow>("SELECT * FROM admins WHERE id = $1", [admin.id])).rows[0]!;
+  const step = verifyTotp(unseal(ctx.master, a.totp_secret, a.id), code, {
+    nowMs: ctx.now().getTime(),
+    lastUsedStep: a.totp_last_step === null ? null : Number(a.totp_last_step),
+  });
+  if (step === null) return null;
+  await ctx.db.query("UPDATE admins SET totp_last_step = $2 WHERE id = $1", [a.id, step]);
   const secret = newTotpSecret();
   await ctx.db.query("UPDATE admins SET totp_pending = $2 WHERE id = $1", [
     admin.id,

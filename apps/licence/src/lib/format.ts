@@ -66,5 +66,13 @@ export function planOf(c: Priced, rates: Record<string, number>): { main: string
   }
   const main = `${native} ${perWords(p.periodMonths)}`;
   if (p.currency === "INR" && p.periodMonths === 1) return { main, sub: "subscription" };
-  return { main, sub: c.monthlyInr ? `≈ ${inr(c.monthlyInr)} a month` : "no rate for this currency yet" };
+  return {
+    main,
+    sub:
+      c.monthlyInr === null
+        ? "no rate for this currency yet"
+        : c.monthlyInr === 0
+          ? "not counted while paused"
+          : `≈ ${inr(c.monthlyInr)} a month`,
+  };
 }

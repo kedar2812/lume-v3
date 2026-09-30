@@ -164,15 +164,17 @@ export function AnalyticsScreen() {
   const tip = (() => {
     if (hv < 0) return null;
     const p = series[hv]!;
-    const before = hv > 0 ? series[hv - 1]!.mrr : 0;
-    const diff = p.mrr - before;
-    const t = trend(p.mrr, before, { kind: "abs" });
-    const pct =
-      before > 0 ? ` (${diff > 0 ? "+" : MINUS}${Math.abs((diff / before) * 100).toFixed(1)}%)` : "";
+    const before = hv > 0 ? series[hv - 1]!.mrr : a.beforeRange;
+    // The change goes through the trend rule, like every change LUME shows: "+₹10" with no "+0.0%".
+    const t = trend(p.mrr, before, { kind: "abs", format: inr });
+    const pct = trend(p.mrr, before);
     return {
       month: month(p.month, true),
       mrr: inr(p.mrr),
-      change: t.dir === "flat" ? "No change" : `${diff > 0 ? "+" : MINUS}${inr(Math.abs(diff))}${pct}`,
+      change:
+        t.dir === "flat"
+          ? "No change"
+          : `${t.text}${pct.dir !== "flat" && before > 0 ? ` (${pct.text})` : ""}`,
       t,
       moves:
         [p.joined ? `${p.joined} joined` : "", p.left ? `${p.left} left` : ""].filter(Boolean).join(" · ") ||
@@ -507,6 +509,7 @@ export function AnalyticsScreen() {
                 {series.map((p, i) => (
                   <span
                     key={p.month}
+                    data-month={p.month}
                     onMouseEnter={() => setHover(i)}
                     style={{ flex: 1, height: "100%" }}
                     aria-hidden

@@ -1055,6 +1055,16 @@ real licence (`apps/web/e2e-live/acceptance-licence.mjs create`, then `run`):
 4. Suspend → LUME shows the pause screen, and its owner still exports everything;
 5. Resume → **Check again** on the pause screen, and LUME works again; Analytics counts the client.
 
+**After a live run, remove its client** (it's fictional, and would otherwise count in the owner's real
+analytics and payments). On the licence server's host:
+
+```sh
+cd /root/lume-licence && docker compose exec -T db psql -U licence -d licence \
+  -c "DELETE FROM clients WHERE name = 'Acceptance Clinic'"
+```
+
+(Its licence, prices, payments, check-ins, reminders and history go with it.) Done after the 2026-09-30 run.
+
 Screenshots (full content) in `docs/runbooks/screenshots-licence/`. The run found two things, both fixed
 test-first: the pause screen had no way to check again (an admin would wait up to 6 hours after a resume),
 and New licence's lists were named by their options in Chromium ("State" matched "United States").

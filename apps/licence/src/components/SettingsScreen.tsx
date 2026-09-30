@@ -22,6 +22,7 @@ export function SettingsScreen() {
   const [next, setNext] = useState("");
   const [enrol, setEnrol] = useState<{ secret: string; uri: string } | null>(null);
   const [code, setCode] = useState("");
+  const [current2, setCurrent2] = useState("");
   const [error, setError] = useState<{ where: string; text: string } | null>(null);
   const [toast, say] = useToast();
 
@@ -60,10 +61,13 @@ export function SettingsScreen() {
     setNext("");
     say("Password changed · other sessions were signed out");
   };
-  const startEnrol = async () => {
+  const startEnrol = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    const r = await api.post<{ secret: string; uri: string }>("/api/settings/two-step");
-    if (r.ok) setEnrol(r.data);
+    const r = await api.post<{ secret: string; uri: string }>("/api/settings/two-step", { code: current2 });
+    if (!r.ok) return setError({ where: "two-step", text: r.message });
+    setCurrent2("");
+    setEnrol(r.data);
   };
   const confirm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,17 +167,36 @@ export function SettingsScreen() {
         <section className="card" aria-label="Two-step sign-in">
           <h2 className="h">Two-step sign-in</h2>
           {!enrol ? (
-            <>
+            <form
+              style={{ display: "flex", flexDirection: "column", gap: 12 }}
+              onSubmit={(e) => void startEnrol(e)}
+            >
               <span style={{ fontSize: 13.5, color: "var(--ink2)" }}>
                 On. To move it to a new phone, make a new code for your authenticator; the old one works until
                 you confirm.
               </span>
+              <label className="field">
+                The six digits your authenticator shows now
+                <input
+                  className="input num"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={current2}
+                  onChange={(e) => setCurrent2(e.target.value.replace(/\D/g, ""))}
+                />
+              </label>
+              {error?.where === "two-step" && (
+                <p role="alert" style={{ margin: 0, color: "var(--redInk)", fontSize: 13 }}>
+                  {error.text}
+                </p>
+              )}
               <div>
-                <button type="button" className="btn second" onClick={() => void startEnrol()}>
+                <button type="submit" className="btn second" disabled={current2.length !== 6}>
                   Set up a new authenticator
                 </button>
               </div>
-            </>
+            </form>
           ) : (
             <form
               className="reveal"

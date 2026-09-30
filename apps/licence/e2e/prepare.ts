@@ -194,6 +194,8 @@ writeFileSync(
     DB_NAME: db.name,
     DATABASE_URL: db.url(),
     LICENCE_KID: "e2e",
+    // A throwaway key: not one LUME's releases trust, so the start-up key check is off for e2e.
+    LICENCE_KEY_CHECK: "off",
     LICENCE_SIGNING_KEY_FILE: keyFile,
     LICENCE_MASTER_KEY: master.toString("base64"),
   }),
