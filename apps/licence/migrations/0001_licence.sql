@@ -8,6 +8,8 @@ CREATE TABLE admins (
   -- AES-256-GCM under LICENCE_MASTER_KEY, bound to the admin's id.
   totp_secret bytea NOT NULL,
   totp_last_step bigint,
+  -- A new two-step secret, sealed, until a code from it confirms the switch.
+  totp_pending bytea,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE admin_sessions (
@@ -67,6 +69,8 @@ CREATE TABLE licences (
   paid_until date,
   trial_ends date,
   suspended_at timestamptz,
+  -- When its monthly revenue began: at creation for a subscription, at the first payment for a trial.
+  paying_since timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (type <> 'trial' OR trial_ends IS NOT NULL)
 );
