@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# A stand-in for ssh, scp, docker, curl and dig in the fleet tests: records the call, then answers from the
+# staged answers (tab-separated: a regex over the call, an exit code, the output; the first match wins).
+name="${STUB_NAME:-$(basename "$0")}"
+call="$name $*"
+printf '%s\n' "$call" >> "${STUB_LOG:?}"
+while IFS=$'\t' read -r pattern code out; do
+  [ -n "$pattern" ] || continue
+  if [[ "$call" =~ $pattern ]]; then
+    [ -n "$out" ] && printf '%b\n' "$out"
+    exit "${code:-0}"
+  fi
+done < "${STUB_ANSWERS:?}"
+exit 0

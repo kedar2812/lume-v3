@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+STUB_NAME=curl exec "$(dirname "$0")/_stub" "$@"

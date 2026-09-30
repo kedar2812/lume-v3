@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+STUB_NAME=ssh exec "$(dirname "$0")/_stub" "$@"

@@ -26,3 +26,6 @@ apps/licence/e2e/.artifacts/
 apps/licence/e2e/__review__/
 apps/licence/test-results/
 apps/licence/playwright-report/
+
+# Each client's secrets (licensing L-C): made by scripts/provision.sh, never committed.
+deploy/clients/*.env

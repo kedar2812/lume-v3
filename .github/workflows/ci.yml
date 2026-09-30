@@ -28,7 +28,7 @@ jobs:
       - run: pnpm audit --prod --audit-level high
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: shellcheck scripts/*.sh infra/scripts/*.sh infra/docker/*.sh infra/postgres/init/*.sh
+      - run: shellcheck scripts/*.sh scripts/fleet/*.sh scripts/fleet/stubs/* infra/scripts/*.sh infra/docker/*.sh infra/postgres/init/*.sh
       - name: Test database
         run: TEST_DB_PUBLISH=55432 LUME_DEV_ROOT="$RUNNER_TEMP" bash scripts/test-db.sh up
       - name: Tests

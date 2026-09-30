@@ -1,0 +1,12 @@
+# LUME's clients (licensing L-C): where each LUME runs and on which version. No secrets here: a client's are
+# in deploy/clients/<slug>.env, which is gitignored and made by scripts/provision.sh on its first run.
+# Add a client before provisioning it (status: new); the scripts keep version and status up to date.
+#
+#   - slug: harbour-clinic          its subdomain: harbour-clinic.lumecrm.in
+#     host: 203.0.113.10            the server's address
+#     user: lume-deploy             the deploy user (SSH key, sudo)
+#     version: none                 the LUME version it runs (none until provisioned)
+#     licence: subscription         subscription, perpetual or trial
+#     instance: LUME-XXXX-XXXX      from New licence on the licence server
+#     status: new                   new, active or decommissioned
+clients: []
