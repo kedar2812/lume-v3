@@ -992,3 +992,40 @@ Deferred minors:
 - a manual skip leaves like a done card;
 - 0030 widens existing roles (to go in the release notes);
 - the run on phone widths.
+
+# Licensing L-A — The instance
+
+Plan: `docs/superpowers/plans/2026-09-30-licensing-a-instance.md`. Spec: `docs/superpowers/specs/2026-09-30-licensing-deployment-design.md` (§2, §3). Screens: the approved canvas (Main, States, PaymentReminder).
+
+## How an instance holds its licence
+
+- **Configuration (`.env`):** `LUME_LICENSE_KEY`, `LUME_INSTANCE_ID` and, optionally, `LUME_LICENSE_URL` (default `https://license.lumecrm.in`).
+- **Release images** carry a baked `/app/release.json` (`{"release":true}`). A release image always enforces and trusts only the public keys compiled into `packages/core/src/licence/keys.ts`.
+- **Development builds** are always active unless `LUME_LICENSE_MODE=enforce`. They may then be given a test key (`LUME_LICENSE_EXTRA_KEYS`), which is how e2e runs against `e2e/licence-fake.ts`.
+- **Checks:** at start, every 6 hours, on Check now (Settings → About, admins), and at a sign-in when the last try is over 15 minutes old. Only the six fields of spec §2.4 are sent.
+- **States:**
+  - the server's word, or worse;
+  - licence server unreachable 24 hours → grace, and 7 days → read-only;
+  - a token past its 8 days → read-only; a clock set back before the token → read-only;
+  - a new install that has never checked → grace for its first week.
+- **Enforcement (API):**
+  - read-only refuses every write (403 `LICENSE_READ_ONLY`) but signing in and out, Check now, closing the reminder and the export;
+  - suspended refuses everything (403 `LICENSE_SUSPENDED`) but signing in, the licence, the business's name and the export;
+  - inbound webhooks are refused while locked;
+  - the follow-up clock and scheduled sheet syncs wait while locked, and the sweeper fires what was missed; work accepted before the lock finishes.
+- **Export all data:** `GET /api/v1/export` (permission `data.export`) streams a zip of five CSVs plus `LUME-export.xlsx`, unmasked, in every state, and is audited.
+
+## Automated
+
+- **Core** (`licence.test.ts`): tokens round-trip; a changed payload, a re-encoding, an unknown key, another key, another instance and a non-licence are refused; every time boundary of the state; the six-field body.
+- **API:**
+  - `licence.test.ts`: storing a good answer; out of reach (last token stands, then grace, then read-only); an unsigned answer; a refused key until expiry; the body sent; sign-in checks when stale and never waits; the reminder for owners and admins per session; a release build ignores dev mode and environment keys; a dev build is always active.
+  - `enforce.test.ts`: each state's allowlist; webhooks; the follow-up clock waits while locked and fires what was missed.
+  - `export.test.ts`: the zip's files; unmasked leads with tags, owner, stage and custom fields; 2,500 leads in pages; every state; the permission; the audit.
+- **Web** (`Licence.test.tsx`): the grace strip (admins only, Check now); read-only for everyone; a refusal making the shell look again; the lock screen (export for those who may, ticking through the files to the zip); the reminder (note, contact, I'll sort it, never a rep, looking again after sign-in); the About card (state, type, dates, installation, check-ins, Check now's tick, perpetual, development, reduced motion).
+- **End to end** (`licence.spec.ts`, against the fake licence server), with review copies in `apps/web/e2e/__review__/licence/` and axe in both themes:
+  - About, and Check now;
+  - grace for the owner only;
+  - read-only (a write refused, the export zip);
+  - paused for everyone, with the owner's export;
+  - the reminder (closed for the session, never a rep).

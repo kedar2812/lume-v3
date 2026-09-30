@@ -38,6 +38,12 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     // The follow-up clock in seconds, so an escalation and a morning email arrive within a test (3B).
     LUME_FOLLOW_UP_TICK_MS: "2000",
     LUME_GOOGLE_ENDPOINT: `http://127.0.0.1:${process.env.E2E_GOOGLE_PORT ?? 3112}`,
+    // The licence (L-A), enforced, against the fake licence server (e2e/licence-fake.ts) and its key.
+    LUME_LICENSE_MODE: "enforce",
+    LUME_LICENSE_URL: `http://127.0.0.1:${process.env.E2E_LICENCE_PORT ?? 3113}`,
+    LUME_INSTANCE_ID: "LUME-E2E-0001",
+    LUME_LICENSE_KEY: "LUME-E2E-KEY-0001",
+    LUME_LICENSE_EXTRA_KEYS: readFileSync(path.join(here, ".artifacts/licence-key.txt"), "utf8"),
   },
   stdio: ["ignore", "pipe", "pipe"],
 });

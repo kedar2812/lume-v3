@@ -51,6 +51,14 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 60_000,
     },
+    // The fake licence server (licensing L-A) before the API: the API reads its public key at boot.
+    {
+      command:
+        "node ../../scripts/bundle.mjs . e2e/licence-fake.ts e2e/.artifacts/licence-fake.mjs && node e2e/.artifacts/licence-fake.mjs",
+      url: "http://127.0.0.1:3113/__fake/state",
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
     {
       command: "node e2e/smtp-sink.mjs",
       url: "http://127.0.0.1:3111/messages",
