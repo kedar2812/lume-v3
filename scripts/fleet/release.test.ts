@@ -24,6 +24,9 @@ describe("the release marker (L-C Task 1)", () => {
     const rel = mkdtempSync(path.join(tmpdir(), "rel-"));
     expect(() => execFileSync("sh", [MARKER, "1", "", rel], { stdio: "pipe" })).toThrow();
     expect(() => execFileSync("sh", [MARKER, "1", "latest", rel], { stdio: "pipe" })).toThrow();
+    // Only X.Y.Z: anything around it would read as a development build.
+    for (const bad of ['1.2.3"', "1.2.3x", "1.2", "1.2.3.4", "v1.2.3"])
+      expect(() => execFileSync("sh", [MARKER, "1", bad, rel], { stdio: "pipe" }), bad).toThrow();
   });
   it("every LUME image runs the marker, and passes on its version", () => {
     for (const name of ["api", "web", "worker"]) {

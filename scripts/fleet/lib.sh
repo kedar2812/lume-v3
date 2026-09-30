@@ -68,5 +68,8 @@ upload() {
     printf '[dry-run] scp %s %s@%s:%s\n' "$1" "$DEPLOY_USER" "$HOST" "$2"
     return 0
   fi
-  scp -q "${SSH_OPTS[@]}" "$1" "$DEPLOY_USER@$HOST:$2"
+  # scp reads host:path, so an IPv6 address goes in brackets (ssh takes it as it is).
+  local at="$HOST"
+  [[ "$HOST" == *:* ]] && at="[$HOST]"
+  scp -q "${SSH_OPTS[@]}" "$1" "$DEPLOY_USER@$at:$2"
 }

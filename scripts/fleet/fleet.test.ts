@@ -127,6 +127,20 @@ describe("the fleet library and its stubs", () => {
       "ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -i /home/op/.ssh/lume_fleet -o IdentitiesOnly=yes lume-deploy@203.0.113.10 uptime",
     );
   });
+  it("an IPv6 host is bracketed for scp (ssh takes it as it is)", () => {
+    const d = tempDir();
+    inventory(d, [{ ...HARBOUR, host: "2001:db8::10" }]);
+    const r = run("scripts/fleet/selftest.sh", ["harbour-clinic"], {
+      dir: d,
+      env: { LUME_INVENTORY: path.join(d, "clients.yml"), SELFTEST_UPLOAD: "/etc/hostname" },
+    });
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.calls.find((c) => c.startsWith("scp"))).toMatch(
+      / lume-deploy@\[2001:db8::10\]:\/tmp\/selftest$/,
+    );
+    expect(r.calls[0]).toMatch(/ lume-deploy@2001:db8::10 uptime$/);
+  });
+
   it("a failing remote step stops the script with its exit code", () => {
     const d = tempDir();
     inventory(d, [HARBOUR]);

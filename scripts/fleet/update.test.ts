@@ -97,6 +97,23 @@ describe("update.sh (L-C Task 4)", () => {
     );
   });
 
+  it("pg-boss changed its own schema on the new version's start: that counts as migrated, the backup goes back", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [
+        NOTHING_TO_MIGRATE,
+        { match: /pgboss\.version/, out: "24", times: 1 },
+        { match: /pgboss\.version/, out: "25" },
+        { match: /^curl /, code: 7, times: 3 },
+      ],
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.calls.some((c) => /pg_restore --create/.test(c))).toBe(true);
+    expect(r.stdout).toMatch(/rolled back to 1\.0\.0, backup restored$/m);
+  });
+
   it("health fails with nothing migrated: back to the previous version, no restore", () => {
     const f = fleet();
     const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {

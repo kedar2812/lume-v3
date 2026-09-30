@@ -7,3 +7,4 @@ parse_dry "$@"
 target "${ARGS[0]:?usage: selftest.sh <slug> [--dry-run]}"
 remote uptime
 remote docker ps
+if [ -n "${SELFTEST_UPLOAD:-}" ]; then upload "$SELFTEST_UPLOAD" /tmp/selftest; fi

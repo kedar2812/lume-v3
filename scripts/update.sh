@@ -34,6 +34,11 @@ healthy() {
 }
 # The version .env names (provision.sh writes LUME_TAG='X.Y.Z'); it must be there to be changed.
 set_tag() { remote "grep -q '^LUME_TAG=' /opt/lume/.env && sed -i \"s/^LUME_TAG=.*/LUME_TAG='$1'/\" /opt/lume/.env"; }
+# pg-boss's schema version (empty if it can't be read: then it counts as unchanged).
+boss_version() {
+  $DRY && return 0
+  remote "cd /opt/lume && docker compose exec -T -u postgres db psql -d lume -Atc 'SELECT version FROM pgboss.version'" 2>/dev/null | tail -n 1 || true
+}
 # The image the running API was started from ends with the version that was asked for.
 on_version() {
   $DRY && return 0
@@ -43,7 +48,7 @@ on_version() {
 
 # One client, in its own subshell: prints its table row whatever happens, exits 1 if it isn't updated.
 update_one() {
-  local slug="$1" prev host_name out migrated=false restored="" dump image
+  local slug="$1" prev host_name out migrated=false restored="" dump image boss_before
   target "$slug"
   prev="$(inv get "$slug" version)"
   host_name="$slug.$DOMAIN"
@@ -59,6 +64,9 @@ update_one() {
     result "backup failed, nothing changed"
     return 1
   fi
+
+  # pg-boss changes its own schema when the new version starts, outside LUME's migrations: note it now.
+  boss_before="$(boss_version)"
 
   step "$slug: $prev → $version"
   if ! set_tag "$version"; then
@@ -85,6 +93,7 @@ update_one() {
 
   step "$slug: unhealthy on $version, rolling back to $prev"
   set_tag "$prev" || true
+  [ "$(boss_version)" != "$boss_before" ] && migrated=true
   if $migrated; then
     remote "cd /opt/lume && docker compose stop api worker web" || true
     # The whole database goes back, dropped and made again from the dump: nothing the failed migration

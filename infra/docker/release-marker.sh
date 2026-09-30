@@ -7,9 +7,14 @@ release="${1:-}"
 version="${2:-}"
 dir="${3:?usage: release-marker.sh <release> <version> <dir>}"
 [ "$release" = "1" ] || exit 0
+# Exactly X.Y.Z (digits and two dots, no part empty): anything else would read as a development build.
 case "$version" in
-  [0-9]*.[0-9]*.[0-9]*) ;;
-  *) echo "a release needs its version (X.Y.Z), got '$version'" >&2; exit 1 ;;
+  .* | *. | *..*) bad=1 ;;
+  *) [ "$(printf '%s' "$version" | tr -d '0-9')" = ".." ] && bad=0 || bad=1 ;;
 esac
+if [ "$bad" = 1 ]; then
+  echo "a release needs its version (X.Y.Z), got '$version'" >&2
+  exit 1
+fi
 mkdir -p "$dir"
 printf '{"release":true,"version":"%s"}\n' "$version" > "$dir/release.json"
