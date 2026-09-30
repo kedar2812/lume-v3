@@ -71,6 +71,7 @@ describe("a signed source (2C spec §4)", () => {
     expect((await post(id, raw, signed(raw, old))).statusCode).toBe(401);
     expect((await post(id, raw)).statusCode).toBe(401);
     expect(await events(id)).toHaveLength(0);
+    // The last one (none at all) is a bad signature; the stale one is counted as itself.
     await vi.waitFor(async () =>
       expect(await counts(id)).toMatchObject({ rejected: 3, last_rejected_reason: "bad_signature" }),
     );
@@ -139,6 +140,29 @@ describe("replays", () => {
       duplicate: true,
     });
     expect(await events(id)).toHaveLength(1);
+  });
+
+  it("a captured signed post sent again under a fresh event id is a duplicate (the signature works once)", async () => {
+    const id = await source();
+    const raw = '{"name":"Replayed"}';
+    const headers = signed(raw);
+    expect((await post(id, raw, { ...headers, "x-lume-event-id": "evt-a" })).json()).toEqual({
+      accepted: true,
+    });
+    expect((await post(id, raw, { ...headers, "x-lume-event-id": "evt-b" })).json()).toEqual({
+      accepted: true,
+      duplicate: true,
+    });
+    expect(await events(id)).toHaveLength(1);
+  });
+
+  it("a stale timestamp is counted as itself, not as a bad signature", async () => {
+    const id = await source();
+    const raw = '{"name":"Late"}';
+    expect((await post(id, raw, signed(raw, String(Number(now()) - 301)))).statusCode).toBe(401);
+    await vi.waitFor(async () =>
+      expect(await counts(id)).toMatchObject({ rejected: 1, last_rejected_reason: "stale_timestamp" }),
+    );
   });
 
   it("with no event id, identical bodies are one event", async () => {

@@ -123,4 +123,51 @@ describe("a webhook's page", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Finish setting up" }));
     expect(screen.getByRole("dialog", { name: "Webhook fields" })).toBeInTheDocument();
   });
+
+  it("needs attention: it can still be paused", async () => {
+    vi.mocked(webhooksClient.get).mockResolvedValue(
+      ok(
+        detail({
+          status: "needs_attention",
+          attention: { code: "COLUMNS_CHANGED", message: "A field changed." },
+        }),
+      ),
+    );
+    render(<WebhookDetail id="w1" />);
+    expect(await screen.findByRole("button", { name: "Pause" })).toBeInTheDocument();
+  });
+
+  it("Retry and Dismiss wait while one is going, so a double click can't say it's gone", async () => {
+    vi.mocked(webhooksClient.get).mockResolvedValue(ok(detail()));
+    let finish!: (v: unknown) => void;
+    vi.mocked(webhooksClient.retry).mockReturnValue(new Promise((r) => (finish = r)) as never);
+    render(<WebhookDetail id="w1" />);
+    const retry = await screen.findByRole("button", { name: /^Retry post/ });
+    await userEvent.click(retry);
+    expect(screen.getByRole("button", { name: /^Retry post/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Dismiss post/ })).toBeDisabled();
+    finish(ok(null));
+  });
+
+  it("a new secret or a removal that fails says so inside its dialog", async () => {
+    vi.mocked(webhooksClient.get).mockResolvedValue(ok(detail()));
+    const failed = {
+      ok: false,
+      status: 0,
+      code: "OFFLINE",
+      message: "LUME can’t reach the server right now.",
+    };
+    vi.mocked(webhooksClient.rotate).mockResolvedValue(failed as never);
+    vi.mocked(webhooksClient.remove).mockResolvedValue(failed as never);
+    render(<WebhookDetail id="w1" />);
+    await userEvent.click(await screen.findByRole("button", { name: "New secret" }));
+    const rot = screen.getByRole("dialog", { name: "Give it a new secret?" });
+    await userEvent.click(within(rot).getByRole("button", { name: "New secret" }));
+    expect(await within(rot).findByRole("alert")).toHaveTextContent("can’t reach the server");
+    await userEvent.click(within(rot).getByRole("button", { name: "Keep the old one" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove webhook" }));
+    const rm = screen.getByRole("dialog", { name: "Remove this webhook?" });
+    await userEvent.click(within(rm).getByRole("button", { name: "Remove" }));
+    expect(await within(rm).findByRole("alert")).toHaveTextContent("can’t reach the server");
+  });
 });

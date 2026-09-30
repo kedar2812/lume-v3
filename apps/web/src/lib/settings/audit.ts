@@ -139,6 +139,11 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     area: "Leads",
     phrase: (d) => `gave the webhook “${String(d.name ?? "")}” a new secret`,
   },
+  "webhook.created": { area: "Leads", phrase: (d) => `added the webhook “${String(d.name ?? "")}”` },
+  "webhook.event_retried": {
+    area: "Leads",
+    phrase: (d) => `retried a problem post to the webhook “${String(d.name ?? "")}”`,
+  },
   "webhook.event_dismissed": {
     area: "Leads",
     phrase: (d) => `set aside a problem post to the webhook “${String(d.name ?? "")}”`,

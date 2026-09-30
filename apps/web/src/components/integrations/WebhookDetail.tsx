@@ -35,6 +35,8 @@ export function WebhookDetail({ id }: { id: string }) {
   const [rotating, setRotating] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Why a new secret or a removal didn't happen: said inside its dialog. */
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await webhooksClient.get(id);
@@ -61,10 +63,17 @@ export function WebhookDetail({ id }: { id: string }) {
   };
   const rotate = async () => {
     setBusy(true);
+    setDialogError(null);
     const r = await webhooksClient.rotate(id);
     setBusy(false);
-    if (!r.ok) return setError(r.message);
+    if (!r.ok) return setDialogError(r.message);
     setSecret(r.data.secret);
+  };
+  const closeDialogs = () => {
+    setRotating(false);
+    setRemoving(false);
+    setSecret(null);
+    setDialogError(null);
   };
   const draft = v.status === "draft";
 
@@ -165,8 +174,8 @@ export function WebhookDetail({ id }: { id: string }) {
       )}
 
       <div className={s.actions}>
-        {!draft && v.status !== "needs_attention" && (
-          <Button onClick={() => void act(() => webhooksClient.patch(id, { paused: v.status === "active" }))}>
+        {!draft && (
+          <Button onClick={() => void act(() => webhooksClient.patch(id, { paused: v.status !== "paused" }))}>
             {v.status === "paused" ? "Resume" : "Pause"}
           </Button>
         )}
@@ -225,6 +234,7 @@ export function WebhookDetail({ id }: { id: string }) {
                     size="sm"
                     variant="ghost"
                     aria-label={`Retry post ${p.id}`}
+                    disabled={busy}
                     onClick={() => void act(() => webhooksClient.retry(id, p.id))}
                   >
                     Retry
@@ -233,6 +243,7 @@ export function WebhookDetail({ id }: { id: string }) {
                     size="sm"
                     variant="ghost"
                     aria-label={`Dismiss post ${p.id}`}
+                    disabled={busy}
                     onClick={() => void act(() => webhooksClient.dismiss(id, p.id))}
                   >
                     Dismiss
@@ -255,25 +266,13 @@ export function WebhookDetail({ id }: { id: string }) {
         }}
       />
       {rotating && (
-        <Dialog
-          label="Give it a new secret?"
-          onClose={() => {
-            setRotating(false);
-            setSecret(null);
-          }}
-        >
+        <Dialog label="Give it a new secret?" onClose={closeDialogs}>
           <h3 className={s.sectionTitle}>{secret ? "The new secret" : "Give it a new secret?"}</h3>
           {secret ? (
             <>
               <SecretBox secret={secret} />
               <div className={s.actions}>
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    setRotating(false);
-                    setSecret(null);
-                  }}
-                >
+                <Button variant="primary" onClick={closeDialogs}>
                   Done
                 </Button>
               </div>
@@ -283,8 +282,13 @@ export function WebhookDetail({ id }: { id: string }) {
               <p className={s.cardLede}>
                 The old secret stops working at once. Put the new one wherever “{v.name}” posts from.
               </p>
+              {dialogError && (
+                <p role="alert" className={s.error}>
+                  {dialogError}
+                </p>
+              )}
               <div className={s.actions}>
-                <Button variant="ghost" onClick={() => setRotating(false)}>
+                <Button variant="ghost" onClick={closeDialogs}>
                   Keep the old one
                 </Button>
                 <Button variant="primary" loading={busy} onClick={() => void rotate()}>
@@ -296,18 +300,25 @@ export function WebhookDetail({ id }: { id: string }) {
         </Dialog>
       )}
       {removing && (
-        <Dialog label="Remove this webhook?" onClose={() => setRemoving(false)}>
+        <Dialog label="Remove this webhook?" onClose={closeDialogs}>
           <h3 className={s.sectionTitle}>Remove this webhook?</h3>
           <p className={s.cardLede}>Its leads stay in LUME. Posts to its address will be refused.</p>
+          {dialogError && (
+            <p role="alert" className={s.error}>
+              {dialogError}
+            </p>
+          )}
           <div className={s.actions}>
-            <Button variant="ghost" onClick={() => setRemoving(false)}>
+            <Button variant="ghost" onClick={closeDialogs}>
               Keep it
             </Button>
             <Button
               variant="danger"
               onClick={async () => {
+                setDialogError(null);
                 const r = await webhooksClient.remove(id);
                 if (r.ok) router.push("/settings/integrations");
+                else setDialogError(r.message);
               }}
             >
               Remove

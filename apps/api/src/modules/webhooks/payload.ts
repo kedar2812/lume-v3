@@ -9,8 +9,13 @@ export type ParsedBody =
 /** 2C spec §4 step 4: JSON (an object at the top), or a plain HTML form. Anything else is refused. */
 export function parseBody(raw: Buffer, contentType: string | undefined): ParsedBody {
   const type = (contentType ?? "").split(";")[0]!.trim().toLowerCase();
-  if (type === "application/x-www-form-urlencoded")
-    return { ok: true, value: Object.fromEntries(new URLSearchParams(raw.toString("utf8"))) };
+  if (type === "application/x-www-form-urlencoded") {
+    // A field sent more than once (a group of checkboxes) keeps every value, in order.
+    const value: Json = {};
+    for (const [k, v] of new URLSearchParams(raw.toString("utf8")))
+      value[k] = k in value ? `${String(value[k])}, ${v}` : v;
+    return { ok: true, value };
+  }
   if (type !== "application/json") return { ok: false, status: 415, code: "UNSUPPORTED_TYPE" };
   let v: unknown;
   try {
@@ -29,10 +34,16 @@ const text = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 export function flatten(value: Json): { cells: Map<string, string>; unmappable: string[] } {
   const cells = new Map<string, string>();
   const unmappable: string[] = [];
+  // Two values on one path ({"a.b": 1, "a": {"b": 2}}): both stay, the later one numbered.
+  const put = (path: string, v: string) => {
+    let at = path;
+    for (let n = 2; cells.has(at); n++) at = `${path} (${n})`;
+    cells.set(at, v);
+  };
   const walk = (v: unknown, path: string, depth: number) => {
-    if (scalar(v)) return void cells.set(path, text(v));
+    if (scalar(v)) return void put(path, text(v));
     if (Array.isArray(v)) {
-      if (v.every(scalar)) return void cells.set(`${path}[]`, v.map(text).filter(Boolean).join(", "));
+      if (v.every(scalar)) return void put(`${path}[]`, v.map(text).filter(Boolean).join(", "));
       return void unmappable.push(path);
     }
     if (v && typeof v === "object") {

@@ -11,6 +11,7 @@ export const PRESET_LABEL: Record<WebhookPreset, string> = {
 /** Why LUME refused a post, as the page says it ("last for a bad signature"). */
 export const REJECTED: Record<RejectReason, string> = {
   bad_signature: "a bad signature",
+  stale_timestamp: "a timestamp more than 5 minutes off (check the sender's clock)",
   bad_token: "a wrong token",
   rate_limited: "too many posts at once",
   too_large: "a post over 64 KB",

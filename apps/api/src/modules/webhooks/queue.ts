@@ -19,6 +19,8 @@ const NOT_PROCESSED = [
  * day is a problem the page shows, with Retry. A paused webhook's posts wait for Resume.
  */
 export async function sweepStale(pool: pg.Pool): Promise<number[]> {
+  // Signatures past their five minutes can't be replayed any more (receive.ts): forgotten after ten.
+  await pool.query("DELETE FROM webhook_signatures WHERE seen_at < now() - interval '10 minutes'");
   await pool.query(
     `UPDATE webhook_events e SET status = 'error', problems = $1::jsonb, processed_at = now()
       FROM lead_sources s

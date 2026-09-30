@@ -8,7 +8,7 @@ import type { AppDeps } from "../../app";
 import { createLimiter } from "./limits";
 import { parseBody } from "./payload";
 import { eventContext } from "./process";
-import { checkSignature, checkToken, openWebhook, sealWebhook } from "./secret";
+import { checkSignature, checkToken, openWebhook, sealWebhook, signatureCheck } from "./secret";
 
 const S = schema.leadSources;
 const E = schema.webhookEvents;
@@ -20,6 +20,7 @@ const DUMMY_ID = "00000000-0000-7000-8000-000000000000";
 
 export type RejectReason =
   | "bad_signature"
+  | "stale_timestamp"
   | "bad_token"
   | "rate_limited"
   | "too_large"
@@ -118,10 +119,17 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
 
       // 3. Auth, by the source's mode.
       const cfg = openWebhook(d.keyring, id, s.configEnc!);
-      const ok =
-        cfg.mode === "token" ? checkToken(cfg.secret, token) : checkSignature(cfg.secret, ts, sig, raw, now);
-      if (!ok) {
-        reject(id, cfg.mode === "token" ? "bad_token" : "bad_signature");
+      const check =
+        cfg.mode === "token"
+          ? checkToken(cfg.secret, token)
+            ? "ok"
+            : "bad"
+          : signatureCheck(cfg.secret, ts, sig, raw, now);
+      if (check !== "ok") {
+        reject(
+          id,
+          cfg.mode === "token" ? "bad_token" : check === "stale" ? "stale_timestamp" : "bad_signature",
+        );
         return unauthorized(reply);
       }
       if (s.status === "paused")
@@ -141,7 +149,16 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
         return reply.code(body.status).send({ error: body.code.toLowerCase() });
       }
 
-      // 5–6. Replay-safe accept: one row per (source, key), however many arrive at once.
+      // 5. A signature works once: the same signed post sent again (under any event id) is a duplicate.
+      if (cfg.mode === "signed") {
+        const first = await db.execute(sql`
+          INSERT INTO webhook_signatures (source_id, signature_hash)
+          VALUES (${id}, ${createHash("sha256").update(sig!).digest()})
+          ON CONFLICT DO NOTHING RETURNING 1`);
+        if (!first.rows.length) return reply.code(202).send({ accepted: true, duplicate: true });
+      }
+
+      // 6. Replay-safe accept: one row per (source, key), however many arrive at once.
       const given = header(req.headers["x-lume-event-id"])?.trim();
       const eventKey =
         given && given.length <= 200

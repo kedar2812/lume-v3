@@ -4,6 +4,18 @@ import { cellsFor, flatten, parseBody, pathsOf } from "./payload";
 const json = (v: unknown) => Buffer.from(JSON.stringify(v));
 
 describe("parseBody (2C spec §4 step 4)", () => {
+  it("a form field sent twice keeps both values (a group of checkboxes)", () => {
+    expect(
+      parseBody(
+        Buffer.from("name=Aisha&interest=Yoga&interest=Pilates"),
+        "application/x-www-form-urlencoded",
+      ),
+    ).toEqual({
+      ok: true,
+      value: { name: "Aisha", interest: "Yoga, Pilates" },
+    });
+  });
+
   it("reads a JSON object, and a plain HTML form", () => {
     expect(parseBody(json({ name: "Aisha" }), "application/json; charset=utf-8")).toEqual({
       ok: true,
@@ -75,6 +87,14 @@ describe("flatten (2C spec §2 nested values)", () => {
       "+971501234567",
       "Aisha Khan",
       "",
+    ]);
+  });
+
+  it("two values that land on one path both stay (the second is numbered), never one silently lost", () => {
+    const { cells } = flatten({ "a.b": "flat", a: { b: "nested" } });
+    expect([...cells.entries()]).toEqual([
+      ["a.b", "flat"],
+      ["a.b (2)", "nested"],
     ]);
   });
 });

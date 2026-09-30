@@ -185,6 +185,12 @@ export async function createWebhook(req: FastifyRequest, d: AppDeps, body: { pre
     configEnc: sealWebhook(d.keyring, id, { mode, secret, preset: body.preset }),
   });
   const s = await liveWebhook(req, id);
+  await audit(req, {
+    action: "webhook.created",
+    entityType: "lead_source",
+    entityId: id,
+    diff: { name: s.name, preset: body.preset },
+  });
   // The one time the secret leaves LUME: the sender needs it, and LUME never shows it again.
   return { source: await webhookView(req, d, s), address: addressOf(d, id), secret, mode };
 }
@@ -326,7 +332,9 @@ export async function patchWebhook(
   const set: Partial<typeof S.$inferInsert> = {};
   if (p.name !== undefined) set.name = p.name.trim();
   if (p.paused === true && (s.status === "active" || s.status === "needs_attention")) set.status = "paused";
-  if (p.paused === false && s.status === "paused") set.status = "active";
+  // Resumed, a webhook that needed attention before it was paused still does: pausing hides nothing.
+  if (p.paused === false && s.status === "paused")
+    set.status = s.attentionCode ? "needs_attention" : "active";
   if (Object.keys(set).length) await req.db.update(S).set(set).where(eq(S.id, id));
   if (set.status === "active") {
     const waiting = await req.db
@@ -373,7 +381,7 @@ export async function rotateSecret(req: FastifyRequest, d: AppDeps, id: string) 
 }
 
 export async function retryEvent(req: FastifyRequest, d: AppDeps, id: string, eventId: number) {
-  await liveWebhook(req, id);
+  const s = await liveWebhook(req, id);
   const again = await req.db
     .update(E)
     .set({ status: "queued", problems: [] })
@@ -381,6 +389,12 @@ export async function retryEvent(req: FastifyRequest, d: AppDeps, id: string, ev
     .returning({ id: E.id });
   if (!again.length) throw notFound("EVENT_NOT_FOUND", "That problem post isn't there any more.");
   requeue(req, d, [eventId]);
+  await audit(req, {
+    action: "webhook.event_retried",
+    entityType: "lead_source",
+    entityId: id,
+    diff: { name: s.name },
+  });
 }
 
 export async function dismissEvent(req: FastifyRequest, id: string, eventId: number) {

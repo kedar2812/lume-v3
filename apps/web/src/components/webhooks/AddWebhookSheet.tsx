@@ -172,7 +172,10 @@ export function AddWebhookSheet({
       <motion.div
         className={s.scrim}
         aria-hidden
-        onClick={() => close()}
+        // Not while the secret is on screen: it's shown once, and a stray click mustn't lose it.
+        onClick={() => {
+          if (step !== "secret") close();
+        }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={toMotion(SPRINGS.soft)}

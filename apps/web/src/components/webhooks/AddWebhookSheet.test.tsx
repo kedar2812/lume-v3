@@ -120,4 +120,65 @@ describe("Add a webhook", () => {
     render(<AddWebhookSheet open manychat onClose={vi.fn()} />);
     expect(screen.getByRole("radio", { name: /ManyChat/ })).toBeInTheDocument();
   });
+
+  /** To the "Send a test" step. */
+  async function toTest(user: ReturnType<typeof userEvent.setup>) {
+    vi.mocked(webhooksClient.create).mockResolvedValue(
+      ok(
+        {
+          source: { id: "w1", name: "Website form" },
+          address: ADDRESS,
+          secret: SECRET,
+          mode: "signed",
+        } as never,
+        201,
+      ),
+    );
+    await user.click(screen.getByRole("radio", { name: /Website form/ }));
+    await user.click(screen.getByRole("button", { name: "Create webhook" }));
+    await screen.findByText(SECRET);
+  }
+
+  it("a click beside the sheet doesn't close it while the secret is on screen", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onClose = vi.fn();
+    render(<AddWebhookSheet open manychat={false} onClose={onClose} />);
+    await toTest(user);
+    await user.click(document.querySelector("[class*=scrim]")!);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(SECRET)).toBeInTheDocument();
+  });
+
+  it("waiting for the test post stops after 10 minutes, says so, and can look again", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.mocked(webhooksClient.test).mockResolvedValue(ok(null, 204));
+    render(<AddWebhookSheet open manychat={false} onClose={vi.fn()} />);
+    await toTest(user);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await run(10 * 60_000 + 5_000);
+    const calls = vi.mocked(webhooksClient.test).mock.calls.length;
+    await run(60_000);
+    expect(vi.mocked(webhooksClient.test).mock.calls.length).toBe(calls);
+    expect(screen.getByText(/No post has arrived in 10 minutes/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Look again" }));
+    expect(vi.mocked(webhooksClient.test).mock.calls.length).toBe(calls + 1);
+  });
+
+  it("a failed look is cleared once a later one works", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.mocked(webhooksClient.test)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 0,
+        code: "OFFLINE",
+        message: "LUME can’t reach the server right now.",
+      } as never)
+      .mockResolvedValue(ok(null, 204));
+    render(<AddWebhookSheet open manychat={false} onClose={vi.fn()} />);
+    await toTest(user);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("can’t reach the server");
+    await run(2100);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

@@ -66,4 +66,17 @@ describe("presets (2C spec §5)", () => {
     expect(PRESETS.website.mode).toBe("signed");
     expect(PRESETS.zapier.hidden).toBeUndefined();
   });
+
+  it("the website preset's message goes to a notes field when there is one, else it's left out", () => {
+    const withNotes = [...fields, f("notes", "Notes", "text")];
+    expect(presetMapping("website", ["name", "message"], withNotes).columns).toContainEqual({
+      column: 1,
+      to: "field",
+      field: "notes",
+    });
+    expect(presetMapping("website", ["name", "message"], fields).columns).toContainEqual({
+      column: 1,
+      to: "ignore",
+    });
+  });
 });

@@ -3,6 +3,7 @@ export type WebhookPreset = "website" | "zapier" | "make" | "manychat";
 export type WebhookMode = "signed" | "token";
 export type WebhookStatus = "draft" | "active" | "paused" | "needs_attention";
 export type RejectReason =
+  | "stale_timestamp"
   | "bad_signature"
   | "bad_token"
   | "rate_limited"

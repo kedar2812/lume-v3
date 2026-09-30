@@ -23,16 +23,22 @@ const same = (a: string, b: string) => {
 export const signFor = (secret: string, ts: string, raw: Buffer): string =>
   `sha256=${createHmac("sha256", secret).update(`${ts}.`).update(raw).digest("hex")}`;
 
-/** 2C spec §2 Signed: HMAC-SHA256 of "<timestamp>.<raw body>", with the timestamp within 5 minutes. */
-export function checkSignature(
+/**
+ * 2C spec §2 Signed: HMAC-SHA256 of "<timestamp>.<raw body>", with the timestamp within 5 minutes. "stale":
+ * signed right, but too old or too far ahead (counted as itself, so a sender with a wrong clock can tell).
+ */
+export function signatureCheck(
   secret: string,
   ts: string | undefined,
   sig: string | undefined,
   raw: Buffer,
   now: number,
-): boolean {
-  if (!ts || !sig || !/^\d{9,11}$/.test(ts) || Math.abs(now / 1000 - Number(ts)) > 300) return false;
-  return same(signFor(secret, ts, raw), sig);
+): "ok" | "stale" | "bad" {
+  if (!ts || !sig || !/^\d{9,11}$/.test(ts)) return "bad";
+  if (!same(signFor(secret, ts, raw), sig)) return "bad";
+  return Math.abs(now / 1000 - Number(ts)) > 300 ? "stale" : "ok";
 }
+export const checkSignature = (...a: Parameters<typeof signatureCheck>): boolean =>
+  signatureCheck(...a) === "ok";
 export const checkToken = (secret: string, token: string | undefined): boolean =>
   !!token && same(secret, token);

@@ -7,6 +7,8 @@ import type { TestPost } from "@/lib/webhooks/types";
 import w from "./webhooks.module.css";
 
 const POLL_MS = 2000;
+/** Waiting stops after this long; "Look again" starts it over. */
+const GIVE_UP_MS = 10 * 60_000;
 
 /**
  * Step 3: LUME waits for one real post, looking every 2 seconds, then lists what it sent. Its paths
@@ -15,16 +17,25 @@ const POLL_MS = 2000;
 export function TestStep({ id, busy, onUse }: { id: string; busy: boolean; onUse(): void }) {
   const [post, setPost] = useState<TestPost | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [gaveUp, setGaveUp] = useState(false);
+  /** Bumped by "Look again", which starts waiting over. */
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     if (post) return;
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const until = Date.now() + GIVE_UP_MS;
+    setGaveUp(false);
     const look = async () => {
       const r = await webhooksClient.test(id);
       if (!live) return;
       if (!r.ok) setError(r.message);
-      else if (r.data) return setPost(r.data);
+      else {
+        setError(null);
+        if (r.data) return setPost(r.data);
+      }
+      if (Date.now() >= until) return setGaveUp(true);
       timer = setTimeout(() => void look(), POLL_MS);
     };
     void look();
@@ -32,7 +43,7 @@ export function TestStep({ id, busy, onUse }: { id: string; busy: boolean; onUse
       live = false;
       clearTimeout(timer);
     };
-  }, [id, post]);
+  }, [id, post, round]);
 
   return (
     <>
@@ -44,10 +55,19 @@ export function TestStep({ id, busy, onUse }: { id: string; busy: boolean; onUse
               Send one post the way your form or tool will: a real-looking lead is best. This page updates the
               moment it arrives.
             </p>
-            <p className={w.waiting}>
-              <span className={w.pulse} aria-hidden />
-              Waiting for the first post…
-            </p>
+            {gaveUp ? (
+              <p className={w.waiting}>
+                No post has arrived in 10 minutes. Check the address and secret where it posts from, then{" "}
+                <Button size="sm" variant="ghost" onClick={() => setRound((n) => n + 1)}>
+                  Look again
+                </Button>
+              </p>
+            ) : (
+              <p className={w.waiting}>
+                <span className={w.pulse} aria-hidden />
+                Waiting for the first post…
+              </p>
+            )}
             {error && (
               <p role="alert" className={`${s.note} ${s.problem}`}>
                 {error}

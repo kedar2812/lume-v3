@@ -189,6 +189,34 @@ describe("the Webhooks module (2C spec §7)", () => {
     expect((await post(w.id, { name: "After Resume" }, w.secret)).statusCode).toBe(202);
   });
 
+  it("paused while it needs attention, it can be paused; resumed, it still needs attention (nothing hides it)", async () => {
+    const w = await setUp("Attention form");
+    await h.ownerPool.query(
+      "UPDATE lead_sources SET status = 'needs_attention', attention_code = 'COLUMNS_CHANGED', last_error = 'x' WHERE id = $1",
+      [w.id],
+    );
+    expect(
+      (await call(admin, "PATCH", `/api/v1/webhooks/sources/${w.id}`, { paused: true })).json().status,
+    ).toBe("paused");
+    const back = (await call(admin, "PATCH", `/api/v1/webhooks/sources/${w.id}`, { paused: false })).json();
+    expect(back).toMatchObject({ status: "needs_attention", attention: { code: "COLUMNS_CHANGED" } });
+  });
+
+  it("creating a webhook and retrying a post are in the audit log", async () => {
+    const w = await setUp("Audited form");
+    await post(w.id, { name: "c".repeat(10_001) }, w.secret);
+    await h.runWebhooks();
+    const { problemEvents } = (await call(admin, "GET", `/api/v1/webhooks/sources/${w.id}`)).json();
+    await call(admin, "POST", `/api/v1/webhooks/sources/${w.id}/events/${problemEvents[0].id}/retry`);
+    const actions = (
+      await h.ownerPool.query<{ action: string }>(
+        "SELECT action FROM audit_log WHERE entity_id = $1 ORDER BY id",
+        [w.id],
+      )
+    ).rows.map((r) => r.action);
+    expect(actions).toEqual(expect.arrayContaining(["webhook.created", "webhook.event_retried"]));
+  });
+
   it("a problem post can be retried once the setup is fixed, or dismissed", async () => {
     const w = await setUp("Problem form");
     // A value over 10,000 characters is always a problem (process.ts), whatever the setup.

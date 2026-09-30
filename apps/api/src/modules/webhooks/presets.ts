@@ -49,6 +49,16 @@ export function presetMapping(preset: Preset, headers: string[], fields: IntakeF
     if (to?.startsWith("name_part:"))
       return void chosen.set(column, { column, to: "name_part", part: to.slice(10) as "first" | "last" });
     if (to) return void chosen.set(column, { column, to: "field", field: to });
+    // The website preset's message goes to a notes field, if the business has one (2C spec §5).
+    if (preset === "website" && h === "message") {
+      const notes = custom.find(
+        (x) => ["notes", "note"].includes(fold(x.key)) || ["notes", "note"].includes(fold(x.label)),
+      );
+      return void chosen.set(
+        column,
+        notes ? { column, to: "field", field: notes.key } : { column, to: "ignore" },
+      );
+    }
     const m = /^custom_fields\.(.+)$/.exec(h);
     if (m) {
       const k = m[1]!;
