@@ -32,11 +32,18 @@ healthy() {
   done
   return 1
 }
-set_tag() { remote "sed -i 's/^LUME_TAG=.*/LUME_TAG=$1/' /opt/lume/.env"; }
+# The version .env names (provision.sh writes LUME_TAG='X.Y.Z'); it must be there to be changed.
+set_tag() { remote "grep -q '^LUME_TAG=' /opt/lume/.env && sed -i \"s/^LUME_TAG=.*/LUME_TAG='$1'/\" /opt/lume/.env"; }
+# The image the running API was started from ends with the version that was asked for.
+on_version() {
+  $DRY && return 0
+  image="$(remote "cd /opt/lume && docker compose ps --format '{{.Image}}' api" | tail -n 1)"
+  [[ "$image" == *":$version" ]]
+}
 
 # One client, in its own subshell: prints its table row whatever happens, exits 1 if it isn't updated.
 update_one() {
-  local slug="$1" prev host_name out migrated=false restored=""
+  local slug="$1" prev host_name out migrated=false restored="" dump image
   target "$slug"
   prev="$(inv get "$slug" version)"
   host_name="$slug.$DOMAIN"
@@ -45,14 +52,20 @@ update_one() {
   if ! [[ "$prev" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then result "not provisioned yet (version $prev)"; return 1; fi
 
   step "$slug: back up (encrypted, off-site as configured), and a dump for this update"
+  # Named for its moment (a retry never overwrites a good one); plain lead data, so kept 14 days only.
+  dump="/opt/lume/backups/before-$version-$(date -u +%Y%m%dT%H%M%S).dump"
   if ! remote "cd /opt/lume && docker compose run --rm worker node dist/main.js run-now ops.backup" ||
-    ! remote "mkdir -p /opt/lume/backups && cd /opt/lume && docker compose exec -T -u postgres db pg_dump -Fc lume > /opt/lume/backups/before-$version.dump"; then
+    ! remote "mkdir -p /opt/lume/backups && find /opt/lume/backups -name 'before-*.dump' -mtime +14 -delete && cd /opt/lume && docker compose exec -T -u postgres db pg_dump -Fc lume > $dump"; then
     result "backup failed, nothing changed"
     return 1
   fi
 
   step "$slug: $prev → $version"
-  set_tag "$version"
+  if ! set_tag "$version"; then
+    set_tag "$prev" || true
+    result "couldn't set the version, nothing changed"
+    return 1
+  fi
   if ! remote "cd /opt/lume && docker compose pull"; then
     set_tag "$prev" || true
     result "pull failed, still on $prev"
@@ -63,7 +76,8 @@ update_one() {
   [ -n "$out" ] && printf '%s\n' "$out"
   # Anything but a clean "nothing applied" counts as migrations having run (a restore is then needed).
   grep -q '"applied":\[\]' <<<"$out" || migrated=true
-  if $migrate_ok && remote "cd /opt/lume && docker compose up -d" && healthy "$host_name"; then
+  # Healthy isn't enough: it must be the new version that's running.
+  if $migrate_ok && remote "cd /opt/lume && docker compose up -d" && healthy "$host_name" && on_version; then
     $DRY || inv set "$slug" version "$version"
     result "updated"
     return 0
@@ -73,10 +87,12 @@ update_one() {
   set_tag "$prev" || true
   if $migrated; then
     remote "cd /opt/lume && docker compose stop api worker web" || true
-    if remote "cd /opt/lume && docker compose exec -T -u postgres db pg_restore -d lume --clean --if-exists < /opt/lume/backups/before-$version.dump"; then
+    # The whole database goes back, dropped and made again from the dump: nothing the failed migration
+    # created survives (else the fixed release's migration would fail on it, every time).
+    if remote "cd /opt/lume && docker compose exec -T -u postgres db sh -c 'dropdb --force lume && pg_restore --create -d postgres' < $dump"; then
       restored=", backup restored"
     else
-      restored=", RESTORE FAILED (the dump is /opt/lume/backups/before-$version.dump)"
+      restored=", RESTORE FAILED (the dump is $dump)"
     fi
   fi
   remote "cd /opt/lume && docker compose up -d" || true

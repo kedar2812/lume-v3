@@ -13,6 +13,7 @@ set -euo pipefail
 
 CLIENTS_DIR="${LUME_CLIENTS_DIR:-$FLEET_ROOT/deploy/clients}"
 DOMAIN="${LUME_DOMAIN:-lumecrm.in}"
+REGISTRY="${LUME_REGISTRY:-ghcr.io/kedar2812/lume-v3}"
 
 parse_dry "$@"
 confirmed=false
@@ -40,6 +41,8 @@ fi
 # ---------- remove everything ----------
 step "$slug: the stack, its images and volumes (the database, the off-site copies here), /opt/lume and its backups"
 remote "cd /opt/lume && docker compose down --volumes --rmi all --remove-orphans"
+# Every LUME image, not only the current version's: each update leaves the previous one (for rollback).
+remote "docker images --format '{{.Repository}}:{{.Tag}}' | grep '^$REGISTRY/' | xargs -r docker rmi -f"
 remote "sudo rm -rf /opt/lume"
 remote "docker logout ghcr.io"
 # Last: after this, LUME can no longer sign in to the server.
@@ -58,5 +61,7 @@ $slug is decommissioned: no LUME containers, images, volumes, files or backups r
 key is gone from its deploy user. Still to do, by hand:
   1. Revoke the registry token for ${registry_user:-this client} (GitHub → Settings → Developer settings → tokens).
   2. Remove the DNS record $slug.$DOMAIN (A $HOST).
-  3. On license.lumecrm.in, note the client as decommissioned.
+  3. Remove the lume-deploy user (as another sudo user: sudo deluser --remove-home lume-deploy), or hand
+     the server back to the client as it is.
+  4. On license.lumecrm.in, Decommission the client (its record stays, marked).
 EOF

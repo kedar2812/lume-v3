@@ -57,8 +57,12 @@ describe("provision.sh (L-C Task 3)", () => {
       /^dig \+short harbour-clinic\.lumecrm\.in/,
       /^scp .*bootstrap-server\.sh/,
       /^ssh .*sudo bash \/tmp\/lume-bootstrap\.sh/,
+      // Postgres's own user (uid 999) must read its config and init scripts: 755, not the deploy user's 750.
+      /^ssh .*sudo install -d -m 755 -o lume-deploy -g lume-deploy \/opt\/lume\/postgres \/opt\/lume\/postgres\/init/,
       /^scp .*docker-compose\.yml .*:\/opt\/lume\/docker-compose\.yml/,
       /^ssh .*docker login ghcr\.io -u lume-pull --password-stdin/,
+      // Pulled by the user who logged in, before root's docker run needs it (root has no registry login).
+      /^ssh .*docker pull ghcr\.io\/kedar2812\/lume-v3\/worker:1\.0\.0/,
       /^ssh .*age-keygen -o/,
       /^scp .*:\/opt\/lume\/\.env/,
       /^ssh .*docker compose pull/,
@@ -86,14 +90,15 @@ describe("provision.sh (L-C Task 3)", () => {
       answers: ANSWERS,
     });
     const server = readFileSync(path.join(r.dir, "uploads", ".env"), "utf8");
-    expect(server).toMatch(/^LUME_TAG=1\.0\.0$/m);
-    expect(server).toMatch(/^LUME_IMAGE_PREFIX=ghcr\.io\/kedar2812\/lume-v3$/m);
-    expect(server).toMatch(/^LUME_PUBLIC_HOST=harbour-clinic\.lumecrm\.in$/m);
-    expect(server).toMatch(/^LUME_INSTANCE_ID=LUME-H4RB-8C2L$/m);
-    expect(server).toMatch(/^LUME_LICENSE_KEY=LUME-K7PX-2MWD-9RTA-4QZC-7Q2F$/m);
-    expect(server).toMatch(/^BACKUP_AGE_RECIPIENTS=age1owneroffline,age1restorepub$/m);
-    expect(server).toMatch(/^LUME_MASTER_KEY=.{40,}$/m);
-    expect(server).toMatch(/^LUME_SECRETS_DIR=\/opt\/lume\/secrets$/m);
+    // Single-quoted: compose takes each value as it is (a "$" in an SMTP password stays a "$").
+    expect(server).toMatch(/^LUME_TAG='1\.0\.0'$/m);
+    expect(server).toMatch(/^LUME_IMAGE_PREFIX='ghcr\.io\/kedar2812\/lume-v3'$/m);
+    expect(server).toMatch(/^LUME_PUBLIC_HOST='harbour-clinic\.lumecrm\.in'$/m);
+    expect(server).toMatch(/^LUME_INSTANCE_ID='LUME-H4RB-8C2L'$/m);
+    expect(server).toMatch(/^LUME_LICENSE_KEY='LUME-K7PX-2MWD-9RTA-4QZC-7Q2F'$/m);
+    expect(server).toMatch(/^BACKUP_AGE_RECIPIENTS='age1owneroffline,age1restorepub'$/m);
+    expect(server).toMatch(/^LUME_MASTER_KEY='.{40,}'$/m);
+    expect(server).toMatch(/^LUME_SECRETS_DIR='\/opt\/lume\/secrets'$/m);
     expect(server).not.toContain(TOKEN);
     // The token goes to docker login on its stdin: never in a command line or the output.
     expect(r.calls.join("\n")).not.toContain(TOKEN);
@@ -117,6 +122,75 @@ describe("provision.sh (L-C Task 3)", () => {
     expect(again.code).toBe(0);
     expect(f.envFile()).toBe(first);
     expect(again.calls.some((c) => /test -s \/opt\/lume\/secrets\/restore\.agekey/.test(c))).toBe(true);
+  });
+
+  it("the server needs passwordless sudo: asked first, and said plainly when it isn't there", () => {
+    const f = fleet();
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [...ANSWERS, { match: /sudo -n true/, code: 1, out: "sudo: a password is required" }],
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toMatch(/lume-deploy needs passwordless sudo/);
+    expect(r.calls.filter((c) => c.startsWith("ssh ") || c.startsWith("scp "))).toEqual([
+      expect.stringMatching(/sudo -n true/),
+    ]);
+  });
+
+  it("an inputs file with no last newline, or saved on Windows, still reads right", () => {
+    const f = fleet({ inputs: INPUTS.replace(/\n/g, "\r\n").replace(/\r\n$/, "") });
+    writeFileSync(path.join(f.dir, "clients", "harbour-clinic.env"), INPUTS.replace(/\n/g, "\r\n"));
+    const text = readFileSync(path.join(f.dir, "clients", "harbour-clinic.env"), "utf8").replace(/\n$/, "");
+    writeFileSync(path.join(f.dir, "clients", "harbour-clinic.env"), text.replace(/\r?\n$/, ""));
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: ANSWERS,
+    });
+    expect(r.code, r.stderr).toBe(0);
+    const inputs = f.envFile();
+    expect(inputs).toMatch(/^OWNER_AGE_RECIPIENT=age1owneroffline\r?$/m);
+    expect(inputs).toMatch(/^LUME_MASTER_KEY=\S+$/m);
+    const server = readFileSync(path.join(r.dir, "uploads", ".env"), "utf8");
+    expect(server).not.toContain("\r");
+    expect(server).toMatch(/^BACKUP_AGE_RECIPIENTS='age1owneroffline,age1restorepub'$/m);
+  });
+
+  it("off-site backups come from the client's inputs, so a second run can't quietly turn them off", () => {
+    const f = fleet({
+      inputs: `${INPUTS}\nRCLONE_CONFIG_OFFSITE_TYPE=s3\nRCLONE_REMOTE=offsite:lume-harbour`,
+    });
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: ANSWERS,
+    });
+    const server = readFileSync(path.join(r.dir, "uploads", ".env"), "utf8");
+    expect(server).toMatch(/^RCLONE_CONFIG_OFFSITE_TYPE='s3'$/m);
+    expect(server).toMatch(/^RCLONE_REMOTE='offsite:lume-harbour'$/m);
+  });
+
+  it("with no --version, a new client gets LUME's own version (read from the repository's package.json)", () => {
+    const f = fleet();
+    const r = run("scripts/provision.sh", ["harbour-clinic"], { dir: f.dir, env: f.env, answers: ANSWERS });
+    expect(r.code, r.stderr).toBe(0);
+    const version = JSON.parse(
+      readFileSync(path.resolve(import.meta.dirname, "../../package.json"), "utf8"),
+    ).version;
+    expect(readFileSync(path.join(r.dir, "uploads", ".env"), "utf8")).toContain(`LUME_TAG='${version}'`);
+  });
+
+  it("never takes an active client back to an older version (update.sh is how versions move)", () => {
+    const f = fleet({ client: { ...CLIENT, status: "active", version: "1.1.0" } });
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: ANSWERS,
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toMatch(/older than the 1\.1\.0 it runs/);
+    expect(r.calls).toEqual([]);
   });
 
   it("--dry-run prints the steps and calls nothing", () => {

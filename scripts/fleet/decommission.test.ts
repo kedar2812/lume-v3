@@ -77,6 +77,8 @@ describe("decommission.sh (L-C Task 5)", () => {
     const order = [
       /SELECT token FROM licence_state/,
       /cd \/opt\/lume && docker compose down --volumes --rmi all --remove-orphans/,
+      // Every LUME image, not only the current version's (updates leave the previous one for rollback).
+      /docker images --format .* \| grep '\^ghcr\.io\/kedar2812\/lume-v3\/' \| xargs -r docker rmi -f/,
       /sudo rm -rf \/opt\/lume/,
       /docker logout ghcr\.io/,
       /rm -f ~\/\.ssh\/authorized_keys/,
@@ -99,6 +101,7 @@ describe("decommission.sh (L-C Task 5)", () => {
     });
     expect(r.stdout).toMatch(/revoke the registry token for lume-pull-bluebell/i);
     expect(r.stdout).toMatch(/bluebell\.lumecrm\.in \(A 203\.0\.113\.12\)/);
+    expect(r.stdout).toMatch(/remove the lume-deploy user/i);
     expect(r.stdout).not.toContain("ghp_x");
   });
 

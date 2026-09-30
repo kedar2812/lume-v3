@@ -26,7 +26,8 @@ const fail = (msg) => {
 
 /** The file as lines, and where each client's fields are. */
 function load() {
-  const lines = readFileSync(FILE, "utf8").split("\n");
+  // A file saved on Windows (CRLF) reads the same; it's written back with plain line ends.
+  const lines = readFileSync(FILE, "utf8").split(/\r?\n/);
   const clients = [];
   let inList = false;
   lines.forEach((line, i) => {

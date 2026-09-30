@@ -40,15 +40,22 @@ status="$(inv get "$slug" status)"
 [ "$status" != decommissioned ] || die "$slug is decommissioned: provision a new slug instead"
 if [ -z "$version" ]; then
   version="$(inv get "$slug" version)"
-  [ "$version" != none ] && [ -n "$version" ] || version="$(node -p "require('$FLEET_ROOT/package.json').version")"
+  # Read with the repository as the working directory: Windows' node can't open a /f/… path.
+  [ "$version" != none ] && [ -n "$version" ] || version="$(cd "$FLEET_ROOT" && node -p "require('./package.json').version")"
 fi
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "the version must be X.Y.Z (never latest), got '$version'"
+running="$(inv get "$slug" version)"
+if [ "$status" = active ] && [[ "$running" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "$running" != "$version" ] &&
+  [ "$(printf '%s\n%s\n' "$running" "$version" | sort -V | head -n 1)" = "$version" ]; then
+  die "refusing: $version is older than the $running it runs (update.sh is how versions move)"
+fi
 instance="$(inv get "$slug" instance)"
 [ -n "$instance" ] || die "$slug has no instance in clients.yml (New licence on the licence server gives it)"
 
 inputs="$CLIENTS_DIR/$slug.env"
 [ -f "$inputs" ] || die "no $inputs: put the client's inputs there first (see the top of this script)"
-envget() { sed -n "s/^$1=//p" "$inputs" | tail -n 1; }
+# The last value for a key, with any Windows line end (\r) taken off.
+envget() { sed -n "s/^$1=//p" "$inputs" | tail -n 1 | tr -d '\r'; }
 for key in LUME_LICENSE_KEY GHCR_USER GHCR_TOKEN OWNER_AGE_RECIPIENT; do
   [ -n "$(envget "$key")" ] || die "$inputs has no $key"
 done
@@ -58,7 +65,11 @@ image="$REGISTRY/worker:$version"
 # ---------- 1. DNS ----------
 step "DNS: $host_name → $HOST"
 if ! $DRY; then
-  points="$(dig +short "$host_name" | tail -n 1)"
+  if command -v dig >/dev/null 2>&1; then
+    points="$(dig +short "$host_name" | tail -n 1)"
+  else # Git Bash on Windows has no dig: ask through node.
+    points="$(node -e 'require("dns").promises.resolve4(process.argv[1]).then((a) => console.log(a.at(-1) ?? ""), () => console.log(""))' "$host_name")"
+  fi
   [ "$points" = "$HOST" ] || die "$host_name points at ${points:-nothing}, not $HOST: add the A record first"
 fi
 
@@ -67,25 +78,33 @@ step "secrets (kept in $inputs; never regenerated)"
 secret() { # secret <KEY> <command>
   if grep -q "^$1=" "$inputs"; then return; fi
   if $DRY; then printf '[dry-run] generate %s\n' "$1"; return; fi
-  printf '%s=%s\n' "$1" "$($2)" >> "$inputs"
+  local value
+  value="$($2)" || die "couldn't generate $1 (openssl)"
+  [ -n "$value" ] || die "couldn't generate $1 (empty)"
+  printf '%s=%s\n' "$1" "$value" >> "$inputs"
 }
 hex() { openssl rand -hex 24; }
 b64() { openssl rand -base64 32; }
 ( umask 077; touch "$inputs" )
 chmod 600 "$inputs"
+# A file saved without a last newline would glue the first secret onto its last line.
+if ! $DRY && [ -s "$inputs" ] && [ -n "$(tail -c 1 "$inputs")" ]; then echo >> "$inputs"; fi
 secret LUME_MASTER_KEY b64
 for key in POSTGRES_SUPERUSER_PASSWORD LUME_OWNER_PASSWORD LUME_APP_PASSWORD LUME_WORKER_PASSWORD LUME_BACKUP_PASSWORD LUME_RESTORE_PASSWORD; do
   secret "$key" hex
 done
 
 # ---------- 3. harden the server (idempotent itself) ----------
+step "sudo: lume-deploy needs it without a password (every step below uses it)"
+remote "sudo -n true" || die "lume-deploy needs passwordless sudo on $HOST: add /etc/sudoers.d/lume-deploy with 'lume-deploy ALL=(ALL) NOPASSWD:ALL' (docs/runbooks/fleet.md)"
 step "harden: user lume-deploy, SSH keys only, ufw 22/80/443, unattended upgrades, Docker"
 upload "$FLEET_ROOT/infra/scripts/bootstrap-server.sh" /tmp/lume-bootstrap.sh
 remote "sudo bash /tmp/lume-bootstrap.sh && rm -f /tmp/lume-bootstrap.sh"
 
 # ---------- 4. /opt/lume: the compose file and configuration ----------
 step "/opt/lume"
-remote "sudo install -d -m 750 -o $DEPLOY_USER -g $DEPLOY_USER /opt/lume /opt/lume/postgres /opt/lume/postgres/init"
+# /opt/lume is the deploy user's (750); Postgres's own user (uid 999) must read its config and init scripts.
+remote "sudo install -d -m 750 -o $DEPLOY_USER -g $DEPLOY_USER /opt/lume && sudo install -d -m 755 -o $DEPLOY_USER -g $DEPLOY_USER /opt/lume/postgres /opt/lume/postgres/init"
 upload "$FLEET_ROOT/infra/docker-compose.yml" /opt/lume/docker-compose.yml
 upload "$FLEET_ROOT/infra/Caddyfile" /opt/lume/Caddyfile
 upload "$FLEET_ROOT/infra/postgres/postgresql.conf" /opt/lume/postgres/postgresql.conf
@@ -96,7 +115,9 @@ done
 
 # ---------- 5. the registry, with this client's own read-only token (on stdin, never a command line) ----------
 step "registry login"
-remote "docker login ghcr.io -u $(envget GHCR_USER) --password-stdin" <<<"$(envget GHCR_TOKEN)"
+remote_stdin "docker login ghcr.io -u $(envget GHCR_USER) --password-stdin" <<<"$(envget GHCR_TOKEN)"
+# Pulled now, as the user who logged in: root (the key step below) has no registry login of its own.
+remote "docker pull $image"
 
 # ---------- 6. the restore-test key, made on the server once ----------
 step "backup keys"
@@ -110,24 +131,32 @@ fi
 step ".env"
 rendered="$(mktemp)"
 trap 'rm -f "$rendered"' EXIT
+# Single-quoted, so compose takes each value as it is (a "$" in an SMTP password stays a "$").
+kv() {
+  case "$2" in *"'"*) die "$1 contains a single quote, which .env can't hold as it is" ;; esac
+  printf "%s='%s'\n" "$1" "$2"
+}
 {
   echo "# Written by scripts/provision.sh for $slug. Secrets: keep this file mode 600."
-  echo "LUME_PUBLIC_HOST=$host_name"
-  echo "LUME_TLS="
-  echo "LUME_IMAGE_PREFIX=$REGISTRY"
-  echo "LUME_TAG=$version"
-  echo "LUME_INSTANCE_ID=$instance"
-  echo "LUME_LICENSE_KEY=$(envget LUME_LICENSE_KEY)"
+  kv LUME_PUBLIC_HOST "$host_name"
+  kv LUME_TLS ""
+  kv LUME_IMAGE_PREFIX "$REGISTRY"
+  kv LUME_TAG "$version"
+  kv LUME_INSTANCE_ID "$instance"
+  kv LUME_LICENSE_KEY "$(envget LUME_LICENSE_KEY)"
   for key in LUME_MASTER_KEY POSTGRES_SUPERUSER_PASSWORD LUME_OWNER_PASSWORD LUME_APP_PASSWORD LUME_WORKER_PASSWORD LUME_BACKUP_PASSWORD LUME_RESTORE_PASSWORD; do
-    echo "$key=$(envget "$key")"
+    kv "$key" "$(envget "$key")"
   done
-  echo "BACKUP_AGE_RECIPIENTS=$(envget OWNER_AGE_RECIPIENT),$restore_pub"
-  echo "LUME_SECRETS_DIR=/opt/lume/secrets"
-  echo "RCLONE_CONFIG_OFFSITE_TYPE=${RCLONE_CONFIG_OFFSITE_TYPE:-local}"
-  echo "RCLONE_REMOTE=${RCLONE_REMOTE:-offsite:/var/lib/lume/offsite}"
-  echo "SMTP_URL=$(envget SMTP_URL)"
-  echo "MAIL_FROM=$(envget MAIL_FROM)"
-  echo "LOG_LEVEL=info"
+  kv BACKUP_AGE_RECIPIENTS "$(envget OWNER_AGE_RECIPIENT),$restore_pub"
+  kv LUME_SECRETS_DIR /opt/lume/secrets
+  # Off-site backups: from the client's inputs (never this shell), so a second run can't change them.
+  offsite_type="$(envget RCLONE_CONFIG_OFFSITE_TYPE)"
+  offsite_remote="$(envget RCLONE_REMOTE)"
+  kv RCLONE_CONFIG_OFFSITE_TYPE "${offsite_type:-local}"
+  kv RCLONE_REMOTE "${offsite_remote:-offsite:/var/lib/lume/offsite}"
+  kv SMTP_URL "$(envget SMTP_URL)"
+  kv MAIL_FROM "$(envget MAIL_FROM)"
+  kv LOG_LEVEL info
 } > "$rendered"
 upload "$rendered" /opt/lume/.env
 remote "chmod 600 /opt/lume/.env"

@@ -22,7 +22,8 @@ COPY --from=build /src/infra/scripts/backup.sh /src/infra/scripts/restore-test.s
 RUN install -d -o node -g node /var/lib/lume/offsite
 # A release (licensing L-C): LUME_RELEASE=1 bakes /app/release.json; the version is the image's own.
 ARG LUME_RELEASE
-ARG LUME_VERSION=dev
+# None for a dev image: it then reports LUME's own version (package.json).
+ARG LUME_VERSION
 ENV LUME_VERSION=$LUME_VERSION
 COPY --from=build /src/infra/docker/release-marker.sh /tmp/release-marker.sh
 RUN sh /tmp/release-marker.sh "$LUME_RELEASE" "$LUME_VERSION" /app && rm /tmp/release-marker.sh

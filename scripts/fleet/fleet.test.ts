@@ -54,6 +54,14 @@ describe("the inventory, deploy/clients.yml (L-C Task 2)", () => {
     expect(text.startsWith("# test fleet\n")).toBe(true);
     expect(text.indexOf("harbour-clinic")).toBeLessThan(text.indexOf("oakline"));
   });
+  it("a file saved on Windows (CRLF line ends) reads the same", () => {
+    const d = tempDir();
+    const f = inventory(d, [HARBOUR]);
+    writeFileSync(f, readFileSync(f, "utf8").replace(/\n/g, "\r\n"));
+    expect(inv(f, "get", "harbour-clinic", "host")).toBe("203.0.113.10");
+    inv(f, "set", "harbour-clinic", "version", "1.1.0");
+    expect(inv(f, "get", "harbour-clinic", "version")).toBe("1.1.0");
+  });
   it("an empty fleet is fine: nothing to list", () => {
     const f = inventory(tempDir(), []);
     expect(inv(f, "list")).toBe("");
@@ -98,13 +106,26 @@ describe("the fleet library and its stubs", () => {
     });
     expect(r.code).toBe(0);
     expect(r.calls).toEqual([
-      "ssh -o BatchMode=yes -o ConnectTimeout=15 lume-deploy@203.0.113.10 uptime",
-      "ssh -o BatchMode=yes -o ConnectTimeout=15 lume-deploy@203.0.113.10 docker ps",
+      // -n: nothing on the operator's stdin reaches a remote step; accept-new: a new server's first key is
+      // taken (and pinned), so the very first connection works without a manual step.
+      "ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 lume-deploy@203.0.113.10 uptime",
+      "ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 lume-deploy@203.0.113.10 docker ps",
     ]);
     expect(r.stdout).toContain("up 3 days");
     const dry = run("scripts/fleet/selftest.sh", ["harbour-clinic", "--dry-run"], { dir: d, env });
     expect(dry.calls).toEqual([]);
     expect(dry.stdout).toMatch(/\[dry-run\] ssh .* uptime/);
+  });
+  it("with LUME_SSH_KEY, that key and only that key (a busy ssh agent can't use up MaxAuthTries)", () => {
+    const d = tempDir();
+    inventory(d, [HARBOUR]);
+    const r = run("scripts/fleet/selftest.sh", ["harbour-clinic"], {
+      dir: d,
+      env: { LUME_INVENTORY: path.join(d, "clients.yml"), LUME_SSH_KEY: "/home/op/.ssh/lume_fleet" },
+    });
+    expect(r.calls[0]).toBe(
+      "ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -i /home/op/.ssh/lume_fleet -o IdentitiesOnly=yes lume-deploy@203.0.113.10 uptime",
+    );
   });
   it("a failing remote step stops the script with its exit code", () => {
     const d = tempDir();

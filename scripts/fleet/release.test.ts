@@ -29,7 +29,8 @@ describe("the release marker (L-C Task 1)", () => {
     for (const name of ["api", "web", "worker"]) {
       const d = read(`infra/docker/${name}.Dockerfile`);
       expect(d, name).toMatch(/ARG LUME_RELEASE/);
-      expect(d, name).toMatch(/ARG LUME_VERSION=dev/);
+      // No default: a dev image has none, so it reports LUME's own version (appVersion's fallback).
+      expect(d, name).toMatch(/^ARG LUME_VERSION$/m);
       expect(d, name).toMatch(/release-marker\.sh "\$LUME_RELEASE" "\$LUME_VERSION" \/app/);
       expect(d, name).toMatch(/ENV LUME_VERSION=\$LUME_VERSION/);
     }

@@ -2,7 +2,8 @@
 
 Every client runs the same LUME, on its own server, from versioned images. Nothing about a client is in the
 code: its differences are its `.env` and its own database. These scripts run from the owner's machine (a
-checkout of the repository with Node 22, bash, ssh and openssl), never on the build host.
+checkout of the repository with Node 22, bash, ssh and openssl: Git Bash on Windows works), never on the build
+host. Set `LUME_SSH_KEY=~/.ssh/<the fleet key>` so they offer only that key (the servers allow 3 tries).
 
 | What | Where |
 |---|---|
@@ -26,8 +27,18 @@ start with none.
 ## A new client
 
 1. **Licence:** on license.lumecrm.in, New licence → note the **instance ID** and the **key** (shown once).
-2. **Server:** the client buys an Ubuntu 24.04 VPS (2 vCPU, 8 GB), creates the sudo user `lume-deploy` and
-   adds LUME's SSH public key to it.
+2. **Server:** the client buys an Ubuntu 24.04 VPS (2 vCPU, 8 GB), creates the user `lume-deploy` with
+   **passwordless sudo** and LUME's SSH public key:
+   ```sh
+   sudo adduser --disabled-password --gecos "" lume-deploy
+   echo 'lume-deploy ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/lume-deploy && sudo chmod 440 /etc/sudoers.d/lume-deploy
+   sudo install -d -m 700 -o lume-deploy -g lume-deploy /home/lume-deploy/.ssh
+   echo "<LUME's public key>" | sudo tee /home/lume-deploy/.ssh/authorized_keys
+   sudo chown lume-deploy: /home/lume-deploy/.ssh/authorized_keys && sudo chmod 600 /home/lume-deploy/.ssh/authorized_keys
+   ```
+   Ask the client for the server's SSH host key fingerprint (`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`):
+   the scripts accept a new server's key on first contact and pin it, so compare it with what
+   `~/.ssh/known_hosts` then holds (`ssh-keygen -lF <host>`).
 3. **DNS:** add `<slug>.lumecrm.in` → the server's address (an A record).
 4. **Registry:** make a read-only GitHub token for this client (packages: read), so it can be revoked alone.
 5. **Inventory:** add the client to `deploy/clients.yml`:
@@ -73,7 +84,8 @@ For each client: the encrypted backup (as the nightly one, off-site as configure
 the server for this update (`/opt/lume/backups/before-1.1.0.dump`); then pull, migrate, restart, and wait
 for health. If health fails, it goes back to the previous version, and restores the dump **only if
 migrations ran**. One client's failure never stops the others. The table at the end says what happened to
-each; `deploy/clients.yml` keeps each client's real version. Commit it.
+each; `deploy/clients.yml` keeps each client's real version (an update counts only when the new version
+is the one running). Commit it. The update dumps are plain lead data: kept on the server 14 days, then deleted.
 
 A row that ends **NOT HEALTHY** needs you now: sign in to that server (`ssh lume-deploy@<host>`, then
 `cd /opt/lume && docker compose ps` and `docker compose logs api`).
@@ -88,8 +100,9 @@ A row that ends **NOT HEALTHY** needs you now: sign in to that server (`ssh lume
    unless the installation's own licence says suspended. It removes the stack, its images and volumes (the
    database), `/opt/lume` with its backups, the registry login, and last LUME's key from the deploy user.
    It marks the client `decommissioned` in `deploy/clients.yml` and deletes its local `.env`.
-4. By hand, as it reminds you: revoke the client's registry token; remove the DNS record; on the licence
-   server, **Decommission** the client (its record stays, marked, for your history).
+4. By hand, as it reminds you: revoke the client's registry token; remove the DNS record; remove the
+   `lume-deploy` user (or hand the server back as it is); on the licence server, **Decommission** the client
+   (its record stays, marked, for your history).
 
 ## The owner's acceptance on a real server
 

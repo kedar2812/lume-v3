@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { inventory, run, tempDir, type Answer } from "./harness";
+import { inventory, run as runScript, tempDir, type Answer } from "./harness";
+
+/** What the running API's image is, asked after each update: by default the new version (a real update). */
+const RUNNING: Answer = { match: /compose ps --format/, out: "ghcr.io/kedar2812/lume-v3/api:1.1.0" };
+/** Every update run answers the running image last, so a test's own answer to it comes first. */
+const run = (script: string, args: string[], o: Parameters<typeof runScript>[2] = {}) =>
+  runScript(script, args, { ...o, answers: [...(o.answers ?? []), RUNNING] });
 
 const C = (slug: string, host: string, version = "1.0.0") => ({
   slug,
@@ -48,8 +54,10 @@ describe("update.sh (L-C Task 4)", () => {
     expect(r.code, r.stderr).toBe(0);
     const order = [
       /run --rm worker node dist\/main\.js run-now ops\.backup/,
-      /exec -T -u postgres db pg_dump -Fc lume > \/opt\/lume\/backups\/before-1\.1\.0\.dump/,
-      /sed -i 's\/\^LUME_TAG=\.\*\/LUME_TAG=1\.1\.0\/' \/opt\/lume\/\.env/,
+      // Old update dumps (plain lead data) go after 14 days; this one is named for its moment.
+      /find \/opt\/lume\/backups -name 'before-\*\.dump' -mtime \+14 -delete/,
+      /exec -T -u postgres db pg_dump -Fc lume > \/opt\/lume\/backups\/before-1\.1\.0-\d{8}T\d{6}\.dump/,
+      /sed -i "s\/\^LUME_TAG=\.\*\/LUME_TAG='1\.1\.0'\/" \/opt\/lume\/\.env/,
       /docker compose pull/,
       /docker compose run --rm migrate/,
       /docker compose up -d/,
@@ -72,10 +80,12 @@ describe("update.sh (L-C Task 4)", () => {
       answers: [MIGRATED, { match: /^curl /, code: 7, times: 3 }],
     });
     expect(r.code).not.toBe(0);
-    const back = at(r.calls, /sed -i 's\/\^LUME_TAG=\.\*\/LUME_TAG=1\.0\.0\/' \/opt\/lume\/\.env/);
+    const back = at(r.calls, /sed -i "s\/\^LUME_TAG=\.\*\/LUME_TAG='1\.0\.0'\/" \/opt\/lume\/\.env/);
+    // The whole database goes back: dropped and recreated from the dump, so nothing the failed migration made
+    // survives (else the fixed release's migration would fail on it, every time).
     const restore = at(
       r.calls,
-      /exec -T -u postgres db pg_restore -d lume --clean --if-exists < \/opt\/lume\/backups\/before-1\.1\.0\.dump/,
+      /exec -T -u postgres db sh -c 'dropdb --force lume && pg_restore --create -d postgres' < \/opt\/lume\/backups\/before-1\.1\.0-\d{8}T\d{6}\.dump/,
     );
     expect(back).toBeGreaterThan(at(r.calls, /compose up -d/));
     expect(restore).toBeGreaterThan(back);
@@ -96,8 +106,51 @@ describe("update.sh (L-C Task 4)", () => {
     });
     expect(r.code).not.toBe(0);
     expect(r.calls.some((c) => /pg_restore/.test(c))).toBe(false);
-    expect(r.calls.some((c) => /LUME_TAG=1\.0\.0/.test(c))).toBe(true);
+    expect(r.calls.some((c) => /LUME_TAG='1\.0\.0'/.test(c))).toBe(true);
     expect(r.stdout).toMatch(/rolled back to 1\.0\.0\s*$/m);
+  });
+
+  it("if the new version can't be set, nothing is pulled and the client stays as it was", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [{ match: /LUME_TAG='1\.1\.0'/, code: 255, out: "connection reset" }],
+    });
+    expect(r.code).not.toBe(0);
+    expect(at(r.calls, /compose pull/)).toBe(-1);
+    expect(r.stdout).toMatch(
+      /harbour-clinic\s+1\.0\.0\s+1\.1\.0\s+couldn't set the version, nothing changed/,
+    );
+    expect(f.version("harbour-clinic")).toBe("1.0.0");
+  });
+
+  it("healthy but not on the new version isn't updated: it rolls back, and the inventory keeps the real one", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [MIGRATED, { match: /compose ps --format/, out: "ghcr.io/kedar2812/lume-v3/api:1.0.0" }],
+    });
+    expect(r.code).not.toBe(0);
+    expect(f.version("harbour-clinic")).toBe("1.0.0");
+    expect(r.stdout).toMatch(/rolled back to 1\.0\.0/);
+  });
+
+  it("all: one client rolls back after migrations, the next still updates", () => {
+    const f = fleet([C("harbour-clinic", "203.0.113.10"), C("oakline", "203.0.113.11")]);
+    const r = run("scripts/update.sh", ["1.1.0", "all"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [MIGRATED, { match: /^curl .*harbour-clinic/, code: 7, times: 3 }],
+    });
+    expect(r.code).not.toBe(0);
+    expect(f.version("harbour-clinic")).toBe("1.0.0");
+    expect(f.version("oakline")).toBe("1.1.0");
+    expect(r.stdout).toMatch(
+      /harbour-clinic\s+1\.0\.0\s+1\.1\.0\s+rolled back to 1\.0\.0, backup restored$/m,
+    );
+    expect(r.stdout).toMatch(/oakline\s+1\.0\.0\s+1\.1\.0\s+updated$/m);
   });
 
   it("a pull that fails changes nothing but the tag, which goes back", () => {
@@ -109,7 +162,7 @@ describe("update.sh (L-C Task 4)", () => {
     });
     expect(r.code).not.toBe(0);
     expect(at(r.calls, /compose run --rm migrate/)).toBe(-1);
-    expect(r.calls.some((c) => /LUME_TAG=1\.0\.0/.test(c))).toBe(true);
+    expect(r.calls.some((c) => /LUME_TAG='1\.0\.0'/.test(c))).toBe(true);
     expect(f.version("harbour-clinic")).toBe("1.0.0");
   });
 
