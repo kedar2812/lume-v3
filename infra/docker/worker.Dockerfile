@@ -20,5 +20,11 @@ COPY --from=build /src/packages/db/migrations ./migrations
 COPY --from=build /src/infra/scripts/backup.sh /src/infra/scripts/restore-test.sh ./scripts/
 # Owned by node so a fresh named volume mounted here inherits writable ownership.
 RUN install -d -o node -g node /var/lib/lume/offsite
+# A release (licensing L-C): LUME_RELEASE=1 bakes /app/release.json; the version is the image's own.
+ARG LUME_RELEASE
+ARG LUME_VERSION=dev
+ENV LUME_VERSION=$LUME_VERSION
+COPY --from=build /src/infra/docker/release-marker.sh /tmp/release-marker.sh
+RUN sh /tmp/release-marker.sh "$LUME_RELEASE" "$LUME_VERSION" /app && rm /tmp/release-marker.sh
 USER node
 CMD ["node", "dist/main.js"]

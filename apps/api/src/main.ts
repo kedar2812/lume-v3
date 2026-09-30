@@ -13,8 +13,7 @@ import { loadKeyring } from "./crypto/keyring-store";
 import { REDACT_PATHS } from "./logger";
 import { createMailer } from "./mail/mailer";
 import { fixedRates, openErApi, openExchangeRates } from "./money/rates";
-import { isReleaseBuild, resolveLicence } from "./licence/options";
-import pkg from "../package.json" with { type: "json" };
+import { appVersion, isReleaseBuild, resolveLicence } from "./licence/options";
 
 const cfg = loadConfig(apiSchema);
 // A request never waits long for a connection: exhaustion fails loudly instead of hanging the API.
@@ -68,7 +67,7 @@ const app = await buildApp({
   googleOAuth,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   mailer,
-  config: { publicUrl, cookieSecure: true, version: cfg.LUME_VERSION },
+  config: { publicUrl, cookieSecure: true, version: appVersion(cfg) },
   rates:
     cfg.LUME_FX_PROVIDER === "fixed"
       ? fixedRates(cfg.LUME_FX_FIXED ?? "")
@@ -85,7 +84,7 @@ const app = await buildApp({
   licence: resolveLicence({
     env: process.env,
     release: isReleaseBuild(),
-    version: cfg.LUME_VERSION ?? pkg.version,
+    version: appVersion(cfg),
   }),
 });
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });

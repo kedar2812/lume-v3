@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import product from "../../../../package.json" with { type: "json" };
 import { LICENCE_KEYS } from "@lume/core";
 
 /** How this API holds its licence (licensing L-A, spec §3.1). */
@@ -37,8 +38,16 @@ export function resolveLicence(o: {
   env: Record<string, string | undefined>;
   release: boolean;
   version: string;
+  /** The keys this build trusts (tests pass their own). */
+  keys?: Record<string, string>;
 }): LicenceOptions {
   const e = o.env;
+  const compiled = o.keys ?? LICENCE_KEYS;
+  // A release that trusts no key would accept no answer, and every client would lock 7 days after updating.
+  if (o.release && Object.keys(compiled).length === 0)
+    throw new Error(
+      "This release build of LUME has no licence keys (packages/core/src/licence/keys.ts): it would refuse every licence. Build it again with the licence server's public key.",
+    );
   const extra = o.release
     ? {}
     : Object.fromEntries(
@@ -52,7 +61,15 @@ export function resolveLicence(o: {
     instanceId: e.LUME_INSTANCE_ID?.trim() || null,
     licenseKey: e.LUME_LICENSE_KEY?.trim() || null,
     url: (e.LUME_LICENSE_URL?.trim() || LICENCE_URL).replace(/\/$/, ""),
-    keys: { ...LICENCE_KEYS, ...extra },
+    keys: { ...compiled, ...extra },
     version: o.version,
   };
+}
+
+/**
+ * The version an installation reports (Settings → About, the licence check, the licence server's Releases):
+ * a release image's own (LUME_VERSION, baked in at build), else LUME's version from the root package.json.
+ */
+export function appVersion(env: { LUME_VERSION?: string }): string {
+  return env.LUME_VERSION?.trim() || product.version;
 }

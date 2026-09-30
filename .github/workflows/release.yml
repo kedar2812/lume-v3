@@ -1,0 +1,52 @@
+name: release
+# Tagging vX.Y.Z builds LUME's release images (licensing L-C): each marked as a release (LUME_RELEASE=1,
+# /app/release.json), carrying its version, and pushed to GHCR as ghcr.io/<repo>/<image>:X.Y.Z, the names a
+# client's compose file builds from LUME_IMAGE_PREFIX and LUME_TAG. Never latest: every client runs a pinned
+# version (docs/runbooks/fleet.md).
+on:
+  push:
+    tags: ["v*.*.*"]
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        image: [api, web, worker, caddy]
+    steps:
+      - uses: actions/checkout@v4
+      - name: The version (the tag must be package.json's)
+        id: v
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          expected="$(node -p "require('./package.json').version")"
+          if [ "$version" != "$expected" ]; then
+            echo "tag v$version doesn't match package.json's version $expected" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/${{ matrix.image }}.Dockerfile
+          push: true
+          build-args: |
+            LUME_RELEASE=1
+            LUME_VERSION=${{ steps.v.outputs.version }}
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ steps.v.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.v.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

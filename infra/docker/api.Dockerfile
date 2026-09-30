@@ -15,6 +15,12 @@ WORKDIR /app
 COPY --from=build /deps/node_modules ./node_modules
 COPY --from=build /src/apps/api/dist ./dist
 COPY --from=build /src/packages/core/data ./data
+# A release (licensing L-C): LUME_RELEASE=1 bakes /app/release.json; the version is the image's own.
+ARG LUME_RELEASE
+ARG LUME_VERSION=dev
+ENV LUME_VERSION=$LUME_VERSION
+COPY --from=build /src/infra/docker/release-marker.sh /tmp/release-marker.sh
+RUN sh /tmp/release-marker.sh "$LUME_RELEASE" "$LUME_VERSION" /app && rm /tmp/release-marker.sh
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=15s --timeout=3s CMD node -e "fetch('http://127.0.0.1:3001/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"

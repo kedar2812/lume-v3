@@ -2,7 +2,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { ALL_GRANTS, rawPublicKey, signLicence, type LicencePayload } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../test/harness";
-import { resolveLicence } from "./options";
+import { appVersion, resolveLicence } from "./options";
 
 const server = generateKeyPairSync("ed25519");
 const stranger = generateKeyPairSync("ed25519");
@@ -257,6 +257,13 @@ describe("where the licence comes from (a release build trusts only itself)", ()
     expect(r.mode).toBe("enforce");
     expect(Object.keys(r.keys)).not.toContain("x1");
   });
+  it("a release build with no licence keys refuses to start, and says why (it would lock every client in 7 days)", () => {
+    expect(() => resolveLicence({ env, release: true, version: "1.4.2", keys: {} })).toThrow(
+      /release build of LUME has no licence keys/,
+    );
+    // A development build may run with none (it's dev unless told otherwise).
+    expect(resolveLicence({ env: {}, release: false, version: "dev", keys: {} }).mode).toBe("dev");
+  });
   it("a development build is dev unless told to enforce, and may be given a test key", () => {
     expect(resolveLicence({ env: {}, release: false, version: "dev" }).mode).toBe("dev");
     const r = resolveLicence({
@@ -266,6 +273,15 @@ describe("where the licence comes from (a release build trusts only itself)", ()
     });
     expect(r).toMatchObject({ mode: "enforce", instanceId: INSTANCE, url: "https://licence.test" });
     expect(r.keys.x1).toBe("AAAA");
+  });
+});
+
+describe("the version an installation reports", () => {
+  it("a release's own (baked into its image), else LUME's version from the root package.json", async () => {
+    const root = (await import("../../../../package.json", { with: { type: "json" } })).default.version;
+    expect(appVersion({ LUME_VERSION: "1.4.2" })).toBe("1.4.2");
+    expect(appVersion({})).toBe(root);
+    expect(root).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });
 
