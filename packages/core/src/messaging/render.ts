@@ -69,10 +69,19 @@ function customValue(key: string, ctx: RenderContext): string | null {
     case "currency": {
       const n = Number(v);
       const whole = Number.isInteger(n);
-      return `${ctx.business.currency} ${new Intl.NumberFormat("en", {
-        minimumFractionDigits: whole ? 0 : 2,
-        maximumFractionDigits: 2,
-      }).format(n)}`;
+      // In the currency's own local form (₹5,000, $1,250.50); one with no sign in English keeps its code.
+      try {
+        return new Intl.NumberFormat("en", {
+          style: "currency",
+          currency: ctx.business.currency,
+          minimumFractionDigits: whole ? 0 : 2,
+          maximumFractionDigits: 2,
+        })
+          .format(n)
+          .replace(/\u00a0/g, " "); // a plain space: a message is plain text
+      } catch {
+        return `${ctx.business.currency} ${n.toLocaleString("en", { maximumFractionDigits: 2 })}`;
+      }
     }
     case "number":
       return String(v);

@@ -80,6 +80,14 @@ describe("render (4A Task 1)", () => {
     expect(t("call_on")).toBe("12 Oct");
     expect(t("budget")).toBe("AED 1,200");
     expect(render("{{lead.custom.budget}}", ctx("Asia/Dubai", { budget: 1250.5 })).text).toBe("AED 1,250.50");
+    // Money in its own local form: the rupee sign, the dollar sign (AED has none in English, so its code).
+    const inCurrency = (currency: string, budget: number) =>
+      render("{{lead.custom.budget}}", {
+        ...ctx("Asia/Kolkata", { budget }),
+        business: { name: "B", currency, timezone: "Asia/Kolkata" },
+      }).text;
+    expect(inCurrency("INR", 5000)).toBe("₹5,000");
+    expect(inCurrency("USD", 1250.5)).toBe("$1,250.50");
     expect(t("sessions")).toBe("8");
     expect(t("paid")).toBe("Yes");
     expect(render("{{lead.custom.paid}}", ctx("Asia/Dubai", { paid: false })).text).toBe("No");

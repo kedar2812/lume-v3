@@ -184,6 +184,7 @@ describe("StartRun (4C Task 3)", () => {
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Finish or end your current run first");
     expect(push).not.toHaveBeenCalled();
     await userEvent.keyboard("{Escape}");
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     vi.mocked(queuesClient.plan).mockResolvedValue(ok({ ...PLAN, total: 0, more: 0 }));
     await userEvent.click(screen.getByRole("button", { name: "Message these" }));

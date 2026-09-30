@@ -64,9 +64,11 @@ export async function contextFor(req: FastifyRequest, lead: LeadRow): Promise<Re
     })
     .from(schema.settings);
   const people = await req.db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users);
-  const owner = lead.ownerId ? people.find((p) => p.id === lead.ownerId) : undefined;
+  // The lead's name and who owns it are fields too: a role that can't see them can't put them in a message.
+  const sees = (key: string) => isFieldVisible({ actor: req.actor!, fields: registry }, key);
+  const owner = lead.ownerId && sees("owner") ? people.find((p) => p.id === lead.ownerId) : undefined;
   return {
-    lead: { name: lead.name, custom },
+    lead: { name: sees("name") ? lead.name : "", custom },
     owner: owner ? { name: owner.name } : null,
     business: { name: s?.name ?? "", currency: s?.currency ?? "", timezone: s?.tz ?? "UTC" },
     fields,
@@ -92,6 +94,15 @@ export async function renderFor(
     return { ...render(t.body, ctx), versionId: t.versionId };
   }
   return render(body.text ?? "", ctx);
+}
+
+/** A follow-up named with a send must be this lead's own: Sent never completes another lead's. */
+export async function assertTaskOf(req: FastifyRequest, leadId: string, taskId: string) {
+  const { rows } = await req.db.execute<{ lead_id: string }>(
+    sql`SELECT lead_id FROM tasks WHERE id = ${taskId}`,
+  );
+  if (!rows[0] || rows[0].lead_id !== leadId)
+    throw new HttpError(400, "TASK_NOT_THIS_LEAD", "That follow-up belongs to another lead");
 }
 
 /** A version to send: one a caller's role may use, even if its template was edited or archived since. */
@@ -201,6 +212,7 @@ export async function confirmSend(
     .limit(1);
   if (answered.length) return { moved: null };
   const from = (opened.payload ?? {}) as { templateVersionId?: string; taskId?: string; queueId?: string };
+  if (body.taskId) await assertTaskOf(req, id, body.taskId);
   if (!body.sent) {
     await recordActivity(req, id, "whatsapp_not_sent");
     return { moved: null };

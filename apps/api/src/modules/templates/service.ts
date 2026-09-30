@@ -99,10 +99,18 @@ async function assertNameFree(req: FastifyRequest, name: string, except?: string
   if (taken) throw conflict("TEMPLATE_EXISTS", "A template with that name already exists");
 }
 
+/**
+ * Names and order change one at a time: two creates (or restores, or renames) with one name at once make
+ * one and tell the other it's taken (never a unique-index 500); two reorders at once never interleave.
+ */
+const oneAtATime = (req: FastifyRequest) =>
+  req.db.execute(sql`SELECT pg_advisory_xact_lock(hashtext('lume.message_templates'))`);
+
 export async function createTemplate(
   req: FastifyRequest,
   input: Required<Omit<TemplateInput, "allowedRoleIds">> & { allowedRoleIds?: string[] },
 ): Promise<TemplateView> {
+  await oneAtATime(req);
   await assertNameFree(req, input.name);
   await assertRoles(req, input.allowedRoleIds);
   const id = newId();
@@ -140,7 +148,10 @@ export async function updateTemplate(
   patch: TemplateInput,
 ): Promise<TemplateView> {
   const before = await oneTemplate(req, id);
-  if (patch.name !== undefined && patch.name !== before.name) await assertNameFree(req, patch.name, id);
+  if (patch.name !== undefined && patch.name !== before.name) {
+    await oneAtATime(req);
+    await assertNameFree(req, patch.name, id);
+  }
   await assertRoles(req, patch.allowedRoleIds);
   let versionId = before.versionId;
   const newVersion = patch.body !== undefined && patch.body !== before.body;
@@ -183,6 +194,7 @@ export async function archiveTemplate(req: FastifyRequest, id: string): Promise<
 
 /** Archive, undone: the template comes back, if its name is still free. */
 export async function restoreTemplate(req: FastifyRequest, id: string): Promise<TemplateView> {
+  await oneAtATime(req);
   const [t] = await req.db.select({ name: M.name }).from(M).where(eq(M.id, id));
   if (!t) throw notFound("TEMPLATE_NOT_FOUND", "That template no longer exists");
   await assertNameFree(req, t.name, id);
@@ -200,10 +212,14 @@ export async function reorderTemplates(
   req: FastifyRequest,
   ids: string[],
 ): Promise<{ templates: TemplateView[] }> {
+  await oneAtATime(req);
   const live = await rows(req);
-  if (new Set(ids).size !== ids.length || live.length !== ids.length || live.some((t) => !ids.includes(t.id)))
-    throw badRequest("TEMPLATE_ORDER_INCOMPLETE", "List every template exactly once");
-  for (const [i, id] of ids.entries()) await req.db.update(M).set({ position: i }).where(eq(M.id, id));
+  const known = new Set(live.map((t) => t.id));
+  if (new Set(ids).size !== ids.length || ids.some((id) => !known.has(id)))
+    throw badRequest("TEMPLATE_ORDER_INCOMPLETE", "That order names a template that isn't there any more");
+  // One added (or put back) since the list was read keeps its place after the ones that were ordered.
+  const order = [...ids, ...live.map((t) => t.id).filter((id) => !ids.includes(id))];
+  for (const [i, id] of order.entries()) await req.db.update(M).set({ position: i }).where(eq(M.id, id));
   await audit(req, { action: "template.reordered", entityType: "template", diff: { ids } });
   return listTemplates(req);
 }

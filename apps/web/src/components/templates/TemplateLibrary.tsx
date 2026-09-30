@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence, Reorder, motion, useDragControls, useReducedMotion } from "motion/react";
-import { useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent, useRef } from "react";
 import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
@@ -41,13 +41,23 @@ export function TemplateLibrary({
   })).filter((g) => g.items.length);
 
   /** The whole order, group by group, as the server keeps it. */
-  const saveOrder = async (next: TemplateView[]) => {
+  const saveOrder = async (next: TemplateView[], before: TemplateView[]) => {
     const ids = TEMPLATE_CATEGORIES.flatMap((c) => next.filter((t) => t.category === c.key).map((t) => t.id));
     const r = await templatesClient.reorder(ids);
-    if (!r.ok) setNote({ text: r.message || "The order couldn’t be saved." });
+    if (!r.ok) {
+      // Not saved: the order goes back to what the server has, and LUME says why.
+      setTemplates(before);
+      return setNote({ text: r.message || "The order couldn’t be saved." });
+    }
+    // Saved: the server's own order (one added meanwhile, by someone else, takes its place at the end).
+    setTemplates(r.data.templates);
   };
-  const regroup = (category: TemplateCategory, items: TemplateView[]) =>
+  // A drag's order before it began, to go back to if its new order doesn't save.
+  const beforeDrag = useRef<TemplateView[] | null>(null);
+  const regroup = (category: TemplateCategory, items: TemplateView[]) => {
+    beforeDrag.current ??= templates;
     setTemplates((all) => [...all.filter((t) => t.category !== category), ...items]);
+  };
 
   const move = (t: TemplateView, step: -1 | 1) => {
     const group = templates.filter((x) => x.category === t.category);
@@ -58,8 +68,9 @@ export function TemplateLibrary({
     next.splice(at, 1);
     next.splice(to, 0, t);
     const all = [...templates.filter((x) => x.category !== t.category), ...next];
+    const before = templates;
     setTemplates(all);
-    void saveOrder(all);
+    void saveOrder(all, before);
   };
 
   const archive = async (t: TemplateView) => {
@@ -139,7 +150,11 @@ export function TemplateLibrary({
                   onOpen={() => setEditing({ key: t.id, template: t })}
                   onArchive={() => void archive(t)}
                   onMove={(step) => move(t, step)}
-                  onDropped={() => void saveOrder(templates)}
+                  onDropped={() => {
+                    const before = beforeDrag.current ?? templates;
+                    beforeDrag.current = null;
+                    void saveOrder(templates, before);
+                  }}
                 />
               ))}
             </AnimatePresence>

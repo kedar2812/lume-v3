@@ -318,3 +318,15 @@
 .said[data-failed] {
   color: var(--danger-ink);
 }
+
+/* "Sent?" asked by the shell (its sheet has gone): bottom centre, above the page, out of the way. */
+.pendingHost {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 60;
+}
+.pendingHost .prompt {
+  position: static;
+}

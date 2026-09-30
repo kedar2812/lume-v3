@@ -7,6 +7,7 @@ import b from "@/components/ui/Button.module.css";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { leadsClient } from "@/lib/leads/client";
+import { markAway, onBack, sheetShown } from "@/lib/messages/pending";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
 import { ordered } from "@/lib/templates/order";
 import { TokenLine } from "@/components/templates/TokenLine";
@@ -56,7 +57,6 @@ export function SendSheet({
   onSettled?: (sent: boolean) => void;
 }) {
   const sound = useSound();
-  const [away, setAway] = useState(false);
   const [asking, setAsking] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [flash, setFlash] = useState(false);
@@ -64,17 +64,19 @@ export function SendSheet({
   // One answer per question: a double-tap's second press finds it answered, however fast the server was.
   const answered = useRef(false);
 
-  // "Sent?" rises the next time LUME has focus again after WhatsApp was opened.
-  useEffect(() => {
-    if (!away) return;
-    const back = () => {
-      setAway(false);
-      answered.current = false;
-      setAsking(true);
-    };
-    window.addEventListener("focus", back, { once: true });
-    return () => window.removeEventListener("focus", back);
-  }, [away]);
+  // "Sent?" rises when they're back after WhatsApp was opened from here (focus, the tab shown again, the
+  // page restored). This sheet gone by then, the shell asks instead (PendingSent).
+  const me = useRef(Symbol("send-sheet"));
+  useEffect(() => sheetShown(me.current), []);
+  useEffect(
+    () =>
+      onBack((p) => {
+        if (p.by !== me.current) return;
+        answered.current = false;
+        setAsking(true);
+      }),
+    [],
+  );
   useEffect(() => () => clearTimeout(timer.current), []);
   // The lead moved on since (a reply, a drag): undoing the send's move now would undo the wrong one. Still
   // where it came from means the screen hasn't caught up yet; where Sent put it means nothing changed.
@@ -163,7 +165,12 @@ export function SendSheet({
             onOpened={() => {
               close();
               setOutcome(null);
-              setAway(true);
+              markAway({
+                leadId: lead.id,
+                leadName: lead.name,
+                ...(taskId ? { taskId } : {}),
+                by: me.current,
+              });
               onChange?.();
             }}
           />
@@ -243,6 +250,9 @@ function SheetBody({
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => (a + (e.key === "ArrowDown" ? 1 : choices.length - 1)) % choices.length);
+    } else if (e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      setActive(e.key === "Home" ? 0 : choices.length - 1);
     } else if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       const c = choices[active];
@@ -272,6 +282,11 @@ function SheetBody({
 
   const missing = missingIn(text);
   const optionId = (i: number) => `${id}-o${i}`;
+  // The active choice stays in view as the keys move it through a long list.
+  useEffect(() => {
+    if (templates) document.getElementById(optionId(active))?.scrollIntoView?.({ block: "nearest" });
+    // optionId is stable for this sheet (it comes from useId).
+  }, [active, templates]);
   return (
     <form
       method="post"

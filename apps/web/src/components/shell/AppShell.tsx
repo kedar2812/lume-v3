@@ -1,6 +1,7 @@
 "use client";
 import { LicenceBanner } from "@/components/licence/LicenceBanner";
 import { LicenceProvider } from "@/components/licence/LicenceProvider";
+import { PendingSent } from "@/components/messages/PendingSent";
 import { LockScreen } from "@/components/licence/LockScreen";
 import { PaymentReminder } from "@/components/licence/PaymentReminder";
 import { useEffect, useState, type ReactNode } from "react";
@@ -92,6 +93,7 @@ export function AppShell({ session, businessName, theme, children }: Props) {
             </main>
           </div>
           <PaymentReminder businessName={businessName} />
+          <PendingSent />
           <CommandPalette open={palette} onOpenChange={setPalette} can={can} />
         </LicenceProvider>
       </TourProvider>

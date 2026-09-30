@@ -23,9 +23,12 @@ export function SentPrompt({
   outcome,
   align = "start",
   inline = false,
+  leadName,
   onAnswer,
   onUndo,
 }: {
+  /** Asked away from the lead (the shell, after its sheet has gone): the question names who. */
+  leadName?: string;
   asking: boolean;
   outcome: Outcome | null;
   align?: "start" | "end";
@@ -55,8 +58,15 @@ export function SentPrompt({
   const pills = (
     <AnimatePresence mode="wait" initial={!inline}>
       {asking && (
-        <motion.div key="ask" role="group" aria-label="Was the WhatsApp message sent?" {...pill}>
-          <span className={s.ask}>Sent?</span>
+        <motion.div
+          key="ask"
+          role="group"
+          aria-label={
+            leadName ? `Was the WhatsApp message to ${leadName} sent?` : "Was the WhatsApp message sent?"
+          }
+          {...pill}
+        >
+          <span className={s.ask}>{leadName ? `Sent to ${leadName.split(" ")[0]}?` : "Sent?"}</span>
           <button type="button" className={`${s.pbtn} ${s.yes}`} onClick={() => onAnswer(true)}>
             Yes, sent
           </button>

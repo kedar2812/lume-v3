@@ -179,4 +179,35 @@ describe("templates: what the screens need (4A Task 5)", () => {
     expect(m.roles[0]).toEqual({ id: expect.any(String), name: expect.any(String) });
     expect((await rep.inject({ method: "GET", url: "/api/v1/templates" })).json().roles).toBeUndefined();
   });
+
+  it("two at once with the same name: one is made, the other is told the name is taken (never a 500)", async () => {
+    const body = { name: "Twin", category: "follow_up", body: "Hello" };
+    const [x, y] = await Promise.all([create(body), create(body)]);
+    expect([x.statusCode, y.statusCode].sort()).toEqual([201, 409]);
+    const twin = (await list(manager)).find((t) => t.name === "Twin")!;
+    await manager.inject({ method: "POST", url: `/api/v1/templates/${twin.id}/archive` });
+    await create(body);
+    const [p, q] = await Promise.all([
+      manager.inject({ method: "POST", url: `/api/v1/templates/${twin.id}/restore` }),
+      manager.inject({ method: "POST", url: `/api/v1/templates/${twin.id}/restore` }),
+    ]);
+    expect([p.statusCode, q.statusCode]).toEqual([409, 409]);
+  });
+
+  it("reorder: a template added meanwhile keeps its place at the end; two at once never mix", async () => {
+    const before = (await list(manager)).map((t) => t.id);
+    const added = (await create({ name: "Added Meanwhile", category: "follow_up", body: "Hi" })).json()
+      .id as string;
+    const put = (ids: string[]) =>
+      manager.inject({ method: "PUT", url: "/api/v1/templates/order", payload: { ids } });
+    const r = await put([...before].reverse());
+    expect(r.statusCode).toBe(200);
+    expect((await list(manager)).map((t) => t.id)).toEqual([...[...before].reverse(), added]);
+    const all = (await list(manager)).map((t) => t.id);
+    const one = [...all].reverse();
+    const two = [...all.slice(1), all[0]!];
+    await Promise.all([put(one), put(two)]);
+    const final = (await list(manager)).map((t) => t.id);
+    expect([JSON.stringify(one), JSON.stringify(two)]).toContain(JSON.stringify(final));
+  });
 });

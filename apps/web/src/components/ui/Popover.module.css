@@ -49,9 +49,38 @@
     transform: translateY(-4px) scale(0.97);
   }
 }
+/* Closing: back the way it came, quicker than it arrived (then it's gone). */
+.panel[data-closing] {
+  animation: out 0.14s ease-in both;
+  pointer-events: none;
+}
+.panel[data-side="above"][data-closing] {
+  animation-name: outUp;
+}
+@keyframes out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+@keyframes outUp {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .panel {
     animation: none;
+  }
+  /* Reduce Motion: no movement, a short fade out. */
+  .panel[data-closing] {
+    animation: fade 0.12s linear both;
+  }
+  @keyframes fade {
+    to {
+      opacity: 0;
+    }
   }
 }
 @media (prefers-reduced-transparency: reduce) {

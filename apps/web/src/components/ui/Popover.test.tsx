@@ -30,6 +30,15 @@ const open = async (side?: "below" | "above" | "auto") => {
   return screen.getByRole("dialog", { name: "Panel" });
 };
 
+describe("Popover closing", () => {
+  it("leaves the way it came (a short exit), then is gone", async () => {
+    const panel = await open("below");
+    await userEvent.keyboard("{Escape}");
+    expect(panel).toHaveAttribute("data-closing");
+    await vi.waitFor(() => expect(screen.queryByRole("dialog", { name: "Panel" })).not.toBeInTheDocument());
+  });
+});
+
 describe("Popover placement (4C)", () => {
   it("auto: below while there's room below", async () => {
     triggerAt(100, 132);

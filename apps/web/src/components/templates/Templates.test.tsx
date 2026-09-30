@@ -171,6 +171,23 @@ describe("the template library (4A Task 5)", () => {
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("a reorder that doesn't save puts the order back, and says so", async () => {
+    vi.mocked(templatesClient.reorder).mockResolvedValue({
+      ok: false,
+      status: 0,
+      code: "OFFLINE",
+      message: "LUME can’t reach the server right now.",
+    } as never);
+    library();
+    const order = () =>
+      screen.getAllByRole("button", { name: /^Move / }).map((b) => b.getAttribute("aria-label"));
+    const before = order();
+    screen.getByRole("button", { name: "Move Gentle nudge" }).focus();
+    await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await vi.waitFor(() => expect(order()).toEqual(before));
+    expect(screen.getByText("LUME can’t reach the server right now.")).toBeInTheDocument();
+  });
+
   it("reorder within a group by keyboard: Alt+↓ on the handle", async () => {
     library();
     screen.getByRole("button", { name: "Move Gentle nudge" }).focus();
@@ -331,6 +348,12 @@ describe("the template editor (4A Task 5)", () => {
     expect(screen.getByLabelText("Name")).toHaveAttribute("readonly");
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.getByRole("figure", { name: "Preview" })).toHaveTextContent("Hi Alex");
+  });
+
+  it("with Reduce Motion the editor cross-fades in 150 ms; otherwise it slides on its spring", async () => {
+    const { editorTransition } = await import("./TemplateEditor");
+    expect(editorTransition(true)).toEqual({ duration: 0.15 });
+    expect(editorTransition(false)).toHaveProperty("type", "spring");
   });
 });
 

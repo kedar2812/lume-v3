@@ -241,6 +241,7 @@ describe("LeadDrawer", () => {
     );
     const said = toast.mock.calls.at(-1)![0] as { action: { label: string; onClick(): void } };
     expect(said.action.label).toBe("Undo");
+    vi.mocked(leadsClient.get).mockResolvedValue(ok({ lead: testLead({ stageId: "s-booked" }) }));
     said.action.onClick();
     await vi.waitFor(() => expect(leadsClient.move).toHaveBeenCalledWith("l1", "s-new"));
     // The button rests a moment after each reply (a double-tap logs one), then R logs the next.
@@ -251,6 +252,27 @@ describe("LeadDrawer", () => {
     await userEvent.keyboard("r");
     expect(leadsClient.replied).toHaveBeenCalledTimes(2);
   }, 8000);
+
+  it("the reply's Undo never undoes a move made since: the lead stays, and LUME says why", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(
+      ok({ moved: { stageId: "s-booked", stageName: "Call booked", fromStageId: "s-new", undoable: true } }),
+    );
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "They replied · Moved to Call booked" }),
+      ),
+    );
+    const said = toast.mock.calls.at(-1)![0] as { action: { onClick(): void } };
+    // Someone dragged it on meanwhile.
+    vi.mocked(leadsClient.get).mockResolvedValue(ok({ lead: testLead({ stageId: "s-lost" }) }));
+    said.action.onClick();
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "It has moved since" })),
+    );
+    expect(leadsClient.move).not.toHaveBeenCalled();
+  });
 
   it("4A review: with the send sheet open, R is just a key — no reply is logged; and holding R logs one", async () => {
     vi.mocked(leadsClient.replied).mockResolvedValue(ok({ moved: null }));

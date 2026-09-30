@@ -26,6 +26,9 @@ type Props = {
   children: ReactNode | ((close: () => void) => ReactNode);
 };
 
+/** The panel's exit, in ms (its CSS is 140 ms); a little over, as the backstop. */
+const EXIT_MS = 180;
+
 /**
  * A small panel anchored to its trigger. It scales in from the trigger (spatial consistency), closes on
  * Escape or a click outside, and hands focus back to the trigger, so keyboard people never get lost.
@@ -43,7 +46,33 @@ export function Popover({
   disabled,
   children,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenNow] = useState(false);
+  // Closing plays a short exit (Popover.module.css), then the panel goes.
+  const [closing, setClosing] = useState(false);
+  const shown = useRef({ open: false, closing: false });
+  const gone = useCallback(() => {
+    shown.current = { open: false, closing: false };
+    setClosing(false);
+    setOpenNow(false);
+  }, []);
+  const setOpen = useCallback((next: boolean | ((v: boolean) => boolean)) => {
+    const now = shown.current.open && !shown.current.closing;
+    const want = typeof next === "function" ? next(now) : next;
+    if (want) {
+      shown.current = { open: true, closing: false };
+      setClosing(false);
+      setOpenNow(true);
+    } else if (now) {
+      shown.current.closing = true;
+      setClosing(true);
+    }
+  }, []);
+  useEffect(() => {
+    if (!closing) return;
+    // animationend ends it; this is the backstop (a browser that runs no animation, a test).
+    const t = setTimeout(gone, EXIT_MS);
+    return () => clearTimeout(t);
+  }, [closing, gone]);
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -63,7 +92,7 @@ export function Popover({
   const close = useCallback(() => {
     setOpen(false);
     button.current?.focus();
-  }, []);
+  }, [setOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,7 +113,7 @@ export function Popover({
       document.removeEventListener("pointerdown", away);
       document.removeEventListener("keydown", esc, true);
     };
-  }, [open, close]);
+  }, [open, close, setOpen]);
 
   return (
     <div className={s.root} ref={root}>
@@ -94,7 +123,7 @@ export function Popover({
         className={triggerClassName}
         aria-label={triggerLabel}
         aria-haspopup={role}
-        aria-expanded={open}
+        aria-expanded={open && !closing}
         aria-controls={open ? id : undefined}
         data-active={active || undefined}
         disabled={disabled}
@@ -109,6 +138,10 @@ export function Popover({
           role={role}
           aria-label={label}
           className={s.panel}
+          data-closing={closing || undefined}
+          onAnimationEnd={(e) => {
+            if (closing && e.target === e.currentTarget) gone();
+          }}
           data-align={align}
           data-side={place?.side ?? (side === "above" ? "above" : "below")}
           style={

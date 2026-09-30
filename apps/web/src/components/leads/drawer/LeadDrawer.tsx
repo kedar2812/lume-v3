@@ -263,6 +263,15 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     logged();
   };
 
+  /** The reply's move, undone — only while the lead is still where the reply put it (never a later move). */
+  const undoReply = async (movedTo: string, from: string) => {
+    if (!lead) return;
+    const now = await leadsClient.get(lead.id);
+    if (now.ok && now.data.lead.stageId !== movedTo)
+      return toast({ tone: "warn", title: "It has moved since", detail: "LUME left it where it is now." });
+    await moveBack(from);
+  };
+
   /** They replied (report §11.2 step 6): one tap, then whatever the stage does after a reply, undoable. */
   // One reply per tap: the button rests for a moment after each, so a double-tap logs it once.
   const [replying, setReplying] = useState(false);
@@ -278,7 +287,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
       tone: "ok",
       title: m ? `They replied · Moved to ${m.stageName}` : "They replied",
       ...(r.data.notMoved ? { detail: r.data.notMoved.message } : {}),
-      ...(m?.undoable ? { action: { label: "Undo", onClick: () => void moveBack(m.fromStageId) } } : {}),
+      ...(m?.undoable
+        ? { action: { label: "Undo", onClick: () => void undoReply(m.stageId, m.fromStageId) } }
+        : {}),
     });
     void refresh();
   };

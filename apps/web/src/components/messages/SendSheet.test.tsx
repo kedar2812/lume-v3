@@ -56,11 +56,11 @@ const tab = () => {
 const sheet = async (props: Partial<Parameters<typeof SendSheet>[0]> = {}) => {
   const onChange = vi.fn();
   const onSettled = vi.fn();
-  render(<SendSheet lead={LEAD} onChange={onChange} onSettled={onSettled} {...props} />);
+  const view = render(<SendSheet lead={LEAD} onChange={onChange} onSettled={onSettled} {...props} />);
   await userEvent.click(screen.getByRole("button", { name: "WhatsApp" }));
   const dialog = screen.getByRole("dialog", { name: "WhatsApp Aisha Khan" });
   await within(dialog).findByRole("option", { name: /First hello/ });
-  return { dialog, onChange, onSettled };
+  return { dialog, onChange, onSettled, unmount: view.unmount };
 };
 const names = (dialog: HTMLElement) =>
   within(dialog)
@@ -132,6 +132,20 @@ describe("the send sheet (4A Task 6)", () => {
     await vi.waitFor(() => expect(w.location.href).toBe("https://wa.me/971501234567"));
   });
 
+  it("Home and End go to the first and last choice, and the active one is kept in view", async () => {
+    const into = vi.fn();
+    Element.prototype.scrollIntoView = into;
+    const { dialog } = await sheet({ suggest: "follow_up" });
+    const list = within(dialog).getByRole("listbox", { name: "Templates" });
+    list.focus();
+    await userEvent.keyboard("{End}");
+    const options = within(dialog).getAllByRole("option");
+    expect(list).toHaveAttribute("aria-activedescendant", options.at(-1)!.id);
+    expect(into).toHaveBeenLastCalledWith({ block: "nearest" });
+    await userEvent.keyboard("{Home}");
+    expect(list).toHaveAttribute("aria-activedescendant", options[0]!.id);
+  });
+
   it("sends the version you saw, and the follow-up it came from", async () => {
     const w = tab();
     const { dialog } = await sheet({ taskId: "task-1", suggest: "follow_up" });
@@ -143,7 +157,8 @@ describe("the send sheet (4A Task 6)", () => {
     });
     await vi.waitFor(() => expect(w.location.href).toBe("https://wa.me/971501234567"));
     expect(w.opener).toBeNull();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The sheet leaves (a short exit), then it's gone.
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("your own words carry no template", async () => {
@@ -302,5 +317,32 @@ describe("the Sent prompt (4A Task 6)", () => {
     const { prompt } = await sendAndReturn();
     await userEvent.click(within(prompt).getByRole("button", { name: "Yes, sent" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Sent");
+  });
+
+  it("back by switching tabs (not only window focus), the question is asked", async () => {
+    tab();
+    const s = await sheet();
+    await userEvent.click(within(s.dialog).getByRole("option", { name: /Gentle nudge/ }));
+    await userEvent.click(within(s.dialog).getByRole("button", { name: "Open WhatsApp" }));
+    await vi.waitFor(() => expect(leadsClient.prepareMessage).toHaveBeenCalled());
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(await screen.findByRole("group", { name: "Was the WhatsApp message sent?" })).toBeInTheDocument();
+  });
+
+  it("the sheet gone by the time they're back (J/K moved on): LUME still asks, naming the lead", async () => {
+    const { PendingSent } = await import("./PendingSent");
+    tab();
+    const s = await sheet({ taskId: "task-1" });
+    await userEvent.click(within(s.dialog).getByRole("option", { name: /Gentle nudge/ }));
+    await userEvent.click(within(s.dialog).getByRole("button", { name: "Open WhatsApp" }));
+    await vi.waitFor(() => expect(leadsClient.prepareMessage).toHaveBeenCalled());
+    s.unmount();
+    render(<PendingSent />);
+    vi.mocked(leadsClient.confirmMessage).mockResolvedValue(ok({ moved: null }) as never);
+    window.dispatchEvent(new Event("focus"));
+    const ask = await screen.findByRole("group", { name: "Was the WhatsApp message to Aisha Khan sent?" });
+    await userEvent.click(within(ask).getByRole("button", { name: "Yes, sent" }));
+    expect(leadsClient.confirmMessage).toHaveBeenCalledWith("l1", true, "task-1");
   });
 });

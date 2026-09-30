@@ -198,6 +198,9 @@ describe("the Views section (4B Task 6)", () => {
     await userEvent.click(within(form).getByRole("radio", { name: "Green" }));
     await userEvent.click(within(form).getByRole("button", { name: "Save" }));
     expect(viewsClient.update).toHaveBeenCalledWith("v1", { name: "Overdue", color: "ok" });
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Edit My overdue" })).not.toBeInTheDocument(),
+    );
 
     await userEvent.click(within(list).getByRole("button", { name: "Edit No reply 3+ days" }));
     await userEvent.click(screen.getByRole("button", { name: "Delete view" }));

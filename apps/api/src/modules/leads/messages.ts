@@ -5,7 +5,7 @@ import { canOnRecord } from "@lume/core";
 import { audit } from "../../audit/audit";
 import { HttpError, forbidden } from "../../http/errors";
 import { clickToSend } from "../../messaging/channel";
-import { assertVersion } from "./sending";
+import { assertTaskOf, assertVersion } from "./sending";
 import { recordActivity, visibleLead } from "./service";
 
 /**
@@ -30,6 +30,7 @@ export async function prepareMessage(
     throw new HttpError(422, "NO_WHATSAPP_NUMBER", "This lead has no WhatsApp number");
   // A template's version is checked for the caller's role (4A); an edited or archived one still sends.
   if (from.templateVersionId) await assertVersion(req, from.templateVersionId);
+  if (from.taskId) await assertTaskOf(req, id, from.taskId);
   const prepared = clickToSend.prepare({ e164: lead.phoneE164 }, text);
   await recordActivity(req, id, "whatsapp_opened", {
     text,
@@ -43,11 +44,4 @@ export async function prepareMessage(
   await req.db.update(schema.leads).set({ lastActivityAt: new Date() }).where(eq(schema.leads.id, id));
   await audit(req, { action: "lead.whatsapp.prepare", entityType: "lead", entityId: id });
   return prepared;
-}
-
-/** Report §11.2 step 4: the answer to "Sent?" when the person comes back. */
-export async function confirmMessage(req: FastifyRequest, id: string, sent: boolean) {
-  const lead = await visibleLead(req, id);
-  if (!canOnRecord(req.actor!, "messages.send", lead.ownerId)) throw forbidden();
-  await recordActivity(req, id, sent ? "whatsapp_confirmed_sent" : "whatsapp_not_sent");
 }

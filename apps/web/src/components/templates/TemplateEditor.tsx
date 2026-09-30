@@ -42,6 +42,9 @@ export type EditorField = {
  * as WhatsApp will show it, for a sample or a real lead. The preview renders locally on every keystroke;
  * the server renders again only when it's sent. Saving an edit to the words makes the next version.
  */
+/** The editor's entrance and exit: its drawer spring, or with Reduce Motion a 150 ms cross-fade. */
+export const editorTransition = (reduce: boolean) => (reduce ? { duration: 0.15 } : toMotion(SPRINGS.drawer));
+
 export function TemplateEditor({
   template,
   roles,
@@ -230,7 +233,7 @@ export function TemplateEditor({
         initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
         animate={{ opacity: 1, x: 0 }}
         exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
-        transition={toMotion(SPRINGS.drawer)}
+        transition={editorTransition(!!reduce)}
       >
         <div className={d.top}>
           <IconButton label="Close (Esc)" onClick={tryClose}>

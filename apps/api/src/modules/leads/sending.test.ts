@@ -277,6 +277,52 @@ describe("sending (4A Task 4)", () => {
     expect(r.statusCode).toBe(403);
     expect(r.json().error.message).toBe("That template isn't one your role can use");
   });
+
+  it("a role that can't see who owns a lead doesn't get the owner's name for a message", async () => {
+    const lead = await h.seedLead({ ownerId: repId, name: "Hidden Owner", phone: NUMBER });
+    const [f] = await h.queryAll<{ id: string }>("SELECT id FROM field_definitions WHERE key = 'owner'");
+    const [r] = await h.queryAll<{ role_id: string }>("SELECT role_id FROM user_roles WHERE user_id = $1", [
+      repId,
+    ]);
+    // As an admin does it in Settings → Roles (so everyone's access is read again).
+    const access = (a: "hidden" | "edit") =>
+      admin.inject({
+        method: "PUT",
+        url: `/api/v1/roles/${r!.role_id}/field-access`,
+        payload: { entries: [{ fieldId: f!.id, access: a }] },
+      });
+    expect((await access("hidden")).statusCode).toBe(200);
+    try {
+      const ctx = (await rep.inject({ method: "GET", url: `/api/v1/leads/${lead}/messages/context` })).json();
+      expect(ctx.owner).toBeNull();
+      const own = (
+        await post(rep, `/api/v1/leads/${lead}/messages/render`, { text: "From {{owner.first_name}}" })
+      ).json();
+      expect(own.text).not.toContain("Riya");
+    } finally {
+      await access("edit");
+    }
+  });
+
+  it("a follow-up from another lead is refused, whether preparing or answering Sent", async () => {
+    const a = await h.seedLead({ ownerId: repId, name: "Lead Here", phone: NUMBER });
+    const b = await h.seedLead({ ownerId: repId, name: "Lead Elsewhere", phone: NUMBER });
+    const made = await admin.inject({
+      method: "POST",
+      url: `/api/v1/leads/${b}/tasks`,
+      payload: { title: "Call", due: { at: new Date(Date.now() + 3_600_000).toISOString() } },
+    });
+    const taskId = (made.json().task?.id ?? made.json().id) as string;
+    const prep = await post(rep, `/api/v1/leads/${a}/messages/prepare`, { text: "Hi", taskId });
+    expect(prep.statusCode).toBe(400);
+    expect(prep.json().error.code).toBe("TASK_NOT_THIS_LEAD");
+    expect((await post(rep, `/api/v1/leads/${a}/messages/prepare`, { text: "Hi" })).statusCode).toBe(200);
+    const conf = await post(rep, `/api/v1/leads/${a}/messages/confirm`, { sent: true, taskId });
+    expect(conf.statusCode).toBe(400);
+    expect(
+      (await h.queryAll<{ status: string }>("SELECT status FROM tasks WHERE id = $1", [taskId]))[0]!.status,
+    ).toBe("open");
+  });
 });
 
 /** A role the rep doesn't have. */
