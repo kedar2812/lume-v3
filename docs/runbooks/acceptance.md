@@ -1029,3 +1029,32 @@ Plan: `docs/superpowers/plans/2026-09-30-licensing-a-instance.md`. Spec: `docs/s
   - read-only (a write refused, the export zip);
   - paused for everyone, with the owner's export;
   - the reminder (closed for the session, never a rep).
+
+# Licensing L-B — The licence server
+
+The server itself, its deploy and its secrets: `docs/runbooks/licence-server.md`.
+
+## Automated
+
+- **The server** (`apps/licence`, a real Postgres):
+  - `/v1/check`: the state by type and date, signed tokens an instance verifies, 401 for an unknown instance or wrong key (the same answer), a strict body, check-ins and events, the reminder in the token, per-instance and per-address limits, 180-day retention;
+  - sign-in: two steps, one message for any failure, a replayed code refused, rate limits, the pending step's 5 minutes, sessions (4 h idle, 24 h), CSRF and origin on every write;
+  - every action: New licence (the key once), price changes, Mark paid at the day's rate, Extend, the reminder, Rotate, Suspend and Resume; settings, the password, a new two-step;
+  - money, rates (fetched daily, the last ones standing), the trend rule, alerts and their dismissals, and analytics against the canvas's own numbers.
+- **The panel** (`panel.test.tsx`): the bell, the theme, the sign-in's two steps, Clients, New licence, one client's actions, analytics tones.
+- **End to end** (`apps/licence/e2e/panel.spec.ts`, in CI): the canvas's fictional clients on a fresh database; every screen in both themes with axe; a client's actions end to end. Review copies in `apps/licence/e2e/__review__/`.
+
+## Live (2026-09-30, the deployed server and the dev stack)
+
+The licence server on its host (127.0.0.1:8480, its own key), and the dev LUME's API pointed at it with a
+real licence (`apps/web/e2e-live/acceptance-licence.mjs create`, then `run`):
+
+1. the panel: signed out → sign-in; a password and six digits; New licence shows the key and instance ID once;
+2. LUME checks in and is active, as that instance; the panel shows the installation;
+3. Mark paid; a payment reminder → LUME's owner sees it, with the note;
+4. Suspend → LUME shows the pause screen, and its owner still exports everything;
+5. Resume → **Check again** on the pause screen, and LUME works again; Analytics counts the client.
+
+Screenshots (full content) in `docs/runbooks/screenshots-licence/`. The run found two things, both fixed
+test-first: the pause screen had no way to check again (an admin would wait up to 6 hours after a resume),
+and New licence's lists were named by their options in Chromium ("State" matched "United States").

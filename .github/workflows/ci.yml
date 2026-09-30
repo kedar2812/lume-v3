@@ -61,6 +61,9 @@ jobs:
       - name: Playwright against the real API and web app, behind an edge proxy
         run: |
           docker run --rm --network host -v "$PWD:/repo" -w /repo --env-file "$RUNNER_TEMP/test.env"             -e CI=1 -e GITHUB_ACTIONS=true lumedev-toolbox             bash -lc "pnpm install --frozen-lockfile && cd apps/web && pnpm e2e"
+      - name: The licence panel end to end (its own server and database)
+        run: |
+          docker run --rm --network host -v "$PWD:/repo" -w /repo --env-file "$RUNNER_TEMP/test.env"             -e CI=1 -e GITHUB_ACTIONS=true lumedev-toolbox             bash -lc "pnpm install --frozen-lockfile && cd apps/licence && pnpm e2e"
       - name: Report and API log
         if: failure()
         uses: actions/upload-artifact@v4
@@ -71,6 +74,8 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
             apps/web/e2e/.artifacts/api.log
+            apps/licence/playwright-report
+            apps/licence/test-results
 
   images:
     needs: [check, e2e]

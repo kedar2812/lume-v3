@@ -140,6 +140,28 @@ describe("suspended: the lock screen", () => {
     expect(screen.getByText("LUME-export-2026-09-30.zip")).toBeInTheDocument();
   });
 
+  it("people who may check can check again from the lock screen; a lifted pause lets LUME carry on", async () => {
+    vi.mocked(licenceClient.check).mockResolvedValue(
+      ok({ ...L({ checkedAt: new Date().toISOString() }), canCheck: true }),
+    );
+    shell(admin(L({ state: "suspended", reason: "suspended" })), <LockScreen />);
+    await userEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(licenceClient.check).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
+
+  it("a rep has no Check again, and a check that's still paused says so", async () => {
+    const { unmount } = shell(rep(L({ state: "suspended", reason: "suspended" })), <LockScreen />);
+    expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
+    unmount();
+    vi.mocked(licenceClient.check).mockResolvedValue(
+      ok({ ...L({ state: "suspended", reason: "suspended" }), canCheck: true }),
+    );
+    shell(admin(L({ state: "suspended", reason: "suspended" })), <LockScreen />);
+    await userEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByText("Still paused. LUME checked just now.")).toBeInTheDocument();
+  });
+
   it("nothing shows while the licence isn't suspended", () => {
     shell(admin(L()), <LockScreen />);
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

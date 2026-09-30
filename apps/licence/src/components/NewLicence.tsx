@@ -219,6 +219,7 @@ export function NewLicence({
                 />
                 <select
                   className="input"
+                  aria-label="Country"
                   value={country}
                   onChange={(e) => pickCountry(e.target.value)}
                   style={{ paddingLeft: 44 }}
@@ -234,7 +235,12 @@ export function NewLicence({
             {country === "IN" ? (
               <label className="field">
                 State
-                <select className="input" value={region} onChange={(e) => setRegion(e.target.value)}>
+                <select
+                  className="input"
+                  aria-label="State"
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                >
                   {STATES.map(([code, label]) => (
                     <option key={code} value={code}>
                       {label}
@@ -381,7 +387,12 @@ export function NewLicence({
           )}
           <label className="field">
             How they found LUME
-            <select className="input" value={source} onChange={(e) => setSource(e.target.value as Source)}>
+            <select
+              className="input"
+              aria-label="How they found LUME"
+              value={source}
+              onChange={(e) => setSource(e.target.value as Source)}
+            >
               {SOURCES.map((s) => (
                 <option key={s} value={s}>
                   {SOURCE_WORDS[s]}

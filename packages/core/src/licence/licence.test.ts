@@ -191,3 +191,14 @@ describe("what the check sends (spec §2.4: only this)", () => {
     expect(body.serverTime).toBe("2026-09-30T10:00:00.000Z");
   });
 });
+
+describe("the keys LUME trusts", () => {
+  it("has the licence server's production key, and every key is a raw 32-byte Ed25519 public key", async () => {
+    const { LICENCE_KEYS } = await import("./keys");
+    expect(Object.keys(LICENCE_KEYS)).toContain("lume-1");
+    for (const [kid, raw] of Object.entries(LICENCE_KEYS)) {
+      expect(kid).toMatch(/^[a-z0-9-]{1,32}$/);
+      expect(Buffer.from(raw, "base64url")).toHaveLength(32);
+    }
+  });
+});

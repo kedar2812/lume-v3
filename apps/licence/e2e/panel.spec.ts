@@ -86,6 +86,10 @@ for (const t of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "New licence" }).click();
     const sheet = page.getByRole("dialog", { name: "New licence" });
     await sheet.getByLabel("Business name").fill("Palm Bay Clinic");
+    // Each list is named for what it is, not for the options inside it ("State" isn't "United States").
+    for (const name of ["Country", "State", "Currency", "How they found LUME"])
+      await expect(sheet.getByRole("combobox", { name, exact: true })).toHaveCount(1);
+    await sheet.getByLabel("State", { exact: true }).selectOption("KA");
     await sheet.getByLabel("Country").selectOption("AE");
     await sheet.getByLabel("Price").fill("450");
     await expect(sheet).toContainText("≈ ₹10,832 a month in your analytics");
