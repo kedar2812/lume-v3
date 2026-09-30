@@ -30,7 +30,11 @@ export function SheetSourceList({ sources }: { sources: SheetSourceView[] }) {
           <Link href={`/settings/integrations/${v.id}`} className={s.source}>
             <span className={s.sourceName}>{v.name}</span>
             <span className={s.sourceMeta}>
-              {v.failing ? "LUME hasn't reached Google for a while" : health(v)}
+              {v.failing
+                ? v.failingWhy === "lume"
+                  ? "LUME couldn't read it the last few tries"
+                  : "LUME hasn't reached Google for a while"
+                : health(v)}
             </span>
             <span className={s.pill} data-status={v.failing ? "failing" : v.status}>
               {STATUS[v.status]}

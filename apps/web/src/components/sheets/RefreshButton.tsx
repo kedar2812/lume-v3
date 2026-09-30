@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Odometer } from "@/components/ui/Odometer";
 import type { RefreshProgress } from "@/lib/sheets/types";
-import { resultLine, useRefresh, type Phase } from "./useRefresh";
+import { failureTitle, resultLine, useRefresh, waitWords, type Phase } from "./useRefresh";
 import s from "./refresh.module.css";
 
 const PILL = { w: 236, h: 40, r: 20 };
@@ -199,8 +199,10 @@ export function RefreshButton({
                   <div>
                     {warn ? (
                       <>
-                        <p className={s.resultTitle}>Couldn't reach Google</p>
-                        <p className={s.sub}>{r.failure ?? "LUME will try again in 2 minutes."}</p>
+                        <p className={s.resultTitle}>{failureTitle(r.failCode, !!p?.unreachable)}</p>
+                        <p className={s.sub}>
+                          {r.failure ?? `LUME will try again in ${waitWords(p?.retryInS ?? null)}.`}
+                        </p>
                       </>
                     ) : nothing ? (
                       <>
@@ -216,7 +218,12 @@ export function RefreshButton({
                       </>
                     )}
                     {(p?.attention ?? []).map((a) => (
-                      <Link key={a.id} href={`/settings/integrations/${a.id}`} className={s.attention}>
+                      <Link
+                        key={a.id}
+                        href={`/settings/integrations/${a.id}`}
+                        className={s.attention}
+                        tabIndex={-1}
+                      >
                         “{a.name}” needs attention
                       </Link>
                     ))}
@@ -233,6 +240,16 @@ export function RefreshButton({
           </motion.div>
         )}
       </AnimatePresence>
+      {/* The card goes in a moment; what needs attention stays reachable here until the next Refresh. */}
+      {(r.phase === "landed" || r.phase === "idle") && r.attention.length > 0 && (
+        <span className={s.after}>
+          {r.attention.map((a) => (
+            <Link key={a.id} href={`/settings/integrations/${a.id}`} className={s.attention}>
+              “{a.name}” needs attention
+            </Link>
+          ))}
+        </span>
+      )}
       <p role="status" aria-live="polite" className={s.srOnly}>
         {r.announce}
       </p>

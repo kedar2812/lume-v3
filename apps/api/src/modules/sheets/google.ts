@@ -28,6 +28,9 @@ type GoogleErrorBody = {
 const reasonsOf = (b: GoogleErrorBody) =>
   [...(b.error?.errors ?? []), ...(b.error?.details ?? [])].map((x) => x.reason ?? "").filter(Boolean);
 
+/** What a passing failure to reach Google is recorded as (the page tells it from LUME's own failures). */
+export const GOOGLE_UNREACHABLE = "Couldn't reach Google.";
+
 export class GoogleError extends Error {
   constructor(
     readonly kind: GoogleErrorKind,

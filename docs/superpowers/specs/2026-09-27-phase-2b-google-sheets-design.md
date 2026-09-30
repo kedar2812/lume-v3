@@ -105,7 +105,7 @@ One migration, `0016_sheets.sql`.
 3. **Where to read from.**
    - If `head_hash` still matches, read rows `rows_read + 1 …` (only what's new).
    - Otherwise the sheet was re-sorted or rows were removed above, so read it all. Fingerprints make that safe.
-   - Reads go in batches of 1,000 rows with backoff on 429/5xx.
+   - Reads go in batches of 5,000 rows (fewer calls against Google's per-minute quota) with backoff on 429/5xx.
 4. **Each row** goes through the 2A pipeline unchanged:
    - `mapRow` with the source's mapping and rules;
    - then the per-row transaction: advisory lock, match, create/merge/skip.

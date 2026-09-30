@@ -35,6 +35,7 @@ const detail = (over: Partial<SheetSourceDetail> = {}): SheetSourceDetail => ({
   nextSyncAt: new Date(Date.now() + 60_000).toISOString(),
   syncing: false,
   failing: false,
+  failingWhy: null,
   lastError: null,
   newColumns: [],
   newToday: 3,
@@ -180,5 +181,44 @@ describe("a sheet's page", () => {
     await userEvent.click(within(ask).getByRole("button", { name: "Remove" }));
     expect(sheetsClient.remove).toHaveBeenCalledWith("s1");
     expect(push).toHaveBeenCalledWith("/settings/integrations");
+  });
+
+  it("a failed action says why beside the actions, and the page stays", async () => {
+    vi.mocked(sheetsClient.get).mockResolvedValue(ok(detail()));
+    vi.mocked(sheetsClient.patch).mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "X",
+      message: "This sheet changed meanwhile.",
+    } as never);
+    render(<SourceDetail id="s1" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This sheet changed meanwhile.");
+    expect(screen.getByRole("heading", { name: "Website enquiries" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Recent syncs" })).toBeInTheDocument();
+  });
+
+  it("a failed Remove says so inside its dialog", async () => {
+    vi.mocked(sheetsClient.get).mockResolvedValue(ok(detail()));
+    vi.mocked(sheetsClient.remove).mockResolvedValue({
+      ok: false,
+      status: 0,
+      code: "OFFLINE",
+      message: "LUME can’t reach the server right now.",
+    } as never);
+    render(<SourceDetail id="s1" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Remove sheet" }));
+    const ask = screen.getByRole("dialog", { name: "Remove this sheet?" });
+    await userEvent.click(within(ask).getByRole("button", { name: "Remove" }));
+    expect(await within(ask).findByRole("alert")).toHaveTextContent("LUME can’t reach the server right now.");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("a sheet failing on LUME's side doesn't blame Google", async () => {
+    vi.mocked(sheetsClient.get).mockResolvedValue(ok(detail({ failing: true, failingWhy: "lume" })));
+    render(<SourceDetail id="s1" />);
+    await screen.findByRole("heading", { name: "Website enquiries" });
+    expect(document.body).not.toHaveTextContent(/reached Google/);
+    expect(document.body).toHaveTextContent("LUME couldn't read this sheet the last few tries");
   });
 });

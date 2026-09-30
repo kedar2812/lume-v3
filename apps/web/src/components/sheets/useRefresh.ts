@@ -18,11 +18,27 @@ export type Phase = "idle" | "lifting" | "syncing" | "result" | "landing" | "lan
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
 
+/** "a minute", "5 minutes", "an hour": when LUME tries again. */
+export function waitWords(s: number | null): string {
+  if (s === null || s < 90) return "a minute";
+  if (s >= 3300) return "an hour";
+  return `${Math.round(s / 60)} minutes`;
+}
+
+/** The card's title when a Refresh didn't happen: what stopped it, in a few words (by the API's code). */
+export function failureTitle(code: string | null, unreachable: boolean): string {
+  if (code === "SHEETS_OFF") return "Google Sheets is off";
+  if (code === "NO_SHEETS") return "No sheet to refresh";
+  if (code === "OFFLINE") return "You're offline";
+  if (unreachable) return "Couldn't reach Google";
+  return "Couldn't refresh";
+}
+
 /** The one sentence the moment ends with, spoken once (spec §8.2). */
 export function resultLine(p: RefreshProgress | null, failure: string | null, personal: boolean): string {
   if (failure) return failure;
   if (!p) return "Up to date";
-  if (p.unreachable) return "Couldn't reach Google. LUME will try again in 2 minutes.";
+  if (p.unreachable) return `Couldn't reach Google. LUME will try again in ${waitWords(p.retryInS)}.`;
   if (p.status !== "done") return "Still bringing leads in — they'll appear as they arrive.";
   if (!p.created && !p.merged) return "Up to date";
   const parts = [
@@ -40,6 +56,9 @@ export function useRefresh(o: { reduce: boolean; personal: boolean; onArrived(p:
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<RefreshProgress | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [failCode, setFailCode] = useState<string | null>(null);
+  /** Sheets that need attention, from the last Refresh: kept until the next press. */
+  const [attention, setAttention] = useState<RefreshProgress["attention"]>([]);
   const [announce, setAnnounce] = useState("");
   const alive = useRef(true);
   const busy = useRef(false);
@@ -58,6 +77,8 @@ export function useRefresh(o: { reduce: boolean; personal: boolean; onArrived(p:
     const opened = Date.now();
     setProgress(null);
     setFailure(null);
+    setFailCode(null);
+    setAttention([]);
     setPhase("lifting");
     setAnnounce("Syncing new enquiries");
     const [r] = await Promise.all([sheetsClient.refresh(), wait(o.reduce ? 0 : TIMING.lift)]);
@@ -65,8 +86,11 @@ export function useRefresh(o: { reduce: boolean; personal: boolean; onArrived(p:
     setPhase("syncing");
     let last: RefreshProgress | null = null;
     let failed: string | null = null;
-    if (!r.ok) failed = r.code === "OFFLINE" ? "You're offline. LUME will sync when you're back." : r.message;
-    else {
+    let code: string | null = null;
+    if (!r.ok) {
+      code = r.code;
+      failed = r.code === "OFFLINE" ? "LUME will sync when you're back." : r.message;
+    } else {
       const until = Date.now() + TIMING.giveUp;
       while (Date.now() < until) {
         await wait(TIMING.poll);
@@ -86,8 +110,16 @@ export function useRefresh(o: { reduce: boolean; personal: boolean; onArrived(p:
     if (held < floor) await wait(floor - held);
     if (!alive.current) return;
     setFailure(failed);
+    setFailCode(code);
     setPhase("result");
-    setAnnounce(resultLine(last, failed, o.personal));
+    const needs = last?.attention ?? [];
+    setAttention(needs);
+    const title = failed ? `${failureTitle(code, false)}. ` : "";
+    setAnnounce(
+      [title + resultLine(last, failed, o.personal), ...needs.map((a) => `“${a.name}” needs attention`)].join(
+        ". ",
+      ),
+    );
     await wait(TIMING.result);
     if (!alive.current) return;
     setPhase("landing");
@@ -101,5 +133,5 @@ export function useRefresh(o: { reduce: boolean; personal: boolean; onArrived(p:
     busy.current = false;
   }, [o.reduce, o.personal]);
 
-  return { phase, progress, failure, announce, press };
+  return { phase, progress, failure, failCode, attention, announce, press };
 }

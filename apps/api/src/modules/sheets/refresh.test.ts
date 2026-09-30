@@ -149,11 +149,61 @@ describe("a Refresh", () => {
     await forget();
     const a = (await post(admin, "/api/v1/sheets/refresh")).json();
     await h.runSyncs();
-    expect((await get(admin, `/api/v1/sheets/refresh/${a.id}`)).json()).toMatchObject({
-      status: "done",
-      unreachable: true,
-    });
+    const p = (await get(admin, `/api/v1/sheets/refresh/${a.id}`)).json();
+    expect(p).toMatchObject({ status: "done", unreachable: true });
+    // When LUME tries again: the sheet's own next try, not a fixed "2 minutes".
+    const [next] = await h.queryAll<{ s: number }>(
+      "SELECT ceil(extract(epoch FROM next_sync_at - now()))::int AS s FROM lead_sources WHERE type = 'google_sheet' AND status = 'active'",
+    );
+    expect(p.retryInS).toBeGreaterThan(0);
+    expect(Math.abs(p.retryInS - next!.s)).toBeLessThanOrEqual(2);
     h.fake!.fail(503, 0);
+  });
+
+  it("several sheets are asked for in one order, so two refreshes at once can't deadlock", async () => {
+    const [src] = await h.queryAll<Record<string, unknown>>(
+      "SELECT * FROM lead_sources WHERE type = 'google_sheet' AND status = 'active' LIMIT 1",
+    );
+    const extra = ["ffffffff-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000001"];
+    // Their own empty sheet, so they bring no leads into the tests after this one.
+    const empty = `ss-${newId()}`;
+    h.fake!.put(empty, {
+      title: "Empty",
+      sharedWith: [h.fake!.email],
+      tabs: [{ sheetId: 0, title: "Leads", rows: [HEAD] }],
+    });
+    for (const id of extra)
+      await h.pool.query(
+        `INSERT INTO lead_sources (id, type, name, status, config_enc, mapping, rules, headers, column_settings, run_as)
+         VALUES ($1, 'google_sheet', $2, 'active', $3, $4, $5, $6, $7, $8)`,
+        [
+          id,
+          `Extra ${id.slice(0, 4)}`,
+          sealConfig(h.keyring, id, {
+            spreadsheetId: empty,
+            sheetId: 0,
+            tabTitle: "Leads",
+            headerRow: 1,
+            auth: "service_account",
+          }),
+          src!.mapping,
+          src!.rules,
+          JSON.stringify(src!.headers),
+          src!.column_settings,
+          src!.run_as,
+        ],
+      );
+    await forget();
+    const a = (await post(admin, "/api/v1/sheets/refresh")).json();
+    const [r] = await h.queryAll<{ sources: string[] }>(
+      `SELECT array_agg(s.source_id ORDER BY x.n) AS sources
+         FROM source_refreshes f, unnest(f.sync_ids) WITH ORDINALITY AS x(id, n)
+         JOIN source_syncs s ON s.id = x.id WHERE f.id = $1`,
+      [a.id],
+    );
+    expect(r!.sources).toEqual([...r!.sources].sort());
+    await h.runSyncs();
+    await h.pool.query("UPDATE lead_sources SET status = 'paused' WHERE id = ANY($1)", [extra]);
   });
 });
 

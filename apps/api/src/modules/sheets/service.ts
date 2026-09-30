@@ -29,6 +29,7 @@ import {
   parseSheetLink,
   rowsRange,
   type GoogleSheets,
+  GOOGLE_UNREACHABLE,
 } from "./google";
 import { gridToCsv, identityKey } from "./grid";
 import { requestSync } from "./requests";
@@ -623,6 +624,13 @@ async function sourceView(req: FastifyRequest, d: AppDeps, s: Source) {
     syncing: s.currentSyncId !== null,
     // Three failed syncs in a row: the page warns (spec §5.4); one or two pass quietly.
     failing: s.status === "active" && s.failures >= 3,
+    /** Whose side the failures are on: Google's (unreachable) or LUME's own (the page says which). */
+    failingWhy:
+      s.status === "active" && s.failures >= 3
+        ? s.lastError === GOOGLE_UNREACHABLE
+          ? ("google" as const)
+          : ("lume" as const)
+        : null,
     lastError: s.status === "active" ? s.lastError : null,
     newColumns: s.newColumns,
     newToday: c.today,

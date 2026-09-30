@@ -32,6 +32,8 @@ export type RefreshProgress = {
   merged: number;
   leadIds: string[];
   unreachable: boolean;
+  /** When unreachable: seconds until LUME's next try (the soonest sheet's), else null. */
+  retryInS: number | null;
   attention: { id: string; name: string }[];
 };
 
@@ -64,7 +66,9 @@ export async function startRefresh(req: FastifyRequest, d: AppDeps): Promise<{ i
   const sources = await req.db
     .select({ id: S.id })
     .from(S)
-    .where(and(eq(S.type, "google_sheet"), eq(S.status, "active")));
+    .where(and(eq(S.type, "google_sheet"), eq(S.status, "active")))
+    // One order for every refresh: each locks its sources in turn, so two at once never deadlock.
+    .orderBy(S.id);
   if (!sources.length) throw new HttpError(409, "NO_SHEETS", "No Google Sheet is connected.");
   const syncIds: string[] = [];
   const fresh: string[] = [];
@@ -97,7 +101,7 @@ export async function refreshProgress(req: FastifyRequest, id: string): Promise<
   if (!r) throw notFound("REFRESH_NOT_FOUND", "Refresh not found");
   const syncs = r.syncIds.length
     ? await req.db
-        .select({ s: SY, name: S.name, sourceStatus: S.status })
+        .select({ s: SY, name: S.name, sourceStatus: S.status, nextSyncAt: S.nextSyncAt })
         .from(SY)
         .innerJoin(S, eq(S.id, SY.sourceId))
         .where(inArray(SY.id, r.syncIds))
@@ -113,6 +117,8 @@ export async function refreshProgress(req: FastifyRequest, id: string): Promise<
   const created = rows.filter((x) => x.result === "created");
   const merged = rows.filter((x) => x.result === "merged");
   const failedAll = syncs.length > 0 && syncs.every((x) => x.s.status === "failed");
+  const unreachable = !running && failedAll && syncs.every((x) => !ATTENTION_CODES.has(x.s.error ?? ""));
+  const nextTry = Math.min(...syncs.map((x) => x.nextSyncAt?.getTime() ?? Infinity));
   return {
     status: running ? "running" : "done",
     rowsRead: syncs.reduce((n, x) => n + x.s.rowsRead, 0),
@@ -121,7 +127,9 @@ export async function refreshProgress(req: FastifyRequest, id: string): Promise<
     merged: merged.length,
     leadIds: [...new Set([...created, ...merged].map((x) => x.lead_id))].slice(0, GLOW_MAX),
     // Unreachable: every sync failed for a passing reason (not something a person must fix).
-    unreachable: !running && failedAll && syncs.every((x) => !ATTENTION_CODES.has(x.s.error ?? "")),
+    unreachable,
+    retryInS:
+      unreachable && Number.isFinite(nextTry) ? Math.max(1, Math.ceil((nextTry - Date.now()) / 1000)) : null,
     attention: can(req.actor!, "integrations.manage")
       ? syncs
           .filter((x) => x.sourceStatus === "needs_attention")

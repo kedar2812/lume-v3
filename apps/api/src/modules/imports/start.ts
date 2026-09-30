@@ -140,6 +140,9 @@ export async function startImport(req: FastifyRequest, d: AppDeps, id: string) {
   await req.db.execute(sql`SELECT 1 FROM imports WHERE id = ${id} FOR UPDATE`);
   const imp = await mine(req, id);
   if (imp.status !== "draft") throw new HttpError(409, "NOT_DRAFT", "This import has already started.");
+  // A sheet's draft is saved as a sheet (it keeps syncing); only a file is started as a one-off import.
+  if (imp.kind !== "csv")
+    throw new HttpError(409, "NOT_A_FILE_IMPORT", "A sheet is saved as a sheet, not started as an import.");
   const { file, mapping, rules, columnSettings } = await prepareStart(req, d, imp);
 
   await req.db

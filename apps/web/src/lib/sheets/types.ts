@@ -40,6 +40,8 @@ export type SheetSourceView = {
   nextSyncAt: string | null;
   syncing: boolean;
   failing: boolean;
+  /** Whose side the failures are on: Google's, or LUME's own. */
+  failingWhy: "google" | "lume" | null;
   lastError: string | null;
   newColumns: string[];
   newToday: number;
@@ -78,6 +80,8 @@ export type RefreshProgress = {
   merged: number;
   leadIds: string[];
   unreachable: boolean;
+  /** When unreachable: seconds until LUME tries again, else null. */
+  retryInS: number | null;
   attention: { id: string; name: string }[];
 };
 export type Arrivals = { since: string | null; count: number; ids: string[] };

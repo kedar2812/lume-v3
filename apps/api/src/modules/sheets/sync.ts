@@ -20,8 +20,15 @@ import { jobServer, withJobRequest } from "../imports/job-request";
 import { writeRow } from "../imports/row";
 import { givesAway, isDataError, refusalReason } from "../imports/runner";
 import { tagParts } from "../imports/start";
-import { openConfig, type SheetConfig } from "./config";
-import { GoogleError, columnRange, isTransient, rowsRange, type GoogleSheets } from "./google";
+import { openConfig, sealConfig, type SheetConfig } from "./config";
+import {
+  GOOGLE_UNREACHABLE,
+  GoogleError,
+  columnRange,
+  isTransient,
+  rowsRange,
+  type GoogleSheets,
+} from "./google";
 import { anchorHash, dateColumnOf, headerDrift, sheetFingerprint, toRows, type SheetRow } from "./grid";
 import type { AutomationDeps } from "../tasks/automations";
 
@@ -122,7 +129,8 @@ export async function readSheetRows(o: {
     if (out.filter((r) => r.length).length > o.limit) break;
   }
   while (out.length && !out.at(-1)!.length) out.pop();
-  if (out.length > o.limit)
+  // Rows, not positions: blank rows between filled ones don't count.
+  if (out.filter((r) => r.length).length > o.limit)
     throw new Attention(
       "TOO_MANY_ROWS",
       `This sheet has more than ${o.limit.toLocaleString("en")} rows. LUME reads up to ${o.limit.toLocaleString("en")}.`,
@@ -240,7 +248,7 @@ export async function runSync(o: SyncDeps, syncId: string): Promise<void> {
     // Anything else passes on its own or is a bug: the sheet stays active and tries again later, backing off.
     if (!isTransient(e)) o.app.log.error({ err: e, sourceId: src.id }, "sheet sync failed");
     const failures = src.failures + 1;
-    const message = isTransient(e) ? "Couldn't reach Google." : "Something went wrong reading this sheet.";
+    const message = isTransient(e) ? GOOGLE_UNREACHABLE : "Something went wrong reading this sheet.";
     await settle(
       { status: "failed", error: message },
       {
@@ -287,6 +295,12 @@ async function syncSource(
   const meta = await ask(google, () => google.spreadsheet(cfg.spreadsheetId));
   const tab = meta.tabs.find((t) => t.sheetId === cfg.sheetId);
   if (!tab) throw new Attention("TAB_GONE", `The tab “${cfg.tabTitle}” is gone from the spreadsheet.`);
+  // Followed by its id; its new name is kept, so the page and any message name the tab as it is now.
+  if (tab.title !== cfg.tabTitle)
+    await db
+      .update(S)
+      .set({ configEnc: sealConfig(o.keyring, src.id, { ...cfg, tabTitle: tab.title }) })
+      .where(eq(S.id, src.id));
   const h = cfg.headerRow;
   const tailRow = h + src.rowsRead;
   const [headRaw = [], firstRaw = [], tailRaw = []] = await ask(google, () =>
@@ -615,7 +629,7 @@ async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) 
   );
 }
 
-async function refuseRow(
+export async function refuseRow(
   req: FastifyRequest,
   keyring: Keyring,
   sourceId: string,
@@ -629,7 +643,9 @@ async function refuseRow(
       ${JSON.stringify([{ column: null, code: "ROW_NOT_SAVED", message: `LUME couldn't save this row (${reason}).` }])}::jsonb,
       ${keyring.encrypt(JSON.stringify(t.row.cells), `sheet-row:${sourceId}:${t.fp}`)})
     ON CONFLICT ON CONSTRAINT source_rows_once DO UPDATE
-      SET result = 'error', problems = EXCLUDED.problems, raw_enc = EXCLUDED.raw_enc, last_tried_at = now()`);
+      SET result = 'error', problems = EXCLUDED.problems, raw_enc = EXCLUDED.raw_enc, last_tried_at = now()
+      -- A row someone dismissed meanwhile stays dismissed.
+      WHERE source_rows.result <> 'dismissed'`);
   await req.db.execute(
     sql`UPDATE source_syncs SET rows_read = rows_read + 1, errors = errors + 1 WHERE id = ${syncId}`,
   );

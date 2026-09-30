@@ -204,6 +204,20 @@
   color: var(--warn-ink);
   font-weight: var(--fw-semibold);
 }
+/* After the card has gone: what needs attention, under the button, until the next Refresh. */
+.after {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+  z-index: 2;
+}
+.after .attention {
+  margin-top: 0;
+}
 .face {
   display: flex;
   align-items: center;

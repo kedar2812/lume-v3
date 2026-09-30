@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sheetsClient } from "@/lib/sheets/client";
 import type { SheetSourceView } from "@/lib/sheets/types";
 import { Integrations } from "./Integrations";
+import { SheetSourceList } from "./SheetSourceList";
 
 vi.mock("@/lib/sheets/client", () => ({
   sheetsClient: { integrations: vi.fn(), setEnabled: vi.fn(), list: vi.fn(), connect: vi.fn() },
@@ -36,6 +37,7 @@ const src = (over: Partial<SheetSourceView>): SheetSourceView => ({
   nextSyncAt: null,
   syncing: false,
   failing: false,
+  failingWhy: null,
   lastError: null,
   newColumns: [],
   newToday: 12,
@@ -148,5 +150,18 @@ describe("Settings → Integrations", () => {
     expect(screen.getByText("Other ways")).toBeInTheDocument();
     await userEvent.click(connect);
     expect(assign).toHaveBeenCalledWith("https://connect.lumecrm.in/start?i=a&n=b&s=c");
+  });
+
+  it("a sheet failing on LUME's own side isn't put on Google", () => {
+    render(
+      <SheetSourceList
+        sources={[
+          src({ failing: true, failingWhy: "lume" }),
+          src({ id: "s2", name: "Other", failing: true, failingWhy: "google" }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("LUME couldn't read it the last few tries")).toBeInTheDocument();
+    expect(screen.getByText("LUME hasn't reached Google for a while")).toBeInTheDocument();
   });
 });

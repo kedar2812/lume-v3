@@ -4,9 +4,11 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FakeCell } from "../../../test/google-fake";
 import { createHarness, type Harness } from "../../../test/harness";
-import { sealConfig } from "./config";
+import { openConfig, sealConfig } from "./config";
 import { requestSync } from "./requests";
-import { runSync } from "./sync";
+import type { GoogleSheets } from "./google";
+import { startSheetsQueue } from "./queue";
+import { refuseRow, runSync } from "./sync";
 
 let h: Harness;
 let adminId: string;
@@ -268,6 +270,51 @@ describe("a sync", () => {
     expect((await source(s.id)).baseline).toBe(false);
   });
 
+  it("a renamed tab's new name is kept, so the page and its messages name it", async () => {
+    const s = await connect([row(19)]);
+    await sync(s.id);
+    h.fake!.renameTab(s.spreadsheetId, "Form responses", "Leads 2026");
+    await h.pool.query("UPDATE lead_sources SET last_modified = NULL WHERE id = $1", [s.id]);
+    await sync(s.id);
+    const src = await source(s.id);
+    expect(openConfig(h.keyring, s.id, src.config_enc).tabTitle).toBe("Leads 2026");
+  });
+
+  it("blank rows between filled ones don't count towards the row limit", async () => {
+    const filled = Array.from({ length: 45 }, (_, i) => row(i + 300));
+    const withGaps = filled.flatMap((r, i) => (i % 5 === 4 ? [r, []] : [r]));
+    const s = await connect(withGaps); // 45 leads over 54 rows; the limit is 50
+    await sync(s.id);
+    expect((await source(s.id)).status).toBe("active");
+    expect(await leadsFrom(s.id)).toHaveLength(45);
+  });
+
+  it("a row the database refuses never undoes a dismissal made meanwhile", async () => {
+    const s = await connect([row(20)]);
+    const syncId = (await sync(s.id)).id as string;
+    await h.pool.query(
+      `INSERT INTO source_rows (source_id, fingerprint, result, sync_id, row_number)
+       VALUES ($1, 'fp-dismissed', 'dismissed', $2, 9)`,
+      [s.id, syncId],
+    );
+    await refuseRow(
+      { db: db() } as never,
+      h.keyring,
+      s.id,
+      syncId,
+      {
+        fp: "fp-dismissed",
+        row: { number: 9, cells: ["x"] },
+      } as never,
+      "too long",
+    );
+    const [r] = await h.queryAll<{ result: string }>(
+      "SELECT result FROM source_rows WHERE source_id = $1 AND fingerprint = 'fp-dismissed'",
+      [s.id],
+    );
+    expect(r!.result).toBe("dismissed");
+  });
+
   it("a sheet over the row limit needs attention", async () => {
     const s = await connect(Array.from({ length: 51 }, (_, i) => row(i + 100)));
     await sync(s.id);
@@ -400,4 +447,54 @@ describe("requestSync (Review Focus 2)", () => {
       ),
     ).toBeNull();
   });
+});
+
+describe("the sheets queue (2B-1 minor)", () => {
+  it("one slow sheet doesn't hold back another: they sync side by side", async () => {
+    const slow = await connect([row(400)]);
+    const quick = await connect([row(401)]);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    // The slow sheet's Google waits until released; everything else answers at once.
+    const google = new Proxy(h.google!, {
+      get(target, prop, recv) {
+        const v = Reflect.get(target, prop, recv) as unknown;
+        if (typeof v !== "function") return v;
+        return async (...args: unknown[]) => {
+          if (args[0] === slow.spreadsheetId) await gate;
+          return (v as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      },
+    }) as GoogleSheets;
+    const queue = await startSheetsQueue({
+      connectionString: h.url("lume_app"),
+      app: h.app,
+      pool: h.pool,
+      keyring: h.keyring,
+      google,
+      maxRows: 50,
+      tickMs: 3_600_000,
+    });
+    try {
+      const ask = (sourceId: string) =>
+        db().transaction((tx) => requestSync(tx, { sourceId, trigger: "manual", requestedBy: null }));
+      const a = (await ask(slow.id))!;
+      const b = (await ask(quick.id))!;
+      await queue.enqueue(a.syncId);
+      await new Promise((r) => setTimeout(r, 1500)); // the slow one has started and is waiting on Google
+      await queue.enqueue(b.syncId);
+      const status = async (id: string) =>
+        (await h.pool.query<{ status: string }>("SELECT status FROM source_syncs WHERE id = $1", [id]))
+          .rows[0]!.status;
+      const deadline = Date.now() + 15_000;
+      while ((await status(b.syncId)) !== "done") {
+        if (Date.now() > deadline) throw new Error(`the quick sheet is still ${await status(b.syncId)}`);
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      expect(await status(a.syncId)).toBe("running");
+    } finally {
+      release();
+      await queue.stop();
+    }
+  }, 30_000);
 });

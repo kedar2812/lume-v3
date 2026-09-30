@@ -43,7 +43,11 @@ function outcome(x: SyncView): string {
 export function SourceDetail({ id }: { id: string }) {
   const router = useRouter();
   const [v, setV] = useState<SheetSourceDetail | null>(null);
+  /** The page couldn't load at all. */
   const [error, setError] = useState<string | null>(null);
+  /** An action didn't happen: said beside the actions, and the page stays. */
+  const [actError, setActError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -71,10 +75,10 @@ export function SourceDetail({ id }: { id: string }) {
 
   const act = async (f: () => Promise<{ ok: boolean; message?: string }>) => {
     setBusy(true);
-    setError(null);
+    setActError(null);
     const r = await f();
     setBusy(false);
-    if (!r.ok) return setError(r.message ?? "Something went wrong.");
+    if (!r.ok) return setActError(r.message ?? "Something went wrong. Try again.");
     await load();
   };
   const retryable = v.attention && RETRYABLE.has(v.attention.code);
@@ -82,11 +86,11 @@ export function SourceDetail({ id }: { id: string }) {
   const reconnect = v.auth === "oauth" && v.attention?.code === "ACCESS_LOST";
   const connectAgain = async () => {
     setBusy(true);
-    setError(null);
+    setActError(null);
     const r = await sheetsClient.connect({ sourceId: id });
     if (!r.ok) {
       setBusy(false);
-      return setError(r.message);
+      return setActError(r.message);
     }
     window.location.assign(r.data.url);
   };
@@ -141,7 +145,9 @@ export function SourceDetail({ id }: { id: string }) {
       )}
       {v.failing && (
         <p className={s.warnLine}>
-          LUME hasn't reached Google for the last few tries. It keeps trying on its own.
+          {v.failingWhy === "lume"
+            ? "LUME couldn't read this sheet the last few tries. It keeps trying on its own."
+            : "LUME hasn't reached Google for the last few tries. It keeps trying on its own."}
         </p>
       )}
       {v.newColumns.length > 0 && (
@@ -213,6 +219,11 @@ export function SourceDetail({ id }: { id: string }) {
           Remove
         </Button>
       </div>
+      {actError && (
+        <p role="alert" className={s.error}>
+          {actError}
+        </p>
+      )}
       {v.runAs && <p className={s.cardLede}>Runs as {v.runAs.name}, who last saved its columns.</p>}
 
       <section aria-labelledby="syncs-title">
@@ -280,9 +291,20 @@ export function SourceDetail({ id }: { id: string }) {
         }}
       />
       {removing && (
-        <Dialog label="Remove this sheet?" onClose={() => setRemoving(false)}>
+        <Dialog
+          label="Remove this sheet?"
+          onClose={() => {
+            setRemoving(false);
+            setRemoveError(null);
+          }}
+        >
           <h3 className={s.sectionTitle}>Remove this sheet?</h3>
           <p className={s.cardLede}>Its leads stay in LUME. New rows in “{v.name}” won't come in any more.</p>
+          {removeError && (
+            <p role="alert" className={s.error}>
+              {removeError}
+            </p>
+          )}
           <div className={s.actions}>
             <Button variant="ghost" onClick={() => setRemoving(false)}>
               Keep it
@@ -290,8 +312,10 @@ export function SourceDetail({ id }: { id: string }) {
             <Button
               variant="danger"
               onClick={async () => {
+                setRemoveError(null);
                 const r = await sheetsClient.remove(id);
                 if (r.ok) router.push("/settings/integrations");
+                else setRemoveError(r.message);
               }}
             >
               Remove

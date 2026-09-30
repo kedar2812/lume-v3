@@ -153,6 +153,34 @@ describe("connecting a sheet", () => {
     ).toBe(false);
   });
 
+  it("a sheet draft can't be started as a one-off import: it's saved as a sheet", async () => {
+    const id = sheet([r(5)]);
+    const d = (await call(admin, "POST", "/api/v1/sheets/drafts", { link: link(id), sheetId: 5 })).json();
+    const started = await call(admin, "POST", `/api/v1/imports/${d.draft.id}/start`, {});
+    expect(started.statusCode).toBe(409);
+    expect(started.json().error.code).toBe("NOT_A_FILE_IMPORT");
+    expect(await h.queryAll("SELECT status FROM imports WHERE id = $1", [d.draft.id])).toEqual([
+      { status: "draft" },
+    ]);
+  });
+
+  it("a sheet that keeps failing says whose side it is: Google's, or LUME's own", async () => {
+    const s = await connect(admin, sheet([r(6)]), "all");
+    await h.runSyncs();
+    const view = async (lastError: string) => {
+      await h.pool.query("UPDATE lead_sources SET failures = 3, last_error = $2 WHERE id = $1", [
+        s.id,
+        lastError,
+      ]);
+      return (await call(admin, "GET", `/api/v1/sheets/sources/${s.id}`)).json();
+    };
+    expect(await view("Couldn't reach Google.")).toMatchObject({ failing: true, failingWhy: "google" });
+    expect(await view("Something went wrong reading this sheet.")).toMatchObject({
+      failing: true,
+      failingWhy: "lume",
+    });
+  });
+
   it("“only rows from now on” imports nothing that was already there", async () => {
     const id = sheet([r(3), r(4)]);
     const s = await connect(admin, id, "new");

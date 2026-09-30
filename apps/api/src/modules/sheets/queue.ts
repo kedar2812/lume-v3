@@ -37,8 +37,10 @@ export async function recoverStaleSyncs(db: TxLike): Promise<number> {
   return rows.length;
 }
 
+const SYNC_WORKERS = 3;
+
 /**
- * Sheet syncs run in the API process, as lume_app (like imports, 2A amendment 1), one at a time. Once a
+ * Sheet syncs run in the API process, as lume_app (like imports, 2A amendment 1), up to three at once. Once a
  * minute, due sources are asked to sync. A sync that died with its process is picked up again when its
  * lock runs out: the next request replaces it.
  */
@@ -64,24 +66,27 @@ export async function startSheetsQueue(o: {
   boss.on("error", (err) => o.app.log.error({ err }, "sheets queue error"));
   await recoverStaleSyncs(drizzle(o.pool, { schema }));
   await boss.start();
-  await boss.work<{ id: string }>(
-    "sheets.sync",
-    { batchSize: 1, pollingIntervalSeconds: 0.5 },
-    async ([job]) => {
-      if (job)
-        await runSync(
-          {
-            app: o.app,
-            pool: o.pool,
-            keyring: o.keyring,
-            google: o.google,
-            ...(o.clientFor ? { clientFor: o.clientFor } : {}),
-            maxRows: o.maxRows,
-          },
-          job.data.id,
-        );
-    },
-  );
+  // Up to three sheets at once (each sheet still one sync at a time, by its own lock), so a big first
+  // import never holds back every other sheet and Refresh. pg-boss 10 runs one job per worker.
+  for (let i = 0; i < SYNC_WORKERS; i++)
+    await boss.work<{ id: string }>(
+      "sheets.sync",
+      { batchSize: 1, pollingIntervalSeconds: 0.5 },
+      async ([job]) => {
+        if (job)
+          await runSync(
+            {
+              app: o.app,
+              pool: o.pool,
+              keyring: o.keyring,
+              google: o.google,
+              ...(o.clientFor ? { clientFor: o.clientFor } : {}),
+              maxRows: o.maxRows,
+            },
+            job.data.id,
+          );
+      },
+    );
   // A failed sync is not retried by the queue: the sync itself records the failure and when to try again.
   const enqueue = async (id: string) => {
     await boss.send("sheets.sync", { id }, { retryLimit: 0 });

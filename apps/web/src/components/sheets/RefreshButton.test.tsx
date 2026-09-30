@@ -15,6 +15,7 @@ const progress = (over: Partial<RefreshProgress>): RefreshProgress => ({
   merged: 0,
   leadIds: ["a", "b", "c"],
   unreachable: false,
+  retryInS: null,
   attention: [],
   ...over,
 });
@@ -75,13 +76,14 @@ describe("Refresh", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Up to date");
     unmount();
     vi.mocked(sheetsClient.progress).mockResolvedValue(
-      ok(progress({ created: 0, leadIds: [], unreachable: true })),
+      ok(progress({ created: 0, leadIds: [], unreachable: true, retryInS: 290 })),
     );
     render(<RefreshButton personal={false} onArrived={() => undefined} />);
     await user.click(screen.getByRole("button", { name: /Refresh/ }));
     await run(2500);
+    // When it really tries again (the API's own next try), not a fixed wait.
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Couldn't reach Google. LUME will try again in 2 minutes.",
+      "Couldn't reach Google. LUME will try again in 5 minutes.",
     );
   });
 
@@ -101,5 +103,37 @@ describe("Refresh", () => {
     expect(sheetsClient.refresh).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: /Refresh|Syncing/ }));
     expect(sheetsClient.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("each refusal has its own title, not “Couldn't reach Google”", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    for (const [code, message, title] of [
+      ["SHEETS_OFF", "Google Sheets is switched off.", "Google Sheets is off"],
+      ["NO_SHEETS", "No Google Sheet is connected.", "No sheet to refresh"],
+      ["OFFLINE", "LUME can’t reach the server right now.", "You're offline"],
+    ] as const) {
+      vi.mocked(sheetsClient.refresh).mockResolvedValue({ ok: false, status: 409, code, message } as never);
+      const { unmount } = render(<RefreshButton personal={false} onArrived={() => undefined} />);
+      await user.click(screen.getByRole("button", { name: /Refresh/ }));
+      await run(1600);
+      expect(screen.getByText(title)).toBeInTheDocument();
+      expect(screen.queryByText("Couldn't reach Google")).not.toBeInTheDocument();
+      await run(5000);
+      unmount();
+    }
+  });
+
+  it("a sheet that needs attention stays one tab away after the card has gone", async () => {
+    vi.mocked(sheetsClient.progress).mockResolvedValue(
+      ok(progress({ attention: [{ id: "s9", name: "Website enquiries" }] })),
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<RefreshButton personal={false} onArrived={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: /Refresh/ }));
+    await run(8000);
+    const link = screen.getByRole("link", { name: "“Website enquiries” needs attention" });
+    expect(link).toHaveAttribute("href", "/settings/integrations/s9");
+    expect(link.closest("[aria-hidden]")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("“Website enquiries” needs attention");
   });
 });
