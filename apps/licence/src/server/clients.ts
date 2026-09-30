@@ -313,10 +313,14 @@ const event = (c: pg.PoolClient, clientId: string, at: Date, kind: string, detai
     kind,
     JSON.stringify(detail),
   ]);
+/** The client's licence, locked for this action. A decommissioned client is for good: nothing changes it. */
 async function lockRow(c: pg.PoolClient, id: string): Promise<Row> {
   if (!UUID.test(id)) throw new Refusal(404, "No such client.");
   await c.query("SELECT 1 FROM licences WHERE client_id = $1 FOR UPDATE", [id]);
-  return row(c, id);
+  const r = await row(c, id);
+  if (r.decommissioned_at)
+    throw new Refusal(409, "This client is decommissioned: its record stays, but nothing changes it.");
+  return r;
 }
 const slugOf = (name: string) =>
   name
@@ -551,6 +555,22 @@ export async function setSuspended(ctx: Ctx, id: string, suspended: boolean) {
     if (!!r.suspended_at === suspended) return;
     await c.query("UPDATE licences SET suspended_at = $2 WHERE client_id = $1", [id, suspended ? now : null]);
     await event(c, id, now, suspended ? "suspended" : "resumed");
+  });
+  return getClient(ctx, id);
+}
+
+/**
+ * Decommission (the source spec §6): the last step of offboarding, after Suspend, the client's export and
+ * scripts/decommission.sh. For good; the record stays, marked, for the history and the analytics.
+ */
+export async function decommission(ctx: Ctx, id: string) {
+  const now = ctx.now();
+  await tx(ctx, async (c) => {
+    const r = await lockRow(c, id);
+    if (!r.suspended_at) throw new Refusal(409, "Suspend it first, and hand them their export.");
+    await c.query("UPDATE clients SET decommissioned_at = $2 WHERE id = $1", [id, now]);
+    await clearReminder(c, id, now);
+    await event(c, id, now, "decommissioned");
   });
   return getClient(ctx, id);
 }

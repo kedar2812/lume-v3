@@ -19,6 +19,7 @@ import {
   analytics,
   changePrice,
   createClient,
+  decommission,
   dismissAlerts,
   extend,
   getClient,
@@ -180,6 +181,7 @@ route("DELETE", "/api/clients/:id/reminder", ({ ctx, params }) => reminderOff(ct
 route("POST", "/api/clients/:id/rotate", ({ ctx, params }) => rotateKey(ctx, params.id!));
 route("POST", "/api/clients/:id/suspend", ({ ctx, params }) => setSuspended(ctx, params.id!, true));
 route("POST", "/api/clients/:id/resume", ({ ctx, params }) => setSuspended(ctx, params.id!, false));
+route("POST", "/api/clients/:id/decommission", ({ ctx, params }) => decommission(ctx, params.id!));
 
 route("GET", "/api/payments", ({ ctx }) => listPayments(ctx));
 route("GET", "/api/rates", ({ ctx }) => currentRates(ctx));

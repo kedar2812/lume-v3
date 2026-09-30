@@ -410,6 +410,37 @@ describe("one client's actions (spec §4.4)", () => {
   });
 });
 
+describe("decommission (the source spec §6)", () => {
+  const suspended = {
+    ...DETAIL,
+    client: { ...DETAIL.client, state: "suspended", suspendedAt: "2026-09-29T10:00:00Z" },
+  };
+  it("a suspended client can be decommissioned, after an inline confirm; then its page says so, and offers nothing", async () => {
+    vi.mocked(api.get).mockImplementation(
+      async (p: string) => (p === "/api/alerts" ? ok({ alerts: [] }) : ok(suspended)) as never,
+    );
+    render(<ClientScreen id="c2" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Decommission…" }));
+    expect(screen.getByText(/Decommission Harbour Clinic\? This is for good/)).toBeInTheDocument();
+    vi.mocked(api.post).mockResolvedValueOnce(
+      ok({ ...suspended, client: { ...suspended.client, decommissionedAt: "2026-09-30T10:00:00Z" } }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Decommission" }));
+    expect(api.post).toHaveBeenCalledWith("/api/clients/c2/decommission");
+    expect(await screen.findByText(/Decommissioned on 30 Sep 2026/)).toBeInTheDocument();
+    for (const name of ["Resume", "Mark paid", "Extend…", "Rotate key", "Send payment reminder", "Change"])
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+  });
+  it("an active client has no Decommission", async () => {
+    vi.mocked(api.get).mockImplementation(
+      async (p: string) => (p === "/api/alerts" ? ok({ alerts: [] }) : ok(DETAIL)) as never,
+    );
+    render(<ClientScreen id="c2" />);
+    await screen.findByRole("button", { name: "Suspend…" });
+    expect(screen.queryByRole("button", { name: "Decommission…" })).not.toBeInTheDocument();
+  });
+});
+
 describe("analytics cards follow the trend rule (spec §4.5)", () => {
   const data = (clients = CANVAS_CLIENTS) => ({
     ...computeAnalytics({

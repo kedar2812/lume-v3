@@ -98,6 +98,8 @@ function said(e: Detail["history"][number]): { text: string; color: string } {
       return { text: "Suspended", color: "#e5484d" };
     case "resumed":
       return { text: "Resumed", color: "#18a566" };
+    case "decommissioned":
+      return { text: "Decommissioned", color: "#9297a0" };
     default:
       return { text: e.kind, color: "#9297a0" };
   }
@@ -111,6 +113,7 @@ export function ClientScreen({ id }: { id: string }) {
   const [composing, setComposing] = useState(false);
   const [note, setNote] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [retiring, setRetiring] = useState(false);
   const [editing, setEditing] = useState<{
     currency: string;
     amount: string;
@@ -244,7 +247,9 @@ export function ClientScreen({ id }: { id: string }) {
   const lastAt = d.installation?.lastCheckInAt ?? null;
   const silentH = lastAt ? Math.floor((Date.now() - Date.parse(lastAt)) / 3_600_000) : null;
   const typingNow = newKey !== null && typed < newKey.length;
-  const canRemind = !d.notice && !composing && c.type !== "perpetual" && c.state !== "suspended";
+  /** Decommissioned: the record stays, marked; nothing changes it any more. */
+  const gone = !!c.decommissionedAt;
+  const canRemind = !gone && !d.notice && !composing && c.type !== "perpetual" && c.state !== "suspended";
 
   return (
     <>
@@ -269,7 +274,7 @@ export function ClientScreen({ id }: { id: string }) {
         }
       >
         <Bell />
-        {c.type !== "perpetual" && c.state !== "suspended" && (
+        {!gone && c.type !== "perpetual" && c.state !== "suspended" && (
           <button
             type="button"
             className="btn second"
@@ -279,14 +284,16 @@ export function ClientScreen({ id }: { id: string }) {
             Extend…
           </button>
         )}
-        <button
-          type="button"
-          className="btn primary"
-          onClick={markPaid}
-          disabled={busy || !p || c.state === "suspended"}
-        >
-          Mark paid
-        </button>
+        {!gone && (
+          <button
+            type="button"
+            className="btn primary"
+            onClick={markPaid}
+            disabled={busy || !p || c.state === "suspended"}
+          >
+            Mark paid
+          </button>
+        )}
       </Head>
 
       <div
@@ -421,7 +428,7 @@ export function ClientScreen({ id }: { id: string }) {
               }}
             >
               <h2 className="h">Plan and price</h2>
-              {!draft && p && (
+              {!draft && p && !gone && (
                 <button
                   type="button"
                   className="link"
@@ -770,16 +777,18 @@ export function ClientScreen({ id }: { id: string }) {
                 ? "Shown once. Paste it into their .env as LUME_LICENSE_KEY; the old key has already stopped."
                 : "Only the last four are ever shown again."}
             </span>
-            <div>
-              <button
-                type="button"
-                className="btn second"
-                onClick={() => void rotate()}
-                disabled={typingNow || busy}
-              >
-                Rotate key
-              </button>
-            </div>
+            {!gone && (
+              <div>
+                <button
+                  type="button"
+                  className="btn second"
+                  onClick={() => void rotate()}
+                  disabled={typingNow || busy}
+                >
+                  Rotate key
+                </button>
+              </div>
+            )}
           </section>
 
           <section
@@ -791,26 +800,69 @@ export function ClientScreen({ id }: { id: string }) {
               Pause this LUME
             </h2>
             <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--ink2)" }}>
-              {c.state === "suspended"
-                ? `${c.name} sees the pause screen. Their admin can still export all their data. Resume lets them carry on from the next check-in.`
-                : `Everyone at ${c.name} sees a pause screen at the next check-in. Their admin can still export all their data.`}
+              {gone
+                ? `Decommissioned on ${day(c.decommissionedAt!.slice(0, 10))}. Its record stays here, marked, for the history; nothing changes it any more.`
+                : c.state === "suspended"
+                  ? `${c.name} sees the pause screen. Their admin can still export all their data. Resume lets them carry on from the next check-in.`
+                  : `Everyone at ${c.name} sees a pause screen at the next check-in. Their admin can still export all their data.`}
             </span>
-            {c.state === "suspended" ? (
-              <div>
-                <button
-                  type="button"
-                  className="btn second"
-                  onClick={() =>
-                    void act(
-                      `/api/clients/${id}/resume`,
-                      undefined,
-                      () => `${c.name} is back on · from its next check-in`,
-                    )
-                  }
+            {gone ? null : c.state === "suspended" ? (
+              retiring ? (
+                <div
+                  className="reveal"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    padding: 12,
+                    borderRadius: 12,
+                    background: "var(--redBg)",
+                  }}
                 >
-                  Resume
-                </button>
-              </div>
+                  <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--redInk)" }}>
+                    <strong style={{ fontWeight: 600 }}>Decommission {c.name}? This is for good:</strong>{" "}
+                    after their export, and after scripts/decommission.sh has removed LUME from their server.
+                  </span>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <button type="button" className="btn second small" onClick={() => setRetiring(false)}>
+                      Keep it
+                    </button>
+                    <button
+                      type="button"
+                      className="btn danger-solid small"
+                      onClick={async () => {
+                        setRetiring(false);
+                        await act(
+                          `/api/clients/${id}/decommission`,
+                          undefined,
+                          () => `${c.name} is decommissioned`,
+                        );
+                      }}
+                    >
+                      Decommission
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="btn second"
+                    onClick={() =>
+                      void act(
+                        `/api/clients/${id}/resume`,
+                        undefined,
+                        () => `${c.name} is back on · from its next check-in`,
+                      )
+                    }
+                  >
+                    Resume
+                  </button>
+                  <button type="button" className="btn danger" onClick={() => setRetiring(true)}>
+                    Decommission…
+                  </button>
+                </div>
+              )
             ) : confirming ? (
               <div
                 className="reveal"

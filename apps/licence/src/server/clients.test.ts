@@ -300,6 +300,24 @@ describe("a client's actions (spec §4.4)", () => {
     expect((await events(client.id)).at(-1)?.kind).toBe("key_rotated");
   });
 
+  it("decommission: only once suspended; it's for good, its record stays, marked", async () => {
+    const { client, licenseKey } = await create({ name: "Bluebell Dental" });
+    const early = await admin.call("POST", `/api/clients/${client.id}/decommission`);
+    expect(early.status).toBe(409);
+    expect(early.data.error.message).toMatch(/Suspend it first/);
+    await admin.call("POST", `/api/clients/${client.id}/suspend`);
+    expect((await admin.call("POST", `/api/clients/${client.id}/decommission`)).status).toBe(200);
+    const d = (await detail(client.id)).client;
+    expect(d.decommissionedAt).toBeTruthy();
+    // Resume can't bring it back, nor can anything else.
+    expect((await admin.call("POST", `/api/clients/${client.id}/resume`)).status).toBe(409);
+    expect((await admin.call("POST", `/api/clients/${client.id}/paid`, {})).status).toBe(409);
+    expect(
+      verifyLicence((await check(client.instanceId, licenseKey)).token!, KEYS, client.instanceId)?.state,
+    ).toBe("suspended");
+    expect((await events(client.id)).at(-1)?.kind).toBe("decommissioned");
+  });
+
   it("suspend and resume: the instance hears it at its next check", async () => {
     const { client, licenseKey } = await create({ name: "Pinecrest Academy" });
     expect((await admin.call("POST", `/api/clients/${client.id}/suspend`)).status).toBe(200);
