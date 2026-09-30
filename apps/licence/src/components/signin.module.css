@@ -1,0 +1,236 @@
+/* The sign-in is always dark (canvas: AdminSignIn), whatever the panel's theme. */
+.page {
+  position: relative;
+  min-height: 100vh;
+  background: #141518;
+  color: #eef0f3;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px 64px;
+  color-scheme: dark;
+}
+.card {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 34px 34px 30px;
+  border-radius: 22px;
+  background: rgba(33, 35, 40, 0.86);
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 40px 80px -40px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  animation: rise 0.6s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand b {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.brand small {
+  font-size: 12.5px;
+  color: #9ca1ab;
+}
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: rise 0.45s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #b4b8c0;
+}
+.field input {
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 11px;
+  border: 0;
+  background: #18191c;
+  color: #eef0f3;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  outline: 0;
+  transition: box-shadow 0.2s;
+}
+.field input:focus {
+  box-shadow:
+    inset 0 0 0 1.5px #2a5bff,
+    0 0 0 4px rgba(42, 91, 255, 0.25);
+}
+.btn,
+.open {
+  height: 42px;
+  border-radius: 11px;
+  border: 0;
+  background: #2a5bff;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-decoration: none;
+  transition:
+    transform 0.1s ease-out,
+    filter 0.15s;
+}
+.btn:hover,
+.open:hover {
+  filter: brightness(1.08);
+}
+.btn:active,
+.open:active {
+  transform: scale(0.98);
+}
+.btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+.words {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.words b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.words span,
+.hint {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #9ca1ab;
+}
+.hint {
+  font-size: 12.5px;
+}
+.boxes {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.box {
+  flex: 1;
+  height: 54px;
+  border-radius: 12px;
+  background: #18191c;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  display: grid;
+  place-items: center;
+  transition: box-shadow 0.2s;
+}
+.box[data-current] {
+  box-shadow:
+    inset 0 0 0 1.5px #2a5bff,
+    0 0 0 4px rgba(42, 91, 255, 0.22);
+}
+.digit {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  animation: pop 0.3s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+.hidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  font-size: 16px;
+  width: 100%;
+}
+.error {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.19);
+  color: #ff8589;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 0 4px;
+  text-align: center;
+  font-size: 13.5px;
+  color: #9ca1ab;
+}
+.done b {
+  font-size: 18px;
+  font-weight: 600;
+  color: #eef0f3;
+}
+.ok {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #18a566;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 10px rgba(24, 165, 102, 0.14);
+  animation: pop 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+.draw {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: draw 0.5s cubic-bezier(0.3, 0.7, 0.2, 1) 0.25s forwards;
+}
+.open {
+  margin-top: 4px;
+}
+.foot {
+  position: absolute;
+  bottom: 22px;
+  margin: 0;
+  font-size: 12px;
+  color: #9297a0;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes pop {
+  from {
+    transform: scale(0);
+  }
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .step,
+  .digit,
+  .ok {
+    animation: none;
+  }
+  .draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

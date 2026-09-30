@@ -23,6 +23,7 @@ export default tseslint.config(
       "coverage/**",
       "docs/design/prototypes/**",
       "apps/web/e2e/.artifacts/**",
+      "apps/licence/e2e/.artifacts/**",
     ],
   },
   js.configs.recommended,
@@ -40,6 +41,27 @@ export default tseslint.config(
           paths: [
             { name: "@lume/core", message: "Import from @lume/core/shared in the web app." },
             { name: "@lume/core/password", message: "Password hashing runs on the API only." },
+          ],
+        },
+      ],
+    },
+  },
+  // The licence panel's screens run in the browser too: the same rule.
+  {
+    files: ["apps/licence/src/components/**/*.{ts,tsx}", "apps/licence/src/lib/**/*.{ts,tsx}"],
+    // Signing and key hashing are the server's (they never reach a screen); tests run in Node.
+    ignores: [
+      "apps/licence/src/lib/sign.ts",
+      "apps/licence/src/lib/keys.ts",
+      "apps/licence/src/**/*.test.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@lume/core", message: "Import from @lume/core/shared in the panel's screens." },
+            { name: "@lume/core/password", message: "Password hashing runs on the server only." },
           ],
         },
       ],

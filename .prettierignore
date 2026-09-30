@@ -3,3 +3,5 @@ docs/
 **/dist/
 **/.next/
 apps/web/e2e/.artifacts/
+apps/licence/e2e/.artifacts/
+apps/licence/e2e/__review__/

@@ -22,3 +22,7 @@ apps/web/playwright-report/
 
 apps/web/e2e/.artifacts/
 apps/web/e2e/__review__/
+apps/licence/e2e/.artifacts/
+apps/licence/e2e/__review__/
+apps/licence/test-results/
+apps/licence/playwright-report/

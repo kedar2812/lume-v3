@@ -24,6 +24,7 @@ export type Alert = {
   title: string;
   body: string;
   clientId: string | null;
+  clientName: string | null;
 };
 
 const DAY = 86_400_000;
@@ -32,7 +33,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 /** "26 Sep" */
 export const shortDay = (day: string) => `${Number(day.slice(8, 10))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
 const hours = (ms: number) =>
-  ms >= 2 * DAY ? `${Math.floor(ms / DAY)} days` : `${Math.floor(ms / 3_600_000)} h`;
+  ms >= 2 * DAY ? `${Math.floor(ms / DAY)}\u00a0days` : `${Math.floor(ms / 3_600_000)}\u00a0h`;
 const andList = (xs: string[]) =>
   xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? "");
 
@@ -73,6 +74,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
           title: `${c.name}'s payment is ${days(behind)} late`,
           body: `${amount ? `${amount} was` : "It was"} due on ${shortDay(c.paidUntil)}. Send a reminder and they see it at every sign-in until it's paid.`,
           clientId: c.id,
+          clientName: c.name,
         });
       else if (-behind <= 5)
         due.push({
@@ -82,6 +84,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
           title: behind === 0 ? `${c.name} pays today` : `${c.name} pays in ${days(-behind)}`,
           body: `${amount ? `${amount}, due` : "Due"} ${shortDay(c.paidUntil)}. Mark it paid when it arrives.`,
           clientId: c.id,
+          clientName: c.name,
         });
     }
     if (c.lastCheckInAt) {
@@ -94,6 +97,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
           title: `${c.name} hasn't checked in for ${hours(silent)}`,
           body: "Its server may be off or offline. It keeps working for 7 days.",
           clientId: c.id,
+          clientName: c.name,
         });
     }
     if (c.type === "trial" && c.trialEnds) {
@@ -106,6 +110,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
           title: left === 0 ? `${c.name}'s trial ends today` : `${c.name}'s trial ends in ${days(left)}`,
           body: "A good week for a friendly call about staying on.",
           clientId: c.id,
+          clientName: c.name,
         });
     }
   }
@@ -128,6 +133,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
             : `${behind.length} installations are on older versions`,
         body: `${andList(behind.map((c) => c.name))}. ${latest} is out.`,
         clientId: behind.length === 1 ? behind[0]!.id : null,
+        clientName: behind.length === 1 ? behind[0]!.name : null,
       });
     }
   }

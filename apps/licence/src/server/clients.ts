@@ -180,7 +180,9 @@ export async function listClients(ctx: Ctx) {
   return {
     clients: rows.map((r) => view(r, rates.rates, now)),
     totals: { mrr: a.mrr, mrrBefore: a.mrrBefore },
-    rates: { day: rates.day, ageDays: rates.ageDays },
+    rates,
+    latestVersion: await latestVersion(ctx.db),
+    listPriceInr: Number((await settingsRow(ctx.db)).list_price_inr),
   };
 }
 
@@ -243,6 +245,8 @@ export async function getClient(ctx: Ctx, id: string) {
     history: events.rows.map((e) => ({ at: e.at.toISOString(), kind: e.kind, detail: e.detail })),
     payments,
     notice: n ? { id: n.id, note: n.note, dueDate: n.due_date, createdAt: n.created_at.toISOString() } : null,
+    rates,
+    listPriceInr: Number((await settingsRow(ctx.db)).list_price_inr),
   };
 }
 
@@ -659,7 +663,7 @@ export async function analytics(ctx: Ctx, range: 3 | 6 | 12) {
       range,
       listPriceInr: Number(s.list_price_inr),
     }),
-    rates: { day: rates.day, ageDays: rates.ageDays },
+    rates,
   };
 }
 

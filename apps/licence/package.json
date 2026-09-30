@@ -10,12 +10,13 @@
     "typecheck": "next typegen && tsc -p tsconfig.json",
     "migrate": "node dist/migrate.mjs",
     "admin:create": "node dist/admin-create.mjs",
-    "keygen": "node scripts/keygen.mjs"
+    "keygen": "node scripts/keygen.mjs",
+    "e2e": "playwright install chromium && playwright test"
   },
   "dependencies": {
     "@lume/core": "workspace:*",
     "@lume/db": "workspace:*",
-    "motion": "^12.43.0",
+    "@node-rs/argon2": "^2.2.1",
     "next": "^16.3.5",
     "pg": "^8.23.0",
     "react": "^19.3.0",
@@ -23,6 +24,8 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

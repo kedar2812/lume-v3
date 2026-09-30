@@ -32,7 +32,8 @@ export function context(): Ctx {
   if (!env.LICENCE_MASTER_KEY) throw new Error("LICENCE_MASTER_KEY is not set");
   made = {
     db: new pg.Pool({ connectionString: url, max: 10 }),
-    signer: { kid, privateKey: createPrivateKey(readFileSync(keyFile)) },
+    // A secret outside the image, read at start: never traced into the build.
+    signer: { kid, privateKey: createPrivateKey(readFileSync(/*turbopackIgnore: true*/ keyFile)) },
     now: () => new Date(),
     limits: {
       ip: new Limiter(300, HOUR),
