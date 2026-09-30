@@ -140,6 +140,9 @@ export const PROBES: Record<string, Probe> = {
   "POST /api/v1/licence/check": { access: "settings.manage" },
   "POST /api/v1/licence/notice/dismiss": { access: "auth.self" },
   "GET /api/v1/export": { access: "data.export" },
+  "POST /api/v1/export": { access: "data.export" },
+  // An export that was never prepared: 404 for those allowed, refused for the rest.
+  "GET /api/v1/export/:id": { access: "data.export", path: () => `/api/v1/export/${"0".repeat(32)}` },
   "GET /api/v1/settings/follow-ups": { access: "settings.manage" },
   "GET /api/v1/settings/messaging": { access: "settings.manage" },
   "PUT /api/v1/settings/messaging": { access: "settings.manage", body: () => ({ queueSize: 50 }) },
