@@ -4,6 +4,13 @@
 name="${STUB_NAME:-$(basename "$0")}"
 call="$name $*"
 printf '%s\n' "$call" >> "${STUB_LOG:?}"
+# scp: keep a copy of what would have been sent (named for its destination), so a test can read it.
+if [ "$name" = scp ] && [ -n "${STUB_UPLOADS:-}" ] && [ $# -ge 2 ]; then
+  args=("$@")
+  mkdir -p "$STUB_UPLOADS"
+  dest="${args[$# - 1]}"
+  cp "${args[$# - 2]}" "$STUB_UPLOADS/$(basename "${dest##*:}")"
+fi
 while IFS=$'\t' read -r pattern code out; do
   [ -n "$pattern" ] || continue
   if [[ "$call" =~ $pattern ]]; then

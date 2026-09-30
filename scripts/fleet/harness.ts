@@ -56,6 +56,7 @@ export function run(
       PATH: `${STUBS}:${process.env.PATH}`,
       STUB_LOG: log,
       STUB_ANSWERS: answers,
+      STUB_UPLOADS: path.join(dir, "uploads"),
       LUME_FLEET_DIR: dir,
       ...o.env,
     },

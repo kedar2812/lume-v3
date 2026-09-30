@@ -5,6 +5,8 @@ set -euo pipefail
 
 DRY=false
 DEPLOY_KEY=""
+# The spec's deploy user (source spec §3.1): the client makes it, LUME's scripts sign in as it.
+DEPLOY_USER=lume-deploy
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=true ;;
@@ -34,20 +36,20 @@ run apt-get update -q
 run env DEBIAN_FRONTEND=noninteractive apt-get install -y -q ca-certificates curl gnupg ufw fail2ban unattended-upgrades chrony
 
 step "deploy user"
-if ! id deploy >/dev/null 2>&1; then run adduser --disabled-password --gecos "" deploy; fi
-run usermod -aG sudo deploy
+if ! id "$DEPLOY_USER" >/dev/null 2>&1; then run adduser --disabled-password --gecos "" "$DEPLOY_USER"; fi
+run usermod -aG sudo "$DEPLOY_USER"
 if [ -n "$DEPLOY_KEY" ]; then
-  run install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-  if $DRY || ! grep -qxF "$DEPLOY_KEY" /home/deploy/.ssh/authorized_keys 2>/dev/null; then
-    if $DRY; then echo "[dry-run] add deploy key"; else printf '%s\n' "$DEPLOY_KEY" >> /home/deploy/.ssh/authorized_keys; fi
+  run install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "/home/$DEPLOY_USER/.ssh"
+  if $DRY || ! grep -qxF "$DEPLOY_KEY" "/home/$DEPLOY_USER/.ssh/authorized_keys" 2>/dev/null; then
+    if $DRY; then echo "[dry-run] add deploy key"; else printf '%s\n' "$DEPLOY_KEY" >> "/home/$DEPLOY_USER/.ssh/authorized_keys"; fi
   fi
-  run chown deploy:deploy /home/deploy/.ssh/authorized_keys
-  run chmod 600 /home/deploy/.ssh/authorized_keys
+  run chown "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.ssh/authorized_keys"
+  run chmod 600 "/home/$DEPLOY_USER/.ssh/authorized_keys"
 fi
 
 step "ssh: key-only, no root"
-if ! $DRY && [ -z "$DEPLOY_KEY" ] && [ ! -s /home/deploy/.ssh/authorized_keys ]; then
-  echo "refusing to disable root/password login: deploy has no SSH key (pass --deploy-key)" >&2; exit 1
+if ! $DRY && [ -z "$DEPLOY_KEY" ] && [ ! -s "/home/$DEPLOY_USER/.ssh/authorized_keys" ]; then
+  echo "refusing to disable root/password login: $DEPLOY_USER has no SSH key (pass --deploy-key)" >&2; exit 1
 fi
 write /etc/ssh/sshd_config.d/10-lume.conf 644 "PermitRootLogin no
 PasswordAuthentication no
@@ -88,7 +90,7 @@ write /etc/docker/daemon.json 644 '{
   "no-new-privileges": true,
   "live-restore": true
 }'
-run usermod -aG docker deploy
+run usermod -aG docker "$DEPLOY_USER"
 run systemctl restart docker
 
 step "swap (2 GB)"
@@ -101,8 +103,8 @@ fi
 grep -q '^/swapfile ' /etc/fstab 2>/dev/null || { if $DRY; then echo "[dry-run] add /swapfile to fstab"; else echo '/swapfile none swap sw 0 0' >> /etc/fstab; fi; }
 
 step "LUME directories"
-run install -d -m 750 -o deploy -g deploy /srv/lume
-run install -d -m 700 -o 1000 -g 1000 /srv/lume/secrets
+run install -d -m 750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" /opt/lume
+run install -d -m 700 -o 1000 -g 1000 /opt/lume/secrets
 
 echo
 if $DRY; then echo "bootstrap dry run complete: nothing changed"; else echo "bootstrap complete"; fi
