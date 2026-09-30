@@ -16,6 +16,7 @@ test-results/
 .DS_Store
 Thumbs.db
 apps/web/next-env.d.ts
+apps/licence/next-env.d.ts
 apps/web/test-results/
 apps/web/playwright-report/
 
