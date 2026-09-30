@@ -169,10 +169,19 @@ export function LicenceCard() {
                     ? "Checked · all good"
                     : "Check now"}
               </button>
-              <span className={s.checkNote}>
-                {phase === "failed"
-                  ? "LUME couldn't reach its licence server just now."
-                  : "LUME checks by itself every 6 hours."}
+              {/* Why the last check brought nothing new (a refused key, an answer that didn't fit), in words. */}
+              <span
+                className={s.checkNote}
+                data-tone={
+                  (phase !== "verified" && licence.lastError) || phase === "failed" ? "warn" : undefined
+                }
+              >
+                {phase === "verified"
+                  ? "LUME checks by itself every 6 hours."
+                  : (licence.lastError ??
+                    (phase === "failed"
+                      ? "LUME couldn't reach its licence server just now."
+                      : "LUME checks by itself every 6 hours."))}
               </span>
             </div>
           )}

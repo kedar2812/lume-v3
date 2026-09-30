@@ -34,6 +34,7 @@ const L = (over: Partial<LicenceForPerson> = {}): LicenceForPerson => ({
   nextCheckAt: new Date(Date.now() + 4 * 3_600_000).toISOString(),
   showNotice: false,
   canCheck: false,
+  lastError: null,
   ...over,
 });
 const ADMIN = [
@@ -210,6 +211,13 @@ describe("Settings → About: the licence card", () => {
     await userEvent.click(screen.getByRole("button", { name: "Check now" }));
     expect(await screen.findByRole("button", { name: "Checked · all good" })).toBeInTheDocument();
     expect(screen.getByTestId("licence-verified")).toBeInTheDocument();
+  });
+
+  it("tells an admin why the last check failed", () => {
+    shell(admin(L({ lastError: "The licence server didn't recognise this install's key" })), <LicenceCard />);
+    expect(screen.getByRole("region", { name: "Licence" })).toHaveTextContent(
+      "The licence server didn't recognise this install's key",
+    );
   });
 
   it("perpetual never expires; a development build says so", () => {

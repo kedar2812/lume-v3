@@ -14,6 +14,7 @@ type Row = {
   first_boot_at: Date;
   last_attempt_at: Date | null;
   last_success_at: Date | null;
+  last_error: string | null;
 };
 
 /**
@@ -49,6 +50,11 @@ export class LicenceKeeper {
     };
   }
 
+  /** Why the last check didn't bring a new answer (for people who manage settings), or null. */
+  lastError(): string | null {
+    return this.dev ? null : (this.row?.last_error ?? null);
+  }
+
   /** The state now (from memory; a stale copy is refreshed in the background). */
   view(): LicenceView {
     if (!this.dev && Date.now() - this.loadedAt > REFRESH_MS) void this.refresh().catch(() => undefined);
@@ -68,7 +74,7 @@ export class LicenceKeeper {
   /** Read what the database holds, and act on it from now on. */
   async refresh(): Promise<LicenceView> {
     const { rows } = await this.pool.query<Row>(
-      "SELECT token, first_boot_at, last_attempt_at, last_success_at FROM licence_state WHERE id = 1",
+      "SELECT token, first_boot_at, last_attempt_at, last_success_at, last_error FROM licence_state WHERE id = 1",
     );
     this.row = rows[0] ?? null;
     this.payload =
@@ -139,9 +145,12 @@ export class LicenceKeeper {
         else if (!r.ok) error = `The licence server answered ${r.status}`;
         else {
           const got = ((await r.json()) as { token?: unknown }).token;
-          if (typeof got === "string" && verifyLicence(got, this.opts.keys, this.opts.instanceId))
-            token = got;
-          else error = "The licence server's answer was not signed by LUME for this install";
+          const p = typeof got === "string" ? verifyLicence(got, this.opts.keys, this.opts.instanceId) : null;
+          if (!p) error = "The licence server's answer was not signed by LUME for this install";
+          // An answer older than the one kept is an old answer replayed: it never undoes a newer one.
+          else if (this.payload && Date.parse(p.issuedAt) < Date.parse(this.payload.issuedAt))
+            error = "The licence server's answer was older than the one LUME already has, so it was ignored";
+          else token = got as string;
         }
       } catch (e) {
         error = `LUME couldn't reach its licence server (${(e as Error).message})`;

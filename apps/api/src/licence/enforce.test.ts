@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from "node:crypto";
 import {
   ALL_GRANTS,
+  LEGAL_VERSION,
   rawPublicKey,
   signLicence,
   type LicencePayload,
@@ -112,6 +113,28 @@ describe("the licence is enforced in the API (L-A Task 3)", () => {
     // The licence server lifts it: the next check brings it back.
     await become("active");
     expect((await call("GET", "/api/v1/leads")).statusCode).toBe(200);
+  });
+
+  it("locked, people still get through the first-run steps LUME asks of them, so an admin reaches the export", async () => {
+    for (const s of ["read_only", "suspended"] as const) {
+      await become(s);
+      // The agreement (after an update changes it) and onboarding's progress (with two-step enrolment in it).
+      expect((await call("POST", "/api/v1/me/agreement", { version: LEGAL_VERSION })).statusCode).toBe(204);
+      expect((await call("PUT", "/api/v1/me/onboarding", { step: "secure" })).statusCode).toBeLessThan(300);
+      // Everything else stays refused.
+      expect(await code(call("PUT", "/api/v1/me/tour", { status: "done" }))).toMatch(/^LICENSE_/);
+    }
+    await become("active");
+  });
+
+  it("read-only: a masked phone or email can still be revealed (it's reading, with a record of who did)", async () => {
+    const lead = await h.seedLead({ ownerId: null, name: "Masked while read-only", phone: "+919812345678" });
+    await become("read_only");
+    const r = await call("POST", `/api/v1/leads/${lead}/contact/reveal`);
+    expect(r.json().error?.code).not.toBe("LICENSE_READ_ONLY");
+    await become("suspended");
+    expect(await code(call("POST", `/api/v1/leads/${lead}/contact/reveal`))).toBe("LICENSE_SUSPENDED");
+    await become("active");
   });
 
   it("webhooks are refused while read-only or suspended", async () => {

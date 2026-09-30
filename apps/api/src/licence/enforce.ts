@@ -18,16 +18,25 @@ export const LOCKED = {
 const isAuth = (url: string) => url.startsWith("/api/v1/auth/") || url === "/api/v1/csrf";
 const isExport = (url: string) => url === "/api/v1/export" || url.startsWith("/api/v1/export/");
 const LICENCE_WRITES = new Set(["/api/v1/licence/check", "/api/v1/licence/notice/dismiss"]);
+/** Reads done over POST: revealing a masked contact writes only the record of who looked. */
+const READS_BY_POST = new Set(["/api/v1/leads/:id/contact/reveal"]);
 
 /**
  * What a locked instance still does (spec §3.4). Read-only: anything that doesn't write, and signing in
  * and out, the licence's own Check now and reminder, and the export. Suspended: signing in, the licence,
- * the business's name (for the lock screen), and the export — nothing else.
+ * the business's name (for the lock screen), and the export — nothing else. In both, the steps LUME puts
+ * before the app (the agreement, a required two-step enrolment: the routes marked `allowDuringEnrolment`)
+ * stay open, or someone who must take them could never reach the export behind them.
  */
-export function allowed(state: LicenceStateName, method: string, url: string): boolean {
+export function allowed(
+  state: LicenceStateName,
+  method: string,
+  url: string,
+  o: { firstRun?: boolean } = {},
+): boolean {
   if (state === "active" || state === "grace") return true;
-  if (isAuth(url) || isExport(url) || LICENCE_WRITES.has(url)) return true;
-  if (state === "read_only") return !WRITES.has(method);
+  if (isAuth(url) || isExport(url) || LICENCE_WRITES.has(url) || o.firstRun) return true;
+  if (state === "read_only") return !WRITES.has(method) || READS_BY_POST.has(url);
   return (
     method === "GET" && (url === "/api/v1/licence" || url === "/api/v1/settings" || url === "/api/v1/about")
   );
@@ -41,7 +50,9 @@ export function licenceGuard(app: FastifyInstance): void {
   app.addHook("onRequest", async (req: FastifyRequest, reply: FastifyReply) => {
     const state = req.server.licence.view().state;
     const url = req.routeOptions.url ?? req.url.split("?")[0]!;
-    if (allowed(state, req.method, url)) return;
+    const firstRun = !!(req.routeOptions.config as { allowDuringEnrolment?: boolean } | undefined)
+      ?.allowDuringEnrolment;
+    if (allowed(state, req.method, url, { firstRun })) return;
     const said = LOCKED[state as "read_only" | "suspended"];
     return reply.code(403).send({ error: said });
   });

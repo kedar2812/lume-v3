@@ -10,6 +10,8 @@ export type LicenceForPerson = LicenceView & {
   showNotice: boolean;
   /** May Check now (people who manage settings). */
   canCheck: boolean;
+  /** Why the last check brought no new answer (people who manage settings only), or null. */
+  lastError: string | null;
 };
 
 /** Said on window when the API refuses for the licence (403 LICENSE_*): the shell looks at it again. */

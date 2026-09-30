@@ -74,6 +74,7 @@ export const UNLICENSED_API: LicenceForPerson = {
   nextCheckAt: null,
   showNotice: false,
   canCheck: false,
+  lastError: null,
 };
 
 export function toSession(me: MePayload): Session {

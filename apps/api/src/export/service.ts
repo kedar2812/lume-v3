@@ -1,7 +1,12 @@
+import { once } from "node:events";
+import { randomBytes } from "node:crypto";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { PassThrough, type Writable } from "node:stream";
 import archiver from "archiver";
 import ExcelJS from "exceljs";
-import type { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import Papa from "papaparse";
 import { audit } from "../audit/audit";
@@ -72,6 +77,9 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
     "Value",
     "Currency",
     "Tags",
+    "Source",
+    "Product",
+    "External ref",
     "Lost reason",
     "Lost note",
     "Enquiry date",
@@ -93,6 +101,7 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
                   p.name AS pipeline, s.name AS stage, u.name AS owner, l.value, l.currency,
                   (SELECT string_agg(t.label::text, ', ' ORDER BY t.label) FROM lead_tags lt JOIN tags t ON t.id = lt.tag_id
                     WHERE lt.lead_id = l.id) AS tags,
+                  ls.name AS source, pr.name::text AS product, l.external_ref,
                   lr.label AS lost_reason, l.lost_note, l.lead_created_at, l.created_at, l.last_activity_at,
                   l.won_at, l.lost_at, l.custom
              FROM leads l
@@ -100,6 +109,8 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
              JOIN stages s ON s.id = l.stage_id
              LEFT JOIN users u ON u.id = l.owner_id
              LEFT JOIN lost_reasons lr ON lr.id = l.lost_reason_id
+             LEFT JOIN lead_sources ls ON ls.id = l.source_id
+             LEFT JOIN products pr ON pr.id = l.product_id
             WHERE l.deleted_at IS NULL AND l.id > $1::uuid
             ORDER BY l.id LIMIT $2`,
           "id",
@@ -118,6 +129,9 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
               r.value === null ? null : Number(r.value),
               (r.currency as string) ?? null,
               (r.tags as string) ?? null,
+              (r.source as string) ?? null,
+              (r.product as string) ?? null,
+              (r.external_ref as string) ?? null,
               (r.lost_reason as string) ?? null,
               (r.lost_note as string) ?? null,
               (r.lead_created_at as string) ?? null,
@@ -224,18 +238,111 @@ async function tables(c: pg.PoolClient): Promise<Table[]> {
   ];
 }
 
+/**
+ * A cell a spreadsheet would run as a formula is written with a leading ' (lead names come from public forms
+ * and webhooks, and must never become a live formula on someone's computer): anything starting with = or @,
+ * a tab or a return, and a + or - that isn't simply a number (a phone number like +971 50 111 2233 stays).
+ */
+const RUNS = /^[=@\t\r]/;
+const PLAIN_NUMBER = /^[+-][\d\s().-]*$/;
+export const safeCell = (v: Cell): Cell =>
+  typeof v === "string" && (RUNS.test(v) || (/^[+-]/.test(v) && !PLAIN_NUMBER.test(v))) ? `'${v}` : v;
 const csvLine = (cells: Cell[]) =>
-  `${Papa.unparse([cells.map((v) => (v === null ? "" : v))], { newline: "\r\n" })}\r\n`;
+  `${Papa.unparse([cells.map((v) => (v === null ? "" : safeCell(v)))], { newline: "\r\n" })}\r\n`;
+
 /** Writes, waiting whenever the zip is behind: memory stays flat however many rows there are. */
-async function write(out: Writable, chunk: string) {
-  if (!out.write(chunk)) await new Promise<void>((r) => out.once("drain", r));
+async function write(out: Writable, chunk: string, signal: AbortSignal) {
+  if (!out.write(chunk)) await once(out, "drain", { signal });
 }
 
+/** Excel's own limits: rows per sheet (after the header), and characters per cell. */
+const SHEET_ROWS = 1_048_575;
+const CELL_CHARS = 32_767;
+const fitCell = (v: Cell): Cell =>
+  typeof v === "string" && v.length > CELL_CHARS
+    ? `${v.slice(0, CELL_CHARS - 40)}… (cut to fit; see the CSV)`
+    : v;
+
 /**
- * Export all data (spec §3.6): a zip of five CSVs and one workbook, streamed as it's read, in every licence
- * state. Read on its own connection, in one read-only transaction (one consistent picture), as LUME itself:
- * every lead, unmasked. The request's own transaction only records that it happened.
+ * Reads everything and writes it into the zip (spec §3.6): five CSVs streamed as they're read, then one
+ * workbook built in a temporary file (so a slow download never piles it up in memory). On its own
+ * connection, in one read-only transaction, as LUME itself: every lead, unmasked. If the download is
+ * abandoned (`signal`), it stops, rolls back and lets the connection go.
  */
+export async function produceExport(o: {
+  pool: pg.Pool;
+  userId: string;
+  zip: archiver.Archiver;
+  signal: AbortSignal;
+  log: FastifyBaseLogger;
+}): Promise<void> {
+  const { zip, signal } = o;
+  const bookFile = path.join(tmpdir(), `lume-export-${randomBytes(8).toString("hex")}.xlsx`);
+  // The zip reads the workbook as it finishes; the file goes once the zip is done, however it ends.
+  const cleanup = () => void rm(bookFile, { force: true });
+  zip.once("end", cleanup).once("close", cleanup).once("error", cleanup);
+  const c = await o.pool.connect();
+  let held = true;
+  const letGo = () => {
+    if (held) c.release();
+    held = false;
+  };
+  try {
+    await c.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    // A backstop: however it ends, this connection never sits in its transaction for long.
+    await c.query("SET LOCAL idle_in_transaction_session_timeout = '10min'");
+    await c.query("SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'all', true)", [
+      o.userId,
+    ]);
+    const all = await tables(c);
+    for (const t of all) {
+      const out = new PassThrough();
+      zip.append(out, { name: t.file });
+      await write(out, csvLine(t.columns), signal);
+      for await (const row of t.rows(c)) await write(out, csvLine(row), signal);
+      out.end();
+    }
+    const book = new ExcelJS.stream.xlsx.WorkbookWriter({
+      filename: bookFile,
+      useStyles: false,
+      useSharedStrings: false,
+    });
+    for (const t of all) {
+      let part = 1;
+      let n = 0;
+      let sheet = book.addWorksheet(t.sheet);
+      sheet.addRow(t.columns).commit();
+      for await (const row of t.rows(c)) {
+        signal.throwIfAborted();
+        if (n === SHEET_ROWS) {
+          sheet.commit();
+          part++;
+          n = 0;
+          sheet = book.addWorksheet(`${t.sheet} (${part})`);
+          sheet.addRow(t.columns).commit();
+        }
+        sheet.addRow(row.map(fitCell)).commit();
+        n++;
+      }
+      sheet.commit();
+    }
+    await book.commit();
+    await c.query("COMMIT");
+    letGo();
+    signal.throwIfAborted();
+    zip.file(bookFile, { name: "LUME-export.xlsx" });
+    await zip.finalize();
+  } catch (err) {
+    if (held) await c.query("ROLLBACK").catch(() => undefined);
+    if (!signal.aborted) o.log.error({ err }, "export failed");
+    zip.abort();
+    cleanup();
+  } finally {
+    letGo();
+  }
+}
+
+/** Export all data: a zip named for the day, in every licence state, audited. */
 export async function exportAll(req: FastifyRequest, reply: FastifyReply, pool: pg.Pool) {
   await audit(req, { action: "data.export", entityType: "data" });
   const zip = archiver("zip", { zlib: { level: 6 } });
@@ -244,48 +351,11 @@ export async function exportAll(req: FastifyRequest, reply: FastifyReply, pool: 
     .header("content-type", "application/zip")
     .header("content-disposition", `attachment; filename="LUME-export-${day}.zip"`)
     .header("cache-control", "no-store");
-
-  const produce = async () => {
-    const c = await pool.connect();
-    try {
-      await c.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-      await c.query(
-        "SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'all', true)",
-        [req.actor!.userId],
-      );
-      const all = await tables(c);
-      for (const t of all) {
-        const out = new PassThrough();
-        zip.append(out, { name: t.file });
-        await write(out, csvLine(t.columns));
-        for await (const row of t.rows(c)) await write(out, csvLine(row));
-        out.end();
-      }
-      const out = new PassThrough();
-      zip.append(out, { name: "LUME-export.xlsx" });
-      const book = new ExcelJS.stream.xlsx.WorkbookWriter({
-        stream: out,
-        useStyles: false,
-        useSharedStrings: false,
-      });
-      for (const t of all) {
-        const sheet = book.addWorksheet(t.sheet);
-        sheet.addRow(t.columns).commit();
-        for await (const row of t.rows(c)) sheet.addRow(row).commit();
-        sheet.commit();
-      }
-      await book.commit();
-      await c.query("COMMIT");
-      await zip.finalize();
-    } catch (err) {
-      await c.query("ROLLBACK").catch(() => undefined);
-      req.log.error({ err }, "export failed");
-      zip.abort();
-      zip.destroy(err as Error);
-    } finally {
-      c.release();
-    }
-  };
-  void produce();
+  const ac = new AbortController();
+  // A closed tab or a dropped connection: stop reading, and give the connection back.
+  reply.raw.once("close", () => {
+    if (!reply.raw.writableFinished) ac.abort();
+  });
+  void produceExport({ pool, userId: req.actor!.userId, zip, signal: ac.signal, log: req.log });
   return reply.send(zip);
 }

@@ -523,6 +523,9 @@
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
+.checkNote[data-tone="warn"] {
+  color: var(--warn-ink);
+}
 .aboutPair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

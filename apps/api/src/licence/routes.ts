@@ -13,6 +13,8 @@ export type LicenceForPerson = LicenceView & {
   /** Show the payment reminder now: there is one, this person runs the business, and not closed this session. */
   showNotice: boolean;
   canCheck: boolean;
+  /** Why the last check brought no new answer: for people who manage settings, else null. */
+  lastError: string | null;
 };
 
 /** The licence as this person sees it (L-A): with /auth/me, and on its own. */
@@ -26,11 +28,15 @@ export async function licenceFor(req: FastifyRequest): Promise<LicenceForPerson>
       .where(eq(schema.sessions.id, req.session.id));
     dismissed = s?.d ?? null;
   }
+  const admin = manages(req);
   return {
     ...v,
+    // The reminder is between LUME's provider and the people who pay: never sent to anyone else.
+    notice: admin ? v.notice : null,
     ...req.server.licence.info(),
-    showNotice: !!v.notice && manages(req) && dismissed !== v.notice.id,
-    canCheck: manages(req),
+    showNotice: !!v.notice && admin && dismissed !== v.notice.id,
+    canCheck: admin,
+    lastError: admin ? req.server.licence.lastError() : null,
   };
 }
 

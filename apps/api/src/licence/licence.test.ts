@@ -204,7 +204,8 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     await check();
     expect((await me(owner)).licence).toMatchObject({ showNotice: true, notice });
     expect((await me(admin)).licence).toMatchObject({ showNotice: true });
-    expect((await me(rep)).licence).toMatchObject({ showNotice: false });
+    // A rep never gets the note, the due date or the contact at all.
+    expect((await me(rep)).licence).toMatchObject({ showNotice: false, notice: null });
     // "I'll sort it": closed for this session…
     expect((await admin.inject({ method: "POST", url: "/api/v1/licence/notice/dismiss" })).statusCode).toBe(
       204,
@@ -217,6 +218,25 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     answer = ok(token());
     await check();
     expect((await me(again)).licence.showNotice).toBe(false);
+  });
+
+  it("an older token never replaces a newer one (a suspension can't be undone by replaying an old answer)", async () => {
+    const before = token();
+    h.clock.advance(H);
+    answer = ok(token({ state: "suspended", reason: "suspended" }));
+    await check();
+    answer = ok(before);
+    expect((await check()).json()).toMatchObject({ state: "suspended" });
+    const [row] = (await h.ownerPool.query("SELECT last_error FROM licence_state")).rows;
+    expect(row.last_error).toMatch(/older/i);
+    h.clock.advance(-H);
+  });
+
+  it("people who manage settings see why the last check failed; others don't", async () => {
+    answer = () => new Response(JSON.stringify({ error: { code: "UNAUTHORIZED" } }), { status: 401 });
+    await check();
+    expect((await me(admin)).licence.lastError).toMatch(/didn't recognise this install's key/);
+    expect((await me(rep)).licence.lastError).toBeNull();
   });
 
   it("Check now is for people who manage settings", async () => {

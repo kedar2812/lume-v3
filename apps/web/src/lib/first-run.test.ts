@@ -20,4 +20,12 @@ describe("firstRunStop", () => {
     expect(firstRunStop(flags({ needsTwoFactorEnrolment: true }))).toBe("/welcome");
     expect(firstRunStop(flags({}))).toBeNull();
   });
+
+  it("while LUME is locked, onboarding waits: the agreement and a required two-step still come first", () => {
+    expect(firstRunStop(flags({ needsOnboarding: true }), true)).toBeNull();
+    expect(firstRunStop(flags({ needsOnboarding: true, needsTwoFactorEnrolment: true }), true)).toBe(
+      "/welcome",
+    );
+    expect(firstRunStop(flags({ needsAgreement: true }), true)).toBe("/agree");
+  });
 });
