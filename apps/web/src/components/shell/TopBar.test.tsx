@@ -98,4 +98,14 @@ describe("the bell: 3B final review", () => {
     expect(notificationsClient.list).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "Notifications" })).toHaveFocus();
   });
+
+  it("an arrival is said to screen readers too, politely", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
+    render(<TopBar theme="system" onSearch={vi.fn()} />);
+    await screen.findByRole("button", { name: "Notifications" });
+    await act(async () => live?.({ id: 7, title: "Follow up — Aisha" }));
+    const said = screen.getByRole("status");
+    expect(said).toHaveAttribute("aria-live", "polite");
+    expect(said).toHaveTextContent("New notification: Follow up — Aisha");
+  });
 });

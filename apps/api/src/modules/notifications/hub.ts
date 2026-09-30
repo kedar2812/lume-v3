@@ -1,5 +1,30 @@
 import type pg from "pg";
 
+/** Bytes a stream may have waiting for a browser that isn't reading before it's let go (it reconnects). */
+const BUFFER_MAX = 256 * 1024;
+
+/**
+ * Writes to a live stream, minding backpressure: a browser that stops reading (a sleeping laptop, a dead
+ * connection) is let go once its unread bytes pass `max`, rather than piling up in the server's memory. It
+ * reconnects and picks up where it left off (Last-Event-ID). False once the stream has been let go.
+ */
+export function streamWriter(
+  res: { write(chunk: string): boolean; end(): void; writableLength: number },
+  max = BUFFER_MAX,
+) {
+  let closed = false;
+  return (chunk: string): boolean => {
+    if (closed) return false;
+    if (res.writableLength > max) {
+      closed = true;
+      res.end();
+      return false;
+    }
+    res.write(chunk);
+    return true;
+  };
+}
+
 export type NotificationView = {
   id: number;
   kind: string;

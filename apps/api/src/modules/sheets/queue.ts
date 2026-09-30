@@ -9,7 +9,7 @@ import { schema } from "@lume/db";
 import type { SheetConfig } from "./config";
 import type { GoogleSheets } from "./google";
 import { requestSync, type TxLike } from "./requests";
-import { runSync } from "./sync";
+import { runSync, type SyncDeps } from "./sync";
 
 /** Active sheets whose next sync is due, while the Sheets module is switched on (spec §3, §5.1). */
 export async function dueSources(db: TxLike): Promise<string[]> {
@@ -54,6 +54,8 @@ export async function startSheetsQueue(o: {
   clientFor?: (cfg: SheetConfig) => GoogleSheets | null;
   maxRows: number;
   tickMs?: number;
+  /** Follow-up reminders (a rule's follow-up for a synced lead is armed at once). */
+  tasks?: SyncDeps["tasks"];
 }) {
   const boss = new PgBoss({
     connectionString: o.connectionString,
@@ -82,6 +84,7 @@ export async function startSheetsQueue(o: {
               google: o.google,
               ...(o.clientFor ? { clientFor: o.clientFor } : {}),
               maxRows: o.maxRows,
+              ...(o.tasks ? { tasks: o.tasks } : {}),
             },
             job.data.id,
           );

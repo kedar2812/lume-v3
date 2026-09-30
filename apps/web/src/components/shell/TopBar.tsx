@@ -33,6 +33,8 @@ export function TopBar({
   const reduce = useReducedMotion();
   const swing = useAnimationControls();
   const [unread, setUnread] = useState(0);
+  /** What arrived last, said politely to screen readers (the swing and the dot say it to eyes). */
+  const [arrival, setArrival] = useState("");
   const [open, setOpen] = useState(false);
   const bell = useRef<HTMLButtonElement>(null);
 
@@ -44,8 +46,10 @@ export function TopBar({
     window.addEventListener(READ_EVENT, read);
     return () => window.removeEventListener(READ_EVENT, read);
   }, []);
-  useStream(() => {
-    setUnread((n) => n + 1);
+  useStream((n) => {
+    setUnread((c) => c + 1);
+    const title = (n as { title?: string } | undefined)?.title;
+    if (title) setArrival(`New notification: ${title}`);
     if (!reduce) void swing.start({ rotate: [0, 14, -10, 6, 0], transition: { duration: 0.6 } });
   });
 
@@ -101,6 +105,9 @@ export function TopBar({
         {unread > 0 && <span className={s.bellDot} aria-hidden />}
       </IconButton>
       <NotificationCentre open={open} onClose={close} tz={tz} canMessage={!!canMessage} />
+      <p role="status" aria-live="polite" className={s.srOnly}>
+        {arrival}
+      </p>
     </header>
   );
 }

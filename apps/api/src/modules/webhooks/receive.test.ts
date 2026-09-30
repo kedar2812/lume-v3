@@ -201,8 +201,12 @@ describe("limits and shapes", () => {
   it("too big is 413, a text body 415, bad JSON 400 — each counted, none stored", async () => {
     const id = await source();
     const big = JSON.stringify({ note: "x".repeat(65 * 1024) });
+    // Each refusal is counted after its answer: wait for one before the next, so the last reason is the last one's.
+    const counted = (n: number) => vi.waitFor(async () => expect((await counts(id)).rejected).toBe(n));
     expect((await post(id, big, signed(big))).statusCode).toBe(413);
+    await counted(1);
     expect((await post(id, "name=A", signed("name=A"), "text/plain")).statusCode).toBe(415);
+    await counted(2);
     expect((await post(id, "{nope", signed("{nope"))).statusCode).toBe(400);
     expect(await events(id)).toHaveLength(0);
     await vi.waitFor(async () =>

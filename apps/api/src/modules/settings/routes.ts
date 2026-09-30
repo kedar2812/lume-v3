@@ -85,6 +85,12 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
     async (req) => {
       const before = await readFollowUps(req, { forUpdate: true });
       const next = { ...before, ...req.body };
+      // Leads gone quiet, switched on: from now (what's already quiet doesn't all come back at once).
+      if (req.body.noTouch) {
+        const { enabled, days } = req.body.noTouch;
+        const from = before.noTouch.enabled ? before.noTouch.from : new Date().toISOString();
+        next.noTouch = { enabled, days, ...(enabled && from ? { from } : {}) };
+      }
       await req.db.update(schema.settings).set({ followUps: next }).where(eq(schema.settings.id, 1));
       // Switched on, escalation starts from now: what was already overdue doesn't flood managers at once
       // (3B final review). Anything moved or snoozed from here on is watched as usual.

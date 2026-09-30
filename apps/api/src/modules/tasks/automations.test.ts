@@ -319,6 +319,16 @@ describe("stage automations and intake (3C Task 3)", () => {
     await h.runWebhooks();
     const [web] = await h.queryAll<{ id: string }>("SELECT id FROM leads WHERE name = 'Web Enquiry'");
     expect((await openTasks(web!.id)).map((t) => t.title)).toEqual(["Call the new enquiry"]);
+    // Its reminder is queued at once, not left for the sweeper (3C minor).
+    const pending = await h.queryAll<{ id: string }>(
+      `SELECT n.id FROM scheduled_notifications n JOIN tasks t ON t.id = n.task_id
+        WHERE t.lead_id = $1 AND n.status = 'pending'`,
+      [web!.id],
+    );
+    expect(pending.length).toBeGreaterThan(0);
+    expect(h.reminderQueue.map((r) => Number(r.id))).toEqual(
+      expect.arrayContaining(pending.map((p) => Number(p.id))),
+    );
 
     const up = (
       await admin.inject({

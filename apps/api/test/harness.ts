@@ -227,6 +227,12 @@ export async function createHarness(
   const webhookQueue: number[] = [];
   const reminderQueue: { id: number; fireAt: Date }[] = [];
   let reminderQueueDown = false;
+  const reminders = {
+    enqueue: async (r: { id: number; fireAt: Date }[]) => {
+      if (reminderQueueDown) throw new Error("the reminder queue is down");
+      reminderQueue.push(...r);
+    },
+  };
   const googleOAuth = opts.oauth ? { relayUrl: "", relayToken: opts.oauth.relayToken } : null;
   const clientFor = oauthClientFor(googleOAuth, fake?.url);
 
@@ -247,12 +253,7 @@ export async function createHarness(
     imports: { enqueue: async (id) => void queued.push(id) },
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
-    tasks: {
-      enqueue: async (r) => {
-        if (reminderQueueDown) throw new Error("the reminder queue is down");
-        reminderQueue.push(...r);
-      },
-    },
+    tasks: reminders,
     webhooks: {
       enqueue: async (id) => void webhookQueue.push(id),
       limiter: createLimiter({ perSource: 60, perInstance: 600, windowMs: 60_000 }),
@@ -448,12 +449,12 @@ export async function createHarness(
     },
     async runWebhooks() {
       for (let id = webhookQueue.shift(); id; id = webhookQueue.shift())
-        await processEvent({ app, pool, keyring }, id);
+        await processEvent({ app, pool, keyring, tasks: reminders }, id);
     },
     async runSyncs(ids = []) {
       syncs.push(...ids);
       for (let id = syncs.shift(); id; id = syncs.shift())
-        await runSync({ app, pool, keyring, google, clientFor, maxRows: 50 }, id);
+        await runSync({ app, pool, keyring, google, clientFor, maxRows: 50, tasks: reminders }, id);
     },
     setRelayUrl(url) {
       if (googleOAuth) googleOAuth.relayUrl = url;

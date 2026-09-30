@@ -260,6 +260,7 @@ export function Today({
                           <Popover
                             label={`Snooze ${t.title} — ${t.leadName}`}
                             trigger="Snooze"
+                            triggerLabel={`Snooze ${t.title} — ${t.leadName}`}
                             triggerClassName={s.act}
                             role="menu"
                             align="end"

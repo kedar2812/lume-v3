@@ -170,6 +170,24 @@
   outline: 0;
   transition: background 0.15s;
 }
+/* Arrived while the centre is open: an accent wash that settles over 5 s (as a new lead's row), no motion. */
+.item[data-arrived] {
+  animation: arrivalWash 5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes arrivalWash {
+  0% {
+    background: rgba(var(--accent-rgb), 0);
+  }
+  8% {
+    background: rgba(var(--accent-rgb), 0.12);
+  }
+  45% {
+    background: rgba(var(--accent-rgb), 0.08);
+  }
+  100% {
+    background: rgba(var(--accent-rgb), 0);
+  }
+}
 .item + .item {
   margin-top: 2px;
 }

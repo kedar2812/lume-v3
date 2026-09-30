@@ -717,6 +717,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   <>
                     <NoteComposer onAdd={addNote} disabled={!lead.can.edit} />
                     <Timeline
+                      tz={tz}
                       items={notes}
                       catalog={catalog}
                       hasMore={activities.hasMore}
@@ -727,6 +728,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                 )}
                 {tab === "history" && (
                   <Timeline
+                    tz={tz}
                     items={history}
                     catalog={catalog}
                     hasMore={activities.hasMore}

@@ -100,18 +100,30 @@ export async function runDigests(d: DigestDeps, now: Date = new Date()): Promise
   return mailed;
 }
 
-/** One person's digest, if it's their time and it hasn't gone today. True when a mail went. */
+/** Runs are 15 minutes apart: a digest time in the day's last quarter hour is caught just after midnight. */
+const CATCH_UP_MS = 30 * 60_000;
+
+/** The day whose digest is due now: today's once its time has come, else yesterday's if it was just missed. */
+function dueDay(prefs: { digestTime: string; workingDays: number[] }, now: Date, tz: string) {
+  const w = wall(now, tz);
+  if (w.time >= prefs.digestTime) return prefs.workingDays.includes(w.weekday) ? w : null;
+  const y = wall(new Date(now.getTime() - CATCH_UP_MS), tz);
+  if (y.date !== w.date && y.time < prefs.digestTime && prefs.workingDays.includes(y.weekday)) return y;
+  return null;
+}
+
+/** One person's digest, if it's their time and it hasn't gone that day. True when a mail went. */
 async function digestFor(d: DigestDeps, u: Person, businessName: string, now: Date): Promise<boolean> {
   const prefs = mergePreferences(u.preferences, {});
-  const w = wall(now, u.tz);
-  if (!prefs.alerts.emailDigest || !prefs.workingDays.includes(w.weekday) || w.time < prefs.digestTime)
-    return false;
+  if (!prefs.alerts.emailDigest) return false;
+  const w = dueDay(prefs, now, u.tz);
+  if (!w) return false;
   const done = await d.pool.query("SELECT 1 FROM digest_runs WHERE user_id = $1 AND local_date = $2", [
     u.id,
     w.date,
   ]);
   if (done.rowCount) return false;
-  const items = await build(d.pool, u, now);
+  const items = await build(d.pool, u, now, d.publicUrl.replace(/\/$/, ""));
   const count = items.overdue.length + items.today.length + items.assigned + (items.admin ? 1 : 0);
   // Claim the day before sending: two runs at once (a slow mail server, two API processes) send once
   // (3B final review, Important 1). A send that fails gives the day back, so the next run tries again.
@@ -128,6 +140,7 @@ async function digestFor(d: DigestDeps, u: Person, businessName: string, now: Da
         businessName,
         url: `${d.publicUrl.replace(/\/$/, "")}/today`,
         ...items,
+        localHour: Number(wall(now, u.tz).time.slice(0, 2)),
       }),
     );
   } catch (err) {
@@ -138,9 +151,16 @@ async function digestFor(d: DigestDeps, u: Person, businessName: string, now: Da
 }
 
 /** What goes in one person's digest, read as them (their own lead scope). */
-async function build(pool: pg.Pool, u: Person, now: Date) {
+async function build(pool: pg.Pool, u: Person, now: Date, base: string) {
+  const leadUrl = (id: string) => `${base}/leads?lead=${encodeURIComponent(id)}`;
   const actor = await loadActor(pool, u.id);
-  const empty = { overdue: [] as DigestItem[], today: [] as DigestItem[], assigned: 0, admin: null };
+  const empty = {
+    overdue: [] as DigestItem[],
+    today: [] as DigestItem[],
+    assigned: 0,
+    assignedLeads: [] as { who: string; url: string }[],
+    admin: null,
+  };
   if (!actor) return empty;
   const client = await pool.connect();
   try {
@@ -150,8 +170,8 @@ async function build(pool: pg.Pool, u: Person, now: Date) {
     // Overdue and later today, each with its own room: a long overdue list never hides today's.
     const list = async (from: Date | null, to: Date) =>
       (
-        await client.query<{ lead: string; title: string; due_at: Date }>(
-          `SELECT l.name AS lead, t.title, t.due_at FROM tasks t JOIN leads l ON l.id = t.lead_id
+        await client.query<{ lead: string; lead_id: string; title: string; due_at: Date }>(
+          `SELECT l.name AS lead, l.id AS lead_id, t.title, t.due_at FROM tasks t JOIN leads l ON l.id = t.lead_id
             WHERE t.assignee_id = $1 AND t.status = 'open' AND l.deleted_at IS NULL
               AND t.due_at < $3 AND ($2::timestamptz IS NULL OR t.due_at >= $2)
             ORDER BY t.due_at LIMIT 25`,
@@ -162,11 +182,13 @@ async function build(pool: pg.Pool, u: Person, now: Date) {
       who: first(t.lead),
       what: withoutContacts(t.title),
       when: t.due_at >= start ? clock(t.due_at, u.tz) : dayAndClock(t.due_at, u.tz, now), // the day only when not today
+      url: leadUrl(t.lead_id),
     }));
     const today = (await list(now, end)).map((t) => ({
       who: first(t.lead),
       what: withoutContacts(t.title),
       when: clock(t.due_at, u.tz),
+      url: leadUrl(t.lead_id),
     }));
     const since =
       (
@@ -184,6 +206,16 @@ async function build(pool: pg.Pool, u: Person, now: Date) {
         )
       ).rows[0]!.n,
     );
+    // The first five by name (first names only), each a link; the rest are counted.
+    const assignedLeads = (
+      await client.query<{ id: string; name: string }>(
+        `SELECT l.id, l.name FROM leads l
+          WHERE l.deleted_at IS NULL AND l.id IN (
+            SELECT h.lead_id FROM lead_assignment_history h WHERE h.to_user_id = $1 AND h.changed_at > $2)
+          ORDER BY l.created_at DESC LIMIT 5`,
+        [u.id, since],
+      )
+    ).rows.map((l) => ({ who: first(l.name), url: leadUrl(l.id) }));
     let admin: { unassigned: number; sources: string[] } | null = null;
     if (can(actor, "leads.view", "all")) {
       const unassigned = Number(
@@ -200,7 +232,7 @@ async function build(pool: pg.Pool, u: Person, now: Date) {
       if (unassigned || sources.length) admin = { unassigned, sources };
     }
     await client.query("COMMIT");
-    return { overdue, today, assigned, admin };
+    return { overdue, today, assigned, assignedLeads, admin };
   } catch (e) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw e;

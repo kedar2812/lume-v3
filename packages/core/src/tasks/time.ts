@@ -83,6 +83,12 @@ const at = (l: Pick<Local, "y" | "m" | "d">, hh: number, mm: number, tz: string)
   wallTime(l.y, l.m, l.d, hh, mm, tz);
 const weekday = (l: Pick<Local, "y" | "m" | "d">) => new Date(Date.UTC(l.y, l.m - 1, l.d)).getUTCDay();
 
+/** The same wall-clock time `days` later in `tz`: "in 2 days" across a clock change keeps 09:15 at 09:15. */
+function sameClockIn(now: Date, days: number, tz: string): Date {
+  const l = local(now, tz);
+  return at(addDays(l, days), l.hh, l.mm, tz);
+}
+
 export function dueFromPreset(p: DuePreset, now: Date, tz: string): Date {
   const today = local(now, tz);
   switch (p) {
@@ -91,7 +97,7 @@ export function dueFromPreset(p: DuePreset, now: Date, tz: string): Date {
     case "in_3h":
       return new Date(now.getTime() + 3 * HOUR);
     case "in_2d":
-      return new Date(now.getTime() + 48 * HOUR);
+      return sameClockIn(now, 2, tz);
     case "tomorrow_10":
       return at(addDays(today, 1), 10, 0, tz);
     case "next_monday":
@@ -123,7 +129,10 @@ const UNIT_MS = { minute: MIN, hour: HOUR, day: 24 * HOUR } as const;
 
 export function dueFromPresetDef(def: DuePresetDef, now: Date, tz: string): Date {
   const r = def.rule;
-  if ("in" in r) return new Date(now.getTime() + r.in.n * UNIT_MS[r.in.unit]);
+  if ("in" in r)
+    return r.in.unit === "day"
+      ? sameClockIn(now, r.in.n, tz)
+      : new Date(now.getTime() + r.in.n * UNIT_MS[r.in.unit]);
   const today = local(now, tz);
   if ("at" in r) {
     const [hh, mm] = hhmm(r.at.time);

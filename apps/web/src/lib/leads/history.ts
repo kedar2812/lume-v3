@@ -15,7 +15,8 @@ const by = (a: Activity) => (a.user ? `by ${a.user.name}` : undefined);
 const join = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(" · ") || undefined;
 
 /** One event in plain words. Unknown types still render ("Updated"), so a newer API never breaks the drawer. */
-export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
+/** `tz`: the person's own zone (their times read in it, wherever the browser is); none, the browser's. */
+export function describeActivity(a: Activity, cat: Catalog, tz?: string): HistoryLine {
   const p = a.payload ?? {};
   switch (a.type) {
     case "stage_changed": {
@@ -93,10 +94,10 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
     }
     case "note":
       return { title: "Note", detail: by(a), tone: "neutral", quote: String(p.body ?? "") };
-    // Follow-ups (Phase 3): what, and for when, in this browser's time.
+    // Follow-ups (Phase 3): what, and for when, in the person's own time.
     case "follow_up_set":
     case "follow_up_changed": {
-      const due = typeof p.dueAt === "string" ? dueWords(p.dueAt) : undefined;
+      const due = typeof p.dueAt === "string" ? dueWords(p.dueAt, tz) : undefined;
       return {
         title: a.type === "follow_up_set" ? "Follow-up set" : "Follow-up moved",
         detail: join([p.title ? `“${String(p.title)}”` : "", due ?? ""].filter(Boolean).join(", "), by(a)),
@@ -117,7 +118,7 @@ export function describeActivity(a: Activity, cat: Catalog): HistoryLine {
       };
     // LUME's own work (3C): a stage's automations, and leads gone quiet.
     case "automation":
-      return automationLine(p, cat);
+      return automationLine(p, cat, tz);
     default:
       return { title: "Updated", detail: by(a), tone: "neutral" };
   }
@@ -129,10 +130,10 @@ const WHY: Record<string, string> = {
   already_open: "one from this stage is still open",
   nobody: "there was no one to tell",
 };
-function automationLine(p: Record<string, unknown>, cat: Catalog): HistoryLine {
+function automationLine(p: Record<string, unknown>, cat: Catalog, tz?: string): HistoryLine {
   const done = p.result === "done";
   const quoted = p.title ? `“${String(p.title)}”` : undefined;
-  const due = typeof p.dueAt === "string" ? dueWords(p.dueAt) : undefined;
+  const due = typeof p.dueAt === "string" ? dueWords(p.dueAt, tz) : undefined;
   switch (p.rule) {
     case "no_touch":
       return { title: `LUME set a follow-up: no contact for ${Number(p.days ?? 0)} days`, tone: "accent" };
@@ -169,8 +170,9 @@ function automationLine(p: Record<string, unknown>, cat: Catalog): HistoryLine {
   }
 }
 
-const dueWords = (iso: string) =>
+const dueWords = (iso: string, tz?: string) =>
   new Intl.DateTimeFormat("en-GB", {
+    ...(tz ? { timeZone: tz } : {}),
     day: "numeric",
     month: "short",
     year: "numeric",

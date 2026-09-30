@@ -30,9 +30,12 @@ const plural = (k: number, one: string, many: string) => (k === 1 ? `1 ${one}` :
  * running, morning emails going, sources syncing, backups restorable — read from what LUME already writes
  * down. Names no lead and no contact: only counts, times, and the names of sources.
  */
+/** After a start, this long for the sweeper to catch up before late reminders mean a stopped engine. */
+const SETTLE_MS = 5 * 60_000;
+
 export async function readHealth(
   db: Q,
-  o: { now?: Date; lastSweepAt?: () => Date | null } = {},
+  o: { now?: Date; lastSweepAt?: () => Date | null; startedAt?: Date } = {},
 ): Promise<Health> {
   const now = o.now ?? new Date();
   const { rows: s } = await db.query<{ tz: string; f: unknown; created_at: Date }>(
@@ -95,7 +98,9 @@ export async function readHealth(
 
   const problems: Problem[] = [];
   const late = n(reminders.late);
-  if (late)
+  // Just started (after an outage), the sweeper is still catching up: late ones then aren't a stopped engine.
+  const settling = !!o.startedAt && now.getTime() - o.startedAt.getTime() < SETTLE_MS;
+  if (late && !settling)
     problems.push({
       key: "reminders_late",
       words: `${plural(late, "reminder is", "reminders are")} late: the follow-up engine may have stopped. Restart LUME's API.`,
@@ -180,10 +185,15 @@ export async function opsAlerts(
     mailer?: Mailer;
     publicUrl?: string;
     lastSweepAt?: () => Date | null;
+    startedAt?: Date;
   },
   now: Date = new Date(),
 ): Promise<number> {
-  const h = await readHealth(o.pool, { now, ...(o.lastSweepAt ? { lastSweepAt: o.lastSweepAt } : {}) });
+  const h = await readHealth(o.pool, {
+    now,
+    ...(o.lastSweepAt ? { lastSweepAt: o.lastSweepAt } : {}),
+    ...(o.startedAt ? { startedAt: o.startedAt } : {}),
+  });
   if (!h.problems.length) return 0;
   const { rows: s } = await o.pool.query<{ tz: string; business_name: string }>(
     "SELECT timezone AS tz, business_name FROM settings WHERE id = 1",

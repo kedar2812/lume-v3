@@ -45,6 +45,19 @@ describe("dueFromPreset", () => {
     expect(dueFromPreset("in_2d", now, DUBAI).toISOString()).toBe("2026-09-30T08:15:00.000Z");
   });
 
+  it("in 2 days is the same clock time two days on, even across a clock change", () => {
+    // Friday 23 Oct 2026 09:15 in London (BST); the clocks go back on Sunday 25 Oct.
+    const fri = at("2026-10-23T08:15:00Z");
+    expect(dueFromPreset("in_2d", fri, LONDON).toISOString()).toBe("2026-10-25T09:15:00.000Z");
+    expect(
+      dueFromPresetDef(
+        { id: "x", label: "In 3 days", rule: { in: { n: 3, unit: "day" } } },
+        fri,
+        LONDON,
+      ).toISOString(),
+    ).toBe("2026-10-26T09:15:00.000Z");
+  });
+
   it("tomorrow 10:00 is 10:00 in each person's own day", () => {
     expect(dueFromPreset("tomorrow_10", now, DUBAI).toISOString()).toBe("2026-09-29T06:00:00.000Z");
     expect(dueFromPreset("tomorrow_10", now, KOLKATA).toISOString()).toBe("2026-09-29T04:30:00.000Z");

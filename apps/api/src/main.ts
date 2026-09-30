@@ -100,6 +100,7 @@ const sheetQueue =
         google,
         clientFor: oauthClientFor(googleOAuth, cfg.LUME_GOOGLE_ENDPOINT),
         maxRows: cfg.LUME_SHEETS_MAX_ROWS,
+        tasks, // filled in once the follow-up queue is running, below
       })
     : null;
 if (sheetQueue) sheets.enqueue = sheetQueue.enqueue;
@@ -108,6 +109,7 @@ const webhookQueue = await startWebhookQueue({
   app,
   pool: jobPool,
   keyring,
+  tasks, // filled in once the follow-up queue is running, below
 });
 webhooks.enqueue = webhookQueue.enqueue;
 const taskQueue = await startTaskQueue({
@@ -119,6 +121,7 @@ const taskQueue = await startTaskQueue({
 });
 tasks.enqueue = taskQueue.enqueue;
 tasks.lastSweepAt = taskQueue.lastSweepAt;
+tasks.startedAt = taskQueue.startedAt;
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 // At start and every 6 hours (licensing L-A); the state is enforced from the database meanwhile.
 app.licence.start();

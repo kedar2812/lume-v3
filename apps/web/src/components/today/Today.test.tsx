@@ -204,4 +204,13 @@ describe("Today", () => {
       "/settings/integrations/s1",
     );
   });
+
+  it("each row's Snooze says whose follow-up it is (not five buttons all called Snooze)", async () => {
+    vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
+    render(<Today name="Maya Kapoor" tz="Asia/Dubai" />);
+    const snoozes = await screen.findAllByRole("button", { name: /^Snooze/ });
+    const names = snoozes.map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((n) => /^Snooze .+ — .+/.test(n ?? ""))).toBe(true);
+  });
 });

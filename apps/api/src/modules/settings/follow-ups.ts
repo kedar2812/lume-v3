@@ -17,7 +17,11 @@ export type FollowUpSettings = {
   /** The morning email, for the whole business (3B final review). */
   digest: { enabled: boolean };
   /** Leads gone quiet: a follow-up for the owner after this many days without contact (3C). */
-  noTouch: { enabled: boolean; days: number };
+  /**
+   * `from`: when it was switched on (ISO). Leads already quiet then don't all come back at once; a lead
+   * counts once it goes quiet after this (as escalation starts from when it's switched on).
+   */
+  noTouch: { enabled: boolean; days: number; from?: string };
   /** Follow-ups LUME sets itself land inside working hours (report §10.2). */
   shiftToWorkingHours: boolean;
   /** The time choices people pick from when they set a follow-up (report §10.2). */
@@ -37,7 +41,10 @@ export const followUpsBody = z
   .object({
     escalation: z.object({ enabled: z.boolean(), hours: z.number().int().min(1).max(168) }).strict(),
     digest: z.object({ enabled: z.boolean() }).strict(),
-    noTouch: z.object({ enabled: z.boolean(), days: z.number().int().min(1).max(90) }).strict(),
+    // `from` may come back as read; LUME sets it itself when it's switched on.
+    noTouch: z
+      .object({ enabled: z.boolean(), days: z.number().int().min(1).max(90), from: z.string().optional() })
+      .strict(),
     shiftToWorkingHours: z.boolean(),
     duePresets: duePresetsSchema,
   })

@@ -5,7 +5,8 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
-import { missedSince, startHub, type NotificationView } from "./hub";
+import { onSessionsRevoked } from "../../auth/sessions";
+import { missedSince, startHub, streamWriter, type NotificationView } from "./hub";
 
 const N = schema.notifications;
 const self = { permission: "auth.self" as const };
@@ -97,8 +98,16 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         connection: "keep-alive",
         "x-accel-buffering": "no",
       });
-      res.write("retry: 3000\n: connected\n\n");
+      const write = streamWriter(res);
+      write("retry: 3000\n: connected\n\n");
       open.add(res);
+      // The session this stream was opened with ends (signed out, revoked): so does the stream.
+      const sessionId = req.session?.id;
+      const offRevoked = onSessionsRevoked((r) => {
+        const mine =
+          "sessionId" in r ? r.sessionId === sessionId : r.userId === userId && r.exceptId !== sessionId;
+        if (mine) res.end();
+      });
       // Each id once, whatever order they commit in (Important 3). Bounded: the oldest are forgotten first.
       const sent = new Set<number>();
       let high = lastSeen;
@@ -107,7 +116,7 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         sent.add(n.id);
         if (sent.size > SENT_MAX) sent.delete(sent.values().next().value!);
         high = Math.max(high, n.id);
-        res.write(`id: ${n.id}\nevent: notification\ndata: ${JSON.stringify(n)}\n\n`);
+        write(`id: ${n.id}\nevent: notification\ndata: ${JSON.stringify(n)}\n\n`);
       };
       let replaying = true;
       const waiting: NotificationView[] = [];
@@ -119,14 +128,14 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         (n) => (replaying ? waiting.push(n) : send(n)),
         () => void replay(high).catch(() => undefined),
       );
-      const beat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
+      const beat = setInterval(() => write(": ping\n\n"), HEARTBEAT_MS);
       // Leads changed (4B): the first at once, then at most one trailing per window. No id, so the
       // browser's Last-Event-ID stays the notifications'; no data, so nothing about whose or which.
       let lastLeads = 0;
       let trailing: NodeJS.Timeout | undefined;
       const sayLeads = () => {
         lastLeads = Date.now();
-        res.write("event: leads\ndata: {}\n\n");
+        write("event: leads\ndata: {}\n\n");
       };
       const offLeads = hub.onLeads(() => {
         const wait = lastLeads + LEADS_EVERY_MS - Date.now();
@@ -137,6 +146,7 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         }, wait);
       });
       req.raw.on("close", () => {
+        offRevoked();
         clearInterval(beat);
         clearTimeout(trailing);
         offLeads();

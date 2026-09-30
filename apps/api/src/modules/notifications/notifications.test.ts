@@ -183,6 +183,41 @@ describe("3A final review", () => {
     expect(text).toContain("During the restart");
   });
 
+  it("signing out ends that session's open stream (it doesn't outlive the session)", async () => {
+    const u = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }], totp: true });
+    const c = await h.signIn(u);
+    const ac = new AbortController();
+    const res = await fetch(`${base}/api/v1/stream`, { headers: { cookie: cookie(c) }, signal: ac.signal });
+    const reader = res.body!.getReader();
+    await reader.read(); // connected
+    await c.inject({ method: "POST", url: "/api/v1/auth/logout" });
+    const ended = await Promise.race([
+      (async () => {
+        for (;;) if ((await reader.read()).done) return true;
+      })(),
+      new Promise<false>((r) => setTimeout(() => r(false), 3000)),
+    ]);
+    ac.abort();
+    expect(ended).toBe(true);
+  });
+
+  it("a browser that stops reading is let go rather than piled up in memory", async () => {
+    const { streamWriter } = await import("./hub");
+    const chunks: string[] = [];
+    let ended = false;
+    const res = {
+      writableLength: 0,
+      write: (c: string) => (chunks.push(c), true),
+      end: () => void (ended = true),
+    };
+    const write = streamWriter(res, 1024);
+    expect(write("a")).toBe(true);
+    res.writableLength = 2048; // the socket isn't taking what's sent
+    expect(write("b")).toBe(false);
+    expect(ended).toBe(true);
+    expect(chunks).toEqual(["a"]);
+  });
+
   it("Important 6: an open stream never holds up the API shutting down", async () => {
     const other = await createHarness({ preset: "general" });
     const u = await other.seedUser({ grants: [{ key: "leads.view", scope: "own" }], totp: true });

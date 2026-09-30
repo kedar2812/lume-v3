@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { AppDeps } from "../../app";
 import type { FastifyInstance } from "fastify";
 import type pg from "pg";
 import { can, type Keyring, type Mapping, type Rules } from "@lume/core";
@@ -19,7 +20,13 @@ const CELL_MAX = 10_000;
 const NEW_PER_POST = 50;
 const NEW_MAX = 100;
 
-export type ProcessDeps = { app: FastifyInstance; pool: pg.Pool; keyring: Keyring };
+export type ProcessDeps = {
+  app: FastifyInstance;
+  pool: pg.Pool;
+  keyring: Keyring;
+  /** Where a follow-up's reminder is queued (a rule's follow-up is armed at once, not left to the sweeper). */
+  tasks?: AppDeps["tasks"];
+};
 export const eventContext = (sourceId: string, eventKey: string) => `webhook-event:${sourceId}:${eventKey}`;
 type Problem = { column: number | null; code: string; message: string };
 type Db = NodePgDatabase<typeof schema>;
@@ -154,7 +161,7 @@ export async function processEvent(o: ProcessDeps, eventId: number): Promise<voi
         ctx,
         cells: row,
         origin: { sourceId: src.id, webhook: src.name, event: eventId },
-        automations: { pool: o.pool }, // a live enquiry: its stage's automations run (3C)
+        automations: { pool: o.pool, tasks: o.tasks }, // a live enquiry: its stage's automations run (3C)
         nextTurn: async () => {
           const { rows: t } = await req.db.execute<{ n: number }>(
             sql`UPDATE lead_sources SET rr_cursor = rr_cursor + 1 WHERE id = ${src.id} RETURNING rr_cursor - 1 AS n`,

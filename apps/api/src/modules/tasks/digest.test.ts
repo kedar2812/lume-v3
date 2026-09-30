@@ -197,4 +197,41 @@ describe("the daily digest: 3B final review", () => {
     await run("2026-10-12T03:30:00Z");
     expect(to(u.email)).toHaveLength(1);
   });
+
+  it("each item leads to its lead in LUME, and new leads for you are named (first names)", async () => {
+    const u = await person("Asia/Kolkata");
+    const given = await h.seedLead({ ownerId: u.id, name: "Ravi Mehta" });
+    await h.queryAll(
+      "INSERT INTO lead_assignment_history (lead_id, to_user_id, changed_at) VALUES ($1, $2, '2026-10-05T01:00:00Z')",
+      [given, u.id],
+    );
+    await run("2026-10-05T03:00:00Z"); // Monday 08:30 in Kolkata
+    const [m] = to(u.email);
+    expect(m!.text).toContain(`https://crm.example.test/leads?lead=${u.lead}`);
+    expect(m!.html).toContain(`href="https://crm.example.test/leads?lead=${u.lead}"`);
+    expect(m!.text).toMatch(/New for you\n- Ravi/);
+    expect(m!.text).not.toContain("Mehta");
+  });
+
+  it("a digest time in the last quarter hour of the day still goes, just after midnight", async () => {
+    const u = await person("Asia/Kolkata");
+    await h.ownerPool.query(
+      `UPDATE users SET preferences = preferences || '{"digestTime":"23:50"}'::jsonb WHERE id = $1`,
+      [u.id],
+    );
+    await run("2026-10-06T18:15:00Z"); // Tuesday 23:45 in Kolkata: not yet
+    expect(to(u.email)).toHaveLength(0);
+    await run("2026-10-06T18:30:00Z"); // Wednesday 00:00: Tuesday's, which the 15-minute runs stepped over
+    expect(to(u.email)).toHaveLength(1);
+    await run("2026-10-06T18:45:00Z");
+    expect(to(u.email)).toHaveLength(1);
+  });
+
+  it("a digest that goes late in the day doesn't say good morning", async () => {
+    const u = await person("Asia/Kolkata");
+    await run("2026-10-08T08:30:00Z"); // Thursday 14:00 in Kolkata (LUME was down all morning)
+    const [m] = to(u.email);
+    expect(m!.text).toMatch(/^Good afternoon, /);
+    expect(m!.text).not.toContain("Good morning");
+  });
 });

@@ -332,4 +332,15 @@ describe("the notification centre: 3C", () => {
     expect(push).toHaveBeenCalledWith("/settings/health");
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("one that arrives while it's open is washed in the accent for a moment", async () => {
+    await open();
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({ items: [note(9, "lead_assigned", "Nadia Rahman was assigned to you"), ...updates], unread: 2 }),
+    );
+    await act(async () => live?.(note(9, "lead_assigned", "Nadia Rahman was assigned to you")));
+    const row = await screen.findByRole("listitem", { name: /Nadia Rahman/ });
+    expect(row).toHaveAttribute("data-arrived");
+    expect(screen.getByRole("listitem", { name: /Karim Aziz/ })).not.toHaveAttribute("data-arrived");
+  });
 });

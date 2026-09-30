@@ -98,11 +98,26 @@ export async function readSession(
   };
 }
 
+/**
+ * Said in this process when sessions end (a sign-out, a revoke, a password reset), so what's held open for
+ * them — a live stream — ends too, rather than outliving its session until it reconnects.
+ */
+type Revoked = { sessionId: string } | { userId: string; exceptId?: string };
+const revokedListeners = new Set<(r: Revoked) => void>();
+export function onSessionsRevoked(listener: (r: Revoked) => void): () => void {
+  revokedListeners.add(listener);
+  return () => void revokedListeners.delete(listener);
+}
+const sayRevoked = (r: Revoked) => {
+  for (const l of revokedListeners) l(r);
+};
+
 export async function revokeSession(db: Db, id: string, reason: string, now: Date): Promise<void> {
   await db
     .update(schema.sessions)
     .set({ revokedAt: now, revokedReason: reason })
     .where(and(eq(schema.sessions.id, id), isNull(schema.sessions.revokedAt)));
+  sayRevoked({ sessionId: id });
 }
 
 export async function revokeUserSessions(
@@ -114,6 +129,7 @@ export async function revokeUserSessions(
 ): Promise<number> {
   const where = [eq(schema.sessions.userId, userId), isNull(schema.sessions.revokedAt)];
   if (exceptId) where.push(ne(schema.sessions.id, exceptId));
+  sayRevoked(exceptId ? { userId, exceptId } : { userId });
   const res = await db
     .update(schema.sessions)
     .set({ revokedAt: now, revokedReason: reason })

@@ -68,7 +68,7 @@ export function lockoutMail(a: {
   };
 }
 
-export type DigestItem = { who: string; what: string; when: string };
+export type DigestItem = { who: string; what: string; when: string; url?: string };
 
 /**
  * The daily digest (report §10.7): lead first names and times only, never a phone number or email; every
@@ -82,17 +82,38 @@ export function digestMail(a: {
   overdue: DigestItem[];
   today: DigestItem[];
   assigned: number;
+  /** The leads assigned (first names, each with its link), the first few of `assigned`. */
+  assignedLeads?: { who: string; url: string }[];
   admin: { unassigned: number; sources: string[] } | null;
+  /** The hour it goes, on the person's clock: a late one isn't "Good morning". */
+  localHour?: number;
 }): OutgoingMail {
-  const line = (i: DigestItem) => `${i.who}: ${i.what} (${i.when})`;
-  const sections: { title: string; lines: string[] }[] = [];
+  type Line = { text: string; url?: string };
+  const line = (i: DigestItem): Line => ({
+    text: `${i.who}: ${i.what} (${i.when})`,
+    ...(i.url ? { url: i.url } : {}),
+  });
+  const sections: { title: string; lines: Line[] }[] = [];
   if (a.overdue.length) sections.push({ title: "Overdue", lines: a.overdue.map(line) });
   if (a.today.length) sections.push({ title: "Today", lines: a.today.map(line) });
-  if (a.assigned)
+  if (a.assigned) {
+    const named = a.assignedLeads ?? [];
+    const rest = a.assigned - named.length;
     sections.push({
       title: "New for you",
-      lines: [a.assigned === 1 ? "1 lead was assigned to you" : `${a.assigned} leads were assigned to you`],
+      lines: named.length
+        ? [
+            ...named.map((l) => ({ text: l.who, url: l.url })),
+            ...(rest > 0 ? [{ text: `and ${rest} more` }] : []),
+          ]
+        : [
+            {
+              text:
+                a.assigned === 1 ? "1 lead was assigned to you" : `${a.assigned} leads were assigned to you`,
+            },
+          ],
     });
+  }
   if (a.admin) {
     const lines: string[] = [];
     if (a.admin.unassigned)
@@ -102,25 +123,38 @@ export function digestMail(a: {
           : `${a.admin.unassigned} new leads have no one yet`,
       );
     for (const s of a.admin.sources) lines.push(`${s} needs attention`);
-    if (lines.length) sections.push({ title: "Needs you", lines });
+    if (lines.length) sections.push({ title: "Needs you", lines: lines.map((text) => ({ text })) });
   }
   const due = a.overdue.length + a.today.length;
   const subject =
     due === 0
       ? `Your day at ${a.businessName}`
       : `${due} follow-up${due === 1 ? "" : "s"} today${a.overdue.length ? `, ${a.overdue.length} overdue` : ""}`;
+  const hour = a.localHour ?? 8;
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const text = [
-    `Good morning, ${a.firstName}.`,
-    ...sections.map((s) => `\n${s.title}\n${s.lines.map((l) => `- ${l}`).join("\n")}`),
+    `${greeting}, ${a.firstName}.`,
+    ...sections.map(
+      (s) => `\n${s.title}\n${s.lines.map((l) => `- ${l.text}${l.url ? ` ${l.url}` : ""}`).join("\n")}`,
+    ),
     `\nOpen Today in LUME: ${a.url}`,
   ].join("\n");
   const html = layout(
-    `Good morning, ${esc(a.firstName)}`,
+    `${greeting}, ${esc(a.firstName)}`,
     sections
       .map(
         (s) =>
           `<div style="margin-top:14px;font-weight:650;color:#0A0C11">${esc(s.title)}</div>` +
-          s.lines.map((l) => `<div style="margin-top:4px">${esc(l)}</div>`).join(""),
+          s.lines
+            .map(
+              (l) =>
+                `<div style="margin-top:4px">${
+                  l.url
+                    ? `<a href="${esc(l.url)}" style="color:#2A5BFF;text-decoration:none">${esc(l.text)}</a>`
+                    : esc(l.text)
+                }</div>`,
+            )
+            .join(""),
       )
       .join(""),
     { label: "Open Today", url: a.url },

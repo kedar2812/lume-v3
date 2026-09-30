@@ -79,6 +79,27 @@ describe("System health (3C Task 5)", () => {
     expect((await health()).followUps).toMatchObject({ late: 0, firedToday: 2 });
   });
 
+  it("just after LUME starts, reminders it's still catching up on aren't called late", async () => {
+    const lead = await h.seedLead({ ownerId: adminId, name: "Caught Up" });
+    const task = newId();
+    await h.queryAll(
+      "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Call', now() - interval '3 hours', $1)",
+      [task, lead, adminId],
+    );
+    await h.queryAll(
+      "INSERT INTO scheduled_notifications (task_id, offset_minutes, fire_at, status) VALUES ($1, 0, now() - interval '3 hours', 'pending')",
+      [task],
+    );
+    const keys = async (startedAt: Date) =>
+      (await readHealth(h.pool, { startedAt })).problems.map((p) => p.key);
+    expect(await keys(new Date(Date.now() - 60_000))).not.toContain("reminders_late");
+    expect(await keys(new Date(Date.now() - 10 * 60_000))).toContain("reminders_late");
+    await h.queryAll(
+      "UPDATE scheduled_notifications SET status = 'fired', fired_at = now() WHERE task_id = $1",
+      [task],
+    );
+  });
+
   it("morning emails that keep failing, a source that needs attention, and a failed restore test", async () => {
     // A failed send is written down (no names), and counted.
     const broken = { send: async () => Promise.reject(new Error("SMTP down")) };

@@ -16,7 +16,10 @@ export function Timeline({
   hasMore,
   onMore,
   empty,
+  tz,
 }: {
+  /** The person's own zone: follow-up times in the history read in it. */
+  tz?: string;
   items: Activity[];
   catalog: Catalog;
   hasMore: boolean;
@@ -28,7 +31,7 @@ export function Timeline({
     <>
       <ol className={s.tl}>
         {items.map((a) => {
-          const line = describeActivity(a, catalog);
+          const line = describeActivity(a, catalog, tz);
           return (
             <li key={a.id} className={s.ti}>
               <span

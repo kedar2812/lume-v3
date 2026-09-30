@@ -155,4 +155,13 @@ describe("LUME's own work, in the lead's history (3C Task 6)", () => {
       "LUME set a follow-up: no contact for 7 days",
     );
   });
+
+  it("a follow-up's time reads in the person's own zone, not the browser's", () => {
+    const line = describeActivity(
+      a("follow_up_set", { title: "Call", dueAt: "2026-10-05T04:30:00Z" }),
+      cat,
+      "Asia/Kolkata",
+    );
+    expect(line.detail).toContain("10:00");
+  });
 });

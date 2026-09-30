@@ -127,7 +127,8 @@ export function FollowUpSettings({
         <h2 className={s.panelTitle}>Leads gone quiet</h2>
         <p className={s.muted}>
           A lead in an open stage that nobody has touched for a while comes back to its owner as a follow-up.
-          Never for a lead that already has one.
+          Never for a lead that already has one. It counts from when you switch it on, so leads already quiet
+          don't all arrive at once.
         </p>
       </div>
       <div className={s.panelBody}>

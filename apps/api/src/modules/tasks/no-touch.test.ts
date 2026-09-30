@@ -201,4 +201,19 @@ describe("leads gone quiet: 3C final review", () => {
     expect((await tasksOf(done)).filter((x) => x.status === "open")).toHaveLength(0);
     expect(await tasksOf(messaged)).toHaveLength(0);
   });
+
+  it("switched on in Settings, it brings back leads that go quiet from then on, not an old backlog", async () => {
+    const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+    const backlog = await quiet(40, { name: "Long Quiet" });
+    const soon = await quiet(6, { name: "Nearly Quiet" });
+    const on = await admin.inject({
+      method: "PUT",
+      url: "/api/v1/settings/follow-ups",
+      payload: { noTouch: { enabled: true, days: 7 } },
+    });
+    expect(on.statusCode).toBe(200);
+    await noTouch({ app: h.app, pool: h.pool }, new Date(Date.now() + 2 * 86_400_000));
+    expect(await tasksOf(backlog)).toHaveLength(0);
+    expect(await tasksOf(soon)).toHaveLength(1);
+  });
 });

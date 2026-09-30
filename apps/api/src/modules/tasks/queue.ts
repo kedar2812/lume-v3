@@ -52,6 +52,7 @@ export async function startTaskQueue(o: {
       );
   };
   let lastSweepAt: Date | null = null;
+  const startedAt = new Date();
   const sweepNow = async () => {
     try {
       const fired = await sweep(deps);
@@ -99,6 +100,7 @@ export async function startTaskQueue(o: {
               app: o.app,
               pool: o.pool,
               lastSweepAt: () => lastSweepAt,
+              startedAt,
               ...(o.digest ? { mailer: o.digest.mailer, publicUrl: o.digest.publicUrl } : {}),
             }),
           "system alerts failed",
@@ -115,6 +117,7 @@ export async function startTaskQueue(o: {
   return {
     enqueue,
     lastSweepAt: () => lastSweepAt,
+    startedAt,
     stop: async () => {
       clearInterval(timer);
       await boss.stop({ graceful: true, wait: true, timeout: 20_000 });

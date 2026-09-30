@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import PgBoss from "pg-boss";
 import type pg from "pg";
 import type { Keyring } from "@lume/core";
-import { processEvent } from "./process";
+import { processEvent, type ProcessDeps } from "./process";
 
 const SWEEP_MS = 60_000;
 const NOT_PROCESSED = [
@@ -47,6 +47,7 @@ export async function startWebhookQueue(o: {
   app: FastifyInstance;
   pool: pg.Pool;
   keyring: Keyring;
+  tasks?: ProcessDeps["tasks"];
 }) {
   const boss = new PgBoss({
     connectionString: o.connectionString,
@@ -62,7 +63,11 @@ export async function startWebhookQueue(o: {
     "webhooks.process",
     { batchSize: 1, pollingIntervalSeconds: 0.5 },
     async ([job]) => {
-      if (job) await processEvent({ app: o.app, pool: o.pool, keyring: o.keyring }, job.data.id);
+      if (job)
+        await processEvent(
+          { app: o.app, pool: o.pool, keyring: o.keyring, ...(o.tasks ? { tasks: o.tasks } : {}) },
+          job.data.id,
+        );
     },
   );
   // One job per post at a time: a sweep that finds a post already queued doesn't queue it twice.

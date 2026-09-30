@@ -24,6 +24,8 @@ const GROUPS: { id: GroupId; label: string }[] = [
   { id: "updates", label: "Updates" },
 ];
 /** Updates that are really asks (they sit under Needs you too). */
+/** How long an arrival's accent wash lasts (as a new lead's, spec §8.3). */
+const ARRIVAL_MS = 5000;
 const ASKS = new Set(["task_escalated", "follow_up_nudge", "follow_up_assigned", "system_alert"]);
 /** Due and soon reminders are the follow-ups themselves (shown from Today's list, not twice). */
 const REMINDERS = new Set(["follow_up_due", "follow_up_soon"]);
@@ -82,7 +84,22 @@ export function NotificationCentre({
   useEffect(() => {
     if (open) panel.current?.focus({ preventScroll: true });
   }, [open]);
-  useStream(() => {
+  // What arrives while it's open is washed in the accent for a moment (as new leads are), then settles.
+  const [arrived, setArrived] = useState<ReadonlySet<number>>(new Set());
+  useStream((n) => {
+    const id = (n as { id?: number } | undefined)?.id;
+    if (typeof id === "number") {
+      setArrived((cur) => new Set(cur).add(id));
+      setTimeout(
+        () =>
+          setArrived((cur) => {
+            const next = new Set(cur);
+            next.delete(id);
+            return next;
+          }),
+        ARRIVAL_MS,
+      );
+    }
     if (open) void load();
   });
 
@@ -319,6 +336,10 @@ export function NotificationCentre({
                           aria-label={label(e, tz)}
                           className={s.item}
                           data-read={(e.type === "task" ? e.unread.length === 0 : e.n.read) || undefined}
+                          data-arrived={
+                            (e.type === "task" ? e.unread : [e.n.id]).some((id) => arrived.has(id)) ||
+                            undefined
+                          }
                           initial={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}

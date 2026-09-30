@@ -68,6 +68,8 @@ describe("Settings → Follow-ups (3C Task 6)", () => {
     render(<FollowUpSettings initial={full} workingHours={hours} />);
     const days = screen.getByLabelText("After how many days");
     expect(days).toBeDisabled();
+    // Switched on, it looks ahead: what's already quiet doesn't all come back at once.
+    expect(screen.getByText(/from when you switch it on/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("switch", { name: "Bring back leads that have gone quiet" }));
     await userEvent.clear(days);
     await userEvent.type(days, "10");

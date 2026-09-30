@@ -48,6 +48,8 @@ export type SyncDeps = {
   /** A client for a sheet connected with Google (2B-2), from its grant. */
   clientFor?: (cfg: SheetConfig) => GoogleSheets | null;
   maxRows: number;
+  /** Where a follow-up's reminder is queued (a rule's follow-up is armed at once, not left to the sweeper). */
+  tasks?: AutomationDeps["tasks"];
   now?: () => Date;
   /** Tests only: called after each row is written (n counts from 1). */
   testHooks?: { afterRow?: (n: number) => Promise<void> };
@@ -535,7 +537,7 @@ async function syncSource(
               mapping,
               ctx,
               syncId,
-              ...(src.lastSyncedAt ? { automations: { pool: o.pool } } : {}),
+              ...(src.lastSyncedAt ? { automations: { pool: o.pool, tasks: o.tasks } } : {}),
             },
             t,
           ),

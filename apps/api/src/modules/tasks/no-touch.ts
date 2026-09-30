@@ -47,9 +47,12 @@ export async function noTouch(
           AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.lead_id = l.id AND t.status = 'open')
           AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.lead_id = l.id AND t.auto_rule_id = $3
                             AND t.created_at > $1::timestamptz - make_interval(days => $2))
+          -- Only leads that went quiet after it was switched on (Settings keeps when: noTouch.from).
+          AND ($5::timestamptz IS NULL
+               OR coalesce(l.last_activity_at, l.created_at) + make_interval(days => $2) >= $5::timestamptz)
         ORDER BY coalesce(l.last_activity_at, l.created_at)
         LIMIT $4`,
-      [now, rule.days, NO_TOUCH_RULE_ID, BATCH],
+      [now, rule.days, NO_TOUCH_RULE_ID, BATCH, rule.from ?? null],
     );
     const db = drizzle(client, { schema });
     const due = shift ? shiftToWorkingHours(now, workingHoursFrom(s[0]?.wh), s[0]?.tz ?? "UTC") : now;

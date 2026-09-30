@@ -90,6 +90,8 @@ export type AppDeps = {
     enqueue(reminders: { id: number; fireAt: Date }[]): Promise<void>;
     /** When the sweeper last ran (3C System health); set once the queue is running. */
     lastSweepAt?: () => Date | null;
+    /** When the follow-up queue started (health: a moment to catch up before "late" means stopped). */
+    startedAt?: Date;
   };
   /** LUME_MANYCHAT_PRESET=on: offer the ManyChat preset (hidden until verified, 2C spec §2). */
   manychatPreset?: boolean;
