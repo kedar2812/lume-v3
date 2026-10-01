@@ -104,8 +104,9 @@ describe("the bell: 3B final review", () => {
     render(<TopBar theme="system" onSearch={vi.fn()} />);
     await screen.findByRole("button", { name: "Notifications" });
     await act(async () => live?.({ id: 7, title: "Follow up — Aisha" }));
-    const said = screen.getByRole("status");
+    // Announced politely, without being a page "status" (the page's own statuses stay the only ones).
+    const said = screen.getByText("New notification: Follow up — Aisha");
     expect(said).toHaveAttribute("aria-live", "polite");
-    expect(said).toHaveTextContent("New notification: Follow up — Aisha");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

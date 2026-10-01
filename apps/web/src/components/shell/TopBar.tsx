@@ -105,7 +105,7 @@ export function TopBar({
         {unread > 0 && <span className={s.bellDot} aria-hidden />}
       </IconButton>
       <NotificationCentre open={open} onClose={close} tz={tz} canMessage={!!canMessage} />
-      <p role="status" aria-live="polite" className={s.srOnly}>
+      <p aria-live="polite" aria-atomic="true" className={s.srOnly}>
         {arrival}
       </p>
     </header>
