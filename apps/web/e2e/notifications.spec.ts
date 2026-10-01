@@ -75,7 +75,9 @@ test.describe("Notifications (3B)", () => {
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await reviewCopy(page.locator("main"), `settings-follow-ups-${theme}.png`);
-      await expect(page.locator("main")).toHaveScreenshot(`settings-follow-ups-${theme}.png`);
+      await expect(page.locator("main")).toHaveScreenshot(`settings-follow-ups-${theme}.png`, {
+        mask: [page.locator("[data-live-count]")],
+      });
       expect(await axe(page)).toEqual([]);
     }
     await page.emulateMedia({ colorScheme: "light" });

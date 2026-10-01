@@ -345,7 +345,8 @@ function Ring({ done, total, reduce }: { done: number; total: number; reduce: bo
   return (
     <div className={s.ring}>
       <div className={s.ringText}>
-        <span className={s.ringBig}>
+        {/* Its numbers change with the time of day: the visual checks mask them (data-live-count). */}
+        <span className={s.ringBig} data-live-count>
           {done} / {total}
         </span>
         <span className={s.ringCap}>cleared today</span>

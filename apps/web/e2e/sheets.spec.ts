@@ -129,7 +129,12 @@ test.describe("Google Sheets", () => {
       await openApp(page, `/settings/integrations/${sourceId}`);
       await expect(page.getByRole("table", { name: "Recent syncs" })).toBeVisible();
       await expect(page.locator("main")).toHaveScreenshot(`sheet-page-${theme}.png`, {
-        mask: [page.locator("td").first(), page.locator("dd").first(), page.locator("dd").nth(1)],
+        mask: [
+          page.locator("td").first(),
+          page.locator("dd").first(),
+          page.locator("dd").nth(1),
+          page.locator("[data-live-count]"),
+        ],
       });
     }
   });

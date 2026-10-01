@@ -102,7 +102,7 @@ export function TopBar({
         <motion.span animate={swing} style={{ display: "grid", transformOrigin: "50% 10%" }}>
           <Bell size={18} strokeWidth={1.8} aria-hidden />
         </motion.span>
-        {unread > 0 && <span className={s.bellDot} aria-hidden />}
+        {unread > 0 && <span className={s.bellDot} aria-hidden data-live-count />}
       </IconButton>
       <NotificationCentre open={open} onClose={close} tz={tz} canMessage={!!canMessage} />
       <p aria-live="polite" aria-atomic="true" className={s.srOnly}>

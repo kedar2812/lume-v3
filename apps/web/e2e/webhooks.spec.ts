@@ -142,7 +142,13 @@ test.describe("Webhooks", () => {
       await openApp(page, `/settings/integrations/webhooks/${id}`);
       await expect(page.getByRole("table", { name: "Recent posts" })).toBeVisible();
       await expect(page.locator("main")).toHaveScreenshot(`webhook-page-${theme}.png`, {
-        mask: [page.locator("td:first-child"), page.locator("dd").first(), page.locator("code")],
+        // The bell's dot and live counts follow the time of day: masked (data-live-count).
+        mask: [
+          page.locator("td:first-child"),
+          page.locator("dd").first(),
+          page.locator("code"),
+          page.locator("[data-live-count]"),
+        ],
       });
       expect(await axe(page)).toEqual([]);
     }

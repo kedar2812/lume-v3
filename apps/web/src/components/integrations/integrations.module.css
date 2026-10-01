@@ -272,6 +272,11 @@
   width: 100%;
   border-collapse: collapse;
   font-size: var(--fs-sm);
+  /* Columns keep their widths whatever a date's length ("1 Oct" or "30 Sep"). */
+  table-layout: fixed;
+}
+.table th:first-child {
+  width: 180px;
 }
 .table th {
   text-align: left;
