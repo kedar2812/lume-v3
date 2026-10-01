@@ -5,8 +5,12 @@ import { columnLetter } from "@lume/core";
 export type ServiceAccount = { clientEmail: string; privateKey: string; tokenUri: string };
 export type SheetTab = { sheetId: number; title: string; rowCount: number };
 export type SpreadsheetMeta = { title: string; tabs: SheetTab[] };
-/** access: this sheet isn't shared (or was unshared); setup: LUME's own Google key or project needs fixing. */
-export type GoogleErrorKind = "access" | "not_found" | "rate" | "unavailable" | "bad_request" | "setup";
+/**
+ * access: this sheet isn't shared (or was unshared); setup: LUME's own Google key or project needs fixing;
+ * gone: Google's 410 (a calendar's sync token expired: read it in full again).
+ */
+export type GoogleErrorKind =
+  "access" | "not_found" | "rate" | "unavailable" | "bad_request" | "setup" | "gone";
 
 /** Google's error reasons that mean "slow down", which Drive sends as 403 (not 429). */
 const RATE_REASONS = new Set([
@@ -197,21 +201,28 @@ export function relayTokens(o: {
 const relaySources = new Map<string, TokenSource>();
 const RELAY_SOURCES_MAX = 1000;
 
+/** The kept token source for one grant (a sheet's or a calendar's). */
+export function grantTokens(oauth: { relayUrl: string; relayToken: string }, grant: string): TokenSource {
+  const key = createHash("sha256").update(`${oauth.relayUrl}\n${oauth.relayToken}\n${grant}`).digest("hex");
+  let tokens = relaySources.get(key);
+  if (!tokens) {
+    if (relaySources.size >= RELAY_SOURCES_MAX) relaySources.delete(relaySources.keys().next().value!);
+    tokens = relayTokens({ ...oauth, refreshToken: grant });
+    relaySources.set(key, tokens);
+  }
+  return tokens;
+}
+
 /** A client for one OAuth-connected sheet; null when Connect with Google isn't configured here. */
 export const oauthClientFor =
   (oauth: { relayUrl: string; relayToken: string } | null | undefined, endpoint?: string) =>
   (cfg: { grant?: string }): GoogleSheets | null => {
     if (!oauth || !cfg.grant) return null;
-    const key = createHash("sha256")
-      .update(`${oauth.relayUrl}\n${oauth.relayToken}\n${cfg.grant}`)
-      .digest("hex");
-    let tokens = relaySources.get(key);
-    if (!tokens) {
-      if (relaySources.size >= RELAY_SOURCES_MAX) relaySources.delete(relaySources.keys().next().value!);
-      tokens = relayTokens({ ...oauth, refreshToken: cfg.grant });
-      relaySources.set(key, tokens);
-    }
-    return createGoogleSheets({ tokens, email: "", ...(endpoint ? { endpoint } : {}) });
+    return createGoogleSheets({
+      tokens: grantTokens(oauth, cfg.grant),
+      email: "",
+      ...(endpoint ? { endpoint } : {}),
+    });
   };
 
 /** The read-only client, from a service account (2B-1) or any token source (Connect with Google, 2B-2). */
@@ -223,8 +234,6 @@ export function createGoogleSheets(
     now?: () => number;
   },
 ): GoogleSheets {
-  const http = o.fetch ?? fetch;
-  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const sheetsBase = o.endpoint ?? "https://sheets.googleapis.com";
   const driveBase = o.endpoint ?? "https://www.googleapis.com";
   const tokens =
@@ -236,50 +245,11 @@ export function createGoogleSheets(
           ...(o.now ? { now: o.now } : {}),
         });
   const email = "tokens" in o ? o.email : o.account.clientEmail;
-  let force = false;
-  const accessToken = async () => {
-    const t = await tokens(force);
-    force = false;
-    return t;
-  };
-
-  async function call<T>(url: string): Promise<T> {
-    let refreshed = false;
-    for (let attempt = 0; ; attempt++) {
-      let res: Response | null = null;
-      try {
-        res = await http(url, { headers: { authorization: `Bearer ${await accessToken()}` } });
-      } catch (e) {
-        if (e instanceof GoogleError) throw e;
-        res = null; // the network failed: treated like a 503
-      }
-      if (res?.ok) return (await res.json()) as T;
-      const status = res?.status ?? 503;
-      if (status === 401 && !refreshed) {
-        refreshed = true;
-        force = true;
-        attempt--;
-        continue;
-      }
-      const body = res ? ((await res.json().catch(() => ({}))) as GoogleErrorBody) : {};
-      const reasons = reasonsOf(body);
-      const rate =
-        status === 429 ||
-        body.error?.status === "RESOURCE_EXHAUSTED" ||
-        reasons.some((r) => RATE_REASONS.has(r));
-      if ((rate || status >= 500) && attempt < RETRIES.length) {
-        await sleep(RETRIES[attempt]!);
-        continue;
-      }
-      const message = body.error?.message ?? `Google answered ${status}.`;
-      if (rate) throw new GoogleError("rate", message);
-      if (reasons.some((r) => SETUP_REASONS.has(r))) throw new GoogleError("setup", message);
-      if (status >= 500) throw new GoogleError("unavailable", message);
-      if (status === 404) throw new GoogleError("not_found", message);
-      if (status === 401 || status === 403) throw new GoogleError("access", message);
-      throw new GoogleError("bad_request", message);
-    }
-  }
+  const call = googleCaller({
+    tokens,
+    ...(o.fetch ? { fetch: o.fetch } : {}),
+    ...(o.sleep ? { sleep: o.sleep } : {}),
+  });
 
   const enc = encodeURIComponent;
   return {
@@ -318,5 +288,62 @@ export function createGoogleSheets(
         (j.valueRanges?.[i]?.values ?? []).map((row) => row.map((c) => String(c ?? ""))),
       );
     },
+  };
+}
+
+/**
+ * One authorised GET against a Google API, as every LUME client makes it: a 401 refreshes the access token
+ * once; Google busy (429, a rate reason, 5xx, the network) is retried 1, 2, 4 s apart; then a GoogleError.
+ */
+export function googleCaller(o: {
+  tokens: TokenSource;
+  fetch?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+}): <T>(url: string) => Promise<T> {
+  const http = o.fetch ?? fetch;
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  let force = false;
+  const accessToken = async () => {
+    const t = await o.tokens(force);
+    force = false;
+    return t;
+  };
+  return async function call<T>(url: string): Promise<T> {
+    let refreshed = false;
+    for (let attempt = 0; ; attempt++) {
+      let res: Response | null = null;
+      try {
+        res = await http(url, { headers: { authorization: `Bearer ${await accessToken()}` } });
+      } catch (e) {
+        if (e instanceof GoogleError) throw e;
+        res = null; // the network failed: treated like a 503
+      }
+      if (res?.ok) return (await res.json()) as T;
+      const status = res?.status ?? 503;
+      if (status === 401 && !refreshed) {
+        refreshed = true;
+        force = true;
+        attempt--;
+        continue;
+      }
+      const body = res ? ((await res.json().catch(() => ({}))) as GoogleErrorBody) : {};
+      const reasons = reasonsOf(body);
+      const rate =
+        status === 429 ||
+        body.error?.status === "RESOURCE_EXHAUSTED" ||
+        reasons.some((r) => RATE_REASONS.has(r));
+      if ((rate || status >= 500) && attempt < RETRIES.length) {
+        await sleep(RETRIES[attempt]!);
+        continue;
+      }
+      const message = body.error?.message ?? `Google answered ${status}.`;
+      if (rate) throw new GoogleError("rate", message);
+      if (reasons.some((r) => SETUP_REASONS.has(r))) throw new GoogleError("setup", message);
+      if (status >= 500) throw new GoogleError("unavailable", message);
+      if (status === 404) throw new GoogleError("not_found", message);
+      if (status === 410) throw new GoogleError("gone", message);
+      if (status === 401 || status === 403) throw new GoogleError("access", message);
+      throw new GoogleError("bad_request", message);
+    }
   };
 }

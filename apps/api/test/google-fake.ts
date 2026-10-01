@@ -15,6 +15,18 @@ import type { AddressInfo } from "node:net";
 export type FakeCell = string | { v: string; u: string };
 export type FakeTab = { sheetId: number; title: string; rows: FakeCell[][] };
 export type FakeSpreadsheet = { title: string; tabs: FakeTab[]; sharedWith: string[] };
+/** A calendar event as tests write it (5A); the fake answers in Google's shape. */
+export type FakeEvent = {
+  id: string;
+  title?: string;
+  /** ISO date-time, or a bare date ("2026-10-02") for an all-day event. */
+  start: string;
+  end: string;
+  attendees?: string[];
+  organizer?: string;
+  location?: string;
+  link?: string;
+};
 export type GoogleFake = {
   url: string;
   email: string;
@@ -34,6 +46,14 @@ export type GoogleFake = {
   /** Connect with Google (2B-2): the user takes LUME's access away at Google, and gives it back. */
   revokeGrant(): void;
   restoreGrant(): void;
+  /** Google Calendar (5A): calendars on the grant's account, and their events. */
+  putCalendar(id: string, c: { name: string; primary?: boolean }): void;
+  putEvent(calendarId: string, e: FakeEvent): void;
+  cancelEvent(calendarId: string, eventId: string): void;
+  /** Every sync token given out so far now answers 410 Gone (Google expires them). */
+  expireSyncTokens(): void;
+  /** How many items a Calendar page holds (Google's maxResults is honoured below this). */
+  calendarPageSize: number;
   /** The next `count` Google calls (not the token) answer with this HTTP status (and error reason). */
   fail(status: number, count?: number, reason?: string): void;
   /** Every Google call's method and path, in order ("GET /v4/spreadsheets/abc"). */
@@ -53,6 +73,9 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const oauthTokens = new Set<string>();
   let revoked = false;
   const calls: string[] = [];
+  type StoredEvent = FakeEvent & { status: "confirmed" | "cancelled"; updated: number };
+  const calendars = new Map<string, { name: string; primary: boolean; events: Map<string, StoredEvent> }>();
+  let tokensValidFrom = 0;
   let clock = Date.parse("2026-09-27T00:00:00Z");
   let failing: { status: number; left: number; reason?: string } | null = null;
   let url = "";
@@ -95,6 +118,89 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     if (!m || m[2] !== m[4]) return null;
     const col = m[2] ? [...m[2]].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1 : null;
     return { tab: m[1]!.replace(/''/g, "'"), from: Number(m[3]), to: Number(m[5]), col };
+  };
+
+  // Google Calendar (5A): a page of `items` at a time; the last page of an events list carries the sync token.
+  const page = <T>(all: T[], u: URL) => {
+    const size = Math.min(Number(u.searchParams.get("maxResults") ?? 250), api.calendarPageSize);
+    const from = Number(u.searchParams.get("pageToken") ?? 0);
+    const next = from + size < all.length ? String(from + size) : null;
+    return { items: all.slice(from, from + size), next };
+  };
+  const asGoogle = (calendarId: string, e: StoredEvent) => {
+    if (e.status === "cancelled") return { id: e.id, status: "cancelled" };
+    const when = (v: string) => (v.length === 10 ? { date: v } : { dateTime: v });
+    const self = (email: string) => email === calendarId;
+    return {
+      id: e.id,
+      status: "confirmed",
+      updated: new Date(e.updated).toISOString(),
+      ...(e.title !== undefined ? { summary: e.title } : {}),
+      start: when(e.start),
+      end: when(e.end),
+      organizer: {
+        email: e.organizer ?? calendarId,
+        ...(self(e.organizer ?? calendarId) ? { self: true } : {}),
+      },
+      ...(e.attendees
+        ? {
+            attendees: e.attendees.map((email) => ({
+              email,
+              responseStatus: "needsAction",
+              ...(self(email) ? { self: true } : {}),
+            })),
+          }
+        : {}),
+      ...(e.location ? { location: e.location } : {}),
+      ...(e.link ? { hangoutLink: e.link } : {}),
+    };
+  };
+  const calendarRoute = (u: URL, res: http.ServerResponse, viaGrant: boolean) => {
+    if (!viaGrant)
+      return googleError(res, 403, "PERMISSION_DENIED", "Request had insufficient authentication scopes.");
+    if (u.pathname === "/calendar/v3/users/me/calendarList") {
+      const all = [...calendars].map(([id, c]) => ({
+        id,
+        summary: c.name,
+        ...(c.primary ? { primary: true } : {}),
+      }));
+      const p = page(all, u);
+      return send(res, 200, { items: p.items, ...(p.next ? { nextPageToken: p.next } : {}) });
+    }
+    const m = /^\/calendar\/v3\/calendars\/([^/]+)\/events$/.exec(u.pathname);
+    const cal = m && calendars.get(decodeURIComponent(m[1]!));
+    if (!m) return googleError(res, 404, "NOT_FOUND", "Unknown path.");
+    if (!cal) return googleError(res, 404, "NOT_FOUND", "Not Found");
+    const calendarId = decodeURIComponent(m[1]!);
+    const token = u.searchParams.get("syncToken");
+    let all: StoredEvent[];
+    if (token) {
+      // As Google: a sync token can't be combined with a time window.
+      if (u.searchParams.has("timeMin") || u.searchParams.has("timeMax"))
+        return googleError(res, 400, "INVALID_ARGUMENT", "syncToken can't be used with timeMin/timeMax.");
+      const since = Number(/^st-(\d+)$/.exec(token)?.[1] ?? NaN);
+      if (!(since >= tokensValidFrom))
+        return send(res, 410, {
+          error: {
+            code: 410,
+            message: "Sync token is no longer valid, a full sync is required.",
+            errors: [{ reason: "fullSyncRequired" }],
+          },
+        });
+      all = [...cal.events.values()].filter((e) => e.updated > since);
+    } else {
+      const min = Date.parse(u.searchParams.get("timeMin") ?? "") || -Infinity;
+      const max = Date.parse(u.searchParams.get("timeMax") ?? "") || Infinity;
+      all = [...cal.events.values()].filter(
+        (e) => e.status !== "cancelled" && Date.parse(e.end) > min && Date.parse(e.start) < max,
+      );
+    }
+    all.sort((a, b) => a.updated - b.updated);
+    const p = page(all, u);
+    return send(res, 200, {
+      items: p.items.map((e) => asGoogle(calendarId, e)),
+      ...(p.next ? { nextPageToken: p.next } : { nextSyncToken: `st-${clock}` }),
+    });
   };
 
   const server = http.createServer(async (req, res) => {
@@ -175,6 +281,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
         "fake failure",
       );
     }
+    if (u.pathname.startsWith("/calendar/v3/")) return calendarRoute(u, res, viaGrant);
     const drive = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname);
     if (drive) {
       if (shared.has(decodeURIComponent(drive[1]!)) && u.searchParams.get("supportsAllDrives") !== "true")
@@ -279,6 +386,25 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     restoreGrant() {
       revoked = false;
     },
+    putCalendar(id, c) {
+      const was = calendars.get(id);
+      calendars.set(id, { name: c.name, primary: !!c.primary, events: was?.events ?? new Map() });
+    },
+    putEvent(calendarId, e) {
+      const cal = calendars.get(calendarId);
+      if (!cal) throw new Error(`fake: no calendar ${calendarId}`);
+      cal.events.set(e.id, { ...structuredClone(e), status: "confirmed", updated: (clock += 1000) });
+    },
+    cancelEvent(calendarId, eventId) {
+      const e = calendars.get(calendarId)?.events.get(eventId);
+      if (!e) throw new Error(`fake: no event ${eventId}`);
+      e.status = "cancelled";
+      e.updated = clock += 1000;
+    },
+    expireSyncTokens() {
+      tokensValidFrom = clock += 1000;
+    },
+    calendarPageSize: 250,
     fail(status, count = 1, reason) {
       failing = { status, left: count, ...(reason ? { reason } : {}) };
     },
