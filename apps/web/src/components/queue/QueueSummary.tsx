@@ -11,8 +11,11 @@ export function QueueSummary({
   q,
   finishedHere,
   onDone,
+  onRetry,
 }: {
   q: QueueView;
+  /** Try a lead answered Not sent again (absent once the run was ended). */
+  onRetry?: (position: number) => void;
   /** Finished in front of the person just now: the mark springs in (with the `cleared` sound, played by the run). */
   finishedHere: boolean;
   onDone: () => void;
@@ -22,6 +25,7 @@ export function QueueSummary({
   useEffect(() => done.current?.focus(), []);
   const ended = q.status === "cancelled";
   const skipped = q.items.filter((i) => i.status === "skipped");
+  const notSent = q.items.filter((i) => i.status === "not_sent");
   const spring = reduce ? { duration: 0.15 } : toMotion(SPRINGS.bounce);
   return (
     <motion.section
@@ -56,6 +60,23 @@ export function QueueSummary({
             <li key={i.position}>
               <span className={s.skipName}>{i.name}</span>
               <span className={s.skipWhy}>{i.reason === "Skipped" ? "You skipped" : i.reason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {notSent.length > 0 && onRetry && (
+        <ul aria-label="Not sent" className={s.skipped}>
+          {notSent.map((i) => (
+            <li key={i.position}>
+              <span className={s.skipName}>{i.name}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Try ${i.name} again`}
+                onClick={() => onRetry(i.position)}
+              >
+                Try again
+              </Button>
             </li>
           ))}
         </ul>

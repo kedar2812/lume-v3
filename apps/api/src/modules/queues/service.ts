@@ -9,7 +9,7 @@ import { loadFieldRegistry } from "../../leads/fields";
 import { prepareMessage } from "../leads/messages";
 import { leadFilters, orderBy } from "../leads/query";
 import { filterQuerySchema } from "../leads/routes";
-import { confirmSend, contextFor, type MoveResult } from "../leads/sending";
+import { assertVersion, confirmSend, contextFor, type MoveResult } from "../leads/sending";
 import type { LeadRow } from "../leads/serialize";
 import { visibleLead } from "../leads/service";
 import { readMessaging } from "../settings/messaging";
@@ -85,9 +85,10 @@ async function openRun(req: FastifyRequest): Promise<QueueRow | undefined> {
   return q;
 }
 
-async function leadsOfView(req: FastifyRequest, viewId: string) {
+async function leadsOfView(req: FastifyRequest, viewId: string, shown?: Record<string, string>) {
   const v = await viewById(req, viewId);
-  const parsed = filterQuerySchema.safeParse(v.filters);
+  // With changes not saved yet, what's shown on the screen (the person's filters), named so.
+  const parsed = filterQuerySchema.safeParse(shown ?? v.filters);
   if (!parsed.success || (await stale(req, parsed.data)))
     throw new HttpError(422, "VIEW_STALE", "That view's filters no longer hold. Edit it, then start again");
   const { sort, ...filters } = parsed.data;
@@ -106,7 +107,11 @@ async function leadsOfView(req: FastifyRequest, viewId: string) {
     .where(and(...leadFilters(req, filters, fields)))
     .orderBy(...orderBy(sort))
     .limit(SCAN);
-  return { rows, source: `view:${v.id}`, sourceName: v.name };
+  return {
+    rows,
+    source: `view:${v.id}`,
+    sourceName: shown ? `${v.name.slice(0, 68)} (as shown)` : v.name,
+  };
 }
 async function leadsOfSelection(req: FastifyRequest, leadIds: string[]) {
   const ids = [...new Set(leadIds)];
@@ -122,13 +127,13 @@ async function leadsOfSelection(req: FastifyRequest, leadIds: string[]) {
   };
 }
 
-type Source = { viewId?: string; leadIds?: string[] };
+type Source = { viewId?: string; filters?: Record<string, string>; leadIds?: string[] };
 type LeftOut = { name: string; reason: string };
 
 /** Who a run from this view or selection would hold, in order; the start and its preview share it. */
 async function planLeads(req: FastifyRequest, body: Source) {
   const { rows, source, sourceName } = body.viewId
-    ? await leadsOfView(req, body.viewId)
+    ? await leadsOfView(req, body.viewId, body.filters)
     : await leadsOfSelection(req, body.leadIds ?? []);
   const { queueSize } = await readMessaging(req);
   const picked: LeadRow[] = [];
@@ -355,6 +360,17 @@ async function step(req: FastifyRequest, id: string, position: number): Promise<
 }
 
 /** The planned version's words, in this lead's words (4A's render; never a contact). */
+/** Whether the person's role may still use this template version (assertVersion's rule, as a yes or no). */
+async function versionUsable(req: FastifyRequest, versionId: string): Promise<boolean> {
+  try {
+    await assertVersion(req, versionId);
+    return true;
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 403) return false;
+    throw err;
+  }
+}
+
 async function plannedText(req: FastifyRequest, versionId: string, lead: LeadRow) {
   const [v] = await req.db
     .select({ body: schema.templateVersions.body })
@@ -429,9 +445,17 @@ export async function prepareItem(
     return { skipped: why, ...(await step(req, id, position)) };
   }
   const own = body.text?.trim() ? body.text : undefined;
+  // The run's template, if the person may still use it (their role may have lost it mid-run).
+  const usable = q.templateVersionId ? await versionUsable(req, q.templateVersionId) : false;
   let text = own;
   if (!text) {
     if (!q.templateVersionId) throw badRequest("TEXT_REQUIRED", "Write the message for this lead");
+    if (!usable)
+      throw new HttpError(
+        409,
+        "TEMPLATE_NOT_YOURS",
+        "That template isn't one your role can use any more. Write the words for this lead, or end the run.",
+      );
     text = (await plannedText(req, q.templateVersionId, lead)).text;
   }
   await req.db
@@ -439,7 +463,7 @@ export async function prepareItem(
     .set({ status: "sending", textOverride: own ?? null })
     .where(and(eq(I.queueId, id), eq(I.position, position), eq(I.status, "pending")));
   const prepared = await prepareMessage(req, lead.id, text, {
-    ...(q.templateVersionId ? { templateVersionId: q.templateVersionId } : {}),
+    ...(q.templateVersionId && usable ? { templateVersionId: q.templateVersionId } : {}),
     queueId: id,
   });
   return { url: prepared.url, text };
@@ -470,11 +494,34 @@ export async function answerItem(
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_queue_answer`);
     await req.db.execute(sql`RELEASE SAVEPOINT lume_queue_answer`);
     if (!(err instanceof HttpError)) throw err;
-    await settle(req, id, position, "skipped", err.status === 404 ? WHY.gone : WHY.notYours);
+    const why = err.status === 404 ? WHY.gone : WHY.notYours;
+    // They said it went: it went (and counts against the day's cap), though it can't be logged on the lead.
+    if (sent) await settle(req, id, position, "sent", `Sent, but not logged on the lead: ${why}`);
+    else await settle(req, id, position, "skipped", why);
     return step(req, id, position);
   }
   await settle(req, id, position, sent ? "sent" : "not_sent");
   return { ...(await step(req, id, position)), ...(moved.moved || moved.notMoved ? moved : {}) };
+}
+
+/** A lead answered Not sent, tried again in the same run (a finished run opens again for it). */
+export async function retryItem(req: FastifyRequest, id: string, position: number): Promise<Step> {
+  await lockPerson(req);
+  const q = await queueRow(req, id, true);
+  if (q.status === "cancelled") throw conflict("QUEUE_OVER", "This run was ended");
+  const it = await itemAt(req, id, position);
+  if (it.status !== "not_sent")
+    throw conflict("NOT_RETRYABLE", "Only a lead answered Not sent can be tried again");
+  if (q.status === "finished") {
+    const other = await openRun(req);
+    if (other) throw conflict("QUEUE_OPEN", "Finish or end your current run first");
+    await req.db.update(Q).set({ status: "active", finishedAt: null }).where(eq(Q.id, id));
+  }
+  await req.db
+    .update(I)
+    .set({ status: "pending", reason: null, doneAt: null })
+    .where(and(eq(I.queueId, id), eq(I.position, position)));
+  return { next: position };
 }
 
 export async function skipItem(req: FastifyRequest, id: string, position: number): Promise<Step> {

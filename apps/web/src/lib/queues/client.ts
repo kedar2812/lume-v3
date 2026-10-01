@@ -2,7 +2,8 @@
 import { api } from "@/lib/api";
 
 /** Where a run's leads come from (4C): a saved view (in its order) or the leads selected on the list. */
-export type QueueSource = { viewId: string } | { leadIds: string[] };
+/** A view (with `filters` when it has changes not saved yet: what's shown), or a selection. */
+export type QueueSource = { viewId: string; filters?: Record<string, string> } | { leadIds: string[] };
 export type QueueStatus = "active" | "paused" | "finished" | "cancelled";
 export type QueueItemStatus = "pending" | "sending" | "sent" | "not_sent" | "skipped";
 export type QueueItem = {
@@ -70,6 +71,8 @@ export const queuesClient = {
   sent: (id: string, pos: number) => api.post<QueueStep>(item(id, pos, "sent")),
   notSent: (id: string, pos: number) => api.post<QueueStep>(item(id, pos, "not-sent")),
   skip: (id: string, pos: number) => api.post<QueueStep>(item(id, pos, "skip")),
+  /** A lead answered Not sent, tried again (a finished run opens again for it). */
+  retry: (id: string, pos: number) => api.post<QueueStep>(item(id, pos, "retry")),
   pause: (id: string) => api.post<QueueView>(`${one(id)}/pause`),
   resume: (id: string) => api.post<QueueView>(`${one(id)}/resume`),
   cancel: (id: string) => api.post<QueueView>(`${one(id)}/cancel`),

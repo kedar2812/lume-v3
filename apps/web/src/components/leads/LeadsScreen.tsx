@@ -467,7 +467,12 @@ function Screen({
             {/* 4C: a run through the view's leads, as the view is saved (plan ruling R2). */}
             {can(session.actor, "messages.send_queue") && (
               <StartRun
-                source={{ viewId: activeView.id }}
+                // Changes not saved yet: the run is what's shown (named "… (as shown)").
+                source={
+                  viewChanged
+                    ? { viewId: activeView.id, filters: toViewFilters(filters) }
+                    : { viewId: activeView.id }
+                }
                 suggest={suggestFor(
                   activeView.filters,
                   catalog.pipelines.flatMap((p) =>

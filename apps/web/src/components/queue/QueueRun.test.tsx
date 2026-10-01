@@ -16,6 +16,7 @@ vi.mock("@/lib/queues/client", async (orig) => ({
     pause: vi.fn(),
     resume: vi.fn(),
     cancel: vi.fn(),
+    retry: vi.fn(),
   },
 }));
 const play = vi.fn();
@@ -358,5 +359,56 @@ describe("QueueRun (4C Task 4)", () => {
     render(<QueueRun id="q1" />);
     await lead("Aisha Khan");
     expect(screen.getByTestId("queue-card")).toHaveAttribute("data-motion", "fade");
+  });
+
+  it("a template the person may no longer use: LUME says so, and their own words are the way on", async () => {
+    tab();
+    vi.mocked(queuesClient.prepare).mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      code: "TEMPLATE_NOT_YOURS",
+      message: "That template isn't one your role can use any more. Write the words for this lead.",
+    } as never);
+    render(<QueueRun id="q1" />);
+    await screen.findByDisplayValue("Hi Aisha, just checking in.");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Write the words for this lead");
+    const box = screen.getByRole("textbox");
+    await userEvent.clear(box);
+    await userEvent.type(box, "My own words");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(queuesClient.prepare).toHaveBeenLastCalledWith("q1", 0, "My own words");
+  });
+
+  it("a skipped lead leaves its own way, not like one that was sent", async () => {
+    tab();
+    let done!: (v: unknown) => void;
+    vi.mocked(queuesClient.skip).mockReturnValueOnce(new Promise((r) => (done = r)) as never);
+    render(<QueueRun id="q1" />);
+    await screen.findByDisplayValue("Hi Aisha, just checking in.");
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(screen.getByTestId("queue-card")).toHaveAttribute("data-leaving", "skip");
+    await act(async () => done(settle(0, "skipped", "Skipped")));
+  });
+
+  it("at the end, a lead answered Not sent can be tried again", async () => {
+    tab();
+    q.items[0]!.status = "not_sent";
+    q.items[1]!.status = "sent";
+    q.items[2]!.status = "sent";
+    q.status = "finished";
+    counts();
+    vi.mocked(queuesClient.retry).mockImplementation(async (_id, pos) => {
+      q.items[pos]!.status = "pending";
+      q.status = "active";
+      counts();
+      return ok({ next: pos }) as never;
+    });
+    render(<QueueRun id="q1" />);
+    const summary = await screen.findByRole("region", { name: "Run finished" });
+    const notSent = within(summary).getByRole("list", { name: "Not sent" });
+    await userEvent.click(within(notSent).getByRole("button", { name: "Try Aisha Khan again" }));
+    expect(queuesClient.retry).toHaveBeenCalledWith("q1", 0);
+    expect(await lead("Aisha Khan")).toBeInTheDocument();
   });
 });

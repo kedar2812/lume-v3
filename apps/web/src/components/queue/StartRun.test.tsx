@@ -220,4 +220,14 @@ describe("ResumeRun (4C Task 3)", () => {
       "/queue/q9",
     );
   });
+
+  it("from a view with changes not saved: it plans what's shown", async () => {
+    const { StartRun } = await import("./StartRun");
+    vi.mocked(queuesClient.plan).mockResolvedValue(ok(PLAN));
+    render(<StartRun source={{ viewId: "v1", filters: { noReplyDays: "7" } }} />);
+    await userEvent.click(screen.getByRole("button", { name: "Message these" }));
+    await vi.waitFor(() =>
+      expect(queuesClient.plan).toHaveBeenCalledWith({ viewId: "v1", filters: { noReplyDays: "7" } }),
+    );
+  });
 });

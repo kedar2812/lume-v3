@@ -356,9 +356,10 @@ describe("running it", () => {
       const r = await post(rep, item(q.id, 3, "sent"));
       expect(r.statusCode).toBe(200);
       expect(r.json()).toMatchObject({ next: null, finished: true });
+      // It went (WhatsApp was open, and they said so): it counts as sent, though it can't be logged on the lead.
       expect((await get(rep, `/api/v1/queues/${q.id}`)).json().items[3]).toMatchObject({
-        status: "skipped",
-        reason: "Not one you may message",
+        status: "sent",
+        reason: "Sent, but not logged on the lead: Not one you may message",
       });
     } finally {
       await h.grant(repId, [{ key: "messages.send", scope: "own" }]);
@@ -585,5 +586,75 @@ describe("running it", () => {
       { action: "queue.resumed", diff: {} },
       { action: "queue.cancelled", diff: { sent: 0 } },
     ]);
+  });
+
+  it("a template the person may no longer use mid-run: they're asked for their own words, and the run goes on", async () => {
+    const [a, b] = await leads(2, "Rolechange");
+    const t = await template("Gentle nudge");
+    const q = (await start(rep, { leadIds: [a, b], templateId: t.id })).json().queue;
+    // A role the rep doesn't hold: the template becomes someone else's.
+    const other = crypto.randomUUID();
+    await h.ownerPool.query("INSERT INTO roles (id, name) VALUES ($1, 'Partners only')", [other]);
+    await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/templates/${t.id}`,
+      payload: { allowedRoleIds: [other] },
+    });
+    try {
+      const refused = await post(rep, item(q.id, 0, "prepare"), {});
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().error.code).toBe("TEMPLATE_NOT_YOURS");
+      const own = await post(rep, item(q.id, 0, "prepare"), { text: "Hi in my own words" });
+      expect(own.statusCode).toBe(200);
+      expect((await get(rep, `/api/v1/queues/${q.id}`)).json().status).toBe("active");
+    } finally {
+      await admin.inject({
+        method: "PATCH",
+        url: `/api/v1/templates/${t.id}`,
+        payload: { allowedRoleIds: [] },
+      });
+    }
+  });
+
+  it("a lead answered Not sent can be tried again in the same run", async () => {
+    const [a] = await leads(1, "Retry");
+    const q = (await start(rep, { leadIds: [a] })).json().queue;
+    await post(rep, item(q.id, 0, "prepare"), { text: "Hi" });
+    await post(rep, item(q.id, 0, "not-sent"));
+    expect((await get(rep, `/api/v1/queues/${q.id}`)).json().items[0]).toMatchObject({ status: "not_sent" });
+    const again = await post(rep, item(q.id, 0, "retry"));
+    expect(again.statusCode).toBe(200);
+    expect((await get(rep, `/api/v1/queues/${q.id}`)).json().items[0]).toMatchObject({ status: "pending" });
+    expect((await post(rep, item(q.id, 0, "prepare"), { text: "Hi again" })).statusCode).toBe(200);
+  });
+
+  it("'Message these' on a view with changes not saved yet runs what's shown, and says so", async () => {
+    const [x, y] = await leads(2, "Asshown");
+    const tag = (
+      await admin.inject({ method: "POST", url: "/api/v1/tags", payload: { label: "Asshown tag" } })
+    ).json();
+    const tagId = (tag.tag?.id ?? tag.id) as string;
+    await h.queryAll("INSERT INTO lead_tags (lead_id, tag_id) VALUES ($1, $2)", [x, tagId]);
+    const v = (
+      await post(rep, "/api/v1/views", { name: "All mine", color: "cyan", filters: { ownerId: "me" } })
+    ).json();
+    const shown = { ownerId: "me", tagId };
+    expect((await post(rep, "/api/v1/queues/plan", { viewId: v.id, filters: shown })).json().total).toBe(1);
+    const q = (await start(rep, { viewId: v.id, filters: shown })).json().queue;
+    expect(q.sourceName).toBe("All mine (as shown)");
+    expect(q.items.map((i: { leadId: string }) => i.leadId)).toEqual([x]);
+    expect(q.items.map((i: { leadId: string }) => i.leadId)).not.toContain(y);
+  });
+
+  it("today's count has indexes behind it", async () => {
+    const idx = await h.queryAll<{ indexdef: string }>(
+      "SELECT indexdef FROM pg_indexes WHERE tablename IN ('send_queues', 'send_queue_items')",
+    );
+    const defs = idx.map((i) => i.indexdef);
+    // A plain one on whose runs these are (the "one open run" index covers only open ones).
+    expect(defs.some((d) => /ON public\.send_queues USING btree \(user_id\)$/.test(d))).toBe(true);
+    expect(defs.join("\n")).toMatch(
+      /ON public\.send_queue_items USING btree \(done_at\) WHERE \(status = 'sent'::text\)/,
+    );
   });
 });

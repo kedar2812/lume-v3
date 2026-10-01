@@ -251,6 +251,27 @@ test.describe("The send queue (4C)", () => {
     }
   });
 
+  test("on a phone (390 px): the card, its words and every action fit, nothing off the side", async ({
+    page,
+    browser,
+  }) => {
+    const o = await asOwner(browser);
+    const [a] = await noorsLeads(o, [{ name: "Phone Pia", phone: "+971509991401" }]);
+    await o.close();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openApp(page, "/leads");
+    await endOpenRun(page);
+    await openApp(page, `/queue/${await startRun(page, [a])}`);
+    const run = page.getByRole("dialog", { name: "Send queue" });
+    await expect(run.getByRole("heading", { name: "Phone Pia" })).toBeVisible();
+    for (const name of ["Send", "Skip"]) await expect(run.getByRole("button", { name })).toBeInViewport();
+    await expect(run.getByRole("textbox")).toBeInViewport();
+    // Nothing wider than the screen: no sideways scroll.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await reviewCopy(page, "queue-phone.png");
+    await endOpenRun(page);
+  });
+
   test("review copies and axe: the start sheet, the run (a card, Sent?, a skip) and the summary — both themes", async ({
     page,
     context,

@@ -72,6 +72,8 @@ export function QueueRun({ id }: { id: string }) {
   const [finishedHere, setFinishedHere] = useState(false);
   const [outcome, setOutcome] = useState<{ moved?: string; refused?: string } | null>(null);
   const [skippedLeaving, setSkippedLeaving] = useState(false);
+  /** How the current card is leaving: a skip goes its own way. */
+  const [leaving, setLeaving] = useState<"skip" | null>(null);
   const [ending, setEnding] = useState(false);
   const busy = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -203,10 +205,25 @@ export function QueueRun({ id }: { id: string }) {
   const skip = async () => {
     if (!current || busy.current || phase !== "ready") return;
     busy.current = true;
+    // A skip leaves its own way (down and out of the way), not as a sent lead does.
+    setLeaving("skip");
     const r = await queuesClient.skip(id, current.position);
     busy.current = false;
-    if (!r.ok) return setError(r.message);
+    if (!r.ok) {
+      setLeaving(null);
+      return setError(r.message);
+    }
     await after(r.data);
+    setLeaving(null);
+  };
+
+  /** A lead answered Not sent, tried again: the run opens on it. */
+  const retry = async (position: number) => {
+    const r = await queuesClient.retry(id, position);
+    if (!r.ok) return setError(r.message);
+    setFinishedHere(false);
+    queueChanged();
+    await load();
   };
 
   const pause = async () => {
@@ -362,7 +379,12 @@ export function QueueRun({ id }: { id: string }) {
             </p>
           )}
           {!q ? null : over ? (
-            <QueueSummary q={q} finishedHere={finishedHere} onDone={() => router.push("/today")} />
+            <QueueSummary
+              q={q}
+              finishedHere={finishedHere}
+              onDone={() => router.push("/today")}
+              {...(q.status === "finished" ? { onRetry: (pos: number) => void retry(pos) } : {})}
+            />
           ) : q.status === "paused" ? (
             <motion.section
               className={s.paused}
@@ -389,10 +411,17 @@ export function QueueRun({ id }: { id: string }) {
                   key={current.position}
                   data-testid="queue-card"
                   data-motion={reduce ? "fade" : "slide"}
+                  data-leaving={leaving ?? undefined}
                   className={s.cardWrap}
                   initial={reduce ? { opacity: 0 } : { opacity: 0, x: 64 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={reduce ? { opacity: 0 } : { opacity: skippedLeaving ? 0 : 0.4, x: -64 }}
+                  exit={
+                    reduce
+                      ? { opacity: 0 }
+                      : leaving === "skip"
+                        ? { opacity: 0, y: 24, x: 0 }
+                        : { opacity: skippedLeaving ? 0 : 0.4, x: -64 }
+                  }
                   transition={spring}
                 >
                   <QueueCard

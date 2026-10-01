@@ -17,6 +17,9 @@ function answer<T extends object>(reply: FastifyReply, out: T | svc.Refused) {
   return out;
 }
 
+/** A view's filters as shown on screen (changes not saved yet): the list's own query, as strings. */
+const shownFilters = z.record(z.string().max(40), z.string().max(2000)).optional();
+
 /** The send queue (Phase 4C): a person's run through a list of leads, one WhatsApp message each. */
 export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
@@ -26,7 +29,7 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
       config: run,
       schema: {
         body: z.union([
-          z.object({ viewId: z.uuid(), templateId: z.uuid().optional() }).strict(),
+          z.object({ viewId: z.uuid(), filters: shownFilters, templateId: z.uuid().optional() }).strict(),
           z.object({ leadIds: z.array(z.uuid()).min(1).max(500), templateId: z.uuid().optional() }).strict(),
         ]),
       },
@@ -39,7 +42,7 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
       config: run,
       schema: {
         body: z.union([
-          z.object({ viewId: z.uuid() }).strict(),
+          z.object({ viewId: z.uuid(), filters: shownFilters }).strict(),
           z.object({ leadIds: z.array(z.uuid()).min(1).max(500) }).strict(),
         ]),
       },
@@ -70,6 +73,9 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
   );
   r.post("/api/v1/queues/:id/items/:pos/not-sent", { config: run, schema: { params: itemParams } }, (req) =>
     svc.answerItem(req, d, req.params.id, req.params.pos, false),
+  );
+  r.post("/api/v1/queues/:id/items/:pos/retry", { config: run, schema: { params: itemParams } }, (req) =>
+    svc.retryItem(req, req.params.id, req.params.pos),
   );
   r.post("/api/v1/queues/:id/items/:pos/skip", { config: run, schema: { params: itemParams } }, (req) =>
     svc.skipItem(req, req.params.id, req.params.pos),
