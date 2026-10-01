@@ -12,6 +12,8 @@ export const pipelines = pgTable("pipelines", {
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
   archivedAt: tz("archived_at"),
+  /** Where a lead booked through Calendly moves (5B); none, no move. */
+  bookingStageId: uuid("booking_stage_id"),
 });
 
 export const stages = pgTable("stages", {

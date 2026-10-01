@@ -46,6 +46,7 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
             name: z.string().trim().min(1).max(60).optional(),
             isDefault: z.literal(true).optional(),
             position: z.number().int().min(0).max(1000).optional(),
+            bookingStageId: z.uuid().nullable().optional(),
           })
           .strict(),
       },

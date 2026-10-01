@@ -4,7 +4,7 @@ import { bytea, tz } from "./types";
 
 export const leadSources = pgTable("lead_sources", {
   id: uuid("id").primaryKey(),
-  type: text("type").$type<"csv" | "google_sheet" | "webhook" | "manual">().notNull(),
+  type: text("type").$type<"csv" | "google_sheet" | "webhook" | "manual" | "calendly">().notNull(),
   name: text("name").notNull(),
   configEnc: bytea("config_enc"),
   mapping: jsonb("mapping")

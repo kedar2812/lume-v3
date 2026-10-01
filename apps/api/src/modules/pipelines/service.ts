@@ -121,6 +121,7 @@ async function pipelineView(req: FastifyRequest, id: string) {
     name: p.name,
     isDefault: p.isDefault,
     position: p.position,
+    bookingStageId: p.bookingStageId,
     stages: (await liveStages(req, id)).map(stageView),
   };
 }
@@ -204,9 +205,14 @@ export async function createPipeline(req: FastifyRequest, name: string) {
 export async function updatePipeline(
   req: FastifyRequest,
   id: string,
-  patch: { name?: string; isDefault?: boolean; position?: number },
+  patch: { name?: string; isDefault?: boolean; position?: number; bookingStageId?: string | null },
 ) {
   const p = await livePipeline(req, id);
+  // A booked lead moves to one of this pipeline's open stages (5B), or nowhere.
+  if (patch.bookingStageId) {
+    const open = (await liveStages(req, id)).find((s) => s.id === patch.bookingStageId && s.kind === "open");
+    if (!open) throw badRequest("UNKNOWN_STAGE", "Pick one of this pipeline's open stages");
+  }
   if (patch.isDefault === false && p.isDefault)
     throw badRequest("DEFAULT_PIPELINE", "Make another pipeline the default instead");
   if (patch.isDefault)
@@ -336,6 +342,11 @@ export async function archiveStage(req: FastifyRequest, id: string, moveToStageI
        WHERE stage_id = ${id} AND deleted_at IS NULL`);
   }
   await req.db.update(schema.stages).set({ archivedAt: new Date() }).where(eq(schema.stages.id, id));
+  // A stage gone can't be where booked leads go (5B).
+  await req.db
+    .update(schema.pipelines)
+    .set({ bookingStageId: null })
+    .where(eq(schema.pipelines.bookingStageId, id));
   await dropMovesTo(req, id);
   await audit(req, {
     action: "stage.archived",
