@@ -111,7 +111,8 @@ test.describe("Google Sheets", () => {
       // Its first sync, then LUME loses access: the next sync (Refresh's) finds it needs attention.
       await expect
         .poll(
-          async () => (await callApi<{ syncing: boolean }>(page, "GET", `/api/v1/sheets/sources/${src}`)).data.syncing,
+          async () =>
+            (await callApi<{ syncing: boolean }>(page, "GET", `/api/v1/sheets/sources/${src}`)).data.syncing,
           { timeout: 30_000 },
         )
         .toBe(false);
@@ -121,7 +122,9 @@ test.describe("Google Sheets", () => {
       await openApp(page, "/leads");
       await page.getByRole("button", { name: "Refresh", exact: true }).click();
       // Found by role in Chromium's accessibility tree: so it isn't inside anything aria-hidden.
-      const link = page.locator(`a[href="/settings/integrations/${src}"]`).filter({ hasText: /needs attention$/ });
+      const link = page
+        .locator(`a[href="/settings/integrations/${src}"]`)
+        .filter({ hasText: /needs attention$/ });
       await expect(link.first()).toBeVisible({ timeout: 30_000 });
       await page.waitForTimeout(6_000); // the card has gone back into the button
       await expect(page.getByRole("link", { name: /needs attention$/ }).first()).toBeVisible();
