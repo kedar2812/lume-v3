@@ -179,7 +179,8 @@ test.describe("Notifications (3B)", () => {
         { timeout: 60_000, intervals: [1_000] },
       )
       .toMatch(/follow-up/);
-    expect(mail!.text).toContain("Good morning, Noor.");
+    // Its greeting follows the hour on Noor's clock (a run can fall at any time of day).
+    expect(mail!.text).toMatch(/Good (morning|afternoon|evening), Noor\./);
     expect(mail!.text).toContain("Digest: Call back");
     expect(mail!.text).not.toContain("Digest Person"); // first names only
     expect(mail!.text).not.toMatch(/123 ?4567|digest\.person@/);

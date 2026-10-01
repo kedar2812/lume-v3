@@ -37,9 +37,12 @@ const MAIL_API = `http://127.0.0.1:${process.env.E2E_MAIL_API_PORT ?? 3111}/mess
 export async function lastMailTo(request: APIRequestContext, email: string, since = ""): Promise<Mail> {
   for (let i = 0; i < 60; i++) {
     const all = (await (await request.get(MAIL_API)).json()) as Mail[];
-    // The morning email (3B) can arrive at any point in a run; it's never the mail a test is waiting for.
+    // The daily email (3B) can arrive at any point in a run; it's never the mail a test is waiting for.
+    // Its greeting follows the hour on the person's clock.
     const mine = all
-      .filter((m) => m.to.includes(email) && m.at > since && !m.text.includes("Good morning, "))
+      .filter(
+        (m) => m.to.includes(email) && m.at > since && !/Good (morning|afternoon|evening), /.test(m.text),
+      )
       .at(-1);
     if (mine) return mine;
     await new Promise((r) => setTimeout(r, 250));
