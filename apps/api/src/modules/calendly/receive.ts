@@ -18,6 +18,8 @@ const DUMMY_ID = "00000000-0000-7000-8000-000000000001";
 /** What LUME does with a booking (spec §3); Calendly's other events are acknowledged and let go. */
 export const CALENDLY_KEPT = new Set(["invitee.created", "invitee.canceled"]);
 
+/** What LUME reads of a Calendly post before keeping it. */
+type Posted = { event?: unknown; payload?: { uri?: unknown } };
 const unauthorized = (reply: FastifyReply) => reply.code(401).send({ error: "unauthorized" });
 
 /**
@@ -86,9 +88,9 @@ export async function calendlyReceiveRoutes(app: FastifyInstance, d: AppDeps) {
         return slowDown(reply, all.retryAfterSec);
       }
 
-      let body: { event?: unknown; payload?: { uri?: unknown } } | null = null;
+      let body: Posted | null = null;
       try {
-        body = JSON.parse(raw.toString("utf8")) as typeof body;
+        body = JSON.parse(raw.toString("utf8")) as Posted | null;
       } catch {
         body = null;
       }

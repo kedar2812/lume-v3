@@ -12,7 +12,9 @@ export type NotifyKind =
   | "follow_up_nudge"
   | "lead_stage"
   | "system_alert"
-  | "calendar_reconnect";
+  | "calendar_reconnect"
+  | "meeting_booked"
+  | "meeting_cancelled";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */

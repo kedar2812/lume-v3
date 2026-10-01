@@ -11,6 +11,7 @@ import { jobServer, withJobRequest } from "../imports/job-request";
 import { writeRow } from "../imports/row";
 import { givesAway, isDataError, refusalReason } from "../imports/runner";
 import { createMissingTags } from "../sheets/sync";
+import { processCalendlyEvent } from "../calendly/process";
 import { cellsFor, flatten } from "./payload";
 
 const S = schema.leadSources;
@@ -82,6 +83,9 @@ export async function processEvent(o: ProcessDeps, eventId: number): Promise<voi
   const [ev] = await db.select().from(E).where(eq(E.id, eventId));
   if (!ev || (ev.status !== "queued" && ev.status !== "error") || !ev.payloadEnc) return;
   const [src] = await db.select().from(S).where(eq(S.id, ev.sourceId));
+  // Calendly's posts (5B) are bookings, not form rows: their own processing, from the same queue.
+  if (src?.type === "calendly")
+    return src.status === "archived" ? undefined : processCalendlyEvent(o, ev, src);
   // A paused or removed webhook keeps its posts queued; they go through when it's back.
   if (!src || src.type !== "webhook" || (src.status !== "active" && src.status !== "needs_attention")) return;
   const rules = src.rules as Rules;
