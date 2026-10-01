@@ -87,3 +87,19 @@ describe("the calendar queue's tick (5A Task 5)", () => {
     expect(asked).toEqual([]);
   });
 });
+
+describe("a sync asked for while one runs (5D Task 2, Review Focus 3)", () => {
+  it("is asked again shortly, up to a limit, rather than dropped", async () => {
+    const { handleSyncJob } = await import("./queue");
+    const sent: { id: string; tries: number; after: number }[] = [];
+    const resend = async (data: { id: string; tries: number }, afterSeconds: number) => {
+      sent.push({ ...data, after: afterSeconds });
+    };
+    await handleSyncJob(async () => "busy", { id: "c1" }, resend);
+    expect(sent).toEqual([{ id: "c1", tries: 1, after: 3 }]);
+    await handleSyncJob(async () => "busy", { id: "c1", tries: 40 }, resend);
+    expect(sent).toHaveLength(1); // two minutes of waiting is enough: the next tick asks again
+    await handleSyncJob(async () => "synced", { id: "c1", tries: 3 }, resend);
+    expect(sent).toHaveLength(1);
+  });
+});

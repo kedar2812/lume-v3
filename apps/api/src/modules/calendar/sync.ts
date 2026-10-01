@@ -348,6 +348,8 @@ async function write(
     }
 
   const kept = new Set<string>();
+  // What this sync changed, for Refresh to say (5D): new, moved, cancelled or gone, and any other edit.
+  const tally = { added: 0, moved: 0, cancelled: 0, changed: 0 };
   for (const [eventId, seen] of byEvent) {
     const { rows: was } = await c.query<Existing>(
       `SELECT id, lead_id, connection_id, calendar_id, matched_by, title, starts_at, ends_at, link, location, status,
@@ -367,10 +369,12 @@ async function write(
             "UPDATE meetings SET status = 'cancelled', updated_at = $2, version = version + 1 WHERE id = $1",
             [old.id, now],
           );
+          tally.cancelled++;
           await closeOutcomeTasks(c, [old.outcome_task_id], now, [old.id]);
         }
       } else if (old.status === "scheduled" || old.status === "cancelled") {
         await c.query("DELETE FROM meetings WHERE id = $1", [old.id]);
+        if (old.status === "scheduled") tally.cancelled++;
         await closeOutcomeTasks(c, [old.outcome_task_id], now, [old.id]);
       }
       continue;
@@ -411,6 +415,7 @@ async function write(
           now,
         ],
       );
+      tally.added++;
       continue;
     }
     // Moved later than its outcome (or than the ask for it): it's a meeting still to come, asked about again.
@@ -430,6 +435,8 @@ async function write(
       old.location === fields.location &&
       old.status === status;
     if (same) continue;
+    if (startsAt.getTime() !== old.starts_at.getTime()) tally.moved++;
+    else tally.changed++;
     // Moved at all: its reminder was for the old time. Moved past its outcome: that's set aside too.
     if (movedOn || startsAt.getTime() !== old.starts_at.getTime())
       await closeOutcomeTasks(c, movedOn ? [old.outcome_task_id] : [], now, [old.id]);
@@ -471,6 +478,7 @@ async function write(
         RETURNING id, outcome_task_id`,
       [conn.id, r.id, new Date(now.getTime() - BACK_MS), new Date(now.getTime() + AHEAD_MS), [...kept]],
     );
+    tally.cancelled += rows.length;
     await closeOutcomeTasks(
       c,
       rows.map((x) => x.outcome_task_id),
@@ -480,22 +488,32 @@ async function write(
   }
   // A calendar no longer chosen (or gone from the account) takes the meetings it brought, after the reads
   // above moved any another chosen calendar still has; one with an outcome is history.
-  const { rows: gone } = await c.query<{ id: string; outcome_task_id: string | null }>(
+  const { rows: gone } = await c.query<{ id: string; outcome_task_id: string | null; status: string }>(
     `DELETE FROM meetings WHERE connection_id = $1 AND status IN ('scheduled', 'cancelled')
         AND (calendar_id IS NULL OR NOT (calendar_id = ANY($2::text[])))
-      RETURNING id, outcome_task_id`,
+      RETURNING id, outcome_task_id, status`,
     [conn.id, chosen],
   );
+  tally.cancelled += gone.filter((x) => x.status === "scheduled").length;
   await closeOutcomeTasks(
     c,
     gone.map((x) => x.outcome_task_id),
     now,
     gone.map((x) => x.id),
   );
+  // A Refresh pressed after this sync started reading isn't in it: leave the connection due at once.
   await c.query(
-    `UPDATE calendar_connections SET calendars = $2, last_synced_at = $3, next_sync_at = $4, failures = 0,
-            last_error = NULL, updated_at = $3 WHERE id = $1`,
-    [conn.id, JSON.stringify(read.calendars), now, new Date(now.getTime() + EVERY_MS)],
+    `UPDATE calendar_connections SET calendars = $2, last_synced_at = $3, failures = 0, last_error = NULL,
+            updated_at = $3, last_sync = $5,
+            next_sync_at = CASE WHEN sync_requested_at > $3 THEN $3 ELSE $4 END
+      WHERE id = $1`,
+    [
+      conn.id,
+      JSON.stringify(read.calendars),
+      now,
+      new Date(now.getTime() + EVERY_MS),
+      JSON.stringify({ at: now.toISOString(), ...tally }),
+    ],
   );
   return "synced";
 }

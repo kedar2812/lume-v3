@@ -597,3 +597,86 @@ describe("5C final review: a Google meeting's reminder follows its meeting", () 
     expect(await taskStatus(tasks["rem-cancel"]!)).toBe("cancelled");
   });
 });
+
+describe("Refresh hears what the sync changed (5D Task 2)", () => {
+  // Their own person: earlier tests revoke Sam's grant and move Maya's calendars around.
+  let rafa: SeededUser;
+  let rafaC: AuthedClient;
+  let rafaConn: string;
+  beforeAll(async () => {
+    rafa = await h.seedUser({ grants: ALL_GRANTS, totp: true, name: "Rafa Lim" });
+    rafaC = await h.signIn(rafa);
+    rafaConn = await connect(rafaC, rafa.id, "rt-ok-rafa");
+  });
+  const lastSync = (id: string) =>
+    swept<{
+      last_sync: { at: string; added: number; moved: number; cancelled: number; changed: number } | null;
+    }>("SELECT last_sync FROM calendar_connections WHERE id = $1", [id]).then((r) => r[0]!.last_sync);
+
+  it("counts meetings added, moved, cancelled and otherwise changed; a quiet sync counts zeros at a new time", async () => {
+    rafaC = await h.signIn(rafa);
+    await h.seedLead({ ownerId: rafa.id, email: "counted@leads.test" });
+    const cal = ME;
+    // The shared fake calendar already holds other tests' meetings: a first sync takes those in.
+    expect(await sync(rafaConn)).toBe("synced");
+    h.clock.advance(60_000);
+    // `at` follows the clock, which moves between syncs: take each time once, or every re-put event "moves".
+    const [t10, t11, t20, t21] = [at(10), at(11), at(20), at(21)];
+    for (const id of ["cnt-a", "cnt-b", "cnt-c"])
+      h.fake!.putEvent(cal, { id, title: id, start: t10, end: t11, attendees: ["counted@leads.test"] });
+    expect(await sync(rafaConn)).toBe("synced");
+    const first = await lastSync(rafaConn);
+    expect(first).toMatchObject({ added: 3, moved: 0, cancelled: 0, changed: 0 });
+    expect(new Date(first!.at).getTime()).toBe(h.clock.now.getTime());
+
+    h.clock.advance(60_000);
+    h.fake!.putEvent(cal, {
+      id: "cnt-a",
+      title: "cnt-a",
+      start: t20,
+      end: t21,
+      attendees: ["counted@leads.test"],
+    });
+    h.fake!.putEvent(cal, {
+      id: "cnt-b",
+      title: "Renamed",
+      start: t10,
+      end: t11,
+      attendees: ["counted@leads.test"],
+    });
+    h.fake!.cancelEvent(cal, "cnt-c");
+    expect(await sync(rafaConn)).toBe("synced");
+    expect(await lastSync(rafaConn)).toMatchObject({ added: 0, moved: 1, cancelled: 1, changed: 1 });
+
+    h.clock.advance(60_000);
+    expect(await sync(rafaConn)).toBe("synced");
+    const quiet = await lastSync(rafaConn);
+    expect(quiet).toMatchObject({ added: 0, moved: 0, cancelled: 0, changed: 0 });
+    expect(new Date(quiet!.at).getTime()).toBe(h.clock.now.getTime());
+  });
+
+  it("the connection view shows the last sync and never the grant; Refresh says from when to wait", async () => {
+    const v = (await rafaC.inject({ method: "GET", url: "/api/v1/calendar/connection" })).json();
+    expect(v.lastSync).toMatchObject({ added: 0, moved: 0, cancelled: 0, changed: 0 });
+    expect(JSON.stringify(v)).not.toMatch(/grant|refresh|rt-ok/i);
+    const r = await rafaC.inject({ method: "POST", url: "/api/v1/calendar/connection/sync" });
+    expect(r.statusCode).toBe(202);
+    expect(r.json()).toEqual({ queued: true, since: h.clock.now.toISOString() });
+  });
+
+  it("Review Focus 3: a Refresh asked while a sync runs isn't lost — that sync leaves the connection due at once", async () => {
+    // The sync started at `now`; the Refresh came a second later, while it read Google.
+    const started = h.clock.now;
+    // As Rafa, the way Refresh writes it: with no person set, row-level security would match no row.
+    await asPerson(rafa.id, "UPDATE calendar_connections SET sync_requested_at = $2 WHERE id = $1", [
+      rafaConn,
+      new Date(started.getTime() + 1000),
+    ]);
+    expect(await sync(rafaConn)).toBe("synced");
+    expect((await connRow(rafaConn)).next_sync_at.getTime()).toBe(started.getTime());
+    // With no Refresh waiting, the next sync is the usual five minutes away.
+    h.clock.advance(5000);
+    expect(await sync(rafaConn)).toBe("synced");
+    expect((await connRow(rafaConn)).next_sync_at.getTime()).toBe(h.clock.now.getTime() + 5 * 60_000);
+  });
+});

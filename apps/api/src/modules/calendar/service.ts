@@ -72,6 +72,7 @@ function view(d: AppDeps, c: Connection | undefined, on: boolean) {
     status: c.status,
     calendars: c.calendars.map(({ id, name, chosen }) => ({ id, name, chosen })),
     lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null,
+    lastSync: c.lastSync ?? null,
     lastError: c.lastError,
   };
 }
@@ -256,9 +257,11 @@ export async function syncCalendarNow(req: FastifyRequest, d: AppDeps) {
       "CALENDAR_NEEDS_RECONNECT",
       "Google stopped letting LUME read your calendar. Connect it again.",
     );
-  await req.db.update(CC).set({ nextSyncAt: new Date() }).where(eq(CC.id, c.id));
+  // Refresh (5D): due now, and remembered, so a sync already reading leaves it due again when it ends.
+  const since = d.clock();
+  await req.db.update(CC).set({ nextSyncAt: since, syncRequestedAt: since }).where(eq(CC.id, c.id));
   req.afterCommit(() => void d.calendar?.enqueue(c.id));
-  return { queued: true };
+  return { queued: true, since: since.toISOString() };
 }
 
 /** Disconnect (spec §2.6 decision 2): the grant and every meeting the connection brought, linked or not. */

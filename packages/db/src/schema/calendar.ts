@@ -11,6 +11,8 @@ export type ConnectedCalendar = {
   /** When LUME last read its whole window (ISO): once a day, so a lead's new email still finds old events. */
   fullAt?: string | null;
 };
+/** What one sync changed: meetings added, moved, cancelled (or gone), and otherwise changed. */
+export type LastSync = { at: string; added: number; moved: number; cancelled: number; changed: number };
 export type MeetingStatus = "scheduled" | "cancelled" | "completed" | "no_show" | "rescheduled";
 
 /** A person's Google Calendar, connected through the relay (Phase 5A). Their own row only. */
@@ -26,6 +28,10 @@ export const calendarConnections = pgTable("calendar_connections", {
     .default(sql`'[]'::jsonb`),
   status: text("status").$type<"active" | "needs_reconnect">().notNull().default("active"),
   lastSyncedAt: tz("last_synced_at"),
+  /** What the latest sync changed (5D Refresh); `at` is when it started reading. */
+  lastSync: jsonb("last_sync").$type<LastSync>(),
+  /** The latest Refresh: a sync that started before it leaves the connection due at once. */
+  syncRequestedAt: tz("sync_requested_at"),
   nextSyncAt: tz("next_sync_at").notNull().defaultNow(),
   failures: integer("failures").notNull().default(0),
   lastError: text("last_error"),

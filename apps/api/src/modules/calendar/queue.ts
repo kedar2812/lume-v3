@@ -43,6 +43,23 @@ export function calendarTick(o: {
   };
 }
 
+/** A sync job asked again this many times, 3 s apart, while another sync of the same connection runs. */
+const BUSY_TRIES = 40;
+
+/**
+ * One sync job. A connection already syncing answers "busy": the ask (often a Refresh) is sent again a few
+ * seconds on rather than dropped, for up to two minutes (Review Focus 3). After that the next tick asks.
+ */
+export async function handleSyncJob(
+  run: (id: string) => Promise<string>,
+  data: { id: string; tries?: number },
+  resend: (data: { id: string; tries: number }, afterSeconds: number) => Promise<void>,
+) {
+  const outcome = await run(data.id);
+  const tries = data.tries ?? 0;
+  if (outcome === "busy" && tries < BUSY_TRIES) await resend({ id: data.id, tries: tries + 1 }, 3);
+}
+
 /** Calendar syncs run in the API process, as lume_app (as sheets do, spec §2.3), two at once. */
 export async function startCalendarQueue(o: {
   connectionString: string;
@@ -65,11 +82,18 @@ export async function startCalendarQueue(o: {
   const deps = { pool: o.pool, keyring: o.keyring, clientFor: o.clientFor, log: o.app.log };
   // pg-boss 10 runs one job per worker.
   for (let i = 0; i < SYNC_WORKERS; i++)
-    await boss.work<{ id: string }>(
+    await boss.work<{ id: string; tries?: number }>(
       "calendar.sync",
       { batchSize: 1, pollingIntervalSeconds: 0.5 },
       async ([job]) => {
-        if (job) await runCalendarSync(deps, job.data.id);
+        if (job)
+          await handleSyncJob(
+            (id) => runCalendarSync(deps, id),
+            job.data,
+            async (data, afterSeconds) => {
+              await boss.send("calendar.sync", data, { retryLimit: 0, startAfter: afterSeconds });
+            },
+          );
       },
     );
   // A failed sync is not retried by the queue: the sync records it and when to try again.
