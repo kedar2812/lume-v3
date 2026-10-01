@@ -159,7 +159,9 @@ describe("the daily digest: 3B final review", () => {
     await run("2026-10-08T03:00:00Z");
     const [m] = to(u.email);
     expect(m!.text).toContain("Aisha: Call");
-    for (const body of [m!.text, m!.html]) expect(body).not.toMatch(/765|4321|aisha\.secret|@leads/);
+    // Links carry ids (random hex, which can hold "765"): the words are what's checked.
+    for (const body of [m!.text, m!.html])
+      expect(body.replace(/https?:\/\/[^\s"'<>]+/g, "")).not.toMatch(/765|4321|aisha\.secret|@leads/);
   });
 
   it("Important 7: someone LUME can't read doesn't stop anyone else's", async () => {
