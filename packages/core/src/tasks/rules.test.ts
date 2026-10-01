@@ -111,3 +111,30 @@ describe("stage rules (3C)", () => {
     );
   });
 });
+
+describe("remind the lead before their meeting (5C)", () => {
+  const rule = {
+    id: "0190e0c0-0000-7000-8000-0000000000aa",
+    type: "remind_before_meeting" as const,
+    hoursBefore: 2,
+    templateId: "0190e0c0-0000-7000-8000-0000000000bb",
+  };
+  it("is a stage rule: 1 to 72 hours before, with a template", () => {
+    expect(onEnterSchema.safeParse({ rules: [rule] }).success).toBe(true);
+    for (const bad of [
+      { ...rule, hoursBefore: 0 },
+      { ...rule, hoursBefore: 73 },
+      { ...rule, hoursBefore: 1.5 },
+      { ...rule, templateId: "nope" },
+    ])
+      expect(onEnterSchema.safeParse({ rules: [bad] }).success, JSON.stringify(bad)).toBe(false);
+  });
+  it("says what it does", () => {
+    expect(describeRule(rule, new Map())).toBe(
+      "Sets the lead's owner a WhatsApp reminder for the lead, 2 hours before their meeting",
+    );
+    expect(describeRule({ ...rule, hoursBefore: 1 }, new Map())).toBe(
+      "Sets the lead's owner a WhatsApp reminder for the lead, 1 hour before their meeting",
+    );
+  });
+});

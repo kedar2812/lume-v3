@@ -71,6 +71,16 @@ export const stageRuleSchema = z.discriminatedUnion("type", [
       to: z.array(person).min(1, "Pick who to tell").max(10),
     })
     .strict(),
+  // 5C: a WhatsApp follow-up for the lead's owner, with this template, due this long before the lead's
+  // next meeting (4A's reminder messages).
+  z
+    .object({
+      id: z.uuid(),
+      type: z.literal("remind_before_meeting"),
+      hoursBefore: z.number().int().min(1, "At least an hour before").max(72, "Up to three days before"),
+      templateId: z.uuid(),
+    })
+    .strict(),
 ]);
 
 export const onEnterSchema = z
@@ -112,5 +122,7 @@ export function describeRule(rule: StageRule, names: Map<string, string>): strin
       const list = rule.to.map((p) => who(p, names));
       return `Tells ${list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0]}`;
     }
+    case "remind_before_meeting":
+      return `Sets the lead's owner a WhatsApp reminder for the lead, ${count(rule.hoursBefore, "hour")} before their meeting`;
   }
 }

@@ -16,7 +16,8 @@ const MOVES: { key: keyof Moves; label: string }[] = [
   { key: "afterReplyStageId", label: "After a reply, move to" },
 ];
 const OWNER = "lead_owner";
-const newRule = (type: StageRule["type"]): StageRule =>
+/** The kinds the editor adds today; a meeting reminder (5C) shows as its sentence until its own card ships. */
+const newRule = (type: "create_task" | "notify" | "cancel_open_tasks"): StageRule =>
   type === "create_task"
     ? { id: crypto.randomUUID(), type, title: "", dueIn: { n: 2, unit: "day" }, assignee: OWNER }
     : type === "notify"

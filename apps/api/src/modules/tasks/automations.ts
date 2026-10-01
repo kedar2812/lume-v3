@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type pg from "pg";
 import { leadScope, newId, onEnterSchema, shiftToWorkingHours, type StageRule } from "@lume/core";
@@ -90,6 +90,7 @@ export async function runOnEnter(
     await req.db.execute(sql`SAVEPOINT lume_rule`);
     try {
       if (rule.type === "create_task") await setFollowUp(req, deps, lead, rule, ctx);
+      else if (rule.type === "remind_before_meeting") await remindBefore(req, deps, lead, rule, ctx);
       else if (rule.type === "cancel_open_tasks") {
         const cancelled = await cancelLeadTasks(req, lead.id);
         if (cancelled) await say(req, lead, rule, "done", { cancelled }); // nothing open: nothing to say
@@ -141,6 +142,75 @@ const say = (
   result: "done" | "skipped",
   extra: Record<string, unknown> = {},
 ) => recordActivity(req, lead.id, "automation", { ruleId: rule.id, rule: rule.type, result, ...extra });
+
+/**
+ * 5C: a WhatsApp follow-up for the lead's owner, with the rule's template, due `hoursBefore` before the
+ * lead's next meeting — so the reminder goes out in time. Nothing, said why, when there's no meeting to come,
+ * that time has passed, the template is gone, or nobody owns the lead.
+ */
+async function remindBefore(
+  req: FastifyRequest,
+  deps: AutomationDeps,
+  lead: Lead,
+  rule: Extract<StageRule, { type: "remind_before_meeting" }>,
+  ctx: { now: Date; mover: string | null },
+) {
+  if (!lead.ownerId) return say(req, lead, rule, "skipped", { reason: "no_owner" });
+  const m = (
+    await req.db.execute<{ title: string; starts_at: string | Date }>(
+      sql`SELECT title, starts_at FROM meetings WHERE lead_id = ${lead.id} AND status = 'scheduled'
+            AND starts_at > ${ctx.now} ORDER BY starts_at LIMIT 1`,
+    )
+  ).rows[0];
+  if (!m) return say(req, lead, rule, "skipped", { reason: "no_meeting" });
+  const dueAt = new Date(new Date(m.starts_at).getTime() - rule.hoursBefore * UNIT_MS.hour);
+  if (dueAt <= ctx.now) return say(req, lead, rule, "skipped", { reason: "too_late" });
+  const [t] = await req.db
+    .select({ id: schema.messageTemplates.id })
+    .from(schema.messageTemplates)
+    .where(and(eq(schema.messageTemplates.id, rule.templateId), isNull(schema.messageTemplates.archivedAt)));
+  if (!t) return say(req, lead, rule, "skipped", { reason: "no_template" });
+  const open = await req.db.execute(
+    sql`SELECT 1 FROM tasks WHERE lead_id = ${lead.id} AND auto_rule_id = ${rule.id} AND status = 'open' LIMIT 1`,
+  );
+  if (open.rows.length) return say(req, lead, rule, "skipped", { reason: "already_open" });
+  const id = newId();
+  const title = `Remind ${lead.name} about ${m.title}`.slice(0, 200);
+  const [task] = await req.db
+    .insert(schema.tasks)
+    .values({
+      id,
+      leadId: lead.id,
+      assigneeId: lead.ownerId,
+      type: "whatsapp",
+      templateId: rule.templateId,
+      title,
+      dueAt,
+      remindMinutes: [0],
+      seriesId: id,
+      createdBy: ctx.mover,
+      autoRuleId: rule.id,
+    })
+    .returning();
+  await schedule(req.db, task!, ctx.now);
+  await refreshNextDue(req, lead.id);
+  await say(req, lead, rule, "done", {
+    taskId: id,
+    assigneeId: lead.ownerId,
+    title,
+    dueAt: dueAt.toISOString(),
+  });
+  const pending = await pendingOf(req.db, [id]);
+  if (pending.length)
+    req.afterCommit(
+      () =>
+        void deps.tasks
+          ?.enqueue(pending)
+          .catch((err: unknown) =>
+            req.log.error({ err }, "couldn't queue a rule's reminder; the sweeper will"),
+          ),
+    );
+}
 
 async function setFollowUp(
   req: FastifyRequest,

@@ -73,6 +73,8 @@ type Booking = {
   qa?: { question: string; answer: string }[];
   rescheduled?: boolean;
   reason?: string;
+  /** When it starts (ISO); a fixed day unless a test needs one still to come. */
+  start?: string;
 };
 const START = "2026-09-24T10:00:00.000000Z";
 const body = (b: Booking) => {
@@ -98,8 +100,8 @@ const body = (b: Booking) => {
         uri: `https://api.calendly.com/scheduled_events/EV-${b.invitee}`,
         name: b.title ?? "Discovery call",
         status: event === "invitee.created" ? "active" : "canceled",
-        start_time: START,
-        end_time: "2026-09-24T10:30:00.000000Z",
+        start_time: b.start ?? START,
+        end_time: new Date(new Date(b.start ?? START).getTime() + 30 * 60_000).toISOString(),
         location: { type: "google_conference", join_url: "https://meet.example/abc" },
         event_memberships: [
           { user: "https://api.calendly.com/users/H", user_email: b.host ?? host.email, user_name: "Host" },
@@ -270,6 +272,46 @@ describe("a booking (5B Task 6)", () => {
     await deliver({ invitee: "WON1", email: "won@client.test" });
     expect((await leadsBy("won@client.test"))[0]!.stage_id).toBe(stages.Won);
     expect((await meetingOf("WON1"))!.lead_id).toBe(won);
+  });
+
+  it("a booking moving the lead into a stage that reminds before meetings sets that reminder (5C)", async () => {
+    const t = await adminC.inject({
+      method: "POST",
+      url: "/api/v1/templates",
+      payload: { name: "Before the call", category: "reminder", body: "See you {{meeting.time}}" },
+    });
+    expect(t.statusCode).toBe(201);
+    const [was] = (
+      await h.ownerPool.query<{ on_enter: unknown }>("SELECT on_enter FROM stages WHERE id = $1", [
+        stages["Call booked"],
+      ])
+    ).rows;
+    await h.ownerPool.query("UPDATE stages SET on_enter = $1 WHERE id = $2", [
+      { rules: [{ id: newId(), type: "remind_before_meeting", hoursBefore: 2, templateId: t.json().id }] },
+      stages["Call booked"],
+    ]);
+    try {
+      const start = new Date(Date.now() + 30 * 3_600_000);
+      await deliver({
+        invitee: "REMIND1",
+        email: "remind@client.test",
+        name: "Rita Remind",
+        start: start.toISOString(),
+      });
+      const [lead] = await leadsBy("remind@client.test");
+      const tasks = await h.queryAll<{ type: string; template_id: string; due_at: Date }>(
+        "SELECT type, template_id, due_at FROM tasks WHERE lead_id = $1",
+        [lead!.id],
+      );
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0]).toMatchObject({ type: "whatsapp", template_id: t.json().id });
+      expect(tasks[0]!.due_at.getTime()).toBe(start.getTime() - 2 * 3_600_000);
+    } finally {
+      await h.ownerPool.query("UPDATE stages SET on_enter = $1 WHERE id = $2", [
+        was!.on_enter,
+        stages["Call booked"],
+      ]);
+    }
   });
 
   it("a host who isn't in LUME: the meeting is the lead's owner's", async () => {

@@ -111,6 +111,9 @@ async function views(req: FastifyRequest, rows: Task[]) {
     leadName: leadName.get(t.leadId) ?? "",
     title: t.title,
     note: t.note,
+    // A WhatsApp follow-up carries the template to send (4A; 5C's meeting reminders).
+    type: t.type,
+    templateId: t.templateId,
     dueAt: t.dueAt.toISOString(),
     status: t.status,
     remindMinutes: t.remindMinutes,
