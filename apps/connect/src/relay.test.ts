@@ -259,7 +259,11 @@ describe("the relay", () => {
       expect(back.origin + back.pathname).toBe("https://client-a.example/calendar/connected");
       const p = back.searchParams.get("p")!;
       expect(verify(TOKEN, p, back.searchParams.get("s")!)).toBe(true);
-      expect(unseal<Handoff>(TOKEN, p)).toMatchObject({ nonce: "cal-3", refreshToken: "rt-good", kind: "calendar" });
+      expect(unseal<Handoff>(TOKEN, p)).toMatchObject({
+        nonce: "cal-3",
+        refreshToken: "rt-good",
+        kind: "calendar",
+      });
     });
   });
 });

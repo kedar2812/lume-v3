@@ -12,7 +12,9 @@ import {
 export type Handoff = {
   nonce: string;
   refreshToken: string;
-  file: { id: string; name: string };
+  /** What the grant is for: a sheet (with the picked file) or a calendar (Phase 5A; no file). Absent: a sheet. */
+  kind?: "sheet" | "calendar";
+  file?: { id: string; name: string };
   exp: number;
 };
 

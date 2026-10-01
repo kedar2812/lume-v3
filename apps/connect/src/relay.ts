@@ -20,8 +20,14 @@ export type RelayConfig = {
 };
 
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
+/** A calendar (Phase 5A): read-only — the events, and which calendars there are. Nothing else. */
+const CALENDAR_SCOPE = [
+  "https://www.googleapis.com/auth/calendar.events.readonly",
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+].join(" ");
 const TEN_MIN = 10 * 60_000;
-type State = { i: string; n: string; exp: number };
+/** `k`: "calendar" for a calendar's grant (Phase 5A); absent, a sheet's. */
+type State = { i: string; n: string; exp: number; k?: "calendar" };
 
 /**
  * The relay (2B spec §6): the one place Google calls back to, for every LUME instance. It holds the OAuth
@@ -143,18 +149,25 @@ export function createRelay(o: RelayConfig): Relay {
         const id = u.searchParams.get("i") ?? "";
         const n = u.searchParams.get("n") ?? "";
         const inst = byId.get(id);
-        if (!inst || !n || !verify(inst.token, n, u.searchParams.get("s") ?? ""))
+        const k = u.searchParams.get("k");
+        // The kind is signed with the nonce, so a sheet's link can't be turned into a calendar's.
+        if (
+          !inst ||
+          !n ||
+          (k !== null && k !== "calendar") ||
+          !verify(inst.token, k ? `${n}.${k}` : n, u.searchParams.get("s") ?? "")
+        )
           return plain(res, 400, "This link isn't valid. Go back to LUME and try again.");
         const to = new URL(authUrl);
         to.search = new URLSearchParams({
           client_id: o.clientId,
           redirect_uri: redirectUri,
           response_type: "code",
-          scope: SCOPE,
+          scope: k === "calendar" ? CALENDAR_SCOPE : SCOPE,
           access_type: "offline",
           prompt: "consent",
           include_granted_scopes: "false",
-          state: packState({ i: id, n, exp: now() + TEN_MIN }),
+          state: packState({ i: id, n, exp: now() + TEN_MIN, ...(k === "calendar" ? { k } : {}) }),
         }).toString();
         res.writeHead(302, { location: to.toString(), "cache-control": "no-store" });
         return res.end();
@@ -183,6 +196,21 @@ export function createRelay(o: RelayConfig): Relay {
         const accessToken = t.data.access_token as string | undefined;
         if (t.status !== 200 || !refreshToken || !accessToken)
           return plain(res, 400, "Google didn't give LUME access. Go back to LUME and try again.");
+        // A calendar needs no Picker: its grant goes straight back to the instance's calendar page.
+        if (state.k === "calendar") {
+          const inst = byId.get(state.i)!;
+          const handoff: Handoff = {
+            nonce: state.n,
+            refreshToken,
+            kind: "calendar",
+            exp: now() + TEN_MIN,
+          };
+          const sealed = seal(inst.token, handoff);
+          const back = new URL("/calendar/connected", inst.url);
+          back.search = new URLSearchParams({ p: sealed, s: sign(inst.token, sealed) }).toString();
+          res.writeHead(302, { location: back.toString(), ...HARDENED });
+          return res.end();
+        }
         const codeToken = randomBytes(24).toString("base64url");
         pending.set(codeToken, { refreshToken, accessToken, state: raw!, exp: now() + TEN_MIN });
         res.writeHead(200, {
