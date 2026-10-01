@@ -69,6 +69,7 @@ describe("the Sheets module", () => {
     expect((await call(b, "GET", "/api/v1/integrations")).json()).toEqual({
       googleSheets: { enabled: false, available: false, email: null, connectWithGoogle: false },
       webhooks: { enabled: false, manychat: false },
+      googleCalendar: { enabled: false, available: false },
     });
     const off = await call(b, "PUT", "/api/v1/integrations/google-sheets", { enabled: true });
     expect(off.statusCode).toBe(409);
@@ -85,6 +86,7 @@ describe("the Sheets module", () => {
     expect((await call(admin, "GET", "/api/v1/integrations")).json()).toEqual({
       googleSheets: { enabled: true, available: true, email: h.fake!.email, connectWithGoogle: false },
       webhooks: { enabled: false, manychat: false },
+      googleCalendar: { enabled: false, available: false },
     });
     const [a] = await h.queryAll<{ action: string }>(
       "SELECT action FROM audit_log WHERE action = 'integration.enabled'",

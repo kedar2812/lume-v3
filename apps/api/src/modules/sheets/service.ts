@@ -88,6 +88,8 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
     },
     // Webhooks (2C) need nothing on the server; ManyChat is offered only once it's verified.
     webhooks: { enabled: !!s?.i.webhooks?.enabled, manychat: !!d.manychatPreset },
+    // Google Calendar (5A) comes through Connect with Google: offered where that's set up.
+    googleCalendar: { enabled: !!s?.i.googleCalendar?.enabled, available: !!d.googleOAuth },
   };
 }
 

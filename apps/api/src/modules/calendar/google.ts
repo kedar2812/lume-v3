@@ -12,6 +12,7 @@ export type CalendarEventRead = {
   startsAt: Date | null;
   endsAt: Date | null;
   allDay: boolean;
+  /** The organiser and attendees other than the calendar's own person (Google marks them `self`). */
   organizer: string | null;
   attendees: string[];
   link: string | null;
@@ -46,8 +47,8 @@ type GEvent = {
   summary?: string;
   start?: GTime;
   end?: GTime;
-  organizer?: { email?: string };
-  attendees?: { email?: string }[];
+  organizer?: { email?: string; self?: boolean };
+  attendees?: { email?: string; self?: boolean }[];
   hangoutLink?: string;
   location?: string;
 };
@@ -64,8 +65,11 @@ const read = (e: GEvent): CalendarEventRead => ({
   startsAt: at(e.start),
   endsAt: at(e.end),
   allDay: !e.start?.dateTime && !!e.start?.date,
-  organizer: e.organizer?.email ?? null,
-  attendees: (e.attendees ?? []).map((a) => a.email ?? "").filter(Boolean),
+  organizer: e.organizer?.self ? null : (e.organizer?.email ?? null),
+  attendees: (e.attendees ?? [])
+    .filter((a) => !a.self)
+    .map((a) => a.email ?? "")
+    .filter(Boolean),
   link: e.hangoutLink ?? null,
   location: e.location ?? null,
 });

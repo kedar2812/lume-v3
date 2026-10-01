@@ -240,9 +240,11 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       // token from a grant reads any sheet, as drive.file lets a picked file through.
       const grant = form.get("grant_type");
       if (grant === "authorization_code" || grant === "refresh_token") {
+        // "calendar-list-only": a consent where the person unticked reading events (Google's granular consent).
+        const partial = grant === "authorization_code" && form.get("code") === "calendar-list-only";
         const good =
           grant === "authorization_code"
-            ? form.get("code") === "good-code"
+            ? form.get("code") === "good-code" || partial
             : /^rt-(good$|ok-)/.test(form.get("refresh_token") ?? "") &&
               !revoked &&
               !revokedOne.has(form.get("refresh_token")!);
@@ -256,6 +258,14 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
           expires_in: 3600,
           token_type: "Bearer",
           ...(grant === "authorization_code" ? { refresh_token: "rt-good" } : {}),
+          // What was granted, as Google says it (the fake grants everything LUME asks for, or the list alone).
+          scope: partial
+            ? "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+            : [
+                "https://www.googleapis.com/auth/drive.file",
+                "https://www.googleapis.com/auth/calendar.events.readonly",
+                "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+              ].join(" "),
         });
       }
       const [h, c, sig] = (form.get("assertion") ?? "").split(".");

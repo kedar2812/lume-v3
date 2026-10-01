@@ -54,7 +54,11 @@ export const settings = pgTable("settings", {
     .default(sql`'{"rules":{"attendeeIsLead":true,"titleWords":[],"calendarIds":[]}}'::jsonb`),
   /** Optional modules switched on for this instance (2B spec §3); off unless set. */
   integrations: jsonb("integrations")
-    .$type<{ googleSheets?: { enabled: boolean }; webhooks?: { enabled: boolean } }>()
+    .$type<{
+      googleSheets?: { enabled: boolean };
+      webhooks?: { enabled: boolean };
+      googleCalendar?: { enabled: boolean };
+    }>()
     .notNull()
     .default(sql`'{}'::jsonb`),
   createdAt: tz("created_at").notNull().defaultNow(),

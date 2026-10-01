@@ -1,9 +1,11 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { ALL_GRANTS, instanceIdOf, seal, sign, verify } from "@lume/core";
+import { ALL_GRANTS, instanceIdOf, newId, seal, sign, verify } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRelay } from "../../../../connect/src/relay";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
+import { calendarClientFor } from "./google";
+import { runCalendarSync } from "./sync";
 
 const RELAY_TOKEN = "k".repeat(40);
 const ME = "maya@business.test";
@@ -111,6 +113,31 @@ async function handBack(
 }
 
 describe("connecting a calendar (5A Task 3)", () => {
+  it("is off until an admin switches it on in Integrations (an optional module)", async () => {
+    expect((await call(admin, "GET", "/api/v1/integrations")).json().googleCalendar).toEqual({
+      enabled: false,
+      available: true,
+    });
+    expect((await call(admin, "GET", "/api/v1/calendar/connection")).json()).toEqual({
+      available: false,
+      connected: false,
+    });
+    const r = await call(admin, "POST", "/api/v1/calendar/connect");
+    expect([r.statusCode, r.json().error.code]).toEqual([409, "CALENDAR_OFF"]);
+    expect((await call(admin, "POST", "/api/v1/calendar/connection/sync")).json().error.code).toBe(
+      "CALENDAR_OFF",
+    );
+    // where Connect with Google isn't set up, it can't be switched on
+    const no = await call(bareAdmin, "PUT", "/api/v1/integrations/google-calendar", { enabled: true });
+    expect([no.statusCode, no.json().error.code]).toEqual([409, "NOT_CONFIGURED"]);
+    const on = await call(admin, "PUT", "/api/v1/integrations/google-calendar", { enabled: true });
+    expect(on.json().googleCalendar).toEqual({ enabled: true, available: true });
+    expect((await call(admin, "GET", "/api/v1/calendar/connection")).json()).toEqual({
+      available: true,
+      connected: false,
+    });
+  });
+
   it("is offered only where Connect with Google is set up", async () => {
     expect((await call(bareAdmin, "GET", "/api/v1/calendar/connection")).json()).toEqual({
       available: false,
@@ -222,7 +249,7 @@ describe("connecting a calendar (5A Task 3)", () => {
     });
   });
 
-  it("choosing calendars: only the account's own; un-choosing one takes its meetings; a sync is asked", async () => {
+  it("choosing calendars: only the account's own; un-choosing one takes its meetings at the next sync, which is asked for", async () => {
     const bad = await call(admin, "PATCH", "/api/v1/calendar/connection", {
       calendars: ["stranger@group.test"],
     });
@@ -243,8 +270,17 @@ describe("connecting a calendar (5A Task 3)", () => {
     h.calendarQueue.length = 0;
     const one = await call(admin, "PATCH", "/api/v1/calendar/connection", { calendars: [ME] });
     expect(one.json().calendars.map((c: { chosen: boolean }) => c.chosen)).toEqual([true, false]);
-    expect(await swept("SELECT id FROM meetings WHERE calendar_id = 'team@group.test'")).toEqual([]);
     expect(h.calendarQueue).toEqual([conn!.id]);
+    const sync = await runCalendarSync(
+      {
+        pool: h.pool,
+        keyring: h.keyring,
+        clientFor: calendarClientFor({ relayUrl: relayOrigin, relayToken: RELAY_TOKEN }, h.fake!.url),
+      },
+      conn!.id,
+    );
+    expect(sync).toBe("synced");
+    expect(await swept("SELECT id FROM meetings WHERE calendar_id = 'team@group.test'")).toEqual([]);
   });
 
   it("Sync now asks for a sync; without a connection there's nothing to sync", async () => {
@@ -285,6 +321,18 @@ describe("connecting a calendar (5A Task 3)", () => {
        VALUES (gen_random_uuid(), $1, $2, $3, 'google', 'linked-event', $4, 'Call', now(), now(), 'attendee')`,
       [lead, me.id, conn!.id, ME],
     );
+    // its open Log outcome follow-up
+    const task = newId();
+    await asPerson(
+      me.id,
+      "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Log outcome: Call', now(), $1)",
+      [task, lead, me.id],
+    );
+    await asPerson(
+      me.id,
+      "UPDATE meetings SET outcome_task_id = $1, outcome_asked_at = now() WHERE external_id = 'linked-event'",
+      [task],
+    );
     const r = await call(admin, "DELETE", "/api/v1/calendar/connection");
     expect(r.statusCode).toBe(200);
     expect(r.json()).toEqual({ available: true, connected: false });
@@ -295,6 +343,9 @@ describe("connecting a calendar (5A Task 3)", () => {
       [me.id],
     );
     expect(audit).toEqual([{ action: "calendar.disconnected", diff: { meetings: 1 } }]);
+    expect(await h.queryAll("SELECT status FROM tasks WHERE id = $1", [task])).toEqual([
+      { status: "cancelled" },
+    ]);
     expect((await call(admin, "DELETE", "/api/v1/calendar/connection")).statusCode).toBe(404);
   });
 });

@@ -8,6 +8,7 @@ import { createRelay } from "../../../../connect/src/relay";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { grantTokens } from "../sheets/google";
 import { createGoogleCalendar } from "./google";
+import { askOutcomes } from "../meetings/outcomes";
 import { dueConnections, runCalendarSync } from "./sync";
 
 const RELAY_TOKEN = "q".repeat(40);
@@ -45,6 +46,9 @@ beforeAll(async () => {
   mayaC = await h.signIn(maya);
   samC = await h.signIn(sam);
   h.fake!.putCalendar(ME, { name: ME, primary: true });
+  await h.ownerPool.query(
+    `UPDATE settings SET integrations = '{"googleCalendar":{"enabled":true}}' WHERE id = 1`,
+  );
   mayaConn = await connect(mayaC, maya.id, "rt-ok-maya");
   samConn = await connect(samC, sam.id, "rt-ok-sam");
 });
@@ -196,6 +200,24 @@ describe("the calendar sync (5A Task 5)", () => {
     expect(await scan("(secret-personal|personal[.]test|hidden-place|personal-[0-9])")).toEqual([]);
     // …and the scan does find what was kept: the lead meetings' titles.
     expect(await scan("discovery call [0-4]")).toContainEqual({ hit: "public.meetings.title" });
+    // Nor any personal event's time, in any time column (and the kept meetings' times are there).
+    const times = await su<{ t: string; c: string }>(
+      `SELECT table_schema || '.' || quote_ident(table_name) AS t, quote_ident(column_name) AS c
+         FROM information_schema.columns
+        WHERE table_schema IN ('public', 'pgboss') AND data_type = 'timestamp with time zone'`,
+    );
+    const at$ = (when: string[]) =>
+      su<{ hit: string }>(
+        times
+          .map(
+            ({ t, c }) => `(SELECT '${t}.${c}' AS hit FROM ${t} WHERE ${c} = ANY($1::timestamptz[]) LIMIT 1)`,
+          )
+          .join(" UNION ALL "),
+        [when],
+      );
+    const personal = Array.from({ length: 50 }, (_, i) => [at(24 + i), at(25 + i)]).flat();
+    expect(await at$(personal)).toEqual([]);
+    expect(await at$([at(2)])).toContainEqual({ hit: "public.meetings.starts_at" });
   }, 30_000);
 
   it("an event moved, renamed, cancelled, or no longer with a lead updates or removes its meeting", async () => {
@@ -364,5 +386,183 @@ describe("the calendar sync (5A Task 5)", () => {
     const due = await dueConnections(h.pool, new Date(h.clock.now.getTime() + 24 * HOUR));
     expect(due).toContain(mayaConn);
     expect(due).not.toContain(samConn);
+  });
+});
+
+/** Writes as one person, seeing every lead (as LUME's sync does). */
+async function asPerson(userId: string, sql: string, params: unknown[] = []) {
+  const c = await h.ownerPool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'all', true)", [
+      userId,
+    ]);
+    await c.query(sql, params);
+    await c.query("COMMIT");
+  } finally {
+    c.release();
+  }
+}
+const meetingOf = async (externalId: string) =>
+  (
+    await su<{
+      id: string;
+      status: string;
+      calendar_id: string;
+      outcome_at: Date | null;
+      outcome_asked_at: Date | null;
+      outcome_task_id: string | null;
+    }>(
+      "SELECT id, status, calendar_id, outcome_at, outcome_asked_at, outcome_task_id FROM meetings WHERE owner_id = $1 AND external_id = $2",
+      [maya.id, externalId],
+    )
+  )[0];
+const taskStatus = async (id: string) =>
+  (await su<{ status: string }>("SELECT status FROM tasks WHERE id = $1", [id]))[0]?.status;
+const choose = async (calendars: string[]) => {
+  const r = await mayaC.inject({
+    method: "PATCH",
+    url: "/api/v1/calendar/connection",
+    payload: { calendars },
+  });
+  expect(r.statusCode).toBe(200);
+};
+
+describe("the final review's fixes (5A)", () => {
+  it("a meeting with a lead that moves later is asked about again: its old outcome and Log outcome are set aside", async () => {
+    mayaC = await h.signIn(maya);
+    await h.seedLead({ ownerId: maya.id, email: "mover@leads.test" });
+    for (const id of ["fx-asked", "fx-recorded"])
+      h.fake!.putEvent(ME, { id, title: id, start: at(-3), end: at(-2), attendees: ["mover@leads.test"] });
+    await sync(mayaConn);
+    await askOutcomes({ app: h.app, pool: h.pool }, h.clock.now);
+    const asked = (await meetingOf("fx-asked"))!.outcome_task_id!;
+    const recordedTask = (await meetingOf("fx-recorded"))!.outcome_task_id!;
+    expect(await taskStatus(asked)).toBe("open");
+    await asPerson(
+      maya.id,
+      "UPDATE meetings SET status = 'rescheduled', outcome_at = $2, outcome_note = 'Moving it' WHERE owner_id = $3 AND external_id = $1",
+      ["fx-recorded", h.clock.now, maya.id],
+    );
+    for (const id of ["fx-asked", "fx-recorded"])
+      h.fake!.putEvent(ME, { id, title: id, start: at(48), end: at(49), attendees: ["mover@leads.test"] });
+    await sync(mayaConn);
+    for (const id of ["fx-asked", "fx-recorded"])
+      expect(await meetingOf(id)).toMatchObject({
+        status: "scheduled",
+        outcome_at: null,
+        outcome_asked_at: null,
+        outcome_task_id: null,
+      });
+    expect(await taskStatus(asked)).toBe("cancelled");
+    expect(await taskStatus(recordedTask)).toBe("cancelled");
+  });
+
+  it("a meeting that's gone or cancelled closes its Log outcome; a cancellation never overwrites a recorded outcome", async () => {
+    await h.seedLead({ ownerId: maya.id, email: "closer@leads.test" });
+    for (const id of ["fx-drop", "fx-cancel", "fx-done"])
+      h.fake!.putEvent(ME, { id, title: id, start: at(-3), end: at(-2), attendees: ["closer@leads.test"] });
+    await sync(mayaConn);
+    await askOutcomes({ app: h.app, pool: h.pool }, h.clock.now);
+    const dropTask = (await meetingOf("fx-drop"))!.outcome_task_id!;
+    const cancelTask = (await meetingOf("fx-cancel"))!.outcome_task_id!;
+    await asPerson(
+      maya.id,
+      "UPDATE meetings SET status = 'completed', outcome_at = $2 WHERE owner_id = $3 AND external_id = $1",
+      ["fx-done", h.clock.now, maya.id],
+    );
+    h.fake!.putEvent(ME, {
+      id: "fx-drop",
+      title: "fx-drop",
+      start: at(-3),
+      end: at(-2),
+      attendees: ["someone@else.test"],
+    });
+    h.fake!.cancelEvent(ME, "fx-cancel");
+    h.fake!.cancelEvent(ME, "fx-done");
+    await sync(mayaConn);
+    expect(await meetingOf("fx-drop")).toBeUndefined();
+    expect(await meetingOf("fx-cancel")).toMatchObject({ status: "cancelled" });
+    expect(await meetingOf("fx-done")).toMatchObject({ status: "completed" });
+    expect(await taskStatus(dropTask)).toBe("cancelled");
+    expect(await taskStatus(cancelTask)).toBe("cancelled");
+  });
+
+  it("one event on two chosen calendars is one meeting, kept while either calendar keeps it", async () => {
+    h.fake!.putCalendar("team2@group.test", { name: "Team two" });
+    await sync(mayaConn); // lists it
+    await choose([ME, "team2@group.test"]);
+    await setRules({ attendeeIsLead: true, titleWords: [], calendarIds: ["team2@group.test"] });
+    const both = (title: string) => {
+      for (const cal of [ME, "team2@group.test"])
+        h.fake!.putEvent(cal, { id: "fx-both", title, start: at(30), end: at(31), attendees: [ME] });
+    };
+    both("Pipeline review");
+    await sync(mayaConn);
+    const first = await meetingOf("fx-both");
+    expect(first).toMatchObject({ calendar_id: "team2@group.test" });
+    both("Pipeline review, moved");
+    await sync(mayaConn);
+    expect((await meetingOf("fx-both"))?.id).toBe(first!.id);
+    // A lead attending, on both calendars: un-choosing the calendar its meeting is on keeps the meeting.
+    await h.seedLead({ ownerId: maya.id, email: "both@leads.test" });
+    for (const cal of [ME, "team2@group.test"])
+      h.fake!.putEvent(cal, {
+        id: "fx-lead",
+        title: "Both",
+        start: at(32),
+        end: at(33),
+        attendees: ["both@leads.test"],
+      });
+    await sync(mayaConn);
+    const linked = (await meetingOf("fx-lead"))!;
+    await choose(linked.calendar_id === ME ? ["team2@group.test"] : [ME]);
+    await sync(mayaConn);
+    expect((await meetingOf("fx-lead"))?.id).toBe(linked.id);
+    await choose([ME]);
+    await sync(mayaConn);
+  });
+
+  it("someone no longer active, or no longer allowed to connect a calendar, isn't read: LUME disconnects them and keeps their meetings with leads", async () => {
+    const ava = await h.seedUser({ grants: ALL_GRANTS, totp: true, name: "Ava Away" });
+    const avaConn = await connect(await h.signIn(ava), ava.id, "rt-ok-ava");
+    const lead = await h.seedLead({ ownerId: ava.id, email: "avalead@leads.test" });
+    h.fake!.putEvent(ME, {
+      id: "fx-ava",
+      title: "Ava's call",
+      start: at(3),
+      end: at(4),
+      attendees: ["avalead@leads.test"],
+    });
+    await sync(avaConn);
+    expect((await meetings(ava.id)).map((x) => x.lead_id)).toContain(lead);
+    await h.ownerPool.query("UPDATE users SET status = 'disabled' WHERE id = $1", [ava.id]);
+    const calls = h.fake!.calls.length;
+    expect(await sync(avaConn)).toBe("skipped");
+    expect(h.fake!.calls.length).toBe(calls);
+    expect(await swept("SELECT id FROM calendar_connections WHERE id = $1", [avaConn])).toEqual([]);
+    expect((await meetings(ava.id)).map((x) => x.lead_id)).toContain(lead);
+
+    const zed = await h.seedUser({ grants: ALL_GRANTS, totp: true, name: "Zed Nope" });
+    const zedConn = await connect(await h.signIn(zed), zed.id, "rt-ok-zed");
+    await h.revokeGrant(zed.id, "calendar.connect");
+    expect(await sync(zedConn)).toBe("skipped");
+    expect(await swept("SELECT id FROM calendar_connections WHERE id = $1", [zedConn])).toEqual([]);
+  });
+
+  it("the person's own address, or a colleague's, being a lead's email never pulls their calendar in", async () => {
+    await h.seedLead({ ownerId: maya.id, name: "Maya, as a lead", email: ME });
+    await h.seedLead({ ownerId: maya.id, name: "Sam, as a lead", email: sam.email });
+    h.fake!.putEvent(ME, { id: "fx-self", title: "Dentist", start: at(5), end: at(6) });
+    h.fake!.putEvent(ME, { id: "fx-selfatt", title: "Gym", start: at(7), end: at(8), attendees: [ME] });
+    h.fake!.putEvent(ME, {
+      id: "fx-colleague",
+      title: "Team lunch",
+      start: at(9),
+      end: at(10),
+      attendees: [ME, sam.email],
+    });
+    await sync(mayaConn);
+    for (const id of ["fx-self", "fx-selfatt", "fx-colleague"]) expect(await meetingOf(id)).toBeUndefined();
   });
 });

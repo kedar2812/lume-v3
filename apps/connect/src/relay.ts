@@ -198,6 +198,18 @@ export function createRelay(o: RelayConfig): Relay {
           return plain(res, 400, "Google didn't give LUME access. Go back to LUME and try again.");
         // A calendar needs no Picker: its grant goes straight back to the instance's calendar page.
         if (state.k === "calendar") {
+          // Google lets a person untick either scope; a grant without both would fail at the first sync.
+          const granted = String(t.data.scope ?? "").split(" ");
+          if (!CALENDAR_SCOPE.split(" ").every((x) => granted.includes(x)))
+            return page(
+              res,
+              200,
+              wordsPage(
+                "LUME needs both",
+                "LUME needs to see your calendars and their events (it only reads them). Go back to LUME, choose Connect again, and leave both boxes ticked.",
+                backTo(state.i),
+              ),
+            );
           const inst = byId.get(state.i)!;
           const handoff: Handoff = {
             nonce: state.n,

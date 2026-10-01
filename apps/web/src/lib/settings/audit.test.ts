@@ -174,6 +174,13 @@ describe("auditPhrase", () => {
     expect(say("queue.cancelled", { sent: 7 })).toBe("Riya Sharma ended a send queue after 7 messages");
   });
 
+  it("5A: names Google Calendar when it's switched on or off", () => {
+    const say = (action: string) =>
+      auditPhrase(entry(action, { entityType: "integration", diff: { module: "google_calendar" } }), people);
+    expect(say("integration.enabled")).toBe("Riya Sharma switched on Google Calendar");
+    expect(say("integration.disabled")).toBe("Riya Sharma switched off Google Calendar");
+  });
+
   it("3C: says which part of Settings → Follow-ups changed, and a stage's automations", () => {
     const say = (diff: Record<string, unknown>) =>
       auditPhrase(entry("settings.follow_ups", { entityType: "settings", diff }), people);

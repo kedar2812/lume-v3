@@ -20,7 +20,8 @@ type ActionDef = { area: string; phrase: Phrase };
 
 const n = (v: unknown) => (typeof v === "number" ? v : 0);
 /** The optional module an integration.enabled/disabled entry is about (2B: Google Sheets, 2C: Webhooks). */
-const moduleName = (m: unknown) => (m === "webhooks" ? "Webhooks" : "Google Sheets");
+const moduleName = (m: unknown) =>
+  m === "webhooks" ? "Webhooks" : m === "google_calendar" ? "Google Calendar" : "Google Sheets";
 
 /**
  * Every action the API records, in words ("revealed a lead's contact"), grouped by area for the filter.

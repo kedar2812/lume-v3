@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { instanceIdOf, newId, sign, unseal, verify, type Handoff } from "@lume/core";
 import { schema, type ConnectedCalendar } from "@lume/db";
@@ -7,6 +7,9 @@ import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, notFound } from "../../http/errors";
 import { GoogleError, isTransient } from "../sheets/google";
+import { cancelReminders } from "../tasks/engine";
+import { refreshNextDue } from "../tasks/lifecycle";
+import { integrationsView } from "../sheets/service";
 import { calendarClientFor, type CalendarListEntry } from "./google";
 
 const CC = schema.calendarConnections;
@@ -16,12 +19,51 @@ type Connection = typeof CC.$inferSelect;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const notConfigured = () =>
   new HttpError(409, "NOT_CONFIGURED", "Connect with Google isn't set up on this server.");
+const calendarOff = () =>
+  new HttpError(
+    409,
+    "CALENDAR_OFF",
+    "Google Calendar is switched off. An admin can switch it on in Settings → Integrations.",
+  );
 const notConnected = () =>
   notFound("CALENDAR_NOT_CONNECTED", "Your calendar isn't connected to LUME. Connect it first.");
 
+// ——— The module switch (an optional module, off until an admin switches it on) ———
+
+export async function calendarOn(req: FastifyRequest): Promise<boolean> {
+  const [s] = await req.db
+    .select({ i: schema.settings.integrations })
+    .from(schema.settings)
+    .where(eq(schema.settings.id, 1));
+  return !!s?.i.googleCalendar?.enabled;
+}
+
+async function requireOn(req: FastifyRequest, d: AppDeps) {
+  if (!d.googleOAuth) throw notConfigured();
+  if (!(await calendarOn(req))) throw calendarOff();
+}
+
+export async function setCalendarEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
+  if (enabled && !d.googleOAuth)
+    throw new HttpError(
+      409,
+      "NOT_CONFIGURED",
+      "Google Calendar comes through Connect with Google, which isn't set up on this server yet.",
+    );
+  await req.db.execute(
+    sql`UPDATE settings SET integrations = jsonb_set(integrations, '{googleCalendar}', ${JSON.stringify({ enabled })}::jsonb) WHERE id = 1`,
+  );
+  await audit(req, {
+    action: enabled ? "integration.enabled" : "integration.disabled",
+    entityType: "integration",
+    diff: { module: "google_calendar" },
+  });
+  return integrationsView(req, d);
+}
+
 /** The connect panel's view of a person's connection (never the grant, never a sync token). */
-function view(d: AppDeps, c: Connection | undefined) {
-  const available = !!d.googleOAuth;
+function view(d: AppDeps, c: Connection | undefined, on: boolean) {
+  const available = !!d.googleOAuth && on;
   if (!c) return { available, connected: false as const };
   return {
     available,
@@ -41,13 +83,13 @@ async function mine(req: FastifyRequest, lock = false): Promise<Connection | und
 }
 
 export async function connectionView(req: FastifyRequest, d: AppDeps) {
-  return view(d, await mine(req));
+  return view(d, await mine(req), await calendarOn(req));
 }
 
 /** A signed link to the relay, as a calendar's: the kind is signed with the nonce (Task 1). */
 export async function calendarConnectStart(req: FastifyRequest, d: AppDeps) {
-  if (!d.googleOAuth) throw notConfigured();
-  const { relayUrl, relayToken } = d.googleOAuth;
+  await requireOn(req, d);
+  const { relayUrl, relayToken } = d.googleOAuth!;
   const nonce = randomBytes(24).toString("base64url");
   await req.db.insert(OC).values({
     id: newId(),
@@ -100,8 +142,8 @@ export async function calendarConnectComplete(
   d: AppDeps,
   body: { p: string; s: string },
 ) {
-  if (!d.googleOAuth) throw notConfigured();
-  const token = d.googleOAuth.relayToken;
+  await requireOn(req, d);
+  const token = d.googleOAuth!.relayToken;
   const invalid = () =>
     badRequest("CONNECT_INVALID", "This connection isn't valid. Try connecting your calendar again.");
   if (!verify(token, body.p, body.s)) throw invalid();
@@ -164,10 +206,14 @@ export async function calendarConnectComplete(
     diff: { calendars: calendars.filter((c) => c.chosen).length },
   });
   req.afterCommit(() => void d.calendar?.enqueue(id));
-  return view(d, await mine(req));
+  return view(d, await mine(req), await calendarOn(req));
 }
 
-/** Which calendars LUME reads. One no longer chosen takes its meetings with it; a newly chosen one is read in full. */
+/**
+ * Which calendars LUME reads. A newly chosen one is read in full; when one is no longer chosen, the others
+ * are read in full too, and the next sync takes the meetings only it brought (one another calendar still has
+ * moves there, keeping its outcome).
+ */
 export async function chooseCalendars(req: FastifyRequest, d: AppDeps, ids: string[]) {
   const c = await mine(req, true);
   if (!c) throw notConnected();
@@ -183,11 +229,8 @@ export async function chooseCalendars(req: FastifyRequest, d: AppDeps, ids: stri
     ...x,
     chosen: want.has(x.id),
     syncToken: want.has(x.id) && x.chosen ? (x.syncToken ?? null) : null,
+    fullAt: want.has(x.id) && x.chosen && !dropped.length ? (x.fullAt ?? null) : null,
   }));
-  if (dropped.length)
-    await req.db
-      .delete(schema.meetings)
-      .where(and(eq(schema.meetings.connectionId, c.id), inArray(schema.meetings.calendarId, dropped)));
   await req.db
     .update(CC)
     .set({ calendars, nextSyncAt: new Date(), updatedAt: new Date() })
@@ -199,12 +242,12 @@ export async function chooseCalendars(req: FastifyRequest, d: AppDeps, ids: stri
     diff: { calendars: want.size },
   });
   req.afterCommit(() => void d.calendar?.enqueue(c.id));
-  return view(d, await mine(req));
+  return view(d, await mine(req), await calendarOn(req));
 }
 
 /** Sync now: LUME reads the calendar at once rather than at its next turn. */
 export async function syncCalendarNow(req: FastifyRequest, d: AppDeps) {
-  if (!d.googleOAuth) throw notConfigured();
+  await requireOn(req, d);
   const c = await mine(req);
   if (!c) throw notConnected();
   if (c.status === "needs_reconnect")
@@ -226,6 +269,17 @@ export async function disconnectCalendar(req: FastifyRequest, d: AppDeps) {
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.meetings)
     .where(eq(schema.meetings.connectionId, c.id));
+  // Their Log outcome follow-ups go with them (no reminder, no escalation, about a meeting LUME forgot).
+  const closed = await req.db.execute<{ id: string; lead_id: string }>(
+    sql`UPDATE tasks SET status = 'cancelled', cancelled_at = now(), updated_at = now(), version = version + 1
+         WHERE status = 'open'
+           AND id IN (SELECT outcome_task_id FROM meetings WHERE connection_id = ${c.id} AND outcome_task_id IS NOT NULL)
+        RETURNING id, lead_id`,
+  );
+  for (const t of closed.rows) {
+    await cancelReminders(req.db, t.id);
+    await refreshNextDue(req, t.lead_id);
+  }
   await req.db.delete(CC).where(eq(CC.id, c.id));
   await audit(req, {
     action: "calendar.disconnected",
@@ -233,5 +287,5 @@ export async function disconnectCalendar(req: FastifyRequest, d: AppDeps) {
     entityId: c.id,
     diff: { meetings: n?.n ?? 0 },
   });
-  return view(d, undefined);
+  return view(d, undefined, await calendarOn(req));
 }

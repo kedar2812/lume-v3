@@ -265,5 +265,16 @@ describe("the relay", () => {
         kind: "calendar",
       });
     });
+
+    it("a consent that leaves out reading events is said as it is, with a way back — no hand-back", async () => {
+      const start = await calStart("cal-4");
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      const r = await get(`/callback?code=calendar-list-only&state=${encodeURIComponent(state)}`);
+      expect(r.status).toBe(200);
+      expect(r.headers.get("location")).toBeNull();
+      const html = await r.text();
+      expect(html).toContain("LUME needs both");
+      expect(html).toContain("https://client-a.example");
+    });
   });
 });

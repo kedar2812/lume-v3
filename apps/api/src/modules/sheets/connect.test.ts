@@ -65,6 +65,7 @@ describe("Connect with Google (Review Focus 1)", () => {
   });
 
   it("a sheet's hand-back can't finish a calendar's connect (5A)", async () => {
+    await call(admin, "PUT", "/api/v1/integrations/google-calendar", { enabled: true });
     const { url } = (await call(admin, "POST", "/api/v1/calendar/connect")).json();
     const p = seal(RELAY_TOKEN, {
       nonce: new URL(url).searchParams.get("n")!,

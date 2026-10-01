@@ -8,6 +8,7 @@ import {
   chooseCalendars,
   connectionView,
   disconnectCalendar,
+  setCalendarEnabled,
   syncCalendarNow,
 } from "./service";
 
@@ -35,4 +36,13 @@ export async function calendarRoutes(app: FastifyInstance, d: AppDeps): Promise<
     reply.code(202).send(await syncCalendarNow(req, d)),
   );
   r.delete("/api/v1/calendar/connection", { config: own }, (req) => disconnectCalendar(req, d));
+  // The module switch, beside Sheets' and Webhooks' in Settings → Integrations.
+  r.put(
+    "/api/v1/integrations/google-calendar",
+    {
+      config: { permission: "integrations.manage" },
+      schema: { body: z.object({ enabled: z.boolean() }).strict() },
+    },
+    (req) => setCalendarEnabled(req, d, req.body.enabled),
+  );
 }
