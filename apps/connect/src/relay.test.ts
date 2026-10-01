@@ -231,4 +231,35 @@ describe("the relay", () => {
       clocked.close();
     }
   });
+
+  describe("a calendar (Phase 5A)", () => {
+    const calStart = (n: string, k = "calendar", sig = sign(TOKEN, `${n}.calendar`)) =>
+      get(`/start?i=${instanceIdOf(TOKEN)}&n=${n}&k=${k}&s=${sig}`);
+
+    it("asks Google for read-only calendar access and nothing else", async () => {
+      const r = await calStart("cal-1");
+      expect(r.status).toBe(302);
+      const scopes = new URL(r.headers.get("location")!).searchParams.get("scope")!.split(" ").sort();
+      expect(scopes).toEqual([
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+        "https://www.googleapis.com/auth/calendar.events.readonly",
+      ]);
+    });
+
+    it("a sheet link can't be turned into a calendar one: the kind is signed", async () => {
+      expect((await calStart("cal-2", "calendar", sign(TOKEN, "cal-2"))).status).toBe(400);
+    });
+
+    it("back from Google, the grant goes straight to the instance's calendar page — no Picker", async () => {
+      const start = await calStart("cal-3");
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      const r = await get(`/callback?code=good-code&state=${encodeURIComponent(state)}`);
+      expect(r.status).toBe(302);
+      const back = new URL(r.headers.get("location")!);
+      expect(back.origin + back.pathname).toBe("https://client-a.example/calendar/connected");
+      const p = back.searchParams.get("p")!;
+      expect(verify(TOKEN, p, back.searchParams.get("s")!)).toBe(true);
+      expect(unseal<Handoff>(TOKEN, p)).toMatchObject({ nonce: "cal-3", refreshToken: "rt-good", kind: "calendar" });
+    });
+  });
 });
