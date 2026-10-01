@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from "node:crypto";
 import {
   ALL_GRANTS,
+  newId,
   LEGAL_VERSION,
   rawPublicKey,
   signLicence,
@@ -153,6 +154,20 @@ describe("the licence is enforced in the API (L-A Task 3)", () => {
         method: "POST",
         url: `/webhooks/in/${id}`,
         payload: { name: "Hooked" },
+      });
+      expect(r.statusCode).toBe(403);
+      expect(r.json().error.code).toBe(s === "read_only" ? "LICENSE_READ_ONLY" : "LICENSE_SUSPENDED");
+    }
+    await become("active");
+  });
+
+  it("Calendly's posts are refused while read-only or suspended (5B)", async () => {
+    for (const s of ["read_only", "suspended"] as const) {
+      await become(s);
+      const r = await h.app.inject({
+        method: "POST",
+        url: `/webhooks/calendly/${newId()}`,
+        payload: { event: "invitee.created" },
       });
       expect(r.statusCode).toBe(403);
       expect(r.json().error.code).toBe(s === "read_only" ? "LICENSE_READ_ONLY" : "LICENSE_SUSPENDED");

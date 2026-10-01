@@ -26,6 +26,7 @@ import { sheetRoutes } from "./modules/sheets/routes";
 import { calendarRoutes } from "./modules/calendar/routes";
 import { meetingRoutes } from "./modules/meetings/routes";
 import { calendlyRoutes } from "./modules/calendly/routes";
+import { calendlyReceiveRoutes } from "./modules/calendly/receive";
 import type { GoogleSheets } from "./modules/sheets/google";
 import type { Limiter } from "./modules/webhooks/limits";
 import { receiveRoutes } from "./modules/webhooks/receive";
@@ -132,7 +133,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const app = await buildServer({
       checks: dbChecks(deps.pool),
       logger: deps.logger,
-      open: (a) => receiveRoutes(a, deps),
+      // Posts from outside: 2C's webhooks, then Calendly's (5B), sharing one raw-body parser and licence guard.
+      open: async (a) => {
+        await receiveRoutes(a, deps);
+        await calendlyReceiveRoutes(a, deps);
+      },
       configure: (a) => {
         a.decorate("licence", licence);
         a.addHook("onClose", async () => licence.stop());

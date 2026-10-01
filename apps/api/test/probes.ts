@@ -256,6 +256,11 @@ export const PROBES: Record<string, Probe> = {
     path: () => `/api/v1/webhooks/sources/${uuid}`,
   },
   "POST /webhooks/in/:id": { access: "public", path: () => `/webhooks/in/${uuid}`, body: () => ({}) },
+  "POST /webhooks/calendly/:id": {
+    access: "public",
+    path: () => `/webhooks/calendly/${uuid}`,
+    body: () => ({}),
+  },
   "POST /api/v1/sheets/inspect": { access: "integrations.manage", body: () => ({ link: "not a link" }) },
   "POST /api/v1/sheets/drafts": { access: "integrations.manage", body: () => ({ sourceId: uuid }) },
   "POST /api/v1/sheets/sources": {
