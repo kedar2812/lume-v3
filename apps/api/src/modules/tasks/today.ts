@@ -34,7 +34,32 @@ export async function today(req: FastifyRequest, d: AppDeps) {
     .from(T)
     .where(and(eq(T.doneBy, actor.userId), eq(T.status, "done"), gte(T.doneAt, start), lt(T.doneAt, end)));
   const doneToday = done[0]!.n;
-  const out = { overdue, soon, later, done: doneToday, total: doneToday + all.length };
+  // Today's calls (5C): the caller's own meetings starting today on their clock, not cancelled or moved.
+  const calls = await req.db.execute<{
+    id: string;
+    title: string;
+    starts_at: string | Date;
+    ends_at: string | Date;
+    link: string | null;
+    status: string;
+    lead_id: string | null;
+    lead_name: string | null;
+  }>(sql`
+    SELECT m.id, m.title, m.starts_at, m.ends_at, m.link, m.status, l.id AS lead_id, l.name AS lead_name
+      FROM meetings m LEFT JOIN leads l ON l.id = m.lead_id AND l.deleted_at IS NULL
+     WHERE m.owner_id = ${actor.userId} AND m.status NOT IN ('cancelled', 'rescheduled')
+       AND m.starts_at >= ${start} AND m.starts_at < ${end}
+     ORDER BY m.starts_at, m.id`);
+  const meetings = calls.rows.map((m) => ({
+    id: m.id,
+    title: m.title,
+    startsAt: new Date(m.starts_at).toISOString(),
+    endsAt: new Date(m.ends_at).toISOString(),
+    link: m.link,
+    status: m.status,
+    lead: m.lead_id ? { id: m.lead_id, name: m.lead_name ?? "" } : null,
+  }));
+  const out = { overdue, soon, later, done: doneToday, total: doneToday + all.length, meetings };
   if (!can(actor, "leads.view", "all")) return out;
   const unassigned = await req.db.execute<{ n: number }>(sql`
     SELECT count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id
