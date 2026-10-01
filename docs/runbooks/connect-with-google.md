@@ -73,7 +73,11 @@ The same relay connects each person's Google Calendar, read-only, so LUME can ke
    - a short video of the connect flow (Settings → My account → Calendar → Connect);
    - a privacy policy that says LUME reads calendars only to show a person's meetings with leads, and stores nothing else.
 5. The OAuth app must be **In production**. A grant made while it's in testing mode expires after 7 days, and that connection then shows "needs connecting again".
-6. Nothing changes on the relay or in a client's `.env`: a client that has Connect with Google set up offers Calendar to anyone with **Connect a calendar** (`calendar.connect`).
+6. Nothing changes on the relay or in a client's `.env`. On a client that has Connect with Google set up:
+   - Calendar is an optional module, **off** until an admin switches it on in Settings → Integrations;
+   - once it's on, anyone with **Connect a calendar** (`calendar.connect`) can connect their own.
+
+   Someone disabled, or no longer allowed to connect a calendar, stops being read: LUME forgets their grant and keeps their meetings with leads.
 
 **A person who removes LUME's access** at Google: their connection shows "needs connecting again". They and every admin hear it once, and the meetings already kept stay.
 
