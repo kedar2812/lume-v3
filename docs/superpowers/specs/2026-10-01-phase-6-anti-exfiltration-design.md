@@ -1,6 +1,6 @@
 # Phase 6 — Anti-exfiltration: design
 
-**Status:** draft for the owner's review. Written 2026-10-01 under the overnight authority. Every decision taken on the
+**Status:** designs approved by the owner (2026-10-01). Revised the same evening for "only keep it if it works": two rules cut, and the export promise made exact. Written 2026-10-01 under the overnight authority. Every decision taken on the
 owner's behalf is marked **Decided:**, with what it costs if wrong.
 
 **Sources:** `docs/LUME_PROJECT_REPORT.md` §12.1 (sessions, per-role restrictions), §12.2 (contact-data protection),
@@ -39,7 +39,7 @@ There are three plans. Each one ships on its own.
 | Plan | What | Depends on |
 |---|---|---|
 | **6A Watch** | View counting; the anomaly rules and the 5-minute worker; alerts; suspend and restore; Settings → Security (rules, access limits per role, on-screen watermark); the watermark overlay; the rep's side (a near-limit notice, a suspended sign-in) | — |
-| **6B Exports** | Watermarked lead exports (CSV or Excel) for `leads.export`: a unique code column, a canary row, 24-hour expiry, audited downloads; the Exports list; Trace a file | — |
+| **6B Exports** | Watermarked lead exports (CSV or Excel) for `leads.export`: a unique code column, a check row, 24-hour expiry, audited downloads; the Exports list; Trace a file | — |
 | **6C Offboarding and activity** | The offboarding flow when disabling someone (sessions → leads → calendar → summary); the Security activity view (§13's Security module) | 6A's counters and alerts, 6B's exports |
 
 ## 2. 6A — Watch
@@ -47,39 +47,41 @@ There are three plans. Each one ships on its own.
 ### 2.1 What is counted
 
 - **Reveals.** `reveal_counters` already counts these.
-- **Lead views.** A new `view_counters (user_id, hour, count)` counts a view whenever someone opens one lead (the
-  drawer or the page: `GET /leads/:id`). It is written the same way as reveals: one upsert per open.
+- **Leads opened.** A new `lead_opens (user_id, lead_id, hour)`, with a primary key on all three, records that
+  someone opened a lead (the drawer or the page: `GET /leads/:id`).
+  - The rule counts **different leads**. A drawer that refetches, a reload or a retry never counts twice, so an
+    honest person is never paused by their own screen refreshing.
   - **Decided:** list pages don't count, only opening a lead. A list shows at most 100 rows and never contact
     details for masked roles, so opening leads one by one is the scraping path. Cost if wrong: a scraper who
     only pages through lists isn't caught by this rule, but lists hold no contacts for masked roles anyway.
 - **Send-queue runs** come from the existing `send_queue` runs, per person per day.
-- **Sign-ins** come from `sessions` (ip, created_at).
+- **Windows are rolling** (the last 60 minutes, not the clock hour). A burst straddling 9:59 to 10:01 is still
+  one burst. Reveals keep their exact times for this: `reveal_counters` stays for the activity view, and the
+  rule reads the audit's `lead.contact.reveal` rows, indexed by actor and time.
 
 ### 2.2 The rules
 
 These are kept in `settings.security.anomaly`. They are all on by default with the report's thresholds. An admin
 with `security.manage` can change them.
 
-| Rule | Default | Window |
-|---|---|---|
-| Contact reveals | more than 30 | an hour |
-| Leads opened | more than 200 | an hour |
-| Send-queue runs | more than 3 | a day |
-| Sign-in from a new network | any | — |
-| Activity outside the role's login hours | any | — |
+| Rule | Default | Window | Then LUME |
+|---|---|---|---|
+| Contacts opened (reveals) | more than 30 | the last 60 minutes | tells admins and pauses access |
+| Different leads opened | more than 200 | the last 60 minutes | tells admins and pauses access |
+| WhatsApp send-queue runs | more than 3 | the business's day | tells admins |
 
-- **What each rule does:** each rule is **off**, **alert**, or **alert and suspend**. Defaults: reveals and
-  views are alert and suspend, the rest are alert only.
-  - **Decided:** a human-judgement signal (a new network, odd hours) should not lock someone out on its own.
-    Cost if wrong: one setting to change.
-- **"A new network"** is the sign-in IP's /16 (IPv4) or /48 (IPv6) when that person hasn't used it in the last
-  90 days. A person's first sign-in never counts.
-  - **Decided:** network ranges, not countries. A country needs a GeoIP database with its own licence, and an
-    instance must keep lead data on its server. Cost if wrong: a VPN user trips it more often. The rule is
-    alert-only by default.
+- **What each rule does:** each rule is **off**, **tell admins**, or **tell admins and pause access**.
 - **Who it applies to:** people without `leads.contact.full`, and never the owner.
   - **Decided:** admins who already see every contact gain nothing by scraping it. Cost if wrong: an admin
     behaving oddly isn't flagged, but the audit log still has them.
+
+**Cut (owner, 2026-10-01: "only keep it if it works").** These are decided against, with the reasons below.
+- **A sign-in from a new network.** Phones, mobile data and home broadband move between IP ranges all the time.
+  On a real server this would cry wolf weekly, and an alarm people learn to ignore is a broken feature. The
+  per-role **IP allow-list**, which already exists, is the reliable version: it refuses, rather than guesses.
+- **Activity outside the role's hours.** Login hours are already enforced: sign-in is refused outside them, and
+  live sessions end. An alert about it would never fire meaningfully.
+- **Countries.** These need a GeoIP database with its own licence, and they are as unreliable as networks.
 
 ### 2.3 The worker
 
@@ -158,16 +160,26 @@ The page has three parts:
     downloads.
 - **The watermark has two parts:**
   - a last column, `LUME ref`, holding the export's code (8 characters, e.g. `LX7Q-4MRA`) on every row;
-  - one **canary row**: a fictional lead whose name, email (`@example.invalid`) and phone (a number in a reserved
-    test range) are derived from the code. It sits at a stable but code-derived position.
-  - **Decided:** a column alone is deleted in seconds, while a canary row survives a column strip and a re-sort.
-    Cost if wrong: one fake row in the file, documented in the admin docs.
+  - one **check row**: a made-up lead whose name and email (`@example.invalid`, a domain reserved by RFC 2606 that
+    can never receive mail) are derived from the code. Its phone is in Ofcom's range reserved for fiction
+    (+44 7700 900000–900999), so it can never reach a real person. It sits at a code-derived position.
+  - **What this can promise, said exactly so on screen:**
+    - a file that still has the code column *or* the check row traces to its export;
+    - a file where someone found and deleted both, or retyped the rows by hand, can't be traced, and Trace says
+      "No LUME export matches" without guessing.
+  - **Edge cases handled:**
+    - an export brought back into LUME (CSV import, a Sheets source, a webhook) never makes the check row a
+      lead; intake skips it and says so in the import's summary;
+    - the `LUME ref` column is ignored by the import mapping;
+    - an export with no rows is refused ("Nothing to export"), so a file is never all check row.
+  - **Decided:** a column alone is deleted in seconds, while a check row survives a column strip and a re-sort.
+    Cost if wrong: one made-up row in the file, documented in the admin docs.
 - **Expiry and downloads:**
   - files expire 24 hours after they're made (the worker deletes the file and keeps the row);
   - every download is audited (`lead.export.download`), and so is making one (`lead.export`).
 - **Trace a file** (`security.manage`):
   - drop a CSV or Excel file, or paste a code;
-  - LUME looks for a `LUME ref` code, or for any canary row, and answers "This file came from <person>'s export
+  - LUME looks for a `LUME ref` code, or for any check row's email or phone, and answers "This file came from <person>'s export
     on <date>, <time>: <n> rows, <filters in words>", or "No LUME export matches";
   - the file is read in memory on the server and never kept.
   - **Decided:** server-side, because the canaries must stay secret from the browser. Cost if wrong: none
@@ -216,7 +228,7 @@ The page has three parts:
   sessions end, and their next request is refused with `SUSPENDED`. With auto-suspend off, they get an alert only.
 - **Views.** 201 lead opens behave the same way.
 - **Tracing.** A watermarked export traces back from the code column, and also from a file with that column
-  deleted and its rows re-sorted (by the canary).
+  deleted and its rows re-sorted (by the check row). A file with neither says "No LUME export matches".
 - **Expiry and audit.** An expired export can't be downloaded, and every download is in the audit log.
 - **Offboarding.** It leaves the person `disabled`, with no live sessions, no leads (or the chosen spread), no
   calendar grant, and one audit entry.
