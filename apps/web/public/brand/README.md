@@ -9,6 +9,7 @@ Show each one at its natural aspect ratio on a white tile (Google asks for its i
 | `google-sheets.png`   | Google Sheets product icon, 96×96                      | https://www.gstatic.com/images/branding/product/2x/sheets_2020q4_48dp.png                                                      |
 | `google-g.png`        | Google "G" for the sign-in style Connect button, 96×96 | https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png                                                            |
 | `whatsapp.svg`        | WhatsApp mark (green), vector — downloaded 2026-09-27  | https://static.whatsapp.net/rsrc.php/y1/r/FJbTMJqMap7.svg (WhatsApp's own site icon, linked from whatsapp.com/brand-resources) |
+| `calendly.svg`        | Calendly mark (blue squircle, white C), vector — downloaded 2026-10-01 | https://calendly.com/media/favicon/icon.svg (Calendly's own site icon; Calendly publishes no press kit) |
 
 The Connect button follows Google's sign-in branding guidance: a white (light) or `#131314` (dark) button with a
 `#747775` / `#8e918f` outline, the "G" on the left, Roboto where available.
