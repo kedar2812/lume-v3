@@ -185,15 +185,18 @@ describe("the calendar sync (5A Task 5)", () => {
           AND data_type IN ('text', 'character varying', 'jsonb', 'json', 'USER-DEFINED', 'ARRAY')`,
     );
     expect(cols.length).toBeGreaterThan(50);
-    const hits: string[] = [];
-    for (const { t, c } of cols) {
-      const [r] = await su<{ n: number }>(
-        `SELECT count(*)::int AS n FROM ${t} WHERE ${c}::text ~* '(secret-personal|personal[.]test|hidden-place|personal-[0-9])'`,
+    // One round trip: every column asked at once.
+    const scan = (pattern: string) =>
+      su<{ hit: string }>(
+        cols
+          .map(({ t, c }) => `(SELECT '${t}.${c}' AS hit FROM ${t} WHERE ${c}::text ~* $1 LIMIT 1)`)
+          .join(" UNION ALL "),
+        [pattern],
       );
-      if (r!.n > 0) hits.push(`${t}.${c}`);
-    }
-    expect(hits).toEqual([]);
-  });
+    expect(await scan("(secret-personal|personal[.]test|hidden-place|personal-[0-9])")).toEqual([]);
+    // …and the scan does find what was kept: the lead meetings' titles.
+    expect(await scan("discovery call [0-4]")).toContainEqual({ hit: "public.meetings.title" });
+  }, 30_000);
 
   it("an event moved, renamed, cancelled, or no longer with a lead updates or removes its meeting", async () => {
     const lead = await h.seedLead({ ownerId: maya.id, email: "moving@leads.test" });
