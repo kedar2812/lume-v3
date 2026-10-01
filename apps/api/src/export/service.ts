@@ -1,7 +1,7 @@
 import { once } from "node:events";
 import { randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough, type Writable } from "node:stream";
@@ -379,6 +379,19 @@ function sweepPrepared(now = Date.now()) {
 setInterval(sweepPrepared, 60_000).unref();
 
 /**
+ * Prepared exports an earlier run of the API left behind (it restarted before they expired): the whole
+ * database, so they go at start rather than wait for the container to be recreated.
+ */
+export async function sweepLeftExports(dir = tmpdir(), now = Date.now()): Promise<void> {
+  for (const f of await readdir(dir).catch(() => [] as string[])) {
+    if (!/^lume-export-[0-9a-f]+\.(zip|xlsx)$/.test(f)) continue;
+    const at = path.join(dir, f);
+    const s = await stat(at).catch(() => null);
+    if (s && now - s.mtimeMs > KEEP_MS) await rm(at, { force: true });
+  }
+}
+
+/**
  * Export all data, prepared (the screens' way): the zip is written to a private temporary file while the
  * screen ticks through the files, then the browser downloads it itself (GET /export/:id), so the page never
  * holds it in memory and a failure is said in LUME's words.
@@ -391,11 +404,12 @@ export async function prepareExport(req: FastifyRequest, reply: FastifyReply, po
   const name = `LUME-export-${new Date().toISOString().slice(0, 10)}.zip`;
   const zip = archiver("zip", { zlib: { level: 6 } });
   const ac = new AbortController();
-  // The screen was closed before the zip was ready: stop, and leave nothing behind.
+  // The screen was closed before the zip was ready: stop, and leave nothing behind. The response's close
+  // (not the request's: that fires once a body has been read, long before the answer).
   const onClose = () => {
-    if (!reply.sent) ac.abort();
+    if (!reply.raw.writableFinished) ac.abort();
   };
-  req.raw.once("close", onClose);
+  reply.raw.once("close", onClose);
   const written = pipeline(zip, createWriteStream(file, { mode: 0o600 }), { signal: ac.signal });
   let failed = false;
   // A failed read stops the write too (an aborted zip may never end on its own).
@@ -422,22 +436,24 @@ export async function prepareExport(req: FastifyRequest, reply: FastifyReply, po
       error: { code: "EXPORT_FAILED", message: "LUME couldn't finish the export. Try again." },
     });
   } finally {
-    req.raw.off("close", onClose);
+    reply.raw.off("close", onClose);
   }
   prepared.set(id, { userId: req.actor!.userId, file, name, expires: Date.now() + KEEP_MS });
   return { id, name };
 }
 
-/** The prepared zip, once, to the person who asked for it; then it's gone from the server. */
+/**
+ * The prepared zip, to the person who asked for it, as often as they need it until it expires (a cancelled
+ * Save As, a second click); then it and its file are gone.
+ */
 export async function downloadPrepared(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
   const p = prepared.get(req.params.id);
+  if (p && p.expires <= Date.now()) forget(req.params.id);
   if (!p || p.userId !== req.actor!.userId || p.expires <= Date.now())
     return reply.code(404).send({
       error: { code: "NOT_FOUND", message: "This export has gone. Export all data again." },
     });
-  prepared.delete(req.params.id);
   const body = createReadStream(p.file);
-  body.once("close", () => void rm(p.file, { force: true }));
   return reply
     .header("content-type", "application/zip")
     .header("content-disposition", `attachment; filename="${p.name}"`)

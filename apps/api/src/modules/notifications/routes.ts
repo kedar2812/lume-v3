@@ -99,7 +99,8 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         connection: "keep-alive",
         "x-accel-buffering": "no",
       });
-      const write = streamWriter(res);
+      const stream = streamWriter(res);
+      const write = stream.write;
       write("retry: 3000\n: connected\n\n");
       open.add(res);
       // The session this stream was opened with ends (signed out, revoked): so does the stream.
@@ -107,7 +108,7 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
       const offRevoked = onSessionsRevoked((r) => {
         const mine =
           "sessionId" in r ? r.sessionId === sessionId : r.userId === userId && r.exceptId !== sessionId;
-        if (mine) res.end();
+        if (mine) stream.stop();
       });
       // Each id once, whatever order they commit in (Important 3). Bounded: the oldest are forgotten first.
       const sent = new Set<number>();

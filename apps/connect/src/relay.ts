@@ -109,13 +109,17 @@ export function createRelay(o: RelayConfig): Relay {
     const t = now();
     for (const [k, v] of pending) if (v.exp < t) pending.delete(k);
   };
-  /** Whether Drive says the picked file is a Google Sheet (asked with the grant just given); null: unknown. */
-  async function isSpreadsheet(fileId: string, accessToken: string): Promise<boolean | null> {
-    const r = await fetch(`${apiUrl}/drive/v3/files/${encodeURIComponent(fileId)}?fields=mimeType`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-    }).catch(() => null);
+  /** Whether Drive says the picked file is a Google Sheet (asked with the grant just given); "unseen": 404. */
+  async function isSpreadsheet(fileId: string, accessToken: string): Promise<boolean | null | "unseen"> {
+    // supportsAllDrives: a sheet in a shared drive (common for a business) is found too.
+    const r = await fetch(
+      `${apiUrl}/drive/v3/files/${encodeURIComponent(fileId)}?fields=mimeType&supportsAllDrives=true`,
+      {
+        headers: { authorization: `Bearer ${accessToken}` },
+      },
+    ).catch(() => null);
     if (!r) return null;
-    if (r.status === 404) return false;
+    if (r.status === 404) return "unseen";
     if (!r.ok) return null;
     const d = (await r.json().catch(() => ({}))) as { mimeType?: string };
     return d.mimeType === "application/vnd.google-apps.spreadsheet";
@@ -184,6 +188,8 @@ export function createRelay(o: RelayConfig): Relay {
         res.writeHead(200, {
           "content-type": "text/html; charset=utf-8",
           ...HARDENED,
+          // The Picker's key is restricted to the relay's origin by referrer: send the origin, no path.
+          "referrer-policy": "strict-origin",
           "content-security-policy":
             "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://*.googleapis.com; frame-src https://docs.google.com https://*.google.com; connect-src https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; frame-ancestors 'none'",
         });
@@ -222,6 +228,16 @@ export function createRelay(o: RelayConfig): Relay {
             wordsPage(
               "That isn't a Google Sheet",
               "LUME reads Google Sheets only. Go back to LUME and pick a spreadsheet.",
+              backTo(state.i),
+            ),
+          );
+        if (sheet === "unseen")
+          return page(
+            res,
+            400,
+            wordsPage(
+              "LUME couldn't see that file",
+              "LUME couldn't see that file with the access you gave. Go back to LUME and pick it again.",
               backTo(state.i),
             ),
           );

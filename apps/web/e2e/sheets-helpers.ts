@@ -26,6 +26,9 @@ export const appendRows = (id: string, rows: string[][]) =>
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ tab: "Form responses", rows }),
   });
+/** LUME loses its access to the sheet (its owner stops sharing it). */
+export const unshareSheet = (id: string) =>
+  fetch(`${FAKE}/__fake/spreadsheets/${id}/unshare`, { method: "POST", body: "{}" });
 export const sheetLink = (id: string) => `https://docs.google.com/spreadsheets/d/${id}/edit#gid=0`;
 
 /** Switch Sheets on and connect a sheet through the API, as the page's user; the source's id. */

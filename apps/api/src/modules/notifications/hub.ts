@@ -9,19 +9,28 @@ const BUFFER_MAX = 256 * 1024;
  * reconnects and picks up where it left off (Last-Event-ID). False once the stream has been let go.
  */
 export function streamWriter(
-  res: { write(chunk: string): boolean; end(): void; writableLength: number },
+  res: { write(chunk: string): boolean; end(): void; destroy(): void; writableLength: number },
   max = BUFFER_MAX,
 ) {
   let closed = false;
-  return (chunk: string): boolean => {
-    if (closed) return false;
-    if (res.writableLength > max) {
+  return {
+    write(chunk: string): boolean {
+      if (closed) return false;
+      if (res.writableLength > max) {
+        // Nothing is being read: end() would wait on the stuck socket, so it's let go at once.
+        closed = true;
+        res.destroy();
+        return false;
+      }
+      res.write(chunk);
+      return true;
+    },
+    /** Ends the stream once (a session ended); every later write is a no-op, never a write after end. */
+    stop(): void {
+      if (closed) return;
       closed = true;
       res.end();
-      return false;
-    }
-    res.write(chunk);
-    return true;
+    },
   };
 }
 

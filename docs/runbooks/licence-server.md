@@ -111,11 +111,28 @@ The licence database is small; back it up daily, keep 30 days, and copy it off t
 ```
 
 Restore: `docker compose exec -T db pg_restore -U licence -d licence --clean < backups/licence-YYYY-MM-DD.dump`.
-Back up `secrets/signing.pem` and `.env` separately, offline, once: without them no new answer can be signed.
+Back up `secrets/signing.pem`, `secrets/master.key` and `.env` separately, offline, once: without the
+signing key no new answer can be signed, and without the master key the admin's two-step can't be opened.
 
 ## 7. Update
 
 Build the new image (step 1) with its version tag, then `LICENCE_IMAGE=lume-licence:<version> docker compose up -d`.
+
+**Upgrading from a master key in `.env`** (servers set up before 2026-10-01): the compose file now reads the key
+from `secrets/master.key`. Move the *same* key there before `up -d` — a new one would lock the admin out (it
+seals their two-step secret):
+
+```sh
+cd /root/lume-licence
+cp infra/licence/docker-compose.yml .   # from the new checkout
+( umask 077; grep '^LICENCE_MASTER_KEY=' .env | cut -d= -f2- > secrets/master.key )
+test -s secrets/master.key && chown 1000:1000 secrets/master.key && chmod 600 secrets/master.key
+sed -i '/^LICENCE_MASTER_KEY=/d' .env
+docker compose up -d
+```
+
+If the app stops with "LICENCE_MASTER_KEY_FILE … is a folder", the file was missing when compose started
+(Docker made a folder in its place): `rmdir secrets/master.key`, then the lines above.
 `migrate` runs first; the app starts only if it succeeds. Roll back by starting the previous tag (migrations
 are forward-only and additive).
 

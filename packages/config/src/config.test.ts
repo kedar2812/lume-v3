@@ -36,6 +36,11 @@ describe("loadConfig", () => {
     expect(loadConfig(apiSchema, apiEnv).LUME_MANYCHAT_PRESET).toBe("off");
     expect(loadConfig(apiSchema, { ...apiEnv, LUME_MANYCHAT_PRESET: "on" }).LUME_MANYCHAT_PRESET).toBe("on");
   });
+  it("the job pool (imports, sheets, webhooks, reminders, the export) is 10 by default, and can be set", () => {
+    expect(loadConfig(apiSchema, apiEnv).DB_JOB_POOL_MAX).toBe(10);
+    expect(loadConfig(apiSchema, { ...apiEnv, DB_JOB_POOL_MAX: "20" }).DB_JOB_POOL_MAX).toBe(20);
+  });
+
   it("the relay is reached over https, except in development and tests", () => {
     const env = {
       ...apiEnv,

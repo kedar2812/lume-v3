@@ -44,6 +44,8 @@ test.describe("Follow-ups", () => {
     await openApp(page, "/today");
     const soon = page.getByRole("list", { name: "Due soon" });
     await expect(soon).toContainText("Follow Up Person");
+    // Chromium's own names (not jsdom's): each row's Snooze says whose follow-up it is.
+    await expect(soon.getByRole("button", { name: /^Snooze .+ — Follow Up Person$/ })).toHaveCount(1);
 
     // Due in a few seconds: the reminder fires on the real stack, and the bell lights without a reload.
     const tasks = (await callApi<{ items: { id: string }[] }>(page, "GET", `/api/v1/leads/${id}/tasks`)).data
@@ -56,6 +58,10 @@ test.describe("Follow-ups", () => {
     await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible({
       timeout: 70_000,
     });
+    // Said to screen readers too, politely, without being a page "status".
+    await expect(
+      page.locator('p[aria-live="polite"]').filter({ hasText: /^New notification: / }),
+    ).toHaveCount(1);
 
     // The bell opens the notification centre (3B): it's done there, and Today is then all clear.
     await page.getByRole("button", { name: /^Notifications/ }).click();

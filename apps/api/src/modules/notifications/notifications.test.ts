@@ -204,18 +204,38 @@ describe("3A final review", () => {
   it("a browser that stops reading is let go rather than piled up in memory", async () => {
     const { streamWriter } = await import("./hub");
     const chunks: string[] = [];
-    let ended = false;
+    let destroyed = false;
     const res = {
       writableLength: 0,
       write: (c: string) => (chunks.push(c), true),
-      end: () => void (ended = true),
+      end: () => undefined,
+      destroy: () => void (destroyed = true),
     };
-    const write = streamWriter(res, 1024);
-    expect(write("a")).toBe(true);
+    const w = streamWriter(res, 1024);
+    expect(w.write("a")).toBe(true);
     res.writableLength = 2048; // the socket isn't taking what's sent
-    expect(write("b")).toBe(false);
-    expect(ended).toBe(true);
+    expect(w.write("b")).toBe(false);
+    // A socket that isn't taking anything is let go at once (end() would wait on it).
+    expect(destroyed).toBe(true);
     expect(chunks).toEqual(["a"]);
+  });
+
+  it("stopped (a session ended), the stream writes nothing more: no write after its end", async () => {
+    const { streamWriter } = await import("./hub");
+    const chunks: string[] = [];
+    let ended = 0;
+    const res = {
+      writableLength: 0,
+      write: (c: string) => (chunks.push(c), true),
+      end: () => void ended++,
+      destroy: () => undefined,
+    };
+    const w = streamWriter(res);
+    w.stop();
+    expect(w.write(": ping\n\n")).toBe(false);
+    w.stop();
+    expect(ended).toBe(1);
+    expect(chunks).toEqual([]);
   });
 
   it("Important 6: an open stream never holds up the API shutting down", async () => {

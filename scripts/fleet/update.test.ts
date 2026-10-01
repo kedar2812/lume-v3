@@ -114,6 +114,22 @@ describe("update.sh (L-C Task 4)", () => {
     expect(r.stdout).toMatch(/rolled back to 1\.0\.0, backup restored$/m);
   });
 
+  it("pg-boss's version unreadable after the failure (psql blipped) is no change: no restore", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [
+        NOTHING_TO_MIGRATE,
+        { match: /pgboss\.version/, out: "24", times: 1 },
+        { match: /pgboss\.version/, code: 1, out: "" },
+        { match: /^curl /, code: 7, times: 3 },
+      ],
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.calls.some((c) => /pg_restore/.test(c))).toBe(false);
+  });
+
   it("health fails with nothing migrated: back to the previous version, no restore", () => {
     const f = fleet();
     const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {

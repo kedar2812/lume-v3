@@ -12,16 +12,13 @@ describe("health", () => {
     const app = await buildServer({ checks: { database: fail } });
     const res = await app.inject({ method: "GET", url: "/healthz" });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ status: "ok" });
+    expect(res.json()).toEqual({ status: "ok" });
     await app.close();
   });
 
-  it("GET /healthz says which version is running", async () => {
-    const app = await buildServer({ checks: {}, version: "1.4.2" });
-    expect((await app.inject({ method: "GET", url: "/healthz" })).json()).toEqual({
-      status: "ok",
-      version: "1.4.2",
-    });
+  it("GET /healthz is public, so it never says which version runs (an unpatched one would show)", async () => {
+    const app = await buildServer({ checks: {} });
+    expect((await app.inject({ method: "GET", url: "/healthz" })).json()).toEqual({ status: "ok" });
     await app.close();
   });
 

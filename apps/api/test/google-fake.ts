@@ -21,6 +21,8 @@ export type GoogleFake = {
   /** The service-account key file, base64, as GOOGLE_SERVICE_ACCOUNT_JSON holds it. */
   env: string;
   put(id: string, s: FakeSpreadsheet): void;
+  /** Marks a spreadsheet as in a shared drive: Drive answers 404 for it unless asked supportsAllDrives. */
+  inSharedDrive(id: string): void;
   /** A Drive file that isn't a spreadsheet (a Google Doc, say), reachable through a grant. */
   putFile(id: string, mimeType: string): void;
   append(id: string, tab: string, rows: FakeCell[][]): void;
@@ -46,6 +48,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
   const sheets = new Map<string, FakeSpreadsheet & { modified: number }>();
   const files = new Map<string, string>();
+  const shared = new Set<string>();
   const tokens = new Set<string>();
   const oauthTokens = new Set<string>();
   let revoked = false;
@@ -174,6 +177,8 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     }
     const drive = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname);
     if (drive) {
+      if (shared.has(decodeURIComponent(drive[1]!)) && u.searchParams.get("supportsAllDrives") !== "true")
+        return googleError(res, 404, "NOT_FOUND", "File not found.");
       const other = files.get(decodeURIComponent(drive[1]!));
       if (other && viaGrant)
         return send(res, 200, { mimeType: other, modifiedTime: new Date(0).toISOString() });
@@ -235,6 +240,9 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     ).toString("base64"),
     put(id, s) {
       sheets.set(id, { ...structuredClone(s), modified: (clock += 1000) });
+    },
+    inSharedDrive(id) {
+      shared.add(id);
     },
     putFile(id, mimeType) {
       files.set(id, mimeType);

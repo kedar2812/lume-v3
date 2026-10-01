@@ -150,10 +150,24 @@ describe("the relay", () => {
     expect(await r.text()).toMatch(/isn't a Google Sheet/);
   });
 
-  it("its pages can't be framed and send no referrer", async () => {
+  it("its pages can't be framed; the Picker sends only the relay's origin (its key is restricted to it)", async () => {
     const p = await toPicker();
     expect(p.page.headers.get("content-security-policy")).toMatch(/frame-ancestors 'none'/);
-    expect(p.page.headers.get("referrer-policy")).toBe("no-referrer");
+    // The Picker key is limited to https://connect.lumecrm.in by referrer: no-referrer would break it.
+    expect(p.page.headers.get("referrer-policy")).toBe("strict-origin");
+    const words = await get(`/callback?error=access_denied&state=${encodeURIComponent(p.state)}`);
+    expect(words.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("a sheet in a shared drive is a sheet; a file LUME can't see says so, not that it isn't one", async () => {
+    fake.put("shared-1-abcdefghij", { title: "Team leads", tabs: [], sharedWith: [] });
+    fake.inSharedDrive("shared-1-abcdefghij");
+    const p = await toPicker();
+    expect((await done(p.state, p.codeToken, "shared-1-abcdefghij")).status).toBe(302);
+    const q = await toPicker();
+    const r = await done(q.state, q.codeToken, "nowhere-1-abcdefghij");
+    expect(r.status).toBe(400);
+    expect(await r.text()).toMatch(/couldn't see that file/);
   });
 
   it("the Picker page names its function so it doesn't shadow window.open", async () => {

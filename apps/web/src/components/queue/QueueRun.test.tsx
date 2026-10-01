@@ -411,4 +411,19 @@ describe("QueueRun (4C Task 4)", () => {
     expect(queuesClient.retry).toHaveBeenCalledWith("q1", 0);
     expect(await lead("Aisha Khan")).toBeInTheDocument();
   });
+
+  it("the summary also says when a send couldn't be logged on its lead", async () => {
+    tab();
+    q.items[0]!.status = "sent";
+    q.items[0]!.reason = "Sent, but not logged on the lead: Not one you may message";
+    q.items[1]!.status = "sent";
+    q.items[2]!.status = "sent";
+    q.status = "finished";
+    counts();
+    render(<QueueRun id="q1" />);
+    const summary = await screen.findByRole("region", { name: "Run finished" });
+    expect(within(summary).getByRole("list", { name: "Not logged" })).toHaveTextContent(
+      "Aisha KhanNot one you may message",
+    );
+  });
 });

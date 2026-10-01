@@ -601,6 +601,10 @@ describe("running it", () => {
       payload: { allowedRoleIds: [other] },
     });
     try {
+      // Its words aren't offered either: nothing from a template the role can't use.
+      const words = (await get(rep, item(q.id, 0, "text"))).json();
+      expect(words).toMatchObject({ text: "", missing: [] });
+      expect(words.note).toMatch(/your own words/);
       const refused = await post(rep, item(q.id, 0, "prepare"), {});
       expect(refused.statusCode).toBe(409);
       expect(refused.json().error.code).toBe("TEMPLATE_NOT_YOURS");

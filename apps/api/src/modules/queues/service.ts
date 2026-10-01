@@ -389,7 +389,7 @@ export async function itemText(
   req: FastifyRequest,
   id: string,
   position: number,
-): Promise<{ text: string; missing: string[] } | { unavailable: string }> {
+): Promise<{ text: string; missing: string[]; note?: string } | { unavailable: string }> {
   const q = await queueRow(req, id);
   const it = await itemAt(req, id, position);
   let lead: LeadRow;
@@ -403,6 +403,13 @@ export async function itemText(
   if (why) return { unavailable: why };
   if (it.textOverride) return { text: it.textOverride, missing: [] };
   if (!q.templateVersionId) return { text: "", missing: [] };
+  // Nothing from a template the person's role can no longer use: not even its words to edit.
+  if (!(await versionUsable(req, q.templateVersionId)))
+    return {
+      text: "",
+      missing: [],
+      note: "That template isn't one your role can use any more: write your own words for this lead.",
+    };
   return plannedText(req, q.templateVersionId, lead);
 }
 
@@ -494,7 +501,7 @@ export async function answerItem(
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_queue_answer`);
     await req.db.execute(sql`RELEASE SAVEPOINT lume_queue_answer`);
     if (!(err instanceof HttpError)) throw err;
-    const why = err.status === 404 ? WHY.gone : WHY.notYours;
+    const why = err.status === 404 ? WHY.gone : err.status === 403 ? WHY.notYours : err.message;
     // They said it went: it went (and counts against the day's cap), though it can't be logged on the lead.
     if (sent) await settle(req, id, position, "sent", `Sent, but not logged on the lead: ${why}`);
     else await settle(req, id, position, "skipped", why);

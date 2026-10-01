@@ -48,7 +48,7 @@ on_version() {
 
 # One client, in its own subshell: prints its table row whatever happens, exits 1 if it isn't updated.
 update_one() {
-  local slug="$1" prev host_name out migrated=false restored="" dump image boss_before
+  local slug="$1" prev host_name out migrated=false restored="" dump image boss_before boss_after
   target "$slug"
   prev="$(inv get "$slug" version)"
   host_name="$slug.$DOMAIN"
@@ -93,7 +93,9 @@ update_one() {
 
   step "$slug: unhealthy on $version, rolling back to $prev"
   set_tag "$prev" || true
-  [ "$(boss_version)" != "$boss_before" ] && migrated=true
+  # A changed version counts as migrated; one that can't be read (before or after) counts as unchanged.
+  boss_after="$(boss_version)"
+  if [ -n "$boss_before" ] && [ -n "$boss_after" ] && [ "$boss_after" != "$boss_before" ]; then migrated=true; fi
   if $migrated; then
     remote "cd /opt/lume && docker compose stop api worker web" || true
     # The whole database goes back, dropped and made again from the dump: nothing the failed migration

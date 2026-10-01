@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { createPrivateKey } from "node:crypto";
 import { LICENCE_KEYS, masterKeyFromBase64 } from "@lume/core";
 import pg from "pg";
@@ -23,7 +23,14 @@ let made: Ctx | null = null;
 /** A secret from the file NAME_FILE points at (compose mounts it read-only), else from NAME itself. */
 export function secretFrom(env: Record<string, string | undefined>, name: string): string | null {
   const file = env[`${name}_FILE`];
-  if (file) return readFileSync(/*turbopackIgnore: true*/ file, "utf8").trim() || null;
+  if (file) {
+    // Compose makes a folder where a mounted file was missing: say so, not EISDIR.
+    if (statSync(/*turbopackIgnore: true*/ file).isDirectory())
+      throw new Error(
+        `${name}_FILE (${file}) is a folder, not the key file: put the key there (see the runbook, "Upgrading")`,
+      );
+    return readFileSync(/*turbopackIgnore: true*/ file, "utf8").trim() || null;
+  }
   return env[name]?.trim() || null;
 }
 

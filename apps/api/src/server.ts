@@ -7,8 +7,6 @@ import { trackRouteDeclarations } from "./route-guard";
 export type ServerDeps = {
   checks: Record<string, ReadinessCheck>;
   readinessTimeoutMs?: number;
-  /** The running version, said by /healthz. */
-  version?: string;
   logger?: FastifyServerOptions["logger"];
   /** Instance-wide setup before any route (validator/serializer compilers). */
   configure?: (app: FastifyInstance) => void;
@@ -29,7 +27,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const assertDeclared = trackRouteDeclarations(app);
   app.setErrorHandler(errorHandler);
   app.setNotFoundHandler(notFoundHandler);
-  await app.register(healthRoutes(deps.checks, deps.readinessTimeoutMs ?? 2000, deps.version));
+  await app.register(healthRoutes(deps.checks, deps.readinessTimeoutMs ?? 2000));
   if (deps.open) await app.register(async (scope) => deps.open?.(scope));
   if (deps.register) await app.register(async (scope) => deps.register?.(scope));
   await app.ready();

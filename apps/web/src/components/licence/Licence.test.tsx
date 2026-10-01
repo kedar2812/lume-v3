@@ -151,6 +151,28 @@ describe("suspended: the lock screen", () => {
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 
+  it("a prepared export that has expired turns back into Export all data, never a dead Download", async () => {
+    // No fake clock (motion's frame loop would be left on it): the expiry's own timeout is run by hand.
+    const timeouts = vi.spyOn(globalThis, "setTimeout");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+      String(input).includes("/csrf")
+        ? new Response(JSON.stringify({ token: "t" }), { status: 200 })
+        : new Response(JSON.stringify({ id: "x2", name: "LUME-export-2026-10-01.zip" }), { status: 200 }),
+    );
+    try {
+      shell(admin(L({ state: "read_only", reason: "overdue" })), <LicenceBanner />);
+      await userEvent.click(screen.getByRole("button", { name: "Export all data" }));
+      expect(await screen.findByRole("link", { name: "Download" }, { timeout: 4000 })).toBeInTheDocument();
+      const expiry = timeouts.mock.calls.find(([, ms]) => ms === 9.5 * 60_000);
+      expect(expiry).toBeDefined();
+      await act(async () => void (expiry![0] as () => void)());
+      expect(screen.queryByRole("link", { name: "Download" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Export all data" })).toBeInTheDocument();
+    } finally {
+      timeouts.mockRestore();
+    }
+  });
+
   it("an export that can't reach the server says so in LUME's words", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("/csrf"))

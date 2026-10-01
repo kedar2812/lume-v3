@@ -149,16 +149,9 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
         return reply.code(body.status).send({ error: body.code.toLowerCase() });
       }
 
-      // 5. A signature works once: the same signed post sent again (under any event id) is a duplicate.
-      if (cfg.mode === "signed") {
-        const first = await db.execute(sql`
-          INSERT INTO webhook_signatures (source_id, signature_hash)
-          VALUES (${id}, ${createHash("sha256").update(sig!).digest()})
-          ON CONFLICT DO NOTHING RETURNING 1`);
-        if (!first.rows.length) return reply.code(202).send({ accepted: true, duplicate: true });
-      }
-
-      // 6. Replay-safe accept: one row per (source, key), however many arrive at once.
+      // 5–6. One transaction: the signature is spent only if the post is kept (a failed keep can be resent),
+      // and one row per (source, key), however many arrive at once. A signature works once: the same signed
+      // post sent again (under any event id) is a duplicate.
       const given = header(req.headers["x-lume-event-id"])?.trim();
       const eventKey =
         given && given.length <= 200
@@ -167,17 +160,29 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
               .update(given ?? raw)
               .digest("hex");
       const status = s.status === "draft" ? ("test" as const) : ("queued" as const);
-      const [row] = await db
-        .insert(E)
-        .values({
-          sourceId: id,
-          eventKey,
-          // Kept as the JSON it read as (a form's fields too), so processing needs no content type.
-          payloadEnc: d.keyring.encrypt(JSON.stringify(body.value), eventContext(id, eventKey)),
-          status,
-        })
-        .onConflictDoNothing({ target: [E.sourceId, E.eventKey] })
-        .returning({ id: E.id });
+      const kept = await db.transaction(async (tx) => {
+        if (cfg.mode === "signed") {
+          const first = await tx.execute(sql`
+            INSERT INTO webhook_signatures (source_id, signature_hash)
+            VALUES (${id}, ${createHash("sha256").update(sig!).digest()})
+            ON CONFLICT DO NOTHING RETURNING 1`);
+          if (!first.rows.length) return { replay: true as const };
+        }
+        const [r] = await tx
+          .insert(E)
+          .values({
+            sourceId: id,
+            eventKey,
+            // Kept as the JSON it read as (a form's fields too), so processing needs no content type.
+            payloadEnc: d.keyring.encrypt(JSON.stringify(body.value), eventContext(id, eventKey)),
+            status,
+          })
+          .onConflictDoNothing({ target: [E.sourceId, E.eventKey] })
+          .returning({ id: E.id });
+        return { row: r };
+      });
+      if ("replay" in kept) return reply.code(202).send({ accepted: true, duplicate: true });
+      const row = kept.row;
       await db
         .update(S)
         .set({ lastEventAt: new Date(now) })

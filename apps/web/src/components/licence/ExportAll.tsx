@@ -9,6 +9,8 @@ import s from "./licence.module.css";
 /** What the zip holds, in the order it's written (the API's export). */
 const FILES = ["Leads.csv", "Notes.csv", "Activity.csv", "Follow-ups.csv", "Users.csv", "LUME-export.xlsx"];
 const TICK_MS = 380;
+/** A prepared export lasts 10 minutes on the server: a little less here, so Download is never dead. */
+const READY_MS = 9.5 * 60_000;
 
 type Phase =
   | { kind: "idle" }
@@ -26,7 +28,14 @@ export function ExportAll({ variant = "secondary" }: { variant?: "primary" | "se
   const reduce = useReducedMotion();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const timer = useRef<ReturnType<typeof setInterval>>(undefined);
-  useEffect(() => () => clearInterval(timer.current), []);
+  const expiry = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(
+    () => () => {
+      clearInterval(timer.current);
+      clearTimeout(expiry.current);
+    },
+    [],
+  );
 
   const ticks = useRef(0);
   const start = async () => {
@@ -57,6 +66,9 @@ export function ExportAll({ variant = "secondary" }: { variant?: "primary" | "se
       });
       clearInterval(timer.current);
       setPhase({ kind: "ready", url: `${EXPORT_URL}/${encodeURIComponent(id)}`, name });
+      // Gone from the server soon: back to Export all data before Download could fail.
+      clearTimeout(expiry.current);
+      expiry.current = setTimeout(() => setPhase({ kind: "idle" }), READY_MS);
     } catch (e) {
       clearInterval(timer.current);
       setPhase({ kind: "failed", message: (e as Error).message });

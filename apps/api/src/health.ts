@@ -13,9 +13,10 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-export function healthRoutes(checks: Record<string, ReadinessCheck>, timeoutMs: number, version = "dev") {
+export function healthRoutes(checks: Record<string, ReadinessCheck>, timeoutMs: number) {
   return async (app: FastifyInstance) => {
-    app.get("/healthz", { config: { public: true } }, async () => ({ status: "ok", version }));
+    // Public on every client's address: it says alive, never which version (an unpatched one would show).
+    app.get("/healthz", { config: { public: true } }, async () => ({ status: "ok" }));
     app.get("/readyz", { config: { public: true } }, async (_req, reply) => {
       const results = await Promise.all(
         Object.entries(checks).map(async ([name, check]) => {

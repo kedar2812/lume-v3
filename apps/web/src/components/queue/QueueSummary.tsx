@@ -26,6 +26,8 @@ export function QueueSummary({
   const ended = q.status === "cancelled";
   const skipped = q.items.filter((i) => i.status === "skipped");
   const notSent = q.items.filter((i) => i.status === "not_sent");
+  // Sent, but LUME couldn't log it on the lead (it went, and counts): said, so it isn't a surprise later.
+  const unlogged = q.items.filter((i) => i.status === "sent" && i.reason?.startsWith("Sent, but not logged"));
   const spring = reduce ? { duration: 0.15 } : toMotion(SPRINGS.bounce);
   return (
     <motion.section
@@ -60,6 +62,18 @@ export function QueueSummary({
             <li key={i.position}>
               <span className={s.skipName}>{i.name}</span>
               <span className={s.skipWhy}>{i.reason === "Skipped" ? "You skipped" : i.reason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {unlogged.length > 0 && (
+        <ul aria-label="Not logged" className={s.skipped}>
+          {unlogged.map((i) => (
+            <li key={i.position}>
+              <span className={s.skipName}>{i.name}</span>
+              <span className={s.skipWhy}>
+                {i.reason!.replace(/^Sent, but not logged on the lead: /, "")}
+              </span>
             </li>
           ))}
         </ul>

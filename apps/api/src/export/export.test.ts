@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from "node:crypto";
-import { readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import path from "node:path";
 import archiver from "archiver";
 import ExcelJS from "exceljs";
 import { unzipSync, strFromU8 } from "fflate";
@@ -226,13 +227,56 @@ describe("export all data (L-A Task 4)", () => {
       expect(r.statusCode).toBe(200);
       expect(r.headers["content-disposition"]).toBe(`attachment; filename="${name}"`);
       expect(Object.keys(unzipSync(new Uint8Array(r.rawPayload)))).toContain("leads.csv");
-      // Once: the file is gone from the server as soon as it's been downloaded.
-      expect((await admin.inject({ method: "GET", url: `/api/v1/export/${id}` })).statusCode).toBe(404);
-      // Removed as the download's stream closes (a moment after the last byte).
-      await vi.waitFor(() => expect(readdirSync(tmpdir()).filter((f) => f.includes(id))).toEqual([]));
+      // Again, until it expires (a cancelled Save As, a second click): the same zip.
+      expect((await admin.inject({ method: "GET", url: `/api/v1/export/${id}` })).statusCode).toBe(200);
     }
     await become("active");
     expect((await rep.inject({ method: "POST", url: "/api/v1/export" })).statusCode).toBe(403);
+  });
+
+  it("a prepared export lasts 10 minutes, then it and its file are gone", async () => {
+    const { id } = (await admin.inject({ method: "POST", url: "/api/v1/export" })).json<{ id: string }>();
+    expect(readdirSync(tmpdir()).filter((f) => f.includes(id))).toHaveLength(1);
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 11 * 60_000 });
+    try {
+      expect((await admin.inject({ method: "GET", url: `/api/v1/export/${id}` })).statusCode).toBe(404);
+    } finally {
+      vi.useRealTimers();
+    }
+    await vi.waitFor(() => expect(readdirSync(tmpdir()).filter((f) => f.includes(id))).toEqual([]));
+  });
+
+  it("asked over real HTTP with a body (a script's -d '{}'), the export still prepares and answers", async () => {
+    // inject() doesn't close the request the way a socket does: this needs the real server.
+    await h.app.listen({ port: 0, host: "127.0.0.1" });
+    const port = (h.app.server.address() as import("node:net").AddressInfo).port;
+    const r = await fetch(`http://127.0.0.1:${port}/api/v1/export`, {
+      method: "POST",
+      headers: {
+        ...admin.headers,
+        "content-type": "application/json",
+        cookie: Object.entries(admin.cookies)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("; "),
+      },
+      body: "{}",
+      signal: AbortSignal.timeout(20_000),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toHaveProperty("id");
+  });
+
+  it("exports an earlier run left behind (an API restart) are cleared at start", async () => {
+    const { sweepLeftExports } = await import("./service");
+    const dir = mkdtempSync(path.join(tmpdir(), "lume-exports-"));
+    const old = path.join(dir, "lume-export-0123abcd.zip");
+    const fresh = path.join(dir, "lume-export-4567cdef.zip");
+    writeFileSync(old, "x");
+    writeFileSync(fresh, "x");
+    utimesSync(old, new Date(Date.now() - 20 * 60_000), new Date(Date.now() - 20 * 60_000));
+    await sweepLeftExports(dir);
+    expect(existsSync(old)).toBe(false);
+    expect(existsSync(fresh)).toBe(true);
   });
 
   it("a download abandoned half way lets go of its database connection", async () => {

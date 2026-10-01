@@ -1,5 +1,5 @@
 import { callApi, expect, openApp, stateFile, test } from "./fixtures";
-import { appendRows, connectViaApi, putSheet, sheetLink } from "./sheets-helpers";
+import { appendRows, connectViaApi, unshareSheet, putSheet, sheetLink } from "./sheets-helpers";
 
 const row = (i: number, name: string) => [
   `2026-09-27 0${i}:00:00`,
@@ -101,6 +101,34 @@ test.describe("Google Sheets", () => {
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await expect(page.getByText("Syncing new enquiries").first()).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: /new lead/ })).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("a sheet that needs attention stays one tab away after Refresh's card has gone", async ({ page }) => {
+    const id = await putSheet([["2026-09-27 05:30:00", "Attention One", "0503009990", ""]]);
+    await openApp(page, "/leads");
+    const src = await connectViaApi(page, id, "all");
+    try {
+      // Its first sync, then LUME loses access: the next sync (Refresh's) finds it needs attention.
+      await expect
+        .poll(
+          async () => (await callApi<{ syncing: boolean }>(page, "GET", `/api/v1/sheets/sources/${src}`)).data.syncing,
+          { timeout: 30_000 },
+        )
+        .toBe(false);
+      await unshareSheet(id);
+      // Past Refresh's 10 s reuse of a sync that finished moments ago: this Refresh syncs it again.
+      await page.waitForTimeout(11_000);
+      await openApp(page, "/leads");
+      await page.getByRole("button", { name: "Refresh", exact: true }).click();
+      // Found by role in Chromium's accessibility tree: so it isn't inside anything aria-hidden.
+      const link = page.locator(`a[href="/settings/integrations/${src}"]`).filter({ hasText: /needs attention$/ });
+      await expect(link.first()).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(6_000); // the card has gone back into the button
+      await expect(page.getByRole("link", { name: /needs attention$/ }).first()).toBeVisible();
+      await expect(link).toHaveCount(1);
+    } finally {
+      await callApi(page, "DELETE", `/api/v1/sheets/sources/${src}`);
+    }
   });
 
   test("with Sheets switched off there is no Refresh anywhere", async ({ page }) => {

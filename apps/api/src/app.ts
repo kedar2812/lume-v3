@@ -122,7 +122,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   try {
     const app = await buildServer({
       checks: dbChecks(deps.pool),
-      version: deps.config.version,
       logger: deps.logger,
       open: (a) => receiveRoutes(a, deps),
       configure: (a) => {

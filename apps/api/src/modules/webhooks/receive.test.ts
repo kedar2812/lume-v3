@@ -268,4 +268,28 @@ describe("final review", () => {
     expect(took).toBeLessThan(1000);
     await vi.waitFor(async () => expect((await counts(id)).rejected).toBe(1));
   });
+
+  it("a post LUME failed to keep (a database blip) can be sent again: its signature isn't spent", async () => {
+    const id = await source();
+    const raw = '{"name":"Retry Me"}';
+    const headers = signed(raw);
+    // The keep fails once (as a pool timeout would).
+    // DDL takes no parameters: format() quotes the id this test just made, on one connection.
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("SELECT set_config('lume.test_refuse', $1, false)", [id]);
+      await c.query(
+        "DO $$ BEGIN EXECUTE format('ALTER TABLE webhook_events ADD CONSTRAINT lume_test_refuse CHECK (source_id <> %L) NOT VALID', current_setting('lume.test_refuse')); END $$",
+      );
+    } finally {
+      c.release();
+    }
+    try {
+      expect((await post(id, raw, headers)).statusCode).toBe(500);
+    } finally {
+      await h.ownerPool.query("ALTER TABLE webhook_events DROP CONSTRAINT lume_test_refuse");
+    }
+    expect((await post(id, raw, headers)).json()).toEqual({ accepted: true });
+    expect(await events(id)).toHaveLength(1);
+  });
 });

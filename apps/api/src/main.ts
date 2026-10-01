@@ -13,6 +13,7 @@ import { loadKeyring } from "./crypto/keyring-store";
 import { REDACT_PATHS } from "./logger";
 import { createMailer } from "./mail/mailer";
 import { fixedRates, openErApi, openExchangeRates } from "./money/rates";
+import { sweepLeftExports } from "./export/service";
 import { appVersion, isReleaseBuild, resolveLicence } from "./licence/options";
 
 const cfg = loadConfig(apiSchema);
@@ -22,10 +23,10 @@ const pool = new pg.Pool({
   max: 10,
   connectionTimeoutMillis: 10_000,
 });
-// Imports (the job, and a preview's lookup beside its request) and the sheet sync get their own connections.
+// Background work gets its own connections: imports, three sheet syncs, webhooks, reminders, the export.
 const jobPool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
-  max: 5,
+  max: cfg.DB_JOB_POOL_MAX,
   connectionTimeoutMillis: 30_000,
 });
 const publicUrl = cfg.LUME_PUBLIC_URL ?? `https://${cfg.LUME_PUBLIC_HOST}`;
@@ -122,6 +123,8 @@ const taskQueue = await startTaskQueue({
 tasks.enqueue = taskQueue.enqueue;
 tasks.lastSweepAt = taskQueue.lastSweepAt;
 tasks.startedAt = taskQueue.startedAt;
+// Prepared exports a previous run left in /tmp (the whole database): gone before anything else starts.
+await sweepLeftExports();
 await app.listen({ host: "0.0.0.0", port: cfg.API_PORT });
 // At start and every 6 hours (licensing L-A); the state is enforced from the database meanwhile.
 app.licence.start();

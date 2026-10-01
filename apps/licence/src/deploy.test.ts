@@ -50,4 +50,17 @@ describe("how the licence server is packed and run", () => {
     expect(secretFrom({ LICENCE_MASTER_KEY: "abc" }, "LICENCE_MASTER_KEY")).toBe("abc");
     expect(secretFrom({}, "LICENCE_MASTER_KEY")).toBeNull();
   });
+
+  it("a master key path that's a folder (compose made it: the file was missing) says so plainly", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lume-secret-dir-"));
+    expect(() => secretFrom({ LICENCE_MASTER_KEY_FILE: dir }, "LICENCE_MASTER_KEY")).toThrow(
+      /LICENCE_MASTER_KEY_FILE.*is a folder.*runbook/,
+    );
+  });
+
+  it("the runbook moves an existing key out of .env, and backs the key file up", () => {
+    const book = read("docs/runbooks/licence-server.md");
+    expect(book).toMatch(/grep '\^LICENCE_MASTER_KEY=' \.env/);
+    expect(book).toMatch(/Back up.*master\.key/s);
+  });
 });
