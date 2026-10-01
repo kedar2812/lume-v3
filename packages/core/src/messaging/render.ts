@@ -22,6 +22,8 @@ export type RenderContext = {
   /** The business's live custom fields: select values are stored as option ids. */
   fields: { key: string; type: FieldType; options?: { id: string; label: string }[] }[];
   people: { id: string; name: string }[];
+  /** The lead's next scheduled meeting (5C), if any: its details render on the business's clock. */
+  meeting?: { startsAt: string; link: string | null } | null;
 };
 
 /** Field types that hold a way to reach someone: never in a message a masked rep can see. */
@@ -45,6 +47,33 @@ function when(iso: string, tz: string): string {
       .map((x) => [x.type, x.value]),
   );
   return `${Number(p.day)} ${MONTHS[Number(p.month) - 1]}, ${p.hour}:${p.minute}`;
+}
+
+/** The lead's next meeting (5C): "Thursday 1 October", "10:30 am" (a whole hour: "12 pm"), its link. */
+function meetingValue(part: string, ctx: RenderContext): string | null {
+  const m = ctx.meeting;
+  if (!m) return null;
+  if (part === "link") return m.link || null;
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: ctx.business.timezone,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "numeric",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(m.startsAt))
+      .map((x) => [x.type, x.value]),
+  );
+  if (part === "date") return `${p.weekday} ${Number(p.day)} ${p.month}`;
+  if (part === "time") {
+    const h = Number(p.hour);
+    const mins = p.minute === "00" ? "" : `:${p.minute}`;
+    return `${h % 12 || 12}${mins} ${h < 12 ? "am" : "pm"}`;
+  }
+  return null;
 }
 
 /** One custom value as people read it, or null when there's nothing to say (or it's a contact). */
@@ -108,7 +137,8 @@ function valueOf(token: string, ctx: RenderContext): string | null {
       return ctx.business.name || null;
   }
   if (token.startsWith("lead.custom.")) return customValue(token.slice("lead.custom.".length), ctx);
-  return null; // meeting.* (Phase 5), and anything unknown
+  if (token.startsWith("meeting.")) return meetingValue(token.slice("meeting.".length), ctx);
+  return null; // anything unknown
 }
 
 /** The template in this lead's words, and the variables that had nothing to say (each once, in order). */

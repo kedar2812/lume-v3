@@ -67,7 +67,14 @@ export async function contextFor(req: FastifyRequest, lead: LeadRow): Promise<Re
   // The lead's name and who owns it are fields too: a role that can't see them can't put them in a message.
   const sees = (key: string) => isFieldVisible({ actor: req.actor!, fields: registry }, key);
   const owner = lead.ownerId && sees("owner") ? people.find((p) => p.id === lead.ownerId) : undefined;
+  // Its next scheduled meeting (5C), of any calendar, as row-level security lets the sender see it.
+  const next = await req.db.execute<{ starts_at: string | Date; link: string | null }>(
+    sql`SELECT starts_at, link FROM meetings WHERE lead_id = ${lead.id} AND status = 'scheduled' AND starts_at > now()
+        ORDER BY starts_at LIMIT 1`,
+  );
+  const m = next.rows[0];
   return {
+    meeting: m ? { startsAt: new Date(m.starts_at).toISOString(), link: m.link } : null,
     lead: { name: sees("name") ? lead.name : "", custom },
     owner: owner ? { name: owner.name } : null,
     business: { name: s?.name ?? "", currency: s?.currency ?? "", timezone: s?.tz ?? "UTC" },
