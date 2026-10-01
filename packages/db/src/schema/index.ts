@@ -7,3 +7,4 @@ export * from "./messaging";
 export * from "./views";
 export * from "./queues";
 export * from "./licence";
+export * from "./calendar";

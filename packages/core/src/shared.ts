@@ -27,6 +27,8 @@ export type { ColumnMap, IntakeField, Issue, Mapping, OwnerRule, Rules, Transfor
 export type { ColumnAnalysis } from "./intake/map-row";
 export * from "./tasks/time";
 export * from "./tasks/rules";
+// Settings → Calendar's rules (5A): no I/O, safe for the browser.
+export * from "./calendar/rules";
 export * from "./messaging/render";
 // The licence as people see it (no crypto: safe for the browser).
 export * from "./licence/state";

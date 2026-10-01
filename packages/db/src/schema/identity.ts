@@ -13,7 +13,7 @@ import {
   time,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { OnboardingState, Preferences, TourState } from "@lume/core";
+import type { CalendarSettings, OnboardingState, Preferences, TourState } from "@lume/core";
 import { bytea, cidrArray, citext, inet, tz } from "./types";
 
 export const settings = pgTable("settings", {
@@ -47,6 +47,11 @@ export const settings = pgTable("settings", {
     .$type<{ queueSize?: number; dailyCap?: number }>()
     .notNull()
     .default(sql`'{}'::jsonb`),
+  /** Settings → Calendar (5A): which calendar events are meetings with leads. */
+  calendar: jsonb("calendar")
+    .$type<CalendarSettings>()
+    .notNull()
+    .default(sql`'{"rules":{"attendeeIsLead":true,"titleWords":[],"calendarIds":[]}}'::jsonb`),
   /** Optional modules switched on for this instance (2B spec §3); off unless set. */
   integrations: jsonb("integrations")
     .$type<{ googleSheets?: { enabled: boolean }; webhooks?: { enabled: boolean } }>()
