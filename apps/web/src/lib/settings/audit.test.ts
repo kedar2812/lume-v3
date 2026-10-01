@@ -24,6 +24,8 @@ const WRITTEN = [
   "calendar.calendars_changed",
   "calendar.disconnected",
   "calendar.needs_reconnect",
+  "meeting.attached",
+  "meeting.outcome",
   "import.cancelled",
   "import.discarded",
   "import.failed",

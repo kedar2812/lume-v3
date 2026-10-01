@@ -54,6 +54,9 @@ export const meetings = pgTable(
     outcomeNote: text("outcome_note"),
     outcomeAt: tz("outcome_at"),
     outcomeBy: uuid("outcome_by"),
+    /** When its owner was asked for the outcome (the "Log outcome" follow-up, once). */
+    outcomeAskedAt: tz("outcome_asked_at"),
+    outcomeTaskId: uuid("outcome_task_id"),
     createdAt: tz("created_at").notNull().defaultNow(),
     updatedAt: tz("updated_at").notNull().defaultNow(),
     version: integer("version").notNull().default(1),

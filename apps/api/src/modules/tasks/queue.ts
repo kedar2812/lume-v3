@@ -6,6 +6,7 @@ import { fire, sweep } from "./engine";
 import { escalate } from "./escalation";
 import { runDigests } from "./digest";
 import { noTouch } from "./no-touch";
+import { askOutcomes } from "../meetings/outcomes";
 import { opsAlerts } from "../health/service";
 import type { Mailer } from "../../mail/mailer";
 
@@ -65,7 +66,7 @@ export async function startTaskQueue(o: {
   // Reminders come first and never wait on mail: escalation and the digest run beside the clock, one run of
   // each at a time, so a slow mail server can neither hold up a sweep nor start a second digest run
   // (3B final review, Important 1).
-  const busy = { escalate: false, digest: false, noTouch: false, alerts: false };
+  const busy = { escalate: false, digest: false, noTouch: false, alerts: false, outcomes: false };
   const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
     if (busy[key]) return;
     busy[key] = true;
@@ -84,6 +85,8 @@ export async function startTaskQueue(o: {
       await sweepNow();
       // Every fifth minute: follow-ups left overdue reach their managers (3B).
       if (n % 5 === 0) beside("escalate", () => escalate(deps), "follow-up escalation failed");
+      // Every fifth minute: a meeting with a lead that has ended asks its owner how it went (5A).
+      if (n % 5 === 0) beside("outcomes", () => askOutcomes({ ...deps, enqueue }), "Log outcome failed");
       // Every quarter hour: whoever's morning it is gets their digest (3B).
       if (o.digest && n % 15 === 0)
         beside(

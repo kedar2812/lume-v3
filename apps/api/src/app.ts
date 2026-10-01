@@ -24,6 +24,7 @@ import { queueRoutes } from "./modules/queues/routes";
 import { importRoutes } from "./modules/imports/routes";
 import { sheetRoutes } from "./modules/sheets/routes";
 import { calendarRoutes } from "./modules/calendar/routes";
+import { meetingRoutes } from "./modules/meetings/routes";
 import type { GoogleSheets } from "./modules/sheets/google";
 import type { Limiter } from "./modules/webhooks/limits";
 import { receiveRoutes } from "./modules/webhooks/receive";
@@ -187,6 +188,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(importRoutes, deps);
         await scope.register(sheetRoutes, deps);
         await scope.register(calendarRoutes, deps);
+        await scope.register(meetingRoutes, deps);
         await scope.register(webhookRoutes, deps);
         await scope.register(taskRoutes, deps);
         await scope.register(healthRoutes, deps);

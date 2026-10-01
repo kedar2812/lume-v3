@@ -53,6 +53,19 @@ export const PROBES: Record<string, Probe> = {
   "PATCH /api/v1/calendar/connection": { access: "calendar.connect", body: () => ({ calendars: [] }) },
   "POST /api/v1/calendar/connection/sync": { access: "calendar.connect" },
   "DELETE /api/v1/calendar/connection": { access: "calendar.connect" },
+  "GET /api/v1/meetings": {
+    access: "calendar.view",
+    path: () => "/api/v1/meetings?from=2026-09-01T00:00:00Z&to=2026-09-30T00:00:00Z",
+  },
+  "GET /api/v1/leads/:id/meetings": {
+    access: "calendar.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/meetings`,
+  },
+  "PATCH /api/v1/meetings/:id": {
+    access: "calendar.view",
+    path: () => `/api/v1/meetings/${uuid}`,
+    body: () => ({}),
+  },
   "PUT /api/v1/integrations/google-sheets": {
     access: "integrations.manage",
     body: () => ({ enabled: false }),

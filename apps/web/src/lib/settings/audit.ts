@@ -179,6 +179,12 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     area: "Settings",
     phrase: "found that Google stopped letting it read a calendar (it needs connecting again)",
   },
+  "meeting.attached": { area: "Leads", phrase: "linked a meeting to a lead" },
+  "meeting.outcome": {
+    area: "Leads",
+    phrase: (d) =>
+      `recorded a meeting as ${d.status === "no_show" ? "a no-show" : d.status === "rescheduled" ? "rescheduled" : "held"}`,
+  },
   "calendar.disconnected": {
     area: "Settings",
     phrase: (d) =>
