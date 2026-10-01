@@ -71,6 +71,44 @@ describe("theme tokens", () => {
     }
   });
 
+  it.each([
+    ["porcelain", light],
+    ["obsidian", dark],
+  ])(
+    "%s: no violet anywhere (owner, 2026-10-01): no coloured token sits between 250° and 320°",
+    (_name, t) => {
+      const hue = (v: string): { h: number; s: number } | null => {
+        const hex = v.match(/^#([0-9a-f]{6})$/i);
+        const rgba = v.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+        const [r, g, b] = hex
+          ? [0, 2, 4].map((i) => parseInt(hex[1]!.slice(i, i + 2), 16) / 255)
+          : rgba
+            ? [rgba[1], rgba[2], rgba[3]].map((x) => Number(x) / 255)
+            : [NaN, NaN, NaN];
+        if ([r, g, b].some(Number.isNaN)) return null;
+        const max = Math.max(r!, g!, b!);
+        const min = Math.min(r!, g!, b!);
+        if (max === min) return { h: 0, s: 0 };
+        const d = max - min;
+        const h = max === r ? ((g! - b!) / d) % 6 : max === g ? (b! - r!) / d + 2 : (r! - g!) / d + 4;
+        return { h: (h * 60 + 360) % 360, s: d / max };
+      };
+      for (const [k, v] of Object.entries(t)) {
+        const c = hue(v);
+        if (!c || c.s < 0.25) continue;
+        expect(c.h > 250 && c.h < 320, `${k}: ${v}`).toBe(false);
+      }
+    },
+  );
+
+  it.each([
+    ["porcelain", light],
+    ["obsidian", dark],
+  ])("%s: meetings are LUME's blue with a light sky touch", (_name, t) => {
+    expect(t["--sky"]).toMatch(/^#/);
+    expect(t["--meet-grad"]).toBe("linear-gradient(180deg, var(--sky), var(--accent))");
+  });
+
   it("obsidian: every layer steps clearly up from the one below (page → card → popover)", () => {
     // Too little step and cards melt into the page (the owner's call: "blended in").
     expect(contrastRatio(dark["--sheet"]!, dark["--canvas"]!)).toBeGreaterThanOrEqual(1.14);

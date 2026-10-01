@@ -80,9 +80,12 @@
   --warn: #f2a20c;
   --warn-soft: #fef4dd;
   --warn-ink: #8a5a00;
-  --meet: #6e56cf;
-  --meet-soft: #f0edfc;
-  --meet-ink: #5539c0;
+  /* Meetings are LUME's blue with a light sky touch (owner, 2026-10-01: no violet anywhere). */
+  --meet: #3d93f0;
+  --meet-soft: #eaf5ff;
+  --meet-ink: #1462b8;
+  --sky: #5ab8ff;
+  --meet-grad: linear-gradient(180deg, var(--sky), var(--accent));
   --ok: #18a566;
   --ok-soft: #e4f6ec;
   --ok-ink: #0c7845;
@@ -136,9 +139,11 @@
   --warn: #ffb224;
   --warn-soft: rgba(255, 178, 36, 0.14);
   --warn-ink: #ffc75c;
-  --meet: #9582ff;
-  --meet-soft: rgba(149, 130, 255, 0.16);
-  --meet-ink: #b3a6ff;
+  --meet: #6db8ff;
+  --meet-soft: rgba(90, 184, 255, 0.13);
+  --meet-ink: #9cc9ff;
+  --sky: #7cc8ff;
+  --meet-grad: linear-gradient(180deg, var(--sky), var(--accent));
   --ok: #2fd08a;
   --ok-soft: rgba(47, 208, 138, 0.14);
   --ok-ink: #5fe0a8;
@@ -194,9 +199,11 @@
     --warn: #ffb224;
     --warn-soft: rgba(255, 178, 36, 0.14);
     --warn-ink: #ffc75c;
-    --meet: #9582ff;
-    --meet-soft: rgba(149, 130, 255, 0.16);
-    --meet-ink: #b3a6ff;
+    --meet: #6db8ff;
+    --meet-soft: rgba(90, 184, 255, 0.13);
+    --meet-ink: #9cc9ff;
+    --sky: #7cc8ff;
+    --meet-grad: linear-gradient(180deg, var(--sky), var(--accent));
     --ok: #2fd08a;
     --ok-soft: rgba(47, 208, 138, 0.14);
     --ok-ink: #5fe0a8;

@@ -68,7 +68,7 @@ describe("meeting variables in messages (5C Task 7)", () => {
       .formatToParts(next)
       .reduce((a, p) => ({ ...a, [p.type]: p.value }), {} as Record<string, string>);
     expect(r.missing).toEqual([]);
-    expect(r.text).toContain(`${day.weekday} ${day.day} ${day.month}`);
+    expect(r.text).toContain(`${day.month} ${day.day}, ${day.weekday}`);
     expect(r.text).toMatch(/ \d{1,2}(:\d\d)? (am|pm) https:\/\/meet\.example\/next$/);
   });
 

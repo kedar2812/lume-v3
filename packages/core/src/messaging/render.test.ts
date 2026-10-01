@@ -141,17 +141,17 @@ describe("render (4A Task 1)", () => {
     expect(VARIABLES(fields).find((v) => v.token === "meeting.date")).toMatchObject({ needs: "calendar" });
   });
 
-  it("5C: a meeting's date and time on the business's clock, and its link", () => {
+  it("5C: a meeting's date (month first, owner 2026-10-01) and time on the business's clock, and its link", () => {
     const at = (startsAt: string, link: string | null = "https://meet.example/abc") => ({
       ...ctx("Asia/Dubai"),
       meeting: { startsAt, link },
     });
     expect(
       render("{{meeting.date}} at {{meeting.time}}: {{meeting.link}}", at("2026-10-01T06:30:00Z")).text,
-    ).toBe("Thursday 1 October at 10:30 am: https://meet.example/abc");
+    ).toBe("October 1, Thursday at 10:30 am: https://meet.example/abc");
     // across midnight in the business's zone
     expect(render("{{meeting.date}} {{meeting.time}}", at("2026-10-01T21:05:00Z")).text).toBe(
-      "Friday 2 October 1:05 am",
+      "October 2, Friday 1:05 am",
     );
     expect(render("{{meeting.time}}", at("2026-10-01T08:00:00Z")).text).toBe("12 pm");
     expect(render("{{meeting.link}}", at("2026-10-01T06:30:00Z", null)).missing).toEqual(["meeting.link"]);

@@ -803,7 +803,7 @@
   transition: transform 0.28s var(--spring);
 }
 .switchRow input:checked {
-  background: var(--accent);
+  background: var(--ok);
 }
 .switchRow input:checked::after {
   transform: translateX(14px);

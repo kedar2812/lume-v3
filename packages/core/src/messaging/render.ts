@@ -49,7 +49,7 @@ function when(iso: string, tz: string): string {
   return `${Number(p.day)} ${MONTHS[Number(p.month) - 1]}, ${p.hour}:${p.minute}`;
 }
 
-/** The lead's next meeting (5C): "Thursday 1 October", "10:30 am" (a whole hour: "12 pm"), its link. */
+/** The lead's next meeting (5C): "October 1, Thursday" (month first, owner 2026-10-01), "10:30 am" (a whole hour: "12 pm"), its link. */
 function meetingValue(part: string, ctx: RenderContext): string | null {
   const m = ctx.meeting;
   if (!m) return null;
@@ -67,7 +67,7 @@ function meetingValue(part: string, ctx: RenderContext): string | null {
       .formatToParts(new Date(m.startsAt))
       .map((x) => [x.type, x.value]),
   );
-  if (part === "date") return `${p.weekday} ${Number(p.day)} ${p.month}`;
+  if (part === "date") return `${p.month} ${Number(p.day)}, ${p.weekday}`;
   if (part === "time") {
     const h = Number(p.hour);
     const mins = p.minute === "00" ? "" : `:${p.minute}`;
