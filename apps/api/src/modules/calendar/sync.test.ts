@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import pg from "pg";
-import { ALL_GRANTS, seal, sign } from "@lume/core";
+import { ALL_GRANTS, newId, seal, sign } from "@lume/core";
 import { adminUrl } from "@lume/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createRelay } from "../../../../connect/src/relay";
@@ -564,5 +564,36 @@ describe("the final review's fixes (5A)", () => {
     });
     await sync(mayaConn);
     for (const id of ["fx-self", "fx-selfatt", "fx-colleague"]) expect(await meetingOf(id)).toBeUndefined();
+  });
+});
+
+describe("5C final review: a Google meeting's reminder follows its meeting", () => {
+  it("moved or cancelled at Google, its open reminder closes", async () => {
+    mayaC = await h.signIn(maya);
+    const lead = await h.seedLead({ ownerId: maya.id, email: "followed@leads.test" });
+    for (const id of ["rem-move", "rem-cancel"])
+      h.fake!.putEvent(ME, { id, title: id, start: at(30), end: at(31), attendees: ["followed@leads.test"] });
+    await sync(mayaConn);
+    const tasks: Record<string, string> = {};
+    for (const id of ["rem-move", "rem-cancel"]) {
+      const t = newId();
+      tasks[id] = t;
+      await h.queryAll(
+        `INSERT INTO tasks (id, lead_id, assignee_id, type, title, due_at, series_id, meeting_id)
+         VALUES ($1, $2, $3, 'whatsapp', 'Remind', now() + interval '1 day', $1, $4)`,
+        [t, lead, maya.id, (await meetingOf(id))!.id],
+      );
+    }
+    h.fake!.putEvent(ME, {
+      id: "rem-move",
+      title: "rem-move",
+      start: at(40),
+      end: at(41),
+      attendees: ["followed@leads.test"],
+    });
+    h.fake!.cancelEvent(ME, "rem-cancel");
+    await sync(mayaConn);
+    expect(await taskStatus(tasks["rem-move"]!)).toBe("cancelled");
+    expect(await taskStatus(tasks["rem-cancel"]!)).toBe("cancelled");
   });
 });

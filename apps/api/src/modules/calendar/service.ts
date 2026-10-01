@@ -273,7 +273,8 @@ export async function disconnectCalendar(req: FastifyRequest, d: AppDeps) {
   const closed = await req.db.execute<{ id: string; lead_id: string }>(
     sql`UPDATE tasks SET status = 'cancelled', cancelled_at = now(), updated_at = now(), version = version + 1
          WHERE status = 'open'
-           AND id IN (SELECT outcome_task_id FROM meetings WHERE connection_id = ${c.id} AND outcome_task_id IS NOT NULL)
+           AND (id IN (SELECT outcome_task_id FROM meetings WHERE connection_id = ${c.id} AND outcome_task_id IS NOT NULL)
+                OR meeting_id IN (SELECT id FROM meetings WHERE connection_id = ${c.id}))
         RETURNING id, lead_id`,
   );
   for (const t of closed.rows) {

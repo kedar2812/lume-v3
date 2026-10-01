@@ -272,6 +272,8 @@ describe("a booking (5B Task 6)", () => {
     await deliver({ invitee: "WON1", email: "won@client.test" });
     expect((await leadsBy("won@client.test"))[0]!.stage_id).toBe(stages.Won);
     expect((await meetingOf("WON1"))!.lead_id).toBe(won);
+    // …and the event says why it stayed (final review, Important 2)
+    expect(await eventOf("WON1")).toMatchObject({ status: "done", problems: [{ code: "ALREADY_CLOSED" }] });
   });
 
   it("a booking moving the lead into a stage that reminds before meetings sets that reminder (5C)", async () => {
@@ -395,5 +397,157 @@ describe("a cancellation (5B Task 6)", () => {
     await deliver({ invitee: "GHOST", event: "invitee.canceled", email: "ghost@client.test" });
     expect(await eventOf("GHOST", "invitee.canceled")).toMatchObject({ status: "done" });
     expect(await meetingOf("GHOST")).toBeUndefined();
+  });
+});
+
+describe("the final review's fixes (5B)", () => {
+  /** The booking stage reminds the lead 2 hours before their meeting, with a template. */
+  async function withReminder<T>(fn: () => Promise<T>): Promise<T> {
+    const t = await adminC.inject({
+      method: "POST",
+      url: "/api/v1/templates",
+      payload: {
+        name: `Reminder ${newId().slice(-6)}`,
+        category: "reminder",
+        body: "See you {{meeting.time}}",
+      },
+    });
+    const [was] = (
+      await h.ownerPool.query<{ on_enter: unknown }>("SELECT on_enter FROM stages WHERE id = $1", [
+        stages["Call booked"],
+      ])
+    ).rows;
+    await h.ownerPool.query("UPDATE stages SET on_enter = $1 WHERE id = $2", [
+      { rules: [{ id: newId(), type: "remind_before_meeting", hoursBefore: 2, templateId: t.json().id }] },
+      stages["Call booked"],
+    ]);
+    try {
+      return await fn();
+    } finally {
+      await h.ownerPool.query("UPDATE stages SET on_enter = $1 WHERE id = $2", [
+        was!.on_enter,
+        stages["Call booked"],
+      ]);
+    }
+  }
+  const reminders = (lead: string) =>
+    h.queryAll<{ status: string; due_at: Date }>(
+      "SELECT status, due_at FROM tasks WHERE lead_id = $1 AND type = 'whatsapp' ORDER BY created_at",
+      [lead],
+    );
+  const soon = (hours: number) => new Date(Date.now() + hours * 3_600_000);
+
+  it("Important 1: a cancellation for a meeting whose lead was deleted still cancels it, once", async () => {
+    await deliver({ invitee: "DEL1", email: "deleted@client.test" });
+    const [lead] = await leadsBy("deleted@client.test");
+    await h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1 RETURNING id", [lead!.id]);
+    expect(await leadsBy("deleted@client.test")).toEqual([]);
+    await deliver({ invitee: "DEL1", event: "invitee.canceled", email: "deleted@client.test" });
+    expect((await meetingOf("DEL1"))!.status).toBe("cancelled");
+    expect(await eventOf("DEL1", "invitee.canceled")).toMatchObject({ status: "done" });
+  });
+
+  it("Important 3: a cancellation that arrives before its booking leaves no live meeting, no move, no notice", async () => {
+    await deliver({ invitee: "EARLY1", event: "invitee.canceled", email: "early@client.test" });
+    const notices = (await told("meeting_booked")).length;
+    await deliver({ invitee: "EARLY1", email: "early@client.test", name: "Early Bird" });
+    expect((await meetingOf("EARLY1"))!.status).toBe("cancelled");
+    const [lead] = await leadsBy("early@client.test");
+    expect(lead!.stage_id).not.toBe(stages["Call booked"]);
+    expect((await told("meeting_booked")).length).toBe(notices);
+  });
+
+  it("Important 4: a meeting reminder follows its meeting — closed when it's cancelled or moved, set again for the new booking", async () => {
+    await withReminder(async () => {
+      const first = soon(30);
+      await deliver({ invitee: "RM1", email: "reminded@client.test", start: first.toISOString() });
+      const [lead] = await leadsBy("reminded@client.test");
+      expect((await reminders(lead!.id)).map((r) => r.status)).toEqual(["open"]);
+      // Calendly's reschedule: the old one closes, the new booking (the lead already in the stage) sets its own
+      await deliver({
+        invitee: "RM1",
+        event: "invitee.canceled",
+        email: "reminded@client.test",
+        rescheduled: true,
+      });
+      const second = soon(50);
+      await deliver({ invitee: "RM2", email: "reminded@client.test", start: second.toISOString() });
+      const rs = await reminders(lead!.id);
+      expect(rs.map((r) => r.status)).toEqual(["cancelled", "open"]);
+      expect(rs[1]!.due_at.getTime()).toBe(second.getTime() - 2 * 3_600_000);
+      // cancelled outright: its reminder closes
+      await deliver({ invitee: "RM2", event: "invitee.canceled", email: "reminded@client.test" });
+      expect((await reminders(lead!.id)).map((r) => r.status)).toEqual(["cancelled", "cancelled"]);
+    });
+  });
+
+  it("Minor 7 (re-graded): a booking stage that clears the lead's follow-ups also clears their reminders, for whoever had them", async () => {
+    const lead = await h.seedLead({ ownerId: host.id, name: "Cleared Lead", email: "cleared@client.test" });
+    const task = newId();
+    await h.queryAll(
+      "INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Call back', now(), $1)",
+      [task, lead, host.id],
+    );
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('lume.user_id', $1, true)", [host.id]);
+      await c.query(
+        "INSERT INTO notifications (user_id, kind, task_id, lead_id, title) VALUES ($1, 'follow_up_due', $2, $3, 'Call back')",
+        [host.id, task, lead],
+      );
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
+    const [was] = (
+      await h.ownerPool.query<{ on_enter: unknown }>("SELECT on_enter FROM stages WHERE id = $1", [
+        stages["Call booked"],
+      ])
+    ).rows;
+    await h.ownerPool.query("UPDATE stages SET on_enter = $1 WHERE id = $2", [
+      { rules: [{ id: newId(), type: "cancel_open_tasks" }] },
+      stages["Call booked"],
+    ]);
+    try {
+      await deliver({ invitee: "CLEAR1", email: "cleared@client.test", name: "Cleared Lead" });
+    } finally {
+      await h.ownerPool.query("UPDATE stages SET on_enter = $1 WHERE id = $2", [
+        was!.on_enter,
+        stages["Call booked"],
+      ]);
+    }
+    expect(await h.queryAll("SELECT status FROM tasks WHERE id = $1", [task])).toEqual([
+      { status: "cancelled" },
+    ]);
+    await expect
+      .poll(
+        async () =>
+          (
+            await backup<{ read_at: Date | null }>("SELECT read_at FROM notifications WHERE task_id = $1", [
+              task,
+            ])
+          )[0]?.read_at,
+      )
+      .not.toBeNull();
+  });
+
+  it("Important 5: when the person Calendly runs as can't add leads, bookings wait; an admin's save runs it as them and they go through", async () => {
+    await h.revokeGrant(admin.id, "leads.import");
+    await deliver({ invitee: "WAIT1", email: "waiting@client.test" });
+    expect(await eventOf("WAIT1")).toMatchObject({ status: "queued" });
+    const [src] = (
+      await h.ownerPool.query<{ status: string; attention_code: string }>(
+        "SELECT status, attention_code FROM lead_sources WHERE id = $1",
+        [sourceId],
+      )
+    ).rows;
+    expect(src).toEqual({ status: "needs_attention", attention_code: "RUN_AS_ACCESS" });
+    const hostC = await h.signIn(host);
+    const saved = await hostC.inject({ method: "PATCH", url: "/api/v1/integrations/calendly", payload: {} });
+    expect(saved.json()).toMatchObject({ status: "active", runAs: { id: host.id } });
+    await h.runWebhooks();
+    expect(await eventOf("WAIT1")).toMatchObject({ status: "done" });
+    expect(await meetingOf("WAIT1")).toBeDefined();
   });
 });

@@ -164,14 +164,15 @@ async function forget(pool: pg.Pool, conn: Row, now: Date) {
       "UPDATE meetings SET connection_id = NULL WHERE connection_id = $1 AND lead_id IS NOT NULL",
       [conn.id],
     );
-    const gone = await c.query<{ outcome_task_id: string | null }>(
-      "DELETE FROM meetings WHERE connection_id = $1 RETURNING outcome_task_id",
+    const gone = await c.query<{ id: string; outcome_task_id: string | null }>(
+      "DELETE FROM meetings WHERE connection_id = $1 RETURNING id, outcome_task_id",
       [conn.id],
     );
     await closeOutcomeTasks(
       c,
       gone.rows.map((x) => x.outcome_task_id),
       now,
+      gone.rows.map((x) => x.id),
     );
     await c.query("DELETE FROM calendar_connections WHERE id = $1", [conn.id]);
     await c.query(
@@ -230,9 +231,25 @@ const chosenOf = (cs: ConnectedCalendar[]) =>
     .sort()
     .join("\n");
 
-/** Its Log outcome follow-ups closed: their meeting is gone, cancelled or moved on (no reminder, no escalation). */
-async function closeOutcomeTasks(c: pg.PoolClient, taskIds: (string | null)[], now: Date) {
-  const ids = taskIds.filter((x): x is string => !!x);
+/**
+ * Its Log outcome follow-ups closed: their meeting is gone, cancelled or moved on (no reminder, no escalation).
+ * With `meetingIds`, those meetings' reminders too (5C: a reminder about a meeting that isn't happening then).
+ */
+async function closeOutcomeTasks(
+  c: pg.PoolClient,
+  taskIds: (string | null)[],
+  now: Date,
+  meetingIds: string[] = [],
+) {
+  const reminders = meetingIds.length
+    ? (
+        await c.query<{ id: string }>(
+          "SELECT id FROM tasks WHERE meeting_id = ANY($1::uuid[]) AND status = 'open'",
+          [meetingIds],
+        )
+      ).rows.map((r) => r.id)
+    : [];
+  const ids = [...taskIds.filter((x): x is string => !!x), ...reminders];
   if (!ids.length) return;
   const { rows } = await c.query<{ id: string; lead_id: string }>(
     `UPDATE tasks SET status = 'cancelled', cancelled_at = $2, updated_at = $2, version = version + 1
@@ -350,11 +367,11 @@ async function write(
             "UPDATE meetings SET status = 'cancelled', updated_at = $2, version = version + 1 WHERE id = $1",
             [old.id, now],
           );
-          await closeOutcomeTasks(c, [old.outcome_task_id], now);
+          await closeOutcomeTasks(c, [old.outcome_task_id], now, [old.id]);
         }
       } else if (old.status === "scheduled" || old.status === "cancelled") {
         await c.query("DELETE FROM meetings WHERE id = $1", [old.id]);
-        await closeOutcomeTasks(c, [old.outcome_task_id], now);
+        await closeOutcomeTasks(c, [old.outcome_task_id], now, [old.id]);
       }
       continue;
     }
@@ -413,7 +430,9 @@ async function write(
       old.location === fields.location &&
       old.status === status;
     if (same) continue;
-    if (movedOn) await closeOutcomeTasks(c, [old.outcome_task_id], now);
+    // Moved at all: its reminder was for the old time. Moved past its outcome: that's set aside too.
+    if (movedOn || startsAt.getTime() !== old.starts_at.getTime())
+      await closeOutcomeTasks(c, movedOn ? [old.outcome_task_id] : [], now, [old.id]);
     await c.query(
       `UPDATE meetings SET lead_id = $2, connection_id = $3, calendar_id = $4, matched_by = $5, title = $6,
               starts_at = $7, ends_at = $8, link = $9, location = $10, status = $11, updated_at = $12,
@@ -446,30 +465,32 @@ async function write(
   // one stays, as Google leaves cancelled events out of a full read; one with an outcome is history).
   const chosen = read.calendars.filter((x) => x.chosen).map((x) => x.id);
   for (const r of read.reads.filter((x) => x.full)) {
-    const { rows } = await c.query<{ outcome_task_id: string | null }>(
+    const { rows } = await c.query<{ id: string; outcome_task_id: string | null }>(
       `DELETE FROM meetings WHERE connection_id = $1 AND calendar_id = $2 AND status = 'scheduled'
           AND starts_at >= $3 AND starts_at < $4 AND NOT (external_id = ANY($5::text[]))
-        RETURNING outcome_task_id`,
+        RETURNING id, outcome_task_id`,
       [conn.id, r.id, new Date(now.getTime() - BACK_MS), new Date(now.getTime() + AHEAD_MS), [...kept]],
     );
     await closeOutcomeTasks(
       c,
       rows.map((x) => x.outcome_task_id),
       now,
+      rows.map((x) => x.id),
     );
   }
   // A calendar no longer chosen (or gone from the account) takes the meetings it brought, after the reads
   // above moved any another chosen calendar still has; one with an outcome is history.
-  const { rows: gone } = await c.query<{ outcome_task_id: string | null }>(
+  const { rows: gone } = await c.query<{ id: string; outcome_task_id: string | null }>(
     `DELETE FROM meetings WHERE connection_id = $1 AND status IN ('scheduled', 'cancelled')
         AND (calendar_id IS NULL OR NOT (calendar_id = ANY($2::text[])))
-      RETURNING outcome_task_id`,
+      RETURNING id, outcome_task_id`,
     [conn.id, chosen],
   );
   await closeOutcomeTasks(
     c,
     gone.map((x) => x.outcome_task_id),
     now,
+    gone.map((x) => x.id),
   );
   await c.query(
     `UPDATE calendar_connections SET calendars = $2, last_synced_at = $3, next_sync_at = $4, failures = 0,

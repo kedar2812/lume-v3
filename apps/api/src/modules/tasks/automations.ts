@@ -144,6 +144,23 @@ const say = (
 ) => recordActivity(req, lead.id, "automation", { ruleId: rule.id, rule: rule.type, result, ...extra });
 
 /**
+ * A meeting kept for a lead already in its stage (a Calendly booking that moved nothing, 5C final review):
+ * that stage's meeting reminders run now, as they would have on entering it with the meeting there.
+ */
+export async function remindForStage(req: FastifyRequest, lead: Lead & { stageId: string }) {
+  const deps = req.server.automationDeps;
+  const [stage] = await req.db
+    .select({ onEnter: schema.stages.onEnter })
+    .from(schema.stages)
+    .where(eq(schema.stages.id, lead.stageId));
+  const parsed = onEnterSchema.safeParse(stage?.onEnter);
+  if (!deps || !parsed.success) return;
+  for (const rule of parsed.data.rules)
+    if (rule.type === "remind_before_meeting")
+      await remindBefore(req, deps, lead, rule, { now: new Date(), mover: req.actor?.userId ?? null });
+}
+
+/**
  * 5C: a WhatsApp follow-up for the lead's owner, with the rule's template, due `hoursBefore` before the
  * lead's next meeting — so the reminder goes out in time. Nothing, said why, when there's no meeting to come,
  * that time has passed, the template is gone, or nobody owns the lead.
@@ -157,8 +174,8 @@ async function remindBefore(
 ) {
   if (!lead.ownerId) return say(req, lead, rule, "skipped", { reason: "no_owner" });
   const m = (
-    await req.db.execute<{ title: string; starts_at: string | Date }>(
-      sql`SELECT title, starts_at FROM meetings WHERE lead_id = ${lead.id} AND status = 'scheduled'
+    await req.db.execute<{ id: string; title: string; starts_at: string | Date }>(
+      sql`SELECT id, title, starts_at FROM meetings WHERE lead_id = ${lead.id} AND status = 'scheduled'
             AND starts_at > ${ctx.now} ORDER BY starts_at LIMIT 1`,
     )
   ).rows[0];
@@ -184,6 +201,7 @@ async function remindBefore(
       assigneeId: lead.ownerId,
       type: "whatsapp",
       templateId: rule.templateId,
+      meetingId: m.id,
       title,
       dueAt,
       remindMinutes: [0],

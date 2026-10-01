@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyRequest } from "fastify";
 import { can, newId, normalizePhone, type Mapping, type Rules } from "@lume/core";
@@ -9,11 +9,12 @@ import { loadMapContext } from "../imports/context";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { writeRow } from "../imports/row";
 import { isDataError, refusalReason } from "../imports/runner";
-import { visibleLead } from "../leads/service";
 import { moveStage } from "../leads/write";
 import { recordActivity } from "../leads/writer";
 import { notify, type NewNotification } from "../notifications/notify";
+import { remindForStage } from "../tasks/automations";
 import { schedule } from "../tasks/engine";
+import { serverHelpers } from "../../server-helpers";
 import { eventContext, type ProcessDeps } from "../webhooks/process";
 import { openCalendly, type CalendlyConfig } from "./config";
 
@@ -141,6 +142,15 @@ async function findLead(req: FastifyRequest, inv: Invitee, country: string | nul
   return null;
 }
 
+/** A live lead, or null when it's been deleted (a booking's lead can be deleted before its cancellation). */
+async function liveLead(req: FastifyRequest, id: string) {
+  const [row] = await req.db
+    .select()
+    .from(schema.leads)
+    .where(and(eq(schema.leads.id, id), isNull(schema.leads.deletedAt)));
+  return row ?? null;
+}
+
 /** Writes as `userId` for one statement's worth of work (a meeting row is its owner's), then back. */
 async function asPerson<T>(req: FastifyRequest, userId: string, fn: () => Promise<T>): Promise<T> {
   await req.db.execute(sql`SELECT set_config('lume.user_id', ${userId}, true)`);
@@ -158,13 +168,14 @@ async function asPerson<T>(req: FastifyRequest, userId: string, fn: () => Promis
  * event is locked and re-checked, and a meeting already kept says nothing again.
  */
 export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Source): Promise<void> {
-  // A job's server, carrying what a stage's automations need: the booking stage's own rules run on the move
-  // (they're decorated only on the signed-in scope, which a job isn't in).
+  // A job's server, carrying what the signed-in scope has: the booking stage's own rules run on the move, and
+  // whoever a lead or follow-up goes to is told, as a person's change would tell them.
   o = {
     ...o,
-    app: Object.assign(Object.create(jobServer(o.app)) as typeof o.app, {
-      automationDeps: { pool: o.pool, tasks: o.tasks },
-    }),
+    app: Object.assign(
+      Object.create(jobServer(o.app)) as typeof o.app,
+      serverHelpers({ pool: o.pool, tasks: o.tasks }),
+    ),
   };
   const db = drizzle(o.pool, { schema });
   const cfg = openCalendly(o.keyring, src.id, src.configEnc!);
@@ -176,11 +187,16 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
         status: "needs_attention",
         attentionCode: "RUN_AS_ACCESS",
         lastError:
-          "The person who connected Calendly can no longer add leads. Connect Calendly again as someone who can.",
+          "The person Calendly runs as can no longer add leads, so bookings are waiting. Open Calendly in Settings → Integrations and save it to run it as you.",
       })
       .where(eq(S.id, src.id));
     return; // the post stays queued
   }
+  if (src.status === "needs_attention" && src.attentionCode === "RUN_AS_ACCESS")
+    await db
+      .update(S)
+      .set({ status: "active", attentionCode: null, lastError: null })
+      .where(eq(S.id, src.id));
   const body = JSON.parse(o.keyring.decrypt(ev.payloadEnc!, eventContext(src.id, ev.eventKey))) as Record<
     string,
     unknown
@@ -244,18 +260,26 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
         } else problems.push(...r.problems);
       } else leadId = await findLead(req, inv, rules.defaultCountry);
 
-      const lead = leadId ? await visibleLead(req, leadId) : null;
+      const lead = leadId ? await liveLead(req, leadId) : null;
       const hostId = await personByEmail(req, inv.hostEmail);
       const ownerId = hostId ?? lead?.ownerId ?? actor.userId;
+      // Its cancellation came first (Calendly retrying the booking, or the queue's order): kept, as cancelled —
+      // no move, no notice, no reminder for a meeting that isn't happening.
+      const early = await req.db.execute(
+        sql`SELECT 1 FROM webhook_events WHERE source_id = ${src.id}
+              AND event_key = ${`invitee.canceled:${inv.uri}`.slice(0, 500)} LIMIT 1`,
+      );
+      const cancelledFirst = early.rows.length > 0;
       const kept = await asPerson(req, ownerId, async () =>
         req.db.execute<{ id: string; fresh: boolean }>(sql`
-          INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at, link, location)
+          INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at, link, location, status)
           VALUES (${newId()}, ${leadId}, ${ownerId}, 'calendly', ${inv.uri}, 'calendly', ${cut(inv.title, 1000)},
-                  ${inv.startsAt}, ${inv.endsAt}, ${cut(inv.link, 2000)}, ${cut(inv.location, 1000)})
+                  ${inv.startsAt}, ${inv.endsAt}, ${cut(inv.link, 2000)}, ${cut(inv.location, 1000)},
+                  ${cancelledFirst ? "cancelled" : "scheduled"})
           ON CONFLICT (source, owner_id, external_id) DO UPDATE SET updated_at = meetings.updated_at
           RETURNING id, (xmax = 0) AS fresh`),
       );
-      const meeting = kept.rows[0]!;
+      const meeting = { ...kept.rows[0]!, fresh: kept.rows[0]!.fresh && !cancelledFirst };
       if (meeting.fresh && lead) {
         await recordActivity(req, lead.id, "meeting_booked", {
           meetingId: meeting.id,
@@ -271,11 +295,19 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
           .select({ kind: schema.stages.kind })
           .from(schema.stages)
           .where(eq(schema.stages.id, lead.stageId));
-        if (p?.booking && p.booking !== lead.stageId && now?.kind === "open") {
+        let moved = false;
+        if (p?.booking && p.booking !== lead.stageId && now?.kind !== "open")
+          problems.push({
+            column: null,
+            code: "ALREADY_CLOSED",
+            message: `LUME kept the meeting; ${lead.name} is already ${now?.kind === "won" ? "won" : "lost"}, so the lead stayed where it is.`,
+          });
+        else if (p?.booking && p.booking !== lead.stageId) {
           await req.db.execute(sql`SAVEPOINT lume_booking_move`);
           try {
             await moveStage(req, lead, { stageId: p.booking });
             await req.db.execute(sql`RELEASE SAVEPOINT lume_booking_move`);
+            moved = true;
           } catch (e) {
             await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_booking_move`);
             if (!(e instanceof HttpError)) throw e;
@@ -286,6 +318,8 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
             });
           }
         }
+        // No move (already there, or it's the first stage): the stage's meeting reminders run now it's here.
+        if (!moved) await remindForStage(req, lead);
       }
       if (meeting.fresh) {
         const to = lead?.ownerId ?? ownerId;
@@ -370,17 +404,22 @@ async function cancelled(
       sql`UPDATE meetings SET status = ${status}, updated_at = now(), version = version + 1 WHERE id = ${m.id}`,
     ),
   );
-  if (m.outcome_task_id) {
-    const closed = await req.db.execute<{ id: string }>(
-      sql`UPDATE tasks SET status = 'cancelled', cancelled_at = now(), updated_at = now(), version = version + 1
-           WHERE id = ${m.outcome_task_id} AND status = 'open' RETURNING id`,
+  // Its Log outcome and its reminders (5C) go with it: neither is about a meeting that's happening.
+  const closed = await req.db.execute<{ id: string; lead_id: string }>(
+    sql`UPDATE tasks SET status = 'cancelled', cancelled_at = now(), updated_at = now(), version = version + 1
+         WHERE status = 'open' AND (meeting_id = ${m.id} OR id = ${m.outcome_task_id})
+        RETURNING id, lead_id`,
+  );
+  for (const t of closed.rows) {
+    await req.db.execute(
+      sql`UPDATE scheduled_notifications SET status = 'cancelled' WHERE task_id = ${t.id} AND status = 'pending'`,
     );
-    if (closed.rows[0])
-      await req.db.execute(
-        sql`UPDATE scheduled_notifications SET status = 'cancelled' WHERE task_id = ${m.outcome_task_id} AND status = 'pending'`,
-      );
+    await req.db.execute(
+      sql`UPDATE leads SET next_task_due_at = (SELECT min(due_at) FROM tasks WHERE lead_id = ${t.lead_id} AND status = 'open') WHERE id = ${t.lead_id}`,
+    );
   }
-  const lead = m.lead_id ? await visibleLead(req, m.lead_id) : null;
+  // A deleted lead's meeting is still cancelled; it just has no history to add to.
+  const lead = m.lead_id ? await liveLead(req, m.lead_id) : null;
   if (lead)
     await recordActivity(req, lead.id, inv.rescheduled ? "meeting_rescheduled" : "meeting_cancelled", {
       meetingId: m.id,

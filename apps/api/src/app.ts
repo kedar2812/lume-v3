@@ -27,6 +27,7 @@ import { calendarRoutes } from "./modules/calendar/routes";
 import { meetingRoutes } from "./modules/meetings/routes";
 import { calendlyRoutes } from "./modules/calendly/routes";
 import { calendlyReceiveRoutes } from "./modules/calendly/receive";
+import { serverHelpers } from "./server-helpers";
 import type { GoogleSheets } from "./modules/sheets/google";
 import type { Limiter } from "./modules/webhooks/limits";
 import { receiveRoutes } from "./modules/webhooks/receive";
@@ -36,8 +37,6 @@ import { healthRoutes } from "./modules/health/routes";
 import { templateRoutes } from "./modules/templates/routes";
 import { viewRoutes } from "./modules/views/routes";
 import { notificationRoutes } from "./modules/notifications/routes";
-import { readAs } from "./modules/notifications/hub";
-import { notify, type NewNotification } from "./modules/notifications/notify";
 import { peopleRoutes } from "./modules/people/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
@@ -148,25 +147,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         scope.addHook("onClose", stopListener);
         scope.decorate("actorCache", cache);
         scope.decorate("fieldRegistryCache", { value: null });
-        // Notifications (3B): sent as their recipient, if they want that kind.
-        scope.decorate("notify", (userId: string, n: NewNotification) => notify(deps.pool, userId, n));
-        // Stage automations (3C) ask about people and queue their reminders.
-        scope.decorate("automationDeps", { pool: deps.pool, tasks: deps.tasks });
-        scope.decorate("settleReminders", (userId: string, taskId: string) =>
-          readAs(deps.pool, userId, async (c) => {
-            await c.query(
-              `UPDATE notifications SET read_at = now()
-                WHERE task_id = $1 AND read_at IS NULL AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
-              [taskId],
-            );
-          }),
-        );
-        scope.decorate("notifyNameOf", async (userId: string) => {
-          const { rows } = await deps.pool.query<{ name: string }>("SELECT name FROM users WHERE id = $1", [
-            userId,
-          ]);
-          return rows[0]?.name.split(" ")[0] ?? null;
-        });
+        // Notifications (3B), stage automations' needs (3C), settling reminders: one set, shared with jobs.
+        const helpers = serverHelpers({ pool: deps.pool, tasks: deps.tasks });
+        scope.decorate("notify", helpers.notify);
+        scope.decorate("automationDeps", helpers.automationDeps);
+        scope.decorate("settleReminders", helpers.settleReminders);
+        scope.decorate("notifyNameOf", helpers.notifyNameOf);
         await scope.register(cookie);
         // Hooks first (called directly so they cover this whole scope), then routes.
         authPlugin(scope, {

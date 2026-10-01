@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { newId, type Rules } from "@lume/core";
+import { can, newId, type Rules } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
@@ -42,9 +42,15 @@ export async function liveCalendly(req: FastifyRequest): Promise<Source | undefi
 }
 
 /** What Settings sees: never the token or the signing key. */
-function view(d: AppDeps, s: Source | undefined) {
+async function view(req: FastifyRequest, d: AppDeps, s: Source | undefined) {
   if (!s) return { connected: false as const };
   const c = openCalendly(d.keyring, s.id, s.configEnc!);
+  const [who] = s.runAs
+    ? await req.db
+        .select({ id: schema.users.id, name: schema.users.name })
+        .from(schema.users)
+        .where(eq(schema.users.id, s.runAs))
+    : [];
   return {
     connected: true as const,
     account: c.account,
@@ -53,11 +59,13 @@ function view(d: AppDeps, s: Source | undefined) {
     settings: c.settings,
     lastEventAt: s.lastEventAt?.toISOString() ?? null,
     lastError: s.status === "needs_attention" ? s.lastError : null,
+    /** Whose name new leads and moves are made in (the person who last saved it). */
+    runAs: who ?? null,
   };
 }
 
 export async function calendlyView(req: FastifyRequest, d: AppDeps) {
-  return view(d, await liveCalendly(req));
+  return view(req, d, await liveCalendly(req));
 }
 
 /** Calendly's refusals, in LUME's words (the token and Calendly's own text never in them). */
@@ -172,7 +180,7 @@ export async function connectCalendly(req: FastifyRequest, d: AppDeps, token: st
     entityId: id,
     diff: { account: me.name, scope: sub.scope },
   });
-  return view(d, await liveCalendly(req));
+  return view(req, d, await liveCalendly(req));
 }
 
 export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<CalendlySettings>) {
@@ -185,10 +193,25 @@ export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<
     ...p,
     ...(p.phoneQuestion !== undefined ? { phoneQuestion: p.phoneQuestion?.trim() || null } : {}),
   };
+  const mine = can(req.actor!, "leads.import");
   await req.db
     .update(S)
-    .set({ configEnc: sealCalendly(d.keyring, s.id, { ...c, settings }) })
+    .set({
+      configEnc: sealCalendly(d.keyring, s.id, { ...c, settings }),
+      ...(mine ? { runAs: req.actor!.userId } : {}),
+      ...(mine && s.status === "needs_attention" && s.attentionCode === "RUN_AS_ACCESS"
+        ? { status: "active" as const, attentionCode: null, lastError: null }
+        : {}),
+    })
     .where(eq(S.id, s.id));
+  if (mine) {
+    const waiting = await req.db
+      .select({ id: schema.webhookEvents.id })
+      .from(schema.webhookEvents)
+      .where(and(eq(schema.webhookEvents.sourceId, s.id), eq(schema.webhookEvents.status, "queued")));
+    if (waiting.length)
+      req.afterCommit(() => void Promise.all(waiting.map((w) => d.webhooks?.enqueue(w.id))));
+  }
   await audit(req, {
     action: "calendly.settings_changed",
     entityType: "lead_source",
@@ -199,7 +222,7 @@ export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<
       phoneQuestion: !!settings.phoneQuestion,
     },
   });
-  return view(d, await liveCalendly(req));
+  return view(req, d, await liveCalendly(req));
 }
 
 /** Disconnect: LUME's subscription goes (if Calendly answers), the source is archived; leads and meetings stay. */

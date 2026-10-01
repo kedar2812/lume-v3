@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import PgBoss from "pg-boss";
 import type pg from "pg";
 import type { Keyring } from "@lume/core";
+import { checkCalendly } from "../calendly/health";
 import { processEvent, type ProcessDeps } from "./process";
 
 const SWEEP_MS = 60_000;
@@ -88,10 +89,19 @@ export async function startWebhookQueue(o: {
   const timer = setInterval(() => void sweep(), SWEEP_MS);
   timer.unref();
   void sweep();
+  // Calendly (5B): once a day, is it still sending this LUME's bookings? (At start too.)
+  const health = () =>
+    void checkCalendly({ pool: o.pool, keyring: o.keyring }).catch((err: unknown) =>
+      o.app.log.error({ err }, "Calendly's daily check failed"),
+    );
+  const daily = setInterval(health, 24 * 3_600_000);
+  daily.unref();
+  health();
   return {
     enqueue,
     stop: async () => {
       clearInterval(timer);
+      clearInterval(daily);
       await boss.stop({ graceful: true, wait: true, timeout: 20_000 });
     },
   };

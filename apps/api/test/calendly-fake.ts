@@ -17,6 +17,8 @@ export type FakeSubscription = {
   scope: "organization" | "user";
   signingKey: string;
   events: string[];
+  /** Calendly disables a subscription when its person loses access or the plan drops webhooks. */
+  state?: "active" | "disabled";
 };
 export type CalendlyFake = {
   url: string;
@@ -31,6 +33,8 @@ export type CalendlyFake = {
   subscriptions: FakeSubscription[];
   /** The next `count` calls answer with this status. */
   fail(status: number, count?: number): void;
+  /** The token is revoked (every call 401) until restored. */
+  revoked: boolean;
   /** Every call's method and path, in order. */
   calls: string[];
   /** A delivery to a subscription, signed as Calendly signs it: the headers and the raw body. */
@@ -76,7 +80,7 @@ export async function startCalendlyFake(): Promise<CalendlyFake> {
       failing.left--;
       return send(res, failing.status, { title: "Service Unavailable", message: "fake failure" });
     }
-    if (req.headers.authorization !== `Bearer ${token}`)
+    if (api.revoked || req.headers.authorization !== `Bearer ${token}`)
       return send(res, 401, { title: "Unauthenticated", message: "The access token is invalid" });
     if (u.pathname === "/users/me" && req.method === "GET")
       return send(res, 200, {
@@ -121,6 +125,11 @@ export async function startCalendlyFake(): Promise<CalendlyFake> {
       });
     }
     const one = /^\/webhook_subscriptions\/([^/]+)$/.exec(u.pathname);
+    if (one && req.method === "GET") {
+      const s = subscriptions.find((x) => x.uri.endsWith(`/${one[1]}`));
+      if (!s) return send(res, 404, { title: "Resource Not Found", message: "" });
+      return send(res, 200, { resource: { ...asCalendly(s), state: s.state ?? "active" } });
+    }
     if (one && req.method === "DELETE") {
       const i = subscriptions.findIndex((s) => s.uri.endsWith(`/${one[1]}`));
       if (i < 0) return send(res, 404, { title: "Resource Not Found", message: "" });
@@ -139,6 +148,7 @@ export async function startCalendlyFake(): Promise<CalendlyFake> {
     organization: `${BASE}/organizations/ORG0001`,
     orgAdmin: true,
     freePlan: false,
+    revoked: false,
     subscriptions,
     fail(status, count = 1) {
       failing = { status, left: count };

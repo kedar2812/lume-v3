@@ -40,6 +40,8 @@ export const tasks = pgTable("tasks", {
   doneAt: tz("done_at"),
   doneBy: uuid("done_by"),
   cancelledAt: tz("cancelled_at"),
+  /** A meeting reminder's meeting (5C): it closes when that meeting is cancelled, moved or gone. */
+  meetingId: uuid("meeting_id"),
   /** When its managers were told it was left overdue (3B); cleared when it's moved or snoozed. */
   escalatedAt: tz("escalated_at"),
   version: integer("version").notNull().default(1),

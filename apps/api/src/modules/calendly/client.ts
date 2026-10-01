@@ -31,6 +31,8 @@ export type Calendly = {
     user: string;
   }): Promise<Subscription>;
   unsubscribe(uri: string): Promise<void>;
+  /** Whether Calendly still sends to LUME's subscription (it disables one when the plan or access changes). */
+  subscription(uri: string): Promise<{ state: string }>;
 };
 
 export const CALENDLY_EVENTS = ["invitee.created", "invitee.canceled"];
@@ -140,6 +142,10 @@ export function createCalendly(o: {
     },
     async unsubscribe(uri) {
       await call("DELETE", `/webhook_subscriptions/${uuidOf(uri)}`);
+    },
+    async subscription(uri) {
+      const r = await call<{ resource: { state?: string } }>("GET", `/webhook_subscriptions/${uuidOf(uri)}`);
+      return { state: r.resource.state ?? "active" };
     },
   };
 }
