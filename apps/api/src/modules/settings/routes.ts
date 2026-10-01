@@ -11,6 +11,7 @@ import { openErApi } from "../../money/rates";
 import { quoteCurrency, switchCurrency } from "./service";
 import { countrySchema, currencySchema, timezoneSchema } from "../../http/schemas";
 import { workingHoursSchema } from "@lume/core";
+import { calendarBody, readCalendarRules, tidyRules } from "./calendar";
 import { followUpsBody, readFollowUps, workingHoursFrom } from "./follow-ups";
 import { messagingBody, readMessaging } from "./messaging";
 
@@ -103,6 +104,30 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
         entityType: "settings",
         entityId: "1",
         diff: req.body,
+      });
+      return next;
+    },
+  );
+  // Calendar (5A): which calendar events are meetings with leads. The words themselves never reach the audit.
+  r.get("/api/v1/settings/calendar", { config: { permission: "settings.manage" } }, (req) =>
+    readCalendarRules(req),
+  );
+  r.put(
+    "/api/v1/settings/calendar",
+    { config: { permission: "settings.manage" }, schema: { body: calendarBody } },
+    async (req) => {
+      await readCalendarRules(req, { forUpdate: true });
+      const next = { rules: tidyRules(req.body.rules) };
+      await req.db.update(schema.settings).set({ calendar: next }).where(eq(schema.settings.id, 1));
+      await audit(req, {
+        action: "settings.calendar",
+        entityType: "settings",
+        entityId: "1",
+        diff: {
+          attendeeIsLead: next.rules.attendeeIsLead,
+          titleWords: next.rules.titleWords.length,
+          calendarIds: next.rules.calendarIds.length,
+        },
       });
       return next;
     },

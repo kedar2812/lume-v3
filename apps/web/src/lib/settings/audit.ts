@@ -170,6 +170,11 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     area: "Leads",
     phrase: (d) => `connected “${String(d.name ?? "")}” to Google again`,
   },
+  "settings.calendar": {
+    area: "Settings",
+    phrase: (d) =>
+      `changed which calendar events are meetings with leads (${n(d.titleWords)} title ${n(d.titleWords) === 1 ? "word" : "words"}, ${n(d.calendarIds)} ${n(d.calendarIds) === 1 ? "calendar" : "calendars"}${d.attendeeIsLead === false ? ", attendees off" : ""})`,
+  },
   "calendar.connected": { area: "Settings", phrase: "connected their Google Calendar" },
   "calendar.reconnected": { area: "Settings", phrase: "connected their Google Calendar again" },
   "calendar.calendars_changed": {

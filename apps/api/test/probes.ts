@@ -47,6 +47,11 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     body: () => ({ p: "x", s: "y" }),
   },
+  "GET /api/v1/settings/calendar": { access: "settings.manage" },
+  "PUT /api/v1/settings/calendar": {
+    access: "settings.manage",
+    body: () => ({ rules: { attendeeIsLead: true, titleWords: [], calendarIds: [] } }),
+  },
   "GET /api/v1/calendar/connection": { access: "calendar.connect" },
   "PUT /api/v1/integrations/google-calendar": {
     access: "integrations.manage",
