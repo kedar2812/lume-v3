@@ -58,6 +58,27 @@ Run it behind TLS at `connect.lumecrm.in` (any reverse proxy; it listens on 3200
    Then restart its API.
 4. Check it: in the client's Settings → Integrations, Google Sheets shows **Continue with Google** first (Google's own wording for its sign-in button), and the service-account way sits under "Other ways" (only if that server also has a key).
 
+## 4. Google Calendar (Phase 5A)
+
+The same relay connects each person's Google Calendar, read-only, so LUME can keep their meetings with leads. LUME never writes to anyone's calendar, and keeps only events its rules match to leads. Personal events are never stored.
+
+1. In the Google Cloud project, enable the **Google Calendar API**.
+2. On the OAuth consent screen, add exactly these two scopes:
+   - `https://www.googleapis.com/auth/calendar.events.readonly`
+   - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
+3. Both are **sensitive** scopes, so Google's verification is the full kind and takes weeks. Start it early. Until it's through:
+   - people see Google's "unverified app" screen;
+   - the project is capped at **100 people across all clients**.
+4. Verification asks for:
+   - a short video of the connect flow (Settings → My account → Calendar → Connect);
+   - a privacy policy that says LUME reads calendars only to show a person's meetings with leads, and stores nothing else.
+5. The OAuth app must be **In production**. A grant made while it's in testing mode expires after 7 days, and that connection then shows "needs connecting again".
+6. Nothing changes on the relay or in a client's `.env`: a client that has Connect with Google set up offers Calendar to anyone with **Connect a calendar** (`calendar.connect`).
+
+**A person who removes LUME's access** at Google: their connection shows "needs connecting again". They and every admin hear it once, and the meetings already kept stay.
+
+**Disconnecting** in LUME forgets the grant and every meeting that connection brought. LUME stays listed in the person's Google account (Security → Third-party access) until they remove it there.
+
 ## Looking after it
 
 - **Rotating a client's token:** change it in both places (the relay's list and the client's `.env`). Sheets already connected keep working, because their grants are held by Google and are refreshed through the relay with the new token.
