@@ -64,6 +64,21 @@ describe("Connect with Google (Review Focus 1)", () => {
     });
   });
 
+  it("a sheet's hand-back can't finish a calendar's connect (5A)", async () => {
+    const { url } = (await call(admin, "POST", "/api/v1/calendar/connect")).json();
+    const p = seal(RELAY_TOKEN, {
+      nonce: new URL(url).searchParams.get("n")!,
+      refreshToken: "rt-good",
+      file: { id: "any-file", name: "Any" },
+      exp: Date.now() + 60_000,
+    });
+    expect(
+      (
+        await call(admin, "POST", "/api/v1/integrations/google/complete", { p, s: sign(RELAY_TOKEN, p) })
+      ).json().error.code,
+    ).toBe("CONNECT_NOT_FOUND");
+  });
+
   it("start gives a relay link signed for this instance; the relay accepts it", async () => {
     const { url } = (await call(admin, "POST", "/api/v1/integrations/google/connect")).json();
     const u = new URL(url);

@@ -195,7 +195,14 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
   const [row] = await req.db
     .select()
     .from(OC)
-    .where(and(eq(OC.nonceHash, sha256(h.nonce)), eq(OC.userId, req.actor!.userId), isNull(OC.completedAt)))
+    .where(
+      and(
+        eq(OC.nonceHash, sha256(h.nonce)),
+        eq(OC.userId, req.actor!.userId),
+        eq(OC.kind, "sheet"),
+        isNull(OC.completedAt),
+      ),
+    )
     .for("update");
   if (!row)
     throw notFound("CONNECT_NOT_FOUND", "This connection was already used, or isn't yours. Try again.");

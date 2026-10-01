@@ -19,6 +19,10 @@ const entry = (action: string, over: Partial<AuditEntry> = {}): AuditEntry => ({
 
 /** Every action the API writes today (grep `action: "` in apps/api/src). A new one must be phrased here too. */
 const WRITTEN = [
+  "calendar.connected",
+  "calendar.reconnected",
+  "calendar.calendars_changed",
+  "calendar.disconnected",
   "import.cancelled",
   "import.discarded",
   "import.failed",

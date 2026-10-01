@@ -47,6 +47,12 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     body: () => ({ p: "x", s: "y" }),
   },
+  "GET /api/v1/calendar/connection": { access: "calendar.connect" },
+  "POST /api/v1/calendar/connect": { access: "calendar.connect" },
+  "POST /api/v1/calendar/complete": { access: "calendar.connect", body: () => ({ p: "x", s: "y" }) },
+  "PATCH /api/v1/calendar/connection": { access: "calendar.connect", body: () => ({ calendars: [] }) },
+  "POST /api/v1/calendar/connection/sync": { access: "calendar.connect" },
+  "DELETE /api/v1/calendar/connection": { access: "calendar.connect" },
   "PUT /api/v1/integrations/google-sheets": {
     access: "integrations.manage",
     body: () => ({ enabled: false }),

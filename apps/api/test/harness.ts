@@ -142,6 +142,8 @@ export type Harness = {
   runSyncs(ids?: string[]): Promise<void>;
   /** Webhook events queued for processing (2C), in the order they were accepted. */
   webhookQueue: number[];
+  /** Calendar connections whose sync was asked for (5A), in order. */
+  calendarQueue: string[];
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
   reminderQueue: { id: number; fireAt: Date }[];
   /** Make the reminder queue refuse (it's down), to test that nothing depends on it succeeding. */
@@ -225,6 +227,7 @@ export async function createHarness(
     : null;
   const syncs: string[] = [];
   const webhookQueue: number[] = [];
+  const calendarQueue: string[] = [];
   const reminderQueue: { id: number; fireAt: Date }[] = [];
   let reminderQueueDown = false;
   const reminders = {
@@ -253,6 +256,7 @@ export async function createHarness(
     imports: { enqueue: async (id) => void queued.push(id) },
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
+    calendar: { enqueue: async (id) => void calendarQueue.push(id) },
     tasks: reminders,
     webhooks: {
       enqueue: async (id) => void webhookQueue.push(id),
@@ -443,6 +447,7 @@ export async function createHarness(
     fake,
     google,
     webhookQueue,
+    calendarQueue,
     reminderQueue,
     failReminderQueue(on) {
       reminderQueueDown = on;

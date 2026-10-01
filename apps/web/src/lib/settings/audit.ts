@@ -169,6 +169,17 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     area: "Leads",
     phrase: (d) => `connected “${String(d.name ?? "")}” to Google again`,
   },
+  "calendar.connected": { area: "Settings", phrase: "connected their Google Calendar" },
+  "calendar.reconnected": { area: "Settings", phrase: "connected their Google Calendar again" },
+  "calendar.calendars_changed": {
+    area: "Settings",
+    phrase: (d) => `chose which calendars LUME reads (${n(d.calendars)})`,
+  },
+  "calendar.disconnected": {
+    area: "Settings",
+    phrase: (d) =>
+      `disconnected their Google Calendar; LUME forgot ${n(d.meetings)} ${n(d.meetings) === 1 ? "meeting" : "meetings"}`,
+  },
   "sheet.row_dismissed": {
     area: "Leads",
     phrase: (d) => `dismissed a problem row in “${String(d.name ?? "")}”`,

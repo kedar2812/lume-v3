@@ -23,6 +23,7 @@ import type { LicenceOptions } from "./licence/options";
 import { queueRoutes } from "./modules/queues/routes";
 import { importRoutes } from "./modules/imports/routes";
 import { sheetRoutes } from "./modules/sheets/routes";
+import { calendarRoutes } from "./modules/calendar/routes";
 import type { GoogleSheets } from "./modules/sheets/google";
 import type { Limiter } from "./modules/webhooks/limits";
 import { receiveRoutes } from "./modules/webhooks/receive";
@@ -79,6 +80,8 @@ export type AppDeps = {
   google?: GoogleSheets | null;
   /** The sheet sync queue in this process, and the most rows a sheet may have (LUME_SHEETS_MAX_ROWS). */
   sheets?: { enqueue(syncId: string): Promise<void>; maxRows: number };
+  /** Google Calendar (5A): where a connection's sync is queued. */
+  calendar?: { enqueue(connectionId: string): Promise<void> };
   /** Connect with Google (2B-2): the owner's relay and this instance's token there; null when not set up. */
   googleOAuth?: { relayUrl: string; relayToken: string } | null;
   /** Tests and e2e only: where the Google APIs are (the fake). */
@@ -183,6 +186,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(leadRoutes, deps);
         await scope.register(importRoutes, deps);
         await scope.register(sheetRoutes, deps);
+        await scope.register(calendarRoutes, deps);
         await scope.register(webhookRoutes, deps);
         await scope.register(taskRoutes, deps);
         await scope.register(healthRoutes, deps);
