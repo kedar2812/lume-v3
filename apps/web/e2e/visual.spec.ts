@@ -120,9 +120,10 @@ const SHOTS: Shot[] = [
   },
   {
     name: "pipeline",
-    path: "/pipeline",
+    // One lead no other spec changes: the whole board moved with whatever ran before it (owners, imports).
+    path: "/pipeline?q=Karim",
     who: "owner",
-    ready: (p) => p.getByRole("region").first().waitFor(),
+    ready: (p) => p.getByText("Karim Aziz").first().waitFor(),
   },
   {
     name: "settings-owner",
