@@ -48,6 +48,13 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ p: "x", s: "y" }),
   },
   "GET /api/v1/settings/calendar": { access: "settings.manage" },
+  "GET /api/v1/integrations/calendly": { access: "integrations.manage" },
+  "POST /api/v1/integrations/calendly": {
+    access: "integrations.manage",
+    body: () => ({ token: "not-a-real-token" }),
+  },
+  "PATCH /api/v1/integrations/calendly": { access: "integrations.manage", body: () => ({}) },
+  "DELETE /api/v1/integrations/calendly": { access: "integrations.manage" },
   "PUT /api/v1/settings/calendar": {
     access: "settings.manage",
     body: () => ({ rules: { attendeeIsLead: true, titleWords: [], calendarIds: [] } }),

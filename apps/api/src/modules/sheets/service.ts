@@ -33,6 +33,7 @@ import {
 } from "./google";
 import { gridToCsv, identityKey } from "./grid";
 import { requestSync } from "./requests";
+import { liveCalendly } from "../calendly/service";
 
 const S = schema.leadSources;
 const SY = schema.sourceSyncs;
@@ -90,6 +91,8 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
     webhooks: { enabled: !!s?.i.webhooks?.enabled, manychat: !!d.manychatPreset },
     // Google Calendar (5A) comes through Connect with Google: offered where that's set up.
     googleCalendar: { enabled: !!s?.i.googleCalendar?.enabled, available: !!d.googleOAuth },
+    // Calendly (5B) is on while it's connected.
+    calendly: { connected: !!(await liveCalendly(req)) },
   };
 }
 

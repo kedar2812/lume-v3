@@ -25,6 +25,7 @@ import { importRoutes } from "./modules/imports/routes";
 import { sheetRoutes } from "./modules/sheets/routes";
 import { calendarRoutes } from "./modules/calendar/routes";
 import { meetingRoutes } from "./modules/meetings/routes";
+import { calendlyRoutes } from "./modules/calendly/routes";
 import type { GoogleSheets } from "./modules/sheets/google";
 import type { Limiter } from "./modules/webhooks/limits";
 import { receiveRoutes } from "./modules/webhooks/receive";
@@ -87,6 +88,10 @@ export type AppDeps = {
   googleOAuth?: { relayUrl: string; relayToken: string } | null;
   /** Tests and e2e only: where the Google APIs are (the fake). */
   googleEndpoint?: string;
+  /** Tests and e2e only: where Calendly's API is (the fake, 5B). */
+  calendlyEndpoint?: string;
+  /** Tests only: how the Calendly client waits between retries (no real 1-2-4 s). */
+  calendlyWait?: (ms: number) => Promise<void>;
   /** Webhooks (2C): where an accepted post is queued, and (tests) the rate limiter to use. */
   webhooks?: { enqueue(eventId: number): Promise<void>; limiter?: Limiter };
   /** Follow-ups (Phase 3): where a reminder is queued for its time. */
@@ -189,6 +194,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(sheetRoutes, deps);
         await scope.register(calendarRoutes, deps);
         await scope.register(meetingRoutes, deps);
+        await scope.register(calendlyRoutes, deps);
         await scope.register(webhookRoutes, deps);
         await scope.register(taskRoutes, deps);
         await scope.register(healthRoutes, deps);

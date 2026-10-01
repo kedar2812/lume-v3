@@ -170,6 +170,8 @@ export async function createHarness(
     oauth?: { relayToken: string };
     /** The licence (licensing L-A). Unset: a development build's, always active. */
     licence?: AppDeps["licence"];
+    /** Calendly (5B): where the fake Calendly listens. */
+    calendlyEndpoint?: string;
   } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
@@ -264,6 +266,9 @@ export async function createHarness(
     },
     googleOAuth,
     ...(fake ? { googleEndpoint: fake.url } : {}),
+    ...(opts.calendlyEndpoint
+      ? { calendlyEndpoint: opts.calendlyEndpoint, calendlyWait: async () => undefined }
+      : {}),
     ...(opts.licence ? { licence: opts.licence } : {}),
   });
 

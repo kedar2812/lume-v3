@@ -170,6 +170,12 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     area: "Leads",
     phrase: (d) => `connected “${String(d.name ?? "")}” to Google again`,
   },
+  "calendly.connected": {
+    area: "Settings",
+    phrase: (d) => `connected Calendly (${String(d.account ?? "")})`,
+  },
+  "calendly.disconnected": { area: "Settings", phrase: "disconnected Calendly" },
+  "calendly.settings_changed": { area: "Settings", phrase: "changed what Calendly bookings do" },
   "settings.calendar": {
     area: "Settings",
     phrase: (d) =>
