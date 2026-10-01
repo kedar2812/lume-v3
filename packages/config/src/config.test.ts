@@ -36,8 +36,8 @@ describe("loadConfig", () => {
     expect(loadConfig(apiSchema, apiEnv).LUME_MANYCHAT_PRESET).toBe("off");
     expect(loadConfig(apiSchema, { ...apiEnv, LUME_MANYCHAT_PRESET: "on" }).LUME_MANYCHAT_PRESET).toBe("on");
   });
-  it("the job pool (imports, sheets, webhooks, reminders, the export) is 10 by default, and can be set", () => {
-    expect(loadConfig(apiSchema, apiEnv).DB_JOB_POOL_MAX).toBe(10);
+  it("the job pool (imports, sheets, calendar syncs, webhooks, reminders, the export) is 14 by default, and can be set", () => {
+    expect(loadConfig(apiSchema, apiEnv).DB_JOB_POOL_MAX).toBe(14);
     expect(loadConfig(apiSchema, { ...apiEnv, DB_JOB_POOL_MAX: "20" }).DB_JOB_POOL_MAX).toBe(20);
   });
 

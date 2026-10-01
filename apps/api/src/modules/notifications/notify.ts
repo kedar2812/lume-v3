@@ -11,7 +11,8 @@ export type NotifyKind =
   | "task_escalated"
   | "follow_up_nudge"
   | "lead_stage"
-  | "system_alert";
+  | "system_alert"
+  | "calendar_reconnect";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */

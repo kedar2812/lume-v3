@@ -88,7 +88,7 @@ export const apiSchema = base
     LUME_MANYCHAT_PRESET: z.enum(["on", "off"]).default("off"),
     /** "Connect with Google" (2B §6): the owner's relay, and this instance's own token there. Unset: hidden. */
     /** Connections for the API's background work (imports, sheets ×3, webhooks, reminders, the export). */
-    DB_JOB_POOL_MAX: z.coerce.number().int().min(2).max(100).default(10),
+    DB_JOB_POOL_MAX: z.coerce.number().int().min(2).max(100).default(14),
     GOOGLE_OAUTH_RELAY_URL: optional(z.url({ protocol: /^https?$/ })),
     GOOGLE_OAUTH_RELAY_TOKEN: optional(z.string().min(32).max(200)),
   })

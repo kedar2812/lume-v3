@@ -175,6 +175,10 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     area: "Settings",
     phrase: (d) => `chose which calendars LUME reads (${n(d.calendars)})`,
   },
+  "calendar.needs_reconnect": {
+    area: "Settings",
+    phrase: "found that Google stopped letting it read a calendar (it needs connecting again)",
+  },
   "calendar.disconnected": {
     area: "Settings",
     phrase: (d) =>

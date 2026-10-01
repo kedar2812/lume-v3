@@ -3,7 +3,14 @@ import { integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core
 import { bytea, tz } from "./types";
 
 /** One chosen-or-not calendar of a connection, with how far LUME has read it. */
-export type ConnectedCalendar = { id: string; name: string; chosen: boolean; syncToken?: string | null };
+export type ConnectedCalendar = {
+  id: string;
+  name: string;
+  chosen: boolean;
+  syncToken?: string | null;
+  /** When LUME last read its whole window (ISO): once a day, so a lead's new email still finds old events. */
+  fullAt?: string | null;
+};
 export type MeetingStatus = "scheduled" | "cancelled" | "completed" | "no_show" | "rescheduled";
 
 /** A person's Google Calendar, connected through the relay (Phase 5A). Their own row only. */

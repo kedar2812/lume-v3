@@ -46,6 +46,13 @@ export type GoogleFake = {
   /** Connect with Google (2B-2): the user takes LUME's access away at Google, and gives it back. */
   revokeGrant(): void;
   restoreGrant(): void;
+  /**
+   * One grant's access taken away at Google (5A: one person's calendar, others unaffected). Besides "rt-good",
+   * any refresh token "rt-ok-…" is a grant.
+   */
+  revokeOne(refreshToken: string): void;
+  /** A calendar the account no longer has (deleted, or unsubscribed). */
+  removeCalendar(id: string): void;
   /** Google Calendar (5A): calendars on the grant's account, and their events. */
   putCalendar(id: string, c: { name: string; primary?: boolean }): void;
   putEvent(calendarId: string, e: FakeEvent): void;
@@ -72,6 +79,8 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const tokens = new Set<string>();
   const oauthTokens = new Set<string>();
   let revoked = false;
+  const revokedOne = new Set<string>();
+  const tokenGrant = new Map<string, string>();
   const calls: string[] = [];
   type StoredEvent = FakeEvent & { status: "confirmed" | "cancelled"; updated: number };
   const calendars = new Map<string, { name: string; primary: boolean; events: Map<string, StoredEvent> }>();
@@ -234,11 +243,14 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
         const good =
           grant === "authorization_code"
             ? form.get("code") === "good-code"
-            : form.get("refresh_token") === "rt-good" && !revoked;
+            : /^rt-(good$|ok-)/.test(form.get("refresh_token") ?? "") &&
+              !revoked &&
+              !revokedOne.has(form.get("refresh_token")!);
         if (!good) return send(res, 400, { error: "invalid_grant" });
         const token = randomBytes(16).toString("hex");
         tokens.add(token);
         oauthTokens.add(token);
+        tokenGrant.set(token, form.get("refresh_token") ?? "rt-good");
         return send(res, 200, {
           access_token: token,
           expires_in: 3600,
@@ -385,6 +397,17 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     },
     restoreGrant() {
       revoked = false;
+    },
+    revokeOne(refreshToken) {
+      revokedOne.add(refreshToken);
+      for (const [tok, grant] of tokenGrant)
+        if (grant === refreshToken) {
+          tokens.delete(tok);
+          oauthTokens.delete(tok);
+        }
+    },
+    removeCalendar(id) {
+      calendars.delete(id);
     },
     putCalendar(id, c) {
       const was = calendars.get(id);

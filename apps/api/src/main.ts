@@ -6,6 +6,8 @@ import { buildApp, type AppDeps } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
+import { calendarClientFor } from "./modules/calendar/google";
+import { startCalendarQueue } from "./modules/calendar/queue";
 import { startWebhookQueue } from "./modules/webhooks/queue";
 import { startTaskQueue } from "./modules/tasks/queue";
 import { processSetupTokens } from "./auth/setup-token";
@@ -23,7 +25,8 @@ const pool = new pg.Pool({
   max: 10,
   connectionTimeoutMillis: 10_000,
 });
-// Background work gets its own connections: imports, three sheet syncs, webhooks, reminders, the export.
+// Background work gets its own connections: imports, three sheet syncs, two calendar syncs, webhooks,
+// reminders, the export.
 const jobPool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
   max: cfg.DB_JOB_POOL_MAX,
@@ -46,6 +49,8 @@ const sheets: { enqueue(id: string): Promise<void>; maxRows: number } = {
   maxRows: cfg.LUME_SHEETS_MAX_ROWS,
 };
 
+// Google Calendar (5A): syncs where Connect with Google is set up; filled once its queue is up.
+const calendar: { enqueue(id: string): Promise<void> } = { enqueue: async () => undefined };
 // Webhooks (2C): the queue always runs; the module switch gates receiving, not processing what was accepted.
 const webhooks: { enqueue(id: number): Promise<void> } = { enqueue: async () => undefined };
 // Follow-ups (Phase 3): filled once the queue is up; its sweeper fires anything missed before the API listens.
@@ -62,6 +67,7 @@ const app = await buildApp({
   jobPool,
   google,
   sheets,
+  calendar,
   webhooks,
   tasks,
   manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",
@@ -105,6 +111,16 @@ const sheetQueue =
       })
     : null;
 if (sheetQueue) sheets.enqueue = sheetQueue.enqueue;
+const calendarQueue = googleOAuth
+  ? await startCalendarQueue({
+      connectionString: cfg.DATABASE_URL_APP,
+      app,
+      pool: jobPool,
+      keyring,
+      clientFor: calendarClientFor(googleOAuth, cfg.LUME_GOOGLE_ENDPOINT),
+    })
+  : null;
+if (calendarQueue) calendar.enqueue = calendarQueue.enqueue;
 const webhookQueue = await startWebhookQueue({
   connectionString: cfg.DATABASE_URL_APP,
   app,
@@ -134,6 +150,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     await taskQueue.stop();
     await webhookQueue.stop();
     await sheetQueue?.stop();
+    await calendarQueue?.stop();
     await queue.stop();
     await app.close();
     await jobPool.end();

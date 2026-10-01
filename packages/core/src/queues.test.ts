@@ -11,6 +11,7 @@ describe("QUEUE_NAMES", () => {
       "imports.retention",
       "sheets.sync",
       "sheets.retention",
+      "calendar.sync",
       "webhooks.process",
       "webhooks.retention",
       "tasks.fire",
