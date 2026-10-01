@@ -24,7 +24,7 @@
 - **Tests:**
   - full unit suite 2,071/2,071;
   - typecheck and lint clean;
-  - CI green through 26af836 (the full browser suite included).
+  - CI green on 8d80b4a, the last push (unit, the full browser suite, and the images).
   - Two CI failures today were in the tests, not the product, and are fixed:
     - the personal-events scan ran past 5 s on GitHub's runners;
     - the morning email's greeting now follows the hour, but the browser test expected "Good morning".
