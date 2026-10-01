@@ -33,9 +33,10 @@ export type ListFilters = {
 export const NO_REPLY_DAYS = [1, 3, 7, 14] as const;
 export const LOST_DAYS = [7, 30, 90] as const;
 export const CREATED_DAYS = [1, 7] as const;
-const oneOf = (raw: string | null, allowed: readonly number[]) => {
+/** A whole number the API takes for this filter (its menu offers a few; a view or link may hold another). */
+const inRange = (raw: string | null, min: number, max: number) => {
   const n = Number(raw);
-  return raw && allowed.includes(n) ? n : undefined;
+  return raw && Number.isInteger(n) && n >= min && n <= max ? n : undefined;
 };
 
 // A source is named by the catalog when it can be; any well-formed id still filters (the chip says "an import").
@@ -82,10 +83,11 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
   const sort = p.get("sort") as Sort | null;
   const pipeline = p.get("pipeline");
   const from = realDate(p.get("from"));
-  const noReply = oneOf(p.get("noreply"), NO_REPLY_DAYS);
-  const lost = oneOf(p.get("lost"), LOST_DAYS);
+  // The API's own ranges (leads/routes.ts), so a view opens as it counts.
+  const noReply = inRange(p.get("noreply"), 1, 365);
+  const lost = inRange(p.get("lost"), 1, 3650);
   const reason = p.get("reason");
-  const created = oneOf(p.get("new"), CREATED_DAYS);
+  const created = inRange(p.get("new"), 1, 365);
   const to = realDate(p.get("to"));
   const fields = new Map(filterableFields(cat).map((f) => [f.key, f]));
   const custom: Record<string, string | boolean> = {};

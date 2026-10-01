@@ -91,6 +91,11 @@ describe("lead filters in the URL", () => {
     });
   });
 
+  it("4B: any quiet value the API would take opens as it counts (not only the menu's)", () => {
+    const f = parseFilters(new URLSearchParams({ noreply: "5", lost: "45", new: "30" }), cat);
+    expect(f).toMatchObject({ noReplyDays: 5, lostDaysAgo: 45, createdDays: 30 });
+  });
+
   it("4B: a quiet filter it can't vouch for is dropped", () => {
     const junk = new URLSearchParams({
       noreply: "0",

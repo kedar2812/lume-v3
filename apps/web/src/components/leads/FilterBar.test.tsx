@@ -37,4 +37,22 @@ describe("FilterBar", () => {
     );
     expect(screen.getByRole("button", { name: "Remove filter: From an import" })).toBeInTheDocument();
   });
+
+  it("a lost reason on its own (a link or a view) shows its chip, and the chip takes it off", async () => {
+    const onChange = vi.fn();
+    const cat = testCatalog();
+    const reason = cat.lostReasons[0]!;
+    render(
+      <FilterBar
+        filters={{ ...EMPTY_FILTERS, lostReasonId: reason.id }}
+        onChange={onChange}
+        catalog={cat}
+        session={session}
+        contactsVisible
+      />,
+    );
+    const chip = screen.getByRole("button", { name: new RegExp(`Lost · ${reason.label}`) });
+    await userEvent.click(chip);
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ lostReasonId: undefined }));
+  });
 });

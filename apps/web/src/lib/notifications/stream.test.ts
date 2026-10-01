@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { subscribe, useLeadsChanged, useStream } from "./stream";
+import { subscribe, subscribeLeads, useLeadsChanged, useStream } from "./stream";
 
 class FakeSource {
   static made: FakeSource[] = [];
@@ -27,6 +27,10 @@ class FakeSource {
   emit(data: { id: number } & Record<string, unknown>) {
     for (const h of this.handlers)
       h({ data: JSON.stringify(data), lastEventId: String(data.id) } as MessageEvent<string>);
+  }
+  /** The connection is (re)open: the first time, and again after the browser's own retry. */
+  opened() {
+    for (const h of this.named.open ?? []) h();
   }
   /** The server went away for good (a 502 during a restart): the browser gives up on this one. */
   die() {
@@ -122,5 +126,16 @@ describe("leads changed (4B Task 4)", () => {
     expect(on).not.toHaveBeenCalled();
     setVisible("visible");
     expect(on).toHaveBeenCalledTimes(1);
+  });
+
+  it("back after a dropped connection, leads may have changed meanwhile: listeners hear it once", () => {
+    const heard = vi.fn();
+    const off = subscribeLeads(heard);
+    const src = FakeSource.made.at(-1)!;
+    src.opened();
+    expect(heard).not.toHaveBeenCalled(); // the first connection isn't a change
+    src.opened(); // the browser reconnected on its own
+    expect(heard).toHaveBeenCalledTimes(1);
+    off();
   });
 });

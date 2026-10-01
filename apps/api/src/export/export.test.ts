@@ -6,7 +6,7 @@ import ExcelJS from "exceljs";
 import { unzipSync, strFromU8 } from "fflate";
 import Papa from "papaparse";
 import { ALL_GRANTS, rawPublicKey, signLicence, type LicenceStateName } from "@lume/core";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../test/harness";
 import { produceExport } from "./service";
 
@@ -228,7 +228,8 @@ describe("export all data (L-A Task 4)", () => {
       expect(Object.keys(unzipSync(new Uint8Array(r.rawPayload)))).toContain("leads.csv");
       // Once: the file is gone from the server as soon as it's been downloaded.
       expect((await admin.inject({ method: "GET", url: `/api/v1/export/${id}` })).statusCode).toBe(404);
-      expect(readdirSync(tmpdir()).filter((f) => f.includes(id))).toEqual([]);
+      // Removed as the download's stream closes (a moment after the last byte).
+      await vi.waitFor(() => expect(readdirSync(tmpdir()).filter((f) => f.includes(id))).toEqual([]));
     }
     await become("active");
     expect((await rep.inject({ method: "POST", url: "/api/v1/export" })).statusCode).toBe(403);

@@ -296,4 +296,14 @@ describe("leads changed on the live stream (4B Task 4)", () => {
     });
     expect(got.find((b) => b.event === "notification")?.id).toMatch(/^\d+$/);
   });
+
+  it("someone who can't see leads isn't told when leads change", async () => {
+    const u = await h.seedUser({ grants: [], totp: true });
+    const c = await h.signIn(u);
+    const got = await blocks(c, {
+      ms: 1500,
+      after: () => h.seedLead({ ownerId: someoneId, name: "Not for them" }),
+    });
+    expect(got.filter((b) => b.event === "leads")).toEqual([]);
+  });
 });

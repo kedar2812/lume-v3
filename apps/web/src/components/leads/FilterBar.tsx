@@ -235,7 +235,7 @@ export function FilterBar({
               onChange={(e) => set({ noReplyDays: Number(e.target.value) || undefined })}
             >
               <option value="">Any</option>
-              {NO_REPLY_DAYS.map((d) => (
+              {withCurrent(NO_REPLY_DAYS, filters.noReplyDays).map((d) => (
                 <option key={d} value={d}>
                   {d === 1 ? "1 day" : `${d} days`}
                 </option>
@@ -253,7 +253,7 @@ export function FilterBar({
               }}
             >
               <option value="">Any</option>
-              {LOST_DAYS.map((d) => (
+              {withCurrent(LOST_DAYS, filters.lostDaysAgo).map((d) => (
                 <option key={d} value={d}>
                   {`${d}+ days ago`}
                 </option>
@@ -285,7 +285,7 @@ export function FilterBar({
               onChange={(e) => set({ createdDays: Number(e.target.value) || undefined })}
             >
               <option value="">Any time</option>
-              {CREATED_DAYS.map((d) => (
+              {withCurrent(CREATED_DAYS, filters.createdDays).map((d) => (
                 <option key={d} value={d}>
                   {d === 1 ? "Today" : `Last ${d} days`}
                 </option>
@@ -372,6 +372,10 @@ export function FilterBar({
   );
 }
 
+/** A menu's choices, with the value set now among them (a view or link may hold one the menu doesn't). */
+const withCurrent = (choices: readonly number[], now: number | undefined) =>
+  now && !choices.includes(now) ? [...choices, now].sort((a, b) => a - b) : [...choices];
+
 /** Each of 4B's filters that's set, in words, with what removing it clears. */
 function quietChips(f: ListFilters, cat: Catalog): { label: string; clear: Partial<ListFilters> }[] {
   const reason = cat.lostReasons.find((r) => r.id === f.lostReasonId)?.label;
@@ -391,7 +395,10 @@ function quietChips(f: ListFilters, cat: Catalog): { label: string; clear: Parti
             clear: { lostDaysAgo: undefined, lostReasonId: undefined },
           },
         ]
-      : []),
+      : reason
+        ? // A reason on its own (a link, a view): its chip, which takes it off.
+          [{ label: `Lost · ${reason}`, clear: { lostReasonId: undefined } }]
+        : []),
     ...(f.followUpOverdue ? [{ label: "Overdue follow-up", clear: { followUpOverdue: undefined } }] : []),
     ...(f.createdDays
       ? [

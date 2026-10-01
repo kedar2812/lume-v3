@@ -127,8 +127,10 @@ export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRe
   if (q.createdDays) {
     // Midnight where the business is, whatever zone the server runs in (Review Focus 5).
     const tz = sql`(SELECT timezone FROM settings LIMIT 1)`;
+    const day = sql`COALESCE(${L.leadCreatedAt}, (${L.createdAt} AT TIME ZONE ${tz})::date)`;
+    // Between N-1 days ago and today: an enquiry dated ahead isn't "new today".
     where.push(
-      sql`COALESCE(${L.leadCreatedAt}, (${L.createdAt} AT TIME ZONE ${tz})::date) >= (now() AT TIME ZONE ${tz})::date - ${q.createdDays - 1}::int`,
+      sql`${day} BETWEEN (now() AT TIME ZONE ${tz})::date - ${q.createdDays - 1}::int AND (now() AT TIME ZONE ${tz})::date`,
     );
   }
 

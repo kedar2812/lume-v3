@@ -37,8 +37,11 @@ const call = (c: AuthedClient, method: string, url: string, payload?: unknown) =
 const create = (c: AuthedClient, body: Record<string, unknown>) => call(c, "POST", "/api/v1/views", body);
 const list = async (c: AuthedClient) =>
   ((await call(c, "GET", "/api/v1/views")).json().views as { id: string; name: string }[]).map((v) => v.name);
-const counts = async (c: AuthedClient) =>
-  (await call(c, "GET", "/api/v1/views/counts")).json().counts as Record<string, number | null>;
+const counts = async (c: AuthedClient) => {
+  const r = await call(c, "GET", "/api/v1/views/counts");
+  if (r.statusCode !== 200) throw new Error(`counts ${r.statusCode}: ${r.body}`);
+  return r.json().counts as Record<string, number | null>;
+};
 const overdue = async (ownerId: string, name: string) => {
   const lead = await h.seedLead({ ownerId, name });
   await h.queryAll(
@@ -224,5 +227,102 @@ describe("saved views (4B Task 3)", () => {
       await h.pool.query("SELECT DISTINCT action FROM audit_log WHERE action LIKE 'view.%' ORDER BY action")
     ).rows.map((r) => r.action);
     expect(actions).toEqual(expect.arrayContaining(["view.created", "view.deleted", "view.updated"]));
+  });
+
+  /** A view stored as a crafted API call (or an old one) might have left it: straight into the table. */
+  const stored = async (filters: Record<string, string>) => {
+    const id = newId();
+    // As its owner, under the views' row-level security.
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('lume.user_id', $1, true)", [adminUser.id]);
+      await c.query(
+        "INSERT INTO saved_views (id, name, color, filters, owner_id, shared_role_ids) VALUES ($1, $2, 'accent', $3, $4, '{}')",
+        [id, `Stored ${id.slice(-6)}`, filters, adminUser.id],
+      );
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
+    return id;
+  };
+
+  it("a stage id that isn't an id: refused when saved, and a stored one counts '—' (never a 500)", async () => {
+    const bad = "-".repeat(36);
+    expect(
+      (await create(admin, { name: "Dashes", color: "cyan", filters: { stageId: bad } })).statusCode,
+    ).toBe(400);
+    const id = await stored({ stageId: bad });
+    const r = await call(admin, "GET", "/api/v1/views/counts");
+    expect(r.statusCode).toBe(200);
+    expect(r.json().counts[id]).toBeNull();
+  });
+
+  it("a stage, tag or lost reason gone, an archived pipeline or a select option removed: '—'", async () => {
+    const cfg = await h.config();
+    const [stage] = await h.queryAll<{ id: string }>(
+      "INSERT INTO stages (id, pipeline_id, name, kind, position, archived_at) VALUES ($1, $2, 'Old stage', 'open', 99, now()) RETURNING id",
+      [newId(), cfg.pipelineId],
+    );
+    const [pipeline] = await h.queryAll<{ id: string }>(
+      "INSERT INTO pipelines (id, name, position, archived_at) VALUES ($1, 'Old pipeline', 99, now()) RETURNING id",
+      [newId()],
+    );
+    const [reason] = await h.queryAll<{ id: string }>(
+      "INSERT INTO lost_reasons (id, label, position, archived_at) VALUES ($1, 'Old reason', 99, now()) RETURNING id",
+      [newId()],
+    );
+    const [select] = await h.queryAll<{ key: string }>(
+      "SELECT key FROM field_definitions WHERE type = 'select' AND NOT is_core AND archived_at IS NULL LIMIT 1",
+    );
+    const ids = {
+      stage: await stored({ stageId: stage!.id }),
+      tag: await stored({ tagId: newId() }),
+      reason: await stored({ lostReasonId: reason!.id }),
+      pipeline: await stored({ pipelineId: pipeline!.id }),
+      ...(select ? { option: await stored({ custom: JSON.stringify({ [select.key]: newId() }) }) } : {}),
+      fine: await stored({ noReplyDays: "3" }),
+    };
+    const c = await counts(admin);
+    for (const [what, id] of Object.entries(ids)) {
+      if (what === "fine") expect(c[id], what).not.toBeNull();
+      else expect(c[id], what).toBeNull();
+    }
+  });
+
+  it("an enquiry dated in the future isn't 'new today'", async () => {
+    const future = await h.seedLead({ ownerId: adminUser.id, name: "From Tomorrow" });
+    await h.queryAll("UPDATE leads SET lead_created_at = current_date + 3 WHERE id = $1", [future]);
+    const r = await call(
+      admin,
+      "GET",
+      `/api/v1/leads?createdDays=1&q=${encodeURIComponent("From Tomorrow")}`,
+    );
+    expect(r.json().items).toHaveLength(0);
+  });
+
+  it("counting every view asks the database the same few questions however many views there are", async () => {
+    const pg = await import("pg");
+    const proto = (pg.default ?? pg).Client.prototype as unknown as { query: (...a: unknown[]) => unknown };
+    const real = proto.query;
+    const measure = async () => {
+      let n = 0;
+      proto.query = function (this: unknown, ...a: unknown[]) {
+        n++;
+        return real.apply(this, a);
+      };
+      try {
+        await counts(admin);
+      } finally {
+        proto.query = real;
+      }
+      return n;
+    };
+    const few = await measure();
+    const cfg = await h.config();
+    const stage = Object.values(cfg.stages)[0]!;
+    for (let i = 0; i < 8; i++) await stored({ stageId: stage, tagId: newId() });
+    expect(await measure()).toBe(few);
   });
 });

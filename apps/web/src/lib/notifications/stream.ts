@@ -10,6 +10,8 @@ const anyone = () => listeners.size + leadListeners.size > 0;
 let source: EventSource | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let failures = 0;
+/** Connected once already: an open after that is a reconnection, and leads may have changed meanwhile. */
+let connectedBefore = false;
 /** The last id seen, to resume from; and the ids already passed on (a replay overlaps; 3A final review). */
 let lastId = 0;
 const seen = new Set<number>();
@@ -19,6 +21,12 @@ function open() {
   if (typeof EventSource === "undefined") return;
   const s = new EventSource(lastId ? `/api/v1/stream?after=${lastId}` : "/api/v1/stream");
   source = s;
+  // Back after a drop (the browser's own retry, or LUME's): what changed meanwhile was never said.
+  s.addEventListener("open", () => {
+    if (connectedBefore) for (const l of leadListeners) l();
+    connectedBefore = true;
+    failures = 0;
+  });
   s.addEventListener("leads", () => {
     failures = 0;
     for (const l of leadListeners) l();

@@ -40,7 +40,9 @@ const listQuery = z.object({
   pipelineId: z.uuid().optional(),
   stageId: z
     .string()
-    .regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,19}$/)
+    .regex(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}){0,19}$/i,
+    )
     .optional(),
   ownerId: z.union([z.uuid(), z.enum(["me", "none"])]).optional(),
   tagId: z.uuid().optional(),

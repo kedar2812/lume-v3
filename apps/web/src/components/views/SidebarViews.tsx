@@ -34,16 +34,20 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const listed = useRef<string[]>([]);
 
+  // Each ask is numbered: an answer to an older one that arrives late is let go (never shown over a newer).
+  const asked = useRef({ views: 0, counts: 0 });
   const loadViews = useCallback(async () => {
+    const n = ++asked.current.views;
     const r = await viewsClient.list();
-    if (!r.ok) return;
+    if (!r.ok || n !== asked.current.views) return;
     listed.current = r.data.views.map((v) => v.id);
     setViews(r.data.views);
     setRoles(r.data.roles ?? null);
   }, []);
   const loadCounts = useCallback(async () => {
+    const n = ++asked.current.counts;
     const r = await viewsClient.counts();
-    if (!r.ok) return;
+    if (!r.ok || n !== asked.current.counts) return;
     setCounts(r.data.counts);
     // Counts cover exactly the views this person may see now: a difference means someone shared or
     // un-shared a view elsewhere, so the list looks again (4B review, Important 3).
@@ -120,7 +124,11 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
       title: `Deleted “${v.name}”`,
       action: {
         label: "Undo",
-        onClick: () => void viewsClient.restore(v.id).then(() => viewsChanged()),
+        onClick: () =>
+          void viewsClient.restore(v.id).then((back) => {
+            if (back.ok) return viewsChanged();
+            toast({ tone: "danger", title: `“${v.name}” couldn’t come back`, detail: back.message });
+          }),
       },
     });
   };
@@ -144,6 +152,7 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
             <Row
               key={v.id}
               view={v}
+              namesake={!v.mine && views.some((x) => x.mine && x.name.toLowerCase() === v.name.toLowerCase())}
               count={counts[v.id]}
               on={active === v.id}
               reduce={!!reduce}
@@ -165,6 +174,7 @@ export function SidebarViews({ canShare = false }: { canShare?: boolean }) {
 
 function Row({
   view: v,
+  namesake,
   count,
   on,
   reduce,
@@ -177,6 +187,8 @@ function Row({
   onDelete,
 }: {
   view: ViewView;
+  /** Shared with this person under the name of one of their own. */
+  namesake: boolean;
   count: number | null | undefined;
   on: boolean;
   reduce: boolean;
@@ -237,6 +249,8 @@ function Row({
       >
         <span className={s.dot} style={{ background: tokenColor(v.color) }} aria-hidden />
         <span className={s.name}>{v.name}</span>
+        {/* Named like one of yours: this one says it's shared, so two rows never look alike. */}
+        {namesake && <span className={s.sharedTag}>Shared</span>}
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
             key={String(count)}

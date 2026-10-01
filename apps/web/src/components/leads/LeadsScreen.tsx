@@ -193,16 +193,16 @@ function Screen({
   // What the view says, read as this screen reads it, so a stale part never counts as "changed".
   const viewSays = activeView ? toViewFilters(fromViewFilters(activeView.filters, catalog)) : null;
   const viewChanged = !!viewSays && !sameFilters(viewSays, toViewFilters(filters));
+  const { toast } = useToast();
   const updateView = async () => {
     if (!activeView) return;
     const r = await viewsClient.update(activeView.id, { filters: toViewFilters(filters) });
-    if (!r.ok) return;
+    if (!r.ok) return toast({ tone: "danger", title: "The view wasn’t updated", detail: r.message });
     setActiveView(r.data);
     viewsChanged();
   };
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
   const [creating, setCreating] = useState(false);
-  const { toast } = useToast();
   // With several pipelines the table shows one at a time, so its stages and counts match the rows.
   const multiPipeline = catalog.pipelines.length > 1;
   const shownPipeline =

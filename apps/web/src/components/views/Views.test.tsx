@@ -260,4 +260,57 @@ describe("Save view (4B Task 6)", () => {
       expect.objectContaining({ name: "Team chase", sharedRoleIds: ["r-sales"] }),
     );
   });
+
+  it("counts that arrive out of order: the latest ask wins, never an older answer", async () => {
+    let first!: (v: unknown) => void;
+    vi.mocked(viewsClient.counts)
+      .mockReturnValueOnce(new Promise((r) => (first = r)) as never)
+      .mockResolvedValueOnce(ok({ counts: { v1: 9, v2: 12, v3: null } }) as never);
+    const list = await sidebar();
+    act(() => leadsChanged!());
+    await vi.waitFor(() =>
+      expect(within(list).getByRole("link", { name: /My overdue/ })).toHaveTextContent("9"),
+    );
+    await act(async () => first(ok({ counts: { v1: 1, v2: 12, v3: null } })));
+    await new Promise((r) => setTimeout(r, 300)); // past the count's own fade
+    // The older answer (1) never replaces the newer (9).
+    expect(within(list).getByRole("link", { name: /My overdue/ })).not.toHaveTextContent("1");
+  });
+
+  it("an Undo that can't bring the view back says why", async () => {
+    vi.mocked(viewsClient.remove).mockResolvedValue(ok(null) as never);
+    vi.mocked(viewsClient.restore).mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "VIEW_EXISTS",
+      message: "You already have a view with that name",
+    } as never);
+    const list = await sidebar();
+    await userEvent.click(within(list).getByRole("button", { name: "Edit No reply 3+ days" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete view" }));
+    const said = toast.mock.calls.at(-1)![0] as { action: { onClick(): void } };
+    said.action.onClick();
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ tone: "danger", detail: "You already have a view with that name" }),
+      ),
+    );
+  });
+
+  it("your own view and one shared with you under the same name don't look alike", async () => {
+    vi.mocked(viewsClient.list).mockResolvedValue(
+      ok({
+        views: [
+          v("v1", "Hot leads"),
+          v("v9", "Hot leads", { shared: true, mine: false, canEdit: false, sharedRoleIds: ["r-sales"] }),
+        ],
+      }) as never,
+    );
+    vi.mocked(viewsClient.counts).mockResolvedValue(ok({ counts: { v1: 1, v9: 2 } }) as never);
+    const list = await sidebar();
+    const links = within(list).getAllByRole("link", { name: /Hot leads/ });
+    const names = links.map((l) => l.textContent);
+    expect(new Set(names).size).toBe(2);
+    expect(links[1]).toHaveTextContent("Shared");
+  });
 });

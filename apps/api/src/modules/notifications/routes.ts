@@ -3,6 +3,7 @@ import type { ServerResponse } from "node:http";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { can } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { onSessionsRevoked } from "../../auth/sessions";
@@ -137,7 +138,10 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         lastLeads = Date.now();
         write("event: leads\ndata: {}\n\n");
       };
+      // Only to people who see leads at all: anyone else has nothing to recount (4B minor).
+      const seesLeads = can(req.actor!, "leads.view");
       const offLeads = hub.onLeads(() => {
+        if (!seesLeads) return;
         const wait = lastLeads + LEADS_EVERY_MS - Date.now();
         if (wait <= 0) return sayLeads();
         trailing ??= setTimeout(() => {

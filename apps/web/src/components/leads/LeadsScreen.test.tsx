@@ -79,8 +79,9 @@ vi.mock("motion/react", async () => {
     useReducedMotion: () => true,
   };
 });
+const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({
-  useToast: () => ({ toast: vi.fn(), dismiss: vi.fn() }),
+  useToast: () => ({ toast, dismiss: vi.fn() }),
 }));
 
 const rep = () =>
@@ -341,6 +342,43 @@ describe("LeadsScreen", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Close view" }));
     await vi.waitFor(() => expect(address()).toBe("/leads?noreply=7"));
+  });
+
+  it("4B: an Update view that doesn't save says why, and keeps offering it", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], nextCursor: null },
+    });
+    vi.mocked(viewsClient.update).mockResolvedValue({
+      ok: false,
+      status: 0,
+      code: "OFFLINE",
+      message: "LUME can’t reach the server right now.",
+    } as never);
+    view({
+      initialFilters: { ...EMPTY_FILTERS, noReplyDays: 3 },
+      view: {
+        id: "v1",
+        name: "Chase list",
+        color: "warn",
+        filters: { noReplyDays: "3", sort: "newest" },
+        sharedRoleIds: [],
+        shared: false,
+        mine: true,
+        canEdit: true,
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /more filters/i }));
+    await userEvent.selectOptions(screen.getByLabelText("No reply for"), "7");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(await screen.findByRole("button", { name: "Update view" }));
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ tone: "danger", detail: "LUME can’t reach the server right now." }),
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Update view" })).toBeInTheDocument();
   });
 
   it("4B review: after Close view, opening the same view again opens it", async () => {

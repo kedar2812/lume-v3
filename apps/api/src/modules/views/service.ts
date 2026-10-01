@@ -191,15 +191,19 @@ export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<
     .select({ id: schema.pipelines.id })
     .from(schema.pipelines)
     .where(eq(schema.pipelines.isDefault, true));
-  for (const r of rows) {
-    const parsed = filterQuerySchema.safeParse(r.filters);
-    if (!parsed.success || (await stale(req, parsed.data))) {
+  const parsed = rows.map((r) => ({ r, p: filterQuerySchema.safeParse(r.filters) }));
+  const gone = await staleness(
+    req,
+    parsed.flatMap((x) => (x.p.success ? [x.p.data] : [])),
+    fields,
+  );
+  for (const { r, p } of parsed) {
+    if (!p.success || gone(p.data)) {
       counts[r.id] = null;
       continue;
     }
     try {
-      const q =
-        parsed.data.pipelineId || !byDefault ? parsed.data : { ...parsed.data, pipelineId: byDefault.id };
+      const q = p.data.pipelineId || !byDefault ? p.data : { ...p.data, pipelineId: byDefault.id };
       parts.push({ id: r.id, where: and(...leadFilters(req, q, fields))! });
     } catch (e) {
       if (!(e instanceof HttpError)) throw e;
@@ -217,17 +221,77 @@ export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<
   return { counts };
 }
 
-/** Filters that name something no longer there: the view can't be counted as it was meant. */
-export async function stale(req: FastifyRequest, q: FilterQuery): Promise<boolean> {
-  const live = async (table: string, id: string, extra = "") =>
-    (
-      await req.db.execute(
-        sql`SELECT 1 FROM ${sql.identifier(table)} WHERE id = ${id} ${sql.raw(extra)} LIMIT 1`,
-      )
-    ).rows.length > 0;
-  for (const id of q.stageId?.split(",") ?? [])
-    if (!(await live("stages", id, "AND archived_at IS NULL"))) return true;
-  if (q.tagId && !(await live("tags", q.tagId))) return true;
-  if (q.lostReasonId && !(await live("lost_reasons", q.lostReasonId, "AND archived_at IS NULL"))) return true;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type Registry = Awaited<ReturnType<typeof loadFieldRegistry>>;
+
+/**
+ * Which filters name something no longer there (a stage, tag, lost reason or pipeline gone or archived, a
+ * select option removed): such a view can't be counted as it was meant. Every view's ids are looked up
+ * together, a question per kind, however many views there are (4B minor).
+ */
+async function staleness(
+  req: FastifyRequest,
+  all: FilterQuery[],
+  fields: Registry,
+): Promise<(q: FilterQuery) => boolean> {
+  const ids = (pick: (q: FilterQuery) => (string | undefined)[]) => [
+    ...new Set(all.flatMap(pick).filter((x): x is string => !!x && UUID.test(x))),
+  ];
+  const live = async (table: string, want: string[], extra = "") => {
+    if (!want.length) return new Set<string>();
+    const { rows } = await req.db.execute<{ id: string }>(
+      // Drizzle spreads an array into a list of parameters: IN (…).
+      sql`SELECT id FROM ${sql.identifier(table)} WHERE id IN ${want} ${sql.raw(extra)}`,
+    );
+    return new Set(rows.map((r) => r.id));
+  };
+  const stages = await live(
+    "stages",
+    ids((q) => q.stageId?.split(",") ?? []),
+    "AND archived_at IS NULL",
+  );
+  const tags = await live(
+    "tags",
+    ids((q) => [q.tagId]),
+  );
+  const reasons = await live(
+    "lost_reasons",
+    ids((q) => [q.lostReasonId]),
+    "AND archived_at IS NULL",
+  );
+  const pipelines = await live(
+    "pipelines",
+    ids((q) => [q.pipelineId]),
+    "AND archived_at IS NULL",
+  );
+  const ok = (set: Set<string>, id: string | undefined) => !id || (UUID.test(id) && set.has(id));
+  return (q) => {
+    if (!(q.stageId?.split(",") ?? []).every((id) => ok(stages, id))) return true;
+    if (!ok(tags, q.tagId) || !ok(reasons, q.lostReasonId) || !ok(pipelines, q.pipelineId)) return true;
+    return customGone(q, fields);
+  };
+}
+
+/** A select (or multi-select) filter naming an option the field no longer has. */
+function customGone(q: FilterQuery, fields: Registry): boolean {
+  if (!q.custom) return false;
+  let filter: unknown;
+  try {
+    filter = JSON.parse(q.custom);
+  } catch {
+    return true;
+  }
+  if (!filter || typeof filter !== "object" || Array.isArray(filter)) return true;
+  for (const [key, value] of Object.entries(filter)) {
+    const def = fields.byKey.get(key);
+    if (!def) return true;
+    if ((def.type === "select" || def.type === "multi_select") && !def.options.some((o) => o.id === value))
+      return true;
+  }
   return false;
+}
+
+/** Filters that name something no longer there, for one view (a send queue planning from it, 4C). */
+export async function stale(req: FastifyRequest, q: FilterQuery): Promise<boolean> {
+  return (await staleness(req, [q], await loadFieldRegistry(req)))(q);
 }
