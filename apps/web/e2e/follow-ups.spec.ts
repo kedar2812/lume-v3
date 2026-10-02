@@ -89,6 +89,8 @@ test.describe("Follow-ups", () => {
   test("screenshots and axe: Today, the drawer's next follow-up, and the sheet — both themes", async ({
     page,
   }) => {
+    // "Shot Soon" is due in an hour: in the business's last hour that's tomorrow, and Today looks different.
+    test.skip(nearBusinessMidnight(), "in the business's last hour, a follow-up in 1 hour is tomorrow's");
     await openApp(page, "/leads");
     const a = await lead(page, "Shot Overdue");
     const b = await lead(page, "Shot Soon");
