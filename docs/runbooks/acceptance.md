@@ -1068,3 +1068,21 @@ cd /root/lume-licence && docker compose exec -T db psql -U licence -d licence \
 Screenshots (full content) in `docs/runbooks/screenshots-licence/`. The run found two things, both fixed
 test-first: the pause screen had no way to check again (an admin would wait up to 6 hours after a resume),
 and New licence's lists were named by their options in Chromium ("State" matched "United States").
+
+
+## Phase 6A — the watch (2026-10-02)
+
+Automated: `security.test.ts`, `watch.test.ts`, `paused.test.ts`, `routes.test.ts` (API), the Security
+components' tests (web), and the end-to-end `e2e/security.spec.ts`.
+
+The spec's acceptance test, by hand on a fresh install:
+
+1. As the owner, Settings → Security → Rules: "Contacts opened" stays at more than 30 with "Tells you and pauses
+   their access". Invite a Sales person and give them a lead with a phone number.
+2. As the Sales person, reveal that lead's contact 30 times (the drawer's Reveal contact, reopening the lead;
+   or the API). The 24th shows the quiet notice. The 30th still shows the contact.
+3. The 31st is refused: the app moves to "Your access is paused". Signing in again shows the same card.
+4. As the owner, the HUD "LUME paused …'s access" rises while you're in the app; Review opens the alert: 31
+   contacts, the burst, Ended … sessions, Paused sign-in, Told … . Restore access. The Sales person signs in.
+5. Switch the rule to "Tells you" and repeat: the 31st contact is shown, the person carries on, the admin is told.
+6. 201 different leads opened in an hour behave like step 3 (set the limit to 25 to try it quickly).

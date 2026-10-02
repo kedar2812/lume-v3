@@ -73,7 +73,10 @@ app. There is one admin (R4). Every sign-in, good or bad, is logged in `sign_ins
 
 ## 5. The public side: nginx and the certificate (owner)
 
-Point `license.lumecrm.in` at the host, then add a site to the host's nginx:
+Point `license.lumecrm.in` at the host (an A record), then run `infra/licence/go-public.sh` on the host as
+root (copy it to `/root/lume-licence/`). It checks the name resolves publicly, writes the nginx site below,
+asks certbot for the certificate and the HTTP→HTTPS redirect, adds HSTS, and checks the licence server and the
+host's other site afterwards. Done on the owner's host on 2026-10-02. By hand, the site is:
 
 ```nginx
 server {

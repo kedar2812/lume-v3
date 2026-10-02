@@ -4,6 +4,20 @@ Every LUME release, newest first. The version is the root `package.json`'s; tagg
 release images (`docs/runbooks/fleet.md`). Migrations are forward-only and additive: an update never drops a
 column in the release that stops using it.
 
+## Unreleased
+
+- **Security (Phase 6A):** LUME watches for anyone taking more lead data than their work needs: contacts
+  revealed, different leads opened, and send-queue runs, each with a limit and an action (tell admins, or tell
+  them and pause access). A pause ends every session and stops the act that crossed the line. Admins review
+  alerts in Settings → Security (Overview, Rules, Access limits), with a live HUD and a line in the daily email.
+  Access limits per role (hours and networks) get their screen. Lead screens carry an on-screen watermark for
+  people who can't see every contact. See `docs/runbooks/security.md`.
+
+### Migrations
+
+- **0042** adds the `suspended` status and `users.watch_from`, the `security_alerts` table, and a partial
+  index on the audit log for the counted acts.
+
 ## 1.0.0 — 2026-10-01
 
 The first release for clients.
