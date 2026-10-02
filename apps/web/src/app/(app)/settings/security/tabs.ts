@@ -1,7 +1,8 @@
 import type { SecurityTab } from "@/components/settings/security/SecurityTabs";
 
-/** Security's sections, in the canvas's order; each joins as it's built. */
+/** Security's sections, in the canvas's order (Exports joins with 6B). */
 export const SECURITY_TABS: SecurityTab[] = [
+  { href: "/settings/security", label: "Overview" },
   { href: "/settings/security/rules", label: "Rules" },
   { href: "/settings/security/access", label: "Access limits" },
 ];

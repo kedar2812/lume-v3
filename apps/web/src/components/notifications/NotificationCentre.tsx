@@ -26,7 +26,13 @@ const GROUPS: { id: GroupId; label: string }[] = [
 /** Updates that are really asks (they sit under Needs you too). */
 /** How long an arrival's accent wash lasts (as a new lead's, spec §8.3). */
 const ARRIVAL_MS = 5000;
-const ASKS = new Set(["task_escalated", "follow_up_nudge", "follow_up_assigned", "system_alert"]);
+const ASKS = new Set([
+  "task_escalated",
+  "follow_up_nudge",
+  "follow_up_assigned",
+  "system_alert",
+  "security_alert",
+]);
 /** Due and soon reminders are the follow-ups themselves (shown from Today's list, not twice). */
 const REMINDERS = new Set(["follow_up_due", "follow_up_soon"]);
 const READ_AFTER_MS = 600;
@@ -162,6 +168,11 @@ export function NotificationCentre({
   /** System health (3C), for an alert that something isn't running. */
   const openHealth = () => {
     router.push("/settings/health");
+    onClose();
+  };
+  /** A security alert (6A), opened in Settings → Security. */
+  const openAlert = (alertId: string) => {
+    router.push(`/settings/security?alert=${alertId}`);
     onClose();
   };
   /** Open the lead, and step the centre out of its way (it would sit over the lead's drawer). */
@@ -464,6 +475,11 @@ export function NotificationCentre({
             Open lead
           </button>
         )}
+        {n.kind === "security_alert" && n.alertId && (
+          <button type="button" className={`${s.btn} ${s.primary}`} onClick={() => openAlert(n.alertId!)}>
+            Review
+          </button>
+        )}
         {n.kind === "system_alert" && (
           <button type="button" className={`${s.btn} ${s.primary}`} onClick={() => openHealth()}>
             Open System health
@@ -497,11 +513,13 @@ function icon(e: Entry): ReactNode {
   const path =
     e.type === "task"
       ? "M8 3.5v4.5l3 2M14.5 8a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" // a clock: a follow-up
-      : e.n.kind === "task_escalated" || e.n.kind === "system_alert"
-        ? "M8 2 14.5 13.5h-13L8 2Zm0 4.5V9m0 2.2v.1" // a warning triangle
-        : e.n.kind === "lead_assigned"
-          ? "M5.5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M12 5v5m-2.5-2.5h5" // a person, added
-          : "M3 6.5a5 5 0 0 1 10 0c0 4 1.5 5 1.5 5h-13S3 10.5 3 6.5ZM6.5 13.5a1.6 1.6 0 0 0 3 0"; // a bell
+      : e.n.kind === "security_alert"
+        ? "M8 1.8 3 4v3.6c0 2.9 2.1 5.4 5 6.6 2.9-1.2 5-3.7 5-6.6V4L8 1.8Zm0 3.7v3m0 2v.1" // a shield: security
+        : e.n.kind === "task_escalated" || e.n.kind === "system_alert"
+          ? "M8 2 14.5 13.5h-13L8 2Zm0 4.5V9m0 2.2v.1" // a warning triangle
+          : e.n.kind === "lead_assigned"
+            ? "M5.5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M12 5v5m-2.5-2.5h5" // a person, added
+            : "M3 6.5a5 5 0 0 1 10 0c0 4 1.5 5 1.5 5h-13S3 10.5 3 6.5ZM6.5 13.5a1.6 1.6 0 0 0 3 0"; // a bell
   return (
     <svg viewBox="0 0 16 16" width="16" height="16">
       <path

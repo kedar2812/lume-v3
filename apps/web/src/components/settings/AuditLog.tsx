@@ -26,8 +26,11 @@ const verb = (key: string) => {
  * Everything that happened in LUME, newest first, in words: who did what, and when. Filter by person
  * and by action; older entries load on request. Nobody can edit or delete it, the owner included.
  */
-export function AuditLog({ people }: { people: Person[] }) {
-  const [filters, setFilters] = useState<Omit<AuditQuery, "cursor">>({});
+export function AuditLog({ people, initialActor }: { people: Person[]; initialActor?: string }) {
+  // Opened from a security alert (6A): already filtered to that person.
+  const [filters, setFilters] = useState<Omit<AuditQuery, "cursor">>(
+    initialActor ? { actorUserId: initialActor } : {},
+  );
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [state, setState] = useState<"ready" | "loading" | "error" | "gone">("loading");
@@ -42,8 +45,8 @@ export function AuditLog({ people }: { people: Person[] }) {
   }, []);
 
   useEffect(() => {
-    void load({});
-  }, [load]);
+    void load(initialActor ? { actorUserId: initialActor } : {});
+  }, [load, initialActor]);
 
   if (state === "gone") return <AccessChanged />;
 

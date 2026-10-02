@@ -333,6 +333,23 @@ describe("the notification centre: 3C", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("6A: a security alert needs you, and Review opens it in Security", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({
+        items: [
+          note(8, "security_alert", "LUME paused Rory Reid’s access", { leadId: null, alertId: "a-1" }),
+        ],
+        unread: 1,
+      }),
+    );
+    const onClose = await open();
+    await userEvent.click(screen.getByRole("radio", { name: "Needs you" }));
+    const item = screen.getByRole("listitem", { name: /LUME paused Rory Reid/ });
+    await userEvent.click(within(item).getByRole("button", { name: "Review" }));
+    expect(push).toHaveBeenCalledWith("/settings/security?alert=a-1");
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("one that arrives while it's open is washed in the accent for a moment", async () => {
     await open();
     vi.mocked(notificationsClient.list).mockResolvedValue(

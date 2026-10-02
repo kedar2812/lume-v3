@@ -7,7 +7,7 @@ import { can } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { onSessionsRevoked } from "../../auth/sessions";
-import { missedSince, startHub, streamWriter, type NotificationView } from "./hub";
+import { alertIdOf, missedSince, startHub, streamWriter, type NotificationView } from "./hub";
 
 const N = schema.notifications;
 const self = { permission: "auth.self" as const };
@@ -51,6 +51,7 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         taskId: n.taskId,
         createdAt: n.createdAt.toISOString(),
         read: n.readAt !== null,
+        alertId: alertIdOf(n.kind, n.data),
       })),
       unread: await unreadOf(req),
     };

@@ -43,6 +43,8 @@ export type NotificationView = {
   taskId: string | null;
   createdAt: string;
   read: boolean;
+  /** A security alert's id (6A), so Review opens it; null for every other kind. */
+  alertId: string | null;
 };
 type Row = {
   id: string;
@@ -53,6 +55,7 @@ type Row = {
   task_id: string | null;
   created_at: Date;
   read_at: Date | null;
+  data: Record<string, unknown> | null;
 };
 export const toView = (r: Row): NotificationView => ({
   id: Number(r.id),
@@ -63,7 +66,13 @@ export const toView = (r: Row): NotificationView => ({
   taskId: r.task_id,
   createdAt: r.created_at.toISOString(),
   read: r.read_at !== null,
+  alertId: alertIdOf(r.kind, r.data),
 });
+
+export const alertIdOf = (kind: string, data: unknown): string | null =>
+  kind === "security_alert" && data && typeof (data as { alertId?: unknown }).alertId === "string"
+    ? (data as { alertId: string }).alertId
+    : null;
 
 /** Read a person's own notifications, as them (they're only ever theirs: row-level security). */
 export async function readAs<T>(
@@ -99,7 +108,7 @@ export const missedSince = (pool: pg.Pool, userId: string, afterId: number) =>
     let after = afterId;
     for (let page = 0; page < 5; page++) {
       const { rows } = await c.query<Row>(
-        "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at FROM notifications WHERE id > $1 ORDER BY id LIMIT 200",
+        "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at, data FROM notifications WHERE id > $1 ORDER BY id LIMIT 200",
         [after],
       );
       out.push(...rows.map(toView));
@@ -137,7 +146,7 @@ export async function startHub(pool: pg.Pool) {
     const [row] = await readAs(pool, msg.u, async (c) =>
       (
         await c.query<Row>(
-          "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at FROM notifications WHERE id = $1",
+          "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at, data FROM notifications WHERE id = $1",
           [msg.n],
         )
       ).rows.map(toView),

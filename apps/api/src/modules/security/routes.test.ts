@@ -136,6 +136,17 @@ describe("alerts and their review", () => {
     expect(d.last30).toHaveLength(30);
   });
 
+  it("the admin's notification names its alert, so Review opens it", async () => {
+    const a = await burst(6);
+    await vi.waitFor(async () => {
+      const items = (await get(admin, "/api/v1/notifications")).json().items as {
+        kind: string;
+        alertId: string | null;
+      }[];
+      expect(items.find((n) => n.kind === "security_alert")?.alertId).toBe(a.id);
+    });
+  });
+
   it("restore: active again, resolved, and a second answer is refused", async () => {
     const a = await burst(6);
     const r = await post(admin, `/api/v1/security/alerts/${a.id}/resolve`, { resolution: "restored" });

@@ -11,6 +11,7 @@ import type { Session } from "@/server/session";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { tourClient } from "@/lib/tour-client";
 import { CommandPalette } from "./CommandPalette";
+import { AlertHud } from "@/components/security/AlertHud";
 import { PageContent, PageTransitionProvider } from "./PageTransition";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -94,6 +95,8 @@ export function AppShell({ session, businessName, theme, children }: Props) {
           </div>
           <PaymentReminder businessName={businessName} />
           <PendingSent />
+          {/* A security alert, live, for whoever reviews them (6A). */}
+          {can("security.manage") && <AlertHud />}
           <CommandPalette open={palette} onOpenChange={setPalette} can={can} />
         </LicenceProvider>
       </TourProvider>

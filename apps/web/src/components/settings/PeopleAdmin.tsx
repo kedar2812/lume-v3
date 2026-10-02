@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import type { ApiResult } from "@/lib/api";
+import { can } from "@lume/core/shared";
 import { invitesClient, usersClient, type Invite, type RoleRef, type UserRow } from "@/lib/settings/people";
+import { securityClient } from "@/lib/settings/security";
 import type { Session } from "@/server/session";
 import { accessGone } from "@/lib/settings/access";
 import { shortDate } from "@/lib/settings/format";
@@ -185,6 +187,8 @@ export function PeopleAdmin({
             {users.map((u) => {
               const locked = u.isOwner || u.id === session.user.id;
               const off = u.status === "disabled";
+              // Paused by the watch (6A): restored in Security, or here by someone who manages it.
+              const paused = u.status === "suspended";
               return (
                 <li key={u.id} className={s.personRow} data-off={off || undefined}>
                   <Avatar name={u.name} size={32} />
@@ -202,6 +206,11 @@ export function PeopleAdmin({
                     {off && (
                       <span className={s.chip} data-tone="danger">
                         Disabled
+                      </span>
+                    )}
+                    {paused && (
+                      <span className={s.chip} data-tone="danger" title="LUME paused their access">
+                        Paused
                       </span>
                     )}
                     {!u.twoFactor && !off && (
@@ -237,19 +246,35 @@ export function PeopleAdmin({
                     </select>
                   )}
                   <div className={s.personActions}>
+                    {!locked && paused && can(session.actor, "security.manage") && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label={`Restore access for ${u.name}`}
+                        onClick={async () => {
+                          if (!landed(await securityClient.restorePerson(u.id))) return;
+                          setUsers((all) => all.map((x) => (x.id === u.id ? { ...x, status: "active" } : x)));
+                          setNote({ text: `${firstName(u.name)} can sign in again.` });
+                        }}
+                      >
+                        Restore access
+                      </Button>
+                    )}
                     {!locked && !off && (
                       <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`Sign ${u.name} out everywhere`}
-                          onClick={async () => {
-                            if (landed(await usersClient.endSessions(u.id)))
-                              setNote({ text: `${firstName(u.name)} is signed out everywhere.` });
-                          }}
-                        >
-                          Sign out
-                        </Button>
+                        {!paused && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Sign ${u.name} out everywhere`}
+                            onClick={async () => {
+                              if (landed(await usersClient.endSessions(u.id)))
+                                setNote({ text: `${firstName(u.name)} is signed out everywhere.` });
+                            }}
+                          >
+                            Sign out
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"

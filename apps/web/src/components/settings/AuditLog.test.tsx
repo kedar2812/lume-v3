@@ -50,4 +50,10 @@ describe("AuditLog", () => {
     expect(auditClient.list).toHaveBeenLastCalledWith({ actorUserId: "u-tas", action: "lead.delete" });
     expect(await screen.findByText("Nothing matches these filters.")).toBeInTheDocument();
   });
+
+  it("6A: opened from an alert, it starts filtered to that person", async () => {
+    render(<AuditLog people={testCatalog().people} initialActor="u-riya" />);
+    await screen.findByLabelText("Who");
+    expect(auditClient.list).toHaveBeenCalledWith({ actorUserId: "u-riya" });
+  });
 });

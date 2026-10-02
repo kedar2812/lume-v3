@@ -11,6 +11,8 @@ export type NotificationView = {
   taskId: string | null;
   createdAt: string;
   read: boolean;
+  /** A security alert's id (6A), so Review opens it. Absent from an API before the watch. */
+  alertId?: string | null;
 };
 
 /**

@@ -3,12 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invitesClient, usersClient, type Invite, type UserRow } from "@/lib/settings/people";
 import { fakeSession } from "@/server/session";
+import { securityClient } from "@/lib/settings/security";
 import { PeopleAdmin } from "./PeopleAdmin";
 
 vi.mock("@/lib/settings/people", () => ({
   invitesClient: { create: vi.fn(), resend: vi.fn(), revoke: vi.fn() },
   usersClient: { setRoles: vi.fn(), disable: vi.fn(), enable: vi.fn(), endSessions: vi.fn() },
 }));
+
+vi.mock("@/lib/settings/security", () => ({ securityClient: { restorePerson: vi.fn() } }));
 
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const admin = () =>
@@ -166,5 +169,59 @@ describe("PeopleAdmin", () => {
       screen.queryByRole("heading", { name: "Your access to this page changed" }),
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Role for Riya Sharma")).toHaveValue("r-sales");
+  });
+
+  it("6A: a paused person says so, and someone who manages security can restore them", async () => {
+    vi.mocked(securityClient.restorePerson).mockResolvedValue(ok(undefined));
+    const sec = fakeSession({
+      user: {
+        id: "u-me",
+        name: "Maya Kapoor",
+        email: "n@x.test",
+        isOwner: true,
+        theme: "system",
+        timezone: "Asia/Dubai",
+      },
+      permissions: [
+        { key: "users.manage", scope: null },
+        { key: "security.manage", scope: null },
+      ],
+    } as never);
+    render(
+      <PeopleAdmin users={[person({ status: "suspended" })]} invites={[]} roles={roles} session={sec} />,
+    );
+    const row = screen.getByText("Riya Sharma").closest("li")!;
+    expect(within(row).getByText("Paused")).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Enable Riya Sharma" })).not.toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("button", { name: "Restore access for Riya Sharma" }));
+    expect(securityClient.restorePerson).toHaveBeenCalledWith("u-riya");
+    expect(await screen.findByText("Riya can sign in again.")).toBeInTheDocument();
+    expect(within(row).queryByText("Paused")).not.toBeInTheDocument();
+  });
+
+  it("6A: without security, a paused person can't be restored from People", () => {
+    // Not the owner (who can do everything): someone who manages people only.
+    const peopleOnly = fakeSession({
+      user: {
+        id: "u-me",
+        name: "Ade Admin",
+        email: "a@x.test",
+        isOwner: false,
+        theme: "system",
+        timezone: "Asia/Dubai",
+      },
+      permissions: [{ key: "users.manage", scope: null }],
+    } as never);
+    render(
+      <PeopleAdmin
+        users={[person({ status: "suspended" })]}
+        invites={[]}
+        roles={roles}
+        session={peopleOnly}
+      />,
+    );
+    const row = screen.getByText("Riya Sharma").closest("li")!;
+    expect(within(row).getByText("Paused")).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /Restore access/ })).not.toBeInTheDocument();
   });
 });
