@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import s from "./drawer.module.css";
 
-const COLORS = ["#2A5BFF", "#16B5FF", "#18A566", "#6E56CF", "#F2A20C", "#2A5BFF"];
+const COLORS = ["#2A5BFF", "#16B5FF", "#18A566", "#5AB8FF", "#F2A20C", "#2A5BFF"];
 
 /**
  * Six petals — the LUME mark — burst from where a lead was won. Decoration for an achievement only;

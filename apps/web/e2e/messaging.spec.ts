@@ -1,6 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { BrowserContext, Page } from "@playwright/test";
-import { PEOPLE, callApi, expect, freezeVolatile, openApp, reviewCopy, stateFile, test } from "./fixtures";
+import {
+  PEOPLE,
+  callApi,
+  expect,
+  freezeVolatile,
+  nearBusinessMidnight,
+  openApp,
+  reviewCopy,
+  stateFile,
+  test,
+} from "./fixtures";
 import { settle } from "./settle";
 
 async function axe(page: Page) {
@@ -127,6 +137,7 @@ test.describe("Templates and sending (4A)", () => {
     });
 
     test("WhatsApp from a Today follow-up completes it", async ({ page, context, browser }) => {
+      test.skip(nearBusinessMidnight(), "in the business's last hour, a follow-up in 1 hour is tomorrow's");
       const owner = await browser.newContext({ storageState: stateFile("owner") });
       const op = await owner.newPage();
       await openApp(op, "/leads");

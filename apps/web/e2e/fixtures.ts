@@ -111,6 +111,19 @@ export async function agreeToTerms(page: Page): Promise<void> {
 }
 
 /** Opens an app page and waits until the shell's keyboard shortcuts are live (after hydration). */
+/**
+ * The e2e business keeps Dubai time (setup.spec). In its last hour before midnight, a follow-up "in 1 hour"
+ * is due tomorrow, so it is rightly not on Today: tests that set one skip that hour instead of failing.
+ */
+export function nearBusinessMidnight(now = new Date()): boolean {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", hourCycle: "h23" }).format(
+      now,
+    ),
+  );
+  return hour >= 23;
+}
+
 export async function openApp(page: Page, path: string): Promise<void> {
   await page.goto(path);
   await page.locator('html[data-shell="ready"]').waitFor({ state: "attached" });

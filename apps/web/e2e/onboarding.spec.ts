@@ -21,6 +21,7 @@ test.describe("a sales rep", () => {
       "Look",
       "Your day",
       "Alerts",
+      "Connect", // Google Calendar, now this build has it (5D): Sales may connect their own
       "All set",
     ]);
     await page.getByRole("button", { name: /let’s go/i }).click();
@@ -38,6 +39,10 @@ test.describe("a sales rep", () => {
 
     await page.getByRole("switch", { name: /email me the morning digest/i }).click();
     await page.getByRole("button", { name: "Continue" }).click();
+    // Connecting is optional: it leads to Settings, never a dead end, and "I’ll do this later" moves on.
+    await expect(page.getByRole("heading", { name: "Connect your tools" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /connect/i })).toHaveAttribute("href", "/calendar");
+    await page.getByRole("button", { name: "I’ll do this later" }).click();
     await expect(page.getByRole("heading", { name: "You’re all set, Riya" })).toBeVisible();
     await page.getByRole("button", { name: /take the tour/i }).click();
 

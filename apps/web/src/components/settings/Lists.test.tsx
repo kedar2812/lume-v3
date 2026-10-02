@@ -131,7 +131,7 @@ describe("Lists", () => {
     render(<Lists catalog={catalog} manage={all} />);
     const tags = screen.getByRole("region", { name: "Tags" });
     await userEvent.click(within(tags).getByRole("button", { name: "Colour for Hot" }));
-    await userEvent.click(screen.getByRole("radio", { name: "Violet" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sky" })); // the meet token: no violet anywhere
     expect(listsClient.patchTag).toHaveBeenCalledWith("t-hot", { color: "meet" });
     await userEvent.click(within(tags).getByRole("button", { name: "Remove Hot" }));
     expect(within(tags).getByText(/comes off every lead/)).toBeInTheDocument();

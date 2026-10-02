@@ -1,6 +1,15 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { callApi, expect, freezeVolatile, openApp, reviewCopy, stateFile, test } from "./fixtures";
+import {
+  callApi,
+  expect,
+  freezeVolatile,
+  nearBusinessMidnight,
+  openApp,
+  reviewCopy,
+  stateFile,
+  test,
+} from "./fixtures";
 import { settle } from "./settle";
 
 async function axe(page: Page) {
@@ -29,6 +38,7 @@ test.describe("Follow-ups", () => {
   });
 
   test("set from the drawer, on Today, live when due, and done: all clear", async ({ page }) => {
+    test.skip(nearBusinessMidnight(), "in the business's last hour, a follow-up in 1 hour is tomorrow's");
     await openApp(page, "/leads"); // callApi runs in the page, so the app has to be open
     const id = await lead(page, "Follow Up Person");
     await openApp(page, `/leads?lead=${id}`);

@@ -33,7 +33,7 @@ export function ConnectCards({ calendar, sheets }: { calendar: boolean; sheets: 
             <b>Google Calendar</b>
             <span>See your lead calls in LUME. LUME only reads events that involve your leads.</span>
           </div>
-          <a className={s.gbtn} href="/settings/integrations/calendar">
+          <a className={s.gbtn} href="/calendar">
             <img src="/brand/google-g.png" alt="" width={18} height={18} />
             Connect
           </a>

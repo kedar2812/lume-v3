@@ -19,7 +19,8 @@ test("seed: the owner finishes onboarding, then invites an admin and two sales r
   await page.getByRole("button", { name: /let’s go/i }).click();
   // Wait for whichever button comes next rather than guessing whether a panel has finished arriving.
   const explore = page.getByRole("button", { name: /explore on my own/i });
-  const skip = page.getByRole("button", { name: /^(Skip|Later)$/ });
+  // "I’ll do this later" is the Connect step's (shown once this build has Calendar, 5D).
+  const skip = page.getByRole("button", { name: /^(Skip|Later|I’ll do this later)$/ });
   for (let i = 0; i < 12; i++) {
     await explore.or(skip).first().waitFor();
     if (await explore.isVisible()) break;

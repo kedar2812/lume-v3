@@ -1,7 +1,8 @@
 import s from "./Avatar.module.css";
 
 // Deep enough that white initials reach 4.5:1 on every colour (WCAG AA).
-const PALETTE = ["#C62A30", "#A15C00", "#2A5BFF", "#0F7F44", "#5B43C8", "#0B7285"];
+// No violet anywhere (owner, 2026-10-01): a deep rose takes its place.
+const PALETTE = ["#C62A30", "#A15C00", "#2A5BFF", "#0F7F44", "#B02E6B", "#0B7285"];
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

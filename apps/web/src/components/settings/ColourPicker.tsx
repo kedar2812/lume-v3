@@ -10,7 +10,7 @@ export const COLOURS = [
   ["ok", "Green"],
   ["warn", "Amber"],
   ["danger", "Red"],
-  ["meet", "Violet"],
+  ["meet", "Sky"],
   ["neutral", "Grey"],
 ] as const;
 export type ColourToken = (typeof COLOURS)[number][0];
