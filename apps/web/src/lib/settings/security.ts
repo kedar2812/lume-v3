@@ -46,7 +46,36 @@ export type AccessView = {
   yourIp: string;
 };
 
+/** One lead export (6B), as the Exports list shows it. */
+export type ExportRow = {
+  id: string;
+  code: string;
+  label: string;
+  format: "csv" | "xlsx";
+  rows: number;
+  createdAt: string;
+  expiresAt: string;
+  available: boolean;
+  downloads: number;
+  who: { id: string; name: string; initials: string };
+};
+/** What Trace found (6B): whose export, when, what, every download, and how it was recognised. */
+export type TraceMatch = {
+  id: string;
+  code: string;
+  who: { id: string; name: string };
+  createdAt: string;
+  label: string;
+  rows: number;
+  format: "csv" | "xlsx";
+  foundBy: "column" | "check_row";
+  downloads: { at: string; device: string }[];
+};
+
 export const securityClient = {
+  exports: () => api.get<{ exports: ExportRow[] }>("/api/v1/leads/exports"),
+  traceFile: (file: File) => api.upload<{ match: TraceMatch | null }>("/api/v1/security/trace", file),
+  traceCode: (code: string) => api.post<{ match: TraceMatch | null }>("/api/v1/security/trace", { code }),
   settings: () => api.get<SecuritySettings>("/api/v1/security/settings"),
   saveSettings: (s: SecuritySettings) => api.put<SecuritySettings>("/api/v1/security/settings", s),
   alerts: (status: "open" | "recent" = "recent") =>

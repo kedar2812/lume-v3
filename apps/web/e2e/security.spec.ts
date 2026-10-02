@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import type { Browser, Page } from "@playwright/test";
 import {
@@ -232,5 +233,66 @@ test.describe("The watch (6A)", () => {
     await settle(page);
     await reviewCopy(page, "access-editing-light.png");
     expect(await axe(page)).toEqual([]);
+  });
+
+  test("6B: export the view, then trace the file — with its column, and without", async ({ page }) => {
+    await openApp(page, "/leads");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: /^Export / });
+    await expect(sheet).toContainText("Each file carries a mark that traces it back to you.");
+    await settle(page);
+    await reviewCopy(sheet, "export-sheet-light.png");
+    expect(await axe(page)).toEqual([]);
+    const downloading = page.waitForEvent("download");
+    await sheet.getByRole("button", { name: "Export", exact: true }).click();
+    const download = await downloading;
+    expect(download.suggestedFilename()).toMatch(/^LUME leads .+ [A-Z2-9]{4}-[A-Z2-9]{4}\.csv$/);
+    const code = /([A-Z2-9]{4}-[A-Z2-9]{4})\.csv$/.exec(download.suggestedFilename())![1]!;
+    const text = (await readFile((await download.path())!, "utf8")).replace(/^\uFEFF/, "");
+    expect(text.split(/\r?\n/)[0]).toMatch(/,LUME ref$/);
+    await expect(sheet).toContainText(`code ${code}`);
+    await sheet.getByRole("button", { name: "Done" }).click();
+
+    // Trace it: as made, then with the LUME ref column cut out.
+    await openApp(page, "/settings/security/exports");
+    const choose = page.getByLabel("Choose a file");
+    await choose.setInputFiles({ name: "found.csv", mimeType: "text/csv", buffer: Buffer.from(text) });
+    const found = page.getByRole("region", { name: "Maya Kapoor’s export" });
+    await expect(found).toContainText(`code ${code}`);
+    await expect(found).toContainText("The LUME ref column");
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(page, `exports-found-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.getByRole("button", { name: "Check another file" }).click();
+    const cut = text
+      .split(/\r?\n/)
+      .map((l) => l.replace(/,(LUME ref|[A-Z2-9]{4}-[A-Z2-9]{4})$/, ""))
+      .join("\n");
+    await page
+      .getByLabel("Choose a file")
+      .setInputFiles({ name: "cut.csv", mimeType: "text/csv", buffer: Buffer.from(cut) });
+    await expect(page.getByRole("region", { name: "Maya Kapoor’s export" })).toContainText(
+      "A hidden check row.",
+    );
+    await reviewCopy(page, "exports-check-row-light.png");
+    await page.getByRole("button", { name: "Check another file" }).click();
+    await page.getByLabel("Choose a file").setInputFiles({
+      name: "other.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from("Name,Phone\nSomeone Else,+971500000000\n"),
+    });
+    await expect(page.getByText("No LUME export matches this file")).toBeVisible();
+    await reviewCopy(page, "exports-none-light.png");
+    // The list: this export, its code, and Download for its maker.
+    await openApp(page, "/settings/security/exports");
+    await expect(page.getByRole("list", { name: "Exports" })).toContainText(code);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await settle(page);
+    await reviewCopy(page, "exports-list-dark.png");
+    await page.emulateMedia({ colorScheme: "light" });
   });
 });

@@ -17,6 +17,7 @@ import { leadsClient } from "@/lib/leads/client";
 import { availableColumns, loadColumnChoice, resolveColumns, saveColumnChoice } from "@/lib/leads/columns";
 import {
   activeFilterCount,
+  apiQuery,
   filtersToParams,
   fromViewFilters,
   toViewFilters,
@@ -33,6 +34,7 @@ import type { Session } from "@/server/session";
 import { BulkBar } from "./BulkBar";
 import { CatalogProvider } from "./CatalogProvider";
 import { ColumnPicker } from "./ColumnPicker";
+import { ExportSheet } from "./ExportSheet";
 import { LeadDrawer } from "./drawer/LeadDrawer";
 import { EditableCell } from "./EditableCell";
 import { FilterBar } from "./FilterBar";
@@ -222,6 +224,9 @@ function Screen({
   // 4C: a rep who may run a send queue selects leads to message them, even without bulk edits.
   const maySelect = mayBulk || can(session.actor, "messages.send_queue");
   const mayImport = can(session.actor, "leads.import");
+  // 6B: export the current view, marked and traceable.
+  const mayExport = can(session.actor, "leads.export");
+  const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   // A finished import of yours not looked at yet: Import wears a dot, and opens its report first.
   const [unseenImport, setUnseenImport] = useState<string | null>(null);
@@ -587,10 +592,30 @@ function Screen({
               </select>
             </label>
             <ColumnPicker available={available} chosen={columns.map((c) => c.id)} onChange={chooseColumns} />
+            {mayExport && (
+              <button type="button" className={s.tool} onClick={() => setExporting(true)}>
+                Export
+              </button>
+            )}
           </div>
         </div>
       </div>
       {body}
+      {exporting && (
+        <ExportSheet
+          label={activeView?.name ?? (activeFilterCount(listFilters) > 0 ? "Filtered leads" : "All leads")}
+          count={
+            stageCounts
+              ? listFilters.stageIds.length
+                ? listFilters.stageIds.reduce((sum, id) => sum + (stageCounts.counts[id] ?? 0), 0)
+                : stageCounts.total
+              : null
+          }
+          columns={columns.map((c) => c.id)}
+          filters={Object.fromEntries(new URLSearchParams(apiQuery(listFilters)))}
+          onClose={() => setExporting(false)}
+        />
+      )}
       <AnimatePresence>
         {maySelect && selected.length > 0 && (
           <BulkBar
