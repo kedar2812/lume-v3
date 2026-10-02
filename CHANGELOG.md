@@ -12,6 +12,10 @@ column in the release that stops using it.
   alerts in Settings → Security (Overview, Rules, Access limits), with a live HUD and a line in the daily email.
   Access limits per role (hours and networks) get their screen. Lead screens carry an on-screen watermark for
   people who can't see every contact. See `docs/runbooks/security.md`.
+- **Before you update, check the rules.** They're on from the moment an installation updates: anyone who can't
+  see every contact is paused after more than 30 different contacts, or 200 different leads, in an hour.
+  Change the limits or switch a rule to "Tells you" in Settings → Security → Rules first if your team works
+  faster than that. The new audit index is built during the update, with the app stopped, as every migration is.
 
 ### Migrations
 

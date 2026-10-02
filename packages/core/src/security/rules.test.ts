@@ -37,6 +37,14 @@ describe("mergeAnomaly", () => {
   });
 });
 
+describe("what each rule counts", () => {
+  it("contacts are counted per lead: revealing the same contact again isn't another (6A final review)", () => {
+    expect(RULES.reveals.distinct).toBe(true);
+    expect(RULES.leadsOpened.distinct).toBe(true);
+    expect(RULES.queueRuns.distinct).toBe(false);
+  });
+});
+
 describe("anomalySchema", () => {
   it("refuses a pause on the send-queue rule, which only ever tells admins", () => {
     const ok = mergeAnomaly({});

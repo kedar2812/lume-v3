@@ -28,10 +28,11 @@ export type RuleDef = {
 export const RULE_IDS: readonly RuleId[] = ["reveals", "leadsOpened", "queueRuns"];
 
 export const RULES: Record<RuleId, RuleDef> = {
+  // Different leads' contacts: reopening a lead and revealing it again is the same contact (6A final review).
   reveals: {
     window: "hour",
     audit: "lead.contact.reveal",
-    distinct: false,
+    distinct: true,
     actions: ["off", "alert", "suspend"],
     step: 5,
     min: 5,

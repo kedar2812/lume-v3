@@ -105,6 +105,13 @@ describe("counting the watched acts (6A Task 2)", () => {
     expect((await count(rory.id, "reveals")).observed).toBe(2);
   });
 
+  it("counts different leads' contacts: the same contact revealed again counts once (6A final review)", async () => {
+    await acts(rory.id, "lead.contact.reveal", 40, { leads: 1 });
+    expect((await count(rory.id, "reveals")).observed).toBe(1);
+    await acts(rory.id, "lead.contact.reveal", 31);
+    expect((await count(rory.id, "reveals")).observed).toBe(31);
+  });
+
   it("counts one person only", async () => {
     await acts(sam.id, "lead.contact.reveal", 40);
     expect((await count(rory.id, "reveals")).observed).toBe(0);
@@ -122,12 +129,40 @@ describe("one alert per person, rule and window (ruling R3)", () => {
     const b = await raise(35, "suspended");
     const c = await raise(33);
     expect(a.isNew).toBe(true);
-    expect(b).toEqual({ id: a.id, isNew: false });
-    expect(c.isNew).toBe(false);
+    // Grown into a pause: admins are told again, that LUME paused them (6A final review).
+    expect(b).toEqual({ id: a.id, isNew: false, upgraded: true });
+    expect(c).toEqual({ id: a.id, isNew: false, upgraded: false });
     const rows = (
       await h.pool.query("SELECT observed, action FROM security_alerts WHERE user_id = $1", [rory.id])
     ).rows;
     expect(rows).toEqual([{ observed: 35, action: "suspended" }]);
+  });
+
+  it("a dismissed alert still covers its window: no new alert, nobody told again (6A final review)", async () => {
+    const a = await raise(31);
+    await h.ownerPool.query(
+      "UPDATE security_alerts SET status = 'resolved', resolution = 'dismissed', resolved_at = now() WHERE id = $1",
+      [a.id],
+    );
+    const b = await raise(36);
+    expect(b).toEqual({ id: a.id, isNew: false, upgraded: false });
+    const rows = (
+      await h.pool.query("SELECT status, resolution, observed FROM security_alerts WHERE user_id = $1", [
+        rory.id,
+      ])
+    ).rows;
+    expect(rows).toEqual([{ status: "resolved", resolution: "dismissed", observed: 36 }]);
+  });
+
+  it("a dismissed alert-only alert doesn't hide a pause: a pause rule still pauses, in a new alert", async () => {
+    const a = await raise(31);
+    await h.ownerPool.query(
+      "UPDATE security_alerts SET status = 'resolved', resolution = 'dismissed', resolved_at = now() WHERE id = $1",
+      [a.id],
+    );
+    const b = await raise(32, "suspended");
+    expect(b.isNew).toBe(true);
+    expect(b.id).not.toBe(a.id);
   });
 
   it("a breach after the window opens a new alert", async () => {
@@ -219,6 +254,34 @@ describe("pausing someone", () => {
       ])
     ).rows[0];
     expect([...told.diff.names].sort()).toEqual(["Hana Ito", "Maya Kapoor"]);
+  });
+
+  it("never tells a watched admin about themselves (6A final review)", async () => {
+    const lead = await h.seedUser({
+      grants: [
+        { key: "security.manage", scope: null },
+        { key: "leads.contact.full", scope: "team" },
+      ],
+      totp: true,
+      name: "Tara Lead",
+    });
+    const a = await withDb((db) =>
+      raiseAlert(db, {
+        userId: lead.id,
+        rule: "queueRuns",
+        observed: 4,
+        threshold: 3,
+        action: "alerted",
+        tz: TZ,
+      }),
+    );
+    await tellAdmins(h.pool, a.id);
+    const rows = await backup<{ user_id: string }>(
+      "SELECT user_id FROM notifications WHERE data->>'alertId' = $1",
+      [a.id],
+    );
+    expect(rows.map((r) => r.user_id)).not.toContain(lead.id);
+    expect(rows.map((r) => r.user_id)).toContain(owner.id);
   });
 
   it("an alert-only breach says what they did, not that LUME paused them", async () => {

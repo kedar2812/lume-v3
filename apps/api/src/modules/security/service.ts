@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { isIPv6 } from "node:net";
 import {
   RULES,
   mergeAnomaly,
@@ -12,6 +11,7 @@ import {
 } from "@lume/core";
 import type { LoginHours, SecuritySettings } from "@lume/db";
 import { audit } from "../../audit/audit";
+import { normaliseNetworks } from "../../auth/networks";
 import { checkLoginRestrictions } from "../../auth/restrictions";
 import { conflict, notFound } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
@@ -333,9 +333,6 @@ export async function readAccess(req: FastifyRequest) {
   };
 }
 
-/** "86.98.40.12" is the network of that one address. */
-export const asNetwork = (x: string) => (x.includes("/") ? x : `${x}/${isIPv6(x) ? 128 : 32}`);
-
 /**
  * Save one role's sign-in hours and networks. Refused when it would refuse the editor right now (plan ruling R6):
  * one of their own roles, their current network and time — unless they're the owner, who is never limited.
@@ -347,7 +344,7 @@ export async function saveAccess(
 ): Promise<{ role: RoleAccess }> {
   const [role] = await rows<RoleAccess>(req, sql`${ROLES} AND r.id = ${roleId} FOR UPDATE OF r`);
   if (!role) throw notFound("NOT_FOUND", "That role isn't here");
-  const ipAllowlist = input.ipAllowlist?.length ? [...new Set(input.ipAllowlist.map(asNetwork))] : null;
+  const ipAllowlist = await normaliseNetworks(req.db, input.ipAllowlist);
   const loginHours = input.loginHours;
   const actor = req.actor!;
   if (!actor.isOwner && actor.roleIds.includes(roleId)) {

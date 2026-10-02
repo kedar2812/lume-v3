@@ -101,20 +101,23 @@ export async function tellAdmins(pool: pg.Pool, alertId: string): Promise<void> 
     observed: number;
     minutes: number;
     name: string;
+    user_id: string;
   }>(
-    `SELECT a.rule, a.action, a.observed, u.name,
+    `SELECT a.rule, a.action, a.observed, u.name, a.user_id,
             round(extract(epoch FROM a.window_end - a.window_start) / 60)::int AS minutes
        FROM security_alerts a JOIN users u ON u.id = a.user_id WHERE a.id = $1`,
     [alertId],
   );
   const a = rows[0];
   if (!a) return;
+  // Never the person the alert is about: no numbers reach the person being watched (spec §5).
   const { rows: admins } = await pool.query<{ id: string; name: string }>(
-    `SELECT u.id, u.name FROM users u WHERE u.status = 'active' AND (u.is_owner OR EXISTS (
+    `SELECT u.id, u.name FROM users u WHERE u.status = 'active' AND u.id <> $1 AND (u.is_owner OR EXISTS (
        SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id AND r.deleted_at IS NULL
          JOIN role_permissions rp ON rp.role_id = r.id
         WHERE ur.user_id = u.id AND rp.permission_key = 'security.manage'))
       ORDER BY u.is_owner DESC, u.name`,
+    [a.user_id],
   );
   const words = alertWords(a);
   const told: string[] = [];

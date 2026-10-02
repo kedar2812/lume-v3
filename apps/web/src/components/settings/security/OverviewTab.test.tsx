@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
@@ -8,6 +8,12 @@ import { OverviewTab } from "./OverviewTab";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+let live: ((n: { kind: string; alertId?: string | null }) => void) | null = null;
+vi.mock("@/lib/notifications/stream", () => ({
+  useStream: (on: (n: { kind: string; alertId?: string | null }) => void) => {
+    live = on;
+  },
+}));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const TZ = "Asia/Dubai";
 
@@ -150,6 +156,25 @@ describe("Security → Overview (6A Task 8)", () => {
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(row).toHaveFocus();
+  });
+});
+
+describe("Review from the HUD while already on Security (6A final review)", () => {
+  it("a new ?alert= opens it, and the page's new alerts replace the old", async () => {
+    const view = render(<OverviewTab initial={[earlier]} timezone={TZ} openId={null} />);
+    expect(screen.getByRole("region", { name: "All quiet" })).toBeInTheDocument();
+    view.rerender(<OverviewTab initial={[open, earlier]} timezone={TZ} openId="a-1" />);
+    expect(await screen.findByRole("dialog", { name: "Alert: Rory Reid" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "1 alert needs you" })).toBeInTheDocument();
+  });
+
+  it("an alert arriving live refreshes the list and the status", async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) =>
+      url.startsWith("/api/v1/security/alerts/") ? ok(detail(open)) : ok({ alerts: [open, earlier] }),
+    );
+    render(<OverviewTab initial={[earlier]} timezone={TZ} openId={null} />);
+    await act(async () => live?.({ kind: "security_alert", alertId: "a-1" }));
+    expect(await screen.findByRole("region", { name: "1 alert needs you" })).toBeInTheDocument();
   });
 });
 

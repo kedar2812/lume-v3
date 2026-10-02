@@ -49,7 +49,18 @@ async function burst(n: number, threshold = 5, action = "suspend") {
     "UPDATE settings SET security = jsonb_set(security, '{anomaly}', $1::jsonb) WHERE id = 1",
     [JSON.stringify({ reveals: { action, threshold } })],
   );
-  for (let i = 0; i < n; i++) await post(repClient, `/api/v1/leads/${lead}/contact/reveal`);
+  // Different leads' contacts: each reveal its own lead (the first is the rep's seeded one).
+  for (let i = 0; i < n; i++) {
+    const id =
+      i === 0
+        ? lead
+        : await h.seedLead({
+            ownerId: rep.id,
+            name: `Contact ${i}`,
+            phone: `+9715033${String(i).padStart(5, "0")}`,
+          });
+    await post(repClient, `/api/v1/leads/${id}/contact/reveal`);
+  }
   const res = await get(admin, "/api/v1/security/alerts?status=open");
   expect(res.statusCode, res.body).toBe(200);
   const alerts = res.json().alerts as { id: string; user: { id: string } }[];
@@ -132,7 +143,7 @@ describe("alerts and their review", () => {
     expect(words[0]).toBe("The 6th contact in an hour: the limit");
     expect(words).toContain("Paused sign-in. Rory sees “Your access is paused”");
     expect(words.join(" | ")).toMatch(/Ended Rory’s 1 session \(Unknown device\)/);
-    expect(d.person).toMatchObject({ roles: expect.any(Array), leadCount: 1, usualPerDay: 0 });
+    expect(d.person).toMatchObject({ roles: expect.any(Array), leadCount: 6, usualPerDay: 0 });
     expect(d.last30).toHaveLength(30);
   });
 
@@ -185,7 +196,10 @@ describe("alerts and their review", () => {
       "UPDATE settings SET security = jsonb_set(security, '{anomaly}', $1::jsonb) WHERE id = 1",
       [JSON.stringify({ reveals: { action: "alert", threshold: 5 } })],
     );
-    for (let i = 0; i < 6; i++) await post(sam, `/api/v1/leads/${samLead}/contact/reveal`);
+    for (let i = 0; i < 6; i++) {
+      const id = i === 0 ? samLead : await h.seedLead({ ownerId: other.id, name: `Sam's ${i}` });
+      await post(sam, `/api/v1/leads/${id}/contact/reveal`);
+    }
     const alerts = (await get(admin, "/api/v1/security/alerts?status=open")).json().alerts;
     const told = alerts.find((x: { user: { id: string } }) => x.user.id === other.id);
     expect(
@@ -241,6 +255,28 @@ describe("access limits", () => {
     await put(admin, `/api/v1/security/access/${role.id}`, { loginHours: null, ipAllowlist: null });
   });
 
+  it("a network typed with its host's address is stored as the network (6A final review)", async () => {
+    const role = await sales();
+    const r = await put(admin, `/api/v1/security/access/${role.id}`, {
+      loginHours: null,
+      ipAllowlist: ["192.168.1.10/24", "2001:db8::1/32"],
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().role.ipAllowlist).toEqual(["192.168.1.0/24", "2001:db8::/32"]);
+    await put(admin, `/api/v1/security/access/${role.id}`, { loginHours: null, ipAllowlist: null });
+    // Roles & access takes the same input the same way.
+    const made = await post(owner, "/api/v1/roles", {
+      name: "Night desk",
+      grants: [],
+      ipAllowlist: ["10.20.30.40/16"],
+    });
+    expect(made.statusCode, made.body).toBe(201);
+    const stored = await h.pool.query("SELECT ip_allowlist::text[] AS l FROM roles WHERE id = $1", [
+      made.json().role.id,
+    ]);
+    expect(stored.rows[0].l).toEqual(["10.20.0.0/16"]);
+  });
+
   it("won't save limits that would sign you out right now (Review Focus 5)", async () => {
     const r = (await get(admin, "/api/v1/security/access")).json();
     const mine = await h.ownerPool.query<{ role_id: string }>(
@@ -279,8 +315,8 @@ describe("the 5-minute sweep", () => {
   it("catches a breach the inline check never saw, once", async () => {
     await h.ownerPool.query(
       `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, at)
-       SELECT $1, 'lead.contact.reveal', 'lead', $2, now() - interval '5 minutes' FROM generate_series(1, 31)`,
-      [rep.id, lead],
+       SELECT $1, 'lead.contact.reveal', 'lead', gen_random_uuid(), now() - interval '5 minutes' FROM generate_series(1, 31)`,
+      [rep.id],
     );
     expect(await securitySweep({ pool: h.pool, clock: () => h.clock.now })).toBe(1);
     expect((await h.pool.query("SELECT status FROM users WHERE id = $1", [rep.id])).rows[0].status).toBe(
@@ -291,6 +327,26 @@ describe("the 5-minute sweep", () => {
       rep.id,
     ]);
     expect(alerts.rows).toEqual([{ observed: 31, action: "suspended" }]);
+  });
+
+  it("an alert that was dismissed isn't raised again by the sweep (6A final review)", async () => {
+    await h.ownerPool.query(
+      "UPDATE settings SET security = jsonb_set(security, '{anomaly}', $1::jsonb) WHERE id = 1",
+      [JSON.stringify({ reveals: { action: "alert", threshold: 5 } })],
+    );
+    await h.ownerPool.query(
+      `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, at)
+       SELECT $1, 'lead.contact.reveal', 'lead', gen_random_uuid(), now() - interval '5 minutes' FROM generate_series(1, 6)`,
+      [rep.id],
+    );
+    expect(await securitySweep({ pool: h.pool, clock: () => h.clock.now })).toBe(1);
+    const a = (await h.pool.query("SELECT id FROM security_alerts WHERE user_id = $1", [rep.id])).rows[0];
+    expect(
+      (await post(admin, `/api/v1/security/alerts/${a.id}/resolve`, { resolution: "dismissed" })).statusCode,
+    ).toBe(200);
+    expect(await securitySweep({ pool: h.pool, clock: () => h.clock.now })).toBe(0);
+    const rows = (await h.pool.query("SELECT status FROM security_alerts WHERE user_id = $1", [rep.id])).rows;
+    expect(rows).toEqual([{ status: "resolved" }]);
   });
 
   it("never counts the owner, or someone who sees every contact", async () => {

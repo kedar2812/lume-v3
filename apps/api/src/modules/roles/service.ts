@@ -3,6 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { PERMISSIONS, can, isPermissionKey, newId, permissionDef, type Scope } from "@lume/core";
 import { schema, type LoginHours } from "@lume/db";
 import { audit } from "../../audit/audit";
+import { normaliseNetworks } from "../../auth/networks";
 import { badRequest, conflict, notFound } from "../../http/errors";
 import { assertCanAssignRoles, assertCanGrant } from "../../rbac/escalation";
 import { notifyRbac } from "../../rbac/notify";
@@ -123,7 +124,7 @@ export async function createRole(req: FastifyRequest, input: RoleInput) {
     description: input.description ?? "",
     color: input.color ?? "accent",
     loginHours: input.loginHours ?? null,
-    ipAllowlist: input.ipAllowlist ?? null,
+    ipAllowlist: await normaliseNetworks(req.db, input.ipAllowlist),
     createdBy: req.actor!.userId,
   });
   await writeGrants(req, id, grants);
@@ -140,6 +141,8 @@ export async function updateRole(req: FastifyRequest, id: string, input: Partial
   await getRole(req, id);
   if (input.name) await assertNameFree(req, input.name, id);
   const { grants: rawGrants, ...fields } = input;
+  if (fields.ipAllowlist !== undefined)
+    fields.ipAllowlist = await normaliseNetworks(req.db, fields.ipAllowlist);
   if (Object.keys(fields).length)
     await req.db.update(schema.roles).set(fields).where(eq(schema.roles.id, id));
   const grants = rawGrants ? normaliseGrants(rawGrants) : undefined;

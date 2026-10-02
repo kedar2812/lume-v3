@@ -38,6 +38,7 @@ beforeEach(async () => {
   rep = await h.seedUser({ grants: repGrants, name: "Rory Reid" });
   repClient = await h.signIn(rep);
   lead = await h.seedLead({ ownerId: rep.id, name: "Dana Whitfield", phone: "+971501112233" });
+  mine = [];
   await setRules({});
 });
 
@@ -49,9 +50,24 @@ const setRules = (anomaly: Record<string, unknown>) =>
 const reveal = (c: AuthedClient, id = lead) =>
   c.inject({ method: "POST", url: `/api/v1/leads/${id}/contact/reveal` });
 const open = (c: AuthedClient, id: string) => c.inject({ method: "GET", url: `/api/v1/leads/${id}` });
+// Reveals count different leads' contacts (6A final review): each reveal here is of a lead of its own.
+let mine: string[] = [];
+async function nextLead(): Promise<string> {
+  const id =
+    mine.length === 0
+      ? lead
+      : await h.seedLead({
+          ownerId: rep.id,
+          name: `Contact ${mine.length}`,
+          phone: `+9715022${String(mine.length).padStart(5, "0")}`,
+        });
+  mine.push(id);
+  return id;
+}
+const revealNext = async (c: AuthedClient = repClient) => reveal(c, await nextLead());
 async function revealTimes(n: number) {
   let last;
-  for (let i = 0; i < n; i++) last = await reveal(repClient);
+  for (let i = 0; i < n; i++) last = await revealNext();
   return last!;
 }
 async function backup<R>(text: string, params: unknown[] = []): Promise<R[]> {
@@ -69,10 +85,10 @@ describe("contacts revealed (the report's test)", () => {
   it("the 31st reveal in an hour, with pause on: refused, paused, sessions ended, admins told — all kept", async () => {
     const thirtieth = await revealTimes(30);
     expect(thirtieth.statusCode).toBe(200);
-    const r = await reveal(repClient);
+    const r = await revealNext();
     expect(r.statusCode).toBe(403);
     expect(r.json()).toEqual({ error: { code: "SUSPENDED", message: PAUSED_MESSAGE } });
-    expect(r.body).not.toMatch(/1112233/);
+    expect(r.body).not.toMatch(/9715022/);
     // Committed, though the answer was a refusal (Review Focus 1).
     expect(await one("SELECT status FROM users WHERE id = $1", [rep.id])).toEqual({ status: "suspended" });
     expect(
@@ -109,7 +125,7 @@ describe("contacts revealed (the report's test)", () => {
     await setRules({ reveals: { action: "alert", threshold: 30 } });
     const r = await revealTimes(31);
     expect(r.statusCode).toBe(200);
-    expect(r.json().phone).toMatch(/50 111 2233|501112233/);
+    expect(r.json().phone).toMatch(/50 22/);
     expect(await one("SELECT status FROM users WHERE id = $1", [rep.id])).toEqual({ status: "active" });
     expect(await one("SELECT action FROM security_alerts WHERE user_id = $1", [rep.id])).toEqual({
       action: "alerted",
@@ -118,7 +134,7 @@ describe("contacts revealed (the report's test)", () => {
 
   it("says near the limit from 80% of a pause rule: the 24th of 30, not the 23rd", async () => {
     expect((await revealTimes(23)).json().nearLimit).toBe(false);
-    expect((await reveal(repClient)).json().nearLimit).toBe(true);
+    expect((await revealNext()).json().nearLimit).toBe(true);
   });
 
   it("a rule switched off never alerts", async () => {
@@ -132,8 +148,9 @@ describe("contacts revealed (the report's test)", () => {
   it("never counts the owner, or an admin who sees every contact (Review Focus 3)", async () => {
     await setRules({ reveals: { action: "suspend", threshold: 5 } });
     for (let i = 0; i < 8; i++) {
-      expect((await reveal(owner)).statusCode).toBe(200);
-      expect((await reveal(fullAdmin)).statusCode).toBe(200);
+      const id = await nextLead();
+      expect((await reveal(owner, id)).statusCode).toBe(200);
+      expect((await reveal(fullAdmin, id)).statusCode).toBe(200);
     }
     const n = await one<{ n: number }>(
       "SELECT count(*)::int AS n FROM security_alerts a JOIN users u ON u.id = a.user_id WHERE u.name IN ('Maya Kapoor', 'Ade Admin')",
@@ -145,16 +162,12 @@ describe("contacts revealed (the report's test)", () => {
   it("restored, the next reveal doesn't pause them again (Review Focus 4)", async () => {
     await setRules({ reveals: { action: "suspend", threshold: 5 } });
     expect((await revealTimes(6)).statusCode).toBe(403);
-    const alert = await one<{ id: string }>("SELECT id FROM security_alerts WHERE user_id = $1", [rep.id]);
-    await h.ownerPool.query("UPDATE users SET status = 'active', watch_from = now() WHERE id = $1", [rep.id]);
-    await h.ownerPool.query(
-      "UPDATE security_alerts SET status = 'resolved', resolution = 'restored', resolved_at = now() WHERE id = $1",
-      [alert.id],
-    );
-    await h.ownerPool.query("SELECT pg_notify('lume_rbac', $1)", [rep.id]);
+    // Restored the real way, through People's Restore.
+    const restored = await owner.inject({ method: "POST", url: `/api/v1/security/people/${rep.id}/restore` });
+    expect(restored.statusCode).toBe(204);
     await h.waitForRbacNotify();
     const again = await h.signIn(rep);
-    expect((await reveal(again)).statusCode).toBe(200);
+    expect((await revealNext(again)).statusCode).toBe(200);
   });
 });
 

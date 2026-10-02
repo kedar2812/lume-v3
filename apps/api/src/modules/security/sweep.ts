@@ -54,7 +54,7 @@ export async function securitySweep(o: { pool: pg.Pool; clock: () => Date }): Pr
         });
         if (pauses) await suspendUser(tx, r.id, o.clock(), alert.id);
         await client.query("COMMIT");
-        if (alert.isNew) fresh.push(alert.id);
+        if (alert.isNew || alert.upgraded) fresh.push(alert.id);
       } catch (e) {
         await client.query("ROLLBACK").catch(() => undefined);
         throw e;

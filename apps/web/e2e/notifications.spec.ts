@@ -51,6 +51,7 @@ test.describe("Notifications (3B)", () => {
   test("an overdue follow-up reaches the owner, set in Settings → Follow-ups; the centre by keyboard", async ({
     page,
   }) => {
+    test.setTimeout(150_000); // the escalation waits for the clock's next fifth minute
     await openApp(page, "/leads");
     const noor = await personId(page, PEOPLE.seller.name);
     const theirs = await lead(page, { name: "Late Lead", ownerId: noor });
@@ -82,14 +83,19 @@ test.describe("Notifications (3B)", () => {
     }
     await page.emulateMedia({ colorScheme: "light" });
 
-    // The escalation arrives live: the bell lights without a reload. Waited for by its own words, since an
-    // older unread notice (a system alert, depending on the time of day) may have lit the bell already.
+    // The escalation arrives within a few minutes' tick — possibly while the screenshots above were taken, on
+    // another page — so wait for it to exist, then find it in the centre. (Its live arrival is follow-ups.spec's.)
     await openApp(page, "/leads");
-    await expect(
-      page
-        .locator('p[aria-live="polite"]')
-        .filter({ hasText: /^New notification: Noor's follow-up with Late Lead is 3 h overdue$/ }),
-    ).toHaveCount(1, { timeout: 60_000 });
+    await expect
+      .poll(
+        async () =>
+          (
+            await callApi<{ items: { title: string }[] }>(page, "GET", "/api/v1/notifications")
+          ).data.items.some((n) => n.title === "Noor's follow-up with Late Lead is 3 h overdue"),
+        { timeout: 75_000 },
+      )
+      .toBe(true);
+    await openApp(page, "/leads");
     await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible();
 
     // "." opens the centre; the escalation is there with Remind them.

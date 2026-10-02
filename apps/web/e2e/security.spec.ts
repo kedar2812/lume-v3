@@ -93,13 +93,20 @@ test.describe("The watch (6A)", () => {
     const people = (await callApi<{ people: { id: string; name: string }[] }>(page, "GET", "/api/v1/people"))
       .data.people;
     const roryId = people.find((p) => p.name === RORY.name)!.id;
-    for (const [name, phone] of [
-      ["Dana Whitfield", "+971501112233"],
-      ["Lina Rahim", "+971502223344"],
-    ] as const) {
+    // Seven leads of his own: reveals count different leads' contacts.
+    const names = [
+      "Dana Whitfield",
+      "Lina Rahim",
+      "Omar Saleh",
+      "Priya Nair",
+      "Karim Haddad",
+      "Sara Lowe",
+      "Noor Faris",
+    ];
+    for (const [i, name] of names.entries()) {
       const r = await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", {
         name,
-        phone,
+        phone: `+97150111${2230 + i}`,
         ownerId: roryId,
       });
       leads.push(r.data.lead.id);
@@ -124,8 +131,8 @@ test.describe("The watch (6A)", () => {
       await reviewCopy(rp, `rep-lead-watermark-${theme}.png`);
     }
     await rp.emulateMedia({ colorScheme: "light" });
-    for (let i = 0; i < 3; i++)
-      expect((await callApi(rp, "POST", `/api/v1/leads/${leads[1]}/contact/reveal`)).status).toBe(200);
+    for (const id of leads.slice(2, 5))
+      expect((await callApi(rp, "POST", `/api/v1/leads/${id}/contact/reveal`)).status).toBe(200);
     await openApp(rp, `/leads?lead=${leads[0]}`);
     const drawer = rp.getByRole("dialog", { name: "Dana Whitfield" });
     await drawer.getByRole("button", { name: "Reveal contact" }).click();
@@ -136,11 +143,11 @@ test.describe("The watch (6A)", () => {
     expect(await axe(rp)).toEqual([]);
 
     // The fifth is shown; the sixth crosses the line: refused, and from then on Rory is paused.
-    expect((await callApi(rp, "POST", `/api/v1/leads/${leads[1]}/contact/reveal`)).status).toBe(200);
+    expect((await callApi(rp, "POST", `/api/v1/leads/${leads[5]}/contact/reveal`)).status).toBe(200);
     const sixth = await callApi<{ error: { code: string } }>(
       rp,
       "POST",
-      `/api/v1/leads/${leads[1]}/contact/reveal`,
+      `/api/v1/leads/${leads[6]}/contact/reveal`,
     );
     expect(sixth.status).toBe(403);
     expect(sixth.data.error.code).toBe("SUSPENDED");
@@ -175,8 +182,13 @@ test.describe("The watch (6A)", () => {
     // Restore: answered, and Rory is back in.
     await alert.getByRole("button", { name: /Restore access/ }).click();
     await expect(alert.getByText("Rory has access again")).toBeVisible();
-    await expect(page.getByRole("region", { name: "All quiet" })).toBeVisible();
     await expect(alert).toBeHidden({ timeout: 5000 });
+    // Rory's alert is answered: out of the open list, into Earlier with who restored him. (Other specs' people
+    // may have alerts of their own — a run of send queues — so the status card isn't asserted here.)
+    await expect(page.getByRole("list", { name: "Open alerts" }).getByText(/^Rory Reid opened/)).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole("list", { name: "Earlier alerts" })).toContainText("Restored by Maya Kapoor");
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);

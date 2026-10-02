@@ -1,8 +1,9 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { shortDate, timeOf } from "@/lib/dates";
 import { SPRINGS, toMotion } from "@/lib/motion";
+import { useStream } from "@/lib/notifications/stream";
 import { alertSentence, securityClient, type Alert } from "@/lib/settings/security";
 import { AlertDrawer } from "./AlertDrawer";
 import s from "./security.module.css";
@@ -35,6 +36,17 @@ export function OverviewTab({
   const [opened, setOpened] = useState<string | null>(openId);
   const rows = useRef(new Map<string, HTMLButtonElement>());
   const titleId = useId();
+  // The page's own answer wins when it changes: Review from the HUD or the notification centre while already here
+  // brings new alerts and a new ?alert= (6A final review).
+  useEffect(() => setAlerts(initial), [initial]);
+  useEffect(() => {
+    if (openId) setOpened(openId);
+  }, [openId]);
+  // An alert arriving live refreshes the list and the status card, so they never disagree with the HUD.
+  useStream((n) => {
+    if (n.kind !== "security_alert") return;
+    void securityClient.alerts("recent").then((r) => r.ok && setAlerts(r.data.alerts));
+  });
   const open = alerts.filter((a) => a.status === "open");
   const earlier = alerts.filter((a) => a.status === "resolved");
   const newest = open[0];

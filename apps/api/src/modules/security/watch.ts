@@ -53,7 +53,8 @@ export async function watchAct(req: FastifyRequest, rule: RuleId): Promise<Watch
     const cache = req.server.actorCache;
     req.afterCommit(() => cache.invalidate(actor.userId));
   }
-  if (alert.isNew) {
+  // A new alert, or one that has now paused the person: admins hear of it.
+  if (alert.isNew || alert.upgraded) {
     const { pool } = req.server.watch;
     const log = req.log;
     req.afterCommit(
