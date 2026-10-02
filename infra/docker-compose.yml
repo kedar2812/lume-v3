@@ -87,6 +87,10 @@ services:
       # Google Sheets (optional module): the service-account key, base64. Unset: Sheets can't be switched on.
       GOOGLE_SERVICE_ACCOUNT_JSON: ${GOOGLE_SERVICE_ACCOUNT_JSON:-}
       LUME_SHEETS_MAX_ROWS: ${LUME_SHEETS_MAX_ROWS:-50000}
+      # Connect with Google (optional): Sheets and Calendar through the relay (docs/runbooks/connect-with-google.md §3).
+      # Unset: neither Connect with Google nor Google Calendar can be switched on.
+      GOOGLE_OAUTH_RELAY_URL: ${GOOGLE_OAUTH_RELAY_URL:-}
+      GOOGLE_OAUTH_RELAY_TOKEN: ${GOOGLE_OAUTH_RELAY_TOKEN:-}
       MAIL_FROM: ${MAIL_FROM:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # This installation's licence (licensing L-A): from New licence on license.lumecrm.in.
