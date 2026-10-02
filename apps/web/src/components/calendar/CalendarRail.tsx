@@ -94,7 +94,7 @@ export function CalendarRail({
             </svg>
           </button>
         </div>
-        <div className={s.miniGrid} role="grid" aria-label={`${MONTHS[mo - 1]} ${y}`}>
+        <div className={s.miniGrid} role="group" aria-label={`${MONTHS[mo - 1]} ${y}`}>
           {weekdays.map((w, i) => (
             <span key={i} className={s.wd} aria-hidden>
               {w}

@@ -130,7 +130,15 @@ test.describe("Google Sheets", () => {
       await expect(page.getByRole("link", { name: /needs attention$/ }).first()).toBeVisible();
       await expect(link).toHaveCount(1);
     } finally {
+      // Leave nothing for later pictures: the lead it brought, and its "needs attention" alert on the bell
+      // (whether they land before the visual spec photographs Today depended on timing).
+      const brought = (
+        await callApi<{ items: { id: string }[] }>(page, "GET", `/api/v1/leads?source=${src}&limit=100`)
+      ).data.items.map((l) => l.id);
       await callApi(page, "DELETE", `/api/v1/sheets/sources/${src}`);
+      if (brought.length)
+        await callApi(page, "POST", "/api/v1/leads/bulk", { ids: brought, action: { type: "delete" } });
+      await callApi(page, "POST", "/api/v1/notifications/read", { all: true });
     }
   });
 

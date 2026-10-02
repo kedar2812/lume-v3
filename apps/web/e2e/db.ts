@@ -60,3 +60,67 @@ export async function backdateLost(leadIds: string[], days: number): Promise<voi
     await owner.end();
   }
 }
+
+/** A meeting as the calendar specs write it (5D): what Google or Calendly would have brought. */
+export type SeedMeeting = {
+  leadId: string | null;
+  ownerEmail: string;
+  title: string;
+  startsAt: Date;
+  minutes?: number;
+  status?: "scheduled" | "cancelled" | "completed" | "no_show" | "rescheduled";
+  matchedBy?: "attendee" | "title" | "calendar" | "calendly";
+  link?: string | null;
+  outcomeNote?: string | null;
+};
+
+/** Meetings straight into the database: the sync and Calendly that bring them are the API's own tests'. */
+export async function seedMeetings(rows: SeedMeeting[]): Promise<string[]> {
+  // As the test database's superuser: test housekeeping, outside anyone's row-level scope.
+  const url = new URL(adminUrl());
+  url.pathname = `/${DB}`;
+  const owner = new pg.Client({ connectionString: url.toString() });
+  await owner.connect();
+  try {
+    const ids: string[] = [];
+    for (const m of rows) {
+      const by = m.matchedBy ?? "calendly";
+      const { rows: r } = await owner.query<{ id: string }>(
+        `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at,
+                               link, status, outcome_note)
+         VALUES (gen_random_uuid(), $1, (SELECT id FROM users WHERE email = $2), $3, 'e2e-cal-' || gen_random_uuid(),
+                 $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id`,
+        [
+          m.leadId,
+          m.ownerEmail,
+          by === "calendly" ? "calendly" : "google",
+          by,
+          m.title,
+          m.startsAt,
+          new Date(m.startsAt.getTime() + (m.minutes ?? 30) * 60_000),
+          m.link === undefined ? "https://meet.google.com/abc-defg-hij" : m.link,
+          m.status ?? "scheduled",
+          m.outcomeNote ?? null,
+        ],
+      );
+      ids.push(r[0]!.id);
+    }
+    return ids;
+  } finally {
+    await owner.end();
+  }
+}
+
+/** Every meeting the calendar specs wrote, gone: later specs (Today's pictures) never see them. */
+export async function forgetSeededMeetings(): Promise<void> {
+  const url = new URL(adminUrl());
+  url.pathname = `/${DB}`;
+  const owner = new pg.Client({ connectionString: url.toString() });
+  await owner.connect();
+  try {
+    await owner.query("DELETE FROM meetings WHERE external_id LIKE 'e2e-cal-%'");
+  } finally {
+    await owner.end();
+  }
+}

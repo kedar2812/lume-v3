@@ -244,6 +244,10 @@
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
+/* On the sky wash of a call about to start, text-3 falls to 4.2:1 in Obsidian; text-2 keeps 4.7:1. */
+.mrow[data-state="soon"] .mtime span {
+  color: var(--text-2);
+}
 .mbar {
   align-self: stretch;
   min-height: 38px;

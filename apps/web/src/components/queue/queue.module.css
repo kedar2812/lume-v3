@@ -148,6 +148,11 @@
 .template:has(input:checked) .tplName {
   color: var(--accent-ink);
 }
+/* A token chip on the chosen row: its tint would stack on the row's and fall under 4.5:1 in Obsidian. */
+.template:has(input:checked) [data-token] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
 .template[data-own] .tplName {
   font-weight: var(--fw-medium);
   color: var(--text-2);
