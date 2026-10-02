@@ -117,16 +117,22 @@ export function toSession(me: MePayload): Session {
   };
 }
 
+/** GET /auth/me, once per render. */
+const readMe = cache(() => apiGet<MePayload & { error?: { code?: string } }>("/api/v1/auth/me"));
+
 /** One call per render, whoever asks (React cache). */
 export const getSession = cache(async (): Promise<Session | null> => {
-  const { status, data } = await apiGet<MePayload>("/api/v1/auth/me");
+  const { status, data } = await readMe();
   return status === 200 && data ? toSession(data) : null;
 });
 
 export async function requireSession(): Promise<Session> {
   const s = await getSession();
-  if (!s) redirect("/sign-in");
-  return s;
+  if (s) return s;
+  // Paused by the watch (6A): told why, on the paused card, rather than asked to sign in again.
+  const me = await readMe();
+  if (me.status === 403 && me.data?.error?.code === "SUSPENDED") redirect("/sign-in?paused=1");
+  redirect("/sign-in");
 }
 
 /** Render-time convenience. The API refuses anyway; this only avoids showing a dead end. */

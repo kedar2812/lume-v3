@@ -24,3 +24,10 @@
     print-color-adjust: exact;
   }
 }
+/* Over the main pane (which is no stacking context): above the lead drawer (41), below dialogs (80). */
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 42;
+  pointer-events: none;
+}

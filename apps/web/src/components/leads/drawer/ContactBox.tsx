@@ -4,6 +4,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { leadsClient } from "@/lib/leads/client";
 import type { Lead } from "@/lib/leads/types";
 import s from "./drawer.module.css";
+import { NearLimitNotice } from "@/components/security/NearLimitNotice";
 
 const ICON = {
   phone:
@@ -31,6 +32,8 @@ export function ContactBox({ lead, onRevealed }: { lead: Lead; onRevealed: () =>
     const r = await leadsClient.reveal(lead.id);
     if (!r.ok) {
       setBusy(false);
+      // Paused (6A): the app is already on its way to the paused card; nothing to add here.
+      if (r.code === "SUSPENDED") return;
       return toast({ tone: "danger", title: "LUME couldn’t reveal this contact", detail: r.message });
     }
     // A short blur while the real values swap in, so the change is felt rather than jumped.
@@ -47,6 +50,8 @@ export function ContactBox({ lead, onRevealed }: { lead: Lead; onRevealed: () =>
         Contact
         {lead.contactMasked && !revealed && <span>masked for your role</span>}
       </h3>
+      {/* Near a watch limit (6A): one calm line, once an hour. */}
+      <NearLimitNotice />
       {present.length === 0 && <p className={s.none}>No contact details</p>}
       {present.map((k) => {
         const shown = revealed ? (revealed[k] ?? lead[k]!.display) : lead[k]!.display;

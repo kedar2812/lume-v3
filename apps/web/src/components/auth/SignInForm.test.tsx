@@ -159,4 +159,40 @@ describe("SignInForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/15 minutes/);
   });
+
+  it("6A: a paused person sees a calm card — why, and no numbers — and can go back", async () => {
+    render(
+      <SignInForm
+        businessName="Brightpath Studio"
+        onSignIn={vi.fn(async () => ({ status: "suspended" as const }))}
+        onVerify={vi.fn()}
+        onVerifyRecovery={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    await fill();
+    expect(screen.getByRole("heading", { name: "Your access is paused" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "LUME noticed unusual activity on your account and let your admins know. They can restore your access.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+  });
+
+  it("6A: sent here paused (a request was refused), it opens on the card", () => {
+    render(
+      <SignInForm
+        businessName="Brightpath Studio"
+        paused
+        onSignIn={vi.fn()}
+        onVerify={vi.fn()}
+        onVerifyRecovery={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Your access is paused" })).toBeInTheDocument();
+  });
 });

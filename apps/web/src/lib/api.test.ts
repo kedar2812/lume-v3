@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, resetCsrfForTests } from "./api";
+import { api, resetCsrfForTests, resetPausedForTests } from "./api";
 
 const csrfResponse = () =>
   new Response(JSON.stringify({ token: "csrf-token-value" }), {
@@ -177,5 +177,27 @@ describe("browser API client", () => {
       ),
     );
     expect(await api.get("/api/v1/leads")).toMatchObject({ ok: false, status: 502, code: "UNKNOWN" });
+  });
+
+  it("6A: a paused person, refused anywhere, is taken to the paused card — once, and never from sign-in", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, pathname: "/leads", assign });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url).endsWith("/auth/csrf")
+          ? csrfResponse()
+          : json(403, { error: { code: "SUSPENDED", message: "paused" } }),
+      ),
+    );
+    const r = await api.get("/api/v1/leads");
+    expect(r).toMatchObject({ ok: false, status: 403, code: "SUSPENDED" });
+    await api.get("/api/v1/leads");
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith("/sign-in?paused=1");
+    vi.stubGlobal("location", { ...window.location, pathname: "/sign-in", assign });
+    resetPausedForTests();
+    await api.post("/api/v1/auth/login", {});
+    expect(assign).toHaveBeenCalledTimes(1);
   });
 });

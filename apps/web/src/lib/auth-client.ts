@@ -6,6 +6,8 @@ export type SignInResult =
   | { status: "otp_required" }
   | { status: "invalid" }
   | { status: "locked"; retryAfterSec?: number }
+  /** Paused by the watch (6A): told why, never "wrong password". */
+  | { status: "suspended" }
   | { status: "unavailable" };
 export type AuthStep = "ok" | "invalid" | "locked" | "unavailable";
 
@@ -18,6 +20,7 @@ export async function signIn(email: string, password: string): Promise<SignInRes
   const r = await api.post<{ next: "otp" | "done" }>("/api/v1/auth/login", { email, password });
   if (r.ok) return r.data.next === "otp" ? { status: "otp_required" } : { status: "ok" };
   if (r.status === 401) return { status: "invalid" };
+  if (r.status === 403 && r.code === "SUSPENDED") return { status: "suspended" };
   if (r.status === 429) {
     const secs = retryAfter(r);
     return secs === undefined ? { status: "locked" } : { status: "locked", retryAfterSec: secs };

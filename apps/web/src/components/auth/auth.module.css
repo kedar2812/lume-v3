@@ -259,3 +259,25 @@
   color: var(--text-2);
   line-height: 1.5;
 }
+
+/* Paused by the watch (6A): a calm card, centred, with the reason and the way back. */
+.paused {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.pausedGlyph {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text-2);
+}
+.paused .otpSub {
+  margin-bottom: 18px;
+}

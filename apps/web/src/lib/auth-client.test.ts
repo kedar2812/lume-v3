@@ -46,6 +46,14 @@ describe("sign in", () => {
     expect(await signIn("a@b.c", "pw")).toEqual({ status: "locked", retryAfterSec: 840 });
   });
 
+  it("6A: a paused person is told so, not that the password was wrong", async () => {
+    vi.stubGlobal(
+      "fetch",
+      route({ "/auth/login": () => json(403, { error: { code: "SUSPENDED", message: "paused" } }) }),
+    );
+    expect(await signIn("a@b.c", "pw")).toEqual({ status: "suspended" });
+  });
+
   it("verifies a code from the app and a recovery code", async () => {
     vi.stubGlobal("fetch", route({ "/auth/2fa": () => json(200, { next: "done" }) }));
     expect(await verifyOtp("123456")).toBe("ok");

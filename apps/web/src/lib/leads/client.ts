@@ -1,5 +1,6 @@
 "use client";
 import { api } from "@/lib/api";
+import { noteNearLimit } from "@/lib/security/near-limit";
 import { apiQuery, type ListFilters } from "./filters";
 import type { Activity, BulkAction, BulkResult, Duplicate, Lead, LeadPage } from "./types";
 
@@ -23,7 +24,12 @@ export const leadsClient = {
       `/api/v1/leads/counts?${q}`,
     );
   },
-  get: (id: string) => api.get<{ lead: Lead }>(`/api/v1/leads/${id}`),
+  /** A lead, opened. Near a watch limit (6A), it comes with a quiet notice, raised here for the screen. */
+  get: async (id: string) => {
+    const r = await api.get<{ lead: Lead; watch?: { nearLimit: boolean } }>(`/api/v1/leads/${id}`);
+    if (r.ok && r.data.watch?.nearLimit) noteNearLimit();
+    return r;
+  },
   create: (input: Record<string, unknown>) =>
     api.post<{ lead: Lead; duplicates: Duplicate[] }>("/api/v1/leads", input),
   patch: (id: string, version: number, patch: Record<string, unknown>) =>
@@ -39,10 +45,16 @@ export const leadsClient = {
     api.get<{ items: Activity[]; nextCursor: string | null }>(
       `/api/v1/leads/${id}/activities${cursor ? `?cursor=${enc(cursor)}` : ""}`,
     ),
-  reveal: (id: string) =>
-    api.post<{ phone: string | null; email: string | null; instagram: string | null }>(
-      `/api/v1/leads/${id}/contact/reveal`,
-    ),
+  reveal: async (id: string) => {
+    const r = await api.post<{
+      phone: string | null;
+      email: string | null;
+      instagram: string | null;
+      nearLimit?: boolean;
+    }>(`/api/v1/leads/${id}/contact/reveal`);
+    if (r.ok && r.data.nearLimit) noteNearLimit();
+    return r;
+  },
   bulk: (ids: string[], action: BulkAction) => api.post<BulkResult>("/api/v1/leads/bulk", { ids, action }),
   duplicates: (c: { phone?: string; email?: string }) => {
     const q = new URLSearchParams(Object.entries(c).filter((e): e is [string, string] => !!e[1]));

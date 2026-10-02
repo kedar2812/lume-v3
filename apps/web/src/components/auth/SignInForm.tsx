@@ -7,6 +7,7 @@ import { SPRINGS, toMotion } from "@/lib/motion";
 import { OtpInput } from "./OtpInput";
 import s from "./auth.module.css";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PAUSED_MESSAGE, PAUSED_TITLE } from "@lume/core/shared";
 
 type Props = {
   businessName: string;
@@ -14,6 +15,8 @@ type Props = {
   onVerify(code: string): Promise<AuthStep>;
   onVerifyRecovery(code: string): Promise<AuthStep>;
   onSuccess(): void;
+  /** Sent here because a request was refused as paused (6A): open on the paused card. */
+  paused?: boolean;
 };
 
 const MESSAGES = {
@@ -30,8 +33,17 @@ const lockedMessage = (retryAfterSec: number | undefined): string => {
   return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
 };
 
-export function SignInForm({ businessName, onSignIn, onVerify, onVerifyRecovery, onSuccess }: Props) {
-  const [step, setStep] = useState<"password" | "otp" | "recovery">("password");
+export function SignInForm({
+  businessName,
+  onSignIn,
+  onVerify,
+  onVerifyRecovery,
+  onSuccess,
+  paused = false,
+}: Props) {
+  const [step, setStep] = useState<"password" | "otp" | "recovery" | "paused">(
+    paused ? "paused" : "password",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpKey, setOtpKey] = useState(0);
@@ -60,6 +72,8 @@ export function SignInForm({ businessName, onSignIn, onVerify, onVerifyRecovery,
     setBusy(false);
     if (r.status === "ok") return onSuccess();
     if (r.status === "otp_required") return setStep("otp");
+    // Paused (6A): a calm card in place of the form. No shake: nothing was typed wrong.
+    if (r.status === "suspended") return setStep("paused");
     fail(r.status === "locked" ? lockedMessage(r.retryAfterSec) : MESSAGES[r.status]);
   }
 
@@ -109,7 +123,51 @@ export function SignInForm({ businessName, onSignIn, onVerify, onVerifyRecovery,
       </div>
       <div ref={card} className={s.card}>
         <AnimatePresence mode="wait" initial={false}>
-          {step === "password" ? (
+          {step === "paused" ? (
+            <motion.div
+              key="paused"
+              className={s.paused}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={toMotion(SPRINGS.default)}
+            >
+              <span className={s.pausedGlyph} aria-hidden>
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                  <rect
+                    x="5"
+                    y="10.5"
+                    width="14"
+                    height="10"
+                    rx="2.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                  />
+                  <path
+                    d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M10.5 14v3M13.5 14v3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              <h2 className={s.otpTitle}>{PAUSED_TITLE}</h2>
+              <p className={s.otpSub}>{PAUSED_MESSAGE}</p>
+              <Button
+                variant="secondary"
+                className={s.submit}
+                onClick={() => {
+                  setStep("password");
+                  if (window.location.search.includes("paused=1"))
+                    window.history.replaceState(null, "", window.location.pathname);
+                }}
+              >
+                Back to sign in
+              </Button>
+            </motion.div>
+          ) : step === "password" ? (
             <motion.form
               method="post"
               key="pw"

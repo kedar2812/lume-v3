@@ -13,10 +13,16 @@ const BUSY = "Too many requests from this network right now. Wait a moment, then
 /** A read that meets a busy edge waits this long at most (Retry-After, capped) and tries once more. */
 const MAX_WAIT_MS = 3000;
 let csrf: string | null = null;
+/** A paused person (6A) is taken to the paused card once, not once per refused request. */
+let pausedSent = false;
 
 /** Tests only. */
 export function resetCsrfForTests(): void {
   csrf = null;
+}
+/** Tests only. */
+export function resetPausedForTests(): void {
+  pausedSent = false;
 }
 
 async function csrfToken(force = false): Promise<string | null> {
@@ -90,6 +96,18 @@ async function send<T>(
   if (res.status === 403 && err?.code === "CSRF" && retry) {
     await csrfToken(true);
     return send<T>(method, path, body, false, extra);
+  }
+  // Paused by the watch (6A): every request is refused from now on, so say why, on the paused card. Not from the
+  // sign-in page itself, which shows the card in place.
+  if (
+    res.status === 403 &&
+    err?.code === "SUSPENDED" &&
+    typeof window !== "undefined" &&
+    !pausedSent &&
+    !window.location.pathname.startsWith("/sign-in")
+  ) {
+    pausedSent = true;
+    window.location.assign("/sign-in?paused=1");
   }
   // A refusal for the licence (L-A): the shell looks again, so a banner or the lock screen shows at once.
   if (res.status === 403 && err?.code?.startsWith("LICENSE_") && typeof window !== "undefined")

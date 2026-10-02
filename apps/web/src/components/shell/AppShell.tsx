@@ -12,6 +12,7 @@ import { TourProvider } from "@/components/tour/TourProvider";
 import { tourClient } from "@/lib/tour-client";
 import { CommandPalette } from "./CommandPalette";
 import { AlertHud } from "@/components/security/AlertHud";
+import { LeadWatermark } from "@/components/security/LeadWatermark";
 import { PageContent, PageTransitionProvider } from "./PageTransition";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -91,6 +92,11 @@ export function AppShell({ session, businessName, theme, children }: Props) {
                 </div>
               </div>
               <LockScreen />
+              {/* The on-screen watermark over lead screens, for whoever it applies to (6A). */}
+              <LeadWatermark
+                show={session.watermark}
+                viewer={{ name: session.user.name, email: session.user.email, today: session.today }}
+              />
             </main>
           </div>
           <PaymentReminder businessName={businessName} />
