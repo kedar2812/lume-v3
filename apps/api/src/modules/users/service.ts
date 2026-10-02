@@ -4,7 +4,7 @@ import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { revokeUserSessions } from "../../auth/sessions";
-import { badRequest, forbidden, notFound } from "../../http/errors";
+import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { assertCanAssignRoles } from "../../rbac/escalation";
 import { notifyRbac } from "../../rbac/notify";
 
@@ -90,6 +90,9 @@ export async function setDisabled(
   const u = await target(req, id);
   ownerGuard(u);
   if (id === req.actor!.userId) throw forbidden("SELF", "You can't disable yourself");
+  // A paused person comes back through Restore, in Security, where their alert is reviewed (6A).
+  if (!disabled && u.status === "suspended")
+    throw conflict("PAUSED", "Their access is paused. Restore it in Settings → Security.");
   if (disabled && reassignTo) {
     const [to] = await req.db
       .select({ id: schema.users.id })
@@ -103,6 +106,12 @@ export async function setDisabled(
     .set({ status: disabled ? "disabled" : "active", disabledAt: disabled ? now : null })
     .where(eq(schema.users.id, id));
   if (disabled) await revokeUserSessions(req.db, id, "user_disabled", now);
+  // Disabling someone LUME paused settles their open alerts: they were offboarded.
+  if (disabled)
+    await req.db.execute(sql`
+      UPDATE security_alerts
+         SET status = 'resolved', resolution = 'offboarded', resolved_by = ${req.actor!.userId}, resolved_at = now()
+       WHERE user_id = ${id} AND status = 'open'`);
   let leads: number | undefined;
   if (disabled && reassignTo !== undefined) {
     const r = await req.db.execute<{ n: number }>(

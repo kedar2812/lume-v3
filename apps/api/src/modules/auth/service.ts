@@ -1,6 +1,6 @@
 import { and, count, eq, isNull } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { hashRecoveryCode, normalizeRecoveryCode, verifyTotp } from "@lume/core";
+import { PAUSED_MESSAGE, hashRecoveryCode, normalizeRecoveryCode, verifyTotp } from "@lume/core";
 import { hashPassword, needsRehash, verifyPassword } from "@lume/core/password";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
@@ -49,6 +49,17 @@ export async function login(
   const [user] = await req.db.select().from(schema.users).where(eq(schema.users.email, email.trim()));
   dummyHash ??= hashPassword("lume-timing-equaliser-not-a-password", d.argon2);
   const ok = await verifyPassword(user?.passwordHash ?? (await dummyHash), password);
+  // Paused (6A): only the right password learns why, so a guess can't find out whom LUME paused.
+  if (user && ok && user.status === "suspended") {
+    await clearThrottle(req.db, acct, now);
+    await audit(req, {
+      action: "user.login.suspended",
+      entityType: "user",
+      entityId: user.id,
+      actorUserId: null,
+    });
+    return reply.code(403).send({ error: { code: "SUSPENDED", message: PAUSED_MESSAGE } });
+  }
   if (!user || !ok || user.status !== "active") {
     const a = await recordFailure(req.db, acct, THROTTLE.accountLockAfter, now);
     await recordFailure(req.db, ip, THROTTLE.ipLockAfter, now);

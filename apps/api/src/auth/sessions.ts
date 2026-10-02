@@ -52,26 +52,39 @@ export async function createSession(
   return { token, id, expiresAt };
 }
 
+/** A paused person's cookie (6A): told why on every request, never a bare "sign in again". */
+export type SuspendedSession = { suspended: true };
+
 /**
  * Resolves a cookie token to a live session. Enforces revoked, absolute and idle expiry and the user's status;
- * a disabled user's sessions are revoked on sight. Runs outside the request transaction (auth happens first).
+ * a disabled user's sessions are revoked on sight. A paused person's session — live, or ended by the pause —
+ * comes back as `{ suspended: true }` until it would have expired. Runs outside the request transaction.
  */
 export async function readSession(
   pool: pg.Pool,
   token: string,
   now: Date,
   policy: SessionPolicy,
-): Promise<LiveSession | null> {
+): Promise<LiveSession | SuspendedSession | null> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const id = sha256Hex(token);
   const { rows } = await pool.query(
-    `SELECT s.id, s.user_id, s.stage, s.last_seen_at, s.expires_at, s.revoked_at, u.status, u.is_owner, u.totp_enabled
+    `SELECT s.id, s.user_id, s.stage, s.last_seen_at, s.expires_at, s.revoked_at, s.revoked_reason,
+            u.status, u.is_owner, u.totp_enabled
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = $1`,
     [id],
   );
   const r = rows[0];
-  if (!r || r.revoked_at) return null;
-  if (r.expires_at <= now) return null;
+  if (!r || r.expires_at <= now) return null;
+  if (r.status === "suspended" && (!r.revoked_at || r.revoked_reason === "suspended")) {
+    if (!r.revoked_at)
+      await pool.query(
+        "UPDATE sessions SET revoked_at = $2, revoked_reason = 'suspended' WHERE id = $1 AND revoked_at IS NULL",
+        [id, now],
+      );
+    return { suspended: true };
+  }
+  if (r.revoked_at) return null;
   if (r.stage === "full" && now.getTime() - r.last_seen_at.getTime() > policy.idleMs) {
     await pool.query(
       "UPDATE sessions SET revoked_at = $2, revoked_reason = 'idle' WHERE id = $1 AND revoked_at IS NULL",

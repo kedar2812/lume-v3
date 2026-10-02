@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type pg from "pg";
-import { can, requiresTwoFactor } from "@lume/core";
+import { PAUSED_MESSAGE, can, requiresTwoFactor } from "@lume/core";
 import { forbidden, unauthorized } from "../http/errors";
 import type { AuthSettings } from "../modules/settings/service";
 import type { ActorCache } from "../rbac/cache";
@@ -44,14 +44,18 @@ export function authPlugin(app: FastifyInstance, o: AuthPluginOptions): void {
     req.sessionPolicy = sessionPolicy(settings?.security);
     const token = req.cookies[SESSION_COOKIE];
     const now = o.clock();
-    const s = token ? await readSession(o.pool, token, now, req.sessionPolicy) : null;
+    const read = token ? await readSession(o.pool, token, now, req.sessionPolicy) : null;
+    const paused = read !== null && "suspended" in read;
+    const s = paused ? null : read;
     if (s) req.session = { id: s.id, stage: s.stage, userId: s.userId };
 
     if (cfg.public) {
-      // Public routes may learn who is calling, but nothing is gated on it.
+      // Public routes may learn who is calling, but nothing is gated on it (a paused person is signed out).
       if (s?.stage === "full") req.actor = await o.cache.get(s.userId);
       return;
     }
+    // A paused person hears why on every request, so the app can say so (6A).
+    if (paused) throw forbidden("SUSPENDED", PAUSED_MESSAGE);
     if (!s) throw unauthorized();
     if (s.stage === "mfa") throw unauthorized("TWO_FACTOR_PENDING", "Enter your two-step code to continue");
     const actor = await o.cache.get(s.userId);
