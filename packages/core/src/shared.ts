@@ -36,3 +36,4 @@ export * from "./licence/state";
 // Phase 6A: the watch rules and the paused words (pure: the screens show the same limits).
 export * from "./security/rules";
 export * from "./security/copy";
+export * from "./security/export-code";
