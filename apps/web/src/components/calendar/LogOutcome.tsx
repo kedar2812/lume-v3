@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Switch } from "@/components/ui/Switch";
@@ -10,6 +11,12 @@ import type { Stage } from "@/lib/leads/types";
 import { pipelinesClient } from "@/lib/settings/pipelines";
 import { tasksClient } from "@/lib/tasks/client";
 import s from "./outcome.module.css";
+
+/** "today", "tomorrow", "yesterday" inside a sentence; a date further off keeps its capitals. */
+const near = (d: Date, tz: string) => {
+  const w = nearDay(d, tz);
+  return ["Today", "Tomorrow", "Yesterday"].includes(w) ? w.toLowerCase() : w;
+};
 
 /** What Log outcome needs of a meeting: the Calendar's, the drawer's and Today's all carry this much. */
 export type OutcomeMeeting = {
@@ -63,6 +70,8 @@ export function LogOutcome({
   const [step, setStep] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Saved, but something after it didn't happen (a move the pipeline refused, a follow-up not set). */
+  const [unfinished, setUnfinished] = useState<string[] | null>(null);
 
   // The lead's pipeline, for "Move to the next stage", and the follow-up time choices.
   useEffect(() => {
@@ -87,14 +96,30 @@ export function LogOutcome({
       setBusy(false);
       return setError(r.message);
     }
+    // The outcome is recorded; each step after it is checked, and one that didn't happen is said, never hidden.
+    const missed: string[] = [];
     if (m.lead) {
-      if (choice === "completed" && move && nextStage) await leadsClient.move(m.lead.id, nextStage.id);
-      if (choice === "no_show" && rebook && presets[0])
-        await tasksClient.create(m.lead.id, { title: `Rebook ${m.title}`, due: { preset: presets[0].id } });
-      if (choice !== "no_show" && step)
-        await tasksClient.create(m.lead.id, { title: `Next step after ${m.title}`, due: { preset: step } });
+      if (choice === "completed" && move && nextStage) {
+        const r = await leadsClient.move(m.lead.id, nextStage.id);
+        if (!r.ok) missed.push(`${first} wasn't moved to ${nextStage.name}: ${r.message.replace(/\.$/, "")}`);
+      }
+      if (choice === "no_show" && rebook && presets[0]) {
+        const r = await tasksClient.create(m.lead.id, {
+          title: `Rebook ${m.title}`,
+          due: { preset: presets[0].id },
+        });
+        if (!r.ok) missed.push(`The Rebook follow-up wasn't set: ${r.message.replace(/\.$/, "")}`);
+      }
+      if (choice !== "no_show" && step) {
+        const r = await tasksClient.create(m.lead.id, {
+          title: `Next step after ${m.title}`,
+          due: { preset: step },
+        });
+        if (!r.ok) missed.push(`The next step wasn't set: ${r.message.replace(/\.$/, "")}`);
+      }
     }
     setBusy(false);
+    if (missed.length) return setUnfinished(missed);
     onDone();
   };
 
@@ -111,8 +136,7 @@ export function LogOutcome({
         </span>
         <div>
           <p className={s.when}>
-            {m.title} · {nearDay(start, tz).toLowerCase()}, {timeOf(start, tz)} –{" "}
-            {timeOf(new Date(m.endsAt), tz)}
+            {m.title} · {near(start, tz)}, {timeOf(start, tz)} – {timeOf(new Date(m.endsAt), tz)}
           </p>
           <h2 className={s.title}>{title}</h2>
         </div>
@@ -181,12 +205,17 @@ export function LogOutcome({
           )}
         </div>
       ) : (
-        <p className={s.hint}>Pick one: LUME counts it in your analytics.</p>
+        <p className={s.hint}>Pick one: LUME counts it in this week&apos;s numbers.</p>
       )}
 
       {error && (
         <p role="alert" className={s.error}>
           {error}
+        </p>
+      )}
+      {unfinished && (
+        <p role="alert" className={s.error}>
+          <b>Outcome saved.</b> {unfinished.join(". ")}.
         </p>
       )}
       <div className={s.foot}>
@@ -205,12 +234,27 @@ export function LogOutcome({
           </svg>
           Seen by whoever can see this meeting
         </span>
-        <button type="button" className={s.later} onClick={onClose}>
-          Later
-        </button>
-        <button type="button" className={s.save} disabled={!choice || busy} onClick={() => void save()}>
-          Save outcome
-        </button>
+        {unfinished ? (
+          <>
+            {m.lead && (
+              <Link className={s.later} href={`/leads?lead=${m.lead.id}`}>
+                Open {first}
+              </Link>
+            )}
+            <button type="button" className={s.save} onClick={onDone}>
+              Done
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className={s.later} onClick={onClose}>
+              Later
+            </button>
+            <button type="button" className={s.save} disabled={!choice || busy} onClick={() => void save()}>
+              Save outcome
+            </button>
+          </>
+        )}
       </div>
     </Dialog>
   );

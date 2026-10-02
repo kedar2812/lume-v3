@@ -7,13 +7,13 @@ LUME's Calendar shows the meetings a business has with its leads. They come from
 
 With both off, LUME works as before. The Calendar page then explains why it's empty, and Today has no calls.
 
-**Privacy.** Personal events never come into LUME. A meeting is kept only when one of the business's rules says it's with a lead (see *Calendar rules* below). What LUME keeps is the meeting's title, its time, its link and who it's with. It never keeps the description or the other attendees' details.
+**Privacy.** Personal events are never kept. The sync reads each event on the chosen calendars only to check whether it's a meeting with a lead; a meeting is kept only when one of the business's rules says it's with a lead (see *Calendar rules* below). What LUME keeps is the meeting's title, its time, its link and who it's with. It never keeps the description or the other attendees' details.
 
 ## Switching it on (the client's admin)
 
 1. The client's LUME must be registered with the Connect-with-Google relay. That's the owner's step: see [connect-with-google.md](connect-with-google.md). Until it's done, **Settings → Integrations** shows Google Calendar as unavailable.
 2. In **Settings → Integrations**, switch **Google Calendar** on.
-3. Each person who should have meetings opens **Calendar** and presses **Connect Google Calendar**. Google asks them to let LUME see their calendars and events (read only).
+3. Each person who should have meetings opens **Calendar** and presses **Continue with Google**. Google asks them to let LUME see their calendars and events (read only).
    - Someone whose role can't connect a calendar sees why, not a button that does nothing.
 4. In **Calendar → ⚙ (Settings → Calendar)**, each person picks which of their calendars count.
 
@@ -57,6 +57,7 @@ The page shows a sample week with each rule's effect before saving.
 | Refresh says **Connect again** / Settings says **Needs reconnecting** | Google stopped letting LUME read that person's calendar (password changed, access removed, or the grant expired). The person presses **Connect again**. Meetings already in LUME stay meanwhile. |
 | A meeting with a lead didn't appear | Check that the calendar it's on is chosen in **Settings → Calendar**, and that a rule matches it. The lead's email must match an attendee for "An attendee is a lead". Then **Refresh**. |
 | Google Calendar shows as unavailable | The instance isn't registered with the relay. That's the owner's step (connect-with-google.md). |
-| Refresh says it couldn't read Google | LUME shows the error Google gave, and keeps trying on its own, waiting longer each time (up to 6 hours). Reconnecting starts afresh. |
+| Refresh says it couldn't reach Google | Google didn't answer that time. LUME keeps trying on its own, waiting longer each time (up to 6 hours); press Refresh again later. Reconnecting starts afresh. |
+| Refresh says "Still syncing" | The sync is taking longer than 30 seconds (a big calendar). Press Refresh again in a minute to see it. |
 
 **Disconnecting** (Settings → Calendar) forgets that person's connection **and every meeting it brought into LUME**, outcomes included. Calendly's bookings stay, and so does the person's Google Calendar itself.

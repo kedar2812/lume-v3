@@ -22,8 +22,8 @@ const PROMISES = [
   },
   {
     icon: "eye-off",
-    title: "Personal events never leave Google.",
-    body: "LUME doesn't keep them, anywhere.",
+    title: "Personal events are never kept.",
+    body: "LUME reads them only to find meetings with leads.",
   },
   { icon: "lock", title: "Read-only.", body: "LUME never changes your calendar." },
 ] as const;

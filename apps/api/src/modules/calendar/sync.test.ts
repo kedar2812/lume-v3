@@ -139,8 +139,9 @@ const connRow = (id: string) =>
     last_error: string | null;
     next_sync_at: Date;
     last_synced_at: Date | null;
+    last_failed_at: Date | null;
   }>(
-    "SELECT status, failures, last_error, next_sync_at, last_synced_at FROM calendar_connections WHERE id = $1",
+    "SELECT status, failures, last_error, next_sync_at, last_synced_at, last_failed_at FROM calendar_connections WHERE id = $1",
     [id],
   ).then((r) => r[0]!);
 const at = (hoursFromNow: number) => new Date(h.clock.now.getTime() + hoursFromNow * HOUR).toISOString();
@@ -312,6 +313,8 @@ describe("the calendar sync (5A Task 5)", () => {
     h.fake!.fail(503, 0);
     const c = await connRow(mayaConn);
     expect(c).toMatchObject({ status: "active", failures: 1, last_error: "Couldn't reach Google." });
+    // When it failed, so Refresh can tell its own sync failed (5D review) rather than wait it out.
+    expect(c.last_failed_at?.getTime()).toBe(h.clock.now.getTime());
     expect(c.next_sync_at.getTime()).toBeGreaterThan(h.clock.now.getTime() + 5 * 60_000);
     expect(await meetings(maya.id)).toEqual(before);
     expect(await sync(mayaConn)).toBe("synced");

@@ -100,6 +100,21 @@ describe("the drawer's Meetings tab", () => {
     expect(onLogOutcome).toHaveBeenCalledWith(MEETINGS[1]);
   });
 
+  it("Review: no Log outcome on a colleague's call this person can't record (the server would refuse it)", () => {
+    const theirs = meet("theirs", "2026-10-01 09:00", { ownerId: "u-other" });
+    render(
+      <MeetingsTab
+        meetings={[theirs]}
+        tz={TZ}
+        now={NOW}
+        onLogOutcome={vi.fn()}
+        canLog={(m) => m.ownerId === "u1"}
+      />,
+    );
+    expect(screen.getByRole("list", { name: "Earlier" })).toHaveTextContent("Discovery call");
+    expect(screen.queryByRole("button", { name: "Log outcome" })).not.toBeInTheDocument();
+  });
+
   it("none yet: says so plainly", () => {
     render(<MeetingsTab meetings={[]} tz={TZ} now={NOW} onLogOutcome={vi.fn()} />);
     expect(screen.getByText("No meetings with this lead yet.")).toBeInTheDocument();

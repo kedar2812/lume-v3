@@ -196,7 +196,11 @@ export function CalendarScreen({
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
       const t = e.target as HTMLElement | null;
-      if (t?.closest("input, textarea, select, [contenteditable='true'], [role='menu'], [role='radiogroup']"))
+      if (
+        t?.closest(
+          "input, textarea, select, [contenteditable='true'], [role='menu'], [role='radiogroup'], [role='dialog']",
+        )
+      )
         return;
       if (e.key === "t" || e.key === "T") setDay(today);
       else if (e.key === "ArrowRight") setDay((d) => addDays(d, step));
@@ -334,7 +338,7 @@ export function CalendarScreen({
               <rect x="5" y="11" width="14" height="9" rx="2" />
               <path d="M8 11V8a4 4 0 0 1 8 0v3" />
             </svg>
-            Meetings with leads only. Personal events never come into LUME.
+            Meetings with leads only. Personal events are read only to find them, and never kept.
           </span>
           {sources && (sources.google || sources.calendly) && (
             <span className={s.sources}>

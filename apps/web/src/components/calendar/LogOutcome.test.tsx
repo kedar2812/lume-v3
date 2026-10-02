@@ -159,4 +159,40 @@ describe("Log outcome", () => {
     await userEvent.click(screen.getByRole("radio", { name: /Held/ }));
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
+
+  it("Review: a move the pipeline refuses keeps the dialog: the outcome is saved, and it says what didn't happen", async () => {
+    vi.mocked(leadsClient.move).mockResolvedValue({
+      ok: false,
+      status: 422,
+      code: "REQUIRED_FIELDS",
+      message: "Call done needs Budget first.",
+    } as never);
+    const onDone = open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    await screen.findByRole("switch", { name: "Move Karim to Call done" });
+    await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Outcome saved.");
+    expect(alert).toHaveTextContent("Karim wasn't moved to Call done: Call done needs Budget first.");
+    expect(onDone).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Save outcome" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Karim" })).toHaveAttribute("href", "/leads?lead=l-karim");
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(onDone).toHaveBeenCalled();
+    expect(calendarClient.patchMeeting).toHaveBeenCalledTimes(1);
+  });
+
+  it("Review: promises only what exists, and a date further off keeps its capitals", async () => {
+    render(
+      <LogOutcome
+        meeting={{ ...MEETING, startsAt: "2026-09-14T07:30:00.000Z", endsAt: "2026-09-14T08:00:00.000Z" }}
+        tz={TZ}
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText(/September 14, Monday, 11:30 am/)).toBeInTheDocument();
+    expect(screen.queryByText(/analytics/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Pick one: LUME counts it in this week's numbers.")).toBeInTheDocument();
+  });
 });

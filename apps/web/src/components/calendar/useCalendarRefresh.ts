@@ -15,7 +15,7 @@ export const TIMING = {
   giveUp: 30_000,
 };
 
-export const STILL_SYNCING = "Still syncing. LUME will update this page when it's done.";
+export const STILL_SYNCING = "Still syncing. Refresh again in a minute to see it.";
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -97,6 +97,11 @@ export function useCalendarRefresh(o: {
         }
         if (c.data.lastSync && Date.parse(c.data.lastSync.at) > since) {
           got = c.data.lastSync;
+          break;
+        }
+        // The sync this press asked for failed (Google busy, say): say so now, not after 30 s of waiting.
+        if (c.data.lastFailedAt && Date.parse(c.data.lastFailedAt) > since) {
+          failed = `${c.data.lastError ?? "LUME couldn't read your calendar."} LUME will try again on its own.`;
           break;
         }
       }

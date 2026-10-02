@@ -74,6 +74,7 @@ function view(d: AppDeps, c: Connection | undefined, on: boolean) {
     lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null,
     lastSync: c.lastSync ?? null,
     lastError: c.lastError,
+    lastFailedAt: c.lastFailedAt?.toISOString() ?? null,
   };
 }
 

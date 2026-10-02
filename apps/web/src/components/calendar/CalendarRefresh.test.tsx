@@ -19,6 +19,7 @@ const conn = (last: LastSync | null): CalendarConnection => ({
   lastSyncedAt: last?.at ?? null,
   lastSync: last,
   lastError: null,
+  lastFailedAt: null,
 });
 const sync = (at: string, n: Partial<LastSync> = {}): LastSync => ({
   at,
@@ -79,7 +80,7 @@ describe("the calendar's Refresh", () => {
     expect(screen.getByRole("button", { name: "Refresh" })).toHaveAttribute("data-phase", "idle");
   });
 
-  it("after 30 seconds without a newer sync, says it's still syncing and that the page will update", async () => {
+  it("after 30 seconds without a newer sync, says it's still syncing and to Refresh again — nothing it can't keep", async () => {
     vi.mocked(calendarClient.sync).mockResolvedValue({
       ...ok({ queued: true as const, since: SINCE }),
       status: 202,
@@ -89,8 +90,38 @@ describe("the calendar's Refresh", () => {
     act(() => screen.getByRole("button", { name: /Refresh/ }).click());
     await tick(32_000);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Still syncing. LUME will update this page when it's done.",
+      "Still syncing. Refresh again in a minute to see it.",
     );
+  });
+
+  it("Review: a sync that failed after the press says so, with Google's words, and that LUME tries again", async () => {
+    vi.mocked(calendarClient.sync).mockResolvedValue({
+      ...ok({ queued: true as const, since: SINCE }),
+      status: 202,
+    });
+    vi.mocked(calendarClient.connection)
+      // An older failure, from before the press: not this Refresh's answer.
+      .mockResolvedValueOnce(
+        ok({
+          ...conn(sync("2026-10-01T09:55:00.000Z")),
+          lastError: "Old trouble",
+          lastFailedAt: "2026-10-01T09:58:00.000Z",
+        }),
+      )
+      .mockResolvedValue(
+        ok({
+          ...conn(sync("2026-10-01T09:55:00.000Z")),
+          lastError: "Couldn't reach Google.",
+          lastFailedAt: "2026-10-01T10:00:03.000Z",
+        }),
+      );
+    render(<CalendarRefresh onSynced={vi.fn()} />);
+    act(() => screen.getByRole("button", { name: /Refresh/ }).click());
+    await tick(5000);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Couldn't reach Google. LUME will try again on its own.",
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent("Still syncing");
   });
 
   it("a connection that needs reconnecting turns Refresh into Connect again, never a spinner forever", async () => {

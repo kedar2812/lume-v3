@@ -48,7 +48,10 @@ export function PhoneCalendar({
   notice?: ReactNode;
 }) {
   const days = agendaDays(meetings, dayKey(now, tz), tz, now);
-  const next = [...meetings].sort((a, b) => a.startsAt.localeCompare(b.startsAt)).find((m) => live(m, now));
+  // The hero is the person's own next call: a colleague's is in the list, with whose it is, never the hero.
+  const next = [...meetings]
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    .find((m) => m.ownerId === me && live(m, now));
   const opened = openId ? (meetings.find((m) => m.id === openId) ?? null) : null;
 
   const tag = (m: Meeting) => {

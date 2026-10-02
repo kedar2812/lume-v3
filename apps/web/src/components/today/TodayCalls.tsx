@@ -20,7 +20,7 @@ const minutes = (m: TodayMeeting) =>
   Math.round((new Date(m.endsAt).getTime() - new Date(m.startsAt).getTime()) / MIN);
 
 /**
- * The brief line's calls (canvas Today): the next one to come — "Dana's discovery call is in 15 minutes", or
+ * The brief line's calls (canvas Today): the next one to come — "Your call with Dana is in 15 minutes", or
  * at its time when further off — then how many from earlier still need their outcome. Null: nothing to say.
  */
 export function callsBrief(meetings: TodayMeeting[], now: Date, tz: string): string | null {
@@ -28,7 +28,8 @@ export function callsBrief(meetings: TodayMeeting[], now: Date, tz: string): str
   const owed = meetings.filter((m) => meetingState(asMeeting(m), now) === "needsOutcome").length;
   const parts: string[] = [];
   if (next) {
-    const who = next.lead ? `${first(next.lead.name)}'s ${next.title.toLowerCase()}` : next.title;
+    // About the person, so a real event title ("Dana Whitfield and Kedar") is never bent into the sentence.
+    const who = next.lead ? `Your call with ${first(next.lead.name)}` : next.title;
     const mins = Math.round((new Date(next.startsAt).getTime() - now.getTime()) / MIN);
     parts.push(
       mins <= 0

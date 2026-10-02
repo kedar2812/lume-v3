@@ -86,6 +86,9 @@ export type WeekBlock = {
   height: number;
   /** A meeting outside 8 am–8 pm is pinned to the grid's edge, its real time still written on it. */
   clipped: "before" | "after" | null;
+  /** Meetings that overlap share the day side by side: this one's lane, of how many. */
+  lane: number;
+  lanes: number;
 };
 
 /** Each meeting of the week on its day (on the business's clock) and its hour. */
@@ -100,9 +103,11 @@ export function weekBlocks(meetings: Meeting[], week: string[], tz: string): Wee
     const from = (start.getTime() - gridStart) / MIN;
     const length = Math.max(MIN_BLOCK, (new Date(m.endsAt).getTime() - start.getTime()) / MIN);
     const height = Math.min(length, span);
-    if (from + MIN_BLOCK <= 0) out.push({ meeting: m, day, top: 0, height: MIN_BLOCK, clipped: "before" });
+    const lane = { lane: 0, lanes: 1 };
+    if (from + MIN_BLOCK <= 0)
+      out.push({ meeting: m, day, top: 0, height: MIN_BLOCK, clipped: "before", ...lane });
     else if (from >= span)
-      out.push({ meeting: m, day, top: span - MIN_BLOCK, height: MIN_BLOCK, clipped: "after" });
+      out.push({ meeting: m, day, top: span - MIN_BLOCK, height: MIN_BLOCK, clipped: "after", ...lane });
     else
       out.push({
         meeting: m,
@@ -110,9 +115,42 @@ export function weekBlocks(meetings: Meeting[], week: string[], tz: string): Wee
         top: Math.max(0, from),
         height: Math.min(height, span - Math.max(0, from)),
         clipped: null,
+        ...lane,
       });
   }
-  return out;
+  return inLanes(out);
+}
+
+/**
+ * Overlapping blocks of a day share it side by side, never one hidden under another: each run of blocks
+ * that overlap gets as many lanes as it needs at its busiest, and each block the first lane free when it starts.
+ */
+function inLanes(blocks: WeekBlock[]): WeekBlock[] {
+  for (let day = 0; day < 7; day++) {
+    const today = blocks.filter((b) => b.day === day).sort((a, b) => a.top - b.top || b.height - a.height);
+    let run: WeekBlock[] = [];
+    let runEnd = -Infinity;
+    const close = () => {
+      const lanes = Math.max(1, ...run.map((b) => b.lane + 1));
+      for (const b of run) b.lanes = lanes;
+      run = [];
+    };
+    const ends: number[] = [];
+    for (const b of today) {
+      if (b.top >= runEnd) {
+        close();
+        ends.length = 0;
+      }
+      let lane = ends.findIndex((end) => end <= b.top);
+      if (lane < 0) lane = ends.length;
+      ends[lane] = b.top + b.height;
+      b.lane = lane;
+      run.push(b);
+      runEnd = Math.max(runEnd, b.top + b.height);
+    }
+    close();
+  }
+  return blocks;
 }
 
 export type CalendarUrl = { view: "agenda" | "week"; day: string | null; meeting: string | null };

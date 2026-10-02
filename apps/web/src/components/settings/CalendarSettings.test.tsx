@@ -35,6 +35,7 @@ const connected = (
   lastSyncedAt: new Date(Date.now() - 2 * 60_000).toISOString(),
   lastSync: null,
   lastError: null,
+  lastFailedAt: null,
   ...over,
 });
 

@@ -1,5 +1,5 @@
 "use client";
-import { can } from "@lume/core/shared";
+import { can, canOnRecord } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   useCallback,
@@ -766,7 +766,16 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   </>
                 )}
                 {tab === "meetings" && (
-                  <MeetingsTab meetings={meetings} tz={tz} now={new Date()} onLogOutcome={setLogging} />
+                  <MeetingsTab
+                    meetings={meetings}
+                    tz={tz}
+                    now={new Date()}
+                    onLogOutcome={setLogging}
+                    // The rule the server applies: theirs, or within their calendar.view scope.
+                    canLog={(x) =>
+                      x.ownerId === session.user.id || canOnRecord(session.actor, "calendar.view", x.ownerId)
+                    }
+                  />
                 )}
                 {tab === "history" && (
                   <Timeline

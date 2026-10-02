@@ -82,12 +82,20 @@ describe("Today's calls", () => {
 describe("the brief line", () => {
   it("names the next call, and the calls still owed their outcome", () => {
     expect(callsBrief(CALLS, NOW, TZ)).toBe(
-      "Dana's discovery call is in 15 minutes. One call from earlier still needs its outcome.",
+      "Your call with Dana is in 15 minutes. One call from earlier still needs its outcome.",
     );
   });
 
   it("a later call is said by its time; nothing to say without calls", () => {
-    expect(callsBrief([CALLS[3]!], NOW, TZ)).toBe("Aisha's check-in is at 4 pm.");
+    expect(callsBrief([CALLS[3]!], NOW, TZ)).toBe("Your call with Aisha is at 4 pm.");
+    // A real event's title, as Google has it, is never bent into the sentence.
+    expect(callsBrief([{ ...CALLS[3]!, title: "Dana Whitfield and Kedar" }], NOW, TZ)).toBe(
+      "Your call with Aisha is at 4 pm.",
+    );
+    // Not with a lead: the title, as it is.
+    expect(callsBrief([{ ...CALLS[3]!, lead: null, title: "Q3 Planning" }], NOW, TZ)).toBe(
+      "Q3 Planning is at 4 pm.",
+    );
     expect(callsBrief([], NOW, TZ)).toBeNull();
     expect(callsBrief([CALLS[0]!], NOW, TZ)).toBeNull(); // held already: nothing to say
   });

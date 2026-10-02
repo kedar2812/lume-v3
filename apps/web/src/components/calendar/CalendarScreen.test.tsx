@@ -243,3 +243,38 @@ describe("the Calendar page on a phone (5D Task 12)", () => {
     }
   });
 });
+
+describe("Review fixes (5D final review)", () => {
+  it("the 30-second tick never moves focus out of an open meeting", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      view({ initial: { view: "agenda", day: null, meeting: "b" } });
+      const drawer = await screen.findByRole("dialog", { name: "Discovery call b" });
+      const copy = within(drawer).getByRole("button", { name: "Copy link" });
+      copy.focus();
+      await act(async () => {
+        vi.advanceTimersByTime(31_000);
+      });
+      expect(document.activeElement).toBe(copy);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says truthfully what happens to personal events: read to find meetings with leads, never kept", async () => {
+    view();
+    expect(
+      await screen.findByText(
+        "Meetings with leads only. Personal events are read only to find them, and never kept.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keys typed inside a dialog never move the day", async () => {
+    view({ initial: { view: "agenda", day: null, meeting: "b" } });
+    const drawer = await screen.findByRole("dialog", { name: "Discovery call b" });
+    within(drawer).getByRole("button", { name: "Copy link" }).focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("October 1, Thursday");
+  });
+});

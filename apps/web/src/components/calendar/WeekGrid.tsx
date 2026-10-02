@@ -83,7 +83,16 @@ export function WeekGrid({
                     data-state={state}
                     data-open={m.id === openId || undefined}
                     data-clipped={b.clipped ?? undefined}
-                    style={{ top: b.top * PX, height: Math.max(b.height * PX - 2, 22) }}
+                    style={{
+                      top: b.top * PX,
+                      height: Math.max(b.height * PX - 2, 22),
+                      // Side by side with the meetings it overlaps.
+                      ...(b.lanes > 1 && {
+                        left: `calc(${(b.lane / b.lanes) * 100}% + 4px)`,
+                        right: "auto",
+                        width: `calc(${100 / b.lanes}% - 6px)`,
+                      }),
+                    }}
                     aria-label={`${m.title}, ${start}, ${m.lead?.name ?? "not with a lead yet"}`}
                     onClick={() => onOpen(m.id)}
                   >

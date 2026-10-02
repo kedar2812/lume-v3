@@ -36,7 +36,7 @@ export function GoogleCalendarCard({
           <p className={s.cardLede}>
             {googleCalendar.enabled
               ? "On · people connect their own calendar, and only meetings with leads come in."
-              : "Meetings with leads show on their leads and in the Calendar. Read-only; personal events never come in."}
+              : "Meetings with leads show on their leads and in the Calendar. Read-only; personal events are never kept."}
           </p>
         </div>
         {googleCalendar.available && (

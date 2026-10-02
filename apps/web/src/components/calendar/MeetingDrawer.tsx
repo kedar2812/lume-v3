@@ -54,15 +54,20 @@ export function MeetingDrawer({
   const [copied, setCopied] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const back = useRef<HTMLElement | null>(null);
+  // Held, not depended on: the page re-renders every 30 s, and focus must not move with it.
+  const close = useRef(onClose);
+  close.current = onClose;
+  const mid = m?.id ?? null;
+  const open = mid !== null;
 
   useEffect(() => setCopied(false), [m?.id]);
   useEffect(() => {
-    if (!m) return;
+    if (!open) return;
     back.current = document.activeElement as HTMLElement | null;
     panel.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
-      onClose();
+      close.current();
     };
     document.addEventListener("keydown", onKey);
     return () => {
@@ -70,7 +75,7 @@ export function MeetingDrawer({
       // Focus goes back where it came from, so a keyboard person never gets lost.
       back.current?.focus?.();
     };
-  }, [m, onClose]);
+  }, [open, mid]);
 
   const copy = async () => {
     if (!m?.link) return;

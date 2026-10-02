@@ -121,7 +121,9 @@ export function CalendarSettings({
         <h2 id="cal-read" className={s.h2}>
           Calendars LUME reads
         </h2>
-        <p className={s.lede}>Only meetings with your leads come in from these. Personal events never do.</p>
+        <p className={s.lede}>
+          Only meetings with your leads are kept from these. Other events are read to find them, never kept.
+        </p>
         {error && (
           <p role="alert" className={s.err}>
             {error}

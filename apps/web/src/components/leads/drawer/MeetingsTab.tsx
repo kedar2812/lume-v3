@@ -21,11 +21,14 @@ export function MeetingsTab({
   tz,
   now,
   onLogOutcome,
+  canLog = () => true,
 }: {
   meetings: Meeting[];
   tz: string;
   now: Date;
   onLogOutcome: (meeting: Meeting) => void;
+  /** Whether this person may record the meeting's outcome (theirs, or within their calendar.view scope). */
+  canLog?: (meeting: Meeting) => boolean;
 }) {
   if (!meetings.length) return <p className={m.none}>No meetings with this lead yet.</p>;
   const toCome = meetings
@@ -53,7 +56,7 @@ export function MeetingsTab({
             {outcome.label}
           </span>
         )}
-        {state === "needsOutcome" && (
+        {state === "needsOutcome" && canLog(x) && (
           <button type="button" className={m.outcome} onClick={() => onLogOutcome(x)}>
             Log outcome
           </button>

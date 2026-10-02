@@ -166,6 +166,28 @@ describe("the week", () => {
     expect(b!.top + b!.height).toBeLessThanOrEqual(12 * 60);
   });
 
+  it("Review: meetings that overlap share the day side by side, never one hidden under another", () => {
+    const blocks = weekBlocks(
+      [
+        meet("a", "2026-10-01 10:00", {}, 60),
+        meet("b", "2026-10-01 10:30", {}, 30),
+        meet("c", "2026-10-01 12:00", {}, 30),
+        meet("x", "2026-10-01 21:00"),
+        meet("y", "2026-10-01 22:00"),
+      ],
+      week,
+      TZ,
+    );
+    const by = (id: string) => blocks.find((x) => x.meeting.id === id)!;
+    expect(by("a")).toMatchObject({ lane: 0, lanes: 2 });
+    expect(by("b")).toMatchObject({ lane: 1, lanes: 2 });
+    // Clear of the others: the whole width.
+    expect(by("c")).toMatchObject({ lane: 0, lanes: 1 });
+    // Two after 8 pm share the pinned slot: side by side too.
+    expect([by("x").lane, by("y").lane].sort()).toEqual([0, 1]);
+    expect(by("x").lanes).toBe(2);
+  });
+
   it("pins an early meeting to the start and leaves out other weeks' meetings", () => {
     const blocks = weekBlocks(
       [meet("early", "2026-10-02 07:00"), meet("next", "2026-10-06 10:00")],

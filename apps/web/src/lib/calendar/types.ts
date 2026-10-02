@@ -15,6 +15,8 @@ export type CalendarConnection =
       lastSyncedAt: string | null;
       lastSync: LastSync | null;
       lastError: string | null;
+      /** When the latest sync failed (null once one succeeds after it, or never failed). */
+      lastFailedAt: string | null;
     };
 
 /** Refresh's answer: wait for a `lastSync.at` newer than `since`. */

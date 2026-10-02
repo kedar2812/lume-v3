@@ -527,7 +527,8 @@ async function failed(d: CalendarSyncDeps, conn: Row, e: unknown, now: Date): Pr
   if (e instanceof GoogleError && e.kind === "access") {
     const changed = await inTx(d.pool, { user: conn.user_id }, async (c) => {
       const r = await c.query(
-        `UPDATE calendar_connections SET status = 'needs_reconnect', last_error = $2, updated_at = $3
+        `UPDATE calendar_connections SET status = 'needs_reconnect', last_error = $2, updated_at = $3,
+                last_failed_at = $3
           WHERE id = $1 AND status = 'active'`,
         [conn.id, "Google stopped letting LUME read this calendar.", now],
       );
@@ -547,7 +548,7 @@ async function failed(d: CalendarSyncDeps, conn: Row, e: unknown, now: Date): Pr
   const wait = Math.min(EVERY_MS * 2 ** failures, MAX_BACKOFF_MS);
   await inTx(d.pool, { user: conn.user_id }, (c) =>
     c.query(
-      "UPDATE calendar_connections SET failures = $2, last_error = $3, next_sync_at = $4, updated_at = $5 WHERE id = $1",
+      "UPDATE calendar_connections SET failures = $2, last_error = $3, next_sync_at = $4, updated_at = $5, last_failed_at = $5 WHERE id = $1",
       [
         conn.id,
         failures,

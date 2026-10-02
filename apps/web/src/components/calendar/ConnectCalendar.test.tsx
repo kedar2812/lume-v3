@@ -31,7 +31,9 @@ describe("the connect card", () => {
   it("makes three plain promises and offers Continue with Google", () => {
     render(<ConnectCalendar state="connect" admin={false} />);
     expect(screen.getByText(/Only meetings with your leads/)).toBeInTheDocument();
-    expect(screen.getByText(/Personal events never leave Google/)).toBeInTheDocument();
+    expect(screen.getByText("Personal events are never kept.")).toBeInTheDocument();
+    expect(screen.getByText("LUME reads them only to find meetings with leads.")).toBeInTheDocument();
+    expect(screen.queryByText(/never leave Google/)).not.toBeInTheDocument();
     expect(screen.getByText(/Read-only/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Set up Calendly/ })).not.toBeInTheDocument();
@@ -97,6 +99,7 @@ describe("back from Google", () => {
         lastSyncedAt: "2026-10-01T10:00:00.000Z",
         lastSync: { at: "2026-10-01T10:00:00.000Z", added: 3, moved: 0, cancelled: 0, changed: 0 },
         lastError: null,
+        lastFailedAt: null,
       }),
     );
     const { rerender } = render(<CalendarConnected />);

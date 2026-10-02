@@ -98,6 +98,20 @@ describe("the Calendar on a phone", () => {
     expect(p.onOpen).toHaveBeenCalledWith("b");
   });
 
+  it("Review: the hero is the person's own next call, never a colleague's sooner one", () => {
+    phone({
+      meetings: [
+        ...MEETINGS,
+        meet("r", "2026-10-01 14:20", "Rafa Lopez", { ownerId: "u-hana", title: "Site visit" }),
+      ],
+    });
+    const hero = screen.getByRole("region", { name: "Next meeting" });
+    expect(hero).toHaveTextContent("Dana Whitfield");
+    expect(hero).not.toHaveTextContent("Rafa Lopez");
+    // The colleague's call is still in the day's list, with whose it is.
+    expect(screen.getByRole("button", { name: /Rafa Lopez/ })).toHaveTextContent("Site visit · Hana");
+  });
+
   it("nothing coming: says so plainly", () => {
     phone({ meetings: [] });
     expect(screen.getByText("No meetings coming up.")).toBeInTheDocument();

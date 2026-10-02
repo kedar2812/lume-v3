@@ -35,6 +35,7 @@ export const calendarConnections = pgTable("calendar_connections", {
   nextSyncAt: tz("next_sync_at").notNull().defaultNow(),
   failures: integer("failures").notNull().default(0),
   lastError: text("last_error"),
+  lastFailedAt: tz("last_failed_at"),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
