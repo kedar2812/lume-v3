@@ -41,6 +41,8 @@ export type AccessView = {
   roles: RoleAccess[];
   workingHours: WorkingHours;
   timezone: string;
+  /** The business's first day of the week (0 = Sunday). */
+  weekStart: number;
   yourIp: string;
 };
 
@@ -74,4 +76,32 @@ export function alertSentence(
   if (a.rule === "reveals") return `${a.user.name} opened ${a.observed} contacts in ${span}`;
   if (a.rule === "leadsOpened") return `${a.user.name} opened ${a.observed} different leads in ${span}`;
   return `${a.user.name} ran ${a.observed} send queues today`;
+}
+
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const IPV6 = /^(?=.*:)[0-9a-f:]{2,39}$/i;
+
+/** An address or a network: "86.98.40.12", "94.200.12.0/24", "2001:db8::/32". The server checks it again. */
+export function isNetwork(x: string): boolean {
+  const [addr = "", bits, ...more] = x.trim().split("/");
+  if (more.length) return false;
+  const v4 = IPV4.test(addr);
+  const v6 = !v4 && IPV6.test(addr) && (addr.match(/::/g)?.length ?? 0) <= 1;
+  if (!v4 && !v6) return false;
+  if (bits === undefined) return true;
+  if (!/^\d{1,3}$/.test(bits)) return false;
+  return Number(bits) <= (v4 ? 32 : 128);
+}
+
+const v4Number = (a: string) => a.split(".").reduce((n, o) => n * 256 + Number(o), 0);
+
+/** Whether this network holds that address (IPv4 by prefix; IPv6 when it names the very address). */
+export function networkHolds(network: string, ip: string): boolean {
+  const [addr = "", bits] = network.split("/");
+  if (IPV4.test(addr) && IPV4.test(ip)) {
+    const n = bits === undefined ? 32 : Number(bits);
+    const mask = n === 0 ? 0 : 2 ** 32 - 2 ** (32 - n);
+    return (v4Number(addr) & mask) >>> 0 === (v4Number(ip) & mask) >>> 0;
+  }
+  return addr.toLowerCase() === ip.toLowerCase() && (bits === undefined || bits === "128");
 }

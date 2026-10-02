@@ -212,7 +212,11 @@ describe("access limits", () => {
       people: expect.any(Number),
       loginHours: null,
     });
-    expect(r).toMatchObject({ timezone: expect.any(String), yourIp: expect.any(String) });
+    expect(r).toMatchObject({
+      timezone: expect.any(String),
+      weekStart: expect.any(Number),
+      yourIp: expect.any(String),
+    });
   });
 
   it("stores a bare address as a one-address network, audited", async () => {

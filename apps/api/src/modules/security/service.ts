@@ -320,14 +320,15 @@ const ROLES = sql`
 /** Every role, who holds it, the business's hours and timezone, and the network the editor is on now. */
 export async function readAccess(req: FastifyRequest) {
   const roles = await rows<RoleAccess>(req, sql`${ROLES} ORDER BY r.name`);
-  const [s] = await rows<{ tz: string; wh: unknown }>(
+  const [s] = await rows<{ tz: string; wh: unknown; week_start: number }>(
     req,
-    sql`SELECT timezone AS tz, working_hours AS wh FROM settings WHERE id = 1`,
+    sql`SELECT timezone AS tz, working_hours AS wh, week_start FROM settings WHERE id = 1`,
   );
   return {
     roles,
     workingHours: workingHoursFrom(s?.wh),
     timezone: s?.tz ?? "UTC",
+    weekStart: s?.week_start ?? 1,
     yourIp: req.ip,
   };
 }
