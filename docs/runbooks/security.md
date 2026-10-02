@@ -64,7 +64,29 @@ A faint "name · email · date" across lead screens (the list, a lead, the board
 contact (the default), for everyone, or for nobody.
 
 **What it can't do, said plainly:** it can't stop a screenshot or a photo of the screen. It makes one traceable
-to the person whose screen it was. It doesn't affect exports (Phase 6B adds traceable exports).
+to the person whose screen it was. Exports carry their own mark (below).
+
+## Exports you can trace (Phase 6B)
+
+People with "Export leads" (admins by default, with two-step sign-in) export **the current Leads view**: its
+filters and its columns, never more than they can see (their own scope, masked contacts if theirs are masked,
+no hidden fields). CSV or Excel, up to 25,000 leads in one file.
+
+- **The mark.** Every file has a `LUME ref` column with the export's code (like `PX7Q-4MRA`) on every row, and
+  one made-up lead only LUME recognises: a name like any other, an email at `example.invalid` (a domain that can
+  never receive mail) and a phone in the range kept for fiction (+44 7700 900xxx), so nobody real is reached.
+- **What LUME can promise, exactly:** a file that still has the code column *or* the check row traces to its
+  export. A file where both were removed, or the rows were retyped by hand, can't be traced, and LUME says
+  "No LUME export matches this file" rather than guessing.
+- **24 hours.** The file is kept, encrypted, for 24 hours and then deleted; the record (who, when, what, the
+  code, the check row) stays. Only the person who made it can download it. Every export and every download is in
+  the audit log.
+- **Trace a file** (Settings → Security → Exports): drop a CSV or Excel file found outside the business, or type
+  a code. LUME reads it in memory and forgets it, and answers with whose export it was, when, what, every download
+  with its device, and how it was recognised.
+- **Imported back in:** if someone imports an export into LUME, the real leads come in and the check row never
+  does: it shows in the import's problems as "A LUME export's check row: not a real lead". The `LUME ref` column
+  is always ignored.
 
 ## Checking it
 

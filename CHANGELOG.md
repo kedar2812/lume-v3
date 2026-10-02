@@ -17,8 +17,13 @@ column in the release that stops using it.
   Change the limits or switch a rule to "Tells you" in Settings → Security → Rules first if your team works
   faster than that. The new audit index is built during the update, with the app stopped, as every migration is.
 
+- **Exports you can trace (Phase 6B):** Export on the Leads list makes a CSV or Excel file of the current view,
+  marked with a code on every row and a hidden check row, kept 24 hours, every download audited. Settings →
+  Security → Exports traces a file found outside the business back to its export.
+
 ### Migrations
 
+- **0043** adds `lead_exports` (each export's code, check row, sealed file and downloads).
 - **0042** adds the `suspended` status and `users.watch_from`, the `security_alerts` table, and a partial
   index on the audit log for the counted acts.
 

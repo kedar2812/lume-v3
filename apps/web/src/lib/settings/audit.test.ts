@@ -124,6 +124,9 @@ const WRITTEN = [
   "security.alert_resolved",
   "security.settings_changed",
   "security.access_changed",
+  "lead.export",
+  "lead.export.download",
+  "security.trace",
 ];
 
 describe("auditPhrase", () => {
@@ -231,6 +234,21 @@ describe("auditPhrase", () => {
       "Maya Kapoor dismissed a security alert",
     );
     expect(AUDIT_ACTIONS["security.access_changed"]!.area).toBe("Security");
+  });
+
+  it("6B: says what an export did, and what Trace found", () => {
+    const say = (action: string, diff: Record<string, unknown>) =>
+      auditPhrase(entry(action, { actorUserId: "u-maya", actorName: "Maya Kapoor", diff }), []);
+    expect(say("lead.export", { code: "PX7Q-4MRA", rows: 128, format: "csv", label: "Hot leads" })).toBe(
+      "Maya Kapoor exported Hot leads: 128 leads as CSV (PX7Q-4MRA)",
+    );
+    expect(say("lead.export.download", { code: "PX7Q-4MRA" })).toBe(
+      "Maya Kapoor downloaded export PX7Q-4MRA",
+    );
+    expect(say("security.trace", { found: "PX7Q-4MRA" })).toBe(
+      "Maya Kapoor traced a file to export PX7Q-4MRA",
+    );
+    expect(say("security.trace", { found: null })).toBe("Maya Kapoor traced a file; no LUME export matched");
   });
 
   it("says what an import did", () => {

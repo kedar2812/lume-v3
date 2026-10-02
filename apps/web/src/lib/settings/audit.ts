@@ -236,6 +236,18 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   },
   "security.settings_changed": { area: "Security", phrase: "changed the security rules or the watermark" },
   "security.access_changed": { area: "Security", phrase: "changed when or where a role may sign in" },
+  // Exports you can trace (6B)
+  "lead.export": {
+    area: "Leads",
+    phrase: (d) =>
+      `exported ${String(d.label ?? "leads")}: ${n(d.rows)} leads as ${d.format === "xlsx" ? "Excel" : "CSV"} (${String(d.code ?? "")})`,
+  },
+  "lead.export.download": { area: "Leads", phrase: (d) => `downloaded export ${String(d.code ?? "")}` },
+  "security.trace": {
+    area: "Security",
+    phrase: (d) =>
+      d.found ? `traced a file to export ${String(d.found)}` : "traced a file; no LUME export matched",
+  },
   "user.logout": { area: "Sign-in", phrase: "signed out" },
   "user.2fa.enabled": { area: "Sign-in", phrase: "turned on two-step sign-in" },
   "user.2fa.disabled": { area: "Sign-in", phrase: "turned off two-step sign-in" },

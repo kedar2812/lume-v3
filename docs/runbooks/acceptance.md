@@ -1086,3 +1086,22 @@ The spec's acceptance test, by hand on a fresh install:
    contacts, the burst, Ended … sessions, Paused sign-in, Told … . Restore access. The Sales person signs in.
 5. Switch the rule to "Tells you" and repeat: the 31st contact is shown, the person carries on, the admin is told.
 6. 201 different leads opened in an hour behave like step 3 (set the limit to 25 to try it quickly).
+
+
+## Phase 6B — exports you can trace (2026-10-03)
+
+Automated: `lead-exports/exports.test.ts`, `trace.test.ts` (API), core `export-code`, intake check-row tests,
+the web tests, and `e2e/security.spec.ts` (export, then trace with and without the column).
+
+By hand:
+
+1. As an admin, Leads: filter to a few leads, Export, CSV. The file downloads; its last column is `LUME ref`,
+   and one row is someone at `example.invalid`.
+2. Settings → Security → Exports: drop the file. LUME says it's your export, when, what, your download, found by
+   the LUME ref column.
+3. Delete the `LUME ref` column and sort the rows; drop it again: found by the hidden check row.
+4. Delete the check row too: "No LUME export matches this file".
+5. Import the original file in Settings → Imports: the real leads come through, the check row is refused with its
+   words, and `LUME ref` is ignored.
+6. 24 hours later (or set `expires_at` back in the database), Download says the file has expired; the export
+   still traces.
