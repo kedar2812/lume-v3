@@ -85,18 +85,21 @@ cmd_fmt() {
   fetch_changed '.'
 }
 
+# This box's own overlay, if it has one (kept outside the synced tree, e.g. a public address).
+LOCAL_OVERLAY="\$( [ -f $REMOTE_ROOT/compose.local.yml ] && echo -f $REMOTE_ROOT/compose.local.yml )"
+
 compose() {
   local q
   q="$(printf '%q ' "$@")"
   remote "cd $REMOTE_SRC && docker compose -p $PROJECT --env-file $REMOTE_ROOT/.env \
-    -f infra/docker-compose.yml -f infra/compose.dev.yml $q"
+    -f infra/docker-compose.yml -f infra/compose.dev.yml $LOCAL_OVERLAY $q"
 }
 
 cmd_up() {
   cmd_sync
   remote "cd $REMOTE_SRC && LUME_DEV_ROOT=$REMOTE_ROOT bash infra/scripts/gen-dev-env.sh"
   remote "cd $REMOTE_SRC && nice -n 10 docker compose -p $PROJECT --env-file $REMOTE_ROOT/.env \
-    -f infra/docker-compose.yml -f infra/compose.dev.yml build"
+    -f infra/docker-compose.yml -f infra/compose.dev.yml $LOCAL_OVERLAY build"
   compose up -d db
   compose run --rm migrate
   compose up -d
