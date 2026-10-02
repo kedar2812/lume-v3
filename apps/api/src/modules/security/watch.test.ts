@@ -1,6 +1,6 @@
 import pg from "pg";
 import { ALL_GRANTS, PAUSED_MESSAGE, type Grant } from "@lume/core";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 
 /** Phase 6A Task 3: a burst is stopped at the act that crosses the line, not up to 5 minutes later. */
@@ -92,14 +92,17 @@ describe("contacts revealed (the report's test)", () => {
         [rep.id],
       ),
     ).toEqual({ n: 31 });
-    const told = await backup<{ user_id: string }>(
-      "SELECT n.user_id FROM notifications n JOIN security_alerts a ON a.id::text = n.data->>'alertId' WHERE a.user_id = $1",
-      [rep.id],
-    );
-    // Everyone who manages security: the owner, the security admin, and the admin holding every permission.
-    expect(told.map((t) => t.user_id).sort()).toEqual(
-      [ownerUser.id, securityAdmin.id, fullAdminUser.id].sort(),
-    );
+    // Told once the pause has committed, so wait for it.
+    await vi.waitFor(async () => {
+      const told = await backup<{ user_id: string }>(
+        "SELECT n.user_id FROM notifications n JOIN security_alerts a ON a.id::text = n.data->>'alertId' WHERE a.user_id = $1",
+        [rep.id],
+      );
+      // Everyone who manages security: the owner, the security admin, and the admin holding every permission.
+      expect(told.map((t) => t.user_id).sort()).toEqual(
+        [ownerUser.id, securityAdmin.id, fullAdminUser.id].sort(),
+      );
+    });
   });
 
   it("with alert only: the 31st contact is shown, they carry on, and admins are told", async () => {

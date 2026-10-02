@@ -8,6 +8,7 @@ import { runDigests } from "./digest";
 import { noTouch } from "./no-touch";
 import { askOutcomes } from "../meetings/outcomes";
 import { opsAlerts } from "../health/service";
+import { securitySweep } from "../security/sweep";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -66,7 +67,14 @@ export async function startTaskQueue(o: {
   // Reminders come first and never wait on mail: escalation and the digest run beside the clock, one run of
   // each at a time, so a slow mail server can neither hold up a sweep nor start a second digest run
   // (3B final review, Important 1).
-  const busy = { escalate: false, digest: false, noTouch: false, alerts: false, outcomes: false };
+  const busy = {
+    escalate: false,
+    digest: false,
+    noTouch: false,
+    alerts: false,
+    outcomes: false,
+    security: false,
+  };
   const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
     if (busy[key]) return;
     busy[key] = true;
@@ -87,6 +95,13 @@ export async function startTaskQueue(o: {
       if (n % 5 === 0) beside("escalate", () => escalate(deps), "follow-up escalation failed");
       // Every fifth minute: a meeting with a lead that has ended asks its owner how it went (5A).
       if (n % 5 === 0) beside("outcomes", () => askOutcomes({ ...deps, enqueue }), "Log outcome failed");
+      // Every fifth minute: the watch's safety net — anyone past a security rule's line is caught (6A).
+      if (n % 5 === 0)
+        beside(
+          "security",
+          () => securitySweep({ pool: o.pool, clock: () => new Date() }),
+          "the security sweep failed",
+        );
       // Every quarter hour: whoever's morning it is gets their digest (3B).
       if (o.digest && n % 15 === 0)
         beside(

@@ -84,7 +84,7 @@ export function digestMail(a: {
   assigned: number;
   /** The leads assigned (first names, each with its link), the first few of `assigned`. */
   assignedLeads?: { who: string; url: string }[];
-  admin: { unassigned: number; sources: string[] } | null;
+  admin: { unassigned: number; sources: string[]; securityAlerts?: number } | null;
   /** The hour it goes, on the person's clock: a late one isn't "Good morning". */
   localHour?: number;
 }): OutgoingMail {
@@ -115,15 +115,23 @@ export function digestMail(a: {
     });
   }
   if (a.admin) {
-    const lines: string[] = [];
+    const lines: Line[] = [];
+    const n = a.admin.securityAlerts ?? 0;
+    // First: someone may be taking lead data (6A). Links to Settings → Security, where it's reviewed.
+    if (n)
+      lines.push({
+        text: n === 1 ? "1 security alert needs you" : `${n} security alerts need you`,
+        url: `${new URL(a.url).origin}/settings/security`,
+      });
     if (a.admin.unassigned)
-      lines.push(
-        a.admin.unassigned === 1
-          ? "1 new lead has no one yet"
-          : `${a.admin.unassigned} new leads have no one yet`,
-      );
-    for (const s of a.admin.sources) lines.push(`${s} needs attention`);
-    if (lines.length) sections.push({ title: "Needs you", lines: lines.map((text) => ({ text })) });
+      lines.push({
+        text:
+          a.admin.unassigned === 1
+            ? "1 new lead has no one yet"
+            : `${a.admin.unassigned} new leads have no one yet`,
+      });
+    for (const s of a.admin.sources) lines.push({ text: `${s} needs attention` });
+    if (lines.length) sections.push({ title: "Needs you", lines });
   }
   const due = a.overdue.length + a.today.length;
   const subject =

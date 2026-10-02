@@ -68,6 +68,7 @@ export function authPlugin(app: FastifyInstance, o: AuthPluginOptions): void {
         ip: req.ip,
         now,
         timezone: settings.timezone,
+        workingHours: settings.workingHours,
       });
       if (verdict !== "ok") {
         throw forbidden(

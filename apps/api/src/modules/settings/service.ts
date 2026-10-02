@@ -5,17 +5,22 @@ import { sql } from "drizzle-orm";
 import { HttpError, badRequest } from "../../http/errors";
 import { audit } from "../../audit/audit";
 import type { RateSource } from "../../money/rates";
+import type { WorkingHours } from "@lume/core";
+import { workingHoursFrom } from "./follow-ups";
 
-export type AuthSettings = { timezone: string; security: SecuritySettings };
+export type AuthSettings = { timezone: string; security: SecuritySettings; workingHours: WorkingHours };
 
-/** The two settings every request's auth check needs, memoised briefly (settings edits are rare). */
+/** The settings every request's auth check needs, memoised briefly (settings edits are rare). */
 export function memoSettings(pool: pg.Pool, ttlMs = 5000): () => Promise<AuthSettings | null> {
   let at = 0;
   let value: AuthSettings | null = null;
   return async () => {
     if (value && Date.now() - at < ttlMs) return value;
-    const { rows } = await pool.query<AuthSettings>("SELECT timezone, security FROM settings WHERE id = 1");
-    value = rows[0] ?? null;
+    const { rows } = await pool.query<{ timezone: string; security: SecuritySettings; wh: unknown }>(
+      "SELECT timezone, security, working_hours AS wh FROM settings WHERE id = 1",
+    );
+    const r = rows[0];
+    value = r ? { timezone: r.timezone, security: r.security, workingHours: workingHoursFrom(r.wh) } : null;
     at = Date.now();
     return value;
   };

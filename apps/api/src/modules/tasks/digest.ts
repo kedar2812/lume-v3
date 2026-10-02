@@ -216,7 +216,7 @@ async function build(pool: pg.Pool, u: Person, now: Date, base: string) {
         [u.id, since],
       )
     ).rows.map((l) => ({ who: first(l.name), url: leadUrl(l.id) }));
-    let admin: { unassigned: number; sources: string[] } | null = null;
+    let admin: { unassigned: number; sources: string[]; securityAlerts?: number } | null = null;
     if (can(actor, "leads.view", "all")) {
       const unassigned = Number(
         (
@@ -230,6 +230,14 @@ async function build(pool: pg.Pool, u: Person, now: Date, base: string) {
         await client.query<{ name: string }>("SELECT name FROM lead_sources WHERE status = 'needs_attention'")
       ).rows.map((r) => r.name);
       if (unassigned || sources.length) admin = { unassigned, sources };
+    }
+    // Security alerts still open (6A), for whoever reviews them.
+    if (can(actor, "security.manage")) {
+      const open = Number(
+        (await client.query<{ n: string }>("SELECT count(*) AS n FROM security_alerts WHERE status = 'open'"))
+          .rows[0]!.n,
+      );
+      if (open) admin = { ...(admin ?? { unassigned: 0, sources: [] }), securityAlerts: open };
     }
     await client.query("COMMIT");
     return { overdue, today, assigned, assignedLeads, admin };

@@ -35,6 +35,39 @@ export type Probe = {
 
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
 export const PROBES: Record<string, Probe> = {
+  // Settings → Security (6A): everything is for people who manage security.
+  "GET /api/v1/security/settings": { access: "security.manage" },
+  "PUT /api/v1/security/settings": {
+    access: "security.manage",
+    body: () => ({
+      anomaly: {
+        reveals: { action: "suspend", threshold: 30 },
+        leadsOpened: { action: "suspend", threshold: 200 },
+        queueRuns: { action: "alert", threshold: 3 },
+      },
+      watermark: "masked_roles",
+    }),
+  },
+  "GET /api/v1/security/alerts": { access: "security.manage" },
+  "GET /api/v1/security/alerts/:id": {
+    access: "security.manage",
+    path: () => `/api/v1/security/alerts/${uuid}`,
+  },
+  "POST /api/v1/security/alerts/:id/resolve": {
+    access: "security.manage",
+    path: () => `/api/v1/security/alerts/${uuid}/resolve`,
+    body: () => ({ resolution: "kept_suspended" }),
+  },
+  "POST /api/v1/security/people/:id/restore": {
+    access: "security.manage",
+    path: (f) => `/api/v1/security/people/${f.userId}/restore`,
+  },
+  "GET /api/v1/security/access": { access: "security.manage" },
+  "PUT /api/v1/security/access/:id": {
+    access: "security.manage",
+    path: (f) => `/api/v1/security/access/${f.roleId}`,
+    body: () => ({ loginHours: null, ipAllowlist: null }),
+  },
   "GET /api/v1/sources": { access: "leads.view" },
   "GET /api/v1/sheets/status": { access: "leads.view" },
   "POST /api/v1/sheets/refresh": { access: "leads.view" },

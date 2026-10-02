@@ -1,4 +1,5 @@
 import { BlockList, isIPv6 } from "node:net";
+import type { WorkingHours } from "@lume/core";
 import type { LoginHours } from "@lume/db";
 
 type RoleRestriction = { loginHours: LoginHours | null; ipAllowlist: string[] | null };
@@ -34,6 +35,8 @@ export function checkLoginRestrictions(a: {
   ip: string;
   now: Date;
   timezone: string;
+  /** Settings' working hours: a role set to "Business hours" follows them at this moment (6A ruling R5). */
+  workingHours?: WorkingHours;
 }): "ok" | "ip" | "hours" {
   if (a.roles.length === 0) return "ok";
   let reason: "ip" | "hours" = "hours";
@@ -44,7 +47,11 @@ export function checkLoginRestrictions(a: {
     }
     if (r.loginHours) {
       const { day, hm } = localParts(a.now, a.timezone);
-      if (!r.loginHours.days.includes(day) || hm < r.loginHours.from || hm >= r.loginHours.to) {
+      const h =
+        r.loginHours.business && a.workingHours
+          ? { days: a.workingHours.days, from: a.workingHours.start, to: a.workingHours.end }
+          : r.loginHours;
+      if (!h.days.includes(day) || hm < h.from || hm >= h.to) {
         reason = "hours";
         continue;
       }

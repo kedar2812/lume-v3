@@ -116,6 +116,22 @@ describe("the daily digest (3B Task 4)", () => {
     expect(m!.text).toMatch(/new leads? (has|have) no one yet/);
   });
 
+  it("6A: a security admin's digest says how many alerts need them, with a link; a rep's never", async () => {
+    const secAdmin = await person("Asia/Dubai", { grants: [{ key: "security.manage", scope: null }] });
+    const rep = await person("Asia/Dubai");
+    for (let i = 0; i < 2; i++)
+      await h.ownerPool.query(
+        `INSERT INTO security_alerts (id, user_id, rule, observed, threshold, window_start, window_end, action)
+         VALUES ($1, $2, 'reveals', 31, 30, now() - interval '50 minutes', now(), 'suspended')`,
+        [newId(), rep.id],
+      );
+    await run("2026-10-05T04:00:00Z"); // Monday, 08:00 in Dubai
+    const [m] = to(secAdmin.email);
+    expect(m!.text).toContain("2 security alerts need you https://crm.example.test/settings/security");
+    expect(to(rep.email)[0]!.text).not.toMatch(/security alert/);
+    await h.ownerPool.query("DELETE FROM security_alerts WHERE user_id = $1", [rep.id]);
+  });
+
   it("within the week, an overdue follow-up says its weekday", async () => {
     const u = await person("Asia/Kolkata");
     await run("2026-09-29T03:00:00Z"); // Tuesday 08:30; the follow-up was Sunday 11:30

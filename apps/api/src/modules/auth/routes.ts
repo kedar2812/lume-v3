@@ -19,6 +19,7 @@ import { revokeSession } from "../../auth/sessions";
 import { CAPABILITIES } from "../../capabilities";
 import { unauthorized } from "../../http/errors";
 import { onboardingOf, tourOf } from "../me/service";
+import { watermarkFor } from "../security/service";
 import { emailSchema as email, passwordInput, totpCodeSchema, urlTokenSchema } from "../../http/schemas";
 import { forgotPassword, resetPassword } from "./password";
 import { login, recoveryCode, secondFactor, type LockoutHook } from "./service";
@@ -100,6 +101,7 @@ export async function authRoutes(
       agreement: { version: u.agreedVersion ?? null, current: LEGAL_VERSION },
       // The licence as this person sees it (L-A): with the rest, so nothing flashes on load.
       licence: await licenceFor(req),
+      ...(await watermarkFor(req)),
       flags: {
         // The licence agreement, terms and privacy policy come before everything, onboarding included.
         needsAgreement: needsAgreement(u.agreedVersion),
