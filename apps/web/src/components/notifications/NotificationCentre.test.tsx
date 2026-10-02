@@ -344,3 +344,17 @@ describe("the notification centre: 3C", () => {
     expect(screen.getByRole("listitem", { name: /Karim Aziz/ })).not.toHaveAttribute("data-arrived");
   });
 });
+
+describe("the notification centre: Calendly bookings (5D)", () => {
+  it("a booking wears Calendly's own mark", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({ items: [note(7, "meeting_booked", "Noor Rahman booked a Programme fit call")], unread: 1 }),
+    );
+    await open();
+    // Decorative (the row's words say it's a booking): the mark is in the icon slot, hidden from readers.
+    await screen.findByText("Noor Rahman booked a Programme fit call");
+    expect(
+      screen.getByRole("dialog", { name: "Notifications" }).querySelector('img[src="/brand/calendly.svg"]'),
+    ).not.toBeNull();
+  });
+});

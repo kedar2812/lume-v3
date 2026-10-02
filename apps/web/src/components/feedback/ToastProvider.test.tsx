@@ -86,4 +86,16 @@ describe("toasts", () => {
     act(() => void api.toast({ title: "Snoozed until tomorrow" }));
     expect(played).toEqual([]);
   });
+
+  it("5D: another app's notice wears that app's own mark, on a white tile, instead of the tone's icon", () => {
+    setup();
+    act(
+      () =>
+        void api.toast({
+          title: "Noor Rahman booked a Programme fit call",
+          mark: { src: "/brand/calendly.svg", alt: "Calendly" },
+        }),
+    );
+    expect(screen.getByRole("img", { name: "Calendly" })).toHaveAttribute("src", "/brand/calendly.svg");
+  });
 });

@@ -14,6 +14,8 @@ export type ToastInput = {
   action?: { label: string; onClick(): void };
   sound?: SoundCue;
   durationMs?: number;
+  /** Another app's notice (5D: a Calendly booking) wears that app's own mark, on a white tile. */
+  mark?: { src: string; alt: string };
 };
 type Item = ToastInput & { id: string };
 type Api = { toast(t: ToastInput): string; dismiss(id: string): void };
@@ -98,11 +100,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 onMouseEnter={() => clearTimeout(timers.current.get(t.id))}
                 onMouseLeave={() => arm(t.id, 1600)}
               >
-                <span className={s.icon} style={{ background: TONE_BG[tone] }}>
-                  <svg viewBox="0 0 14 14" aria-hidden>
-                    <path d={PATH[tone]} />
-                  </svg>
-                </span>
+                {t.mark ? (
+                  <span className={s.mark}>
+                    <img src={t.mark.src} alt={t.mark.alt} width={20} height={20} />
+                  </span>
+                ) : (
+                  <span className={s.icon} style={{ background: TONE_BG[tone] }}>
+                    <svg viewBox="0 0 14 14" aria-hidden>
+                      <path d={PATH[tone]} />
+                    </svg>
+                  </span>
+                )}
                 <span className={s.text}>
                   <span className={s.title}>{t.title}</span>
                   {t.detail && <span className={s.detail}>{t.detail}</span>}

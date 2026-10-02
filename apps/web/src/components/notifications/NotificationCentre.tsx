@@ -491,6 +491,9 @@ function label(e: Entry, tz: string): string {
 }
 
 function icon(e: Entry): ReactNode {
+  // A Calendly booking (5D) wears Calendly's own mark, unmodified.
+  if (e.type !== "task" && e.n.kind === "meeting_booked")
+    return <img src="/brand/calendly.svg" alt="" width={16} height={16} />;
   const path =
     e.type === "task"
       ? "M8 3.5v4.5l3 2M14.5 8a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" // a clock: a follow-up

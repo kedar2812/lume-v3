@@ -90,3 +90,17 @@
   background: rgba(255, 255, 255, 0.35);
   transform-origin: left;
 }
+
+/* Another app's mark, unmodified, on a white tile (brand README). */
+.mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: #fff;
+}
+.mark img {
+  border-radius: 5px;
+}

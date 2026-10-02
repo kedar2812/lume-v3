@@ -61,6 +61,8 @@ describe("Today's calls (5C Task 9)", () => {
         link: "https://meet.example/x",
         status: "scheduled",
         lead: null,
+        matchedBy: "attendee",
+        reminder: null,
       },
       {
         id: late,
@@ -70,7 +72,38 @@ describe("Today's calls (5C Task 9)", () => {
         link: "https://meet.example/x",
         status: "scheduled",
         lead: { id: lead, name: "Dana Lead" },
+        matchedBy: "attendee",
+        reminder: null,
       },
     ]);
+  });
+
+  it("5D: each call says where it came from and its WhatsApp reminder — still to go, or sent", async () => {
+    const lead = await h.seedLead({ ownerId: me.id, name: "Reminded Lead" });
+    const soon = await meeting(me.id, "2026-09-21T10:30:00Z", { lead, title: "Reminded call" }); // 2:30 pm
+    const sent = await meeting(me.id, "2026-09-21T12:00:00Z", { lead, title: "Sent call" }); // 4 pm
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        "SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'all', true)",
+        [me.id],
+      );
+      const task = (id: string, meetingId: string, dueAt: string, status: string, doneAt: string | null) =>
+        c.query(
+          `INSERT INTO tasks (id, lead_id, assignee_id, type, title, due_at, status, done_at, series_id, meeting_id)
+           VALUES ($1, $2, $3, 'whatsapp', 'Remind', $4, $5, $6, $1, $7)`,
+          [id, lead, me.id, dueAt, status, doneAt, meetingId],
+        );
+      await task(newId(), soon, "2026-09-21T08:30:00Z", "open", null);
+      await task(newId(), sent, "2026-09-21T10:00:00Z", "done", "2026-09-21T08:45:00Z");
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
+    const r = await mine.inject({ method: "GET", url: "/api/v1/today" });
+    const byId = new Map(r.json().meetings.map((m: { id: string }) => [m.id, m]));
+    expect(byId.get(soon)).toMatchObject({ reminder: { at: "2026-09-21T08:30:00.000Z", sent: false } });
+    expect(byId.get(sent)).toMatchObject({ reminder: { at: "2026-09-21T08:45:00.000Z", sent: true } });
   });
 });
