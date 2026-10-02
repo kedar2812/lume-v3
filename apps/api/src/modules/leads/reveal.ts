@@ -5,9 +5,13 @@ import { audit } from "../../audit/audit";
 import { forbidden } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
 import { isFieldVisible } from "./serialize";
+import { watchAct } from "../security/watch";
 import { recordActivity, visibleLead } from "./service";
 
-/** Report §12.2 #3: one lead's contact on click, audited and counted per user per hour. */
+/**
+ * Report §12.2 #3: one lead's contact on click, audited and counted per user per hour. Watched (6A): the reveal
+ * that crosses a pause rule's line comes back `{ suspended: true }`, without the contact, for the route to refuse.
+ */
 export async function revealContact(req: FastifyRequest, id: string) {
   const actor = req.actor!;
   const lead = await visibleLead(req, id);
@@ -32,5 +36,7 @@ export async function revealContact(req: FastifyRequest, id: string) {
     ON CONFLICT (user_id, hour) DO UPDATE SET count = reveal_counters.count + 1`);
   await recordActivity(req, id, "contact_revealed");
   await audit(req, { action: "lead.contact.reveal", entityType: "lead", entityId: id });
-  return out;
+  const watched = await watchAct(req, "reveals");
+  if (watched.outcome === "suspended") return { suspended: true as const };
+  return { ...out, nearLimit: watched.nearLimit };
 }

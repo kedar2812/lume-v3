@@ -11,6 +11,7 @@ import { prepareMessage } from "./messages";
 import { confirmSend, logReply, messageContext, renderFor } from "./sending";
 import type { AppDeps } from "../../app";
 import { runBulk } from "./bulk";
+import { SUSPENDED_BODY } from "../security/watch";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
 import { addNote, assignLead, listActivities, moveStage } from "./write";
@@ -138,8 +139,14 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
       .where(eq(schema.users.id, req.actor!.userId));
     return reply.code(204).send();
   });
-  r.get("/api/v1/leads/:id", { config: { permission: "leads.view" }, schema: { params } }, (req) =>
-    svc.getLead(req, req.params.id),
+  r.get(
+    "/api/v1/leads/:id",
+    { config: { permission: "leads.view" }, schema: { params } },
+    async (req, reply) => {
+      const r = await svc.getLead(req, req.params.id);
+      if ("suspended" in r) return reply.code(403).send(SUSPENDED_BODY);
+      return r;
+    },
   );
   r.patch(
     "/api/v1/leads/:id",
@@ -214,7 +221,10 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
     { config: { permission: "leads.contact.reveal", idempotent: false }, schema: { params } },
     async (req, reply) => {
       void reply.header("cache-control", "no-store");
-      return revealContact(req, req.params.id);
+      const r = await revealContact(req, req.params.id);
+      // Sent, not thrown: the pause, its alert and this reveal's audit row commit (6A ruling R4).
+      if ("suspended" in r) return reply.code(403).send(SUSPENDED_BODY);
+      return r;
     },
   );
   r.post(

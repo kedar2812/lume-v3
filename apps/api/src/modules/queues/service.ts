@@ -4,6 +4,7 @@ import { canOnRecord, localDayBounds, newId, render } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
+import { watchAct } from "../security/watch";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
 import { prepareMessage } from "../leads/messages";
@@ -218,6 +219,8 @@ export async function startQueue(
     entityId: id,
     diff: { source: sourceName, leads: picked.length },
   });
+  // Many runs in a day is worth a look (6A): this rule only ever tells admins, so the run always starts.
+  await watchAct(req, "queueRuns");
   return { queue: await queueView(req, id), leftOut, more };
 }
 

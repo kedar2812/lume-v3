@@ -3,6 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { canOnRecord, normalizeInstagram, normalizePhone, scopeOf, type NormalizedPhone } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
+import { watchAct } from "../security/watch";
 import { HttpError, badRequest, forbidden, notFound } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
 import { assertOneCurrency } from "../settings/service";
@@ -260,10 +261,16 @@ export async function createLead(req: FastifyRequest, input: LeadInput & { name:
   return { lead: await leadViewFor(req, await visibleLead(req, id), fields), duplicates };
 }
 
+/**
+ * One lead, opened (the drawer or the page). Watched (6A): the open that crosses a pause rule's line comes back
+ * `{ suspended: true }` without the lead; near the line, the lead comes with a quiet notice (plan ruling R9).
+ */
 export async function getLead(req: FastifyRequest, id: string) {
   const row = await visibleLead(req, id);
   await audit(req, { action: "lead.view", entityType: "lead", entityId: id });
-  return { lead: await leadViewFor(req, row) };
+  const watched = await watchAct(req, "leadsOpened");
+  if (watched.outcome === "suspended") return { suspended: true as const };
+  return { lead: await leadViewFor(req, row), ...(watched.nearLimit ? { watch: { nearLimit: true } } : {}) };
 }
 
 export function parseIfMatch(header: string | string[] | undefined): number {

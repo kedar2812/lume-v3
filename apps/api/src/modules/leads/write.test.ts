@@ -174,7 +174,12 @@ describe("Reveal (report §12.2 #3)", () => {
       headers: { "idempotency-key": "reveal-key-0001" },
     });
     expect(r.statusCode).toBe(200);
-    expect(r.json()).toEqual({ phone: "+971 50 123 4567", email: "reveal@example.com", instagram: null });
+    expect(r.json()).toEqual({
+      phone: "+971 50 123 4567",
+      email: "reveal@example.com",
+      instagram: null,
+      nearLimit: false,
+    });
     expect(r.headers["cache-control"]).toBe("no-store");
     expect(
       (await h.pool.query("SELECT count FROM reveal_counters WHERE user_id = $1", [repUser.id])).rows[0]
