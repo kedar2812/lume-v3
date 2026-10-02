@@ -16,13 +16,19 @@ const MOVES: { key: keyof Moves; label: string }[] = [
   { key: "afterReplyStageId", label: "After a reply, move to" },
 ];
 const OWNER = "lead_owner";
-/** The kinds the editor adds today; a meeting reminder (5C) shows as its sentence until its own card ships. */
-const newRule = (type: "create_task" | "notify" | "cancel_open_tasks"): StageRule =>
+/** A reminder message the meeting reminder can use (4A templates). */
+export type ReminderTemplate = { id: string; name: string; body: string };
+export type NewRuleKind = "create_task" | "notify" | "cancel_open_tasks" | "remind_before_meeting";
+const REMIND_HOURS = 2;
+/** A new automation of a kind, as the editor first shows it. */
+export const newRule = (type: NewRuleKind, templateId = ""): StageRule =>
   type === "create_task"
     ? { id: crypto.randomUUID(), type, title: "", dueIn: { n: 2, unit: "day" }, assignee: OWNER }
     : type === "notify"
       ? { id: crypto.randomUUID(), type, to: [] }
-      : { id: crypto.randomUUID(), type };
+      : type === "remind_before_meeting"
+        ? { id: crypto.randomUUID(), type, hoursBefore: REMIND_HOURS, templateId }
+        : { id: crypto.randomUUID(), type };
 
 /**
  * What a stage does when a lead enters it (3C; frontend spec §8.10): up to five automations, each a card
@@ -34,11 +40,14 @@ export function StageAutomations({
   moves: initialMoves = { afterSentStageId: null, afterReplyStageId: null },
   targets = [],
   people,
+  templates = [],
   onSave,
   onClose,
 }: {
   stage: { id: string; name: string };
   rules: StageRule[];
+  /** The reminder messages the meeting reminder may send (5D); none: write one in Templates first. */
+  templates?: ReminderTemplate[];
   /** Where a lead here goes after a message or a reply (4A). */
   moves?: Moves;
   /** Where it may go: this pipeline's other stages that a move can reach. */
@@ -53,6 +62,9 @@ export function StageAutomations({
   const [moves, setMoves] = useState<Moves>(initialMoves);
   const moveId = useId();
   const [problem, setProblem] = useState<string | null>(null);
+  /** The automation just removed, for Undo (5D Task 9). */
+  const [removed, setRemoved] = useState<{ rule: StageRule; at: number } | null>(null);
+  const hasReminder = rules.some((r) => r.type === "remind_before_meeting");
   const [busy, setBusy] = useState(false);
   const active = people.filter((p) => p.active);
   // Someone no longer active stays visible where a rule still names them, so they can be taken out
@@ -130,7 +142,10 @@ export function StageAutomations({
                   type="button"
                   className={a.remove}
                   aria-label={`Remove automation ${i + 1}`}
-                  onClick={() => setRules((rs) => rs.filter((_, j) => j !== i))}
+                  onClick={() => {
+                    setRemoved({ rule: r, at: i });
+                    setRules((rs) => rs.filter((_, j) => j !== i));
+                  }}
                 >
                   <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
                     <path
@@ -195,6 +210,65 @@ export function StageAutomations({
                   </select>
                 </div>
               )}
+              {r.type === "remind_before_meeting" && (
+                <div className={a.remind}>
+                  <div className={a.fields}>
+                    <span className={a.word}>Send it</span>
+                    <span className={a.stepper}>
+                      <button
+                        type="button"
+                        aria-label="One hour less"
+                        disabled={r.hoursBefore <= 1}
+                        onClick={() => change(i, { ...r, hoursBefore: r.hoursBefore - 1 })}
+                      >
+                        −
+                      </button>
+                      <input
+                        className={a.num}
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={72}
+                        aria-label="Hours before the meeting"
+                        value={Number.isFinite(r.hoursBefore) ? r.hoursBefore : ""}
+                        onChange={(e) => change(i, { ...r, hoursBefore: Math.round(Number(e.target.value)) })}
+                      />
+                      <button
+                        type="button"
+                        aria-label="One hour more"
+                        disabled={r.hoursBefore >= 72}
+                        onClick={() => change(i, { ...r, hoursBefore: r.hoursBefore + 1 })}
+                      >
+                        +
+                      </button>
+                    </span>
+                    <span className={a.word}>
+                      {r.hoursBefore === 1 ? "hour" : "hours"} before the meeting
+                    </span>
+                  </div>
+                  <div className={a.fields}>
+                    <span className={a.word}>Message</span>
+                    <select
+                      aria-label="Message"
+                      value={r.templateId}
+                      onChange={(e) => change(i, { ...r, templateId: e.target.value })}
+                    >
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {templates.find((t) => t.id === r.templateId) && (
+                    <p className={a.preview} data-testid="reminder-preview">
+                      <img src="/brand/whatsapp.svg" alt="" width={14} height={14} />
+                      {templates.find((t) => t.id === r.templateId)!.body}
+                    </p>
+                  )}
+                  <p className={a.note}>If a call is booked sooner than this, LUME skips the reminder.</p>
+                </div>
+              )}
               {r.type === "notify" && (
                 <fieldset className={a.who}>
                   <legend className={s.srOnly}>Who to tell</legend>
@@ -225,6 +299,20 @@ export function StageAutomations({
           ))}
         </AnimatePresence>
       </ol>
+      {removed && (
+        <p role="status" className={a.removed}>
+          Removed
+          <button
+            type="button"
+            onClick={() => {
+              setRules((rs) => [...rs.slice(0, removed.at), removed.rule, ...rs.slice(removed.at)]);
+              setRemoved(null);
+            }}
+          >
+            Undo
+          </button>
+        </p>
+      )}
       {!rules.length && (
         <p className={a.none}>Nothing yet. Leads enter {stage.name} and LUME leaves them be.</p>
       )}
@@ -234,15 +322,20 @@ export function StageAutomations({
             ["create_task", "Set a follow-up"],
             ["cancel_open_tasks", "Clear open follow-ups"],
             ["notify", "Tell someone"],
+            ["remind_before_meeting", "Remind the lead before their call"],
           ] as const
         ).map(([type, label]) => (
           <button
             key={type}
             type="button"
             className={a.addBtn}
-            disabled={rules.length >= MAX}
+            disabled={
+              rules.length >= MAX ||
+              (type === "remind_before_meeting" && (hasReminder || templates.length === 0))
+            }
             onClick={() => {
-              setRules((rs) => [...rs, newRule(type)]);
+              setRules((rs) => [...rs, newRule(type, templates[0]?.id)]);
+              setRemoved(null);
               setProblem(null);
             }}
           >
@@ -250,6 +343,11 @@ export function StageAutomations({
           </button>
         ))}
       </div>
+      {templates.length === 0 && !hasReminder && (
+        <p className={s.muted}>
+          Write a reminder message in Templates first, to remind a lead before their call.
+        </p>
+      )}
       {rules.length >= MAX && <p className={s.muted}>Five is the most a stage can do.</p>}
       <div className={s.dialogActions}>
         {problem && (

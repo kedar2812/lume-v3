@@ -19,6 +19,7 @@ export function ListEditor<T extends ListItem>({
   onReorder,
   onArchive,
   renderExtra,
+  leading,
   askToArchive,
   archiveVerb = "Archive",
   archiveNote = "Leads keep it; it just can’t be picked any more.",
@@ -33,6 +34,8 @@ export function ListEditor<T extends ListItem>({
   onReorder?: (ids: string[]) => void;
   onArchive?: (id: string) => void;
   renderExtra?: (item: T) => ReactNode;
+  /** Shown before an item's name (a stage's colour dot). */
+  leading?: (item: T) => ReactNode;
   /** Ask about archiving yourself (when it needs a choice, like where a stage's leads go). */
   askToArchive?: (id: string) => void;
   /** What taking an item away is called here: "Archive", or "Remove" when it really goes. */
@@ -116,6 +119,7 @@ export function ListEditor<T extends ListItem>({
                     </svg>
                   </button>
                 )}
+                {leading?.(item)}
                 {editing === item.id ? (
                   <input
                     className={s.rename}

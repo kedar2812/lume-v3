@@ -59,7 +59,9 @@ test.describe("Stage automations, time choices and System health (3C)", () => {
     page,
   }) => {
     await openApp(page, "/settings/pipeline");
-    await page.getByRole("button", { name: "Automations for Replied" }).click();
+    // The pipeline, simplified (5D): choose the stage, then change what it does.
+    await page.getByRole("button", { name: "Open Replied" }).click();
+    await page.getByRole("button", { name: "Change what Replied does" }).click();
     const sheet = page.getByRole("dialog", { name: "What Replied does" });
     await sheet.getByRole("button", { name: "Set a follow-up" }).click();
     await sheet.getByLabel("Follow-up title").fill("Send the plan");
@@ -80,7 +82,7 @@ test.describe("Stage automations, time choices and System health (3C)", () => {
     await page.emulateMedia({ colorScheme: "light" });
     await sheet.getByRole("button", { name: "Save" }).click();
     await expect(sheet).toBeHidden();
-    const summary = page.getByRole("list", { name: "What each stage does" });
+    const summary = page.getByRole("list", { name: "What Replied does" });
     await expect(summary).toContainText("Sets a follow-up for the lead's owner in 2 days: Send the plan");
     await reviewCopy(page.locator("main"), "pipeline-with-automations-light.png");
 

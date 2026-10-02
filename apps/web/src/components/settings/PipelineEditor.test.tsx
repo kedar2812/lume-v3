@@ -16,6 +16,27 @@ vi.mock("@/lib/settings/pipelines", () => ({
   },
 }));
 
+vi.mock("@/lib/calendar/client", () => ({ calendarClient: { bookingStage: vi.fn() } }));
+vi.mock("@/lib/templates/client", () => ({
+  templatesClient: {
+    list: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: {
+        templates: [
+          {
+            id: "0192f0a0-0000-7000-8000-0000000000a1",
+            name: "See you soon",
+            category: "reminder",
+            body: "Hi {{lead.first_name}}, see you soon!",
+            usable: true,
+          },
+        ],
+      },
+    })),
+  },
+}));
+
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const catalog = testCatalog();
 const stageOf = (id: string) => catalog.pipelines[0]!.stages.find((s) => s.id === id)!;
@@ -56,6 +77,7 @@ describe("PipelineEditor", () => {
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-sent", { name: "Messaged" });
     expect(await screen.findByText("Messaged")).toBeInTheDocument();
 
+    await userEvent.click(screen.getByRole("button", { name: "Open New" })); // its settings sit beside the list
     await userEvent.click(screen.getByRole("button", { name: "Colour for New" }));
     await userEvent.click(screen.getByRole("radio", { name: "Cyan" }));
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", { color: "cyan" });
@@ -104,6 +126,7 @@ describe("PipelineEditor", () => {
 
   it("sets the fields a stage needs, from the lead's fields", async () => {
     renderEditor();
+    await userEvent.click(screen.getByRole("button", { name: "Open Call booked" }));
     await userEvent.click(screen.getByRole("button", { name: "Needs for Call booked" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Struggles" }));
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-booked", { requiredFieldIds: ["f-str"] });
@@ -117,6 +140,7 @@ describe("PipelineEditor", () => {
       message: "A pipeline needs at least one Won and one Lost stage",
     });
     renderEditor();
+    await userEvent.click(screen.getByRole("button", { name: "Open Won" }));
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Kind of Won" }), "open");
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-won", { kind: "open" });
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -142,6 +166,7 @@ describe("PipelineEditor", () => {
 
   it("sets how long a lead may sit in a stage, or clears it", async () => {
     renderEditor();
+    await userEvent.click(screen.getByRole("button", { name: "Open New" }));
     const sla = screen.getByRole("spinbutton", { name: "Hours allowed in New" });
     await userEvent.type(sla, "24");
     fireEvent.blur(sla);
@@ -173,23 +198,29 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
       ),
     }));
     render(<PipelineEditor pipelines={withRule} fields={catalog.fields} people={catalog.people} />);
-    const summary = screen.getByRole("list", { name: "What each stage does" });
+    // The list says how many each stage has; the chosen stage lists them, one line each.
+    expect(screen.getByRole("button", { name: "Open Message sent" })).toHaveTextContent("1 automation");
+    await userEvent.click(screen.getByRole("button", { name: "Open Message sent" }));
+    const sent = screen.getByRole("list", { name: "What Message sent does" });
     expect(
-      within(summary).getByText("Sets a follow-up for the lead's owner in 2 days: Send the plan"),
+      within(sent).getByText("Sets a follow-up for the lead's owner in 2 days: Send the plan"),
     ).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Change what New does" }));
     const sheet = screen.getByRole("dialog", { name: "What New does" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Clear open follow-ups" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", {
       onEnter: { rules: [{ id: expect.any(String), type: "cancel_open_tasks" }] },
     });
-    expect(await within(summary).findByText("Clears the lead's open follow-ups")).toBeInTheDocument();
+    const summary = await screen.findByRole("list", { name: "What New does" });
+    expect(within(summary).getByText("Clears the lead's open follow-ups")).toBeInTheDocument();
   });
 
   it("Moves (4A): where a lead goes after a message or a reply, chosen in Does and saved with the stage", async () => {
     render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} people={catalog.people} />);
-    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Change what New does" }));
     const sheet = screen.getByRole("dialog", { name: "What New does" });
     const moves = within(sheet).getByRole("group", { name: "Moves" });
     const sent = within(moves).getByRole("combobox", { name: "After a message is sent, move to" });
@@ -210,10 +241,10 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
       afterSentStageId: "s-sent",
       afterReplyStageId: "s-booked",
     });
-    const summary = await screen.findByRole("list", { name: "What each stage does" });
+    const summary = await screen.findByRole("list", { name: "What New does" });
     expect(within(summary).getByText("After a message is sent: moves to Message sent")).toBeInTheDocument();
     expect(within(summary).getByText("After a reply: moves to Call booked")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Automations for New" })).toHaveTextContent("Does 2");
+    expect(screen.getByRole("button", { name: "Open New" })).toHaveTextContent("2 automations");
   });
 
   it("Moves: a refusal keeps the sheet open with LUME's words, and nothing changes", async () => {
@@ -224,7 +255,8 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
       message: "Pick a stage in this pipeline",
     } as never);
     render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} people={catalog.people} />);
-    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Change what New does" }));
     const sheet = screen.getByRole("dialog", { name: "What New does" });
     await userEvent.selectOptions(
       within(sheet).getByRole("combobox", { name: "After a reply, move to" }),
@@ -232,7 +264,7 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
     );
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
     expect(await within(sheet).findByText("Pick a stage in this pipeline")).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "What each stage does" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "What New does" })).not.toBeInTheDocument();
   });
 
   it("a stage that already moves leads shows it, and Stay here takes it off", async () => {
@@ -241,8 +273,9 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
       stages: p.stages.map((st) => (st.id === "s-new" ? { ...st, afterSentStageId: "s-sent" } : st)),
     }));
     render(<PipelineEditor pipelines={moving} fields={catalog.fields} people={catalog.people} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open New" }));
     expect(screen.getByText("After a message is sent: moves to Message sent")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Automations for New" }));
+    await userEvent.click(screen.getByRole("button", { name: "Change what New does" }));
     const sheet = screen.getByRole("dialog", { name: "What New does" });
     const sent = within(sheet).getByRole("combobox", { name: "After a message is sent, move to" });
     expect(sent).toHaveValue("s-sent");
@@ -252,5 +285,54 @@ describe("PipelineEditor: automations (3C Task 6)", () => {
       onEnter: { rules: [] },
       afterSentStageId: null,
     });
+  });
+});
+
+describe("PipelineEditor: simplified (5D Task 9)", () => {
+  it("Won and Lost sit in their own Outcomes group", () => {
+    renderEditor();
+    const outcomes = screen.getByRole("list", { name: "Outcomes" });
+    expect(within(outcomes).getByText("Won")).toBeInTheDocument();
+    expect(within(outcomes).getByText("Lost")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Stages" })).queryByText("Won")).not.toBeInTheDocument();
+  });
+
+  it("with Calendly connected, the booking sentence sets the booking stage, from open stages only", async () => {
+    const { calendarClient } = await import("@/lib/calendar/client");
+    vi.mocked(calendarClient.bookingStage).mockResolvedValue(
+      ok({ pipeline: { ...catalog.pipelines[0]!, bookingStageId: "s-booked" } }),
+    );
+    render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} calendly />);
+    const sentence = screen.getByRole("group", { name: "Calendly bookings" });
+    expect(sentence).toHaveTextContent(
+      "When someone books a call through Calendly, LUME moves their lead to",
+    );
+    const pick = within(sentence).getByRole("combobox", { name: "Booking stage" });
+    expect(
+      within(pick)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Leave it where it is", "New", "Message sent", "Call booked"]);
+    await userEvent.selectOptions(pick, "Call booked");
+    expect(calendarClient.bookingStage).toHaveBeenCalledWith("p1", "s-booked");
+    expect(await screen.findByRole("img", { name: "Calendly's booking stage" })).toBeInTheDocument();
+    expect(within(sentence).getByRole("link", { name: "Calendly settings" })).toHaveAttribute(
+      "href",
+      "/settings/integrations/calendly",
+    );
+  });
+
+  it("without Calendly, there is no booking sentence", () => {
+    renderEditor();
+    expect(screen.queryByRole("group", { name: "Calendly bookings" })).not.toBeInTheDocument();
+  });
+
+  it("Add an automation offers the meeting reminder once; it opens the editor with it added", async () => {
+    render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} people={catalog.people} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open Call booked" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add an automation" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remind the lead before their call" }));
+    const sheet = await screen.findByRole("dialog", { name: "What Call booked does" });
+    expect(within(sheet).getByRole("spinbutton", { name: "Hours before the meeting" })).toHaveValue(2);
   });
 });

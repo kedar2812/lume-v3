@@ -70,4 +70,19 @@ describe("ListEditor", () => {
     expect(screen.getByText("extra for Price")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Archive/ })).not.toBeInTheDocument();
   });
+
+  it("shows what a caller puts before an item's name (a stage's colour dot)", () => {
+    render(
+      <ListEditor
+        items={[{ id: "a", label: "New" }]}
+        itemLabel="Stage"
+        addLabel="Add a stage"
+        leading={(item) => <i data-testid={`dot-${item.id}`} />}
+      />,
+    );
+    const dot = screen.getByTestId("dot-a");
+    expect(
+      dot.compareDocumentPosition(screen.getByText("New")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });

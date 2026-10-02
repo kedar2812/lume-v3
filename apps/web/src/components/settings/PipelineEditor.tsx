@@ -1,19 +1,29 @@
 "use client";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { describeRule, type OnEnter } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Popover } from "@/components/ui/Popover";
 import type { ApiResult } from "@/lib/api";
+import { calendarClient } from "@/lib/calendar/client";
 import { tokenColor } from "@/lib/leads/colors";
 import type { FieldDefView, Person, Pipeline, Stage } from "@/lib/leads/types";
 import { pipelinesClient, type StagePatch } from "@/lib/settings/pipelines";
 import { accessGone } from "@/lib/settings/access";
+import { templatesClient } from "@/lib/templates/client";
 import { AccessChanged } from "./AccessChanged";
 import { ColourPicker } from "./ColourPicker";
 import { ListEditor } from "./ListEditor";
-import { StageAutomations, type Moves } from "./StageAutomations";
+import {
+  StageAutomations,
+  newRule,
+  type Moves,
+  type NewRuleKind,
+  type ReminderTemplate,
+} from "./StageAutomations";
 import a from "./automations.module.css";
+import p from "./pipeline.module.css";
 import s from "./settings.module.css";
 
 const KINDS = [
@@ -25,27 +35,52 @@ const KINDS = [
 type Note = { text: string; undo?: () => void; tone?: "problem" };
 const sorted = (p: Pipeline) => [...p.stages].sort((a, b) => a.position - b.position);
 
+const ADD: { type: NewRuleKind; label: string }[] = [
+  { type: "create_task", label: "Set a follow-up" },
+  { type: "notify", label: "Tell someone" },
+  { type: "cancel_open_tasks", label: "Clear open follow-ups" },
+  { type: "remind_before_meeting", label: "Remind the lead before their call" },
+];
+
 /**
- * A pipeline's stages, edited in place: rename, recolour, reorder, say what kind each is, which fields
- * a lead needs before entering it and how long it may sit there. Every change saves as it is made; a
- * refusal puts the stage back and says why. Archiving asks where the stage's leads go.
+ * A pipeline, simplified (canvas Pipeline, the owner's 2026-10-01 critique). The stages list holds only names
+ * and colours, a quiet "2 automations", and the booking stage's Calendly mark; Won and Lost sit apart as
+ * Outcomes. The chosen stage shows, beside it, its own settings and what LUME does when a lead enters it,
+ * one line each. With Calendly connected, one sentence on top says where a booking moves its lead. Every
+ * change saves as it is made; a refusal puts it back and says why.
  */
 export function PipelineEditor({
   pipelines: initial,
   fields,
   people = [],
+  calendly = false,
 }: {
   pipelines: Pipeline[];
   fields: FieldDefView[];
   /** Who a stage's automations can name (3C). */
   people?: Person[];
+  /** Calendly is connected (5D): the booking sentence shows. */
+  calendly?: boolean;
 }) {
   const [pipelines, setPipelines] = useState(initial);
   const [pipelineId, setPipelineId] = useState(initial.find((p) => p.isDefault)?.id ?? initial[0]?.id);
   const [note, setNote] = useState<Note | null>(null);
   const [archiving, setArchiving] = useState<Stage | null>(null);
-  const [automating, setAutomating] = useState<Stage | null>(null);
+  const [automating, setAutomating] = useState<{ stage: Stage; adding?: NewRuleKind } | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<ReminderTemplate[]>([]);
+  // The reminder messages a meeting reminder may send (4A's "reminder" templates).
+  useEffect(() => {
+    void templatesClient.list().then((r) => {
+      if (r.ok)
+        setTemplates(
+          r.data.templates
+            .filter((t) => t.category === "reminder" && t.usable)
+            .map((t) => ({ id: t.id, name: t.name, body: t.body })),
+        );
+    });
+  }, []);
 
   const pipeline = pipelines.find((p) => p.id === pipelineId);
   if (forbidden) return <AccessChanged />;
@@ -149,9 +184,59 @@ export function PipelineEditor({
       : []),
     ...(x.onEnter?.rules ?? []).map((r) => describeRule(r, names)),
   ];
-  const acting = stages.filter((x) => doing(x).length);
 
   const needable = fields.filter((f) => !f.archived && f.key !== "name");
+  const open = stages.filter((x) => x.kind === "open");
+  const outcomes = stages.filter((x) => x.kind !== "open");
+  const chosen = stages.find((x) => x.id === selected) ?? open[0] ?? stages[0]!;
+  const count = (x: Stage) => doing(x).length;
+
+  const setBooking = async (stageId: string | null) => {
+    setNote(null);
+    const r = await calendarClient.bookingStage(pipeline.id, stageId);
+    if (!landed(r)) return;
+    replacePipeline({ ...pipeline, bookingStageId: r.data.pipeline.bookingStageId });
+    setNote({
+      text: stageId ? "Bookings now move their lead there" : "Bookings leave their lead where it is",
+    });
+  };
+
+  const stageRow = (stage: Stage) => (
+    <span className={p.rowExtra}>
+      {pipeline.bookingStageId === stage.id && (
+        <img
+          className={p.calendlyMark}
+          src="/brand/calendly.svg"
+          alt="Calendly's booking stage"
+          width={16}
+          height={16}
+        />
+      )}
+      <button
+        type="button"
+        className={p.open}
+        data-chosen={stage.id === chosen.id || undefined}
+        aria-label={`Open ${stage.name}`}
+        aria-pressed={stage.id === chosen.id}
+        onClick={() => setSelected(stage.id)}
+      >
+        <span>{count(stage) ? `${count(stage)} automation${count(stage) === 1 ? "" : "s"}` : ""}</span>
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+          <path
+            d="M6 3.5 10.5 8 6 12.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+    </span>
+  );
+
+  const dot = (stage: Stage) => (
+    <i className={p.dot} style={{ background: tokenColor(stage.color) }} aria-hidden />
+  );
 
   return (
     <div className={s.stack}>
@@ -159,120 +244,248 @@ export function PipelineEditor({
         <label className={s.inlineSelect}>
           <span>Pipeline</span>
           <select value={pipeline.id} onChange={(e) => setPipelineId(e.target.value)}>
-            {pipelines.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
+            {pipelines.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
               </option>
             ))}
           </select>
         </label>
       )}
-      <ListEditor
-        items={stages.map((x) => ({ ...x, label: x.name }))}
-        itemLabel="Stage"
-        addLabel="Add a stage"
-        onAdd={(name) => void add(name)}
-        onRename={(id, name) =>
-          rename(
-            stages.find((x) => x.id === id)!,
-            name,
-          )
-        }
-        onReorder={(ids) => void reorder(ids)}
-        askToArchive={(id) => setArchiving(stages.find((x) => x.id === id) ?? null)}
-        renderExtra={(stage) => (
-          <div className={s.extras}>
-            <ColourPicker
-              label={`Colour for ${stage.name}`}
-              value={stage.color}
-              onChange={(color) => void patch(stage, { color })}
-            />
-            <select
-              className={s.kind}
-              aria-label={`Kind of ${stage.name}`}
-              value={stage.kind}
-              data-kind={stage.kind}
-              onChange={(e) => void patch(stage, { kind: e.target.value as Stage["kind"] })}
-            >
-              {KINDS.map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <Popover
-              label={`Needs for ${stage.name}`}
-              triggerClassName={s.needsBtn}
-              align="end"
-              active={stage.requiredFieldIds.length > 0}
-              trigger={
-                <>
-                  <span aria-hidden>
-                    Needs{stage.requiredFieldIds.length ? ` ${stage.requiredFieldIds.length}` : ""}
-                  </span>
-                  <span className={s.srOnly}>Needs for {stage.name}</span>
-                </>
-              }
-            >
-              <fieldset className={s.needs}>
-                <legend>Before a lead enters {stage.name}, it needs</legend>
-                {needable.map((f) => (
-                  <label key={f.id} className={s.check}>
-                    <input
-                      type="checkbox"
-                      checked={stage.requiredFieldIds.includes(f.id)}
-                      onChange={(e) =>
-                        void patch(stage, {
-                          requiredFieldIds: e.target.checked
-                            ? [...stage.requiredFieldIds, f.id]
-                            : stage.requiredFieldIds.filter((id) => id !== f.id),
-                        })
-                      }
-                    />
-                    {f.label}
-                  </label>
+      {calendly && (
+        <div role="group" aria-label="Calendly bookings" className={p.booking}>
+          <img src="/brand/calendly.svg" alt="" width={26} height={26} />
+          <label htmlFor="booking-stage">
+            When someone books a call through Calendly, LUME moves their lead to
+          </label>
+          <select
+            id="booking-stage"
+            aria-label="Booking stage"
+            value={pipeline.bookingStageId ?? ""}
+            onChange={(e) => void setBooking(e.target.value || null)}
+          >
+            <option value="">Leave it where it is</option>
+            {open.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+          <Link href="/settings/integrations/calendly" className={p.bookingLink}>
+            Calendly settings
+          </Link>
+        </div>
+      )}
+      <div className={p.layout}>
+        <section className={p.lists} aria-labelledby="stages-head">
+          <div className={p.listsHead}>
+            <h3 id="stages-head" className={s.panelTitle}>
+              Stages
+            </h3>
+            <span className={p.hint}>Drag to reorder</span>
+          </div>
+          <ListEditor
+            listLabel="Stages"
+            items={open.map((x) => ({ ...x, label: x.name }))}
+            itemLabel="Stage"
+            addLabel="Add a stage"
+            onAdd={(name) => void add(name)}
+            onRename={(id, name) =>
+              rename(
+                stages.find((x) => x.id === id)!,
+                name,
+              )
+            }
+            onReorder={(ids) => void reorder([...ids, ...outcomes.map((x) => x.id)])}
+            askToArchive={(id) => setArchiving(stages.find((x) => x.id === id) ?? null)}
+            renderExtra={stageRow}
+            leading={dot}
+          />
+          <h4 className={p.outcomesHead}>Outcomes</h4>
+          <ListEditor
+            listLabel="Outcomes"
+            items={outcomes.map((x) => ({ ...x, label: x.name }))}
+            itemLabel="Stage"
+            addLabel="Add an outcome"
+            onRename={(id, name) =>
+              rename(
+                stages.find((x) => x.id === id)!,
+                name,
+              )
+            }
+            onReorder={(ids) => void reorder([...open.map((x) => x.id), ...ids])}
+            askToArchive={(id) => setArchiving(stages.find((x) => x.id === id) ?? null)}
+            renderExtra={stageRow}
+            leading={dot}
+          />
+        </section>
+
+        <section className={p.detail} aria-labelledby="chosen-stage">
+          <h3 id="chosen-stage" className={p.chosenTitle}>
+            <i className={p.dot} style={{ background: tokenColor(chosen.color) }} aria-hidden />
+            {chosen.name}
+          </h3>
+          <div className={p.controls}>
+            <div className={p.ctl}>
+              <span aria-hidden>Colour</span>
+              <ColourPicker
+                label={`Colour for ${chosen.name}`}
+                value={chosen.color}
+                onChange={(color) => void patch(chosen, { color })}
+              />
+            </div>
+            <div className={p.ctl}>
+              <span aria-hidden>Kind</span>
+              <select
+                className={s.kind}
+                aria-label={`Kind of ${chosen.name}`}
+                value={chosen.kind}
+                data-kind={chosen.kind}
+                onChange={(e) => void patch(chosen, { kind: e.target.value as Stage["kind"] })}
+              >
+                {KINDS.map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
                 ))}
-              </fieldset>
-            </Popover>
-            <SlaInput stage={stage} onSave={(slaHours) => void patch(stage, { slaHours })} />
-            <button
-              type="button"
-              className={s.needsBtn}
-              data-active={doing(stage).length ? true : undefined}
-              aria-label={`Automations for ${stage.name}`}
-              onClick={() => setAutomating(stage)}
+              </select>
+            </div>
+            <div className={p.ctl}>
+              <span aria-hidden>Before it enters</span>
+              <Popover
+                label={`Needs for ${chosen.name}`}
+                triggerClassName={s.needsBtn}
+                align="end"
+                active={chosen.requiredFieldIds.length > 0}
+                trigger={
+                  <>
+                    <span aria-hidden>
+                      {chosen.requiredFieldIds.length
+                        ? `${chosen.requiredFieldIds.length} field${chosen.requiredFieldIds.length === 1 ? "" : "s"}`
+                        : "Nothing"}
+                    </span>
+                    <span className={s.srOnly}>Needs for {chosen.name}</span>
+                  </>
+                }
+              >
+                <fieldset className={s.needs}>
+                  <legend>Before a lead enters {chosen.name}, it needs</legend>
+                  {needable.map((f) => (
+                    <label key={f.id} className={s.check}>
+                      <input
+                        type="checkbox"
+                        checked={chosen.requiredFieldIds.includes(f.id)}
+                        onChange={(e) =>
+                          void patch(chosen, {
+                            requiredFieldIds: e.target.checked
+                              ? [...chosen.requiredFieldIds, f.id]
+                              : chosen.requiredFieldIds.filter((id) => id !== f.id),
+                          })
+                        }
+                      />
+                      {f.label}
+                    </label>
+                  ))}
+                </fieldset>
+              </Popover>
+            </div>
+            <div className={p.ctl}>
+              <span aria-hidden>Overdue after</span>
+              <SlaInput
+                key={chosen.id}
+                stage={chosen}
+                onSave={(slaHours) => void patch(chosen, { slaHours })}
+              />
+            </div>
+          </div>
+          <p className={p.lede}>When a lead enters {chosen.name}, LUME does this on its own.</p>
+          {doing(chosen).length ? (
+            <ul className={p.automations} aria-label={`What ${chosen.name} does`}>
+              {doing(chosen).map((line, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    className={p.automation}
+                    onClick={() => setAutomating({ stage: chosen })}
+                  >
+                    <span className={p.autoIcon} aria-hidden>
+                      {line.startsWith("Sets the lead's owner a WhatsApp") ? (
+                        <img src="/brand/whatsapp.svg" alt="" width={16} height={16} />
+                      ) : (
+                        <svg viewBox="0 0 16 16" width="14" height="14">
+                          <path
+                            d="M3.5 8.5 6.5 11.5 12.5 4.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <span>{line}</span>
+                    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+                      <path
+                        d="M6 3.5 10.5 8 6 12.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={s.muted}>Nothing yet. Leads enter {chosen.name} and LUME leaves them be.</p>
+          )}
+          <div className={p.detailActions}>
+            <Popover
+              label="Add an automation"
+              role="menu"
+              triggerClassName={p.addBtn}
+              trigger="Add an automation"
             >
-              <span aria-hidden>Does{doing(stage).length ? ` ${doing(stage).length}` : ""}</span>
+              {(close) => (
+                <div className={a.menu}>
+                  {ADD.map((x) => {
+                    const present =
+                      x.type === "remind_before_meeting" &&
+                      (chosen.onEnter?.rules ?? []).some((r) => r.type === "remind_before_meeting");
+                    const noTemplate = x.type === "remind_before_meeting" && templates.length === 0;
+                    return (
+                      <button
+                        key={x.type}
+                        type="button"
+                        role="menuitem"
+                        className={a.menuItem}
+                        disabled={present || noTemplate || (chosen.onEnter?.rules.length ?? 0) >= 5}
+                        title={
+                          present
+                            ? "This stage already reminds the lead"
+                            : noTemplate
+                              ? "Write a reminder message in Templates first"
+                              : undefined
+                        }
+                        onClick={() => {
+                          close();
+                          setAutomating({ stage: chosen, adding: x.type });
+                        }}
+                      >
+                        {x.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Popover>
+            <button type="button" className={p.change} onClick={() => setAutomating({ stage: chosen })}>
+              Change what {chosen.name} does
             </button>
           </div>
-        )}
-      />
-      <section className={s.stack} aria-labelledby="stage-automations">
-        <h3 id="stage-automations" className={s.panelTitle}>
-          What each stage does
-        </h3>
-        {acting.length ? (
-          <ul className={a.summary} aria-label="What each stage does">
-            {acting.map((x) => (
-              <li key={x.id}>
-                <button type="button" className={a.summaryRow} onClick={() => setAutomating(x)}>
-                  <span className={a.summaryStage}>{x.name}</span>
-                  <span className={a.summaryWhat}>
-                    {doing(x).map((line, i) => (
-                      <span key={i}>{line}</span>
-                    ))}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className={s.muted}>
-            No stage does anything on its own yet. Pick Does on a stage to have LUME set a follow-up, clear
-            them, or tell someone when a lead arrives, or to move a lead on after a message or a reply.
-          </p>
-        )}
-      </section>
+        </section>
+      </div>
       {note &&
         (note.tone === "problem" ? (
           <p role="alert" className={s.problem}>
@@ -298,16 +511,20 @@ export function PipelineEditor({
         ))}
       {automating && (
         <StageAutomations
-          stage={automating}
-          rules={automating.onEnter?.rules ?? []}
+          stage={automating.stage}
+          rules={[
+            ...(automating.stage.onEnter?.rules ?? []),
+            ...(automating.adding ? [newRule(automating.adding, templates[0]?.id)] : []),
+          ]}
           moves={{
-            afterSentStageId: automating.afterSentStageId ?? null,
-            afterReplyStageId: automating.afterReplyStageId ?? null,
+            afterSentStageId: automating.stage.afterSentStageId ?? null,
+            afterReplyStageId: automating.stage.afterReplyStageId ?? null,
           }}
           // Never Lost: it always needs a reason, which a send or a reply can't give.
-          targets={stages.filter((x) => x.id !== automating.id && x.kind !== "lost")}
+          targets={stages.filter((x) => x.id !== automating.stage.id && x.kind !== "lost")}
           people={people}
-          onSave={(onEnter, moves) => saveAutomations(automating, onEnter, moves)}
+          templates={templates}
+          onSave={(onEnter, moves) => saveAutomations(automating.stage, onEnter, moves)}
           onClose={() => setAutomating(null)}
         />
       )}

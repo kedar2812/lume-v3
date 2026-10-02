@@ -1,0 +1,244 @@
+/* A pipeline, simplified (canvas Pipeline): the stages beside the chosen one. Tokens only. */
+.booking {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  border-radius: var(--r-card);
+  font-size: var(--fs-md);
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.booking img {
+  border-radius: 7px;
+}
+.booking select {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.bookingLink {
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  text-decoration: none;
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(400px, 1.2fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.lists {
+  padding: 14px 12px 10px;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.listsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 6px 6px;
+}
+.hint {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.outcomesHead {
+  margin: 14px 6px 4px;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.rowExtra {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.calendlyMark {
+  border-radius: 4px;
+}
+.open {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.open[data-chosen] {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 4px 4px 6px;
+}
+.chosenTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-bold);
+}
+.chosenTitle .dot {
+  width: 11px;
+  height: 11px;
+}
+.lede {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.automations {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.automation {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: var(--fs-sm);
+  text-align: left;
+  color: var(--text);
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+  transition: transform 0.1s;
+}
+.automation:active {
+  transform: scale(0.99);
+}
+.automation > svg {
+  color: var(--text-3);
+}
+.autoIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.detailActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.addBtn,
+.change {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.change {
+  color: var(--text-2);
+  background: transparent;
+  box-shadow: none;
+}
+@media (hover: hover) {
+  .open:hover,
+  .change:hover,
+  .bookingLink:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+  .automation:hover {
+    box-shadow: var(--shadow-lift);
+  }
+}
+:where(.open, .automation, .addBtn, .change, .bookingLink, .booking select):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The stage rows: the dot leads the name, which never truncates while there's room; the row's rename and
+   archive show on hover and to the keyboard (they keep their place, so nothing jumps). */
+.lists li > span:nth-of-type(1) {
+  min-width: 0;
+}
+.lists li > .dot {
+  margin-right: 2px;
+}
+@media (hover: hover) {
+  .lists li > button[aria-label^="Rename "],
+  .lists li > button[aria-label^="Archive "] {
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .lists li:hover > button[aria-label^="Rename "],
+  .lists li:hover > button[aria-label^="Archive "],
+  .lists li:focus-within > button[aria-label^="Rename "],
+  .lists li:focus-within > button[aria-label^="Archive "] {
+    opacity: 1;
+  }
+}
+/* The chosen stage's own settings, each with its caption. */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ctl > span {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}

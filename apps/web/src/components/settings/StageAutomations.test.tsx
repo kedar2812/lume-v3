@@ -140,3 +140,93 @@ describe("a stage's automations: 3C final review", () => {
     );
   });
 });
+
+describe("the meeting reminder (5D Task 9)", () => {
+  const TEMPLATES = [
+    {
+      id: "0192f0a0-0000-7000-8000-0000000000a1",
+      name: "See you soon",
+      body: "Hi {{lead.first_name}}, see you soon!",
+    },
+    {
+      id: "0192f0a0-0000-7000-8000-0000000000a2",
+      name: "Call reminder",
+      body: "Our call is at {{meeting.time}}.",
+    },
+  ];
+  const remind: StageRule = {
+    id: "0192f0a0-0000-7000-8000-000000000009",
+    type: "remind_before_meeting",
+    hoursBefore: 2,
+    templateId: TEMPLATES[0]!.id,
+  };
+  const openWith = (
+    rules: StageRule[],
+    onSave = vi.fn<(o: OnEnter) => Promise<string | null>>(async () => null),
+  ) => {
+    render(
+      <StageAutomations
+        stage={stage}
+        rules={rules}
+        people={people}
+        templates={TEMPLATES}
+        onSave={onSave}
+        onClose={vi.fn()}
+      />,
+    );
+    return { onSave, sheet: screen.getByRole("dialog", { name: "What Contacted does" }) };
+  };
+
+  it("says honestly who sends it, steps the hours, picks the message, and previews it", async () => {
+    const { onSave, sheet } = openWith([remind]);
+    expect(
+      within(sheet).getByText(/owner a WhatsApp reminder for the lead, 2 hours before their meeting/),
+    ).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "One hour more" }));
+    expect(within(sheet).getByRole("spinbutton", { name: "Hours before the meeting" })).toHaveValue(3);
+    await userEvent.selectOptions(within(sheet).getByRole("combobox", { name: "Message" }), "Call reminder");
+    expect(within(sheet).getByTestId("reminder-preview")).toHaveTextContent("Our call is at");
+    expect(
+      within(sheet).getByText("If a call is booked sooner than this, LUME skips the reminder."),
+    ).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith(
+      { rules: [{ ...remind, hoursBefore: 3, templateId: TEMPLATES[1]!.id }] },
+      {},
+    );
+  });
+
+  it("is offered once: with one there, Add can't add another", () => {
+    const { sheet } = openWith([remind]);
+    expect(within(sheet).getByRole("button", { name: /Remind the lead before their call/ })).toBeDisabled();
+  });
+
+  it("removing one has Undo", async () => {
+    const { sheet } = openWith([remind]);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Remove automation 1" }));
+    // It leaves with its exit animation, then Undo brings it back as it was.
+    await vi.waitFor(() =>
+      expect(
+        within(sheet).queryByRole("spinbutton", { name: "Hours before the meeting" }),
+      ).not.toBeInTheDocument(),
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: "Undo" }));
+    expect(within(sheet).getByRole("spinbutton", { name: "Hours before the meeting" })).toHaveValue(2);
+  });
+
+  it("with no reminder message yet, says to write one first, and adds none", () => {
+    render(
+      <StageAutomations
+        stage={stage}
+        rules={[]}
+        people={people}
+        templates={[]}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const sheet = screen.getByRole("dialog", { name: "What Contacted does" });
+    expect(within(sheet).getByRole("button", { name: /Remind the lead before their call/ })).toBeDisabled();
+    expect(within(sheet).getByText(/Write a reminder message in Templates first/)).toBeInTheDocument();
+  });
+});
