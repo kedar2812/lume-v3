@@ -1,7 +1,7 @@
 import { and, eq, isNull, ne } from "drizzle-orm";
 import type pg from "pg";
 import { randomToken, sha256Hex } from "@lume/core";
-import { schema, type SecuritySettings } from "@lume/db";
+import { schema, type SecuritySettings, type UserStatus } from "@lume/db";
 import type { Db } from "../db/context";
 
 export type SessionPolicy = { idleMs: number; absoluteMs: number; mfaPendingMs: number };
@@ -20,7 +20,7 @@ export type LiveSession = {
   userId: string;
   stage: "mfa" | "full";
   lastSeenAt: Date;
-  user: { status: "invited" | "active" | "disabled"; isOwner: boolean; totpEnabled: boolean };
+  user: { status: UserStatus; isOwner: boolean; totpEnabled: boolean };
 };
 
 export async function createSession(

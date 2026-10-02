@@ -13,7 +13,14 @@ import {
   time,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { CalendarSettings, OnboardingState, Preferences, TourState } from "@lume/core";
+import type {
+  AnomalySettings,
+  CalendarSettings,
+  OnboardingState,
+  Preferences,
+  TourState,
+  WatermarkMode,
+} from "@lume/core";
 import { bytea, cidrArray, citext, inet, tz } from "./types";
 
 export const settings = pgTable("settings", {
@@ -71,14 +78,22 @@ export type SecuritySettings = {
   sessionIdleHours?: number;
   sessionAbsoluteDays?: number;
   requireTwoFactorForAll?: boolean;
+  /** The watch's rules (6A): stored as set, merged over the defaults with `mergeAnomaly`. */
+  anomaly?: Partial<AnomalySettings>;
+  /** The on-screen watermark on lead screens (6A); `masked_roles` when unset. */
+  watermark?: WatermarkMode;
 };
+
+export type UserStatus = "invited" | "active" | "disabled" | "suspended";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
   email: citext("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash"),
-  status: text("status").$type<"invited" | "active" | "disabled">().notNull(),
+  status: text("status").$type<UserStatus>().notNull(),
+  /** Set when an admin restores a paused person (6A): acts before it aren't counted again. */
+  watchFrom: tz("watch_from"),
   isOwner: boolean("is_owner").notNull().default(false),
   timezone: text("timezone"),
   theme: text("theme").$type<"system" | "porcelain" | "obsidian">().notNull().default("system"),
@@ -122,7 +137,11 @@ export const legalAcceptances = pgTable("legal_acceptances", {
   userAgent: text("user_agent"),
 });
 
-export type LoginHours = { days: number[]; from: string; to: string }; // business timezone, "HH:MM"
+/**
+ * Business timezone, "HH:MM". `business: true` (6A ruling R5) follows Settings' working hours at the moment of the
+ * check, so a later change to working hours carries over; `days`, `from` and `to` are then the hours when saved.
+ */
+export type LoginHours = { days: number[]; from: string; to: string; business?: true };
 
 export const roles = pgTable("roles", {
   id: uuid("id").primaryKey(),

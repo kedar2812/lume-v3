@@ -32,3 +32,6 @@ export * from "./calendar/rules";
 export * from "./messaging/render";
 // The licence as people see it (no crypto: safe for the browser).
 export * from "./licence/state";
+// Phase 6A: the watch rules and the paused words (pure: the screens show the same limits).
+export * from "./security/rules";
+export * from "./security/copy";

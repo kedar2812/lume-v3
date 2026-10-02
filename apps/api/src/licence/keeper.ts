@@ -170,7 +170,7 @@ export class LicenceKeeper {
     return this.refresh();
   }
 
-  /** The two numbers the check sends (spec §2.4): people who can sign in, and leads — counts only. */
+  /** The two numbers the check sends (spec §2.4): members (a paused person included, 6A R7), and leads — counts only. */
   private async counts(): Promise<{ activeUserCount: number; leadCount: number }> {
     const c = await this.pool.connect();
     try {
@@ -178,7 +178,7 @@ export class LicenceKeeper {
       // LUME's own count, naming nobody: every lead.
       await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
       const { rows } = await c.query<{ users: number; leads: number }>(
-        `SELECT (SELECT count(*)::int FROM users WHERE status = 'active') AS users,
+        `SELECT (SELECT count(*)::int FROM users WHERE status IN ('active', 'suspended')) AS users,
                 (SELECT count(*)::int FROM leads WHERE deleted_at IS NULL) AS leads`,
       );
       await c.query("COMMIT");

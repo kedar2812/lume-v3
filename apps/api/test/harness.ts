@@ -83,7 +83,7 @@ export type SeedUserOptions = {
   grants?: Grant[];
   owner?: boolean;
   totp?: boolean;
-  status?: "invited" | "active" | "disabled";
+  status?: "invited" | "active" | "disabled" | "suspended";
 };
 export type AuthedClient = {
   cookies: Record<string, string>;

@@ -132,6 +132,15 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     expect(JSON.stringify(body)).not.toMatch(/Counted Lead|1234567/);
   });
 
+  it("counts a paused person: pausing someone never frees a place (6A ruling R7)", async () => {
+    answer = ok(token());
+    await check();
+    const before = sent.at(-1)!.body.activeUserCount as number;
+    await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }], status: "suspended" });
+    await check();
+    expect(sent.at(-1)!.body.activeUserCount).toBe(before + 1);
+  });
+
   it("out of reach: the last token stands; 24 hours on it's grace, 7 days on it's read-only", async () => {
     answer = ok(token());
     await check();

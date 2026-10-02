@@ -11,5 +11,6 @@ export type {
   SecuritySettings,
   SourceRowResult,
   SyncTrigger,
+  UserStatus,
 } from "./schema";
 export * from "./contact-keys";

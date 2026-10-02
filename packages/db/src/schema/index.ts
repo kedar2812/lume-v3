@@ -8,3 +8,4 @@ export * from "./views";
 export * from "./queues";
 export * from "./licence";
 export * from "./calendar";
+export * from "./security";

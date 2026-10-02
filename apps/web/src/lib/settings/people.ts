@@ -6,7 +6,7 @@ export type UserRow = {
   id: string;
   name: string;
   email: string;
-  status: "invited" | "active" | "disabled";
+  status: "invited" | "active" | "disabled" | "suspended";
   isOwner: boolean;
   twoFactor: boolean;
   lastLoginAt: string | null;
