@@ -6,6 +6,12 @@ import type { SheetSourceView } from "@/lib/sheets/types";
 import { Integrations } from "./Integrations";
 import { SheetSourceList } from "./SheetSourceList";
 
+vi.mock("@/lib/calendar/client", () => ({
+  calendarClient: {
+    calendly: vi.fn(async () => ({ ok: false, status: 403, code: "FORBIDDEN", message: "No" })),
+    setEnabled: vi.fn(),
+  },
+}));
 vi.mock("@/lib/sheets/client", () => ({
   sheetsClient: { integrations: vi.fn(), setEnabled: vi.fn(), list: vi.fn(), connect: vi.fn() },
 }));
@@ -74,7 +80,9 @@ describe("Settings → Integrations", () => {
       }),
     );
     render(<Integrations />);
-    expect(await screen.findByText(/isn't set up on this server yet/)).toBeInTheDocument();
+    // Google Calendar's card can say the same of itself (5D): this is Sheets' own note.
+    const sheets = await screen.findByRole("article", { name: "Google Sheets" });
+    expect(within(sheets).getByText(/isn't set up on this server yet/)).toBeInTheDocument();
     expect(screen.queryByRole("switch")).toBeNull();
   });
 

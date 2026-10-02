@@ -1,10 +1,11 @@
 "use client";
 import { motion } from "motion/react";
-import { useId, useRef, type KeyboardEvent } from "react";
+import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import s from "./SegmentedControl.module.css";
 
-type Option<T extends string> = { readonly value: T; readonly label: string };
+/** `icon` sits before the label, on the same line (the Calendar's Agenda and Week). */
+type Option<T extends string> = { readonly value: T; readonly label: string; readonly icon?: ReactNode };
 type Props<T extends string> = {
   label: string;
   value: T;
@@ -67,7 +68,10 @@ export function SegmentedControl<T extends string>({
             {on && (
               <motion.span layoutId={layoutId} className={s.thumb} transition={toMotion(SPRINGS.default)} />
             )}
-            <span className={s.label}>{o.label}</span>
+            <span className={s.label}>
+              {o.icon}
+              {o.label}
+            </span>
           </button>
         );
       })}

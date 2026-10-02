@@ -39,4 +39,13 @@
 .label {
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.label svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
 }

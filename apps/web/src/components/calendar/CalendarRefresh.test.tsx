@@ -1,0 +1,114 @@
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { calendarClient } from "@/lib/calendar/client";
+import type { CalendarConnection, LastSync } from "@/lib/calendar/types";
+import { CalendarRefresh } from "./CalendarRefresh";
+import { landedWords, syncWords } from "./useCalendarRefresh";
+
+vi.mock("@/lib/calendar/client", () => ({
+  calendarClient: { sync: vi.fn(), connection: vi.fn(), connect: vi.fn() },
+}));
+const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
+const SINCE = "2026-10-01T10:00:00.000Z";
+const conn = (last: LastSync | null): CalendarConnection => ({
+  available: true,
+  connected: true,
+  googleEmail: "maya@example.com",
+  status: "active",
+  calendars: [],
+  lastSyncedAt: last?.at ?? null,
+  lastSync: last,
+  lastError: null,
+});
+const sync = (at: string, n: Partial<LastSync> = {}): LastSync => ({
+  at,
+  added: 0,
+  moved: 0,
+  cancelled: 0,
+  changed: 0,
+  ...n,
+});
+
+describe("Refresh's words", () => {
+  it("say what changed, newest kind first, and Up to date when nothing did", () => {
+    expect(syncWords(sync(SINCE, { added: 1, changed: 2, moved: 1 }))).toBe(
+      "1 new meeting · 1 moved · 2 updated",
+    );
+    expect(syncWords(sync(SINCE, { added: 2, cancelled: 1 }))).toBe("2 new meetings · 1 cancelled");
+    expect(syncWords(sync(SINCE))).toBe("Up to date");
+  });
+
+  it("the button lands on the total", () => {
+    expect(landedWords(sync(SINCE, { added: 1, changed: 2, moved: 1 }))).toBe("4 updated");
+    expect(landedWords(sync(SINCE))).toBe("Up to date");
+    expect(landedWords(null)).toBe("Still syncing");
+  });
+});
+
+describe("the calendar's Refresh", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    vi.clearAllMocks();
+  });
+  afterEach(() => vi.useRealTimers());
+  const tick = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
+
+  it("lifts into the pill, syncs, waits for a newer sync, says what changed, and lands on the count", async () => {
+    vi.mocked(calendarClient.sync).mockResolvedValue({
+      ...ok({ queued: true as const, since: SINCE }),
+      status: 202,
+    });
+    vi.mocked(calendarClient.connection)
+      .mockResolvedValueOnce(ok(conn(sync("2026-10-01T09:55:00.000Z", { added: 9 })))) // the old one: keep waiting
+      .mockResolvedValue(ok(conn(sync("2026-10-01T10:00:02.000Z", { added: 1, changed: 2 }))));
+    const onSynced = vi.fn();
+    render(<CalendarRefresh onSynced={onSynced} />);
+    act(() => screen.getByRole("button", { name: /Refresh/ }).click());
+    await tick(100);
+    expect(screen.getByRole("button", { name: /Refresh/ })).toHaveAttribute("data-phase", "lifting");
+    await tick(600);
+    expect(screen.getByRole("button", { name: /Refresh/ })).toHaveAttribute("data-phase", "syncing");
+    await tick(3000);
+    expect(screen.getByRole("status")).toHaveTextContent("1 new meeting · 2 updated");
+    expect(onSynced).not.toHaveBeenCalled(); // the rows wash as the card lands, not before
+    await tick(1500);
+    expect(onSynced).toHaveBeenCalledWith(sync("2026-10-01T10:00:02.000Z", { added: 1, changed: 2 }));
+    await tick(700);
+    expect(screen.getByRole("button", { name: /3 updated/ })).toBeInTheDocument();
+    await tick(2000);
+    expect(screen.getByRole("button", { name: "Refresh" })).toHaveAttribute("data-phase", "idle");
+  });
+
+  it("after 30 seconds without a newer sync, says it's still syncing and that the page will update", async () => {
+    vi.mocked(calendarClient.sync).mockResolvedValue({
+      ...ok({ queued: true as const, since: SINCE }),
+      status: 202,
+    });
+    vi.mocked(calendarClient.connection).mockResolvedValue(ok(conn(sync("2026-10-01T09:55:00.000Z"))));
+    render(<CalendarRefresh onSynced={vi.fn()} />);
+    act(() => screen.getByRole("button", { name: /Refresh/ }).click());
+    await tick(32_000);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Still syncing. LUME will update this page when it's done.",
+    );
+  });
+
+  it("a connection that needs reconnecting turns Refresh into Connect again, never a spinner forever", async () => {
+    vi.mocked(calendarClient.sync).mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "CALENDAR_NEEDS_RECONNECT",
+      message: "Google stopped letting LUME read your calendar. Connect it again.",
+    });
+    render(<CalendarRefresh onSynced={vi.fn()} />);
+    act(() => screen.getByRole("button", { name: /Refresh/ }).click());
+    await tick(5000);
+    expect(screen.getByRole("button", { name: "Connect again" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Google stopped letting LUME read your calendar");
+  });
+
+  it("starts as Connect again when the connection already needs it", () => {
+    render(<CalendarRefresh onSynced={vi.fn()} needsReconnect />);
+    expect(screen.getByRole("button", { name: "Connect again" })).toBeInTheDocument();
+  });
+});

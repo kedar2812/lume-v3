@@ -29,6 +29,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "calendar-rules",
+    title: "Calendar rules",
+    blurb: "Which calendar events are meetings with leads, for everyone",
+    href: "/settings/calendar/rules",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
     id: "fields",
     title: "Fields",
     blurb: "What you record about every lead, with a live preview",
@@ -115,6 +123,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     href: "/settings/audit",
     anyOf: ["audit.view"],
     group: "people",
+  },
+  {
+    id: "calendar",
+    title: "Calendar",
+    blurb: "Your Google Calendar: which calendars LUME reads, and Refresh",
+    href: "/settings/calendar",
+    anyOf: ["calendar.connect"],
+    group: "you",
   },
   {
     id: "account",

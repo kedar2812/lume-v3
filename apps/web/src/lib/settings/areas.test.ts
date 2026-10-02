@@ -23,6 +23,7 @@ describe("areasFor", () => {
     expect(areasFor(admin.actor).map((a) => a.id)).toEqual([
       "business",
       "pipeline",
+      "calendar-rules",
       "fields",
       "lists",
       "follow-ups",
@@ -35,6 +36,11 @@ describe("areasFor", () => {
       "account",
       "about",
     ]);
+  });
+
+  it("shows Calendar to whoever may connect their own, among their own settings", () => {
+    const rep = fakeSession({ permissions: [{ key: "calendar.connect", scope: null }] });
+    expect(areasFor(rep.actor).map((a) => a.id)).toEqual(["calendar", "account", "about"]);
   });
 
   it("shows Imports to whoever may import leads", () => {

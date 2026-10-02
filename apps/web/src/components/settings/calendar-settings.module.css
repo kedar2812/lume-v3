@@ -1,0 +1,431 @@
+/* Settings → Calendar and Calendar rules (canvas Connect, Rules). Tokens only. */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+}
+.back {
+  align-self: flex-start;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+.card {
+  padding: 18px 20px;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.whoText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 200px;
+}
+.whoText small {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.whoText b {
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+}
+.gtile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(12, 18, 32, 0.12);
+}
+.h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+}
+.lede {
+  margin: 4px 0 12px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.list li {
+  padding: 8px 0;
+  border-top: 0.5px solid var(--line);
+}
+.list li:first-child {
+  border-top: 0;
+}
+.err {
+  margin: 0 0 10px;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.amber {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: var(--fs-sm);
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+}
+.amber span {
+  flex: 1;
+}
+.amberBtn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: #fff;
+  background: var(--accent-fill);
+}
+.calendly {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: var(--r-card);
+  color: inherit;
+  text-decoration: none;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.calendly > span:nth-child(2) {
+  flex: 1;
+}
+.calendly b {
+  display: block;
+  font-size: var(--fs-md);
+}
+.calendly small {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.pill {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 22px;
+  color: var(--text-2);
+  background: var(--sunk);
+}
+.pill[data-on] {
+  color: var(--ok-ink);
+  background: var(--ok-soft);
+}
+.chev {
+  font-size: var(--fs-lg);
+  color: var(--text-3);
+}
+.leave {
+  padding-top: 4px;
+}
+.dangerQuiet {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--danger-ink);
+}
+.confirm {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--danger-soft);
+}
+.confirm p {
+  margin: 0 0 10px;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.confirmBtns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.quiet {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.danger {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: #fff;
+  background: var(--danger-fill);
+}
+.danger:disabled {
+  opacity: 0.6;
+}
+
+/* ——— Calendar rules ——— */
+.rulesGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rule {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+  transition: box-shadow 0.2s;
+}
+.rule[data-on] {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent-soft),
+    var(--shadow-sheet);
+}
+.num {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  background: var(--sunk);
+}
+.rule[data-on] .num {
+  color: #fff;
+  background: var(--accent-fill);
+}
+.ruleHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.ruleHead > div {
+  flex: 1;
+}
+.ruleHead b {
+  display: block;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.ruleHead small {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.word {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 4px 0 9px;
+  border-radius: 8px;
+  font-size: var(--fs-xs);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.word button {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  color: inherit;
+}
+.wordInput {
+  flex: 1;
+  min-width: 160px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--sunk);
+  border: 0;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: var(--fs-sm);
+}
+.checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.checks input {
+  accent-color: var(--accent);
+}
+.never {
+  display: flex;
+  gap: 8px;
+  margin: 2px 4px 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.sample {
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.sampleHead {
+  padding: 14px 18px 12px;
+  border-bottom: 0.5px solid var(--line);
+}
+.sampleHead small {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.sampleHead p {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.sampleHead p b {
+  margin-right: 6px;
+  font-size: var(--fs-3xl);
+  letter-spacing: var(--ls-3xl);
+  color: var(--accent-ink);
+}
+.ev {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border-top: 0.5px solid var(--line);
+  font-size: var(--fs-xs);
+}
+.ev[data-kept] {
+  background: var(--meet-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.ev b {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.ev small {
+  color: var(--text-3);
+}
+.tag {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 22px;
+  white-space: nowrap;
+  color: var(--text-3);
+  background: var(--sunk);
+}
+.ev[data-kept] .tag {
+  color: var(--accent-ink);
+  background: var(--sheet);
+}
+.saveRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.save {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: #fff;
+  background: var(--accent-fill);
+}
+.saved {
+  font-size: var(--fs-sm);
+  color: var(--ok-ink);
+}
+:where(
+  .back,
+  .amberBtn,
+  .calendly,
+  .dangerQuiet,
+  .quiet,
+  .danger,
+  .save,
+  .word button,
+  .wordInput
+):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+@media (max-width: 1000px) {
+  .rulesGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The gear's View Transition lands here: the settings grow from the Calendar's gear. */
+.arrive {
+  view-transition-name: calendar-settings;
+  animation: glow 1.4s ease-out 0.2s 1;
+  border-radius: var(--r-card);
+}
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.28);
+  }
+  100% {
+    box-shadow: 0 0 0 18px rgba(var(--accent-rgb), 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arrive {
+    animation: none;
+  }
+}

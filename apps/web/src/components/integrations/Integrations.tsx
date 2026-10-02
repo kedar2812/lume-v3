@@ -3,9 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import { AddSheetSheet } from "@/components/sheets/AddSheetSheet";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
+import { calendarClient } from "@/lib/calendar/client";
+import type { CalendlyView } from "@/lib/calendar/types";
 import { sheetsClient } from "@/lib/sheets/client";
 import type { IntegrationsView, SheetSourceView } from "@/lib/sheets/types";
 import { AttentionBanner } from "./AttentionBanner";
+import { CalendlyCard } from "./CalendlyCard";
+import { GoogleCalendarCard } from "./GoogleCalendarCard";
 import { SheetSourceList } from "./SheetSourceList";
 import { WebhooksCard } from "./WebhooksCard";
 import s from "./integrations.module.css";
@@ -17,6 +21,7 @@ export function Integrations() {
   const [adding, setAdding] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [calendly, setCalendly] = useState<CalendlyView | null>(null);
 
   const loadSources = useCallback(async () => {
     const r = await sheetsClient.list();
@@ -28,6 +33,7 @@ export function Integrations() {
       setView(r.data);
       if (r.data.googleSheets.enabled) void loadSources();
     });
+    void calendarClient.calendly().then((r) => r.ok && setCalendly(r.data));
   }, [loadSources]);
 
   // While any sheet is checking, look again every 2 seconds, so "Checking now" turns into what it found.
@@ -140,6 +146,8 @@ export function Integrations() {
         )}
       </article>
       <WebhooksCard webhooks={view.webhooks} onView={setView} />
+      {view.googleCalendar && <GoogleCalendarCard googleCalendar={view.googleCalendar} onView={setView} />}
+      {calendly && <CalendlyCard initial={calendly} />}
       <AddSheetSheet
         open={adding}
         onClose={() => {

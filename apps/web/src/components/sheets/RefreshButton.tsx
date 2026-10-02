@@ -1,16 +1,14 @@
 "use client";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Odometer } from "@/components/ui/Odometer";
+import { RefreshMorph, Tick } from "@/components/ui/RefreshMorph";
 import type { RefreshProgress } from "@/lib/sheets/types";
-import { failureTitle, resultLine, useRefresh, waitWords, type Phase } from "./useRefresh";
-import s from "./refresh.module.css";
+import { failureTitle, resultLine, useRefresh, waitWords } from "./useRefresh";
+import s from "@/components/ui/refresh.module.css";
 
-const PILL = { w: 236, h: 40, r: 20 };
-const CARD = { w: 330, h: 168, r: 22 };
-// Apple's move/reposition spring: critically damped, no overshoot on a surface that simply grows.
 const MORPH = { type: "spring", bounce: 0, duration: 0.6 } as const;
 const FADE = { duration: 0.2 } as const;
 
@@ -26,19 +24,6 @@ const Arrow = ({ spin }: { spin?: boolean }) => (
     />
   </svg>
 );
-const Tick = ({ size }: { size: number }) => (
-  <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden>
-    <path
-      d="M5.5 12.5 10 17l8.5-9.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 /**
  * Spec §8 and the approved v5 motion. The button lifts into a glass pill, the pill opens into the card
  * (Google Sheets → rows drifting → LUME, a blue bar filling with real progress), the real count arrives,
@@ -79,22 +64,6 @@ export function RefreshButton({
   }, [shortcut, press]);
 
   const busy = r.phase !== "idle";
-  const open =
-    r.phase === "lifting" || r.phase === "syncing" || r.phase === "result" || r.phase === "landing";
-  const at = (shape: "button" | "pill" | "card") =>
-    shape === "button"
-      ? { left: 0, top: 0, width: box.w, height: box.h, borderRadius: 9 }
-      : shape === "pill"
-        ? { left: box.w - PILL.w, top: box.h + 8, width: PILL.w, height: PILL.h, borderRadius: PILL.r }
-        : { left: box.w - CARD.w, top: box.h + 8, width: CARD.w, height: CARD.h, borderRadius: CARD.r };
-  const shape: Record<Phase, "button" | "pill" | "card"> = {
-    idle: "button",
-    lifting: "pill",
-    syncing: "card",
-    result: "card",
-    landing: "button",
-    landed: "button",
-  };
   const p = r.progress;
   const created = p?.created ?? 0;
   const landedLabel =
@@ -129,117 +98,82 @@ export function RefreshButton({
           </>
         )}
       </Button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            key="morph"
-            className={s.morph}
-            data-glass={shape[r.phase] !== "button" || undefined}
-            aria-hidden
-            initial={reduce ? { opacity: 0, ...at("card") } : { opacity: 1, ...at("button") }}
-            animate={
-              reduce
-                ? { opacity: r.phase === "landing" ? 0 : 1, ...at("card") }
-                : { opacity: 1, ...at(shape[r.phase]) }
-            }
-            exit={{ opacity: 0, transition: FADE }}
-            transition={reduce ? FADE : MORPH}
-          >
-            <AnimatePresence initial={false}>
-              {r.phase === "lifting" && !reduce && (
-                <motion.div key="pill" className={`${s.layer} ${s.pill}`} {...layer(reduce)}>
-                  <img src="/lume-mark.png" alt="" width={20} height={20} />
-                  Syncing new enquiries…
-                </motion.div>
-              )}
-              {(r.phase === "syncing" || (reduce && r.phase === "lifting")) && (
-                <motion.div key="card" className={`${s.layer} ${s.card}`} {...layer(reduce)}>
-                  <div className={s.route} data-flowing={!reduce || undefined}>
-                    <span className={`${s.end} ${s.sheet}`}>
-                      <img src="/brand/google-sheets.png" alt="" width={28} height={28} />
-                    </span>
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <span key={i} className={s.glyph} style={{ ["--i" as string]: i }} />
-                    ))}
-                    <span className={`${s.end} ${s.lume}`}>
-                      <img src="/lume-mark.png" alt="" width={28} height={28} />
-                    </span>
-                  </div>
-                  <p className={s.title}>Syncing new enquiries</p>
-                  <p className={s.sub}>
-                    {p && p.rowsTotal > 0
-                      ? `Reading rows… ${p.rowsRead.toLocaleString("en")} of ${p.rowsTotal.toLocaleString("en")}`
-                      : "Checking for new enquiries…"}
-                  </p>
-                  <div className={s.bar} data-indeterminate={!p?.rowsTotal || undefined}>
-                    <motion.i
-                      animate={{
-                        width: p?.rowsTotal ? `${Math.max(6, (100 * p.rowsRead) / p.rowsTotal)}%` : "18%",
-                      }}
-                      transition={reduce ? FADE : MORPH}
-                    />
-                  </div>
-                </motion.div>
-              )}
-              {r.phase === "result" && (
-                <motion.div
-                  key="result"
-                  className={`${s.layer} ${s.result}`}
-                  data-warn={warn || undefined}
-                  {...layer(reduce)}
-                >
-                  <motion.span
-                    className={s.check}
-                    initial={reduce ? false : { scale: 0.4 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", bounce: 0.35, duration: 0.6 }}
-                  >
-                    {warn ? "!" : <Tick size={20} />}
-                  </motion.span>
-                  <div>
-                    {warn ? (
-                      <>
-                        <p className={s.resultTitle}>{failureTitle(r.failCode, !!p?.unreachable)}</p>
-                        <p className={s.sub}>
-                          {r.failure ?? `LUME will try again in ${waitWords(p?.retryInS ?? null)}.`}
-                        </p>
-                      </>
-                    ) : nothing ? (
-                      <>
-                        <p className={s.resultTitle}>Up to date</p>
-                        <p className={s.sub}>No new enquiries since the last check.</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className={s.count}>
-                          <Odometer value={created} />
-                        </p>
-                        <p className={s.sub}>{resultLine(p, null, personal).replace(/^[\d,]+ /, "")}</p>
-                      </>
-                    )}
-                    {(p?.attention ?? []).map((a) => (
-                      <Link
-                        key={a.id}
-                        href={`/settings/integrations/${a.id}`}
-                        className={s.attention}
-                        tabIndex={-1}
-                      >
-                        “{a.name}” needs attention
-                      </Link>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-              {r.phase === "landing" && !reduce && (
-                <motion.div key="face" className={`${s.layer} ${s.face}`} {...layer(reduce)}>
-                  <Tick size={13} />
-                  {landedLabel}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <RefreshMorph
+        phase={r.phase}
+        box={box}
+        reduce={reduce}
+        warn={warn}
+        pill={
+          <>
+            <img src="/lume-mark.png" alt="" width={20} height={20} />
+            Syncing new enquiries…
+          </>
+        }
+        card={
+          <>
+            <div className={s.route} data-flowing={!reduce || undefined}>
+              <span className={`${s.end} ${s.sheet}`}>
+                <img src="/brand/google-sheets.png" alt="" width={28} height={28} />
+              </span>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <span key={i} className={s.glyph} style={{ ["--i" as string]: i }} />
+              ))}
+              <span className={`${s.end} ${s.lume}`}>
+                <img src="/lume-mark.png" alt="" width={28} height={28} />
+              </span>
+            </div>
+            <p className={s.title}>Syncing new enquiries</p>
+            <p className={s.sub}>
+              {p && p.rowsTotal > 0
+                ? `Reading rows… ${p.rowsRead.toLocaleString("en")} of ${p.rowsTotal.toLocaleString("en")}`
+                : "Checking for new enquiries…"}
+            </p>
+            <div className={s.bar} data-indeterminate={!p?.rowsTotal || undefined}>
+              <motion.i
+                animate={{
+                  width: p?.rowsTotal ? `${Math.max(6, (100 * p.rowsRead) / p.rowsTotal)}%` : "18%",
+                }}
+                transition={reduce ? FADE : MORPH}
+              />
+            </div>
+          </>
+        }
+        result={
+          <>
+            {warn ? (
+              <>
+                <p className={s.resultTitle}>{failureTitle(r.failCode, !!p?.unreachable)}</p>
+                <p className={s.sub}>
+                  {r.failure ?? `LUME will try again in ${waitWords(p?.retryInS ?? null)}.`}
+                </p>
+              </>
+            ) : nothing ? (
+              <>
+                <p className={s.resultTitle}>Up to date</p>
+                <p className={s.sub}>No new enquiries since the last check.</p>
+              </>
+            ) : (
+              <>
+                <p className={s.count}>
+                  <Odometer value={created} />
+                </p>
+                <p className={s.sub}>{resultLine(p, null, personal).replace(/^[\d,]+ /, "")}</p>
+              </>
+            )}
+            {(p?.attention ?? []).map((a) => (
+              <Link key={a.id} href={`/settings/integrations/${a.id}`} className={s.attention} tabIndex={-1}>
+                “{a.name}” needs attention
+              </Link>
+            ))}
+          </>
+        }
+        face={
+          <>
+            <Tick size={13} />
+            {landedLabel}
+          </>
+        }
+      />
       {/* The card goes in a moment; what needs attention stays reachable here until the next Refresh. */}
       {(r.phase === "landed" || r.phase === "idle") && r.attention.length > 0 && (
         <span className={s.after}>
@@ -255,16 +189,4 @@ export function RefreshButton({
       </p>
     </span>
   );
-}
-
-/** A layer materialises (opacity with a little blur) rather than simply fading; Reduce Motion: opacity only. */
-function layer(reduce: boolean) {
-  return reduce
-    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: FADE }
-    : {
-        initial: { opacity: 0, filter: "blur(4px)" },
-        animate: { opacity: 1, filter: "blur(0px)" },
-        exit: { opacity: 0, filter: "blur(4px)" },
-        transition: { duration: 0.28 },
-      };
 }
