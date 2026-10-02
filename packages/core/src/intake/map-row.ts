@@ -1,4 +1,5 @@
 import { formatPhone, normalizePhone, type NormalizedPhone } from "../leads/phone";
+import { isCheckEmail } from "../security/export-code";
 import { INTAKE_LIMITS } from "./limits";
 import type { ColumnMap, Issue, IntakeField, MapContext, Mapping, Rules } from "./mapping";
 import {
@@ -96,6 +97,7 @@ const splitter = (c: ColumnMap) => {
 export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): RowOutcome {
   const warnings: Issue[] = [];
   const problems: Issue[] = [];
+  let checkRow = false;
   const mapped = m.columns.filter((c) => c.to !== "ignore");
   // trim() also takes off no-break spaces
   const cell = (c: ColumnMap) => (cells[c.column] ?? "").trim();
@@ -202,6 +204,7 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
         break;
       }
       case "email":
+        if (isCheckEmail(raw)) checkRow = true;
         d.email = readEmail(raw);
         if (!d.email)
           warnings.push(issue(c.column, "EMAIL_INVALID", `Not an email address: “${raw}”. Left empty.`));
@@ -318,6 +321,13 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
   }
   if (d.name.length > NAME_MAX)
     problems.push(issue(null, "NAME_TOO_LONG", "Name is longer than 200 characters."));
+  // An export brought back in (6B): its made-up check row is never a lead, whatever else the row holds.
+  if (checkRow)
+    return {
+      kind: "error",
+      problems: [issue(null, "LUME_CHECK_ROW", "A LUME export's check row: not a real lead")],
+      warnings: [],
+    };
   return problems.length ? { kind: "error", problems, warnings } : { kind: "draft", draft: d, warnings };
 }
 

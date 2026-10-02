@@ -223,4 +223,42 @@ describe("an export of the current view (6B Task 2)", () => {
     });
     expect((await teamLead.inject({ method: "GET", url: "/api/v1/leads/exports" })).statusCode).toBe(403);
   });
+
+  it("brought back in through an import: the real leads come in, the check row never does (Review Focus 5)", async () => {
+    const made = (
+      await make(admin, { format: "csv", label: "All leads", filters: {}, columns })
+    ).json() as Made;
+    const body = (await download(admin, made.export.id)).body.replace(/^\uFEFF/, "");
+    const d = (
+      await admin.inject({
+        method: "POST",
+        url: "/api/v1/imports",
+        payload: Buffer.from(body),
+        headers: { "content-type": "application/octet-stream", "x-file-name": "back-in.csv" },
+      })
+    ).json();
+    const draft = (await admin.inject({ method: "GET", url: `/api/v1/imports/${d.id}/draft` })).json();
+    const refCol = (draft.headers as string[]).indexOf("LUME ref");
+    expect(draft.mapping.columns[refCol]).toEqual({ column: refCol, to: "ignore" });
+    expect((await admin.inject({ method: "POST", url: `/api/v1/imports/${d.id}/start` })).statusCode).toBe(
+      200,
+    );
+    await h.runImports();
+    // The four real leads come through (they already exist here, so they merge); the check row is refused.
+    const imp = (await h.pool.query("SELECT created, merged, errors FROM imports WHERE id = $1", [d.id]))
+      .rows[0];
+    expect(imp.created + imp.merged).toBe(4);
+    expect(imp.errors).toBe(1);
+    const bad = (
+      await h.pool.query("SELECT problems FROM import_rows WHERE import_id = $1 AND result = 'error'", [d.id])
+    ).rows;
+    expect(bad[0].problems[0]).toMatchObject({
+      code: "LUME_CHECK_ROW",
+      message: "A LUME export's check row: not a real lead",
+    });
+    const leads = await h.queryAll<{ email: string | null }>(
+      "SELECT email FROM leads WHERE deleted_at IS NULL",
+    );
+    expect(leads.some((l) => /example\.invalid/.test(l.email ?? ""))).toBe(false);
+  });
 });

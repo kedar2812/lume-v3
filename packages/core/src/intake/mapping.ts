@@ -170,6 +170,8 @@ export function suggestMapping(headers: string[], fields: IntakeField[], memory?
   const targets = new Map(MAPPABLE_TARGETS(fields).map((t) => [t.key, t]));
   const used = new Set<string>();
   const columns: ColumnMap[] = headers.map((h, column) => {
+    // An export's own mark (6B) is never data, whatever was remembered for this place.
+    if (clean(h) === "lume ref") return { column, to: "ignore" };
     const remembered = memory?.columns.find((c) => c.column === column);
     if (remembered && remembered.to !== "ignore") {
       if (remembered.to === "field" && targets.has(remembered.field) && !used.has(remembered.field)) {

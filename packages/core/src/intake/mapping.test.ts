@@ -143,3 +143,19 @@ describe("validateMapping", () => {
     expect(DEFAULT_RULES({ pipelineId: "p1", stageId: "s-new", country: "AE" })).toEqual(testRules());
   });
 });
+
+describe("an export's LUME ref column (6B)", () => {
+  it("is always ignored, whatever was remembered for that place", () => {
+    const ctx = testContext({ headerCount: 3 });
+    expect(suggestMapping(["Name", "Phone", "LUME ref"], ctx.fields).columns[2]).toEqual({
+      column: 2,
+      to: "ignore",
+    });
+    const remembered = suggestMapping(["Name", "Phone", "Notes"], ctx.fields);
+    remembered.columns[2] = { column: 2, to: "field", field: "email" };
+    expect(suggestMapping(["Name", "Phone", "lume  REF"], ctx.fields, remembered).columns[2]).toEqual({
+      column: 2,
+      to: "ignore",
+    });
+  });
+});

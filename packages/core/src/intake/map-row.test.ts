@@ -316,3 +316,18 @@ describe("analyzeColumns and resolveColumnSettings", () => {
     expect(analyzeColumns(rows, mapped, c)[2]!.unmatched).toEqual([]);
   });
 });
+
+describe("a LUME export's check row (6B)", () => {
+  it("is never a lead: refused with its own words", () => {
+    const o = run(
+      ["name", "email", "phone"],
+      ["Ana Bell", "ana.bell.0a1b2c@example.invalid", "+447700900123"],
+    );
+    expect(problems(o)).toEqual(["LUME_CHECK_ROW"]);
+    expect(o.kind === "error" && o.problems[0]!.message).toBe("A LUME export's check row: not a real lead");
+  });
+
+  it("an ordinary row with an email goes through as before", () => {
+    expect(run(["name", "email"], ["Dana Whitfield", "dana@example.com"]).kind).toBe("draft");
+  });
+});
