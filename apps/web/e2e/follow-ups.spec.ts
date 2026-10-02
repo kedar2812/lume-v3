@@ -65,13 +65,12 @@ test.describe("Follow-ups", () => {
     await callApi(page, "PATCH", `/api/v1/tasks/${tasks[0]!.id}`, {
       due: { at: new Date(Date.now() + 5_000).toISOString() },
     });
-    await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible({
-      timeout: 70_000,
-    });
-    // Said to screen readers too, politely, without being a page "status".
+    // Waited for by its own words, said to screen readers too (politely, never a page "status"): an older
+    // unread notice — a system alert, depending on the time of day — lights the bell before this one lands.
     await expect(
-      page.locator('p[aria-live="polite"]').filter({ hasText: /^New notification: / }),
-    ).toHaveCount(1);
+      page.locator('p[aria-live="polite"]').filter({ hasText: /^New notification: .+ — Follow Up Person$/ }),
+    ).toHaveCount(1, { timeout: 70_000 });
+    await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible();
 
     // The bell opens the notification centre (3B): it's done there, and Today is then all clear.
     await page.getByRole("button", { name: /^Notifications/ }).click();

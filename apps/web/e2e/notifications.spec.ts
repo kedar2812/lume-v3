@@ -82,11 +82,15 @@ test.describe("Notifications (3B)", () => {
     }
     await page.emulateMedia({ colorScheme: "light" });
 
-    // The escalation arrives live: the bell lights without a reload.
+    // The escalation arrives live: the bell lights without a reload. Waited for by its own words, since an
+    // older unread notice (a system alert, depending on the time of day) may have lit the bell already.
     await openApp(page, "/leads");
-    await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible({
-      timeout: 60_000,
-    });
+    await expect(
+      page
+        .locator('p[aria-live="polite"]')
+        .filter({ hasText: /^New notification: Noor's follow-up with Late Lead is 3 h overdue$/ }),
+    ).toHaveCount(1, { timeout: 60_000 });
+    await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible();
 
     // "." opens the centre; the escalation is there with Remind them.
     await page.keyboard.press(".");
