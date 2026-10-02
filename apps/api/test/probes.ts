@@ -41,6 +41,7 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ format: "csv", label: "All leads", filters: {}, columns: ["name"] }),
   },
   "GET /api/v1/leads/exports": { access: "security.manage" },
+  "POST /api/v1/security/trace": { access: "security.manage", body: () => ({ code: "ZZZZ-ZZZZ" }) },
   "GET /api/v1/leads/exports/:id/download": {
     access: "leads.export",
     path: () => `/api/v1/leads/exports/${uuid}/download`,
