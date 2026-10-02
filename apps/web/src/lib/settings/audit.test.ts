@@ -116,6 +116,14 @@ const WRITTEN = [
   "user.2fa.failed",
   "user.login.failed",
   "user.login.locked",
+  "user.login.suspended",
+  "security.alert",
+  "security.suspended",
+  "security.notified",
+  "security.restored",
+  "security.alert_resolved",
+  "security.settings_changed",
+  "security.access_changed",
 ];
 
 describe("auditPhrase", () => {
@@ -201,6 +209,28 @@ describe("auditPhrase", () => {
     expect(
       auditPhrase(entry("stage.automations", { entityType: "stage", diff: { rules: [{}, {}] } }), people),
     ).toBe("Riya Sharma changed a stage's automations (2)");
+  });
+
+  it("6A: says what the watch did, and how an alert was answered", () => {
+    const say = (action: string, diff: Record<string, unknown> = {}) =>
+      auditPhrase(entry(action, { actorUserId: null, diff }), []);
+    expect(say("security.alert")).toBe("LUME raised a security alert");
+    expect(say("security.suspended")).toBe("LUME paused someone’s access");
+    expect(say("security.notified", { names: ["Maya Kapoor", "Hana Ito"] })).toBe(
+      "LUME told Maya Kapoor and Hana Ito about a security alert",
+    );
+    const admin = (action: string, diff: Record<string, unknown>) =>
+      auditPhrase(entry(action, { actorUserId: "u-maya", actorName: "Maya Kapoor", diff }), []);
+    expect(admin("security.alert_resolved", { resolution: "restored" })).toBe(
+      "Maya Kapoor answered a security alert: access restored",
+    );
+    expect(admin("security.alert_resolved", { resolution: "kept_suspended" })).toBe(
+      "Maya Kapoor answered a security alert: kept them paused",
+    );
+    expect(admin("security.alert_resolved", { resolution: "dismissed" })).toBe(
+      "Maya Kapoor dismissed a security alert",
+    );
+    expect(AUDIT_ACTIONS["security.access_changed"]!.area).toBe("Security");
   });
 
   it("says what an import did", () => {

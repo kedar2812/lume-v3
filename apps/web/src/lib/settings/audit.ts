@@ -211,6 +211,31 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "user.login.password_ok": { area: "Sign-in", phrase: "entered the right password" },
   "user.login.failed": { area: "Sign-in", phrase: "failed to sign in" },
   "user.login.locked": { area: "Sign-in", phrase: "was locked out after too many tries" },
+  "user.login.suspended": { area: "Sign-in", phrase: "kept out a paused person who tried to sign in" },
+  // Security (6A): what the watch did, and how admins answered
+  "security.alert": { area: "Security", phrase: "raised a security alert" },
+  "security.suspended": { area: "Security", phrase: "paused someone’s access" },
+  "security.notified": {
+    area: "Security",
+    phrase: (d) => {
+      const names = Array.isArray(d.names) ? (d.names as string[]) : [];
+      const who =
+        names.length > 1
+          ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
+          : (names[0] ?? "the admins");
+      return `told ${who} about a security alert`;
+    },
+  },
+  "security.restored": { area: "Security", phrase: "restored someone’s access" },
+  "security.alert_resolved": {
+    area: "Security",
+    phrase: (d) =>
+      d.resolution === "dismissed"
+        ? "dismissed a security alert"
+        : `answered a security alert: ${d.resolution === "kept_suspended" ? "kept them paused" : "access restored"}`,
+  },
+  "security.settings_changed": { area: "Security", phrase: "changed the security rules or the watermark" },
+  "security.access_changed": { area: "Security", phrase: "changed when or where a role may sign in" },
   "user.logout": { area: "Sign-in", phrase: "signed out" },
   "user.2fa.enabled": { area: "Sign-in", phrase: "turned on two-step sign-in" },
   "user.2fa.disabled": { area: "Sign-in", phrase: "turned off two-step sign-in" },

@@ -52,7 +52,12 @@ export function BurstChart({
         style={{ gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` }}
       >
         {crossing >= 0 && (
-          <span className={s.limit} style={{ left: `${(crossing / bars.length) * 100}%` }} aria-hidden>
+          <span
+            className={s.limit}
+            style={{ left: `${(crossing / bars.length) * 100}%` }}
+            data-side={crossing / bars.length > 0.6 ? "left" : "right"}
+            aria-hidden
+          >
             <span>Limit reached</span>
           </span>
         )}
@@ -62,8 +67,12 @@ export function BurstChart({
             data-testid="burst-bar"
             data-over={b.over || undefined}
             data-crossing={j === crossing || undefined}
+            data-empty={b.n === 0 || undefined}
             className={b.over ? s.barOver : s.bar}
-            style={{ height: `${Math.max(4, (b.n / max) * 100)}%`, ["--j" as string]: j }}
+            style={{
+              height: b.n === 0 ? undefined : `${Math.max(4, (b.n / max) * 100)}%`,
+              ["--j" as string]: j,
+            }}
           />
         ))}
       </div>

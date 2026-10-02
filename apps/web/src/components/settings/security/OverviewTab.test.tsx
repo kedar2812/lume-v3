@@ -161,6 +161,18 @@ describe("the burst chart", () => {
     expect(bars[10]).toHaveAttribute("data-crossing", "true");
     expect(bars.filter((b) => b.dataset.over === "true")).toHaveLength(2);
     expect(screen.getByText("Limit reached")).toBeInTheDocument();
+    // Late in the window, the label sits to the left of its marker, so it never runs off the chart.
+    expect(screen.getByText("Limit reached").parentElement).toHaveAttribute("data-side", "left");
+    // Minutes with nothing in them are quiet, not bars.
+    const empty = render(
+      <BurstChart
+        burst={[{ at: burst[0]!.at, n: 0 }, ...burst.slice(1)]}
+        threshold={30}
+        timezone={TZ}
+        label="x"
+      />,
+    );
+    expect(within(empty.container).getAllByTestId("burst-bar")[0]).toHaveAttribute("data-empty", "true");
     expect(
       screen.getByRole("img", {
         name: /Contacts opened, each minute: 34 in 12 minutes, past the limit at 9:40 am/,

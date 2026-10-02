@@ -207,6 +207,12 @@
   align-items: center;
   gap: 12px;
 }
+.row:has(.choices) {
+  align-items: flex-start;
+}
+.row:has(.choices) .lbl {
+  padding-top: 10px;
+}
 .lbl {
   width: 120px;
   font-size: var(--fs-sm);
@@ -1002,6 +1008,16 @@
   bottom: 0;
   z-index: 1;
   border-left: 1.5px dashed var(--warn);
+}
+.limit[data-side="left"] span {
+  left: auto;
+  right: 4px;
+}
+/* A minute with nothing in it: a quiet baseline, not a bar. */
+.bar[data-empty],
+.barOver[data-empty] {
+  height: 2px;
+  opacity: 0.25;
 }
 .limit span {
   position: absolute;

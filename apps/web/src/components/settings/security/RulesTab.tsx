@@ -141,7 +141,7 @@ export function RulesTab({ initial, viewer }: { initial: SecuritySettings; viewe
             <span key={i} className={s.line} style={{ width: `${w}%` }} />
           ))}
           <div className={draft.watermark === "off" ? `${s.markWrap} ${s.markOff}` : s.markWrap}>
-            <Watermark text={watermarkText(viewer)} />
+            <Watermark text={watermarkText(viewer)} scale={0.72} />
           </div>
         </div>
       </section>
