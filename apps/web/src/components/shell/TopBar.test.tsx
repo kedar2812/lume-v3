@@ -5,7 +5,7 @@ import { notificationsClient } from "@/lib/notifications/client";
 import { TopBar } from "./TopBar";
 
 let path = "/leads";
-vi.mock("next/navigation", () => ({ usePathname: () => path }));
+vi.mock("next/navigation", () => ({ usePathname: () => path, useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/theme/ThemeToggle", () => ({ ThemeToggle: () => null }));
 vi.mock("@/components/notifications/NotificationCentre", () => ({
   NotificationCentre: ({ open, onClose }: { open: boolean; onClose(): void }) =>
@@ -19,6 +19,8 @@ vi.mock("@/lib/notifications/client", () => ({
   notificationsClient: { list: vi.fn() },
   READ_EVENT: "lume:notifications-read",
 }));
+const toast = vi.fn();
+vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 let live: ((n: unknown) => void) | null = null;
 vi.mock("@/lib/notifications/stream", () => ({ useStream: (on: (n: unknown) => void) => void (live = on) }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
@@ -108,5 +110,34 @@ describe("the bell: 3B final review", () => {
     const said = screen.getByText("New notification: Follow up — Aisha");
     expect(said).toHaveAttribute("aria-live", "polite");
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("5D: a Calendly booking arrives as a notice with Calendly's mark and Open", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
+    render(<TopBar theme="system" onSearch={vi.fn()} />);
+    await act(async () =>
+      live?.({
+        id: 9,
+        kind: "meeting_booked",
+        title: "Noor Rahman booked a Programme fit call",
+        body: "Oct 2, Fri, 10:30 am · moved to Call booked",
+        leadId: "l-noor",
+      }),
+    );
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Noor Rahman booked a Programme fit call",
+        detail: "Oct 2, Fri, 10:30 am · moved to Call booked",
+        mark: { src: "/brand/calendly.svg", alt: "Calendly" },
+        action: expect.objectContaining({ label: "Open" }),
+      }),
+    );
+  });
+
+  it("other notifications don't raise a notice: the bell is enough", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
+    render(<TopBar theme="system" onSearch={vi.fn()} />);
+    await act(async () => live?.({ id: 10, kind: "task_due", title: "Follow up — Aisha" }));
+    expect(toast).not.toHaveBeenCalled();
   });
 });

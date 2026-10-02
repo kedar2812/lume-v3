@@ -208,3 +208,38 @@ describe("the Calendar page: connecting", () => {
     expect(screen.getByText(/Your role doesn't connect a calendar/)).toBeInTheDocument();
   });
 });
+
+describe("the Calendar page on a phone (5D Task 12)", () => {
+  it("under 700 px: the phone's list and its sheet, never the bar, the agenda or the drawer", async () => {
+    const real = window.matchMedia;
+    window.matchMedia = ((q: string) => ({
+      ...real(q),
+      matches: q === "(max-width: 699px)",
+    })) as typeof window.matchMedia;
+    try {
+      view({ initial: { view: "agenda", day: null, meeting: "b" } });
+      expect(await screen.findByRole("region", { name: "Today" })).toBeInTheDocument();
+      expect(screen.queryByRole("radiogroup", { name: "View" })).not.toBeInTheDocument();
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+      expect(screen.getByRole("dialog", { name: "Lead b" })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = real;
+    }
+  });
+
+  it("under 700 px, a notice about connecting sits under the title, not above it", async () => {
+    const real = window.matchMedia;
+    window.matchMedia = ((q: string) => ({
+      ...real(q),
+      matches: q === "(max-width: 699px)",
+    })) as typeof window.matchMedia;
+    try {
+      view({ connect: { state: "unavailable", admin: true } });
+      const title = await screen.findByRole("heading", { level: 1, name: "Calendar" });
+      const notice = screen.getByText(/isn't set up on this server yet/);
+      expect(title.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      window.matchMedia = real;
+    }
+  });
+});

@@ -20,6 +20,16 @@ vi.mock("@/lib/templates/client", () => ({
     context: vi.fn(async () => ({ ok: false, status: 403, code: "FORBIDDEN", message: "No" })),
   },
 }));
+// Log outcome is its own component (and tests); here, only that Today opens it and reads again after.
+vi.mock("@/components/calendar/LogOutcome", () => ({
+  LogOutcome: ({ meeting, onDone }: { meeting: { title: string }; onDone: () => void }) => (
+    <div role="dialog" aria-label={`Log ${meeting.title}`}>
+      <button type="button" onClick={onDone}>
+        Saved
+      </button>
+    </div>
+  ),
+}));
 let live: ((n: unknown) => void) | null = null;
 vi.mock("@/lib/notifications/stream", () => ({ useStream: (on: (n: unknown) => void) => void (live = on) }));
 
@@ -212,5 +222,36 @@ describe("Today", () => {
     const names = snoozes.map((b) => b.getAttribute("aria-label") ?? b.textContent);
     expect(new Set(names).size).toBe(names.length);
     expect(names.every((n) => /^Snooze .+ — .+/.test(n ?? ""))).toBe(true);
+  });
+
+  it("5D Task 11: a call that ended opens Log outcome right here, and Today reads again once it's saved", async () => {
+    const ended = new Date(Date.now() - 2 * H);
+    vi.mocked(tasksClient.today).mockResolvedValue(
+      ok(
+        view({
+          meetings: [
+            {
+              id: "m1",
+              title: "Pricing walkthrough",
+              startsAt: ended.toISOString(),
+              endsAt: new Date(ended.getTime() + H / 2).toISOString(),
+              link: null,
+              status: "scheduled",
+              lead: { id: "l-k", name: "Karim Aziz" },
+              matchedBy: "attendee",
+              reminder: null,
+            },
+          ],
+        }),
+      ),
+    );
+    render(<Today name="Maya Kapoor" tz="Asia/Dubai" />);
+    const calls = await screen.findByRole("region", { name: "Today's calls" });
+    await userEvent.click(within(calls).getByRole("button", { name: "Log outcome" }));
+    const dialog = screen.getByRole("dialog", { name: "Log Pricing walkthrough" });
+    expect(tasksClient.today).toHaveBeenCalledTimes(1);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Saved" }));
+    expect(screen.queryByRole("dialog", { name: "Log Pricing walkthrough" })).not.toBeInTheDocument();
+    expect(tasksClient.today).toHaveBeenCalledTimes(2);
   });
 });

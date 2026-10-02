@@ -442,6 +442,15 @@
 .tab[aria-selected="true"] {
   color: var(--text);
 }
+.tabCount {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  background: var(--sunk);
+}
 .tabInk {
   position: absolute;
   left: 10px;

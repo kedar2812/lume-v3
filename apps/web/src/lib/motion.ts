@@ -56,3 +56,19 @@ export function rubberband(overshoot: number, dimension: number, constant = 0.55
   const x = Math.abs(overshoot);
   return (Math.sign(overshoot) * (x * dimension * constant)) / (dimension + constant * x);
 }
+
+/** A drag's release velocity in px/s, from its last few [time ms, position px] samples. */
+export function releaseVelocity(samples: [number, number][]): number {
+  if (samples.length < 2) return 0;
+  const [t0, y0] = samples[0]!;
+  const [t1, y1] = samples[samples.length - 1]!;
+  return ((y1 - y0) / Math.max(1, t1 - t0)) * 1000;
+}
+
+/** How far down a bottom sheet must be headed, once let go, to close (Phase 5 canvas, Phone). */
+export const SHEET_DISMISS_PX = 220;
+
+/** A sheet let go at `offset` px down, moving at `velocity` px/s, closes when where it would rest is past 220 px. */
+export function sheetDismisses(offset: number, velocity: number, distance = SHEET_DISMISS_PX): boolean {
+  return offset + project(velocity) > distance;
+}

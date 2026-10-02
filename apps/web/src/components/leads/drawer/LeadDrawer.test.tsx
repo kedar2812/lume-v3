@@ -23,6 +23,9 @@ vi.mock("@/lib/leads/client", () => ({
     remove: vi.fn(),
   },
 }));
+vi.mock("@/lib/calendar/client", () => ({
+  calendarClient: { leadMeetings: vi.fn(async () => ({ ok: true, status: 200, data: { meetings: [] } })) },
+}));
 vi.mock("@/lib/templates/client", () => ({
   templatesClient: {
     list: vi.fn(async () => ({ ok: true, status: 200, data: { templates: [] } })),
@@ -445,5 +448,98 @@ describe("LeadDrawer", () => {
     );
     await userEvent.click(await screen.findByRole("tab", { name: "History" }));
     expect(await screen.findByText("Moved to Message sent")).toBeInTheDocument();
+  });
+});
+
+describe("LeadDrawer: meetings (5D Task 11)", () => {
+  it("with Calendar on, shows the next meeting and a Meetings tab with how many", async () => {
+    const { calendarClient } = await import("@/lib/calendar/client");
+    const soon = new Date(Date.now() + 2 * 3_600_000);
+    const past = new Date(Date.now() - 48 * 3_600_000);
+    const meeting = (id: string, at: Date, status = "scheduled") => ({
+      id,
+      title: "Discovery call",
+      startsAt: at.toISOString(),
+      endsAt: new Date(at.getTime() + 1_800_000).toISOString(),
+      status,
+      link: "https://meet.google.com/x",
+      location: null,
+      ownerId: "u1",
+      matchedBy: "attendee",
+      outcomeNote: null,
+      lead: { id: "l1", name: "Aisha Khan", pipelineId: "p1", stageId: "s-new" },
+    });
+    vi.mocked(calendarClient.leadMeetings).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { meetings: [meeting("a", soon), meeting("b", past, "completed")] },
+    } as never);
+    const session = fakeSession({
+      permissions: [
+        { key: "leads.view", scope: "own" },
+        { key: "calendar.view", scope: "own" },
+      ],
+      capabilities: { sheets: false, calendar: true },
+    });
+    open(testLead(), session);
+    expect(await screen.findByRole("region", { name: "Next meeting" })).toHaveTextContent("Discovery call");
+    const tab = screen.getByRole("tab", { name: /Meetings/ });
+    expect(tab).toHaveTextContent("2");
+    await userEvent.click(tab);
+    expect(screen.getByRole("list", { name: "Earlier" })).toHaveTextContent("Held");
+  });
+
+  it("after J/K, a late answer for the lead before is dropped", async () => {
+    const { calendarClient } = await import("@/lib/calendar/client");
+    const at = new Date(Date.now() + 2 * 3_600_000);
+    const meeting = (id: string, title: string, leadId: string) => ({
+      id,
+      title,
+      startsAt: at.toISOString(),
+      endsAt: new Date(at.getTime() + 1_800_000).toISOString(),
+      status: "scheduled",
+      link: null,
+      location: null,
+      ownerId: "u1",
+      matchedBy: "attendee",
+      outcomeNote: null,
+      lead: { id: leadId, name: "Someone", pipelineId: "p1", stageId: "s-new" },
+    });
+    let answerFirst: (v: unknown) => void = () => {};
+    vi.mocked(calendarClient.leadMeetings)
+      .mockImplementationOnce(() => new Promise((r) => (answerFirst = r)) as never)
+      .mockResolvedValueOnce(ok({ meetings: [meeting("b", "Pricing walkthrough", "l2")] }) as never);
+    const session = fakeSession({
+      permissions: [
+        { key: "leads.view", scope: "own" },
+        { key: "calendar.view", scope: "own" },
+      ],
+      capabilities: { sheets: false, calendar: true },
+    });
+    const first = testLead();
+    const second = { ...testLead(), id: "l2" };
+    vi.mocked(leadsClient.get).mockImplementation(async (id) => ok({ lead: id === "l2" ? second : first }));
+    vi.mocked(leadsClient.activities).mockResolvedValue(ok({ items: [], nextCursor: null }));
+    const view = (id: string) => (
+      <CatalogProvider catalog={testCatalog()}>
+        <LeadDrawer id={id} session={session} neighbours={[first.id, "l2"]} {...handlers()} />
+      </CatalogProvider>
+    );
+    const { rerender } = render(view(first.id));
+    rerender(view("l2"));
+    expect(await screen.findByRole("region", { name: "Next meeting" })).toHaveTextContent(
+      "Pricing walkthrough",
+    );
+    answerFirst(ok({ meetings: [meeting("a", "Old lead's call", first.id)] }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByRole("region", { name: "Next meeting" })).toHaveTextContent("Pricing walkthrough");
+  });
+
+  it("without calendar.view, no meetings are asked for or shown", async () => {
+    const { calendarClient } = await import("@/lib/calendar/client");
+    open();
+    await screen.findByRole("dialog", { name: "Aisha Khan" });
+    expect(screen.queryByRole("tab", { name: /Meetings/ })).not.toBeInTheDocument();
+    expect(calendarClient.leadMeetings).not.toHaveBeenCalled();
   });
 });

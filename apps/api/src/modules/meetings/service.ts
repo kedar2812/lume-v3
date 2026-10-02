@@ -131,17 +131,18 @@ export async function patchMeeting(
   }
   if (body.status !== undefined || body.outcomeNote !== undefined) {
     if (!body.status) throw badRequest("OUTCOME_STATUS", "Say how the meeting went.");
-    if (m.status !== "scheduled")
-      throw new HttpError(409, "OUTCOME_RECORDED", "This meeting's outcome is already recorded.");
+    if (m.status !== "scheduled") throw await recorded(req, id);
     if (new Date(m.startsAt) > d.clock())
       throw new HttpError(409, "MEETING_NOT_YET", "This meeting hasn't started yet.");
     const [done] = (
       await req.db.execute<{ outcome_task_id: string | null; lead_id: string | null }>(
         sql`UPDATE meetings SET status = ${body.status}, outcome_note = ${body.outcomeNote ?? null},
               outcome_at = ${d.clock()}, outcome_by = ${a.userId}, updated_at = now(), version = version + 1
-            WHERE id = ${id} RETURNING outcome_task_id, lead_id`,
+            WHERE id = ${id} AND status = 'scheduled' RETURNING outcome_task_id, lead_id`,
       )
     ).rows;
+    // Someone else logged it in the same moment (5D Review Focus 4): theirs stands, and this one is told.
+    if (!done) throw await recorded(req, id);
     if (done?.outcome_task_id) {
       const t = await req.db.execute<{ id: string }>(
         sql`UPDATE tasks SET status = 'done', done_at = ${d.clock()}, done_by = ${a.userId}, updated_at = now(),
@@ -161,4 +162,28 @@ export async function patchMeeting(
     });
   }
   return one(req, id);
+}
+
+const OUTCOME_WORDS: Record<string, string> = {
+  completed: "Held",
+  no_show: "No-show",
+  rescheduled: "Rescheduled",
+  cancelled: "Cancelled",
+};
+
+/** "Riya Rep already logged this meeting: No-show." — who, and how it went, for the person who tried second. */
+async function recorded(req: FastifyRequest, id: string): Promise<HttpError> {
+  const [row] = (
+    await req.db.execute<{ status: string; name: string | null }>(
+      sql`SELECT m.status, u.name FROM meetings m LEFT JOIN users u ON u.id = m.outcome_by WHERE m.id = ${id}`,
+    )
+  ).rows;
+  const status = row?.status ?? "completed";
+  const by = row?.name ?? "Someone";
+  return new HttpError(
+    409,
+    "OUTCOME_RECORDED",
+    `${by} already logged this meeting: ${OUTCOME_WORDS[status] ?? status}.`,
+    { by, status },
+  );
 }

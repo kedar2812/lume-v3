@@ -157,6 +157,9 @@ describe("meetings in the API (5A Task 6)", () => {
     expect(r.json()).toMatchObject({ status: "no_show", outcomeNote: "Didn't join; rebook" });
     const again = await patch(repC, M.repPast, { status: "completed" });
     expect([again.statusCode, again.json().error.code]).toEqual([409, "OUTCOME_RECORDED"]);
+    // 5D Review Focus 4: the refusal says who logged it and how it went, so the second person knows.
+    expect(again.json().error.message).toBe("Riya Rep already logged this meeting: No-show.");
+    expect(again.json().error.details).toEqual({ by: "Riya Rep", status: "no_show" });
     const audit = await h.queryAll<{ action: string }>(
       "SELECT action FROM audit_log WHERE entity_id = $1 ORDER BY id",
       [M.repPast],
@@ -192,5 +195,23 @@ describe("Log outcome (5A Task 6)", () => {
       tasks[0]!.id,
     ]);
     expect(t).toEqual({ status: "done" });
+  });
+});
+
+describe("Log outcome, twice at once (5D Review Focus 4)", () => {
+  it("two people logging the same meeting at the same moment: one is recorded, the other is told", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Race Lead" });
+    const id = newId();
+    await meeting(id, rep.id, lead, new Date(h.clock.now.getTime() - 3 * HOUR), "Race call");
+    const [a, b] = await Promise.all([
+      patch(repC, id, { status: "completed", outcomeNote: "Went well" }),
+      patch(managerC, id, { status: "no_show" }),
+    ]);
+    const codes = [a.statusCode, b.statusCode].sort();
+    expect(codes).toEqual([200, 409]);
+    const audit = await h.queryAll<{ action: string }>("SELECT action FROM audit_log WHERE entity_id = $1", [
+      id,
+    ]);
+    expect(audit.filter((x) => x.action === "meeting.outcome")).toHaveLength(1);
   });
 });

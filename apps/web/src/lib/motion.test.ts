@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   SPRINGS,
   project,
+  releaseVelocity,
   rubberband,
+  sheetDismisses,
   settleTime,
   springAt,
   springCssVars,
@@ -68,5 +70,28 @@ describe("gesture maths", () => {
     expect(rubberband(100, 300)).toBeGreaterThan(rubberband(50, 300));
     expect(rubberband(1e6, 300)).toBeLessThan(300);
     expect(rubberband(-50, 300)).toBeCloseTo(-rubberband(50, 300), 9);
+  });
+});
+
+describe("a bottom sheet let go (5D Task 12)", () => {
+  it("reads the release velocity from the last moves, in px/s", () => {
+    expect(
+      releaseVelocity([
+        [0, 100],
+        [50, 130],
+        [100, 160],
+      ]),
+    ).toBeCloseTo(600, 6);
+    expect(releaseVelocity([[0, 100]])).toBe(0);
+    expect(releaseVelocity([])).toBe(0);
+  });
+
+  it("closes when where it would come to rest is past 220 px", () => {
+    expect(sheetDismisses(150, 0)).toBe(false);
+    expect(sheetDismisses(240, 0)).toBe(true);
+    // A short drag with a flick: 120 + project(600) ≈ 419.
+    expect(sheetDismisses(120, 600)).toBe(true);
+    // Far down but flicked back up: 200 + project(-400) ≈ 0.
+    expect(sheetDismisses(200, -400)).toBe(false);
   });
 });

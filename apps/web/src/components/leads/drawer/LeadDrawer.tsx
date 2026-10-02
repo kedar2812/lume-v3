@@ -1,4 +1,5 @@
 "use client";
+import { can } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   useCallback,
@@ -29,9 +30,14 @@ import { EditableCell } from "../EditableCell";
 import { FieldValue } from "../fields/FieldValue";
 import { editable, useLeadEditor } from "../useLeadEditor";
 import { useStageMove } from "../useStageMove";
+import { LogOutcome } from "@/components/calendar/LogOutcome";
+import { calendarClient } from "@/lib/calendar/client";
+import type { Meeting } from "@/lib/calendar/types";
 import { AssignMenu } from "./AssignMenu";
 import { ContactBox } from "./ContactBox";
+import { MeetingsTab } from "./MeetingsTab";
 import { MessageButton } from "./MessageButton";
+import { NextMeeting } from "./NextMeeting";
 import { PetalBurst } from "./PetalBurst";
 import { StageTrack } from "./StageTrack";
 import { NoteComposer, Timeline } from "./Timeline";
@@ -49,8 +55,8 @@ type Props = {
   onChanged: (lead: Lead) => void;
   onGone: (id: string, why: GoneReason) => void;
 };
-type Tab = "details" | "notes" | "history";
-const TABS: { id: Tab; label: string }[] = [
+type Tab = "details" | "notes" | "history" | "meetings";
+const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "details", label: "Details" },
   { id: "notes", label: "Notes" },
   { id: "history", label: "History" },
@@ -125,6 +131,24 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const [sentSlot, setSentSlot] = useState<HTMLDivElement | null>(null);
   const headingId = useId();
   const tabsId = useId();
+  // Meetings with this lead (5D): for someone who may see meetings, once this build has Calendar.
+  const seesMeetings = session.capabilities.calendar && can(session.actor, "calendar.view");
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [logging, setLogging] = useState<Meeting | null>(null);
+  const shown = useRef(id);
+  shown.current = id;
+  const loadMeetings = useCallback(() => {
+    if (!seesMeetings) return;
+    // An answer for a lead no longer shown (after J/K) is dropped.
+    void calendarClient
+      .leadMeetings(id)
+      .then((r) => r.ok && shown.current === id && setMeetings(r.data.meetings));
+  }, [id, seesMeetings]);
+  useEffect(() => {
+    setMeetings([]);
+    loadMeetings();
+  }, [loadMeetings]);
+  const TABS = seesMeetings ? [...BASE_TABS, { id: "meetings" as const, label: "Meetings" }] : BASE_TABS;
 
   // Load (and re-load on J/K). An answer for a lead that is no longer shown is dropped.
   useEffect(() => {
@@ -667,6 +691,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                 version={followUps}
                 onChange={logged}
               />
+              {seesMeetings && <NextMeeting meetings={meetings} tz={tz} now={new Date()} />}
 
               <StageTrack
                 lead={lead}
@@ -696,6 +721,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                     }}
                   >
                     {t.label}
+                    {t.id === "meetings" && meetings.length > 0 && (
+                      <span className={s.tabCount}>{meetings.length}</span>
+                    )}
                     {tab === t.id && (
                       <motion.span
                         layoutId={`${tabsId}-ink`}
@@ -737,6 +765,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                     />
                   </>
                 )}
+                {tab === "meetings" && (
+                  <MeetingsTab meetings={meetings} tz={tz} now={new Date()} onLogOutcome={setLogging} />
+                )}
                 {tab === "history" && (
                   <Timeline
                     tz={tz}
@@ -753,6 +784,18 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
         </div>
       </motion.div>
       {move.ui}
+      {logging && (
+        <LogOutcome
+          meeting={logging}
+          tz={tz}
+          onClose={() => setLogging(null)}
+          onDone={() => {
+            setLogging(null);
+            loadMeetings();
+            logged();
+          }}
+        />
+      )}
       <AnimatePresence>{burst && <PetalBurst at={burst} onDone={() => setBurst(null)} />}</AnimatePresence>
     </>
   );

@@ -1,8 +1,9 @@
 "use client";
 import { Bell, Search } from "lucide-react";
 import { motion, useAnimationControls, useReducedMotion } from "motion/react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useToast } from "@/components/feedback/ToastProvider";
 import { NotificationCentre } from "@/components/notifications/NotificationCentre";
 import { ResumeRun } from "@/components/queue/ResumeRun";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -28,6 +29,8 @@ export function TopBar({
   canQueue?: boolean;
   onSearch(): void;
 }) {
+  const { toast } = useToast();
+  const router = useRouter();
   const pathname = usePathname();
   const title = activeNav(NAV_ITEMS, pathname)?.label ?? "LUME";
   const reduce = useReducedMotion();
@@ -48,6 +51,19 @@ export function TopBar({
   }, []);
   useStream((n) => {
     setUnread((c) => c + 1);
+    // A Calendly booking (5D) is news worth a notice, with Calendly's own mark; the rest, the bell says.
+    const note = n as
+      { kind?: string; title?: string; body?: string | null; leadId?: string | null } | undefined;
+    if (note?.kind === "meeting_booked" && note.title)
+      toast({
+        title: note.title,
+        ...(note.body ? { detail: note.body } : {}),
+        mark: { src: "/brand/calendly.svg", alt: "Calendly" },
+        durationMs: 6500,
+        ...(note.leadId
+          ? { action: { label: "Open", onClick: () => router.push(`/leads?lead=${note.leadId}`) } }
+          : {}),
+      });
     const title = (n as { title?: string } | undefined)?.title;
     if (title) setArrival(`New notification: ${title}`);
     if (!reduce) void swing.start({ rotate: [0, 14, -10, 6, 0], transition: { duration: 0.6 } });
@@ -85,11 +101,14 @@ export function TopBar({
       <h1 className={s.crumb}>{title}</h1>
       <button type="button" className={s.search} onClick={onSearch} data-tour="search">
         <Search size={15} aria-hidden />
-        Search leads, actions…
+        <span className={s.searchWords}>Search leads, actions…</span>
         <Kbd>Ctrl K</Kbd>
       </button>
       {canQueue && <ResumeRun variant="pill" />}
-      <ThemeToggle initial={theme} />
+      {/* On a phone the theme lives in Settings → My account only: the bar keeps search and the bell. */}
+      <span className={s.themeSlot}>
+        <ThemeToggle initial={theme} />
+      </span>
       <IconButton
         ref={bell}
         label={unread ? `Notifications, ${unread} unread` : "Notifications"}

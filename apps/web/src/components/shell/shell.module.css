@@ -212,6 +212,35 @@
 .search kbd {
   margin-left: auto;
 }
+.themeSlot {
+  display: contents;
+}
+/* A phone (under 700 px): search becomes its icon (its words stay for screen readers), the theme steps out. */
+@media (max-width: 699px) {
+  .bar {
+    padding: 0 12px 0 16px;
+  }
+  .search {
+    flex: none;
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+  .search kbd {
+    display: none;
+  }
+  .searchWords {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .themeSlot {
+    display: none;
+  }
+}
 .scroll {
   flex: 1;
   overflow-y: auto;

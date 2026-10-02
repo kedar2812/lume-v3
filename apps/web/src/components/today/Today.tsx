@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
+import { LogOutcome } from "@/components/calendar/LogOutcome";
 import { SendSheet } from "@/components/messages/SendSheet";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
@@ -10,8 +11,9 @@ import { SPRINGS, toMotion } from "@/lib/motion";
 import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
 import { timezoneOf, whenInWords } from "@/lib/tasks/format";
-import type { TaskView, TodayView } from "@/lib/tasks/types";
+import type { TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
 import { ResumeRun } from "@/components/queue/ResumeRun";
+import { TodayCalls, callsBrief } from "./TodayCalls";
 import s from "./today.module.css";
 
 type Group = { id: "overdue" | "soon" | "later"; label: string };
@@ -76,6 +78,8 @@ export function Today({
   const [v, setV] = useState<TodayView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /** The call whose outcome is being logged (5D Task 11): right here, not a trip to the Calendar. */
+  const [logging, setLogging] = useState<TodayMeeting | null>(null);
   const load = useCallback(async () => {
     const r = await tasksClient.today();
     if (!r.ok) return setError(r.message);
@@ -134,20 +138,24 @@ export function Today({
 
   const first = name.split(" ")[0] || name;
   const oldest = v.overdue[0];
-  const brief =
-    v.total === 0 ? (
-      "Nothing's due today."
-    ) : oldest ? (
-      <>
-        {oldest.leadName} has been waiting since{" "}
-        <span data-volatile>{whenInWords(oldest.dueAt, new Date(), tz).replace(" (overdue)", "")}</span>, so
-        start there.
-      </>
-    ) : remaining ? (
-      `Nothing's overdue. ${remaining === 1 ? "One follow-up" : `${remaining} follow-ups`} still to go today.`
-    ) : (
-      "Everything due today is done."
-    );
+  const calls = v.meetings ?? [];
+  // The next call leads the brief when there is one (canvas Today); else what the follow-ups need.
+  const aboutCalls = callsBrief(calls, new Date(), tz);
+  const brief = aboutCalls ? (
+    <span data-volatile>{aboutCalls}</span>
+  ) : v.total === 0 ? (
+    "Nothing's due today."
+  ) : oldest ? (
+    <>
+      {oldest.leadName} has been waiting since{" "}
+      <span data-volatile>{whenInWords(oldest.dueAt, new Date(), tz).replace(" (overdue)", "")}</span>, so
+      start there.
+    </>
+  ) : remaining ? (
+    `Nothing's overdue. ${remaining === 1 ? "One follow-up" : `${remaining} follow-ups`} still to go today.`
+  ) : (
+    "Everything due today is done."
+  );
 
   return (
     <div className={s.page}>
@@ -166,6 +174,19 @@ export function Today({
       </section>
 
       {canQueue && <ResumeRun variant="card" />}
+
+      <TodayCalls meetings={calls} tz={tz} now={new Date()} onLogOutcome={setLogging} />
+      {logging && (
+        <LogOutcome
+          meeting={logging}
+          tz={tz}
+          onClose={() => setLogging(null)}
+          onDone={() => {
+            setLogging(null);
+            void load();
+          }}
+        />
+      )}
 
       {error && (
         <p role="alert" className={s.error}>
