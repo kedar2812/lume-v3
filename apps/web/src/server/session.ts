@@ -47,10 +47,19 @@ export type Session = {
   actor: Actor;
   /** The licence as this person sees it (licensing L-A): banners, the lock screen, the reminder. */
   licence: LicenceForPerson;
+  /** Whether lead screens carry this person's watermark (6A), and the business's date for it. */
+  watermark: boolean;
+  today: string;
 };
 
 /** Exactly what GET /auth/me sends. Permission keys stay loose here: a newer API may know more of them. */
-export type MePayload = Omit<Session, "actor" | "permissions" | "agreement" | "flags" | "licence"> & {
+export type MePayload = Omit<
+  Session,
+  "actor" | "permissions" | "agreement" | "flags" | "licence" | "watermark" | "today"
+> & {
+  /** Absent from an API that predates the watch (6A). */
+  watermark?: boolean;
+  today?: string;
   /** Absent from an API that predates licensing. */
   licence?: LicenceForPerson;
   permissions: { key: string; scope: Scope | null }[];
@@ -94,6 +103,9 @@ export function toSession(me: MePayload): Session {
     flags: { ...me.flags, needsAgreement: me.flags.needsAgreement ?? false },
     // An API from before licensing sends none: nothing is locked, nothing is said.
     licence: me.licence ?? UNLICENSED_API,
+    // An API from before the watch draws no watermark.
+    watermark: me.watermark ?? false,
+    today: me.today ?? new Date().toISOString().slice(0, 10),
     actor: {
       userId: me.user.id,
       isOwner: me.user.isOwner,

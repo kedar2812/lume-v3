@@ -57,4 +57,17 @@ describe("areasFor", () => {
     const pipelinesOnly = fakeSession({ permissions: [{ key: "pipelines.manage", scope: null }] });
     expect(areasFor(pipelinesOnly.actor).map((a) => a.id)).toContain("lists");
   });
+
+  it("6A: Security, after Teams and before the Audit log, only for people who manage security", () => {
+    const sec = fakeSession({
+      permissions: [
+        { key: "teams.manage", scope: null },
+        { key: "security.manage", scope: null },
+        { key: "audit.view", scope: null },
+      ],
+    });
+    expect(areasFor(sec.actor).map((a) => a.id)).toEqual(["teams", "security", "audit", "account", "about"]);
+    const rep = fakeSession({ permissions: [{ key: "leads.view", scope: "own" }] });
+    expect(areasFor(rep.actor).map((a) => a.id)).not.toContain("security");
+  });
 });

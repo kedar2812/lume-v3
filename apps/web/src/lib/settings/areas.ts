@@ -117,6 +117,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "people",
   },
   {
+    id: "security",
+    title: "Security",
+    blurb: "Alerts, rules, and who can sign in when",
+    href: "/settings/security",
+    anyOf: ["security.manage"],
+    group: "people",
+  },
+  {
     id: "audit",
     title: "Audit log",
     blurb: "Everything important that happened, and who did it",
