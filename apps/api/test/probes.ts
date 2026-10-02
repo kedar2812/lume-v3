@@ -35,6 +35,16 @@ export type Probe = {
 
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
 export const PROBES: Record<string, Probe> = {
+  // Lead exports you can trace (6B).
+  "POST /api/v1/leads/export": {
+    access: "leads.export",
+    body: () => ({ format: "csv", label: "All leads", filters: {}, columns: ["name"] }),
+  },
+  "GET /api/v1/leads/exports": { access: "security.manage" },
+  "GET /api/v1/leads/exports/:id/download": {
+    access: "leads.export",
+    path: () => `/api/v1/leads/exports/${uuid}/download`,
+  },
   // Settings → Security (6A): everything is for people who manage security.
   "GET /api/v1/security/settings": { access: "security.manage" },
   "PUT /api/v1/security/settings": {

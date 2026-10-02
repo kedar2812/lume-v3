@@ -9,6 +9,7 @@ import { noTouch } from "./no-touch";
 import { askOutcomes } from "../meetings/outcomes";
 import { opsAlerts } from "../health/service";
 import { securitySweep } from "../security/sweep";
+import { clearExpiredExports } from "../lead-exports/service";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -122,6 +123,11 @@ export async function startTaskQueue(o: {
               ...(o.digest ? { mailer: o.digest.mailer, publicUrl: o.digest.publicUrl } : {}),
             }),
           "system alerts failed",
+        );
+      // Every hour (and at start-up): lead export files older than 24 hours are removed (6B).
+      if (n % 60 === 0)
+        void clearExpiredExports(o.pool).catch((err: unknown) =>
+          o.app.log.error({ err }, "clearing old exports failed"),
         );
       // Every hour (and at start-up): leads gone quiet come back to their owners (3C).
       if (n % 60 === 0) beside("noTouch", () => noTouch({ ...deps, enqueue }), "leads gone quiet failed");
