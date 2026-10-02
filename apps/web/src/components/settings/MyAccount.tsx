@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { accountClient, type MySession } from "@/lib/settings/account";
-import { deviceName } from "@/lib/settings/device";
+import { deviceName } from "@lume/core/shared";
 import { shortDateTime } from "@/lib/settings/format";
 import type { Session } from "@/server/session";
 import { MyAlerts } from "./MyAlerts";

@@ -16,6 +16,7 @@ export * from "./leads/field-access";
 export * from "./leads/presets";
 export * from "./leads/contact-access";
 export * from "./users/preferences";
+export * from "./users/device";
 export * from "./onboarding/steps";
 export * from "./tour/steps";
 export { INTAKE_LIMITS } from "./intake/limits";
