@@ -34,6 +34,8 @@ const hook = (over: Partial<WebhookView> = {}): WebhookView => ({
 const view = (enabled: boolean, manychat = false) => ({
   googleSheets: { enabled: false, available: false, email: null, connectWithGoogle: false },
   webhooks: { enabled, manychat },
+  googleCalendar: { enabled: false, available: false },
+  calendly: { connected: false },
 });
 
 beforeEach(() => vi.clearAllMocks());

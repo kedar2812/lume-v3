@@ -588,6 +588,7 @@ describe("LeadsScreen", () => {
       id: "p2",
       name: "Corporate",
       isDefault: false,
+      bookingStageId: null,
       stages: [
         {
           id: "c-new",

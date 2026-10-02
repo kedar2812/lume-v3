@@ -24,6 +24,8 @@ const on = {
     connectWithGoogle: false,
   },
   webhooks: { enabled: false, manychat: false },
+  googleCalendar: { enabled: false, available: false },
+  calendly: { connected: false },
 };
 const src = (over: Partial<SheetSourceView>): SheetSourceView => ({
   id: "s1",

@@ -57,7 +57,14 @@ export type Stage = {
   afterSentStageId?: string | null;
   afterReplyStageId?: string | null;
 };
-export type Pipeline = { id: string; name: string; isDefault: boolean; stages: Stage[] };
+export type Pipeline = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  stages: Stage[];
+  /** Where a Calendly booking moves its lead (5B); null for none. */
+  bookingStageId: string | null;
+};
 export type FieldDefView = {
   id: string;
   key: string;

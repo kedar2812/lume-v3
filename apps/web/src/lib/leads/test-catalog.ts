@@ -39,7 +39,7 @@ export function testCatalog(over: Partial<Catalog> = {}): Catalog {
     ] as const
   ).map(([id, name, color, kind], position) => ({ id, name, color, kind, position, requiredFieldIds: [] }));
   return {
-    pipelines: [{ id: "p1", name: "Coaching sales", isDefault: true, stages }],
+    pipelines: [{ id: "p1", name: "Coaching sales", isDefault: true, stages, bookingStageId: null }],
     fields: [
       {
         id: "f-name",

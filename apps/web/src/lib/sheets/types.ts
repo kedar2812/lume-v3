@@ -4,6 +4,10 @@ export type IntegrationsView = {
   googleSheets: { enabled: boolean; available: boolean; email: string | null; connectWithGoogle: boolean };
   /** Webhooks (2C): on or off, and whether this server offers the ManyChat preset. */
   webhooks: { enabled: boolean; manychat: boolean };
+  /** Google Calendar (5A): the module switch; `available` once Connect with Google is set up on the server. */
+  googleCalendar: { enabled: boolean; available: boolean };
+  /** Calendly (5B): whether the business's Calendly is connected. */
+  calendly: { connected: boolean };
 };
 /** A file picked with Connect with Google, ready to be set up. */
 export type PickedFile = { connectId: string; file: { id: string; name: string } };

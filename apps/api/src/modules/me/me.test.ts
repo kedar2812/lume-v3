@@ -188,7 +188,8 @@ describe("preferences, onboarding and tour state (spec §4.2)", () => {
     const c = await h.signIn(await h.seedUser({ grants: [] }));
     expect((await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json().capabilities).toEqual({
       sheets: false,
-      calendar: false,
+      // Phase 5D: the Calendar screens exist, so onboarding's Connect card and the tour's Calendar step appear.
+      calendar: true,
     });
   });
 
