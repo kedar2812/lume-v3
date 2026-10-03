@@ -21,8 +21,16 @@ column in the release that stops using it.
   marked with a code on every row and a hidden check row, kept 24 hours, every download audited. Settings →
   Security → Exports traces a file found outside the business back to its export.
 
+- **Offboarding and Security activity (Phase 6C):** People → Offboard replaces Disable with a guided sheet:
+  sign them out everywhere, hand on their leads (shared across a team by who has the fewest open leads, to one
+  person, or unassigned), disconnect their Google Calendar (their lead meetings go with their leads), and see
+  their last 30 days, then one act, recorded as one audit entry. An alert offers Offboard too. Settings →
+  Security → Overview gains today's figures, contacts opened per person over 14 days, and who is signed in now
+  (with Sign out), each figure opening the Audit log at its own day.
+
 ### Migrations
 
+- **0044** lets an export record no check-row position (a file with neither Email nor Phone carries none).
 - **0043** adds `lead_exports` (each export's code, check row, sealed file and downloads).
 - **0042** adds the `suspended` status and `users.watch_from`, the `security_alerts` table, and a partial
   index on the audit log for the counted acts.

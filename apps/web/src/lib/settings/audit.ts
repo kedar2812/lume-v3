@@ -13,7 +13,13 @@ export type AuditEntry = {
   entityId: string | null;
   diff: Record<string, unknown>;
 };
-export type AuditQuery = { cursor?: number; actorUserId?: string; action?: string };
+export type AuditQuery = {
+  cursor?: number;
+  actorUserId?: string;
+  action?: string;
+  /** One day on the business's clock, YYYY-MM-DD (6C). */
+  day?: string;
+};
 
 type Phrase = string | ((diff: Record<string, unknown>) => string);
 type ActionDef = { area: string; phrase: Phrase };
@@ -267,6 +273,29 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "user.invite.accepted": { area: "People", phrase: "joined from an invite" },
   "user.updated": { area: "People", phrase: "changed someone’s name or role" },
   "user.disabled": { area: "People", phrase: "disabled someone" },
+  // Offboarding (6C): one entry for every step.
+  "user.offboarded": {
+    area: "People",
+    phrase: (d) => {
+      const leads = (d.leads ?? {}) as { to?: string; moved?: number };
+      const moved = n(leads.moved);
+      const sessions = n(d.sessions);
+      const parts = [
+        sessions ? `${sessions} ${sessions === 1 ? "session" : "sessions"} ended` : "no sessions to end",
+        moved
+          ? `${moved} ${moved === 1 ? "lead" : "leads"} ${
+              leads.to === "team"
+                ? "shared across a team"
+                : leads.to === "person"
+                  ? "handed to one person"
+                  : "left unassigned"
+            }`
+          : "no leads to hand on",
+        ...(d.calendar ? ["Google Calendar disconnected"] : []),
+      ];
+      return `offboarded someone: ${parts.join(", ")}`;
+    },
+  },
   "user.enabled": { area: "People", phrase: "enabled someone again" },
   "team.created": { area: "People", phrase: "created a team" },
   "team.renamed": { area: "People", phrase: "renamed a team" },
@@ -324,6 +353,7 @@ export const auditClient = {
     if (q.cursor) p.set("cursor", String(q.cursor));
     if (q.actorUserId) p.set("actorUserId", q.actorUserId);
     if (q.action) p.set("action", q.action);
+    if (q.day) p.set("day", q.day);
     const qs = p.toString();
     return api.get<{ entries: AuditEntry[]; nextCursor: number | null }>(
       `/api/v1/audit${qs ? `?${qs}` : ""}`,

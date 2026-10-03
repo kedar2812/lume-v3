@@ -127,6 +127,7 @@ const WRITTEN = [
   "lead.export",
   "lead.export.download",
   "security.trace",
+  "user.offboarded",
 ];
 
 describe("auditPhrase", () => {
@@ -249,6 +250,27 @@ describe("auditPhrase", () => {
       "Maya Kapoor traced a file to export PX7Q-4MRA",
     );
     expect(say("security.trace", { found: null })).toBe("Maya Kapoor traced a file; no LUME export matched");
+  });
+
+  it("6C: says what offboarding someone did, step by step", () => {
+    const say = (diff: Record<string, unknown>) =>
+      auditPhrase(entry("user.offboarded", { actorUserId: "u-maya", actorName: "Maya Kapoor", diff }), []);
+    expect(
+      say({
+        sessions: 2,
+        leads: { to: "team", moved: 214 },
+        calendar: { meetingsMoved: 9, meetingsRemoved: 1 },
+      }),
+    ).toBe(
+      "Maya Kapoor offboarded someone: 2 sessions ended, 214 leads shared across a team, Google Calendar disconnected",
+    );
+    expect(say({ sessions: 1, leads: { to: "person", moved: 1 }, calendar: null })).toBe(
+      "Maya Kapoor offboarded someone: 1 session ended, 1 lead handed to one person",
+    );
+    expect(say({ sessions: 0, leads: { to: "none", moved: 0 }, calendar: null })).toBe(
+      "Maya Kapoor offboarded someone: no sessions to end, no leads to hand on",
+    );
+    expect(AUDIT_ACTIONS["user.offboarded"]!.area).toBe("People");
   });
 
   it("says what an import did", () => {
