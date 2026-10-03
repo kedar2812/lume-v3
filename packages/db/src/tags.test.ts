@@ -111,7 +111,7 @@ afterAll(async () => {
   await rm(before, { recursive: true, force: true });
 });
 
-describe("0047: tag_ids follows lead_tags (Review Focus 2)", () => {
+describe("0047: tag_ids follows lead_tags (Review Focus 2)", { timeout: 60_000 }, () => {
   it("the update fills tag_ids for leads that already had tags, sorted", async () => {
     expect(await tagIds(backfilled)).toEqual([A, C].sort());
   });

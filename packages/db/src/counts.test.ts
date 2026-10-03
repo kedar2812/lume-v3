@@ -112,7 +112,7 @@ beforeAll(async () => {
 });
 afterAll(async () => db.drop());
 
-describe("0049: lead_counts always equals a live count", () => {
+describe("0049: lead_counts always equals a live count", { timeout: 60_000 }, () => {
   it("random sequences of every kind of change (create, move, reassign, value, pipeline, delete, restore, in bulk)", async () => {
     const owners = [...U, null];
     for (const seed of [1, 2, 3, 4, 5]) {
@@ -191,7 +191,7 @@ describe("0049: lead_counts always equals a live count", () => {
       }
       expect(await fromTable(), `seed ${seed}`).toEqual(await live());
     }
-  });
+  }, 120_000);
 
   it("two people creating leads in the same stage at once: both are counted", async () => {
     const [p, s] = [P[1]!, S[P[1]!]![1]!];

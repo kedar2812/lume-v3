@@ -28,8 +28,21 @@ column in the release that stops using it.
   Security → Overview gains today's figures, contacts opened per person over 14 days, and who is signed in now
   (with Sign out), each figure opening the Audit log at its own day.
 
+- **Faster at volume (Phase 7A):** lists, filters, search and the stage strip stay quick with a million leads
+  (measured on one CPU: every path under 100 ms at 1,000,000 leads after this phase). Search is through its own
+  table, and the stage strip's counts are kept rather than counted. Search terms: one character doesn't search;
+  two match names that start with them; three or more look inside names and the contacts a person may see. See
+  `docs/runbooks/performance.md`.
+
 ### Migrations
 
+- **0049** adds `lead_counts`: the stage strip's counts per pipeline, stage and owner, kept by triggers on `leads`.
+- **0048** adds `lead_search` (a search mirror the app can't read) and `lume_lead_search`.
+- **0047** adds `leads.tag_ids`, kept equal to `lead_tags` by triggers (a direct write is refused).
+- **0046** adds read indexes on `leads`: name sort, newest per owner, two covering indexes for counts.
+- **0045** rewrites the `leads` row-level security policies to read their settings once per query (same rules).
+- Building 0046–0049's indexes, and backfilling `tag_ids`, `lead_search` and `lead_counts`, takes longer on a big
+  instance. It runs during the update with the app stopped, as every migration does.
 - **0044** lets an export record no check-row position (a file with neither Email nor Phone carries none).
 - **0043** adds `lead_exports` (each export's code, check row, sealed file and downloads).
 - **0042** adds the `suspended` status and `users.watch_from`, the `security_alerts` table, and a partial

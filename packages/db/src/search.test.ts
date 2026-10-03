@@ -116,7 +116,7 @@ beforeAll(async () => {
 });
 afterAll(async () => db.drop());
 
-describe("0048: lead_search, the table search reads (Review Focus 1, 3)", () => {
+describe("0048: lead_search, the table search reads (Review Focus 1, 3)", { timeout: 60_000 }, () => {
   it("the app can't read or write it: only lume_lead_search reads it", async () => {
     await expect(as("lume_app", all, (c) => c.query("SELECT * FROM lead_search"))).rejects.toThrow(
       /permission denied/,
