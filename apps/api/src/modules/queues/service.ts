@@ -8,7 +8,7 @@ import { watchAct } from "../security/watch";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
 import { prepareMessage } from "../leads/messages";
-import { leadFilters, orderBy } from "../leads/query";
+import { leadFilters, resolveSearch, orderBy } from "../leads/query";
 import { filterQuerySchema } from "../leads/routes";
 import { assertVersion, confirmSend, contextFor, type MoveResult } from "../leads/sending";
 import type { LeadRow } from "../leads/serialize";
@@ -105,7 +105,7 @@ async function leadsOfView(req: FastifyRequest, viewId: string, shown?: Record<s
   const rows = await req.db
     .select()
     .from(L)
-    .where(and(...leadFilters(req, filters, fields)))
+    .where(and(...leadFilters(req, filters, fields, await resolveSearch(req, filters, fields))))
     .orderBy(...orderBy(sort))
     .limit(SCAN);
   return {

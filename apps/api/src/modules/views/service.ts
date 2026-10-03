@@ -5,7 +5,7 @@ import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
-import { leadFilters, type FilterQuery } from "../leads/query";
+import { leadFilters, resolveSearch, type FilterQuery } from "../leads/query";
 import { filterQuerySchema } from "../leads/routes";
 
 const V = schema.savedViews;
@@ -204,7 +204,10 @@ export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<
     }
     try {
       const q = p.data.pipelineId || !byDefault ? p.data : { ...p.data, pipelineId: byDefault.id };
-      parts.push({ id: r.id, where: and(...leadFilters(req, q, fields))! });
+      parts.push({
+        id: r.id,
+        where: and(...leadFilters(req, q, fields, await resolveSearch(req, q, fields)))!,
+      });
     } catch (e) {
       if (!(e instanceof HttpError)) throw e;
       counts[r.id] = null;

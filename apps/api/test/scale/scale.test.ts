@@ -121,8 +121,12 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
         [made.map((m) => m.id)],
       );
     }
-    await h.ownerPool.query("ANALYZE");
-    timings.push({ path: "seed (insert + tags + analyze)", ms: Math.round(performance.now() - started) });
+    // VACUUM too: steady state, as autovacuum leaves a live instance (index-only scans need the visibility map).
+    await h.ownerPool.query("VACUUM ANALYZE");
+    timings.push({
+      path: "seed (insert + tags + vacuum analyze)",
+      ms: Math.round(performance.now() - started),
+    });
   }, 3_600_000);
 
   afterAll(async () => {
@@ -205,6 +209,11 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
       },
     });
     timings.push({ path: `export (owner filter) → ${ex.statusCode}`, ms: Math.round(performance.now() - t) });
+
+    // The gate (spec "The gate"): every list, filter, search and count path within the budget at this scale.
+    const budget = Number(process.env.LUME_SCALE_BUDGET ?? 150);
+    const over = timings.filter((x) => /^(admin|rep|team lead) /.test(x.path) && x.ms > budget);
+    expect(over, `over ${budget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);
   }, 3_600_000);
 
   it("explains the slow paths (query plans, printed)", async () => {
@@ -213,7 +222,13 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     const repId = (await h.queryAll<{ id: string }>("SELECT id FROM users WHERE name = 'Person 1'"))[0]!.id;
     const tag = (await h.queryAll<{ id: string }>("SELECT id FROM tags ORDER BY label LIMIT 1"))[0]!.id;
     /** An EXPLAIN statement, run as a person of this scope would run it: row-level security applies (FORCE). */
-    const explain = async (title: string, scope: "all" | "own", text: string, params: unknown[] = []) => {
+    const explain = async (
+      title: string,
+      scope: "all" | "own",
+      text: string,
+      params: unknown[] = [],
+      noSeq = false,
+    ) => {
       const c = await h.ownerPool.connect();
       try {
         await c.query("BEGIN");
@@ -221,6 +236,7 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
           "SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', $2, true)",
           [repId, scope],
         );
+        if (noSeq) await c.query("SET LOCAL enable_seqscan = off");
         const r = await c.query(text, params);
         await c.query("ROLLBACK");
         console.log(`\n=== ${title}\n${r.rows.map((x) => x["QUERY PLAN"]).join("\n")}`);
@@ -232,11 +248,38 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
       "EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT stage_id, count(*) FROM leads WHERE deleted_at IS NULL AND pipeline_id = $1 GROUP BY stage_id";
     await explain("rep counts (own)", "own", counts, [cfg.pipelineId]);
     await explain("admin counts", "all", counts, [cfg.pipelineId]);
+    for (const [title, term] of [
+      ["candidates: common name", "%Lina Faris%"],
+      ["candidates: rare (no match)", "%Zzyzx%"],
+    ] as const)
+      await explain(
+        title,
+        "all",
+        `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT id FROM leads WHERE deleted_at IS NULL AND (name ILIKE $1
+           OR email::text ILIKE $1 OR instagram_handle::text ILIKE $1) LIMIT 10001`,
+        [term],
+        true,
+      );
+    for (const [title, where] of [
+      ["one column: name", "name ILIKE '%Zzyzx%'"],
+      ["one column: email", "email::text ILIKE '%Zzyzx%'"],
+      ["one column: instagram", "instagram_handle::text ILIKE '%Zzyzx%'"],
+      ["one column: phone", "phone_digits LIKE '%501234%'"],
+    ] as const)
+      await explain(
+        title,
+        "all",
+        `EXPLAIN (ANALYZE, COSTS OFF) SELECT id FROM leads WHERE ${where} LIMIT 10001`,
+        [],
+        true,
+      );
     await explain(
-      "admin search rare",
+      "candidates: phone digits",
       "all",
-      `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT id FROM leads WHERE deleted_at IS NULL AND (name ILIKE '%Zzyzx%' OR email::text ILIKE '%Zzyzx%'
-         OR instagram_handle::text ILIKE '%Zzyzx%') ORDER BY id DESC LIMIT 51`,
+      `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT id FROM leads WHERE deleted_at IS NULL AND (name ILIKE '%501234%'
+         OR email::text ILIKE '%501234%' OR instagram_handle::text ILIKE '%501234%' OR phone_digits LIKE '%501234%') LIMIT 10001`,
+      [],
+      true,
     );
     await explain(
       "admin sort by name",

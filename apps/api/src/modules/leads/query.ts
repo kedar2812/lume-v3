@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { leadScope, seesFullContacts } from "@lume/core";
 import { schema } from "@lume/db";
@@ -101,8 +101,78 @@ export function scopeCondition(req: FastifyRequest): SQL | undefined {
   return eq(L.ownerId, actor.userId);
 }
 
-/** The WHERE for a set of filters: shared by the list and the board counts, so both always agree. */
-export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRegistry): (SQL | undefined)[] {
+const DEFAULT_SEARCH_CAP = 10_000;
+let searchCap = DEFAULT_SEARCH_CAP;
+/** Tests only: a smaller cap on search candidates, or null for the default. */
+export function setSearchCapForTests(n: number | null): void {
+  searchCap = n ?? DEFAULT_SEARCH_CAP;
+}
+
+/** What a search asks lume_lead_search for: each pattern escaped; null is a branch not asked for. */
+type SearchAsk = {
+  name: string | null;
+  prefix: string | null;
+  email: string | null;
+  instagram: string | null;
+  digits: string | null;
+};
+
+/**
+ * What a term searches (7A). Null when there's nothing to search: blank or one character (characters, not UTF-16
+ * units: an emoji is one). Two characters are too short to look inside names (a trigram needs three), so they
+ * match names that start with them. Three or more look inside the name and, for someone who sees contacts in
+ * full, the visible contact fields; masked roles search names only (report §12.2 #4), a hidden field never.
+ */
+function searchAsk(req: FastifyRequest, q: FilterQuery, fields: FieldRegistry): SearchAsk | null {
+  const term = q.q?.trim() ?? "";
+  const length = [...term].length;
+  if (length < 2) return null;
+  const none: SearchAsk = { name: null, prefix: null, email: null, instagram: null, digits: null };
+  if (length === 2) return { ...none, prefix: `${likeEscape(term.toLowerCase())}%` };
+  const ctx = { actor: req.actor!, fields };
+  const like = `%${likeEscape(term)}%`;
+  const full = seesFullContacts(req.actor!);
+  const digits = term.replace(/\D/g, "");
+  return {
+    ...none,
+    name: like,
+    email: full && isFieldVisible(ctx, "email") ? like : null,
+    instagram: full && isFieldVisible(ctx, "instagram") ? like : null,
+    digits: full && digits.length >= 4 && isFieldVisible(ctx, "phone") ? `%${digits}%` : null,
+  };
+}
+
+/** A search, resolved: the matching leads (at most the cap) and whether there were more. */
+export type SearchHits = { ids: string[]; capped: boolean };
+
+/**
+ * Run a search before the list, counts, export or view that use it (7A). Under row-level security no LIKE index on
+ * leads can be used (LIKE isn't leakproof), so search reads lead_search through lume_lead_search (0048), which
+ * applies the leads policies' rule itself. Only ids come back; whatever uses them reads leads under RLS.
+ */
+export async function resolveSearch(
+  req: FastifyRequest,
+  q: FilterQuery,
+  fields: FieldRegistry,
+): Promise<SearchHits | null> {
+  const ask = searchAsk(req, q, fields);
+  if (!ask) return null;
+  const { rows } = await req.db.execute<{ id: string }>(
+    sql`SELECT lume_lead_search(${ask.name}, ${ask.prefix}, ${ask.email}, ${ask.instagram}, ${ask.digits}, ${searchCap + 1}) AS id`,
+  );
+  return { ids: rows.slice(0, searchCap).map((r) => r.id), capped: rows.length > searchCap };
+}
+
+/**
+ * The WHERE for a set of filters. A search must be resolved first (resolveSearch) and its hits passed in: the list,
+ * the counts and an export then filter on exactly the same leads.
+ */
+export function leadFilters(
+  req: FastifyRequest,
+  q: FilterQuery,
+  fields: FieldRegistry,
+  hits: SearchHits | null = null,
+): (SQL | undefined)[] {
   const ctx = { actor: req.actor!, fields };
   const where: (SQL | undefined)[] = [isNull(L.deletedAt), scopeCondition(req)];
 
@@ -149,19 +219,12 @@ export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRe
     );
   }
 
-  if (q.q) {
-    const term = `%${likeEscape(q.q.trim())}%`;
-    const terms: SQL[] = [sql`${L.name} ILIKE ${term}`];
-    // Masked roles search names only (report §12.2 #4).
-    if (seesFullContacts(req.actor!)) {
-      if (isFieldVisible(ctx, "email")) terms.push(sql`${L.email}::text ILIKE ${term}`);
-      if (isFieldVisible(ctx, "instagram")) terms.push(sql`${L.instagramHandle}::text ILIKE ${term}`);
-      const digits = q.q.replace(/\D/g, "");
-      if (digits.length >= 4 && isFieldVisible(ctx, "phone"))
-        terms.push(sql`${L.phoneDigits} LIKE ${`%${digits}%`}`);
-    }
-    where.push(or(...terms));
-  }
+  // A search, resolved by the caller (resolveSearch): exactly its leads. A term the caller didn't resolve is refused
+  // loudly in development rather than silently ignored.
+  if (hits)
+    where.push(hits.ids.length ? sql`${L.id} = ANY(${`{${hits.ids.join(",")}}`}::uuid[])` : sql`false`);
+  else if (searchAsk(req, q, fields))
+    throw new Error("leadFilters: resolve the search first (resolveSearch)");
 
   if (q.custom) {
     let filter: Record<string, unknown>;
@@ -189,7 +252,8 @@ export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRe
 export async function listLeads(req: FastifyRequest, q: ListQuery) {
   const fields = await loadFieldRegistry(req);
   const ctx = { actor: req.actor!, fields };
-  const where = [...leadFilters(req, q, fields), cursorWhere(q.sort, q.cursor)];
+  const hits = await resolveSearch(req, q, fields);
+  const where = [...leadFilters(req, q, fields, hits), cursorWhere(q.sort, q.cursor)];
   const rows = await req.db
     .select()
     .from(L)
@@ -199,6 +263,7 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
   const page = rows.slice(0, q.limit);
   return {
     items: page.map((r) => serializeLead(r, { ...ctx, tagIds: r.tagIds })),
+    searchCapped: hits?.capped ?? false,
     nextCursor: rows.length > q.limit ? encodeCursor(q.sort, page.at(-1)!) : null,
   };
 }
@@ -206,6 +271,7 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
 /** Board counts per stage, for the same filters as the list and only the leads the caller may see (RLS). */
 export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
   const fields = await loadFieldRegistry(req);
+  const hits = await resolveSearch(req, q, fields);
   const rows = await req.db
     .select({
       stageId: L.stageId,
@@ -214,11 +280,12 @@ export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelin
       value: sql<string>`coalesce(sum(${L.value}), 0)::text`,
     })
     .from(L)
-    .where(and(...leadFilters(req, q, fields)))
+    .where(and(...leadFilters(req, q, fields, hits)))
     .groupBy(L.stageId);
   return {
     counts: Object.fromEntries(rows.map((r) => [r.stageId, r.n])),
     values: Object.fromEntries(rows.map((r) => [r.stageId, Number(r.value)])),
     total: rows.reduce((sum, r) => sum + r.n, 0),
+    searchCapped: hits?.capped ?? false,
   };
 }

@@ -2,7 +2,7 @@ import { ALL_GRANTS, newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyRequest } from "fastify";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
-import { scopeCondition } from "./query";
+import { scopeCondition, setSearchCapForTests } from "./query";
 
 // 4B Task 1: the filters saved views need — no reply for days, lost a while ago, overdue follow-ups,
 // new today (in the business's timezone).
@@ -202,5 +202,142 @@ describe("7A: the person's scope as a plain condition (it never shows more, or l
     expect(
       scopeCondition(actor({ perms: new Map([["leads.view", "team"]]), teamMemberIds: ["u-me", "u-a"] })),
     ).toBeDefined();
+  });
+});
+
+describe("7A: the tag filter reads the lead's own tags (0047)", () => {
+  it("follows every way a tag comes and goes: an edit, bulk add, bulk remove, a tag deleted, a lead deleted", async () => {
+    const tag = async (label: string) =>
+      (await admin.inject({ method: "POST", url: "/api/v1/tags", payload: { label } })).json().tag
+        .id as string;
+    const [hot, cold] = [await tag(`Hot ${newId().slice(-6)}`), await tag(`Cold ${newId().slice(-6)}`)];
+    const one = await h.seedLead({ ownerId: adminId, name: "TG One" });
+    const two = await h.seedLead({ ownerId: adminId, name: "TG Two" });
+    const tagged = async (t: string) => names(admin, `tagId=${t}`);
+    expect(await tagged(hot)).toEqual([]);
+    // An edit sets the lead's tags.
+    const edit = await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/leads/${one}`,
+      headers: { "if-match": "1" },
+      payload: { tagIds: [hot, cold] },
+    });
+    expect(edit.statusCode, edit.body).toBe(200);
+    expect(await tagged(hot)).toEqual(["TG One"]);
+    expect(await tagged(cold)).toEqual(["TG One"]);
+    // Bulk adds and removes.
+    const bulk = (action: Record<string, unknown>) =>
+      admin.inject({ method: "POST", url: "/api/v1/leads/bulk", payload: { ids: [one, two], action } });
+    expect((await bulk({ type: "tags", add: [hot] })).statusCode).toBe(200);
+    expect(await tagged(hot)).toEqual(["TG One", "TG Two"]);
+    expect((await bulk({ type: "tags", remove: [cold] })).statusCode).toBe(200);
+    expect(await tagged(cold)).toEqual([]);
+    // The lead's own view still lists its tags.
+    const view = (await admin.inject({ method: "GET", url: `/api/v1/leads/${two}` })).json().lead;
+    expect(view.tagIds).toEqual([hot]);
+    // A tag deleted leaves no lead holding it; a deleted lead leaves the filter.
+    expect((await admin.inject({ method: "DELETE", url: `/api/v1/tags/${hot}` })).statusCode).toBeLessThan(
+      300,
+    );
+    expect(await tagged(hot)).toEqual([]);
+    const rows = await h.queryAll<{ tag_ids: string[] }>("SELECT tag_ids FROM leads WHERE id = ANY($1)", [
+      [one, two],
+    ]);
+    expect(rows.every((r) => !r.tag_ids.includes(hot))).toBe(true);
+  });
+});
+
+describe("7A: search through its indexes", () => {
+  const find = async (c: AuthedClient, term: string) => {
+    const r = await c.inject({ method: "GET", url: `/api/v1/leads?limit=100&q=${encodeURIComponent(term)}` });
+    expect(r.statusCode, r.body).toBe(200);
+    return {
+      names: (r.json().items as { name: string }[]).map((l) => l.name).sort(),
+      capped: r.json().searchCapped,
+    };
+  };
+
+  it("finds by name, email and phone digits; a literal %, _ or \\ is just a character (Review Focus 3)", async () => {
+    const odd = [
+      ["SR 100% Sure", "+971501110001", "sure@srch.test"],
+      ["SR under_score", "+971501110002", "under@srch.test"],
+      ["SR back\\slash", "+971501110003", "back@srch.test"],
+      ["SR O'Brien", "+971501110004", "obrien@srch.test"],
+      ["SR Zoë Ángel", "+971501110005", "zoe@srch.test"],
+      ["SR Rose 🌹", "+971501110006", "rose@srch.test"],
+      [`SR ${"Long".repeat(48)}`, "+971501110007", "long@srch.test"],
+    ] as const;
+    for (const [name, phone, email] of odd) await h.seedLead({ ownerId: adminId, name, phone, email });
+    expect((await find(admin, "100%")).names).toEqual(["SR 100% Sure"]);
+    expect((await find(admin, "1_0")).names).toEqual([]); // "_" is not a wildcard (it would match "100")
+    expect((await find(admin, "under_")).names).toEqual(["SR under_score"]);
+    expect((await find(admin, "k\\s")).names).toEqual(["SR back\\slash"]);
+    expect((await find(admin, "o'b")).names).toEqual(["SR O'Brien"]);
+    expect((await find(admin, "zoë")).names).toEqual(["SR Zoë Ángel"]);
+    expect((await find(admin, "se 🌹")).names).toEqual(["SR Rose 🌹"]);
+    expect((await find(admin, "🌹")).names).toEqual(await names(admin, "")); // one character: no search
+    // Symbols only (no trigram to look up): still answered, exactly.
+    expect((await find(admin, "!!!")).names).toEqual([]);
+    expect((await find(admin, "%%%")).names).toEqual([]);
+    expect((await find(admin, "0% S")).names).toEqual(["SR 100% Sure"]);
+    expect((await find(admin, "LongLongLong")).names).toHaveLength(1);
+    expect((await find(admin, "obrien@srch")).names).toEqual(["SR O'Brien"]);
+    expect((await find(admin, "1110005")).names).toEqual(["SR Zoë Ángel"]);
+    expect((await find(admin, "+971 50 111 0006")).names).toEqual(["SR Rose 🌹"]);
+    expect((await find(admin, "SR 100%")).capped).toBe(false);
+  });
+
+  it("a one-letter or blank term doesn't search: the list answers as if there were no term", async () => {
+    const all = await names(admin, "");
+    expect((await find(admin, "S")).names).toEqual(all);
+    expect((await find(admin, "   ")).names).toEqual(all);
+    expect((await find(admin, "S")).capped).toBe(false);
+  });
+
+  it("a two-letter term matches names that start with it (too short to look inside names)", async () => {
+    for (const n of ["Pq First", "pQ Second", "Apq Middle"]) await h.seedLead({ ownerId: adminId, name: n });
+    expect((await find(admin, "pq")).names).toEqual(["Pq First", "pQ Second"]);
+    expect((await find(admin, "PQ")).names).toEqual(["Pq First", "pQ Second"]);
+    expect((await find(rep, "pq")).names).toEqual([]); // not theirs
+  });
+
+  it("at the cap it answers in full; one past, it says so (Review Focus 5)", async () => {
+    for (const n of ["CP Alpha", "CP Beta", "CP Gamma"]) await h.seedLead({ ownerId: adminId, name: n });
+    setSearchCapForTests(3);
+    try {
+      expect(await find(admin, "CP ")).toEqual({ names: ["CP Alpha", "CP Beta", "CP Gamma"], capped: false });
+      await h.seedLead({ ownerId: adminId, name: "CP Delta" });
+      const over = await find(admin, "CP ");
+      expect(over.capped).toBe(true);
+      expect(over.names).toHaveLength(3);
+      // The counts say the same.
+      const cfg = await h.config();
+      const counts = await admin.inject({
+        method: "GET",
+        url: `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}&q=CP%20`,
+      });
+      expect(counts.json()).toMatchObject({ searchCapped: true });
+    } finally {
+      setSearchCapForTests(null);
+    }
+    expect((await find(admin, "CP ")).capped).toBe(false);
+  });
+
+  it("never finds a lead the person can't see; a masked role searches names only (Review Focus 3)", async () => {
+    const theirs = await h.seedLead({ ownerId: adminId, name: "MV Hidden", email: "hidden@srch.test" });
+    expect(theirs).toBeTruthy();
+    const mine = await h.seedLead({
+      ownerId: repId,
+      name: "MV Mine",
+      email: "mine.secret@srch.test",
+      phone: "+971501110099",
+    });
+    expect(mine).toBeTruthy();
+    expect((await find(rep, "MV ")).names).toEqual(["MV Mine"]);
+    expect((await find(rep, "hidden@")).names).toEqual([]);
+    // The rep sees masked contacts: their own lead isn't found by its email or phone, only its name.
+    expect((await find(rep, "mine.secret")).names).toEqual([]);
+    expect((await find(rep, "1110099")).names).toEqual([]);
+    expect((await find(rep, "MV Mi")).names).toEqual(["MV Mine"]);
   });
 });

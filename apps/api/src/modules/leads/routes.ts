@@ -49,7 +49,8 @@ const listQuery = z.object({
   tagId: z.uuid().optional(),
   source: z.uuid().optional(),
   phoneStatus: z.enum(["valid", "needs_country", "invalid", "missing"]).optional(),
-  q: z.string().trim().min(1).max(100).optional(),
+  // Blank is no search (7A): a box left with spaces shouldn't error; one letter is no search either (leadFilters).
+  q: z.string().trim().max(100).optional(),
   createdFrom: z.iso.date().optional(),
   createdTo: z.iso.date().optional(),
   arrivedAfter: z.iso.datetime({ offset: true }).optional(),
