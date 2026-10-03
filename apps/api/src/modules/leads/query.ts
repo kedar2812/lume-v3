@@ -269,7 +269,41 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
 }
 
 /** Board counts per stage, for the same filters as the list and only the leads the caller may see (RLS). */
+/** The filters lead_counts (0049) can answer: pipeline, owner and stage. Any other counts live. */
+const COUNTED = new Set(["pipelineId", "ownerId", "stageId"]);
+
+/**
+ * The stage strip from lead_counts (7A): a handful of rows per person instead of every lead. Row-level security on
+ * the table shows each person the counts their lead scope allows; the owner condition mirrors the list's.
+ */
+async function countFromTable(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
+  const C = sql.raw("lead_counts");
+  const where: SQL[] = [sql`pipeline_id = ${q.pipelineId}`];
+  const actor = req.actor!;
+  const scope = leadScope(actor);
+  if (scope === "team")
+    where.push(
+      sql`owner_id = ANY(${`{${[...new Set([actor.userId, ...actor.teamMemberIds])].join(",")}}`}::uuid[])`,
+    );
+  else if (scope !== "all") where.push(sql`owner_id = ${actor.userId}`);
+  if (q.ownerId === "me") where.push(sql`owner_id = ${actor.userId}`);
+  else if (q.ownerId === "none") where.push(sql`owner_id IS NULL`);
+  else if (q.ownerId) where.push(sql`owner_id = ${q.ownerId}`);
+  if (q.stageId) where.push(sql`stage_id = ANY(${`{${q.stageId.split(",").join(",")}}`}::uuid[])`);
+  const { rows } = await req.db.execute<{ stage_id: string; n: number; value: string }>(sql`
+    SELECT stage_id, sum(n)::int AS n, sum(value)::text AS value FROM ${C}
+     WHERE ${sql.join(where, sql` AND `)} GROUP BY stage_id HAVING sum(n) <> 0`);
+  return {
+    counts: Object.fromEntries(rows.map((r) => [r.stage_id, r.n])),
+    values: Object.fromEntries(rows.map((r) => [r.stage_id, Number(r.value)])),
+    total: rows.reduce((sum, r) => sum + r.n, 0),
+    searchCapped: false,
+  };
+}
+
 export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
+  if (Object.entries(q).every(([k, v]) => v === undefined || v === "" || COUNTED.has(k)))
+    return countFromTable(req, q);
   const fields = await loadFieldRegistry(req);
   const hits = await resolveSearch(req, q, fields);
   const rows = await req.db

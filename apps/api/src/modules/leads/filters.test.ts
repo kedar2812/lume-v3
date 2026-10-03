@@ -341,3 +341,69 @@ describe("7A: search through its indexes", () => {
     expect((await find(rep, "MV Mi")).names).toEqual(["MV Mine"]);
   });
 });
+
+describe("7A: the stage strip's counts come from lead_counts when they can (0049)", () => {
+  it("equal a recount for every scope, with and without owner and stage filters; other filters count live", async () => {
+    const cfg = await h.config();
+    const stages = Object.values(cfg.stages).slice(0, 2);
+    const a = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }], totp: true });
+    const b = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
+    const lead = await h.seedUser({ grants: [{ key: "leads.view", scope: "team" }], totp: true });
+    await h.seedTeam(lead.id, [a.id]);
+    const ids: string[] = [];
+    for (const [owner, stage, value] of [
+      [a.id, stages[0], 100],
+      [a.id, stages[1], null],
+      [b.id, stages[0], 250.5],
+      [null, stages[1], 40],
+      [lead.id, stages[0], 10],
+    ] as const) {
+      const id = await h.seedLead({ ownerId: owner, name: "CNT lead" });
+      await h.queryAll("UPDATE leads SET stage_id = $2, value = $3 WHERE id = $1", [id, stage, value]);
+      ids.push(id);
+    }
+    // A deleted lead never counts.
+    await h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1", [
+      await h.seedLead({ ownerId: a.id, name: "CNT gone" }),
+    ]);
+    const counts = async (c: AuthedClient, extra = "") => {
+      const r = await c.inject({
+        method: "GET",
+        url: `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}${extra}`,
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      return r.json() as { counts: Record<string, number>; values: Record<string, number>; total: number };
+    };
+    /** The same counts, recounted from leads for the owners a scope sees. */
+    const recount = async (owners: (string | null)[] | "all", where = "") => {
+      const rows = await h.queryAll<{ stage_id: string; n: number; v: string }>(
+        `SELECT stage_id, count(*)::int AS n, coalesce(sum(value), 0)::text AS v FROM leads
+          WHERE deleted_at IS NULL AND pipeline_id = $1 ${owners === "all" ? "" : "AND owner_id = ANY($2)"} ${where}
+          GROUP BY stage_id`,
+        owners === "all" ? [cfg.pipelineId] : [cfg.pipelineId, owners],
+      );
+      return {
+        counts: Object.fromEntries(rows.map((r) => [r.stage_id, r.n])),
+        values: Object.fromEntries(rows.map((r) => [r.stage_id, Number(r.v)])),
+        total: rows.reduce((s, r) => s + r.n, 0),
+      };
+    };
+    const ca = await h.signIn(a);
+    const cl = await h.signIn(lead);
+    expect(await counts(admin)).toMatchObject(await recount("all"));
+    expect(await counts(ca)).toMatchObject(await recount([a.id]));
+    expect(await counts(cl)).toMatchObject(await recount([a.id, lead.id]));
+    // Owner and stage filters (still from the table), and "me" / "none".
+    expect(await counts(admin, `&ownerId=${b.id}`)).toMatchObject(await recount([b.id]));
+    expect(await counts(admin, "&ownerId=none")).toMatchObject(await recount("all", "AND owner_id IS NULL"));
+    expect(await counts(ca, "&ownerId=me")).toMatchObject(await recount([a.id]));
+    expect(await counts(ca, `&ownerId=${b.id}`)).toMatchObject({ total: 0 }); // outside their scope
+    expect(await counts(admin, `&stageId=${stages[0]}`)).toMatchObject(
+      await recount("all", `AND stage_id = '${stages[0]}'`),
+    );
+    // Any other filter counts live, and agrees.
+    expect(await counts(admin, "&phoneStatus=missing")).toMatchObject(
+      await recount("all", "AND phone_status = 'missing'"),
+    );
+  });
+});
