@@ -303,7 +303,30 @@ describe("auditPhrase", () => {
     ).toBe("Riya Sharma changed the currency from AED to USD at 0.27");
     expect(
       auditPhrase(entry("lead.bulk", { diff: { type: "assign", updated: 12, skipped: 0 } }), people),
-    ).toBe("Riya Sharma changed 12 leads at once");
+    ).toBe("Riya Sharma assigned 12 leads at once");
+  });
+
+  it("says what a bulk action did, how many were skipped, and whether it stopped partway (7B)", () => {
+    const bulk = (diff: Record<string, unknown>) => auditPhrase(entry("lead.bulk", { diff }), people);
+    expect(bulk({ type: "stage", updated: 12408, skipped: 12, status: "done" })).toBe(
+      "Riya Sharma moved 12,408 leads to another stage at once, 12 skipped",
+    );
+    expect(bulk({ type: "tags", updated: 40, skipped: 0 })).toBe(
+      "Riya Sharma changed the tags on 40 leads at once",
+    );
+    expect(bulk({ type: "delete", updated: 5000, skipped: 7408, status: "cancelled" })).toBe(
+      "Riya Sharma deleted 5,000 leads at once, then stopped it",
+    );
+    expect(bulk({ type: "set_phone_country", updated: 3, skipped: 1 })).toBe(
+      "Riya Sharma read 3 phone numbers with a country at once, 1 skipped",
+    );
+    expect(bulk({ type: "undo", updated: 12396, skipped: 4 })).toBe(
+      "Riya Sharma put back 12,396 leads from a bulk action, 4 skipped",
+    );
+    expect(bulk({ type: "assign", updated: 2000, skipped: 0, status: "failed" })).toBe(
+      "Riya Sharma assigned 2,000 leads at once, then it stopped",
+    );
+    expect(bulk({ updated: 1, skipped: 0 })).toBe("Riya Sharma changed 1 lead at once");
   });
 
   it("prefers the name the entry carries, so the log reads without the people list", () => {

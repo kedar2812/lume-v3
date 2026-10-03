@@ -391,10 +391,12 @@ export async function createHarness(
     bulkQueue: bulkQueued,
     async runBulk(hooks) {
       for (const id of bulkQueued.splice(0))
-        await processRun({ app, pool, clock: () => clock.now }, id, hooks).catch((e: unknown) => {
-          if (!String(e).includes("test crash")) throw e;
-          bulkQueued.push(id); // what pg-boss would do: run it again
-        });
+        await processRun({ app, pool, clock: () => clock.now, tasks: reminders }, id, hooks).catch(
+          (e: unknown) => {
+            if (!String(e).includes("test crash")) throw e;
+            bulkQueued.push(id); // what pg-boss would do: run it again
+          },
+        );
     },
     async runImports(o = {}) {
       const ids = queued.splice(0);

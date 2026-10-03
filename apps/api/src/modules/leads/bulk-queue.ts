@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import PgBoss from "pg-boss";
 import type pg from "pg";
+import type { AppDeps } from "../../app";
 import { processRun } from "./bulk-engine";
 
 /**
@@ -8,7 +9,13 @@ import { processRun } from "./bulk-engine";
  * One job per run (singletonKey), one run at a time in this instance; a thrown chunk is retried by the queue,
  * and a run picks up from its last committed chunk.
  */
-export async function startBulkQueue(o: { connectionString: string; app: FastifyInstance; pool: pg.Pool }) {
+export async function startBulkQueue(o: {
+  connectionString: string;
+  app: FastifyInstance;
+  pool: pg.Pool;
+  /** The follow-up queue, filled once it runs: a stage's rules schedule reminders through it. */
+  tasks?: AppDeps["tasks"];
+}) {
   const boss = new PgBoss({
     connectionString: o.connectionString,
     schema: "pgboss",
@@ -19,7 +26,7 @@ export async function startBulkQueue(o: { connectionString: string; app: Fastify
   boss.on("error", (err) => o.app.log.error({ err }, "bulk queue error"));
   await boss.start();
   await boss.work<{ id: string }>("bulk.run", { batchSize: 1 }, async ([job]) => {
-    if (job) await processRun({ app: o.app, pool: o.pool }, job.data.id);
+    if (job) await processRun({ app: o.app, pool: o.pool, tasks: o.tasks }, job.data.id);
   });
   const enqueue = async (id: string) => {
     await boss.send("bulk.run", { id }, { singletonKey: id, retryLimit: 5, retryBackoff: true });

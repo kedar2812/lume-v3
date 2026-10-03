@@ -5,8 +5,9 @@ import type pg from "pg";
 import { can, canOnRecord, newId, normalizePhone, scopeOf } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
-import { HttpError, forbidden } from "../../http/errors";
 import { loadActor } from "../../rbac/actor";
+import type { AppDeps } from "../../app";
+import { serverHelpers } from "../../server-helpers";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { notify, type NewNotification } from "../notifications/notify";
 import { cancelLeadTasks } from "../tasks/lifecycle";
@@ -19,9 +20,10 @@ import {
   type UndoAction,
 } from "./bulk-config";
 import { tagsFor } from "./query";
-import { visibleLead } from "./service";
 import type { LeadRow } from "./serialize";
-import { moveStage } from "./write";
+import { hasValue } from "./write";
+import { loadFieldRegistry } from "../../leads/fields";
+import { runOnEnter } from "../tasks/automations";
 
 /**
  * Phase 7B: how a run's items are applied, a chunk at a time, in one transaction as the person.
@@ -76,44 +78,139 @@ function beforeOf(action: BulkAction, lead: LeadRow, tagIds: string[]): Record<s
   }
 }
 
-/** Stage moves, lead by lead, each in a savepoint: a refused lead rolls back alone. */
-async function perLead(
+/**
+ * Stage moves, a chunk at a time, with everything a single move does (moveStage): the stage and lost reason
+ * checked, required fields per lead, won/lost stamps, stage history, "reopened" and "stage changed" activities,
+ * and the stage's automations for each lead that moved. The lookups are made once a chunk and the writes go
+ * together; only the automations (when the stage has any) still run lead by lead. No per-lead audit: the run
+ * keeps one entry.
+ */
+async function stageMany(
   req: FastifyRequest,
   action: Extract<BulkAction, { type: "stage" }>,
   items: Item[],
   hooks: RunHooks | undefined,
   n: number,
 ) {
-  const out: Result[] = [];
+  const actor = req.actor!;
+  const ids = uuids(items.map((i) => i.leadId));
+  const leads = await req.db
+    .select()
+    .from(L)
+    .where(and(sql`${L.id} = ANY(${ids}::uuid[])`, isNull(L.deletedAt)))
+    .for("update");
+  const byId = new Map(leads.map((l) => [l.id, l]));
+  const [target] = await req.db
+    .select()
+    .from(schema.stages)
+    .where(and(eq(schema.stages.id, action.stageId), isNull(schema.stages.archivedAt)));
+  const kinds = new Map(
+    (await req.db.select({ id: schema.stages.id, kind: schema.stages.kind }).from(schema.stages)).map((x) => [
+      x.id,
+      x.kind,
+    ]),
+  );
+  let reasonOk = true;
+  if (target?.kind === "lost" && action.lostReasonId) {
+    const [reason] = await req.db
+      .select({ id: schema.lostReasons.id })
+      .from(schema.lostReasons)
+      .where(and(eq(schema.lostReasons.id, action.lostReasonId), isNull(schema.lostReasons.archivedAt)));
+    reasonOk = !!reason;
+  }
+  const fields = target?.requiredFieldIds.length ? await loadFieldRegistry(req) : null;
+  const required = (fields ? target!.requiredFieldIds.map((id) => fields.byId.get(id)) : []).filter(
+    (d): d is NonNullable<typeof d> => !!d && !d.archived,
+  );
+  const out = new Map<string, Result>();
+  const move: LeadRow[] = [];
   for (const [i, item] of items.entries()) {
     await hooks?.midChunk?.(n, i);
-    const sp = sql.raw(`bulk_${i}`);
-    await req.db.execute(sql`SAVEPOINT ${sp}`);
-    try {
-      const lead = await visibleLead(req, item.leadId);
-      if (!canOnRecord(req.actor!, "leads.bulk_edit", lead.ownerId)) throw forbidden();
-      const before = beforeOf(action, lead, []);
-      await moveStage(req, lead, {
-        stageId: action.stageId,
-        lostReasonId: action.lostReasonId,
-        ...(action.lostNote ? { lostNote: action.lostNote } : {}),
-      });
-      const [after] = await req.db.select({ version: L.version }).from(L).where(eq(L.id, lead.id));
-      await req.db.execute(sql`RELEASE SAVEPOINT ${sp}`);
-      out.push({
-        lead_id: item.leadId,
-        result: "done",
-        code: null,
-        before,
-        after_version: after?.version ?? null,
-      });
-    } catch (err) {
-      if (!(err instanceof HttpError)) throw err;
-      await req.db.execute(sql`ROLLBACK TO SAVEPOINT ${sp}`);
-      out.push(skip(item.leadId, err.code));
+    const lead = byId.get(item.leadId);
+    if (!lead) {
+      out.set(item.leadId, skip(item.leadId, "LEAD_NOT_FOUND"));
+      continue;
     }
+    const code = !canOnRecord(actor, "leads.bulk_edit", lead.ownerId)
+      ? "FORBIDDEN"
+      : !canOnRecord(actor, "leads.change_stage", lead.ownerId)
+        ? "FORBIDDEN"
+        : !target
+          ? "UNKNOWN_STAGE"
+          : null;
+    if (code) {
+      out.set(lead.id, skip(lead.id, code));
+      continue;
+    }
+    const before = beforeOf(action, lead, []);
+    // Already there (and not a lost move, which records its reason again): done, nothing to change.
+    if (target!.id === lead.stageId && target!.kind !== "lost") {
+      out.set(lead.id, { lead_id: lead.id, result: "done", code: null, before, after_version: lead.version });
+      continue;
+    }
+    if (required.some((d) => !hasValue(lead, d.key))) {
+      out.set(lead.id, skip(lead.id, "REQUIRED_FIELDS"));
+      continue;
+    }
+    if (target!.kind === "lost" && !action.lostReasonId) {
+      out.set(lead.id, skip(lead.id, "LOST_REASON_REQUIRED"));
+      continue;
+    }
+    if (!reasonOk) {
+      out.set(lead.id, skip(lead.id, "UNKNOWN_LOST_REASON"));
+      continue;
+    }
+    out.set(lead.id, { lead_id: lead.id, result: "done", code: null, before, after_version: lead.version });
+    move.push(lead);
   }
-  return out;
+  if (move.length && target) {
+    const moving = uuids(move.map((l) => l.id));
+    const stamps =
+      target.kind === "lost"
+        ? sql`lost_at = now(), won_at = NULL, lost_reason_id = ${action.lostReasonId!}, lost_note = ${action.lostNote ?? null}`
+        : target.kind === "won"
+          ? sql`won_at = now(), lost_at = NULL, lost_reason_id = NULL, lost_note = NULL`
+          : sql`won_at = NULL, lost_at = NULL, lost_reason_id = NULL, lost_note = NULL`;
+    await req.db.insert(schema.leadStageHistory).values(
+      move.map((l) => ({
+        leadId: l.id,
+        fromStageId: l.stageId,
+        toStageId: target.id,
+        pipelineId: target.pipelineId,
+        changedBy: actor.userId,
+      })),
+    );
+    // A lost lead back in an open stage is reopened (4A; report §11.3), for "lost → reopened → won".
+    await activities(
+      req,
+      move
+        .filter((l) => kinds.get(l.stageId) === "lost" && target.kind === "open")
+        .map((l) => ({ leadId: l.id, type: "reopened", payload: { from: l.stageId, to: target.id } })),
+    );
+    await activities(
+      req,
+      move.map((l) => ({
+        leadId: l.id,
+        type: "stage_changed",
+        payload: {
+          from: l.stageId,
+          to: target.id,
+          ...(target.kind === "lost" && action.lostReasonId ? { lostReasonId: action.lostReasonId } : {}),
+        },
+      })),
+    );
+    const versions = (
+      await req.db.execute<{ id: string; version: number }>(sql`
+        UPDATE leads SET stage_id = ${target.id}, pipeline_id = ${target.pipelineId}, stage_entered_at = now(),
+               last_activity_at = now(), ${stamps}, version = version + 1
+         WHERE id = ANY(${moving}::uuid[]) RETURNING id, version`)
+    ).rows;
+    for (const v of versions) out.get(v.id)!.after_version = Number(v.version);
+    // What the stage does when a lead enters it (3C), lead by lead, only when the stage has rules.
+    for (const l of move)
+      await runOnEnter(req, { id: l.id, name: l.name, ownerId: l.ownerId }, target, "moved");
+  }
+  return items.map((i) => out.get(i.leadId)!);
 }
 
 /** Whether this person may do this action to this lead, and if not, why (the codes single edits answer). */
@@ -542,7 +639,7 @@ export async function applyItems(req: FastifyRequest, run: RunRow, items: Item[]
     action.type === "undo"
       ? await undoChunk(req, run, action, items, hooks, n)
       : action.type === "stage"
-        ? await perLead(req, action, items, hooks, n)
+        ? await stageMany(req, action, items, hooks, n)
         : await setBased(req, action, items, hooks, n);
   await req.db.execute(sql`
     UPDATE bulk_run_items i SET result = r.result, code = r.code, before = r.before, after_version = r.after_version
@@ -683,7 +780,7 @@ async function doneTitle(db: FastifyRequest["db"], row: RunRow, who: Map<string,
 }
 
 /** What a queued run needs: the app, a pool of its own, and the clock (tests move it). */
-export type RunDeps = { app: FastifyInstance; pool: pg.Pool; clock?: () => Date };
+export type RunDeps = { app: FastifyInstance; pool: pg.Pool; clock?: () => Date; tasks?: AppDeps["tasks"] };
 
 /**
  * A queued run, chunk by chunk (the bulk queue's job). Only pending items are taken, so a run picked up again after
@@ -691,7 +788,12 @@ export type RunDeps = { app: FastifyInstance; pool: pg.Pool; clock?: () => Date 
  * and the maker's access is read afresh (disabled, paused, or no longer allowed to bulk edit ends it as failed).
  */
 export async function processRun(o: RunDeps, runId: string, hooks?: RunHooks): Promise<void> {
-  const app = jobServer(o.app);
+  // A job's server carrying what the signed-in scope has: a stage's own rules run on the move, and whoever a
+  // follow-up goes to is told, as a person's change would (as the Calendly job does).
+  const app = Object.assign(
+    Object.create(jobServer(o.app)) as FastifyInstance,
+    serverHelpers({ pool: o.pool, tasks: o.tasks }),
+  );
   const db = drizzle(o.pool, { schema });
   const now = () => (o.clock ? o.clock() : new Date());
   const [claimed] = await db

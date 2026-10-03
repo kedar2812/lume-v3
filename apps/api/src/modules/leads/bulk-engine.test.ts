@@ -303,4 +303,84 @@ describe("7B: the engine", () => {
     ]);
     expect(lead!.owner_id).toBe(sam.id);
   });
+
+  it("a stage move over many leads does what a single move does: required fields, reopened, the stage's automations, no per-lead audit", async () => {
+    // A required field on Replied: only the lead that has a value moves.
+    await h.ownerPool.query("UPDATE stages SET required_field_ids = ARRAY[$1]::uuid[] WHERE id = $2", [
+      cfg.fields.value,
+      cfg.stages.Replied,
+    ]);
+    try {
+      const ids = [
+        await h.seedLead({ ownerId: adminUser.id }),
+        await h.seedLead({ ownerId: adminUser.id }),
+        await h.seedLead({ ownerId: adminUser.id }),
+      ];
+      await h.queryAll("UPDATE leads SET value = 1000 WHERE id = $1", [ids[0]]);
+      const r = await start(admin, ids, { type: "stage", stageId: cfg.stages.Replied });
+      await h.runBulk();
+      expect(await read(admin, r)).toMatchObject({ done: 1, skipped: 2, skippedBy: { REQUIRED_FIELDS: 2 } });
+    } finally {
+      await h.ownerPool.query("UPDATE stages SET required_field_ids = '{}' WHERE id = $1", [
+        cfg.stages.Replied,
+      ]);
+    }
+    // A lost lead moved back to an open stage is reopened; the stage's rule makes each lead its follow-up.
+    await h.ownerPool.query(
+      `UPDATE settings SET working_hours = '{"days":[0,1,2,3,4,5,6],"start":"00:00","end":"23:59"}' WHERE id = 1`,
+    );
+    const rule = {
+      id: newId(),
+      type: "create_task",
+      title: "Bulk follow-up",
+      dueIn: { n: 1, unit: "day" },
+      assignee: "lead_owner",
+    };
+    expect(
+      (
+        await admin.inject({
+          method: "PATCH",
+          url: `/api/v1/stages/${cfg.stages["Message sent"]}`,
+          payload: { onEnter: { rules: [rule] } },
+        })
+      ).statusCode,
+    ).toBeLessThan(300);
+    try {
+      const ids = [
+        await h.seedLead({ ownerId: adminUser.id }),
+        await h.seedLead({ ownerId: adminUser.id }),
+        await h.seedLead({ ownerId: adminUser.id }),
+      ];
+      await h.queryAll("UPDATE leads SET stage_id = $1, lost_at = now() WHERE id = $2", [
+        cfg.stages.Lost,
+        ids[0],
+      ]);
+      await start(admin, ids, { type: "stage", stageId: cfg.stages["Message sent"] });
+      await h.runBulk();
+      expect(
+        await count("SELECT count(*)::int AS n FROM activities WHERE lead_id = $1 AND type = 'reopened'", [
+          ids[0],
+        ]),
+      ).toBe(1);
+      expect(
+        await count(
+          "SELECT count(*)::int AS n FROM tasks WHERE lead_id = ANY($1::uuid[]) AND title = 'Bulk follow-up' AND status = 'open'",
+          [ids],
+        ),
+      ).toBe(3);
+      expect(
+        await count("SELECT count(*)::int AS n FROM leads WHERE id = $1 AND lost_at IS NULL", [ids[0]]),
+      ).toBe(1);
+      expect(
+        await count(
+          "SELECT count(*)::int AS n FROM audit_log WHERE action = 'lead.stage' AND entity_id = ANY($1::text[])",
+          [ids],
+        ),
+      ).toBe(0);
+    } finally {
+      await h.ownerPool.query("UPDATE stages SET on_enter = '{}' WHERE id = $1", [
+        cfg.stages["Message sent"],
+      ]);
+    }
+  });
 });

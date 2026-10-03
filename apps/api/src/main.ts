@@ -100,7 +100,7 @@ const app = await buildApp({
 });
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;
-const bulkQueue = await startBulkQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool });
+const bulkQueue = await startBulkQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, tasks });
 bulk.enqueue = bulkQueue.enqueue;
 // Sheets sync when either way of reading them is set up here: a service account, or Connect with Google.
 const sheetQueue =

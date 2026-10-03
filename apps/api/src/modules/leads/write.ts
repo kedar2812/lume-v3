@@ -13,7 +13,8 @@ import { runOnEnter } from "../tasks/automations";
 const L = schema.leads;
 
 /** Is a core or custom field filled on this lead? (stage required-field rule, report §14) */
-function hasValue(lead: LeadRow, key: string): boolean {
+/** Whether a lead has a value for this field (a stage's required fields, 3C; bulk stage moves, 7B). */
+export function hasValue(lead: LeadRow, key: string): boolean {
   const core: Record<string, unknown> = {
     name: lead.name,
     phone: lead.phoneE164 ?? lead.phoneRaw,

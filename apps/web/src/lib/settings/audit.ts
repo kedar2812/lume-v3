@@ -25,6 +25,26 @@ type Phrase = string | ((diff: Record<string, unknown>) => string);
 type ActionDef = { area: string; phrase: Phrase };
 
 const n = (v: unknown) => (typeof v === "number" ? v : 0);
+/** A bulk action in words (7B): what it did to how many, what it skipped, and whether it stopped partway. */
+function bulkPhrase(d: Record<string, unknown>): string {
+  const count = n(d.updated);
+  const many = `${count.toLocaleString("en-US")} ${count === 1 ? "lead" : "leads"}`;
+  const what: Record<string, string> = {
+    assign: `assigned ${many} at once`,
+    stage: `moved ${many} to another stage at once`,
+    tags: `changed the tags on ${many} at once`,
+    delete: `deleted ${many} at once`,
+    set_phone_country: `read ${count.toLocaleString("en-US")} phone ${count === 1 ? "number" : "numbers"} with a country at once`,
+    undo: `put back ${many} from a bulk action`,
+  };
+  let out = what[String(d.type)] ?? `changed ${many} at once`;
+  if (d.status === "cancelled") return `${out}, then stopped it`;
+  if (d.status === "failed") return `${out}, then it stopped`;
+  const skipped = n(d.skipped);
+  if (skipped > 0) out += `, ${skipped.toLocaleString("en-US")} skipped`;
+  return out;
+}
+
 /** The optional module an integration.enabled/disabled entry is about (2B: Google Sheets, 2C: Webhooks). */
 const moduleName = (m: unknown) =>
   m === "webhooks" ? "Webhooks" : m === "google_calendar" ? "Google Calendar" : "Google Sheets";
@@ -40,7 +60,7 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "lead.update": { area: "Leads", phrase: "edited a lead" },
   "lead.stage": { area: "Leads", phrase: "moved a lead to another stage" },
   "lead.assign": { area: "Leads", phrase: "assigned a lead" },
-  "lead.bulk": { area: "Leads", phrase: (d) => `changed ${n(d.updated)} leads at once` },
+  "lead.bulk": { area: "Leads", phrase: bulkPhrase },
   "lead.delete": { area: "Leads", phrase: "deleted a lead" },
   "lead.contact.reveal": { area: "Leads", phrase: "revealed a lead’s contact" },
   "lead.whatsapp.prepare": { area: "Leads", phrase: "opened WhatsApp for a lead" },
