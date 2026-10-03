@@ -11,6 +11,7 @@ import { opsAlerts } from "../health/service";
 import { securitySweep } from "../security/sweep";
 import { clearExpiredExports } from "../lead-exports/service";
 import { rollupLeadCounts } from "../leads/query";
+import { clearOldBulkItems } from "../leads/bulk-runs";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -132,6 +133,11 @@ export async function startTaskQueue(o: {
       if (n % 60 === 0)
         void clearExpiredExports(o.pool).catch((err: unknown) =>
           o.app.log.error({ err }, "clearing old exports failed"),
+        );
+      // Every hour (and at start-up): bulk runs' items older than 30 days are cleared; the runs stay (7B).
+      if (n % 60 === 0)
+        void clearOldBulkItems(o.pool).catch((err: unknown) =>
+          o.app.log.error({ err }, "clearing old bulk run items failed"),
         );
       // Every hour (and at start-up): leads gone quiet come back to their owners (3C).
       if (n % 60 === 0) beside("noTouch", () => noTouch({ ...deps, enqueue }), "leads gone quiet failed");

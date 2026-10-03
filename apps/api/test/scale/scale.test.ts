@@ -261,6 +261,77 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     expect(over, `over ${budget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);
   }, 3_600_000);
 
+  // 7B: bulk runs at the owner's "Large" bound — 50,000 leads by filter, queued and run to the end, as the bulk queue
+  // runs them. Budget: each action within LUME_SCALE_BULK_BUDGET ms (120 s by default) on the 1-CPU scale database.
+  it("runs bulk actions over 50,000 leads by filter, cancels one midway, and undoes one", async () => {
+    if (N < 200_000) return;
+    const cfg = await h.config();
+    const people = await h.queryAll<{ id: string }>(
+      "SELECT id FROM users WHERE name LIKE 'Person %' ORDER BY name LIMIT 2",
+    );
+    const tag = (await h.queryAll<{ id: string }>("SELECT id FROM tags WHERE label = 'Tag 2'"))[0]!.id;
+    // The newest quarter of a year of leads: at 200,000 that is just under 50,000.
+    const days = Math.floor((365 * 49_000) / N);
+    const today = new Date();
+    const from = new Date(today.getTime() - days * 86_400_000).toISOString().slice(0, 10);
+    const filters = { createdFrom: from };
+    const bulk: { path: string; ms: number; rows?: number }[] = [];
+    const run = async (
+      label: string,
+      action: Record<string, unknown>,
+      hooks?: Parameters<Harness["runBulk"]>[0],
+    ) => {
+      const t = performance.now();
+      const r = await admin.inject({
+        method: "POST",
+        url: "/api/v1/leads/bulk-runs",
+        payload: { selection: { filters }, action },
+      });
+      expect(r.statusCode, r.body).toBe(202);
+      await h.runBulk(hooks);
+      const done = (
+        await admin.inject({ method: "GET", url: `/api/v1/leads/bulk-runs/${r.json().run.id}` })
+      ).json().run;
+      bulk.push({ path: `bulk ${label}`, ms: Math.round(performance.now() - t), rows: done.done });
+      return done as { id: string; status: string; done: number; total: number };
+    };
+    const assigned = await run("assign 50k", { type: "assign", ownerId: people[1]!.id });
+    expect(assigned.total).toBeGreaterThan(40_000);
+    expect(assigned.total).toBeLessThanOrEqual(50_000);
+    // Undo right away: nothing has changed since, so every lead goes back.
+    const tu = performance.now();
+    const u = await admin.inject({ method: "POST", url: `/api/v1/leads/bulk-runs/${assigned.id}/undo` });
+    expect(u.statusCode, u.body).toBe(202);
+    await h.runBulk();
+    const undone = (
+      await admin.inject({ method: "GET", url: `/api/v1/leads/bulk-runs/${u.json().run.id}` })
+    ).json().run;
+    bulk.push({
+      path: "bulk undo of the 50k assign",
+      ms: Math.round(performance.now() - tu),
+      rows: undone.done,
+    });
+    await run("tag 50k", { type: "tags", add: [tag] });
+    await run("stage 50k (per lead)", { type: "stage", stageId: cfg.stages[Object.keys(cfg.stages)[1]!]! });
+    const stopped = await run(
+      "delete, cancelled after 10 chunks",
+      { type: "delete" },
+      {
+        afterChunk: async (n) => {
+          if (n === 9)
+            await h.ownerPool.query("UPDATE bulk_runs SET cancel_requested = true WHERE status = 'running'");
+        },
+      },
+    );
+    expect(stopped.status).toBe("cancelled");
+    for (const b of bulk) console.log(`SCALE|${b.path}|${b.ms}|${b.rows ?? ""}`);
+    const budget = Number(process.env.LUME_SCALE_BULK_BUDGET ?? 120_000);
+    expect(
+      bulk.filter((b) => b.ms > budget),
+      `bulk over ${budget} ms`,
+    ).toEqual([]);
+  }, 3_600_000);
+
   it("explains the slow paths (query plans, printed)", async () => {
     if (!process.env.LUME_SCALE_EXPLAIN) return;
     const cfg = await h.config();

@@ -1,7 +1,7 @@
 import { ALL_GRANTS, newId, type Grant } from "@lume/core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
-import { setBulkCapForTests, setInlineMaxForTests } from "./bulk-runs";
+import { clearOldBulkItems, setBulkCapForTests, setInlineMaxForTests } from "./bulk-runs";
 import { setSearchCapForTests } from "./query";
 
 // Phase 7B Task 1: every bulk action is a run; a selection is picked ids or "everything matching a filter".
@@ -212,5 +212,34 @@ describe("7B: a bulk action is a run", () => {
       [ids[0]],
     );
     expect(last).toEqual({ status: "done", total: 2 });
+  });
+
+  it("a run's items are kept 30 days after it finishes, then cleared; the run itself stays", async () => {
+    const mk = async (daysAgo: number) => {
+      const id = newId();
+      const when = new Date(Date.now() - daysAgo * 86_400_000);
+      await h.ownerPool.query(
+        `INSERT INTO bulk_runs (id, user_id, action, selection, status, total, done, created_at, finished_at)
+         VALUES ($1, $2, '{"type":"delete"}', '{"kind":"ids","total":1}', 'done', 1, 1, $3, $3)`,
+        [id, adminId, when],
+      );
+      await h.ownerPool.query(
+        "INSERT INTO bulk_run_items (run_id, lead_id, position, result) VALUES ($1, $2, 1, 'done')",
+        [id, newId()],
+      );
+      return id;
+    };
+    const old = await mk(31);
+    const recent = await mk(29);
+    await clearOldBulkItems(h.pool);
+    const items = await h.queryAll<{ run_id: string }>(
+      "SELECT run_id FROM bulk_run_items WHERE run_id = ANY($1::uuid[])",
+      [[old, recent]],
+    );
+    expect(items.map((i) => i.run_id)).toEqual([recent]);
+    const runs = await h.queryAll<{ id: string }>("SELECT id FROM bulk_runs WHERE id = ANY($1::uuid[])", [
+      [old, recent],
+    ]);
+    expect(runs).toHaveLength(2);
   });
 });

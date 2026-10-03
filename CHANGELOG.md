@@ -42,8 +42,21 @@ column in the release that stops using it.
 - **Updates stop the app before migrating** (`scripts/update.sh`), so a migration that builds indexes never leaves
   the Leads screen or webhooks waiting on a lock.
 
+- **Bulk actions at scale (Phase 7B, API):** a bulk action covers the leads picked, or everything a filter shows
+  (minus the ones unticked), up to 50,000 at a time.
+  - **How it runs:** up to 500 leads change at once; more run in the background in batches of 500, with
+    progress, Stop, and one notice when it's done.
+  - **Undo, for 24 hours:** each lead goes back only if nobody has changed it since. Automations a stage already
+    ran stay done.
+  - **What's recorded:** each lead's history is kept as for a single edit; the audit log keeps one entry per bulk
+    action, and a new owner gets one notice for all their leads.
+  - The screens follow in the Phase 7 UI work.
+
 ### Migrations
 
+- **0049** adds `bulk_runs` (each bulk action: what it did, its selection in words, its counts and reasons) and
+  `bulk_run_items` (each lead's place, result and before-values, for resuming and undo; cleared 30 days after a
+  run ends).
 - **0048** adds `lead_counts` (the stage strip's counts per pipeline, stage and owner) with `lead_count_deltas`
   (changes appended by triggers on `leads`, folded in every minute by `lume_lead_counts_rollup`) and the
   `lead_counts_now` view.

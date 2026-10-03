@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import type pg from "pg";
 import { can, newId } from "@lume/core";
 import { schema } from "@lume/db";
 import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
@@ -138,7 +139,17 @@ export async function createRun(
   await req.db.execute(sql`
     INSERT INTO bulk_run_items (run_id, lead_id, position)
     SELECT ${id}, t.lead_id, t.ord FROM unnest(${`{${ids.join(",")}}`}::uuid[]) WITH ORDINALITY AS t(lead_id, ord)`);
-  if (ids.length > limits.inline) {
+  return startRun(req, id, ids.length, o);
+}
+
+/** A run whose items are in: inline (≤ 500, answered at once) or queued (answered 202, run in chunks). */
+async function startRun(
+  req: FastifyRequest,
+  id: string,
+  total: number,
+  o: { enqueue?: (id: string) => Promise<void>; now: Date },
+): Promise<{ status: 200 | 202; run: ReturnType<typeof runView> }> {
+  if (total > limits.inline) {
     req.afterCommit(() => void o.enqueue?.(id));
     const [row] = await req.db.select().from(R).where(eq(R.id, id));
     return { status: 202, run: runView(row!, o.now) };
@@ -148,11 +159,12 @@ export async function createRun(
     .set({ status: "running", startedAt: o.now })
     .where(eq(R.id, id))
     .returning();
-  await applyItems(
-    req,
-    run!,
-    ids.map((leadId, i) => ({ leadId, position: i + 1 })),
-  );
+  const items = await req.db
+    .select({ leadId: I.leadId, position: I.position })
+    .from(I)
+    .where(eq(I.runId, id))
+    .orderBy(asc(I.position));
+  await applyItems(req, run!, items);
   const done = await finishRun(req, id, "done", o.now);
   // The new owner hears once, after the commit; the maker has their answer right here.
   const notices: [string, NewNotification][] = [];
@@ -161,6 +173,47 @@ export async function createRun(
     for (const [u, n] of notices) void req.server.notify?.(u, n).catch(() => undefined);
   });
   return { status: 200, run: runView(done, o.now) };
+}
+
+/**
+ * Undo a run, within 24 hours, by its maker or someone with leads.bulk_edit at 'all'. It is a run too: each lead it
+ * changed goes back only if nobody has changed it since. A run is undone once, and an undo can't be undone.
+ */
+export async function undoRun(
+  req: FastifyRequest,
+  id: string,
+  o: { enqueue?: (id: string) => Promise<void>; now: Date },
+) {
+  const run = await ownRun(req, id);
+  if (run.undoOf) throw new HttpError(422, "NOT_UNDOABLE", "An undo can't be undone.");
+  const [prior] = await req.db.select({ id: R.id }).from(R).where(eq(R.undoOf, id));
+  if (run.status === "undone" || prior)
+    throw conflict("ALREADY_UNDONE", "That bulk action has already been undone.");
+  if (run.status === "queued" || run.status === "running")
+    throw new HttpError(422, "NOT_UNDOABLE", "That bulk action is still running. Stop it, or let it finish.");
+  if (!run.finishedAt || o.now.getTime() > run.finishedAt.getTime() + UNDO_HOURS * 3_600_000)
+    throw new HttpError(422, "UNDO_EXPIRED", "Undo is available for 24 hours after a bulk action.");
+  if (run.done === 0) throw new HttpError(422, "NOT_UNDOABLE", "That bulk action didn't change any leads.");
+  const undo = newId();
+  await req.db.insert(R).values({
+    id: undo,
+    userId: req.actor!.userId,
+    action: { type: "undo", of: (run.action as BulkAction).type },
+    selection: { kind: "undo", of: id, total: run.done },
+    total: run.done,
+    undoOf: id,
+    createdAt: o.now,
+  });
+  const { rowCount } = await req.db.execute(sql`
+    INSERT INTO bulk_run_items (run_id, lead_id, position)
+    SELECT ${undo}, lead_id, row_number() OVER (ORDER BY position) FROM bulk_run_items
+     WHERE run_id = ${id} AND result = 'done'`);
+  if (rowCount !== run.done)
+    await req.db
+      .update(R)
+      .set({ total: rowCount ?? 0 })
+      .where(eq(R.id, undo));
+  return startRun(req, undo, rowCount ?? run.done, o);
 }
 
 /** The run, for its maker or someone with leads.bulk_edit at 'all'; anyone else gets "no such run". */
@@ -209,4 +262,16 @@ export async function bulkAnswer(req: FastifyRequest, ids: string[], action: Bul
     updated: items.filter((i) => i.result === "done").map((i) => i.leadId),
     skipped: items.filter((i) => i.result === "skipped").map((i) => ({ id: i.leadId, code: i.code! })),
   };
+}
+
+/**
+ * A run's items (each lead's before-values) are kept 30 days after it finishes, long past its 24-hour undo; then
+ * they're cleared. The run itself stays, with its counts, as the audit log's entry does (the hourly tick).
+ */
+export async function clearOldBulkItems(pool: pg.Pool): Promise<number> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM bulk_run_items WHERE run_id IN (
+       SELECT id FROM bulk_runs WHERE finished_at < now() - interval '30 days')`,
+  );
+  return rowCount ?? 0;
 }

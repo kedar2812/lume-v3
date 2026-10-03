@@ -9,6 +9,9 @@ export type BulkAction =
   | { type: "delete" }
   | { type: "set_phone_country"; country: string };
 
+/** The action an undo run carries: which kind of run it puts back (the before-values are on the items). */
+export type UndoAction = { type: "undo"; of: BulkAction["type"] };
+
 export type Selection = { ids: string[] } | { filters: FilterQuery; except?: string[]; expected?: number };
 export type RunRow = typeof schema.bulkRuns.$inferSelect;
 export type Item = { leadId: string; position: number };

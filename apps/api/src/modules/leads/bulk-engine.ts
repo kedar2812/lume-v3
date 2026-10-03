@@ -10,7 +10,14 @@ import { loadActor } from "../../rbac/actor";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { notify, type NewNotification } from "../notifications/notify";
 import { cancelLeadTasks } from "../tasks/lifecycle";
-import { limits, type BulkAction, type Item, type RunHooks, type RunRow } from "./bulk-config";
+import {
+  limits,
+  type BulkAction,
+  type Item,
+  type RunHooks,
+  type RunRow,
+  type UndoAction,
+} from "./bulk-config";
 import { tagsFor } from "./query";
 import { visibleLead } from "./service";
 import type { LeadRow } from "./serialize";
@@ -48,7 +55,14 @@ function beforeOf(action: BulkAction, lead: LeadRow, tagIds: string[]): Record<s
     case "assign":
       return { ownerId: lead.ownerId };
     case "stage":
-      return { stageId: lead.stageId, lostReasonId: lead.lostReasonId, lostNote: lead.lostNote };
+      return {
+        stageId: lead.stageId,
+        pipelineId: lead.pipelineId,
+        lostReasonId: lead.lostReasonId,
+        lostNote: lead.lostNote,
+        wonAt: lead.wonAt,
+        lostAt: lead.lostAt,
+      };
     case "tags":
       return { tagIds };
     case "delete":
@@ -289,13 +303,247 @@ async function setBased(
   return items.map((i) => out.get(i.leadId)!);
 }
 
+/** Whether this person may put this lead back: the permissions the original action needed. */
+function mayRestore(
+  req: FastifyRequest,
+  kind: BulkAction["type"],
+  lead: LeadRow,
+  before: Record<string, unknown>,
+) {
+  const actor = req.actor!;
+  if (!canOnRecord(actor, "leads.bulk_edit", lead.ownerId)) return "FORBIDDEN";
+  const key = (
+    {
+      assign: "leads.assign",
+      stage: "leads.change_stage",
+      tags: "leads.edit",
+      delete: "leads.delete",
+      set_phone_country: "leads.edit",
+    } as const
+  )[kind];
+  if (!canOnRecord(actor, key, lead.ownerId)) return "FORBIDDEN";
+  if (
+    kind === "assign" &&
+    before.ownerId === null &&
+    !actor.isOwner &&
+    scopeOf(actor, "leads.assign") !== "all"
+  )
+    return "ASSIGN_OUT_OF_SCOPE";
+  return null;
+}
+
+/**
+ * An undo's chunk: each lead goes back to what the run found, only if nobody has changed it since (its version is
+ * still the one the run left); otherwise it's skipped as CHANGED_SINCE and keeps the newer change. A stage goes back
+ * directly (with a history row): the stage's automations aren't run again, and what they did stays done.
+ */
+async function undoChunk(
+  req: FastifyRequest,
+  run: RunRow,
+  action: UndoAction,
+  items: Item[],
+  hooks: RunHooks | undefined,
+  n: number,
+) {
+  const kind = action.of;
+  const ids = uuids(items.map((i) => i.leadId));
+  const orig = new Map(
+    (
+      await req.db
+        .select({ leadId: I.leadId, before: I.before, afterVersion: I.afterVersion })
+        .from(I)
+        .where(and(eq(I.runId, run.undoOf!), sql`${I.leadId} = ANY(${ids}::uuid[])`))
+    ).map((r) => [r.leadId, r]),
+  );
+  // Deleted leads too: undoing a delete brings them back. Read as the person, locked.
+  const leads = await req.db
+    .select()
+    .from(L)
+    .where(sql`${L.id} = ANY(${ids}::uuid[])`)
+    .for("update");
+  const byId = new Map(leads.map((l) => [l.id, l]));
+  const tagsNow =
+    kind === "tags"
+      ? await tagsFor(
+          req,
+          leads.map((l) => l.id),
+        )
+      : new Map<string, string[]>();
+  const out = new Map<string, Result>();
+  const back: { lead: LeadRow; to: Record<string, unknown> }[] = [];
+  for (const [i, item] of items.entries()) {
+    await hooks?.midChunk?.(n, i);
+    const lead = byId.get(item.leadId);
+    const o = orig.get(item.leadId);
+    if (!lead) {
+      out.set(item.leadId, skip(item.leadId, "LEAD_NOT_FOUND"));
+      continue;
+    }
+    if (!o?.before || lead.version !== o.afterVersion) {
+      out.set(lead.id, skip(lead.id, "CHANGED_SINCE"));
+      continue;
+    }
+    const to = o.before;
+    const no = mayRestore(req, kind, lead, to);
+    if (no) {
+      out.set(lead.id, skip(lead.id, no));
+      continue;
+    }
+    const now =
+      kind === "delete"
+        ? { deletedAt: lead.deletedAt }
+        : beforeOf({ type: kind } as BulkAction, lead, tagsNow.get(lead.id) ?? []);
+    out.set(lead.id, {
+      lead_id: lead.id,
+      result: "done",
+      code: null,
+      before: now,
+      after_version: lead.version,
+    });
+    back.push({ lead, to });
+  }
+  if (back.length) {
+    const changing = uuids(back.map((b) => b.lead.id));
+    const rows = (f: (b: (typeof back)[number]) => Record<string, unknown>) =>
+      JSON.stringify(back.map((b) => ({ id: b.lead.id, ...f(b) })));
+    let versions: { id: string; version: number }[] = [];
+    switch (kind) {
+      case "assign": {
+        await req.db.insert(schema.leadAssignmentHistory).values(
+          back.map((b) => ({
+            leadId: b.lead.id,
+            fromUserId: b.lead.ownerId,
+            toUserId: (b.to.ownerId as string | null) ?? null,
+            changedBy: req.actor!.userId,
+            reason: "undo",
+          })),
+        );
+        await activities(
+          req,
+          back.map((b) => ({
+            leadId: b.lead.id,
+            type: "assigned",
+            payload: { from: b.lead.ownerId, to: b.to.ownerId ?? null, undo: true },
+          })),
+        );
+        const scope = (
+          await req.db.execute<{ scope: string | null }>(
+            sql`SELECT current_setting('lume.lead_scope', true) AS scope`,
+          )
+        ).rows[0]?.scope;
+        await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(sql`
+          UPDATE leads l SET owner_id = v.owner, last_activity_at = now(), version = l.version + 1
+            FROM jsonb_to_recordset(${rows((b) => ({ owner: b.to.ownerId ?? null }))}::jsonb) AS v(id uuid, owner uuid)
+           WHERE l.id = v.id RETURNING l.id, l.version`)
+        ).rows;
+        await req.db.execute(sql`SELECT set_config('lume.lead_scope', ${scope ?? ""}, true)`);
+        break;
+      }
+      case "stage":
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(sql`
+          UPDATE leads l SET stage_id = v.stage, pipeline_id = coalesce(v.pipeline, l.pipeline_id),
+                 lost_reason_id = v.reason, lost_note = v.note, won_at = v.won, lost_at = v.lost,
+                 stage_entered_at = now(), version = l.version + 1
+            FROM jsonb_to_recordset(${rows((b) => ({
+              stage: b.to.stageId,
+              pipeline: b.to.pipelineId ?? null,
+              reason: b.to.lostReasonId ?? null,
+              note: b.to.lostNote ?? null,
+              won: b.to.wonAt ?? null,
+              lost: b.to.lostAt ?? null,
+            }))}::jsonb)
+                 AS v(id uuid, stage uuid, pipeline uuid, reason uuid, note text, won timestamptz, lost timestamptz)
+           WHERE l.id = v.id RETURNING l.id, l.version`)
+        ).rows;
+        await req.db.insert(schema.leadStageHistory).values(
+          back.map((b) => ({
+            leadId: b.lead.id,
+            fromStageId: b.lead.stageId,
+            toStageId: b.to.stageId as string,
+            pipelineId: (b.to.pipelineId as string | undefined) ?? b.lead.pipelineId,
+            changedBy: req.actor!.userId,
+          })),
+        );
+        await activities(
+          req,
+          back.map((b) => ({
+            leadId: b.lead.id,
+            type: "stage_changed",
+            payload: { from: b.lead.stageId, to: b.to.stageId, undo: true },
+          })),
+        );
+        break;
+      case "tags": {
+        await req.db.execute(sql`DELETE FROM lead_tags WHERE lead_id = ANY(${changing}::uuid[])`);
+        const pairs = back.flatMap((b) =>
+          ((b.to.tagIds as string[] | undefined) ?? []).map((t) => ({ lead: b.lead.id, tag: t })),
+        );
+        // A tag deleted since isn't brought back.
+        if (pairs.length)
+          await req.db.execute(sql`
+            INSERT INTO lead_tags (lead_id, tag_id)
+            SELECT p.lead, p.tag FROM jsonb_to_recordset(${JSON.stringify(pairs)}::jsonb) AS p(lead uuid, tag uuid)
+              JOIN tags t ON t.id = p.tag ON CONFLICT DO NOTHING`);
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(sql`
+          UPDATE leads SET version = version + 1 WHERE id = ANY(${changing}::uuid[]) RETURNING id, version`)
+        ).rows;
+        await activities(
+          req,
+          back.map((b) => ({
+            leadId: b.lead.id,
+            type: "field_changed",
+            payload: { fields: ["tags"], undo: true },
+          })),
+        );
+        break;
+      }
+      case "delete":
+        // The lead comes back; follow-ups cancelled with it stay cancelled.
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(sql`
+          UPDATE leads SET deleted_at = NULL, version = version + 1 WHERE id = ANY(${changing}::uuid[]) RETURNING id, version`)
+        ).rows;
+        break;
+      case "set_phone_country":
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(sql`
+          UPDATE leads l SET phone_e164 = v.e164, phone_country_iso = v.iso, phone_status = v.status,
+                 version = l.version + 1, updated_at = now()
+            FROM jsonb_to_recordset(${rows((b) => ({
+              e164: b.to.phoneE164 ?? null,
+              iso: b.to.phoneCountryIso ?? null,
+              status: b.to.phoneStatus,
+            }))}::jsonb) AS v(id uuid, e164 text, iso text, status text)
+           WHERE l.id = v.id RETURNING l.id, l.version`)
+        ).rows;
+        await activities(
+          req,
+          back.map((b) => ({
+            leadId: b.lead.id,
+            type: "field_changed",
+            payload: { fields: ["phone"], undo: true },
+          })),
+        );
+        break;
+    }
+    for (const v of versions) out.get(v.id)!.after_version = Number(v.version);
+  }
+  return items.map((i) => out.get(i.leadId)!);
+}
+
 /** Some of a run's items, in one transaction as the person; their results and the run's counts with them. */
 export async function applyItems(req: FastifyRequest, run: RunRow, items: Item[], hooks?: RunHooks, n = 0) {
-  const action = run.action as BulkAction;
+  const action = run.action as BulkAction | UndoAction;
   const results =
-    action.type === "stage"
-      ? await perLead(req, action, items, hooks, n)
-      : await setBased(req, action, items, hooks, n);
+    action.type === "undo"
+      ? await undoChunk(req, run, action, items, hooks, n)
+      : action.type === "stage"
+        ? await perLead(req, action, items, hooks, n)
+        : await setBased(req, action, items, hooks, n);
   await req.db.execute(sql`
     UPDATE bulk_run_items i SET result = r.result, code = r.code, before = r.before, after_version = r.after_version
       FROM jsonb_to_recordset(${JSON.stringify(results)}::jsonb)
@@ -326,6 +574,8 @@ async function countInto(
 /** The end of a run: its status, and one audit entry for the whole of it (never one per lead). */
 export async function finishRun(req: FastifyRequest, id: string, status: "done" | "cancelled", now: Date) {
   const [row] = await req.db.update(R).set({ status, finishedAt: now }).where(eq(R.id, id)).returning();
+  // An undo, however it ends, closes the run it undid: a run is undone once.
+  if (row!.undoOf) await req.db.update(R).set({ status: "undone" }).where(eq(R.id, row!.undoOf));
   await audit(req, { action: "lead.bulk", entityType: "lead", diff: auditDiff(row!) });
   return row!;
 }
@@ -350,7 +600,21 @@ const firstName = (full: string | null | undefined) => (full ?? "").trim().split
  * queued run, one to its maker. A run answered in the request needs no notice of its own.
  */
 export async function runNotices(db: FastifyRequest["db"], row: RunRow, send: Send, o: { maker: boolean }) {
-  const action = row.action as BulkAction;
+  const action = row.action as BulkAction | UndoAction;
+  if (action.type === "undo") {
+    if (!o.maker) return;
+    const changed = (row.skippedBy as Record<string, number>).CHANGED_SINCE ?? 0;
+    const back = row.done.toLocaleString("en-US");
+    const kept = changed
+      ? ` ${changed.toLocaleString("en-US")} had changed since, so LUME kept the newer change.`
+      : "";
+    await send(row.userId, {
+      kind: "bulk_done",
+      title: `LUME put back ${back} ${row.done === 1 ? "lead" : "leads"}.${kept}`,
+      data: { run: row.id },
+    });
+    return;
+  }
   const names = async (ids: string[]) =>
     new Map(
       (

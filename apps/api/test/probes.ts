@@ -644,6 +644,10 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.bulk_edit",
     path: () => `/api/v1/leads/bulk-runs/${uuid}/cancel`,
   },
+  "POST /api/v1/leads/bulk-runs/:id/undo": {
+    access: "leads.bulk_edit",
+    path: () => `/api/v1/leads/bulk-runs/${uuid}/undo`,
+  },
   "POST /api/v1/stages/:id/archive": {
     access: "pipelines.manage",
     path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,

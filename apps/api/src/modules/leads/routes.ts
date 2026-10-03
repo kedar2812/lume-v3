@@ -10,7 +10,7 @@ import { schema } from "@lume/db";
 import { prepareMessage } from "./messages";
 import { confirmSend, logReply, messageContext, renderFor } from "./sending";
 import type { AppDeps } from "../../app";
-import { bulkAnswer, cancelRun, createRun, listRuns, readRun, type Selection } from "./bulk-runs";
+import { bulkAnswer, cancelRun, createRun, listRuns, readRun, undoRun, type Selection } from "./bulk-runs";
 import { SUSPENDED_BODY } from "../security/watch";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
@@ -358,5 +358,13 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
     "/api/v1/leads/bulk-runs/:id/cancel",
     { config: { permission: "leads.bulk_edit" }, schema: { params } },
     async (req) => ({ run: await cancelRun(req, req.params.id, d.clock()) }),
+  );
+  r.post(
+    "/api/v1/leads/bulk-runs/:id/undo",
+    { config: { permission: "leads.bulk_edit" }, schema: { params } },
+    async (req, reply) => {
+      const { status, run } = await undoRun(req, req.params.id, { enqueue: d.bulk?.enqueue, now: d.clock() });
+      return reply.code(status).send({ run });
+    },
   );
 }
