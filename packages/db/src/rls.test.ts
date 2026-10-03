@@ -167,6 +167,123 @@ describe("RLS on leads, by raw SQL as lume_app", () => {
     );
   });
 
+  it("7A: the read policy evaluates its settings once per query, never a function per row", async () => {
+    for (const s of [
+      { scope: "own" as const },
+      { scope: "team" as const, team: [U.mate] },
+      { scope: "all" as const },
+    ]) {
+      const plan = await as("lume_app", s, async (c) =>
+        JSON.stringify(
+          (await c.query("EXPLAIN (FORMAT JSON) SELECT id FROM leads WHERE deleted_at IS NULL")).rows[0],
+        ),
+      );
+      expect(plan).not.toContain("lume_can_see_owner");
+      expect(plan).toContain("InitPlan");
+    }
+  });
+
+  it("7A: the policies mean exactly what lume_can_see_owner meant, in every context (Review Focus 1)", async () => {
+    // Each context as raw settings; null leaves a setting unset. The oracle is the old rule itself, evaluated over
+    // every row by the backup role (which reads every row), with the same settings.
+    type Ctx = { scope?: string; user?: string; team?: string; handoff?: string };
+    const contexts: Ctx[] = [
+      {},
+      { scope: "all" },
+      { scope: "all", user: "" },
+      { scope: "own", user: U.rep },
+      { scope: "own", user: "" },
+      { scope: "own", user: U.other },
+      { scope: "team", user: U.rep },
+      { scope: "team", user: U.rep, team: "{}" },
+      { scope: "team", user: U.rep, team: `{${U.mate}}` },
+      { scope: "team", user: "", team: `{${U.mate}}` },
+      { scope: "team", user: U.rep, team: `{${U.rep},${U.mate},${U.other}}` },
+      { scope: "bogus", user: U.rep },
+      { scope: "", user: U.rep },
+      { scope: "own", user: U.rep, handoff: L.other },
+      { handoff: L.mate },
+      { scope: "all", handoff: L.none },
+      { scope: "team", user: U.rep, team: `{${U.mate}}`, handoff: L.none },
+    ];
+    const run = async <T>(role: DbRole, ctx: Ctx, fn: (c: pg.Client) => Promise<T>): Promise<T> => {
+      const c = new pg.Client({ connectionString: db.url(role) });
+      await c.connect();
+      try {
+        await c.query("BEGIN");
+        for (const [k, name] of [
+          ["scope", "lume.lead_scope"],
+          ["user", "lume.user_id"],
+          ["team", "lume.team_member_ids"],
+          ["handoff", "lume.handoff_lead"],
+        ] as const)
+          if (ctx[k] !== undefined) await c.query("SELECT set_config($1, $2, true)", [name, ctx[k]]);
+        return await fn(c);
+      } finally {
+        await c.query("ROLLBACK").catch(() => undefined);
+        await c.end();
+      }
+    };
+    const owners = [U.rep, U.mate, U.other, null];
+    for (const ctx of contexts) {
+      const label = JSON.stringify(ctx);
+      // Read: what the policy shows equals the old rule over every row.
+      const seen = await run("lume_app", ctx, async (c) =>
+        (await c.query<{ id: string }>("SELECT id FROM leads ORDER BY id")).rows.map((r) => r.id),
+      );
+      const oracle = await run("lume_readonly_backup", ctx, async (c) =>
+        (
+          await c.query<{ id: string }>(
+            "SELECT id FROM leads WHERE lume_can_see_owner(owner_id) OR id = lume_handoff_lead() ORDER BY id",
+          )
+        ).rows.map((r) => r.id),
+      );
+      expect(seen, `read ${label}`).toEqual(oracle);
+      // Create: allowed for exactly the owners the old rule allowed.
+      for (const owner of owners) {
+        const allowed = await run("lume_readonly_backup", ctx, async (c) =>
+          Boolean((await c.query("SELECT lume_can_see_owner($1::uuid) AS ok", [owner])).rows[0].ok),
+        );
+        const created = await run("lume_app", ctx, async (c) => {
+          try {
+            await c.query(
+              "INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name) VALUES (gen_random_uuid(), '0190e0c0-0000-7000-8000-0000000000f1', '0190e0c0-0000-7000-8000-0000000000f2', $1, 'x')",
+              [owner],
+            );
+            return true;
+          } catch (e) {
+            if (!/row-level security/.test(String(e))) throw e;
+            return false;
+          }
+        });
+        expect(created, `create owner=${owner} ${label}`).toBe(allowed);
+      }
+      // Update: reaches exactly the rows the old rule could see (the hand-off is a read allowance only), and only
+      // with a user set.
+      for (const lead of Object.values(L)) {
+        const reach = await run("lume_readonly_backup", ctx, async (c) =>
+          Boolean(
+            (
+              await c.query(
+                "SELECT lume_can_see_owner(owner_id) AND lume_user() IS NOT NULL AS ok FROM leads WHERE id = $1",
+                [lead],
+              )
+            ).rows[0].ok,
+          ),
+        );
+        const updated = await run("lume_app", ctx, async (c) => {
+          try {
+            return (await c.query("UPDATE leads SET name = name WHERE id = $1", [lead])).rowCount === 1;
+          } catch (e) {
+            if (!/row-level security/.test(String(e))) throw e;
+            return false;
+          }
+        });
+        expect(updated, `update ${lead} ${label}`).toBe(reach);
+      }
+    }
+  });
+
   it("the backup role reads every row (pg_dump --enable-row-security)", async () => {
     expect(await ids("lume_readonly_backup", { scope: null }, "SELECT id FROM leads")).toEqual(
       Object.values(L).sort(),
