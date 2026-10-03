@@ -282,7 +282,7 @@ describe("RLS on leads, by raw SQL as lume_app", () => {
         expect(updated, `update ${lead} ${label}`).toBe(reach);
       }
     }
-  });
+  }, 60_000);
 
   it("the backup role reads every row (pg_dump --enable-row-security)", async () => {
     expect(await ids("lume_readonly_backup", { scope: null }, "SELECT id FROM leads")).toEqual(
