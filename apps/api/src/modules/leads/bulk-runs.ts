@@ -1,45 +1,30 @@
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import type { FastifyInstance, FastifyRequest } from "fastify";
-import type pg from "pg";
-import { can, canOnRecord, newId, normalizePhone } from "@lume/core";
+import type { FastifyRequest } from "fastify";
+import { can, newId } from "@lume/core";
 import { schema } from "@lume/db";
-import { audit } from "../../audit/audit";
-import { HttpError, badRequest, forbidden, notFound } from "../../http/errors";
+import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
-import { loadActor } from "../../rbac/actor";
-import { jobServer, withJobRequest } from "../imports/job-request";
-import { leadFilters, refuseCapped, resolveSearch, tagsFor, type FilterQuery } from "./query";
-import { deleteLead, recordActivity, visibleLead } from "./service";
-import type { LeadRow } from "./serialize";
-import { assignLead, moveStage } from "./write";
+import type { NewNotification } from "../notifications/notify";
+import { UNDO_HOURS, limits, type BulkAction, type RunRow, type Selection } from "./bulk-config";
+import { applyItems, finishRun, runNotices } from "./bulk-engine";
+import { leadFilters, refuseCapped, resolveSearch } from "./query";
+
+export {
+  setBulkCapForTests,
+  setChunkForTests,
+  setInlineMaxForTests,
+  type BulkAction,
+  type Selection,
+} from "./bulk-config";
+export { processRun, type RunDeps } from "./bulk-engine";
 
 /**
  * Phase 7B: every bulk action is a run (bulk_runs, 0049), each lead in it an item holding its before-values.
- * Up to INLINE leads run inside the request; more are queued and run in chunks, each chunk its own transaction
- * as the person. Every lead is still checked on its own, exactly as a single bulk edit checks it.
+ * Up to 500 leads run inside the request; more are queued and run in chunks (bulk-engine), each chunk its own
+ * transaction as the person.
  */
-export type BulkAction =
-  | { type: "stage"; stageId: string; lostReasonId?: string; lostNote?: string }
-  | { type: "assign"; ownerId: string | null }
-  | { type: "tags"; add?: string[]; remove?: string[] }
-  | { type: "delete" }
-  | { type: "set_phone_country"; country: string };
-
-export type Selection = { ids: string[] } | { filters: FilterQuery; except?: string[]; expected?: number };
-export type RunRow = typeof schema.bulkRuns.$inferSelect;
-type Item = { leadId: string; position: number };
-
 const R = schema.bulkRuns;
 const I = schema.bulkRunItems;
-const DEFAULTS = { cap: 50_000, inline: 500, chunk: 500 };
-const UNDO_HOURS = 24;
-let cap = DEFAULTS.cap;
-let inlineMax = DEFAULTS.inline;
-let chunkSize = DEFAULTS.chunk;
-export const setBulkCapForTests = (n: number | null) => void (cap = n ?? DEFAULTS.cap);
-export const setInlineMaxForTests = (n: number | null) => void (inlineMax = n ?? DEFAULTS.inline);
-export const setChunkForTests = (n: number | null) => void (chunkSize = n ?? DEFAULTS.chunk);
 
 /** A run as the API gives it. */
 export function runView(r: RunRow, now: Date) {
@@ -55,6 +40,7 @@ export function runView(r: RunRow, now: Date) {
     skipped: r.skipped,
     failed: r.failed,
     skippedBy: r.skippedBy,
+    error: r.error,
     createdAt: r.createdAt,
     startedAt: r.startedAt,
     finishedAt: r.finishedAt,
@@ -71,6 +57,13 @@ export function runView(r: RunRow, now: Date) {
 
 /** What can be refused before any lead is touched: the action itself. Per-lead refusals are skips. */
 async function checkAction(req: FastifyRequest, action: BulkAction) {
+  if (action.type === "assign" && action.ownerId) {
+    const [u] = await req.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(and(eq(schema.users.id, action.ownerId), eq(schema.users.status, "active")));
+    if (!u) throw badRequest("UNKNOWN_USER", "That person doesn't exist or is disabled");
+  }
   if (action.type !== "tags") return;
   const all = [...(action.add ?? []), ...(action.remove ?? [])];
   if (!all.length) throw badRequest("NOTHING_TO_DO", "Add or remove at least one tag");
@@ -85,7 +78,7 @@ const tooMany = () =>
   new HttpError(
     422,
     "TOO_MANY",
-    `Narrow the selection: up to ${cap.toLocaleString("en-US")} leads at a time.`,
+    `Narrow the selection: up to ${limits.cap.toLocaleString("en-US")} leads at a time.`,
   );
 const nothing = () => new HttpError(422, "NOTHING_SELECTED", "No leads are selected.");
 
@@ -97,7 +90,7 @@ async function resolveSelection(req: FastifyRequest, sel: Selection) {
   if ("ids" in sel) {
     const ids = [...new Set(sel.ids)];
     if (!ids.length) throw nothing();
-    if (ids.length > cap) throw tooMany();
+    if (ids.length > limits.cap) throw tooMany();
     return { ids, words: { kind: "ids", total: ids.length } };
   }
   const fields = await loadFieldRegistry(req);
@@ -111,9 +104,9 @@ async function resolveSelection(req: FastifyRequest, sel: Selection) {
     .from(schema.leads)
     .where(and(...where))
     .orderBy(desc(schema.leads.id))
-    .limit(cap + 1);
+    .limit(limits.cap + 1);
   if (!rows.length) throw nothing();
-  if (rows.length > cap) throw tooMany();
+  if (rows.length > limits.cap) throw tooMany();
   return {
     ids: rows.map((r) => r.id),
     words: {
@@ -126,7 +119,7 @@ async function resolveSelection(req: FastifyRequest, sel: Selection) {
   };
 }
 
-/** Make a run: inline (≤ INLINE leads, answered at once) or queued (answered 202, run in chunks). */
+/** Make a run: inline (≤ 500 leads, answered at once) or queued (answered 202, run in chunks). */
 export async function createRun(
   req: FastifyRequest,
   o: { selection: Selection; action: BulkAction; enqueue?: (id: string) => Promise<void>; now: Date },
@@ -145,250 +138,50 @@ export async function createRun(
   await req.db.execute(sql`
     INSERT INTO bulk_run_items (run_id, lead_id, position)
     SELECT ${id}, t.lead_id, t.ord FROM unnest(${`{${ids.join(",")}}`}::uuid[]) WITH ORDINALITY AS t(lead_id, ord)`);
-  if (ids.length > inlineMax) {
+  if (ids.length > limits.inline) {
     req.afterCommit(() => void o.enqueue?.(id));
     const [row] = await req.db.select().from(R).where(eq(R.id, id));
     return { status: 202, run: runView(row!, o.now) };
   }
-  await req.db.update(R).set({ status: "running", startedAt: o.now }).where(eq(R.id, id));
-  const [run] = await req.db.select().from(R).where(eq(R.id, id));
+  const [run] = await req.db
+    .update(R)
+    .set({ status: "running", startedAt: o.now })
+    .where(eq(R.id, id))
+    .returning();
   await applyItems(
     req,
     run!,
     ids.map((leadId, i) => ({ leadId, position: i + 1 })),
   );
   const done = await finishRun(req, id, "done", o.now);
+  // The new owner hears once, after the commit; the maker has their answer right here.
+  const notices: [string, NewNotification][] = [];
+  await runNotices(req.db, done, async (u, n) => void notices.push([u, n]), { maker: false });
+  req.afterCommit(() => {
+    for (const [u, n] of notices) void req.server.notify?.(u, n).catch(() => undefined);
+  });
   return { status: 200, run: runView(done, o.now) };
 }
 
-/** What the action is about to change, as it is now: what undo would put back. */
-function beforeOf(action: BulkAction, lead: LeadRow, tagIds: string[]): Record<string, unknown> {
-  switch (action.type) {
-    case "assign":
-      return { ownerId: lead.ownerId };
-    case "stage":
-      return { stageId: lead.stageId, lostReasonId: lead.lostReasonId, lostNote: lead.lostNote };
-    case "tags":
-      return { tagIds };
-    case "delete":
-      return { deletedAt: null };
-    case "set_phone_country":
-      return {
-        phoneE164: lead.phoneE164,
-        phoneCountryIso: lead.phoneCountryIso,
-        phoneStatus: lead.phoneStatus,
-      };
-  }
-}
-
-/** One lead, through the same functions a single edit uses (its history, activities and automations). */
-async function applyOne(req: FastifyRequest, lead: LeadRow, action: BulkAction) {
-  switch (action.type) {
-    case "stage":
-      await moveStage(req, lead, {
-        stageId: action.stageId,
-        lostReasonId: action.lostReasonId,
-        ...(action.lostNote ? { lostNote: action.lostNote } : {}),
-      });
-      return;
-    case "assign":
-      await assignLead(req, lead, { ownerId: action.ownerId, reason: "bulk" });
-      return;
-    case "delete":
-      await deleteLead(req, lead.id);
-      return;
-    case "tags":
-      if (!canOnRecord(req.actor!, "leads.edit", lead.ownerId)) throw forbidden();
-      if (action.remove?.length)
-        await req.db.execute(
-          sql`DELETE FROM lead_tags WHERE lead_id = ${lead.id} AND tag_id = ANY(${`{${action.remove.join(",")}}`}::uuid[])`,
-        );
-      if (action.add?.length)
-        await req.db
-          .insert(schema.leadTags)
-          .values(action.add.map((tagId) => ({ leadId: lead.id, tagId })))
-          .onConflictDoNothing();
-      await req.db
-        .update(schema.leads)
-        .set({ version: sql`${schema.leads.version} + 1` })
-        .where(eq(schema.leads.id, lead.id));
-      await recordActivity(req, lead.id, "field_changed", { fields: ["tags"] });
-      return;
-    case "set_phone_country": {
-      // Spec §10: the number as typed, read again with a country; the history records only the country.
-      if (!canOnRecord(req.actor!, "leads.edit", lead.ownerId)) throw forbidden();
-      if (lead.phoneStatus === "valid") throw badRequest("ALREADY_VALID", "Already a number LUME can read");
-      if (!lead.phoneRaw) throw badRequest("NO_NUMBER", "No number");
-      const p = normalizePhone(lead.phoneRaw, action.country);
-      if (p.status !== "valid") throw badRequest("STILL_INVALID", "Still not a number LUME can read");
-      await req.db
-        .update(schema.leads)
-        .set({
-          phoneE164: p.e164,
-          phoneCountryIso: p.countryIso,
-          phoneStatus: "valid",
-          version: sql`${schema.leads.version} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.leads.id, lead.id));
-      await recordActivity(req, lead.id, "phone_country_set", { country: action.country });
-      return;
-    }
-  }
-}
-
-/**
- * Some of a run's items, in one transaction as the person. A lead they may not touch is skipped with its reason
- * (rolled back to its savepoint); anything else that fails rolls the whole chunk back, to be run again.
- */
-export async function applyItems(req: FastifyRequest, run: RunRow, items: Item[]) {
-  const action = run.action as BulkAction;
-  const tagsOf =
-    action.type === "tags"
-      ? await tagsFor(
-          req,
-          items.map((i) => i.leadId),
-        )
-      : new Map<string, string[]>();
-  const results: {
-    lead_id: string;
-    result: "done" | "skipped";
-    code: string | null;
-    before: unknown;
-    after_version: number | null;
-  }[] = [];
-  for (const [n, item] of items.entries()) {
-    const sp = sql.raw(`bulk_${n}`);
-    await req.db.execute(sql`SAVEPOINT ${sp}`);
-    try {
-      const lead = await visibleLead(req, item.leadId);
-      if (!canOnRecord(req.actor!, "leads.bulk_edit", lead.ownerId)) throw forbidden();
-      const before = beforeOf(action, lead, tagsOf.get(lead.id) ?? []);
-      await applyOne(req, lead, action);
-      const [after] = await req.db
-        .select({ version: schema.leads.version })
-        .from(schema.leads)
-        .where(eq(schema.leads.id, lead.id));
-      await req.db.execute(sql`RELEASE SAVEPOINT ${sp}`);
-      results.push({
-        lead_id: item.leadId,
-        result: "done",
-        code: null,
-        before,
-        after_version: after?.version ?? null,
-      });
-    } catch (err) {
-      if (!(err instanceof HttpError)) throw err;
-      await req.db.execute(sql`ROLLBACK TO SAVEPOINT ${sp}`);
-      results.push({
-        lead_id: item.leadId,
-        result: "skipped",
-        code: err.code,
-        before: null,
-        after_version: null,
-      });
-    }
-  }
-  await req.db.execute(sql`
-    UPDATE bulk_run_items i SET result = r.result, code = r.code, before = r.before, after_version = r.after_version
-      FROM jsonb_to_recordset(${JSON.stringify(results)}::jsonb)
-           AS r(lead_id uuid, result text, code text, before jsonb, after_version int)
-     WHERE i.run_id = ${run.id} AND i.lead_id = r.lead_id`);
-  const skippedBy: Record<string, number> = {};
-  for (const r of results) if (r.code) skippedBy[r.code] = (skippedBy[r.code] ?? 0) + 1;
-  const done = results.filter((r) => r.result === "done").length;
-  // Counts add up chunk by chunk; the reasons merge key by key.
-  await req.db.execute(sql`
-    UPDATE bulk_runs SET done = done + ${done}, skipped = skipped + ${results.length - done},
-      skipped_by = coalesce((SELECT jsonb_object_agg(key, total) FROM (
-          SELECT key, sum(value::int) AS total FROM (
-            SELECT * FROM jsonb_each_text(skipped_by) UNION ALL SELECT * FROM jsonb_each_text(${JSON.stringify(skippedBy)}::jsonb)
-          ) x GROUP BY key) y), '{}'::jsonb)
-     WHERE id = ${run.id}`);
-}
-
-/** The end of a run: its status, and one audit entry for the whole of it (never one per lead). */
-async function finishRun(
-  req: FastifyRequest,
-  id: string,
-  status: "done" | "cancelled" | "failed",
-  now: Date,
-  error?: string,
-) {
-  const [row] = await req.db
-    .update(R)
-    .set({ status, finishedAt: now, ...(error ? { error } : {}) })
-    .where(eq(R.id, id))
-    .returning();
-  const action = row!.action as BulkAction;
-  await audit(req, {
-    action: "lead.bulk",
-    entityType: "lead",
-    diff: {
-      type: action.type,
-      run: id,
-      status,
-      total: row!.total,
-      updated: row!.done,
-      skipped: row!.skipped,
-      selection: (row!.selection as { kind: string }).kind,
-    },
-  });
-  return row!;
-}
-
-/**
- * A queued run, chunk by chunk (the bulk queue's job). Only pending items are taken, so a run picked up again
- * after a crash carries on from the last committed chunk and never does one twice.
- */
-/** What a queued run needs: the app, a pool of its own, and the clock (tests move it). */
-export type RunDeps = { app: FastifyInstance; pool: pg.Pool; clock?: () => Date };
-
-export async function processRun(o: RunDeps, runId: string): Promise<void> {
-  const now = () => (o.clock ? o.clock() : new Date());
-  const app = jobServer(o.app);
-  const db = drizzle(o.pool, { schema });
-  const [claimed] = await db
-    .update(R)
-    .set({ status: "running", startedAt: sql`coalesce(${R.startedAt}, ${now()})` })
-    .where(and(eq(R.id, runId), sql`${R.status} IN ('queued', 'running')`))
-    .returning();
-  if (!claimed) return;
-  for (let n = 0; ; n++) {
-    const actor = await loadActor(o.pool, claimed.userId);
-    if (!actor || !can(actor, "leads.bulk_edit")) {
-      await db
-        .update(R)
-        .set({ status: "failed", error: "Their access changed", finishedAt: now() })
-        .where(eq(R.id, runId));
-      return;
-    }
-    const more = await withJobRequest(
-      { app, pool: o.pool, actor, requestId: `bulk:${runId}:${n}`, allLeads: false },
-      async (req) => {
-        const items = await req.db
-          .select({ leadId: I.leadId, position: I.position })
-          .from(I)
-          .where(and(eq(I.runId, runId), eq(I.result, "pending")))
-          .orderBy(asc(I.position))
-          .limit(chunkSize);
-        if (!items.length) {
-          await finishRun(req, runId, "done", now());
-          return false;
-        }
-        await applyItems(req, claimed, items);
-        return true;
-      },
-    );
-    if (!more) return;
-  }
-}
-
-export async function readRun(req: FastifyRequest, id: string, now: Date) {
+/** The run, for its maker or someone with leads.bulk_edit at 'all'; anyone else gets "no such run". */
+async function ownRun(req: FastifyRequest, id: string) {
   const [row] = await req.db.select().from(R).where(eq(R.id, id));
   if (!row || (row.userId !== req.actor!.userId && !can(req.actor!, "leads.bulk_edit", "all")))
     throw notFound("RUN_NOT_FOUND", "No such bulk action");
-  return runView(row, now);
+  return row;
+}
+
+export async function readRun(req: FastifyRequest, id: string, now: Date) {
+  return runView(await ownRun(req, id), now);
+}
+
+/** Stop a run after the chunk it's on; what's done stays done (and can be undone). */
+export async function cancelRun(req: FastifyRequest, id: string, now: Date) {
+  const row = await ownRun(req, id);
+  if (row.status !== "queued" && row.status !== "running")
+    throw conflict("RUN_FINISHED", "That bulk action has already finished");
+  const [updated] = await req.db.update(R).set({ cancelRequested: true }).where(eq(R.id, id)).returning();
+  return runView(updated!, now);
 }
 
 /** The person's runs from the last 7 days, newest first; someone with leads.bulk_edit at 'all' sees everyone's. */

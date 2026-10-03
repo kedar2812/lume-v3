@@ -21,6 +21,7 @@ export const bulkRuns = pgTable("bulk_runs", {
     .notNull()
     .default(sql`'{}'::jsonb`),
   cancelRequested: boolean("cancel_requested").notNull().default(false),
+  attempts: integer("attempts").notNull().default(0),
   undoOf: uuid("undo_of"),
   error: text("error"),
   createdAt: tz("created_at").notNull().defaultNow(),

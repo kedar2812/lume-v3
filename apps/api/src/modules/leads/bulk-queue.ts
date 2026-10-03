@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import PgBoss from "pg-boss";
 import type pg from "pg";
-import { processRun } from "./bulk-runs";
+import { processRun } from "./bulk-engine";
 
 /**
  * Phase 7B: queued bulk runs, on pg-boss inside the API as imports are (the worker role may not touch leads).

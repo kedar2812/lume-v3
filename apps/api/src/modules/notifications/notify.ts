@@ -15,7 +15,8 @@ export type NotifyKind =
   | "calendar_reconnect"
   | "meeting_booked"
   | "meeting_cancelled"
-  | "security_alert";
+  | "security_alert"
+  | "bulk_done";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */

@@ -17,6 +17,8 @@ CREATE TABLE bulk_runs (
   failed           integer     NOT NULL DEFAULT 0,
   skipped_by       jsonb       NOT NULL DEFAULT '{}',
   cancel_requested boolean     NOT NULL DEFAULT false,
+  -- How many times the queue has taken it up; past the queue's retries it ends as failed, done chunks kept.
+  attempts         integer     NOT NULL DEFAULT 0,
   -- An undo is a run too; a run is undone at most once (bulk_runs_one_undo).
   undo_of          uuid        REFERENCES bulk_runs (id),
   error            text,

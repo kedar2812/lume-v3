@@ -25,6 +25,7 @@ import {
 import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
 import { runImport, type RunHooks } from "../src/modules/imports/runner";
+import type { RunHooks as BulkHooks } from "../src/modules/leads/bulk-config";
 import { processRun } from "../src/modules/leads/bulk-runs";
 import {
   createGoogleSheets,
@@ -137,7 +138,7 @@ export type Harness = {
   /** Runs every queued import now, as the job would (tests steer it with the hooks). */
   runImports(o?: RunHooks & { parallel?: boolean }): Promise<void>;
   /** Runs every queued bulk run now, as the bulk queue would (7B); a thrown run stays queued, as pg-boss retries. */
-  runBulk(): Promise<void>;
+  runBulk(hooks?: BulkHooks): Promise<void>;
   /** Bulk runs queued so far and not yet run (7B). */
   bulkQueue: string[];
   /** The fake Google (with `google: true`), and the client pointed at it. */
@@ -388,8 +389,12 @@ export async function createHarness(
     },
     actorOf: (userId) => loadActor(pool, userId),
     bulkQueue: bulkQueued,
-    async runBulk() {
-      for (const id of bulkQueued.splice(0)) await processRun({ app, pool, clock: () => clock.now }, id);
+    async runBulk(hooks) {
+      for (const id of bulkQueued.splice(0))
+        await processRun({ app, pool, clock: () => clock.now }, id, hooks).catch((e: unknown) => {
+          if (!String(e).includes("test crash")) throw e;
+          bulkQueued.push(id); // what pg-boss would do: run it again
+        });
     },
     async runImports(o = {}) {
       const ids = queued.splice(0);
