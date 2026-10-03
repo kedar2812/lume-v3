@@ -22,6 +22,24 @@ describe("GET /audit", () => {
     expect(p1.entries[0].id).toBeGreaterThan(p2.entries[0].id);
   });
 
+  it("filters to one day on the business's clock, so a figure can open its own entries (6C)", async () => {
+    const tz =
+      (await h.ownerPool.query("SELECT timezone FROM settings WHERE id = 1")).rows[0]?.timezone ?? "UTC";
+    // 23:30 yesterday and 00:30 today, both on the business's clock.
+    await h.pool.query(
+      `INSERT INTO audit_log (action, entity_type, at) VALUES
+         ('t.day', 'late', (date_trunc('day', now() AT TIME ZONE $1) AT TIME ZONE $1) - interval '30 minutes'),
+         ('t.day', 'early', (date_trunc('day', now() AT TIME ZONE $1) AT TIME ZONE $1) + interval '30 minutes')`,
+      [tz],
+    );
+    const today = (await h.pool.query("SELECT to_char(now() AT TIME ZONE $1, 'YYYY-MM-DD') AS d", [tz]))
+      .rows[0].d;
+    const c = await h.signIn(await h.seedUser({ grants: [{ key: "audit.view", scope: null }] }));
+    const r = (await c.inject({ method: "GET", url: `/api/v1/audit?action=t.day&day=${today}` })).json();
+    expect(r.entries.map((e: { entityType: string }) => e.entityType)).toEqual(["early"]);
+    expect((await c.inject({ method: "GET", url: "/api/v1/audit?day=yesterday" })).statusCode).toBe(400);
+  });
+
   it("never returns more than 100 per page", async () => {
     const c = await h.signIn(await h.seedUser({ grants: [{ key: "audit.view", scope: null }] }));
     expect((await c.inject({ method: "GET", url: "/api/v1/audit?limit=500" })).statusCode).toBe(400);

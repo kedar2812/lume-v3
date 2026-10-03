@@ -200,7 +200,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(queueRoutes, deps);
         await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);
-        await scope.register(securityRoutes);
+        await scope.register(securityRoutes, deps);
         await scope.register(leadExportRoutes, deps);
         deps.extraRoutes?.(scope);
       },

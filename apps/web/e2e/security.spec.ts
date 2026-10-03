@@ -365,4 +365,28 @@ test.describe("Offboarding (6C)", () => {
     const lead = await callApi<{ lead: { ownerId: string } }>(page, "GET", `/api/v1/leads/${made.leads[0]}`);
     expect(lead.data.lead.ownerId).toBe(aman.id);
   });
+
+  test("Security activity: today's figures, contacts per person, who's signed in; a figure opens its day", async ({
+    page,
+  }) => {
+    await openApp(page, "/settings/security");
+    const today = page.getByRole("region", { name: "Today" });
+    await expect(today.getByRole("link", { name: /Contacts opened today/ })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Contacts opened, per person" })).toContainText("Rory Reid");
+    await expect(page.getByRole("region", { name: /Signed in now/ })).toContainText("You");
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await today.scrollIntoViewIfNeeded();
+      await reviewCopy(page, `activity-${theme}.png`);
+      await page.getByRole("region", { name: /Signed in now/ }).scrollIntoViewIfNeeded();
+      await reviewCopy(page, `activity-sessions-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await today.getByRole("link", { name: /Contacts opened today/ }).click();
+    await expect(page).toHaveURL(/\/settings\/audit\?action=lead\.contact\.reveal&day=\d{4}-\d{2}-\d{2}/);
+    await expect(page.getByText(/^Only /)).toBeVisible();
+    await expect(page.getByLabel("What")).toHaveValue("lead.contact.reveal");
+  });
 });

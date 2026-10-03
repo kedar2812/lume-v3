@@ -128,6 +128,33 @@ describe("Security → Overview (6A Task 8)", () => {
     expect(within(plain).queryByRole("link", { name: /^Offboard Rory/ })).not.toBeInTheDocument();
   });
 
+  it("shows Security activity under the alerts for someone who may read the audit log, and only then (6C)", () => {
+    const activity = {
+      today: {
+        day: "2026-10-03",
+        reveals: { count: 58, people: 4 },
+        leadsOpened: { count: 412, usual: 400 },
+        exports: { count: 0, by: null },
+        failedSignIns: { count: 0, name: null, thenSignedIn: false },
+      },
+      reveals: [],
+      sessions: [],
+    };
+    const { unmount } = render(
+      <OverviewTab initial={[open]} timezone={TZ} openId={null} activity={activity} canOffboard />,
+    );
+    const today = screen.getByRole("region", { name: "Today" });
+    expect(today).toHaveTextContent("58");
+    // Under the open alerts.
+    expect(
+      screen.getByRole("list", { name: "Open alerts" }).compareDocumentPosition(today) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    unmount();
+    render(<OverviewTab initial={[open]} timezone={TZ} openId={null} activity={null} />);
+    expect(screen.queryByRole("region", { name: "Today" })).not.toBeInTheDocument();
+  });
+
   it("Restore: answered, folded into one line, and the status turns green", async () => {
     vi.mocked(api.post).mockResolvedValue(
       ok({ alert: { ...open, status: "resolved", resolution: "restored" } }),

@@ -4,7 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { shortDate, timeOf } from "@/lib/dates";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { useStream } from "@/lib/notifications/stream";
-import { alertSentence, securityClient, type Alert } from "@/lib/settings/security";
+import { alertSentence, securityClient, type Alert, type SecurityActivity } from "@/lib/settings/security";
+import { Activity } from "./Activity";
 import { AlertDrawer } from "./AlertDrawer";
 import s from "./security.module.css";
 
@@ -27,12 +28,15 @@ export function OverviewTab({
   timezone,
   openId,
   canOffboard = false,
+  activity = null,
 }: {
   initial: Alert[];
   timezone: string;
   openId: string | null;
-  /** The viewer manages people: an alert offers Offboard (6C). */
+  /** The viewer manages people: an alert offers Offboard, and a session Sign out (6C). */
   canOffboard?: boolean;
+  /** Security activity, for someone who may read the audit log (6C ruling C4); null hides it. */
+  activity?: SecurityActivity | null;
 }) {
   const reduce = useReducedMotion();
   const [alerts, setAlerts] = useState(initial);
@@ -142,6 +146,8 @@ export function OverviewTab({
           ))}
         </ul>
       )}
+
+      {activity && <Activity data={activity} timezone={timezone} canManagePeople={canOffboard} />}
 
       {earlier.length > 0 && (
         <section>

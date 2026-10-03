@@ -1,0 +1,191 @@
+/* Security activity (6C, canvas [Main]): four figures, contacts opened per person, who is signed in now. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+  transition:
+    transform 0.15s,
+    box-shadow 0.2s;
+}
+.tile:hover {
+  box-shadow:
+    var(--shadow-sheet),
+    inset 0 0 0 0.5px var(--line-2);
+}
+.tile:active {
+  transform: scale(0.985);
+}
+.tile:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    inset 0 0 0 1.5px var(--accent);
+}
+.tileLabel {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.tileValue {
+  font-size: 28px;
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.tileDetail {
+  font-size: var(--fs-xs, 12px);
+  color: var(--text-2);
+}
+
+.panel {
+  border-radius: 18px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 16px 18px 6px;
+}
+.head h3 {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.cap {
+  font-size: var(--fs-xs, 12px);
+  color: var(--text-2);
+}
+.empty {
+  padding: 4px 18px 18px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.problem {
+  margin: 4px 18px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: var(--fs-sm);
+}
+
+.chart,
+.sessions {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px 10px;
+}
+.chartRow,
+.session {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 180px) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+.session {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+}
+.session[data-out] {
+  opacity: 0.55;
+  transition: opacity 0.3s;
+}
+.who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.name {
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.role {
+  overflow: hidden;
+  font-size: var(--fs-xs, 12px);
+  color: var(--text-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bars {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 3px;
+  align-items: end;
+  height: 30px;
+}
+.bars i {
+  display: block;
+  border-radius: 3px;
+  background: var(--line-2);
+}
+.bars i[data-tone="accent"] {
+  background: var(--accent);
+}
+.bars i[data-tone="warn"] {
+  background: var(--warn);
+}
+.total {
+  min-width: 40px;
+  border-radius: 6px;
+  text-align: right;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.total:hover {
+  color: var(--accent-ink);
+}
+.total:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.you {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+  font-size: var(--fs-xs, 12px);
+  font-weight: var(--fw-semibold);
+}
+.outWord {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+@media (max-width: 900px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .chartRow {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+  }
+  .bars {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .session[data-out] {
+    transition: none;
+  }
+}

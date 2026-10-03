@@ -11,6 +11,7 @@ import {
   type AuditEntry,
   type AuditQuery,
 } from "@/lib/settings/audit";
+import { longDate } from "@/lib/dates";
 import { shortDateTime } from "@/lib/settings/format";
 import { AccessChanged } from "./AccessChanged";
 import s from "./settings.module.css";
@@ -26,11 +27,26 @@ const verb = (key: string) => {
  * Everything that happened in LUME, newest first, in words: who did what, and when. Filter by person
  * and by action; older entries load on request. Nobody can edit or delete it, the owner included.
  */
-export function AuditLog({ people, initialActor }: { people: Person[]; initialActor?: string }) {
-  // Opened from a security alert (6A): already filtered to that person.
-  const [filters, setFilters] = useState<Omit<AuditQuery, "cursor">>(
-    initialActor ? { actorUserId: initialActor } : {},
+export function AuditLog({
+  people,
+  initialActor,
+  initialAction,
+  initialDay,
+}: {
+  people: Person[];
+  initialActor?: string;
+  initialAction?: string;
+  initialDay?: string;
+}) {
+  // Opened from a security alert (6A) or a Security figure (6C): already filtered to that person, action or day.
+  const [start] = useState<Omit<AuditQuery, "cursor">>(() =>
+    Object.fromEntries(
+      Object.entries({ actorUserId: initialActor, action: initialAction, day: initialDay }).filter(
+        ([, v]) => v,
+      ),
+    ),
   );
+  const [filters, setFilters] = useState<Omit<AuditQuery, "cursor">>(start);
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [state, setState] = useState<"ready" | "loading" | "error" | "gone">("loading");
@@ -45,8 +61,8 @@ export function AuditLog({ people, initialActor }: { people: Person[]; initialAc
   }, []);
 
   useEffect(() => {
-    void load(initialActor ? { actorUserId: initialActor } : {});
-  }, [load, initialActor]);
+    void load(start);
+  }, [load, start]);
 
   if (state === "gone") return <AccessChanged />;
 
@@ -94,6 +110,14 @@ export function AuditLog({ people, initialActor }: { people: Person[]; initialAc
             ))}
           </select>
         </label>
+        {filters.day && (
+          <span className={s.auditDay}>
+            Only {longDate(new Date(`${filters.day}T12:00:00Z`), "UTC")}
+            <button type="button" className={s.auditDayAll} onClick={() => setFilter({ day: undefined })}>
+              Show every day
+            </button>
+          </span>
+        )}
       </div>
 
       <section className={s.panel} aria-label="Audit entries">

@@ -72,7 +72,29 @@ export type TraceMatch = {
   downloads: { at: string; device: string }[];
 };
 
+/** Security activity (6C): today's figures, contacts opened per person over 14 days, who is signed in now. */
+export type SecurityActivity = {
+  today: {
+    /** Today on the business's clock, YYYY-MM-DD. */
+    day: string;
+    reveals: { count: number; people: number };
+    leadsOpened: { count: number; usual: number };
+    exports: { count: number; by: string | null };
+    failedSignIns: { count: number; name: string | null; thenSignedIn: boolean };
+  };
+  reveals: {
+    id: string;
+    name: string;
+    role: string | null;
+    total: number;
+    days: number[];
+    alertToday: boolean;
+  }[];
+  sessions: { userId: string; name: string; device: string; since: string; you: boolean }[];
+};
+
 export const securityClient = {
+  activity: () => api.get<SecurityActivity>("/api/v1/security/activity"),
   exports: () => api.get<{ exports: ExportRow[] }>("/api/v1/leads/exports"),
   traceFile: (file: File) => api.upload<{ match: TraceMatch | null }>("/api/v1/security/trace", file),
   traceCode: (code: string) => api.post<{ match: TraceMatch | null }>("/api/v1/security/trace", { code }),

@@ -56,4 +56,16 @@ describe("AuditLog", () => {
     await screen.findByLabelText("Who");
     expect(auditClient.list).toHaveBeenCalledWith({ actorUserId: "u-riya" });
   });
+
+  it("6C: opened from a Security figure, it starts on that action and day, and can show every day", async () => {
+    render(
+      <AuditLog people={testCatalog().people} initialAction="lead.contact.reveal" initialDay="2026-10-03" />,
+    );
+    await screen.findByLabelText("Who");
+    expect(auditClient.list).toHaveBeenCalledWith({ action: "lead.contact.reveal", day: "2026-10-03" });
+    expect(screen.getByText("Only October 3, Saturday")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show every day" }));
+    expect(auditClient.list).toHaveBeenLastCalledWith({ action: "lead.contact.reveal" });
+    expect(screen.queryByText("Only October 3, Saturday")).not.toBeInTheDocument();
+  });
 });

@@ -60,6 +60,8 @@ export const PROBES: Record<string, Probe> = {
     }),
   },
   "GET /api/v1/security/alerts": { access: "security.manage" },
+  // Security activity (6C): figures from the audit log, for people who may read it.
+  "GET /api/v1/security/activity": { access: "audit.view" },
   "GET /api/v1/security/alerts/:id": {
     access: "security.manage",
     path: () => `/api/v1/security/alerts/${uuid}`,

@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { anomalySchema, watermarkSchema } from "@lume/core";
+import type { AppDeps } from "../../app";
+import { securityActivity } from "./activity";
 import * as svc from "./service";
 
 const cfg = { permission: "security.manage" as const };
@@ -18,10 +20,14 @@ const loginHours = z
 const network = z.ipv4().or(z.ipv6()).or(z.cidrv4()).or(z.cidrv6());
 
 /** Settings → Security (6A): the rules and the watermark, alerts and their review, access limits per role. */
-export async function securityRoutes(app: FastifyInstance): Promise<void> {
+export async function securityRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.get("/api/v1/security/settings", { config: cfg }, (req) => svc.readSecurity(req));
+  // Security activity (6C): figures from the audit log, so it's for people who may read the audit log.
+  r.get("/api/v1/security/activity", { config: { permission: "audit.view" as const } }, (req) =>
+    securityActivity(req, d),
+  );
   r.put(
     "/api/v1/security/settings",
     { config: cfg, schema: { body: z.object({ anomaly: anomalySchema, watermark: watermarkSchema }) } },

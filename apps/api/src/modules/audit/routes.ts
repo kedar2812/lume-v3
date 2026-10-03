@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, type SQL } from "drizzle-orm";
+import { and, desc, eq, lt, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -18,6 +18,8 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
           actorUserId: z.uuid().optional(),
           entityType: z.string().max(40).optional(),
           entityId: z.string().max(80).optional(),
+          /** One day on the business's clock (6C: a Security figure opens its own entries). */
+          day: z.iso.date().optional(),
         }),
       },
     },
@@ -29,6 +31,14 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
       if (q.actorUserId) where.push(eq(schema.auditLog.actorUserId, q.actorUserId));
       if (q.entityType) where.push(eq(schema.auditLog.entityType, q.entityType));
       if (q.entityId) where.push(eq(schema.auditLog.entityId, q.entityId));
+      if (q.day) {
+        const [s] = await req.db.select({ tz: schema.settings.timezone }).from(schema.settings);
+        const tz = s?.tz ?? "UTC";
+        where.push(
+          sql`${schema.auditLog.at} >= (${q.day}::date::timestamp AT TIME ZONE ${tz})`,
+          sql`${schema.auditLog.at} < ((${q.day}::date + 1)::timestamp AT TIME ZONE ${tz})`,
+        );
+      }
       // Who did it, by name, so reading the log needs no other access (the people list needs leads.view).
       const rows = await req.db
         .select({ entry: schema.auditLog, actorName: schema.users.name })

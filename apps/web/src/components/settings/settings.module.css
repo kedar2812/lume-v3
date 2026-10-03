@@ -1345,6 +1345,35 @@
   font-weight: var(--fw-medium);
   color: var(--text-2);
 }
+/* Opened from a Security figure (6C): one day only, with the way back to every day. */
+.auditDay {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.auditDayAll {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: var(--sheet);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.auditDayAll:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    inset 0 0 0 1.5px var(--accent);
+}
 .auditFilters select {
   height: 34px;
   max-width: 260px;
