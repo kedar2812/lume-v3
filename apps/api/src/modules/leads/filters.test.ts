@@ -1,6 +1,8 @@
 import { ALL_GRANTS, newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { FastifyRequest } from "fastify";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
+import { scopeCondition } from "./query";
 
 // 4B Task 1: the filters saved views need — no reply for days, lost a while ago, overdue follow-ups,
 // new today (in the business's timezone).
@@ -120,5 +122,85 @@ describe("the leads filters for saved views (4B Task 1)", () => {
       const r = await admin.inject({ method: "GET", url: `/api/v1/leads?${q}` });
       expect(r.statusCode, q).toBe(400);
     }
+  });
+});
+
+describe("7A: the person's scope as a plain condition (it never shows more, or less, than row-level security)", () => {
+  const ids = async (c: AuthedClient, query = "") => {
+    const r = await c.inject({ method: "GET", url: `/api/v1/leads?limit=100&q=Qzx&${query}` });
+    expect(r.statusCode, r.body).toBe(200);
+    return (r.json().items as { id: string }[]).map((l) => l.id).sort();
+  };
+  const total = async (c: AuthedClient, query = "") => {
+    const cfg = await h.config();
+    const r = await c.inject({
+      method: "GET",
+      url: `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}&q=Qzx&${query}`,
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    return r.json().total as number;
+  };
+  const view = (scope: "own" | "team") => [
+    { key: "leads.view" as const, scope },
+    { key: "leads.export" as const, scope: null },
+  ];
+
+  it("own, team, an empty team, and all: each sees exactly its leads; filters can narrow, never widen (Review Focus 4)", async () => {
+    const own = await h.seedUser({ grants: view("own"), totp: true });
+    const mate = await h.seedUser({ grants: view("own") });
+    const lone = await h.seedUser({ grants: view("team"), totp: true }); // leads a team, but nobody in it
+    const leader = await h.seedUser({ grants: view("team"), totp: true });
+    const outsider = await h.seedUser({ grants: view("own") });
+    await h.seedTeam(leader.id, [mate.id]);
+    await h.seedTeam(lone.id, []);
+    const L = {
+      own: await h.seedLead({ ownerId: own.id, name: "Qzx Own" }),
+      mate: await h.seedLead({ ownerId: mate.id, name: "Qzx Mate" }),
+      leader: await h.seedLead({ ownerId: leader.id, name: "Qzx Leader" }),
+      lone: await h.seedLead({ ownerId: lone.id, name: "Qzx Lone" }),
+      outsider: await h.seedLead({ ownerId: outsider.id, name: "Qzx Outsider" }),
+      none: await h.seedLead({ ownerId: null, name: "Qzx Unassigned" }),
+    };
+    const c = {
+      own: await h.signIn(own),
+      lone: await h.signIn(lone),
+      leader: await h.signIn(leader),
+    };
+    expect(await ids(c.own)).toEqual([L.own]);
+    expect(await ids(c.leader)).toEqual([L.leader, L.mate].sort());
+    expect(await ids(c.lone)).toEqual([L.lone]);
+    expect(await ids(admin)).toEqual(Object.values(L).sort());
+    // Asking for someone outside the scope, or for unassigned leads, finds nothing; "me" is just their own.
+    expect(await ids(c.own, `ownerId=${outsider.id}`)).toEqual([]);
+    expect(await ids(c.own, "ownerId=none")).toEqual([]);
+    expect(await ids(c.leader, `ownerId=${outsider.id}`)).toEqual([]);
+    expect(await ids(c.leader, `ownerId=${mate.id}`)).toEqual([L.mate]);
+    expect(await ids(c.leader, "ownerId=me")).toEqual([L.leader]);
+    expect(await ids(admin, "ownerId=none")).toEqual([L.none]);
+    // The counts and the export agree with the list.
+    expect(await total(c.own)).toBe(1);
+    expect(await total(c.leader)).toBe(2);
+    expect(await total(c.lone)).toBe(1);
+    expect(await total(admin)).toBe(6);
+    const made = await c.leader.inject({
+      method: "POST",
+      url: "/api/v1/leads/export",
+      payload: { format: "csv", label: "Team", filters: { q: "Qzx" }, columns: ["name"] },
+    });
+    expect(made.statusCode, made.body).toBe(201);
+    expect(made.json().export.rows).toBe(2);
+  });
+
+  it("the condition itself: own names the person, team adds the team (once each), all adds nothing, no grant is own", async () => {
+    const actor = (over: Record<string, unknown>) =>
+      ({
+        actor: { userId: "u-me", teamMemberIds: [], perms: new Map(), isOwner: false, ...over },
+      }) as unknown as FastifyRequest;
+    expect(scopeCondition(actor({ perms: new Map([["leads.view", "all"]]) }))).toBeUndefined();
+    expect(scopeCondition(actor({ perms: new Map([["leads.view", "own"]]) }))).toBeDefined();
+    expect(scopeCondition(actor({ perms: new Map() }))).toBeDefined();
+    expect(
+      scopeCondition(actor({ perms: new Map([["leads.view", "team"]]), teamMemberIds: ["u-me", "u-a"] })),
+    ).toBeDefined();
   });
 });

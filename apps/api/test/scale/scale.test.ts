@@ -127,6 +127,8 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
 
   afterAll(async () => {
     console.table(timings);
+    // One plain line a path too, easy to grep from any runner: SCALE|path|ms|rows.
+    for (const t of timings) console.log(`SCALE|${t.path}|${t.ms}|${t.rows ?? ""}`);
     await h?.close();
   });
 

@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { seesFullContacts } from "@lume/core";
+import { leadScope, seesFullContacts } from "@lume/core";
 import { schema } from "@lume/db";
 import { badRequest } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
@@ -87,10 +87,24 @@ export const orderBy = (sort: ListQuery["sort"]) =>
 
 export type FilterQuery = Omit<ListQuery, "cursor" | "limit" | "sort">;
 
+/**
+ * The person's own lead scope as an ordinary condition (7A). Row-level security already enforces it, but hidden
+ * in a policy the planner can't use an index for it; spelled out here, "my leads" reads the owner index. It mirrors
+ * RLS exactly and is never wider: team adds the team (the person included, once); without a leads.view grant RLS
+ * still shows their own leads, so that's own too; 'all' adds nothing. Unassigned leads are 'all' only, as in RLS.
+ */
+export function scopeCondition(req: FastifyRequest): SQL | undefined {
+  const actor = req.actor!;
+  const scope = leadScope(actor);
+  if (scope === "all") return undefined;
+  if (scope === "team") return inArray(L.ownerId, [...new Set([actor.userId, ...actor.teamMemberIds])]);
+  return eq(L.ownerId, actor.userId);
+}
+
 /** The WHERE for a set of filters: shared by the list and the board counts, so both always agree. */
 export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRegistry): (SQL | undefined)[] {
   const ctx = { actor: req.actor!, fields };
-  const where: (SQL | undefined)[] = [isNull(L.deletedAt)];
+  const where: (SQL | undefined)[] = [isNull(L.deletedAt), scopeCondition(req)];
 
   if (q.pipelineId) where.push(eq(L.pipelineId, q.pipelineId));
   if (q.stageId) where.push(inArray(L.stageId, q.stageId.split(",")));
