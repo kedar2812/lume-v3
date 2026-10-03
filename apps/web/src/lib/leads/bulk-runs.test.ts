@@ -1,7 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetCsrfForTests } from "@/lib/api";
-import { bulkRunsClient, reasonWords, runLine, selectionBody, useBulkRun, type RunView } from "./bulk-runs";
+import { bulkRunsClient, reasonWords, runLine, selectionBody, type RunView } from "./bulk-runs";
+import { useBulkRun } from "./use-bulk-run";
 import { EMPTY_FILTERS } from "./filters";
 
 const run = (over: Partial<RunView> = {}): RunView => ({

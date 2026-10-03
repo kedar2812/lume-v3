@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useRef, type ReactNode } from "react";
 import s from "./Dialog.module.css";
+import { Scrim } from "./Scrim";
 
 const FOCUSABLE =
   'input:not([disabled]), select, textarea, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
 /**
- * A small modal question over a soft scrim: focus moves in and stays in, Escape or the scrim cancels, and
+ * A small modal question over the full-window scrim (7C): focus moves in and stays in, Escape or the scrim cancels, and
  * focus goes back to where it was when it closes.
  */
 export function Dialog({
@@ -33,8 +34,7 @@ export function Dialog({
   }, []);
 
   return (
-    <div className={s.layer}>
-      <div className={s.scrim} onClick={onClose} aria-hidden />
+    <Scrim onClose={onClose} className={s.layer}>
       <div
         ref={panel}
         role="dialog"
@@ -63,6 +63,6 @@ export function Dialog({
       >
         {children}
       </div>
-    </div>
+    </Scrim>
   );
 }

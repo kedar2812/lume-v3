@@ -851,3 +851,158 @@
   background: var(--hover);
   color: var(--text-2);
 }
+
+/* 7C: the line that offers every lead that matches, not only the page loaded */
+.selectAll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  animation: selectAllIn 0.55s var(--spring) both;
+}
+.selectAll[data-all] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.25);
+}
+.selectAll b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.selectAll[data-all] b {
+  color: var(--accent-ink);
+}
+.selectAll button {
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.selectAll button:hover {
+  background: var(--accent-soft);
+}
+@keyframes selectAllIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* 7C: Recent bulk actions, beside Import */
+.historyBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+.historyBtn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.historyBtn:active {
+  transform: scale(0.94);
+}
+
+/* 7C: the search field says what it will look at */
+.search {
+  position: relative;
+}
+.mode {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  animation: modeIn 0.45s var(--spring) both;
+}
+.mode[data-tone="wait"] {
+  background: var(--sunk);
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.mode[data-tone="prefix"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.mode[data-tone="inside"] {
+  background: var(--accent);
+  color: #fff;
+}
+.mode[data-tone="names"] {
+  background: var(--sunk);
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+@keyframes modeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+}
+.searchTip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 10px);
+  z-index: 40;
+  width: max(100%, 340px);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-2);
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  animation: modeIn 0.4s var(--spring) both;
+  pointer-events: none;
+}
+.capped {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 8px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  animation: selectAllIn 0.55s var(--spring) both;
+}
+.capped b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.horizon {
+  flex: none;
+  width: 140px;
+  height: 8px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--line-2) 55%, transparent);
+  position: relative;
+  overflow: hidden;
+}
+.horizon i {
+  position: absolute;
+  inset: 0 45% 0 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--sky), var(--accent));
+}

@@ -40,7 +40,12 @@ export type Lead = {
   contactMasked: boolean;
   can: LeadCan;
 };
-export type LeadPage = { items: Lead[]; nextCursor: string | null };
+export type LeadPage = {
+  items: Lead[];
+  nextCursor: string | null;
+  /** A search past 10,000 matches lists the newest 10,000 (7A); the screen says so (7C). */
+  searchCapped?: boolean;
+};
 
 export type Stage = {
   id: string;

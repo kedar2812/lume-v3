@@ -31,7 +31,9 @@ import { StartRun } from "@/components/queue/StartRun";
 import { suggestFor } from "@/lib/templates/order";
 import type { Catalog, Lead, LeadPage } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
-import { BulkBar } from "./BulkBar";
+import { Island } from "./island/Island";
+import { RunsDrawer } from "./runs/RunsDrawer";
+import { selectionBody, type RunView } from "@/lib/leads/bulk-runs";
 import { CatalogProvider } from "./CatalogProvider";
 import { ColumnPicker } from "./ColumnPicker";
 import { ExportSheet } from "./ExportSheet";
@@ -68,6 +70,7 @@ const sameFilters = (a: Record<string, string>, b: Record<string, string>) =>
 function useLeadList(filters: ListFilters, first: LeadPage | null) {
   const [rows, setRows] = useState<Lead[]>(first?.items ?? []);
   const [cursor, setCursor] = useState<string | null>(first?.nextCursor ?? null);
+  const [capped, setCapped] = useState(!!first?.searchCapped);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<"offline" | "busy" | "load" | null>(first === null ? "load" : null);
   const generation = useRef(0);
@@ -87,6 +90,7 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
         after ? [...prev, ...r.data.items.filter((x) => !prev.some((p) => p.id === x.id))] : r.data.items,
       );
       setCursor(r.data.nextCursor);
+      if (!after) setCapped(!!r.data.searchCapped);
     },
     [filters],
   );
@@ -109,6 +113,7 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
     rows,
     loading,
     error,
+    capped,
     hasMore: cursor !== null,
     loadMore: () => {
       if (cursor && !loading) void fetchPage(cursor);
@@ -227,6 +232,8 @@ function Screen({
   // 6B: export the current view, marked and traceable.
   const mayExport = can(session.actor, "leads.export");
   const [exporting, setExporting] = useState(false);
+  // 7C: Recent bulk actions, from the toolbar.
+  const [runsOpen, setRunsOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   // A finished import of yours not looked at yet: Import wears a dot, and opens its report first.
   const [unseenImport, setUnseenImport] = useState<string | null>(null);
@@ -258,6 +265,10 @@ function Screen({
   const personal = scopeOf(session.actor, "leads.view") !== "all";
   const arrivals = useArrivals();
   const [selected, setSelected] = useState<string[]>([]);
+  // 7C: every lead that matches, minus the ones unticked (sent as the filter, never as ids).
+  const [allMatching, setAllMatching] = useState(false);
+  const [except, setExcept] = useState<string[]>([]);
+  const [, setRun] = useState<RunView | null>(null);
   const anchor = useRef<string | null>(null);
   const editor = useLeadEditor(list.replace);
   const pipeline = shownPipeline;
@@ -297,9 +308,15 @@ function Screen({
   const filterKey = JSON.stringify({ ...filters, sort: undefined });
   useEffect(() => {
     setSelected([]);
+    setAllMatching(false);
+    setExcept([]);
     anchor.current = null;
   }, [filterKey]);
   const toggle = (id: string, range: boolean) => {
+    if (allMatching) {
+      setExcept((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+      return;
+    }
     const ids = list.rows.map((r) => r.id);
     const from = anchor.current;
     setSelected((prev) => {
@@ -314,8 +331,22 @@ function Screen({
     anchor.current = id;
   };
   const loadedIds = list.rows.map((r) => r.id);
-  const allLoaded = loadedIds.length > 0 && loadedIds.every((id) => selected.includes(id));
-  const someLoaded = !allLoaded && loadedIds.some((id) => selected.includes(id));
+  const allLoaded =
+    loadedIds.length > 0 && (allMatching ? !except.length : loadedIds.every((id) => selected.includes(id)));
+  const someLoaded = !allLoaded && (allMatching || loadedIds.some((id) => selected.includes(id)));
+  // How many leads match the filters, as the stage strip counts them (the stage filter included).
+  const matchTotal = stageCounts
+    ? filters.stageIds.length
+      ? filters.stageIds.reduce((a, id) => a + (stageCounts.counts[id] ?? 0), 0)
+      : stageCounts.total
+    : loadedIds.length;
+  const selectedCount = allMatching ? Math.max(0, matchTotal - except.length) : selected.length;
+  const isPicked = (id: string) => (allMatching ? !except.includes(id) : selected.includes(id));
+  const clearSelection = () => {
+    setSelected([]);
+    setAllMatching(false);
+    setExcept([]);
+  };
 
   // Scrolling near the end loads the next page; the Load more button stays for keyboard and screen readers.
   const { hasMore, loadMore } = list;
@@ -383,6 +414,43 @@ function Screen({
             </button>
           </p>
         )}
+        {list.capped && (
+          <p className={s.capped} role="note">
+            <span className={s.horizon} aria-hidden>
+              <i />
+            </span>
+            <span>
+              <b>More than 10,000 leads match.</b> LUME lists the newest 10,000. Add another word, or a
+              filter, to find the rest.
+            </span>
+          </p>
+        )}
+        {maySelect && (allMatching || (allLoaded && list.hasMore)) && (
+          <p className={s.selectAll} role="status" data-all={allMatching || undefined}>
+            {allMatching ? (
+              <>
+                All <b>{selectedCount.toLocaleString("en-US")}</b> that match are selected
+                {except.length ? ` (${except.length} left out)` : ""}.
+                <button type="button" onClick={clearSelection}>
+                  Clear
+                </button>
+              </>
+            ) : (
+              <>
+                All <b>{loadedIds.length}</b> on this page are selected.
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAllMatching(true);
+                    setExcept([]);
+                  }}
+                >
+                  Select all {matchTotal.toLocaleString("en-US")} that match
+                </button>
+              </>
+            )}
+          </p>
+        )}
         <LeadsTable
           glowing={arrivals.glowing}
           catalog={catalog}
@@ -401,11 +469,13 @@ function Screen({
                       checked={allLoaded}
                       mixed={someLoaded}
                       onToggle={() =>
-                        setSelected((prev) =>
-                          allLoaded
-                            ? prev.filter((id) => !loadedIds.includes(id))
-                            : [...new Set([...prev, ...loadedIds])],
-                        )
+                        allMatching
+                          ? clearSelection()
+                          : setSelected((prev) =>
+                              allLoaded
+                                ? prev.filter((id) => !loadedIds.includes(id))
+                                : [...new Set([...prev, ...loadedIds])],
+                            )
                       }
                     />
                   ),
@@ -414,7 +484,7 @@ function Screen({
                       type="checkbox"
                       className={s.checkbox}
                       aria-label={`Select ${lead.name ?? "lead"}`}
-                      checked={selected.includes(lead.id)}
+                      checked={isPicked(lead.id)}
                       onChange={() => undefined}
                       onClick={(e) => toggle(lead.id, e.shiftKey)}
                     />
@@ -541,6 +611,31 @@ function Screen({
                 }}
               />
             )}
+            {mayBulk && (
+              <button
+                type="button"
+                className={s.historyBtn}
+                aria-label="Recent bulk actions"
+                title="Recent bulk actions"
+                onClick={() => setRunsOpen(true)}
+              >
+                <svg
+                  width="17"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M12 7v5l4 2" />
+                </svg>
+              </button>
+            )}
             {mayImport && (
               <Button
                 variant="secondary"
@@ -617,26 +712,42 @@ function Screen({
         />
       )}
       <AnimatePresence>
-        {maySelect && selected.length > 0 && (
-          <BulkBar
+        {maySelect && (
+          <Island
             key="bulk"
             session={session}
-            selected={selected}
-            allLoaded={allLoaded && list.hasMore}
+            count={selectedCount}
+            allMatching={allMatching}
+            leadIds={allMatching ? [] : selected}
+            selection={() =>
+              selectionBody(
+                { mode: allMatching ? "all" : "ids", ids: selected, except },
+                listFilters,
+                selectedCount,
+              )
+            }
             phoneFixable={list.rows.some(
-              (r) =>
-                selected.includes(r.id) &&
-                (r.phone?.status === "needs_country" || r.phone?.status === "invalid"),
+              (r) => isPicked(r.id) && (r.phone?.status === "needs_country" || r.phone?.status === "invalid"),
             )}
-            onClear={() => setSelected([])}
-            onDone={(result) => {
+            onRun={setRun}
+            onClear={clearSelection}
+            onFinished={() => {
               list.reload();
               recount();
-              setSelected(result.skipped.map((x) => x.id));
             }}
           />
         )}
       </AnimatePresence>
+      {runsOpen && (
+        <RunsDrawer
+          session={session}
+          onClose={() => setRunsOpen(false)}
+          onChanged={() => {
+            list.reload();
+            recount();
+          }}
+        />
+      )}
       <ImportSheet
         open={importing}
         {...(unseenImport ? { importId: unseenImport } : {})}

@@ -299,3 +299,8 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* 7C: where a tucked-away bulk run shows (empty takes no room) */
+.slot {
+  display: contents;
+}

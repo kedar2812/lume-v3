@@ -105,6 +105,8 @@ export function TopBar({
         <Kbd>Ctrl K</Kbd>
       </button>
       {canQueue && <ResumeRun variant="pill" />}
+      {/* 7C: a bulk run tucked away shows here as a pill until it's opened again. */}
+      <span id="lume-topbar-slot" className={s.slot} />
       {/* On a phone the theme lives in Settings → My account only: the bar keeps search and the bell. */}
       <span className={s.themeSlot}>
         <ThemeToggle initial={theme} />

@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
+import { bulkRunsClient } from "@/lib/leads/bulk-runs";
 import { EMPTY_FILTERS } from "@/lib/leads/filters";
 import { testCatalog, testLead as lead } from "@/lib/leads/test-catalog";
 import { fakeSession } from "@/server/session";
@@ -25,6 +26,13 @@ vi.mock("@/lib/views/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/views/client")>()),
   viewsClient: { list: vi.fn(), update: vi.fn(), create: vi.fn() },
 }));
+vi.mock("@/lib/leads/bulk-runs", async (orig) => {
+  const real = await orig<typeof import("@/lib/leads/bulk-runs")>();
+  return {
+    ...real,
+    bulkRunsClient: { create: vi.fn(), get: vi.fn(), list: vi.fn(), cancel: vi.fn(), undo: vi.fn() },
+  };
+});
 vi.mock("@/lib/leads/client", () => ({
   leadsClient: {
     list: vi.fn(),
@@ -489,7 +497,7 @@ describe("LeadsScreen", () => {
     expect(within(bar).queryByRole("button", { name: "Move to stage" })).not.toBeInTheDocument();
   });
 
-  it("selects rows for bulk actions, a range with Shift, and keeps only the skipped ones selected after", async () => {
+  it("selects rows for bulk actions, a range with Shift, and runs the action on exactly those (7C island)", async () => {
     const rows = ["Aisha Khan", "Omar Farouk", "Sara Ali", "Zain Malik"].map((name, i) =>
       lead({ id: `l${i + 1}`, name }),
     );
@@ -498,10 +506,30 @@ describe("LeadsScreen", () => {
       status: 200,
       data: { items: rows, nextCursor: null },
     });
-    vi.mocked(leadsClient.bulk).mockResolvedValue({
+    vi.mocked(bulkRunsClient.create).mockResolvedValue({
       ok: true,
       status: 200,
-      data: { updated: ["l1", "l2"], skipped: [{ id: "l3", code: "FORBIDDEN" }] },
+      data: {
+        run: {
+          id: "r1",
+          userId: "u1",
+          action: { type: "delete" },
+          selection: { kind: "ids", total: 3 },
+          status: "done",
+          total: 3,
+          done: 2,
+          skipped: 1,
+          failed: 0,
+          skippedBy: { FORBIDDEN: 1 },
+          error: null,
+          createdAt: "2026-10-03T10:00:00Z",
+          startedAt: "2026-10-03T10:00:00Z",
+          finishedAt: "2026-10-03T10:00:01Z",
+          undoOf: null,
+          undoUntil: "2026-10-04T10:00:01Z",
+          canUndo: true,
+        },
+      },
     });
     const user = userEvent.setup();
     view({ session: admin(), first: { items: rows, nextCursor: null } });
@@ -510,15 +538,14 @@ describe("LeadsScreen", () => {
     await user.click(screen.getByRole("checkbox", { name: "Select Sara Ali" }));
     await user.keyboard("{/Shift}");
     const bar = screen.getByRole("toolbar", { name: "Bulk actions" });
-    expect(within(bar).getByText("3 selected")).toBeInTheDocument();
+    expect(bar).toHaveTextContent(/3\s*selected/);
     expect(screen.getByRole("checkbox", { name: "Select all loaded" })).toHaveProperty("indeterminate", true);
-    await user.click(within(bar).getByRole("button", { name: "Delete" }));
-    await user.click(within(bar).getByRole("button", { name: "Delete 3 leads" }));
-    expect(leadsClient.bulk).toHaveBeenCalledWith(["l1", "l2", "l3"], { type: "delete" });
-    await vi.waitFor(() =>
-      expect(within(screen.getByRole("toolbar")).getByText("1 selected")).toBeInTheDocument(),
-    );
-    expect(screen.getByRole("checkbox", { name: "Select Sara Ali" })).toBeChecked();
+    await user.click(within(bar).getByRole("button", { name: "More bulk actions" }));
+    await user.click(screen.getByRole("button", { name: "Delete 3 leads…" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(bulkRunsClient.create).toHaveBeenCalledWith({ ids: ["l1", "l2", "l3"] }, { type: "delete" });
+    expect(await screen.findByText("2 leads deleted")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1 skipped" })).toBeInTheDocument();
     expect(leadsClient.list).toHaveBeenCalled(); // the list reloads after a bulk action
   });
 
@@ -533,7 +560,7 @@ describe("LeadsScreen", () => {
       first: { items: [lead(), lead({ id: "l2", name: "Omar Farouk" })], nextCursor: null },
     });
     await userEvent.click(screen.getByRole("checkbox", { name: "Select all loaded" }));
-    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: "Bulk actions" })).toHaveTextContent(/2\s*selected/);
     await userEvent.type(screen.getByRole("searchbox", { name: "Search leads" }), "zz");
     await vi.waitFor(() =>
       expect(screen.queryByRole("toolbar", { name: "Bulk actions" })).not.toBeInTheDocument(),
@@ -667,5 +694,54 @@ describe("LeadsScreen", () => {
   it("offers no editing where the person can't edit", () => {
     view({ first: { items: [lead({ can: { ...lead().can, edit: false } })], nextCursor: null } });
     expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+  });
+
+  it("7C: offers every lead that matches, and sends the filter, not ids, minus the ones unticked", async () => {
+    const rows = ["Aisha Khan", "Omar Farouk"].map((name, i) => lead({ id: `l${i + 1}`, name }));
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: rows, nextCursor: "c2" },
+    });
+    vi.mocked(bulkRunsClient.create).mockResolvedValue({
+      ok: false,
+      status: 422,
+      code: "TOO_MANY",
+      message: "Narrow the selection: up to 50,000 leads at a time.",
+    });
+    const user = userEvent.setup();
+    view({ session: admin(), first: { items: rows, nextCursor: "c2" } });
+    await user.click(screen.getByRole("checkbox", { name: "Select all loaded" }));
+    await user.click(await screen.findByRole("button", { name: /^Select all .* that match$/ }));
+    expect(screen.getByRole("status")).toHaveTextContent(/that match are selected/);
+    await user.click(screen.getByRole("checkbox", { name: "Select Omar Farouk" }));
+    expect(screen.getByRole("status")).toHaveTextContent("(1 left out)");
+    const bar = screen.getByRole("toolbar", { name: "Bulk actions" });
+    await user.click(within(bar).getByRole("button", { name: "More bulk actions" }));
+    await user.click(screen.getByRole("button", { name: /^Delete .* leads…$/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const [selection] = vi.mocked(bulkRunsClient.create).mock.calls.at(-1)!;
+    expect(selection).toEqual(expect.objectContaining({ except: ["l2"], filters: expect.any(Object) }));
+    expect(JSON.stringify(selection)).not.toContain('"ids"');
+    expect(await screen.findByRole("alert")).toHaveTextContent("Narrow the selection");
+  });
+
+  it("7C: a search past the cap says so, and how to find the rest; an ordinary list says nothing", async () => {
+    const rows = [lead({ id: "l1", name: "Aisha Khan" })];
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: rows, nextCursor: null, searchCapped: true },
+    });
+    const { unmount } = view({
+      session: admin(),
+      first: { items: rows, nextCursor: null, searchCapped: true },
+    });
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "More than 10,000 leads match. LUME lists the newest 10,000.",
+    );
+    unmount();
+    view({ session: admin(), first: { items: rows, nextCursor: null } });
+    expect(screen.queryByText(/More than 10,000 leads match/)).not.toBeInTheDocument();
   });
 });

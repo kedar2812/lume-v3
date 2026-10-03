@@ -15,6 +15,7 @@ import {
 import type { Catalog, FieldDefView } from "@/lib/leads/types";
 import type { Session } from "@/server/session";
 import s from "./leads.module.css";
+import { searchMode } from "@/lib/leads/search-mode";
 
 const PHONE_LABEL: Record<PhoneStatus, string> = {
   valid: "Valid phone",
@@ -61,6 +62,7 @@ export function FilterBar({
   const phoneVisible = catalog.fields.find((f) => f.key === "phone")?.access !== "hidden";
   const extra = filterableFields(catalog);
   const count = activeFilterCount(hideStage ? { ...filters, stageIds: [] } : filters);
+  const mode = searchMode(filters.q ?? "", contactsVisible);
 
   // "/" jumps to search from anywhere that isn't already a field.
   useEffect(() => {
@@ -89,7 +91,19 @@ export function FilterBar({
           maxLength={100}
           value={filters.q ?? ""}
           onChange={(e) => set({ q: e.target.value || undefined })}
+          aria-describedby={mode?.tip ? "search-tip" : undefined}
         />
+        {/* 7C: what the term will look at, said inside the field as it's typed */}
+        {mode && (
+          <span className={s.mode} data-tone={mode.tone} key={mode.label} aria-live="polite">
+            {mode.label}
+          </span>
+        )}
+        {mode?.tip && (
+          <span id="search-tip" className={s.searchTip} role="status">
+            {mode.tip}
+          </span>
+        )}
       </label>
 
       {!hideStage && pipeline && (

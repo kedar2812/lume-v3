@@ -1,0 +1,30 @@
+/* One scrim for every LUME popup (owner, 2026-10-03): the whole window steps back — sidebar and top bar included —
+   dimmed and softly blurred, never part of it. It lives on <body>, so no transformed or clipped parent can crop it. */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  backdrop-filter: blur(10px) saturate(120%);
+  animation: scrimIn 0.32s ease-out both;
+}
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .scrim {
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--scrim) 100%, var(--canvas) 35%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scrim {
+    animation-duration: 0.01ms;
+  }
+}
