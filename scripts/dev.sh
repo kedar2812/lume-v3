@@ -57,7 +57,7 @@ cmd_run() {
   local q
   q="$(printf '%q ' "$@")"
   remote "cd $REMOTE_SRC && nice -n 10 docker run --rm -i --init --cpus 1.5 --memory 3g \
-    --network $TEST_NET --env-file $REMOTE_ROOT/test.env -e CI=1 -e npm_config_store_dir=/pnpm-store \
+    --network $TEST_NET --env-file $REMOTE_ROOT/test.env \$(test -s $REMOTE_ROOT/scale.env && echo --env-file $REMOTE_ROOT/scale.env) -e CI=1 -e npm_config_store_dir=/pnpm-store \
     -v $REMOTE_SRC:/repo -v lumedev_pnpm_store:/pnpm-store -w /repo \
     $TOOLBOX bash -lc $(printf '%q' "$q")"
 }

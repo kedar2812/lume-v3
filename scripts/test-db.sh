@@ -41,4 +41,47 @@ EOF
 
 down() { docker rm -f "$NAME" >/dev/null 2>&1 || true; : > "$ROOT/test.env"; echo "$NAME removed"; }
 
-case "${1:-up}" in up) up ;; down) down ;; *) echo "usage: test-db.sh up|down" >&2; exit 2 ;; esac
+# Phase 7: a disk-backed Postgres for the scale test (a year of leads won't fit the test database's tmpfs). Same
+# image, roles and limits (1 CPU, 1 GB); no published port; its volume is dropped by scale-down.
+SCALE=lumedev-pgscale
+scale_up() {
+  docker network inspect "$NET" >/dev/null 2>&1 || docker network create --subnet 172.31.0.0/24 "$NET" >/dev/null
+  if [ -n "$(docker ps -q -f "name=^${SCALE}$")" ]; then echo "$SCALE already running"; return; fi
+  docker rm -f "$SCALE" >/dev/null 2>&1 || true
+  local su owner app worker backup restore
+  su="$(openssl rand -hex 24)"; owner="$(openssl rand -hex 24)"; app="$(openssl rand -hex 24)"
+  worker="$(openssl rand -hex 24)"; backup="$(openssl rand -hex 24)"; restore="$(openssl rand -hex 24)"
+  docker volume rm -f lumedev_pgscale >/dev/null 2>&1 || true
+  docker run -d --name "$SCALE" --network "$NET" --cpus 1 --memory 1g -v lumedev_pgscale:/var/lib/postgresql/data \
+    -e POSTGRES_PASSWORD="$su" -e LUME_OWNER_PASSWORD="$owner" -e LUME_APP_PASSWORD="$app" \
+    -e LUME_WORKER_PASSWORD="$worker" -e LUME_BACKUP_PASSWORD="$backup" -e LUME_RESTORE_PASSWORD="$restore" \
+    -v "$SRC/infra/postgres/init:/docker-entrypoint-initdb.d:ro" \
+    -v "$SRC/infra/postgres/pg_hba.test.conf:/etc/postgresql/pg_hba.conf:ro" \
+    postgres:17 -c hba_file=/etc/postgresql/pg_hba.conf -c fsync=off -c shared_buffers=256MB \
+    -c work_mem=16MB -c maintenance_work_mem=128MB -c max_connections=50 >/dev/null
+  for _ in $(seq 1 60); do
+    if docker exec "$SCALE" pg_isready -q -h 127.0.0.1 -U postgres; then break; fi
+    sleep 1
+  done
+  docker exec "$SCALE" pg_isready -q -h 127.0.0.1 -U postgres || { docker logs "$SCALE" | tail -40; exit 1; }
+  umask 077
+  cat > "$ROOT/scale.env" <<EOF
+SCALE_DATABASE_URL=postgres://postgres:${su}@${SCALE}:5432/postgres
+SCALE_PW_LUME_OWNER=${owner}
+SCALE_PW_LUME_APP=${app}
+SCALE_PW_LUME_WORKER=${worker}
+SCALE_PW_LUME_READONLY_BACKUP=${backup}
+SCALE_PW_LUME_RESTORE=${restore}
+EOF
+  echo "$SCALE ready"
+}
+scale_down() {
+  docker rm -f "$SCALE" >/dev/null 2>&1 || true
+  docker volume rm -f lumedev_pgscale >/dev/null 2>&1 || true
+  : > "$ROOT/scale.env"; echo "$SCALE removed"
+}
+
+case "${1:-up}" in
+  up) up ;; down) down ;; scale-up) scale_up ;; scale-down) scale_down ;;
+  *) echo "usage: test-db.sh up|down|scale-up|scale-down" >&2; exit 2 ;;
+esac
