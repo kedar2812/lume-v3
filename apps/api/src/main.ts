@@ -4,6 +4,7 @@ import { ARGON2_PRODUCTION } from "@lume/core/password";
 import { apiSchema, loadConfig } from "@lume/config";
 import { buildApp, type AppDeps } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
+import { startBulkQueue } from "./modules/leads/bulk-queue";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
 import { calendarClientFor } from "./modules/calendar/google";
@@ -38,6 +39,8 @@ const { rows } = await pool.query<{ has_users: boolean }>("SELECT EXISTS (SELECT
 const keyring = await loadKeyring(pool, masterKeyFromBase64(cfg.LUME_MASTER_KEY));
 // Filled in once the queue is up (it needs the built app); the queue starts before the API listens.
 const imports: { enqueue(id: string): Promise<void> } = { enqueue: async () => undefined };
+// Bulk runs over the inline limit (7B): filled once their queue is up.
+const bulk: { enqueue(id: string): Promise<void> } = { enqueue: async () => undefined };
 // Google Sheets (2B): only on a server with a service-account key; without one the module can't be switched on.
 const account = parseServiceAccount(cfg.GOOGLE_SERVICE_ACCOUNT_JSON);
 const google = account ? createGoogleSheets({ account, endpoint: cfg.LUME_GOOGLE_ENDPOINT }) : null;
@@ -64,6 +67,7 @@ const app = await buildApp({
   pool,
   keyring,
   imports,
+  bulk,
   jobPool,
   google,
   sheets,
@@ -96,6 +100,8 @@ const app = await buildApp({
 });
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;
+const bulkQueue = await startBulkQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool });
+bulk.enqueue = bulkQueue.enqueue;
 // Sheets sync when either way of reading them is set up here: a service account, or Connect with Google.
 const sheetQueue =
   google || googleOAuth
@@ -152,6 +158,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     await sheetQueue?.stop();
     await calendarQueue?.stop();
     await queue.stop();
+    await bulkQueue.stop();
     await app.close();
     await jobPool.end();
     await pool.end();

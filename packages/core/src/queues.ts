@@ -5,6 +5,7 @@ export const QUEUE_NAMES = [
   "ops.idempotency-cleanup",
   "imports.run",
   "imports.retention",
+  "bulk.run",
   "sheets.sync",
   "sheets.retention",
   "calendar.sync",

@@ -630,6 +630,16 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.bulk_edit",
     body: (f) => ({ ids: [f.leadId], action: { type: "tags", add: [f.tagId] } }),
   },
+  // Bulk runs (7B).
+  "POST /api/v1/leads/bulk-runs": {
+    access: "leads.bulk_edit",
+    body: (f) => ({ selection: { ids: [f.leadId] }, action: { type: "tags", add: [f.tagId] } }),
+  },
+  "GET /api/v1/leads/bulk-runs": { access: "leads.bulk_edit" },
+  "GET /api/v1/leads/bulk-runs/:id": {
+    access: "leads.bulk_edit",
+    path: () => `/api/v1/leads/bulk-runs/${uuid}`,
+  },
   "POST /api/v1/stages/:id/archive": {
     access: "pipelines.manage",
     path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,

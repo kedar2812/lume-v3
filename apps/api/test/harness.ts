@@ -25,6 +25,7 @@ import {
 import { hashPassword, type Argon2Params } from "@lume/core/password";
 import { buildApp, type AppDeps } from "../src/app";
 import { runImport, type RunHooks } from "../src/modules/imports/runner";
+import { processRun } from "../src/modules/leads/bulk-runs";
 import {
   createGoogleSheets,
   oauthClientFor,
@@ -135,6 +136,10 @@ export type Harness = {
   }): Promise<string>;
   /** Runs every queued import now, as the job would (tests steer it with the hooks). */
   runImports(o?: RunHooks & { parallel?: boolean }): Promise<void>;
+  /** Runs every queued bulk run now, as the bulk queue would (7B); a thrown run stays queued, as pg-boss retries. */
+  runBulk(): Promise<void>;
+  /** Bulk runs queued so far and not yet run (7B). */
+  bulkQueue: string[];
   /** The fake Google (with `google: true`), and the client pointed at it. */
   fake: GoogleFake | null;
   google: GoogleSheets | null;
@@ -219,6 +224,7 @@ export async function createHarness(
   };
   const waiters = new Map<string, () => void>();
   const queued: string[] = [];
+  const bulkQueued: string[] = [];
   const fake = opts.google ? await startGoogleFake() : null;
   const google = fake
     ? createGoogleSheets({
@@ -256,6 +262,7 @@ export async function createHarness(
     },
     extraRoutes: opts.extraRoutes,
     imports: { enqueue: async (id) => void queued.push(id) },
+    bulk: { enqueue: async (id) => void bulkQueued.push(id) },
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
     calendar: { enqueue: async (id) => void calendarQueue.push(id) },
@@ -380,6 +387,10 @@ export async function createHarness(
       waiters.delete(marker);
     },
     actorOf: (userId) => loadActor(pool, userId),
+    bulkQueue: bulkQueued,
+    async runBulk() {
+      for (const id of bulkQueued.splice(0)) await processRun({ app, pool, clock: () => clock.now }, id);
+    },
     async runImports(o = {}) {
       const ids = queued.splice(0);
       const once = (id: string) =>

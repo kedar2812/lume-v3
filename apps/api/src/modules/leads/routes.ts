@@ -10,7 +10,7 @@ import { schema } from "@lume/db";
 import { prepareMessage } from "./messages";
 import { confirmSend, logReply, messageContext, renderFor } from "./sending";
 import type { AppDeps } from "../../app";
-import { runBulk } from "./bulk";
+import { bulkAnswer, createRun, listRuns, readRun, type Selection } from "./bulk-runs";
 import { SUSPENDED_BODY } from "../security/watch";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
@@ -67,6 +67,30 @@ const listQuery = z.object({
 });
 /** The list's filters and sort, without paging: what a saved view stores (4B). */
 export const filterQuerySchema = listQuery.omit({ cursor: true, limit: true });
+
+/** A bulk action, as POST /leads/bulk and bulk runs take it (validated per lead when it runs). */
+const bulkActionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("stage"),
+    stageId: z.uuid(),
+    lostReasonId: z.uuid().optional(),
+    lostNote: z.string().trim().max(1000).optional(),
+  }),
+  z.object({ type: z.literal("assign"), ownerId: z.uuid().nullable() }),
+  z.object({
+    type: z.literal("tags"),
+    add: z.array(z.uuid()).max(20).optional(),
+    remove: z.array(z.uuid()).max(20).optional(),
+  }),
+  z.object({ type: z.literal("delete") }),
+  z.object({
+    type: z.literal("set_phone_country"),
+    country: z
+      .string()
+      .regex(/^[A-Z]{2}$/)
+      .refine((c) => dialCountries().some((d) => d.iso === c), "Unknown country"),
+  }),
+]);
 
 export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
@@ -285,31 +309,49 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
       schema: {
         body: z.object({
           ids: z.array(z.uuid()).min(1).max(100),
-          action: z.discriminatedUnion("type", [
-            z.object({
-              type: z.literal("stage"),
-              stageId: z.uuid(),
-              lostReasonId: z.uuid().optional(),
-              lostNote: z.string().trim().max(1000).optional(),
-            }),
-            z.object({ type: z.literal("assign"), ownerId: z.uuid().nullable() }),
-            z.object({
-              type: z.literal("tags"),
-              add: z.array(z.uuid()).max(20).optional(),
-              remove: z.array(z.uuid()).max(20).optional(),
-            }),
-            z.object({ type: z.literal("delete") }),
-            z.object({
-              type: z.literal("set_phone_country"),
-              country: z
-                .string()
-                .regex(/^[A-Z]{2}$/)
-                .refine((c) => dialCountries().some((d) => d.iso === c), "Unknown country"),
-            }),
-          ]),
+          action: bulkActionSchema,
         }),
       },
     },
-    (req) => runBulk(req, req.body.ids, req.body.action),
+    (req) => bulkAnswer(req, req.body.ids, req.body.action, d.clock()),
+  );
+  // Phase 7B: bulk runs — picked ids or everything a filter shows, up to 50,000, inline or queued.
+  r.post(
+    "/api/v1/leads/bulk-runs",
+    {
+      config: { permission: "leads.bulk_edit" },
+      schema: {
+        body: z.object({
+          selection: z.union([
+            z.object({ ids: z.array(z.uuid()).max(5000) }).strict(),
+            z
+              .object({
+                filters: filterQuerySchema.partial(),
+                except: z.array(z.uuid()).max(5000).optional(),
+                expected: z.number().int().min(0).optional(),
+              })
+              .strict(),
+          ]),
+          action: bulkActionSchema,
+        }),
+      },
+    },
+    async (req, reply) => {
+      const { status, run } = await createRun(req, {
+        selection: req.body.selection as Selection,
+        action: req.body.action,
+        enqueue: d.bulk?.enqueue,
+        now: d.clock(),
+      });
+      return reply.code(status).send({ run });
+    },
+  );
+  r.get("/api/v1/leads/bulk-runs", { config: { permission: "leads.bulk_edit" } }, async (req) => ({
+    runs: await listRuns(req, d.clock()),
+  }));
+  r.get(
+    "/api/v1/leads/bulk-runs/:id",
+    { config: { permission: "leads.bulk_edit" }, schema: { params } },
+    async (req) => ({ run: await readRun(req, req.params.id, d.clock()) }),
   );
 }
