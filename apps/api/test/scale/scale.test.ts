@@ -312,7 +312,7 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
       rows: undone.done,
     });
     await run("tag 50k", { type: "tags", add: [tag] });
-    await run("stage 50k (per lead)", { type: "stage", stageId: cfg.stages[Object.keys(cfg.stages)[1]!]! });
+    await run("stage 50k", { type: "stage", stageId: cfg.stages[Object.keys(cfg.stages)[1]!]! });
     const stopped = await run(
       "delete, cancelled after 10 chunks",
       { type: "delete" },

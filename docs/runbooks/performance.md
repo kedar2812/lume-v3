@@ -97,7 +97,44 @@ ms, median of 5. An export builds its whole file in the request, so it grows wit
 
 The target at 2,000,000 leads is checked once on a production-sized server when one exists.
 
-## Bulk actions
+## Bulk actions (Phase 7B)
 
-Bulk actions on large selections, with progress and undo, are Phase 7B
-(`docs/superpowers/specs/2026-10-03-phase-7-scale-design.md`).
+Every bulk action is a run (`bulk_runs`, 0049). Each lead in it is an item (`bulk_run_items`) holding its before-values.
+
+- **The selection:** up to 50,000 leads.
+  - It is the leads picked (up to 5,000 ids), or everything the filters show minus the ones unticked.
+  - It is read as the person and snapshotted, so leads changing mid-run don't change the run.
+  - A capped search can't be a selection (`SEARCH_TOO_BROAD`).
+- **How it runs:**
+  - Up to 500 leads change in the request.
+  - More are queued on pg-boss inside the API. They run in chunks of 500, each chunk one transaction as the person, with their access read afresh before each chunk.
+- **What each action does:**
+  - assign, tags, delete and phone country are set-based within a chunk.
+  - Stage moves check everything a single move checks: required fields, lost reason, won/lost stamps, history, reopened, and the stage's automations. The lookups run once a chunk and the writes go together; only the automations run lead by lead.
+- **Cancel** stops after the current chunk.
+- **A crash** resumes from the last committed chunk: only pending items are taken.
+- **Past the queue's retries** a run ends `failed`, with its done chunks kept.
+- **Undo, for 24 hours:**
+  - It is a run over the done items.
+  - A lead goes back only if its version is still the one the run left; otherwise it's `CHANGED_SINCE` and keeps the newer change.
+  - Automations a stage already ran stay done.
+- **What's recorded:**
+  - One `lead.bulk` audit entry per run, and no per-lead audit entries.
+  - Each lead's history (assignment, stage, activities) as a single edit writes it.
+  - One notice to each new owner, and one `bulk_done` to the maker of a queued run.
+- **Retention:** items are cleared 30 days after a run ends; the run stays.
+
+### Measured: 200,000 leads, 50,000 by filter (dev box, scale database: 1 CPU, 1 GB)
+
+| Run (49,201 leads by filter) | Time | Per 1,000 |
+| --- | ---: | ---: |
+| Assign | 11.7 s | 0.24 s |
+| Undo of that assign | 13.4 s | 0.27 s |
+| Add a tag | 8.8 s | 0.18 s |
+| Move stage (every single-move check, set-based) | 9.6 s | 0.19 s |
+| Delete, cancelled after 10 chunks (5,000 done) | 1.2 s | — |
+| Assign / stage / tag 100, inline | 58 / 41 / 30 ms | — |
+
+Stage moves took 199.5 s for the same 50,000 when each lead went through the single-move path; doing the checks
+once a chunk and writing the chunk together brought them in line with the other actions. The list, filter, search
+and count paths in the same run stayed inside their 150 ms budget (the slowest, counts with a tag filter, 96 ms).
