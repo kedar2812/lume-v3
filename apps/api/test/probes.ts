@@ -429,6 +429,16 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ name: "Renamed" }),
   },
   "POST /api/v1/users/:id/disable": { access: "users.manage", path: () => `/api/v1/users/${uuid}/disable` },
+  // Offboarding (6C).
+  "GET /api/v1/users/:id/offboarding": {
+    access: "users.manage",
+    path: () => `/api/v1/users/${uuid}/offboarding`,
+  },
+  "POST /api/v1/users/:id/offboard": {
+    access: "users.manage",
+    path: () => `/api/v1/users/${uuid}/offboard`,
+    body: () => ({ leads: { to: "none" } }),
+  },
   "POST /api/v1/users/:id/enable": { access: "users.manage", path: () => `/api/v1/users/${uuid}/enable` },
   "DELETE /api/v1/users/:id/sessions": {
     access: "users.manage",
