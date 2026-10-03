@@ -114,6 +114,20 @@ describe("Security → Overview (6A Task 8)", () => {
     );
   });
 
+  it("offers Offboard Rory among the choices to someone who manages people, and only to them (6C)", async () => {
+    const { unmount } = render(<OverviewTab initial={[open]} timezone={TZ} openId="a-1" canOffboard />);
+    const drawer = await screen.findByRole("dialog", { name: "Alert: Rory Reid" });
+    expect(await within(drawer).findByRole("link", { name: /^Offboard Rory/ })).toHaveAttribute(
+      "href",
+      "/settings/people?offboard=u-rory",
+    );
+    unmount();
+    render(<OverviewTab initial={[open]} timezone={TZ} openId="a-1" />);
+    const plain = await screen.findByRole("dialog", { name: "Alert: Rory Reid" });
+    await within(plain).findByText("Told Maya Kapoor and Hana Ito");
+    expect(within(plain).queryByRole("link", { name: /^Offboard Rory/ })).not.toBeInTheDocument();
+  });
+
   it("Restore: answered, folded into one line, and the status turns green", async () => {
     vi.mocked(api.post).mockResolvedValue(
       ok({ alert: { ...open, status: "resolved", resolution: "restored" } }),

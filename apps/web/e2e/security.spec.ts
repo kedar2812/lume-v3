@@ -296,3 +296,73 @@ test.describe("The watch (6A)", () => {
     await page.emulateMedia({ colorScheme: "light" });
   });
 });
+
+/**
+ * Offboarding (6C) on the real stack: Rory (made and restored by the watch's test above) is offboarded from People,
+ * his leads shared across a team by who has the fewest open leads. The team and his leads are this spec's own.
+ */
+test.describe("Offboarding (6C)", () => {
+  const made: { team?: string; leads: string[] } = { leads: [] };
+
+  test.afterAll(async ({ browser }) => {
+    const { ctx, page } = await asOwner(browser);
+    await openApp(page, "/today");
+    if (made.leads.length)
+      await callApi(page, "POST", "/api/v1/leads/bulk", { ids: made.leads, action: { type: "delete" } });
+    if (made.team) await callApi(page, "DELETE", `/api/v1/teams/${made.team}`);
+    await ctx.close();
+  });
+
+  test("offboard Rory from People: his leads shared across the team, every step ticked", async ({ page }) => {
+    await openApp(page, "/today");
+    const people = (await callApi<{ people: { id: string; name: string }[] }>(page, "GET", "/api/v1/people"))
+      .data.people;
+    const rory = people.find((p) => p.name === RORY.name)!;
+    const aman = people.find((p) => p.name === "Aman Verma")!;
+    for (const [i, name] of ["Hadi Karam", "Mira Sayed", "Tom Ellis"].entries()) {
+      const r = await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", {
+        name,
+        phone: `+97150222${3340 + i}`,
+        ownerId: rory.id,
+      });
+      made.leads.push(r.data.lead.id);
+    }
+    const team = await callApi<{ team: { id: string } }>(page, "POST", "/api/v1/teams", {
+      name: "Field sales",
+    });
+    made.team = team.data.team.id;
+    await callApi(page, "PUT", `/api/v1/teams/${made.team}/members`, {
+      members: [
+        { userId: aman.id, isLead: true },
+        { userId: rory.id, isLead: false },
+      ],
+    });
+
+    await openApp(page, "/settings/people");
+    await page.getByRole("button", { name: `Offboard ${RORY.name}` }).click();
+    const sheet = page.getByRole("dialog", { name: `Offboard ${RORY.name}` });
+    await expect(sheet.getByText("Hand on Rory’s 3 leads")).toBeVisible();
+    await expect(sheet.getByRole("radio", { name: /Share them across the Field sales team/ })).toBeChecked();
+    await expect(sheet.getByText("Aman Verma · 3")).toBeVisible();
+    await expect(sheet.getByRole("list", { name: "Rory’s last 30 days" })).toBeVisible();
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(page, `offboard-sheet-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+
+    await sheet.getByRole("button", { name: "Offboard Rory" }).click();
+    await expect(sheet.getByText("Done · 3 leads shared: Aman 3")).toBeVisible();
+    await expect(sheet.getByRole("status")).toHaveText("Rory Reid is offboarded. LUME recorded every step.");
+    await settle(page);
+    await reviewCopy(page, "offboard-done-light.png");
+    await sheet.getByRole("button", { name: "Done" }).click();
+    await expect(page.getByRole("button", { name: `Enable ${RORY.name}` })).toBeVisible();
+
+    // Rory's leads are Aman's now.
+    const lead = await callApi<{ lead: { ownerId: string } }>(page, "GET", `/api/v1/leads/${made.leads[0]}`);
+    expect(lead.data.lead.ownerId).toBe(aman.id);
+  });
+});

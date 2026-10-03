@@ -76,11 +76,14 @@ const dotOf = (words: string) =>
 export function AlertDrawer({
   id,
   timezone,
+  canOffboard = false,
   onClose,
   onResolved,
 }: {
   id: string;
   timezone: string;
+  /** Offboarding is for people who manage users (6C): the drawer links to People's Offboard sheet. */
+  canOffboard?: boolean;
   onClose: () => void;
   onResolved: (a: Alert) => void;
 }) {
@@ -290,6 +293,35 @@ export function AlertDrawer({
                           <span className={s.detail}>Nothing more to do. LUME keeps watching.</span>
                         </span>
                       </button>
+                    )}
+                    {canOffboard && (
+                      <Link className={s.answer} href={`/settings/people?offboard=${a.user.id}`}>
+                        <span className={`${s.answerIcon} ${s.iconBad}`} aria-hidden>
+                          <svg viewBox="0 0 16 16" width="16" height="16">
+                            <circle
+                              cx="8"
+                              cy="5.4"
+                              r="2.6"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.6"
+                            />
+                            <path
+                              d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.6"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </span>
+                        <span>
+                          <b>Offboard {who}</b>{" "}
+                          <span className={s.detail}>
+                            Disable them, hand their leads on, see their last 30 days.
+                          </span>
+                        </span>
+                      </Link>
                     )}
                   </div>
                 </div>

@@ -14,12 +14,15 @@ export function Dialog({
   onClose,
   children,
   wide = false,
+  width,
 }: {
   label: string;
   onClose: () => void;
   children: ReactNode;
   /** Room for a small form (a stage's automations), not just a question. */
   wide?: boolean;
+  /** A sheet with steps and figures (6C Offboard): wider still, in px, never past the screen. */
+  width?: number;
 }) {
   const panel = useRef<HTMLDivElement>(null);
 
@@ -37,7 +40,8 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={wide ? `${s.panel} ${s.wide}` : s.panel}
+        className={wide || width ? `${s.panel} ${s.wide}` : s.panel}
+        style={width ? { width: `min(${width}px, 100%)` } : undefined}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             e.stopPropagation();

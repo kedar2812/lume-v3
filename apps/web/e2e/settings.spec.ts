@@ -158,11 +158,14 @@ test("@smoke invite, then disable someone: their session dies and their leads mo
 
   try {
     await openApp(page, "/settings/people");
-    await page.getByRole("button", { name: `Disable ${person.name}` }).click();
-    const ask = page.getByRole("dialog", { name: `Disable ${person.name}?` });
-    await expect(ask).toContainText("Omar will be signed out everywhere");
-    await ask.getByLabel("Omar’s leads go to").selectOption({ label: PEOPLE.seller.name });
-    await ask.getByRole("button", { name: "Disable" }).click();
+    await page.getByRole("button", { name: `Offboard ${person.name}` }).click();
+    const sheet = page.getByRole("dialog", { name: `Offboard ${person.name}` });
+    await expect(sheet).toContainText("Omar won’t be able to sign in. You can bring them back later.");
+    await sheet.getByRole("radio", { name: /Give them all to one person/ }).check();
+    await sheet.getByRole("combobox", { name: "Person" }).selectOption({ label: PEOPLE.seller.name });
+    await sheet.getByRole("button", { name: "Offboard Omar" }).click();
+    await expect(sheet.getByText(`Done · 1 lead went to ${PEOPLE.seller.name}`)).toBeVisible();
+    await sheet.getByRole("button", { name: "Done" }).click();
     await expect(page.getByRole("button", { name: `Enable ${person.name}` })).toBeVisible();
 
     await omar.reload();

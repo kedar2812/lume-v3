@@ -6,8 +6,9 @@ import { requirePermission } from "@/server/session";
 
 export const metadata = { title: "People · Settings · LUME" };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ offboard?: string }> }) {
   const session = await requirePermission("users.manage");
+  const { offboard } = await searchParams;
   const [users, invites, roles] = await Promise.all([
     apiGet<{ users: UserRow[] }>("/api/v1/users"),
     apiGet<{ invites: Invite[] }>("/api/v1/invites"),
@@ -20,6 +21,7 @@ export default async function Page() {
         invites={invites.data?.invites ?? []}
         roles={(roles.data?.roles ?? []).map(({ id, name }) => ({ id, name }))}
         session={session}
+        offboard={offboard ?? null}
       />
     </SettingsPage>
   );

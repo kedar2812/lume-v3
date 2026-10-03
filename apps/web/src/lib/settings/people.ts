@@ -38,4 +38,34 @@ export const usersClient = {
     api.post<null>(`/api/v1/users/${id}/disable`, input),
   enable: (id: string) => api.post<null>(`/api/v1/users/${id}/enable`),
   endSessions: (id: string) => api.del<null>(`/api/v1/users/${id}/sessions`),
+  /** What offboarding someone would do (6C): counts only, never a contact. */
+  offboarding: (id: string) => api.get<OffboardPreview>(`/api/v1/users/${id}/offboarding`),
+  offboard: (id: string, leads: LeadsChoice) =>
+    api.post<OffboardOutcome>(`/api/v1/users/${id}/offboard`, { leads }),
+};
+
+export type TeamMember = { id: string; name: string; openLeads: number };
+export type OffboardPreview = {
+  person: { id: string; name: string; status: UserRow["status"] };
+  sessions: number;
+  leads: { total: number; open: number };
+  /** The person's teams first; active members only, never the person. */
+  teams: { id: string; name: string; members: TeamMember[] }[];
+  people: { id: string; name: string }[];
+  calendar: { email: string; upcoming: number } | null;
+  last30: {
+    reveals: number;
+    leadsOpened: number;
+    exports: number;
+    alerts: number;
+    /** A day on the business's clock, YYYY-MM-DD. */
+    busiest: { day: string; count: number } | null;
+    usualPerDay: number;
+  };
+};
+export type LeadsChoice = { to: "person"; userId: string } | { to: "team"; teamId: string } | { to: "none" };
+export type OffboardOutcome = {
+  sessions: number;
+  leads: { to: LeadsChoice["to"]; moved: number; shares?: { id: string; name: string; count: number }[] };
+  calendar: { meetingsMoved: number; meetingsRemoved: number } | null;
 };

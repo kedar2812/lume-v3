@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import type { ApiResult } from "@/lib/api";
 import { can } from "@lume/core/shared";
@@ -11,7 +10,9 @@ import { securityClient } from "@/lib/settings/security";
 import type { Session } from "@/server/session";
 import { accessGone } from "@/lib/settings/access";
 import { shortDate } from "@/lib/settings/format";
+import { timezoneOf } from "@/lib/tasks/format";
 import { AccessChanged } from "./AccessChanged";
+import { OffboardSheet } from "./OffboardSheet";
 import s from "./settings.module.css";
 
 type Note = { text: string; problem?: boolean; copy?: string } | null;
@@ -21,20 +22,23 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Everyone who uses LUME: invite someone with a role, follow invites until they're accepted, and change
- * a person's role, sign them out everywhere, or disable them (handing their leads to someone first).
- * The owner can't be changed from here, and nobody can disable themselves.
+ * a person's role, sign them out everywhere, or offboard them (6C: signed out, their leads handed on, their
+ * calendar disconnected, in one act). The owner can't be changed from here, and nobody can offboard themselves.
  */
 export function PeopleAdmin({
   users: initialUsers,
   invites: initialInvites,
   roles,
   session,
+  offboard = null,
 }: {
   users: UserRow[];
   invites: Invite[];
   /** The roles this admin may hand out (never more than they hold themselves). */
   roles: RoleRef[];
   session: Session;
+  /** Someone to offboard on arrival (`?offboard=<id>`, from a security alert). */
+  offboard?: string | null;
 }) {
   const [users, setUsers] = useState(initialUsers);
   const [invites, setInvites] = useState(initialInvites);
@@ -42,7 +46,10 @@ export function PeopleAdmin({
   const [note, setNote] = useState<Note>(null);
   const [forbidden, setForbidden] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
-  const [disabling, setDisabling] = useState<UserRow | null>(null);
+  const [offboarding, setOffboarding] = useState<UserRow | null>(() => {
+    const u = initialUsers.find((x) => x.id === offboard);
+    return u && !u.isOwner && u.id !== session.user.id && u.status !== "disabled" ? u : null;
+  });
 
   if (forbidden) return <AccessChanged />;
 
@@ -52,8 +59,6 @@ export function PeopleAdmin({
     else setNote({ text: r.message || "That didn’t work. Try again.", problem: true });
     return false;
   };
-
-  const active = users.filter((u) => u.status === "active");
 
   return (
     <div className={s.stack}>
@@ -277,11 +282,11 @@ export function PeopleAdmin({
                         )}
                         <Button
                           size="sm"
-                          variant="ghost"
-                          aria-label={`Disable ${u.name}`}
-                          onClick={() => setDisabling(u)}
+                          variant="secondary"
+                          aria-label={`Offboard ${u.name}`}
+                          onClick={() => setOffboarding(u)}
                         >
-                          Disable
+                          Offboard
                         </Button>
                       </>
                     )}
@@ -307,19 +312,17 @@ export function PeopleAdmin({
         )}
       </section>
 
-      {disabling && (
-        <DisablePerson
-          person={disabling}
-          others={active.filter((x) => x.id !== disabling.id)}
-          onCancel={() => setDisabling(null)}
-          onDisable={async (reassignTo) => {
-            const who = disabling;
-            setDisabling(null);
-            if (!landed(await usersClient.disable(who.id, { reassignTo }))) return;
+      {offboarding && (
+        <OffboardSheet
+          personId={offboarding.id}
+          timeZone={timezoneOf(session.user.timezone)}
+          onClose={() => setOffboarding(null)}
+          onDone={(outcome) => {
+            const who = offboarding;
+            setOffboarding(null);
             setUsers((all) => all.map((x) => (x.id === who.id ? { ...x, status: "disabled" } : x)));
-            const to = users.find((x) => x.id === reassignTo);
             setNote({
-              text: `${firstName(who.name)} is disabled.${to ? ` Their leads went to ${to.name}.` : ""}`,
+              text: `${firstName(who.name)} is offboarded.${outcome.leads.moved ? ` ${outcome.leads.moved.toLocaleString("en-US")} ${outcome.leads.moved === 1 ? "lead" : "leads"} handed on.` : ""}`,
             });
           }}
         />
@@ -454,48 +457,5 @@ function CopyLink({ url }: { url: string }) {
     >
       {copied ? "Link copied" : "Copy link"}
     </button>
-  );
-}
-
-/** Disabling someone signs them out and hands their open leads to someone else (or leaves them unassigned). */
-function DisablePerson({
-  person,
-  others,
-  onCancel,
-  onDisable,
-}: {
-  person: UserRow;
-  others: UserRow[];
-  onCancel: () => void;
-  onDisable: (reassignTo: string | null) => void;
-}) {
-  const first = firstName(person.name);
-  const [to, setTo] = useState("");
-  return (
-    <Dialog label={`Disable ${person.name}?`} onClose={onCancel}>
-      <h2 className={s.dialogTitle}>Disable {person.name}?</h2>
-      <p className={s.dialogText}>
-        {first} will be signed out everywhere and can’t sign in until enabled again. Their history stays.
-      </p>
-      <div className={s.rateField}>
-        <label htmlFor="disable-to">{first}’s leads go to</label>
-        <select id="disable-to" className={s.dialogSelect} value={to} onChange={(e) => setTo(e.target.value)}>
-          <option value="">Leave them unassigned</option>
-          {others.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className={s.dialogActions}>
-        <Button variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button variant="danger" onClick={() => onDisable(to || null)}>
-          Disable
-        </Button>
-      </div>
-    </Dialog>
   );
 }

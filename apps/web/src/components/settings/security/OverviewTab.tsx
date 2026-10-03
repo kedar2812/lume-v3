@@ -26,10 +26,13 @@ export function OverviewTab({
   initial,
   timezone,
   openId,
+  canOffboard = false,
 }: {
   initial: Alert[];
   timezone: string;
   openId: string | null;
+  /** The viewer manages people: an alert offers Offboard (6C). */
+  canOffboard?: boolean;
 }) {
   const reduce = useReducedMotion();
   const [alerts, setAlerts] = useState(initial);
@@ -164,6 +167,7 @@ export function OverviewTab({
             key={opened}
             id={opened}
             timezone={timezone}
+            canOffboard={canOffboard}
             onClose={close}
             onResolved={(a) => void resolved(a)}
           />

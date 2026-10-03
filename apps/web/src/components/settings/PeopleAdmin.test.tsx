@@ -12,6 +12,19 @@ vi.mock("@/lib/settings/people", () => ({
 }));
 
 vi.mock("@/lib/settings/security", () => ({ securityClient: { restorePerson: vi.fn() } }));
+// The Offboard sheet has its own tests (OffboardSheet.test.tsx): here it only says who it's for, and finishes.
+vi.mock("./OffboardSheet", () => ({
+  OffboardSheet: ({ personId, onDone }: { personId: string; onDone: (o: unknown) => void }) => (
+    <div role="dialog" aria-label={`Offboard sheet for ${personId}`}>
+      <button
+        type="button"
+        onClick={() => onDone({ sessions: 1, leads: { to: "none", moved: 3 }, calendar: null })}
+      >
+        Finish
+      </button>
+    </div>
+  ),
+}));
 
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const admin = () =>
@@ -105,21 +118,25 @@ describe("PeopleAdmin", () => {
     expect(invitesClient.create).not.toHaveBeenCalled();
   });
 
-  it("disabling someone asks what happens to their leads", async () => {
+  it("offboarding someone opens the Offboard sheet; once done they show as disabled (6C)", async () => {
     render(<PeopleAdmin users={[riya, tas]} invites={[]} roles={roles} session={admin()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Disable Riya Sharma" }));
-    const ask = screen.getByRole("dialog", { name: "Disable Riya Sharma?" });
-    expect(ask).toHaveTextContent("Riya will be signed out everywhere");
-    const to = within(ask).getByLabelText("Riya’s leads go to");
-    expect(
-      within(to)
-        .getAllByRole("option")
-        .map((o) => o.textContent),
-    ).toEqual(["Leave them unassigned", "Leila Haddad"]);
-    await userEvent.selectOptions(to, "u-tas");
-    await userEvent.click(within(ask).getByRole("button", { name: "Disable" }));
-    expect(usersClient.disable).toHaveBeenCalledWith("u-riya", { reassignTo: "u-tas" });
+    expect(screen.queryByRole("button", { name: "Disable Riya Sharma" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Offboard Riya Sharma" }));
+    const sheet = screen.getByRole("dialog", { name: "Offboard sheet for u-riya" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Finish" }));
     expect(await screen.findByRole("button", { name: "Enable Riya Sharma" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Riya is offboarded. 3 leads handed on.");
+  });
+
+  it("opens the Offboard sheet on arrival from an alert (?offboard=), never for the owner or yourself", () => {
+    const { unmount } = render(
+      <PeopleAdmin users={[riya, tas]} invites={[]} roles={roles} session={admin()} offboard="u-riya" />,
+    );
+    expect(screen.getByRole("dialog", { name: "Offboard sheet for u-riya" })).toBeInTheDocument();
+    unmount();
+    const me = person({ id: "u-me", name: "Maya Kapoor" });
+    render(<PeopleAdmin users={[me]} invites={[]} roles={roles} session={admin()} offboard="u-me" />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("changes someone's role, and signs them out everywhere on request", async () => {
@@ -135,9 +152,9 @@ describe("PeopleAdmin", () => {
     const owner = person({ id: "u-owner", name: "Omar Owner", isOwner: true });
     const me = person({ id: "u-me", name: "Maya Kapoor" });
     render(<PeopleAdmin users={[owner, me]} invites={[]} roles={roles} session={admin()} />);
-    expect(screen.queryByRole("button", { name: "Disable Omar Owner" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Offboard Omar Owner" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Role for Omar Owner")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Disable Maya Kapoor" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Offboard Maya Kapoor" })).not.toBeInTheDocument();
   });
 
   it("shows the API's reason when an invite is refused", async () => {
