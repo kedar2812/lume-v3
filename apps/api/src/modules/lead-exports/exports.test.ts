@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
-import { ALL_GRANTS, type Grant } from "@lume/core";
+import { ALL_GRANTS, newId, type Grant } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { setExportCapForTests } from "./make";
@@ -260,5 +260,109 @@ describe("an export of the current view (6B Task 2)", () => {
       "SELECT email FROM leads WHERE deleted_at IS NULL",
     );
     expect(leads.some((l) => /example\.invalid/.test(l.email ?? ""))).toBe(false);
+  });
+});
+
+describe("the 6B review's fix pass", () => {
+  it("writes the Enquiry date as stored, for a business west of UTC too", async () => {
+    const was = (await h.ownerPool.query("SELECT timezone FROM settings WHERE id = 1")).rows[0].timezone;
+    await h.ownerPool.query("UPDATE settings SET timezone = 'America/Los_Angeles' WHERE id = 1");
+    try {
+      const id = await h.seedLead({ ownerId: adminUser.id, name: "Wes Tern" });
+      await h.queryAll("UPDATE leads SET lead_created_at = '2026-10-03' WHERE id = $1", [id]);
+      const r = await make(admin, {
+        format: "csv",
+        label: "West",
+        filters: { q: "Wes Tern" },
+        columns: ["name", "created"],
+      });
+      expect(r.statusCode, r.body).toBe(201);
+      const rows = csv((await download(admin, (r.json() as Made).export.id)).body);
+      expect(rows.find((x) => x[0] === "Wes Tern")![1]).toBe("2026-10-03");
+    } finally {
+      await h.ownerPool.query("UPDATE settings SET timezone = $1 WHERE id = 1", [was]);
+    }
+  });
+
+  it("masks a custom phone or email field for a masked exporter, as it does the core ones", async () => {
+    for (const [key, type] of [
+      ["whatsapp_number", "phone"],
+      ["work_email", "email"],
+    ] as const)
+      expect(
+        (await admin.inject({ method: "POST", url: "/api/v1/fields", payload: { key, label: key, type } }))
+          .statusCode,
+      ).toBe(201);
+    const id = await h.seedLead({ ownerId: rep.id, name: "Cara Custom" });
+    await h.queryAll(
+      `UPDATE leads SET custom = custom || '{"whatsapp_number": "+971509998877", "work_email": "cara@work.example"}'::jsonb
+        WHERE id = $1`,
+      [id],
+    );
+    const cols = ["name", "custom:whatsapp_number", "custom:work_email"];
+    const m = await make(masked, {
+      format: "csv",
+      label: "All",
+      filters: { q: "Cara Custom" },
+      columns: cols,
+    });
+    expect(m.statusCode, m.body).toBe(201);
+    const row = csv((await download(masked, (m.json() as Made).export.id)).body).find(
+      (x) => x[0] === "Cara Custom",
+    )!;
+    expect(row[1]).not.toContain("9998877");
+    expect(row[1]).toContain("77");
+    expect(row[2]).not.toContain("cara@");
+    expect(row[2]).toMatch(/@work\.example$/);
+    // Someone who sees contacts in full gets them in full.
+    const a = await make(admin, {
+      format: "csv",
+      label: "All",
+      filters: { q: "Cara Custom" },
+      columns: cols,
+    });
+    const full = csv((await download(admin, (a.json() as Made).export.id)).body).find(
+      (x) => x[0] === "Cara Custom",
+    )!;
+    expect(full.slice(1, 3)).toEqual(["+971509998877", "cara@work.example"]);
+  });
+
+  it("gives each row its own lead's tags (grouped once, not searched per lead)", async () => {
+    const [warm, vip] = [newId(), newId()];
+    await h.ownerPool.query("INSERT INTO tags (id, label) VALUES ($1, 'Warm'), ($2, 'VIP')", [warm, vip]);
+    const one = await h.seedLead({ ownerId: adminUser.id, name: "Tag One" });
+    const two = await h.seedLead({ ownerId: adminUser.id, name: "Tag Two" });
+    await h.queryAll("INSERT INTO lead_tags (lead_id, tag_id) VALUES ($1, $3), ($1, $4), ($2, $4)", [
+      one,
+      two,
+      warm,
+      vip,
+    ]);
+    const r = await make(admin, {
+      format: "csv",
+      label: "Tags",
+      filters: { q: "Tag " },
+      columns: ["name", "tags"],
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    const rows = csv((await download(admin, (r.json() as Made).export.id)).body);
+    expect(
+      rows
+        .find((x) => x[0] === "Tag One")![1]!
+        .split(", ")
+        .sort(),
+    ).toEqual(["VIP", "Warm"]);
+    expect(rows.find((x) => x[0] === "Tag Two")![1]).toBe("VIP");
+  });
+
+  it("leaves the check row out of a file with neither Email nor Phone, where it couldn't be traced", async () => {
+    const r = await make(admin, { format: "csv", label: "Names", filters: {}, columns: ["name", "stage"] });
+    expect(r.statusCode, r.body).toBe(201);
+    const made = (r.json() as Made).export;
+    const rows = csv((await download(admin, made.id)).body);
+    expect(rows.length - 1).toBe(made.rows);
+    const rec = (await h.ownerPool.query("SELECT check_position FROM lead_exports WHERE id = $1", [made.id]))
+      .rows[0];
+    expect(rec.check_position).toBeNull();
   });
 });

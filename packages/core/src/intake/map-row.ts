@@ -1,5 +1,5 @@
 import { formatPhone, normalizePhone, type NormalizedPhone } from "../leads/phone";
-import { isCheckEmail } from "../security/export-code";
+import { isCheckEmail, isCheckPhone } from "../security/export-code";
 import { INTAKE_LIMITS } from "./limits";
 import type { ColumnMap, Issue, IntakeField, MapContext, Mapping, Rules } from "./mapping";
 import {
@@ -177,6 +177,7 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
           break;
         }
         const [one, ...rest] = splitPhones(raw);
+        if (isCheckPhone(one)) checkRow = true;
         const country = (c.to === "field" && c.transform?.defaultCountry) || r.defaultCountry;
         d.phone = normalizePhone(one, country);
         if (rest.length) {

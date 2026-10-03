@@ -91,3 +91,10 @@ export function checkRow(random: RandomBytes = cryptoBytes): { name: string; ema
 /** A check row's email: nothing real is ever at example.invalid. */
 export const isCheckEmail = (email: string | null | undefined): boolean =>
   !!email && /@example\.invalid$/i.test(email.trim());
+
+/**
+ * A check row's phone: Ofcom keeps +44 7700 900000–900999 for fiction, so no real person has one. Read from the
+ * digits however it's written (+44 7700 900123, 447700900123, or 07700 900123 as a UK number).
+ */
+export const isCheckPhone = (phone: string | null | undefined): boolean =>
+  !!phone && /^(?:44|0)7700900\d{3}$/.test(phone.replace(/\D/g, ""));

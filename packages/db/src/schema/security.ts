@@ -36,7 +36,8 @@ export const leadExports = pgTable("lead_exports", {
   checkName: text("check_name").notNull(),
   checkEmail: text("check_email").notNull(),
   checkPhone: text("check_phone").notNull(),
-  checkPosition: integer("check_position").notNull(),
+  // Null: the file had neither Email nor Phone, so it carries no check row (6B review).
+  checkPosition: integer("check_position"),
   fileEnc: bytea("file_enc"),
   downloads: integer("downloads").notNull().default(0),
   lastDownloadedAt: tz("last_downloaded_at"),

@@ -6,7 +6,7 @@ import { checkRow, newExportCode, newId, type Keyring } from "@lume/core";
 import { audit } from "../../audit/audit";
 import { HttpError, notFound } from "../../http/errors";
 import type { FilterQuery } from "../leads/query";
-import { buildRows, readView, toCsv, toXlsx } from "./make";
+import { buildRows, carriesCheckRow, readView, toCsv, toXlsx } from "./make";
 
 const DAY_MS = 24 * 3_600_000;
 const context = (id: string) => `lead-export:${id}`;
@@ -82,7 +82,7 @@ export async function makeExport(
   const id = newId();
   const code = await freshCode(req);
   const check = checkRow();
-  const position = randomInt(views.length + 1);
+  const position = carriesCheckRow(columns) ? randomInt(views.length + 1) : null;
   const built = buildRows(columns, views, lookups, { code, check, position });
   const file = input.format === "csv" ? toCsv(built) : await toXlsx(built);
   const sealed = keyring.encrypt(file.toString("base64"), context(id));

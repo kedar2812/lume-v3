@@ -78,15 +78,22 @@ no hidden fields). CSV or Excel, up to 25,000 leads in one file.
 - **What LUME can promise, exactly:** a file that still has the code column *or* the check row traces to its
   export. A file where both were removed, or the rows were retyped by hand, can't be traced, and LUME says
   "No LUME export matches this file" rather than guessing.
+- **No Email or Phone in the view, no check row.** The check row is found by its email or its phone, so a file
+  with neither column leaves it out (it couldn't be traced). The `LUME ref` column still marks every row.
+- **Masked stays masked.** Someone who sees masked contacts gets them masked in the file, custom contact fields
+  (phone, email, Instagram) included. The check row itself is written in full: it's made up, and Trace matches it
+  exactly.
 - **24 hours.** The file is kept, encrypted, for 24 hours and then deleted; the record (who, when, what, the
   code, the check row) stays. Only the person who made it can download it. Every export and every download is in
   the audit log.
 - **Trace a file** (Settings → Security → Exports): drop a CSV or Excel file found outside the business, or type
   a code. LUME reads it in memory and forgets it, and answers with whose export it was, when, what, every download
-  with its device, and how it was recognised.
+  with its device, and how it was recognised. A CSV of any export's size reads (Trace isn't held to an import's
+  20,000 rows). An Excel file that would open to more than 50 MB is refused unread ("Save it as CSV"), so a
+  crafted file can't exhaust the server's memory.
 - **Imported back in:** if someone imports an export into LUME, the real leads come in and the check row never
-  does: it shows in the import's problems as "A LUME export's check row: not a real lead". The `LUME ref` column
-  is always ignored.
+  does: it shows in the import's problems as "A LUME export's check row: not a real lead". It's known by its
+  email or by its phone alone (the fiction range reaches nobody real). The `LUME ref` column is always ignored.
 
 ## Checking it
 

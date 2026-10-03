@@ -137,6 +137,8 @@ export function readCsv(
     headerRow?: number;
     /** A header with nothing under it is fine (a brand-new form sheet, 2B); a CSV upload refuses it. */
     allowNoRows?: boolean;
+    /** More rows than an import takes (Trace reads a whole export: 6B review). */
+    maxRows?: number;
   } = {},
 ): ReadCsv | FileRefusal {
   if (bytes.length > INTAKE_LIMITS.bytes)
@@ -168,10 +170,11 @@ export function readCsv(
   while (body.length && blank(body[body.length - 1]!.cells)) body.pop();
   if (!body.length && !opts.allowNoRows)
     return refuse("FILE_EMPTY", "LUME found a header but no rows under it.");
-  if (body.length > INTAKE_LIMITS.rows)
+  const maxRows = opts.maxRows ?? INTAKE_LIMITS.rows;
+  if (body.length > maxRows)
     return refuse(
       "TOO_MANY_ROWS",
-      `This file has ${body.length.toLocaleString("en")} rows; LUME imports up to ${INTAKE_LIMITS.rows.toLocaleString("en")} at a time.`,
+      `This file has ${body.length.toLocaleString("en")} rows; LUME imports up to ${maxRows.toLocaleString("en")} at a time.`,
     );
 
   const width = headerCells.length;

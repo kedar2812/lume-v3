@@ -2,7 +2,7 @@ import { and, inArray } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import type { FastifyRequest } from "fastify";
 import Papa from "papaparse";
-import { formatPhone } from "@lume/core";
+import { formatPhone, maskEmail, maskInstagram, maskPhone } from "@lume/core";
 import { schema } from "@lume/db";
 import { safeCell } from "../../export/service";
 import { HttpError } from "../../http/errors";
@@ -85,7 +85,8 @@ const CORE: Record<
   created: {
     header: "Enquiry date",
     field: "lead_created_at",
-    cell: (v, l) => day(v.leadCreatedAt ?? v.createdAt, l.tz),
+    // The enquiry date is a calendar date, written as stored; only the arrival moment needs the business's clock.
+    cell: (v, l) => (v.leadCreatedAt as string | null) ?? day(v.createdAt, l.tz),
   },
   updated: { header: "Last activity", cell: (v, l) => moment(v.lastActivityAt ?? v.updatedAt, l.tz) },
 };
@@ -118,6 +119,13 @@ export function columnsFor(req: FastifyRequest, ids: string[], fields: FieldRegi
       header: def.label,
       cell: (v) => {
         const x = v.custom[def.key];
+        // A custom contact field is masked as the core ones are, for someone who can't see contacts in full.
+        if (typeof x === "string" && v.contactMasked && CONTACT_TYPES.has(def.type))
+          return def.type === "phone"
+            ? maskPhone({ e164: x.startsWith("+") ? x : null, raw: x })
+            : def.type === "email"
+              ? maskEmail(x.toLowerCase())
+              : maskInstagram(x.replace(/^@/, ""));
         return x == null
           ? null
           : Array.isArray(x)
@@ -130,6 +138,8 @@ export function columnsFor(req: FastifyRequest, ids: string[], fields: FieldRegi
   }
   return out;
 }
+
+const CONTACT_TYPES = new Set(["phone", "email", "instagram"]);
 
 export type Built = { header: string[]; rows: Cell[][]; leads: number };
 
@@ -167,10 +177,10 @@ export async function readView(
         rows.map((r) => r.id),
       ),
     );
+  const tagsOf = new Map<string, string[]>();
+  for (const t of tagRows) tagsOf.set(t.leadId, [...(tagsOf.get(t.leadId) ?? []), t.tagId]);
   const ctx = { actor: req.actor!, fields };
-  const views = rows.map((r) =>
-    serializeLead(r, { ...ctx, tagIds: tagRows.filter((t) => t.leadId === r.id).map((t) => t.tagId) }),
-  );
+  const views = rows.map((r) => serializeLead(r, { ...ctx, tagIds: tagsOf.get(r.id) ?? [] }));
   const [stages, people, tags, settings] = await Promise.all([
     req.db.select({ id: schema.stages.id, name: schema.stages.name }).from(schema.stages),
     req.db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users),
@@ -189,17 +199,24 @@ export async function readView(
   };
 }
 
+/** A check row is traced by its email or its phone: a file with neither column gets none (6B review). */
+export const carriesCheckRow = (columns: Column[]) =>
+  columns.some((c) => c.contact === "email" || c.contact === "phone");
+
 /**
- * The file's rows: the columns, then `LUME ref` with the code on every row, and the check row at its position.
- * The check row borrows its neighbour's other cells (stage, owner, dates) so it reads like any lead.
+ * The file's rows: the columns, then `LUME ref` with the code on every row, and the check row at its position
+ * (none when `position` is null). The check row borrows its neighbour's other cells (stage, owner, dates) so it
+ * reads like any lead.
  */
 export function buildRows(
   columns: Column[],
   views: LeadView[],
   lookups: Lookups,
-  mark: { code: string; check: { name: string; email: string; phone: string }; position: number },
+  mark: { code: string; check: { name: string; email: string; phone: string }; position: number | null },
 ): Built {
   const rows: Cell[][] = views.map((v) => [...columns.map((c) => c.cell(v, lookups)), mark.code]);
+  if (mark.position === null)
+    return { header: [...columns.map((c) => c.header), "LUME ref"], rows, leads: views.length };
   const near = rows[Math.min(mark.position, rows.length - 1)]!;
   const check: Cell[] = columns.map((c, i) =>
     c.contact === "name"

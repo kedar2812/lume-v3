@@ -4,15 +4,43 @@ import type { FastifyRequest } from "fastify";
 import { deviceName, normaliseCode, readCsv } from "@lume/core";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest } from "../../http/errors";
+import { zipFits } from "./zip-guard";
 
 const UNREADABLE = () =>
   new HttpError(400, "UNREADABLE", "LUME can't read this file. Give it a CSV or Excel file.");
 const REF = /^lume\s*ref$/i;
+/** A check row's email, exactly as LUME makes it (checkRow in @lume/core): never a whole cell taken on trust. */
+const CHECK_EMAIL = /[a-z]+\.[a-z]+\.[0-9a-f]{6}@example\.invalid/gi;
+/** Every row of an export, and then some: a CSV can hold more than an import takes (6B review). */
+const MAX_ROWS = 200_000;
+
+/** What an Excel file may open to before LUME refuses it unread (6B review): 50 MB, many times a full export. */
+const DEFAULT_INFLATE_CAP = 50 * 1024 * 1024;
+let inflateCap = DEFAULT_INFLATE_CAP;
+/** Tests only: a smaller ceiling, or null for the default. */
+export function setTraceInflateCapForTests(n: number | null): void {
+  inflateCap = n ?? DEFAULT_INFLATE_CAP;
+}
+
+/** A list of values for `= ANY(...)`, each its own bound parameter. */
+const list = (xs: string[]) =>
+  sql`ARRAY[${sql.join(
+    xs.map((x) => sql`${x}`),
+    sql`, `,
+  )}]::text[]`;
 
 /** The file's cells as text: Excel's first sheet, or a CSV however it's written. Read in memory, never kept. */
 async function cellsOf(bytes: Buffer, fileName: string): Promise<string[][]> {
   // An .xlsx file is a zip: it starts "PK\x03\x04".
   if (bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 3 && bytes[3] === 4) {
+    const fits = zipFits(bytes, inflateCap);
+    if (fits === "big")
+      throw new HttpError(
+        400,
+        "TOO_BIG",
+        "This Excel file opens to more than LUME reads at once. Save it as CSV.",
+      );
+    if (fits === "bad") throw UNREADABLE();
     const book = new ExcelJS.Workbook();
     try {
       await book.xlsx.load(bytes as unknown as ArrayBuffer);
@@ -29,7 +57,7 @@ async function cellsOf(bytes: Buffer, fileName: string): Promise<string[][]> {
     });
     return rows;
   }
-  const r = readCsv(new Uint8Array(bytes), { fileName, allowNoRows: true });
+  const r = readCsv(new Uint8Array(bytes), { fileName, allowNoRows: true, maxRows: MAX_ROWS });
   if (!r.ok) throw UNREADABLE();
   return [r.headers, ...r.rows];
 }
@@ -51,7 +79,7 @@ async function byColumn(req: FastifyRequest, rows: string[][]): Promise<Found | 
     ];
     if (!codes.length) return null;
     const { rows: hits } = await req.db.execute(sql`
-      SELECT id, code FROM lead_exports WHERE code = ANY(${`{${codes.join(",")}}`}::text[])`);
+      SELECT id, code FROM lead_exports WHERE code = ANY(${list(codes)})`);
     const byCode = new Map((hits as { id: string; code: string }[]).map((x) => [x.code, x.id]));
     const first = codes.find((c) => byCode.has(c));
     return first ? { id: byCode.get(first)!, foundBy: "column" } : null;
@@ -68,21 +96,20 @@ async function byCheckRow(req: FastifyRequest, rows: string[][]): Promise<Found 
   const phones = new Set<string>();
   for (const row of rows)
     for (const cell of row) {
-      const v = cell.trim();
-      if (/@example\.invalid$/i.test(v)) emails.add(v.toLowerCase());
-      const digits = v.replace(/\D/g, "");
+      for (const m of cell.matchAll(CHECK_EMAIL)) emails.add(m[0].toLowerCase());
+      const digits = cell.replace(/\D/g, "");
       if (/^447700900\d{3}$/.test(digits)) phones.add(digits);
     }
   if (emails.size) {
     const { rows: hit } = await req.db.execute(sql`
-      SELECT id FROM lead_exports WHERE lower(check_email) = ANY(${`{${[...emails].join(",")}}`}::text[])
+      SELECT id FROM lead_exports WHERE lower(check_email) = ANY(${list([...emails])})
        ORDER BY created_at LIMIT 1`);
     if (hit[0]) return { id: (hit[0] as { id: string }).id, foundBy: "check_row" };
   }
   if (phones.size) {
     const { rows: hit } = await req.db.execute(sql`
       SELECT min(id::text) AS id FROM lead_exports
-       WHERE regexp_replace(check_phone, '\\D', '', 'g') = ANY(${`{${[...phones].join(",")}}`}::text[])
+       WHERE regexp_replace(check_phone, '\\D', '', 'g') = ANY(${list([...phones])})
        GROUP BY regexp_replace(check_phone, '\\D', '', 'g') HAVING count(*) = 1
        ORDER BY 1 LIMIT 1`);
     if (hit[0]) return { id: (hit[0] as { id: string }).id, foundBy: "check_row" };

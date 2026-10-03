@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
+import { setTraceInflateCapForTests } from "./trace";
 
 /** Phase 6B Task 3: give LUME a file found outside the business, and it says whose export it was. */
 let h: Harness;
@@ -169,5 +170,58 @@ describe("Trace a file (6B Task 3)", () => {
     ).rows[0];
     expect(audit.diff).toEqual({ found: made.code });
     expect(JSON.stringify(audit.diff)).not.toMatch(/Dana|example\.com/);
+  });
+});
+
+describe("the 6B review's fix pass (Trace)", () => {
+  it("traces a CSV export bigger than an import may be (over 20,000 rows)", async () => {
+    const { made, body } = await exportOf("csv");
+    const [header, first] = parse(body);
+    const rows = [header!, ...Array.from({ length: 20_001 }, () => first!)];
+    const r = await trace(unparse(rows));
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().match).toMatchObject({ code: made.code, foundBy: "column" });
+  });
+
+  it("answers, never crashes, on cells that only look like a check row", async () => {
+    const { made, body } = await exportOf("csv");
+    const rows = parse(body).map((r) => r.slice(0, -1));
+    const hostile = [
+      'a"b{c}@example.invalid',
+      ",@example.invalid",
+      "x,y@example.invalid",
+      "@example.invalid",
+    ];
+    const r = await trace(unparse([...rows, hostile]));
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().match).toMatchObject({ code: made.code, foundBy: "check_row" });
+    const none = await trace(
+      unparse([
+        ["Name", "Email"],
+        ["X", 'q"}{@example.invalid'],
+      ]),
+    );
+    expect(none.statusCode, none.body).toBe(200);
+    expect(none.json().match).toBeNull();
+  });
+
+  it("refuses an Excel file that opens to more than LUME reads, before opening it", async () => {
+    const book = new ExcelJS.Workbook();
+    const sheet = book.addWorksheet("Leads");
+    for (let i = 0; i < 3000; i++) sheet.addRow([`Lead number ${i}`, "the same words over and over again"]);
+    const big = Buffer.from(await book.xlsx.writeBuffer());
+    setTraceInflateCapForTests(64 * 1024);
+    try {
+      const r = await trace(big, "big.xlsx");
+      expect(r.statusCode, r.body).toBe(400);
+      expect(r.json().error.code).toBe("TOO_BIG");
+      // A small one still reads under the same cap.
+      const { made, raw } = await exportOf("xlsx");
+      const ok = await trace(raw, "small.xlsx");
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(ok.json().match).toMatchObject({ code: made.code });
+    } finally {
+      setTraceInflateCapForTests(null);
+    }
   });
 });

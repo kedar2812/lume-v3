@@ -327,6 +327,12 @@ describe("a LUME export's check row (6B)", () => {
     expect(o.kind === "error" && o.problems[0]!.message).toBe("A LUME export's check row: not a real lead");
   });
 
+  it("is never a lead by its phone alone either: the range kept for fiction reaches nobody real", () => {
+    for (const phone of ["+447700900123", "+44 7700 900 007", "07700 900999"])
+      expect(problems(run(["name", "phone"], ["Ana Bell", phone]))).toEqual(["LUME_CHECK_ROW"]);
+    expect(run(["name", "phone"], ["Dana Whitfield", "+447700901123"]).kind).toBe("draft");
+  });
+
   it("an ordinary row with an email goes through as before", () => {
     expect(run(["name", "email"], ["Dana Whitfield", "dana@example.com"]).kind).toBe("draft");
   });
