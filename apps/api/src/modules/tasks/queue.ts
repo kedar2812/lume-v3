@@ -10,6 +10,7 @@ import { askOutcomes } from "../meetings/outcomes";
 import { opsAlerts } from "../health/service";
 import { securitySweep } from "../security/sweep";
 import { clearExpiredExports } from "../lead-exports/service";
+import { rollupLeadCounts } from "../leads/query";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -75,6 +76,7 @@ export async function startTaskQueue(o: {
     alerts: false,
     outcomes: false,
     security: false,
+    counts: false,
   };
   const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
     if (busy[key]) return;
@@ -92,6 +94,8 @@ export async function startTaskQueue(o: {
     const n = ticks++;
     try {
       await sweepNow();
+      // Every minute: the stage strip's counts fold in what changed (7A, 0048).
+      beside("counts", () => rollupLeadCounts(o.pool), "rolling up lead counts failed");
       // Every fifth minute: follow-ups left overdue reach their managers (3B).
       if (n % 5 === 0) beside("escalate", () => escalate(deps), "follow-up escalation failed");
       // Every fifth minute: a meeting with a lead that has ended asks its owner how it went (5A).

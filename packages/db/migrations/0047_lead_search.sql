@@ -13,12 +13,6 @@ CREATE TABLE lead_search (
   instagram    text,
   phone_digits text
 );
-CREATE INDEX lead_search_name ON lead_search USING gin (name gin_trgm_ops) WHERE live;
-CREATE INDEX lead_search_email ON lead_search USING gin (email gin_trgm_ops) WHERE live;
-CREATE INDEX lead_search_instagram ON lead_search USING gin (instagram gin_trgm_ops) WHERE live;
-CREATE INDEX lead_search_phone ON lead_search USING gin (phone_digits gin_trgm_ops) WHERE live;
-CREATE INDEX lead_search_prefix ON lead_search (lower(name) text_pattern_ops) WHERE live;
-CREATE INDEX lead_search_owner ON lead_search (owner_id) WHERE live;
 -- Not the app's, not the worker's (new tables are theirs by default, 0002). Backups still read it.
 REVOKE ALL ON lead_search FROM lume_app, lume_worker;
 
@@ -54,7 +48,7 @@ DECLARE
   vis text;
 BEGIN
   IF name_like IS NOT NULL THEN branches := branches || format('s.name ILIKE %L', name_like); END IF;
-  IF prefix_like IS NOT NULL THEN branches := branches || format('lower(s.name) LIKE %L', prefix_like); END IF;
+  IF prefix_like IS NOT NULL THEN branches := branches || format('lower(s.name) LIKE lower(%L)', prefix_like); END IF;
   IF email_like IS NOT NULL THEN branches := branches || format('s.email ILIKE %L', email_like); END IF;
   IF instagram_like IS NOT NULL THEN branches := branches || format('s.instagram ILIKE %L', instagram_like); END IF;
   IF digits_like IS NOT NULL THEN branches := branches || format('s.phone_digits LIKE %L', digits_like); END IF;
@@ -68,7 +62,8 @@ BEGIN
   ELSE
     vis := format('s.owner_id = %L', usr);
   END IF;
-  RETURN QUERY EXECUTE format('SELECT s.lead_id FROM lead_search s WHERE s.live AND %s AND (%s) LIMIT %s',
+  -- Newest first (ids are time-ordered): a capped search keeps the newest matches, the same on every page.
+  RETURN QUERY EXECUTE format('SELECT s.lead_id FROM lead_search s WHERE s.live AND %s AND (%s) ORDER BY s.lead_id DESC LIMIT %s',
                               vis, array_to_string(branches, ' OR '), least(max_rows, 100000));
 END $$;
 REVOKE ALL ON FUNCTION lume_lead_search(text, text, text, text, text, int) FROM PUBLIC;
@@ -79,3 +74,14 @@ SELECT set_config('lume.lead_scope', 'all', true);
 INSERT INTO lead_search (lead_id, owner_id, live, name, email, instagram, phone_digits)
 SELECT id, owner_id, deleted_at IS NULL, name, email::text, instagram_handle::text, NULLIF(phone_digits, '') FROM leads;
 SELECT set_config('lume.lead_scope', '', true);
+
+-- Indexes after the backfill: built once over the rows, not row by row while 1-2 million are inserted.
+CREATE INDEX lead_search_name ON lead_search USING gin (name gin_trgm_ops) WHERE live;
+CREATE INDEX lead_search_email ON lead_search USING gin (email gin_trgm_ops) WHERE live;
+CREATE INDEX lead_search_instagram ON lead_search USING gin (instagram gin_trgm_ops) WHERE live;
+CREATE INDEX lead_search_phone ON lead_search USING gin (phone_digits gin_trgm_ops) WHERE live;
+CREATE INDEX lead_search_prefix ON lead_search (lower(name) text_pattern_ops) WHERE live;
+CREATE INDEX lead_search_owner ON lead_search (owner_id) WHERE live;
+
+-- Search no longer reads leads with LIKE, so its trigram indexes there (0009) only slowed every lead write.
+DROP INDEX leads_name_trgm, leads_email_trgm, leads_phone_digits_trgm;

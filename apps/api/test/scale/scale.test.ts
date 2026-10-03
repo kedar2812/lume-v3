@@ -1,4 +1,4 @@
-import { ALL_GRANTS, type Grant } from "@lume/core";
+import { ALL_GRANTS, STARTER_VIEWS, type Grant } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../harness";
 
@@ -93,7 +93,10 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
        INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, phone_raw, phone_e164, phone_country_iso,
                           phone_status, email, value, currency, lead_created_at, created_at, updated_at,
                           last_activity_at, stage_entered_at)
-       SELECT gen_random_uuid(), st.pipeline,
+       -- Time-ordered ids (UUID v7 layout: the arrival time in the first 48 bits), as the app mints them:
+       -- "newest first" and the order the rows sit on disk agree, as they do in a real install.
+       SELECT (lpad(to_hex((extract(epoch FROM now() - make_interval(secs => (g::float / $2) * 365 * 86400)) * 1000)::bigint), 12, '0')
+                 || '7' || substr(md5(g::text), 1, 3) || '8' || substr(md5(g::text), 4, 15))::uuid, st.pipeline,
               CASE WHEN r < 0.6 THEN st.open[1 + (g % array_length(st.open, 1))]
                    WHEN r < 0.85 THEN st.lost[1] ELSE st.won[1] END,
               CASE WHEN g % 20 = 0 THEN NULL ELSE owners.ids[1 + (g % $1)] END,
@@ -121,6 +124,23 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
         [made.map((m) => m.id)],
       );
     }
+    // A rare tag on 30 leads: the tag filter must find them without walking every lead (7A review).
+    await h.queryAll(
+      `WITH t AS (INSERT INTO tags (id, label) VALUES (gen_random_uuid(), 'Rare') RETURNING id)
+       INSERT INTO lead_tags (lead_id, tag_id) SELECT l.id, t.id FROM (SELECT id FROM leads ORDER BY id LIMIT 30) l, t`,
+    );
+    // The four starter views a new install has, for the admin and for a rep: the sidebar counts them on every page.
+    for (const c of [admin, rep])
+      for (const v of STARTER_VIEWS) {
+        const r = await c.inject({
+          method: "POST",
+          url: "/api/v1/views",
+          payload: { name: v.name, color: v.color, filters: v.filters },
+        });
+        expect(r.statusCode, r.body).toBe(201);
+      }
+    // LUME's minute rollup of the counts, as a live instance would have run it.
+    await h.queryAll("SELECT lume_lead_counts_rollup()");
     // VACUUM too: steady state, as autovacuum leaves a live instance (index-only scans need the visibility map).
     await h.ownerPool.query("VACUUM ANALYZE");
     timings.push({
@@ -139,7 +159,7 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
   it("times every main path", async () => {
     const cfg = await h.config();
     const stage = Object.values(cfg.stages)[1]!;
-    const tag = (await h.queryAll<{ id: string }>("SELECT id FROM tags ORDER BY label LIMIT 1"))[0]!.id;
+    const tag = (await h.queryAll<{ id: string }>("SELECT id FROM tags WHERE label = 'Tag 1'"))[0]!.id;
     const owner = (await h.queryAll<{ id: string }>("SELECT id FROM users WHERE name = 'Person 7'"))[0]!.id;
     const get = (c: AuthedClient, url: string) => () => c.inject({ method: "GET", url });
 
@@ -164,11 +184,36 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     await time("admin search phone", get(admin, "/api/v1/leads?limit=50&q=501234"));
     await time("admin search email", get(admin, "/api/v1/leads?limit=50&q=omar.khan77"));
     await time("admin search rare (no match)", get(admin, "/api/v1/leads?limit=50&q=Zzyzx"));
+    const rare = (await h.queryAll<{ id: string }>("SELECT id FROM tags WHERE label = 'Rare'"))[0]!.id;
+    await time("admin filter rare tag (30 leads)", get(admin, `/api/v1/leads?limit=50&tagId=${rare}`));
+    const byName = (await admin.inject({ method: "GET", url: "/api/v1/leads?limit=50&sort=name" })).json();
+    await time(
+      "admin list by name, page 2",
+      get(admin, `/api/v1/leads?limit=50&sort=name&cursor=${encodeURIComponent(byName.nextCursor)}`),
+    );
+    // A common term: past the cap (10% of leads are "Lina …"), newest matches first.
+    await time("admin search common (capped)", get(admin, "/api/v1/leads?limit=50&q=Lina"));
     await time("admin counts (stage strip)", get(admin, `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}`));
     await time(
-      "admin counts + stage filter",
+      "admin counts + owner filter",
       get(admin, `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}&ownerId=${owner}`),
     );
+    // Counts with any other filter count live: a tag, a phone status, a search.
+    await time(
+      "admin counts + tag filter",
+      get(admin, `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}&tagId=${tag}`),
+    );
+    await time(
+      "admin counts + phone status",
+      get(admin, `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}&phoneStatus=valid`),
+    );
+    await time(
+      "admin counts + search",
+      get(admin, `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}&q=Lina%20Faris`),
+    );
+    // The sidebar's saved views (the four a new install starts with), counted on every page.
+    await time("admin view counts (sidebar)", get(admin, "/api/v1/views/counts"));
+    await time("rep view counts (sidebar)", get(rep, "/api/v1/views/counts"));
     await time("rep list (own)", get(rep, "/api/v1/leads?limit=50"));
     await time("rep counts (own)", get(rep, `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}`));
     await time("rep search (own)", get(rep, "/api/v1/leads?limit=50&q=Lina"));
@@ -220,7 +265,7 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     if (!process.env.LUME_SCALE_EXPLAIN) return;
     const cfg = await h.config();
     const repId = (await h.queryAll<{ id: string }>("SELECT id FROM users WHERE name = 'Person 1'"))[0]!.id;
-    const tag = (await h.queryAll<{ id: string }>("SELECT id FROM tags ORDER BY label LIMIT 1"))[0]!.id;
+    const tag = (await h.queryAll<{ id: string }>("SELECT id FROM tags WHERE label = 'Tag 1'"))[0]!.id;
     /** An EXPLAIN statement, run as a person of this scope would run it: row-level security applies (FORCE). */
     const explain = async (
       title: string,
@@ -281,6 +326,24 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
       [],
       true,
     );
+    // The capped search, piece by piece: the search itself, then the page read by its 10,001 hits.
+    await explain(
+      "search function, common term (capped)",
+      "all",
+      "EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT lume_lead_search('%Lina%', NULL, '%Lina%', '%Lina%', NULL, 10001) AS id",
+    );
+    const hits = (
+      await h.queryAll<{ id: string }>(
+        "SELECT lead_id AS id FROM lead_search WHERE live AND name ILIKE '%Lina%' ORDER BY lead_id DESC LIMIT 10001",
+      )
+    ).map((x) => x.id);
+    await explain(
+      "the page by 10,001 search hits",
+      "all",
+      `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT id FROM leads WHERE deleted_at IS NULL
+         AND id = ANY($1::uuid[]) ORDER BY id DESC LIMIT 51`,
+      [`{${hits.join(",")}}`],
+    );
     await explain(
       "admin sort by name",
       "all",
@@ -292,6 +355,21 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
       `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT id FROM leads l WHERE deleted_at IS NULL AND EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = l.id AND t.tag_id = $1)
         ORDER BY id DESC LIMIT 51`,
       [tag],
+    );
+    const tag1 = (await h.queryAll<{ id: string }>("SELECT id FROM tags WHERE label = 'Tag 1'"))[0]!.id;
+    await explain(
+      "tag counts (the app's query)",
+      "all",
+      `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT stage_id, count(*) FROM leads l WHERE deleted_at IS NULL AND pipeline_id = $1
+         AND EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = l.id AND t.tag_id = $2) GROUP BY stage_id`,
+      [cfg.pipelineId, tag1],
+    );
+    await explain(
+      "tag list, common tag (the app's query)",
+      "all",
+      `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) SELECT id FROM leads l WHERE deleted_at IS NULL
+         AND EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = l.id AND t.tag_id = $1) ORDER BY id DESC LIMIT 51`,
+      [tag1],
     );
     await explain(
       "rep list (own)",

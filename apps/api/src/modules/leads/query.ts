@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lt, sql, type SQL } from "driz
 import type { FastifyRequest } from "fastify";
 import { leadScope, seesFullContacts } from "@lume/core";
 import { schema } from "@lume/db";
-import { badRequest } from "../../http/errors";
+import { HttpError, badRequest } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
 import { isFieldVisible, serializeLead, type LeadRow } from "./serialize";
 
@@ -126,9 +126,11 @@ type SearchAsk = {
 function searchAsk(req: FastifyRequest, q: FilterQuery, fields: FieldRegistry): SearchAsk | null {
   const term = q.q?.trim() ?? "";
   const length = [...term].length;
-  if (length < 2) return null;
+  // One character, or symbols only (nothing a name, email or number could be looked up by): no search.
+  if (length < 2 || !/[\p{L}\p{N}]/u.test(term)) return null;
   const none: SearchAsk = { name: null, prefix: null, email: null, instagram: null, digits: null };
-  if (length === 2) return { ...none, prefix: `${likeEscape(term.toLowerCase())}%` };
+  // Lower-cased in SQL, the same way as the names it's compared with.
+  if (length === 2) return { ...none, prefix: `${likeEscape(term)}%` };
   const ctx = { actor: req.actor!, fields };
   const like = `%${likeEscape(term)}%`;
   const full = seesFullContacts(req.actor!);
@@ -145,8 +147,21 @@ function searchAsk(req: FastifyRequest, q: FilterQuery, fields: FieldRegistry): 
 /** A search, resolved: the matching leads (at most the cap) and whether there were more. */
 export type SearchHits = { ids: string[]; capped: boolean };
 
+/** For what must take every match: a search past the cap is refused in words, never acted on in part. */
+export function refuseCapped(hits: SearchHits | null): SearchHits | null {
+  if (hits?.capped)
+    throw new HttpError(
+      422,
+      "SEARCH_TOO_BROAD",
+      `That search matches more than ${searchCap.toLocaleString("en-US")} leads. Narrow it, then try again.`,
+    );
+  return hits;
+}
+
 /**
- * Run a search before the list, counts, export or view that use it (7A). Under row-level security no LIKE index on
+ * Run a search before the list, counts, export or view that use it (7A). Past the cap the hits are the newest
+ * matches; a list says so (searchCapped), and anything that must take every match (an export, a send queue)
+ * refuses rather than act on part of them. Under row-level security no LIKE index on
  * leads can be used (LIKE isn't leakproof), so search reads lead_search through lume_lead_search (0048), which
  * applies the leads policies' rule itself. Only ids come back; whatever uses them reads leads under RLS.
  */
@@ -182,8 +197,8 @@ export function leadFilters(
   else if (q.ownerId === "none") where.push(isNull(L.ownerId));
   else if (q.ownerId) where.push(eq(L.ownerId, q.ownerId));
   if (q.tagId)
-    // 7A: the lead's own tags (0047), an index probe; lead_tags would need a join and a second RLS check.
-    where.push(sql`${L.tagIds} @> ARRAY[${q.tagId}]::uuid[]`);
+    // uuid equality is leakproof, so under row-level security this still reads lead_tags' tag index (7A review).
+    where.push(sql`EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = ${L.id} AND t.tag_id = ${q.tagId})`);
   if (q.source) where.push(eq(L.sourceId, q.source));
   if (q.arrivedAfter) where.push(arrivalsWhere(new Date(q.arrivedAfter), req.actor!.userId));
   if (q.phoneStatus) {
@@ -212,10 +227,14 @@ export function leadFilters(
   if (q.createdDays) {
     // Midnight where the business is, whatever zone the server runs in (Review Focus 5).
     const tz = sql`(SELECT timezone FROM settings LIMIT 1)`;
-    const day = sql`COALESCE(${L.leadCreatedAt}, (${L.createdAt} AT TIME ZONE ${tz})::date)`;
-    // Between N-1 days ago and today: an enquiry dated ahead isn't "new today".
+    // Between N-1 days ago and today: an enquiry dated ahead isn't "new today". The enquiry date when there is one,
+    // else the day the lead arrived; written as two ranges so each reads its index (7A: the sidebar counts this).
+    const today = sql`(now() AT TIME ZONE ${tz})::date`;
+    const first = sql`(${today} - ${q.createdDays - 1}::int)`;
     where.push(
-      sql`${day} BETWEEN (now() AT TIME ZONE ${tz})::date - ${q.createdDays - 1}::int AND (now() AT TIME ZONE ${tz})::date`,
+      sql`(${L.leadCreatedAt} BETWEEN ${first} AND ${today}
+           OR (${L.leadCreatedAt} IS NULL AND ${L.createdAt} >= (${first}::timestamp AT TIME ZONE ${tz})
+               AND ${L.createdAt} < ((${today} + 1)::timestamp AT TIME ZONE ${tz})))`,
     );
   }
 
@@ -261,23 +280,45 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
     .orderBy(...orderBy(q.sort))
     .limit(q.limit + 1);
   const page = rows.slice(0, q.limit);
+  const tagsOf = await tagsFor(
+    req,
+    page.map((r) => r.id),
+  );
   return {
-    items: page.map((r) => serializeLead(r, { ...ctx, tagIds: r.tagIds })),
+    items: page.map((r) => serializeLead(r, { ...ctx, tagIds: tagsOf.get(r.id) ?? [] })),
     searchCapped: hits?.capped ?? false,
     nextCursor: rows.length > q.limit ? encodeCursor(q.sort, page.at(-1)!) : null,
   };
 }
 
 /** Board counts per stage, for the same filters as the list and only the leads the caller may see (RLS). */
-/** The filters lead_counts (0049) can answer: pipeline, owner and stage. Any other counts live. */
-const COUNTED = new Set(["pipelineId", "ownerId", "stageId"]);
+/** Each lead's tags, in one query, grouped once (never searched per lead). */
+export async function tagsFor(req: FastifyRequest, ids: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!ids.length) return out;
+  // One array parameter, not one per lead: an export asks for up to 25,000 (7A, at 1,000,000 leads).
+  const rows = await req.db
+    .select()
+    .from(schema.leadTags)
+    .where(sql`${schema.leadTags.leadId} = ANY(${`{${ids.join(",")}}`}::uuid[])`);
+  for (const t of rows) out.set(t.leadId, [...(out.get(t.leadId) ?? []), t.tagId]);
+  return out;
+}
+
+/** Fold the counts' deltas into lead_counts (0048): the follow-up clock's minute tick. */
+export async function rollupLeadCounts(pool: { query: (sql: string) => Promise<unknown> }): Promise<void> {
+  await pool.query("SELECT lume_lead_counts_rollup()");
+}
+
+/** The filters lead_counts (0048) can answer: pipeline, owner and stage. Any other counts live. */
+const COUNTED = new Set(["pipelineId", "ownerId", "stageId", "sort"]);
 
 /**
- * The stage strip from lead_counts (7A): a handful of rows per person instead of every lead. Row-level security on
- * the table shows each person the counts their lead scope allows; the owner condition mirrors the list's.
+ * The stage strip from lead_counts_now (7A, 0048: kept counts plus deltas not yet rolled up): a handful of rows per
+ * person instead of every lead. Row-level security shows each person the counts their lead scope allows; the owner
+ * condition mirrors the list's.
  */
 async function countFromTable(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
-  const C = sql.raw("lead_counts");
   const where: SQL[] = [sql`pipeline_id = ${q.pipelineId}`];
   const actor = req.actor!;
   const scope = leadScope(actor);
@@ -289,9 +330,9 @@ async function countFromTable(req: FastifyRequest, q: FilterQuery & { pipelineId
   if (q.ownerId === "me") where.push(sql`owner_id = ${actor.userId}`);
   else if (q.ownerId === "none") where.push(sql`owner_id IS NULL`);
   else if (q.ownerId) where.push(sql`owner_id = ${q.ownerId}`);
-  if (q.stageId) where.push(sql`stage_id = ANY(${`{${q.stageId.split(",").join(",")}}`}::uuid[])`);
+  if (q.stageId) where.push(sql`stage_id = ANY(${`{${q.stageId}}`}::uuid[])`);
   const { rows } = await req.db.execute<{ stage_id: string; n: number; value: string }>(sql`
-    SELECT stage_id, sum(n)::int AS n, sum(value)::text AS value FROM ${C}
+    SELECT stage_id, sum(n)::int AS n, sum(value)::text AS value FROM lead_counts_now
      WHERE ${sql.join(where, sql` AND `)} GROUP BY stage_id HAVING sum(n) <> 0`);
   return {
     counts: Object.fromEntries(rows.map((r) => [r.stage_id, r.n])),
@@ -301,9 +342,13 @@ async function countFromTable(req: FastifyRequest, q: FilterQuery & { pipelineId
   };
 }
 
+/** Whether lead_counts can answer these filters: a pipeline, and at most an owner and stages (a sort changes nothing). */
+export function countable(q: FilterQuery): boolean {
+  return !!q.pipelineId && Object.entries(q).every(([k, v]) => v === undefined || v === "" || COUNTED.has(k));
+}
+
 export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
-  if (Object.entries(q).every(([k, v]) => v === undefined || v === "" || COUNTED.has(k)))
-    return countFromTable(req, q);
+  if (countable(q)) return countFromTable(req, q);
   const fields = await loadFieldRegistry(req);
   const hits = await resolveSearch(req, q, fields);
   const rows = await req.db

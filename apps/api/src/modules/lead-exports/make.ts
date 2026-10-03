@@ -7,7 +7,7 @@ import { schema } from "@lume/db";
 import { safeCell } from "../../export/service";
 import { HttpError } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
-import { leadFilters, orderBy, resolveSearch, type FilterQuery } from "../leads/query";
+import { leadFilters, orderBy, refuseCapped, resolveSearch, tagsFor, type FilterQuery } from "../leads/query";
 import { isFieldVisible, serializeLead, type LeadView } from "../leads/serialize";
 
 /** Most leads in one file (plan ruling B1): more is "Narrow the view". */
@@ -157,7 +157,7 @@ export async function readView(
   const rows = await req.db
     .select()
     .from(schema.leads)
-    .where(and(...leadFilters(req, q, fields, await resolveSearch(req, q, fields))))
+    .where(and(...leadFilters(req, q, fields, refuseCapped(await resolveSearch(req, q, fields)))))
     .orderBy(...orderBy(q.sort))
     .limit(cap + 1);
   if (!rows.length)
@@ -169,7 +169,11 @@ export async function readView(
       `Narrow the view: up to ${cap.toLocaleString("en-US")} leads in one file.`,
     );
   const ctx = { actor: req.actor!, fields };
-  const views = rows.map((r) => serializeLead(r, { ...ctx, tagIds: r.tagIds }));
+  const tagsOf = await tagsFor(
+    req,
+    rows.map((r) => r.id),
+  );
+  const views = rows.map((r) => serializeLead(r, { ...ctx, tagIds: tagsOf.get(r.id) ?? [] }));
   const [stages, people, tags, settings] = await Promise.all([
     req.db.select({ id: schema.stages.id, name: schema.stages.name }).from(schema.stages),
     req.db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users),

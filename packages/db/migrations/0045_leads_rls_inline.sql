@@ -36,3 +36,11 @@ CREATE POLICY leads_update ON leads FOR UPDATE USING (
           OR ((SELECT lume_scope()) = 'team' AND owner_id = ANY ((SELECT lume_team_members())::uuid[])))),
     false)
 ) WITH CHECK ((SELECT lume_user()) IS NOT NULL);
+
+-- A lead's tags are seen exactly when the lead is. For scope 'all' every lead is (each lead_tags row has its lead),
+-- so the check is skipped there: Postgres read that EXISTS as a hash of every lead the person sees, a full scan of
+-- the leads on each tag filter and tag count for an admin (7A review). Other scopes hash only their own leads.
+DROP POLICY lead_tags_read ON lead_tags;
+CREATE POLICY lead_tags_read ON lead_tags FOR SELECT USING (
+  (SELECT lume_scope()) = 'all' OR EXISTS (SELECT 1 FROM leads l WHERE l.id = lead_id)
+);

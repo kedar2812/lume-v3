@@ -6,7 +6,7 @@ import { installQueueSchema } from "./queue-install";
 import { createTestDatabase, type DbRole, type TestDatabase } from "./testing";
 
 /**
- * Phase 7A Task 5 (0049): lead_counts, the stage strip's counts kept by trigger. At 1,000,000 leads counting live
+ * Phase 7A Task 5 (0048): lead_counts, the stage strip's counts kept by trigger. At 1,000,000 leads counting live
  * took 386 ms (admin) and 363 ms (a team lead). The table must always equal a live count, whatever happens to leads.
  */
 const U = [
@@ -57,11 +57,25 @@ const fromTable = () =>
     async (c) =>
       (
         await c.query(
+          `SELECT pipeline_id, stage_id, owner_id, n::int AS n, value::text AS value FROM lead_counts_now
+          WHERE n <> 0 ORDER BY 1, 2, 3 NULLS FIRST`,
+        )
+      ).rows,
+  );
+/** The base table alone (after a rollup it must be exact on its own). */
+const baseOnly = () =>
+  as(
+    "lume_owner",
+    all,
+    async (c) =>
+      (
+        await c.query(
           `SELECT pipeline_id, stage_id, owner_id, n::int AS n, value::text AS value FROM lead_counts
           WHERE n <> 0 ORDER BY 1, 2, 3 NULLS FIRST`,
         )
       ).rows,
   );
+const rollup = () => as("lume_app", all, (c) => c.query("SELECT lume_lead_counts_rollup()"));
 const live = () =>
   as(
     "lume_owner",
@@ -112,7 +126,7 @@ beforeAll(async () => {
 });
 afterAll(async () => db.drop());
 
-describe("0049: lead_counts always equals a live count", { timeout: 60_000 }, () => {
+describe("0048: lead_counts always equals a live count", { timeout: 60_000 }, () => {
   it("random sequences of every kind of change (create, move, reassign, value, pipeline, delete, restore, in bulk)", async () => {
     const owners = [...U, null];
     for (const seed of [1, 2, 3, 4, 5]) {
@@ -188,12 +202,23 @@ describe("0049: lead_counts always equals a live count", { timeout: 60_000 }, ()
               break;
           }
         });
+        // LUME's minute rollup, now and then, mid-sequence.
+        if (r() < 0.15) await rollup();
       }
       expect(await fromTable(), `seed ${seed}`).toEqual(await live());
+      // Rolled up, the deltas are gone and the base alone is exact.
+      await rollup();
+      const left = await as(
+        "lume_owner",
+        all,
+        async (c) => (await c.query("SELECT count(*)::int AS n FROM lead_count_deltas")).rows[0].n,
+      );
+      expect(left).toBe(0);
+      expect(await baseOnly(), `seed ${seed} base`).toEqual(await live());
     }
   }, 120_000);
 
-  it("two people creating leads in the same stage at once: both are counted", async () => {
+  it("two people creating leads in the same stage at once never wait on each other, and both count (7A review)", async () => {
     const [p, s] = [P[1]!, S[P[1]!]![1]!];
     const before = await fromTable();
     const one = new pg.Client({ connectionString: db.url("lume_app") });
@@ -214,10 +239,10 @@ describe("0049: lead_counts always equals a live count", { timeout: 60_000 }, ()
           [p, s, U[1]],
         );
       await ins(one);
-      const second = ins(two);
-      await new Promise((r) => setTimeout(r, 300));
+      // The second must not wait for the first: a lock wait would hit this timeout.
+      await two.query("SET LOCAL lock_timeout = '1s'");
+      await ins(two);
       await one.query("COMMIT");
-      await second;
       await two.query("COMMIT");
     } finally {
       await one.end();
@@ -227,13 +252,60 @@ describe("0049: lead_counts always equals a live count", { timeout: 60_000 }, ()
     expect(await fromTable()).not.toEqual(before);
   });
 
+  it("a rollup while a change is still uncommitted loses nothing and counts nothing twice", async () => {
+    const [p, s] = [P[0]!, S[P[0]!]![0]!];
+    const open = new pg.Client({ connectionString: db.url("lume_app") });
+    await open.connect();
+    try {
+      await open.query("BEGIN");
+      await open.query(
+        "SELECT set_config('lume.lead_scope', 'own', true), set_config('lume.user_id', $1, true)",
+        [U[2]],
+      );
+      await open.query(
+        "INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name, value) VALUES (gen_random_uuid(), $1, $2, $3, 'R', 12.5)",
+        [p, s, U[2]],
+      );
+      await rollup();
+      await open.query("COMMIT");
+    } finally {
+      await open.end();
+    }
+    expect(await fromTable()).toEqual(await live());
+    await rollup();
+    expect(await fromTable()).toEqual(await live());
+    expect(await baseOnly()).toEqual(await live());
+  });
+
+  it("backups read the counts with an empty search_path, as pg_dump does (7A: the helper must not need one)", async () => {
+    const c = new pg.Client({ connectionString: db.url("lume_readonly_backup") });
+    await c.connect();
+    try {
+      await c.query("SET search_path = ''");
+      await c.query("SET row_security = on");
+      await c.query("SELECT count(*) FROM public.lead_counts");
+      await c.query("SELECT count(*) FROM public.lead_count_deltas");
+      await c.query("SELECT count(*) FROM public.lead_counts_now");
+      await c.query("SELECT count(*) FROM public.lead_search");
+    } finally {
+      await c.end();
+    }
+  });
+
   it("the app reads only the counts its scope may see, and can't write them", async () => {
     const rows = (ctx: Ctx) =>
       as("lume_app", ctx, async (c) =>
         (
-          await c.query("SELECT DISTINCT owner_id FROM lead_counts WHERE n <> 0 ORDER BY 1 NULLS FIRST")
+          await c.query("SELECT DISTINCT owner_id FROM lead_counts_now WHERE n <> 0 ORDER BY 1 NULLS FIRST")
         ).rows.map((x) => x.owner_id),
       );
+    // An unassigned lead of its own (the random sequences may have handed every unassigned one out).
+    await as("lume_owner", all, (c) =>
+      c.query(
+        "INSERT INTO leads (id, pipeline_id, stage_id, owner_id, name) VALUES (gen_random_uuid(), $1, $2, NULL, 'U')",
+        [P[0], S[P[0]!]![0]],
+      ),
+    );
     const everyone = await rows({ scope: "all", user: U[0] });
     expect(everyone).toContain(null); // unassigned: 'all' only
     expect(await rows({ scope: "own", user: U[0] })).toEqual(everyone.filter((o) => o === U[0]));
@@ -247,5 +319,13 @@ describe("0049: lead_counts always equals a live count", { timeout: 60_000 }, ()
     await expect(as("lume_app", all, (c) => c.query("DELETE FROM lead_counts"))).rejects.toThrow(
       /permission denied/,
     );
+    await expect(
+      as("lume_app", all, (c) =>
+        c.query("INSERT INTO lead_count_deltas (pipeline_id, stage_id, n, value) VALUES ($1, $2, 5, 0)", [
+          P[0],
+          S[P[0]!]![0],
+        ]),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 });

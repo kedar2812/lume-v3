@@ -5,7 +5,7 @@ import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
-import { leadFilters, resolveSearch, type FilterQuery } from "../leads/query";
+import { countable, countLeads, leadFilters, resolveSearch, type FilterQuery } from "../leads/query";
 import { filterQuerySchema } from "../leads/routes";
 
 const V = schema.savedViews;
@@ -180,11 +180,15 @@ export async function orderViews(req: FastifyRequest, ids: string[]) {
  * whose filters no longer hold (a field archived, a stage, tag or reason gone) counts null ("—"), and the
  * rest still count (Review Focus 2).
  */
-export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<string, number | null> }> {
+export async function viewCounts(
+  req: FastifyRequest,
+): Promise<{ counts: Record<string, number | null>; capped: string[] }> {
   const rows = await visible(req);
   const fields = await loadFieldRegistry(req);
   const counts: Record<string, number | null> = {};
-  const parts: { id: string; where: SQL }[] = [];
+  // Views whose search matched past the cap (7A): their count is of the newest matches, and they say so.
+  const capped: string[] = [];
+  const parts: { id: string; where: SQL; counted?: FilterQuery & { pipelineId: string } }[] = [];
   // A view naming no pipeline opens on the default one (the list shows one pipeline at a time), so it
   // counts that one too (4B review, Important 2).
   const [byDefault] = await req.db
@@ -204,24 +208,31 @@ export async function viewCounts(req: FastifyRequest): Promise<{ counts: Record<
     }
     try {
       const q = p.data.pipelineId || !byDefault ? p.data : { ...p.data, pipelineId: byDefault.id };
+      const hits = await resolveSearch(req, q, fields);
+      if (hits?.capped) capped.push(r.id);
       parts.push({
         id: r.id,
-        where: and(...leadFilters(req, q, fields, await resolveSearch(req, q, fields)))!,
+        where: and(...leadFilters(req, q, fields, hits))!,
+        ...(countable(q) ? { counted: q as FilterQuery & { pipelineId: string } } : {}),
       });
     } catch (e) {
       if (!(e instanceof HttpError)) throw e;
       counts[r.id] = null;
     }
   }
-  if (parts.length) {
-    const cols = sql.join(
-      parts.map((p, i) => sql`count(*) FILTER (WHERE ${p.where})::int AS ${sql.identifier(`c${i}`)}`),
-      sql`, `,
+  // Each view on its own (7A): one pass with a FILTER per view had to read every lead; alone, each takes its own
+  // index, and one filtered only by pipeline, owner or stage reads the kept counts.
+  for (const p of parts) {
+    if (p.counted) {
+      counts[p.id] = (await countLeads(req, p.counted)).total;
+      continue;
+    }
+    const { rows: out } = await req.db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM leads WHERE ${p.where}`,
     );
-    const [out] = (await req.db.execute(sql`SELECT ${cols} FROM leads`)).rows as Record<string, number>[];
-    parts.forEach((p, i) => (counts[p.id] = out?.[`c${i}`] ?? 0));
+    counts[p.id] = out[0]?.n ?? 0;
   }
-  return { counts };
+  return { counts, capped };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

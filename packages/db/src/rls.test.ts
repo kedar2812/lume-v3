@@ -225,6 +225,15 @@ describe("RLS on leads, by raw SQL as lume_app", () => {
       }
     };
     const owners = [U.rep, U.mate, U.other, null];
+    // Every lead tagged, so lead_tags' read policy is compared too.
+    await as("lume_owner", { scope: "all" }, async (c) => {
+      await c.query(
+        "INSERT INTO tags (id, label) VALUES ('0190e0c0-0000-7000-8000-0000000000e9', 'Eq') ON CONFLICT DO NOTHING",
+      );
+      await c.query(
+        "INSERT INTO lead_tags (lead_id, tag_id) SELECT id, '0190e0c0-0000-7000-8000-0000000000e9' FROM leads ON CONFLICT DO NOTHING",
+      );
+    });
     for (const ctx of contexts) {
       const label = JSON.stringify(ctx);
       // Read: what the policy shows equals the old rule over every row.
@@ -239,6 +248,21 @@ describe("RLS on leads, by raw SQL as lume_app", () => {
         ).rows.map((r) => r.id),
       );
       expect(seen, `read ${label}`).toEqual(oracle);
+      // lead_tags: a lead's tags are seen exactly when the lead is.
+      const tagsSeen = await run("lume_app", ctx, async (c) =>
+        (await c.query<{ lead_id: string }>("SELECT lead_id FROM lead_tags ORDER BY lead_id")).rows.map(
+          (r) => r.lead_id,
+        ),
+      );
+      const tagsOracle = await run("lume_readonly_backup", ctx, async (c) =>
+        (
+          await c.query<{ lead_id: string }>(
+            `SELECT t.lead_id FROM lead_tags t JOIN leads l ON l.id = t.lead_id
+              WHERE lume_can_see_owner(l.owner_id) OR l.id = lume_handoff_lead() ORDER BY t.lead_id`,
+          )
+        ).rows.map((r) => r.lead_id),
+      );
+      expect(tagsSeen, `lead_tags ${label}`).toEqual(tagsOracle);
       // Create: allowed for exactly the owners the old rule allowed.
       for (const owner of owners) {
         const allowed = await run("lume_readonly_backup", ctx, async (c) =>

@@ -59,6 +59,8 @@ describe("update.sh (L-C Task 4)", () => {
       /exec -T -u postgres db pg_dump -Fc lume > \/opt\/lume\/backups\/before-1\.1\.0-\d{8}T\d{6}\.dump/,
       /sed -i "s\/\^LUME_TAG=\.\*\/LUME_TAG='1\.1\.0'\/" \/opt\/lume\/\.env/,
       /docker compose pull/,
+      // The old app stops before migrations: they lock lead tables while they build and backfill (7A review).
+      /docker compose stop api worker/,
       /docker compose run --rm migrate/,
       /docker compose up -d/,
       /^curl .*https:\/\/harbour-clinic\.lumecrm\.in\/healthz/,
@@ -128,6 +130,20 @@ describe("update.sh (L-C Task 4)", () => {
     });
     expect(r.code).not.toBe(0);
     expect(r.calls.some((c) => /pg_restore/.test(c))).toBe(false);
+  });
+
+  it("the old app won't stop: nothing migrates, back to the previous version, no restore (7A review)", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [{ match: /docker compose stop api worker$/, code: 1 }],
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.calls.some((c) => /compose run --rm migrate/.test(c))).toBe(false);
+    expect(r.calls.some((c) => /pg_restore/.test(c))).toBe(false);
+    expect(r.calls.some((c) => /LUME_TAG='1\.0\.0'/.test(c))).toBe(true);
+    expect(f.version("harbour-clinic")).toBe("1.0.0");
   });
 
   it("health fails with nothing migrated: back to the previous version, no restore", () => {

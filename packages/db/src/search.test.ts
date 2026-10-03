@@ -6,7 +6,7 @@ import { installQueueSchema } from "./queue-install";
 import { createTestDatabase, type DbRole, type TestDatabase } from "./testing";
 
 /**
- * Phase 7A Task 4 (0048): search through its own table. Under row-level security Postgres can't use a LIKE index
+ * Phase 7A Task 4 (0047): search through its own table. Under row-level security Postgres can't use a LIKE index
  * on leads (texticlike isn't leakproof), so search reads lead_search: a mirror the app can't touch, read only
  * through lume_lead_search, which applies the leads policies' rule itself (Review Focus 1, 3).
  */
@@ -116,7 +116,7 @@ beforeAll(async () => {
 });
 afterAll(async () => db.drop());
 
-describe("0048: lead_search, the table search reads (Review Focus 1, 3)", { timeout: 60_000 }, () => {
+describe("0047: lead_search, the table search reads (Review Focus 1, 3)", { timeout: 60_000 }, () => {
   it("the app can't read or write it: only lume_lead_search reads it", async () => {
     await expect(as("lume_app", all, (c) => c.query("SELECT * FROM lead_search"))).rejects.toThrow(
       /permission denied/,
@@ -156,6 +156,11 @@ describe("0048: lead_search, the table search reads (Review Focus 1, 3)", { time
   it("keeps at most max_rows (the cap), and the app asks for one more to know there were more", async () => {
     expect(await search(all, { name: "%lead%", max: 2 })).toHaveLength(2);
     expect(await search(all, { name: "%lead%", max: 5 })).toHaveLength(4);
+  });
+
+  it("a capped search keeps the newest matches (ids are time-ordered), the same every time (7A review)", async () => {
+    const newest = Object.values(L).sort().reverse().slice(0, 2).sort();
+    for (let i = 0; i < 3; i++) expect(await search(all, { name: "%lead%", max: 2 })).toEqual(newest);
   });
 
   it("sees exactly the leads the policies show, in every context (the oracle is leads' own RLS)", async () => {

@@ -1,6 +1,7 @@
 import { ALL_GRANTS, STARTER_VIEWS, newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
+import { setSearchCapForTests } from "../leads/query";
 
 // 4B Task 3: saved views — a person's own or shared by role — with live counts.
 let h: Harness;
@@ -324,5 +325,23 @@ describe("saved views (4B Task 3)", () => {
     const stage = Object.values(cfg.stages)[0]!;
     for (let i = 0; i < 8; i++) await stored({ stageId: stage, tagId: newId() });
     expect(await measure()).toBe(few);
+  });
+});
+
+describe("a view whose search matches more than LUME searches through (7A review)", () => {
+  it("counts the newest matches up to the cap, and says it's capped, never a quiet wrong number", async () => {
+    for (const n of ["VCX One", "VCX Two", "VCX Three"]) await h.seedLead({ ownerId: adminUser.id, name: n });
+    const v = (await create(admin, { name: "VCX", color: "accent", filters: { q: "VCX" } })).json();
+    setSearchCapForTests(2);
+    try {
+      const r = (await call(admin, "GET", "/api/v1/views/counts")).json();
+      expect(r.counts[v.id]).toBe(2);
+      expect(r.capped).toContain(v.id);
+    } finally {
+      setSearchCapForTests(null);
+    }
+    const r = (await call(admin, "GET", "/api/v1/views/counts")).json();
+    expect(r.counts[v.id]).toBe(3);
+    expect(r.capped).not.toContain(v.id);
   });
 });

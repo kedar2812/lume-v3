@@ -80,7 +80,15 @@ update_one() {
     return 1
   fi
   local migrate_ok=true
-  out="$(remote "cd /opt/lume && docker compose run --rm migrate")" || migrate_ok=false
+  # The old app stops first: migrations may lock lead tables while they build indexes and backfill (Phase 7A), and
+  # a frozen Leads screen or a webhook that times out mid-update would cost more than the minute it's down.
+  if remote "cd /opt/lume && docker compose stop api worker"; then
+    out="$(remote "cd /opt/lume && docker compose run --rm migrate")" || migrate_ok=false
+  else
+    # Nothing ran: the database is as it was, so a rollback restores nothing.
+    migrate_ok=false
+    out='{"applied":[]}'
+  fi
   [ -n "$out" ] && printf '%s\n' "$out"
   # Anything but a clean "nothing applied" counts as migrations having run (a restore is then needed).
   grep -q '"applied":\[\]' <<<"$out" || migrated=true

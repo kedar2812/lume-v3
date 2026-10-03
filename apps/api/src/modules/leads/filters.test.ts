@@ -2,7 +2,9 @@ import { ALL_GRANTS, newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyRequest } from "fastify";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
-import { scopeCondition, setSearchCapForTests } from "./query";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { schema as dbSchema } from "@lume/db";
+import { scopeCondition, setSearchCapForTests, tagsFor } from "./query";
 
 // 4B Task 1: the filters saved views need — no reply for days, lost a while ago, overdue follow-ups,
 // new today (in the business's timezone).
@@ -205,7 +207,7 @@ describe("7A: the person's scope as a plain condition (it never shows more, or l
   });
 });
 
-describe("7A: the tag filter reads the lead's own tags (0047)", () => {
+describe("7A: the tag filter, through lead_tags' tag index", () => {
   it("follows every way a tag comes and goes: an edit, bulk add, bulk remove, a tag deleted, a lead deleted", async () => {
     const tag = async (label: string) =>
       (await admin.inject({ method: "POST", url: "/api/v1/tags", payload: { label } })).json().tag
@@ -240,10 +242,37 @@ describe("7A: the tag filter reads the lead's own tags (0047)", () => {
       300,
     );
     expect(await tagged(hot)).toEqual([]);
-    const rows = await h.queryAll<{ tag_ids: string[] }>("SELECT tag_ids FROM leads WHERE id = ANY($1)", [
-      [one, two],
-    ]);
-    expect(rows.every((r) => !r.tag_ids.includes(hot))).toBe(true);
+    const left = await h.queryAll<{ n: number }>(
+      "SELECT count(*)::int AS n FROM lead_tags WHERE tag_id = $1",
+      [hot],
+    );
+    expect(left[0]!.n).toBe(0);
+  });
+});
+
+describe("7A: tags for a page or a file of leads", () => {
+  it("reads them in one statement however many leads (an export holds up to 25,000; one parameter each was slow)", async () => {
+    const lead = await h.seedLead({ ownerId: adminId, name: "TF One" });
+    const tag = newId();
+    await h.queryAll("INSERT INTO tags (id, label) VALUES ($1, $2)", [tag, `TF ${tag.slice(-6)}`]);
+    await h.queryAll("INSERT INTO lead_tags (lead_id, tag_id) VALUES ($1, $2)", [lead, tag]);
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        "SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'all', true)",
+        [adminId],
+      );
+      const req = { db: drizzle(c, { schema: dbSchema }) } as unknown as FastifyRequest;
+      // 70,000 ids: past Postgres' 65,535 parameters, so only a single array parameter can carry them.
+      const ids = [lead, ...Array.from({ length: 69_999 }, () => newId())];
+      const got = await tagsFor(req, ids);
+      expect(got.get(lead)).toEqual([tag]);
+      expect(got.size).toBe(1);
+    } finally {
+      await c.query("ROLLBACK");
+      c.release();
+    }
   });
 });
 
@@ -276,9 +305,6 @@ describe("7A: search through its indexes", () => {
     expect((await find(admin, "zoë")).names).toEqual(["SR Zoë Ángel"]);
     expect((await find(admin, "se 🌹")).names).toEqual(["SR Rose 🌹"]);
     expect((await find(admin, "🌹")).names).toEqual(await names(admin, "")); // one character: no search
-    // Symbols only (no trigram to look up): still answered, exactly.
-    expect((await find(admin, "!!!")).names).toEqual([]);
-    expect((await find(admin, "%%%")).names).toEqual([]);
     expect((await find(admin, "0% S")).names).toEqual(["SR 100% Sure"]);
     expect((await find(admin, "LongLongLong")).names).toHaveLength(1);
     expect((await find(admin, "obrien@srch")).names).toEqual(["SR O'Brien"]);
@@ -299,6 +325,27 @@ describe("7A: search through its indexes", () => {
     expect((await find(admin, "pq")).names).toEqual(["Pq First", "pQ Second"]);
     expect((await find(admin, "PQ")).names).toEqual(["Pq First", "pQ Second"]);
     expect((await find(rep, "pq")).names).toEqual([]); // not theirs
+  });
+
+  it("an export of a search past the cap is refused in words, never a file of an arbitrary part (7A review)", async () => {
+    for (const n of ["EXQ One", "EXQ Two", "EXQ Three"]) await h.seedLead({ ownerId: adminId, name: n });
+    setSearchCapForTests(2);
+    try {
+      const r = await admin.inject({
+        method: "POST",
+        url: "/api/v1/leads/export",
+        payload: { format: "csv", label: "EXQ", filters: { q: "EXQ" }, columns: ["name"] },
+      });
+      expect(r.statusCode, r.body).toBe(422);
+      expect(r.json().error).toMatchObject({ code: "SEARCH_TOO_BROAD" });
+    } finally {
+      setSearchCapForTests(null);
+    }
+  });
+
+  it("symbols only (nothing to look up) is no search: the list answers as if there were no term", async () => {
+    const all = await names(admin, "");
+    for (const t of ["!!!", "%%%", "---", "🔥🔥🔥"]) expect((await find(admin, t)).names, t).toEqual(all);
   });
 
   it("at the cap it answers in full; one past, it says so (Review Focus 5)", async () => {
@@ -342,7 +389,7 @@ describe("7A: search through its indexes", () => {
   });
 });
 
-describe("7A: the stage strip's counts come from lead_counts when they can (0049)", () => {
+describe("7A: the stage strip's counts come from lead_counts when they can (0048)", () => {
   it("equal a recount for every scope, with and without owner and stage filters; other filters count live", async () => {
     const cfg = await h.config();
     const stages = Object.values(cfg.stages).slice(0, 2);

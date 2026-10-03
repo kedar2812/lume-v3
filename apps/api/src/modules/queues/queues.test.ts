@@ -1,6 +1,7 @@
 import { ALL_GRANTS, localDayBounds, newId, type Grant } from "@lume/core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
+import { setSearchCapForTests } from "../leads/query";
 
 let h: Harness;
 let admin: AuthedClient;
@@ -660,5 +661,26 @@ describe("running it", () => {
     expect(defs.join("\n")).toMatch(
       /ON public\.send_queue_items USING btree \(done_at\) WHERE \(status = 'sent'::text\)/,
     );
+  });
+});
+
+describe("a view whose search matches more than LUME searches through (7A review)", () => {
+  it("is refused in words, never run over an arbitrary part of it", async () => {
+    const who = await h.seedUser({ grants: repGrants, totp: true, name: "Cap Rep" });
+    const c = await h.signIn(who);
+    for (const n of ["CQX One", "CQX Two", "CQX Three"])
+      await h.seedLead({ ownerId: who.id, name: n, phone: NUMBER });
+    const view = (
+      await post(c, "/api/v1/views", { name: "CQX", color: "accent", filters: { q: "CQX", sort: "name" } })
+    ).json();
+    const t = await template("First hello");
+    setSearchCapForTests(2);
+    try {
+      const r = await start(c, { viewId: view.id, templateId: t.id });
+      expect(r.statusCode, r.body).toBe(422);
+      expect(r.json().error.code).toBe("SEARCH_TOO_BROAD");
+    } finally {
+      setSearchCapForTests(null);
+    }
   });
 });
