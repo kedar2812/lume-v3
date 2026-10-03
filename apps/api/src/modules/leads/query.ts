@@ -112,7 +112,8 @@ export function leadFilters(req: FastifyRequest, q: FilterQuery, fields: FieldRe
   else if (q.ownerId === "none") where.push(isNull(L.ownerId));
   else if (q.ownerId) where.push(eq(L.ownerId, q.ownerId));
   if (q.tagId)
-    where.push(sql`EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = ${L.id} AND t.tag_id = ${q.tagId})`);
+    // 7A: the lead's own tags (0047), an index probe; lead_tags would need a join and a second RLS check.
+    where.push(sql`${L.tagIds} @> ARRAY[${q.tagId}]::uuid[]`);
   if (q.source) where.push(eq(L.sourceId, q.source));
   if (q.arrivedAfter) where.push(arrivalsWhere(new Date(q.arrivedAfter), req.actor!.userId));
   if (q.phoneStatus) {
@@ -196,21 +197,8 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
     .orderBy(...orderBy(q.sort))
     .limit(q.limit + 1);
   const page = rows.slice(0, q.limit);
-  const tags = page.length
-    ? await req.db
-        .select()
-        .from(schema.leadTags)
-        .where(
-          inArray(
-            schema.leadTags.leadId,
-            page.map((r) => r.id),
-          ),
-        )
-    : [];
   return {
-    items: page.map((r) =>
-      serializeLead(r, { ...ctx, tagIds: tags.filter((t) => t.leadId === r.id).map((t) => t.tagId) }),
-    ),
+    items: page.map((r) => serializeLead(r, { ...ctx, tagIds: r.tagIds })),
     nextCursor: rows.length > q.limit ? encodeCursor(q.sort, page.at(-1)!) : null,
   };
 }

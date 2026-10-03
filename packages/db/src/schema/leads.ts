@@ -55,6 +55,11 @@ export const leads = pgTable("leads", {
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
   deletedAt: tz("deleted_at"),
+  // 7A (0047): the lead's tags, kept equal to lead_tags by trigger; read-only to the app (write lead_tags).
+  tagIds: uuid("tag_ids")
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
 });
 
 export const leadTags = pgTable(

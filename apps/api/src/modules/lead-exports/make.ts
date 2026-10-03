@@ -1,4 +1,4 @@
-import { and, inArray } from "drizzle-orm";
+import { and } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import type { FastifyRequest } from "fastify";
 import Papa from "papaparse";
@@ -168,19 +168,8 @@ export async function readView(
       "TOO_MANY",
       `Narrow the view: up to ${cap.toLocaleString("en-US")} leads in one file.`,
     );
-  const tagRows = await req.db
-    .select()
-    .from(schema.leadTags)
-    .where(
-      inArray(
-        schema.leadTags.leadId,
-        rows.map((r) => r.id),
-      ),
-    );
-  const tagsOf = new Map<string, string[]>();
-  for (const t of tagRows) tagsOf.set(t.leadId, [...(tagsOf.get(t.leadId) ?? []), t.tagId]);
   const ctx = { actor: req.actor!, fields };
-  const views = rows.map((r) => serializeLead(r, { ...ctx, tagIds: tagsOf.get(r.id) ?? [] }));
+  const views = rows.map((r) => serializeLead(r, { ...ctx, tagIds: r.tagIds }));
   const [stages, people, tags, settings] = await Promise.all([
     req.db.select({ id: schema.stages.id, name: schema.stages.name }).from(schema.stages),
     req.db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users),
