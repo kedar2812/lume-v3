@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { deviceName } from "@lume/core";
 import type { AppDeps } from "../../app";
+import { liveSessionSql } from "../../auth/sessions";
 
 const rows = async <R>(req: FastifyRequest, q: ReturnType<typeof sql>) =>
   (await req.db.execute(q)).rows as R[];
@@ -81,18 +82,20 @@ export async function securityActivity(req: FastifyRequest, d: Pick<AppDeps, "cl
   const failed = await rows<{
     count: number;
     people: number;
+    known: number;
     user_id: string | null;
     name: string | null;
     last: string | null;
   }>(
     req,
-    sql`SELECT count(*)::int AS count, count(DISTINCT entity_id)::int AS people,
+    sql`SELECT count(*)::int AS count, count(DISTINCT entity_id)::int AS people, count(entity_id)::int AS known,
                min(entity_id) AS user_id, min(u.name) AS name, max(a.at)::text AS last
           FROM audit_log a LEFT JOIN users u ON u.id::text = a.entity_id
          WHERE a.action IN ('user.login.failed', 'user.login.locked') AND a.at >= ${dayStart}`,
   );
   const f = failed[0]!;
-  const one = f.count > 0 && f.people === 1 && f.user_id !== null && f.name !== null;
+  // Named only when every failure is that one person's: an unknown email's failure has no person (6C review).
+  const one = f.count > 0 && f.known === f.count && f.people === 1 && f.name !== null;
   const [after] = one
     ? await rows<{ yes: boolean }>(
         req,
@@ -111,7 +114,7 @@ export async function securityActivity(req: FastifyRequest, d: Pick<AppDeps, "cl
     req,
     sql`SELECT s.id, s.user_id, u.name, s.user_agent, s.created_at
           FROM sessions s JOIN users u ON u.id = s.user_id
-         WHERE s.revoked_at IS NULL AND s.stage = 'full' AND s.expires_at > ${d.clock()}
+         WHERE ${liveSessionSql("s", d.clock(), req.sessionPolicy)}
          ORDER BY s.created_at DESC LIMIT 100`,
   );
   const [day] = await rows<{ day: string }>(

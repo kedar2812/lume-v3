@@ -3,9 +3,11 @@ import type { FastifyRequest } from "fastify";
 import { leadScope } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
-import { revokeUserSessions } from "../../auth/sessions";
+import { liveSessionSql, revokeUserSessions } from "../../auth/sessions";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
+import { cancelReminders } from "../tasks/engine";
+import { refreshNextDue } from "../tasks/lifecycle";
 
 export type LeadsChoice = { to: "person"; userId: string } | { to: "team"; teamId: string } | { to: "none" };
 
@@ -25,7 +27,20 @@ async function personOf(req: FastifyRequest, id: string, lock = false): Promise<
     sql`SELECT id, name, status, is_owner FROM users WHERE id = ${id} ${lock ? sql`FOR UPDATE` : sql``}`,
   );
   if (!p) throw notFound();
+  // As Disable does: the owner and yourself are never offboarded, nor previewed for it (6C review).
+  if (p.is_owner) throw forbidden("OWNER_PROTECTED", "The owner account can't be changed by anyone else");
+  if (id === req.actor!.userId) throw forbidden("SELF", "You can't offboard yourself");
   return p;
+}
+
+/** Their sessions someone could use right now: an idle one isn't "signed in" (6C review). */
+async function liveSessions(req: FastifyRequest, now: Date, id: string): Promise<number> {
+  const [s] = await rows<{ n: number }>(
+    req,
+    sql`SELECT count(*)::int AS n FROM sessions s
+         WHERE s.user_id = ${id} AND ${liveSessionSql("s", now, req.sessionPolicy)}`,
+  );
+  return s?.n ?? 0;
 }
 
 /** LUME's own look across every lead (counts and hand-over), then the admin's own scope back. */
@@ -54,10 +69,7 @@ const MEMBERS = (teamId: string, personId: string) => sql`
  */
 export async function offboardingPreview(req: FastifyRequest, d: Pick<AppDeps, "clock">, id: string) {
   const p = await personOf(req, id);
-  const [s] = await rows<{ n: number }>(
-    req,
-    sql`SELECT count(*)::int AS n FROM sessions WHERE user_id = ${id} AND revoked_at IS NULL AND expires_at > ${d.clock()}`,
-  );
+  const sessions = await liveSessions(req, d.clock(), id);
   return everyLead(req, async () => {
     const [leads] = await rows<{ total: number; open: number }>(
       req,
@@ -94,7 +106,7 @@ export async function offboardingPreview(req: FastifyRequest, d: Pick<AppDeps, "
     await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', '', true)`);
     return {
       person: { id: p.id, name: p.name, status: p.status },
-      sessions: s?.n ?? 0,
+      sessions,
       leads: leads ?? { total: 0, open: 0 },
       teams,
       people,
@@ -158,8 +170,6 @@ export async function offboard(
 ): Promise<Outcome> {
   const actor = req.actor!;
   const p = await personOf(req, id, true);
-  if (p.is_owner) throw forbidden("OWNER_PROTECTED", "The owner account can't be changed by anyone else");
-  if (id === actor.userId) throw forbidden("SELF", "You can't offboard yourself");
   if (p.status !== "active" && p.status !== "suspended")
     throw conflict("NOT_ACTIVE", `${p.name} is already disabled`);
 
@@ -179,15 +189,17 @@ export async function offboard(
   }
   const now = d.clock();
 
-  // 1. Signed out everywhere, and kept out.
+  // 1. Signed out everywhere, and kept out. Every session ends; the count is of those that were live.
+  const sessions = await liveSessions(req, now, id);
   await req.db.execute(sql`UPDATE users SET status = 'disabled', disabled_at = ${now} WHERE id = ${id}`);
-  const sessions = await revokeUserSessions(req.db, id, "user_offboarded", now);
+  await revokeUserSessions(req.db, id, "user_offboarded", now);
 
   // 2. Their leads, handed on.
   const leads = await everyLead(req, async () => {
-    const mine = await rows<{ id: string }>(
+    const mine = await rows<{ id: string; open: boolean }>(
       req,
-      sql`SELECT id FROM leads WHERE owner_id = ${id} AND deleted_at IS NULL ORDER BY created_at, id`,
+      sql`SELECT l.id, st.kind = 'open' AS open FROM leads l JOIN stages st ON st.id = l.stage_id
+           WHERE l.owner_id = ${id} AND l.deleted_at IS NULL ORDER BY l.created_at, l.id`,
     );
     if (choice.to !== "team") {
       const to = choice.to === "person" ? choice.userId : null;
@@ -201,15 +213,27 @@ export async function offboard(
     }
     members = await rows(req, MEMBERS(choice.teamId, id));
     if (!members.length) throw badRequest("TEAM_EMPTY", "Nobody active in that team can take the leads");
-    const load = new Map(members.map((m) => [m.id, m.open_leads]));
+    // Open leads first, each to whoever has the fewest open leads (C1); then closed ones, each to whoever has been
+    // given the fewest closed ones, so old history never tips the open work (6C review).
     const given = new Map<string, string[]>(members.map((m) => [m.id, []]));
-    for (const l of mine) {
-      const next = [...members].sort(
-        (a, b) => load.get(a.id)! - load.get(b.id)! || a.name.localeCompare(b.name),
-      )[0]!;
-      given.get(next.id)!.push(l.id);
-      load.set(next.id, load.get(next.id)! + 1);
-    }
+    const spread = (leadIds: string[], start: (m: (typeof members)[number]) => number) => {
+      const load = new Map(members.map((m) => [m.id, start(m)]));
+      for (const lead of leadIds) {
+        const next = [...members].sort(
+          (a, b) => load.get(a.id)! - load.get(b.id)! || a.name.localeCompare(b.name),
+        )[0]!;
+        given.get(next.id)!.push(lead);
+        load.set(next.id, load.get(next.id)! + 1);
+      }
+    };
+    spread(
+      mine.filter((l) => l.open).map((l) => l.id),
+      (m) => m.open_leads,
+    );
+    spread(
+      mine.filter((l) => !l.open).map((l) => l.id),
+      () => 0,
+    );
     for (const [to, ids] of given) await moveLeads(req, ids, id, to);
     return {
       to: "team" as const,
@@ -222,7 +246,27 @@ export async function offboard(
 
   // 3. Their Google Calendar: lead meetings go with their leads (C2), the rest and the grant go.
   if (failAt === "calendar") throw new Error("offboarding test failure at the calendar step");
-  const calendar = await disconnectTheirs(req, id);
+  const disconnected = await disconnectTheirs(req, id);
+  const calendar = disconnected && {
+    meetingsMoved: disconnected.meetingsMoved,
+    meetingsRemoved: disconnected.meetingsRemoved,
+  };
+  // A removed meeting's Log outcome and reminder follow-ups go with it, as Disconnect does (6C review).
+  if (disconnected?.gone.length)
+    await everyLead(req, async () => {
+      const closed = await rows<{ id: string; lead_id: string }>(
+        req,
+        sql`UPDATE tasks SET status = 'cancelled', cancelled_at = now(), updated_at = now(), version = version + 1
+             WHERE status = 'open'
+               AND (id = ANY(${`{${disconnected.outcomeTasks.join(",")}}`}::uuid[])
+                    OR meeting_id = ANY(${`{${disconnected.gone.join(",")}}`}::uuid[]))
+            RETURNING id, lead_id`,
+      );
+      for (const t of closed) {
+        await cancelReminders(req.db, t.id);
+        await refreshNextDue(req, t.lead_id);
+      }
+    });
 
   // 4. Their open alerts: settled.
   await req.db.execute(sql`
@@ -236,7 +280,10 @@ export async function offboard(
   return outcome;
 }
 
-/** Leads to a new owner (or none), each move in the assignment history as an offboarding. */
+/**
+ * Leads to a new owner (or none), each move in the assignment history as an offboarding. Their open follow-ups on
+ * those leads go to the new owner too (6C review); left unassigned, they stay on the lead for an admin to hand out.
+ */
 async function moveLeads(req: FastifyRequest, ids: string[], from: string, to: string | null) {
   if (!ids.length) return;
   const list = `{${ids.join(",")}}`;
@@ -246,6 +293,10 @@ async function moveLeads(req: FastifyRequest, ids: string[], from: string, to: s
   await req.db.execute(sql`
     INSERT INTO lead_assignment_history (lead_id, from_user_id, to_user_id, changed_by, reason)
     SELECT x, ${from}, ${to}, ${req.actor!.userId}, 'owner_offboarded' FROM unnest(${list}::uuid[]) x`);
+  if (to)
+    await req.db.execute(sql`
+      UPDATE tasks SET assignee_id = ${to}, updated_at = now(), version = version + 1
+       WHERE lead_id = ANY(${list}::uuid[]) AND assignee_id = ${from} AND status = 'open'`);
 }
 
 /**
@@ -263,18 +314,21 @@ async function disconnectTheirs(req: FastifyRequest, id: string) {
       sql`SELECT id FROM calendar_connections WHERE user_id = ${id}`,
     );
     if (!c) return null;
-    // A meeting the lead's new owner already has from their own calendar is kept once, theirs.
-    const dup = await rows<{ id: string }>(
+    // A meeting the lead's new owner already has from their own calendar, linked or not, is kept once, theirs. An
+    // unlinked meeting is its owner's alone under row-level security: the sweep's read-only flag lets LUME see it.
+    await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', 'on', true)`);
+    const dup = await rows<{ id: string; outcome_task_id: string | null }>(
       req,
       sql`DELETE FROM meetings m USING leads l
            WHERE m.connection_id = ${c.id} AND m.lead_id = l.id
              AND EXISTS (SELECT 1 FROM meetings o WHERE o.source = m.source AND o.external_id = m.external_id
                            AND o.owner_id = l.owner_id AND o.id <> m.id)
-          RETURNING m.id`,
+          RETURNING m.id, m.outcome_task_id`,
     );
-    const unlinked = await rows<{ id: string }>(
+    await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', '', true)`);
+    const unlinked = await rows<{ id: string; outcome_task_id: string | null }>(
       req,
-      sql`DELETE FROM meetings WHERE connection_id = ${c.id} AND lead_id IS NULL RETURNING id`,
+      sql`DELETE FROM meetings WHERE connection_id = ${c.id} AND lead_id IS NULL RETURNING id, outcome_task_id`,
     );
     const moved = await rows<{ id: string }>(
       req,
@@ -284,7 +338,13 @@ async function disconnectTheirs(req: FastifyRequest, id: string) {
           RETURNING m.id`,
     );
     await req.db.execute(sql`DELETE FROM calendar_connections WHERE id = ${c.id}`);
-    return { meetingsMoved: moved.length, meetingsRemoved: dup.length + unlinked.length };
+    const gone = [...dup, ...unlinked];
+    return {
+      meetingsMoved: moved.length,
+      meetingsRemoved: gone.length,
+      gone: gone.map((m) => m.id),
+      outcomeTasks: gone.map((m) => m.outcome_task_id).filter((t): t is string => t !== null),
+    };
   } finally {
     await req.db.execute(
       sql`SELECT set_config('lume.user_id', ${actor.userId}, true), set_config('lume.lead_scope', ${leadScope(actor) ?? ""}, true)`,

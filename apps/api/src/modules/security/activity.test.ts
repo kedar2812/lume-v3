@@ -140,3 +140,16 @@ describe("Security activity (6C Task 3)", () => {
     expect(times).toEqual([...times].sort((a, b) => b - a));
   });
 });
+
+describe("the 6C review's fix pass (activity)", () => {
+  it("Signed in now leaves out a session idle past the policy", async () => {
+    const idle = await h.seedUser({ grants: sales, name: "Ida Idle" });
+    await h.signIn(idle);
+    await h.ownerPool.query(
+      "UPDATE sessions SET last_seen_at = last_seen_at - interval '13 hours' WHERE user_id = $1",
+      [idle.id],
+    );
+    const s = (await activity()).sessions as { userId: string }[];
+    expect(s.find((x) => x.userId === idle.id)).toBeUndefined();
+  });
+});

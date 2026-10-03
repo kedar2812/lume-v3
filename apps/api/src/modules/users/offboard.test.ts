@@ -234,3 +234,122 @@ describe("offboarding someone (6C)", () => {
     expect((await offboard(rory.id, { to: "none" })).json().error.code).toBe("NOT_ACTIVE");
   });
 });
+
+describe("the 6C review's fix pass", () => {
+  it("a copy the new owner holds unlinked still counts as theirs: one kept, never a 500", async () => {
+    const { rory, leads, team } = await setUp(1);
+    const conn = newId();
+    await asUser(
+      rory.id,
+      "INSERT INTO calendar_connections (id, user_id, google_email, grant_enc) VALUES ($1, $2, 'r@calendar.test', 'x'::bytea)",
+      [conn, rory.id],
+    );
+    const [mine, theirs] = [newId(), newId()];
+    await asUser(
+      rory.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, connection_id, source, external_id, matched_by, title, starts_at, ends_at)
+       VALUES ($1, $2, $3, $4, 'google', 'ev-demo', 'attendee', 'Demo call', now() + interval '1 day', now() + interval '1 day 30 minutes')`,
+      [mine, leads[0], rory.id, conn],
+    );
+    // Sam's own copy of the same event, kept by a title word: unlinked, so only Sam can see it.
+    await asUser(
+      team[0]!.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at)
+       VALUES ($1, NULL, $2, 'google', 'ev-demo', 'title', 'Demo call', now() + interval '1 day', now() + interval '1 day 30 minutes')`,
+      [theirs, team[0]!.id],
+    );
+    const r = await offboard(rory.id, { to: "person", userId: team[0]!.id });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().calendar).toEqual({ meetingsMoved: 0, meetingsRemoved: 1 });
+    const left = await asUser<{ id: string }>(team[0]!.id, "SELECT id FROM meetings WHERE id = ANY($1)", [
+      [mine, theirs],
+    ]);
+    expect(left.map((x) => x.id)).toEqual([theirs]);
+  });
+
+  it("shares open leads by open load first, so the person with the fewest open leads isn't buried (C1)", async () => {
+    const won = (await h.ownerPool.query("SELECT name FROM stages WHERE kind = 'won' LIMIT 1")).rows[0].name;
+    const rory = await h.seedUser({ grants: sales, name: `Rory ${newId().slice(-4)}` });
+    const closed: string[] = [];
+    const open: string[] = [];
+    // Older closed leads first, then open ones: handed out oldest first.
+    for (let i = 0; i < 4; i++)
+      closed.push(await h.seedLead({ ownerId: rory.id, name: `Won ${i}`, stage: won }));
+    for (let i = 0; i < 4; i++) open.push(await h.seedLead({ ownerId: rory.id, name: `Open ${i}` }));
+    const sam = await h.seedUser({ grants: sales, name: "Sam Okafor" });
+    for (let i = 0; i < 4; i++) await h.seedLead({ ownerId: sam.id, name: `Sam ${i}` });
+    const priya = await h.seedUser({ grants: sales, name: "Priya Lal" });
+    const teamId = await h.seedTeam(sam.id, [rory.id, priya.id]);
+    const r = await offboard(rory.id, { to: "team", teamId });
+    expect(r.statusCode, r.body).toBe(200);
+    // Priya had no open leads and Sam four: all four open leads go to Priya; the closed ones split evenly.
+    expect((await ownersOf(open)).every((l) => l.owner_id === priya.id)).toBe(true);
+    const closedOwners = (await ownersOf(closed)).map((l) => l.owner_id);
+    expect(closedOwners.filter((o) => o === sam.id)).toHaveLength(2);
+    expect(closedOwners.filter((o) => o === priya.id)).toHaveLength(2);
+  });
+
+  it("counts only live sessions: an idle one isn't 'signed in', in the preview or the result", async () => {
+    const { rory } = await setUp(0);
+    await h.signIn(rory); // a second session, then left idle past the policy
+    await h.ownerPool.query(
+      `UPDATE sessions SET last_seen_at = last_seen_at - interval '13 hours'
+        WHERE id = (SELECT id FROM sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1)`,
+      [rory.id],
+    );
+    expect((await preview(rory.id)).json().sessions).toBe(1);
+    const r = await offboard(rory.id, { to: "none" });
+    expect(r.json().sessions).toBe(1);
+    expect(
+      (
+        await h.pool.query(
+          "SELECT count(*)::int AS n FROM sessions WHERE user_id = $1 AND revoked_at IS NULL",
+          [rory.id],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+  });
+
+  it("their open follow-ups go with their leads, and a removed meeting's reminders are cancelled", async () => {
+    const { rory, leads, team } = await setUp(2);
+    const conn = newId();
+    await asUser(
+      rory.id,
+      "INSERT INTO calendar_connections (id, user_id, google_email, grant_enc) VALUES ($1, $2, 'r2@calendar.test', 'x'::bytea)",
+      [conn, rory.id],
+    );
+    const [mine, dup] = [newId(), newId()];
+    await asUser(
+      rory.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, connection_id, source, external_id, matched_by, title, starts_at, ends_at)
+       VALUES ($1, $2, $3, $4, 'google', 'ev-x', 'attendee', 'Call', now() + interval '1 day', now() + interval '1 day 30 minutes')`,
+      [mine, leads[1], rory.id, conn],
+    );
+    await asUser(
+      team[0]!.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at)
+       VALUES ($1, $2, $3, 'google', 'ev-x', 'attendee', 'Call', now() + interval '1 day', now() + interval '1 day 30 minutes')`,
+      [dup, leads[1], team[0]!.id],
+    );
+    const [follow, remind] = [newId(), newId()];
+    await h.queryAll(
+      `INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id, meeting_id) VALUES
+         ($1, $3, $5, 'Call back', now() + interval '2 days', $1, NULL),
+         ($2, $4, $5, 'Before the call', now() + interval '20 hours', $2, $6)`,
+      [follow, remind, leads[0], leads[1], rory.id, mine],
+    );
+    const r = await offboard(rory.id, { to: "person", userId: team[0]!.id });
+    expect(r.statusCode, r.body).toBe(200);
+    const tasks = await h.queryAll<{ id: string; assignee_id: string; status: string }>(
+      "SELECT id, assignee_id, status FROM tasks WHERE id = ANY($1)",
+      [[follow, remind]],
+    );
+    expect(tasks.find((t) => t.id === follow)).toMatchObject({ assignee_id: team[0]!.id, status: "open" });
+    expect(tasks.find((t) => t.id === remind)!.status).toBe("cancelled");
+  });
+
+  it("the preview refuses the owner and yourself, as the act does", async () => {
+    expect((await preview(owner.id)).json().error.code).toBe("OWNER_PROTECTED");
+    expect((await preview(adminUser.id)).json().error.code).toBe("SELF");
+  });
+});

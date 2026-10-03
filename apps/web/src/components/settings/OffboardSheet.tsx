@@ -21,19 +21,28 @@ const plural = (n: number, one: string, many = `${one}s`) =>
 const TICK_MS = 650;
 
 /**
- * Each colleague's share of `n` leads, the way LUME hands them out (6C ruling C1): each lead to whoever has the
- * fewest open leads at that moment, ties by name. Only those who get some are listed.
+ * Each colleague's share, the way LUME hands leads out (6C ruling C1, as the 6C review refined it): open leads
+ * first, each to whoever has the fewest open leads at that moment; then closed ones, each to whoever has been given
+ * the fewest closed ones. Ties go by name. Only those who get some are listed.
  */
-export function sharesFor(members: TeamMember[], n: number): { id: string; name: string; count: number }[] {
-  const load = new Map(members.map((m) => [m.id, m.openLeads]));
+export function sharesFor(
+  members: TeamMember[],
+  open: number,
+  closed: number,
+): { id: string; name: string; count: number }[] {
   const given = new Map(members.map((m) => [m.id, 0]));
-  for (let i = 0; i < n && members.length; i++) {
-    const next = [...members].sort(
-      (a, b) => load.get(a.id)! - load.get(b.id)! || a.name.localeCompare(b.name),
-    )[0]!;
-    load.set(next.id, load.get(next.id)! + 1);
-    given.set(next.id, given.get(next.id)! + 1);
-  }
+  const spread = (n: number, start: (m: TeamMember) => number) => {
+    const load = new Map(members.map((m) => [m.id, start(m)]));
+    for (let i = 0; i < n && members.length; i++) {
+      const next = [...members].sort(
+        (a, b) => load.get(a.id)! - load.get(b.id)! || a.name.localeCompare(b.name),
+      )[0]!;
+      load.set(next.id, load.get(next.id)! + 1);
+      given.set(next.id, given.get(next.id)! + 1);
+    }
+  };
+  spread(open, (m) => m.openLeads);
+  spread(closed, () => 0);
   return members.map((m) => ({ id: m.id, name: m.name, count: given.get(m.id)! })).filter((x) => x.count > 0);
 }
 
@@ -139,7 +148,7 @@ export function OffboardSheet({
   const p = preview;
   const name = first(p.person.name);
   const team = p.teams.find((t) => t.id === teamId) ?? p.teams[0];
-  const shares = team ? sharesFor(team.members, p.leads.total) : [];
+  const shares = team ? sharesFor(team.members, p.leads.open, p.leads.total - p.leads.open) : [];
   const person = p.people.find((x) => x.id === userId);
   const stateOf = (k: number) =>
     ticked >= k ? "ok" : (running || outcome) && ticked === k - 1 ? "run" : "idle";

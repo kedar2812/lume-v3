@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, sql, type SQL } from "drizzle-orm";
 import type pg from "pg";
 import { randomToken, sha256Hex } from "@lume/core";
 import { schema, type SecuritySettings, type UserStatus } from "@lume/db";
@@ -13,6 +13,16 @@ export function sessionPolicy(s: SecuritySettings | undefined): SessionPolicy {
     absoluteMs: (s?.sessionAbsoluteDays ?? 7) * 24 * H,
     mfaPendingMs: 5 * 60_000,
   };
+}
+
+/**
+ * A session someone could use right now, as signing in judges it (readSession): fully signed in, not revoked,
+ * within its absolute life and not idle past the policy. For figures that say "signed in" (6C review).
+ */
+export function liveSessionSql(alias: "s" | "sessions", now: Date, policy: SessionPolicy): SQL {
+  const t = sql.raw(alias);
+  return sql`(${t}.stage = 'full' AND ${t}.revoked_at IS NULL AND ${t}.expires_at > ${now}
+          AND ${t}.last_seen_at > ${new Date(now.getTime() - policy.idleMs)})`;
 }
 
 export type LiveSession = {

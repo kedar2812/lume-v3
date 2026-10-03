@@ -96,7 +96,16 @@ describe("the Offboard sheet (6C Task 2)", () => {
     expect(screen.getByText("Sam Okafor · 1")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Team" }), "t-ops");
     expect(screen.getByText("Dev Rao · 5")).toBeInTheDocument();
-    expect(sharesFor([{ id: "a", name: "A", openLeads: 0 }], 0)).toEqual([]);
+    expect(sharesFor([{ id: "a", name: "A", openLeads: 0 }], 0, 0)).toEqual([]);
+    // Open leads by open load first, then closed ones evenly: history never tips the open work (6C review).
+    const busy = [
+      { id: "s", name: "Sam Okafor", openLeads: 40 },
+      { id: "p", name: "Priya Lal", openLeads: 0 },
+    ];
+    expect(sharesFor(busy, 10, 10)).toEqual([
+      { id: "s", name: "Sam Okafor", count: 5 },
+      { id: "p", name: "Priya Lal", count: 15 },
+    ]);
   });
 
   it("sends each hand-on choice as LUME expects it", async () => {

@@ -102,12 +102,15 @@ it too ("Offboard {Name}" among the answers), for admins who manage people. The 
 happens:
 
 1. **Sign them out everywhere:** how many live sessions they have.
-2. **Hand on their leads:** shared across a team (their own teams first), each lead going to whoever has the
-   fewest open leads at that moment, ties by name, with each colleague's share shown live; or all to one person;
-   or left unassigned for an admin to hand out. Nobody paused or disabled ever receives leads.
+2. **Hand on their leads:** shared across a team (their own teams first): open leads first, each to whoever has
+   the fewest open leads at that moment, then closed ones evenly, ties by name, with each colleague's share shown
+   live; or all to one person; or left unassigned for an admin to hand out. Nobody paused or disabled ever
+   receives leads. Their open follow-ups on those leads go to the new owner (left unassigned, they stay on the
+   lead).
 3. **Disconnect their Google Calendar** (when connected): LUME stops reading it at once. Meetings linked to a
-   lead go with the lead to its new owner (one copy if the new owner already has the same event); meetings with
-   no lead are removed with the connection.
+   lead go with the lead to its new owner (one copy if the new owner already has the same event, linked or not);
+   meetings with no lead are removed with the connection, and a removed meeting's follow-ups and reminders are
+   cancelled, as Disconnect does.
 4. **Their last 30 days:** contacts opened, leads opened, exports and alerts, and their busiest day against
    their usual. Counts only, never a contact.
 
@@ -126,7 +129,8 @@ Settings → Security → Overview shows, under the alerts, for people who may r
   whose, when they're all one person's). Each figure opens the Audit log at that action and day.
 - **Contacts opened, per person:** the six people who opened the most over 14 days, a bar a day on one shared
   scale, today in blue (amber when they had an alert today). Each total opens their entries.
-- **Signed in now:** one row a person, yours first. **Sign out** ends every session of theirs (for people who
+- **Signed in now:** sessions someone could use right now (not idle past Settings → Security's limit), one row a
+  person, yours first. **Sign out** ends every session of theirs (for people who
   manage people).
 
 Days are the business's (Settings → Business), so a contact opened at 23:30 there counts on that day.
