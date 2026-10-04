@@ -9,6 +9,7 @@ import { listLeads } from "../leads/query";
 import { drillFor, drillIds, readDrill } from "./drill";
 import { listGoals, removeGoal, setGoal, setSpend } from "./goals";
 import { insights } from "./insights";
+import { me } from "./me";
 import { revenue } from "./revenue";
 import { segments } from "./segments";
 import { lost, quality, sources, templates, timing } from "./modules";
@@ -134,6 +135,10 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
     r.get(`/api/v1/analytics/${name}`, { config: view, schema: { querystring: query } }, async (req) =>
       read(req, await toQuery(req, req.query), d.clock(), d),
     );
+  // A rep's own view (8D-1 Task 10): always the viewer's own numbers.
+  r.get("/api/v1/analytics/me", { config: view, schema: { querystring: query } }, async (req) =>
+    me(req, await toQuery(req, req.query), d.clock(), d),
+  );
   r.get("/api/v1/analytics/segments", { config: view, schema: { querystring: query } }, async (req) =>
     segments(req, await toQuery(req, req.query), req.query.field, d.clock(), d),
   );
