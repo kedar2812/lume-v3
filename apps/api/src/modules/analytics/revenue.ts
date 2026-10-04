@@ -10,7 +10,7 @@ import {
   businessTz,
   eventSums,
   rangeOf,
-  reachOf,
+  narrow,
   rollupWhere,
   seesRevenue,
   type AnalyticsQuery,
@@ -42,7 +42,7 @@ export async function revenue(
   // The board is money only: without the money permission it says so (the route's gate is analytics.view).
   if (!seesRevenue(req))
     throw new HttpError(403, "NO_REVENUE_ACCESS", "Revenue is only for people allowed to see it.");
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   guardLive(q, range);

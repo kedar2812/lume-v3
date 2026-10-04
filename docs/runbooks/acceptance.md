@@ -1105,3 +1105,26 @@ By hand:
    words, and `LUME ref` is ignored.
 6. 24 hours later (or set `expires_at` back in the database), Download says the file has expired; the export
    still traces.
+
+## Phase 8D-1 — the analytics engine to the canvas, and the demo business (2026-10-04)
+
+**Automated:** `apps/api/src/modules/analytics/*.test.ts` and `apps/api/src/demo/seed.test.ts`. The fixture
+(`apps/api/test/fixtures/analytics.ts`) checks every new number against its own independent answers, for everyone and
+for single people, in two ranges. The 1M gate: `LUME_SCALE=1000000 pnpm exec vitest run apps/api/test/scale -t
+analytics` on the scale database (`scripts/dev.sh test-db scale-up`).
+
+**By hand, on a fresh dev install** (first-run setup done, no leads yet):
+
+1. Seed the demo business into it (it refuses a LUME with leads): `seedDemoBusiness(ownerPool, { now: new Date() })`
+   from `apps/api/src/demo/seed.ts`, with a pool connected as the database owner. 8D-2 wires it into the e2e review
+   project; demo mode, later, runs it nightly.
+2. `GET /api/v1/analytics/insights?range=90d` as an admin, four times: between them LUME notices referrals punching
+   above their weight, webinars costing more than they return, speed paying off, evening arrivals, Leo's Mondays,
+   missed Monday-morning calls and leads won back.
+3. Open a number in Leads: take a tile's `drill` token from `GET /analytics/overview` and call
+   `GET /api/v1/leads?drill=<token>` — the list holds exactly that number's leads. After 15 minutes the token says it
+   has expired.
+4. `GET /api/v1/analytics/sources/csv?range=30d` with leads.export: a CSV of labels and numbers, with a byte-order
+   mark, formula-safe; Settings → Audit log shows "exported the sources numbers".
+5. A tag filter over 92 days answers "Narrow the range to 92 days or less to use tags or fields"; on Timing it answers
+   "This board can't be filtered by tags or fields yet".

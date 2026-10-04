@@ -272,8 +272,45 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     await h.queryAll(`INSERT INTO activities (id, lead_id, type, occurred_at)
                       SELECT gen_random_uuid(), id, 'whatsapp_opened', created_at + make_interval(mins => (abs(hashtext(id::text)) % 900))
                       FROM leads WHERE created_at > now() - interval '100 days' AND abs(hashtext(id::text)) % 3 <> 0`);
+    // 8D: packages on wins, a budget answer on recent leads, and calls for 5% of them, as a live business has.
+    await h.queryAll(
+      `INSERT INTO products (id, name) SELECT gen_random_uuid(), 'Package ' || g FROM generate_series(1, 3) g`,
+    );
+    await h.queryAll(`UPDATE leads l SET product_id = (SELECT id FROM products ORDER BY name OFFSET abs(hashtext(l.id::text)) % 3 LIMIT 1),
+                             value = coalesce(l.value, 1000 + abs(hashtext(l.id::text)) % 9000)
+                      WHERE l.won_at IS NOT NULL`);
+    await h.queryAll(`INSERT INTO field_definitions (id, key, label, type, options)
+                      VALUES (gen_random_uuid(), 'budget', 'Budget', 'select', '["Small", "Medium", "Large"]')`);
+    await h.queryAll(`UPDATE leads SET custom = custom || jsonb_build_object('budget',
+                        (ARRAY['Small', 'Medium', 'Large'])[1 + abs(hashtext(id::text)) % 3])
+                      WHERE created_at > now() - interval '100 days' AND abs(hashtext(id::text)) % 5 <> 0`);
+    // A call is written by the person whose calendar it's on (its row-level security): one statement per person.
+    const owners = await h.queryAll<{ id: string }>(
+      "SELECT DISTINCT owner_id AS id FROM leads WHERE owner_id IS NOT NULL",
+    );
+    const mc = await h.ownerPool.connect();
+    try {
+      await mc.query("BEGIN");
+      await mc.query("SELECT set_config('lume.lead_scope', 'all', true)");
+      for (const o of owners) {
+        await mc.query("SELECT set_config('lume.user_id', $1, true)", [o.id]);
+        await mc.query(
+          `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at, status, created_at)
+           SELECT g, l.id, l.owner_id, 'calendly', g::text, 'calendly', 'Call', l.created_at + interval '3 days',
+                  l.created_at + interval '3 days 30 minutes',
+                  (ARRAY['completed', 'completed', 'completed', 'no_show', 'cancelled'])[1 + abs(hashtext(l.id::text)) % 5],
+                  l.created_at + interval '1 hour'
+           FROM (SELECT gen_random_uuid() AS g, * FROM leads) l
+           WHERE l.owner_id = $1 AND l.created_at > now() - interval '100 days' AND abs(hashtext(l.id::text)) % 20 = 0`,
+          [o.id],
+        );
+      }
+      await mc.query("COMMIT");
+    } finally {
+      mc.release();
+    }
     timings.push({
-      path: "analytics: wins and contacts for 100 days",
+      path: "analytics: wins, contacts, packages, budgets and calls for 100 days",
       ms: Math.round(performance.now() - t),
     });
     const tz = (
@@ -305,10 +342,29 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
       await time(`analytics rep overview ${range}`, () =>
         rep.inject({ method: "GET", url: `/api/v1/analytics/overview?range=${range}` }),
       );
+      // 8D: the boards added to reach the canvas.
+      for (const m of ["revenue", "quality", "templates", "funnel?split=source&", "segments?field=budget&"]) {
+        const path = m.includes("?") ? `${m}range=${range}` : `${m}?range=${range}`;
+        await time(`analytics ${m.split("?")[0]}${m.includes("split") ? " split" : ""} ${range}`, () =>
+          admin.inject({ method: "GET", url: `/api/v1/analytics/${path}` }),
+        );
+      }
+      await time(`analytics rep me ${range}`, () =>
+        rep.inject({ method: "GET", url: `/api/v1/analytics/me?range=${range}` }),
+      );
     }
     const budget = Number(process.env.LUME_SCALE_ANALYTICS_BUDGET ?? 300);
     const over = timings.slice(before).filter((x) => x.ms > budget);
     expect(over, `analytics over ${budget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);
+    // A tag or field filter reads the leads themselves (live, up to 92 days): its own budget, measured and said.
+    const live = timings.length;
+    const tagId = (await h.queryAll<{ id: string }>("SELECT id FROM tags WHERE label = 'Tag 2'"))[0]!.id;
+    await time("analytics overview + tag 30d (live)", () =>
+      admin.inject({ method: "GET", url: `/api/v1/analytics/overview?range=30d&tag=${tagId}` }),
+    );
+    const liveBudget = Number(process.env.LUME_SCALE_LIVE_BUDGET ?? 2500);
+    const slow = timings.slice(live).filter((x) => x.ms > liveBudget);
+    expect(slow, `live analytics over ${liveBudget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);
   }, 3_600_000);
 
   // 7B: bulk runs at the owner's "Large" bound — 50,000 leads by filter, queued and run to the end, as the bulk queue

@@ -5,7 +5,7 @@ import type { AppDeps } from "../../app";
 import { drillFor, frag, type DrillExtra, type DrillKind, type SlotKind } from "./drill";
 import { isLive, liveFilter, ownerCond, sourceCond } from "./filters";
 import { guardLive, refuseLive, spanOf } from "./live";
-import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
+import { TOO_FEW, businessTz, eventSums, rangeOf, narrow, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
  * The other analytics modules (8A, spec §4): sources and revenue, lost, timing (heatmaps, time in stage, stuck),
@@ -66,7 +66,7 @@ export async function sources(
   now: Date,
   d?: Pick<AppDeps, "keyring">,
 ) {
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   guardLive(q, range);
@@ -144,7 +144,7 @@ export async function sources(
 
 /** Lost (canvas Lost): why, from which stage, by whom and from where; and leads won back. */
 export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: Pick<AppDeps, "keyring">) {
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   guardLive(q, range);
@@ -307,7 +307,7 @@ export async function timing(
   d?: Pick<AppDeps, "keyring">,
 ) {
   refuseLive(q);
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const mint = minter(d, req, range, q, tz, now);
@@ -322,34 +322,24 @@ export async function timing(
     if (own) parts.push(own);
     return sql.join(parts, sql` AND `);
   })();
-  type Kpis = { booked: number; held: number; no_show: number; cancelled: number };
-  const kpis = (from: Date, to: Date) => {
-    const f = from.toISOString();
-    const t = to.toISOString();
-    const starts = sql`m.starts_at >= ${f}::timestamptz AND m.starts_at < ${t}::timestamptz`;
-    return sql`
-      SELECT count(*) FILTER (WHERE m.created_at >= ${f}::timestamptz AND m.created_at < ${t}::timestamptz
-                              AND m.status <> 'rescheduled')::int AS booked,
-             count(*) FILTER (WHERE ${starts} AND m.status = 'completed')::int AS held,
-             count(*) FILTER (WHERE ${starts} AND m.status = 'no_show')::int AS no_show,
-             count(*) FILTER (WHERE ${starts} AND m.status = 'cancelled')::int AS cancelled
-      FROM ${meetingsIn}`;
-  };
-  const [kNow, kBefore, flow, perPerson] = await Promise.all([
-    req.db.execute<Kpis>(kpis(range.from, range.to)),
-    req.db.execute<Kpis>(kpis(range.previous.from, range.previous.to)),
-    // What happened to every call that was due to start in the range.
+  // Calls from the event rollups (booked by when they were booked; held, missed and cancelled by when they were due);
+  // only those moved or still to come are read live, and there are few of them.
+  type Kpis = { booked: number; held: number; noShow: number; cancelled: number };
+  const [kNow, kBefore, open, perPerson] = await Promise.all([
+    eventSums(req, q, range.days),
+    eventSums(req, q, range.previous.days),
     req.db.execute<{ status: string; upcoming: boolean; n: number }>(sql`
       SELECT m.status, (m.status = 'scheduled' AND m.starts_at > ${now.toISOString()}::timestamptz) AS upcoming,
              count(*)::int AS n
-      FROM ${meetingsIn} AND ${span(sql`m.starts_at`)} GROUP BY 1, 2`),
+      FROM ${meetingsIn} AND ${span(sql`m.starts_at`)} AND m.status IN ('scheduled', 'rescheduled') GROUP BY 1, 2`),
     req.db.execute<{ id: string; name: string; held: number; no_show: number; cancelled: number }>(sql`
-      SELECT m.owner_id AS id, u.name, count(*) FILTER (WHERE m.status = 'completed')::int AS held,
-             count(*) FILTER (WHERE m.status = 'no_show')::int AS no_show,
-             count(*) FILTER (WHERE m.status = 'cancelled')::int AS cancelled
-      FROM meetings m JOIN leads l ON l.id = m.lead_id JOIN users u ON u.id = m.owner_id
-      WHERE ${leadWhere(q)} AND ${credit(q, sql`m.owner_id`)} AND ${span(sql`m.starts_at`)}
-      GROUP BY 1, 2 ORDER BY held DESC, u.name`),
+      SELECT e.user_id AS id, u.name, sum(e.held)::int AS held, sum(e.no_show)::int AS no_show,
+             sum(e.cancelled)::int AS cancelled
+      FROM analytics_daily_event e JOIN users u ON u.id = e.user_id
+      WHERE e.day BETWEEN ${from}::date AND ${to}::date
+        ${q.pipelineId ? sql`AND e.pipeline_id = ${q.pipelineId}::uuid` : sql``}
+        AND ${ownerCond(q.ownerIds, sql`e.user_id`) ?? sql`true`} AND ${sourceCond(q.sourceIds, sql`e.source_id`) ?? sql`true`}
+      GROUP BY 1, 2 HAVING sum(e.held) + sum(e.no_show) + sum(e.cancelled) > 0 ORDER BY held DESC, u.name`),
   ]);
   const [slots, stays, stuck] = await Promise.all([
     // Everyone's, with no one picked: the totals per hour (0055), a fraction of the rows.
@@ -409,17 +399,17 @@ export async function timing(
     n,
     drill: n > 0 ? mint("slot", { slot: { kind, dow, hour } }) : undefined,
   });
-  const k = kNow.rows[0]!;
-  const kb = kBefore.rows[0]!;
-  const flowN = (status: string, upcoming?: boolean) =>
-    flow.rows
+  const k = kNow;
+  const kb = kBefore;
+  const openN = (status: string, upcoming?: boolean) =>
+    open.rows
       .filter((r) => r.status === status && (upcoming === undefined || r.upcoming === upcoming))
       .reduce((a, r) => a + r.n, 0);
   const sums = (x: Kpis) => ({
     booked: x.booked,
     held: x.held,
-    heldRate: rate(x.held, x.held + x.no_show),
-    noShowRate: rate(x.no_show, x.held + x.no_show),
+    heldRate: rate(x.held, x.held + x.noShow),
+    noShowRate: rate(x.noShow, x.held + x.noShow),
     cancelled: x.cancelled,
   });
   return {
@@ -443,12 +433,12 @@ export async function timing(
     meetings: {
       kpis: { ...sums(k), previous: sums(kb) },
       flow: {
-        booked: flow.rows.reduce((a, r) => a + r.n, 0),
-        held: flowN("completed"),
-        noShow: flowN("no_show"),
-        cancelled: flowN("cancelled"),
-        rescheduled: flowN("rescheduled"),
-        upcoming: flowN("scheduled", true),
+        booked: k.held + k.noShow + k.cancelled + open.rows.reduce((a, r) => a + r.n, 0),
+        held: k.held,
+        noShow: k.noShow,
+        cancelled: k.cancelled,
+        rescheduled: openN("rescheduled"),
+        upcoming: openN("scheduled", true),
       },
       people: perPerson.rows.map((p) => ({
         id: p.id,
@@ -478,7 +468,7 @@ export async function timing(
 /** Templates (canvas Templates): per template, sends, replies within 72 hours, and wins within 30 days. */
 export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
   refuseLive(q);
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const r = await req.db.execute<{
@@ -520,15 +510,17 @@ export async function quality(
   d?: Pick<AppDeps, "keyring">,
 ) {
   refuseLive(q);
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const mint = minter(d, req, range, q, tz, now);
   const [f, t] = [range.from.toISOString(), range.to.toISOString()];
   const [phones, unowned, imports, merged] = await Promise.all([
+    // Counted with the "now" snapshot (0059) every 10 minutes: every lead's phone, at a million leads.
     req.db.execute<{ status: string; n: number }>(sql`
-      SELECT l.phone_status AS status, count(*)::int AS n FROM leads l
-      WHERE ${leadWhere(q)} AND l.phone_status <> 'missing' AND ${credit(q, sql`l.owner_id`)}
+      SELECT phone_status AS status, sum(n)::int AS n FROM analytics_phone_now
+      WHERE phone_status <> 'missing' ${q.pipelineId ? sql`AND pipeline_id = ${q.pipelineId}::uuid` : sql``}
+        AND ${ownerCond(q.ownerIds, sql`owner_id`) ?? sql`true`} AND ${sourceCond(q.sourceIds, sql`source_id`) ?? sql`true`}
       GROUP BY 1`),
     req.db.execute<{ bucket: string; n: number }>(sql`
       SELECT CASE WHEN l.created_at > now() - interval '1 hour' THEN 'under_1h'

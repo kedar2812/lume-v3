@@ -10,6 +10,7 @@ import {
   liveLead,
   liveOwner,
   rangeOf,
+  narrow,
   reachOf,
   rollupWhere,
   seesRevenue,
@@ -158,7 +159,7 @@ function scores(n: Numbers): Score[] {
 
 export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: Pick<AppDeps, "keyring">) {
   const scope = reachOf(req, q.ownerIds);
-  q = { ...q, reach: scope };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   guardLive(q, range);

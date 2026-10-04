@@ -14,7 +14,7 @@ import { refuseLive } from "./live";
 import { lost, sources, templates } from "./modules";
 import { funnel } from "./funnel";
 import { monthProgress } from "./month";
-import { businessTz, eventSums, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
+import { businessTz, eventSums, narrow, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
  * "LUME noticed" for one person (8B, spec §6): gathers each detector's numbers at the viewer's reach, runs the
@@ -24,7 +24,9 @@ import { businessTz, eventSums, rangeOf, reachOf, seesRevenue, type AnalyticsQue
 export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
   refuseLive(q);
   const scope = reachOf(req, q.ownerIds);
-  q = { ...q, reach: scope };
+  // Worded for the viewer's own reach before narrowing to their people's rows.
+  const asked = q.ownerIds;
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const total = (
@@ -201,7 +203,7 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
     s.fast_won / s.fast_n >= 1.5 * (s.slow_won / s.slow_n);
   const ctx: InsightContext = {
     // Worded for one person when the numbers are one person's; several people read as a team.
-    view: scope === "own" || q.ownerIds?.length === 1 ? "own" : "team",
+    view: scope === "own" || asked?.length === 1 ? "own" : "team",
     money: fmtMoney,
     speed: {
       fastN: s.fast_n,

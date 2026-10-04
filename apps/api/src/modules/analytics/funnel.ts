@@ -3,7 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend, type Range } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { drillFor, frag, type DrillExtra, type DrillKind } from "./drill";
-import { isLive, ownerCond } from "./filters";
+import { isLive, ownerCond, sourceCond } from "./filters";
 import { guardLive, liveCohort, liveEvents, spanOf } from "./live";
 import {
   TOO_FEW,
@@ -14,7 +14,7 @@ import {
   liveLead,
   liveOwner,
   rangeOf,
-  reachOf,
+  narrow,
   rollupWhere,
   seesRevenue,
   type AnalyticsQuery,
@@ -43,7 +43,7 @@ export async function funnel(
   now: Date,
   d?: Pick<AppDeps, "keyring">,
 ) {
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   guardLive(q, range);
@@ -91,9 +91,9 @@ export async function funnel(
     arrivedRead(range.previous),
     q.split ? splitBy(req, scoped, range, pipeline, q.split, stages, live) : Promise.resolve(undefined),
     stageSnapshot(req, scoped, openStages, money, live),
-    stageStays(req, scoped, range, openStages),
+    stageStays(req, scoped, range, openStages, live),
     money ? pipelineVelocity(req, scoped, range, tz, pipeline, live) : Promise.resolve(null),
-    money ? forecastByMonth(req, scoped, tz, pipeline, openStages, now) : Promise.resolve(null),
+    money ? forecastByMonth(req, scoped, tz, pipeline, openStages, now, live) : Promise.resolve(null),
   ]);
   const orLater = (m: Map<string, number>, i: number) =>
     stages.slice(i).reduce((a, s) => a + (m.get(s.id) ?? 0), 0);
@@ -245,17 +245,28 @@ async function stageSnapshot(
   const ids = `{${openStages.map((s) => s.id).join(",")}}`;
   // Counts and value from the kept counts (0048) unless a filter they don't carry needs each lead.
   const fast = !live && !q.sourceIds?.length;
+  // Average age from the "now" snapshot (0059), counted every 10 minutes; live under a tag or field filter.
+  const nowWhere = sql`stage_id = ANY(${ids}::uuid[]) AND ${ownerCond(q.ownerIds, sql`owner_id`) ?? sql`true`}
+    AND ${sourceCond(q.sourceIds, sql`source_id`) ?? sql`true`}`;
   const [counts, ages] = await Promise.all([
     fast
       ? req.db.execute<{ stage_id: string; n: number; value: number }>(sql`
           SELECT c.stage_id, sum(c.n)::int AS n, coalesce(sum(c.value), 0)::float8 AS value FROM lead_counts_now c
           WHERE c.stage_id = ANY(${ids}::uuid[]) AND ${liveOwner(q, sql`c.owner_id`)} GROUP BY c.stage_id`)
-      : req.db.execute<{ stage_id: string; n: number; value: number }>(sql`
-          SELECT l.stage_id, count(*)::int AS n, coalesce(sum(l.value), 0)::float8 AS value FROM leads l
-          WHERE l.stage_id = ANY(${ids}::uuid[]) AND ${liveLead(q)} AND ${liveOwner(q, sql`l.owner_id`)} GROUP BY l.stage_id`),
-    req.db.execute<{ stage_id: string; days: number | null }>(sql`
-      SELECT l.stage_id, avg(extract(epoch FROM now() - l.stage_entered_at) / 86400)::float8 AS days FROM leads l
-      WHERE l.stage_id = ANY(${ids}::uuid[]) AND ${liveLead(q)} AND ${liveOwner(q, sql`l.owner_id`)} GROUP BY l.stage_id`),
+      : live
+        ? req.db.execute<{ stage_id: string; n: number; value: number }>(sql`
+            SELECT l.stage_id, count(*)::int AS n, coalesce(sum(l.value), 0)::float8 AS value FROM leads l
+            WHERE l.stage_id = ANY(${ids}::uuid[]) AND ${liveLead(q)} AND ${liveOwner(q, sql`l.owner_id`)} GROUP BY l.stage_id`)
+        : req.db.execute<{ stage_id: string; n: number; value: number }>(sql`
+            SELECT stage_id, sum(n)::int AS n, coalesce(sum(value), 0)::float8 AS value FROM analytics_open_now
+            WHERE ${nowWhere} GROUP BY stage_id`),
+    live
+      ? req.db.execute<{ stage_id: string; days: number | null }>(sql`
+          SELECT l.stage_id, avg(extract(epoch FROM now() - l.stage_entered_at) / 86400)::float8 AS days FROM leads l
+          WHERE l.stage_id = ANY(${ids}::uuid[]) AND ${liveLead(q)} AND ${liveOwner(q, sql`l.owner_id`)} GROUP BY l.stage_id`)
+      : req.db.execute<{ stage_id: string; days: number | null }>(sql`
+          SELECT stage_id, (extract(epoch FROM now()) - sum(entered_sum) / nullif(sum(n), 0))::float8 / 86400 AS days
+          FROM analytics_open_now WHERE ${nowWhere} GROUP BY stage_id`),
   ]);
   return openStages.map((s) => {
     const c = counts.rows.find((x) => x.stage_id === s.id);
@@ -270,7 +281,13 @@ async function stageSnapshot(
 }
 
 /** How long leads stayed in each open stage (stays that ended in the range), its allowed time, and who's stuck now. */
-async function stageStays(req: FastifyRequest, q: AnalyticsQuery, range: Range, openStages: Stage[]) {
+async function stageStays(
+  req: FastifyRequest,
+  q: AnalyticsQuery,
+  range: Range,
+  openStages: Stage[],
+  live: boolean,
+) {
   const ids = `{${openStages.map((s) => s.id).join(",")}}`;
   const own = ownerCond(q.ownerIds, sql`a.user_id`);
   const [stays, stuck, sla] = await Promise.all([
@@ -280,11 +297,17 @@ async function stageStays(req: FastifyRequest, q: AnalyticsQuery, range: Range, 
       WHERE a.day BETWEEN ${range.days[0]!}::date AND ${range.days.at(-1)!}::date AND a.stage_id = ANY(${ids}::uuid[])
         ${own ? sql`AND ${own}` : sql``}
       GROUP BY a.stage_id`),
-    req.db.execute<{ stage_id: string; n: number }>(sql`
-      SELECT l.stage_id, count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id
-      WHERE l.stage_id = ANY(${ids}::uuid[]) AND ${liveLead(q)} AND s.sla_hours IS NOT NULL
-        AND l.stage_entered_at < now() - make_interval(hours => s.sla_hours) AND ${liveOwner(q, sql`l.owner_id`)}
-      GROUP BY l.stage_id`),
+    live
+      ? req.db.execute<{ stage_id: string; n: number }>(sql`
+          SELECT l.stage_id, count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id
+          WHERE l.stage_id = ANY(${ids}::uuid[]) AND ${liveLead(q)} AND s.sla_hours IS NOT NULL
+            AND l.stage_entered_at < now() - make_interval(hours => s.sla_hours) AND ${liveOwner(q, sql`l.owner_id`)}
+          GROUP BY l.stage_id`)
+      : req.db.execute<{ stage_id: string; n: number }>(sql`
+          SELECT stage_id, sum(stuck)::int AS n FROM analytics_open_now
+          WHERE stage_id = ANY(${ids}::uuid[]) AND ${ownerCond(q.ownerIds, sql`owner_id`) ?? sql`true`}
+            AND ${sourceCond(q.sourceIds, sql`source_id`) ?? sql`true`}
+          GROUP BY stage_id`),
     req.db.execute<{ id: string; sla_hours: number | null }>(sql`
       SELECT id, sla_hours FROM stages WHERE id = ANY(${ids}::uuid[])`),
   ]);
@@ -333,9 +356,13 @@ async function pipelineVelocity(
     return { winRate, avgDeal, cycleDays: cyc };
   };
   const [openLeads, nowParts, beforeParts] = await Promise.all([
-    req.db.execute<{ n: number }>(sql`
-      SELECT count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id AND s.kind = 'open'
-      WHERE l.pipeline_id = ${pipeline}::uuid AND ${liveLead(q)} AND ${liveOwner(q, sql`l.owner_id`)}`),
+    live
+      ? req.db.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id AND s.kind = 'open'
+          WHERE l.pipeline_id = ${pipeline}::uuid AND ${liveLead(q)} AND ${liveOwner(q, sql`l.owner_id`)}`)
+      : req.db.execute<{ n: number }>(sql`
+          SELECT coalesce(sum(n), 0)::int AS n FROM analytics_open_now WHERE pipeline_id = ${pipeline}::uuid
+            AND ${ownerCond(q.ownerIds, sql`owner_id`) ?? sql`true`} AND ${sourceCond(q.sourceIds, sql`source_id`) ?? sql`true`}`),
     parts(range.days.at(-1)!),
     parts(range.previous.days.at(-1)!),
   ]);
@@ -370,11 +397,24 @@ async function forecastByMonth(
   pipeline: string,
   openStages: Stage[],
   now: Date,
+  live: boolean,
 ) {
   const byPosition = [...openStages].sort((a, b) => b.position - a.position);
   const latest = byPosition[0];
   const second = byPosition[1];
-  const r = await req.db.execute<{ month: string; stage_id: string; v: number }>(sql`
+  // Kept with the "now" snapshot (0059) by the same rule; read live only under a tag or field filter.
+  const r = live
+    ? await forecastLive(req, q, tz, pipeline)
+    : await req.db.execute<{ month: string; stage_id: string; v: number }>(sql`
+        SELECT month, stage_id, sum(v)::float8 AS v FROM analytics_forecast_now
+        WHERE pipeline_id = ${pipeline}::uuid AND ${ownerCond(q.ownerIds, sql`owner_id`) ?? sql`true`}
+          AND ${sourceCond(q.sourceIds, sql`source_id`) ?? sql`true`}
+        GROUP BY 1, 2`);
+  return foldForecast(r.rows, tz, now, latest, second);
+}
+
+async function forecastLive(req: FastifyRequest, q: AnalyticsQuery, tz: string, pipeline: string) {
+  return req.db.execute<{ month: string; stage_id: string; v: number }>(sql`
     WITH wins AS (
       SELECT l.id, l.created_at, l.won_at FROM leads l
       WHERE l.pipeline_id = ${pipeline}::uuid AND l.deleted_at IS NULL AND l.won_at >= now() - interval '180 days'
@@ -397,6 +437,15 @@ async function forecastByMonth(
     LEFT JOIN med ON med.stage_id = l.stage_id
     WHERE l.pipeline_id = ${pipeline}::uuid AND l.value IS NOT NULL AND ${liveLead(q)} AND ${liveOwner(q, sql`l.owner_id`)}
     GROUP BY 1, 2`);
+}
+
+function foldForecast(
+  rows: { month: string; stage_id: string; v: number }[],
+  tz: string,
+  now: Date,
+  latest: Stage | undefined,
+  second: Stage | undefined,
+) {
   const first = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit" })
     .format(now)
     .slice(0, 7);
@@ -412,8 +461,9 @@ async function forecastByMonth(
     };
   });
   let later = 0;
-  for (const row of r.rows) {
-    const bucket = months.find((m) => m.month === row.month);
+  for (const row of rows) {
+    // Counted before this month began (the snapshot is up to 10 minutes old): it's due now, so this month.
+    const bucket = row.month < months[0]!.month ? months[0] : months.find((m) => m.month === row.month);
     if (!bucket) {
       later += row.v;
       continue;

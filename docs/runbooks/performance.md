@@ -161,3 +161,44 @@ won or lost, per lead, for someone who sees everything anyway. Those viewers now
 row per person per hour (404 ms); 0055 keeps one per hour for viewers who see everyone (5 ms). Budget: 300 ms
 (`LUME_SCALE_ANALYTICS_BUDGET`).
 
+## Analytics to the canvas (Phase 8D)
+
+8D added a board's worth of numbers to each module: the funnel's split, its snapshot of each stage now, time in every
+stage, velocity and the forecast by month; revenue by month and by package; the reason × source matrix and what
+converts; meetings; data quality; and a rep's own view. The first 1M run had the funnel at 1.3 s, timing at 1.8 s
+(90 days), quality at 0.4–0.6 s and the rep overview at 0.4 s. What fixed them (migration 0059):
+
+- **A "now" snapshot**, recounted with the rollups every 10 minutes (`lume_refresh_now`): open leads per pipeline,
+  stage, owner and source (count, value, the sum of when each entered its stage, how many are stuck), the forecast by
+  month, and phone numbers by status. The funnel's average age, stuck leads and forecast, and quality's phone counts,
+  read a few hundred rows instead of every open lead. Counts a person acts on (leads in a stage, overdue follow-ups)
+  stay live.
+- **Meetings from the rollups.** The event rollups already counted booked, held, missed and cancelled calls per person
+  per day; only calls moved or still to come are read live.
+- **Indexes for quality**: unowned leads by age, and duplicates merged ("imported again") by when.
+- **Per-person rollup indexes.** A rep (or a team lead) asks for their own people's rows by index, instead of reading
+  everyone's and letting row-level security drop the rest.
+
+### Measured: 1,000,000 leads, rollups for 91 days (dev box, scale database: 1 CPU, 1 GB; 2026-10-04)
+
+| Request (median of 5) | 30 days | 90 days |
+| --- | ---: | ---: |
+| Overview (admin) | 109 ms | 143 ms |
+| Overview (rep, own) | 48 ms | 57 ms |
+| Funnel | 152 ms | 117 ms |
+| Funnel, split by source | 164 ms | 166 ms |
+| Team | 39 ms | 51 ms |
+| Sources | 25 ms | 57 ms |
+| Revenue | 51 ms | 70 ms |
+| Lost | 28 ms | 48 ms |
+| What converts (a choice field, read live) | 38 ms | 107 ms |
+| Timing & meetings | 42 ms | 75 ms |
+| Templates | 4 ms | 4 ms |
+| Data quality | 162 ms | 105 ms |
+| A rep's own view | 55 ms | 79 ms |
+| Overview with a tag filter (live) | 1.8 s | — |
+
+Budget: 300 ms for every board (`LUME_SCALE_ANALYTICS_BUDGET`). A tag or field filter reads the leads themselves, up
+to 92 days, and has its own budget, 2.5 s (`LUME_SCALE_LIVE_BUDGET`): on this one-CPU, 1 GB box it is bound by
+reading the tagged leads from disk. A tag dimension in the rollups would bring it in line with the rest; it's not built.
+

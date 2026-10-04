@@ -26,6 +26,23 @@ export async function rollupDays(pool: pg.Pool, days: string[], tz: string): Pro
       c.release();
     }
   }
+  // The boards' "now" numbers (0059): open leads' age, stuck leads, the forecast by month, phone numbers.
+  await refreshNow(pool, tz);
+}
+
+/** Recounts the "now" snapshot (0059) in its own transaction; a second run waits for the first. */
+export async function refreshNow(pool: pg.Pool, tz: string): Promise<void> {
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT lume_refresh_now($1)", [tz]);
+    await c.query("COMMIT");
+  } catch (err) {
+    await c.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    c.release();
+  }
 }
 
 /** The business days `from` to `back` days before `now` (0 = today), newest first. */

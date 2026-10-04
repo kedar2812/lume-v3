@@ -80,6 +80,19 @@ export function reachOf(req: FastifyRequest, ownerIds?: readonly string[]): "own
 
 export const seesRevenue = (req: FastifyRequest) => can(req.actor!, "analytics.revenue");
 
+/**
+ * The query at the viewer's reach. Someone who sees only their own (or their team's) numbers asks for exactly those
+ * people's rows, which the rollups' per-person indexes (0059) find directly, instead of reading everyone's and
+ * letting row-level security drop the rest. The rows and numbers are the same either way.
+ */
+export function narrow<Q extends AnalyticsQuery>(req: FastifyRequest, q: Q): Q {
+  const reach = reachOf(req, q.ownerIds);
+  if (reach === "all" || q.ownerIds?.length) return { ...q, reach };
+  const actor = req.actor!;
+  const ownerIds = reach === "own" ? [actor.userId] : [...new Set([actor.userId, ...actor.teamMemberIds])];
+  return { ...q, reach, ownerIds };
+}
+
 /** Rollup filters as SQL; the viewer's reach is the rollups' own row-level security. */
 export function rollupWhere(
   q: AnalyticsQuery,
@@ -114,6 +127,7 @@ type EventSums = {
   booked: number;
   held: number;
   noShow: number;
+  cancelled: number;
   tasksDue: number;
   tasksDone: number;
   onTime: number;
@@ -153,7 +167,8 @@ export async function eventSums(req: FastifyRequest, q: AnalyticsQuery, days: st
     SELECT coalesce(sum(won), 0)::int AS won, coalesce(sum(won_value), 0)::float8 AS "wonValue",
            coalesce(sum(won_no_value), 0)::int AS "wonNoValue", coalesce(sum(lost), 0)::int AS lost,
            coalesce(sum(booked), 0)::int AS booked, coalesce(sum(held), 0)::int AS held,
-           coalesce(sum(no_show), 0)::int AS "noShow", coalesce(sum(tasks_due), 0)::int AS "tasksDue",
+           coalesce(sum(no_show), 0)::int AS "noShow", coalesce(sum(cancelled), 0)::int AS cancelled,
+           coalesce(sum(tasks_due), 0)::int AS "tasksDue",
            coalesce(sum(tasks_done), 0)::int AS "tasksDone", coalesce(sum(tasks_on_time), 0)::int AS "onTime",
            coalesce(sum(late_minutes_sum), 0)::float8 AS "lateMinutes", coalesce(sum(late_count), 0)::int AS "lateCount",
            coalesce(sum(sends), 0)::int AS sends, coalesce(sum(replies72), 0)::int AS replies72
@@ -242,7 +257,7 @@ function tile(
 
 /** The Overview module (canvas Main): the funnel's health, the team's follow-through, the money. */
 export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
+  q = narrow(req, q);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const live = isLive(q);
