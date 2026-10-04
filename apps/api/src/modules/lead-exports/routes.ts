@@ -22,7 +22,8 @@ const params = z.object({ id: z.uuid() });
 const exportBody = z.object({
   format: z.enum(["csv", "xlsx"]),
   label: z.string().trim().min(1).max(80),
-  filters: filterQuerySchema.partial(),
+  // 8D: the leads behind a number on Analytics (a drill token), as well as any list filter.
+  filters: filterQuerySchema.partial().extend({ drill: z.string().min(16).max(4000).optional() }),
   columns: z.array(z.string().regex(/^(custom:)?[a-z0-9_]{1,64}$/)).max(60),
 });
 
@@ -56,7 +57,7 @@ export async function leadExportRoutes(app: FastifyInstance, d: AppDeps): Promis
     "/api/v1/leads/export",
     { config: { permission: "leads.export", idempotent: false }, schema: { body: exportBody } },
     async (req, reply) =>
-      reply.code(201).send(await svc.makeExport(req, d.keyring, req.body as svc.ExportInput)),
+      reply.code(201).send(await svc.makeExport(req, d.keyring, req.body as svc.ExportInput, d.clock())),
   );
   r.get("/api/v1/leads/exports", { config: { permission: "security.manage" } }, (req) =>
     svc.listExports(req),

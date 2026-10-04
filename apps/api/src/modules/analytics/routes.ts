@@ -8,6 +8,7 @@ import { badRequest, notFound } from "../../http/errors";
 import { listLeads } from "../leads/query";
 import { drillFor, drillIds, readDrill } from "./drill";
 import { listGoals, removeGoal, setGoal, setSpend } from "./goals";
+import { CSV_MODULES, boardCsv } from "./csv";
 import { insights } from "./insights";
 import { me } from "./me";
 import { revenue } from "./revenue";
@@ -134,6 +135,14 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
   for (const [name, read] of Object.entries(reads))
     r.get(`/api/v1/analytics/${name}`, { config: view, schema: { querystring: query } }, async (req) =>
       read(req, await toQuery(req, req.query), d.clock(), d),
+    );
+  // A board's numbers as CSV (8D-1 Task 12): numbers and labels only. Seeing the board is the gate; exporting
+  // also needs leads.export, refused in its own words.
+  for (const m of CSV_MODULES)
+    r.get(
+      `/api/v1/analytics/${m}/csv`,
+      { config: view, schema: { querystring: query } },
+      async (req, reply) => boardCsv(req, reply, d, m, await toQuery(req, req.query)),
     );
   // A rep's own view (8D-1 Task 10): always the viewer's own numbers.
   r.get("/api/v1/analytics/me", { config: view, schema: { querystring: query } }, async (req) =>

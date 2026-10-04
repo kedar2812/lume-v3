@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { INSTAGRAM_RE, dialCountries, normalizePhone } from "@lume/core";
@@ -10,6 +10,7 @@ import { schema } from "@lume/db";
 import { prepareMessage } from "./messages";
 import { confirmSend, logReply, messageContext, renderFor } from "./sending";
 import type { AppDeps } from "../../app";
+import { resolveDrill } from "../analytics/drill";
 import { bulkAnswer, cancelRun, createRun, listRuns, readRun, undoRun, type Selection } from "./bulk-runs";
 import { SUSPENDED_BODY } from "../security/watch";
 import { revealContact } from "./reveal";
@@ -64,9 +65,23 @@ const listQuery = z.object({
     .transform((v) => v === "true")
     .optional(),
   createdDays: z.coerce.number().int().min(1).max(365).optional(),
+  // 8D: the leads behind a number on Analytics (a drill token, 15 minutes). Never stored in a saved view.
+  drill: z.string().min(16).max(4000).optional(),
 });
-/** The list's filters and sort, without paging: what a saved view stores (4B). */
-export const filterQuerySchema = listQuery.omit({ cursor: true, limit: true });
+/** The list's filters and sort, without paging: what a saved view stores (4B). A drill token expires: not stored. */
+export const filterQuerySchema = listQuery.omit({ cursor: true, limit: true, drill: true });
+
+/** A drill token becomes the leads behind its number, narrowed further by anything else asked for. */
+export async function withDrill<T extends { drill?: string; ids?: string[] }>(
+  req: FastifyRequest,
+  d: Pick<AppDeps, "keyring" | "clock">,
+  q: T,
+): Promise<Omit<T, "drill">> {
+  const { drill, ...rest } = q;
+  if (!drill) return rest;
+  const ids = await resolveDrill(req, d.keyring, d.clock(), drill);
+  return { ...rest, ids: rest.ids ? rest.ids.filter((id) => ids.includes(id)) : ids };
+}
 
 /** A bulk action, as POST /leads/bulk and bulk runs take it (validated per lead when it runs). */
 const bulkActionSchema = z.discriminatedUnion("type", [
@@ -97,7 +112,7 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
   r.get(
     "/api/v1/leads",
     { config: { permission: "leads.view" }, schema: { querystring: listQuery } },
-    (req) => listLeads(req, req.query),
+    async (req) => listLeads(req, await withDrill(req, d, req.query)),
   );
   r.post(
     "/api/v1/leads",
@@ -114,7 +129,7 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
           .extend({ pipelineId: z.uuid() }),
       },
     },
-    (req) => countLeads(req, req.query),
+    async (req) => countLeads(req, await withDrill(req, d, req.query)),
   );
   r.get(
     "/api/v1/leads/duplicates",

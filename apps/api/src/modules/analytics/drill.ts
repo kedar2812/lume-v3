@@ -329,6 +329,16 @@ export function kindWhere(s: Scoped): SQL | null {
   }
 }
 
+/** "Open these in Leads" (8D spec §4): a drill token, read and checked as the drill-down reads it, as lead ids. */
+export async function resolveDrill(
+  req: FastifyRequest,
+  keyring: Keyring,
+  now: Date,
+  token: string,
+): Promise<string[]> {
+  return drillIds(req, readDrill(keyring, token, req.actor!.userId, now));
+}
+
 /** The leads behind a number, by its own definition (the rollups use the same ones). */
 export async function drillIds(req: FastifyRequest, spec: DrillSpec): Promise<string[]> {
   // Read afresh: the reach now, not when the token was made.

@@ -634,6 +634,16 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/analytics/revenue": { access: "analytics.view" },
   "GET /api/v1/analytics/me": { access: "analytics.view" },
   "GET /api/v1/analytics/segments": { access: "analytics.view" },
+  // A board's numbers as CSV: whoever may export.
+  "GET /api/v1/analytics/overview/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/funnel/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/team/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/sources/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/revenue/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/lost/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/timing/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/templates/csv": { access: "analytics.view", query: "range=30d" },
+  "GET /api/v1/analytics/quality/csv": { access: "analytics.view", query: "range=30d" },
   "GET /api/v1/analytics/goals": {
     access: "analytics.view",
     path: () => "/api/v1/analytics/goals?start=2026-10-01",

@@ -263,6 +263,11 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "security.settings_changed": { area: "Security", phrase: "changed the security rules or the watermark" },
   "security.access_changed": { area: "Security", phrase: "changed when or where a role may sign in" },
   // Exports you can trace (6B)
+  "analytics.export": {
+    area: "Analytics",
+    phrase: (d) =>
+      `exported the ${String(d.module ?? "board")} numbers for ${String(d.from ?? "")} to ${String(d.to ?? "")}`,
+  },
   "lead.export": {
     area: "Leads",
     phrase: (d) =>

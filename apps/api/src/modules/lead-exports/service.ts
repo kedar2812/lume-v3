@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { checkRow, newExportCode, newId, type Keyring } from "@lume/core";
+import { resolveDrill } from "../analytics/drill";
 import { audit } from "../../audit/audit";
 import { HttpError, notFound } from "../../http/errors";
 import type { FilterQuery } from "../leads/query";
@@ -22,7 +23,7 @@ const iso = (d: Date | string | null) => (d ? new Date(d).toISOString() : null);
 export type ExportInput = {
   format: "csv" | "xlsx";
   label: string;
-  filters: FilterQuery & { sort?: "newest" | "oldest" | "updated" | "name" };
+  filters: FilterQuery & { sort?: "newest" | "oldest" | "updated" | "name"; drill?: string };
   columns: string[];
 };
 type Row = {
@@ -73,10 +74,18 @@ export async function makeExport(
   req: FastifyRequest,
   keyring: Keyring,
   input: ExportInput,
+  now = new Date(),
 ): Promise<{ export: ExportView }> {
+  // The leads behind a number on Analytics (8D): its token becomes their ids, read and checked as Analytics reads it.
+  const { drill, ...filters } = input.filters;
+  const ids = drill ? await resolveDrill(req, keyring, now, drill) : undefined;
   const { columns, views, lookups } = await readView(
     req,
-    { ...input.filters, sort: input.filters.sort ?? "newest" },
+    {
+      ...filters,
+      ...(ids ? { ids: filters.ids ? filters.ids.filter((id) => ids.includes(id)) : ids } : {}),
+      sort: filters.sort ?? "newest",
+    },
     input.columns,
   );
   const id = newId();
