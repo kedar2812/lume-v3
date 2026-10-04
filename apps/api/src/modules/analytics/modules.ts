@@ -2,9 +2,9 @@ import { sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend } from "@lume/core";
 import type { AppDeps } from "../../app";
-import { drillFor, type DrillExtra, type DrillKind } from "./drill";
-import { ownerCond, sourceCond } from "./filters";
-import { refuseLive } from "./live";
+import { drillFor, frag, type DrillExtra, type DrillKind } from "./drill";
+import { isLive, ownerCond, sourceCond } from "./filters";
+import { guardLive, refuseLive, spanOf } from "./live";
 import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
@@ -64,25 +64,40 @@ export async function sources(
   now: Date,
   d?: Pick<AppDeps, "keyring">,
 ) {
-  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
+  guardLive(q, range);
   const mint = minter(d, req, range, q, tz, now);
   const [from, to] = [range.days[0]!, range.days.at(-1)!];
   const money = seesRevenue(req);
+  // Under a tag or field filter, the same numbers read live by the drill definitions (live.ts).
+  const s = spanOf(q, range);
+  const live = isLive(q);
   const [cohort, events, srcs, series] = await Promise.all([
-    req.db.execute<{ source_id: string | null; arrived: number; won: number }>(sql`
-      SELECT source_id, sum(arrived)::int AS arrived, sum(won)::int AS won FROM analytics_daily_cohort
-      WHERE ${rw(q, from, to)} GROUP BY source_id`),
-    req.db.execute<{ source_id: string | null; won: number; value: number }>(sql`
-      SELECT source_id, sum(won)::int AS won, sum(won_value)::float8 AS value FROM analytics_daily_event
-      WHERE ${rw(q, from, to, true)} GROUP BY source_id`),
+    live
+      ? req.db.execute<{ source_id: string | null; arrived: number; won: number }>(sql`
+          SELECT l.source_id, count(*)::int AS arrived, count(*) FILTER (WHERE l.won_at IS NOT NULL)::int AS won
+          FROM leads l WHERE ${frag.leads(s)} AND ${frag.cohort(s)} GROUP BY 1`)
+      : req.db.execute<{ source_id: string | null; arrived: number; won: number }>(sql`
+          SELECT source_id, sum(arrived)::int AS arrived, sum(won)::int AS won FROM analytics_daily_cohort
+          WHERE ${rw(q, from, to)} GROUP BY source_id`),
+    live
+      ? req.db.execute<{ source_id: string | null; won: number; value: number }>(sql`
+          SELECT l.source_id, count(*)::int AS won, coalesce(sum(l.value), 0)::float8 AS value
+          FROM leads l WHERE ${frag.leads(s)} AND ${frag.won(s)} GROUP BY 1`)
+      : req.db.execute<{ source_id: string | null; won: number; value: number }>(sql`
+          SELECT source_id, sum(won)::int AS won, sum(won_value)::float8 AS value FROM analytics_daily_event
+          WHERE ${rw(q, from, to, true)} GROUP BY source_id`),
     req.db.execute<{ id: string; name: string; type: string; spend: string | null }>(sql`
       SELECT id, name, type, monthly_spend::text AS spend FROM lead_sources`),
-    req.db.execute<{ day: string; value: number }>(sql`
-      SELECT to_char(day, 'YYYY-MM-DD') AS day, sum(won_value)::float8 AS value FROM analytics_daily_event
-      WHERE ${rw(q, from, to, true)} GROUP BY day`),
+    live
+      ? req.db.execute<{ day: string; value: number }>(sql`
+          SELECT to_char((l.won_at AT TIME ZONE ${tz})::date, 'YYYY-MM-DD') AS day, coalesce(sum(l.value), 0)::float8 AS value
+          FROM leads l WHERE ${frag.leads(s)} AND ${frag.won(s)} GROUP BY 1`)
+      : req.db.execute<{ day: string; value: number }>(sql`
+          SELECT to_char(day, 'YYYY-MM-DD') AS day, sum(won_value)::float8 AS value FROM analytics_daily_event
+          WHERE ${rw(q, from, to, true)} GROUP BY day`),
   ]);
   const name = new Map(srcs.rows.map((s) => [s.id, s]));
   const ids = new Set([...cohort.rows.map((r) => r.source_id), ...events.rows.map((r) => r.source_id)]);

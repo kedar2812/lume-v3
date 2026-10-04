@@ -122,6 +122,19 @@ describe("tag and field filters, counted live (8D-1 Task 3)", () => {
     expect(open.json().total).toBe(4);
   });
 
+  it("sources under a tag every lead carries equal the rollups'; under café they narrow", async () => {
+    const a = await h.signIn(admin);
+    const plain = (await a.inject({ method: "GET", url: `/api/v1/analytics/sources?${Q}` })).json();
+    const live = (
+      await a.inject({ method: "GET", url: `/api/v1/analytics/sources?${Q}&tag=${everyone}` })
+    ).json();
+    const pick = (b: { sources: { id: string | null; leads: number; won: number; revenue: number }[] }) =>
+      b.sources.map((x) => [x.id, x.leads, x.won, x.revenue]);
+    expect(pick(live)).toEqual(pick(plain));
+    const c = (await a.inject({ method: "GET", url: `/api/v1/analytics/sources?${Q}&tag=${cafe}` })).json();
+    expect(c.sources.reduce((n: number, x: { leads: number }) => n + x.leads, 0)).toBe(5);
+  });
+
   it("over 92 days, or on a board without a live path, a tag filter is refused in words", async () => {
     const a = await h.signIn(admin);
     const long = await a.inject({

@@ -9,6 +9,7 @@ import { listLeads } from "../leads/query";
 import { drillFor, drillIds, readDrill } from "./drill";
 import { listGoals, removeGoal, setGoal, setSpend } from "./goals";
 import { insights } from "./insights";
+import { revenue } from "./revenue";
 import { lost, quality, sources, templates, timing } from "./modules";
 import { funnel } from "./funnel";
 import { businessTz, overview, rangeOf, team, type AnalyticsQuery } from "./service";
@@ -121,7 +122,7 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
   const reads: Record<
     string,
     (req: FastifyRequest, q: AnalyticsQuery, now: Date, deps: AppDeps) => Promise<unknown>
-  > = { sources, lost, timing, templates, quality };
+  > = { sources, lost, timing, templates, quality, revenue };
   for (const [name, read] of Object.entries(reads))
     r.get(`/api/v1/analytics/${name}`, { config: view, schema: { querystring: query } }, async (req) =>
       read(req, await toQuery(req, req.query), d.clock(), d),
