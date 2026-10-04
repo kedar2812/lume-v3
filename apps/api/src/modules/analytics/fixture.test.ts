@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
-import { reference, seedFixture, FIXTURE_TZ, type Fixture } from "../../../test/fixtures/analytics";
+import {
+  reference,
+  reference8d,
+  seedFixture,
+  FIXTURE_TZ,
+  type Fixture,
+} from "../../../test/fixtures/analytics";
 import { rollupDays } from "./rollup";
 
 let h: Harness;
@@ -87,6 +93,62 @@ describe("a fully known business: the engine matches the script, to the unit (8A
     expect(await count("lost")).toBe(value("lost"));
     expect(await count("contacted")).toBe(Math.round(value("contacted")! * value("new_leads")!));
   });
+});
+
+describe("the 8D numbers match the script's own answers (8D-1 Task 13)", () => {
+  const get = async (path: string) => {
+    const r = await (await h.signIn(admin)).inject({ method: "GET", url: `/api/v1/analytics/${path}` });
+    expect(r.statusCode, r.body.slice(0, 300)).toBe(200);
+    return r.json();
+  };
+  for (const range of RANGES)
+    for (const person of [null, 0, 3] as const)
+      it(`revenue by package, meetings, won back, lost by reason and source, the funnel's split — ${range.join(" to ")}, ${person === null ? "everyone" : `person ${person}`}`, async () => {
+        const want = reference8d(range[0], range[1], person);
+        const q = `range=custom&from=${range[0]}&to=${range[1]}${person === null ? "" : `&owner=${fx.people[person]!.id}`}`;
+        // Sanity: the script really exercises each of them.
+        if (person === null) {
+          expect(want.byProduct.size).toBeGreaterThanOrEqual(3);
+          expect(want.kpis.held).toBeGreaterThan(3);
+          expect(want.wonBackFlow.won).toBeGreaterThan(1);
+        }
+        const rev = await get(`revenue?${q}`);
+        const got = new Map<string | null, { deals: number; value: number }>(
+          rev.byProduct.map((p: { id: string | null; deals: number; value: number }) => [
+            p.id,
+            { deals: p.deals, value: p.value },
+          ]),
+        );
+        const expected = new Map(
+          [...want.byProduct].map(([i, v]) => [i === null ? null : fx.products[i]!, v] as const),
+        );
+        expect(got).toEqual(expected);
+
+        const m = (await get(`timing?${q}`)).meetings.kpis;
+        expect({ booked: m.booked, held: m.held, cancelled: m.cancelled }).toEqual({
+          booked: want.kpis.booked,
+          held: want.kpis.held,
+          cancelled: want.kpis.cancelled,
+        });
+        const shown = want.kpis.held + want.kpis.noShow;
+        expect(m.noShowRate).toEqual(shown ? closeTo(want.kpis.noShow / shown) : null);
+
+        const l = await get(`lost?${q}`);
+        expect(l.wonBackFlow).toMatchObject(want.wonBackFlow);
+        const cells = new Map<string, number>(
+          l.matrix.cells.map((c: { reasonId: string; sourceId: string; n: number }) => [
+            `${fx.reasons.indexOf(c.reasonId)}:${fx.sources.indexOf(c.sourceId)}`,
+            c.n,
+          ]),
+        );
+        expect(cells).toEqual(want.matrix);
+
+        const f = await get(`funnel?${q}&split=source`);
+        const arrived = new Map<number, number>(
+          f.split.groups.map((g: { id: string; arrived: number }) => [fx.sources.indexOf(g.id), g.arrived]),
+        );
+        expect(arrived).toEqual(want.arrivedBySource);
+      });
 });
 
 /** Rates compared to 1e-9; counts and money exactly. */

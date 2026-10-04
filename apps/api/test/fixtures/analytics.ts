@@ -1,4 +1,5 @@
 import { bucketOf, dayOf, quantileFromHist, wallTime } from "@lume/core";
+import { analyticsSeed } from "../analytics-seed";
 import type { Harness, SeededUser } from "../harness";
 
 /**
@@ -26,7 +27,23 @@ export type ScriptLead = {
   /** Handed to people[next] at this instant. */
   reassign: { at: Date; to: number } | null;
   task: { due: Date; done: Date | null } | null;
+  /** 8D: the package a won lead bought (index into the fixture's products). */
+  product: number | null;
+  /** 8D: a call two days after arrival, at 15:00 business time, and what became of it. */
+  meeting: {
+    startsAt: Date;
+    createdAt: Date;
+    status: "completed" | "no_show" | "cancelled" | "scheduled";
+  } | null;
+  /** 8D: why a lost lead was lost (index into the business's lost reasons). */
+  reason: number | null;
+  /** 8D: a lost lead reopened two days after it was lost (and then won three days later, at 700). */
+  reopened: Date | null;
+  /** 8D: handed to people[to] twenty days after it was won: the win stays with whoever had it then. */
+  handoff: { at: Date; to: number } | null;
 };
+
+const MEETING_STATUS = ["completed", "no_show", "cancelled", "scheduled"] as const;
 
 export function script(): ScriptLead[] {
   return Array.from({ length: LEADS }, (_, i) => {
@@ -44,8 +61,31 @@ export function script(): ScriptLead[] {
     );
     const contact = i % 3 !== 0 ? new Date(arrival.getTime() + ((i * 17) % 600) * MIN) : null;
     const reply = contact && (i % 5 === 1 || i % 5 === 2) ? new Date(contact.getTime() + 120 * MIN) : null;
-    const won = i % 7 === 0 ? new Date(arrival.getTime() + ((i % 10) + 1) * DAY) : null;
     const lost = i % 7 === 3 ? new Date(arrival.getTime() + 3 * DAY) : null;
+    // Half the lost leads (i % 14 === 3) come back: reopened two days after, won three days after that.
+    const reopened = lost && i % 14 === 3 ? new Date(lost.getTime() + 2 * DAY) : null;
+    const won =
+      i % 7 === 0
+        ? new Date(arrival.getTime() + ((i % 10) + 1) * DAY)
+        : reopened
+          ? new Date(reopened.getTime() + 3 * DAY)
+          : null;
+    const arrivalDay = new Date(Date.parse(dayOf(arrival, FIXTURE_TZ)) + 2 * DAY);
+    const meeting =
+      i % 5 === 0
+        ? {
+            startsAt: wallTime(
+              arrivalDay.getUTCFullYear(),
+              arrivalDay.getUTCMonth() + 1,
+              arrivalDay.getUTCDate(),
+              15,
+              0,
+              FIXTURE_TZ,
+            ),
+            createdAt: new Date(arrival.getTime() + 60 * MIN),
+            status: MEETING_STATUS[(i / 5) % 4]!,
+          }
+        : null;
     const reassign = i % 11 === 5 ? { at: new Date(arrival.getTime() + DAY), to: (i + 1) % 6 } : null;
     const due = i % 4 === 0 ? new Date(arrival.getTime() + DAY) : null;
     // Early, exactly on time, and 30 minutes late, in turn; every eighth one still open.
@@ -58,15 +98,29 @@ export function script(): ScriptLead[] {
       contact,
       reply,
       won,
-      value: won ? (i % 2 === 0 ? 1000 + i : null) : null,
+      value: reopened ? 700 : won ? (i % 2 === 0 ? 1000 + i : null) : null,
       lost,
       reassign,
       task: due ? { due, done } : null,
+      product: won ? i % 3 : null,
+      meeting,
+      reason: lost ? i % 2 : null,
+      reopened,
+      handoff:
+        won && i % 7 === 0 && i % 13 === 0
+          ? { at: new Date(won.getTime() + 20 * DAY), to: (i % 6) + 3 }
+          : null,
     };
   });
 }
 
-export type Fixture = { people: SeededUser[]; sources: string[]; leads: { id: string; s: ScriptLead }[] };
+export type Fixture = {
+  people: SeededUser[];
+  sources: string[];
+  products: string[];
+  reasons: string[];
+  leads: { id: string; s: ScriptLead }[];
+};
 
 /** Writes the script into a harness, as the people and integrations would have. */
 export async function seedFixture(h: Harness): Promise<Fixture> {
@@ -91,6 +145,17 @@ export async function seedFixture(h: Harness): Promise<Fixture> {
         )
       ).rows[0].id,
     );
+  const products: string[] = [];
+  for (const name of ["Starter", "Growth", "Premium"])
+    products.push(
+      (
+        await h.ownerPool.query(
+          "INSERT INTO products (id, name) VALUES (gen_random_uuid(), $1) RETURNING id",
+          [name],
+        )
+      ).rows[0].id,
+    );
+  const reasons = (await h.config()).lostReasons.slice(0, 2);
   const leads: { id: string; s: ScriptLead }[] = [];
   for (const s of script()) {
     const id = await h.seedLead({
@@ -100,16 +165,51 @@ export async function seedFixture(h: Harness): Promise<Fixture> {
     leads.push({ id, s });
   }
   for (const { id, s } of leads) {
-    const owner =
-      s.reassign && s.reassign.at.getTime() <= Date.now() ? people[s.reassign.to]!.id : people[s.owner]!.id;
+    const owner = people[ownerAtScript(s, new Date())]!.id;
     await h.queryAll(
-      `UPDATE leads SET created_at = $2, source_id = $3, won_at = $4, value = $5, lost_at = $6, owner_id = $7 WHERE id = $1`,
-      [id, s.arrival, sources[s.source], s.won, s.value, s.lost, owner],
+      `UPDATE leads SET created_at = $2, source_id = $3, won_at = $4, value = $5, lost_at = $6, owner_id = $7,
+                        product_id = $8, lost_reason_id = $9 WHERE id = $1`,
+      [
+        id,
+        s.arrival,
+        sources[s.source],
+        s.won,
+        s.value,
+        s.lost,
+        owner,
+        s.product === null ? null : products[s.product],
+        s.reason === null ? null : reasons[s.reason],
+      ],
     );
+    if (s.reopened)
+      await h.queryAll(
+        "INSERT INTO activities (id, lead_id, type, occurred_at) VALUES (gen_random_uuid(), $1, 'reopened', $2)",
+        [id, s.reopened],
+      );
+    if (s.meeting) {
+      const at = s.reassign && s.reassign.at <= s.meeting.startsAt ? s.reassign.to : s.owner;
+      await analyticsSeed(h).meeting({
+        lead: id,
+        owner: people[at]!.id,
+        startsAt: s.meeting.startsAt,
+        status: s.meeting.status,
+        createdAt: s.meeting.createdAt,
+      });
+    }
     if (s.reassign)
       await h.queryAll(
         "INSERT INTO lead_assignment_history (lead_id, from_user_id, to_user_id, changed_at) VALUES ($1, $2, $3, $4)",
         [id, people[s.owner]!.id, people[s.reassign.to]!.id, s.reassign.at],
+      );
+    if (s.handoff)
+      await h.queryAll(
+        "INSERT INTO lead_assignment_history (lead_id, from_user_id, to_user_id, changed_at) VALUES ($1, $2, $3, $4)",
+        [
+          id,
+          people[ownerAtScript(s, new Date(s.handoff.at.getTime() - 1))]!.id,
+          people[s.handoff.to % 6]!.id,
+          s.handoff.at,
+        ],
       );
     if (s.contact)
       await h.queryAll(
@@ -131,7 +231,7 @@ export async function seedFixture(h: Harness): Promise<Fixture> {
       );
     }
   }
-  return { people, sources, leads };
+  return { people, sources, products, reasons, leads };
 }
 
 export type Expected = Record<string, number | null>;
@@ -145,7 +245,7 @@ export function reference(first: string, last: string, person: number | null): E
     const d = dayOf(t, FIXTURE_TZ);
     return d >= first && d <= last;
   };
-  const ownerAt = (s: ScriptLead, t: Date) => (s.reassign && s.reassign.at <= t ? s.reassign.to : s.owner);
+  const ownerAt = ownerAtScript;
   const mine = (p: number) => person === null || p === person;
   const all = script();
   const cohort = all.filter((s) => inDays(s.arrival) && mine(s.owner));
@@ -173,5 +273,69 @@ export function reference(first: string, last: string, person: number | null): E
     avg_deal: valued.length ? revenue / valued.length : null,
     lost: all.filter((s) => s.lost && inDays(s.lost) && mine(ownerAt(s, s.lost))).length,
     ontime: ratio(onTime.length, done.length),
+  };
+}
+
+/** The owner of a scripted lead at an instant: after a hand-off once it has happened. */
+function ownerAtScript(s: ScriptLead, t: Date): number {
+  if (s.handoff && s.handoff.at <= t) return s.handoff.to % 6;
+  return s.reassign && s.reassign.at <= t ? s.reassign.to : s.owner;
+}
+
+/**
+ * 8D-1 Task 13: the new numbers, from the script alone, for business days [first, last] and everyone (`person`
+ * null) or one person. Each follows the spec's definitions as the reference above does.
+ */
+export function reference8d(first: string, last: string, person: number | null) {
+  const inDays = (t: Date) => {
+    const d = dayOf(t, FIXTURE_TZ);
+    return d >= first && d <= last;
+  };
+  const mine = (p: number) => person === null || p === person;
+  const all = script();
+  // Revenue won by package: wins in the range, credited to the owner when won.
+  const wins = all.filter((s) => s.won && inDays(s.won) && mine(ownerAtScript(s, s.won)));
+  const byProduct = new Map<number | null, { deals: number; value: number }>();
+  for (const s of wins) {
+    const x = byProduct.get(s.product) ?? { deals: 0, value: 0 };
+    x.deals += 1;
+    x.value += s.value ?? 0;
+    byProduct.set(s.product, x);
+  }
+  // Meetings: booked by when the booking was made (not rescheduled); the rest by when the call was due.
+  const meetings = all
+    .filter((s) => s.meeting)
+    .map((s) => ({ s, m: s.meeting!, owner: ownerAtScript(s, s.meeting!.startsAt) }));
+  const starting = meetings.filter((x) => inDays(x.m.startsAt) && mine(x.owner));
+  const count = (st: string) => starting.filter((x) => x.m.status === st).length;
+  const kpis = {
+    booked: meetings.filter((x) => inDays(x.m.createdAt) && mine(x.owner)).length,
+    held: count("completed"),
+    noShow: count("no_show"),
+    cancelled: count("cancelled"),
+  };
+  // Won back: lost in the range, reopened after it was lost, then won in the range.
+  const lostIn = all.filter((s) => s.lost && inDays(s.lost) && mine(ownerAtScript(s, s.lost)));
+  const reopened = lostIn.filter((s) => s.reopened && s.reopened > s.lost!);
+  const wonBack = reopened.filter((s) => s.won && inDays(s.won));
+  // Lost by reason and source.
+  const matrix = new Map<string, number>();
+  for (const s of lostIn)
+    matrix.set(`${s.reason}:${s.source}`, (matrix.get(`${s.reason}:${s.source}`) ?? 0) + 1);
+  // New leads by source (the funnel's split).
+  const arrivedBySource = new Map<number, number>();
+  for (const s of all.filter((x) => inDays(x.arrival) && mine(x.owner)))
+    arrivedBySource.set(s.source, (arrivedBySource.get(s.source) ?? 0) + 1);
+  return {
+    byProduct,
+    kpis,
+    wonBackFlow: {
+      lost: lostIn.length,
+      reopened: reopened.length,
+      won: wonBack.length,
+      value: wonBack.reduce((a, s) => a + (s.value ?? 0), 0),
+    },
+    matrix,
+    arrivedBySource,
   };
 }
