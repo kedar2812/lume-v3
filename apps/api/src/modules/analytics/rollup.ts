@@ -16,6 +16,7 @@ export async function rollupDays(pool: pg.Pool, days: string[], tz: string): Pro
     try {
       await c.query("BEGIN");
       await c.query("SELECT lume_rollup_day($1::date, $2)", [d, tz]);
+      await c.query("SELECT lume_rollup_noshow_day($1::date, $2)", [d, tz]);
       await c.query("SELECT lume_rollup_slot_totals($1::date)", [d]);
       await c.query("COMMIT");
     } catch (err) {

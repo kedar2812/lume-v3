@@ -288,6 +288,7 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     t = performance.now();
     for (const d of days) {
       await h.pool.query("SELECT lume_rollup_day($1::date, $2)", [d, tz]);
+      await h.pool.query("SELECT lume_rollup_noshow_day($1::date, $2)", [d, tz]);
       await h.pool.query("SELECT lume_rollup_slot_totals($1::date)", [d]);
     }
     timings.push({

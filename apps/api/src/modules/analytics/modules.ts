@@ -2,7 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend } from "@lume/core";
 import type { AppDeps } from "../../app";
-import { drillFor, frag, type DrillExtra, type DrillKind } from "./drill";
+import { drillFor, frag, type DrillExtra, type DrillKind, type SlotKind } from "./drill";
 import { isLive, liveFilter, ownerCond, sourceCond } from "./filters";
 import { guardLive, refuseLive, spanOf } from "./live";
 import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
@@ -294,12 +294,27 @@ function lostMatrix(
 }
 const MATRIX_MIN = 3;
 
-/** Timing (canvas Timing): when leads arrive and reply, the best booking slots, time in each stage, and stuck leads. */
-export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+/**
+ * Timing (canvas Timing & meetings): when leads arrive and reply and calls are held, by weekday and hour in the
+ * business's time, inside a 7 am – 10 pm window with what falls outside it counted apart; the best slot of each once
+ * it has enough to go on; and the meetings — their numbers, what happened to every call, and each person's.
+ */
+const WINDOW = { startHour: 7, endHour: 22 } as const;
+export async function timing(
+  req: FastifyRequest,
+  q: AnalyticsQuery,
+  now: Date,
+  d?: Pick<AppDeps, "keyring">,
+) {
   refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
+  const mint = minter(d, req, range, q, tz, now);
+  const span = (col: SQL) =>
+    sql`${col} >= ${range.from.toISOString()}::timestamptz AND ${col} < ${range.to.toISOString()}::timestamptz`;
+  const meetingsIn = sql`meetings m JOIN leads l ON l.id = m.lead_id
+    WHERE ${leadWhere(q)} AND ${credit(q, sql`m.owner_id`)}`;
   const [from, to] = [range.days[0]!, range.days.at(-1)!];
   const slotWhere = (() => {
     const parts: SQL[] = [sql`day BETWEEN ${from}::date AND ${to}::date`];
@@ -307,6 +322,35 @@ export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
     if (own) parts.push(own);
     return sql.join(parts, sql` AND `);
   })();
+  type Kpis = { booked: number; held: number; no_show: number; cancelled: number };
+  const kpis = (from: Date, to: Date) => {
+    const f = from.toISOString();
+    const t = to.toISOString();
+    const starts = sql`m.starts_at >= ${f}::timestamptz AND m.starts_at < ${t}::timestamptz`;
+    return sql`
+      SELECT count(*) FILTER (WHERE m.created_at >= ${f}::timestamptz AND m.created_at < ${t}::timestamptz
+                              AND m.status <> 'rescheduled')::int AS booked,
+             count(*) FILTER (WHERE ${starts} AND m.status = 'completed')::int AS held,
+             count(*) FILTER (WHERE ${starts} AND m.status = 'no_show')::int AS no_show,
+             count(*) FILTER (WHERE ${starts} AND m.status = 'cancelled')::int AS cancelled
+      FROM ${meetingsIn}`;
+  };
+  const [kNow, kBefore, flow, perPerson] = await Promise.all([
+    req.db.execute<Kpis>(kpis(range.from, range.to)),
+    req.db.execute<Kpis>(kpis(range.previous.from, range.previous.to)),
+    // What happened to every call that was due to start in the range.
+    req.db.execute<{ status: string; upcoming: boolean; n: number }>(sql`
+      SELECT m.status, (m.status = 'scheduled' AND m.starts_at > ${now.toISOString()}::timestamptz) AS upcoming,
+             count(*)::int AS n
+      FROM ${meetingsIn} AND ${span(sql`m.starts_at`)} GROUP BY 1, 2`),
+    req.db.execute<{ id: string; name: string; held: number; no_show: number; cancelled: number }>(sql`
+      SELECT m.owner_id AS id, u.name, count(*) FILTER (WHERE m.status = 'completed')::int AS held,
+             count(*) FILTER (WHERE m.status = 'no_show')::int AS no_show,
+             count(*) FILTER (WHERE m.status = 'cancelled')::int AS cancelled
+      FROM meetings m JOIN leads l ON l.id = m.lead_id JOIN users u ON u.id = m.owner_id
+      WHERE ${leadWhere(q)} AND ${credit(q, sql`m.owner_id`)} AND ${span(sql`m.starts_at`)}
+      GROUP BY 1, 2 ORDER BY held DESC, u.name`),
+  ]);
   const [slots, stays, stuck] = await Promise.all([
     // Everyone's, with no one picked: the totals per hour (0055), a fraction of the rows.
     req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
@@ -336,12 +380,89 @@ export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
     den.map((row, d) =>
       row.map((n, h) => (n >= min ? { rate: num[d]![h]! / n, n } : { rate: null, n, tooFew: true })),
     );
+  const arrivals = grid("arrivals");
+  const replies = ratio(grid("replies"), grid("sends"), 10);
+  const booking = ratio(grid("held"), grid("booked"), 5);
+  const inWindow = (h: number) => h >= WINDOW.startHour && h < WINDOW.endHour;
+  const outside = Object.fromEntries(
+    (["arrivals", "sends", "replies", "booked", "held"] as const).map((k) => [
+      k,
+      grid(k).reduce((a, row) => a + row.reduce((b, n, h) => b + (inWindow(h) ? 0 : n), 0), 0),
+    ]),
+  );
+  // The best cell of each, only once it has enough behind it (spec §4: 10 sends, 5 calls booked).
+  type Best<T> = { dow: number; hour: number; c: T; v: number };
+  const bestOf = <T>(cells: T[][], score: (c: T) => number | null): Best<T> | null => {
+    let best: Best<T> | null = null;
+    cells.forEach((row, dow) =>
+      row.forEach((c, hour) => {
+        const v = score(c);
+        if (v !== null && v > 0 && (!best || v > best.v)) best = { dow, hour, c, v };
+      }),
+    );
+    return best;
+  };
+  const bArr = bestOf(arrivals, (n) => n);
+  const bRep = bestOf(replies, (c) => c.rate);
+  const bBook = bestOf(booking, (c) => c.rate);
+  const cell = (kind: SlotKind, n: number, dow: number, hour: number) => ({
+    n,
+    drill: n > 0 ? mint("slot", { slot: { kind, dow, hour } }) : undefined,
+  });
+  const k = kNow.rows[0]!;
+  const kb = kBefore.rows[0]!;
+  const flowN = (status: string, upcoming?: boolean) =>
+    flow.rows
+      .filter((r) => r.status === status && (upcoming === undefined || r.upcoming === upcoming))
+      .reduce((a, r) => a + r.n, 0);
+  const sums = (x: Kpis) => ({
+    booked: x.booked,
+    held: x.held,
+    heldRate: rate(x.held, x.held + x.no_show),
+    noShowRate: rate(x.no_show, x.held + x.no_show),
+    cancelled: x.cancelled,
+  });
   return {
     range: { label: range.label, days: range.days },
+    window: WINDOW,
     // 0 = Sunday … 6 = Saturday; hours 0–23, in the business's time.
-    arrivals: grid("arrivals"),
-    replies: ratio(grid("replies"), grid("sends"), 10),
-    booking: ratio(grid("held"), grid("booked"), 5),
+    arrivals,
+    replies,
+    booking,
+    outside,
+    best: {
+      ...(bArr ? { arrivals: { dow: bArr.dow, hour: bArr.hour, n: bArr.c } } : {}),
+      ...(bRep ? { replies: { dow: bRep.dow, hour: bRep.hour, rate: bRep.v, n: bRep.c.n } } : {}),
+      ...(bBook ? { booking: { dow: bBook.dow, hour: bBook.hour, rate: bBook.v, n: bBook.c.n } } : {}),
+    },
+    cells: {
+      arrivals: arrivals.map((row, dow) => row.map((n, hour) => cell("arrivals", n, dow, hour))),
+      replies: replies.map((row, dow) => row.map((c, hour) => cell("sends", c.n, dow, hour))),
+      booking: booking.map((row, dow) => row.map((c, hour) => cell("booked", c.n, dow, hour))),
+    },
+    meetings: {
+      kpis: { ...sums(k), previous: sums(kb) },
+      flow: {
+        booked: flow.rows.reduce((a, r) => a + r.n, 0),
+        held: flowN("completed"),
+        noShow: flowN("no_show"),
+        cancelled: flowN("cancelled"),
+        rescheduled: flowN("rescheduled"),
+        upcoming: flowN("scheduled", true),
+      },
+      people: perPerson.rows.map((p) => ({
+        id: p.id,
+        name: p.name,
+        held: p.held,
+        noShow: p.no_show,
+        cancelled: p.cancelled,
+      })),
+      drill: {
+        held: mint("meeting_outcome", { outcome: "completed" }),
+        no_show: mint("meeting_outcome", { outcome: "no_show" }),
+        cancelled: mint("meeting_outcome", { outcome: "cancelled" }),
+      },
+    },
     stages: stays.rows.map((s) => ({
       id: s.stage_id,
       name: s.name,
