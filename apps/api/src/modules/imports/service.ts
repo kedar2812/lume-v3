@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, lt, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, lt, ne, or, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import {
   DEFAULT_RULES,
@@ -489,7 +489,10 @@ function view(req: FastifyRequest, imp: ImportRow, startedByName: string | null)
     mine: imp.createdBy === actor.userId,
   };
 }
-export type ImportView = ReturnType<typeof view>;
+export type ImportView = ReturnType<typeof view> & {
+  /** Of the leads it created, those with their own (earlier) enquiry date, and the span of those dates. */
+  dated?: { n: number; from: string; to: string } | null;
+};
 
 export async function getImport(req: FastifyRequest, id: string): Promise<ImportView> {
   const [row] = await req.db
@@ -499,7 +502,18 @@ export async function getImport(req: FastifyRequest, id: string): Promise<Import
     .where(eq(I.id, id));
   if (!row || (row.imp.status === "draft" && row.imp.createdBy !== req.actor!.userId))
     throw notFound("IMPORT_NOT_FOUND", "Import not found");
-  return view(req, row.imp, row.startedByName);
+  const v = view(req, row.imp, row.startedByName);
+  if (row.imp.status !== "done" || !row.imp.created) return { ...v, dated: null };
+  // Leads that came with their own enquiry date count on that day, in Analytics and "New today", not on the day of
+  // the import (owner, 2026-10-05: 12,000 imported, "New today" said 7). The report says so, with their dates.
+  const d = await req.db.execute<{ n: number; from: string | null; to: string | null }>(sql`
+    SELECT count(*)::int AS n, to_char(min(l.lead_created_at), 'YYYY-MM-DD') AS from,
+           to_char(max(l.lead_created_at), 'YYYY-MM-DD') AS to
+    FROM import_rows r JOIN leads l ON l.id = r.lead_id
+    WHERE r.import_id = ${row.imp.id}::uuid AND r.result = 'created' AND l.lead_created_at IS NOT NULL
+      AND l.lead_created_at < (${row.imp.finishedAt ?? new Date()}::timestamptz)::date`);
+  const x = d.rows[0];
+  return { ...v, dated: x && x.n > 0 ? { n: x.n, from: x.from!, to: x.to! } : null };
 }
 
 const PAGE = 50;

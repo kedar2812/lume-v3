@@ -12,6 +12,16 @@ const C = 2 * Math.PI * R;
 const n = (v: number) => v.toLocaleString("en");
 const handled = (c: ImportCounts) => c.created + c.merged + c.skipped + c.empty + c.errors;
 
+const day = (d: string) =>
+  new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+/** "June 10, 2024 – February 1, 2025", or one day. */
+const span = (a: string, b: string) => (a === b ? day(a) : `${day(a)} – ${day(b)}`);
+
 /** Rows done out of all of them, as a ring with the count in the middle. */
 function Ring({ done, total }: { done: number; total: number }) {
   const v = total ? Math.min(1, done / total) : 0;
@@ -189,6 +199,20 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
                   <li key={label}>{`${n(v)} ${label}`}</li>
                 ))}
             </ul>
+            {/* Where they count (owner, 2026-10-05): a lead with its own enquiry date is new on that day. */}
+            {view.dated && view.dated.n > 0 && (
+              <p className={s.note}>
+                {view.dated.n === c.created
+                  ? c.created === 1
+                    ? "It"
+                    : `All ${n(c.created)}`
+                  : n(view.dated.n)}{" "}
+                came with {view.dated.n === 1 ? "its own enquiry date" : "their own enquiry dates"},{" "}
+                {span(view.dated.from, view.dated.to)}. {view.dated.n === 1 ? "It counts" : "They count"} on{" "}
+                {view.dated.n === 1 ? "that day" : "those days"} in Analytics and in “New today”, not as new
+                today.
+              </p>
+            )}
             <div className={s.reportLinks}>
               {c.created > 0 && (
                 <a className={s.linkButton} href={`/leads?source=${view.sourceId}`}>

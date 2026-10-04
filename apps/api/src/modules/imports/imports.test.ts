@@ -145,3 +145,27 @@ describe("settings and preview", () => {
     expect((await admin.inject({ method: "DELETE", url: `/api/v1/imports/${d.id}` })).statusCode).toBe(204);
   });
 });
+
+describe("the finished report (owner, 2026-10-05: 12,000 imported, New today said 7)", () => {
+  it("says how many came with their own enquiry date, and from when to when", async () => {
+    const d = (await upload(admin, csv("Name\nA\nB\nC\n"))).json();
+    const leads = [
+      await h.seedLead({ ownerId: null, name: "Old enquiry" }),
+      await h.seedLead({ ownerId: null, name: "Older enquiry" }),
+      await h.seedLead({ ownerId: null, name: "No date" }),
+    ];
+    await h.queryAll("UPDATE leads SET lead_created_at = '2024-06-10' WHERE id = $1", [leads[0]]);
+    await h.queryAll("UPDATE leads SET lead_created_at = '2025-02-01' WHERE id = $1", [leads[1]]);
+    for (const [i, id] of leads.entries())
+      await h.queryAll(
+        "INSERT INTO import_rows (import_id, row_index, result, lead_id) VALUES ($1, $2, 'created', $3)",
+        [d.id, i + 1, id],
+      );
+    await h.queryAll(
+      "UPDATE imports SET status = 'done', finished_at = now(), started_by = created_by, created = 3 WHERE id = $1",
+      [d.id],
+    );
+    const r = (await admin.inject({ method: "GET", url: `/api/v1/imports/${d.id}` })).json();
+    expect(r.dated).toEqual({ n: 2, from: "2024-06-10", to: "2025-02-01" });
+  });
+});

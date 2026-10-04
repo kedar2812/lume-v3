@@ -94,6 +94,8 @@ export type ImportCounts = {
 export type ImportView = {
   id: string;
   status: ImportStatus;
+  /** Of the leads it created, those with their own earlier enquiry date, and their span (a finished import). */
+  dated?: { n: number; from: string; to: string } | null;
   fileName: string;
   rowCount: number;
   cursorRow: number;

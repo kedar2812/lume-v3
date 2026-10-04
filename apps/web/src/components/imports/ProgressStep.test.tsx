@@ -112,4 +112,22 @@ describe("ProgressStep", () => {
     expect(screen.queryByRole("link", { name: "View imported leads" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Download the 2 rows with problems" })).toBeInTheDocument();
   });
+
+  it("says where leads with their own enquiry dates count, so New today isn't a surprise", () => {
+    render(
+      <ProgressStep
+        initial={view({
+          status: "done",
+          seenAt: "2026-09-27T09:05:00Z",
+          dated: { n: 120, from: "2024-06-10", to: "2026-09-26" },
+        })}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "120 came with their own enquiry dates, June 10, 2024 – September 26, 2026. They count on those days in Analytics and in “New today”, not as new today.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
