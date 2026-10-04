@@ -4,6 +4,7 @@ import { quantileFromHist, trend } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { drillFor, type DrillExtra, type DrillKind } from "./drill";
 import { ownerCond, sourceCond } from "./filters";
+import { refuseLive } from "./live";
 import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
@@ -63,6 +64,7 @@ export async function sources(
   now: Date,
   d?: Pick<AppDeps, "keyring">,
 ) {
+  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
@@ -125,6 +127,7 @@ export async function sources(
 
 /** Lost (canvas Lost): why, from which stage, by whom and from where; and leads won back. */
 export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: Pick<AppDeps, "keyring">) {
+  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
@@ -203,6 +206,7 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
 
 /** Timing (canvas Timing): when leads arrive and reply, the best booking slots, time in each stage, and stuck leads. */
 export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
@@ -262,6 +266,7 @@ export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
 
 /** Templates (canvas Templates): per template, sends, replies within 72 hours, and wins within 30 days. */
 export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
@@ -294,6 +299,7 @@ export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Dat
 
 /** Data quality (canvas Quality): numbers that need a country or are invalid, unowned leads by how long they've waited, rejected import rows. */
 export async function quality(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);

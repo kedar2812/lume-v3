@@ -3,7 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { scopeOf, type Keyring, type MetricId, type Range } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { HttpError, notFound } from "../../http/errors";
-import { ownerCond, sourceCond } from "./filters";
+import { liveFilter, ownerCond, sourceCond } from "./filters";
 import type { AnalyticsQuery } from "./service";
 
 /**
@@ -168,6 +168,9 @@ export const frag = {
     if (s.q.pipelineId) parts.push(sql`l.pipeline_id = ${s.q.pipelineId}::uuid`);
     const src = sourceCond(s.q.sourceIds, sql`l.source_id`);
     if (src) parts.push(src);
+    // A number counted under a tag or field filter opens only the leads that carry it.
+    const live = liveFilter(s.q);
+    if (live) parts.push(live);
     return sql.join(parts, sql` AND `);
   },
   /** A custom field's value as it's stored: yes/no fields hold JSON booleans. */

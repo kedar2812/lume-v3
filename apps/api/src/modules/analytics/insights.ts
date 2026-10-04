@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { NOT_YET, noticed, type DetectorId, type InsightContext, type Seen } from "@lume/core";
 import { ownerCond } from "./filters";
+import { refuseLive } from "./live";
 import { lost, sources, templates } from "./modules";
 import { businessTz, eventSums, funnel, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
@@ -11,6 +12,7 @@ import { businessTz, eventSums, funnel, rangeOf, reachOf, seesRevenue, type Anal
  * shown. Below about 200 leads nothing speaks; the card says what it's waiting for.
  */
 export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+  refuseLive(q);
   const scope = reachOf(req, q.ownerIds);
   q = { ...q, reach: scope };
   const tz = await businessTz(req);

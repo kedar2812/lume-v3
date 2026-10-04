@@ -13,7 +13,8 @@ import {
   type Trend,
 } from "@lume/core";
 import { badRequest, forbidden } from "../../http/errors";
-import { ownerCond, sourceCond } from "./filters";
+import { isLive, liveFilter, ownerCond, sourceCond } from "./filters";
+import { guardLive, liveCohort, liveDaily, liveEvents, refuseLive, spanOf } from "./live";
 
 /**
  * The analytics API's numbers (8A, spec §4–§5.2). Dashboards read the daily rollups (0053) under the viewer's
@@ -175,6 +176,8 @@ function liveLead(q: AnalyticsQuery): SQL {
   if (q.pipelineId) parts.push(sql`l.pipeline_id = ${q.pipelineId}::uuid`);
   const src = sourceCond(q.sourceIds, sql`l.source_id`);
   if (src) parts.push(src);
+  const tagged = liveFilter(q);
+  if (tagged) parts.push(tagged);
   return sql.join(parts, sql` AND `);
 }
 
@@ -188,7 +191,7 @@ export async function overdueNow(req: FastifyRequest, q: AnalyticsQuery): Promis
 export async function forecastNow(req: FastifyRequest, q: AnalyticsQuery): Promise<number> {
   // The kept stage counts (0048) already sum each stage's value per owner: a few rows, not every open lead. They
   // carry no source, so a source filter reads the leads themselves.
-  if (!q.sourceIds?.length) {
+  if (!q.sourceIds?.length && !isLive(q)) {
     const k = await req.db.execute<{ v: number }>(sql`
       SELECT coalesce(sum(c.value * coalesce(s.win_probability, 0) / 100), 0)::float8 AS v
       FROM lead_counts_now c JOIN stages s ON s.id = c.stage_id
@@ -242,11 +245,24 @@ export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
-  const [c, e, pc, pe, overdue, cyc, pcyc] = await Promise.all([
-    cohortSums(req, q, range.days),
-    eventSums(req, q, range.days),
-    cohortSums(req, q, range.previous.days),
-    eventSums(req, q, range.previous.days),
+  const live = isLive(q);
+  guardLive(q, range);
+  // Under a tag or field filter the sums are read live, by the same definitions (live.ts).
+  const sums = live
+    ? Promise.all([
+        liveCohort(req, spanOf(q, range)),
+        liveEvents(req, spanOf(q, range)),
+        liveCohort(req, spanOf(q, range.previous)),
+        liveEvents(req, spanOf(q, range.previous)),
+      ])
+    : Promise.all([
+        cohortSums(req, q, range.days),
+        eventSums(req, q, range.days),
+        cohortSums(req, q, range.previous.days),
+        eventSums(req, q, range.previous.days),
+      ]);
+  const [[c, e, pc, pe], overdue, cyc, pcyc] = await Promise.all([
+    sums,
     overdueNow(req, q),
     cycleDays(req, q, range.from, range.to, tz),
     cycleDays(req, q, range.previous.from, range.previous.to, tz),
@@ -262,7 +278,7 @@ export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date
     tile("reply_rate", rate(c.replied, c.contacted), rate(pc.replied, pc.contacted), q.compare, {
       n: c.contacted,
     }),
-    tile("speed_to_lead", quantileFromHist(c.hist, 0.5), quantileFromHist(pc.hist, 0.5), q.compare, {
+    tile("speed_to_lead", speedOf(c), speedOf(pc), q.compare, {
       n: c.contacted,
       note: c.arrived > c.contacted ? `${c.arrived - c.contacted} not contacted yet` : undefined,
     }),
@@ -304,7 +320,32 @@ export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date
   return {
     range: { label: range.label, days: range.days, from: range.from, to: range.to, previous: range.previous },
     tiles,
-    series: await dailySeries(req, q, range),
+    series: live ? await liveSeries(req, q, range, tz) : await dailySeries(req, q, range),
+  };
+}
+
+/** Speed to lead: a rollup's histogram estimate, or a live read's exact median. */
+const speedOf = (c: { hist: number[] } | { speed: number | null }) =>
+  "hist" in c ? quantileFromHist(c.hist, 0.5) : c.speed;
+
+async function liveSeries(req: FastifyRequest, q: AnalyticsQuery, range: Range, tz: string) {
+  const [now, before] = await Promise.all([
+    liveDaily(req, spanOf(q, range), tz),
+    liveDaily(req, spanOf(q, range.previous), tz),
+  ]);
+  const perDay = (rows: { day: string; n: number }[], days: string[]) => {
+    const m = new Map(rows.map((r) => [r.day, r.n]));
+    return days.map((d) => m.get(d) ?? 0);
+  };
+  return {
+    days: range.days,
+    newLeads: perDay(now.arrived, range.days),
+    won: perDay(now.won, range.days),
+    previous: {
+      newLeads: perDay(before.arrived, range.previous.days),
+      won: perDay(before.won, range.previous.days),
+    },
+    bySource: foldBySource(now.split, range.days),
   };
 }
 
@@ -333,6 +374,16 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
       WHERE ${rollupWhere(q, range.days[0]!, range.days.at(-1)!)}
       GROUP BY 1, 2, 3`),
   ]);
+  return { days: range.days, ...now, previous: before, bySource: foldBySource(split.rows, range.days) };
+}
+
+/** New leads per day by where they came from (canvas Main's bands): the four biggest sources, the rest together. */
+function foldBySource(
+  rows: { day: string; source_id: string | null; name: string | null; n: number }[],
+  days: string[],
+) {
+  const split = { rows };
+  const range = { days };
   const totals = new Map<string, { id: string | null; name: string; n: number }>();
   for (const r of split.rows) {
     const k = r.source_id ?? "none";
@@ -343,7 +394,7 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
   const top = [...totals.values()].sort((a, b) => b.n - a.n);
   const named = top.slice(0, top.length > 5 ? 4 : 5);
   const rest = top.slice(named.length);
-  const bySource = [
+  return [
     ...named.map((t) => ({
       id: t.id,
       name: t.name,
@@ -365,7 +416,6 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
         ]
       : []),
   ];
-  return { days: range.days, ...now, previous: before, bySource };
 }
 
 /**
@@ -373,6 +423,7 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
  * one, open stages in order and then won.
  */
 export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
@@ -440,6 +491,7 @@ export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
 
 /** Each person (canvas Team): their own numbers side by side, for a viewer who sees more than themselves. */
 export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+  refuseLive(q);
   const scope = reachOf(req, q.ownerIds);
   q = { ...q, reach: scope };
   const tz = await businessTz(req);
