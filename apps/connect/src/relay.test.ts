@@ -236,13 +236,13 @@ describe("the relay", () => {
     const calStart = (n: string, k = "calendar", sig = sign(TOKEN, `${n}.calendar`)) =>
       get(`/start?i=${instanceIdOf(TOKEN)}&n=${n}&k=${k}&s=${sig}`);
 
-    it("asks Google for read-only calendar access and nothing else", async () => {
+    it("asks Google for read-only access to the person's own calendars and nothing else", async () => {
       const r = await calStart("cal-1");
       expect(r.status).toBe(302);
       const scopes = new URL(r.headers.get("location")!).searchParams.get("scope")!.split(" ").sort();
       expect(scopes).toEqual([
         "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-        "https://www.googleapis.com/auth/calendar.events.readonly",
+        "https://www.googleapis.com/auth/calendar.events.owned.readonly",
       ]);
     });
 

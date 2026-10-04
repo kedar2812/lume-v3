@@ -36,7 +36,8 @@ Three plans, like Phases 3 and 4, each shippable on its own:
 ### 2.1 Connecting
 
 - **Decided:** connecting goes through the existing relay, as Connect with Google does: `GET /start?…&kind=calendar`
-  asks Google for `calendar.events.readonly` and `calendar.calendarlist.readonly` only (read-only; LUME never
+  asks Google for `calendar.events.owned.readonly` and `calendar.calendarlist.readonly` only (read-only; events
+  only on calendars the person owns, since 2026-10-04 when Google's review asked for the narrowest scope; LUME never
   writes to anyone's calendar in this phase). There is no Picker: the relay hands the sealed grant straight back
   to `/calendar/connected` on the instance. *Cost if wrong:* a second OAuth client per instance (rejected:
   every client would need their own Google verification).

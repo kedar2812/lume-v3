@@ -46,6 +46,16 @@ describe("the Google Calendar client (5A Task 4)", () => {
     ]);
   });
 
+  it("lists only calendars the person owns: one shared with them isn't LUME's to read", async () => {
+    fake.putCalendar("boss@business.test", { name: "Boss", access: "reader" });
+    try {
+      expect((await g.calendarList()).map((c) => c.id)).not.toContain("boss@business.test");
+      expect(fake.lastCalendarListQuery?.get("minAccessRole")).toBe("owner");
+    } finally {
+      fake.removeCalendar("boss@business.test");
+    }
+  });
+
   it("reads a window in full through every page, in LUME's shape, and hands back a sync token", async () => {
     fake.putCalendar("full@group.test", { name: "Full" });
     for (let i = 1; i <= 5; i++)

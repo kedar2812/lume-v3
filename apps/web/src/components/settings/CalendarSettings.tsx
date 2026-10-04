@@ -122,7 +122,8 @@ export function CalendarSettings({
           Calendars LUME reads
         </h2>
         <p className={s.lede}>
-          Only meetings with your leads are kept from these. Other events are read to find them, never kept.
+          These are the calendars you own; LUME can't read calendars others share with you. Only meetings with
+          your leads are kept from them. Other events are read to find them, never kept.
         </p>
         {error && (
           <p role="alert" className={s.err}>

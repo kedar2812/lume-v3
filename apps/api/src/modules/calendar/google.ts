@@ -106,7 +106,8 @@ export function createGoogleCalendar(o: {
   return {
     async calendarList() {
       const { items } = await pages<{ id: string; summary?: string; primary?: boolean }, object>(
-        `${base}/users/me/calendarList?maxResults=250&minAccessRole=reader`,
+        // Only calendars the person owns: the grant (calendar.events.owned.readonly) reads no others.
+        `${base}/users/me/calendarList?maxResults=250&minAccessRole=owner`,
       );
       return items.map((c) => ({ id: c.id, name: c.summary ?? c.id, primary: !!c.primary }));
     },

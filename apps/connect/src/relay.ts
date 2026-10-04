@@ -20,9 +20,12 @@ export type RelayConfig = {
 };
 
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
-/** A calendar (Phase 5A): read-only — the events, and which calendars there are. Nothing else. */
+/**
+ * A calendar (Phase 5A): read-only — events on the calendars the person owns, and which calendars there are.
+ * Nothing else: not other people's calendars shared with them (Google's narrowest scope that does the job).
+ */
 const CALENDAR_SCOPE = [
-  "https://www.googleapis.com/auth/calendar.events.readonly",
+  "https://www.googleapis.com/auth/calendar.events.owned.readonly",
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 ].join(" ");
 const TEN_MIN = 10 * 60_000;
@@ -206,7 +209,7 @@ export function createRelay(o: RelayConfig): Relay {
               200,
               wordsPage(
                 "LUME needs both",
-                "LUME needs to see your calendars and their events (it only reads them). Go back to LUME, choose Connect again, and leave both boxes ticked.",
+                "LUME needs to see your calendars and the events on the ones you own (it only reads them). Go back to LUME, choose Connect again, and leave both boxes ticked.",
                 backTo(state.i),
               ),
             );

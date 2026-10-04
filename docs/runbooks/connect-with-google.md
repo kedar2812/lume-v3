@@ -64,13 +64,14 @@ The same relay connects each person's Google Calendar, read-only, so LUME can ke
 
 1. In the Google Cloud project, enable the **Google Calendar API**.
 2. On the OAuth consent screen, add exactly these two scopes:
-   - `https://www.googleapis.com/auth/calendar.events.readonly`
-   - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
-3. Both are **sensitive** scopes, so Google's verification is the full kind and takes weeks. Start it early. Until it's through:
+   - `https://www.googleapis.com/auth/calendar.events.owned.readonly` (events on calendars the person owns, nothing shared with them: Google's narrowest scope that does the job);
+   - `https://www.googleapis.com/auth/calendar.calendarlist.readonly` (the list LUME shows, filtered to the calendars they own, so they choose which it reads).
+3. The events scope is **sensitive**, so Google's verification is the full kind and takes weeks. Start it early. Until it's through:
    - people see Google's "unverified app" screen;
    - the project is capped at **100 people across all clients**.
 4. Verification asks for:
-   - a short video of the connect flow (Settings → My account → Calendar → Connect);
+   - a video of the connect flow with every scope expanded on Google's consent screen, then each scope in use: choosing calendars (the list) and a meeting with a lead appearing (the events);
+   - a reviewer's sign-in with no blockers, and step-by-step instructions;
    - a privacy policy that says LUME reads calendars only to show a person's meetings with leads, and stores nothing else.
 5. The OAuth app must be **In production**. A grant made while it's in testing mode expires after 7 days, and that connection then shows "needs connecting again".
 6. Nothing changes on the relay or in a client's `.env`. On a client that has Connect with Google set up:

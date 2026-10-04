@@ -53,8 +53,11 @@ export type GoogleFake = {
   revokeOne(refreshToken: string): void;
   /** A calendar the account no longer has (deleted, or unsubscribed). */
   removeCalendar(id: string): void;
-  /** Google Calendar (5A): calendars on the grant's account, and their events. */
-  putCalendar(id: string, c: { name: string; primary?: boolean }): void;
+  /**
+   * Google Calendar (5A): calendars on the grant's account, and their events. `access` is the person's role
+   * on it (default "owner"); LUME's grant reads events only on calendars they own.
+   */
+  putCalendar(id: string, c: { name: string; primary?: boolean; access?: "owner" | "reader" }): void;
   putEvent(calendarId: string, e: FakeEvent): void;
   cancelEvent(calendarId: string, eventId: string): void;
   /** Every sync token given out so far now answers 410 Gone (Google expires them). */
@@ -65,6 +68,8 @@ export type GoogleFake = {
   fail(status: number, count?: number, reason?: string): void;
   /** Every Google call's method and path, in order ("GET /v4/spreadsheets/abc"). */
   calls: string[];
+  /** The query of the last calendar-list call. */
+  lastCalendarListQuery: URLSearchParams | null;
   close(): Promise<void>;
 };
 
@@ -83,7 +88,10 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const tokenGrant = new Map<string, string>();
   const calls: string[] = [];
   type StoredEvent = FakeEvent & { status: "confirmed" | "cancelled"; updated: number };
-  const calendars = new Map<string, { name: string; primary: boolean; events: Map<string, StoredEvent> }>();
+  const calendars = new Map<
+    string,
+    { name: string; primary: boolean; access: "owner" | "reader"; events: Map<string, StoredEvent> }
+  >();
   let tokensValidFrom = 0;
   let clock = Date.parse("2026-09-27T00:00:00Z");
   let failing: { status: number; left: number; reason?: string } | null = null;
@@ -168,11 +176,15 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     if (!viaGrant)
       return googleError(res, 403, "PERMISSION_DENIED", "Request had insufficient authentication scopes.");
     if (u.pathname === "/calendar/v3/users/me/calendarList") {
-      const all = [...calendars].map(([id, c]) => ({
-        id,
-        summary: c.name,
-        ...(c.primary ? { primary: true } : {}),
-      }));
+      api.lastCalendarListQuery = new URLSearchParams(u.searchParams);
+      const ownedOnly = u.searchParams.get("minAccessRole") === "owner";
+      const all = [...calendars]
+        .filter(([, c]) => !ownedOnly || c.access === "owner")
+        .map(([id, c]) => ({
+          id,
+          summary: c.name,
+          ...(c.primary ? { primary: true } : {}),
+        }));
       const p = page(all, u);
       return send(res, 200, { items: p.items, ...(p.next ? { nextPageToken: p.next } : {}) });
     }
@@ -180,6 +192,9 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     const cal = m && calendars.get(decodeURIComponent(m[1]!));
     if (!m) return googleError(res, 404, "NOT_FOUND", "Unknown path.");
     if (!cal) return googleError(res, 404, "NOT_FOUND", "Not Found");
+    // The grant is calendar.events.owned.readonly: another person's calendar isn't readable with it.
+    if (cal.access !== "owner")
+      return googleError(res, 403, "PERMISSION_DENIED", "Request had insufficient authentication scopes.");
     const calendarId = decodeURIComponent(m[1]!);
     const token = u.searchParams.get("syncToken");
     let all: StoredEvent[];
@@ -263,7 +278,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
             ? "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
             : [
                 "https://www.googleapis.com/auth/drive.file",
-                "https://www.googleapis.com/auth/calendar.events.readonly",
+                "https://www.googleapis.com/auth/calendar.events.owned.readonly",
                 "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
               ].join(" "),
         });
@@ -421,7 +436,12 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     },
     putCalendar(id, c) {
       const was = calendars.get(id);
-      calendars.set(id, { name: c.name, primary: !!c.primary, events: was?.events ?? new Map() });
+      calendars.set(id, {
+        name: c.name,
+        primary: !!c.primary,
+        access: c.access ?? "owner",
+        events: was?.events ?? new Map(),
+      });
     },
     putEvent(calendarId, e) {
       const cal = calendars.get(calendarId);
@@ -438,6 +458,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       tokensValidFrom = clock += 1000;
     },
     calendarPageSize: 250,
+    lastCalendarListQuery: null,
     fail(status, count = 1, reason) {
       failing = { status, left: count, ...(reason ? { reason } : {}) };
     },
