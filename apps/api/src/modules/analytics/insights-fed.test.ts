@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { JUNE, analyticsSeed, at } from "../../../test/analytics-seed";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
@@ -61,16 +62,16 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 
-const insights = async () => {
+const insights = async (extra = "", money = true) => {
   // A fresh person each time: nothing they've seen is cooling down.
   const viewer = await h.seedUser({
     grants: [
       { key: "analytics.view", scope: "all" },
-      { key: "analytics.revenue", scope: null },
+      ...(money ? [{ key: "analytics.revenue", scope: null } as const] : []),
     ],
   });
   return (
-    await (await h.signIn(viewer)).inject({ method: "GET", url: `/api/v1/analytics/insights?${Q}` })
+    await (await h.signIn(viewer)).inject({ method: "GET", url: `/api/v1/analytics/insights?${Q}${extra}` })
   ).json();
 };
 
@@ -88,5 +89,27 @@ describe("the detectors 8B wrote, now fed (8D-1 Task 11)", () => {
       title: "41% of leads arrive after hours",
       body: "They come in after 6 pm.",
     });
+  });
+
+  it("the business's goal paces only the whole business: one person's numbers pace their own goal, others none", async () => {
+    const pace = async (extra: string) =>
+      (await insights(extra)).insights.find((i: { id: string }) => i.id === "goal_pace") ?? null;
+    // One person's numbers against the business's goal would be wrong, and would show its target.
+    expect(await pace(`&owner=${admin.id}`)).toBeNull();
+    expect(await pace(`&source=${randomUUID()}`)).toBeNull();
+    // Their own goal: 3,000 of 6,000 with 16 of 30 days gone is 94% at this pace.
+    await h.ownerPool.query(
+      "INSERT INTO goals (id, scope, scope_id, metric, period, period_start, target) VALUES (gen_random_uuid(), 'user', $1, 'revenue', 'month', '2026-06-01', 6000)",
+      [admin.id],
+    );
+    expect(await pace(`&owner=${admin.id}`)).toMatchObject({
+      title: "At this pace, June ends at 94% of the revenue goal",
+    });
+    await h.ownerPool.query("DELETE FROM goals WHERE scope = 'user'");
+  });
+
+  it("without the money permission, a revenue goal isn't paced: it would show the money", async () => {
+    const r = await insights("", false);
+    expect(r.insights.find((i: { id: string }) => i.id === "goal_pace")).toBeUndefined();
   });
 });

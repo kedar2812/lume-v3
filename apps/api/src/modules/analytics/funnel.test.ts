@@ -8,6 +8,8 @@ let plain: SeededUser;
 let open: { id: string; name: string }[];
 let wonStage: string;
 let pipelineId: string;
+let srcA: string;
+let srcB: string;
 const TZ = "Asia/Kolkata";
 const Q = "range=custom&from=2026-06-01&to=2026-06-30";
 const days = Array.from({ length: 30 }, (_, i) => `2026-06-${String(i + 1).padStart(2, "0")}`);
@@ -53,12 +55,12 @@ beforeAll(async () => {
     "UPDATE stages SET win_probability = 0 WHERE pipeline_id = $1 AND kind = 'open' AND NOT (id = ANY($2::uuid[]))",
     [pipelineId, open.map((s) => s.id)],
   );
-  const srcA = (
+  srcA = (
     await h.ownerPool.query(
       "INSERT INTO lead_sources (id, type, name) VALUES (gen_random_uuid(), 'manual', 'Fair') RETURNING id",
     )
   ).rows[0].id;
-  const srcB = (
+  srcB = (
     await h.ownerPool.query(
       "INSERT INTO lead_sources (id, type, name) VALUES (gen_random_uuid(), 'manual', 'Website') RETURNING id",
     )
@@ -144,6 +146,34 @@ describe("the funnel's extras (8D-1 Task 4)", () => {
     expect(third.tooFew).toBe(true);
   });
 
+  it("time in stage is narrowed by source (read from the leads): the six who moved on all came from the fair", async () => {
+    const plainF = await get(admin, `funnel?${Q}`);
+    const fair = await get(admin, `funnel?${Q}&source=${srcA}`);
+    const site = await get(admin, `funnel?${Q}&source=${srcB}`);
+    expect(fair.timeInStage[0]).toMatchObject({
+      exited: 6,
+      medianMinutes: plainF.timeInStage[0].medianMinutes,
+    });
+    expect(fair.timeInStage[1].exited).toBe(plainF.timeInStage[1].exited);
+    expect(site.timeInStage[0]).toMatchObject({ exited: 0, medianMinutes: null });
+    // Stuck now: the lead three days in the first stage came from the website.
+    expect(site.timeInStage[0].stuckNow).toBe(1);
+    expect(fair.timeInStage[0].stuckNow).toBe(0);
+    expect(fair.timeInStageNote ?? null).toBeNull();
+  });
+
+  it("over 92 days a source can't narrow time in stage, and the board says so instead of counting every source", async () => {
+    const f = await get(admin, `funnel?range=custom&from=2026-01-01&to=2026-06-30&source=${srcB}`);
+    expect(f.timeInStage).toEqual([]);
+    expect(f.timeInStageNote).toBe(
+      "Time in stage can be narrowed by source for up to 92 days. Pick a shorter range to see it.",
+    );
+    // Without a source, it's counted from the rollups as ever.
+    expect(
+      (await get(admin, "funnel?range=custom&from=2026-01-01&to=2026-06-30")).timeInStage[0].exited,
+    ).toBe(6);
+  });
+
   it("each stage's reached and stopped numbers open exactly their leads", async () => {
     const f = await get(admin, `funnel?${Q}`);
     for (const s of f.stages) {
@@ -194,6 +224,9 @@ describe("the funnel's extras (8D-1 Task 4)", () => {
     expect(pick(liveF)).toEqual(pick(plainF));
     expect(liveF.split).toEqual(plainF.split);
     expect(liveF.now.openN).toBe(plainF.now.openN);
+    const stays = (f: { timeInStage: { id: string; exited: number; medianMinutes: number | null }[] }) =>
+      f.timeInStage.map((s) => [s.id, s.exited, s.medianMinutes]);
+    expect(stays(liveF)).toEqual(stays(plainF));
   });
 
   it("without the revenue permission: no money anywhere", async () => {

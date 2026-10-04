@@ -119,6 +119,16 @@ describe("a rep's own numbers (8D-1 Task 10)", () => {
     expect(mine.goals).toEqual([expect.objectContaining({ metric: "won", target: 10, value: 5 })]);
   });
 
+  it("their goal and the month's line count the whole month, whatever range is on screen", async () => {
+    // Riya won on June 17, 17, 18, 18 and 19; the screen shows June 19 onwards.
+    const mine = await me(R, "range=custom&from=2026-06-19&to=2026-06-30");
+    expect(mine.tiles.find((t: { id: string }) => t.id === "won").value).toBe(1);
+    expect(mine.goals).toEqual([expect.objectContaining({ metric: "won", target: 10, value: 5 })]);
+    // June is over: the pace is where it ended.
+    expect(mine.goals[0].pace).toBeCloseTo(0.5, 6);
+    expect(mine.heroLine).toBe("Your June: 5 won");
+  });
+
   it("when their leads reply, by weekday, Monday first", async () => {
     const mine = await me(R);
     expect(mine.replyDays.map((d: { dow: number }) => d.dow)).toEqual([1, 2, 3, 4, 5, 6, 0]);

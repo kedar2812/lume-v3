@@ -61,6 +61,33 @@ const opens = async (token: string) =>
   ).json().total as number;
 
 describe("timing and meetings (8D-1 Task 8)", () => {
+  it("a source narrows the heatmaps and time in stage too (read from the leads), and each cell opens its leads", async () => {
+    const src = (
+      await h.ownerPool.query(
+        "INSERT INTO lead_sources (id, type, name) VALUES (gen_random_uuid(), 'manual', 'Fair') RETURNING id",
+      )
+    ).rows[0].id as string;
+    // Only Tuesday's 09:00 arrival came from the fair.
+    await h.queryAll("UPDATE leads SET source_id = $1 WHERE created_at = '2026-06-02T13:00:00Z'", [src]);
+    try {
+      const t = await get(`timing?${Q}&source=${src}`);
+      expect(t.arrivals.flat().reduce((a: number, n: number) => a + n, 0)).toBe(1);
+      expect(t.arrivals[TUE][9]).toBe(1);
+      expect(await opens(t.cells.arrivals[TUE][9].drill)).toBe(1);
+      // The calls' leads came from nowhere in particular.
+      expect(t.booking.flat().reduce((a: number, c: { n: number }) => a + c.n, 0)).toBe(0);
+      expect(t.note ?? null).toBeNull();
+      const long = await get(`timing?range=custom&from=2026-01-01&to=2026-06-30&source=${src}`);
+      expect(long.note).toBe(
+        "The heatmaps and time in stage can be narrowed by source for up to 92 days. Pick a shorter range to see them.",
+      );
+      expect(long.arrivals.flat().reduce((a: number, n: number) => a + n, 0)).toBe(0);
+      expect(long.stages).toEqual([]);
+    } finally {
+      await h.queryAll("UPDATE leads SET source_id = NULL WHERE source_id = $1", [src]);
+    }
+  });
+
   it("a rep sees their own calls and arrivals, and nobody else's", async () => {
     const other = await h.seedUser({ grants: [{ key: "analytics.view", scope: "own" }] });
     const mine = (

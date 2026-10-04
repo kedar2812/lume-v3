@@ -3,8 +3,8 @@ import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend, type Range } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { drillFor, frag, type DrillExtra, type DrillKind } from "./drill";
-import { isLive, ownerCond, sourceCond } from "./filters";
-import { guardLive, liveCohort, liveEvents, spanOf } from "./live";
+import { LIVE_MAX_DAYS, isLive, ownerCond, sourceCond } from "./filters";
+import { guardLive, liveCohort, liveEvents, liveStays, spanOf } from "./live";
 import {
   TOO_FEW,
   businessTz,
@@ -84,6 +84,13 @@ export async function funnel(
     live
       ? (await liveCohort(req, spanOf(scoped, span))).arrived
       : (await cohortSums(req, scoped, span.days)).arrived;
+  // Time in stage's rollup carries no source, tag or field: under one it reads the stage history, for up to 92 days
+  // (a tag or field already bounds the board); a source over a longer range says so instead of counting every source.
+  const staysLive = live || !!q.sourceIds?.length;
+  const staysNote =
+    staysLive && range.days.length > LIVE_MAX_DAYS
+      ? "Time in stage can be narrowed by source for up to 92 days. Pick a shorter range to see it."
+      : null;
   const [cur, prev, arrived, prevArrived, split, snapshot, stays, velocity, forecast] = await Promise.all([
     reachRead(range),
     reachRead(range.previous),
@@ -91,7 +98,7 @@ export async function funnel(
     arrivedRead(range.previous),
     q.split ? splitBy(req, scoped, range, pipeline, q.split, stages, live) : Promise.resolve(undefined),
     stageSnapshot(req, scoped, openStages, money, live),
-    stageStays(req, scoped, range, openStages, live),
+    staysNote ? Promise.resolve([]) : stageStays(req, scoped, range, openStages, live, staysLive),
     money ? pipelineVelocity(req, scoped, range, tz, pipeline, live) : Promise.resolve(null),
     money ? forecastByMonth(req, scoped, tz, pipeline, openStages, now, live) : Promise.resolve(null),
   ]);
@@ -135,6 +142,7 @@ export async function funnel(
       openValue: money ? snapshot.reduce((a, s) => a + (s.value ?? 0), 0) : null,
     },
     timeInStage: stays.map((s) => ({ ...s, drill: { stuck: mint("stuck", { stageId: s.id }) } })),
+    ...(staysNote ? { timeInStageNote: staysNote } : {}),
     velocity,
     forecast,
   };
@@ -287,16 +295,19 @@ async function stageStays(
   range: Range,
   openStages: Stage[],
   live: boolean,
+  staysLive: boolean,
 ) {
   const ids = `{${openStages.map((s) => s.id).join(",")}}`;
   const own = ownerCond(q.ownerIds, sql`a.user_id`);
   const [stays, stuck, sla] = await Promise.all([
-    req.db.execute<{ stage_id: string; exited: number; h: number[] }>(sql`
-      SELECT a.stage_id, sum(a.exited)::int AS exited, ARRAY[${sql.raw(STAY_H)}] AS h
-      FROM analytics_daily_stage a
-      WHERE a.day BETWEEN ${range.days[0]!}::date AND ${range.days.at(-1)!}::date AND a.stage_id = ANY(${ids}::uuid[])
-        ${own ? sql`AND ${own}` : sql``}
-      GROUP BY a.stage_id`),
+    staysLive
+      ? liveStays(req, q, range)
+      : req.db.execute<{ stage_id: string; exited: number; h: number[] }>(sql`
+          SELECT a.stage_id, sum(a.exited)::int AS exited, ARRAY[${sql.raw(STAY_H)}] AS h
+          FROM analytics_daily_stage a
+          WHERE a.day BETWEEN ${range.days[0]!}::date AND ${range.days.at(-1)!}::date AND a.stage_id = ANY(${ids}::uuid[])
+            ${own ? sql`AND ${own}` : sql``}
+          GROUP BY a.stage_id`),
     live
       ? req.db.execute<{ stage_id: string; n: number }>(sql`
           SELECT l.stage_id, count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id

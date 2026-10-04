@@ -123,6 +123,15 @@ describe("the team (8D-1 Task 7)", () => {
     expect(await opens(a.drill.won)).toBe(3);
   });
 
+  it("a goal counts its whole month, whatever range is on screen", async () => {
+    // Asha won on June 10, 11 and 12; the screen shows June 12 onwards.
+    const a = ((await get(admin, "range=custom&from=2026-06-12&to=2026-06-30")).people as Row[]).find(
+      (r) => r.id === A.id,
+    )!;
+    expect(a.won).toBe(1);
+    expect(a.goal).toEqual({ metric: "won", target: 5, value: 3 });
+  });
+
   it("follow-up discipline adds up to the overview's on-time tile", async () => {
     const t = await get(admin);
     const o = (

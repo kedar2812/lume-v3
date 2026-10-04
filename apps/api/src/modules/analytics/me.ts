@@ -2,7 +2,8 @@ import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { funnel } from "./funnel";
-import { monthProgress } from "./month";
+import { dayOf } from "@lume/core";
+import { goalMonth, monthProgress } from "./month";
 import { businessTz, overview, rangeOf, type AnalyticsQuery, type Tile } from "./service";
 
 /**
@@ -39,9 +40,13 @@ export async function me(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: 
   const mine: AnalyticsQuery = { ...q, ownerIds: [id] };
   const tz = await businessTz(req);
   const range = rangeOf(mine, tz, now);
-  const monthStart = `${range.days.at(-1)!.slice(0, 8)}01`;
-  const [o, f, business, next, overdue, goals, slots] = await Promise.all([
+  // Goals and the month's line count their whole month (to today), whatever range is on screen.
+  const gm = goalMonth(range.days.at(-1)!, dayOf(now, tz));
+  const monthStart = gm.from;
+  const sameAsMonth = range.days[0] === gm.from && range.days.at(-1) === gm.to;
+  const [o, m, f, business, next, overdue, goals, slots] = await Promise.all([
     overview(req, mine, now),
+    sameAsMonth ? null : overview(req, { ...mine, range: "custom", ...gm, compare: false }, now),
     funnel(req, mine, now, d),
     req.db.execute<{ arrived: number; won: number }>(
       sql`SELECT arrived, won FROM lume_business_win_rate(${range.days[0]!}::date, ${range.days.at(-1)!}::date)`,
@@ -74,8 +79,9 @@ export async function me(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: 
   // How far through the goal's month we are, as goals count it (all of it once the month is over).
   const progress = monthProgress(now, tz, monthStart);
   const elapsed = progress.elapsed;
+  const monthTile = (tid: string) => (m ?? o).tiles.find((t: Tile) => t.id === tid);
   const goalList = goals.rows.flatMap((g) => {
-    const t = tile(GOAL_TILE[g.metric]);
+    const t = monthTile(GOAL_TILE[g.metric]);
     if (!t) return [];
     const value = t.value ?? 0;
     const target = Number(g.target);
@@ -89,7 +95,7 @@ export async function me(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: 
       },
     ];
   });
-  const won = tile("won")?.value ?? 0;
+  const won = monthTile("won")?.value ?? 0;
   const month = progress.name;
   const sends = (dow: number) => slots.rows.find((r) => r.kind === "sends" && r.dow === dow)?.n ?? 0;
   const replies = (dow: number) => slots.rows.find((r) => r.kind === "replies" && r.dow === dow)?.n ?? 0;

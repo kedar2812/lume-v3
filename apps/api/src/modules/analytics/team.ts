@@ -1,10 +1,11 @@
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { quantileFromHist, trend, type Range } from "@lume/core";
+import { dayOf, quantileFromHist, trend, type Range } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { drillFor, frag } from "./drill";
 import { isLive } from "./filters";
 import { guardLive, spanOf } from "./live";
+import { goalMonth } from "./month";
 import {
   businessTz,
   liveLead,
@@ -164,10 +165,14 @@ export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
   const range = rangeOf(q, tz, now);
   guardLive(q, range);
   const money = seesRevenue(req);
-  const monthStart = `${range.days.at(-1)!.slice(0, 8)}01`;
-  const [cur, prev, overdue, people, goals] = await Promise.all([
+  // Goals count their whole month (to today), whatever range is on screen.
+  const gm = goalMonth(range.days.at(-1)!, dayOf(now, tz));
+  const monthStart = gm.from;
+  const sameAsMonth = range.days[0] === gm.from && range.days.at(-1) === gm.to;
+  const [cur, prev, month, overdue, people, goals] = await Promise.all([
     perPerson(req, q, range),
     perPerson(req, q, range.previous),
+    sameAsMonth ? null : perPerson(req, q, rangeOf({ ...q, range: "custom", ...gm }, tz, now)),
     req.db.execute<{ user_id: string; n: number }>(sql`
       SELECT t.assignee_id AS user_id, count(*)::int AS n FROM tasks t JOIN leads l ON l.id = t.lead_id
       WHERE t.status = 'open' AND t.due_at < now() AND ${liveLead(q)} AND ${liveOwner(q, sql`t.assignee_id`)}
@@ -224,7 +229,10 @@ export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
         ? {
             metric: g.metric,
             target: Number(g.target),
-            value: g.metric === "won" ? (e?.won ?? 0) : (e?.won_value ?? 0),
+            value: (() => {
+              const me = (month ?? cur).events.find((r) => r.user_id === id);
+              return g.metric === "won" ? (me?.won ?? 0) : (me?.won_value ?? 0);
+            })(),
           }
         : null,
       drill: { cohort: mint("person_cohort", id), won: mint("person_won", id) },

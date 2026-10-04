@@ -4,7 +4,7 @@ import type { Range } from "@lume/core";
 import { badRequest } from "../../http/errors";
 import { frag, type DrillSpec } from "./drill";
 import { LIVE_MAX_DAYS, isLive, liveFilter } from "./filters";
-import type { AnalyticsQuery } from "./service";
+import { liveLead, liveOwner, type AnalyticsQuery } from "./service";
 
 /**
  * Numbers under a tag or field filter (8D spec §4 Filters). Rollups don't carry tags or fields, so these read the
@@ -151,3 +151,68 @@ export async function liveDaily(req: FastifyRequest, s: Scoped, tz: string) {
 }
 
 export { isLive, liveFilter };
+
+/**
+ * Time in stage, read from the stage history under a filter its rollup (analytics_daily_stage) doesn't carry: a
+ * source, tag or field. The rollup's own definition (0053): each move out of a stage in the span is a stay that ended,
+ * as long as since the lead's move before it (or its arrival), credited to the owner at the move, in its buckets.
+ */
+export async function liveStays(req: FastifyRequest, q: AnalyticsQuery, span: { from: Date; to: Date }) {
+  return req.db.execute<{ stage_id: string; name: string; exited: number; h: number[] }>(sql`
+    SELECT x.stage_id, st.name, count(*)::int AS exited,
+           ARRAY[${sql.raw("count(*) FILTER (WHERE x.b = 0), count(*) FILTER (WHERE x.b = 1), count(*) FILTER (WHERE x.b = 2), count(*) FILTER (WHERE x.b = 3), count(*) FILTER (WHERE x.b = 4), count(*) FILTER (WHERE x.b = 5), count(*) FILTER (WHERE x.b = 6), count(*) FILTER (WHERE x.b = 7), count(*) FILTER (WHERE x.b = 8), count(*) FILTER (WHERE x.b = 9), count(*) FILTER (WHERE x.b = 10), count(*) FILTER (WHERE x.b = 11)")}]::int[] AS h
+    FROM (
+      SELECT h.from_stage_id AS stage_id, width_bucket(s.mins, ${STAY_EDGES}::float8[]) AS b
+      FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
+      CROSS JOIN LATERAL (
+        SELECT greatest(0, extract(epoch FROM h.changed_at - coalesce(
+                 (SELECT p.changed_at FROM lead_stage_history p WHERE p.lead_id = h.lead_id AND p.changed_at < h.changed_at
+                  ORDER BY p.changed_at DESC, p.id DESC LIMIT 1), l.created_at)) / 60) AS mins
+      ) s
+      WHERE h.changed_at >= ${span.from.toISOString()}::timestamptz AND h.changed_at < ${span.to.toISOString()}::timestamptz
+        AND h.from_stage_id IS NOT NULL AND ${liveLead(q)}
+        AND ${liveOwner(q, sql`lume_owner_at(l.id, h.changed_at, l.owner_id)`)}
+    ) x JOIN stages st ON st.id = x.stage_id
+    GROUP BY x.stage_id, st.name, st.position ORDER BY st.position`);
+}
+/** The stay buckets' edges in minutes, as lume_rollup_day keeps them. */
+const STAY_EDGES = "{5,15,30,60,120,240,480,1440,2880,4320,10080}";
+
+/**
+ * The timing heatmaps, read from the leads under a filter their rollup (analytics_daily_slot) doesn't carry: a
+ * source or a pipeline. The rollup's own definition (0053): arrivals by when they arrived (credited to the owner
+ * then), messages sent and those answered within 72 hours (to whoever sent them), calls booked and held by when they
+ * were due (to the calendar's owner); by weekday and hour in the business's time.
+ */
+export async function liveSlots(
+  req: FastifyRequest,
+  q: AnalyticsQuery,
+  span: { from: Date; to: Date },
+  tz: string,
+) {
+  const f = span.from.toISOString();
+  const t = span.to.toISOString();
+  const within = (col: SQL) => sql`${col} >= ${f}::timestamptz AND ${col} < ${t}::timestamptz`;
+  const sent = sql`activities a JOIN leads l ON l.id = a.lead_id
+    WHERE a.type = 'whatsapp_confirmed_sent' AND ${within(sql`a.occurred_at`)} AND ${liveLead(q)}`;
+  const calls = sql`meetings m JOIN leads l ON l.id = m.lead_id WHERE ${within(sql`m.starts_at`)} AND ${liveLead(q)}`;
+  return req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
+    SELECT z.kind, extract(dow FROM z.at AT TIME ZONE ${tz})::int AS dow,
+           extract(hour FROM z.at AT TIME ZONE ${tz})::int AS hour, count(*)::int AS n
+    FROM (
+      SELECT 'arrivals' AS kind, l.created_at AS at, lume_owner_at(l.id, l.created_at, l.owner_id) AS who
+      FROM leads l WHERE ${within(sql`l.created_at`)} AND ${liveLead(q)}
+      UNION ALL
+      SELECT 'sends', a.occurred_at, a.user_id FROM ${sent}
+      UNION ALL
+      SELECT 'replies', a.occurred_at, a.user_id FROM ${sent}
+        AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type = 'reply_logged'
+                    AND r.occurred_at > a.occurred_at AND r.occurred_at <= a.occurred_at + interval '72 hours')
+      UNION ALL
+      SELECT 'booked', m.starts_at, m.owner_id FROM ${calls} AND m.status IN ('scheduled', 'completed', 'no_show')
+      UNION ALL
+      SELECT 'held', m.starts_at, m.owner_id FROM ${calls} AND m.status = 'completed'
+    ) z
+    WHERE ${liveOwner(q, sql`z.who`)}
+    GROUP BY 1, 2, 3`);
+}

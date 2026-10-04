@@ -296,6 +296,34 @@ describe("the demo business's numbers add up", () => {
           expect([board, range, f(liveB)]).toEqual([board, range, f(plainB)]);
         }
       }
+      // Every source, and the one pipeline: read from the leads, the heatmaps and time in stage equal their rollups.
+      const every = (await h.queryAll<{ id: string }>("SELECT id FROM lead_sources"))
+        .map((x) => x.id)
+        .join(",");
+      const [{ id: pipeline }] = (await h.queryAll<{ id: string }>("SELECT id FROM pipelines")) as [
+        { id: string },
+      ];
+      expect(
+        (await h.queryAll<{ n: number }>("SELECT count(*)::int AS n FROM leads WHERE source_id IS NULL"))[0]!
+          .n,
+      ).toBe(0);
+      const heat = (x: Json) => [
+        x.arrivals,
+        x.replies,
+        x.booking,
+        x.stages.map((s: Json) => [s.id, s.exited, s.medianMinutes]),
+      ];
+      const plainT = await get(admin, "timing?range=90d");
+      for (const f of [`source=${every}`, `pipeline=${pipeline}`]) {
+        const t = await get(admin, `timing?range=90d&${f}`);
+        expect([f, t.note ?? null]).toEqual([f, null]);
+        expect([f, heat(t)]).toEqual([f, heat(plainT)]);
+      }
+      const stays = (x: Json) =>
+        x.timeInStage.map((s: Json) => [s.id, s.exited, s.medianMinutes, s.p75Minutes]);
+      expect(stays(await get(admin, `funnel?range=90d&source=${every}`))).toEqual(
+        stays(await get(admin, "funnel?range=90d")),
+      );
     },
   );
 

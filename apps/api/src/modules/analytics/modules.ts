@@ -3,8 +3,8 @@ import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { drillFor, frag, type DrillExtra, type DrillKind, type SlotKind } from "./drill";
-import { isLive, liveFilter, ownerCond, sourceCond } from "./filters";
-import { guardLive, refuseLive, spanOf } from "./live";
+import { LIVE_MAX_DAYS, isLive, liveFilter, ownerCond, sourceCond } from "./filters";
+import { guardLive, liveSlots, liveStays, refuseLive, spanOf } from "./live";
 import { TOO_FEW, businessTz, eventSums, rangeOf, narrow, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
@@ -343,20 +343,40 @@ export async function timing(
         AND ${ownerCond(q.ownerIds, sql`e.user_id`) ?? sql`true`} AND ${sourceCond(q.sourceIds, sql`e.source_id`) ?? sql`true`}
       GROUP BY 1, 2 HAVING sum(e.held) + sum(e.no_show) + sum(e.cancelled) > 0 ORDER BY held DESC, u.name`),
   ]);
+  // The heatmaps' rollup carries neither source nor pipeline, and time in stage's no source: under one they're read
+  // from the leads, for up to 92 days; over a longer range the board says so instead of counting every source.
+  const slotsLive = !!q.sourceIds?.length || !!q.pipelineId;
+  const staysLive = !!q.sourceIds?.length;
+  const note =
+    slotsLive && range.days.length > LIVE_MAX_DAYS
+      ? staysLive
+        ? "The heatmaps and time in stage can be narrowed by source for up to 92 days. Pick a shorter range to see them."
+        : "The heatmaps can be narrowed by pipeline for up to 92 days. Pick a shorter range to see them."
+      : null;
+  type SlotRow = { kind: string; dow: number; hour: number; n: number };
+  type StayRow = { stage_id: string; name: string; exited: number; h: number[] };
   const [slots, stays, stuck] = await Promise.all([
-    // Everyone's, with no one picked: the totals per hour (0055), a fraction of the rows.
-    req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
-      SELECT kind, dow, hour, sum(n)::int AS n
-      FROM ${q.reach === "all" && !q.ownerIds?.length ? sql`analytics_daily_slot_total` : sql`analytics_daily_slot`}
-      WHERE ${slotWhere} GROUP BY 1, 2, 3`),
-    req.db.execute<{ stage_id: string; name: string; exited: number; h: number[] }>(sql`
+    note
+      ? Promise.resolve({ rows: [] as SlotRow[] })
+      : slotsLive
+        ? liveSlots(req, q, range, tz)
+        : // Everyone's, with no one picked: the totals per hour (0055), a fraction of the rows.
+          req.db.execute<SlotRow>(sql`
+            SELECT kind, dow, hour, sum(n)::int AS n
+            FROM ${q.reach === "all" && !q.ownerIds?.length ? sql`analytics_daily_slot_total` : sql`analytics_daily_slot`}
+            WHERE ${slotWhere} GROUP BY 1, 2, 3`),
+    note && staysLive
+      ? Promise.resolve({ rows: [] as StayRow[] })
+      : staysLive
+        ? liveStays(req, q, range)
+        : req.db.execute<StayRow>(sql`
       SELECT a.stage_id, s.name, sum(a.exited)::int AS exited,
              ARRAY[${sql.raw(Array.from({ length: 12 }, (_, i) => `coalesce(sum(a.stay_hist[${i + 1}]), 0)::int`).join(", "))}] AS h
       FROM analytics_daily_stage a JOIN stages s ON s.id = a.stage_id
       WHERE a.day BETWEEN ${from}::date AND ${to}::date
         ${q.pipelineId ? sql`AND a.pipeline_id = ${q.pipelineId}::uuid` : sql``}
         AND ${ownerCond(q.ownerIds, sql`a.user_id`) ?? sql`true`}
-      GROUP BY a.stage_id, s.name, s.position ORDER BY s.position`),
+      GROUP BY a.stage_id, s.name, s.position HAVING sum(a.exited) > 0 ORDER BY s.position`),
     req.db.execute<{ stage_id: string; n: number }>(sql`
       SELECT l.stage_id, count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id
       WHERE ${leadWhere(q)} AND s.kind = 'open' AND s.sla_hours IS NOT NULL
@@ -464,6 +484,7 @@ export async function timing(
       tooFew: s.exited < TOO_FEW,
       stuckNow: stuck.rows.find((x) => x.stage_id === s.stage_id)?.n ?? 0,
     })),
+    ...(note ? { note } : {}),
   };
 }
 

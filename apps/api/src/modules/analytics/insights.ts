@@ -134,13 +134,27 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
     windows.set(k, w);
   }
   const s = speed.rows[0]!;
+  // Whose goal these numbers can be measured against: the business's when they're the whole business, one person's
+  // when they're exactly that person's (a rep's own view), and nobody's otherwise — a part of the business against
+  // the business's goal would be wrong, and would show its target.
+  const unfiltered = !q.pipelineId && !q.sourceIds?.length && !q.tagIds?.length && !q.fields;
+  const person = q.ownerIds?.length === 1 && q.ownerIds[0] !== "none" ? q.ownerIds[0]! : null;
+  const goalOf = !unfiltered
+    ? null
+    : !q.ownerIds?.length
+      ? sql`scope = 'business'`
+      : person
+        ? sql`scope = 'user' AND scope_id = ${person}::uuid`
+        : null;
   const [goal, timeSlots, hours] = await Promise.all([
-    // The business's goal for this month: revenue (with the money permission), else wins.
-    req.db.execute<{ metric: "revenue" | "won"; target: string }>(sql`
-      SELECT metric, target::text AS target FROM goals
-      WHERE scope = 'business' AND period = 'month' AND period_start = ${monthProgress(now, tz).first}::date
-        AND metric IN ('revenue', 'won')
-      ORDER BY (metric = ${money ? "revenue" : "won"}) DESC LIMIT 1`),
+    // That goal for this month: revenue (with the money permission), else wins.
+    goalOf
+      ? req.db.execute<{ metric: "revenue" | "won"; target: string }>(sql`
+          SELECT metric, target::text AS target FROM goals
+          WHERE ${goalOf} AND period = 'month' AND period_start = ${monthProgress(now, tz).first}::date
+            AND metric IN (${money ? "revenue" : "won"}, 'won')
+          ORDER BY (metric = ${money ? "revenue" : "won"}) DESC LIMIT 1`)
+      : Promise.resolve({ rows: [] as { metric: "revenue" | "won"; target: string }[] }),
     // Calls booked and missed, and arrivals, by weekday and hour in the range.
     req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
       SELECT kind, dow, hour, sum(n)::int AS n FROM analytics_daily_slot
