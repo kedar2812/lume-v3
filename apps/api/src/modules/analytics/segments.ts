@@ -13,8 +13,7 @@ import { businessTz, rangeOf, reachOf, type AnalyticsQuery } from "./service";
  * the leads, bounded to 92 days. A lead with several answers counts in each.
  */
 const MIN_GROUP = 10;
-const KINDS = ["select", "multi_select", "boolean"] as const;
-type Field = { key: string; label: string; type: (typeof KINDS)[number]; options: unknown };
+type Field = { key: string; label: string; type: "select" | "multi_select" | "boolean"; options: unknown };
 
 export async function segments(
   req: FastifyRequest,
