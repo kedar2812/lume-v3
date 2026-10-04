@@ -1,6 +1,7 @@
 "use client";
 import { AnimatePresence, Reorder, motion, useDragControls, useReducedMotion } from "motion/react";
-import { useState, type KeyboardEvent, useRef } from "react";
+import { useCallback, useState, type KeyboardEvent, useRef } from "react";
+import { SavedHud } from "@/components/feedback/SavedHud";
 import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
@@ -34,6 +35,8 @@ export function TemplateLibrary({
   const [editing, setEditing] = useState<Editing>(null);
   const [note, setNote] = useState<{ text: string; undo?: () => void } | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
+  const [hud, setHud] = useState<{ title: string; detail: string } | null>(null);
+  const hudDone = useCallback(() => setHud(null), []);
   const roleName = new Map(roles.map((r) => [r.id, r.name]));
   const groups = TEMPLATE_CATEGORIES.map((c) => ({
     ...c,
@@ -198,14 +201,20 @@ export function TemplateLibrary({
             roles={roles}
             fields={fields}
             readOnly={!canManage}
-            onSaved={(t) => {
+            onSaved={(t, checked) => {
               saved(t);
-              setEditing((e) => e && { ...e, template: t });
+              // Saved: the editor closes, the card glows, and a "Saved" says so in the middle of the screen.
+              setEditing(null);
+              setHud({
+                title: `“${t.name}” saved`,
+                detail: checked ? `Version ${t.version} · checked` : `Version ${t.version}`,
+              });
             }}
             onClose={() => setEditing(null)}
           />
         )}
       </AnimatePresence>
+      <SavedHud shown={!!hud} title={hud?.title ?? ""} detail={hud?.detail ?? ""} onDone={hudDone} />
     </div>
   );
 }

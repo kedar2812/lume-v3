@@ -132,6 +132,129 @@
     transform: scale(0.85);
   }
 }
+/* Leads settling into the list (Refresh without a sheet): three rows drop in, one after another, and settle. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 58px;
+  justify-content: center;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 14px;
+}
+.row i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.35);
+}
+.row b {
+  width: 38%;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--line-2);
+}
+.row em {
+  width: 18%;
+  height: 6px;
+  border-radius: 99px;
+  margin-left: auto;
+  background: rgba(var(--accent-rgb), 0.22);
+}
+.rows[data-flowing] .row {
+  animation: settle 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: calc(var(--i) * 0.18s);
+}
+@keyframes settle {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  22%,
+  78% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0.35;
+    transform: none;
+  }
+}
+.rows[data-flowing] .row:first-child i {
+  animation: glow 1.8s ease-in-out infinite;
+}
+@keyframes glow {
+  40% {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18);
+  }
+}
+
+/* Analytics recounting: seven bars rebuild from the floor, in a wave, under a sweep of light. */
+.chart {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  height: 58px;
+  padding: 4px 2px 0;
+  overflow: hidden;
+}
+.chart span {
+  flex: 1;
+  height: var(--h);
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(180deg, var(--accent), rgba(var(--accent-rgb), 0.55));
+  transform-origin: bottom;
+}
+.chart[data-flowing] span {
+  animation: rebuild 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: calc(var(--i) * 0.09s);
+}
+@keyframes rebuild {
+  0% {
+    transform: scaleY(0.08);
+    opacity: 0.5;
+  }
+  45%,
+  80% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(0.92);
+    opacity: 0.85;
+  }
+}
+.chart::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -40%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  pointer-events: none;
+}
+.chart[data-flowing]::after {
+  animation: sweep 1.6s ease-in-out infinite;
+}
+@keyframes sweep {
+  to {
+    left: 120%;
+  }
+}
+.chart em {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--line-2);
+}
+
 .title,
 .resultTitle {
   margin: 8px 0 0;

@@ -1,0 +1,230 @@
+@@META
+{"title":"Lead · log a call","active":"leads","crumb":"Leads","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"scene":{"editor":"enum","options":["choosing how it went","back from a call","logged"],"default":"choosing how it went","section":"Jump to"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+/* the Leads list behind, as it is */
+.lbody{flex:1;min-height:0;overflow:hidden;padding:14px 22px}
+.ltab{width:100%;border-collapse:collapse;font-size:13px}
+.ltab th{font-size:11.5px;font-weight:600;color:var(--text-3);text-align:left;padding:8px 10px}
+.ltab td{padding:11px 10px;border-top:.5px solid var(--line);white-space:nowrap}
+.ltab .nm{display:flex;align-items:center;gap:10px;font-weight:600}
+/* the full-window scrim: dims and blurs everything, sidebar and top bar too */
+.wscrim{position:absolute;inset:0;z-index:30;background:var(--scrim);backdrop-filter:blur(6px) saturate(120%);-webkit-backdrop-filter:blur(6px) saturate(120%)}
+.drawer{position:absolute;z-index:31;top:10px;right:10px;bottom:10px;width:620px;border-radius:18px;background:var(--sheet);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden;animation:din .6s var(--spring) both}
+@keyframes din{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.dtop{display:flex;align-items:center;gap:4px;padding:10px 12px;border-bottom:.5px solid var(--line)}
+.dtop .pos{font-size:12px;color:var(--text-3);margin-left:6px}
+.dscroll{flex:1;min-height:0;overflow:auto;padding:18px 22px 28px;display:flex;flex-direction:column;gap:16px}
+.dhead{display:flex;align-items:center;gap:14px}
+.dhead .av{width:52px;height:52px;font-size:17px}
+.dhead h2{margin:0;font-size:20px;font-weight:680;letter-spacing:-.018em}
+.dhead .sub4{font-size:12.5px;color:var(--text-3);margin-top:2px;display:flex;gap:6px;align-items:center}
+.dhead .sub4 b{color:var(--text-2);font-weight:550}
+.contact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.cbox{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line);text-decoration:none;color:inherit}
+.cbox svg{width:16px;height:16px;color:var(--text-3);flex:none}
+.cbox b{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.cbox span{display:block;font-size:11px;color:var(--text-3)}
+.cbox.tel{transition:background .15s}
+.cbox.tel:hover{background:var(--hover)}
+.cbox .go2{margin-left:auto;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--ok-soft);color:var(--ok-ink)}
+.cbox .go2 svg{width:14px;height:14px;color:inherit}
+.acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative}
+.acts .end{margin-left:auto;display:flex;gap:6px}
+.btn.wa{background:var(--wa-fill);color:#fff;box-shadow:0 1px 2px rgba(15,127,68,.35),inset 0 1px 0 rgba(255,255,255,.16)}
+.btn.call.open{background:var(--press);box-shadow:0 0 0 .5px var(--line-2)}
+.btn.won{color:var(--ok-ink)}
+.btn.lost{color:var(--danger-ink)}
+.k{font-size:10.5px;color:var(--text-3);font-weight:600;padding:0 5px;border-radius:5px;box-shadow:inset 0 0 0 .5px var(--line-2)}
+/* the popover, from the Log a call button */
+.cpop{position:absolute;top:44px;left:var(--x,0);z-index:5;width:380px;border-radius:16px;padding:14px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);transform-origin:56px 0;animation:pop .45s var(--sp-b) both}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+.cpop h3{margin:0 0 10px;font-size:14px;font-weight:650}
+.outs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.out{appearance:none;border:0;font:inherit;color:var(--text);display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:11px 11px 10px;border-radius:12px;background:var(--sheet);box-shadow:0 0 0 .5px var(--line-2);cursor:pointer;text-align:left;min-height:76px;transition:box-shadow .2s,background .2s,transform .1s}
+.out:active{transform:scale(.97)}
+.out .oi{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:var(--sunk);color:var(--text-2);transition:background .2s,color .2s}
+.out .oi svg{width:15px;height:15px}
+.out b{font-size:13px;font-weight:600}
+.out span.k2{font-size:10.5px;color:var(--text-3)}
+.out.on{background:var(--accent-soft);box-shadow:0 0 0 1.5px var(--accent)}
+.out.on .oi{background:var(--accent);color:#fff}
+.lbl{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin:12px 0 6px}
+.cpop textarea.input{height:64px;font-size:13px;background:var(--sheet)}
+.nexts{display:flex;gap:6px;flex-wrap:wrap}
+.cpop .foot{display:flex;align-items:center;gap:8px;margin-top:14px}
+.cpop .foot .cap{flex:1;line-height:1.4}
+.cpop .foot .cap b{color:var(--ok-ink);font-weight:600}
+/* back from a call: LUME asks, once */
+.ask{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--accent-soft);box-shadow:inset 0 0 0 .5px rgba(42,91,255,.25);animation:rise .6s var(--spring) both}
+@keyframes rise{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.ask .ai{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--accent);color:#fff;flex:none}
+.ask .ai svg{width:16px;height:16px}
+.ask b{display:block;font-size:13px;font-weight:650}
+.ask span{display:block;font-size:12px;color:var(--text-2)}
+.ask .row{display:flex;gap:6px;margin-left:auto;flex:none}
+.ask .x{width:28px;height:28px}
+/* next follow-up and the stage track */
+.nfu{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;box-shadow:inset 0 0 0 .5px var(--line)}
+.nfu svg{width:16px;height:16px;color:var(--text-3)}
+.nfu b{font-size:13px;font-weight:600}
+.nfu .cap{margin-left:auto}
+.nfu.fresh{box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft);animation:wash 5s ease forwards}
+@keyframes wash{0%,40%{background:var(--accent-soft)}100%{background:transparent;box-shadow:inset 0 0 0 .5px var(--line)}}
+.track{display:flex;gap:4px}
+.track i{flex:1;height:6px;border-radius:3px;background:var(--sunk)}
+.track i.on{background:var(--accent)}
+.tl h4{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em}
+.ev{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 6px;border-radius:10px}
+.ev .ei{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);color:var(--text-2)}
+.ev .ei svg{width:14px;height:14px}
+.ev b{font-size:13px;font-weight:600;display:block}
+.ev span{font-size:12px;color:var(--text-2);display:block}
+.ev .t2{font-size:11.5px;color:var(--text-3);white-space:nowrap}
+.ev.new{animation:wash2 5s ease forwards}
+@keyframes wash2{0%,40%{background:var(--accent-soft)}100%{background:transparent}}
+.ev.new .ei{background:var(--ok-soft);color:var(--ok-ink)}
+.speed{display:inline-flex;align-items:center;gap:5px;margin-top:4px;font-size:11.5px;font-weight:600;color:var(--ok-ink)}
+.speed svg{width:12px;height:12px}
+/* the toast, bottom centre */
+.toast{position:absolute;z-index:40;left:50%;bottom:24px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:10px 12px 10px 14px;border-radius:14px;background:var(--hud);color:var(--hud-text);box-shadow:var(--shadow-pop);font-size:13px;animation:tin .5s var(--sp-b) both}
+@keyframes tin{from{transform:translate(-50%,16px);opacity:0}to{transform:translateX(-50%);opacity:1}}
+.toast svg{width:16px;height:16px;color:#4fd69c}
+.toast .u{font-weight:600;color:#9cb6ff;margin-left:6px}
+@@BODY
+<div class="lbody" aria-hidden="true">
+  <table class="ltab"><thead><tr><th>Name</th><th>Stage</th><th>Owner</th><th>Source</th><th>Arrived</th></tr></thead><tbody>
+    <tr><td><div class="nm"><span class="av sm" style="background:#d4477c">AR</span>Ananya Rao</div></td><td>New</td><td>Riya Shah</td><td>Instagram ads</td><td>42 min ago</td></tr>
+    <tr><td><div class="nm"><span class="av sm" style="background:#3d8bd9">KM</span>Kabir Menon</div></td><td>Contacted</td><td>Dev Malhotra</td><td>Website form</td><td>1 h ago</td></tr>
+    <tr><td><div class="nm"><span class="av sm" style="background:#18a566">TS</span>Tara Singh</div></td><td>Replied</td><td>Riya Shah</td><td>Referrals</td><td>3 h ago</td></tr>
+    <tr><td><div class="nm"><span class="av sm" style="background:#c98a0b">VJ</span>Vikram Joshi</div></td><td>Call booked</td><td>Hana Ito</td><td>Webinars</td><td>Yesterday</td></tr>
+    <tr><td><div class="nm"><span class="av sm" style="background:#6b7385">ML</span>Meera Lal</div></td><td>Proposal</td><td>Leo Martins</td><td>Website form</td><td>Yesterday</td></tr>
+    <tr><td><div class="nm"><span class="av sm" style="background:#2a5bff">RB</span>Rohan Bose</div></td><td>Contacted</td><td>Sana Qureshi</td><td>Instagram ads</td><td>2 days ago</td></tr>
+    <tr><td><div class="nm"><span class="av sm" style="background:#d4477c">NP</span>Nisha Pillai</div></td><td>New</td><td>Riya Shah</td><td>Google ads</td><td>2 days ago</td></tr>
+  </tbody></table>
+</div>
+
+<div class="wscrim"></div>
+<aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="lname">
+  <div class="dtop">
+    <button type="button" class="ibtn" aria-label="Close (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <button type="button" class="ibtn" aria-label="Previous lead (K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+    <button type="button" class="ibtn" aria-label="Next lead (J)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <span class="pos">1 of 248</span>
+  </div>
+  <div class="dscroll">
+    <div class="dhead">
+      <span class="av" style="background:#d4477c">AR</span>
+      <div><h2 id="lname">Ananya Rao</h2><div class="sub4"><span>Enquiry 42 minutes ago</span><span>·</span><b>Riya Shah</b></div></div>
+    </div>
+    <div class="contact">
+      <a class="cbox tel" href="#" onClick="{{dial}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg><div><b>+91 99999 01234</b><span>Mobile · tap to call</span></div><span class="go2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span></a>
+      <div class="cbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg><div><b>ananya.rao@example.com</b><span>Email</span></div></div>
+    </div>
+
+    <sc-if value="{{asking}}" hint-placeholder-val="{{ false }}">
+      <div class="ask" role="status">
+        <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span>
+        <div><b>You called Ananya at 4:10 pm. How did it go?</b><span>One tap logs it.</span></div>
+        <div class="row">
+          <button type="button" class="btn sm" onClick="{{quickTalked}}">Talked</button>
+          <button type="button" class="btn sm" onClick="{{quickNoAnswer}}">No answer</button>
+          <button type="button" class="btn sm" onClick="{{quickMsg}}">Left a message</button>
+          <button type="button" class="ibtn x" aria-label="Not now" onClick="{{dismissAsk}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </div>
+      </div>
+    </sc-if>
+
+    <div class="acts">
+      <button type="button" class="btn wa"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7a11.5 11.5 0 0 1-4.6-4.1c-.4-.5-.9-1.5-.9-2.6s.6-1.7.8-1.9c.2-.2.5-.3.6-.3h.5c.1 0 .4 0 .6.4l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.7 1.2 1.6 2 1.1 1 2 1.3 2.3 1.4.3.1.4.1.6-.1l.8-1c.2-.2.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z"/></svg>WhatsApp</button>
+      <button type="button" class="btn">They replied<span class="k">R</span></button>
+      <button type="button" class="{{callCls}}" aria-haspopup="dialog" aria-expanded="{{popOpenStr}}" onClick="{{togglePop}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Log a call<span class="k">C</span></button>
+      <button type="button" class="btn">Follow-up<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:12px;height:12px"><path d="m6 9 6 6 6-6"/></svg></button>
+      <span class="end"><button type="button" class="btn won">Won</button><button type="button" class="btn lost">Lost</button></span>
+
+      <sc-if value="{{popOpen}}" hint-placeholder-val="{{ true }}">
+        <div class="cpop" role="dialog" aria-label="Log a call" style="--x:254px">
+          <h3>How did the call go?</h3>
+          <div class="outs" role="radiogroup" aria-label="Outcome">
+            <sc-for list="{{outs}}" as="o" hint-placeholder-count="3">
+              <button type="button" role="radio" aria-checked="{{o.checked}}" class="{{o.cls}}" onClick="{{o.pick}}"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{o.icon}}"/></svg></span><b>{{o.label}}</b><span class="k2">Press {{o.key}}</span></button>
+            </sc-for>
+          </div>
+          <label class="lbl" for="cnote">What did they say? <span style="font-weight:500;color:var(--text-3)">Optional</span></label>
+          <textarea id="cnote" class="input" placeholder="{{notePh}}"></textarea>
+          <span class="lbl">Next step</span>
+          <div class="nexts" role="radiogroup" aria-label="Follow-up">
+            <sc-for list="{{nexts}}" as="n" hint-placeholder-count="4"><button type="button" role="radio" aria-checked="{{n.checked}}" class="{{n.cls}}" onClick="{{n.pick}}">{{n.label}}</button></sc-for>
+          </div>
+          <div class="foot">
+            <span class="cap">{{firstWords}}<b>{{firstSpeed}}</b></span>
+            <button type="button" class="btn ghost sm" onClick="{{togglePop}}">Cancel</button>
+            <button type="button" class="btn pri sm" onClick="{{save}}">Log call</button>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div class="{{nfuCls}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3M16 2v3"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/></svg><b>{{nfuText}}</b><span class="cap">{{nfuWho}}</span></div>
+    <div><div class="track" aria-label="Stage: New, 1 of 6"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div><div class="cap" style="margin-top:6px">New · {{stageWords}}</div></div>
+
+    <section class="tl" aria-label="History">
+      <h4>History</h4>
+      <sc-if value="{{logged}}" hint-placeholder-val="{{ false }}">
+        <div class="ev new"><span class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span><div><b>Called: {{loggedOut}}</b><span>{{loggedNote}}</span><span class="speed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>First contact, 44 minutes after the enquiry</span></div><span class="t2">Just now · Riya Shah</span></div>
+      </sc-if>
+      <div class="ev"><span class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><div><b>Assigned to Riya Shah</b><span>By the Instagram ads rule</span></div><span class="t2">42 min ago</span></div>
+      <div class="ev"><span class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><div><b>Enquiry from Instagram ads</b><span>“Looking for a branding package for a new café.”</span></div><span class="t2">42 min ago</span></div>
+    </section>
+  </div>
+</aside>
+
+<sc-if value="{{logged}}" hint-placeholder-val="{{ false }}">
+  <div class="toast" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>{{toastText}}</span><button type="button" class="btn ghost sm u" onClick="{{undo}}">Undo</button></div>
+</sc-if>
+@@SCRIPT
+const ICON = {
+  talked: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+  none: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2M16 3l5 5M21 3l-5 5',
+  msg: 'M12 3a9 9 0 1 0 9 9M12 7v5l3 2M16 3h5v5',
+};
+const OUTS = [['talked', 'Talked', '1'], ['none', 'No answer', '2'], ['msg', 'Left a message', '3']];
+const WORDS = { talked: 'talked', none: 'no answer', msg: 'left a message' };
+// The next step LUME suggests for each outcome: there's always one ready, never forced.
+const NEXTS = [['none2', 'No follow-up'], ['t10', 'Tomorrow, 10:00'], ['in3', 'In 3 days'], ['mon', 'Monday, 10:00'], ['pick', 'Pick a time…']];
+const SUGGEST = { talked: 'in3', none: 't10', msg: 't10' };
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    const sc = p.scene;
+    this.state = { themePick: 'auto', open: sc === 'choosing how it went' || sc == null, out: 'talked', next: 'in3',
+      asking: sc === 'back from a call', logged: sc === 'logged' ? 'talked' : null };
+  }
+  renderVals() {
+    const s = this.state;
+    const pickOut = (id) => () => this.setState({ out: id, next: SUGGEST[id] });
+    const save = () => this.setState({ open: false, asking: false, logged: s.out });
+    const quick = (id) => () => this.setState({ asking: false, logged: id, out: id, next: SUGGEST[id] });
+    const nextLabel = (NEXTS.find((n) => n[0] === s.next) || NEXTS[0])[1];
+    return {
+      ...themeVals(this),
+      popOpen: s.open, popOpenStr: s.open ? 'true' : 'false', asking: s.asking && !s.logged, logged: !!s.logged,
+      callCls: 'btn call' + (s.open ? ' open' : ''),
+      togglePop: () => this.setState({ open: !s.open }),
+      dial: () => this.setState({ asking: true, open: false, logged: null }),
+      dismissAsk: () => this.setState({ asking: false }),
+      quickTalked: quick('talked'), quickNoAnswer: quick('none'), quickMsg: quick('msg'),
+      outs: OUTS.map(([id, label, key]) => ({ label, key, icon: ICON[id], cls: 'out' + (s.out === id ? ' on' : ''), checked: s.out === id ? 'true' : 'false', pick: pickOut(id) })),
+      nexts: NEXTS.map(([id, label]) => ({ label, cls: 'chip' + (s.next === id ? ' on' : ''), checked: s.next === id ? 'true' : 'false', pick: () => this.setState({ next: id }) })),
+      notePh: s.out === 'talked' ? 'Wants the café package; asked for a quote by Friday' : 'Anything worth remembering',
+      firstWords: 'First contact with Ananya: ', firstSpeed: '44 min after the enquiry',
+      save,
+      loggedOut: WORDS[s.logged] || 'talked', loggedNote: s.logged === 'talked' ? 'Wants the café package; asked for a quote by Friday' : 'No note',
+      nfuCls: 'nfu' + (s.logged && s.next !== 'none2' ? ' fresh' : ''),
+      nfuText: s.logged && s.next !== 'none2' ? `Follow up ${nextLabel.replace(', ', ' at ')}` : 'No follow-up set',
+      nfuWho: s.logged && s.next !== 'none2' ? 'Riya Shah · from the call' : 'Set one with Follow-up',
+      stageWords: s.logged ? 'first contacted just now' : 'not contacted yet',
+      toastText: `Call logged${s.next !== 'none2' ? ` · follow-up ${nextLabel.toLowerCase().replace(', ', ' at ')}` : ''}`,
+      undo: () => this.setState({ logged: null }),
+    };
+  }
+}

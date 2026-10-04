@@ -1,0 +1,212 @@
+/* The date range (canvas Main, the range popover): a glass card grown from its button. */
+.wrap {
+  position: relative;
+}
+.button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(12, 18, 32, 0.05);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+.button:hover {
+  background: var(--hover);
+}
+.button:active {
+  transform: scale(0.97);
+}
+.button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--text-2);
+}
+.button .chev {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.2;
+}
+.vs {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  width: 540px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform-origin: calc(100% - 60px) 0;
+}
+.presets {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px;
+  border-right: 0.5px solid var(--line);
+}
+.presets button {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  text-align: left;
+}
+.presets button:hover {
+  background: var(--hover);
+}
+.presets button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+}
+.cal {
+  padding: 14px 16px;
+}
+.month {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.month button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-2);
+}
+.month button:hover:not(:disabled) {
+  background: var(--hover);
+}
+.month button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.tz {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-3);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px 0;
+  font-size: 12px;
+  text-align: center;
+}
+.dow {
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.day {
+  height: 30px;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  transition: background 0.12s;
+}
+.day:hover:not(:disabled) {
+  background: var(--hover);
+}
+.day[data-out] {
+  color: var(--text-3);
+  opacity: 0.5;
+}
+.day:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.day[data-in] {
+  background: var(--accent-soft);
+  border-radius: 0;
+}
+.day[data-end] {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 650;
+  opacity: 1;
+}
+.day[data-today]:not([data-end]) {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.hint {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.compare {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--line);
+  font-size: var(--fs-sm);
+}
+.compare b {
+  display: block;
+  font-weight: 600;
+}
+.compare span {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .pop {
+    background: var(--raised);
+    backdrop-filter: none;
+  }
+}
+@media (max-width: 640px) {
+  .pop {
+    position: fixed;
+    top: 72px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .presets {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: 0;
+    border-bottom: 0.5px solid var(--line);
+  }
+}

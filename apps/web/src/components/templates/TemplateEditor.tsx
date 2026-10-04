@@ -58,7 +58,8 @@ export function TemplateEditor({
   roles: RoleName[];
   fields: EditorField[];
   readOnly: boolean;
-  onSaved: (t: TemplateView) => void;
+  /** Saved, and whether LUME read it back exactly as written. */
+  onSaved: (t: TemplateView, checked: boolean) => void;
   onClose: () => void;
 }) {
   const reduce = useReducedMotion();
@@ -201,10 +202,21 @@ export function TemplateEditor({
     const r = template
       ? await templatesClient.update(template.id, input)
       : await templatesClient.create(input);
+    if (!r.ok) {
+      setBusy(false);
+      return setProblem(r.message);
+    }
+    // Read it back: "saved" means LUME holds it exactly as written, not only that the request went through.
+    const back = await templatesClient.list().catch(() => null);
+    const stored = back?.ok ? back.data.templates.find((x) => x.id === r.data.id) : undefined;
+    const checked =
+      !!stored &&
+      stored.version === r.data.version &&
+      stored.name === input.name &&
+      stored.body === input.body;
     setBusy(false);
-    if (!r.ok) return setProblem(r.message);
     setSaved(`Saved as version ${r.data.version}`);
-    onSaved(r.data);
+    onSaved(r.data, checked);
   };
 
   const count = body.length;

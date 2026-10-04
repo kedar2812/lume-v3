@@ -1,0 +1,134 @@
+@@META
+{"title":"Analytics · timing","active":"analytics","crumb":"Analytics","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"show":{"editor":"enum","options":["when leads reply","when leads arrive","when calls get booked"],"default":"when leads reply","section":"Heatmap"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.tg{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px}
+.hseg button{height:28px;font-size:12.5px;padding:0}
+/* the week, hour by hour */
+.heat{display:grid;grid-template-columns:40px repeat(15,minmax(0,1fr));gap:4px;margin-top:4px}
+.heat .hl{font-size:11px;color:var(--text-3);text-align:center;font-variant-numeric:tabular-nums}
+.heat .dl2{font-size:12px;font-weight:600;color:var(--text-2);display:flex;align-items:center}
+.heat .c{position:relative;appearance:none;border:0;padding:0;height:34px;border-radius:8px;cursor:pointer;background:var(--sunk);transition:background .6s ease,transform .3s var(--spring),box-shadow .2s;animation:cellin .65s var(--spring) both;animation-delay:calc(var(--d) * 24ms + .15s)}
+@keyframes cellin{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:none}}
+.heat .c:hover{transform:scale(1.12);z-index:2;box-shadow:var(--shadow-lift)}
+.heat .c.best::after{content:"";position:absolute;inset:-3px;border-radius:10px;box-shadow:0 0 0 2px var(--accent);animation:pulse3 2.4s ease-in-out infinite}
+@keyframes pulse3{0%,100%{opacity:1}50%{opacity:.35}}
+.hfoot{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:11.5px;color:var(--text-3)}
+.hfoot .sc{width:160px;height:8px;border-radius:4px}
+.hfoot .best2{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);font-weight:600}
+.hfoot .best2 i{width:12px;height:12px;border-radius:4px;box-shadow:0 0 0 2px var(--accent)}
+.htip{position:absolute;z-index:9;pointer-events:none;padding:8px 10px;border-radius:11px;background:var(--hud);color:var(--hud-text);font-size:12px;white-space:nowrap;transform:translate(-50%,-100%);opacity:0;transition:opacity .15s,left .2s var(--spring),top .2s var(--spring)}
+.htip.on{opacity:1}
+.htip b{font-weight:650}
+/* meetings */
+.mk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.mkt{border-radius:14px;padding:12px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.mkt span{font-size:11.5px;color:var(--text-2);font-weight:550}
+.mkt b{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;margin:4px 0 6px;font-variant-numeric:tabular-nums}
+.mkt.meet{background:linear-gradient(160deg,var(--meet-soft),transparent);box-shadow:inset 0 0 0 .5px var(--meet-line)}
+.flow{display:flex;align-items:center;gap:0;margin:6px 0 16px}
+.fl{flex:var(--f);height:34px;display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:650;color:#fff;white-space:nowrap;overflow:hidden;transform-origin:0 50%;animation:grow 1s var(--spring) both;animation-delay:calc(var(--i) * 120ms + .3s)}
+.fl:first-child{border-radius:9px 0 0 9px}
+.fl:last-child{border-radius:0 9px 9px 0}
+@keyframes grow{from{transform:scaleX(0)}to{transform:none}}
+.mr{display:flex;flex-direction:column;gap:8px}
+.mrr{display:grid;grid-template-columns:26px 110px minmax(0,1fr) 70px;gap:10px;align-items:center;font-size:12.5px}
+.mrr .av{width:26px;height:26px;font-size:10px}
+.mrr .stk2{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--sunk)}
+.mrr .stk2 i{display:block;height:100%;transform-origin:0 50%;animation:grow .9s var(--spring) both;animation-delay:calc(var(--i) * 70ms + .4s)}
+.mrr em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+@@BODY
+{{ABAR:Timing & meetings}}
+<div class="ascroll">
+  <div class="tg">
+    <section class="ac in" style="--i:0;position:relative">
+      <div class="hd"><div><h3>{{hTitle}}</h3><div class="sub2">{{hSub}}</div></div>
+        <div class="r"><span class="seg hseg"><span class="knob" style="{{hKnob}}"></span><sc-for list="{{modes}}" as="m" hint-placeholder-count="3"><button type="button" class="{{m.cls}}" style="{{m.w}}" onClick="{{m.pick}}">{{m.label}}</button></sc-for></span></div></div>
+      <div class="heat"><span></span><sc-for list="{{hours}}" as="h" hint-placeholder-count="15"><span class="hl">{{h}}</span></sc-for>
+        <sc-for list="{{cells}}" as="c" hint-placeholder-count="112"><sc-if value="{{c.head}}" hint-placeholder-val="{{ false }}"><span class="dl2">{{c.label}}</span></sc-if><sc-if value="{{c.isCell}}" hint-placeholder-val="{{ true }}"><button type="button" class="{{c.cls}}" style="{{c.st}}" aria-label="{{c.aria}}" onPointerEnter="{{c.on}}" onPointerLeave="{{c.off}}"></button></sc-if></sc-for></div>
+      <div class="{{tipCls}}" style="{{tipPos}}"><b>{{tipT}}</b> · {{tipV}}</div>
+      <div class="hfoot"><span>Quiet</span><span class="sc" style="{{scale}}"></span><span>Busy</span><span class="best2"><i></i>{{bestText}}</span></div>
+    </section>
+    <section class="ac in" style="--i:1">
+      <div class="hd"><div><h3>LUME noticed</h3><div class="sub2">When to reach people</div></div></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="ins"><span class="spk"><img src="/_blob/LOGO" alt=""></span><div><b>Tuesday and Wednesday mornings</b><p>Messages sent between 10 and 12 get a reply 52% of the time, against 31% after 6 pm.</p></div></div>
+        <div class="ins"><span class="spk"><img src="/_blob/LOGO" alt=""></span><div><b>Leads arrive in the evening</b><p>38% come in after 7 pm, and wait until morning. Contacting them before 10 am wins more of them.</p></div></div>
+        <div class="ins"><span class="spk"><img src="/_blob/LOGO" alt=""></span><div><b>Friday afternoon calls hold best</b><p>Calls booked for Friday 2–5 pm are held 91% of the time; Monday mornings, 74%.</p></div></div>
+      </div>
+      <div class="cap" style="margin-top:12px">Replies count only when your team logs them.</div>
+    </section>
+  </div>
+  <section class="ac in" style="--i:2;margin-top:14px">
+    <div class="hd"><div><h3>Meetings</h3><div class="sub2">Calls with leads {{rangeLower}}, from Calendly and your calendars</div></div><div class="r"><a class="drill" href="#">Calendar<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a></div></div>
+    <div class="mk"><sc-for list="{{mk}}" as="k" hint-placeholder-count="5"><div class="{{k.cls}}"><span>{{k.label}}</span><b>{{k.v}}</b><span class="{{k.chip}}">{{k.delta}}</span></div></sc-for></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px">
+      <div><div class="sub2" style="margin-bottom:8px">What happened to every call booked</div>
+        <div class="flow"><sc-for list="{{flow}}" as="f" hint-placeholder-count="4"><span class="fl" style="{{f.st}}">{{f.label}}</span></sc-for></div>
+        <div class="legend"><sc-for list="{{flow}}" as="f" hint-placeholder-count="4"><button type="button"><i style="{{f.sw}}"></i>{{f.long}}</button></sc-for></div></div>
+      <div><div class="sub2" style="margin-bottom:8px">Per person · held, no-shows, cancelled</div>
+        <div class="mr"><sc-for list="{{reps}}" as="r" hint-placeholder-count="5"><div class="mrr" style="{{r.i}}"><span class="av" style="{{r.bg}}">{{r.ini}}</span><span>{{r.name}}</span><span class="stk2"><i style="{{r.h}}"></i><i style="{{r.n}}"></i><i style="{{r.c}}"></i></span><em>{{r.t}}</em></div></sc-for></div></div>
+    </div>
+  </section>
+</div>
+@@SCRIPT
+const MODES = [
+  { id: 'reply', label: 'Replies', w: 76, title: 'When leads reply', sub: 'Share of messages answered, by when they were sent · India time', color: [42, 91, 255] },
+  { id: 'arrive', label: 'Arrivals', w: 78, title: 'When leads arrive', sub: 'New leads by the hour they came in', color: [90, 184, 255] },
+  { id: 'book', label: 'Bookings', w: 82, title: 'The best booking slots', sub: 'Calls held, out of calls booked, by the slot booked', color: [24, 165, 102] },
+];
+const HRS = Array.from({ length: 15 }, (_, i) => i + 8); // 8 am – 10 pm
+function value(mode, d, h) {
+  const r = rng(d * 97 + h * 13 + mode.length);
+  if (mode === 'reply') return Math.max(0.08, (d < 5 ? 0.42 : 0.24) + (h >= 10 && h <= 12 ? 0.14 : 0) - (h >= 18 ? 0.1 : 0) + (d === 1 || d === 2 ? 0.05 : 0) + r() * 0.06);
+  if (mode === 'arrive') return Math.max(2, (h >= 19 ? 34 : h >= 12 ? 18 : 9) * (d >= 5 ? 1.2 : 1) + r() * 8);
+  return Math.max(0.55, 0.78 + (d === 4 && h >= 14 && h <= 17 ? 0.13 : 0) - (d === 0 && h < 12 ? 0.06 : 0) + r() * 0.06 - (h >= 19 ? 0.08 : 0));
+}
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { themePick: 'auto', range: '30d', compare: true, hi: null }; }
+  renderVals() {
+    const s = this.state;
+    const R = RANGES.find((x) => x.id === s.range);
+    const id = s.mode ?? ({ 'when leads arrive': 'arrive', 'when calls get booked': 'book' }[this.props.show] || 'reply');
+    const M = MODES.find((m) => m.id === id);
+    const vals = DAYS.map((_, d) => HRS.map((h) => value(id, d, h)));
+    const flat = vals.flat();
+    const lo = Math.min(...flat), hi = Math.max(...flat);
+    let best = [0, 0];
+    vals.forEach((row, d) => row.forEach((v, h) => { if (v > vals[best[0]][best[1]]) best = [d, h]; }));
+    const show = (v) => (id === 'arrive' ? `${Math.round(v)} leads` : pctS(v));
+    const hr = (h) => `${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`;
+    const cells = [];
+    DAYS.forEach((day, d) => {
+      cells.push({ head: true, isCell: false, label: day });
+      HRS.forEach((h, j) => {
+        const a = (vals[d][j] - lo) / (hi - lo || 1);
+        const [cr, cg, cb] = M.color;
+        cells.push({ head: false, isCell: true, cls: 'c' + (d === best[0] && j === best[1] ? ' best' : ''), st: `--d:${d + j};background:rgba(${cr},${cg},${cb},${(0.07 + a * 0.88).toFixed(2)})`, aria: `${day} ${hr(h)}: ${show(vals[d][j])}`, on: () => this.setState({ hi: [d, j] }), off: () => this.setState({ hi: null }) });
+      });
+    });
+    let x = 0; const at = {};
+    for (const m of MODES) { at[m.id] = x; x += m.w; }
+    const H2 = s.hi;
+    return {
+      ...themeVals(this), ...rangeVals(this), filterN: '0',
+      rangeLower: R.words.toLowerCase().replace(/^last/, 'in the last'),
+      hTitle: M.title, hSub: M.sub, hKnob: `width:${M.w}px;transform:translateX(${at[id]}px)`,
+      modes: MODES.map((m) => ({ label: m.label, w: `width:${m.w}px`, cls: m.id === id ? 'on' : '', pick: () => this.setState({ mode: m.id, hi: null }) })),
+      hours: HRS.map((h) => (h % 2 === 0 ? hr(h).replace(' ', '') : '')),
+      cells,
+      scale: `background:linear-gradient(90deg,rgba(${M.color.join(',')},.07),rgba(${M.color.join(',')},.95))`,
+      bestText: `Best: ${DAYS[best[0]]} ${hr(HRS[best[1]])} · ${show(vals[best[0]][best[1]])}`,
+      tipCls: 'htip' + (H2 ? ' on' : ''), tipPos: H2 ? `left:${58 + ((H2[1] + 0.5) / 15) * 92}%;top:${96 + H2[0] * 38}px` : 'left:0;top:0',
+      tipT: H2 ? `${DAYS[H2[0]]} ${hr(HRS[H2[1]])}` : '', tipV: H2 ? show(vals[H2[0]][H2[1]]) : '',
+      mk: [
+        { label: 'Booked', v: '686', t: trend(686, 571), meet: true },
+        { label: 'Held', v: '541', t: trend(541, 448), meet: true },
+        { label: 'No-show rate', v: '9.6%', t: trend(0.096, 0.121, { kind: 'pts', good: 'down' }) },
+        { label: 'Cancelled', v: '62', t: trend(62, 58, { good: 'down' }) },
+        { label: 'Booked, then won', v: '24%', t: trend(0.24, 0.21, { kind: 'pts' }) },
+      ].map((k) => ({ cls: 'mkt' + (k.meet ? ' meet' : ''), label: k.label, v: k.v, chip: chipCls(k.t), delta: k.t.text })),
+      flow: [['Held', 541, 'linear-gradient(90deg,#2a5bff,#4d7bff)', '#2a5bff', 'Held'], ['No-show', 52, 'linear-gradient(90deg,#f2a20c,#ffc75c)', '#f2a20c', 'They didn’t show'], ['Cancelled', 62, 'linear-gradient(90deg,#8a94a6,#a7aebb)', '#8a94a6', 'Cancelled'], ['Ahead', 31, 'linear-gradient(90deg,#5ab8ff,#7cc8ff)', '#5ab8ff', 'Still ahead']].map((f, i) => ({ label: `${f[0]} ${f[1]}`, long: f[4], st: `--f:${f[1]};background:${f[2]};--i:${i}`, sw: `background:${f[3]}` })),
+      reps: [['RS', 'Riya Shah', '#0B7285', 152, 9, 11], ['HI', 'Hana Ito', '#0F7F44', 141, 12, 14], ['DM', 'Dev Malhotra', '#A15C00', 118, 15, 17], ['LM', 'Leo Martins', '#B02E6B', 96, 14, 16], ['AK', 'Asha Kulkarni', '#C62A30', 34, 2, 4]].map((r, i) => { const t = r[3] + r[4] + r[5]; return { i: `--i:${i}`, ini: r[0], name: r[1], bg: `background:${r[2]}`, h: `flex:${r[3]};background:#2a5bff;--i:${i}`, n: `flex:${r[4]};background:#f2a20c;--i:${i}`, c: `flex:${r[5]};background:#8a94a6;--i:${i}`, t: `${r[3]} of ${t}` }; }),
+    };
+  }
+}

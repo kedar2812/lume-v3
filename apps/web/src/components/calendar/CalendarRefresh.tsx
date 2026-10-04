@@ -1,5 +1,5 @@
 "use client";
-import { useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Odometer } from "@/components/ui/Odometer";
@@ -129,9 +129,21 @@ export function CalendarRefresh({
               </span>
             </div>
             <p className={s.title}>Syncing your calendar</p>
-            <p className={s.sub}>Reading meetings with your leads…</p>
-            <div className={s.bar} data-indeterminate>
-              <i />
+            <p className={s.sub}>{r.step}</p>
+            {/* The real progress of the sync (0061): it fills as calendars are read and reaches the end when done. */}
+            <div
+              className={s.bar}
+              role="progressbar"
+              aria-label="Syncing your calendar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(r.fraction * 100)}
+            >
+              <motion.i
+                initial={{ width: "4%" }}
+                animate={{ width: `${Math.max(4, r.fraction * 100)}%` }}
+                transition={reduce ? { duration: 0 } : { type: "spring", bounce: 0, duration: 0.6 }}
+              />
             </div>
           </>
         }

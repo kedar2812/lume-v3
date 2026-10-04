@@ -26,12 +26,183 @@
 }
 
 /* ── section nav ── */
-.nav {
+/* The side column: Search on top, then the sections, which scroll on their own beside the page (owner, 2026-10-05:
+   two scroll bars, so About is never a long scroll away). */
+.side {
   position: sticky;
   top: 16px;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  max-height: calc(100dvh - 128px);
+  min-height: 0;
+}
+.content {
+  min-width: 0;
+}
+.nav {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-right: -8px;
+  padding-right: 8px;
+  /* The list fades at its bottom edge when more sections wait below. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent);
+  padding-bottom: 14px;
+}
+
+/* ── Search settings ───────────────────────────────────────────────────────────────────────────── */
+.search {
+  position: relative;
+  flex: none;
+}
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text-3);
+  transition:
+    box-shadow 0.15s,
+    background 0.15s;
+}
+.searchBox:focus-within {
+  background: var(--raised);
+  box-shadow: var(--focus-ring);
+}
+.searchBox input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text);
+  outline: none;
+}
+.searchBox input::placeholder {
+  color: var(--text-3);
+}
+.searchBox input::-webkit-search-cancel-button {
+  display: none;
+}
+.searchBox input:focus-visible {
+  box-shadow: none;
+}
+.searchBox kbd {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max(100%, 300px);
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 16px 40px rgba(0, 0, 0, 0.18);
+  animation: resultsIn 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: top left;
+}
+@keyframes resultsIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.result[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+.resultLabel {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+.result[aria-selected="true"] .resultLabel {
+  color: var(--accent-ink);
+}
+.resultWhere {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.resultWait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.resultWait i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-2);
+  border-top-color: var(--accent);
+  animation: waitSpin 0.8s linear infinite;
+}
+@keyframes waitSpin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+.noResult {
+  padding: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+/* The setting a search opened: a soft accent glow that fades. */
+.found {
+  border-radius: 10px;
+  animation: foundGlow 1.8s ease-out;
+}
+@keyframes foundGlow {
+  0%,
+  30% {
+    box-shadow:
+      0 0 0 4px var(--accent-soft),
+      0 0 0 1.5px var(--accent);
+    background-color: var(--accent-soft);
+  }
+  100% {
+    box-shadow:
+      0 0 0 4px transparent,
+      0 0 0 1.5px transparent;
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .results,
+  .resultWait i {
+    animation: none;
+  }
 }
 .navLink {
   padding: 7px 10px;
@@ -67,6 +238,10 @@
   letter-spacing: var(--ls-md);
 }
 @media (max-width: 900px) {
+  .side {
+    position: static;
+    max-height: none;
+  }
   .nav {
     display: none;
   }

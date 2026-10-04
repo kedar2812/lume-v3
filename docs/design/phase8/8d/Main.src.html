@@ -1,0 +1,275 @@
+@@META
+{"title":"Analytics · overview","active":"analytics","crumb":"Analytics","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"scene":{"editor":"enum","options":["first visit","returning","last 12 months","drill into revenue won","a slow month"],"default":"first visit","section":"Jump to"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.row2{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px;margin-top:14px}
+.row3{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,.85fr);gap:14px;margin-top:14px}
+.qhead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+.qhead h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em}
+.qhead p{margin:3px 0 0;font-size:13px;color:var(--text-2)}
+.qhead .stamp{font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:6px}
+.qhead .stamp i{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px var(--good-soft);animation:breathe 2.4s ease-in-out infinite}
+/* the funnel: each stage a bar from the left; what leaves between two stages, a ribbon */
+.fun{display:flex;flex-direction:column;gap:4px}
+.fst{appearance:none;border:0;background:transparent;font:inherit;color:inherit;text-align:left;display:grid;grid-template-columns:96px minmax(0,1fr) 60px;gap:10px;align-items:center;padding:4px 4px;border-radius:10px;cursor:pointer;transition:background .15s}
+.fst:hover{background:var(--hover)}
+.fst .nm2{font-size:12.5px;font-weight:600;white-space:nowrap}
+.fst .trk{position:relative;height:26px;border-radius:8px;background:var(--sunk);overflow:hidden}
+.fst .bar{position:absolute;left:0;top:0;bottom:0;border-radius:8px;transform-origin:0 50%;background:linear-gradient(90deg,var(--accent),#5ab8ff);transition:width .9s var(--spring)}
+.fst .bar.won{background:linear-gradient(90deg,#18a566,#4fd69c)}
+.fst .bar.in{animation:grow 1s var(--spring) both;animation-delay:calc(var(--i,0) * 90ms + .15s)}
+@keyframes grow{from{transform:scaleX(0)}to{transform:none}}
+.fst .bar b{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fst .pc{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.drop{display:grid;grid-template-columns:96px minmax(0,1fr) 60px;gap:10px;padding:0 4px;height:14px;align-items:center}
+.drop span{grid-column:2;font-size:11px;font-weight:600;color:var(--bad-ink);display:flex;align-items:center;gap:4px;padding-left:8px;opacity:.85}
+.drop span svg{width:10px;height:10px}
+/* goals: a ring per goal */
+.goal{display:flex;align-items:center;gap:16px}
+.gring{position:relative;width:118px;height:118px;flex:none}
+.gring svg{width:118px;height:118px;transform:rotate(-90deg)}
+.gring circle{fill:none;stroke-width:11;stroke-linecap:round}
+.gring .bg{stroke:var(--sunk)}
+.gring .fg{stroke:url(#ggrad);stroke-dasharray:333;transition:stroke-dashoffset 1.4s var(--spring)}
+.gring .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.gring .ctr b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.gring .ctr span{font-size:11.5px;color:var(--text-3)}
+.gbars{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0}
+.gb .t{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px}
+.gb .t b{font-weight:600}
+.gb .t span{color:var(--text-3);font-variant-numeric:tabular-nums}
+.gb .tr2{height:7px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.gb .tr2 i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),#5ab8ff);transform-origin:0 50%;transition:transform 1.2s var(--spring)}
+.gb.ok2 .tr2 i{background:linear-gradient(90deg,#18a566,#4fd69c)}
+.hitbox{position:absolute;inset:0;cursor:crosshair}
+.kt.in2{animation:cardin .8s var(--spring) both;animation-delay:calc(var(--i,0) * 55ms)}
+@@BODY
+{{ABAR:Overview}}
+<div class="ascroll">
+  <div class="qhead">
+    <div><h2>{{headline}}</h2><p>{{subline}}</p></div>
+    <span class="stamp"><i></i>Up to date · counted 2 minutes ago</span>
+  </div>
+  <div class="kgrid">
+    <sc-for list="{{kpis}}" as="k" hint-placeholder-count="12">
+      <button type="button" class="{{k.cls}}" style="{{k.i}}" onClick="{{k.drill}}" aria-label="{{k.aria}}">
+        <span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></span>
+        <div class="l">{{k.label}}</div>
+        <div class="v">{{ODO:k.odo}}<small>{{k.unit}}</small></div>
+        <div class="b"><span class="{{k.chip}}"><sc-if value="{{k.up}}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 11.5 6 7l3 3 5.5-5.5"/><path d="M10.5 4.5h4v4"/></svg></sc-if><sc-if value="{{k.down}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5 6 9l3-3 5.5 5.5"/><path d="M10.5 11.5h4v-4"/></svg></sc-if><sc-if value="{{k.flat}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 8h12"/></svg></sc-if>{{k.delta}}</span></div>
+        <svg class="spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a5bff" stop-opacity=".22"/><stop offset="1" stop-color="#2a5bff" stop-opacity="0"/></linearGradient></defs><path class="a2" d="{{k.area}}"/><path class="l2" d="{{k.line}}"/></svg>
+      </button>
+    </sc-for>
+  </div>
+
+  <div class="row2">
+    <section class="{{cardCls}}" style="--i:12">
+      <div class="hd"><div><h3>New leads, by where they came from</h3><div class="sub2">{{seriesSub}}</div></div>
+        <div class="r"><div class="legend"><sc-for list="{{legend}}" as="g" hint-placeholder-count="4"><button type="button" class="{{g.cls}}" onClick="{{g.toggle}}"><i style="{{g.sw}}"></i>{{g.label}}</button></sc-for></div></div></div>
+      <div class="chart" style="height:236px">
+        <svg viewBox="0 0 640 236" preserveAspectRatio="none" style="height:236px" aria-label="New leads over time, by source">
+          <defs><sc-for list="{{bands}}" as="b" hint-placeholder-count="4"><linearGradient id="{{b.gid}}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{b.color}}" stop-opacity=".55"/><stop offset="1" stop-color="{{b.color}}" stop-opacity=".12"/></linearGradient></sc-for></defs>
+          <sc-for list="{{gridY}}" as="y" hint-placeholder-count="4"><line class="gl" x1="0" x2="640" y1="{{y.y}}" y2="{{y.y}}"></line><text class="ax" x="0" y="{{y.ty}}">{{y.label}}</text></sc-for>
+          <sc-for list="{{bands}}" as="b" hint-placeholder-count="4"><path class="{{b.cls}}" style="{{b.d}}" fill="{{b.fill}}"></path></sc-for>
+          <path class="{{prevCls}}" style="{{prevD}}"></path>
+          <line class="hov" x1="{{hx}}" x2="{{hx}}" y1="8" y2="216"></line>
+          <sc-for list="{{xlabels}}" as="x" hint-placeholder-count="5"><text class="ax" x="{{x.x}}" y="234" text-anchor="middle">{{x.label}}</text></sc-for>
+        </svg>
+        <div class="hitbox" onPointerMove="{{hover}}" onPointerLeave="{{unhover}}" onClick="{{drillDay}}"></div>
+        <div class="{{tipCls}}" style="{{tipPos}}"><b>{{tipTitle}}</b><sc-for list="{{tipRows}}" as="t" hint-placeholder-count="4"><div class="row"><span><i style="{{t.sw}}"></i>{{t.label}}</span><em>{{t.v}}</em></div></sc-for><div class="row" style="border-top:.5px solid var(--line);margin-top:6px;padding-top:6px"><span>All sources</span><em>{{tipTotal}}</em></div><div class="cap" style="margin-top:6px">Click to see these leads</div></div>
+      </div>
+    </section>
+
+    <section class="{{cardCls}}" style="--i:13">
+      <div class="hd"><div><h3>The funnel</h3><div class="sub2">Of the leads that arrived {{rangeLower}}, how far they got</div></div><div class="r"><a class="drill" href="Funnel.dc.html">Funnel<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a></div></div>
+      <div class="fun">
+        <sc-for list="{{funnel}}" as="f" hint-placeholder-count="6">
+          <button type="button" class="fst" onClick="{{f.drill}}"><span class="nm2">{{f.name}}</span><span class="trk"><span class="{{f.barCls}}" style="{{f.w}}"><b>{{f.n}}</b></span></span><span class="pc">{{f.pc}}</span></button>
+          <sc-if value="{{f.hasDrop}}" hint-placeholder-val="{{ true }}"><div class="drop"><span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v8M2.5 6.5 6 10l3.5-3.5"/></svg>{{f.drop}}</span></div></sc-if>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+
+  <div class="row3">
+    <section class="{{cardCls}}" style="--i:14">
+      <div class="hd"><div><h3>Needs a look</h3><div class="sub2">Right now, whatever the range</div></div></div>
+      <div class="nlist"><sc-for list="{{needs}}" as="n" hint-placeholder-count="4"><button type="button" class="nrow" onClick="{{n.drill}}"><span class="{{n.ic}}"><sc-if value="{{n.iClock}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></sc-if><sc-if value="{{n.iStuck}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></sc-if><sc-if value="{{n.iUser}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M19 8v6M22 11h-6"/></svg></sc-if><sc-if value="{{n.iPhone}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></sc-if></span><div><b>{{n.title}}</b><span class="s">{{n.sub}}</span></div><span class="num">{{n.num}}</span></button></sc-for></div>
+    </section>
+    <section class="{{cardCls}}" style="--i:15">
+      <div class="hd"><div><h3>LUME noticed</h3><div class="sub2">From your numbers {{rangeLower}}</div></div></div>
+      <div style="display:flex;flex-direction:column;gap:10px"><sc-for list="{{insights}}" as="n" hint-placeholder-count="3"><div class="ins"><span class="spk"><img src="/_blob/LOGO" alt=""></span><div><b>{{n.title}}</b><p>{{n.body}}</p></div></div></sc-for></div>
+    </section>
+    <section class="{{cardCls}}" style="--i:16">
+      <div class="hd"><div><h3>October goals</h3><div class="sub2">The business, this month</div></div></div>
+      <div class="goal">
+        <div class="gring"><svg viewBox="0 0 118 118" aria-hidden="true"><defs><linearGradient id="ggrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ab8ff"/><stop offset="1" stop-color="#2a5bff"/></linearGradient></defs><circle class="bg" cx="59" cy="59" r="53"></circle><circle class="fg" cx="59" cy="59" r="53" style="{{ringDash}}"></circle></svg><div class="ctr"><div><b>{{goalPct}}</b><span>of revenue goal</span></div></div></div>
+        <div class="gbars"><sc-for list="{{goals}}" as="g" hint-placeholder-count="3"><div class="{{g.cls}}"><div class="t"><b>{{g.label}}</b><span>{{g.text}}</span></div><div class="tr2"><i style="{{g.w}}"></i></div></div></sc-for></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="{{dscrimCls}}" onClick="{{closeDrill}}"></div>
+<aside class="{{dsheetCls}}" role="dialog" aria-label="The leads behind this number">
+  <div class="dh"><div style="flex:1;min-width:0"><div class="eyebrow">The leads behind it</div><div class="ttl">{{dTitle}}</div><div class="dfacts"><sc-for list="{{dFacts}}" as="f" hint-placeholder-count="3"><span>{{f}}</span></sc-for></div></div><button type="button" class="ibtn" onClick="{{closeDrill}}" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+  <div class="dlist2"><sc-for list="{{dRows}}" as="r" hint-placeholder-count="10"><div class="drow" style="{{r.i}}"><span class="ini">{{r.ini}}</span><div style="min-width:0"><b>{{r.name}}</b><span class="s">{{r.sub}}</span></div><span class="stg"><span class="sd" style="{{r.dot}}"></span>{{r.stage}}</span><span style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">{{r.val}}</span></div></sc-for></div>
+  <div class="dfoot"><a class="btn pri" href="#" aria-disabled="true">Open these {{dCount}} in Leads</a><button type="button" class="btn ghost">Export CSV</button><span class="cap" style="margin-left:auto">Only what you're allowed to see</span></div>
+</aside>
+@@SCRIPT
+const SOURCES = [
+  { id: 'ig', label: 'Instagram', color: '#2a5bff' },
+  { id: 'web', label: 'Website', color: '#5ab8ff' },
+  { id: 'ref', label: 'Referrals', color: '#18a566' },
+  { id: 'evt', label: 'Webinars', color: '#f2a20c' },
+];
+const N = 30, W = 640, H = 216;
+const STAGE_C = { New: '#8a94a6', Contacted: '#2a5bff', Replied: '#5ab8ff', 'Call booked': '#5ab8ff', Proposal: '#f2a20c', Won: '#18a566' };
+const PEOPLE = [['Aarav Mehta', 'Won', 'Riya Shah', 64000], ['Lena Fischer', 'Won', 'Dev Malhotra', 38000], ['Tomás Rivera', 'Won', 'Hana Ito', 52000], ['Mei Lin', 'Won', 'Riya Shah', 29000], ['Omar Haddad', 'Won', 'Leo Martins', 41000], ['Priya Nair', 'Won', 'Hana Ito', 36000], ['Jonas Berg', 'Won', 'Dev Malhotra', 88000], ['Sara Okafor', 'Won', 'Riya Shah', 24000], ['Kenji Sato', 'Won', 'Leo Martins', 47000], ['Ana Costa', 'Won', 'Hana Ito', 31000], ['Mateo Silva', 'Won', 'Riya Shah', 56000], ['Amara Obi', 'Won', 'Dev Malhotra', 33000]];
+
+// A made-up business: daily arrivals by source with a weekly rhythm and steady growth.
+function series(rangeId, slow) {
+  const days = { today: 1, '7d': 7, '30d': 30, month: 3, lastmonth: 30, quarter: 95, '12m': 365 }[rangeId] || 30;
+  const r = rng(7 + days);
+  const pts = Math.max(8, Math.min(days, 60));
+  const base = { ig: 58, web: 41, ref: 17, evt: 11 };
+  const out = {};
+  for (const s of SOURCES) {
+    const vals = [];
+    for (let i = 0; i < pts; i++) {
+      const dow = (i + 3) % 7;
+      const weekly = dow >= 5 ? 0.72 : 1 + (dow === 1 ? 0.12 : 0);
+      const grow = 0.85 + (0.3 * i) / pts;
+      const spike = s.id === 'evt' && i % 11 === 6 ? 2.6 : 1;
+      vals.push(base[s.id] * weekly * grow * spike * (0.86 + r() * 0.28) * (slow ? 0.78 : 1) * (days >= 365 ? 30 : days >= 95 ? 7 : 1));
+    }
+    out[s.id] = resample(vals, N);
+  }
+  return { days, out };
+}
+function numbers(rangeId, slow) {
+  const d = { today: 1, '7d': 7, '30d': 30, month: 3, lastmonth: 30, quarter: 95, '12m': 365 }[rangeId] || 30;
+  const k = slow ? 0.8 : 1;
+  const leads = Math.round(127 * d * k), won = Math.round(leads * (slow ? 0.049 : 0.061));
+  const cur = { leads, contacted: slow ? 0.81 : 0.86, reply: slow ? 0.36 : 0.41, booked: Math.round(leads * 0.18), held: Math.round(leads * 0.142), won, winRate: slow ? 0.049 : 0.061, revenue: won * (slow ? 36000 : 41200), deal: slow ? 36000 : 41200, speed: slow ? 23 : 14, overdue: slow ? 41 : 23, forecast: 4810000 * (slow ? 0.82 : 1) };
+  const prev = { leads: Math.round(leads * (slow ? 1.12 : 0.89)), contacted: slow ? 0.84 : 0.83, reply: slow ? 0.4 : 0.39, booked: Math.round(leads * 0.167 * (slow ? 1.1 : 0.9)), held: Math.round(leads * 0.13 * (slow ? 1.1 : 0.9)), won: Math.round(won * (slow ? 1.3 : 0.84)), winRate: slow ? 0.057 : 0.058, revenue: won * (slow ? 1.3 : 0.84) * (slow ? 38500 : 40100), deal: slow ? 38500 : 40100, speed: slow ? 16 : 19, overdue: slow ? 22 : 31, forecast: cur.forecast * (slow ? 1.11 : 0.93) };
+  return { cur, prev };
+}
+
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.seen = p.scene ?? 'first visit';
+    this.state = this.sceneState(this.seen);
+    this.later = [];
+  }
+  componentWillUnmount() { this.later.forEach(clearTimeout); }
+  sceneState(sc) {
+    return {
+      themePick: (this.state || {}).themePick || 'auto', range: sc === 'last 12 months' ? '12m' : '30d', compare: true, rangeOpen: false,
+      first: sc === 'first visit', hidden: {}, hi: null, drill: sc === 'drill into revenue won' ? 'revenue' : null, slow: sc === 'a slow month',
+    };
+  }
+  onRange() { this.setState({ first: false, hi: null }); }
+  renderVals() {
+    const sc = this.props.scene ?? 'first visit';
+    if (sc !== this.seen) { this.seen = sc; this.later.push(setTimeout(() => this.setState(this.sceneState(sc)), 0)); }
+    const s = this.state;
+    const R = RANGES.find((x) => x.id === s.range);
+    const { out } = series(s.range, s.slow);
+    const prevS = series(s.range === '12m' ? 'quarter' : s.range, !s.slow);
+    const { cur, prev } = numbers(s.range, s.slow);
+    const cmp = s.compare !== false;
+    const drill = (key) => () => this.setState({ drill: key });
+    const sparkOf = (seed, up) => { const r = rng(seed); const v = Array.from({ length: 14 }, (_, i) => 10 + (up ? i : 14 - i) * 0.8 + r() * 6); const p = toPts(v, 120, 44, Math.max(...v) * 1.1, 2); const l = smooth(p); return { line: l, area: areaOf(l, 120, 44) }; };
+    const K = [
+      { key: 'leads', label: 'New leads', v: fmt(cur.leads), t: trend(cur.leads, prev.leads) },
+      { key: 'contacted', label: 'Contacted', v: pctS(cur.contacted), t: trend(cur.contacted, prev.contacted, { kind: 'pts' }) },
+      { key: 'reply', label: 'Reply rate', v: pctS(cur.reply), t: trend(cur.reply, prev.reply, { kind: 'pts' }) },
+      { key: 'booked', label: 'Calls booked', v: fmt(cur.booked), t: trend(cur.booked, prev.booked) },
+      { key: 'held', label: 'Calls held', v: fmt(cur.held), t: trend(cur.held, prev.held) },
+      { key: 'revenue', label: 'Revenue won', v: inrShort(cur.revenue), t: trend(cur.revenue, prev.revenue), hero: true },
+      { key: 'won', label: 'Won', v: fmt(cur.won), t: trend(cur.won, prev.won) },
+      { key: 'winRate', label: 'Win rate', v: pctS(cur.winRate, 1), t: trend(cur.winRate, prev.winRate, { kind: 'pts' }) },
+      { key: 'deal', label: 'Average deal', v: inrShort(cur.deal), t: trend(cur.deal, prev.deal) },
+      { key: 'speed', label: 'Speed to lead (median)', v: String(cur.speed), unit: 'min', t: trend(cur.speed, prev.speed, { kind: 'abs', good: 'down', unit: 'min' }) },
+      { key: 'overdue', label: 'Follow-ups overdue now', v: String(cur.overdue), t: trend(cur.overdue, prev.overdue, { kind: 'abs', good: 'down' }), alarm: cur.overdue > 0 },
+      { key: 'forecast', label: 'Pipeline forecast', v: inrShort(cur.forecast), t: trend(cur.forecast, prev.forecast) },
+    ];
+    const kpis = K.map((k, i) => {
+      const sp = sparkOf(11 + i * 7, k.t.dir !== 'down');
+      return {
+        cls: 'kt' + (k.hero ? ' hero' : '') + (k.alarm ? ' alarm' : '') + (s.first ? ' in2' : ''), i: `--i:${i}`, label: k.label, odo: odoStr(k.v, 7), unit: k.unit || '',
+        chip: cmp ? chipCls(k.t) + (k.hero ? ' solid' : '') : 'tchip flat' + (k.hero ? ' solid' : ''), up: cmp && k.t.dir === 'up', down: cmp && k.t.dir === 'down', flat: !cmp || k.t.dir === 'flat', delta: cmp ? k.t.text : R.words, aria: `${k.label}: ${k.v}. ${cmp ? k.t.text + ' ' + R.vs : ''}. See the leads.`,
+        line: sp.line, area: sp.area, drill: drill(k.key),
+      };
+    });
+    // the stacked bands
+    const shown = SOURCES.filter((x) => !s.hidden[x.id]);
+    const totals = Array.from({ length: N }, (_, i) => shown.reduce((a, x) => a + out[x.id][i], 0));
+    const max = niceMax(Math.max(...totals) * 1.08);
+    let base = Array(N).fill(0);
+    const bands = SOURCES.map((x) => {
+      const on = !s.hidden[x.id];
+      const top = base.map((b, i) => b + (on ? out[x.id][i] : 0));
+      const d = band(toPts(top, W, H, max, 6), toPts(base, W, H, max, 6));
+      base = top;
+      return { gid: 'g' + x.id, color: x.color, fill: `url(#g${x.id})`, cls: 'ar' + (s.first ? ' fadein' : ''), d: `d:path('${d}');opacity:${on ? 1 : 0}` };
+    }).reverse();
+    const prevTot = Array.from({ length: N }, (_, i) => SOURCES.filter((x) => !s.hidden[x.id]).reduce((a, x) => a + prevS.out[x.id][i] * 0.9, 0));
+    const per = s.range === '12m' ? 'month' : s.range === 'quarter' ? 'week' : s.range === 'today' ? 'hour' : 'day';
+    const hi = s.hi;
+    const step = (W - 12) / (N - 1);
+    const fmtDay = (i) => {
+      if (s.range === 'today') { const hr = Math.round((i * 23) / (N - 1)); return `${hr % 12 || 12}:00 ${hr < 12 ? 'am' : 'pm'}`; }
+      if (s.range === '12m') return ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'][Math.min(11, Math.floor((i * 12) / N))];
+      const d = new Date(Date.UTC(2026, 9, 3) - Math.round(((N - 1 - i) * (R.days - 1)) / (N - 1)) * 86400000);
+      return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
+    };
+    const goalRev = 6200000, goalPctV = Math.min(1, (cur.revenue / Math.max(1, R.days / 30)) / goalRev * 0.92);
+    const funnelN = [cur.leads, Math.round(cur.leads * cur.contacted), Math.round(cur.leads * cur.reply), cur.booked, Math.round(cur.booked * 0.62), cur.won];
+    const FN = ['New', 'Contacted', 'Replied', 'Call booked', 'Proposal', 'Won'];
+    const titles = { leads: 'New leads', contacted: 'Contacted leads', reply: 'Leads who replied', booked: 'Calls booked', held: 'Calls held', revenue: `Revenue won · ${inr(cur.revenue)}`, won: `Won · ${fmt(cur.won)} leads`, winRate: 'Won, out of every lead', deal: 'Won deals, by value', speed: 'First contact, slowest first', overdue: `Follow-ups overdue · ${cur.overdue}`, forecast: 'Open leads, by forecast value', stuck: 'Stuck past their stage’s time', unassigned: 'Nobody yet', country: 'Numbers that need a country' };
+    const dCount = { leads: cur.leads, revenue: cur.won, won: cur.won, overdue: cur.overdue, booked: cur.booked, held: cur.held }[s.drill] ?? 214;
+    return {
+      ...themeVals(this), ...rangeVals(this), filterN: '0',
+      headline: s.slow ? 'A quieter month. Follow-ups are slipping.' : 'A strong month. Replies are up.',
+      subline: s.slow ? 'New leads are down, and more follow-ups are overdue than last month. Two of your reps account for most of them.' : `${fmt(cur.leads)} new leads ${R.words.toLowerCase()}, and more of them are replying than the period before.`,
+      kpis, cardCls: 'ac' + (s.first ? ' in' : ''),
+      seriesSub: `Per ${per} · ${cmp ? 'dashed: the period before' : 'compare is off'}`,
+      legend: SOURCES.map((x) => ({ label: x.label, sw: `background:${x.color}`, cls: s.hidden[x.id] ? 'dim' : '', toggle: () => this.setState({ hidden: { ...s.hidden, [x.id]: !s.hidden[x.id] }, first: false }) })),
+      bands,
+      gridY: [0, 0.25, 0.5, 0.75].map((f) => { const y = 6 + f * (H - 12); return { y: y.toFixed(1), ty: (y - 4).toFixed(1), label: fmt(max * (1 - f)) }; }),
+      prevCls: 'prev', prevD: `d:path('${smooth(toPts(prevTot, W, H, max, 6))}');opacity:${cmp ? 0.55 : 0}`,
+      xlabels: [0, 7, 15, 22, 29].map((i) => ({ x: (6 + i * step).toFixed(1), label: fmtDay(i).replace(/^(\w{3})\w*/, '$1') })),
+      hx: hi == null ? -10 : (6 + hi * step).toFixed(1),
+      hover: (e) => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.max(0, Math.min(N - 1, Math.round(((e.clientX - r.left) / r.width) * (N - 1)))); if (i !== s.hi) this.setState({ hi: i }); },
+      unhover: () => this.setState({ hi: null }), drillDay: () => this.setState({ drill: 'leads' }),
+      tipCls: 'ctip' + (hi == null ? '' : ' on'), tipPos: `left:${hi == null ? 0 : Math.min(470, Math.max(0, (hi / (N - 1)) * 640 - 84))}px;top:12px`,
+      tipTitle: hi == null ? '' : fmtDay(hi) + (per !== 'day' ? ` (a ${per})` : ''),
+      tipRows: SOURCES.filter((x) => !s.hidden[x.id]).map((x) => ({ label: x.label, sw: `background:${x.color}`, v: hi == null ? '' : fmt(out[x.id][hi]) })),
+      tipTotal: hi == null ? '' : fmt(totals[hi]),
+      rangeLower: R.words.toLowerCase().replace(/^last/, 'in the last'),
+      funnel: FN.map((name, i) => ({ name, n: fmt(funnelN[i]), pc: pctS(funnelN[i] / funnelN[0], i === 5 ? 1 : 0), w: `width:${Math.max(4, (funnelN[i] / funnelN[0]) * 100)}%`, barCls: 'bar' + (name === 'Won' ? ' won' : '') + (s.first ? ' in' : ''), hasDrop: i < 5, drop: i < 5 ? `${fmt(funnelN[i] - funnelN[i + 1])} stopped here · ${MINUS}${pctS(1 - funnelN[i + 1] / funnelN[i])}` : '', drill: drill('leads') })).map((f, i) => ({ ...f, i })),
+      needs: [
+        { ic: 'ic red', iClock: true, title: 'Follow-ups overdue', sub: s.slow ? 'Mostly Dev’s and Leo’s' : 'Oldest: 3 days, Kenji Sato', num: String(cur.overdue), drill: drill('overdue') },
+        { ic: 'ic amber', iStuck: true, title: 'Stuck in a stage', sub: 'Past the time their stage allows', num: s.slow ? '67' : '38', drill: drill('stuck') },
+        { ic: 'ic blue', iUser: true, title: 'Nobody yet', sub: 'Leads without an owner', num: s.slow ? '19' : '6', drill: drill('unassigned') },
+        { ic: 'ic grey', iPhone: true, title: 'Numbers need a country', sub: 'LUME couldn’t read them', num: '12', drill: drill('country') },
+      ],
+      insights: s.slow
+        ? [{ title: 'Follow-ups slipped after the 18th', body: 'Overdue follow-ups doubled in the last two weeks. Most belong to two people: worth a word.' }, { title: 'Webinar leads still convert best', body: '9.4% of webinar leads were won, against 4.9% overall. The next webinar is your best lever.' }, { title: 'Replies are slower on weekends', body: 'Leads messaged on Saturday reply 40% less. Weekday mornings work best.' }]
+        : [{ title: 'Speed pays off', body: 'Leads contacted within an hour were won 2.3 times as often. Your median first contact is 14 minutes.' }, { title: 'Webinars punch above their weight', body: 'They bring 9% of leads and 21% of revenue won.' }, { title: 'Tuesday mornings get the most replies', body: 'Between 10 and 12, 52% of messages got an answer.' }],
+      ringDash: `stroke-dashoffset:${333 - 333 * goalPctV}`, goalPct: pctS(goalPctV),
+      goals: [
+        { label: 'Won', text: `${s.slow ? 31 : 44} of 60`, w: `transform:scaleX(${s.slow ? 0.52 : 0.73})`, cls: 'gb' },
+        { label: 'Calls held', text: `${s.slow ? 212 : 268} of 300`, w: `transform:scaleX(${s.slow ? 0.71 : 0.89})`, cls: 'gb' },
+        { label: 'Follow-ups on time', text: s.slow ? '78% of 90%' : '93% of 90%', w: `transform:scaleX(${s.slow ? 0.87 : 1})`, cls: s.slow ? 'gb' : 'gb ok2' },
+      ],
+      dscrimCls: 'dscrim' + (s.drill ? ' on' : ''), dsheetCls: 'dsheet' + (s.drill ? ' on' : ''),
+      closeDrill: () => this.setState({ drill: null }),
+      dTitle: titles[s.drill] || 'The leads', dCount: fmt(dCount),
+      dFacts: [R.words, 'All pipelines', 'Everyone’s leads', `${fmt(dCount)} leads`],
+      dRows: PEOPLE.map((p, i) => ({ i: `--i:${i}`, ini: p[0].split(' ').map((w) => w[0]).join(''), name: p[0], sub: `${p[2]} · won ${['today', 'yesterday', 'Oct 1', 'Sep 30', 'Sep 29', 'Sep 28'][i % 6]}`, stage: p[1], dot: `background:${STAGE_C[p[1]]}`, val: inr(p[3]) })),
+    };
+  }
+}

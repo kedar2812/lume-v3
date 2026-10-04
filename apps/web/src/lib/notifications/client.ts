@@ -35,4 +35,11 @@ export const notificationsClient = {
   read: async (ids: number[]) =>
     said(await api.post<{ unread: number }>("/api/v1/notifications/read", { ids })),
   readAll: async () => said(await api.post<{ unread: number }>("/api/v1/notifications/read", { all: true })),
+  /** "Clear read": every read notification leaves the list; the ids are kept for Undo. */
+  clearRead: () => api.post<{ cleared: number[] }>("/api/v1/notifications/clear-read"),
+  undoClear: (ids: number[]) =>
+    api.post<{ restored: number }>("/api/v1/notifications/clear-read/undo", { ids }),
 };
+
+/** Asks the bell to open the notification centre (Search's "Open notifications"; the top bar listens). */
+export const OPEN_NOTIFICATIONS = "lume:open-notifications";

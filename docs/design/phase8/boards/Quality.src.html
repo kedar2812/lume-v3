@@ -1,0 +1,121 @@
+@@META
+{"title":"Analytics · templates and data","active":"analytics","crumb":"Analytics","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.qg{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px}
+.qg2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
+.tt2{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.tt2 th{font-size:11.5px;font-weight:600;color:var(--text-3);text-align:right;padding:0 10px 8px;white-space:nowrap}
+.tt2 th:first-child,.tt2 td:first-child{text-align:left}
+.tt2 td{height:56px;padding:0 10px;text-align:right;border-top:.5px solid var(--line);font-variant-numeric:tabular-nums}
+.tt2 tr:hover td{background:var(--hover)}
+.tpl{display:flex;align-items:center;gap:10px;min-width:0}
+.tpl .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink);flex:none}
+.tpl .ico svg{width:15px;height:15px}
+.tpl b{display:block;font-weight:600}
+.tpl span{font-size:11.5px;color:var(--text-3)}
+.rr{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}
+.rr .tr9{width:96px;height:8px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.rr .tr9 i{display:block;height:100%;border-radius:4px;transform-origin:0 50%;animation:grow 1s var(--spring) both;animation-delay:calc(var(--i) * 70ms + .3s)}
+@keyframes grow{from{transform:scaleX(0)}to{transform:none}}
+.rr b{min-width:40px;text-align:right}
+.wins{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:7px;background:var(--good-soft);color:var(--good-ink);font-weight:700}
+.wins.zero{background:var(--sunk);color:var(--text-3);font-weight:600}
+.note2{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-3);margin-top:12px;line-height:1.45}
+.note2 svg{width:14px;height:14px;flex:none;margin-top:1px}
+/* data quality */
+.readable{display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;align-items:center}
+.rring{position:relative;width:132px;height:132px}
+.rring svg{width:132px;height:132px;transform:rotate(-90deg)}
+.rring circle{fill:none;stroke-width:12;stroke-linecap:round}
+.rring .bg{stroke:var(--sunk)}
+.rring .fg{stroke:url(#rgrad);stroke-dasharray:364;stroke-dashoffset:364;animation:ringin 1.6s var(--spring) .3s forwards}
+@keyframes ringin{to{stroke-dashoffset:8}}
+.rring .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.rring .ctr b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.rring .ctr span{font-size:11px;color:var(--text-3)}
+.qt{appearance:none;border:0;font:inherit;color:inherit;text-align:left;border-radius:16px;background:var(--sheet);box-shadow:var(--shadow-sheet);padding:14px;cursor:pointer;transition:transform .5s var(--spring),box-shadow .3s;animation:cardin .8s var(--spring) both;animation-delay:calc(var(--i) * 60ms + .2s)}
+.qt:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.qt .ic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;margin-bottom:10px}
+.qt .ic svg{width:16px;height:16px}
+.qt b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.qt span.l{font-size:12.5px;color:var(--text-2);font-weight:550}
+.qt span.s{display:block;font-size:11.5px;color:var(--text-3);margin-top:6px}
+.age{display:flex;align-items:flex-end;gap:10px;height:118px;margin-top:4px}
+.ab{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.ab i{width:100%;border-radius:8px 8px 3px 3px;transform-origin:50% 100%;animation:rise4 .9s var(--spring) both;animation-delay:calc(var(--i) * 90ms + .3s)}
+@keyframes rise4{from{transform:scaleY(0)}to{transform:none}}
+.ab b{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.ab span{font-size:11px;color:var(--text-3)}
+.imp{display:flex;flex-direction:column;gap:6px}
+.imr{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 10px;border-radius:11px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line);font-size:12.5px}
+.imr b{font-weight:600}
+.imr span{color:var(--text-3);font-size:11.5px}
+.imr em{font-style:normal;font-weight:700;font-variant-numeric:tabular-nums}
+.imr em.bad{color:var(--bad-ink)}
+.imr em.ok{color:var(--good-ink)}
+@@BODY
+{{ABAR:Templates & data}}
+<div class="ascroll">
+  <div class="qg">
+    <section class="ac in" style="--i:0">
+      <div class="hd"><div><h3>Templates</h3><div class="sub2">Messages sent {{rangeLower}}, the replies logged within 3 days, and wins within 30</div></div></div>
+      <table class="tt2"><thead><tr><th>Template</th><th>Sent</th><th>Replies</th><th>Reply rate</th><th>Won within 30 days</th></tr></thead>
+        <tbody><sc-for list="{{tpls}}" as="t" hint-placeholder-count="6"><tr><td><div class="tpl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></span><div><b>{{t.name}}</b><span>{{t.use}}</span></div></div></td><td>{{t.sent}}</td><td>{{t.replies}}</td><td><span class="rr"><span class="tr9"><i style="{{t.w}}"></i></span><b>{{t.rate}}</b></span></td><td><span class="{{t.winCls}}">{{t.wins}}</span></td></tr></sc-for></tbody></table>
+      <div class="note2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>A reply counts when someone logs it on the lead, so these are only as good as your team's logging. A win counts for the last template sent before it.</span></div>
+    </section>
+    <section class="ac in" style="--i:1">
+      <div class="hd"><div><h3>Numbers LUME can read</h3><div class="sub2">Every lead's phone, across the business</div></div></div>
+      <div class="readable">
+        <div class="rring"><svg viewBox="0 0 132 132" aria-hidden="true"><defs><linearGradient id="rgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ab8ff"/><stop offset="1" stop-color="#2a5bff"/></linearGradient></defs><circle class="bg" cx="66" cy="66" r="58"></circle><circle class="fg" cx="66" cy="66" r="58"></circle></svg><div class="ctr"><div><b>97.8%</b><span>readable</span></div></div></div>
+        <div class="imp">
+          <div class="imr"><div><b>Need a country</b><span>Saved without one; one click fixes many</span></div><em class="bad">12</em><a class="drill" href="#">Fix</a></div>
+          <div class="imr"><div><b>Can't be read</b><span>Too short, or letters in them</span></div><em class="bad">31</em><a class="drill" href="#">See</a></div>
+          <div class="imr"><div><b>Duplicates merged</b><span>Same phone or email, joined into one</span></div><em class="ok">148</em><span></span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="qg2">
+    <sc-for list="{{tiles}}" as="q" hint-placeholder-count="2"><button type="button" class="qt" style="{{q.i}}"><span class="{{q.ic}}"><sc-if value="{{q.iUser}}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M19 8v6M22 11h-6"/></svg></sc-if><sc-if value="{{q.iWarn}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/></svg></sc-if></span><span class="l">{{q.label}}</span><b>{{q.v}}</b><span class="s">{{q.sub}}</span></button></sc-for>
+    <section class="ac in" style="--i:4;grid-column:span 2">
+      <div class="hd"><div><h3>Nobody yet, by how long</h3><div class="sub2">Leads without an owner, and how long they've waited</div></div></div>
+      <div class="age"><sc-for list="{{ages}}" as="a" hint-placeholder-count="4"><div class="ab" style="{{a.i}}"><b>{{a.n}}</b><i style="{{a.h}}"></i><span>{{a.l}}</span></div></sc-for></div>
+    </section>
+  </div>
+  <section class="ac in" style="--i:5;margin-top:14px">
+    <div class="hd"><div><h3>Imports and sources</h3><div class="sub2">What didn't come in cleanly {{rangeLower}}</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px"><sc-for list="{{imports}}" as="m" hint-placeholder-count="3"><div class="imr"><div><b>{{m.name}}</b><span>{{m.sub}}</span></div><em class="{{m.cls}}">{{m.v}}</em><span>{{m.tail}}</span></div></sc-for></div>
+  </section>
+</div>
+@@SCRIPT
+const TPLS = [
+  ['First hello', 'Sent to new leads', 1840, 0.47, 61],
+  ['After the webinar', 'Webinar leads', 412, 0.58, 29],
+  ['Day 3 nudge', 'No reply after 3 days', 936, 0.29, 22],
+  ['Price and packages', 'After a call', 288, 0.52, 34],
+  ['We miss you', 'Lost leads, 30 days on', 520, 0.14, 9],
+  ['Call reminder', 'An hour before a call', 604, 0.08, 0],
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { themePick: 'auto', range: '30d', compare: true }; }
+  renderVals() {
+    const s = this.state;
+    const R = RANGES.find((x) => x.id === s.range);
+    const best = Math.max(...TPLS.map((t) => t[3]));
+    return {
+      ...themeVals(this), ...rangeVals(this), filterN: '0',
+      rangeLower: R.words.toLowerCase().replace(/^last/, 'in the last'),
+      tpls: TPLS.map((t, i) => ({ name: t[0], use: t[1], sent: fmt(t[2]), replies: fmt(t[2] * t[3]), rate: pctS(t[3]), w: `width:${(t[3] / best) * 100}%;background:${t[3] === best ? 'linear-gradient(90deg,#18a566,#4fd69c)' : 'linear-gradient(90deg,#2a5bff,#5ab8ff)'};--i:${i}`, wins: t[4] ? `${t[4]} won` : 'None yet', winCls: 'wins' + (t[4] ? '' : ' zero') })),
+      tiles: [
+        { i: '--i:2', ic: 'ic blue', iUser: true, iWarn: false, label: 'Nobody yet', v: '6', sub: 'The oldest has waited 2 hours' },
+        { i: '--i:3', ic: 'ic amber', iUser: false, iWarn: true, label: 'Sources needing a look', v: '1', sub: 'Webinar sheet: a column was renamed' },
+      ],
+      ages: [['Under 1 hour', 3, '#5ab8ff'], ['1 – 24 hours', 2, '#2a5bff'], ['1 – 7 days', 1, '#f2a20c'], ['Over a week', 0, '#e5484d']].map((a, i) => ({ i: `--i:${i}`, l: a[0], n: String(a[1]), h: `height:${Math.max(4, (a[1] / 3) * 100)}%;background:${a[2]}${a[1] ? '' : ';opacity:.25'}` })),
+      imports: [
+        { name: 'Webinar sheet', sub: 'Paused: "Phone" was renamed', v: 'Paused', cls: 'bad', tail: '' },
+        { name: 'Website form', sub: 'Webhook · 1,236 received', v: '4', cls: 'bad', tail: 'rejected' },
+        { name: 'CSV import, Sep 28', sub: '2,400 rows', v: '2,391', cls: 'ok', tail: 'imported' },
+      ],
+    };
+  }
+}

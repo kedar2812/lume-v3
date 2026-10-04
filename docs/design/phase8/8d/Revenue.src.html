@@ -1,0 +1,164 @@
+@@META
+{"title":"Analytics · revenue","active":"analytics","crumb":"Analytics","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"view":{"editor":"enum","options":["this month, against the goal","by month"],"default":"this month, against the goal","section":"Revenue"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.rg{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}
+.big{display:flex;align-items:baseline;gap:10px;margin:2px 0 12px}
+.big b{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.big span{font-size:13px;color:var(--text-3)}
+.vseg2 button{height:28px;font-size:12.5px;padding:0}
+.goalln{stroke:var(--good);stroke-width:1.5;stroke-dasharray:5 5;fill:none}
+.paceln{stroke:var(--accent);stroke-width:2;stroke-dasharray:2 5;stroke-linecap:round;fill:none;opacity:.7}
+.goaltag{font-size:11.5px;font-weight:650;fill:var(--good-ink)}
+.today{stroke:var(--text-3);stroke-width:1;stroke-dasharray:2 3}
+.todaytag{font-size:11px;fill:var(--text-3)}
+.mbar{transition:y .9s var(--spring),height .9s var(--spring);transform-origin:50% 100%}
+.mbar.in{animation:rise3 .9s var(--spring) both;animation-delay:calc(var(--i) * 45ms + .2s)}
+@keyframes rise3{from{transform:scaleY(0)}to{transform:none}}
+/* the donut, sweeping round */
+.dn{display:grid;grid-template-columns:190px minmax(0,1fr);gap:16px;align-items:center}
+.dnw{position:relative;width:190px;height:190px}
+.dnw svg{width:190px;height:190px;transform:rotate(-90deg)}
+.dnw circle{fill:none;stroke-width:24;transition:stroke-width .3s var(--spring),opacity .3s}
+.dnw circle.sl{stroke-dashoffset:var(--o);animation:sweep2 1.3s cubic-bezier(.3,.7,.3,1) both;animation-delay:calc(var(--i) * 120ms + .2s)}
+@keyframes sweep2{from{stroke-dasharray:0 600}}
+.dnw circle.sl.hot{stroke-width:30}
+.dnw circle.sl.dim{opacity:.25}
+.dnw .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.dnw .ctr b{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em}
+.dnw .ctr span{font-size:11.5px;color:var(--text-3)}
+.dl{display:flex;flex-direction:column;gap:4px}
+.dlr{appearance:none;border:0;background:transparent;font:inherit;color:inherit;text-align:left;display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border-radius:10px;cursor:pointer;font-size:13px;transition:background .15s}
+.dlr:hover,.dlr.hot{background:var(--hover)}
+.dlr i{width:10px;height:10px;border-radius:3px}
+.dlr b{font-weight:600}
+.dlr span.s{display:block;font-size:11.5px;color:var(--text-3)}
+.dlr em{font-style:normal;font-weight:650;font-variant-numeric:tabular-nums;text-align:right}
+.dlr em small{display:block;font-size:11px;color:var(--text-3);font-weight:500}
+/* sources: what each brings, and what it costs */
+.st{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.st th{font-size:11.5px;font-weight:600;color:var(--text-3);text-align:right;padding:0 12px 8px;white-space:nowrap}
+.st th:first-child,.st td:first-child{text-align:left}
+.st td{height:54px;padding:0 12px;text-align:right;border-top:.5px solid var(--line);font-variant-numeric:tabular-nums}
+.st tr:hover td{background:var(--hover)}
+.st .src{display:flex;align-items:center;gap:10px}
+.st .src .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700}
+.st .src b{font-weight:600;display:block}
+.st .src span{font-size:11.5px;color:var(--text-3)}
+.st .bw{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}
+.st .bw .tr6{width:90px;height:7px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.st .bw .tr6 i{display:block;height:100%;border-radius:4px;background:var(--accent);transform-origin:0 50%;animation:grow .9s var(--spring) both;animation-delay:calc(var(--i) * 70ms + .3s)}
+@keyframes grow{from{transform:scaleX(0)}to{transform:none}}
+.st .roi{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:7px;font-weight:700}
+.st .roi.hi{background:var(--good-soft);color:var(--good-ink)}
+.st .roi.lo{background:var(--bad-soft);color:var(--bad-ink)}
+.st .roi.mid{background:var(--sunk);color:var(--text-2)}
+.addsp{appearance:none;border:0;background:transparent;font:inherit;font-size:12px;font-weight:600;color:var(--accent-ink);cursor:pointer;padding:3px 7px;border-radius:7px}
+.addsp:hover{background:var(--accent-soft)}
+@@BODY
+{{ABAR:Revenue & sources}}
+<div class="ascroll">
+  <div class="rg">
+    <section class="ac in" style="--i:0">
+      <div class="hd"><div><h3>{{chartTitle}}</h3><div class="sub2">{{chartSub}}</div></div>
+        <div class="r"><span class="seg vseg2"><span class="knob" style="{{vKnob}}"></span><button type="button" class="{{vGoal}}" style="width:96px" onClick="{{toGoal}}">This month</button><button type="button" class="{{vMonth}}" style="width:84px" onClick="{{toMonth}}">By month</button></span></div></div>
+      <div class="big"><b>{{bigV}}</b><span class="{{bigChip}}">{{bigDelta}}</span><span>{{bigWords}}</span></div>
+      <div class="chart" style="height:250px">
+        <svg viewBox="0 0 700 250" preserveAspectRatio="none" style="height:250px" aria-label="Revenue won">
+          <defs><linearGradient id="revfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a5bff" stop-opacity=".32"/><stop offset="1" stop-color="#2a5bff" stop-opacity="0"/></linearGradient><linearGradient id="barfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5ab8ff"/><stop offset="1" stop-color="#2a5bff"/></linearGradient></defs>
+          <sc-for list="{{gridY}}" as="y" hint-placeholder-count="4"><line class="gl" x1="0" x2="700" y1="{{y.y}}" y2="{{y.y}}"></line><text class="ax" x="0" y="{{y.ty}}">{{y.label}}</text></sc-for>
+          <sc-if value="{{goalView}}" hint-placeholder-val="{{ true }}">
+            <path class="goalln" d="{{goalD}}"></path><text class="goaltag" x="694" y="{{goalTy}}" text-anchor="end">Goal {{goalV}}</text>
+            <path class="ar fadein" d="{{areaD}}" fill="url(#revfill)"></path>
+            <path class="ln draw" d="{{lineD}}" stroke="#2a5bff"></path>
+            <path class="paceln" d="{{paceD}}"></path>
+            <line class="today" x1="{{todayX}}" x2="{{todayX}}" y1="10" y2="226"></line><text class="todaytag" x="{{todayX}}" y="8" text-anchor="middle">Today</text>
+          </sc-if>
+          <sc-if value="{{monthView}}" hint-placeholder-val="{{ false }}"><sc-for list="{{bars}}" as="b" hint-placeholder-count="12"><rect class="mbar in" x="{{b.x}}" y="{{b.y}}" width="{{b.w}}" height="{{b.h}}" rx="6" fill="{{b.fill}}" style="{{b.i}}"></rect></sc-for></sc-if>
+          <sc-for list="{{xl}}" as="x" hint-placeholder-count="6"><text class="ax" x="{{x.x}}" y="246" text-anchor="middle">{{x.label}}</text></sc-for>
+        </svg>
+      </div>
+    </section>
+    <section class="ac in" style="--i:1">
+      <div class="hd"><div><h3>By package</h3><div class="sub2">Revenue won {{rangeLower}}</div></div></div>
+      <div class="dn">
+        <div class="dnw"><svg viewBox="0 0 190 190" aria-hidden="true"><circle cx="95" cy="95" r="80" stroke="var(--sunk)"></circle><sc-for list="{{slices}}" as="d" hint-placeholder-count="4"><circle class="{{d.cls}}" cx="95" cy="95" r="80" stroke="{{d.color}}" style="{{d.st}}"></circle></sc-for></svg><div class="ctr"><div><b>{{hotV}}</b><span>{{hotL}}</span></div></div></div>
+        <div class="dl"><sc-for list="{{pkgs}}" as="p" hint-placeholder-count="4"><button type="button" class="{{p.cls}}" onPointerEnter="{{p.on}}" onPointerLeave="{{p.off}}" onFocus="{{p.on}}" onBlur="{{p.off}}"><i style="{{p.sw}}"></i><div><b>{{p.name}}</b><span class="s">{{p.deals}}</span></div><em>{{p.v}}<small>{{p.share}}</small></em></button></sc-for></div>
+      </div>
+      <div class="ins" style="margin-top:14px"><span class="spk"><img src="/_blob/LOGO" alt=""></span><div><b>Growth is a third of deals, and 43% of revenue</b><p>Leads from referrals pick it 2 times as often as anyone else.</p></div></div>
+    </section>
+  </div>
+  <section class="ac in" style="--i:2;margin-top:14px">
+    <div class="hd"><div><h3>Sources</h3><div class="sub2">What each source brought {{rangeLower}}, and what it cost, where you've entered a monthly spend</div></div></div>
+    <table class="st"><thead><tr><th>Source</th><th>Leads</th><th>Won</th><th>Conversion</th><th>Revenue won</th><th>Spend a month</th><th>Cost per lead</th><th>Revenue per ₹1 spent</th></tr></thead>
+      <tbody><sc-for list="{{sources}}" as="s" hint-placeholder-count="6"><tr style="{{s.i}}"><td><div class="src"><span class="ico" style="{{s.bg}}">{{s.ab}}</span><div><b>{{s.name}}</b><span>{{s.kind}}</span></div></div></td><td>{{s.leads}}</td><td>{{s.won}}</td><td><span class="bw">{{s.conv}}<span class="tr6"><i style="{{s.cw}}"></i></span></span></td><td><b>{{s.rev}}</b></td><td><sc-if value="{{s.hasSpend}}" hint-placeholder-val="{{ true }}">{{s.spend}}</sc-if><sc-if value="{{s.noSpend}}" hint-placeholder-val="{{ false }}"><button type="button" class="addsp">Add spend</button></sc-if></td><td>{{s.cpl}}</td><td><sc-if value="{{s.hasSpend}}" hint-placeholder-val="{{ true }}"><span class="{{s.roiCls}}">{{s.roi}}</span></sc-if><sc-if value="{{s.noSpend}}" hint-placeholder-val="{{ false }}"><span class="cap">—</span></sc-if></td></tr></sc-for></tbody></table>
+  </section>
+</div>
+@@SCRIPT
+const PKGS = [['Growth', '#2a5bff', 76, 2940000], ['Starter', '#5ab8ff', 112, 1680000], ['Premium', '#18a566', 21, 1890000], ['Add-ons', '#f2a20c', 23, 370000]];
+const SOURCES = [
+  ['Instagram ads', 'Paid · Meta', 'IG', '#2a5bff', 1784, 92, 2960000, 180000],
+  ['Website form', 'Webhook', 'W', '#5ab8ff', 1236, 71, 2510000, 0],
+  ['Referrals', 'Manual', 'R', '#18a566', 418, 41, 1990000, 0],
+  ['Webinars', 'Google Sheet', 'Wb', '#f2a20c', 342, 32, 1460000, 45000],
+  ['Google ads', 'Paid · Google', 'G', '#e35d8f', 296, 9, 290000, 120000],
+  ['Calendly', 'Bookings', 'C', '#8a94a6', 128, 18, 690000, null],
+];
+const W = 700, H = 226;
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { themePick: 'auto', range: '30d', compare: true, hot: null }; }
+  renderVals() {
+    const s = this.state;
+    const R = RANGES.find((x) => x.id === s.range);
+    const view = s.view ?? (this.props.view === 'by month' ? 'month' : 'goal');
+    // this month: cumulative revenue day by day, against a straight line to the goal
+    const daysIn = 31, today = 3;
+    const cum = [];
+    // October so far is 3 days; the chart shows the month to date and the pace to the end
+    const sofar = [0, 190000, 420000, 640000];
+    for (let i = 0; i <= today; i++) cum.push(sofar[i]);
+    const goal = 6200000, perDay = sofar[today] / today;
+    const max = niceMax(goal * 1.15);
+    const xOf = (d) => 4 + (d / daysIn) * (W - 8);
+    const yOf = (v) => H - 4 - (v / max) * (H - 12);
+    const pts = cum.map((v, i) => [xOf(i), yOf(v)]);
+    const line = smooth(pts);
+    const projEnd = perDay * daysIn;
+    // the 12 months, as bars
+    const months = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
+    const mv = [3.1, 3.6, 2.9, 3.8, 4.2, 4.0, 4.9, 5.3, 5.1, 5.9, 6.6, 1.01].map((v) => v * 1e6);
+    const mmax = niceMax(Math.max(...mv) * 1.1);
+    const bw = (W - 20) / 12 - 14;
+    const total = PKGS.reduce((a, p) => a + p[3], 0);
+    const sl = donut(PKGS.map((p) => p[3]), 80);
+    const hot = s.hot;
+    return {
+      ...themeVals(this), ...rangeVals(this), filterN: '0',
+      rangeLower: R.words.toLowerCase().replace(/^last/, 'in the last'),
+      vKnob: view === 'goal' ? 'width:96px;transform:translateX(0)' : 'width:84px;transform:translateX(96px)',
+      vGoal: view === 'goal' ? 'on' : '', vMonth: view === 'month' ? 'on' : '',
+      toGoal: () => this.setState({ view: 'goal' }), toMonth: () => this.setState({ view: 'month' }),
+      goalView: view === 'goal', monthView: view === 'month',
+      chartTitle: view === 'goal' ? 'October, against the goal' : 'Revenue won, month by month',
+      chartSub: view === 'goal' ? 'Won so far, and where this pace would end the month' : 'The last 12 months; October so far',
+      bigV: view === 'goal' ? inr(sofar[today]) : inrShort(mv.slice(0, 11).reduce((a, b) => a + b, 0)),
+      bigChip: 'tchip good', bigDelta: view === 'goal' ? 'On pace for ' + inrShort(projEnd) : '+31%',
+      bigWords: view === 'goal' ? `of ${inrShort(goal)} · 3 days in` : 'over the 11 months before October, against the year before',
+      gridY: [0, 0.25, 0.5, 0.75].map((f) => { const y = 8 + f * (H - 12); return { y: y.toFixed(1), ty: (y - 4).toFixed(1), label: inrShort((view === 'goal' ? max : mmax) * (1 - f)) }; }),
+      goalD: `M${xOf(0)},${yOf(0)} L${xOf(daysIn)},${yOf(goal)}`, goalTy: (yOf(goal) - 6).toFixed(1), goalV: inrShort(goal),
+      lineD: line, areaD: `${line} L${xOf(today)},${H} L${xOf(0)},${H} Z`,
+      paceD: `M${xOf(today)},${yOf(sofar[today])} L${xOf(daysIn)},${yOf(projEnd)}`,
+      todayX: xOf(today).toFixed(1),
+      bars: mv.map((v, i) => { const h = (v / mmax) * (H - 12); return { x: (10 + i * ((W - 20) / 12) + 7).toFixed(1), w: bw.toFixed(1), y: (H - 4 - h).toFixed(1), h: h.toFixed(1), fill: i === 11 ? 'rgba(42,91,255,.35)' : 'url(#barfill)', i: `--i:${i}` }; }),
+      xl: view === 'goal' ? [1, 8, 15, 22, 29].map((d) => ({ x: xOf(d).toFixed(1), label: `Oct ${d}` })) : months.map((m, i) => ({ x: (10 + i * ((W - 20) / 12) + 7 + bw / 2).toFixed(1), label: m })),
+      slices: PKGS.map((p, i) => ({ color: p[1], cls: 'sl' + (hot === i ? ' hot' : hot != null ? ' dim' : ''), st: `stroke-dasharray:${sl[i].dash};--o:${sl[i].off};stroke-dashoffset:${sl[i].off};--i:${i}` })),
+      hotV: hot == null ? inrShort(total) : inrShort(PKGS[hot][3]), hotL: hot == null ? 'won in all' : `${PKGS[hot][0]} · ${pctS(PKGS[hot][3] / total)}`,
+      pkgs: PKGS.map((p, i) => ({ cls: 'dlr' + (hot === i ? ' hot' : ''), sw: `background:${p[1]}`, name: p[0], deals: `${p[2]} deals · avg ${inrShort(p[3] / p[2])}`, v: inrShort(p[3]), share: pctS(p[3] / total), on: () => this.setState({ hot: i }), off: () => this.setState({ hot: null }) })),
+      sources: SOURCES.map((x, i) => {
+        const [name, kind, ab, color, leads, won, rev, spend] = x;
+        const has = spend !== null && spend > 0;
+        const roi = has ? rev / spend : 0;
+        return { i: `--i:${i}`, name, kind, ab, bg: `background:${color}`, leads: fmt(leads), won: fmt(won), conv: pctS(won / leads, 1), cw: `width:${Math.min(100, (won / leads / 0.15) * 100)}%;--i:${i}`, rev: inrShort(rev), hasSpend: has || spend === 0, noSpend: spend === null, spend: spend === 0 ? 'Free' : inr(spend), cpl: has ? inr(spend / leads) : spend === 0 ? '₹0' : '—', roi: has ? `₹${roi.toFixed(1).replace(/\.0$/, '')}` : 'Free', roiCls: 'roi ' + (!has ? 'hi' : roi >= 8 ? 'hi' : roi < 3 ? 'lo' : 'mid') };
+      }),
+    };
+  }
+}

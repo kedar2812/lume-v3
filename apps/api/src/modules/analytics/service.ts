@@ -252,9 +252,9 @@ export async function cycleDays(req: FastifyRequest, q: AnalyticsQuery, from: Da
   return r.rows[0]?.m ?? null;
 }
 
-const rate = (a: number, b: number) => (b > 0 ? a / b : null);
+export const rate = (a: number, b: number) => (b > 0 ? a / b : null);
 
-function tile(
+export function tile(
   id: MetricId,
   value: number | null,
   previous: number | null,

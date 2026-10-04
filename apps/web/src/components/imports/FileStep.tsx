@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { INTAKE_LIMITS } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
+import { ScrollRail } from "@/components/ui/ScrollRail";
 import { importsClient } from "@/lib/imports/client";
 import type { Delimiter, DraftView, Encoding } from "@/lib/imports/types";
 import s from "./imports.module.css";
@@ -79,6 +80,7 @@ export function FileStep({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [over, setOver] = useState(false);
+  const sample = useRef<HTMLDivElement>(null);
 
   const take = async (file: File | undefined) => {
     if (!file || busy) return;
@@ -203,7 +205,9 @@ export function FileStep({
                 matches every row to the lead it made, so nothing is duplicated.
               </p>
             )}
-            <div className={s.sampleWrap}>
+            {/* Every column of the file, across: the rail on top shows there are more and moves to them. */}
+            <ScrollRail target={sample} label="Scroll across your columns" className={s.sampleRail} />
+            <div className={s.sampleWrap} ref={sample}>
               <table className={s.sample}>
                 <caption className={s.srOnly}>The first rows, as LUME read them</caption>
                 <thead>

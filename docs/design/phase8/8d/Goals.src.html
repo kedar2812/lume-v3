@@ -1,0 +1,323 @@
+@@META
+{"title":"Settings · goals","active":"settings","crumb":"Settings","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"scene":{"editor":"enum","options":["goals set","first time"],"default":"goals set","section":"Jump to"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.sbody{flex:1;min-height:0;overflow:auto;padding:26px 28px 40px}
+.sl{display:grid;grid-template-columns:196px minmax(0,1fr);gap:28px;align-items:start}
+.snav{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.snav .gh{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:12px 10px 4px}
+.snav a{padding:7px 10px;border-radius:9px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;display:flex;align-items:center;gap:8px}
+.snav a:hover{background:var(--hover);color:var(--text)}
+.snav a.on{background:var(--raised);color:var(--text);box-shadow:0 0 0 .5px var(--line-2)}
+.snav a .new{margin-left:auto;font-size:10.5px;font-weight:650;color:var(--accent-ink);background:var(--accent-soft);border-radius:6px;padding:1px 6px}
+.phead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
+.phead h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.022em;line-height:1.15}
+.phead p{margin:6px 0 0;max-width:62ch;font-size:14px;color:var(--text-2)}
+.pact{display:flex;align-items:center;gap:10px;flex:none}
+.mstep{display:inline-flex;align-items:center;gap:2px;height:34px;padding:0 4px;border-radius:10px;background:var(--sheet);box-shadow:0 0 0 .5px var(--line-2),0 1px 2px rgba(12,18,32,.05)}
+.mstep b{font-size:13px;font-weight:600;min-width:118px;text-align:center;font-variant-numeric:tabular-nums}
+.mstep .ibtn{width:28px;height:28px}
+.gl2{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}
+.gcol{display:flex;flex-direction:column;gap:16px;min-width:0}
+.gcard{border-radius:16px;background:var(--sheet);box-shadow:var(--shadow-sheet);padding:16px 18px 6px}
+.gcard .ch{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.gcard .ch h2{margin:0;font-size:15px;font-weight:650;letter-spacing:-.01em}
+.gcard .ch .cap{margin-left:auto}
+.grow{display:grid;grid-template-columns:minmax(0,1fr) 196px 236px;gap:14px;align-items:center;padding:11px 0;border-top:.5px solid var(--line)}
+.grow:first-of-type{border-top:0}
+.grow .mn b{display:block;font-size:13.5px;font-weight:600}
+.grow .mn span{display:block;font-size:12px;color:var(--text-3);margin-top:1px}
+.ginp{position:relative;display:flex;align-items:center}
+.ginp .pre,.ginp .suf{position:absolute;font-size:13.5px;color:var(--text-3);pointer-events:none;font-variant-numeric:tabular-nums}
+.ginp .pre{left:12px}
+.ginp .suf{right:12px}
+.ginp .input{height:38px;font-variant-numeric:tabular-nums;font-weight:600;text-align:right;padding-right:12px}
+.ginp.has-pre .input{padding-left:26px}
+.ginp.has-suf .input{padding-right:30px}
+.ginp .input::placeholder{font-weight:500;color:var(--text-3)}
+.ghint{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ghint .cap b{color:var(--text-2);font-weight:600}
+.qchip{appearance:none;border:0;font:inherit;height:24px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:600;color:var(--accent-ink);background:var(--accent-soft);cursor:pointer;transition:transform .1s,background .15s;white-space:nowrap}
+.qchip:hover{background:rgba(42,91,255,.14)}
+.qchip:active{transform:scale(.96)}
+.ptab{width:100%;border-collapse:collapse;font-size:13px}
+.ptab th{font-size:11.5px;font-weight:600;color:var(--text-3);text-align:right;padding:4px 6px 8px}
+.ptab th:first-child{text-align:left}
+.ptab td{padding:7px 6px;border-top:.5px solid var(--line);vertical-align:middle}
+.ptab td:first-child{width:34%}
+.who{display:flex;align-items:center;gap:10px}
+.who b{display:block;font-size:13px;font-weight:600}
+.who span{display:block;font-size:11.5px;color:var(--text-3)}
+.ptab .ginp .input{height:34px;font-size:13px}
+.ptab .lm2{display:block;text-align:right;font-size:11px;color:var(--text-3);margin-top:3px;font-variant-numeric:tabular-nums}
+.saved{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ok-ink)}
+.saved svg{width:14px;height:14px}
+/* the preview: what Analytics will show, as you type */
+.prev{position:sticky;top:0;display:flex;flex-direction:column;gap:12px}
+.pv{border-radius:16px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line);padding:14px}
+.pv .eyebrow{display:block;margin-bottom:10px}
+.pvc{border-radius:14px;background:var(--sheet);box-shadow:var(--shadow-sheet);padding:14px}
+.pvc h4{margin:0 0 2px;font-size:13px;font-weight:650}
+.pvc .sub3{font-size:11.5px;color:var(--text-3);margin-bottom:12px}
+.pgoal{display:flex;align-items:center;gap:14px}
+.pring{position:relative;width:92px;height:92px;flex:none}
+.pring svg{width:92px;height:92px;transform:rotate(-90deg)}
+.pring circle{fill:none;stroke-width:9;stroke-linecap:round}
+.pring .bg{stroke:var(--sunk)}
+.pring .fg{stroke:url(#pgrad);transition:stroke-dashoffset 1.2s var(--spring)}
+.pring .pace{stroke:var(--accent);stroke-opacity:.22;stroke-dasharray:2 3}
+.pring .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.pring .ctr b{display:block;font-size:19px;font-weight:700;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.pring .ctr span{font-size:10.5px;color:var(--text-3)}
+.pbars{display:flex;flex-direction:column;gap:9px;flex:1;min-width:0}
+.pb .t{display:flex;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:4px}
+.pb .t b{font-weight:600}
+.pb .t span{color:var(--text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pb .tr3{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.pb .tr3 i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),#5ab8ff);transition:width 1s var(--spring)}
+.pb.ok3 .tr3 i{background:linear-gradient(90deg,#18a566,#4fd69c)}
+.pace2{margin-top:12px;padding-top:10px;border-top:.5px solid var(--line);font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:baseline}
+.pace2 b{color:var(--text);font-variant-numeric:tabular-nums}
+.mail{font-size:12.5px;line-height:1.55;color:var(--text-2)}
+.mail b{color:var(--text);font-weight:600}
+.mail .ml{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:.5px dashed var(--line-2)}
+.mail .ml:first-child{border-top:0}
+.foot2{font-size:12px;color:var(--text-3);line-height:1.5;display:flex;gap:8px;align-items:flex-start}
+.foot2 svg{width:14px;height:14px;flex:none;margin-top:1px}
+/* first time: one clear start */
+.empty{border-radius:16px;background:var(--sheet);box-shadow:var(--shadow-sheet);padding:28px 28px 26px;display:flex;gap:22px;align-items:center}
+.empty .ring0{width:84px;height:84px;border-radius:50%;flex:none;display:grid;place-items:center;background:radial-gradient(circle at 50% 50%,var(--sheet) 56%,transparent 57%),conic-gradient(var(--accent-soft) 0 100%);box-shadow:inset 0 0 0 .5px var(--line)}
+.empty .ring0 svg{width:28px;height:28px;color:var(--accent)}
+.empty h2{margin:0;font-size:17px;font-weight:650;letter-spacing:-.012em}
+.empty p{margin:5px 0 14px;font-size:13.5px;color:var(--text-2);max-width:56ch}
+.empty .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+@@BODY
+<div class="sbody">
+<div class="sl">
+  <nav class="snav" aria-label="Settings">
+    <a href="#">All settings</a>
+    <span class="gh">Workspace</span>
+    <a href="#">Business</a>
+    <a href="#">Pipeline &amp; stages</a>
+    <a href="#">Fields</a>
+    <a href="#">Follow-ups</a>
+    <a href="#">Messages</a>
+    <a href="#" class="on" aria-current="page">Goals<span class="new">New</span></a>
+    <a href="Spend.dc.html">Sources &amp; spend<span class="new">New</span></a>
+    <a href="#">Integrations</a>
+    <span class="gh">People</span>
+    <a href="#">People</a>
+    <a href="#">Teams</a>
+    <a href="#">Roles &amp; access</a>
+  </nav>
+
+  <section aria-labelledby="gtitle">
+    <header class="phead">
+      <div>
+        <h1 id="gtitle">Goals</h1>
+        <p>What the business, each team and each person aim for. Analytics shows progress and the pace, and the Monday email carries it.</p>
+      </div>
+      <div class="pact">
+        <span class="seg" role="radiogroup" aria-label="Goal period"><span class="knob" style="{{pKnob}}"></span><button type="button" role="radio" aria-checked="{{isMonth}}" class="{{pMonth}}" style="width:74px" onClick="{{pickMonth}}">Month</button><button type="button" role="radio" aria-checked="{{isQuarter}}" class="{{pQuarter}}" style="width:84px" onClick="{{pickQuarter}}">Quarter</button></span>
+        <span class="mstep"><button type="button" class="ibtn" aria-label="Previous period" onClick="{{prev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><b>{{periodWords}}</b><button type="button" class="ibtn" aria-label="Next period" onClick="{{next}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></span>
+      </div>
+    </header>
+
+    <sc-if value="{{first}}" hint-placeholder-val="{{ false }}">
+      <div class="gl2">
+        <div class="gcol">
+          <div class="empty">
+            <div class="ring0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg></div>
+            <div>
+              <h2>Start with one goal</h2>
+              <p>Revenue this month is a good first one. LUME will show how far along you are each day, and whether you're on pace, labelled as an estimate.</p>
+              <div class="row">
+                <button type="button" class="btn pri" onClick="{{startFromLast}}">Set October to September's ₹58.4 L</button>
+                <button type="button" class="btn" onClick="{{startBlank}}">Type my own</button>
+              </div>
+            </div>
+          </div>
+          <div class="foot2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>Goals change no numbers. They're what LUME measures pace against. A sales rep sees their own goals and the business's, never anyone else's.</span></div>
+        </div>
+        <div class="prev">
+          <div class="pv"><span class="eyebrow">On Analytics</span><div class="pvc"><h4>October goals</h4><div class="sub3">Appears here once a goal is set</div><div class="pgoal"><div class="pring"><svg viewBox="0 0 92 92" aria-hidden="true"><circle class="bg" cx="46" cy="46" r="40"></circle></svg><div class="ctr"><div><b>—</b><span>no goal yet</span></div></div></div><div class="pbars"><div class="pb"><div class="t"><b>Revenue won</b><span>₹6.4 L so far</span></div><div class="tr3"><i style="width:0"></i></div></div></div></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{set}}" hint-placeholder-val="{{ true }}">
+      <div class="gl2">
+        <div class="gcol">
+          <section class="gcard" aria-labelledby="gb">
+            <div class="ch"><h2 id="gb">The business</h2><span class="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>{{savedWords}}</span></div>
+            <sc-for list="{{biz}}" as="g" hint-placeholder-count="5">
+              <div class="grow">
+                <div class="mn"><b>{{g.label}}</b><span>{{g.def}}</span></div>
+                <label class="{{g.inpCls}}"><span class="pre">{{g.pre}}</span><input class="input" inputmode="numeric" aria-label="{{g.aria}}" value="{{g.val}}" placeholder="No goal" onInput="{{g.set}}"/><span class="suf">{{g.suf}}</span></label>
+                <div class="ghint"><span class="cap">{{g.lastWord}} <b>{{g.last}}</b></span><button type="button" class="qchip" onClick="{{g.match}}">Same</button><button type="button" class="qchip" onClick="{{g.up10}}">+10%</button></div>
+              </div>
+            </sc-for>
+          </section>
+
+          <section class="gcard" aria-labelledby="gt">
+            <div class="ch"><h2 id="gt">Teams</h2><span class="cap">Optional · each team's leads, credited as Analytics credits them</span></div>
+            <table class="ptab">
+              <thead><tr><th scope="col">Team</th><th scope="col">Won</th><th scope="col">Revenue won</th><th scope="col">Calls held</th></tr></thead>
+              <tbody>
+                <sc-for list="{{teams}}" as="t" hint-placeholder-count="2">
+                  <tr><td><div class="who"><span class="av sm" style="{{t.sw}}">{{t.ini}}</span><div><b>{{t.name}}</b><span>{{t.people}}</span></div></div></td>
+                  <td><label class="ginp has-suf"><input class="input" inputmode="numeric" aria-label="{{t.name}} won goal" value="{{t.won}}" placeholder="—" onInput="{{t.setWon}}"/><span class="suf"></span></label><span class="lm2">Sep: {{t.lwon}}</span></td>
+                  <td><label class="ginp has-pre"><span class="pre">₹</span><input class="input" inputmode="numeric" aria-label="{{t.name}} revenue goal" value="{{t.rev}}" placeholder="—" onInput="{{t.setRev}}"/></label><span class="lm2">Sep: {{t.lrev}}</span></td>
+                  <td><label class="ginp"><input class="input" inputmode="numeric" aria-label="{{t.name}} calls held goal" value="{{t.held}}" placeholder="—" onInput="{{t.setHeld}}"/></label><span class="lm2">Sep: {{t.lheld}}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="gcard" aria-labelledby="gp">
+            <div class="ch"><h2 id="gp">Each person</h2><span class="cap">{{peopleSum}}</span>
+              <button type="button" class="btn sm" onClick="{{shareOut}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg>Share out by September's wins</button></div>
+            <table class="ptab">
+              <thead><tr><th scope="col">Person</th><th scope="col">Won</th><th scope="col">Revenue won</th><th scope="col">Calls held</th></tr></thead>
+              <tbody>
+                <sc-for list="{{people}}" as="p" hint-placeholder-count="5">
+                  <tr><td><div class="who"><span class="av sm" style="{{p.sw}}">{{p.ini}}</span><div><b>{{p.name}}</b><span>{{p.team}}</span></div></div></td>
+                  <td><label class="ginp"><input class="input" inputmode="numeric" aria-label="{{p.name}} won goal" value="{{p.won}}" placeholder="—" onInput="{{p.setWon}}"/></label><span class="lm2">Sep: {{p.lwon}}</span></td>
+                  <td><label class="ginp has-pre"><span class="pre">₹</span><input class="input" inputmode="numeric" aria-label="{{p.name}} revenue goal" value="{{p.rev}}" placeholder="—" onInput="{{p.setRev}}"/></label><span class="lm2">Sep: {{p.lrev}}</span></td>
+                  <td><label class="ginp"><input class="input" inputmode="numeric" aria-label="{{p.name}} calls held goal" value="{{p.held}}" placeholder="—" onInput="{{p.setHeld}}"/></label><span class="lm2">Sep: {{p.lheld}}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </section>
+          <div class="foot2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>Goals change no numbers. They're what LUME measures pace against. A sales rep sees their own goals and the business's, never anyone else's. Each goal saves as you type.</span></div>
+        </div>
+
+        <aside class="prev" aria-label="Preview">
+          <div class="pv">
+            <span class="eyebrow">On Analytics · as you type</span>
+            <div class="pvc">
+              <h4>{{monthName}} goals</h4><div class="sub3">The business, this {{periodNoun}}</div>
+              <div class="pgoal">
+                <div class="pring"><svg viewBox="0 0 92 92" aria-hidden="true"><defs><linearGradient id="pgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ab8ff"/><stop offset="1" stop-color="#2a5bff"/></linearGradient></defs><circle class="bg" cx="46" cy="46" r="40"></circle><circle class="pace" cx="46" cy="46" r="40" style="{{paceArc}}"></circle><circle class="fg" cx="46" cy="46" r="40" style="{{ringArc}}"></circle></svg><div class="ctr"><div><b>{{ringPct}}</b><span>of revenue</span></div></div></div>
+                <div class="pbars"><sc-for list="{{bars}}" as="b" hint-placeholder-count="3"><div class="{{b.cls}}"><div class="t"><b>{{b.label}}</b><span>{{b.text}}</span></div><div class="tr3"><i style="{{b.w}}"></i></div></div></sc-for></div>
+              </div>
+              <div class="pace2"><span>At this pace, {{monthName}} ends at</span><b>{{paceWords}}</b></div>
+            </div>
+          </div>
+          <div class="pv">
+            <span class="eyebrow">In the Monday email</span>
+            <div class="mail">
+              <sc-for list="{{mailRows}}" as="m" hint-placeholder-count="3"><div class="ml"><span>{{m.l}}</span><b>{{m.v}}</b></div></sc-for>
+            </div>
+          </div>
+          <div class="pv">
+            <span class="eyebrow">What Riya sees</span>
+            <div class="pvc" style="display:flex;align-items:center;gap:12px"><span class="av" style="background:#e35d8f">RS</span><div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">Her own: {{riyaWon}}</div><div class="cap">and the business's goals, on My numbers</div></div></div>
+          </div>
+        </aside>
+      </div>
+    </sc-if>
+  </section>
+</div>
+</div>
+@@SCRIPT
+const LAST = { revenue: 5840000, won: 112, held: 141, leads: 4180, ontime: 89 };
+const NOW = { revenue: 640000, won: 9, held: 14, leads: 410, ontime: 92 };
+const TODAY_D = 3, MONTH_D = 31;
+const METRICS = [
+  ['revenue', 'Revenue won', 'Value of leads won in the period', '₹', '', 'Sep:'],
+  ['won', 'Won', 'Leads moved to Won in the period', '', 'leads', 'Sep:'],
+  ['held', 'Calls held', 'Meetings with leads that took place', '', 'calls', 'Sep:'],
+  ['leads', 'New leads', 'Leads that arrived in the period', '', 'leads', 'Sep:'],
+  ['ontime', 'Follow-ups on time', 'Done by their due time, of those due', '', '%', 'Sep:'],
+];
+const TEAMS = [['Inbound', 'IN', '#2a5bff', 'Riya, Dev and Sana', 64, 3310000, 78], ['Field', 'FD', '#18a566', 'Hana and Leo', 48, 2530000, 63]];
+const PEOPLE = [
+  ['Riya Shah', 'RS', '#e35d8f', 'Inbound', 27, 1420000, 31],
+  ['Dev Malhotra', 'DM', '#5ab8ff', 'Inbound', 22, 1110000, 26],
+  ['Sana Qureshi', 'SQ', '#f2a20c', 'Inbound', 15, 780000, 21],
+  ['Hana Ito', 'HI', '#18a566', 'Field', 26, 1450000, 34],
+  ['Leo Martins', 'LM', '#8a94a6', 'Field', 22, 1080000, 29],
+];
+const grp = (n) => Math.round(n).toLocaleString('en-IN');
+const lakh = (n) => n >= 10000000 ? `₹${(n / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr` : `₹${(n / 100000).toFixed(1).replace(/\.0$/, '')} L`;
+const num = (v) => { const n = Number(String(v).replace(/[^0-9.]/g, '')); return Number.isFinite(n) && n > 0 ? n : null; };
+const show = (k, n) => n == null ? '' : (k === 'revenue' ? grp(n) : String(Math.round(n)));
+const C = 2 * Math.PI * 40;
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = { themePick: 'auto', period: 'month', step: 0, started: false,
+      biz: { revenue: 6200000, won: 120, held: 150, leads: 4500, ontime: 90 },
+      teams: { Inbound: { won: 68, rev: 3500000, held: 84 }, Field: { won: 52, rev: 2700000, held: 66 } },
+      people: { 'Riya Shah': { won: 28, rev: 1500000, held: 33 }, 'Dev Malhotra': { won: 24, rev: 1200000, held: 28 }, 'Sana Qureshi': { won: 16, rev: 800000, held: 23 }, 'Hana Ito': { won: 28, rev: 1550000, held: 36 }, 'Leo Martins': { won: 24, rev: 1150000, held: 30 } },
+      saved: 0 };
+  }
+  renderVals() {
+    const s = this.state;
+    const first = (this.props.scene === 'first time') && !s.started;
+    const q = s.period === 'quarter';
+    const months = ['September 2026', 'October 2026', 'November 2026', 'December 2026'];
+    const quarters = ['Jul – Sep 2026', 'Oct – Dec 2026', 'Jan – Mar 2027'];
+    const periodWords = q ? quarters[Math.max(0, Math.min(2, 1 + s.step))] : months[Math.max(0, Math.min(3, 1 + s.step))];
+    const touch = () => this.setState({ saved: Date.now() });
+    const setBiz = (k) => (e) => { this.setState({ biz: { ...s.biz, [k]: num(e.target.value) } }); touch(); };
+    const biz = METRICS.map(([k, label, def, pre, suf, lw]) => {
+      const lastV = q ? LAST[k] * (k === 'ontime' ? 1 : 3) : LAST[k];
+      return {
+        label, def, pre, suf: suf === '%' ? '%' : '', aria: `${label} goal`,
+        inpCls: 'ginp' + (pre ? ' has-pre' : '') + (suf === '%' ? ' has-suf' : ''),
+        val: show(k, s.biz[k]), set: setBiz(k), lastWord: q ? 'Last quarter:' : lw,
+        last: k === 'revenue' ? lakh(lastV) : k === 'ontime' ? `${lastV}%` : grp(lastV),
+        match: () => { this.setState({ biz: { ...s.biz, [k]: lastV } }); touch(); },
+        up10: () => { this.setState({ biz: { ...s.biz, [k]: k === 'ontime' ? Math.min(100, lastV + 5) : Math.round(lastV * 1.1 / (k === 'revenue' ? 10000 : 1)) * (k === 'revenue' ? 10000 : 1) } }); touch(); },
+      };
+    });
+    const setT = (n, f) => (e) => { this.setState({ teams: { ...s.teams, [n]: { ...s.teams[n], [f]: num(e.target.value) } } }); touch(); };
+    const teams = TEAMS.map(([name, ini, c, ppl, lw, lr, lh]) => ({ name, ini, sw: `background:${c}`, people: ppl,
+      won: show('won', s.teams[name].won), rev: show('revenue', s.teams[name].rev), held: show('held', s.teams[name].held),
+      lwon: lw, lrev: lakh(lr), lheld: lh, setWon: setT(name, 'won'), setRev: setT(name, 'rev'), setHeld: setT(name, 'held') }));
+    const setP = (n, f) => (e) => { this.setState({ people: { ...s.people, [n]: { ...s.people[n], [f]: num(e.target.value) } } }); touch(); };
+    const people = PEOPLE.map(([name, ini, c, team, lw, lr, lh]) => ({ name, ini, team, sw: `background:${c}`,
+      won: show('won', s.people[name].won), rev: show('revenue', s.people[name].rev), held: show('held', s.people[name].held),
+      lwon: lw, lrev: lakh(lr), lheld: lh, setWon: setP(name, 'won'), setRev: setP(name, 'rev'), setHeld: setP(name, 'held') }));
+    const sumWon = PEOPLE.reduce((a, p) => a + (s.people[p[0]].won || 0), 0);
+    const sumRev = PEOPLE.reduce((a, p) => a + (s.people[p[0]].rev || 0), 0);
+    const bw = s.biz.won, br = s.biz.revenue;
+    const peopleSum = `Adds up to ${sumWon} won${bw ? ` of ${bw}` : ''} · ${lakh(sumRev)}${br ? ` of ${lakh(br)}` : ''}`;
+    const shareOut = () => {
+      const tot = PEOPLE.reduce((a, p) => a + p[4], 0);
+      const next = {};
+      for (const p of PEOPLE) next[p[0]] = { ...s.people[p[0]], won: bw ? Math.round(bw * p[4] / tot) : s.people[p[0]].won, rev: br ? Math.round(br * p[4] / tot / 10000) * 10000 : s.people[p[0]].rev };
+      this.setState({ people: next }); touch();
+    };
+    // the preview, from what's typed
+    const share = q ? (TODAY_D / 92) : (TODAY_D / MONTH_D);
+    const pctOf = (v, t) => t ? v / t : 0;
+    const rp = pctOf(NOW.revenue, br);
+    const pace = br ? (NOW.revenue / share) / br : 0;
+    const bar = (label, v, t, unit) => ({ label, cls: 'pb' + (t && v / share >= t ? ' ok3' : ''), text: t ? `${grp(v)} of ${grp(t)}${unit}` : 'No goal', w: `width:${Math.min(100, pctOf(v, t) * 100)}%` });
+    const mName = periodWords.split(' ')[0];
+    return {
+      ...themeVals(this), first, set: !first,
+      pKnob: `width:${q ? 84 : 74}px;transform:translateX(${q ? 74 : 0}px)`, pMonth: q ? '' : 'on', pQuarter: q ? 'on' : '', isMonth: q ? 'false' : 'true', isQuarter: q ? 'true' : 'false',
+      pickMonth: () => this.setState({ period: 'month', step: 0 }), pickQuarter: () => this.setState({ period: 'quarter', step: 0 }),
+      prev: () => this.setState({ step: s.step - 1 }), next: () => this.setState({ step: s.step + 1 }), periodWords,
+      savedWords: s.saved ? 'Saved' : 'Saved · October 1',
+      startFromLast: () => this.setState({ started: true, biz: { revenue: LAST.revenue, won: null, held: null, leads: null, ontime: null } }),
+      startBlank: () => this.setState({ started: true, biz: { revenue: null, won: null, held: null, leads: null, ontime: null } }),
+      biz, teams, people, peopleSum, shareOut,
+      monthName: q ? 'This quarter' : mName, periodNoun: q ? 'quarter' : 'month',
+      ringPct: br ? `${Math.round(rp * 100)}%` : '—',
+      ringArc: `stroke-dasharray:${C};stroke-dashoffset:${C * (1 - Math.min(1, rp))}`,
+      paceArc: `stroke-dasharray:2 3;opacity:${br ? 1 : 0}`,
+      bars: [bar('Won', NOW.won, s.biz.won, ''), bar('Calls held', NOW.held, s.biz.held, ''), bar('New leads', NOW.leads, s.biz.leads, '')],
+      paceWords: br ? `${Math.round(pace * 100)}% of the revenue goal (an estimate)` : 'set a revenue goal to see it',
+      mailRows: [
+        { l: 'Revenue won', v: br ? `${lakh(NOW.revenue)} of ${lakh(br)} (${Math.round(rp * 100)}%)` : lakh(NOW.revenue) },
+        { l: 'Won', v: s.biz.won ? `${NOW.won} of ${s.biz.won}` : String(NOW.won) },
+        { l: 'At this pace', v: br ? `${Math.round(pace * 100)}% of goal` : '—' },
+      ],
+      riyaWon: s.people['Riya Shah'].won ? `${s.people['Riya Shah'].won} won · ${lakh(s.people['Riya Shah'].rev || 0)}` : 'no personal goal',
+    };
+  }
+}

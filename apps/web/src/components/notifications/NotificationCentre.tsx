@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
+import { useToast } from "@/components/feedback/ToastProvider";
 import { SendSheet } from "@/components/messages/SendSheet";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
@@ -67,6 +68,7 @@ export function NotificationCentre({
   const panel = useRef<HTMLDivElement>(null);
   const [day, setDay] = useState<TodayView | null>(null);
   const [notes, setNotes] = useState<NotificationView[]>([]);
+  const { toast } = useToast();
   const [filter, setFilter] = useState<Filter>("all");
   const [full, setFull] = useState(false);
   const [reminded, setReminded] = useState<Set<string>>(new Set());
@@ -271,6 +273,14 @@ export function NotificationCentre({
               </button>
               <button
                 type="button"
+                className={s.linkBtn}
+                onClick={() => void clearRead()}
+                disabled={!notes.some((n) => n.read)}
+              >
+                Clear read
+              </button>
+              <button
+                type="button"
                 className={s.iconBtn}
                 aria-label={full ? "Leave full screen (F)" : "Full screen (F)"}
                 aria-pressed={full}
@@ -406,6 +416,25 @@ export function NotificationCentre({
     </AnimatePresence>
   );
 
+  /** Read ones leave the list (owner, 2026-10-05); Undo, for a moment, brings exactly those back. */
+  async function clearRead() {
+    const r = await notificationsClient.clearRead();
+    if (!r.ok) return toast({ tone: "warn", title: "Couldn’t clear them", detail: r.message });
+    const ids = r.data.cleared;
+    if (!ids.length) return;
+    const gone = notes.filter((n) => ids.includes(n.id));
+    setNotes((cur) => cur.filter((n) => !ids.includes(n.id)));
+    toast({
+      title: `${ids.length.toLocaleString("en")} read ${ids.length === 1 ? "notification" : "notifications"} cleared`,
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void notificationsClient.undoClear(ids).then((u) => {
+            if (u.ok) setNotes((cur) => [...cur, ...gone].sort((a, b) => b.id - a.id));
+          }),
+      },
+    });
+  }
   async function markAll() {
     const r = await notificationsClient.readAll();
     if (r.ok) setNotes((cur) => cur.map((n) => ({ ...n, read: true })));

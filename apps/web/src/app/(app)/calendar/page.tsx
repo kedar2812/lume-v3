@@ -10,16 +10,6 @@ import { requirePermission } from "@/server/session";
 
 export const metadata = { title: "Calendar · LUME" };
 
-/** "2 min ago", "just now": how long since Google Calendar was last read. */
-function ago(iso: string | null): string | null {
-  if (!iso) return null;
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const h = Math.round(mins / 60);
-  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
-}
-
 export default async function Page({
   searchParams,
 }: {
@@ -75,7 +65,7 @@ export default async function Page({
         sources={{
           google:
             conn && conn.connected
-              ? { updated: ago(conn.lastSyncedAt), healthy: conn.status === "active" }
+              ? { syncedAt: conn.lastSyncedAt, healthy: conn.status === "active" }
               : null,
           calendly: !!integrations.data?.calendly.connected,
         }}

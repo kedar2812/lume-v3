@@ -85,5 +85,13 @@ export async function today(req: FastifyRequest, d: AppDeps) {
     .select({ id: schema.leadSources.id, name: schema.leadSources.name, type: schema.leadSources.type })
     .from(schema.leadSources)
     .where(eq(schema.leadSources.status, "needs_attention"));
-  return { ...out, needsYou: { unassigned: unassigned.rows[0]!.n, sources } };
+  // Open security alerts, for whoever looks after security (frontend spec §8.2: admins see security alerts here).
+  const alerts = can(actor, "security.manage")
+    ? (
+        await req.db.execute<{ n: number }>(
+          sql`SELECT count(*)::int AS n FROM security_alerts WHERE status = 'open'`,
+        )
+      ).rows[0]!.n
+    : 0;
+  return { ...out, needsYou: { unassigned: unassigned.rows[0]!.n, sources, alerts } };
 }

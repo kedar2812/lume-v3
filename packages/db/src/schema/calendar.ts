@@ -16,6 +16,9 @@ export type LastSync = { at: string; added: number; moved: number; cancelled: nu
 export type MeetingStatus = "scheduled" | "cancelled" | "completed" | "no_show" | "rescheduled";
 
 /** A person's Google Calendar, connected through the relay (Phase 5A). Their own row only. */
+/** A running sync's progress, for the Refresh card's bar. `at` is when it was written. */
+export type SyncProgress = { stage: "reading" | "saving"; done: number; total: number; at: string };
+
 export const calendarConnections = pgTable("calendar_connections", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id").notNull().unique("calendar_connections_one"),
@@ -36,6 +39,8 @@ export const calendarConnections = pgTable("calendar_connections", {
   failures: integer("failures").notNull().default(0),
   lastError: text("last_error"),
   lastFailedAt: tz("last_failed_at"),
+  /** How far the running sync has got (0061): reading calendar `done` of `total`, then saving; null between syncs. */
+  syncProgress: jsonb("sync_progress").$type<SyncProgress>(),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });

@@ -8,7 +8,7 @@ import type { LastSync } from "@/lib/calendar/types";
 export const TIMING = {
   lift: 540,
   minOpen: 900,
-  poll: 1200,
+  poll: 600,
   result: 1300,
   land: 620,
   landed: 1600,
@@ -28,6 +28,18 @@ export function syncWords(l: LastSync): string {
     l.cancelled ? `${l.cancelled} cancelled` : null,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "Up to date";
+}
+
+/**
+ * How far along the bar is (0–1), from what the sync says it's doing: asked (a sliver), Google's list read, each
+ * chosen calendar read, saving. It reaches 1 only when the sync has finished.
+ */
+export function syncFraction(
+  p: { stage: "reading" | "saving"; done: number; total: number } | null | undefined,
+) {
+  if (!p) return 0.12;
+  if (p.stage === "saving") return 0.9;
+  return 0.18 + 0.64 * (p.total ? Math.min(1, p.done / p.total) : 0.5);
 }
 
 /** What the button lands on: "✓ 3 updated", "✓ Up to date", or (no sync came back in time) "Still syncing". */
@@ -52,6 +64,9 @@ export function useCalendarRefresh(o: {
   const [failure, setFailure] = useState<string | null>(null);
   const [reconnect, setReconnect] = useState(o.needsReconnect);
   const [announce, setAnnounce] = useState("");
+  /** How far the sync has got, 0–1, for the card's bar; and what it's doing, for the card's line. */
+  const [fraction, setFraction] = useState(0);
+  const [step, setStep] = useState("Asking Google for your calendar…");
   const alive = useRef(true);
   const busy = useRef(false);
   const synced = useRef(o.onSynced);
@@ -71,6 +86,8 @@ export function useCalendarRefresh(o: {
     setLast(null);
     setFailure(null);
     setPhase("lifting");
+    setFraction(0.04);
+    setStep("Asking Google for your calendar…");
     setAnnounce("Syncing your calendar");
     const [r] = await Promise.all([calendarClient.sync(), wait(o.reduce ? 0 : TIMING.lift)]);
     if (!alive.current) return;
@@ -90,6 +107,15 @@ export function useCalendarRefresh(o: {
         const c = await calendarClient.connection();
         if (!alive.current) return;
         if (!c.ok || !c.data.connected) continue;
+        const sp = c.data.syncProgress;
+        setFraction((f) => Math.max(f, syncFraction(sp)));
+        if (sp?.stage === "reading")
+          setStep(
+            sp.total > 1
+              ? `Reading calendar ${Math.min(sp.done + 1, sp.total)} of ${sp.total}…`
+              : "Reading your calendar…",
+          );
+        else if (sp?.stage === "saving") setStep("Saving meetings with your leads…");
         if (c.data.status === "needs_reconnect") {
           failed = c.data.lastError ?? "Google stopped letting LUME read your calendar. Connect it again.";
           setReconnect(true);
@@ -97,6 +123,10 @@ export function useCalendarRefresh(o: {
         }
         if (c.data.lastSync && Date.parse(c.data.lastSync.at) > since) {
           got = c.data.lastSync;
+          // The bar finishes its run to the end before the result shows.
+          setFraction(1);
+          setStep("Done");
+          await wait(o.reduce ? 0 : 380);
           break;
         }
         // The sync this press asked for failed (Google busy, say): say so now, not after 30 s of waiting.
@@ -127,5 +157,5 @@ export function useCalendarRefresh(o: {
     busy.current = false;
   }, [o.reduce]);
 
-  return { phase, last, failure, reconnect, announce, press };
+  return { phase, last, failure, reconnect, announce, press, fraction, step };
 }

@@ -1,0 +1,177 @@
+@@META
+{"title":"Settings · sources and spend","active":"settings","crumb":"Settings","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"scene":{"editor":"enum","options":["spend set","typing a new spend","nothing set yet"],"default":"spend set","section":"Jump to"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.sbody{flex:1;min-height:0;overflow:auto;padding:26px 28px 40px}
+.sl{display:grid;grid-template-columns:196px minmax(0,1fr);gap:28px;align-items:start}
+.snav{display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.snav .gh{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding:12px 10px 4px}
+.snav a{padding:7px 10px;border-radius:9px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;display:flex;align-items:center;gap:8px}
+.snav a:hover{background:var(--hover);color:var(--text)}
+.snav a.on{background:var(--raised);color:var(--text);box-shadow:0 0 0 .5px var(--line-2)}
+.snav a .new{margin-left:auto;font-size:10.5px;font-weight:650;color:var(--accent-ink);background:var(--accent-soft);border-radius:6px;padding:1px 6px}
+.phead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}
+.phead h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.022em;line-height:1.15}
+.phead p{margin:6px 0 0;max-width:64ch;font-size:14px;color:var(--text-2)}
+/* the summary: three numbers that move as spend is typed */
+.sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.st{border-radius:16px;background:var(--sheet);box-shadow:var(--shadow-sheet);padding:14px 16px}
+.st .l{font-size:12px;font-weight:550;color:var(--text-2)}
+.st .v{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:6px 0 2px;font-variant-numeric:tabular-nums;line-height:1.15}
+.st .c{font-size:12px;color:var(--text-3)}
+.st.live .v{color:var(--accent-ink)}
+.scard{border-radius:16px;background:var(--sheet);box-shadow:var(--shadow-sheet);padding:6px 6px 4px;overflow:hidden}
+.stab{width:100%;border-collapse:collapse;font-size:13px}
+.stab th{font-size:11.5px;font-weight:600;color:var(--text-3);text-align:right;padding:10px 12px 8px;white-space:nowrap}
+.stab th:first-child{text-align:left}
+.stab td{padding:9px 12px;border-top:.5px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;vertical-align:middle;white-space:nowrap}
+.stab td:first-child{text-align:left}
+.stab tr.edit td{background:var(--accent-soft)}
+.stab tr.edit td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
+.stab tr.edit td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+.src{display:flex;align-items:center;gap:10px}
+.src .ab{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;flex:none}
+.src b{display:block;font-size:13px;font-weight:600}
+.src span{display:block;font-size:11.5px;color:var(--text-3)}
+.sinp{position:relative;display:inline-flex;align-items:center;width:150px}
+.sinp .pre{position:absolute;left:11px;font-size:13px;color:var(--text-3);pointer-events:none}
+.sinp .input{height:34px;font-size:13px;font-weight:600;text-align:right;padding-left:24px;font-variant-numeric:tabular-nums}
+.sinp .input::placeholder{font-weight:500;color:var(--text-3)}
+.calc{display:inline-block;min-width:64px;transition:color .3s}
+.calc.good{color:var(--ok-ink);font-weight:600}
+.calc.low{color:var(--warn-ink);font-weight:600}
+.calc.mute{color:var(--text-3)}
+.calc.flash{animation:flash .9s ease}
+@keyframes flash{0%{background:var(--accent-soft);border-radius:6px}100%{background:transparent}}
+.free{font-size:11.5px;color:var(--text-3)}
+.notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.note{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--text-2);line-height:1.5;padding:12px 14px;border-radius:14px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.note svg{width:16px;height:16px;flex:none;color:var(--text-3);margin-top:1px}
+.note b{color:var(--text);font-weight:600}
+.fact{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--sheet);box-shadow:var(--shadow-sheet)}
+.fact .ic2{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
+.fact .ic2 svg{width:16px;height:16px}
+.fact b{font-size:13px;font-weight:600;display:block}
+.fact span{font-size:12px;color:var(--text-3)}
+.fact a{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--accent-ink);text-decoration:none;white-space:nowrap}
+@@BODY
+<div class="sbody">
+<div class="sl">
+  <nav class="snav" aria-label="Settings">
+    <a href="#">All settings</a>
+    <span class="gh">Workspace</span>
+    <a href="#">Business</a>
+    <a href="#">Pipeline &amp; stages</a>
+    <a href="#">Fields</a>
+    <a href="#">Follow-ups</a>
+    <a href="#">Messages</a>
+    <a href="Goals.dc.html">Goals<span class="new">New</span></a>
+    <a href="#" class="on" aria-current="page">Sources &amp; spend<span class="new">New</span></a>
+    <a href="#">Integrations</a>
+    <span class="gh">People</span>
+    <a href="#">People</a>
+    <a href="#">Teams</a>
+    <a href="#">Roles &amp; access</a>
+  </nav>
+
+  <section aria-labelledby="stitle">
+    <header class="phead">
+      <div>
+        <h1 id="stitle">Sources &amp; spend</h1>
+        <p>What each source costs you a month. Analytics then shows what a lead costs from it, and what every ₹1 brings back in revenue won.</p>
+      </div>
+      <a class="btn" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>See it on Analytics</a>
+    </header>
+
+    <div class="sum">
+      <div class="{{sumCls}}"><div class="l">Spend a month</div><div class="v">{{totSpend}}</div><div class="c">{{paidN}}</div></div>
+      <div class="{{sumCls}}"><div class="l">What a lead costs, paid sources</div><div class="v">{{cplAll}}</div><div class="c">From the last 30 days' leads</div></div>
+      <div class="{{sumCls}}"><div class="l">Revenue won per ₹1 spent</div><div class="v">{{roiAll}}</div><div class="c">Paid sources, last 30 days</div></div>
+    </div>
+
+    <div class="scard">
+      <table class="stab">
+        <caption class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Each source's leads, wins and revenue in the last 30 days, its monthly spend, and what follows from it</caption>
+        <thead><tr><th scope="col">Source</th><th scope="col">Leads · 30 days</th><th scope="col">Won</th><th scope="col">Revenue won</th><th scope="col">Spend a month</th><th scope="col">Cost per lead</th><th scope="col">Per ₹1 spent</th></tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <tr class="{{r.cls}}">
+              <td><div class="src"><span class="ab" style="{{r.sw}}">{{r.ab}}</span><div><b>{{r.name}}</b><span>{{r.kind}}</span></div></div></td>
+              <td>{{r.leads}}</td><td>{{r.won}}</td><td>{{r.rev}}</td>
+              <td><label class="sinp"><span class="pre">₹</span><input class="input" inputmode="numeric" aria-label="{{r.name}}: spend a month" value="{{r.val}}" placeholder="No spend" onInput="{{r.set}}" onFocus="{{r.focus}}" onBlur="{{r.blur}}"/></label></td>
+              <td><span class="{{r.cplCls}}">{{r.cpl}}</span></td>
+              <td><span class="{{r.roiCls}}">{{r.roi}}</span></td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+
+    <sc-if value="{{showFact}}" hint-placeholder-val="{{ true }}">
+      <div class="fact"><span class="ic2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><div><b>{{factTitle}}</b><span>{{factBody}}</span></div><a href="#">Revenue &amp; sources</a></div>
+    </sc-if>
+
+    <div class="notes">
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3M16 2v3"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/></svg><span><b>Spread over any range.</b> For a 7-day range, Analytics counts 7 days' share of the month's spend. Change the amount when your budget changes.</span></div>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span><b>Only for those who see revenue.</b> Spend shows on Analytics to people allowed to see revenue. Sales reps never see it. Leave a free source empty.</span></div>
+    </div>
+  </section>
+</div>
+</div>
+@@SCRIPT
+// name, kind, abbreviation, colour, leads (30 d), won, revenue won (30 d)
+const SRC = [
+  ['Instagram ads', 'Paid · Meta', 'IG', '#2a5bff', 1784, 92, 2960000],
+  ['Website form', 'Webhook', 'W', '#3d8bd9', 1236, 71, 2510000],
+  ['Referrals', 'Added in LUME', 'R', '#18a566', 418, 41, 1990000],
+  ['Webinars', 'Google Sheet', 'Wb', '#c98a0b', 342, 32, 1460000],
+  ['Google ads', 'Paid · Google', 'G', '#d4477c', 296, 9, 290000],
+  ['Calendly', 'Bookings', 'C', '#6b7385', 128, 18, 690000],
+];
+const SET = { 'Instagram ads': 180000, 'Website form': null, Referrals: null, Webinars: 45000, 'Google ads': 120000, Calendly: null };
+const grp = (n) => Math.round(n).toLocaleString('en-IN');
+const lakh = (n) => n >= 10000000 ? `₹${(n / 10000000).toFixed(2)} Cr` : n >= 100000 ? `₹${(n / 100000).toFixed(1).replace(/\.0$/, '')} L` : `₹${grp(n)}`;
+const num = (v) => { const n = Number(String(v).replace(/[^0-9.]/g, '')); return Number.isFinite(n) && n > 0 ? n : null; };
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    const sc = p.scene;
+    const spend = sc === 'nothing set yet' ? Object.fromEntries(SRC.map((x) => [x[0], null])) : { ...SET };
+    if (sc === 'typing a new spend') spend['Website form'] = 35000;
+    this.state = { themePick: 'auto', spend, editing: sc === 'typing a new spend' ? 'Website form' : null, bump: 0 };
+  }
+  renderVals() {
+    const s = this.state;
+    // 30 days of a monthly spend: the month's amount × 30 ÷ 30.4375 (as Analytics prorates)
+    const of30 = (m) => m * 30 / 30.4375;
+    const rows = SRC.map(([name, kind, ab, c, leads, won, rev]) => {
+      const m = s.spend[name];
+      const sp = m ? of30(m) : null;
+      const cpl = sp ? sp / leads : null;
+      const roi = sp ? rev / sp : null;
+      return {
+        name, kind, ab, sw: `background:${c}`, leads: grp(leads), won: grp(won), rev: lakh(rev),
+        val: m ? grp(m) : '', cls: s.editing === name ? 'edit' : '',
+        set: (e) => this.setState({ spend: { ...s.spend, [name]: num(e.target.value) }, bump: s.bump + 1 }),
+        focus: () => this.setState({ editing: name }), blur: () => this.setState({ editing: null }),
+        cpl: cpl == null ? '—' : `₹${grp(cpl)}`, cplCls: 'calc' + (cpl == null ? ' mute' : '') + (s.editing === name ? ' flash' : ''),
+        roi: roi == null ? (m ? '—' : 'Free') : `₹${roi.toFixed(roi < 10 ? 1 : 0)}`,
+        roiCls: 'calc' + (roi == null ? ' mute' : roi >= 1 ? ' good' : ' low') + (s.editing === name ? ' flash' : ''),
+      };
+    });
+    const paid = SRC.filter((x) => s.spend[x[0]]);
+    const tot = paid.reduce((a, x) => a + s.spend[x[0]], 0);
+    const pl = paid.reduce((a, x) => a + x[4], 0), pr = paid.reduce((a, x) => a + x[6], 0);
+    const t30 = of30(tot);
+    // a fact, not a suggestion: the paid source with the lowest return, if it's under ₹1
+    const worst = paid.map((x) => ({ n: x[0], roi: x[6] / of30(s.spend[x[0]]), leads: x[4] })).sort((a, b) => a.roi - b.roi)[0];
+    return {
+      ...themeVals(this),
+      rows, sumCls: 'st' + (s.editing ? ' live' : ''),
+      totSpend: tot ? lakh(tot) : '₹0', paidN: paid.length ? `${paid.length} paid source${paid.length > 1 ? 's' : ''} of ${SRC.length}` : 'No spend entered yet',
+      cplAll: pl && tot ? `₹${grp(t30 / pl)}` : '—', roiAll: tot ? `₹${(pr / t30).toFixed(1)}` : '—',
+      showFact: !!worst,
+      factTitle: worst ? (worst.roi < 1 ? `${worst.n} returns ₹${worst.roi.toFixed(2)} for every ₹1` : `Every paid source returns more than it costs`) : '',
+      factBody: worst ? (worst.roi < 1 ? `Over the last 30 days, from ${grp(worst.leads)} leads. Analytics shows it beside the others.` : `The lowest is ${worst.n}, at ₹${worst.roi.toFixed(1)} for every ₹1.`) : '',
+    };
+  }
+}

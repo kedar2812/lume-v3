@@ -10,6 +10,7 @@ export type {
   MeetingStatus,
   SecuritySettings,
   SourceRowResult,
+  SyncProgress,
   SyncTrigger,
   UserStatus,
 } from "./schema";

@@ -1,4 +1,4 @@
-import { ALL_GRANTS, DEFAULT_DUE_PRESETS, type Grant } from "@lume/core";
+import { ALL_GRANTS, DEFAULT_DUE_PRESETS, localDayBounds, type Grant } from "@lume/core";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
@@ -197,12 +197,20 @@ describe("done", () => {
     expect(await pending(soon.id)).toEqual([]);
     expect((await nextDue(own))?.toISOString()).toBe(later.dueAt);
     expect(await history(own)).toContain("follow_up_done");
-    // Anything else of the rep's due today still open?
-    const open = await h.queryAll(
-      "SELECT 1 FROM tasks WHERE assignee_id = $1 AND status = 'open' AND due_at < now() + interval '12 hours'",
+    // Anything else of the rep's due today still open? "Today" as the API counts it: until midnight in the rep's own
+    // timezone, else the business's (a 12-hour guess failed late in the evening).
+    const [{ tz }] = (await h.queryAll<{ tz: string }>(
+      "SELECT coalesce(u.timezone, s.timezone, 'UTC') AS tz FROM settings s LEFT JOIN users u ON u.id = $1 WHERE s.id = 1",
       [repId],
+    )) as [{ tz: string }];
+    const { end } = localDayBounds(h.clock.now, tz);
+    const open = await h.queryAll(
+      "SELECT 1 FROM tasks WHERE assignee_id = $1 AND status = 'open' AND due_at < $2",
+      [repId, end],
     );
-    expect(d.json().clearedToday).toBe(open.length === 0);
+    // Cleared today means this one was due today and nothing else of theirs due today is still open: "today" on the
+    // API's clock, in the rep's timezone (a 12-hour guess on the real clock failed late in the evening).
+    expect(d.json().clearedToday).toBe(new Date(soon.dueAt) < end && open.length === 0);
   });
 
   it("done twice at once: one wins, the other is told it's no longer open", async () => {

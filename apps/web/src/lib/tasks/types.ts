@@ -49,5 +49,10 @@ export type TodayView = {
   total: number;
   /** Today's calls (absent from an API that predates them). */
   meetings?: TodayMeeting[];
-  needsYou?: { unassigned: number; sources: { id: string; name: string; type: string }[] };
+  needsYou?: {
+    unassigned: number;
+    sources: { id: string; name: string; type: string }[];
+    /** Open security alerts, for whoever looks after security (absent from an older API). */
+    alerts?: number;
+  };
 };

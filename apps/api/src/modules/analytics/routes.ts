@@ -15,6 +15,8 @@ import { revenue } from "./revenue";
 import { segments } from "./segments";
 import { lost, quality, sources, templates, timing } from "./modules";
 import { funnel } from "./funnel";
+import { glance } from "./glance";
+import { recountNow } from "./rollup";
 import { businessTz, overview, rangeOf, type AnalyticsQuery } from "./service";
 import { team } from "./team";
 
@@ -146,6 +148,13 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
       async (req, reply) => boardCsv(req, reply, d, m, await toQuery(req, req.query)),
     );
   // A rep's own view (8D-1 Task 10): always the viewer's own numbers.
+  // Analytics' Refresh (owner, 2026-10-05): recount today, yesterday and any changed past days now, on the job
+  // connections; at most once a minute for the whole business.
+  r.post("/api/v1/analytics/refresh", { config: view }, async () =>
+    recountNow(d.jobPool ?? d.pool, d.clock()),
+  );
+  // Today's quick stats: four numbers with trends and sparklines, at the viewer's reach.
+  r.get("/api/v1/analytics/glance", { config: view }, async (req) => glance(req, d.clock()));
   r.get("/api/v1/analytics/me", { config: view, schema: { querystring: query } }, async (req) =>
     me(req, await toQuery(req, req.query), d.clock(), d),
   );

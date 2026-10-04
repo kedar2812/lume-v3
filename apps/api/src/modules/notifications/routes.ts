@@ -40,7 +40,7 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
 
   // Row-level security keeps these to the caller's own (0021_follow_ups.sql).
   r.get("/api/v1/notifications", { config: self }, async (req) => {
-    const rows = await req.db.select().from(N).orderBy(desc(N.id)).limit(50);
+    const rows = await req.db.select().from(N).where(isNull(N.clearedAt)).orderBy(desc(N.id)).limit(50);
     return {
       items: rows.map((n): NotificationView => ({
         id: n.id,
@@ -73,6 +73,31 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         .set({ readAt: new Date() })
         .where(and(isNull(N.readAt), "ids" in req.body ? inArray(N.id, req.body.ids) : sql`true`));
       return { unread: await unreadOf(req) };
+    },
+  );
+
+  // "Clear read" (owner, 2026-10-05): every read notification leaves the list; Undo brings exactly those back.
+  r.post("/api/v1/notifications/clear-read", { config: self }, async (req) => {
+    const rows = await req.db
+      .update(N)
+      .set({ clearedAt: new Date() })
+      .where(and(sql`${N.readAt} IS NOT NULL`, isNull(N.clearedAt)))
+      .returning({ id: N.id });
+    return { cleared: rows.map((r) => r.id) };
+  });
+  r.post(
+    "/api/v1/notifications/clear-read/undo",
+    {
+      config: self,
+      schema: { body: z.object({ ids: z.array(z.number().int().min(1)).min(1).max(1000) }).strict() },
+    },
+    async (req) => {
+      const rows = await req.db
+        .update(N)
+        .set({ clearedAt: null })
+        .where(inArray(N.id, req.body.ids))
+        .returning({ id: N.id });
+      return { restored: rows.length };
     },
   );
 

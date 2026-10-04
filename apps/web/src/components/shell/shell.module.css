@@ -287,6 +287,19 @@
   background: var(--accent);
   box-shadow: 0 0 0 2px var(--canvas);
 }
+/* With Reduce Motion the bell doesn't swing: the dot breathes instead, slowly, while unread ones wait. */
+@media (prefers-reduced-motion: reduce) {
+  .bellDot[data-waiting] {
+    animation: dotBreathe 2.4s ease-in-out infinite;
+  }
+}
+@keyframes dotBreathe {
+  50% {
+    box-shadow:
+      0 0 0 2px var(--canvas),
+      0 0 0 5px rgba(var(--accent-rgb), 0.25);
+  }
+}
 
 /* Said to screen readers only (the bell's arrivals). */
 .srOnly {

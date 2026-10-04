@@ -237,6 +237,8 @@ export const PROBES: Record<string, Probe> = {
   },
   "GET /api/v1/notifications": { access: "auth.self" },
   "POST /api/v1/notifications/read": { access: "auth.self", body: () => ({ all: true }) },
+  "POST /api/v1/notifications/clear-read": { access: "auth.self" },
+  "POST /api/v1/notifications/clear-read/undo": { access: "auth.self", body: () => ({ ids: [1] }) },
   "GET /api/v1/stream": { access: "auth.self", stream: true },
   "GET /api/v1/leads/:id/tasks": { access: "leads.view", path: () => `/api/v1/leads/${uuid}/tasks` },
   "POST /api/v1/leads/:id/tasks": {
@@ -634,6 +636,9 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/analytics/revenue": { access: "analytics.view" },
   "GET /api/v1/analytics/me": { access: "analytics.view" },
   "GET /api/v1/analytics/segments": { access: "analytics.view" },
+  // Recount now (Analytics' Refresh).
+  "POST /api/v1/analytics/refresh": { access: "analytics.view" },
+  "GET /api/v1/analytics/glance": { access: "analytics.view" },
   // A board's numbers as CSV: whoever may export.
   "GET /api/v1/analytics/overview/csv": { access: "analytics.view", query: "range=30d" },
   "GET /api/v1/analytics/funnel/csv": { access: "analytics.view", query: "range=30d" },

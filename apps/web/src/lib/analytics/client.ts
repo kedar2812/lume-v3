@@ -13,6 +13,12 @@ export type Tile = {
   note?: string;
 };
 export type RangeView = { label: string; days: string[]; from?: string; to?: string };
+/** Today's quick stats: four tiles, each with its daily line and the period it's measured over. */
+export type Glance = {
+  kpis: (Tile & { series: number[]; period: "week" | "month" })[];
+  week: { from: string; to: string };
+  month: { from: string; to: string };
+};
 export type Overview = {
   range: RangeView;
   tiles: Tile[];
@@ -177,6 +183,9 @@ export const analyticsClient = {
   timing: (p: AnalyticsParams) => api.get<Timing>(`/api/v1/analytics/timing?${query(p)}`),
   templates: (p: AnalyticsParams) => api.get<Templates>(`/api/v1/analytics/templates?${query(p)}`),
   quality: (p: AnalyticsParams) => api.get<Quality>(`/api/v1/analytics/quality?${query(p)}`),
+  glance: () => api.get<Glance>("/api/v1/analytics/glance"),
+  /** Recount now (Analytics' Refresh): at most once a minute for the business; says when it last counted. */
+  refresh: () => api.post<{ recounted: boolean; countedAt: string | null }>("/api/v1/analytics/refresh"),
   insights: (p: AnalyticsParams) => api.get<Insights>(`/api/v1/analytics/insights?${query(p)}`),
   goals: (start: string) => api.get<Goals>(`/api/v1/analytics/goals?start=${start}`),
   drill: (token: string, cursor?: string) =>

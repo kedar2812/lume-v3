@@ -337,6 +337,9 @@
 }
 
 /* The first rows, as LUME read them: a quiet table that scrolls sideways when it must. */
+.sampleRail {
+  margin-bottom: 4px;
+}
 .sampleWrap {
   overflow: auto;
   max-width: 100%;

@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ImportSheet } from "@/components/imports/ImportSheet";
 import { AttentionBanner } from "@/components/integrations/AttentionBanner";
 import { RefreshButton } from "@/components/sheets/RefreshButton";
+import { ReloadRefresh } from "./ReloadRefresh";
 import { importsClient } from "@/lib/imports/client";
 import { useAfter, useCountdown, useLoadingSignal } from "@/lib/loading";
 import { sheetsClient } from "@/lib/sheets/client";
@@ -58,6 +59,8 @@ type Props = {
   initialLeadId?: string | null;
   /** The saved view the page opened (`?view=`, 4B): its name above the filters, and Update view. */
   view?: ViewView | null;
+  /** What to start on arrival (`?do=new` or `?do=import`, from the search's actions). */
+  initialAction?: "new" | "import" | null;
 };
 
 /** Two sets of saved filters say the same thing (order and stale parts aside). */
@@ -197,6 +200,7 @@ function Screen({
   first,
   initialLeadId = null,
   view = null,
+  initialAction = null,
 }: Props) {
   const [filters, setFilters] = useState<ListFilters>(initialFilters);
   const [activeView, setActiveView] = useState<ViewView | null>(view);
@@ -219,7 +223,9 @@ function Screen({
     viewsChanged();
   };
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(
+    () => initialAction === "new" && can(session.actor, "leads.create"),
+  );
   // With several pipelines the table shows one at a time, so its stages and counts match the rows.
   const multiPipeline = catalog.pipelines.length > 1;
   const shownPipeline =
@@ -250,7 +256,7 @@ function Screen({
   const [exporting, setExporting] = useState(false);
   // 7C: Recent bulk actions, from the toolbar.
   const [runsOpen, setRunsOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [importing, setImporting] = useState(() => initialAction === "import" && mayImport);
   // A finished import of yours not looked at yet: Import wears a dot, and opens its report first.
   const [unseenImport, setUnseenImport] = useState<string | null>(null);
   useEffect(() => {
@@ -629,13 +635,23 @@ function Screen({
               <span aria-current="page">Table</span>
               <Link href={boardHref}>Board</Link>
             </nav>
-            {sheets?.refresh && (
+            {/* Refresh, always (owner, 2026-10-05): with a sheet it brings in new enquiries; without one it looks
+                for leads that arrived since and reloads. */}
+            {sheets?.refresh ? (
               <RefreshButton
                 personal={personal}
                 onArrived={(p) => {
                   list.reload();
                   recount();
                   arrivals.flash(p.leadIds);
+                }}
+              />
+            ) : (
+              <ReloadRefresh
+                pipelineId={pipeline?.id}
+                onReload={() => {
+                  list.reload();
+                  recount();
                 }}
               />
             )}

@@ -1,7 +1,7 @@
 "use client";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { MetricId, RangePreset } from "@lume/core/shared";
+import type { MetricId } from "@lume/core/shared";
 import {
   analyticsClient,
   type AnalyticsParams,
@@ -21,7 +21,9 @@ import { useLoadingSignal } from "@/lib/loading";
 import { FunnelBoard, LostBoard, QualityBoard, SourcesBoard, TeamBoard, TimingBoard } from "./Boards";
 import { DrillSheet } from "./DrillSheet";
 import { Overview } from "./Overview";
-import { Ico } from "./parts";
+import { AnalyticsRefresh } from "./AnalyticsRefresh";
+import { RangePicker } from "./RangePicker";
+import { RANGE_CHOICES, apiRange, dayIn, rangeWords, type RangeChoice } from "@/lib/analytics/range";
 import s from "./analytics.module.css";
 
 export type Tab = "overview" | "funnel" | "team" | "revenue" | "lost" | "timing" | "quality";
@@ -34,16 +36,19 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "timing", label: "Timing" },
   { id: "quality", label: "Templates & data" },
 ];
-const RANGES: { id: RangePreset; label: string; words: string }[] = [
-  { id: "today", label: "Today", words: "today" },
-  { id: "yesterday", label: "Yesterday", words: "yesterday" },
-  { id: "7d", label: "Last 7 days", words: "in the last 7 days" },
-  { id: "30d", label: "Last 30 days", words: "in the last 30 days" },
-  { id: "this_month", label: "This month", words: "this month" },
-  { id: "last_month", label: "Last month", words: "last month" },
-  { id: "90d", label: "Last 90 days", words: "in the last 90 days" },
-  { id: "this_quarter", label: "This quarter", words: "this quarter" },
-];
+/** How a sentence on a board says the range ("3 leads came in the last 30 days"). */
+const RANGE_WORDS: Record<RangeChoice, string> = {
+  today: "today",
+  "7d": "in the last 7 days",
+  "30d": "in the last 30 days",
+  this_month: "this month",
+  last_month: "last month",
+  this_quarter: "this quarter",
+  "12m": "in the last 12 months",
+  custom: "in these days",
+};
+const CHOICES = new Set<string>([...RANGE_CHOICES.map((c) => c.id), "custom"]);
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 type Data = {
   overview: OverviewData | null;
@@ -98,23 +103,38 @@ export function Analytics({
   const pathname = usePathname();
   const search = useSearchParams();
   const tab = (TABS.some((t) => t.id === search.get("m")) ? search.get("m") : "overview") as Tab;
-  const range = (
-    RANGES.some((r) => r.id === search.get("range")) ? search.get("range") : "30d"
-  ) as RangePreset;
+  // The range (canvas Main's popover): a choice, or the days of a custom one; today in the business's timezone.
+  const today = dayIn(new Date(), timezone);
+  const fromQ = search.get("from");
+  const toQ = search.get("to");
+  const custom =
+    fromQ && toQ && ISO_DAY.test(fromQ) && ISO_DAY.test(toQ) ? { from: fromQ, to: toQ } : undefined;
+  const asked = search.get("range") ?? "30d";
+  const choice = (CHOICES.has(asked) && (asked !== "custom" || custom) ? asked : "30d") as RangeChoice;
   const compare = search.get("compare") !== "0";
-  const params: AnalyticsParams = { range, compare };
-  const key = `${range}|${compare}`;
+  const params: AnalyticsParams = { ...apiRange(choice, today, custom), compare };
+  const key = `${choice}|${custom?.from ?? ""}|${custom?.to ?? ""}|${compare}`;
   const [data, setData] = useState<Data>(EMPTY);
   const [forKey, setForKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [rangeOpen, setRangeOpen] = useState(false);
   const [drill, setDrill] = useState<{ token: string; title: string } | null>(null);
   const tabs = TABS.filter((t) => t.id !== "team" || showTeam);
 
-  const set = (next: Partial<{ m: Tab; range: RangePreset; compare: boolean }>) => {
+  const set = (
+    next: Partial<{ m: Tab; choice: RangeChoice; custom: { from: string; to: string }; compare: boolean }>,
+  ) => {
     const q = new URLSearchParams(search.toString());
     if (next.m) q.set("m", next.m);
-    if (next.range) q.set("range", next.range);
+    if (next.choice) {
+      q.set("range", next.choice);
+      if (next.choice === "custom" && next.custom) {
+        q.set("from", next.custom.from);
+        q.set("to", next.custom.to);
+      } else {
+        q.delete("from");
+        q.delete("to");
+      }
+    }
     if (next.compare !== undefined) q.set("compare", next.compare ? "1" : "0");
     router.replace(`${pathname}?${q.toString()}`, { scroll: false });
   };
@@ -164,8 +184,7 @@ export function Analytics({
     if (el) setPill({ left: el.offsetLeft, width: el.offsetWidth });
   }, [tab, tabs.length]);
 
-  const r = RANGES.find((x) => x.id === range)!;
-  const label = data.overview?.range.label ?? data.funnel?.range.label ?? data.team?.range.label ?? r.label;
+  const r = { words: RANGE_WORDS[choice] };
   const monthName = new Date().toLocaleDateString("en-US", { month: "long", timeZone: timezone });
   const openDrill = (id: MetricId, title: string) => {
     const token = data.overview?.drill[id];
@@ -192,52 +211,21 @@ export function Analytics({
           ))}
         </div>
         <span className={s.spacer} />
-        <div style={{ position: "relative" }}>
-          <button
-            type="button"
-            className={s.rbtn}
-            aria-haspopup="menu"
-            aria-expanded={rangeOpen}
-            onClick={() => setRangeOpen((o) => !o)}
-          >
-            {Ico.calendar}
-            {r.label}
-            <span className={s.vs}>· {label}</span>
-          </button>
-          {rangeOpen && (
-            <div
-              className={s.menu}
-              role="menu"
-              aria-label="Range"
-              onKeyDown={(e) => e.key === "Escape" && setRangeOpen(false)}
-            >
-              {RANGES.map((x) => (
-                <button
-                  key={x.id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={x.id === range}
-                  onClick={() => {
-                    setRangeOpen(false);
-                    set({ range: x.id });
-                  }}
-                >
-                  {x.label}
-                </button>
-              ))}
-              <div className={s.menuSep} />
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={compare}
-                onClick={() => set({ compare: !compare })}
-              >
-                Compare with the period before
-                <span aria-hidden>{compare ? "On" : "Off"}</span>
-              </button>
-            </div>
-          )}
-        </div>
+        {/* Recount now, then every board reads its numbers again (owner, 2026-10-05). */}
+        <AnalyticsRefresh
+          onRecounted={() => {
+            setData(EMPTY);
+            setForKey(null);
+          }}
+        />
+        <RangePicker
+          choice={choice}
+          {...(custom ? { custom } : {})}
+          compare={compare}
+          today={today}
+          tz={timezone}
+          onChange={(n) => set(n)}
+        />
       </div>
 
       {error && (
@@ -260,11 +248,11 @@ export function Analytics({
             rangeWords={r.words}
             monthName={monthName}
             period={
-              range === "today" || range === "yesterday"
+              choice === "today"
                 ? "day"
-                : range === "7d"
+                : choice === "7d"
                   ? "week"
-                  : range === "90d" || range === "this_quarter"
+                  : choice === "this_quarter" || choice === "12m"
                     ? "quarter"
                     : "month"
             }
@@ -284,7 +272,9 @@ export function Analytics({
         <DrillSheet
           token={drill.token}
           title={drill.title}
-          facts={[r.label, label]}
+          facts={[
+            ...new Set([rangeWords(choice, today, custom).label, data.overview?.range.label ?? ""]),
+          ].filter(Boolean)}
           catalog={catalog}
           onClose={() => setDrill(null)}
         />

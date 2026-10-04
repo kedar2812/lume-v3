@@ -5,6 +5,7 @@ import { leadsClient } from "@/lib/leads/client";
 import { notificationsClient, sayUnread, type NotificationView } from "@/lib/notifications/client";
 import { tasksClient } from "@/lib/tasks/client";
 import type { TaskView, TodayView } from "@/lib/tasks/types";
+import { ToastProvider } from "@/components/feedback/ToastProvider";
 import { NotificationCentre } from "./NotificationCentre";
 
 const play = vi.fn();
@@ -15,7 +16,13 @@ vi.mock("@/lib/tasks/client", () => ({
   tasksClient: { today: vi.fn(), done: vi.fn(), snooze: vi.fn(), nudge: vi.fn() },
 }));
 vi.mock("@/lib/notifications/client", () => ({
-  notificationsClient: { list: vi.fn(), read: vi.fn(), readAll: vi.fn() },
+  notificationsClient: {
+    list: vi.fn(),
+    read: vi.fn(),
+    readAll: vi.fn(),
+    clearRead: vi.fn(),
+    undoClear: vi.fn(),
+  },
   sayUnread: vi.fn(),
   READ_EVENT: "lume:notifications-read",
 }));
@@ -134,6 +141,25 @@ describe("the notification centre (3B Task 5)", () => {
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Mark all read" }));
     expect(notificationsClient.readAll).toHaveBeenCalled();
+  });
+
+  it("Clear read takes the read ones away, keeps the unread, and Undo brings them back", async () => {
+    vi.mocked(notificationsClient.clearRead).mockResolvedValue(ok({ cleared: [2] }));
+    vi.mocked(notificationsClient.undoClear).mockResolvedValue(ok({ restored: 1 }));
+    render(
+      <ToastProvider>
+        <NotificationCentre open onClose={vi.fn()} />
+      </ToastProvider>,
+    );
+    await screen.findByText(/Karim Aziz was assigned/);
+    await userEvent.click(screen.getByRole("button", { name: "Clear read" }));
+    await vi.waitFor(() => expect(screen.queryByText(/Karim Aziz was assigned/)).not.toBeInTheDocument());
+    expect(screen.getByText(/26 h overdue/)).toBeInTheDocument();
+    expect(screen.getByText("1 read notification cleared")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear read" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(notificationsClient.undoClear).toHaveBeenCalledWith([2]);
+    expect(await screen.findByText(/Karim Aziz was assigned/)).toBeInTheDocument();
   });
 
   it("done from the centre plays done and takes it away; Remind them nudges the assignee", async () => {

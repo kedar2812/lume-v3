@@ -321,6 +321,36 @@ describe("the calendar sync (5A Task 5)", () => {
     expect((await connRow(mayaConn)).failures).toBe(0);
   });
 
+  it("a sync says how far it has got, for the Refresh card's bar, and clears it when done (owner, 2026-10-05)", async () => {
+    const base = deps();
+    const seen: unknown[] = [];
+    const me = await h.signIn(maya); // earlier tests moved the clock on: a fresh session
+    const progress = async () =>
+      (await me.inject({ method: "GET", url: "/api/v1/calendar/connection" })).json().syncProgress;
+    const watched = {
+      ...base,
+      clientFor: (grant: string) => {
+        const real = base.clientFor(grant)!;
+        return {
+          calendarList: () => real.calendarList(),
+          // Mid-read: what the Refresh card would see right now.
+          events: async (...a: Parameters<typeof real.events>) => {
+            seen.push(await progress());
+            return real.events(...a);
+          },
+        };
+      },
+    };
+    expect(await runCalendarSync(watched, mayaConn)).toBe("synced");
+    expect(seen[0]).toMatchObject({ stage: "reading", done: 0, total: 1 });
+    expect(await progress()).toBeNull();
+    const [row] = await swept<{ p: unknown }>(
+      "SELECT sync_progress AS p FROM calendar_connections WHERE id = $1",
+      [mayaConn],
+    );
+    expect(row!.p).toBeNull();
+  });
+
   it("two syncs of one connection at once make one", async () => {
     const results = await Promise.all([sync(mayaConn), sync(mayaConn)]);
     expect(results.sort()).toEqual(["busy", "synced"]);

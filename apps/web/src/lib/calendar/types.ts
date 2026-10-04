@@ -17,6 +17,8 @@ export type CalendarConnection =
       lastError: string | null;
       /** When the latest sync failed (null once one succeeds after it, or never failed). */
       lastFailedAt: string | null;
+      /** How far a running sync has got: reading calendar `done` of `total`, then saving (null between syncs). */
+      syncProgress?: { stage: "reading" | "saving"; done: number; total: number } | null;
     };
 
 /** Refresh's answer: wait for a `lastSync.at` newer than `since`. */

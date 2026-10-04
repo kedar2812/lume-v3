@@ -13,6 +13,7 @@ import {
 } from "react";
 import { can, scopeOf, seesFullContacts } from "@lume/core/shared";
 import { RefreshButton } from "@/components/sheets/RefreshButton";
+import { ReloadRefresh } from "@/components/leads/ReloadRefresh";
 import { sheetsClient } from "@/lib/sheets/client";
 import type { SheetsStatus } from "@/lib/sheets/types";
 import { useSound } from "@/components/feedback/SoundProvider";
@@ -503,8 +504,10 @@ function Board({
               <Link href={tableHref}>Table</Link>
               <span aria-current="page">Board</span>
             </nav>
-            {sheets?.refresh && (
+            {sheets?.refresh ? (
               <RefreshButton personal={personal} onArrived={() => setReloadTick((n) => n + 1)} />
+            ) : (
+              <ReloadRefresh pipelineId={pipeline.id} onReload={() => setReloadTick((n) => n + 1)} />
             )}
             {mayCreate && (
               <Button variant="primary" onClick={() => setCreating(true)}>

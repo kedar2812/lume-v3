@@ -1,0 +1,223 @@
+@@META
+{"title":"Analytics · filters","active":"analytics","crumb":"Analytics","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"scene":{"editor":"enum","options":["choosing filters","filters applied","range too long for tags"],"default":"choosing filters","section":"Jump to"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.rbtn.fon{background:var(--accent-soft);color:var(--accent-ink);box-shadow:0 0 0 .5px rgba(42,91,255,.35)}
+.rbtn.fon svg{color:var(--accent-ink)}
+.rbtn.open{background:var(--press)}
+/* what's filtered, always in view once the panel closes */
+.fbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 22px;border-bottom:.5px solid var(--line);background:var(--sheet);position:relative;z-index:5}
+.fbar .cap{margin-right:4px}
+.fchip2{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:9px;font-size:12.5px;font-weight:550;background:var(--accent-soft);color:var(--accent-ink);box-shadow:0 0 0 .5px rgba(42,91,255,.3);animation:chipin .45s var(--sp-b) both}
+@keyframes chipin{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+.fchip2 i{font-style:normal;color:var(--text-3);font-weight:500}
+.fchip2 .lv{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);opacity:.75}
+.fchip2.paused{background:var(--warn-soft);color:var(--warn-ink);box-shadow:0 0 0 .5px rgba(242,162,12,.4)}
+.fchip2 button{appearance:none;border:0;background:transparent;width:20px;height:20px;border-radius:6px;display:grid;place-items:center;color:inherit;cursor:pointer;opacity:.75}
+.fchip2 button:hover{background:rgba(42,91,255,.14);opacity:1}
+.fchip2 button svg{width:12px;height:12px}
+.fbar .clr{appearance:none;border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:600;color:var(--text-2);cursor:pointer;padding:4px 8px;border-radius:7px}
+.fbar .clr:hover{background:var(--hover);color:var(--text)}
+.ascroll2{flex:1;min-height:0;overflow:hidden;padding:18px 22px}
+.qhead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+.qhead h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em}
+.qhead p{margin:3px 0 0;font-size:13px;color:var(--text-2)}
+.kgrid .kt{cursor:default}
+.kt .v2{display:flex;align-items:baseline;gap:4px;margin:6px 0 8px;font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.kt .v2 small{font-size:13px;font-weight:600;color:var(--text-3)}
+.kt.hero .v2 small{color:rgba(255,255,255,.78)}
+.kgrid.busy .kt{opacity:.55;transition:opacity .3s}
+.row2b{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px;margin-top:14px}
+.ph{height:190px;border-radius:12px;background:linear-gradient(180deg,var(--sunk),transparent);box-shadow:inset 0 0 0 .5px var(--line)}
+/* the panel: from the Filters button, glass, no scrim (the numbers behind change as you choose) */
+.fpanel{position:absolute;z-index:20;top:120px;right:58px;width:420px;max-height:720px;display:flex;flex-direction:column;border-radius:18px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);transform-origin:calc(100% - 60px) 0;animation:fpop .5s var(--sp-b) both}
+@keyframes fpop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+.fph{display:flex;align-items:center;padding:14px 16px 8px}
+.fph h3{margin:0;font-size:15px;font-weight:650}
+.fph .clr{margin-left:auto;appearance:none;border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:600;color:var(--accent-ink);cursor:pointer;padding:4px 8px;border-radius:7px}
+.fpb{flex:1;min-height:0;overflow:auto;padding:0 16px 8px}
+.fsec{padding:12px 0;border-top:.5px solid var(--line)}
+.fsec:first-child{border-top:0}
+.fsh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.fsh b{font-size:12.5px;font-weight:650}
+.fsh .lv2{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);padding:2px 6px;border-radius:5px;box-shadow:inset 0 0 0 .5px var(--line-2)}
+.fsh .cap{margin-left:auto}
+.plist{display:flex;flex-direction:column;gap:1px;max-height:176px;overflow:auto;margin-top:6px}
+.prow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:9px;cursor:pointer;font-size:13px}
+.prow:hover{background:var(--hover)}
+.prow input{appearance:none;width:18px;height:18px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--line-2);background:var(--sheet);display:grid;place-items:center;margin:0;flex:none;cursor:pointer;transition:background .15s,box-shadow .15s}
+.prow input:checked{background:var(--accent);box-shadow:none}
+.prow input:checked::after{content:"";width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:translateY(-1px) rotate(-45deg)}
+.prow input:focus-visible{box-shadow:0 0 0 3px var(--accent-soft),inset 0 0 0 1.5px var(--accent)}
+.prow .grp{margin-left:auto;font-size:11.5px;color:var(--text-3)}
+.fsearch{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:9px;background:var(--sheet);box-shadow:inset 0 0 0 .5px var(--line-2);font-size:12.5px;color:var(--text-3)}
+.fsearch svg{width:14px;height:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip i{width:8px;height:8px;border-radius:3px;flex:none}
+.frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:12px;background:var(--sheet);box-shadow:0 0 0 .5px var(--line-2)}
+.frow b{font-size:12.5px;font-weight:600}
+.frow .is{font-size:12px;color:var(--text-3)}
+.frow .x2{margin-left:auto;width:26px;height:26px}
+.addf{appearance:none;border:0;font:inherit;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:9px;background:transparent;color:var(--accent-ink);font-size:12.5px;font-weight:600;cursor:pointer;margin-top:8px}
+.addf:hover{background:var(--accent-soft)}
+.addf svg{width:14px;height:14px}
+.lnote{display:flex;gap:9px;align-items:flex-start;margin-top:10px;padding:10px 12px;border-radius:12px;font-size:12px;line-height:1.45;color:var(--text-2);background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.lnote svg{width:15px;height:15px;flex:none;margin-top:1px;color:var(--text-3)}
+.lnote.warn{background:var(--warn-soft);color:var(--warn-ink);box-shadow:inset 0 0 0 .5px rgba(242,162,12,.35)}
+.lnote.warn svg{color:var(--warn-ink)}
+.lnote .btn{margin-top:8px}
+.fpf{display:flex;align-items:center;gap:10px;padding:12px 16px 14px;border-top:.5px solid var(--line)}
+.fpf .cap b{color:var(--text);font-weight:650;font-variant-numeric:tabular-nums}
+.fpf .btn{margin-left:auto}
+@@BODY
+{{ABAR:Overview}}
+<sc-if value="{{hasFilters}}" hint-placeholder-val="{{ true }}">
+  <div class="fbar" aria-label="Filters in use">
+    <span class="cap">Showing</span>
+    <sc-for list="{{chipsOn}}" as="c" hint-placeholder-count="3">
+      <span class="{{c.cls}}"><i>{{c.k}}</i>{{c.v}}<sc-if value="{{c.live}}" hint-placeholder-val="{{ false }}"><span class="lv">{{c.liveWord}}</span></sc-if><button type="button" aria-label="Remove {{c.k}} filter" onClick="{{c.remove}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span>
+    </sc-for>
+    <button type="button" class="clr" onClick="{{clearAll}}">Clear all</button>
+  </div>
+</sc-if>
+
+<div class="ascroll2">
+  <div class="qhead"><div><h2>{{headline}}</h2><p>{{subline}}</p></div></div>
+  <div class="{{gridCls}}">
+    <sc-for list="{{tiles}}" as="k" hint-placeholder-count="12">
+      <div class="{{k.cls}}"><div class="l">{{k.label}}</div><div class="v2">{{k.v}}<small>{{k.unit}}</small></div><div class="b"><span class="{{k.chip}}">{{k.delta}}</span></div></div>
+    </sc-for>
+  </div>
+  <div class="row2b">
+    <section class="ac"><div class="hd"><div><h3>New leads, by where they came from</h3><div class="sub2">{{seriesSub}}</div></div></div><div class="ph"></div></section>
+    <section class="ac"><div class="hd"><div><h3>The funnel</h3><div class="sub2">Of these leads, how far they got</div></div></div><div class="ph"></div></section>
+  </div>
+</div>
+
+<sc-if value="{{panel}}" hint-placeholder-val="{{ true }}">
+  <div class="fpanel" role="dialog" aria-label="Filters">
+    <div class="fph"><h3>Filters</h3><button type="button" class="clr" onClick="{{clearAll}}">Clear all</button></div>
+    <div class="fpb">
+      <div class="fsec">
+        <div class="fsh"><b>Pipeline</b></div>
+        <span class="seg" role="radiogroup" aria-label="Pipeline"><span class="knob" style="{{plKnob}}"></span><button type="button" role="radio" aria-checked="{{plA}}" class="{{plSales}}" style="width:118px" onClick="{{pickSales}}">Sales</button><button type="button" role="radio" aria-checked="{{plB}}" class="{{plPart}}" style="width:118px" onClick="{{pickPart}}">Partnerships</button></span>
+      </div>
+
+      <div class="fsec">
+        <div class="fsh"><b>People</b><span class="cap">Whose leads, credited as Analytics credits them</span></div>
+        <span class="seg" role="radiogroup" aria-label="People or teams"><span class="knob" style="{{ptKnob}}"></span><button type="button" role="radio" aria-checked="{{ptP}}" class="{{ptPeople}}" style="width:82px" onClick="{{pickPeople}}">People</button><button type="button" role="radio" aria-checked="{{ptT}}" class="{{ptTeams}}" style="width:76px" onClick="{{pickTeams}}">Teams</button></span>
+        <div class="fsearch" style="margin-top:8px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.4"/><path d="m10.3 10.3 3.3 3.3"/></svg>Find a person</div>
+        <div class="plist">
+          <sc-for list="{{whoList}}" as="w" hint-placeholder-count="5">
+            <label class="prow"><input type="checkbox" checked="{{w.on}}" onChange="{{w.toggle}}"/><span class="av sm" style="{{w.sw}}">{{w.ini}}</span><span>{{w.name}}</span><span class="grp">{{w.grp}}</span></label>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="fsec">
+        <div class="fsh"><b>Source</b></div>
+        <div class="chips"><sc-for list="{{srcList}}" as="c" hint-placeholder-count="6"><button type="button" class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.toggle}}"><i style="{{c.sw}}"></i>{{c.name}}</button></sc-for></div>
+      </div>
+
+      <div class="fsec">
+        <div class="fsh"><b>Tags</b><span class="lv2">Counted live</span></div>
+        <div class="chips"><sc-for list="{{tagList}}" as="c" hint-placeholder-count="5"><button type="button" class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.toggle}}">{{c.name}}</button></sc-for></div>
+      </div>
+
+      <div class="fsec">
+        <div class="fsh"><b>Fields</b><span class="lv2">Counted live</span></div>
+        <sc-if value="{{fieldOn}}" hint-placeholder-val="{{ true }}">
+          <div class="frow"><b>Budget</b><span class="is">is any of</span><sc-for list="{{budget}}" as="c" hint-placeholder-count="3"><button type="button" class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.toggle}}" style="height:26px">{{c.name}}</button></sc-for><button type="button" class="ibtn x2" aria-label="Remove the Budget filter" onClick="{{dropField}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        </sc-if>
+        <button type="button" class="addf" onClick="{{addField}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add a field</button>
+        <span class="cap" style="display:block;margin-top:2px">Choice, multiple-choice and yes/no fields</span>
+        <sc-if value="{{liveOk}}" hint-placeholder-val="{{ true }}">
+          <div class="lnote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>Tags and fields are counted straight from the leads, so a range can be up to 92 days. {{rangeOkWords}}</span></div>
+        </sc-if>
+        <sc-if value="{{liveTooLong}}" hint-placeholder-val="{{ false }}">
+          <div class="lnote warn" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg><div><span>Tags and fields work on ranges up to 92 days. {{rangeText}} is longer, so they're paused and these numbers ignore them.</span><br/><button type="button" class="btn sm" onClick="{{use90}}">Use the last 90 days</button></div></div>
+        </sc-if>
+      </div>
+    </div>
+    <div class="fpf"><span class="cap">These numbers cover <b>{{coverN}}</b> of {{allN}} leads</span><button type="button" class="btn pri sm" onClick="{{closePanel}}">Done</button></div>
+  </div>
+</sc-if>
+@@SCRIPT
+const PEOPLE = [['Riya Shah', 'RS', '#e35d8f', 'Inbound', 1120], ['Dev Malhotra', 'DM', '#3d8bd9', 'Inbound', 980], ['Sana Qureshi', 'SQ', '#c98a0b', 'Inbound', 760], ['Hana Ito', 'HI', '#18a566', 'Field', 720], ['Leo Martins', 'LM', '#6b7385', 'Field', 600]];
+const TEAMS = [['Inbound', 'IN', '#2a5bff', '3 people', 2860], ['Field', 'FD', '#18a566', '2 people', 1320]];
+const SRCS = [['Instagram ads', '#2a5bff', .43], ['Website form', '#5ab8ff', .3], ['Referrals', '#18a566', .1], ['Webinars', '#f2a20c', .08], ['Google ads', '#e35d8f', .07], ['Calendly', '#8a94a6', .02]];
+const TAGS = [['café', .12], ['wedding', .09], ['repeat client', .06], ['corporate', .1], ['urgent', .05]];
+const BUDGET = [['Under ₹1 L', .3], ['₹1–3 L', .45], ['Over ₹3 L', .25]];
+const ALL = 4180;
+// Tags and fields read live up to 92 days, so this board offers a 90-day range.
+if (!RANGES.some((r) => r.id === '90d')) RANGES.splice(3, 0, { id: '90d', label: 'Last 90 days', days: 90, words: 'Last 90 days', vs: 'vs the 90 before' });
+const fmtN = (n) => Math.round(n).toLocaleString('en-IN');
+const lakh = (n) => `₹${(n / 100000).toFixed(1).replace(/\.0$/, '')} L`;
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    const sc = p.scene;
+    this.state = { themePick: 'auto', range: sc === 'range too long for tags' ? '12m' : '30d', compare: true,
+      open: sc !== 'filters applied', pipe: 'sales', pt: 'people',
+      who: { 'Riya Shah': true, 'Dev Malhotra': true }, src: { 'Instagram ads': true, 'Website form': true },
+      tags: { 'café': sc !== 'choosing filters' }, field: sc === 'choosing filters', budget: { '₹1–3 L': true } };
+  }
+  renderVals() {
+    const s = this.state;
+    const R = RANGES.find((x) => x.id === s.range);
+    const tooLong = R.days > 92;
+    const toggle = (k, name) => () => this.setState({ [k]: { ...s[k], [name]: !s[k][name] } });
+    const whoOn = Object.keys(s.who).filter((k) => s.who[k]);
+    const srcOn = Object.keys(s.src).filter((k) => s.src[k]);
+    const tagOn = Object.keys(s.tags).filter((k) => s.tags[k]);
+    const budOn = s.field ? Object.keys(s.budget).filter((k) => s.budget[k]) : [];
+    const liveAny = tagOn.length > 0 || budOn.length > 0;
+    // how much of the business the filters keep (rough shares, for the drawing)
+    const list = s.pt === 'people' ? PEOPLE : TEAMS;
+    let share = whoOn.length ? list.filter((p) => s.who[p[0]]).reduce((a, p) => a + p[4], 0) / ALL : 1;
+    share *= srcOn.length ? SRCS.filter((x) => s.src[x[0]]).reduce((a, x) => a + x[2], 0) : 1;
+    if (!tooLong) {
+      if (tagOn.length) share *= TAGS.filter((x) => s.tags[x[0]]).reduce((a, x) => a + x[1], 0) * 3.2;
+      if (budOn.length) share *= BUDGET.filter((x) => s.budget[x[0]]).reduce((a, x) => a + x[1], 0);
+    }
+    share = Math.min(1, share);
+    const cover = Math.max(1, Math.round(ALL * share));
+    const sc2 = (n) => Math.max(0, Math.round(n * share));
+    const tiles = [
+      ['New leads', fmtN(sc2(4180)), '', 'tchip good', '+12%'], ['Contacted', '91', '%', 'tchip good', '+3 pts'], ['Reply rate', '47', '%', 'tchip good', '+2 pts'],
+      ['Calls booked', fmtN(sc2(612)), '', 'tchip good', '+8%'], ['Calls held', fmtN(sc2(498)), '', 'tchip good', '+6%'], ['Revenue won', lakh(sc2(5840000)), '', 'tchip solid good', '+19%'],
+      ['Won', fmtN(sc2(176)), '', 'tchip good', '+19%'], ['Win rate', '4.2', '%', 'tchip good', '+0.4 pts'], ['Average deal', lakh(33200), '', 'tchip flat', 'No change'],
+      ['Speed to lead', '38', 'min', 'tchip good', '−6 min'], ['Follow-ups overdue', fmtN(sc2(23)), '', 'tchip flat', 'Right now'], ['Pipeline forecast', lakh(sc2(9100000)), '', 'tchip flat', 'Right now'],
+    ].map(([label, v, unit, chip, delta], i) => ({ label, v, unit, chip, delta, cls: 'kt' + (i === 5 ? ' hero' : '') }));
+    const names = (xs) => xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, 2).join(', ')} and ${xs.length - 2} more`;
+    const firstNames = whoOn.map((n) => n.split(' ')[0]);
+    const chipsOn = [];
+    if (s.pipe !== 'sales') chipsOn.push({ k: 'Pipeline', v: 'Partnerships', cls: 'fchip2', remove: () => this.setState({ pipe: 'sales' }) });
+    if (whoOn.length) chipsOn.push({ k: s.pt === 'people' ? 'People' : 'Teams', v: names(firstNames), cls: 'fchip2', remove: () => this.setState({ who: {} }) });
+    if (srcOn.length) chipsOn.push({ k: 'Source', v: names(srcOn), cls: 'fchip2', remove: () => this.setState({ src: {} }) });
+    if (tagOn.length) chipsOn.push({ k: 'Tag', v: names(tagOn), live: true, liveWord: tooLong ? 'Paused' : 'Live', cls: 'fchip2' + (tooLong ? ' paused' : ''), remove: () => this.setState({ tags: {} }) });
+    if (budOn.length) chipsOn.push({ k: 'Budget', v: names(budOn), live: true, liveWord: tooLong ? 'Paused' : 'Live', cls: 'fchip2' + (tooLong ? ' paused' : ''), remove: () => this.setState({ field: false }) });
+    const subBits = [whoOn.length ? `${names(firstNames)}'s leads` : 'Every lead', srcOn.length ? `from ${names(srcOn)}` : '', tagOn.length && !tooLong ? `tagged ${names(tagOn)}` : ''].filter(Boolean).join(' ');
+    return {
+      ...themeVals(this), ...rangeVals(this),
+      filterN: String(chipsOn.length), filtCls: 'rbtn' + (chipsOn.length ? ' fon' : '') + (s.open ? ' open' : ''), filtOpen: s.open ? 'true' : 'false',
+      openFilters: () => this.setState({ open: !s.open }), closePanel: () => this.setState({ open: false }), panel: s.open,
+      hasFilters: chipsOn.length > 0, chipsOn,
+      clearAll: () => this.setState({ who: {}, src: {}, tags: {}, field: false, pipe: 'sales' }),
+      headline: chipsOn.length ? 'A strong month for these leads.' : 'A strong month.',
+      subline: `${subBits} · ${fmtN(cover)} of ${fmtN(ALL)} leads`,
+      gridCls: 'kgrid' + (s.open ? ' busy' : ''), tiles, seriesSub: 'Per day · dashed: the period before',
+      plKnob: `width:118px;transform:translateX(${s.pipe === 'sales' ? 0 : 118}px)`, plSales: s.pipe === 'sales' ? 'on' : '', plPart: s.pipe === 'sales' ? '' : 'on', plA: s.pipe === 'sales' ? 'true' : 'false', plB: s.pipe === 'sales' ? 'false' : 'true',
+      pickSales: () => this.setState({ pipe: 'sales' }), pickPart: () => this.setState({ pipe: 'partners' }),
+      ptKnob: `width:${s.pt === 'people' ? 82 : 76}px;transform:translateX(${s.pt === 'people' ? 0 : 82}px)`, ptPeople: s.pt === 'people' ? 'on' : '', ptTeams: s.pt === 'people' ? '' : 'on', ptP: s.pt === 'people' ? 'true' : 'false', ptT: s.pt === 'people' ? 'false' : 'true',
+      pickPeople: () => this.setState({ pt: 'people', who: {} }), pickTeams: () => this.setState({ pt: 'teams', who: {} }),
+      whoList: list.map(([name, ini, c, grp]) => ({ name, ini, grp, sw: `background:${c}`, on: !!s.who[name], toggle: toggle('who', name) })),
+      srcList: SRCS.map(([name, c]) => ({ name, sw: `background:${c}`, cls: 'chip' + (s.src[name] ? ' on' : ''), on: s.src[name] ? 'true' : 'false', toggle: toggle('src', name) })),
+      tagList: TAGS.map(([name]) => ({ name, cls: 'chip' + (s.tags[name] ? ' on' : ''), on: s.tags[name] ? 'true' : 'false', toggle: toggle('tags', name) })),
+      fieldOn: s.field, addField: () => this.setState({ field: true }), dropField: () => this.setState({ field: false }),
+      budget: BUDGET.map(([name]) => ({ name, cls: 'chip' + (s.budget[name] ? ' on' : ''), on: s.budget[name] ? 'true' : 'false', toggle: toggle('budget', name) })),
+      liveOk: liveAny && !tooLong, liveTooLong: liveAny && tooLong, rangeOkWords: `${R.words} is fine.`,
+      use90: () => this.setState({ range: '90d' }),
+      coverN: fmtN(cover), allN: fmtN(ALL),
+    };
+  }
+}

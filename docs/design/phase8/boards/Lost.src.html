@@ -1,0 +1,134 @@
+@@META
+{"title":"Analytics · lost","active":"analytics","crumb":"Analytics","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.lg2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,.95fr);gap:14px}
+.lg3{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;margin-top:14px}
+.dnw{position:relative;width:176px;height:176px;margin:0 auto}
+.dnw svg{width:176px;height:176px;transform:rotate(-90deg)}
+.dnw circle{fill:none;stroke-width:22;transition:stroke-width .3s var(--spring),opacity .3s}
+.dnw circle.sl{stroke-dashoffset:var(--o);animation:sweep2 1.3s cubic-bezier(.3,.7,.3,1) both;animation-delay:calc(var(--i) * 110ms + .2s)}
+@keyframes sweep2{from{stroke-dasharray:0 600}}
+.dnw circle.sl.hot{stroke-width:28}
+.dnw circle.sl.dim{opacity:.22}
+.dnw .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.dnw .ctr b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.dnw .ctr span{font-size:11.5px;color:var(--text-3)}
+.rl{display:flex;flex-direction:column;gap:2px;margin-top:12px}
+.rlr{appearance:none;border:0;background:transparent;font:inherit;color:inherit;display:grid;grid-template-columns:10px minmax(0,1fr) 46px 40px;gap:8px;align-items:center;padding:6px 8px;border-radius:9px;font-size:12.5px;text-align:left;cursor:pointer;transition:background .15s}
+.rlr:hover,.rlr.hot{background:var(--hover)}
+.rlr i{width:10px;height:10px;border-radius:3px}
+.rlr em{font-style:normal;text-align:right;font-weight:650;font-variant-numeric:tabular-nums}
+.rlr span.pc{text-align:right;color:var(--text-3);font-variant-numeric:tabular-nums}
+/* the heatmap of reasons against sources: it ripples in from the corner */
+.hm{display:grid;grid-template-columns:118px repeat(5,minmax(0,1fr));gap:4px;font-size:12px}
+.hm .hh{font-size:11px;font-weight:600;color:var(--text-3);text-align:center;padding-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hm .rh{font-size:12px;font-weight:550;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hm .cell{appearance:none;border:0;font:inherit;height:40px;border-radius:9px;display:grid;place-items:center;font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;cursor:pointer;animation:cellin .7s var(--spring) both;animation-delay:calc(var(--d) * 45ms + .2s);transition:transform .3s var(--spring),box-shadow .2s}
+.hm .cell:hover{transform:scale(1.08);box-shadow:var(--shadow-lift);z-index:1;position:relative}
+@keyframes cellin{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+.scale2{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-3);margin-top:10px}
+.scale2 i{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,rgba(229,72,77,.08),rgba(229,72,77,.85))}
+.byst{display:flex;flex-direction:column;gap:10px}
+.bs{display:grid;grid-template-columns:92px minmax(0,1fr) 42px;gap:10px;align-items:center;font-size:12.5px}
+.bs .tr7{height:18px;border-radius:6px;background:var(--sunk);overflow:hidden}
+.bs .tr7 i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,rgba(229,72,77,.65),rgba(229,72,77,.95));transform-origin:0 50%;animation:grow 1s var(--spring) both;animation-delay:calc(var(--i) * 80ms + .3s)}
+@keyframes grow{from{transform:scaleX(0)}to{transform:none}}
+.bs em{font-style:normal;text-align:right;font-weight:650;font-variant-numeric:tabular-nums}
+/* won back: lost, reopened, won */
+.wb{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;align-items:stretch;margin:6px 0 14px}
+.wbs{position:relative;padding:14px;border-radius:14px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line);margin-right:22px}
+.wbs:last-child{margin-right:0;background:linear-gradient(135deg,var(--good-soft),transparent);box-shadow:inset 0 0 0 .5px rgba(24,165,102,.25)}
+.wbs b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.wbs span{font-size:12px;color:var(--text-2)}
+.wbs::after{content:"";position:absolute;right:-18px;top:50%;width:12px;height:12px;border-top:2px solid var(--line-2);border-right:2px solid var(--line-2);transform:translateY(-50%) rotate(45deg)}
+.wbs:last-child::after{display:none}
+.rec{display:flex;align-items:baseline;gap:10px;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,#18a566,#0f7f44);color:#fff;box-shadow:0 14px 30px -14px rgba(24,165,102,.6)}
+.rec b{font-size:28px;font-weight:700;letter-spacing:-.025em}
+.rec span{font-size:13px;opacity:.85}
+.segsel button{height:28px;font-size:12.5px;padding:0}
+.sgb{display:flex;flex-direction:column;gap:10px}
+.sg{display:grid;grid-template-columns:120px minmax(0,1fr) 54px 70px;gap:10px;align-items:center;font-size:12.5px}
+.sg b{font-weight:600}
+.sg .tr8{position:relative;height:22px;border-radius:7px;background:var(--sunk);overflow:hidden}
+.sg .tr8 i{position:absolute;left:0;top:0;bottom:0;border-radius:7px;background:linear-gradient(90deg,var(--accent),#5ab8ff);transition:width .9s var(--spring)}
+.sg .tr8 i.best{background:linear-gradient(90deg,#18a566,#4fd69c)}
+.sg em{font-style:normal;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.sg span.r2{text-align:right;color:var(--text-3);font-variant-numeric:tabular-nums}
+@@BODY
+{{ABAR:Lost}}
+<div class="ascroll">
+  <div class="lg2">
+    <section class="ac in" style="--i:0">
+      <div class="hd"><div><h3>Why they were lost</h3><div class="sub2">{{lostN}} leads lost {{rangeLower}}</div></div></div>
+      <div class="dnw"><svg viewBox="0 0 176 176" aria-hidden="true"><circle cx="88" cy="88" r="74" stroke="var(--sunk)"></circle><sc-for list="{{slices}}" as="d" hint-placeholder-count="6"><circle class="{{d.cls}}" cx="88" cy="88" r="74" stroke="{{d.color}}" style="{{d.st}}"></circle></sc-for></svg><div class="ctr"><div><b>{{hotV}}</b><span>{{hotL}}</span></div></div></div>
+      <div class="rl"><sc-for list="{{reasons}}" as="r" hint-placeholder-count="6"><button type="button" class="{{r.cls}}" onPointerEnter="{{r.on}}" onPointerLeave="{{r.off}}"><i style="{{r.sw}}"></i><span>{{r.name}}</span><em>{{r.n}}</em><span class="pc">{{r.pc}}</span></button></sc-for></div>
+    </section>
+    <section class="ac in" style="--i:1">
+      <div class="hd"><div><h3>Reasons, by source</h3><div class="sub2">Where each reason comes from: the darker, the more leads</div></div></div>
+      <div class="hm"><span></span><sc-for list="{{srcs}}" as="h" hint-placeholder-count="5"><span class="hh">{{h}}</span></sc-for>
+        <sc-for list="{{grid}}" as="g" hint-placeholder-count="36"><sc-if value="{{g.head}}" hint-placeholder-val="{{ false }}"><span class="rh">{{g.label}}</span></sc-if><sc-if value="{{g.isCell}}" hint-placeholder-val="{{ true }}"><button type="button" class="cell" style="{{g.st}}" aria-label="{{g.aria}}">{{g.v}}</button></sc-if></sc-for></div>
+      <div class="scale2"><span>Fewer</span><i></i><span>More</span></div>
+    </section>
+    <section class="ac in" style="--i:2">
+      <div class="hd"><div><h3>The stage they left at</h3><div class="sub2">Where in the pipeline</div></div></div>
+      <div class="byst"><sc-for list="{{bystage}}" as="b" hint-placeholder-count="5"><div class="bs" style="{{b.i}}"><span>{{b.name}}</span><span class="tr7"><i style="{{b.w}}"></i></span><em>{{b.n}}</em></div></sc-for></div>
+      <div class="ins" style="margin-top:18px"><span class="spk"><img src="/_blob/LOGO" alt=""></span><div><b>Most leave before they ever reply</b><p>62% were lost at New or Contacted, and “No reply” is the top reason. A second message on day 3 is worth trying.</p></div></div>
+    </section>
+  </div>
+  <div class="lg3">
+    <section class="ac in" style="--i:3">
+      <div class="hd"><div><h3>Won back</h3><div class="sub2">Lost leads that came back {{rangeLower}}: reopened, then won</div></div></div>
+      <div class="wb"><div class="wbs"><b>{{lostN}}</b><span>lost</span></div><div class="wbs"><b>214</b><span>reopened · 9.4%</span></div><div class="wbs"><b>37</b><span>won · 17% of reopened</span></div></div>
+      <div class="rec"><b>₹14.6L</b><span>recovered from leads once marked lost</span><span style="margin-left:auto" class="tchip solid good"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 11.5 6 7l3 3 5.5-5.5"/><path d="M10.5 4.5h4v4"/></svg>+38%</span></div>
+    </section>
+    <section class="ac in" style="--i:4">
+      <div class="hd"><div><h3>What converts</h3><div class="sub2">Won, out of leads with each answer · group by any field</div></div><div class="r"><span class="seg segsel"><span class="knob" style="{{fKnob}}"></span><sc-for list="{{fields}}" as="f" hint-placeholder-count="3"><button type="button" class="{{f.cls}}" style="{{f.w}}" onClick="{{f.pick}}">{{f.label}}</button></sc-for></span></div></div>
+      <div class="sgb"><sc-for list="{{seg}}" as="g" hint-placeholder-count="5"><div class="sg"><b>{{g.name}}</b><span class="tr8"><i class="{{g.cls}}" style="{{g.w}}"></i></span><em>{{g.rate}}</em><span class="r2">{{g.n}}</span></div></sc-for></div>
+    </section>
+  </div>
+</div>
+@@SCRIPT
+const REASONS = [['No reply', '#e5484d', 0.31], ['Not interested', '#f2a20c', 0.22], ['Chose someone else', '#2a5bff', 0.17], ['No budget', '#5ab8ff', 0.14], ['Bad timing', '#18a566', 0.1], ['Other', '#8a94a6', 0.06]];
+const SRCS = ['Instagram', 'Website', 'Referrals', 'Webinars', 'Google'];
+const MIX = [[0.42, 0.28, 0.06, 0.1, 0.14], [0.34, 0.3, 0.08, 0.12, 0.16], [0.24, 0.31, 0.21, 0.14, 0.1], [0.3, 0.24, 0.1, 0.2, 0.16], [0.29, 0.31, 0.12, 0.16, 0.12], [0.3, 0.26, 0.14, 0.14, 0.16]];
+const FIELDS = {
+  budget: { label: 'Budget', w: 74, rows: [['Under ₹25k', 0.021, 1240], ['₹25k – ₹50k', 0.058, 1610], ['₹50k – ₹1L', 0.094, 690], ['Over ₹1L', 0.131, 210], ['Not asked', 0.034, 60]] },
+  size: { label: 'Company size', w: 116, rows: [['Just me', 0.039, 1820], ['2 – 10', 0.072, 1220], ['11 – 50', 0.104, 540], ['Over 50', 0.081, 230]] },
+  goal: { label: 'Goal', w: 62, rows: [['More leads', 0.048, 1510], ['Better follow-up', 0.091, 980], ['A team set-up', 0.112, 460], ['Just looking', 0.012, 860]] },
+};
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { themePick: 'auto', range: '30d', compare: true, hot: null, field: 'budget' }; }
+  renderVals() {
+    const s = this.state;
+    const R = RANGES.find((x) => x.id === s.range);
+    const lost = Math.round(127 * R.days * 0.6);
+    const sl = donut(REASONS.map((r) => r[2]), 74);
+    const hot = s.hot;
+    const max = Math.max(...MIX.flatMap((row, i) => row.map((v) => v * REASONS[i][2])));
+    const grid = [];
+    REASONS.forEach((r, i) => {
+      grid.push({ head: true, isCell: false, label: r[0] });
+      MIX[i].forEach((v, j) => {
+        const n = Math.round(lost * r[2] * v);
+        const a = (v * r[2]) / max;
+        grid.push({ head: false, isCell: true, v: fmt(n), st: `--d:${i + j};background:rgba(229,72,77,${(0.08 + a * 0.82).toFixed(2)});color:${a > 0.5 ? '#fff' : 'var(--text)'}`, aria: `${r[0]} from ${SRCS[j]}: ${n} leads` });
+      });
+    });
+    const F = FIELDS[s.field];
+    const best = Math.max(...F.rows.map((r) => r[1]));
+    let x = 0; const at = {};
+    for (const k of Object.keys(FIELDS)) { at[k] = x; x += FIELDS[k].w; }
+    return {
+      ...themeVals(this), ...rangeVals(this), filterN: '0',
+      lostN: fmt(lost), rangeLower: R.words.toLowerCase().replace(/^last/, 'in the last'),
+      slices: REASONS.map((r, i) => ({ color: r[1], cls: 'sl' + (hot === i ? ' hot' : hot != null ? ' dim' : ''), st: `stroke-dasharray:${sl[i].dash};--o:${sl[i].off};stroke-dashoffset:${sl[i].off};--i:${i}` })),
+      hotV: hot == null ? fmt(lost) : fmt(lost * REASONS[hot][2]), hotL: hot == null ? 'lost' : REASONS[hot][0],
+      reasons: REASONS.map((r, i) => ({ cls: 'rlr' + (hot === i ? ' hot' : ''), sw: `background:${r[1]}`, name: r[0], n: fmt(lost * r[2]), pc: pctS(r[2]), on: () => this.setState({ hot: i }), off: () => this.setState({ hot: null }) })),
+      srcs: SRCS, grid,
+      bystage: [['New', 0.29], ['Contacted', 0.33], ['Replied', 0.18], ['Call booked', 0.12], ['Proposal', 0.08]].map((b, i) => ({ i: `--i:${i}`, name: b[0], n: fmt(lost * b[1]), w: `width:${(b[1] / 0.33) * 100}%` })),
+      fKnob: `width:${F.w}px;transform:translateX(${at[s.field]}px)`,
+      fields: Object.entries(FIELDS).map(([k, f]) => ({ label: f.label, w: `width:${f.w}px`, cls: k === s.field ? 'on' : '', pick: () => this.setState({ field: k }) })),
+      seg: F.rows.map((r) => ({ name: r[0], rate: pctS(r[1], 1), n: `${fmt(r[2])} leads`, w: `width:${(r[1] / best) * 100}%`, cls: r[1] === best ? 'best' : '' })),
+    };
+  }
+}

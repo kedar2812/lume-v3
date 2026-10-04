@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { ScrollRail, useWheelAcross } from "@/components/ui/ScrollRail";
 import { tokenColor } from "@/lib/leads/colors";
 import type { Stage } from "@/lib/leads/types";
 import s from "./leads.module.css";
 
-const leads = (n: number) => `${n} ${n === 1 ? "lead" : "leads"}`;
+const num = (n: number) => n.toLocaleString("en-US");
+const leads = (n: number) => `${num(n)} ${n === 1 ? "lead" : "leads"}`;
 
 /**
  * The pipeline at a glance, and the quickest filter: every stage with how many leads are in it (under
@@ -44,6 +46,8 @@ export function StageStrip({
       ro?.disconnect();
     };
   }, [stages.length]);
+  // A mouse wheel moves the strip across; the rail under it shows where you are and can be dragged.
+  useWheelAcross(strip);
 
   const pick = (e: MouseEvent, id: string) => {
     if (e.ctrlKey || e.metaKey)
@@ -51,36 +55,39 @@ export function StageStrip({
     onChange(selected.length === 1 && selected[0] === id ? [] : [id]);
   };
   return (
-    <div role="group" aria-label="Stages" className={s.strip} ref={strip} data-more={more ?? undefined}>
-      <button
-        type="button"
-        className={s.stageTab}
-        aria-pressed={selected.length === 0}
-        aria-label={total === null ? "All stages" : `All stages, ${leads(total)}`}
-        onClick={() => onChange([])}
-      >
-        All
-        {total !== null && <b className={s.stageCount}>{total}</b>}
-      </button>
-      {stages.map((st) => {
-        const n = counts ? (counts[st.id] ?? 0) : null;
-        return (
-          <button
-            key={st.id}
-            type="button"
-            className={s.stageTab}
-            aria-pressed={selected.includes(st.id)}
-            aria-label={n === null ? st.name : `${st.name}, ${leads(n)}`}
-            title="Ctrl or ⌘ click to add this stage to the others"
-            data-empty={n === 0 || undefined}
-            onClick={(e) => pick(e, st.id)}
-          >
-            <i className={s.dot} style={{ background: tokenColor(st.color) }} aria-hidden />
-            {st.name}
-            {n !== null && <b className={s.stageCount}>{n}</b>}
-          </button>
-        );
-      })}
+    <div className={s.stripWrap}>
+      <div role="group" aria-label="Stages" className={s.strip} ref={strip} data-more={more ?? undefined}>
+        <button
+          type="button"
+          className={s.stageTab}
+          aria-pressed={selected.length === 0}
+          aria-label={total === null ? "All stages" : `All stages, ${leads(total)}`}
+          onClick={() => onChange([])}
+        >
+          All
+          {total !== null && <b className={s.stageCount}>{num(total)}</b>}
+        </button>
+        {stages.map((st) => {
+          const n = counts ? (counts[st.id] ?? 0) : null;
+          return (
+            <button
+              key={st.id}
+              type="button"
+              className={s.stageTab}
+              aria-pressed={selected.includes(st.id)}
+              aria-label={n === null ? st.name : `${st.name}, ${leads(n)}`}
+              title="Ctrl or ⌘ click to add this stage to the others"
+              data-empty={n === 0 || undefined}
+              onClick={(e) => pick(e, st.id)}
+            >
+              <i className={s.dot} style={{ background: tokenColor(st.color) }} aria-hidden />
+              {st.name}
+              {n !== null && <b className={s.stageCount}>{num(n)}</b>}
+            </button>
+          );
+        })}
+      </div>
+      <ScrollRail target={strip} label="Scroll the stages" className={s.stripRail} />
     </div>
   );
 }

@@ -74,4 +74,17 @@ describe("Today (Phase 3 spec §6)", () => {
     expect(a.needsYou.sources).toEqual([]);
     expect((await today(await person("Asia/Dubai", []))).needsYou).toBeUndefined();
   });
+
+  it("admins who look after security see open alerts there too (frontend spec §8.2)", async () => {
+    const someone = await h.seedUser({ grants: [] });
+    await h.ownerPool.query(
+      `INSERT INTO security_alerts (id, user_id, rule, observed, threshold, window_start, window_end, action)
+       VALUES (gen_random_uuid(), $1, 'reveals', 31, 30, now() - interval '50 minutes', now(), 'alerted')`,
+      [someone.id],
+    );
+    const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+    expect((await today(admin)).needsYou.alerts).toBe(1);
+    const leadsOnly = await h.signIn(await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] }));
+    expect((await today(leadsOnly)).needsYou.alerts).toBe(0);
+  });
 });

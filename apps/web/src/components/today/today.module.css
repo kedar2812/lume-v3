@@ -1,8 +1,44 @@
 /* Today (Phase 3 §6, the prototype's hero and "Up next"). */
 .page {
-  max-width: 880px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 8px 4px 48px;
+}
+/* The body (frontend spec §8.2, today-prototype.html "cols"): what's next on the left, the day at a glance on the
+   right; one column on a narrow screen, the glance after what's next. */
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 316px;
+  gap: 28px;
+  align-items: start;
+}
+.colMain {
+  min-width: 0;
+}
+.colSide {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+@media (max-width: 1040px) {
+  .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Nothing due today: said quietly, where the list would be. */
+.quiet {
+  padding: 22px 20px;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.quiet p {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.quiet span {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
 }
 .hero {
   display: flex;

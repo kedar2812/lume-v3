@@ -18,6 +18,7 @@ vi.mock("@/components/notifications/NotificationCentre", () => ({
 vi.mock("@/lib/notifications/client", () => ({
   notificationsClient: { list: vi.fn() },
   READ_EVENT: "lume:notifications-read",
+  OPEN_NOTIFICATIONS: "lume:open-notifications",
 }));
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
@@ -40,6 +41,17 @@ describe("the bell", () => {
     await vi.waitFor(() => expect(document.title).toBe("(2) Leads · LUME"));
     await userEvent.click(bell);
     expect(screen.getByRole("dialog", { name: "Notifications" })).toBeInTheDocument();
+  });
+
+  it("unread ones wait: the dot says so (the bell rings, or the dot breathes with Reduce Motion); Search can open the centre", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 3 }));
+    const { container } = render(<TopBar theme="system" onSearch={vi.fn()} />);
+    await screen.findByRole("button", { name: "Notifications, 3 unread" });
+    expect(container.querySelector("[data-live-count]")).toHaveAttribute("data-waiting");
+    await act(async () => void window.dispatchEvent(new Event("lume:open-notifications")));
+    expect(screen.getByRole("dialog", { name: "Notifications" })).toBeInTheDocument();
+    // Open, nothing waits to be seen any more.
+    expect(container.querySelector("[data-live-count]")).not.toHaveAttribute("data-waiting");
   });
 
   it("a live one adds to the count; reading them all lets it go", async () => {

@@ -21,7 +21,7 @@ export default tseslint.config(
       "**/.next/**",
       "**/node_modules/**",
       "coverage/**",
-      "docs/design/prototypes/**",
+      "docs/design/**",
       "apps/web/e2e/.artifacts/**",
       "apps/licence/e2e/.artifacts/**",
     ],

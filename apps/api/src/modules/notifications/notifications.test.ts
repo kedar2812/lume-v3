@@ -103,6 +103,32 @@ describe("notifications (Phase 3 spec §7)", () => {
     expect(all.json()).toEqual({ unread: 0 });
     expect((await someone.inject({ method: "GET", url: "/api/v1/notifications" })).json().unread).toBe(1);
   });
+
+  it("Clear read takes away only my read ones, leaves the unread, and Undo brings exactly those back", async () => {
+    await me.inject({ method: "POST", url: "/api/v1/notifications/read", payload: { all: true } });
+    const fresh = await notify(meId, "Still unread");
+    await notify(someoneId, "Someone's read one");
+    await someone.inject({ method: "POST", url: "/api/v1/notifications/read", payload: { all: true } });
+    const titles = async (c: typeof me) =>
+      (await c.inject({ method: "GET", url: "/api/v1/notifications" }))
+        .json()
+        .items.map((n: { title: string }) => n.title);
+    const before = await titles(me);
+    expect(before.length).toBeGreaterThan(1);
+    const cleared = (await me.inject({ method: "POST", url: "/api/v1/notifications/clear-read" })).json()
+      .cleared;
+    expect(cleared).toHaveLength(before.length - 1);
+    expect(cleared).not.toContain(fresh);
+    expect(await titles(me)).toEqual(["Still unread"]);
+    expect(await titles(someone)).toContain("Someone's read one");
+    const undo = await me.inject({
+      method: "POST",
+      url: "/api/v1/notifications/clear-read/undo",
+      payload: { ids: cleared },
+    });
+    expect(undo.json()).toEqual({ restored: cleared.length });
+    expect(await titles(me)).toEqual(before);
+  });
 });
 
 describe("the live stream", () => {

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
 import { notificationsClient } from "@/lib/notifications/client";
+import { analyticsClient } from "@/lib/analytics/client";
 import { tasksClient } from "@/lib/tasks/client";
 import type { TaskView, TodayView } from "@/lib/tasks/types";
 import { Today } from "./Today";
@@ -10,6 +11,7 @@ import { Today } from "./Today";
 const play = vi.fn();
 vi.mock("@/components/feedback/SoundProvider", () => ({ useSound: () => ({ play }) }));
 vi.mock("@/lib/tasks/client", () => ({ tasksClient: { today: vi.fn(), done: vi.fn(), snooze: vi.fn() } }));
+vi.mock("@/lib/analytics/client", () => ({ analyticsClient: { glance: vi.fn(), funnel: vi.fn() } }));
 vi.mock("@/lib/notifications/client", () => ({ notificationsClient: { readAll: vi.fn() }, READ_EVENT: "x" }));
 vi.mock("@/lib/leads/client", () => ({
   leadsClient: { prepareMessage: vi.fn(), confirmMessage: vi.fn(), move: vi.fn() },
@@ -208,11 +210,89 @@ describe("Today", () => {
       ),
     );
     render(<Today name="Maya Kapoor" tz="Asia/Dubai" />);
-    expect(await screen.findByRole("link", { name: /3 new leads have no one yet/ })).toBeInTheDocument();
+    // It opens Leads filtered to nobody's: the list reads `owner`, not `ownerId` (owner, 2026-10-05).
+    expect(await screen.findByRole("link", { name: /3 new leads have no one yet/ })).toHaveAttribute(
+      "href",
+      "/leads?owner=none",
+    );
     expect(screen.getByRole("link", { name: /Website enquiries needs attention/ })).toHaveAttribute(
       "href",
       "/settings/integrations/s1",
     );
+  });
+
+  it("frontend spec §8.2: with Analytics, four quick stats with trends and the pipeline; without, neither", async () => {
+    vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
+    const kpi = (id: string, value: number, period: "week" | "month") => ({
+      id,
+      value,
+      previous: value / 2,
+      trend: { dir: "up", tone: "good", text: "+100%" },
+      series: [1, 2, 3, 4, 5, 6, 7],
+      period,
+    });
+    vi.mocked(analyticsClient.glance).mockResolvedValue(
+      ok({
+        kpis: [
+          kpi("new_leads", 24, "week"),
+          kpi("reply_rate", 0.4, "week"),
+          kpi("calls_booked", 6, "week"),
+          kpi("revenue_won", 120000, "month"),
+        ],
+        week: { from: "2026-09-29", to: "2026-10-05" },
+        month: { from: "2026-10-01", to: "2026-10-05" },
+      }) as never,
+    );
+    vi.mocked(analyticsClient.funnel).mockResolvedValue(
+      ok({
+        range: { label: "", days: [] },
+        arrived: 142,
+        previousArrived: 0,
+        stages: [
+          {
+            id: "s1",
+            name: "New",
+            kind: "open",
+            reached: 142,
+            share: 1,
+            stopped: 0,
+            stoppedN: 0,
+            tooFew: false,
+            trend: null,
+          },
+          {
+            id: "s2",
+            name: "Won",
+            kind: "won",
+            reached: 13,
+            share: 0.09,
+            stopped: 0,
+            stoppedN: 0,
+            tooFew: false,
+            trend: null,
+          },
+        ],
+      }) as never,
+    );
+    const { unmount } = render(<Today name="Maya Kapoor" tz="Asia/Dubai" analytics={{ currency: "INR" }} />);
+    const stats = await screen.findByRole("region", { name: "How it's going" });
+    expect(await within(stats).findByRole("link", { name: /^New leads: 24, \+100%/ })).toHaveAttribute(
+      "href",
+      "/analytics?range=7d",
+    );
+    expect(within(stats).getByRole("link", { name: /^Revenue won:/ })).toHaveAttribute(
+      "href",
+      "/analytics?range=this_month",
+    );
+    expect(within(stats).getAllByRole("link")).toHaveLength(4);
+    const pipeline = await screen.findByRole("region", { name: "Pipeline" });
+    expect(pipeline).toHaveTextContent("New142");
+    unmount();
+    vi.mocked(analyticsClient.glance).mockClear();
+    render(<Today name="Maya Kapoor" tz="Asia/Dubai" />);
+    await screen.findByText("Aisha Khan");
+    expect(screen.queryByRole("region", { name: "How it's going" })).toBeNull();
+    expect(analyticsClient.glance).not.toHaveBeenCalled();
   });
 
   it("each row's Snooze says whose follow-up it is (not five buttons all called Snooze)", async () => {

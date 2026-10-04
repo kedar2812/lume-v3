@@ -13,7 +13,8 @@ import {
   type CalendarUrl,
 } from "@/lib/calendar/agenda";
 import { calendarClient } from "@/lib/calendar/client";
-import type { Meeting } from "@/lib/calendar/types";
+import type { LastSync, Meeting } from "@/lib/calendar/types";
+import { useAgo } from "@/lib/ago";
 import { longDate, weekOf } from "@/lib/dates";
 import { tokenColor } from "@/lib/leads/colors";
 import { usePhone } from "@/lib/usePhone";
@@ -39,7 +40,8 @@ export type CalendarScreenProps = {
   stages: { id: string; name: string; color: string }[];
   initial: CalendarUrl;
   /** Where the meetings come from, for the source line and the rail ("Reading from"). */
-  sources?: { google: { updated: string | null; healthy: boolean } | null; calendly: boolean };
+  /** Where meetings come from; Google's `syncedAt` is when it was last read (the screen says how long ago, live). */
+  sources?: { google: { syncedAt: string | null; healthy: boolean } | null; calendly: boolean };
   /** Refresh (Task 6), for someone with a connected calendar; "Connect again" when Google withdrew it. */
   refreshable?: { needsReconnect: boolean } | null;
   /** The settings gear (Task 7) sits at the bar's end. */
@@ -116,6 +118,13 @@ export function CalendarScreen({
   now: nowOf = () => new Date(),
 }: CalendarScreenProps) {
   const [now, setNow] = useState(nowOf);
+  // "updated just now" the moment a Refresh reads the calendar, and kept true as time passes (owner, 2026-10-05).
+  const [syncedAt, setSyncedAt] = useState(sources?.google?.syncedAt ?? null);
+  const updated = useAgo(syncedAt);
+  const live = sources && {
+    calendly: sources.calendly,
+    google: sources.google && { healthy: sources.google.healthy, updated },
+  };
   const today = dayKey(now, tz);
   const [view, setView] = useState(initial.view);
   const [day, setDay] = useState(initial.day ?? today);
@@ -168,6 +177,10 @@ export function CalendarScreen({
     setWashed(new Set(changed));
     setTimeout(() => setWashed(new Set()), 2400);
   }, [meetings, day, tz]);
+  const onRead = (l: LastSync) => {
+    setSyncedAt(l.at);
+    void synced();
+  };
 
   // Read again only when the chosen day leaves what's loaded (with a week to spare either side).
   useEffect(() => {
@@ -307,9 +320,7 @@ export function CalendarScreen({
                 </div>
               )}
             </Popover>
-            {refreshable && (
-              <CalendarRefresh needsReconnect={refreshable.needsReconnect} onSynced={() => void synced()} />
-            )}
+            {refreshable && <CalendarRefresh needsReconnect={refreshable.needsReconnect} onSynced={onRead} />}
             <SegmentedControl
               label="View"
               value={view}
@@ -345,7 +356,7 @@ export function CalendarScreen({
               {sources.google && (
                 <span className={s.src}>
                   <img className={s.gmark} src="/brand/google-calendar.png" alt="" width={14} height={14} />
-                  Google Calendar{sources.google.updated ? ` · updated ${sources.google.updated}` : ""}
+                  Google Calendar{updated ? ` · updated ${updated}` : ""}
                 </span>
               )}
               {sources.google && sources.calendly && <span aria-hidden>·</span>}
@@ -392,10 +403,7 @@ export function CalendarScreen({
               (refreshable || gear) && (
                 <>
                   {refreshable && (
-                    <CalendarRefresh
-                      needsReconnect={refreshable.needsReconnect}
-                      onSynced={() => void synced()}
-                    />
+                    <CalendarRefresh needsReconnect={refreshable.needsReconnect} onSynced={onRead} />
                   )}
                   {gear}
                 </>
@@ -441,7 +449,7 @@ export function CalendarScreen({
               tz={tz}
               now={now}
               weekStart={weekStart}
-              sources={sources}
+              sources={live}
               onPick={setDay}
               onLogOutcome={onLogOutcome}
             />

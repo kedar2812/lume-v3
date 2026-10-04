@@ -7,7 +7,7 @@ import {
   type Keyring,
   type MeetingMatch,
 } from "@lume/core";
-import type { ConnectedCalendar } from "@lume/db";
+import type { ConnectedCalendar, SyncProgress } from "@lume/db";
 import { notify } from "../notifications/notify";
 import { GOOGLE_UNREACHABLE, GoogleError, isTransient } from "../sheets/google";
 import { SyncTokenGone, type CalendarEventRead, type GoogleCalendar } from "./google";
@@ -122,14 +122,32 @@ async function syncLocked(d: CalendarSyncDeps, id: string): Promise<SyncOutcome>
   const google = d.clientFor(d.keyring.decrypt(conn.grant_enc, `calendar-connection:${conn.id}`));
   if (!google) return "skipped";
 
-  // Google first, with no transaction open; then everything is written in one.
+  // Google first, with no transaction open; then everything is written in one. Each step says how far it has
+  // got, for the Refresh card's bar (0061); the write clears it.
+  const report = (p: Omit<SyncProgress, "at">) =>
+    inTx(d.pool, { user: conn.user_id }, (c) =>
+      c.query("UPDATE calendar_connections SET sync_progress = $2 WHERE id = $1", [
+        conn.id,
+        JSON.stringify({ ...p, at: new Date().toISOString() }),
+      ]),
+    ).catch(() => undefined); // progress is a courtesy: never what fails a sync
   let read: Awaited<ReturnType<typeof readCalendars>>;
   try {
-    read = await readCalendars(google, conn.calendars, now);
+    read = await readCalendars(google, conn.calendars, now, (done, total) =>
+      report({ stage: "reading", done, total }),
+    );
   } catch (e) {
+    await clearProgress(d.pool, conn);
     return failed(d, conn, e, now);
   }
+  await report({ stage: "saving", done: read.reads.length, total: read.reads.length });
   return inTx(d.pool, { user: conn.user_id }, (c) => write(c, conn, read, now));
+}
+
+async function clearProgress(pool: pg.Pool, conn: Row) {
+  await inTx(pool, { user: conn.user_id }, (c) =>
+    c.query("UPDATE calendar_connections SET sync_progress = NULL WHERE id = $1", [conn.id]),
+  ).catch(() => undefined);
 }
 
 /** Google Calendar is switched on here (Settings → Integrations): a sync already queued when it went off waits. */
@@ -184,7 +202,12 @@ async function forget(pool: pg.Pool, conn: Row, now: Date) {
 }
 
 /** The calendar list (names, new and removed calendars), then each chosen one: since its token, or in full. */
-async function readCalendars(google: GoogleCalendar, known: ConnectedCalendar[], now: Date) {
+async function readCalendars(
+  google: GoogleCalendar,
+  known: ConnectedCalendar[],
+  now: Date,
+  progress: (done: number, total: number) => Promise<unknown> = async () => undefined,
+) {
   const list = await google.calendarList();
   const prior = new Map(known.map((c) => [c.id, c]));
   const listed = new Set(list.map((c) => c.id));
@@ -202,7 +225,9 @@ async function readCalendars(google: GoogleCalendar, known: ConnectedCalendar[],
   // A chosen calendar gone from the account: the others are read in full, so an event it shared with them
   // moves to them rather than vanishing.
   const lostOne = known.some((c) => c.chosen && !listed.has(c.id));
-  for (const cal of calendars.filter((c) => c.chosen)) {
+  const chosen = calendars.filter((c) => c.chosen);
+  await progress(0, chosen.length);
+  for (const cal of chosen) {
     // Once a day a full read, so an event still finds a lead whose email arrived after it was read.
     const due = lostOne || !cal.syncToken || !cal.fullAt || now.getTime() - Date.parse(cal.fullAt) >= DAY;
     let r: { events: CalendarEventRead[]; nextSyncToken: string } | null = null;
@@ -220,6 +245,7 @@ async function readCalendars(google: GoogleCalendar, known: ConnectedCalendar[],
     cal.syncToken = r.nextSyncToken;
     if (full) cal.fullAt = now.toISOString();
     reads.push({ id: cal.id, full, events: r.events });
+    await progress(reads.length, chosen.length);
   }
   return { calendars, reads };
 }
@@ -504,7 +530,7 @@ async function write(
   // A Refresh pressed after this sync started reading isn't in it: leave the connection due at once.
   await c.query(
     `UPDATE calendar_connections SET calendars = $2, last_synced_at = $3, failures = 0, last_error = NULL,
-            updated_at = $3, last_sync = $5,
+            updated_at = $3, last_sync = $5, sync_progress = NULL,
             next_sync_at = CASE WHEN sync_requested_at > $3 THEN $3 ELSE $4 END
       WHERE id = $1`,
     [

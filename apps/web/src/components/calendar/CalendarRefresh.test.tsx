@@ -69,7 +69,7 @@ describe("the calendar's Refresh", () => {
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveAttribute("data-phase", "lifting");
     await tick(600);
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveAttribute("data-phase", "syncing");
-    await tick(3000);
+    await tick(1800);
     expect(screen.getByRole("status")).toHaveTextContent("1 new meeting · 2 updated");
     expect(onSynced).not.toHaveBeenCalled(); // the rows wash as the card lands, not before
     await tick(1500);
@@ -78,6 +78,41 @@ describe("the calendar's Refresh", () => {
     expect(screen.getByRole("button", { name: /3 updated/ })).toBeInTheDocument();
     await tick(2000);
     expect(screen.getByRole("button", { name: "Refresh" })).toHaveAttribute("data-phase", "idle");
+  });
+
+  it("the bar follows the sync: a sliver when asked, each calendar read, saving, and full only when it's done", async () => {
+    vi.mocked(calendarClient.sync).mockResolvedValue({
+      ...ok({ queued: true as const, since: SINCE }),
+      status: 202,
+    });
+    const old = conn(sync("2026-10-01T09:55:00.000Z"));
+    vi.mocked(calendarClient.connection)
+      .mockResolvedValueOnce(ok({ ...old, syncProgress: { stage: "reading" as const, done: 0, total: 2 } }))
+      .mockResolvedValueOnce(ok({ ...old, syncProgress: { stage: "reading" as const, done: 1, total: 2 } }))
+      .mockResolvedValueOnce(ok({ ...old, syncProgress: { stage: "saving" as const, done: 2, total: 2 } }))
+      .mockResolvedValue(ok(conn(sync("2026-10-01T10:00:02.000Z", { added: 1 }))));
+    render(<CalendarRefresh onSynced={vi.fn()} />);
+    act(() => screen.getByRole("button", { name: /Refresh/ }).click());
+    const bar = () => Number(screen.getByRole("progressbar", { hidden: true }).getAttribute("aria-valuenow"));
+    await tick(600);
+    const asked = bar();
+    expect(asked).toBeLessThan(20);
+    await tick(600);
+    expect(screen.getByText("Reading calendar 1 of 2…")).toBeInTheDocument();
+    const first = bar();
+    await tick(600);
+    expect(screen.getByText("Reading calendar 2 of 2…")).toBeInTheDocument();
+    const second = bar();
+    await tick(600);
+    expect(screen.getByText("Saving meetings with your leads…")).toBeInTheDocument();
+    const saving = bar();
+    await tick(600);
+    const done = bar();
+    expect([asked, first, second, saving, done]).toEqual(
+      [...[asked, first, second, saving, done]].sort((a, b) => a - b),
+    );
+    expect(new Set([asked, first, second, saving, done]).size).toBe(5);
+    expect(done).toBe(100);
   });
 
   it("after 30 seconds without a newer sync, says it's still syncing and to Refresh again — nothing it can't keep", async () => {

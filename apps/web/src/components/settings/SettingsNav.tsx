@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { SettingsArea } from "@/lib/settings/areas";
+import { SettingsSearch } from "./SettingsSearch";
 import s from "./settings.module.css";
 
 /**
@@ -13,7 +14,8 @@ export function SettingsNav({ areas }: { areas: SettingsArea[] }) {
   const router = useRouter();
   const current = areas.find((a) => path === a.href || path.startsWith(`${a.href}/`));
   return (
-    <>
+    <div className={s.side}>
+      <SettingsSearch areas={areas} />
       <nav className={s.nav} aria-label="Settings">
         <Link href="/settings" className={s.navLink} aria-current={path === "/settings" ? "page" : undefined}>
           All settings
@@ -40,6 +42,6 @@ export function SettingsNav({ areas }: { areas: SettingsArea[] }) {
           ))}
         </select>
       </label>
-    </>
+    </div>
   );
 }

@@ -48,6 +48,7 @@ export default async function Page({
       first={first}
       initialLeadId={lead && /^[0-9a-f-]{36}$/.test(lead) ? lead : null}
       view={view}
+      initialAction={params.get("do") === "new" ? "new" : params.get("do") === "import" ? "import" : null}
     />
   );
 }

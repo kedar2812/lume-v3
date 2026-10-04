@@ -76,6 +76,8 @@ export const notifications = pgTable("notifications", {
     .default(sql`'{}'::jsonb`),
   createdAt: tz("created_at").notNull().defaultNow(),
   readAt: tz("read_at"),
+  /** Hidden by "Clear read" (0062); the sweep removes it later, as any read notification. */
+  clearedAt: tz("cleared_at"),
 });
 
 /** One digest a person a local day (3B): sent, and how many items it held. */

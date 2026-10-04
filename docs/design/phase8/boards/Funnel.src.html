@@ -1,0 +1,166 @@
+@@META
+{"title":"Analytics · funnel","active":"analytics","crumb":"Analytics","props":{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"groupBy":{"editor":"enum","options":["nothing","source","owner"],"default":"nothing","section":"Funnel"},"$preview":{"width":1440,"height":900}}}
+@@CSS
+.g2{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(0,1fr);gap:14px}
+.g3{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px}
+.rib{position:relative}
+.rib svg{display:block;width:100%;overflow:visible}
+.rib .band2{transition:d .9s var(--spring),opacity .4s;cursor:pointer}
+.rib .band2:hover{filter:brightness(1.06)}
+.rib .pour{animation:pour 1.6s cubic-bezier(.45,.05,.3,1) both}
+@keyframes pour{from{width:0}to{width:760px}}
+.rib .col{stroke:var(--line-2);stroke-width:1;stroke-dasharray:2 4}
+.rib .lab{font-size:12.5px;font-weight:650;fill:var(--text)}
+.rib .lab2{font-size:11.5px;fill:var(--text-3);font-variant-numeric:tabular-nums}
+.rib .num2{font-size:19px;font-weight:700;fill:var(--text);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.rib .conv{font-size:11.5px;font-weight:700;fill:var(--good-ink)}
+.rib .dropl{font-size:11px;font-weight:650;fill:var(--bad-ink)}
+.rib .stream{fill:var(--bad);opacity:.16;transition:d .9s var(--spring)}
+.cpill{position:absolute;transform:translate(-50%,-50%);height:22px;padding:0 8px;border-radius:11px;display:flex;align-items:center;gap:3px;font-size:11.5px;font-weight:700;background:var(--sheet);box-shadow:var(--shadow-sheet);color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+.cpill svg{width:11px;height:11px;color:var(--text-3)}
+.gsel{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--text-2)}
+.gsel .seg button{height:26px;font-size:12px;padding:0}
+/* snapshot: what's in each stage now */
+.snap{display:flex;flex-direction:column;gap:9px}
+.sn{display:grid;grid-template-columns:98px minmax(0,1fr) 84px;gap:10px;align-items:center;font-size:12.5px}
+.sn b{font-weight:600}
+.sn .tr3{height:22px;border-radius:7px;background:var(--sunk);position:relative;overflow:hidden}
+.sn .tr3 i{position:absolute;left:0;top:0;bottom:0;border-radius:7px;transform-origin:0 50%;animation:grow 1s var(--spring) both;animation-delay:calc(var(--i) * 70ms + .3s)}
+@keyframes grow{from{transform:scaleX(0)}to{transform:none}}
+.sn .tr3 span{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11.5px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.sn .val{text-align:right;font-weight:650;font-variant-numeric:tabular-nums}
+.sn .val small{display:block;font-size:11px;color:var(--text-3);font-weight:500}
+/* time in stage: median to P75, with the stage's allowed time as a line */
+.tis{display:flex;flex-direction:column;gap:12px}
+.ti{display:grid;grid-template-columns:96px minmax(0,1fr) 70px;gap:10px;align-items:center;font-size:12.5px}
+.ti .trk2{position:relative;height:16px}
+.ti .trk2::before{content:"";position:absolute;left:0;right:0;top:7px;height:2px;border-radius:1px;background:var(--sunk)}
+.ti .rng{position:absolute;top:2px;height:12px;border-radius:6px;background:linear-gradient(90deg,var(--accent),#5ab8ff);transition:left .8s var(--spring),width .8s var(--spring)}
+.ti.over .rng{background:linear-gradient(90deg,var(--warn),#ffc75c)}
+.ti .med{position:absolute;top:-1px;width:3px;height:18px;border-radius:2px;background:var(--text);transition:left .8s var(--spring)}
+.ti .sla{position:absolute;top:-4px;bottom:-4px;width:0;border-left:1.5px dashed var(--bad);opacity:.7}
+.ti .tv{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.ti .tv small{display:block;font-size:11px;color:var(--text-3);font-weight:500}
+.tleg{display:flex;gap:14px;font-size:11.5px;color:var(--text-3);margin-top:12px}
+.tleg span{display:inline-flex;align-items:center;gap:6px}
+.tleg i{display:inline-block}
+/* velocity: the sum, as it reads */
+.vel{display:grid;grid-template-columns:repeat(4,auto);justify-content:start;align-items:center;gap:8px 10px;margin:4px 0 14px}
+.vel .t{display:flex;flex-direction:column;padding:8px 10px;border-radius:12px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.vel .t b{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.vel .t span{font-size:11px;color:var(--text-3)}
+.vel .op{font-size:16px;color:var(--text-3);font-weight:600;text-align:center}
+.velout{display:flex;align-items:baseline;gap:8px;padding-top:12px;border-top:.5px solid var(--line)}
+.velout b{font-size:28px;font-weight:700;letter-spacing:-.025em}
+.velout span{color:var(--text-3);font-size:13px}
+.hist{display:flex;align-items:flex-end;gap:3px;height:70px;margin-top:10px}
+.hist i{flex:1;border-radius:4px 4px 1px 1px;background:var(--accent-soft);transform-origin:50% 100%;animation:rise2 .9s var(--spring) both;animation-delay:calc(var(--i) * 30ms + .4s)}
+.hist i.m{background:var(--accent)}
+@keyframes rise2{from{transform:scaleY(0)}to{transform:none}}
+.fcast{display:flex;align-items:flex-end;gap:12px;height:132px;margin-top:6px}
+.fc{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.fc .stk{width:100%;display:flex;flex-direction:column-reverse;border-radius:8px;overflow:hidden;transform-origin:50% 100%;animation:rise2 1s var(--spring) both;animation-delay:calc(var(--i) * 80ms + .3s)}
+.fc .stk i{display:block}
+.fc b{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums}
+.fc span{font-size:11px;color:var(--text-3)}
+@@BODY
+{{ABAR:Funnel}}
+<div class="ascroll">
+  <div class="g2">
+    <section class="ac in" style="--i:0">
+      <div class="hd"><div><h3>How far this month's leads got</h3><div class="sub2">Of {{cohortN}} leads that arrived {{rangeLower}}, the share that ever reached each stage, even if they skipped one</div></div>
+        <div class="r gsel">Split by<span class="seg"><span class="knob" style="{{gKnob}}"></span><button type="button" class="{{gNone}}" style="width:74px" onClick="{{gByNone}}">Nothing</button><button type="button" class="{{gSrc}}" style="width:66px" onClick="{{gBySrc}}">Source</button><button type="button" class="{{gOwn}}" style="width:62px" onClick="{{gByOwn}}">Owner</button></span></div></div>
+      <div class="rib" style="height:300px">
+        <svg viewBox="0 0 760 300" style="height:300px" aria-label="The funnel, as a ribbon">
+          <defs><clipPath id="pourclip"><rect class="pour" x="0" y="0" width="760" height="300"></rect></clipPath>
+            <sc-for list="{{layers}}" as="l" hint-placeholder-count="1"><linearGradient id="{{l.gid}}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="{{l.c1}}"></stop><stop offset="1" stop-color="{{l.c2}}"></stop></linearGradient></sc-for></defs>
+          <sc-for list="{{cols}}" as="c" hint-placeholder-count="6"><line class="col" x1="{{c.x}}" x2="{{c.x}}" y1="40" y2="252"></line><text class="lab" x="{{c.x}}" y="18" text-anchor="{{c.anchor}}">{{c.name}}</text><text class="num2" x="{{c.x}}" y="290" text-anchor="{{c.anchor}}">{{c.pct}}</text><text class="lab2" x="{{c.x}}" y="270" text-anchor="{{c.anchor}}">{{c.n}}</text></sc-for>
+          <g clip-path="url(#pourclip)"><sc-for list="{{streams}}" as="d" hint-placeholder-count="5"><path class="stream" style="{{d.d}}"></path></sc-for><sc-for list="{{layers}}" as="l" hint-placeholder-count="1"><path class="band2" style="{{l.d}}" fill="{{l.fill}}" onClick="{{l.drill}}"></path></sc-for></g>
+        </svg>
+        <sc-for list="{{pills}}" as="p" hint-placeholder-count="5"><span class="cpill" style="{{p.pos}}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h8M7 3l3 3-3 3"/></svg>{{p.v}}</span></sc-for>
+      </div>
+      <div class="legend" style="margin-top:6px"><sc-for list="{{layerLegend}}" as="g" hint-placeholder-count="1"><button type="button"><i style="{{g.sw}}"></i>{{g.label}}</button></sc-for></div>
+    </section>
+    <section class="ac in" style="--i:1">
+      <div class="hd"><div><h3>In each stage now</h3><div class="sub2">Open leads and what they're worth, whatever the range</div></div></div>
+      <div class="snap"><sc-for list="{{snap}}" as="s" hint-placeholder-count="6"><div class="sn" style="{{s.i}}"><b>{{s.name}}</b><span class="tr3"><i style="{{s.bar}}"></i><span>{{s.n}}</span></span><span class="val">{{s.v}}<small>{{s.avg}}</small></span></div></sc-for></div>
+      <div class="velout" style="margin-top:16px"><b>{{openValue}}</b><span>open across all stages · {{openN}} leads</span></div>
+    </section>
+  </div>
+  <div class="g3">
+    <section class="ac in" style="--i:2">
+      <div class="hd"><div><h3>Time in each stage</h3><div class="sub2">Half of leads move on within the dark mark; three in four within the bar</div></div><div class="r"><button type="button" class="drill" onClick="{{noop}}">{{stuckN}} stuck<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div></div>
+      <div class="tis"><sc-for list="{{tis}}" as="t" hint-placeholder-count="5"><div class="{{t.cls}}"><b>{{t.name}}</b><span class="trk2"><span class="rng" style="{{t.rng}}"></span><span class="med" style="{{t.med}}"></span><span class="sla" style="{{t.sla}}"></span></span><span class="tv">{{t.medT}}<small>{{t.p75T}}</small></span></div></sc-for></div>
+      <div class="tleg"><span><i style="width:3px;height:12px;border-radius:2px;background:var(--text)"></i>Median</span><span><i style="width:16px;height:8px;border-radius:4px;background:var(--accent)"></i>Up to P75</span><span><i style="height:12px;border-left:1.5px dashed var(--bad)"></i>The stage's allowed time</span></div>
+    </section>
+    <section class="ac in" style="--i:3">
+      <div class="hd"><div><h3>Pipeline velocity</h3><div class="sub2">What the pipeline earns a day, at today's pace</div></div></div>
+      <div class="vel"><div class="t"><b>{{vOpen}}</b><span>open leads</span></div><span class="op">×</span><div class="t"><b>{{vWin}}</b><span>win rate</span></div><span class="op">×</span><div class="t"><b>{{vDeal}}</b><span>average deal</span></div><span class="op">÷</span><div class="t"><b>{{vCycle}}</b><span>days to win</span></div></div>
+      <div class="velout"><b>{{vOut}}</b><span>a day</span><span class="{{vChip}}" style="margin-left:auto">{{vDelta}}</span></div>
+      <div class="sub2" style="margin-top:14px">How long a win takes, from arriving · median {{vCycle}} days</div>
+      <div class="hist"><sc-for list="{{hist}}" as="h" hint-placeholder-count="16"><i class="{{h.cls}}" style="{{h.st}}"></i></sc-for></div>
+    </section>
+    <section class="ac in" style="--i:4">
+      <div class="hd"><div><h3>Forecast</h3><div class="sub2">Open value × each stage's chance of winning, by the month LUME expects it</div></div></div>
+      <div class="fcast"><sc-for list="{{fc}}" as="f" hint-placeholder-count="4"><div class="fc" style="{{f.i}}"><b>{{f.v}}</b><div class="stk" style="{{f.h}}"><sc-for list="{{f.parts}}" as="p" hint-placeholder-count="3"><i style="{{p}}"></i></sc-for></div><span>{{f.m}}</span></div></sc-for></div>
+      <div class="legend" style="margin-top:10px"><button type="button"><i style="background:#2a5bff"></i>Proposal</button><button type="button"><i style="background:#5ab8ff"></i>Call booked</button><button type="button"><i style="background:rgba(42,91,255,.25)"></i>Earlier stages</button></div>
+    </section>
+  </div>
+</div>
+@@SCRIPT
+const ST = ['New', 'Contacted', 'Replied', 'Call booked', 'Proposal', 'Won'];
+const SHARE = [1, 0.86, 0.41, 0.18, 0.113, 0.061];
+const SRC = [['Instagram', '#2a5bff', '#4d7bff', [0.46, 0.45, 0.44, 0.41, 0.4, 0.37]], ['Website', '#5ab8ff', '#7cc8ff', [0.32, 0.32, 0.31, 0.3, 0.29, 0.28]], ['Referrals', '#18a566', '#4fd69c', [0.13, 0.14, 0.15, 0.17, 0.18, 0.2]], ['Webinars', '#f2a20c', '#ffc75c', [0.09, 0.09, 0.1, 0.12, 0.13, 0.15]]];
+const OWN = [['Riya Shah', '#0B7285', '#1395a8', [0.28, 0.29, 0.31, 0.33, 0.34, 0.36]], ['Dev Malhotra', '#A15C00', '#c98316', [0.26, 0.25, 0.23, 0.21, 0.2, 0.18]], ['Hana Ito', '#0F7F44', '#1fa864', [0.24, 0.25, 0.26, 0.27, 0.27, 0.28]], ['Leo Martins', '#B02E6B', '#d24a8a', [0.22, 0.21, 0.2, 0.19, 0.19, 0.18]]];
+const X0 = 40, X1 = 720, CY = 140, MAXH = 190;
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { themePick: 'auto', range: '30d', compare: true }; }
+  renderVals() {
+    const s = this.state;
+    const g = s.group ?? this.props.groupBy ?? 'nothing';
+    const R = RANGES.find((x) => x.id === s.range);
+    const days = R.days;
+    const cohort = Math.round(127 * days);
+    const xs = ST.map((_, i) => X0 + (i * (X1 - X0)) / (ST.length - 1));
+    const h = SHARE.map((v) => Math.max(8, v * MAXH));
+    // the ribbon: centred, its height the share that got this far; split into layers when grouped
+    const parts = g === 'source' ? SRC : g === 'owner' ? OWN : [['All leads', '#2a5bff', '#5ab8ff', SHARE.map(() => 1)]];
+    let acc = SHARE.map(() => 0);
+    const layers = parts.map((p, li) => {
+      const top = h.map((hh, i) => CY - hh / 2 + acc[i] * hh);
+      acc = acc.map((a, i) => a + p[3][i]);
+      const bot = h.map((hh, i) => CY - hh / 2 + acc[i] * hh);
+      const d = band(xs.map((x, i) => [x, top[i]]), xs.map((x, i) => [x, bot[i]]));
+      return { gid: 'lg' + li, c1: p[1], c2: p[2], fill: `url(#lg${li})`, d: `d:path('${d}')`, drill: () => undefined };
+    });
+    // what leaves between two stages, falling away under the ribbon
+    const streams = xs.slice(0, -1).map((x, i) => {
+      const x2 = xs[i + 1], w = ((h[i] - h[i + 1]) / MAXH) * 40 + 4, y0 = CY + h[i + 1] / 2;
+      const d = `M${x + 20},${y0} C${x + 50},${y0} ${x + 60},${y0 + 30} ${x + 70},250 L${x + 70 + w},250 C${x + 66 + w},${y0 + 24} ${x + 54 + w},${y0 - 2} ${x + 20 + w * 2},${y0 - 2} Z`;
+      return { d: `d:path('${d}')`, x2 };
+    });
+    return {
+      ...themeVals(this), ...rangeVals(this), filterN: '0',
+      cohortN: fmt(cohort), rangeLower: R.words.toLowerCase().replace(/^last/, 'in the last'),
+      gKnob: g === 'nothing' ? 'width:74px;transform:translateX(0)' : g === 'source' ? 'width:66px;transform:translateX(74px)' : 'width:62px;transform:translateX(140px)',
+      gNone: g === 'nothing' ? 'on' : '', gSrc: g === 'source' ? 'on' : '', gOwn: g === 'owner' ? 'on' : '',
+      gByNone: () => this.setState({ group: 'nothing' }), gBySrc: () => this.setState({ group: 'source' }), gByOwn: () => this.setState({ group: 'owner' }),
+      layers, streams,
+      layerLegend: parts.length > 1 ? parts.map((p) => ({ label: p[0], sw: `background:${p[1]}` })) : [{ label: 'Every lead that arrived', sw: 'background:#2a5bff' }],
+      cols: ST.map((name, i) => ({ name, x: xs[i].toFixed(1), anchor: i === 0 ? 'start' : i === ST.length - 1 ? 'end' : 'middle', pct: pctS(SHARE[i], i === 5 ? 1 : 0), n: fmt(cohort * SHARE[i]) + ' leads' })).map((c, i) => ({ ...c, x: i === 0 ? '0' : i === ST.length - 1 ? '760' : c.x })),
+      pills: xs.slice(0, -1).map((x, i) => ({ pos: `left:${(((x + xs[i + 1]) / 2) / 760) * 100}%;top:${(CY - 4) / 3}%`, v: pctS(SHARE[i + 1] / SHARE[i]) })),
+      snap: [['New', 412, 0, '#8a94a6'], ['Contacted', 1386, 0, '#2a5bff'], ['Replied', 704, 0, '#5ab8ff'], ['Call booked', 296, 38000, '#5ab8ff'], ['Proposal', 141, 52000, '#f2a20c'], ['Won (this month)', 232, 41200, '#18a566']].map((r, i, a) => ({ i: `--i:${i}`, name: r[0], n: fmt(r[1]), bar: `width:${(r[1] / 1386) * 100}%;background:linear-gradient(90deg,${r[3]},${r[3]}cc)`, v: r[2] ? inrShort(r[1] * r[2]) : '—', avg: r[2] ? `avg ${inrShort(r[2])}` : 'no value yet' })),
+      openValue: inrShort(296 * 38000 + 141 * 52000), openN: fmt(412 + 1386 + 704 + 296 + 141),
+      tis: [['New', 0.4, 1.1, 1], ['Contacted', 1.6, 3.4, 3], ['Replied', 2.1, 4.8, 4], ['Call booked', 3.4, 6.2, 7], ['Proposal', 5.8, 12.4, 10]].map((t) => {
+        const max = 14, over = t[2] > t[3];
+        const fmtD = (d) => (d < 1 ? `${Math.round(d * 24)} h` : `${d.toFixed(1).replace(/\.0$/, '')} d`);
+        return { cls: 'ti' + (over ? ' over' : ''), name: t[0], rng: `left:0;width:${(t[2] / max) * 100}%`, med: `left:calc(${(t[1] / max) * 100}% - 1.5px)`, sla: `left:${(t[3] / max) * 100}%`, medT: fmtD(t[1]), p75T: `P75 ${fmtD(t[2])}` };
+      }),
+      stuckN: '38', noop: () => undefined,
+      vOpen: fmt(2939), vWin: '6.1%', vDeal: inrShort(41200), vCycle: '19', vOut: inrShort((2939 * 0.061 * 41200) / 19),
+      vChip: 'tchip good', vDelta: '+9%',
+      hist: [2, 5, 9, 14, 18, 21, 19, 16, 13, 10, 8, 6, 5, 3, 2, 1].map((v, i) => ({ cls: i === 5 ? 'm' : '', st: `height:${(v / 21) * 100}%;--i:${i}` })),
+      fc: [['October', 2310000, [0.55, 0.3, 0.15]], ['November', 1680000, [0.35, 0.4, 0.25]], ['December', 940000, [0.2, 0.35, 0.45]], ['January', 410000, [0.1, 0.3, 0.6]]].map((f, i) => ({ i: `--i:${i}`, m: f[0], v: inrShort(f[1]), h: `height:${(f[1] / 2310000) * 100}%`, parts: f[2].map((p, j) => `flex:${p};background:${['#2a5bff', '#5ab8ff', 'rgba(42,91,255,.25)'][j]}`) })),
+    };
+  }
+}

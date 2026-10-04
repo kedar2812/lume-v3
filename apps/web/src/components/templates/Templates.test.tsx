@@ -53,6 +53,8 @@ const FIELDS = [{ key: "package", label: "Package", type: "select" as const, opt
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The read-back after a save: what the server holds, by default exactly what was saved.
+  vi.mocked(templatesClient.list).mockResolvedValue(ok({ templates: TEMPLATES }) as never);
   vi.mocked(templatesClient.archive).mockResolvedValue(ok({ archived: true }) as never);
   vi.mocked(templatesClient.restore).mockImplementation(
     async (id) => ok(TEMPLATES.find((x) => x.id === id)!) as never,
@@ -129,20 +131,36 @@ describe("the template library (4A Task 5)", () => {
     );
   });
 
-  it("a new template saves in place: the editor stays open, says so, and the card joins its group", async () => {
-    vi.mocked(templatesClient.create).mockImplementation(
-      async (b) => ok({ ...t("t9", b.name, b.category, b.body), version: 1 }) as never,
-    );
+  it("a new template saves: LUME reads it back, the editor closes, and a Saved pops up; the card joins its group", async () => {
+    const made = { ...t("t9", "Welcome back", "first_touch", "Hello again"), version: 1 };
+    vi.mocked(templatesClient.create).mockResolvedValue(ok(made) as never);
     library();
     await userEvent.click(screen.getByRole("button", { name: "New template" }));
     const sheet = screen.getByRole("dialog", { name: "New template" });
     await userEvent.type(within(sheet).getByLabelText("Name"), "Welcome back");
     await userEvent.type(within(sheet).getByLabelText("Message"), "Hello again");
+    // The read-back: LUME has it exactly as written.
+    vi.mocked(templatesClient.list).mockResolvedValueOnce(ok({ templates: [made] }) as never);
     await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Saved as version 1");
-    expect(screen.getAllByRole("dialog")).toHaveLength(1); // the same sheet, not a second one sliding in
-    expect(screen.getByRole("dialog")).toHaveAccessibleName("Welcome back");
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("status")).toHaveTextContent("“Welcome back” saved. Version 1 · checked");
+    expect(templatesClient.list).toHaveBeenCalledTimes(1); // the read-back
     expect(screen.getByRole("list", { name: "First touch" })).toHaveTextContent("Welcome back");
+  });
+
+  it("if the read-back doesn't match, it still closes but doesn't claim it was checked", async () => {
+    const made = { ...t("t9", "Welcome back", "first_touch", "Hello again"), version: 1 };
+    vi.mocked(templatesClient.create).mockResolvedValue(ok(made) as never);
+    library();
+    await userEvent.click(screen.getByRole("button", { name: "New template" }));
+    const sheet = screen.getByRole("dialog", { name: "New template" });
+    await userEvent.type(within(sheet).getByLabelText("Name"), "Welcome back");
+    await userEvent.type(within(sheet).getByLabelText("Message"), "Hello again");
+    vi.mocked(templatesClient.list).mockResolvedValueOnce(ok({ templates: [] }) as never);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("status")).toHaveTextContent("“Welcome back” saved. Version 1");
+    expect(screen.getByRole("status")).not.toHaveTextContent("checked");
   });
 
   it("4A review: the editor takes focus on its Name, keeps Tab inside, and hands focus back when it closes", async () => {

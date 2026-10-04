@@ -28,6 +28,25 @@
   flex-wrap: nowrap;
 }
 
+/* The strip and its scroll rail: the rail hangs just under the strip, so the row's height and alignment don't move. */
+.stripWrap {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.stripWrap > .strip {
+  flex: 1 1 auto;
+}
+.stripWrap .stripRail {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: -11px;
+  margin: 0;
+}
+
 /* The stage strip: a segmented row with live counts; it scrolls sideways on a narrow screen. */
 .strip {
   display: flex;
@@ -348,6 +367,10 @@
 }
 
 /* ── Table ────────────────────────────────────────────────────────────────────────────────────── */
+/* The sideways rail above the table, when the columns are wider than the screen. */
+.tableRail {
+  margin: 0 0 4px;
+}
 .tableWrap {
   overflow: auto;
   margin: 0 -6px;

@@ -1,0 +1,61 @@
+/* A slim sideways scrollbar (ScrollRail): a hairline track that thickens under the pointer, in the scrollbar tokens. */
+.rail {
+  position: relative;
+  height: 10px;
+  margin: 0 6px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.rail[data-shown] {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Nothing out of view: no rail, and no gap where it would be. */
+.rail:not([data-shown]) {
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.rail::before {
+  content: "";
+  position: absolute;
+  inset: 4px 0;
+  border-radius: 99px;
+  background: var(--line);
+  transition: inset 0.15s ease;
+}
+.thumb {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--sb-hover);
+  cursor: grab;
+  touch-action: none;
+  transition:
+    top 0.15s ease,
+    height 0.15s ease,
+    background 0.15s ease;
+}
+.rail:hover::before {
+  inset: 3px 0;
+}
+.rail:hover .thumb {
+  top: 2px;
+  height: 6px;
+  background: var(--sb-active);
+}
+.thumb:active {
+  cursor: grabbing;
+  background: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail,
+  .rail::before,
+  .thumb {
+    transition: none;
+  }
+}

@@ -75,6 +75,9 @@ function view(d: AppDeps, c: Connection | undefined, on: boolean) {
     lastSync: c.lastSync ?? null,
     lastError: c.lastError,
     lastFailedAt: c.lastFailedAt?.toISOString() ?? null,
+    // How far a running sync has got (0061), while it's fresh: a sync that died leaves nothing to show.
+    syncProgress:
+      c.syncProgress && Date.now() - Date.parse(c.syncProgress.at) < 120_000 ? c.syncProgress : null,
   };
 }
 

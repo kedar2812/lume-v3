@@ -158,7 +158,7 @@ describe("Analytics (8C)", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Funnel" }));
     expect(replace).toHaveBeenCalledWith("/analytics?m=funnel", { scroll: false });
     await userEvent.click(screen.getByRole("button", { name: /Last 30 days/ }));
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "Last 7 days" }));
+    await userEvent.click(screen.getByRole("button", { name: "Last 7 days" }));
     expect(replace).toHaveBeenLastCalledWith("/analytics?range=7d", { scroll: false });
     unmount();
     render(<Analytics catalog={testCatalog()} showTeam={false} timezone="Asia/Kolkata" />);

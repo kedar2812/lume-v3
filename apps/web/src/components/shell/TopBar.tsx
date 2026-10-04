@@ -10,11 +10,14 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { IconButton } from "@/components/ui/IconButton";
 import { Kbd } from "@/components/ui/Kbd";
 import { TopProgress } from "@/components/ui/TopProgress";
-import { READ_EVENT, notificationsClient } from "@/lib/notifications/client";
+import { OPEN_NOTIFICATIONS, READ_EVENT, notificationsClient } from "@/lib/notifications/client";
 import { useStream } from "@/lib/notifications/stream";
 import type { ThemePref } from "@/lib/theme";
 import { NAV_ITEMS, activeNav } from "./nav";
 import s from "./shell.module.css";
+
+/** How often the bell rings again while something is unread. */
+const RING_EVERY_MS = 30_000;
 
 export function TopBar({
   theme,
@@ -70,6 +73,26 @@ export function TopBar({
     if (!reduce) void swing.start({ rotate: [0, 14, -10, 6, 0], transition: { duration: 0.6 } });
   });
 
+  // Unread waiting (owner, 2026-10-05): the bell rings, a short damped swing, when the page opens and then every
+  // 30 s while the tab is in view, until the centre is opened or nothing is unread. Silent (sound policy). Reduce
+  // Motion: no swing; the dot breathes instead (CSS).
+  useEffect(() => {
+    if (!unread || open || reduce) return;
+    const ring = () => {
+      if (document.visibilityState === "hidden") return;
+      void swing.start({
+        rotate: [0, 16, -14, 11, -8, 5, -2, 0],
+        transition: { duration: 0.9, ease: "easeOut" },
+      });
+    };
+    const first = setTimeout(ring, 900);
+    const again = setInterval(ring, RING_EVERY_MS);
+    return () => {
+      clearTimeout(first);
+      clearInterval(again);
+    };
+  }, [unread, open, reduce, swing]);
+
   // "(3) LUME": the window title says how many are unread (frontend spec §8.5) — on every page, since a
   // client-side move sets the page's own title afresh (3B final review, Important 5).
   useEffect(() => {
@@ -94,7 +117,13 @@ export function TopBar({
       else setOpen(true);
     };
     window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    // Search's "Open notifications" action.
+    const fromSearch = () => setOpen(true);
+    window.addEventListener(OPEN_NOTIFICATIONS, fromSearch);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener(OPEN_NOTIFICATIONS, fromSearch);
+    };
   }, []);
 
   return (
@@ -125,7 +154,9 @@ export function TopBar({
         <motion.span animate={swing} style={{ display: "grid", transformOrigin: "50% 10%" }}>
           <Bell size={18} strokeWidth={1.8} aria-hidden />
         </motion.span>
-        {unread > 0 && <span className={s.bellDot} aria-hidden data-live-count />}
+        {unread > 0 && (
+          <span className={s.bellDot} aria-hidden data-live-count data-waiting={!open || undefined} />
+        )}
       </IconButton>
       <NotificationCentre open={open} onClose={close} tz={tz} canMessage={!!canMessage} />
       <p aria-live="polite" aria-atomic="true" className={s.srOnly}>
