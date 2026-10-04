@@ -40,7 +40,7 @@ const SWITCH: Partial<Record<NotifyKind, keyof Preferences["alerts"]>> = {
  */
 export function wants(stored: unknown, kind: NotifyKind): boolean {
   const s = SWITCH[kind];
-  return !s || mergePreferences(stored, {}).alerts[s];
+  return !s || mergePreferences(stored, {}).alerts[s] !== false;
 }
 
 /**

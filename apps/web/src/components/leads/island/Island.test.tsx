@@ -218,4 +218,49 @@ describe("the bulk island (7C)", () => {
     await userEvent.click(screen.getByRole("button", { name: /Assign 12,408 to/ }));
     expect(await screen.findByText(/12,410 matched by then, not the 12,408 you saw/)).toBeInTheDocument();
   });
+
+  it("7C review: the keyboard follows the island — menus take focus and arrow keys, Esc returns, Stop then Undo get focus", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(bulkRunsClient.create).mockResolvedValue(
+        ok(
+          {
+            run: run({
+              status: "queued",
+              done: 0,
+              skipped: 0,
+              skippedBy: {},
+              finishedAt: null,
+              canUndo: false,
+            }),
+          },
+          202,
+        ),
+      );
+      vi.mocked(bulkRunsClient.get).mockResolvedValue(ok({ run: run() }));
+      island({ count: 12408, all: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const trigger = screen.getByRole("button", { name: /Assign/ });
+      await user.click(trigger);
+      const items = screen.getAllByRole("menuitemradio");
+      await vi.waitFor(() => expect(items[0]).toHaveFocus());
+      await user.keyboard("{ArrowDown}");
+      expect(items[1]).toHaveFocus();
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("menu", { name: "Assign to" })).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+      await user.click(trigger);
+      await user.click(screen.getByRole("menuitemradio", { name: new RegExp(person.name) }));
+      await user.click(screen.getByRole("button", { name: /Assign 12,408 to/ }));
+      const stop = await screen.findByRole("button", { name: "Stop" });
+      await vi.waitFor(() => expect(stop).toHaveFocus());
+      expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12408");
+      expect(screen.getByText(/LUME will say when it’s done\./)).toBeInTheDocument();
+      await act(async () => void (await vi.advanceTimersByTimeAsync(1100)));
+      const undoBtn = await screen.findByRole("button", { name: "Undo" });
+      await vi.waitFor(() => expect(undoBtn).toHaveFocus());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

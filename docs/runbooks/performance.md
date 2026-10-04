@@ -138,3 +138,26 @@ Every bulk action is a run (`bulk_runs`, 0049). Each lead in it is an item (`bul
 Stage moves took 199.5 s for the same 50,000 when each lead went through the single-move path; doing the checks
 once a chunk and writing the chunk together brought them in line with the other actions. The list, filter, search
 and count paths in the same run stayed inside their 150 ms budget (the slowest, counts with a tag filter, 96 ms).
+
+## Analytics (Phase 8A)
+
+Dashboards read daily rollups kept in the business's own days (0053): today and yesterday every 10 minutes, the last
+7 days nightly, days 8–90 weekly. A day's recompute takes about 0.85 s at a million leads on one CPU.
+
+### Measured: 1,000,000 leads, rollups for 91 days (dev box, scale database: 1 CPU, 1 GB)
+
+| Request (median of 5) | 30 days | 90 days |
+| --- | ---: | ---: |
+| Overview (admin) | 54 ms | 77 ms |
+| Overview (rep, own) | 134 ms | 193 ms |
+| Funnel | 33 ms | 46 ms |
+| Team | 12 ms | 26 ms |
+| Sources | 10 ms | 24 ms |
+| Lost | 7 ms | 20 ms |
+| Timing | 165 ms | 404 ms → slot totals (0055) |
+
+The first run had the admin overview at 1.2 s and lost at 1.2 s: working out who owned each lead at the moment it was
+won or lost, per lead, for someone who sees everything anyway. Those viewers now skip that step. Timing at 90 days read a
+row per person per hour; 0055 keeps one per hour for viewers who see everyone. Budget: 300 ms
+(`LUME_SCALE_ANALYTICS_BUDGET`).
+

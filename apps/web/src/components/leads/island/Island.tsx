@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { can, scopeOf } from "@lume/core/shared";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -219,6 +219,62 @@ export function Island({
   useEffect(() => setSlot(document.getElementById("lume-topbar-slot")), []);
 
   useEffect(() => onRun?.(run), [run, onRun]);
+
+  // Keyboard focus follows the island (7C final review, Important 4): a part that's put away is inert, so whatever
+  // had focus in it is gone; focus moves to what's now in front — Stop while it runs, Undo or Close when it's done,
+  // the top-bar pill once hidden.
+  const root = useRef<HTMLDivElement>(null);
+  const stopRef = useRef<HTMLButtonElement>(null);
+  const runningRef = useRef<HTMLDivElement>(null);
+  const undoRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const miniRef = useRef<HTMLButtonElement>(null);
+  const triggers = useRef<Partial<Record<NonNullable<Menu>, HTMLButtonElement | null>>>({});
+  const phase = !run ? "select" : isLive(run) ? "running" : "finished";
+  const ours = () => {
+    const a = document.activeElement;
+    return !a || a === document.body || !!root.current?.contains(a) || !!miniRef.current?.contains(a);
+  };
+  useEffect(() => {
+    if (tucked || !ours()) return;
+    if (phase === "running") (stopRef.current ?? runningRef.current)?.focus();
+    if (phase === "finished") (undoRef.current ?? closeRef.current)?.focus();
+  }, [phase, tucked]);
+  useEffect(() => {
+    if (tucked) miniRef.current?.focus();
+  }, [tucked]);
+  // An open menu takes focus at its first choice; Esc puts it away and focus back on what opened it.
+  useEffect(() => {
+    if (!menu) return;
+    const pane = root.current?.querySelector<HTMLElement>(`[data-pane="${menu}"]`);
+    pane?.querySelector<HTMLElement>('[role="menuitemradio"], button:not([disabled])')?.focus();
+  }, [menu]);
+  const keys = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape" && menu) {
+      e.preventDefault();
+      const m = menu;
+      setMenu(null);
+      triggers.current[m]?.focus();
+      return;
+    }
+    if (
+      (e.key === "ArrowDown" || e.key === "ArrowUp") &&
+      (e.target as HTMLElement).getAttribute("role") === "menuitemradio"
+    ) {
+      e.preventDefault();
+      const items = [
+        ...((e.target as HTMLElement)
+          .closest('[role="menu"]')
+          ?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []),
+      ];
+      const i = items.indexOf(e.target as HTMLElement);
+      items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
+    }
+  };
+
+  // What a screen reader hears: once when it starts, at halfway, and when it's done — not every tick (Important 6).
+  const [said, setSaid] = useState("");
+  const half = useRef<string | null>(null);
   // A run that finished is told once: the list reloads, and its counts.
   useEffect(() => {
     if (!run || live || told.current === run.id + run.status) return;
@@ -275,6 +331,10 @@ export function Island({
     setTucked(false);
     onRun?.(null);
     onClear();
+    // The island goes: focus goes back to the list it came from (7C final review, Important 4).
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('[aria-label="Select all loaded"]')?.focus(),
+    );
   };
 
   // the shape follows what the island holds
@@ -338,9 +398,27 @@ export function Island({
     return (took(run) ?? "Done") + drift;
   };
 
+  useEffect(() => {
+    if (!run) return setSaid("");
+    if (isLive(run)) {
+      if (!(half.current ?? "").startsWith(run.id)) {
+        half.current = `${run.id}:start`;
+        setSaid(`${runLine(run, name)}. LUME will say when it’s done.`);
+      } else if (p >= 0.5 && total > 0 && half.current === `${run.id}:start`) {
+        half.current = `${run.id}:half`;
+        setSaid(`Halfway: ${fmt(processed)} of ${fmt(total)}.`);
+      }
+      return;
+    }
+    setSaid(`${finishedTitle()}.`);
+    // Announced on the run's turning points only.
+  }, [run?.id, run?.status, p >= 0.5]);
+
   return (
     <>
       <div
+        ref={root}
+        onKeyDown={keys}
         className={`${s.isle} ${shown ? "" : s.out} ${tucked ? s.tucked : ""}`}
         style={{ "--w": `${w}px`, "--h": `${h}px`, "--r": `${r}px` } as CSSProperties}
         {...away(shown && !tucked)}
@@ -354,6 +432,7 @@ export function Island({
         <div
           className={`${s.pane} ${menu === "stage" && !run ? s.paneOn : ""}`}
           role="menu"
+          data-pane="stage"
           aria-label="Move to stage"
           {...away(menu === "stage" && !run)}
         >
@@ -432,6 +511,7 @@ export function Island({
         <div
           className={`${s.pane} ${menu === "assign" && !run ? s.paneOn : ""}`}
           role="menu"
+          data-pane="assign"
           aria-label="Assign to"
           {...away(menu === "assign" && !run)}
         >
@@ -496,6 +576,7 @@ export function Island({
         <div
           className={`${s.pane} ${menu === "tags" && !run ? s.paneOn : ""}`}
           role="menu"
+          data-pane="tags"
           aria-label="Tags"
           {...away(menu === "tags" && !run)}
         >
@@ -550,6 +631,7 @@ export function Island({
         <div
           className={`${s.pane} ${menu === "more" && !run ? s.paneOn : ""}`}
           role="menu"
+          data-pane="more"
           aria-label="More"
           {...away(menu === "more" && !run)}
         >
@@ -680,6 +762,9 @@ export function Island({
           <span className={s.vr} aria-hidden />
           {bulk && can(actor, "leads.change_stage") && (
             <button
+              ref={(el) => {
+                triggers.current.stage = el;
+              }}
               type="button"
               className={s.ia}
               aria-haspopup="menu"
@@ -691,6 +776,9 @@ export function Island({
           )}
           {bulk && can(actor, "leads.assign") && (
             <button
+              ref={(el) => {
+                triggers.current.assign = el;
+              }}
               type="button"
               className={s.ia}
               aria-haspopup="menu"
@@ -702,6 +790,9 @@ export function Island({
           )}
           {bulk && catalog.tags.length > 0 && can(actor, "leads.edit") && (
             <button
+              ref={(el) => {
+                triggers.current.tags = el;
+              }}
               type="button"
               className={s.ia}
               aria-haspopup="menu"
@@ -716,6 +807,9 @@ export function Island({
           )}
           {bulk && (can(actor, "leads.delete") || (phoneFixable && can(actor, "leads.edit"))) && (
             <button
+              ref={(el) => {
+                triggers.current.more = el;
+              }}
               type="button"
               className={`${s.ia} ${s.icon}`}
               aria-label="More bulk actions"
@@ -733,8 +827,17 @@ export function Island({
         </div>
 
         {/* 2 · running */}
-        <div className={`${s.lay} ${s.big} ${live ? s.layOn : ""}`} aria-live="polite" {...away(!!live)}>
-          <div className={s.ring}>
+        <div className={`${s.lay} ${s.big} ${live ? s.layOn : ""}`} {...away(!!live)}>
+          <div
+            className={s.ring}
+            ref={runningRef}
+            tabIndex={-1}
+            role="progressbar"
+            aria-label={run && live ? runLine(run, name) : "Progress"}
+            aria-valuemin={0}
+            aria-valuemax={total}
+            aria-valuenow={processed}
+          >
             <svg viewBox="0 0 38 38" aria-hidden>
               <circle className={s.ringBg} cx="19" cy="19" r="16" />
               <circle
@@ -774,7 +877,7 @@ export function Island({
             </button>
           )}
           {!undoing && (
-            <button type="button" className={s.ib} onClick={() => void stop()}>
+            <button type="button" className={s.ib} ref={stopRef} onClick={() => void stop()}>
               Stop
             </button>
           )}
@@ -808,18 +911,32 @@ export function Island({
           </div>
           <div className={s.end}>
             {run?.canUndo && (
-              <button type="button" className={`${s.ib} ${s.solid}`} onClick={() => void undo()}>
+              <button
+                type="button"
+                className={`${s.ib} ${s.solid}`}
+                ref={undoRef}
+                onClick={() => void undo()}
+              >
                 {Ico.undo}
                 {run.status === "done" ? "Undo" : `Undo these ${fmt(run.done)}`}
               </button>
             )}
-            <button type="button" className={`${s.ia} ${s.icon}`} aria-label="Close" onClick={close}>
+            <button
+              type="button"
+              className={`${s.ia} ${s.icon}`}
+              aria-label="Close"
+              ref={closeRef}
+              onClick={close}
+            >
               {Ico.close}
             </button>
           </div>
         </div>
       </div>
 
+      <p className={s.sr} aria-live="polite" aria-atomic="true">
+        {said}
+      </p>
       {tucked &&
         run &&
         slot &&
@@ -827,6 +944,7 @@ export function Island({
           <button
             type="button"
             className={s.mini}
+            ref={miniRef}
             onClick={() => setTucked(false)}
             aria-label="Show the bulk action"
           >

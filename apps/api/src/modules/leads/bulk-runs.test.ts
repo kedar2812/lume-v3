@@ -242,4 +242,26 @@ describe("7B: a bulk action is a run", () => {
     ]);
     expect(runs).toHaveLength(2);
   });
+
+  // 7C final review, Important 1: a screen showing far fewer than match (counts missing or stale) is caught.
+  it("refuses when far more match than the person was shown, and allows a few new arrivals", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 40; i++) ids.push(await h.seedLead({ ownerId: null }));
+    const tag = await tagged(ids);
+    const assign = { type: "assign", ownerId: adminId };
+    const shown5 = await run(admin, {
+      selection: { filters: { tagId: tag }, except: [], expected: 5 },
+      action: assign,
+    });
+    expect(shown5.statusCode).toBe(409);
+    expect(shown5.json().error).toMatchObject({ code: "MATCH_CHANGED" });
+    expect(shown5.json().error.message).toBe(
+      "40 leads match these filters now, not the 5 shown. Look again, then choose.",
+    );
+    const close = await run(admin, {
+      selection: { filters: { tagId: tag }, except: [], expected: 38 },
+      action: assign,
+    });
+    expect(close.statusCode).toBeLessThan(300);
+  });
 });

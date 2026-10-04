@@ -24,7 +24,7 @@ describe("preferences", () => {
       workEnd: "18:00",
       digestTime: "08:00",
       sounds: { enabled: true, volume: 60 },
-      alerts: { assigned: true, dueFollowUps: true, emailDigest: true },
+      alerts: { assigned: true, dueFollowUps: true, emailDigest: true, weeklyAnalytics: true },
     });
   });
 
@@ -176,5 +176,15 @@ describe("tour steps (spec §5)", () => {
       { text: " to search", bold: false },
     ]);
     expect(boldParts("<b>nope</b>")).toEqual([{ text: "<b>nope</b>", bold: false }]);
+  });
+
+  it("a stored group with only some of its switches keeps them (8B: switching the weekly email off)", () => {
+    const merged = mergePreferences({ alerts: { weeklyAnalytics: false } }, {});
+    expect(merged.alerts).toEqual({
+      assigned: true,
+      dueFollowUps: true,
+      emailDigest: true,
+      weeklyAnalytics: false,
+    });
   });
 });

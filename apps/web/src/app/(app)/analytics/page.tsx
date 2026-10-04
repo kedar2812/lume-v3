@@ -1,14 +1,25 @@
-import { EmptyState } from "@/components/ui/EmptyState";
+import { Suspense } from "react";
+import { scopeOf } from "@lume/core/shared";
+import { Analytics } from "@/components/analytics/Analytics";
+import { apiGet } from "@/server/api";
+import { loadCatalog } from "@/server/leads";
+import { requirePermission } from "@/server/session";
 
 export const metadata = { title: "Analytics · LUME" };
 
-export default function Page() {
+export default async function Page() {
+  const session = await requirePermission("analytics.view");
+  const [catalog, settings] = await Promise.all([
+    loadCatalog(),
+    apiGet<{ timezone: string | null }>("/api/v1/settings"),
+  ]);
   return (
-    <section data-stagger>
-      <EmptyState
-        title="Numbers that answer questions"
-        body="Funnel, team and revenue analytics arrive in Phase 7."
+    <Suspense>
+      <Analytics
+        catalog={catalog}
+        showTeam={scopeOf(session.actor, "analytics.view") !== "own"}
+        timezone={settings.data?.timezone ?? session.user.timezone ?? "UTC"}
       />
-    </section>
+    </Suspense>
   );
 }

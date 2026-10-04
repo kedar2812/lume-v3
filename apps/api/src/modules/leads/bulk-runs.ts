@@ -108,6 +108,14 @@ async function resolveSelection(req: FastifyRequest, sel: Selection) {
     .limit(limits.cap + 1);
   if (!rows.length) throw nothing();
   if (rows.length > limits.cap) throw tooMany();
+  // Far more than the person was shown (counts that failed or went stale on their screen): refused, so the number
+  // they confirmed is the number acted on. A few arrivals since they looked are fine (7C final review, Important 1).
+  const shown = sel.expected;
+  if (shown !== undefined && rows.length + except.length > shown * 1.1 + 25)
+    throw conflict(
+      "MATCH_CHANGED",
+      `${rows.length.toLocaleString("en-US")} leads match these filters now, not the ${shown.toLocaleString("en-US")} shown. Look again, then choose.`,
+    );
   return {
     ids: rows.map((r) => r.id),
     words: {

@@ -135,8 +135,11 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
  * never collapses to the stage you picked). Refetched when the filters change or a lead moves.
  */
 function useStageCounts(filters: ListFilters, pipelineId: string | undefined, tick: number) {
-  const [data, setData] = useState<{ counts: Record<string, number>; total: number } | null>(null);
+  const [data, setData] = useState<{ counts: Record<string, number>; total: number; for: string } | null>(
+    null,
+  );
   const key = JSON.stringify({ ...filters, stageIds: [], sort: undefined });
+  const want = `${key}|${pipelineId ?? ""}`;
   useEffect(() => {
     if (!pipelineId) return;
     let live = true;
@@ -144,7 +147,7 @@ function useStageCounts(filters: ListFilters, pipelineId: string | undefined, ti
     const t = setTimeout(
       async () => {
         const r = await leadsClient.counts(f);
-        if (live && r.ok) setData(r.data);
+        if (live && r.ok) setData({ ...r.data, for: want });
       },
       f.q ? 250 : 0,
     );
@@ -153,7 +156,9 @@ function useStageCounts(filters: ListFilters, pipelineId: string | undefined, ti
       clearTimeout(t);
     };
   }, [key, pipelineId, tick]);
-  return data;
+  // The last counts stay on the strip while new ones come; `fresh` says whether they're for these filters
+  // (7C final review, Important 1: "select all N that match" never offers a stale or missing N).
+  return data ? { ...data, fresh: data.for === want } : null;
 }
 
 /** "since yesterday", "since this morning", "since Monday" — when the last visit was, in words. */
@@ -346,6 +351,7 @@ function Screen({
     loadedIds.length > 0 && (allMatching ? !except.length : loadedIds.every((id) => selected.includes(id)));
   const someLoaded = !allLoaded && (allMatching || loadedIds.some((id) => selected.includes(id)));
   // How many leads match the filters, as the stage strip counts them (the stage filter included).
+  const countsFresh = !!stageCounts?.fresh;
   const matchTotal = stageCounts
     ? filters.stageIds.length
       ? filters.stageIds.reduce((a, id) => a + (stageCounts.counts[id] ?? 0), 0)
@@ -449,15 +455,18 @@ function Screen({
             ) : (
               <>
                 All <b>{loadedIds.length}</b> on this page are selected.
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAllMatching(true);
-                    setExcept([]);
-                  }}
-                >
-                  Select all {matchTotal.toLocaleString("en-US")} that match
-                </button>
+                {/* A capped search can't be a selection (the server refuses it): narrow it first. */}
+                {countsFresh && !list.capped && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAllMatching(true);
+                      setExcept([]);
+                    }}
+                  >
+                    Select all {matchTotal.toLocaleString("en-US")} that match
+                  </button>
+                )}
               </>
             )}
           </p>

@@ -13,6 +13,7 @@ import { clearExpiredExports } from "../lead-exports/service";
 import { rollupLeadCounts } from "../leads/query";
 import { clearOldBulkItems } from "../leads/bulk-runs";
 import { analyticsTick } from "../analytics/rollup";
+import { runWeekly } from "../analytics/weekly";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -80,6 +81,7 @@ export async function startTaskQueue(o: {
     security: false,
     counts: false,
     analytics: false,
+    weekly: false,
   };
   const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
     if (busy[key]) return;
@@ -117,6 +119,13 @@ export async function startTaskQueue(o: {
           "digest",
           () => runDigests({ pool: o.pool, ...o.digest!, log: o.app.log }),
           "daily digests failed",
+        );
+      // Every quarter hour: Monday's look at last week reaches those who see all analytics, once (8B).
+      if (o.digest && n % 15 === 0)
+        beside(
+          "weekly",
+          () => runWeekly({ pool: o.pool, ...o.digest!, log: o.app.log }),
+          "weekly analytics emails failed",
         );
       // Every quarter hour: anything wrong reaches the admins, once a business day (3C System health).
       if (n % 15 === 0)

@@ -671,3 +671,13 @@
     transform: translate(-50%, 0);
   }
 }
+
+/* Heard, not seen: the run's turning points for screen readers. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

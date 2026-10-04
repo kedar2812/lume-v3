@@ -6,7 +6,7 @@ export type OutgoingMail = {
   subject: string;
   text: string;
   html: string;
-  kind: "invite" | "password_reset" | "lockout" | "digest" | "ops_alert";
+  kind: "invite" | "password_reset" | "lockout" | "digest" | "ops_alert" | "weekly_analytics";
 };
 export type Mailer = {
   send(m: OutgoingMail): Promise<void>;

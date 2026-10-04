@@ -170,6 +170,54 @@ export function digestMail(a: {
   return { to: a.to, subject, text, html, kind: "digest" };
 }
 
+/**
+ * Monday's look at last week (8B, spec §5.3), for people who see all analytics: numbers only, each against the
+ * week before by the owner's trend rule; who won the most, where most leads stopped, what's overdue, and the top
+ * thing LUME noticed. Never a lead's name, number or address: these are aggregates, and the email leaves LUME.
+ */
+export function weeklyAnalyticsMail(a: {
+  to: string;
+  firstName: string;
+  businessName: string;
+  url: string;
+  week: string;
+  tiles: string[];
+  topPerson: string | null;
+  dropStage: string | null;
+  overdue: number;
+  insight: { title: string; body: string } | null;
+}): OutgoingMail {
+  const lines = [
+    ...a.tiles,
+    ...(a.topPerson ? [a.topPerson] : []),
+    ...(a.dropStage ? [a.dropStage] : []),
+    a.overdue
+      ? `${a.overdue} follow-up${a.overdue === 1 ? " is" : "s are"} overdue now`
+      : "No follow-ups are overdue",
+  ];
+  const subject = `Last week at ${a.businessName}: ${a.tiles[0] ?? "your numbers"}`;
+  const text = [
+    `Good morning, ${a.firstName}. Here's ${a.week}.`,
+    "",
+    ...lines.map((l) => `- ${l}`),
+    ...(a.insight ? ["", `LUME noticed: ${a.insight.title}. ${a.insight.body}`] : []),
+    "",
+    `Open Analytics in LUME: ${a.url}`,
+  ].join("\n");
+  const html = layout(
+    `Good morning, ${esc(a.firstName)}`,
+    `<div style="margin-top:6px;color:#5B6170">Here's ${esc(a.week)}.</div>` +
+      lines.map((l) => `<div style="margin-top:6px">${esc(l)}</div>`).join("") +
+      (a.insight
+        ? `<div style="margin-top:16px;padding:12px 14px;border-radius:12px;background:#F2F5FF">` +
+          `<div style="font-weight:650;color:#0A0C11">${esc(a.insight.title)}</div>` +
+          `<div style="margin-top:4px">${esc(a.insight.body)}</div></div>`
+        : ""),
+    { label: "Open Analytics", url: a.url },
+  );
+  return { to: a.to, subject, text, html, kind: "weekly_analytics" };
+}
+
 /** A word to an admin when LUME isn't keeping a promise (3C System health): what, and where to look. */
 export function opsAlertMail(a: {
   to: string;

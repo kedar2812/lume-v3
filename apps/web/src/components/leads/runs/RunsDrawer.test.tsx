@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { bulkRunsClient, type RunView } from "@/lib/leads/bulk-runs";
@@ -131,5 +131,36 @@ describe("recent bulk actions (7C)", () => {
         }),
       ),
     );
+  });
+
+  it("7C review: focus moves into the drawer; collapsed rows keep their buttons out of reach; a run that finishes refreshes the list", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const going = mk({
+        id: "live1",
+        status: "running",
+        done: 2,
+        total: 7,
+        canUndo: false,
+        undoUntil: null,
+        finishedAt: null,
+      });
+      vi.mocked(bulkRunsClient.list)
+        .mockResolvedValueOnce({ ok: true, status: 200, data: { runs: [going, ...runs] } })
+        .mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: { runs: [{ ...going, status: "done", done: 7 }, ...runs] },
+        });
+      const { onChanged } = drawer(admin());
+      const dialog = await screen.findByRole("dialog", { name: "Recent bulk actions" });
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+      expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument(); // collapsed: hidden
+      expect(onChanged).not.toHaveBeenCalled();
+      await act(async () => void (await vi.advanceTimersByTimeAsync(2100)));
+      expect(onChanged).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

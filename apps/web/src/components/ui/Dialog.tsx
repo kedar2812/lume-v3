@@ -1,10 +1,8 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import s from "./Dialog.module.css";
 import { Scrim } from "./Scrim";
-
-const FOCUSABLE =
-  'input:not([disabled]), select, textarea, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+import { useModalFocus } from "./useModalFocus";
 
 /**
  * A small modal question over the full-window scrim (7C): focus moves in and stays in, Escape or the scrim cancels, and
@@ -27,11 +25,7 @@ export function Dialog({
 }) {
   const panel = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const before = document.activeElement as HTMLElement | null;
-    panel.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
-    return () => before?.focus?.();
-  }, []);
+  const focus = useModalFocus(panel, onClose);
 
   return (
     <Scrim onClose={onClose} className={s.layer}>
@@ -42,24 +36,7 @@ export function Dialog({
         aria-label={label}
         className={wide || width ? `${s.panel} ${s.wide}` : s.panel}
         style={width ? { width: `min(${width}px, 100%)` } : undefined}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.stopPropagation();
-            onClose();
-            return;
-          }
-          if (e.key !== "Tab") return;
-          const items = [...(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
-          const first = items[0];
-          const last = items.at(-1);
-          if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last?.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first?.focus();
-          }
-        }}
+        onKeyDown={focus.onKeyDown}
       >
         {children}
       </div>

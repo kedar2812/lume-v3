@@ -196,7 +196,7 @@ describe("Onboarding", () => {
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(a.savePreferences).toHaveBeenLastCalledWith({
       sounds: { enabled: true, volume: 60 },
-      alerts: { assigned: true, dueFollowUps: true, emailDigest: false },
+      alerts: { assigned: true, dueFollowUps: true, emailDigest: false, weeklyAnalytics: true },
     });
   });
 

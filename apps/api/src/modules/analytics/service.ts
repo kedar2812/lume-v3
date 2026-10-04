@@ -313,8 +313,49 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
     const w = new Map(won.rows.map((r) => [r.day, r.n]));
     return { newLeads: days.map((d) => a.get(d) ?? 0), won: days.map((d) => w.get(d) ?? 0) };
   };
-  const [now, before] = await Promise.all([read(range.days), read(range.previous.days)]);
-  return { days: range.days, ...now, previous: before };
+  const [now, before, split] = await Promise.all([
+    read(range.days),
+    read(range.previous.days),
+    // New leads per day by where they came from (canvas Main's bands): the four biggest sources, the rest together.
+    req.db.execute<{ day: string; source_id: string | null; name: string | null; n: number }>(sql`
+      SELECT to_char(c.day, 'YYYY-MM-DD') AS day, c.source_id, s.name, sum(c.arrived)::int AS n
+      FROM analytics_daily_cohort c LEFT JOIN lead_sources s ON s.id = c.source_id
+      WHERE ${rollupWhere(q, range.days[0]!, range.days.at(-1)!)}
+      GROUP BY 1, 2, 3`),
+  ]);
+  const totals = new Map<string, { id: string | null; name: string; n: number }>();
+  for (const r of split.rows) {
+    const k = r.source_id ?? "none";
+    const t = totals.get(k) ?? { id: r.source_id, name: r.name ?? "Added in LUME", n: 0 };
+    t.n += r.n;
+    totals.set(k, t);
+  }
+  const top = [...totals.values()].sort((a, b) => b.n - a.n);
+  const named = top.slice(0, top.length > 5 ? 4 : 5);
+  const rest = top.slice(named.length);
+  const bySource = [
+    ...named.map((t) => ({
+      id: t.id,
+      name: t.name,
+      values: range.days.map(
+        (d) => split.rows.find((r) => r.day === d && (r.source_id ?? null) === t.id)?.n ?? 0,
+      ),
+    })),
+    ...(rest.length
+      ? [
+          {
+            id: "other",
+            name: `${rest.length} more ${rest.length === 1 ? "source" : "sources"}`,
+            values: range.days.map((d) =>
+              split.rows
+                .filter((r) => r.day === d && rest.some((x) => x.id === (r.source_id ?? null)))
+                .reduce((a, r) => a + r.n, 0),
+            ),
+          },
+        ]
+      : []),
+  ];
+  return { days: range.days, ...now, previous: before, bySource };
 }
 
 /**

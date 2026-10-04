@@ -175,8 +175,11 @@ export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
     return sql.join(parts, sql` AND `);
   })();
   const [slots, stays, stuck] = await Promise.all([
+    // Everyone's, with no one picked: the totals per hour (0055), a fraction of the rows.
     req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
-      SELECT kind, dow, hour, sum(n)::int AS n FROM analytics_daily_slot WHERE ${slotWhere} GROUP BY 1, 2, 3`),
+      SELECT kind, dow, hour, sum(n)::int AS n
+      FROM ${q.reach === "all" && !q.ownerId ? sql`analytics_daily_slot_total` : sql`analytics_daily_slot`}
+      WHERE ${slotWhere} GROUP BY 1, 2, 3`),
     req.db.execute<{ stage_id: string; name: string; exited: number; h: number[] }>(sql`
       SELECT a.stage_id, s.name, sum(a.exited)::int AS exited,
              ARRAY[${sql.raw(Array.from({ length: 12 }, (_, i) => `coalesce(sum(a.stay_hist[${i + 1}]), 0)::int`).join(", "))}] AS h

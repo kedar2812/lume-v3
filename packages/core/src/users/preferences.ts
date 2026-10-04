@@ -8,7 +8,8 @@ export type Preferences = {
   workEnd: string;
   digestTime: string;
   sounds: { enabled: boolean; volume: number };
-  alerts: { assigned: boolean; dueFollowUps: boolean; emailDigest: boolean };
+  /** weeklyAnalytics (8B): the Monday email of last week's numbers, for those who see all analytics; on unless switched off. */
+  alerts: { assigned: boolean; dueFollowUps: boolean; emailDigest: boolean; weeklyAnalytics?: boolean };
 };
 
 export const PREFERENCES_DEFAULTS: Preferences = {
@@ -17,7 +18,7 @@ export const PREFERENCES_DEFAULTS: Preferences = {
   workEnd: "18:00",
   digestTime: "08:00",
   sounds: { enabled: true, volume: 60 },
-  alerts: { assigned: true, dueFollowUps: true, emailDigest: true },
+  alerts: { assigned: true, dueFollowUps: true, emailDigest: true, weeklyAnalytics: true },
 };
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "use HH:MM");
@@ -27,7 +28,12 @@ const full = z.strictObject({
   workEnd: time,
   digestTime: time,
   sounds: z.strictObject({ enabled: z.boolean(), volume: z.number().int().min(0).max(100) }),
-  alerts: z.strictObject({ assigned: z.boolean(), dueFollowUps: z.boolean(), emailDigest: z.boolean() }),
+  alerts: z.strictObject({
+    assigned: z.boolean(),
+    dueFollowUps: z.boolean(),
+    emailDigest: z.boolean(),
+    weeklyAnalytics: z.boolean().optional(),
+  }),
 });
 
 /** A patch may set any subset, one level deep inside `sounds` and `alerts`. */
@@ -73,6 +79,11 @@ function repair(stored: unknown): Partial<Preferences> {
     const field = full.shape[key];
     const r = field.safeParse(src[key]);
     if (r.success) Object.assign(out, { [key]: r.data });
+    // A group with only some of its switches (an older row, or one written by hand): keep the ones it has.
+    else if (key === "sounds" || key === "alerts") {
+      const some = full.shape[key].partial().safeParse(src[key]);
+      if (some.success) Object.assign(out, { [key]: { ...PREFERENCES_DEFAULTS[key], ...some.data } });
+    }
   }
   return out;
 }

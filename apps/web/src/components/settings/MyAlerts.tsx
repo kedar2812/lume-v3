@@ -15,6 +15,11 @@ const SWITCHES: { key: keyof Alerts; label: string; hint: string }[] = [
     label: "Morning email",
     hint: "Your day ahead, on your working days. First names and times only.",
   },
+  {
+    key: "weeklyAnalytics",
+    label: "Monday numbers",
+    hint: "Last week against the week before, for those who see all of analytics. Numbers only, no names.",
+  },
 ];
 
 /**
@@ -51,7 +56,7 @@ export function MyAlerts({ initial }: { initial: Preferences }) {
       <div className={s.panelBody}>
         {SWITCHES.map((x) => (
           <div key={x.key} className={s.switchRow}>
-            <Switch checked={alerts[x.key]} onChange={(v) => void flip(x.key, v)} label={x.label} />
+            <Switch checked={alerts[x.key] !== false} onChange={(v) => void flip(x.key, v)} label={x.label} />
             <p className={s.muted}>{x.hint}</p>
           </div>
         ))}

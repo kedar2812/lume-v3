@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, typ
 import { AVATAR_MAX_BYTES, AVATAR_SIZE } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Scrim } from "@/components/ui/Scrim";
+import { useModalFocus } from "@/components/ui/useModalFocus";
 import {
   ZOOM_MAX,
   ZOOM_MIN,
@@ -73,6 +74,9 @@ export function PhotoCropper({
     trail: { x: number; y: number; t: number }[];
   } | null>(null);
   const previews = useRef<(HTMLCanvasElement | null)[]>([]);
+  const panel = useRef<HTMLDivElement>(null);
+  // Esc closes it, except while the photo is saving (the answer would be lost).
+  const focus = useModalFocus(panel, busy ? undefined : onCancel);
 
   useEffect(() => {
     const i = new Image();
@@ -149,7 +153,6 @@ export function PhotoCropper({
       setO((cur) => clampOffset({ x: cur.x - by[e.key]!.x, y: cur.y - by[e.key]!.y }, b));
     } else if (e.key === "+" || e.key === "=") setZoomKeep(zoom * 1.1);
     else if (e.key === "-") setZoomKeep(zoom / 1.1);
-    else if (e.key === "Escape") onCancel();
   };
 
   const save = async () => {
@@ -167,7 +170,14 @@ export function PhotoCropper({
   const shown = dragging ? o : clampOffset(o, b);
   return (
     <Scrim onClose={busy ? undefined : onCancel}>
-      <div className={s.cropper} role="dialog" aria-modal="true" aria-labelledby="crop-title">
+      <div
+        ref={panel}
+        className={s.cropper}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="crop-title"
+        onKeyDown={focus.onKeyDown}
+      >
         <h2 id="crop-title">Line up your photo</h2>
         <p className={s.cropLede}>Drag to move it, and zoom until your face sits in the circle.</p>
         {failed ? (

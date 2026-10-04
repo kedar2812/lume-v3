@@ -785,4 +785,33 @@ describe("LeadsScreen", () => {
       vi.useRealTimers();
     }
   });
+
+  it("7C review: 'select all that match' waits for the counts of these filters, and isn't offered on a capped search", async () => {
+    const rows = ["Aisha Khan", "Omar Farouk"].map((name, i) => lead({ id: `l${i + 1}`, name }));
+    vi.mocked(leadsClient.counts).mockResolvedValue({
+      ok: false,
+      status: 429,
+      code: "RATE_LIMITED",
+      message: "slow down",
+    });
+    vi.mocked(leadsClient.list).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: rows, nextCursor: "c2" },
+    });
+    const user = userEvent.setup();
+    const { unmount } = view({ session: admin(), first: { items: rows, nextCursor: "c2" } });
+    await user.click(screen.getByRole("checkbox", { name: "Select all loaded" }));
+    expect(screen.getByRole("status")).toHaveTextContent("All 2 on this page are selected.");
+    expect(screen.queryByRole("button", { name: /that match$/ })).not.toBeInTheDocument();
+    unmount();
+    vi.mocked(leadsClient.counts).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { counts: { "s-new": 3 }, values: {}, total: 12000 },
+    });
+    view({ session: admin(), first: { items: rows, nextCursor: "c2", searchCapped: true } });
+    await user.click(screen.getByRole("checkbox", { name: "Select all loaded" }));
+    expect(screen.queryByRole("button", { name: /that match$/ })).not.toBeInTheDocument();
+  });
 });

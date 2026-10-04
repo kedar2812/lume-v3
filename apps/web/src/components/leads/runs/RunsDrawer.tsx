@@ -1,8 +1,9 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { can } from "@lume/core/shared";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Scrim } from "@/components/ui/Scrim";
+import { useModalFocus } from "@/components/ui/useModalFocus";
 import { bulkRunsClient, isLive, reasonWords, runLine, took, type RunView } from "@/lib/leads/bulk-runs";
 import { longDate } from "@/lib/dates";
 import { useLoadingSignal } from "@/lib/loading";
@@ -54,9 +55,17 @@ export function RunsDrawer({
   const [view, setView] = useState<"mine" | "all">("mine");
   const [runs, setRuns] = useState<RunView[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  // A run that was going and has now finished changed leads: the list behind refreshes (7C final review, Important 2).
+  const wasLive = useRef<Set<string>>(new Set());
+  const tellChanged = useRef(onChanged);
+  tellChanged.current = onChanged;
   const load = useCallback(async () => {
     const r = await bulkRunsClient.list();
-    if (r.ok) setRuns(r.data.runs);
+    if (!r.ok) return;
+    const nowLive = new Set(r.data.runs.filter(isLive).map((x) => x.id));
+    if ([...wasLive.current].some((id) => !nowLive.has(id))) tellChanged.current();
+    wasLive.current = nowLive;
+    setRuns(r.data.runs);
   }, []);
   useEffect(() => void load(), [load]);
   useLoadingSignal(runs === null);
@@ -67,11 +76,8 @@ export function RunsDrawer({
     const t = setInterval(() => void load(), 2000);
     return () => clearInterval(t);
   }, [anyLive, load]);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+  const panel = useRef<HTMLElement>(null);
+  const focus = useModalFocus(panel, onClose);
 
   const people = catalog.people;
   const name = {
@@ -99,7 +105,14 @@ export function RunsDrawer({
 
   return (
     <Scrim onClose={onClose}>
-      <aside className={s.drawer} role="dialog" aria-modal="true" aria-label="Recent bulk actions">
+      <aside
+        ref={panel}
+        className={s.drawer}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Recent bulk actions"
+        onKeyDown={focus.onKeyDown}
+      >
         <header className={s.head}>
           <div style={{ flex: 1 }}>
             <h2>Recent bulk actions</h2>
@@ -295,7 +308,7 @@ export function RunsDrawer({
                               {r.status === "failed" && "Didn’t finish"}
                             </span>
                           </button>
-                          <div className={s.body}>
+                          <div className={s.body} {...(exp ? {} : { inert: true, "aria-hidden": true })}>
                             <div>
                               <div className={s.bin}>
                                 <div className={s.split} aria-hidden>

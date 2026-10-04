@@ -286,7 +286,10 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
       )
     ).map((r) => r.d);
     t = performance.now();
-    for (const d of days) await h.pool.query("SELECT lume_rollup_day($1::date, $2)", [d, tz]);
+    for (const d of days) {
+      await h.pool.query("SELECT lume_rollup_day($1::date, $2)", [d, tz]);
+      await h.pool.query("SELECT lume_rollup_slot_totals($1::date)", [d]);
+    }
     timings.push({
       path: `analytics rollup, per day (${days.length} days)`,
       ms: Math.round((performance.now() - t) / days.length),
