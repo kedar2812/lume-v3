@@ -8,7 +8,8 @@ import { weeklyAnalyticsMail } from "../../mail/templates";
 import type { Mailer } from "../../mail/mailer";
 import { loadActor } from "../../rbac/actor";
 import { insights } from "./insights";
-import { funnel, overview, team, type AnalyticsQuery } from "./service";
+import { funnel } from "./funnel";
+import { overview, team, type AnalyticsQuery } from "./service";
 
 export type WeeklyDeps = {
   pool: pg.Pool;

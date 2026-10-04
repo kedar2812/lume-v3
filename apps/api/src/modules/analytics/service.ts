@@ -81,7 +81,7 @@ export function reachOf(req: FastifyRequest, ownerIds?: readonly string[]): "own
 export const seesRevenue = (req: FastifyRequest) => can(req.actor!, "analytics.revenue");
 
 /** Rollup filters as SQL; the viewer's reach is the rollups' own row-level security. */
-function rollupWhere(
+export function rollupWhere(
   q: AnalyticsQuery,
   from: string,
   to: string,
@@ -163,7 +163,7 @@ export async function eventSums(req: FastifyRequest, q: AnalyticsQuery, days: st
 }
 
 /** Live "now" conditions, bounded by the viewer's analytics reach as the rollups are. */
-function liveOwner(q: AnalyticsQuery, col: SQL): SQL {
+export function liveOwner(q: AnalyticsQuery, col: SQL): SQL {
   // Someone who sees everyone, filtering by no one: no per-lead credit to work out (it's the costly part at scale).
   if (q.reach === "all" && !q.ownerIds?.length) return sql`true`;
   const parts: SQL[] = [sql`lume_sees_credit(${col})`];
@@ -171,7 +171,7 @@ function liveOwner(q: AnalyticsQuery, col: SQL): SQL {
   if (own) parts.push(own);
   return sql.join(parts, sql` AND `);
 }
-function liveLead(q: AnalyticsQuery): SQL {
+export function liveLead(q: AnalyticsQuery): SQL {
   const parts: SQL[] = [sql`l.deleted_at IS NULL`];
   if (q.pipelineId) parts.push(sql`l.pipeline_id = ${q.pipelineId}::uuid`);
   const src = sourceCond(q.sourceIds, sql`l.source_id`);
@@ -416,77 +416,6 @@ function foldBySource(
         ]
       : []),
   ];
-}
-
-/**
- * The funnel (canvas Funnel): for the leads that arrived in the range, the share that reached each stage or a later
- * one, open stages in order and then won.
- */
-export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  refuseLive(q);
-  q = { ...q, reach: reachOf(req, q.ownerIds) };
-  const tz = await businessTz(req);
-  const range = rangeOf(q, tz, now);
-  const pipeline =
-    q.pipelineId ??
-    (
-      await req.db.execute<{ id: string }>(
-        sql`SELECT id FROM pipelines WHERE archived_at IS NULL ORDER BY is_default DESC, position LIMIT 1`,
-      )
-    ).rows[0]?.id;
-  if (!pipeline) return { range: { label: range.label }, stages: [], arrived: 0 };
-  const scoped = { ...q, pipelineId: pipeline };
-  const stages = (
-    await req.db.execute<{ id: string; name: string; kind: string }>(sql`
-      SELECT id, name, kind FROM stages WHERE pipeline_id = ${pipeline}::uuid AND kind IN ('open', 'won')
-        AND archived_at IS NULL
-      ORDER BY (kind = 'won'), position`)
-  ).rows;
-  const reach = async (days: string[]) =>
-    new Map(
-      (
-        await req.db.execute<{ stage_id: string; n: number }>(sql`
-          SELECT stage_id, sum(n)::int AS n FROM analytics_daily_reach WHERE ${rollupWhere(scoped, days[0]!, days.at(-1)!)}
-          GROUP BY stage_id`)
-      ).rows.map((r) => [r.stage_id, r.n]),
-    );
-  const [cur, prev, c, pc] = await Promise.all([
-    reach(range.days),
-    reach(range.previous.days),
-    cohortSums(req, scoped, range.days),
-    cohortSums(req, scoped, range.previous.days),
-  ]);
-  // Reached stage k or later: the leads whose furthest stage is k or beyond.
-  const orLater = (m: Map<string, number>, i: number) =>
-    stages.slice(i).reduce((a, s) => a + (m.get(s.id) ?? 0), 0);
-  return {
-    range: { label: range.label, days: range.days },
-    arrived: c.arrived,
-    previousArrived: pc.arrived,
-    stages: stages.map((s, i) => {
-      const reached = orLater(cur, i);
-      const before = orLater(prev, i);
-      const share = rate(reached, c.arrived);
-      const prevShare = rate(before, pc.arrived);
-      return {
-        id: s.id,
-        name: s.name,
-        kind: s.kind,
-        reached,
-        share,
-        // Of those that reached this stage, the share that went no further (it's their furthest).
-        stopped: reached ? (cur.get(s.id) ?? 0) / reached : null,
-        stoppedN: cur.get(s.id) ?? 0,
-        previousReached: before,
-        previousStoppedN: prev.get(s.id) ?? 0,
-        tooFew: reached < TOO_FEW,
-        trend:
-          q.compare && share !== null && prevShare !== null
-            ? trend(share, prevShare, { kind: "pts", good: "up" })
-            : null,
-      };
-    }),
-  };
 }
 
 /** Each person (canvas Team): their own numbers side by side, for a viewer who sees more than themselves. */

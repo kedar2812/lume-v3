@@ -307,9 +307,16 @@ export function kindWhere(s: Scoped): SQL | null {
     case "phone_invalid":
       return sql`l.phone_status = 'invalid' AND ${credit(sql`l.owner_id`, s.q)}`;
     case "funnel_reached":
+      // Cohort leads whose furthest stage (0056, the rollups' rule) is this one or later; won is the furthest of all.
+      return x.stageId
+        ? sql`${frag.cohort(s)} AND EXISTS (SELECT 1 FROM stages fs, stages target
+            WHERE fs.id = lume_furthest_stage(l.id, l.pipeline_id) AND target.id = ${x.stageId}::uuid
+              AND (fs.kind = 'won' OR (target.kind = 'open' AND fs.position >= target.position)))`
+        : null;
     case "funnel_stopped":
-      // The furthest-stage helper arrives with the funnel's extras (8D-1 Task 4).
-      return null;
+      return x.stageId
+        ? sql`${frag.cohort(s)} AND lume_furthest_stage(l.id, l.pipeline_id) = ${x.stageId}::uuid`
+        : null;
     default:
       return frag.metric(s);
   }

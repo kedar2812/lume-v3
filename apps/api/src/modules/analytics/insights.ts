@@ -4,7 +4,8 @@ import { NOT_YET, noticed, type DetectorId, type InsightContext, type Seen } fro
 import { ownerCond } from "./filters";
 import { refuseLive } from "./live";
 import { lost, sources, templates } from "./modules";
-import { businessTz, eventSums, funnel, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
+import { funnel } from "./funnel";
+import { businessTz, eventSums, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
  * "LUME noticed" for one person (8B, spec §6): gathers each detector's numbers at the viewer's reach, runs the
