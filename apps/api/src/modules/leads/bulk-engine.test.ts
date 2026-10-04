@@ -1,5 +1,5 @@
 import { ALL_GRANTS, newId, type Grant } from "@lume/core";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { processRun, setChunkForTests, setInlineMaxForTests } from "./bulk-runs";
 
@@ -425,20 +425,25 @@ describe("7B: the engine", () => {
       const ids = await seven(sam.id);
       await start(admin, ids, { type: "stage", stageId: stage });
       await h.runBulk();
-      const c = await h.ownerPool.connect();
-      try {
-        await c.query("BEGIN");
-        await c.query("SELECT set_config('lume.user_id', $1, true)", [sam.id]);
-        const rows = (
-          await c.query<{ title: string }>(
-            "SELECT title FROM notifications WHERE kind = 'follow_up_assigned' ORDER BY id",
-          )
-        ).rows;
-        expect(rows.map((r) => r.title)).toEqual(["LUME set you 7 follow-ups"]);
-      } finally {
-        await c.query("ROLLBACK");
-        c.release();
-      }
+      // Notices are sent after the run commits, without waiting: read until it's there (or a second has passed).
+      const inbox = async () => {
+        const c = await h.ownerPool.connect();
+        try {
+          await c.query("BEGIN");
+          await c.query("SELECT set_config('lume.user_id', $1, true)", [sam.id]);
+          return (
+            await c.query<{ title: string }>(
+              "SELECT title FROM notifications WHERE kind = 'follow_up_assigned' ORDER BY id",
+            )
+          ).rows.map((r) => r.title);
+        } finally {
+          await c.query("ROLLBACK");
+          c.release();
+        }
+      };
+      await vi.waitFor(async () => expect(await inbox()).toEqual(["LUME set you 7 follow-ups"]), {
+        timeout: 3000,
+      });
     } finally {
       await admin.inject({
         method: "PATCH",
