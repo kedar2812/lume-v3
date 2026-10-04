@@ -1,4 +1,5 @@
 "use client";
+import { lookOf } from "@/lib/avatar/look";
 import { Avatar } from "@/components/ui/Avatar";
 import { tokenColor } from "@/lib/leads/colors";
 import { formatMoney, personName, relativeTime, shortDate, stageOf } from "@/lib/leads/format";
@@ -20,9 +21,10 @@ export function StagePill({ catalog, stageId }: { catalog: Catalog; stageId: str
 export function OwnerCell({ catalog, ownerId }: { catalog: Catalog; ownerId: string | null | undefined }) {
   if (!ownerId) return <span className={s.muted}>Unassigned</span>;
   const name = personName(catalog, ownerId);
+  const look = lookOf(ownerId, catalog.people.find((p) => p.id === ownerId)?.avatar);
   return (
     <span className={s.owner}>
-      <Avatar name={name} size={22} />
+      <Avatar name={name} size={22} {...look} />
       <span>{name}</span>
     </span>
   );

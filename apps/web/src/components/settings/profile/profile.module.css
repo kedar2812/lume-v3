@@ -1,0 +1,251 @@
+/* Your look (7C, canvas Profile): the big avatar, the colours for your initials, and the cropper. */
+.look {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+.big {
+  position: relative;
+  border-radius: 50%;
+  transition: transform 0.3s var(--spring);
+}
+.big:hover {
+  transform: scale(1.04);
+}
+.big:active {
+  transform: scale(0.97);
+  transition-duration: 0.1s;
+}
+.big:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.camera {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 2px 6px rgba(12, 18, 32, 0.18);
+}
+.lookSide {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.lookButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--fw-bold);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.15);
+  transition:
+    transform 0.25s var(--spring),
+    box-shadow 0.25s;
+}
+.swatch:hover {
+  transform: scale(1.1);
+}
+.swatch[aria-checked="true"] {
+  box-shadow:
+    0 0 0 2px var(--sheet),
+    0 0 0 4px var(--accent);
+}
+.ok {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--ok-ink);
+}
+.problem {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+
+/* The cropper, a sheet on the full-window scrim. */
+.cropper {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  padding: 22px 24px 18px;
+  border-radius: var(--r-sheet, 22px);
+  background: var(--sheet);
+  box-shadow: var(--shadow-pop);
+  animation: cropIn 0.5s var(--spring) both;
+}
+@keyframes cropIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.97);
+  }
+}
+.cropper h2 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-xl);
+}
+.cropLede {
+  margin: 4px 0 16px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.cropBody {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.frame {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--sunk);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.frame[data-dragging] {
+  cursor: grabbing;
+}
+.frame:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.photo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: none;
+  pointer-events: none;
+  transition: transform 0.55s var(--spring);
+}
+.frame[data-dragging] .photo {
+  transition: none;
+}
+/* Outside the circle steps back; the circle is what's kept. */
+.mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 0 calc(50% - 1px), rgba(8, 10, 14, 0.5) 50%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+/* The thirds, shown while the photo moves. */
+.grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.frame[data-dragging] .grid,
+.frame:focus-visible .grid {
+  opacity: 1;
+}
+.grid i {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.35);
+}
+.grid i:nth-child(1),
+.grid i:nth-child(2) {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.grid i:nth-child(1) {
+  left: 33.333%;
+}
+.grid i:nth-child(2) {
+  left: 66.666%;
+}
+.grid i:nth-child(3),
+.grid i:nth-child(4) {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.grid i:nth-child(3) {
+  top: 33.333%;
+}
+.grid i:nth-child(4) {
+  top: 66.666%;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 180px;
+  flex: 1;
+}
+.previews {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+.previews canvas {
+  border-radius: 50%;
+  background: var(--sunk);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.zoom input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.cropError {
+  margin: 12px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.cropActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cropper,
+  .photo,
+  .big,
+  .swatch {
+    animation: none;
+    transition: none;
+  }
+}

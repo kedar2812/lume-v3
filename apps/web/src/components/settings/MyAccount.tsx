@@ -12,6 +12,7 @@ import { deviceName } from "@lume/core/shared";
 import { shortDateTime } from "@/lib/settings/format";
 import type { Session } from "@/server/session";
 import { MyAlerts } from "./MyAlerts";
+import { ProfilePhoto } from "./profile/ProfilePhoto";
 import s from "./settings.module.css";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 
@@ -65,6 +66,7 @@ function Profile({ session }: { session: Session }) {
 
   return (
     <Block title="You" lede={session.user.email}>
+      <ProfilePhoto session={session} />
       <div className={s.pair}>
         <Field label="Your name">
           {(control) => (

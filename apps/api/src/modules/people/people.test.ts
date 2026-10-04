@@ -16,10 +16,15 @@ describe("people", () => {
     const res = await c.inject({ method: "GET", url: "/api/v1/people" });
     expect(res.statusCode).toBe(200);
     const people = res.json().people as { id: string; name: string; active: boolean }[];
-    expect(people.find((p) => p.id === seller.id)).toEqual({ id: seller.id, name: "Riya", active: true });
+    expect(people.find((p) => p.id === seller.id)).toEqual({
+      id: seller.id,
+      name: "Riya",
+      active: true,
+      avatar: { color: null, version: 0, photo: false }, // their look (7C), nothing more
+    });
     expect(people.find((p) => p.id === gone.id)?.active).toBe(false);
     expect(people.find((p) => p.id === pending.id)).toBeUndefined(); // hasn't joined yet
-    expect(Object.keys(people[0]!).sort()).toEqual(["active", "id", "name"]); // no emails, no roles
+    expect(Object.keys(people[0]!).sort()).toEqual(["active", "avatar", "id", "name"]); // no emails, no roles
   });
 
   it("is refused to someone who can't see leads", async () => {

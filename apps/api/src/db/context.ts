@@ -1,7 +1,7 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
-import { can, leadScope, type Actor } from "@lume/core";
+import { can, leadScope, scopeOf, type Actor } from "@lume/core";
 import { schema } from "@lume/db";
 import type { ActorRecord } from "../rbac/actor";
 
@@ -45,13 +45,15 @@ export async function applyRequestScope(client: pg.PoolClient, actor: Actor): Pr
   await client.query(
     `SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', $2, true),
             set_config('lume.team_member_ids', $3, true), set_config('lume.role_ids', $4, true),
-            set_config('lume.manage_views', $5, true)`,
+            set_config('lume.manage_views', $5, true), set_config('lume.analytics_scope', $6, true)`,
     [
       actor.userId,
       leadScope(actor) ?? "",
       `{${actor.teamMemberIds.join(",")}}`,
       `{${actor.roleIds.join(",")}}`,
       can(actor, "views.manage") ? "on" : "off",
+      // Analytics reads its rollups under its own reach (8A), which needn't match what leads the person sees.
+      scopeOf(actor, "analytics.view") ?? "",
     ],
   );
 }

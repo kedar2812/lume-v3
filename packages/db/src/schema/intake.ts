@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  bigserial,
+  boolean,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 export const leadSources = pgTable("lead_sources", {
@@ -22,6 +32,8 @@ export const leadSources = pgTable("lead_sources", {
   createdBy: uuid("created_by"),
   createdAt: tz("created_at").notNull().defaultNow(),
   archivedAt: tz("archived_at"),
+  /** What the source costs a month, in the business currency (8A); spread over a range by its days. */
+  monthlySpend: numeric("monthly_spend", { precision: 14, scale: 2 }),
   // Phase 2B-1: a sheet's saved header, how it reads, who it runs as, and where it read to.
   headers: jsonb("headers")
     .$type<string[]>()

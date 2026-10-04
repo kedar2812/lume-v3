@@ -95,6 +95,13 @@ export const activities = pgTable("activities", {
   occurredAt: tz("occurred_at").notNull().defaultNow(),
 });
 
+/** When each lead was first contacted and first replied (8A, 0051): kept from activities by a trigger. */
+export const leadFirsts = pgTable("lead_firsts", {
+  leadId: uuid("lead_id").primaryKey(),
+  firstContactAt: tz("first_contact_at"),
+  firstReplyAt: tz("first_reply_at"),
+});
+
 export const leadContactKeys = pgTable(
   "lead_contact_keys",
   {

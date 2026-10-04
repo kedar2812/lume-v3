@@ -36,6 +36,8 @@ export type ListQuery = {
    * date when the lead has one (a sheet's), else by when it reached LUME, as the drawer's "Enquiry" line.
    */
   createdDays?: number;
+  /** Exactly these leads (an analytics drill-down, 8A); never taken from a request's query string. */
+  ids?: string[];
 };
 
 const L = schema.leads;
@@ -200,6 +202,7 @@ export function leadFilters(
     // uuid equality is leakproof, so under row-level security this still reads lead_tags' tag index (7A review).
     where.push(sql`EXISTS (SELECT 1 FROM lead_tags t WHERE t.lead_id = ${L.id} AND t.tag_id = ${q.tagId})`);
   if (q.source) where.push(eq(L.sourceId, q.source));
+  if (q.ids) where.push(q.ids.length ? sql`${L.id} = ANY(${`{${q.ids.join(",")}}`}::uuid[])` : sql`false`);
   if (q.arrivedAfter) where.push(arrivalsWhere(new Date(q.arrivedAfter), req.actor!.userId));
   if (q.phoneStatus) {
     if (!isFieldVisible(ctx, "phone")) throw badRequest("UNKNOWN_FIELD", "Unknown filter");

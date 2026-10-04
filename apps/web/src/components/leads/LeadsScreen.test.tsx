@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
@@ -743,5 +743,46 @@ describe("LeadsScreen", () => {
     unmount();
     view({ session: admin(), first: { items: rows, nextCursor: null } });
     expect(screen.queryByText(/More than 10,000 leads match/)).not.toBeInTheDocument();
+  });
+
+  it("7C: a refetch dims the rows, turns them to skeletons after 1.2 s, and says it's slow after 3 s", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(leadsClient.list).mockReturnValue(new Promise(() => {})); // never answers
+      view({ session: admin() });
+      await userEvent
+        .setup({ advanceTimers: vi.advanceTimersByTime })
+        .click(screen.getByRole("button", { name: /^Name/ }));
+      expect(screen.getByRole("button", { name: "Open Aisha Khan" })).toBeInTheDocument(); // dimmed, still there
+      await act(async () => void (await vi.advanceTimersByTimeAsync(1300)));
+      expect(screen.queryByRole("button", { name: "Open Aisha Khan" })).not.toBeInTheDocument();
+      expect(document.querySelectorAll("tr[data-skeleton]").length).toBeGreaterThan(0);
+      expect(screen.queryByText(/Taking longer than usual/)).not.toBeInTheDocument();
+      await act(async () => void (await vi.advanceTimersByTimeAsync(1800)));
+      expect(screen.getByText("Taking longer than usual. LUME is still loading.")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("7C: offline, LUME says when it'll try again, and does", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(leadsClient.list).mockResolvedValue({
+        ok: false,
+        status: 0,
+        code: "OFFLINE",
+        message: "offline",
+      });
+      view({ first: null });
+      expect(await screen.findByText(/LUME will try again in 5 s/)).toBeInTheDocument();
+      const before = vi.mocked(leadsClient.list).mock.calls.length;
+      await act(async () => void (await vi.advanceTimersByTimeAsync(2000)));
+      expect(screen.getByText(/LUME will try again in 3 s/)).toBeInTheDocument();
+      await act(async () => void (await vi.advanceTimersByTimeAsync(3000)));
+      expect(vi.mocked(leadsClient.list).mock.calls.length).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

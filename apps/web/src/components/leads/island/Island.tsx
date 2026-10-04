@@ -337,7 +337,7 @@ export function Island({
       <div
         className={`${s.isle} ${shown ? "" : s.out} ${tucked ? s.tucked : ""}`}
         style={{ "--w": `${w}px`, "--h": `${h}px`, "--r": `${r}px` } as CSSProperties}
-        aria-hidden={!shown || tucked}
+        {...away(shown && !tucked)}
       >
         <div
           className={`${s.liq} ${run?.status === "done" && !undoing ? s.liqOk : ""} ${undoing ? s.liqCalm : ""}`}
@@ -349,7 +349,7 @@ export function Island({
           className={`${s.pane} ${menu === "stage" && !run ? s.paneOn : ""}`}
           role="menu"
           aria-label="Move to stage"
-          {...away(!!(menu === "stage" && !run))}
+          {...away(menu === "stage" && !run)}
         >
           <div className={s.ph}>
             <span>Move {fmt(n)} to</span>
@@ -427,7 +427,7 @@ export function Island({
           className={`${s.pane} ${menu === "assign" && !run ? s.paneOn : ""}`}
           role="menu"
           aria-label="Assign to"
-          {...away(!!(menu === "assign" && !run))}
+          {...away(menu === "assign" && !run)}
         >
           <div className={s.ph}>
             <span>Assign {fmt(n)} to</span>
@@ -491,7 +491,7 @@ export function Island({
           className={`${s.pane} ${menu === "tags" && !run ? s.paneOn : ""}`}
           role="menu"
           aria-label="Tags"
-          {...away(!!(menu === "tags" && !run))}
+          {...away(menu === "tags" && !run)}
         >
           <div className={s.seg}>
             <span
@@ -545,7 +545,7 @@ export function Island({
           className={`${s.pane} ${menu === "more" && !run ? s.paneOn : ""}`}
           role="menu"
           aria-label="More"
-          {...away(!!(menu === "more" && !run))}
+          {...away(menu === "more" && !run)}
         >
           {more === "list" && (
             <>
@@ -665,7 +665,7 @@ export function Island({
           className={`${s.lay} ${s.row} ${!run ? s.layOn : ""}`}
           role="toolbar"
           aria-label="Bulk actions"
-          {...away(!!!run)}
+          {...away(!run)}
         >
           <div className={s.count} aria-live="polite">
             <b>{fmt(n)}</b>

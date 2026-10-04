@@ -317,7 +317,7 @@ export function QueueRun({ id }: { id: string }) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={spring}
         >
-          <header className={s.head}>
+          <div className={s.head}>
             <div className={s.title}>
               <span className={s.kicker}>Send queue</span>
               <span className={s.template}>{q?.templateName ?? (q ? "Your own words" : "")}</span>
@@ -377,7 +377,7 @@ export function QueueRun({ id }: { id: string }) {
                 transition={reduce ? { duration: 0 } : toMotion(SPRINGS.soft)}
               />
             </span>
-          </header>
+          </div>
 
           <div className={s.stage}>
             {error && (

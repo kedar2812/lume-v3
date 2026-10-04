@@ -18,6 +18,7 @@ import {
 } from "@lume/core/shared";
 import type { LicenceForPerson } from "@/lib/licence/client";
 import { apiGet } from "./api";
+import type { Look } from "@/lib/avatar/look";
 
 export type SessionUser = {
   id: string;
@@ -26,6 +27,8 @@ export type SessionUser = {
   isOwner: boolean;
   theme: "system" | "porcelain" | "obsidian";
   timezone: string | null;
+  /** Their look (7C); absent from an API before photos. */
+  avatar?: Look;
 };
 export type Session = {
   user: SessionUser;

@@ -559,6 +559,42 @@
   z-index: 5;
   min-width: 180px;
 }
+/* "Taking longer than usual" (7C): a quiet line under the table after 3 s, with a breathing dot. */
+.slow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  animation: slowIn 0.4s ease both;
+}
+@keyframes slowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.slowDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slow,
+  .slowDot {
+    animation: none;
+  }
+}
 .loadMore {
   display: flex;
   justify-content: center;

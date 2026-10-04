@@ -51,6 +51,18 @@ export function describeActivity(a: Activity, cat: Catalog, tz?: string): Histor
       };
     case "reply_logged":
       return { title: "They replied", detail: by(a), tone: "ok" };
+    case "call_logged":
+      return {
+        title:
+          p.outcome === "talked"
+            ? "Called and talked"
+            : p.outcome === "left_message"
+              ? "Called: left a message"
+              : "Called: no answer",
+        detail: by(a),
+        tone: "ok",
+        ...(p.note ? { quote: String(p.note) } : {}),
+      };
     case "reopened":
       return {
         title: "Reopened",

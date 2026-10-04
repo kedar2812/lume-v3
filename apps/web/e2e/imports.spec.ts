@@ -170,10 +170,11 @@ test("@smoke the bulk phone fix gives numbers their country", async ({ page }) =
     await openApp(page, "/leads?phone=needs_country");
     await expect(page.getByTestId("lead-row")).toHaveCount(2);
     await page.getByRole("checkbox", { name: "Select all loaded" }).check();
-    await page.getByRole("button", { name: "Set country…" }).click();
+    await page.getByRole("button", { name: "More bulk actions" }).click();
+    await page.getByRole("button", { name: "Read phone numbers with a country…" }).click();
     await expect(page.getByRole("button", { name: "Country: United Arab Emirates" })).toBeVisible();
-    await page.getByRole("button", { name: "Set country", exact: true }).click();
-    await expect(page.getByText("2 fixed")).toBeVisible();
+    await page.getByRole("button", { name: "Read 2 with this country" }).click();
+    await expect(page.getByText("2 numbers read with a country")).toBeVisible();
     const one = await lead(page, "Fix Me One");
     const view = (
       await callApi<{ lead: { phone: { status: string } } }>(page, "GET", `/api/v1/leads/${one!.id}`)

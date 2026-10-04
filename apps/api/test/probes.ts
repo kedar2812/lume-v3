@@ -390,6 +390,13 @@ export const PROBES: Record<string, Probe> = {
     }),
   },
   "GET /api/v1/me/sessions": { access: "auth.self" },
+  // 7C: your own look; anyone signed in sees a colleague's photo (none here: 404 past the gate).
+  "PUT /api/v1/me/avatar": { access: "auth.self", body: () => ({ color: "teal" }) },
+  "DELETE /api/v1/me/avatar": { access: "auth.self" },
+  "GET /api/v1/users/:id/avatar": {
+    access: "auth.self",
+    path: (f) => `/api/v1/users/${f.userId}/avatar?v=1`,
+  },
   "DELETE /api/v1/me/sessions/:id": {
     access: "auth.self",
     path: () => "/api/v1/me/sessions/0000000000000000",
@@ -612,6 +619,20 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.assign",
     path: (f) => `/api/v1/leads/${f.leadId}/assign`,
     body: (f) => ({ ownerId: f.userId }),
+  },
+  // 8A: analytics at the viewer's reach; a drill-down opens only the token's own list.
+  "GET /api/v1/analytics/overview": { access: "analytics.view" },
+  "GET /api/v1/analytics/funnel": { access: "analytics.view" },
+  "GET /api/v1/analytics/team": { access: "analytics.view" },
+  "GET /api/v1/analytics/drilldown": {
+    access: "analytics.view",
+    path: () => "/api/v1/analytics/drilldown?token=not-a-real-token-at-all",
+  },
+  // 8A: a call, logged as contact.
+  "POST /api/v1/leads/:id/calls": {
+    access: "leads.edit",
+    path: (f) => `/api/v1/leads/${f.leadId}/calls`,
+    body: () => ({ outcome: "talked" }),
   },
   "POST /api/v1/leads/:id/notes": {
     access: "leads.edit",

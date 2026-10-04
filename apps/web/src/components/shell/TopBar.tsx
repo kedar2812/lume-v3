@@ -9,6 +9,7 @@ import { ResumeRun } from "@/components/queue/ResumeRun";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { IconButton } from "@/components/ui/IconButton";
 import { Kbd } from "@/components/ui/Kbd";
+import { TopProgress } from "@/components/ui/TopProgress";
 import { READ_EVENT, notificationsClient } from "@/lib/notifications/client";
 import { useStream } from "@/lib/notifications/stream";
 import type { ThemePref } from "@/lib/theme";
@@ -98,6 +99,7 @@ export function TopBar({
 
   return (
     <header className={s.bar}>
+      <TopProgress />
       <h1 className={s.crumb}>{title}</h1>
       <button type="button" className={s.search} onClick={onSearch} data-tour="search">
         <Search size={15} aria-hidden />

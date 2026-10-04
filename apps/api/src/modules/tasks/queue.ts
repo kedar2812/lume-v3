@@ -12,6 +12,7 @@ import { securitySweep } from "../security/sweep";
 import { clearExpiredExports } from "../lead-exports/service";
 import { rollupLeadCounts } from "../leads/query";
 import { clearOldBulkItems } from "../leads/bulk-runs";
+import { analyticsTick } from "../analytics/rollup";
 import type { Mailer } from "../../mail/mailer";
 
 const SWEEP_MS = 60_000;
@@ -78,6 +79,7 @@ export async function startTaskQueue(o: {
     outcomes: false,
     security: false,
     counts: false,
+    analytics: false,
   };
   const beside = (key: keyof typeof busy, job: () => Promise<unknown>, what: string) => {
     if (busy[key]) return;
@@ -86,6 +88,7 @@ export async function startTaskQueue(o: {
       .catch((err: unknown) => o.app.log.error({ err }, what))
       .finally(() => (busy[key] = false));
   };
+  const analyticsMemory: { lastNight?: string; lastWeek?: string } = {};
   let ticks = 0;
   let ticking = false;
   const tick = async () => {
@@ -129,6 +132,12 @@ export async function startTaskQueue(o: {
             }),
           "system alerts failed",
         );
+      // Analytics' daily rollups (8A): today and yesterday every 10 minutes, the week nightly, 90 days weekly.
+      beside(
+        "analytics",
+        () => analyticsTick(o.pool, new Date(), n, analyticsMemory),
+        "analytics rollup failed",
+      );
       // Every hour (and at start-up): lead export files older than 24 hours are removed (6B).
       if (n % 60 === 0)
         void clearExpiredExports(o.pool).catch((err: unknown) =>

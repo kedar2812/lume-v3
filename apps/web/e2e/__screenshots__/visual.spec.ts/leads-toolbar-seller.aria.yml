@@ -14,7 +14,7 @@
         - /url: /pipeline?q=Aisha
 - search:
     - searchbox "Search leads": Aisha
-    - text: Phone status
+    - text: Names only Phone status
     - combobox "Phone status":
         - option "Any phone" [selected]
         - option "Valid phone"

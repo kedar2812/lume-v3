@@ -14,6 +14,10 @@ type Props = {
   columns: ColumnDef[];
   rows: Lead[];
   loading: boolean;
+  /** A refetch that has run a while: the old rows give way to skeletons (7C). */
+  stale?: boolean;
+  /** The next page is on its way: skeleton rows wait under the loaded ones (7C). */
+  appending?: boolean;
   sort: Sort;
   onSort: (sort: Sort) => void;
   openId: string | null;
@@ -62,6 +66,8 @@ export function LeadsTable({
   columns,
   rows,
   loading,
+  stale = false,
+  appending = false,
   sort,
   onSort,
   openId,
@@ -70,7 +76,17 @@ export function LeadsTable({
   selection,
   glowing,
 }: Props) {
-  const skeleton = loading && rows.length === 0;
+  const skeleton = (loading && rows.length === 0) || stale;
+  const skeletonRow = (key: number) => (
+    <tr key={`sk${key}`} className={s.row} aria-hidden data-skeleton>
+      {selection && <td />}
+      {columns.map((c) => (
+        <td key={c.id}>
+          <Skeleton width={c.id === "name" ? "70%" : "55%"} height={10} />
+        </td>
+      ))}
+    </tr>
+  );
   // A click anywhere on the row opens it, unless it landed on something interactive inside the row.
   const rowClick = (e: MouseEvent, id: string) => {
     if ((e.target as HTMLElement).closest("button, a, input, select, textarea, label")) return;
@@ -120,18 +136,9 @@ export function LeadsTable({
             })}
           </tr>
         </thead>
-        <tbody className={s.body} data-dim={loading && rows.length > 0 ? true : undefined}>
+        <tbody className={s.body} data-dim={loading && !appending && !skeleton ? true : undefined}>
           {skeleton
-            ? Array.from({ length: 8 }, (_, i) => (
-                <tr key={i} className={s.row} aria-hidden>
-                  {selection && <td />}
-                  {columns.map((c) => (
-                    <td key={c.id}>
-                      <Skeleton width={c.id === "name" ? "70%" : "55%"} height={10} />
-                    </td>
-                  ))}
-                </tr>
-              ))
+            ? Array.from({ length: 8 }, (_, i) => skeletonRow(i))
             : rows.map((l) => (
                 <tr
                   key={l.id}
@@ -176,6 +183,7 @@ export function LeadsTable({
                   })}
                 </tr>
               ))}
+          {appending && !skeleton && [0, 1, 2].map(skeletonRow)}
         </tbody>
       </table>
     </div>

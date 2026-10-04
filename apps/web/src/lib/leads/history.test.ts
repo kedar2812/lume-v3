@@ -56,6 +56,19 @@ describe("describeActivity", () => {
       detail: "by Leila Haddad",
       tone: "ok",
     });
+    // A call logged (8A): how it went, and the note as a quote.
+    expect(
+      describeActivity(a("call_logged", { outcome: "no_answer", note: "Rang twice" }), cat),
+    ).toMatchObject({
+      title: "Called: no answer",
+      detail: "by Leila Haddad",
+      quote: "Rang twice",
+      tone: "ok",
+    });
+    expect(describeActivity(a("call_logged", { outcome: "left_message" }), cat).title).toBe(
+      "Called: left a message",
+    );
+    expect(describeActivity(a("call_logged", { outcome: "talked" }), cat).title).toBe("Called and talked");
     expect(describeActivity(a("reopened", { from: "s-lost", to: "s-new" }), cat)).toMatchObject({
       title: "Reopened",
       detail: "into New · by Leila Haddad",

@@ -1,3 +1,4 @@
+import type { Look } from "@/lib/avatar/look";
 import type { FieldOption, FieldType, OnEnter, PhoneStatus } from "@lume/core/shared";
 
 export type ContactView = { display: string; masked: boolean; status?: PhoneStatus };
@@ -81,7 +82,13 @@ export type FieldDefView = {
   archived: boolean;
   access: "edit" | "view" | "hidden";
 };
-export type Person = { id: string; name: string; active: boolean };
+export type Person = {
+  id: string;
+  name: string;
+  active: boolean;
+  /** Their look (7C); absent from an API before photos. */
+  avatar?: Look;
+};
 export type Tag = { id: string; label: string; color: string };
 export type LostReason = { id: string; label: string; position: number };
 export type Product = { id: string; name: string; defaultValue: number | null; currency: string | null };

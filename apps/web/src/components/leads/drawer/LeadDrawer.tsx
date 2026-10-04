@@ -1,4 +1,5 @@
 "use client";
+import { useLoadingSignal } from "@/lib/loading";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { can, canOnRecord } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -117,6 +118,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const reduce = useReducedMotion();
   const [lead, setLead] = useState<Lead | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "gone">("loading");
+  useLoadingSignal(state === "loading");
   const [tab, setTab] = useState<Tab>("details");
   // Bumped when a follow-up is set here, so the next-follow-up line and the history look again.
   const [followUps, setFollowUps] = useState(0);
@@ -573,7 +575,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
 
             {state === "ready" && lead && (
               <>
-                <header className={s.head}>
+                <div className={s.head}>
                   <Avatar name={lead.name ?? "?"} size={52} />
                   <div className={s.headText}>
                     {nameDef && editable(lead, nameDef) ? (
@@ -608,7 +610,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       />
                     </div>
                   </div>
-                </header>
+                </div>
 
                 <div className={s.actions}>
                   {lead.can.message && (

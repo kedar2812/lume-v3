@@ -14,7 +14,7 @@ import { bulkAnswer, cancelRun, createRun, listRuns, readRun, undoRun, type Sele
 import { SUSPENDED_BODY } from "../security/watch";
 import { revealContact } from "./reveal";
 import * as svc from "./service";
-import { addNote, assignLead, listActivities, moveStage } from "./write";
+import { addNote, assignLead, listActivities, logCall, moveStage } from "./write";
 import { currencySchema } from "../../http/schemas";
 
 const params = z.object({ id: z.uuid() });
@@ -226,6 +226,32 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
     },
     async (req, reply) =>
       reply.code(201).send(await addNote(req, await svc.visibleLead(req, req.params.id), req.body.body)),
+  );
+  r.post(
+    "/api/v1/leads/:id/calls",
+    {
+      config: { permission: "leads.edit" },
+      schema: {
+        params,
+        body: z
+          .object({
+            outcome: z.enum(["talked", "no_answer", "left_message"]),
+            note: z.string().trim().max(2000).optional(),
+          })
+          .strict(),
+      },
+    },
+    async (req, reply) =>
+      reply
+        .code(201)
+        .send(
+          await logCall(
+            req,
+            await svc.visibleLead(req, req.params.id),
+            req.body.outcome,
+            req.body.note || undefined,
+          ),
+        ),
   );
   r.get(
     "/api/v1/leads/:id/activities",

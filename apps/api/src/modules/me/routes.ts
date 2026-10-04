@@ -4,6 +4,8 @@ import { z } from "zod";
 import { ONBOARDING_STEPS, preferencesPatchSchema, type OnboardingStepId } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { nameSchema, passwordInput, timezoneSchema, totpCodeSchema } from "../../http/schemas";
+import { AVATAR_COLORS, type AvatarColor } from "@lume/core";
+import { sendAvatar, setAvatar } from "./avatar";
 import * as me from "./service";
 
 const self = { permission: "auth.self" as const };
@@ -25,6 +27,40 @@ export async function meRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
     },
   );
   r.get("/api/v1/me/sessions", { config: self }, (req) => me.listSessions(req));
+
+  // Your look (7C): a colour for your initials, or a photo the browser lined up and cropped; each change is kept
+  // with a new version. Anyone signed in sees a colleague's photo beside their name.
+  const colors = Object.keys(AVATAR_COLORS) as [AvatarColor, ...AvatarColor[]];
+  r.put(
+    "/api/v1/me/avatar",
+    {
+      config: self,
+      bodyLimit: 400_000,
+      schema: {
+        body: z
+          .object({
+            color: z.enum(colors).nullable().optional(),
+            // A 200 KB image is under 274,000 characters of base64.
+            image: z
+              .string()
+              .max(274_000)
+              .regex(/^[A-Za-z0-9+/]*={0,2}$/)
+              .nullable()
+              .optional(),
+          })
+          .strict(),
+      },
+    },
+    async (req) => ({ avatar: await setAvatar(req, req.body) }),
+  );
+  r.delete("/api/v1/me/avatar", { config: self }, async (req) => ({
+    avatar: await setAvatar(req, { image: null }),
+  }));
+  r.get(
+    "/api/v1/users/:id/avatar",
+    { config: self, schema: { params: z.object({ id: z.string().uuid() }) } },
+    (req, reply) => sendAvatar(req, reply, req.params.id),
+  );
   r.delete(
     "/api/v1/me/sessions/:id",
     { config: self, schema: { params: z.object({ id: z.string().regex(/^[0-9a-f]{16}$/) }) } },

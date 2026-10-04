@@ -11,6 +11,7 @@ import { ImportSheet } from "@/components/imports/ImportSheet";
 import { AttentionBanner } from "@/components/integrations/AttentionBanner";
 import { RefreshButton } from "@/components/sheets/RefreshButton";
 import { importsClient } from "@/lib/imports/client";
+import { useAfter, useCountdown, useLoadingSignal } from "@/lib/loading";
 import { sheetsClient } from "@/lib/sheets/client";
 import type { SheetsStatus } from "@/lib/sheets/types";
 import { leadsClient } from "@/lib/leads/client";
@@ -72,6 +73,7 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
   const [cursor, setCursor] = useState<string | null>(first?.nextCursor ?? null);
   const [capped, setCapped] = useState(!!first?.searchCapped);
   const [loading, setLoading] = useState(false);
+  const [appending, setAppending] = useState(false);
   const [error, setError] = useState<"offline" | "busy" | "load" | null>(first === null ? "load" : null);
   const generation = useRef(0);
   const skipFirst = useRef(first !== null); // the server already sent page one for these filters
@@ -80,10 +82,12 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
     async (after?: string) => {
       const gen = after ? generation.current : ++generation.current;
       setLoading(true);
+      setAppending(!!after);
       setError(null);
       const r = await leadsClient.list(filters, after);
       if (gen !== generation.current) return;
       setLoading(false);
+      setAppending(false);
       if (!r.ok)
         return setError(r.code === "OFFLINE" ? "offline" : r.code === "RATE_LIMITED" ? "busy" : "load");
       setRows((prev) =>
@@ -112,6 +116,7 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
   return {
     rows,
     loading,
+    appending,
     error,
     capped,
     hasMore: cursor !== null,
@@ -221,6 +226,12 @@ function Screen({
     [filters, multiPipeline, shownPipeline],
   );
   const list = useLeadList(listFilters, first);
+  // Loading, said plainly (7C): the top bar's bar; stale rows dim, then turn to skeletons after 1.2 s; a word after
+  // 3 s; offline, LUME tries again on its own every 5 s and says when.
+  useLoadingSignal(list.loading);
+  const staleLong = useAfter(list.loading && !list.appending && list.rows.length > 0, 1200);
+  const slow = useAfter(list.loading, 3000);
+  const retryIn = useCountdown(list.error === "offline", 5, list.reload);
   const available = useMemo(() => availableColumns(catalog, contactsVisible), [catalog, contactsVisible]);
   const [chosen, setChosen] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
@@ -376,7 +387,7 @@ function Screen({
           title="LUME can’t load leads right now"
           message={
             list.error === "offline"
-              ? "It looks like you’re offline. Check your connection, then try again."
+              ? `It looks like you’re offline. LUME will try again in ${retryIn ?? 5} s.`
               : list.error === "busy"
                 ? "Too many requests from this network right now. Wait a moment, then try again."
                 : "Check your connection, then try again."
@@ -457,6 +468,8 @@ function Screen({
           columns={columns}
           rows={list.rows}
           loading={list.loading}
+          stale={staleLong}
+          appending={list.appending}
           sort={filters.sort}
           onSort={(sort) => setFilters({ ...filters, sort })}
           openId={openId}
@@ -515,6 +528,12 @@ function Screen({
             );
           }}
         />
+        {slow && (
+          <p className={s.slow} role="status">
+            <span className={s.slowDot} aria-hidden />
+            Taking longer than usual. LUME is still loading.
+          </p>
+        )}
         {list.hasMore && (
           <div className={s.loadMore} ref={sentinel}>
             <Button onClick={list.loadMore} loading={list.loading}>

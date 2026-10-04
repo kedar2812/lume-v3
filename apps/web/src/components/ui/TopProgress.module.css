@@ -1,0 +1,37 @@
+/* The loading bar along the top bar's lower edge (7C, canvas Loading): sky into the accent, glowing softly, leaping, creeping, then running out and fading. */
+.track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: visible;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease 0.1s;
+}
+.track[data-state="running"] {
+  opacity: 1;
+  transition-delay: 0s;
+}
+.track[data-state="done"] {
+  opacity: 0;
+  transition: opacity 0.35s ease 0.15s;
+}
+.bar {
+  position: absolute;
+  inset: 0;
+  border-radius: 0 2px 2px 0;
+  background: linear-gradient(90deg, var(--sky), var(--accent));
+  transform-origin: 0 50%;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.45);
+  transition: transform 0.6s var(--spring-soft);
+}
+.track[data-state="idle"] .bar {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition-duration: 0.01ms;
+  }
+}

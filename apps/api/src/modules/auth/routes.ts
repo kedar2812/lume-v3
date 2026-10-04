@@ -89,6 +89,17 @@ export async function authRoutes(
         isOwner: u.isOwner,
         theme: u.theme,
         timezone: u.timezone,
+        avatar: {
+          color: u.avatarColor ?? null,
+          version: u.avatarVersion,
+          photo:
+            (
+              await req.db
+                .select({ id: schema.userAvatars.userId })
+                .from(schema.userAvatars)
+                .where(eq(schema.userAvatars.userId, u.id))
+            ).length > 0,
+        },
       },
       permissions: [...a.perms.entries()]
         .map(([key, scope]) => ({ key, scope: scope === true ? null : scope }))

@@ -188,6 +188,37 @@ export async function addNote(req: FastifyRequest, lead: LeadRow, body: string) 
   };
 }
 
+export type CallOutcome = "talked" | "no_answer" | "left_message";
+
+/**
+ * A phone call, logged (8A): it counts as contact (the lead's first contact, if it's the first), and says how it went.
+ * Shaped like a listed activity, as a note is.
+ */
+export async function logCall(req: FastifyRequest, lead: LeadRow, outcome: CallOutcome, note?: string) {
+  if (!canOnRecord(req.actor!, "leads.edit", lead.ownerId)) throw forbidden();
+  const id = newId();
+  const userId = req.actor!.userId;
+  const payload = { outcome, ...(note ? { note } : {}) };
+  const [row] = await req.db
+    .insert(schema.activities)
+    .values({ id, leadId: lead.id, userId, type: "call_logged", payload })
+    .returning({ occurredAt: schema.activities.occurredAt });
+  await req.db.update(L).set({ lastActivityAt: new Date() }).where(eq(L.id, lead.id));
+  const [me] = await req.db
+    .select({ name: schema.users.name })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId));
+  return {
+    activity: {
+      id,
+      type: "call_logged",
+      payload,
+      occurredAt: row!.occurredAt,
+      user: { id: userId, name: me?.name ?? null },
+    },
+  };
+}
+
 export async function listActivities(
   req: FastifyRequest,
   lead: LeadRow,

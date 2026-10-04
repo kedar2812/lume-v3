@@ -12,10 +12,11 @@
     - text: Table
     - link "Board":
         - /url: /pipeline?q=Karim
+- button "Recent bulk actions"
 - button "New lead"
 - search:
     - searchbox "Search leads": Karim
-    - text: Owner
+    - text: Names, emails, numbers Owner
     - combobox "Owner":
         - option "Any owner" [selected]
         - option "My leads"

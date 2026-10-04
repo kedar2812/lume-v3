@@ -50,10 +50,34 @@ column in the release that stops using it.
     ran stay done.
   - **What's recorded:** each lead's history is kept as for a single edit; the audit log keeps one entry per bulk
     action, and a new owner gets one notice for all their leads.
-  - The screens follow in the Phase 7 UI work.
+  - **The screens (7C):** selecting leads raises a floating bar with Move to, Assign, Tags and more; "Select all
+    N that match" acts on a whole filter. A long run shows its progress, can be stopped or tucked into the top
+    bar, and says when it's done, with what was skipped and why. Recent bulk actions (the clock icon on the
+    Leads toolbar) lists the last 7 days, with Undo while it lasts.
+- **Search says how it's searching (7C):** the search field shows "One more letter", "Names starting with",
+  "Names, emails, numbers" or "Names only", and a broad search says it lists the newest 10,000.
+- **Loading, said plainly (7C):** a bar under the top bar while anything loads; rows that are being refreshed
+  dim, then give way to skeletons after a moment; "Taking longer than usual" after 3 seconds; offline, the Leads
+  list tries again by itself every 5 seconds and says when.
+- **Popups cover the whole window (7C):** every popup now dims and softly blurs everything behind it, sidebar and
+  top bar included.
+- **Profile photos (7C):** My account → You: pick a colour for your initials, or choose a photo and line it up
+  (drag, zoom, turn, with a thirds grid and live previews). Everyone you work with sees it beside your name.
+  The photo is cropped in the browser to 256 px and checked by LUME before it's kept; nothing else from the file
+  (where it was taken, the camera) is kept.
+- **Analytics groundwork (Phase 8A):** LUME now keeps when each lead was first contacted and first replied,
+  logs phone calls ("Log a call": talked, no answer, left a message), and keeps daily analytics totals in the
+  business's own days, refreshed every 10 minutes. The Analytics screens follow.
 
 ### Migrations
 
+- **0053** adds the daily analytics rollups (`analytics_daily_cohort`, `_event`, `_stage`, `_slot`), read under each
+  person's analytics reach, and `lume_rollup_day`, which recomputes one business day; plus indexes on wins,
+  meetings, follow-ups' due times, stage changes and sent messages.
+- **0052** adds `lead_sources.monthly_spend`, `goals` and `analytics_insight_seen`.
+- **0051** adds `lead_firsts` (when each lead was first contacted and first replied), kept by a trigger on
+  `activities` and backfilled from every activity already recorded.
+- **0050** adds `users.avatar_color` and `users.avatar_version`, and `user_avatars` (each person's checked photo).
 - **0049** adds `bulk_runs` (each bulk action: what it did, its selection in words, its counts and reasons) and
   `bulk_run_items` (each lead's place, result and before-values, for resuming and undo; cleared 30 days after a
   run ends).

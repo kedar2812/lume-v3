@@ -11,7 +11,11 @@ import { usePageNav } from "./PageTransition";
 import { ProfileMenu } from "./ProfileMenu";
 import s from "./shell.module.css";
 
-type Props = { businessName: string; user: { name: string; role: string }; can: (p: string) => boolean };
+type Props = {
+  businessName: string;
+  user: { name: string; role: string; color?: string; photo?: string };
+  can: (p: string) => boolean;
+};
 
 export function Sidebar({ businessName, user, can }: Props) {
   const pathname = usePathname();

@@ -10,3 +10,4 @@ export * from "./licence";
 export * from "./calendar";
 export * from "./security";
 export * from "./bulk";
+export * from "./analytics";

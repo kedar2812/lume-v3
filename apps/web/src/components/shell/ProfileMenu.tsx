@@ -6,7 +6,11 @@ import { api } from "@/lib/api";
 import s from "./shell.module.css";
 
 /** The person's row at the foot of the sidebar, opening a small menu: replay the tour, or sign out. */
-export function ProfileMenu({ user }: { user: { name: string; role: string } }) {
+export function ProfileMenu({
+  user,
+}: {
+  user: { name: string; role: string; color?: string; photo?: string };
+}) {
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const menuId = useId();
@@ -61,7 +65,11 @@ export function ProfileMenu({ user }: { user: { name: string; role: string } }) 
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((v) => !v)}
       >
-        <Avatar name={user.name} color="linear-gradient(135deg,#2A5BFF,#16B5FF)" />
+        <Avatar
+          name={user.name}
+          color={user.color ?? "linear-gradient(135deg,#2A5BFF,#16B5FF)"}
+          {...(user.photo ? { photo: user.photo } : {})}
+        />
         <span>
           <span className={s.meName}>{user.name}</span>
           <span className={s.meRole}>{user.role}</span>

@@ -38,6 +38,7 @@ import { templateRoutes } from "./modules/templates/routes";
 import { viewRoutes } from "./modules/views/routes";
 import { notificationRoutes } from "./modules/notifications/routes";
 import { peopleRoutes } from "./modules/people/routes";
+import { analyticsRoutes } from "./modules/analytics/routes";
 import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
@@ -202,6 +203,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(queueRoutes, deps);
         await scope.register(notificationRoutes, deps);
         await scope.register(peopleRoutes);
+        await scope.register(analyticsRoutes, deps);
         await scope.register(securityRoutes, deps);
         await scope.register(leadExportRoutes, deps);
         deps.extraRoutes?.(scope);

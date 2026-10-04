@@ -95,13 +95,25 @@ test.describe("the owner works leads", () => {
 
   test("@smoke bulk: move three, and hear what was skipped and why", async ({ page }) => {
     await page.goto("/leads?q=Unassigned");
-    await page.getByRole("checkbox", { name: "Select all loaded" }).check();
-    await page.getByRole("button", { name: "Move to stage" }).click();
-    await page.getByRole("menuitem", { name: "Call booked" }).click(); // needs Struggles, which neither has
-    await expect(page.getByText("None moved, 2 skipped: missing required fields")).toBeVisible();
-    await page.getByRole("button", { name: "Move to stage" }).click();
-    await page.getByRole("menuitem", { name: "Message sent" }).click();
-    await expect(page.getByText("2 moved")).toBeVisible();
+    // The island (7C): pick, confirm, and the run says what it did and why some were skipped.
+    const move = async (stage: string) => {
+      await page.getByRole("checkbox", { name: "Select all loaded" }).check();
+      await page
+        .getByRole("toolbar", { name: "Bulk actions" })
+        .getByRole("button", { name: "Move to" })
+        .click();
+      await page.getByRole("menuitemradio", { name: stage }).click();
+      await page.getByRole("button", { name: `Move 2 to ${stage}` }).click();
+    };
+    await move("Call booked"); // needs Struggles, which neither has
+    await expect(page.getByText("0 leads moved to Call booked")).toBeVisible();
+    await page.getByRole("button", { name: "2 skipped" }).click();
+    await expect(page.getByRole("dialog", { name: "Why some were skipped" })).toContainText(
+      "need a field that stage asks for",
+    );
+    await page.getByRole("button", { name: "Close" }).click();
+    await move("Message sent");
+    await expect(page.getByText("2 leads moved to Message sent")).toBeVisible();
   });
 });
 
@@ -121,9 +133,9 @@ test.describe("a masked sales rep", () => {
     await page.getByRole("checkbox", { name: "Select all loaded" }).check();
     const bar = page.getByRole("toolbar", { name: "Bulk actions" });
     await expect(bar.getByRole("button", { name: "Message" })).toBeVisible();
-    for (const name of ["Move to stage", "Assign", "Tags", "Delete"])
+    for (const name of ["Move to", "Assign", "Tags", "More bulk actions"])
       await expect(bar.getByRole("button", { name })).toHaveCount(0);
-    await bar.getByRole("button", { name: "Clear" }).click();
+    await bar.getByRole("button", { name: "Clear selection" }).click();
 
     // The API agrees: contacts arrive masked, and a phone search matches nothing (names only).
     const list = await callApi<{ items: { name: string; phone: { masked: boolean } }[] }>(

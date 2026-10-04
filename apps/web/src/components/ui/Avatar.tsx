@@ -1,8 +1,11 @@
+"use client";
+import { useState } from "react";
+import { AVATAR_COLORS } from "@lume/core/shared";
 import s from "./Avatar.module.css";
 
 // Deep enough that white initials reach 4.5:1 on every colour (WCAG AA).
 // No violet anywhere (owner, 2026-10-01): a deep rose takes its place.
-const PALETTE = ["#C62A30", "#A15C00", "#2A5BFF", "#0F7F44", "#B02E6B", "#0B7285"];
+const PALETTE = Object.values(AVATAR_COLORS);
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -18,7 +21,20 @@ export function avatarColor(name: string): string {
   return PALETTE[h % PALETTE.length]!;
 }
 
-export function Avatar({ name, color, size = 28 }: { name: string; color?: string; size?: number }) {
+export function Avatar({
+  name,
+  color,
+  photo,
+  size = 28,
+}: {
+  name: string;
+  color?: string;
+  /** Their photo's address (7C); initials show until it loads, and if it can't. */
+  photo?: string;
+  size?: number;
+}) {
+  const [broken, setBroken] = useState<string | null>(null);
+  const showPhoto = photo && broken !== photo;
   return (
     <span
       role="img"
@@ -27,6 +43,16 @@ export function Avatar({ name, color, size = 28 }: { name: string; color?: strin
       style={{ width: size, height: size, fontSize: size * 0.39, background: color ?? avatarColor(name) }}
     >
       {initials(name)}
+      {showPhoto && (
+        <img
+          className={s.photo}
+          src={photo}
+          alt=""
+          width={size}
+          height={size}
+          onError={() => setBroken(photo)}
+        />
+      )}
     </span>
   );
 }

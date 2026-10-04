@@ -5,6 +5,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Scrim } from "@/components/ui/Scrim";
 import { bulkRunsClient, isLive, reasonWords, runLine, took, type RunView } from "@/lib/leads/bulk-runs";
 import { longDate } from "@/lib/dates";
+import { useLoadingSignal } from "@/lib/loading";
 import type { Session } from "@/server/session";
 import { useCatalog } from "../CatalogProvider";
 import s from "./runs.module.css";
@@ -58,6 +59,7 @@ export function RunsDrawer({
     if (r.ok) setRuns(r.data.runs);
   }, []);
   useEffect(() => void load(), [load]);
+  useLoadingSignal(runs === null);
   // While anything is running, the list reads itself again every two seconds.
   const anyLive = !!runs?.some(isLive);
   useEffect(() => {

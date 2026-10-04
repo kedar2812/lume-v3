@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   AnomalySettings,
+  AvatarColor,
   CalendarSettings,
   OnboardingState,
   Preferences,
@@ -126,6 +127,18 @@ export const users = pgTable("users", {
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
   agreedVersion: text("agreed_version"),
+  /** A palette key (7C), or null for the colour LUME picks from the name. */
+  avatarColor: text("avatar_color").$type<AvatarColor>(),
+  /** Up with every change to the look, so the photo's address changes (0 = never set). */
+  avatarVersion: integer("avatar_version").notNull().default(0),
+});
+
+/** Each person's photo (7C): a checked 256 px square, kept apart so a select of users never carries it. */
+export const userAvatars = pgTable("user_avatars", {
+  userId: uuid("user_id").primaryKey(),
+  image: bytea("image").notNull(),
+  type: text("type").$type<"image/webp" | "image/jpeg">().notNull(),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
 });
 
 export const legalAcceptances = pgTable("legal_acceptances", {

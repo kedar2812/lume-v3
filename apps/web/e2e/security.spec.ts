@@ -152,7 +152,11 @@ test.describe("The watch (6A)", () => {
     );
     expect(sixth.status).toBe(403);
     expect(sixth.data.error.code).toBe("SUSPENDED");
-    await rp.goto("/leads");
+    // The open page's next call is refused too, and LUME moves Rory to sign-in itself; that can cut this navigation
+    // short (ERR_ABORTED), which is the same outcome arriving first.
+    await rp.goto("/leads").catch((e: unknown) => {
+      if (!String(e).includes("ERR_ABORTED")) throw e;
+    });
     await expect(rp).toHaveURL(/\/sign-in\?paused=1$/);
     await expect(rp.getByRole("heading", { name: "Your access is paused" })).toBeVisible();
     await reviewCopy(rp, "rep-paused-light.png");

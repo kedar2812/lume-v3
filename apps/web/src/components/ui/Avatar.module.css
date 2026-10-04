@@ -1,4 +1,6 @@
 .avatar {
+  position: relative;
+  overflow: hidden;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -6,4 +8,13 @@
   color: #fff;
   flex: none;
   letter-spacing: 0.02em;
+}
+/* The photo (7C) sits over the initials, which show until it loads, and if it can't. */
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
