@@ -86,7 +86,8 @@ export function duration(min: number): string {
   const d = Math.round(min / 1440);
   return `${d} ${d === 1 ? "day" : "days"}`;
 }
-const hour12 = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? " am" : " pm"}`;
+/** An hour of the day in words: "9 am", "6 pm". */
+export const hour12 = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? " am" : " pm"}`;
 const windowWords = (w: Window) => `${hour12(w.hour).replace(/ (am|pm)$/, "")}–${hour12((w.hour + 2) % 24)}`;
 /** "Dev's and Leo's", "Dev's, Leo's and one other's", "Dev's, Leo's and 3 others'". */
 export function possessives(names: string[]): string {

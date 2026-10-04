@@ -1,10 +1,19 @@
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { NOT_YET, noticed, type DetectorId, type InsightContext, type Seen } from "@lume/core";
+import {
+  DEFAULT_WORKING_HOURS,
+  NOT_YET,
+  hour12,
+  noticed,
+  type DetectorId,
+  type InsightContext,
+  type Seen,
+} from "@lume/core";
 import { ownerCond } from "./filters";
 import { refuseLive } from "./live";
 import { lost, sources, templates } from "./modules";
 import { funnel } from "./funnel";
+import { monthProgress } from "./month";
 import { businessTz, eventSums, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
@@ -123,6 +132,73 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
     windows.set(k, w);
   }
   const s = speed.rows[0]!;
+  const [goal, timeSlots, hours] = await Promise.all([
+    // The business's goal for this month: revenue (with the money permission), else wins.
+    req.db.execute<{ metric: "revenue" | "won"; target: string }>(sql`
+      SELECT metric, target::text AS target FROM goals
+      WHERE scope = 'business' AND period = 'month' AND period_start = ${monthProgress(now, tz).first}::date
+        AND metric IN ('revenue', 'won')
+      ORDER BY (metric = ${money ? "revenue" : "won"}) DESC LIMIT 1`),
+    // Calls booked and missed, and arrivals, by weekday and hour in the range.
+    req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
+      SELECT kind, dow, hour, sum(n)::int AS n FROM analytics_daily_slot
+      WHERE day BETWEEN ${range.days[0]!}::date AND ${range.days.at(-1)!}::date
+        AND kind IN ('booked', 'no_show', 'arrivals') AND ${ownerCond(q.ownerIds, sql`user_id`) ?? sql`true`}
+      GROUP BY 1, 2, 3`),
+    req.db.execute<{ wh: { days?: number[]; start?: string; end?: string } | null }>(
+      sql`SELECT working_hours AS wh FROM settings WHERE id = 1`,
+    ),
+  ]);
+  // The goal's pace, as goals count the month (8B): only money with the money permission.
+  const g = goal.rows[0];
+  const month = monthProgress(now, tz);
+  const goalCtx: InsightContext["goal"] = g
+    ? await (async () => {
+        const col = g.metric === "revenue" ? sql`won_value` : sql`won`;
+        const v = (
+          await req.db.execute<{ v: number }>(sql`
+            SELECT coalesce(sum(${col}), 0)::float8 AS v FROM analytics_daily_event
+            WHERE day BETWEEN ${month.first}::date AND ${month.today}::date
+              AND ${ownerCond(q.ownerIds, sql`user_id`) ?? sql`true`}`)
+        ).rows[0]!.v;
+        return {
+          metricWords: g.metric === "revenue" ? "revenue" : "wins",
+          month: month.name,
+          value: v,
+          target: Number(g.target),
+          elapsed: month.elapsed,
+          daysLeft: month.daysLeft,
+          shown: (n: number) =>
+            g.metric === "revenue" ? (fmtMoney(n) ?? String(Math.round(n))) : `${Math.round(n)} won`,
+        };
+      })()
+    : undefined;
+  // Calls by 2-hour window: booked and missed.
+  const slotWindows = new Map<string, { day: number; hour: number; booked: number; noShow: number }>();
+  for (const r of timeSlots.rows) {
+    if (r.kind === "arrivals") continue;
+    const w = { day: r.dow, hour: Math.floor(r.hour / 2) * 2 };
+    const k = `${w.day}:${w.hour}`;
+    const x = slotWindows.get(k) ?? { ...w, booked: 0, noShow: 0 };
+    if (r.kind === "booked") x.booked += r.n;
+    else x.noShow += r.n;
+    slotWindows.set(k, x);
+  }
+  // Arrivals outside the business's working hours (days not worked count as after hours).
+  const wh = { ...DEFAULT_WORKING_HOURS, ...(hours.rows[0]?.wh ?? {}) };
+  const startH = Number(wh.start.slice(0, 2));
+  const endH = Number(wh.end.slice(0, 2));
+  const arrivalRows = timeSlots.rows.filter((r) => r.kind === "arrivals");
+  const arrivalsTotal = arrivalRows.reduce((a, r) => a + r.n, 0);
+  const afterHours = arrivalRows
+    .filter((r) => !wh.days.includes(r.dow) || r.hour < startH || r.hour >= endH)
+    .reduce((a, r) => a + r.n, 0);
+  // "Contact them before … the next morning" only where speed has been shown to pay (speed_pays' own bar).
+  const evidence =
+    s.fast_n >= 30 &&
+    s.slow_n >= 30 &&
+    s.slow_won > 0 &&
+    s.fast_won / s.fast_n >= 1.5 * (s.slow_won / s.slow_n);
   const ctx: InsightContext = {
     // Worded for one person when the numbers are one person's; several people read as a team.
     view: scope === "own" || q.ownerIds?.length === 1 ? "own" : "team",
@@ -170,6 +246,15 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
     wonBack: {
       n: lostBody.wonBack.n,
       value: "value" in lostBody.wonBack ? (lostBody.wonBack.value as number) : 0,
+    },
+    ...(goalCtx ? { goal: goalCtx } : {}),
+    slots: [...slotWindows.values()],
+    arrivals: {
+      total: arrivalsTotal,
+      afterHours,
+      after: hour12(endH),
+      contactBefore: hour12((startH + 1) % 24),
+      evidence,
     },
   };
 

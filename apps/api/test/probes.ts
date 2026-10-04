@@ -630,6 +630,10 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/analytics/templates": { access: "analytics.view" },
   "GET /api/v1/analytics/quality": { access: "analytics.view" },
   "GET /api/v1/analytics/insights": { access: "analytics.view" },
+  // 8D: revenue (refused in its own words without analytics.revenue), a rep's own view, what converts.
+  "GET /api/v1/analytics/revenue": { access: "analytics.view" },
+  "GET /api/v1/analytics/me": { access: "analytics.view" },
+  "GET /api/v1/analytics/segments": { access: "analytics.view" },
   "GET /api/v1/analytics/goals": {
     access: "analytics.view",
     path: () => "/api/v1/analytics/goals?start=2026-10-01",

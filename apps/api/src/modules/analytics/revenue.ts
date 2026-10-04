@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { trend } from "@lume/core";
 import type { AppDeps } from "../../app";
-import { forbidden } from "../../http/errors";
+import { HttpError } from "../../http/errors";
 import { drillFor, frag } from "./drill";
 import { isLive } from "./filters";
 import { guardLive, liveEvents, spanOf } from "./live";
@@ -39,7 +39,9 @@ export async function revenue(
   now: Date,
   d?: Pick<AppDeps, "keyring">,
 ) {
-  if (!seesRevenue(req)) throw forbidden();
+  // The board is money only: without the money permission it says so (the route's gate is analytics.view).
+  if (!seesRevenue(req))
+    throw new HttpError(403, "NO_REVENUE_ACCESS", "Revenue is only for people allowed to see it.");
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);

@@ -117,7 +117,9 @@ describe("revenue (8D-1 Task 5)", () => {
     expect(JSON.stringify(r)).not.toContain("90000");
   });
 
-  it("without analytics.revenue the board is refused", async () => {
-    expect((await get(plain)).statusCode).toBe(403);
+  it("without analytics.revenue the board is refused, in words", async () => {
+    const r = await get(plain);
+    expect(r.statusCode).toBe(403);
+    expect(r.json().error.code).toBe("NO_REVENUE_ACCESS");
   });
 });

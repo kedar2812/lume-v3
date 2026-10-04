@@ -7,6 +7,56 @@ const one = (id: keyof typeof DETECTORS, c: Partial<InsightContext>) => {
   return Array.isArray(r) ? (r[0] ?? null) : r;
 };
 
+describe("the detectors 8D-1 feeds: goal pace, missed calls by time, after-hours arrivals", () => {
+  it("after hours: speaks at 30% or more of at least 200 leads; the morning advice only with evidence", () => {
+    const arrivals = { total: 200, afterHours: 60, after: "6 pm", contactBefore: "10 am", evidence: false };
+    expect(one("evening_arrivals", { arrivals })).toMatchObject({
+      title: "30% of leads arrive after hours",
+      body: "They come in after 6 pm.",
+    });
+    expect(one("evening_arrivals", { arrivals: { ...arrivals, evidence: true } })?.body).toBe(
+      "They come in after 6 pm. Contacting them before 10 am the next morning wins more of them.",
+    );
+    expect(one("evening_arrivals", { arrivals: { ...arrivals, afterHours: 59 } })).toBeNull();
+    expect(one("evening_arrivals", { arrivals: { ...arrivals, total: 199, afterHours: 100 } })).toBeNull();
+  });
+
+  it("goal pace: an estimate, said as one, once a fifth of the month has gone", () => {
+    const goal = {
+      metricWords: "revenue",
+      month: "June",
+      value: 3000,
+      target: 10_000,
+      elapsed: 0.5,
+      daysLeft: 15,
+      shown: (n: number) => `₹${n.toLocaleString("en-IN")}`,
+    };
+    expect(one("goal_pace", { goal })).toMatchObject({
+      title: "At this pace, June ends at 60% of the revenue goal",
+      body: "₹3,000 so far, with 15 days to go.",
+    });
+    expect(one("goal_pace", { goal: { ...goal, elapsed: 0.19 } })).toBeNull();
+    expect(one("goal_pace", { goal: { ...goal, daysLeft: 1 } })?.body).toBe(
+      "₹3,000 so far, with 1 day to go.",
+    );
+  });
+
+  it("missed calls: a window with 20 booked against 80 elsewhere, 10 points worse and real; quiet under either", () => {
+    const slots = [
+      { day: 1, hour: 8, booked: 25, noShow: 10 },
+      { day: 3, hour: 14, booked: 100, noShow: 5 },
+    ];
+    expect(one("slot_noshow", { slots })).toMatchObject({
+      title: "Calls on Monday 8–10 am are missed more often",
+      body: "40% of them were no-shows, against 5% at other times.",
+    });
+    expect(one("slot_noshow", { slots: [{ ...slots[0]!, booked: 19, noShow: 8 }, slots[1]!] })).toBeNull();
+    expect(one("slot_noshow", { slots: [slots[0]!, { ...slots[1]!, booked: 79, noShow: 4 }] })).toBeNull();
+    // Worse, but not by 10 points.
+    expect(one("slot_noshow", { slots: [{ ...slots[0]!, noShow: 3 }, slots[1]!] })).toBeNull();
+  });
+});
+
 describe("LUME noticed: each detector, in its own words (8B)", () => {
   it("speed pays: speaks with the ratio and the median; quiet under 30 a side or on a gap that's noise", () => {
     const i = one("speed_pays", {

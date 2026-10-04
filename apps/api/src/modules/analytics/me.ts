@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { funnel } from "./funnel";
+import { monthProgress } from "./month";
 import { businessTz, overview, rangeOf, type AnalyticsQuery, type Tile } from "./service";
 
 /**
@@ -70,11 +71,9 @@ export async function me(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: 
   const tile = (tid: string) => o.tiles.find((t: Tile) => t.id === tid);
   const tiles = OWN_TILES.flatMap((t) => (tile(t) ? [tile(t)!] : []));
   const b = business.rows[0] ?? { arrived: 0, won: 0 };
-  // How far through the goal's month we are: all of it once the month is over.
-  const [y, m] = monthStart.split("-").map(Number) as [number, number];
-  const monthFrom = Date.UTC(y, m - 1, 1);
-  const monthTo = Date.UTC(y, m, 1);
-  const elapsed = Math.min(1, Math.max(0, (now.getTime() - monthFrom) / (monthTo - monthFrom)));
+  // How far through the goal's month we are, as goals count it (all of it once the month is over).
+  const progress = monthProgress(now, tz, monthStart);
+  const elapsed = progress.elapsed;
   const goalList = goals.rows.flatMap((g) => {
     const t = tile(GOAL_TILE[g.metric]);
     if (!t) return [];
@@ -91,9 +90,7 @@ export async function me(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: 
     ];
   });
   const won = tile("won")?.value ?? 0;
-  const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(
-    new Date(monthFrom),
-  );
+  const month = progress.name;
   const sends = (dow: number) => slots.rows.find((r) => r.kind === "sends" && r.dow === dow)?.n ?? 0;
   const replies = (dow: number) => slots.rows.find((r) => r.kind === "replies" && r.dow === dow)?.n ?? 0;
   return {
