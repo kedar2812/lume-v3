@@ -387,7 +387,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
         }
       }
     });
-    // A dozen lost leads come back: reopened a few days after, then won.
+    // A dozen lost leads come back: reopened a few days after, then won. Reopening clears the loss (leads/write.ts).
     const lost = leads.filter(
       (l) => l.lostAt && l.lostAt < new Date(now.getTime() - 20 * DAY) && l.owner !== null,
     );
@@ -401,6 +401,8 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
       l.product = r.weighted(PRODUCTS);
       l.value = Math.round((PRODUCTS[l.product]!.value * r.between(0.8, 1.2)) / 100) * 100;
       l.wonAt = wonAt;
+      l.lostAt = null;
+      l.reason = null;
       l.stage = -1;
       l.stageAt = wonAt;
     }

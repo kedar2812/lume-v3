@@ -160,6 +160,19 @@ export const frag = {
   lost(s: Scoped): SQL {
     return sql`${frag.span(s, sql`l.lost_at`)} AND ${credit(sql`lume_owner_at(l.id, l.lost_at, l.owner_id)`, s.q)}`;
   },
+  /**
+   * Every lead lost in the span, even one reopened since (a reopen clears lost_at, leads/write.ts): its first move
+   * into a lost stage in the span, as rows (lead_id, at). Credit it to whoever owned the lead `at` then.
+   */
+  lossesIn(t: [string, string]): SQL {
+    return sql`SELECT h.lead_id, min(h.changed_at) AS at FROM lead_stage_history h
+      JOIN stages st ON st.id = h.to_stage_id AND st.kind = 'lost'
+      WHERE h.changed_at >= ${t[0]}::timestamptz AND h.changed_at < ${t[1]}::timestamptz GROUP BY 1`;
+  },
+  /** Reopened after the loss at `at` (the writer records it as the lead leaves its lost stage). */
+  reopenedAfter(at: SQL): SQL {
+    return sql`EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = l.id AND a.type = 'reopened' AND a.occurred_at > ${at})`;
+  },
   meeting(s: Scoped, cond: SQL): SQL {
     return sql`EXISTS (SELECT 1 FROM meetings m WHERE m.lead_id = l.id AND ${cond} AND ${credit(sql`m.owner_id`, s.q)})`;
   },
@@ -279,8 +292,9 @@ export function kindWhere(s: Scoped): SQL | null {
         AND a.occurred_at >= ${s.t[0]}::timestamptz AND a.occurred_at < l.won_at)`;
     case "won_back_flow":
       // Lost in the span, reopened after it was lost, won in the span (canvas Lost's flow).
-      return sql`${frag.lost(s)} AND ${frag.span(s, sql`l.won_at`)} AND EXISTS (SELECT 1 FROM activities a
-        WHERE a.lead_id = l.id AND a.type = 'reopened' AND a.occurred_at > l.lost_at)`;
+      return sql`${frag.span(s, sql`l.won_at`)} AND EXISTS (SELECT 1 FROM (${frag.lossesIn(s.t)}) x
+        WHERE x.lead_id = l.id AND ${credit(sql`lume_owner_at(l.id, x.at, l.owner_id)`, s.q)}
+          AND ${frag.reopenedAfter(sql`x.at`)})`;
     case "product_won":
       return sql`${frag.won(s)} AND ${eqOrNull(sql`l.product_id`, x.productId)}`;
     case "person_cohort":

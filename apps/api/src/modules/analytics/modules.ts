@@ -153,16 +153,18 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
     sql`l.lost_at >= ${from.toISOString()}::timestamptz AND l.lost_at < ${to.toISOString()}::timestamptz`;
   const who = sql`lume_owner_at(l.id, l.lost_at, l.owner_id)`;
   const base = (from: Date, to: Date) => sql`${leadWhere(q)} AND ${span(from, to)} AND ${credit(q, who)}`;
-  // Lost in the span, then reopened after it was lost, then won in the span (canvas Lost's "Won back" flow).
-  const reopened = sql`EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = l.id AND a.type = 'reopened'
-    AND a.occurred_at > l.lost_at)`;
-  const flow = (from: Date, to: Date) => sql`
-    SELECT count(*)::int AS lost, count(*) FILTER (WHERE ${reopened})::int AS reopened,
-           count(*) FILTER (WHERE ${reopened} AND l.won_at >= ${from.toISOString()}::timestamptz
-                            AND l.won_at < ${to.toISOString()}::timestamptz)::int AS won,
-           coalesce(sum(l.value) FILTER (WHERE ${reopened} AND l.won_at >= ${from.toISOString()}::timestamptz
-                            AND l.won_at < ${to.toISOString()}::timestamptz), 0)::float8 AS value
-    FROM leads l WHERE ${base(from, to)}`;
+  // Canvas Lost's "Won back" flow: every lead lost in the span (from the stage history: a reopen clears lost_at), those
+  // reopened after that loss, and those then won in the span. Its first step counts leads since reopened, so it can
+  // be more than the board's total, which counts leads still lost.
+  const flow = (from: Date, to: Date) => {
+    const reopened = frag.reopenedAfter(sql`x.at`);
+    const won = sql`${reopened} AND l.won_at >= ${from.toISOString()}::timestamptz AND l.won_at < ${to.toISOString()}::timestamptz`;
+    return sql`
+      SELECT count(*)::int AS lost, count(*) FILTER (WHERE ${reopened})::int AS reopened,
+             count(*) FILTER (WHERE ${won})::int AS won, coalesce(sum(l.value) FILTER (WHERE ${won}), 0)::float8 AS value
+      FROM (${frag.lossesIn([from.toISOString(), to.toISOString()])}) x JOIN leads l ON l.id = x.lead_id
+      WHERE ${leadWhere(q)} AND ${credit(q, sql`lume_owner_at(l.id, x.at, l.owner_id)`)}`;
+  };
   type Flow = { lost: number; reopened: number; won: number; value: number };
   const [cells, flowNow, flowBefore, reasonNames, sourceNames] = await Promise.all([
     req.db.execute<{ reason_id: string | null; source_id: string | null; n: number }>(sql`

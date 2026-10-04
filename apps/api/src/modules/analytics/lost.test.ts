@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
+import { dayOf } from "@lume/core";
 import { rollupDays } from "./rollup";
 
 let h: Harness;
@@ -12,6 +13,13 @@ let r1: string;
 let r2: string;
 let s1: string;
 let s2: string;
+let st: { open: string; lost: string; won: string; pipeline: string };
+// A stage move as LUME's writer leaves it (leads/write.ts): history at that moment, the lead's dates to match.
+const move = (id: string, from: string | null, to: string, at: Date) =>
+  h.queryAll(
+    "INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, pipeline_id, changed_at) VALUES ($1, $2, $3, $4, $5)",
+    [id, from, to, st.pipeline, at],
+  );
 
 const source = async (name: string) => {
   const id = randomUUID();
@@ -42,8 +50,18 @@ beforeAll(async () => {
       { key: "analytics.view", scope: "all" },
       { key: "analytics.revenue", scope: null },
       { key: "leads.view", scope: "all" },
+      { key: "leads.change_stage", scope: "all" },
     ],
   });
+  const stages = await h.queryAll<{ id: string; kind: string; pipeline_id: string }>(
+    "SELECT id, kind, pipeline_id FROM stages WHERE pipeline_id = (SELECT id FROM pipelines ORDER BY position LIMIT 1) ORDER BY position",
+  );
+  st = {
+    open: stages.find((x) => x.kind === "open")!.id,
+    lost: stages.find((x) => x.kind === "lost")!.id,
+    won: stages.find((x) => x.kind === "won")!.id,
+    pipeline: stages[0]!.pipeline_id,
+  };
   [r1, r2] = (await h.queryAll<{ id: string }>("SELECT id FROM lost_reasons ORDER BY position LIMIT 2")).map(
     (r) => r.id,
   ) as [string, string];
@@ -60,28 +78,38 @@ beforeAll(async () => {
   for (const [reason, src, n] of cells)
     for (let i = 0; i < n; i++) {
       const id = await lead({ day: day++, source: src });
-      await h.queryAll("UPDATE leads SET lost_at = $2, lost_reason_id = $3 WHERE id = $1", [
-        id,
-        new Date(Date.UTC(2026, 5, day + 2, 5)),
-        reason,
-      ]);
+      const lostAt = new Date(Date.UTC(2026, 5, day + 2, 5));
+      await move(id, st.open, st.lost, lostAt);
+      await h.queryAll(
+        "UPDATE leads SET stage_id = $4, stage_entered_at = $2, lost_at = $2, lost_reason_id = $3 WHERE id = $1",
+        [id, lostAt, reason, st.lost],
+      );
       lostOnes.push(id);
     }
-  // Three of them reopened after they were lost; one of those won in June, worth 500.
+  // Three of the fair's "reason 1" leads reopened after they were lost, which clears the loss (as the writer does);
+  // one of those won in June, worth 500.
   for (const [i, id] of lostOnes.slice(0, 3).entries()) {
     const [{ lost_at }] = (await h.queryAll<{ lost_at: Date }>("SELECT lost_at FROM leads WHERE id = $1", [
       id,
     ])) as [{ lost_at: Date }];
     const reopened = new Date(lost_at.getTime() + 86_400_000);
+    await move(id, st.lost, st.open, reopened);
     await h.queryAll(
       "INSERT INTO activities (id, lead_id, type, occurred_at) VALUES (gen_random_uuid(), $1, 'reopened', $2)",
       [id, reopened],
     );
-    if (i === 0)
-      await h.queryAll("UPDATE leads SET won_at = $2, value = 500 WHERE id = $1", [
-        id,
-        new Date(reopened.getTime() + 2 * 86_400_000),
-      ]);
+    await h.queryAll(
+      "UPDATE leads SET stage_id = $3, stage_entered_at = $2, lost_at = NULL, lost_reason_id = NULL WHERE id = $1",
+      [id, reopened, st.open],
+    );
+    if (i === 0) {
+      const wonAt = new Date(reopened.getTime() + 2 * 86_400_000);
+      await move(id, st.open, st.won, wonAt);
+      await h.queryAll(
+        "UPDATE leads SET stage_id = $3, stage_entered_at = $2, won_at = $2, value = 500 WHERE id = $1",
+        [id, wonAt, st.won],
+      );
+    }
   }
   // What converts: a budget question; six said under ₹1 L (two won), six said ₹1–3 L (three won).
   await h.ownerPool.query(
@@ -106,15 +134,37 @@ describe("lost, won back, what converts (8D-1 Task 6)", () => {
       l.matrix.cells.find(
         (c: { reasonId: string; sourceId: string }) => c.reasonId === reason && c.sourceId === src,
       );
-    expect(cell(r1, s1)).toMatchObject({ n: 4, tooFew: false });
+    // Still lost: three of the fair's four came back.
+    expect(cell(r1, s1)).toMatchObject({ n: 1, tooFew: true });
     expect(cell(r1, s2)).toMatchObject({ n: 1, tooFew: true });
     expect(cell(r2, s2)).toMatchObject({ n: 3, tooFew: false });
     for (const c of l.matrix.cells) expect(await opens(c.drill)).toBe(c.n);
   });
 
-  it("the won-back flow: lost, then reopened, then won, and what it brought back", async () => {
+  it("the won-back flow: every lead lost in the span, those reopened since, those then won, and what it brought back", async () => {
     const l = (await get(`lost?${Q}`)).json();
+    // The board's reasons count leads still lost; the flow starts from every loss in the span.
+    expect(l.total).toBe(5);
     expect(l.wonBackFlow).toMatchObject({ lost: 8, reopened: 3, won: 1, value: 500 });
+    expect(await opens(l.wonBackFlow.drill)).toBe(1);
+  });
+
+  it("through LUME's own stage moves: lost with a reason, reopened, won — the flow counts it", async () => {
+    const c = await h.signIn(admin);
+    const id = await h.seedLead({ ownerId: admin.id });
+    const to = (stageId: string, extra: object = {}) =>
+      c.inject({ method: "POST", url: `/api/v1/leads/${id}/stage`, payload: { stageId, ...extra } });
+    expect((await to(st.lost, { lostReasonId: r2 })).statusCode).toBe(200);
+    expect((await to(st.open)).statusCode).toBe(200);
+    expect((await to(st.won)).statusCode).toBe(200);
+    // The moves were stamped now; read today in the business's time zone.
+    h.clock.now = new Date(Date.now() + 60_000);
+    const today = dayOf(h.clock.now, TZ);
+    const l = (await get(`lost?range=custom&from=${today}&to=${today}`)).json();
+    expect(l.total).toBe(0);
+    expect(l.wonBackFlow).toMatchObject({ lost: 1, reopened: 1, won: 1 });
+    expect(l.wonBack.n).toBe(1);
+    expect(await opens(l.wonBackFlow.drill)).toBe(1);
   });
 
   it("what converts: win rate by each answer to a choice field, thin groups marked, each opens its leads", async () => {

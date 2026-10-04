@@ -37,7 +37,10 @@ export type ScriptLead = {
   } | null;
   /** 8D: why a lost lead was lost (index into the business's lost reasons). */
   reason: number | null;
-  /** 8D: a lost lead reopened two days after it was lost (and then won three days later, at 700). */
+  /**
+   * 8D: a lost lead reopened two days after it was lost (and then won three days later, at 700). Reopening clears
+   * the loss, as LUME's writer does: only the stage history remembers it.
+   */
   reopened: Date | null;
   /** 8D: handed to people[to] twenty days after it was won: the win stays with whoever had it then. */
   handoff: { at: Date; to: number } | null;
@@ -156,6 +159,10 @@ export async function seedFixture(h: Harness): Promise<Fixture> {
       ).rows[0].id,
     );
   const reasons = (await h.config()).lostReasons.slice(0, 2);
+  const stages = await h.queryAll<{ id: string; kind: string; pipeline_id: string }>(
+    "SELECT id, kind, pipeline_id FROM stages WHERE pipeline_id = (SELECT id FROM pipelines ORDER BY position LIMIT 1) ORDER BY position",
+  );
+  const st = (kind: string) => stages.find((x) => x.kind === kind)!.id;
   const leads: { id: string; s: ScriptLead }[] = [];
   for (const s of script()) {
     const id = await h.seedLead({
@@ -166,19 +173,35 @@ export async function seedFixture(h: Harness): Promise<Fixture> {
   }
   for (const { id, s } of leads) {
     const owner = people[ownerAtScript(s, new Date())]!.id;
+    // Each win, loss and reopen as the writer leaves it (leads/write.ts): a move in the stage history, and the lead's
+    // dates and stage to match its last move.
+    const moves: [string, string, Date][] = [];
+    if (s.lost) moves.push([st("open"), st("lost"), s.lost]);
+    if (s.reopened) moves.push([st("lost"), st("open"), s.reopened]);
+    if (s.won) moves.push([st("open"), st("won"), s.won]);
+    for (const [from, to, at] of moves)
+      await h.queryAll(
+        "INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, pipeline_id, changed_at) VALUES ($1, $2, $3, $4, $5)",
+        [id, from, to, stages[0]!.pipeline_id, at],
+      );
+    const stillLost = s.lost && !s.reopened;
+    const last = moves.at(-1);
     await h.queryAll(
       `UPDATE leads SET created_at = $2, source_id = $3, won_at = $4, value = $5, lost_at = $6, owner_id = $7,
-                        product_id = $8, lost_reason_id = $9 WHERE id = $1`,
+                        product_id = $8, lost_reason_id = $9, stage_id = coalesce($10::uuid, stage_id),
+                        stage_entered_at = coalesce($11::timestamptz, $2::timestamptz) WHERE id = $1`,
       [
         id,
         s.arrival,
         sources[s.source],
         s.won,
         s.value,
-        s.lost,
+        stillLost ? s.lost : null,
         owner,
         s.product === null ? null : products[s.product],
-        s.reason === null ? null : reasons[s.reason],
+        stillLost && s.reason !== null ? reasons[s.reason] : null,
+        last?.[1] ?? null,
+        last?.[2] ?? null,
       ],
     );
     if (s.reopened)
@@ -271,7 +294,8 @@ export function reference(first: string, last: string, person: number | null): E
     win_rate: ratio(cohort.filter((s) => s.won).length, cohort.length),
     revenue_won: revenue,
     avg_deal: valued.length ? revenue / valued.length : null,
-    lost: all.filter((s) => s.lost && inDays(s.lost) && mine(ownerAt(s, s.lost))).length,
+    // Leads still lost (a reopen clears the loss).
+    lost: all.filter((s) => s.lost && !s.reopened && inDays(s.lost) && mine(ownerAt(s, s.lost))).length,
     ontime: ratio(onTime.length, done.length),
   };
 }
@@ -314,13 +338,13 @@ export function reference8d(first: string, last: string, person: number | null) 
     noShow: count("no_show"),
     cancelled: count("cancelled"),
   };
-  // Won back: lost in the range, reopened after it was lost, then won in the range.
+  // Won back: every lead lost in the range (reopened since or not), reopened after it was lost, then won in the range.
   const lostIn = all.filter((s) => s.lost && inDays(s.lost) && mine(ownerAtScript(s, s.lost)));
   const reopened = lostIn.filter((s) => s.reopened && s.reopened > s.lost!);
   const wonBack = reopened.filter((s) => s.won && inDays(s.won));
-  // Lost by reason and source.
+  // Lost by reason and source: leads still lost.
   const matrix = new Map<string, number>();
-  for (const s of lostIn)
+  for (const s of lostIn.filter((x) => !x.reopened))
     matrix.set(`${s.reason}:${s.source}`, (matrix.get(`${s.reason}:${s.source}`) ?? 0) + 1);
   // New leads by source (the funnel's split).
   const arrivedBySource = new Map<number, number>();
