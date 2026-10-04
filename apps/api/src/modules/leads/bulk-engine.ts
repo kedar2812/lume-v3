@@ -23,7 +23,7 @@ import { tagsFor } from "./query";
 import type { LeadRow } from "./serialize";
 import { hasValue } from "./write";
 import { loadFieldRegistry } from "../../leads/fields";
-import { runOnEnter } from "../tasks/automations";
+import { newNoticeGroup, runOnEnter, sayNotices, shareNoticesInto } from "../tasks/automations";
 
 /**
  * Phase 7B: how a run's items are applied, a chunk at a time, in one transaction as the person.
@@ -64,6 +64,7 @@ function beforeOf(action: BulkAction, lead: LeadRow, tagIds: string[]): Record<s
         lostNote: lead.lostNote,
         wonAt: lead.wonAt,
         lostAt: lead.lostAt,
+        stageEnteredAt: lead.stageEnteredAt,
       };
     case "tags":
       return { tagIds };
@@ -145,7 +146,13 @@ async function stageMany(
     const before = beforeOf(action, lead, []);
     // Already there (and not a lost move, which records its reason again): done, nothing to change.
     if (target!.id === lead.stageId && target!.kind !== "lost") {
-      out.set(lead.id, { lead_id: lead.id, result: "done", code: null, before, after_version: lead.version });
+      out.set(lead.id, {
+        lead_id: lead.id,
+        result: "done",
+        code: null,
+        before: { ...before, unchanged: true },
+        after_version: lead.version,
+      });
       continue;
     }
     if (required.some((d) => !hasValue(lead, d.key))) {
@@ -283,11 +290,21 @@ async function setBased(
   const out = new Map<string, Result>();
   const change: LeadRow[] = [];
   const phones = new Map<string, { e164: string; iso: string }>();
+  // The person leads are going to, still working here (read afresh each chunk: 7B final review, Important 6).
+  const targetGone =
+    action.type === "assign" && action.ownerId
+      ? (await req.db.execute<{ status: string }>(sql`SELECT status FROM users WHERE id = ${action.ownerId}`))
+          .rows[0]?.status !== "active"
+      : false;
   for (const [i, item] of items.entries()) {
     await hooks?.midChunk?.(n, i);
     const lead = byId.get(item.leadId);
     if (!lead) {
       out.set(item.leadId, skip(item.leadId, "LEAD_NOT_FOUND"));
+      continue;
+    }
+    if (targetGone) {
+      out.set(lead.id, skip(lead.id, "OWNER_INACTIVE"));
       continue;
     }
     const p =
@@ -300,9 +317,16 @@ async function setBased(
       continue;
     }
     const before = beforeOf(action, lead, tagsOf.get(lead.id) ?? []);
-    out.set(lead.id, { lead_id: lead.id, result: "done", code: null, before, after_version: lead.version });
-    // An owner that's already the owner is done with nothing to change, as a single assign answers.
-    if (action.type === "assign" && action.ownerId === lead.ownerId) continue;
+    // An owner that's already the owner is done with nothing to change, as a single assign answers; undo leaves it be.
+    const unchanged = action.type === "assign" && action.ownerId === lead.ownerId;
+    out.set(lead.id, {
+      lead_id: lead.id,
+      result: "done",
+      code: null,
+      before: unchanged ? { ...before, unchanged: true } : before,
+      after_version: lead.version,
+    });
+    if (unchanged) continue;
     if (p?.status === "valid") phones.set(lead.id, { e164: p.e164!, iso: p.countryIso! });
     change.push(lead);
   }
@@ -408,7 +432,9 @@ function mayRestore(
   before: Record<string, unknown>,
 ) {
   const actor = req.actor!;
-  if (!canOnRecord(actor, "leads.bulk_edit", lead.ownerId)) return "FORBIDDEN";
+  // An assign moved the lead away, perhaps out of the person's sight: judge the undo on the owner they changed.
+  const owner = kind === "assign" ? ((before.ownerId as string | null | undefined) ?? null) : lead.ownerId;
+  if (!canOnRecord(actor, "leads.bulk_edit", owner)) return "FORBIDDEN";
   const key = (
     {
       assign: "leads.assign",
@@ -418,7 +444,7 @@ function mayRestore(
       set_phone_country: "leads.edit",
     } as const
   )[kind];
-  if (!canOnRecord(actor, key, lead.ownerId)) return "FORBIDDEN";
+  if (!canOnRecord(actor, key, owner)) return "FORBIDDEN";
   if (
     kind === "assign" &&
     before.ownerId === null &&
@@ -452,12 +478,50 @@ async function undoChunk(
         .where(and(eq(I.runId, run.undoOf!), sql`${I.leadId} = ANY(${ids}::uuid[])`))
     ).map((r) => [r.leadId, r]),
   );
-  // Deleted leads too: undoing a delete brings them back. Read as the person, locked.
+  // Deleted leads too: undoing a delete brings them back. Read as the person, locked; an assign's leads are read in
+  // full (exactly the run's own items, which the person handed on), since they may now sit outside their sight.
+  const prior =
+    kind === "assign"
+      ? (
+          await req.db.execute<{ scope: string | null }>(
+            sql`SELECT current_setting('lume.lead_scope', true) AS scope`,
+          )
+        ).rows[0]?.scope
+      : null;
+  if (kind === "assign") await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
   const leads = await req.db
     .select()
     .from(L)
     .where(sql`${L.id} = ANY(${ids}::uuid[])`)
-    .for("update");
+    .for("update")
+    .orderBy(L.id);
+  if (kind === "assign")
+    await req.db.execute(sql`SELECT set_config('lume.lead_scope', ${prior ?? ""}, true)`);
+  // Where leads would go back to: someone still working here, a stage still in use (Important 6).
+  const inactive = new Set(
+    kind === "assign"
+      ? (
+          await req.db.execute<{ id: string }>(sql`
+            SELECT id FROM users WHERE status <> 'active' AND id = ANY(${uuids(
+              [...orig.values()].flatMap((o) =>
+                (o.before?.ownerId as string | null) ? [o.before!.ownerId as string] : [],
+              ),
+            )}::uuid[])`)
+        ).rows.map((r) => r.id)
+      : [],
+  );
+  const archived = new Set(
+    kind === "stage"
+      ? (
+          await req.db.execute<{ id: string }>(sql`
+            SELECT id FROM stages WHERE archived_at IS NOT NULL AND id = ANY(${uuids(
+              [...orig.values()].flatMap((o) =>
+                (o.before?.stageId as string | null) ? [o.before!.stageId as string] : [],
+              ),
+            )}::uuid[])`)
+        ).rows.map((r) => r.id)
+      : [],
+  );
   const byId = new Map(leads.map((l) => [l.id, l]));
   const tagsNow =
     kind === "tags"
@@ -481,6 +545,18 @@ async function undoChunk(
       continue;
     }
     const to = o.before;
+    if (to.unchanged) {
+      out.set(lead.id, skip(lead.id, "UNCHANGED"));
+      continue;
+    }
+    if (kind === "assign" && to.ownerId && inactive.has(to.ownerId as string)) {
+      out.set(lead.id, skip(lead.id, "OWNER_INACTIVE"));
+      continue;
+    }
+    if (kind === "stage" && archived.has(to.stageId as string)) {
+      out.set(lead.id, skip(lead.id, "STAGE_GONE"));
+      continue;
+    }
     const no = mayRestore(req, kind, lead, to);
     if (no) {
       out.set(lead.id, skip(lead.id, no));
@@ -506,6 +582,14 @@ async function undoChunk(
     let versions: { id: string; version: number }[] = [];
     switch (kind) {
       case "assign": {
+        // Exactly the run's own leads, some now outside the person's sight: written with every lead in reach, then
+        // the person's reach put back (as the run itself did).
+        const scope = (
+          await req.db.execute<{ scope: string | null }>(
+            sql`SELECT current_setting('lume.lead_scope', true) AS scope`,
+          )
+        ).rows[0]?.scope;
+        await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
         await req.db.insert(schema.leadAssignmentHistory).values(
           back.map((b) => ({
             leadId: b.lead.id,
@@ -523,12 +607,6 @@ async function undoChunk(
             payload: { from: b.lead.ownerId, to: b.to.ownerId ?? null, undo: true },
           })),
         );
-        const scope = (
-          await req.db.execute<{ scope: string | null }>(
-            sql`SELECT current_setting('lume.lead_scope', true) AS scope`,
-          )
-        ).rows[0]?.scope;
-        await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
         versions = (
           await req.db.execute<{ id: string; version: number }>(sql`
           UPDATE leads l SET owner_id = v.owner, last_activity_at = now(), version = l.version + 1
@@ -543,7 +621,7 @@ async function undoChunk(
           await req.db.execute<{ id: string; version: number }>(sql`
           UPDATE leads l SET stage_id = v.stage, pipeline_id = coalesce(v.pipeline, l.pipeline_id),
                  lost_reason_id = v.reason, lost_note = v.note, won_at = v.won, lost_at = v.lost,
-                 stage_entered_at = now(), version = l.version + 1
+                 stage_entered_at = coalesce(v.entered, now()), version = l.version + 1
             FROM jsonb_to_recordset(${rows((b) => ({
               stage: b.to.stageId,
               pipeline: b.to.pipelineId ?? null,
@@ -551,8 +629,10 @@ async function undoChunk(
               note: b.to.lostNote ?? null,
               won: b.to.wonAt ?? null,
               lost: b.to.lostAt ?? null,
+              entered: b.to.stageEnteredAt ?? null,
             }))}::jsonb)
-                 AS v(id uuid, stage uuid, pipeline uuid, reason uuid, note text, won timestamptz, lost timestamptz)
+                 AS v(id uuid, stage uuid, pipeline uuid, reason uuid, note text, won timestamptz, lost timestamptz,
+                      entered timestamptz)
            WHERE l.id = v.id RETURNING l.id, l.version`)
         ).rows;
         await req.db.insert(schema.leadStageHistory).values(
@@ -807,18 +887,30 @@ export async function processRun(o: RunDeps, runId: string, hooks?: RunHooks): P
     .returning();
   if (!claimed) return;
   const send: Send = (u, n) => notify(o.pool, u, n);
+  // The stage rules' notices for the whole run, said once at its end.
+  const group = newNoticeGroup();
   try {
     for (let n = 0; ; n++) {
       const actor = await loadActor(o.pool, claimed.userId);
-      if (!actor || !can(actor, "leads.bulk_edit"))
+      if (!actor || !can(actor, "leads.bulk_edit")) {
+        sayNotices(group, app.log);
         return await fail(o.pool, db, claimed, "Their access changed", now(), send);
-      const [state] = await db.select({ cancel: R.cancelRequested }).from(R).where(eq(R.id, runId));
+      }
       // The end of a run is worked out in its last transaction (as the person), and told after it commits.
       const notices: [string, NewNotification][] = [];
       const collect: Send = async (u, x) => void notices.push([u, x]);
       const finished = await withJobRequest(
         { app, pool: o.pool, actor, requestId: `bulk:${runId}:${n}`, allLeads: false },
         async (req) => {
+          shareNoticesInto(req, group);
+          // One processor at a time (7B final review, Important 1): a retry started beside a slow first try waits
+          // here, then reads only what's still pending once the other's chunk has committed.
+          const state = (
+            await req.db.execute<{ status: string; cancel: boolean }>(
+              sql`SELECT status, cancel_requested AS cancel FROM bulk_runs WHERE id = ${runId} FOR UPDATE`,
+            )
+          ).rows[0];
+          if (!state || !["queued", "running"].includes(state.status)) return "over" as const;
           const end = async (status: "done" | "cancelled") => {
             const row = await finishRun(req, runId, status, now());
             await runNotices(req.db, row, collect, { maker: true });
@@ -844,7 +936,9 @@ export async function processRun(o: RunDeps, runId: string, hooks?: RunHooks): P
           return null;
         },
       );
+      if (finished === "over") return; // another processor finished it
       if (finished) {
+        sayNotices(group, app.log);
         for (const [u, x] of notices) await send(u, x).catch(() => undefined);
         return;
       }
@@ -854,6 +948,7 @@ export async function processRun(o: RunDeps, runId: string, hooks?: RunHooks): P
     if (hooks && String(e).includes("test crash")) throw e;
     // pg-boss tries again (with backoff); the last try ends the run as failed, its done chunks kept.
     if (claimed.attempts < limits.attempts) throw e;
+    sayNotices(group, app.log);
     await fail(
       o.pool,
       db,
@@ -877,8 +972,9 @@ async function fail(
   const [row] = await db
     .update(R)
     .set({ status: "failed", error, finishedAt: now })
-    .where(eq(R.id, run.id))
+    .where(and(eq(R.id, run.id), sql`${R.status} IN ('queued', 'running')`))
     .returning();
+  if (!row) return; // it ended already (another processor finished it)
   await pool.query(
     "INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, diff) VALUES ($1, 'lead.bulk', 'lead', NULL, $2)",
     [run.userId, { ...auditDiff(row!), error }],

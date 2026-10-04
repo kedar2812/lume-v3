@@ -1,6 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import type { Keyring, MetricId } from "@lume/core";
+import { scopeOf, type Keyring, type MetricId } from "@lume/core";
 import { HttpError, notFound } from "../../http/errors";
 import type { AnalyticsQuery } from "./service";
 
@@ -45,7 +45,8 @@ export function readDrill(keyring: Keyring, token: string, userId: string, now: 
   return spec;
 }
 
-const credit = (col: SQL, q: DrillSpec["q"]): SQL => {
+const credit = (col: SQL, q: DrillSpec["q"] & { reach?: string | null }): SQL => {
+  if (q.reach === "all" && !q.ownerId) return sql`true`;
   const parts: SQL[] = [sql`lume_sees_credit(${col})`];
   if (q.ownerId) parts.push(q.ownerId === "none" ? sql`${col} IS NULL` : sql`${col} = ${q.ownerId}::uuid`);
   return sql.join(parts, sql` AND `);
@@ -55,7 +56,9 @@ const COHORT_OWNER = sql`coalesce(lume_owner_at(l.id, l.created_at, l.owner_id),
    ORDER BY h.changed_at, h.id LIMIT 1))`;
 
 /** The leads behind a number, by the metric's own definition (the rollups use the same ones). */
-export async function drillIds(req: FastifyRequest, s: DrillSpec): Promise<string[]> {
+export async function drillIds(req: FastifyRequest, spec: DrillSpec): Promise<string[]> {
+  // Read afresh: the reach now, not when the token was made.
+  const s = { ...spec, q: { ...spec.q, reach: scopeOf(req.actor!, "analytics.view") } };
   const [d0, d1] = s.d;
   const [t0, t1] = s.t;
   const lead: SQL[] = [sql`l.deleted_at IS NULL`];

@@ -199,4 +199,23 @@ describe("the bulk island (7C)", () => {
       "Narrow the selection: up to 50,000 leads at a time.",
     );
   });
+
+  it("says when a filter matched more by the time it ran than the person saw (7B review)", async () => {
+    vi.mocked(bulkRunsClient.create).mockResolvedValue(
+      ok({
+        run: run({
+          total: 12410,
+          done: 12410,
+          skipped: 0,
+          skippedBy: {},
+          selection: { kind: "filter", total: 12410, expected: 12408 },
+        }),
+      }),
+    );
+    island({ count: 12408, all: true });
+    await userEvent.click(screen.getByRole("button", { name: /Assign/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: new RegExp(person.name) }));
+    await userEvent.click(screen.getByRole("button", { name: /Assign 12,408 to/ }));
+    expect(await screen.findByText(/12,410 matched by then, not the 12,408 you saw/)).toBeInTheDocument();
+  });
 });

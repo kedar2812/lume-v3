@@ -27,6 +27,8 @@ export type AnalyticsQuery = {
   pipelineId?: string;
   ownerId?: string;
   sourceId?: string;
+  /** The viewer's analytics reach, once checked (reachOf): 'all' with no owner filter needs no credit test per row. */
+  reach?: "own" | "team" | "all";
 };
 export type Tile = {
   id: MetricId;
@@ -153,6 +155,8 @@ export async function eventSums(req: FastifyRequest, q: AnalyticsQuery, days: st
 
 /** Live "now" conditions, bounded by the viewer's analytics reach as the rollups are. */
 function liveOwner(q: AnalyticsQuery, col: SQL): SQL {
+  // Someone who sees everyone, filtering by no one: no per-lead credit to work out (it's the costly part at scale).
+  if (q.reach === "all" && !q.ownerId) return sql`true`;
   const parts: SQL[] = [sql`lume_sees_credit(${col})`];
   if (q.ownerId) parts.push(q.ownerId === "none" ? sql`${col} IS NULL` : sql`${col} = ${q.ownerId}::uuid`);
   return sql.join(parts, sql` AND `);
@@ -172,6 +176,16 @@ export async function overdueNow(req: FastifyRequest, q: AnalyticsQuery): Promis
 }
 
 export async function forecastNow(req: FastifyRequest, q: AnalyticsQuery): Promise<number> {
+  // The kept stage counts (0048) already sum each stage's value per owner: a few rows, not every open lead. They
+  // carry no source, so a source filter reads the leads themselves.
+  if (!q.sourceId) {
+    const k = await req.db.execute<{ v: number }>(sql`
+      SELECT coalesce(sum(c.value * coalesce(s.win_probability, 0) / 100), 0)::float8 AS v
+      FROM lead_counts_now c JOIN stages s ON s.id = c.stage_id
+      WHERE s.kind = 'open' ${q.pipelineId ? sql`AND c.pipeline_id = ${q.pipelineId}::uuid` : sql``}
+        AND ${liveOwner(q, sql`c.owner_id`)}`);
+    return k.rows[0]!.v;
+  }
   const r = await req.db.execute<{ v: number }>(sql`
     SELECT coalesce(sum(l.value * coalesce(s.win_probability, 0) / 100), 0)::float8 AS v
     FROM leads l JOIN stages s ON s.id = l.stage_id
@@ -215,7 +229,7 @@ function tile(
 
 /** The Overview module (canvas Main): the funnel's health, the team's follow-through, the money. */
 export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  reachOf(req, q.ownerId);
+  q = { ...q, reach: reachOf(req, q.ownerId) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const [c, e, pc, pe, overdue, cyc, pcyc] = await Promise.all([
@@ -308,7 +322,7 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
  * one, open stages in order and then won.
  */
 export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  reachOf(req, q.ownerId);
+  q = { ...q, reach: reachOf(req, q.ownerId) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const pipeline =
@@ -360,6 +374,9 @@ export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
         share,
         // Of those that reached this stage, the share that went no further (it's their furthest).
         stopped: reached ? (cur.get(s.id) ?? 0) / reached : null,
+        stoppedN: cur.get(s.id) ?? 0,
+        previousReached: before,
+        previousStoppedN: prev.get(s.id) ?? 0,
         tooFew: reached < TOO_FEW,
         trend:
           q.compare && share !== null && prevShare !== null
@@ -373,6 +390,7 @@ export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
 /** Each person (canvas Team): their own numbers side by side, for a viewer who sees more than themselves. */
 export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
   const scope = reachOf(req, q.ownerId);
+  q = { ...q, reach: scope };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const [from, to] = [range.days[0]!, range.days.at(-1)!];

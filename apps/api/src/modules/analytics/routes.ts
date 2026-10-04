@@ -5,6 +5,9 @@ import { METRICS, type MetricId } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { listLeads } from "../leads/query";
 import { drillIds, mintDrill, readDrill } from "./drill";
+import { listGoals, removeGoal, setGoal, setSpend } from "./goals";
+import { insights } from "./insights";
+import { lost, quality, sources, templates, timing } from "./modules";
 import { businessTz, funnel, overview, rangeOf, team, type AnalyticsQuery } from "./service";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -71,6 +74,60 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
   );
   r.get("/api/v1/analytics/team", { config: view, schema: { querystring: query } }, (req) =>
     team(req, toQuery(req.query), d.clock()),
+  );
+
+  for (const [name, read] of Object.entries({ sources, lost, timing, templates, quality }))
+    r.get(`/api/v1/analytics/${name}`, { config: view, schema: { querystring: query } }, (req) =>
+      read(req, toQuery(req.query), d.clock()),
+    );
+  r.get("/api/v1/analytics/insights", { config: view, schema: { querystring: query } }, (req) =>
+    insights(req, toQuery(req.query), d.clock()),
+  );
+
+  // Goals (8B): set by admins; seen by everyone within their reach, with progress and pace.
+  const goalBody = z
+    .object({
+      scope: z.enum(["user", "team", "business"]),
+      scopeId: z.uuid().nullable(),
+      metric: z.enum(["won", "revenue", "calls_held", "new_leads", "ontime"]),
+      period: z.enum(["month", "quarter"]),
+      periodStart: day,
+      target: z.number().positive().max(1e12),
+    })
+    .strict();
+  r.get(
+    "/api/v1/analytics/goals",
+    {
+      config: view,
+      schema: {
+        querystring: z.object({ period: z.enum(["month", "quarter"]).default("month"), start: day }),
+      },
+    },
+    (req) => listGoals(req, req.query.start, req.query.period, d.clock()),
+  );
+  r.put(
+    "/api/v1/analytics/goals",
+    { config: { permission: "settings.manage" }, schema: { body: goalBody } },
+    (req) => setGoal(req, req.body),
+  );
+  r.delete(
+    "/api/v1/analytics/goals/:id",
+    { config: { permission: "settings.manage" }, schema: { params: z.object({ id: z.uuid() }) } },
+    async (req, reply) => {
+      await removeGoal(req, req.params.id);
+      return reply.code(204).send();
+    },
+  );
+  r.put(
+    "/api/v1/settings/sources/:id/spend",
+    {
+      config: { permission: "settings.manage" },
+      schema: {
+        params: z.object({ id: z.uuid() }),
+        body: z.object({ monthlySpend: z.number().min(0).max(1e12).nullable() }).strict(),
+      },
+    },
+    (req) => setSpend(req, req.params.id, req.body.monthlySpend),
   );
 
   r.get(

@@ -329,7 +329,13 @@ export function Island({
         ? "Your access changed, so it stopped. What was done stays."
         : "It stopped. What was done stays.";
     if (run.status === "cancelled") return `${fmt(run.done)} changed; the rest weren’t touched`;
-    return took(run) ?? "Done";
+    // Everything a filter showed: if more (or fewer) matched by the time it ran, say so (7B final review, Important 4).
+    const sel = run.selection;
+    const drift =
+      sel.kind === "filter" && sel.expected !== undefined && sel.total !== sel.expected
+        ? ` · ${fmt(sel.total)} matched by then, not the ${fmt(sel.expected)} you saw`
+        : "";
+    return (took(run) ?? "Done") + drift;
   };
 
   return (

@@ -26,6 +26,7 @@ const sales: Grant[] = [
   { key: "leads.view", scope: "own" },
   { key: "leads.contact.reveal", scope: "own" },
   { key: "leads.edit", scope: "own" },
+  { key: "analytics.view", scope: "own" },
 ];
 
 async function time(path: string, call: () => Promise<{ statusCode: number; body: string }>) {
@@ -259,6 +260,51 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     const budget = Number(process.env.LUME_SCALE_BUDGET ?? 150);
     const over = timings.filter((x) => /^(admin|rep|team lead) /.test(x.path) && x.ms > budget);
     expect(over, `over ${budget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);
+  }, 3_600_000);
+
+  // 8A: analytics reads its daily rollups. Wins and first contacts as a live instance would have them, the last 90
+  // days rolled up, then every dashboard timed. Budget: LUME_SCALE_ANALYTICS_BUDGET ms (300 by default).
+  it("answers the analytics dashboards from rollups", async () => {
+    await h.ownerPool.query("SET statement_timeout = 0");
+    let t = performance.now();
+    await h.queryAll(`UPDATE leads l SET won_at = l.created_at + interval '6 days'
+                      FROM stages s WHERE s.id = l.stage_id AND s.kind = 'won' AND l.created_at > now() - interval '100 days'`);
+    await h.queryAll(`INSERT INTO activities (id, lead_id, type, occurred_at)
+                      SELECT gen_random_uuid(), id, 'whatsapp_opened', created_at + make_interval(mins => (abs(hashtext(id::text)) % 900))
+                      FROM leads WHERE created_at > now() - interval '100 days' AND abs(hashtext(id::text)) % 3 <> 0`);
+    timings.push({
+      path: "analytics: wins and contacts for 100 days",
+      ms: Math.round(performance.now() - t),
+    });
+    const tz = (
+      await h.queryAll<{ tz: string }>("SELECT coalesce(timezone, 'UTC') AS tz FROM settings WHERE id = 1")
+    )[0]!.tz;
+    const days = (
+      await h.queryAll<{ d: string }>(
+        `SELECT to_char(d, 'YYYY-MM-DD') AS d FROM generate_series((now() AT TIME ZONE $1)::date - 90, (now() AT TIME ZONE $1)::date, '1 day') d`,
+        [tz],
+      )
+    ).map((r) => r.d);
+    t = performance.now();
+    for (const d of days) await h.pool.query("SELECT lume_rollup_day($1::date, $2)", [d, tz]);
+    timings.push({
+      path: `analytics rollup, per day (${days.length} days)`,
+      ms: Math.round((performance.now() - t) / days.length),
+    });
+    await h.ownerPool.query("VACUUM ANALYZE");
+    const before = timings.length;
+    for (const range of ["30d", "90d"]) {
+      for (const m of ["overview", "funnel", "team", "sources", "timing", "lost"])
+        await time(`analytics ${m} ${range}`, () =>
+          admin.inject({ method: "GET", url: `/api/v1/analytics/${m}?range=${range}` }),
+        );
+      await time(`analytics rep overview ${range}`, () =>
+        rep.inject({ method: "GET", url: `/api/v1/analytics/overview?range=${range}` }),
+      );
+    }
+    const budget = Number(process.env.LUME_SCALE_ANALYTICS_BUDGET ?? 300);
+    const over = timings.slice(before).filter((x) => x.ms > budget);
+    expect(over, `analytics over ${budget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);
   }, 3_600_000);
 
   // 7B: bulk runs at the owner's "Large" bound — 50,000 leads by filter, queued and run to the end, as the bulk queue

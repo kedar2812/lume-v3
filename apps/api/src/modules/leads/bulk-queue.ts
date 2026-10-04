@@ -29,7 +29,13 @@ export async function startBulkQueue(o: {
     if (job) await processRun({ app: o.app, pool: o.pool, tasks: o.tasks }, job.data.id);
   });
   const enqueue = async (id: string) => {
-    await boss.send("bulk.run", { id }, { singletonKey: id, retryLimit: 5, retryBackoff: true });
+    // A long run may take a while on a small server: the queue mustn't give up on it and start a second beside it
+    // (7B final review, Important 1; the run's own lock keeps a second one waiting either way).
+    await boss.send(
+      "bulk.run",
+      { id },
+      { singletonKey: id, retryLimit: 5, retryBackoff: true, expireInSeconds: 4 * 3600 },
+    );
   };
   // After a restart, anything queued or mid-run carries on.
   const { rows } = await o.pool.query<{ id: string }>(

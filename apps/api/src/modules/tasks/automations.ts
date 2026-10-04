@@ -1,5 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import type { FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { leadScope, newId, onEnterSchema, shiftToWorkingHours, type StageRule } from "@lume/core";
 import { schema } from "@lume/db";
@@ -117,16 +117,37 @@ type Notice = {
   many: (n: number) => NewNotification;
 };
 const notices = new WeakMap<FastifyRequest, Map<string, Notice>>();
+/**
+ * A queued bulk run is many requests, one a chunk: its chunks' notices are gathered together and said once, when the
+ * run ends (7B final review, Important 3). A chunk adds to the run's group only once it has committed.
+ */
+export type NoticeGroup = Map<string, Notice>;
+const groups = new WeakMap<FastifyRequest, NoticeGroup>();
+export const newNoticeGroup = (): NoticeGroup => new Map();
+export function shareNoticesInto(req: FastifyRequest, group: NoticeGroup): void {
+  groups.set(req, group);
+}
+export function sayNotices(group: NoticeGroup, log: FastifyRequest["log"] | FastifyInstance["log"]): void {
+  for (const x of group.values())
+    void notify(x.pool, x.userId, x.count === 1 ? x.one : x.many(x.count)).catch((err: unknown) =>
+      log.error({ err }, "couldn't tell someone what a stage did"),
+    );
+  group.clear();
+}
 function gather(req: FastifyRequest, key: string, n: Omit<Notice, "count">) {
   let all = notices.get(req);
   if (!all) {
     const fresh = new Map<string, Notice>();
     notices.set(req, (all = fresh));
     req.afterCommit(() => {
-      for (const x of fresh.values())
-        void notify(x.pool, x.userId, x.count === 1 ? x.one : x.many(x.count)).catch((err: unknown) =>
-          req.log.error({ err }, "couldn't tell someone what a stage did"),
-        );
+      const into = groups.get(req);
+      if (into)
+        for (const [k, x] of fresh) {
+          const had = into.get(k);
+          if (had) had.count += x.count;
+          else into.set(k, { ...x });
+        }
+      else sayNotices(fresh, req.log);
     });
   }
   const had = all.get(key);

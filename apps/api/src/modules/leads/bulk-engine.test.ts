@@ -1,7 +1,7 @@
 import { ALL_GRANTS, newId, type Grant } from "@lume/core";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
-import { setChunkForTests, setInlineMaxForTests } from "./bulk-runs";
+import { processRun, setChunkForTests, setInlineMaxForTests } from "./bulk-runs";
 
 // Phase 7B Task 2: queued runs, chunk by chunk — set-based where it can be, each lead still checked on its own.
 let h: Harness;
@@ -382,5 +382,83 @@ describe("7B: the engine", () => {
         cfg.stages["Message sent"],
       ]);
     }
+  });
+
+  // 7B final review, Important 1: a retry can start beside a slow first try (the queue's expiry, a restart).
+  it("two processors on one run still change each lead once and count it once", async () => {
+    const sam = await h.seedUser({ grants: [], name: "Sam Twice" });
+    const ids = await seven(adminUser.id);
+    const id = await start(admin, ids, { type: "stage", stageId: cfg.stages.Replied });
+    h.bulkQueue.splice(0);
+    const deps = { app: h.app, pool: h.pool, clock: () => h.clock.now };
+    await Promise.all([processRun(deps, id), processRun(deps, id)]);
+    expect(await read(admin, id)).toMatchObject({ status: "done", done: 7, skipped: 0 });
+    expect(
+      await count(
+        "SELECT count(*)::int AS n FROM lead_stage_history WHERE lead_id = ANY($1::uuid[]) AND to_stage_id = $2",
+        [ids, cfg.stages.Replied],
+      ),
+    ).toBe(7);
+    void sam;
+  });
+
+  // Important 3: a stage's "tell" and follow-up notices are one per run, not one per chunk.
+  it("a queued stage move tells each person once for the whole run, however many chunks", async () => {
+    const sam = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }], name: "Sam Chunks" });
+    await h.ownerPool.query(
+      `UPDATE settings SET working_hours = '{"days":[0,1,2,3,4,5,6],"start":"00:00","end":"23:59"}' WHERE id = 1`,
+    );
+    const rule = {
+      id: newId(),
+      type: "create_task",
+      title: "Chunk follow-up",
+      dueIn: { n: 1, unit: "day" },
+      assignee: "lead_owner",
+    };
+    const stage = cfg.stages["Call booked"] ?? cfg.stages["Message sent"]!;
+    await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/stages/${stage}`,
+      payload: { onEnter: { rules: [rule] } },
+    });
+    try {
+      const ids = await seven(sam.id);
+      await start(admin, ids, { type: "stage", stageId: stage });
+      await h.runBulk();
+      const c = await h.ownerPool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('lume.user_id', $1, true)", [sam.id]);
+        const rows = (
+          await c.query<{ title: string }>(
+            "SELECT title FROM notifications WHERE kind = 'follow_up_assigned' ORDER BY id",
+          )
+        ).rows;
+        expect(rows.map((r) => r.title)).toEqual(["LUME set you 7 follow-ups"]);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    } finally {
+      await admin.inject({
+        method: "PATCH",
+        url: `/api/v1/stages/${stage}`,
+        payload: { onEnter: { rules: [] } },
+      });
+    }
+  });
+
+  // Important 6: the person leads go to can stop working mid-run.
+  it("an assign stops handing leads to someone disabled mid-run, and says why", async () => {
+    const leaving = await h.seedUser({ grants: [], name: "Lee Leaving" });
+    const ids = await seven();
+    const id = await start(admin, ids, { type: "assign", ownerId: leaving.id });
+    await h.runBulk({
+      afterChunk: async (n) => {
+        if (n === 0)
+          await h.ownerPool.query("UPDATE users SET status = 'disabled' WHERE id = $1", [leaving.id]);
+      },
+    });
+    expect(await read(admin, id)).toMatchObject({ done: 3, skipped: 4, skippedBy: { OWNER_INACTIVE: 4 } });
   });
 });

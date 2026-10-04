@@ -624,6 +624,36 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/analytics/overview": { access: "analytics.view" },
   "GET /api/v1/analytics/funnel": { access: "analytics.view" },
   "GET /api/v1/analytics/team": { access: "analytics.view" },
+  "GET /api/v1/analytics/sources": { access: "analytics.view" },
+  "GET /api/v1/analytics/lost": { access: "analytics.view" },
+  "GET /api/v1/analytics/timing": { access: "analytics.view" },
+  "GET /api/v1/analytics/templates": { access: "analytics.view" },
+  "GET /api/v1/analytics/quality": { access: "analytics.view" },
+  "GET /api/v1/analytics/insights": { access: "analytics.view" },
+  "GET /api/v1/analytics/goals": {
+    access: "analytics.view",
+    path: () => "/api/v1/analytics/goals?start=2026-10-01",
+  },
+  "PUT /api/v1/analytics/goals": {
+    access: "settings.manage",
+    body: () => ({
+      scope: "business",
+      scopeId: null,
+      metric: "won",
+      period: "month",
+      periodStart: "2030-01-01",
+      target: 10,
+    }),
+  },
+  "DELETE /api/v1/analytics/goals/:id": {
+    access: "settings.manage",
+    path: () => "/api/v1/analytics/goals/00000000-0000-7000-8000-000000000999",
+  },
+  "PUT /api/v1/settings/sources/:id/spend": {
+    access: "settings.manage",
+    path: () => "/api/v1/settings/sources/00000000-0000-7000-8000-000000000999/spend",
+    body: () => ({ monthlySpend: 100 }),
+  },
   "GET /api/v1/analytics/drilldown": {
     access: "analytics.view",
     path: () => "/api/v1/analytics/drilldown?token=not-a-real-token-at-all",

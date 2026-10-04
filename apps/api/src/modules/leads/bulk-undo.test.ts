@@ -210,4 +210,77 @@ describe("7B: undo", () => {
       ),
     ).toBe(3);
   });
+
+  // 7B final review, Important 2: a team lead hands leads to someone outside their team, then undoes it.
+  it("someone without 'all' can undo their own assign, even of leads they no longer see", async () => {
+    const lead1 = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.bulk_edit", scope: "own" },
+        { key: "leads.assign", scope: "own" },
+      ],
+      name: "Ola Own",
+    });
+    const other = await h.seedUser({ grants: [], name: "Pat Elsewhere" });
+    const ids = [await h.seedLead({ ownerId: lead1.id }), await h.seedLead({ ownerId: lead1.id })];
+    const c = await h.signIn(lead1);
+    const run = await runOf(c, ids, { type: "assign", ownerId: other.id });
+    await h.runBulk();
+    expect(await read(c, run.id)).toMatchObject({ status: "done", done: 2 });
+    const u = await undo(c, run.id);
+    expect(u.statusCode, u.body).toBeLessThan(300);
+    await h.runBulk();
+    expect(await read(c, u.json().run.id)).toMatchObject({ done: 2, skipped: 0 });
+    for (const id of ids) expect((await lead(id)).owner_id).toBe(lead1.id);
+  });
+
+  // Important 5: leads the run didn't change are left alone, and a stage goes back with its time in stage.
+  it("undo leaves alone the leads the action didn't change, and puts back when each entered its stage", async () => {
+    const ids = [await h.seedLead({ ownerId: adminUser.id }), await h.seedLead({ ownerId: adminUser.id })];
+    await h.queryAll(
+      "UPDATE leads SET stage_id = $2, stage_entered_at = '2026-01-05T10:00:00Z' WHERE id = $1",
+      [ids[0], cfg.stages.Replied],
+    );
+    await h.queryAll("UPDATE leads SET stage_entered_at = '2026-02-07T10:00:00Z' WHERE id = $1", [ids[1]]);
+    const run = await runOf(admin, ids, { type: "stage", stageId: cfg.stages.Replied });
+    await h.runBulk();
+    const u = await undo(admin, run.id);
+    await h.runBulk();
+    expect(await read(admin, u.json().run.id)).toMatchObject({
+      done: 1,
+      skipped: 1,
+      skippedBy: { UNCHANGED: 1 },
+    });
+    const entered = await h.queryAll<{ id: string; at: Date; stage: string }>(
+      "SELECT id, stage_entered_at AS at, stage_id AS stage FROM leads WHERE id = ANY($1::uuid[])",
+      [ids],
+    );
+    const at = (id: string) => entered.find((e) => e.id === id)!;
+    expect(at(ids[0]!).at.toISOString()).toBe("2026-01-05T10:00:00.000Z"); // never moved, never touched
+    expect(at(ids[1]!).at.toISOString()).toBe("2026-02-07T10:00:00.000Z"); // back where it was, since when it was
+    expect(
+      await count(
+        "SELECT count(*)::int AS n FROM lead_stage_history WHERE lead_id = $1 AND from_stage_id = to_stage_id",
+        [ids[0]],
+      ),
+    ).toBe(0);
+  });
+
+  // Important 6: undo can't put leads with someone disabled, or into a stage that's gone.
+  it("undo skips leads whose old owner has left, or whose old stage was archived, and says so", async () => {
+    const gone = await h.seedUser({ grants: [], name: "Gail Gone" });
+    const riya = await h.seedUser({ grants: [], name: "Riya Here" });
+    const ids = [await h.seedLead({ ownerId: gone.id }), await h.seedLead({ ownerId: adminUser.id })];
+    const run = await runOf(admin, ids, { type: "assign", ownerId: riya.id });
+    await h.runBulk();
+    await h.ownerPool.query("UPDATE users SET status = 'disabled' WHERE id = $1", [gone.id]);
+    const u = await undo(admin, run.id);
+    await h.runBulk();
+    expect(await read(admin, u.json().run.id)).toMatchObject({
+      done: 1,
+      skipped: 1,
+      skippedBy: { OWNER_INACTIVE: 1 },
+    });
+    expect((await lead(ids[0]!)).owner_id).toBe(riya.id);
+  });
 });
