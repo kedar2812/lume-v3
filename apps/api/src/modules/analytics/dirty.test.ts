@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "../../../test/harness";
 import { analyticsTick } from "./rollup";
@@ -57,6 +58,28 @@ describe("past days a write changed are counted again (owner, 2026-10-05: an imp
     await h.queryAll("DELETE FROM analytics_dirty_days");
     await h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1", [id]);
     expect(await dirty()).toEqual(["2026-02-03", "2026-02-20"]);
+  });
+
+  it("the one-time backfill (0064) marks the past days of leads that came in before 0060, as the owner role runs it", async () => {
+    const id = await h.seedLead({ ownerId: null });
+    await h.queryAll("UPDATE leads SET lead_created_at = '2025-11-11' WHERE id = $1", [id]);
+    await h.queryAll("DELETE FROM analytics_dirty_days");
+    const migration = readFileSync(
+      new URL(
+        "../../../../../packages/db/migrations/0064_analytics_backfill_days_scoped.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(migration);
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
+    expect(await dirty()).toContain("2025-11-11");
   });
 
   it("the app can't write the list itself; it can only claim days through the job's function", async () => {
