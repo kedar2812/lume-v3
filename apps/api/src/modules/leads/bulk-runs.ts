@@ -98,6 +98,7 @@ async function resolveSelection(req: FastifyRequest, sel: Selection) {
   // A capped search can't be a selection: it would act on whichever part of the matches came first.
   const hits = refuseCapped(await resolveSearch(req, sel.filters, fields));
   const where = leadFilters(req, sel.filters, fields, hits);
+  if (sel.within) where.push(sql`${schema.leads.id} = ANY(${`{${sel.within.join(",")}}`}::uuid[])`);
   const except = [...new Set(sel.except ?? [])];
   if (except.length) where.push(sql`${schema.leads.id} <> ALL(${`{${except.join(",")}}`}::uuid[])`);
   const rows = await req.db
@@ -122,6 +123,7 @@ async function resolveSelection(req: FastifyRequest, sel: Selection) {
       kind: "filter",
       filters: sel.filters,
       except: except.length,
+      ...(sel.within ? { analytics: true } : {}),
       total: rows.length,
       ...(sel.expected !== undefined ? { expected: sel.expected } : {}),
     },

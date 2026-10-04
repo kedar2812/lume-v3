@@ -180,7 +180,8 @@ export const analyticsClient = {
   insights: (p: AnalyticsParams) => api.get<Insights>(`/api/v1/analytics/insights?${query(p)}`),
   goals: (start: string) => api.get<Goals>(`/api/v1/analytics/goals?start=${start}`),
   drill: (token: string, cursor?: string) =>
-    api.get<LeadPage & { kind: string; total: number }>(
+    // capped: the first 10,000 of a bigger number.
+    api.get<LeadPage & { kind: string; total: number; capped: boolean }>(
       `/api/v1/analytics/drilldown?token=${encodeURIComponent(token)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
     ),
 };

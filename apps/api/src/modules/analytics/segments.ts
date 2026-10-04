@@ -5,7 +5,7 @@ import { badRequest } from "../../http/errors";
 import { drillFor, frag } from "./drill";
 import { LIVE_MAX_DAYS } from "./filters";
 import { spanOf } from "./live";
-import { businessTz, rangeOf, narrow, type AnalyticsQuery } from "./service";
+import { assertLeadAccess, businessTz, rangeOf, narrow, type AnalyticsQuery } from "./service";
 
 /**
  * What converts (canvas Lost; 8A spec §4 `segment`): of the leads that arrived in the range, the share won so far,
@@ -23,6 +23,7 @@ export async function segments(
   d?: Pick<AppDeps, "keyring">,
 ) {
   q = narrow(req, q);
+  assertLeadAccess(req, q.reach!);
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   if (range.days.length > LIVE_MAX_DAYS)

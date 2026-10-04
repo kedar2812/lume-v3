@@ -135,6 +135,36 @@ describe("tag and field filters, counted live (8D-1 Task 3)", () => {
     expect(c.sources.reduce((n: number, x: { leads: number }) => n + x.leads, 0)).toBe(5);
   });
 
+  it("someone who sees every number but opens only their own leads: tags, fields and what converts are refused in words, not counted short", async () => {
+    const mixed = await h.seedUser({
+      grants: [
+        { key: "analytics.view", scope: "all" },
+        { key: "leads.view", scope: "own" },
+      ],
+    });
+    const c = await h.signIn(mixed);
+    for (const path of [
+      `overview?${Q}&tag=${everyone}`,
+      `funnel?${Q}&fields={"budget":["Small"]}`,
+      `segments?${Q}&field=budget`,
+    ]) {
+      const r = await c.inject({ method: "GET", url: `/api/v1/analytics/${path}` });
+      expect([path, r.statusCode]).toEqual([path, 400]);
+      expect(r.json().error).toEqual({
+        code: "FILTER_NEEDS_LEAD_ACCESS",
+        message:
+          "Tags and fields are counted from the leads you can open, and you can open fewer than these numbers cover.",
+      });
+    }
+    // Without one, their numbers are everyone's, as their reach says.
+    const plain = await c.inject({ method: "GET", url: `/api/v1/analytics/overview?${Q}` });
+    expect(plain.statusCode).toBe(200);
+    const all = await (
+      await h.signIn(admin)
+    ).inject({ method: "GET", url: `/api/v1/analytics/overview?${Q}` });
+    expect(tile(plain.json(), "new_leads")).toBe(tile(all.json(), "new_leads"));
+  });
+
   it("over 92 days, or on a board without a live path, a tag filter is refused in words", async () => {
     const a = await h.signIn(admin);
     const long = await a.inject({

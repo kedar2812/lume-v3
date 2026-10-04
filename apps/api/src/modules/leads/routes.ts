@@ -367,7 +367,10 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
             z.object({ ids: z.array(z.uuid()).max(5000) }).strict(),
             z
               .object({
-                filters: filterQuerySchema.partial(),
+                // A number on Analytics (its drill token): the run acts on exactly its leads.
+                filters: filterQuerySchema
+                  .partial()
+                  .extend({ drill: z.string().min(16).max(4000).optional() }),
                 except: z.array(z.uuid()).max(5000).optional(),
                 expected: z.number().int().min(0).optional(),
               })
@@ -378,8 +381,16 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
       },
     },
     async (req, reply) => {
+      const sel = req.body.selection;
+      let selection = sel as Selection;
+      if ("filters" in sel && sel.filters.drill) {
+        const { drill, ...filters } = sel.filters;
+        // Refused (not found, expired, or over 10,000 leads) rather than read as no filter at all.
+        const within = await resolveDrill(req, d.keyring, d.clock(), drill);
+        selection = { ...sel, filters, within } as Selection;
+      }
       const { status, run } = await createRun(req, {
-        selection: req.body.selection as Selection,
+        selection,
         action: req.body.action,
         enqueue: d.bulk?.enqueue,
         now: d.clock(),

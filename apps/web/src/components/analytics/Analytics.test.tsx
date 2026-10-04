@@ -123,6 +123,7 @@ beforeEach(() => {
     ok({
       kind: "won" as const,
       total: 1,
+      capped: false,
       items: [testLead({ id: "l1", name: "Aisha Khan" })],
       nextCursor: null,
     }),

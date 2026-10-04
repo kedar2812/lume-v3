@@ -12,7 +12,10 @@ export type BulkAction =
 /** The action an undo run carries: which kind of run it puts back (the before-values are on the items). */
 export type UndoAction = { type: "undo"; of: BulkAction["type"] };
 
-export type Selection = { ids: string[] } | { filters: FilterQuery; except?: string[]; expected?: number };
+export type Selection =
+  | { ids: string[] }
+  // `within`: the leads behind a number on Analytics (its drill token, resolved when the run is made).
+  | { filters: FilterQuery; except?: string[]; expected?: number; within?: string[] };
 export type RunRow = typeof schema.bulkRuns.$inferSelect;
 export type Item = { leadId: string; position: number };
 /** Tests steer a run with these: a throw here is a crash at that point. */

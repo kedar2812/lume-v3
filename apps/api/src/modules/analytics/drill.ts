@@ -2,7 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { scopeOf, type Keyring, type MetricId, type Range } from "@lume/core";
 import type { AppDeps } from "../../app";
-import { HttpError, notFound } from "../../http/errors";
+import { HttpError, badRequest, notFound } from "../../http/errors";
 import { liveFilter, ownerCond, sourceCond } from "./filters";
 import type { AnalyticsQuery } from "./service";
 
@@ -62,7 +62,7 @@ export type DrillSpec = {
   t: [string, string];
   /** The business's timezone, for numbers keyed by weekday and hour. */
   z?: string;
-  q: Pick<AnalyticsQuery, "pipelineId" | "ownerIds" | "sourceIds" | "tagIds" | "fields">;
+  q: Pick<AnalyticsQuery, "pipelineId" | "ownerIds" | "sourceIds" | "tagIds" | "fields" | "teamId">;
   u: string;
   exp: number;
 };
@@ -99,7 +99,13 @@ export function drillFor(
       z: tz,
       q: {
         ...(q.pipelineId ? { pipelineId: q.pipelineId } : {}),
-        ...(q.ownerIds?.length ? { ownerIds: q.ownerIds } : {}),
+        // A team by its id and the viewer's own reach not at all (it's read afresh when the list opens): a token
+        // listing a big team's people would outgrow a link.
+        ...(q.teamId
+          ? { teamId: q.teamId }
+          : q.ownerIds?.length && !q.narrowed
+            ? { ownerIds: q.ownerIds }
+            : {}),
         ...(q.sourceIds?.length ? { sourceIds: q.sourceIds } : {}),
         ...(q.tagIds?.length ? { tagIds: q.tagIds } : {}),
         ...(q.fields ? { fields: q.fields } : {}),
@@ -350,16 +356,40 @@ export async function resolveDrill(
   now: Date,
   token: string,
 ): Promise<string[]> {
-  return drillIds(req, readDrill(keyring, token, req.actor!.userId, now));
+  const { ids, capped } = await drillIds(req, readDrill(keyring, token, req.actor!.userId, now));
+  // Leads and exports take the whole list or none of it: a list cut short would pass for the number.
+  if (capped)
+    throw badRequest(
+      "DRILL_TOO_LARGE",
+      "This number covers more than 10,000 leads, too many to open as one list. Narrow the range or a filter.",
+    );
+  return ids;
 }
 
-/** The leads behind a number, by its own definition (the rollups use the same ones). */
-export async function drillIds(req: FastifyRequest, spec: DrillSpec): Promise<string[]> {
-  // Read afresh: the reach now, not when the token was made.
-  const s: Scoped = { ...spec, q: { ...spec.q, reach: scopeOf(req.actor!, "analytics.view") } };
+/**
+ * The leads behind a number, by its own definition (the rollups use the same ones): up to DRILL_MAX of them, and
+ * whether there were more.
+ */
+export async function drillIds(
+  req: FastifyRequest,
+  spec: DrillSpec,
+): Promise<{ ids: string[]; capped: boolean }> {
+  // Read afresh: the reach now, and the team's people now, not when the token was made.
+  let ownerIds = spec.q.ownerIds;
+  if (spec.q.teamId) {
+    const t = await req.db.execute<{ user_id: string }>(sql`
+      SELECT m.user_id FROM teams t JOIN team_members m ON m.team_id = t.id
+      WHERE t.id = ${spec.q.teamId}::uuid AND t.deleted_at IS NULL`);
+    // A team with nobody in it now: nobody's leads, not everyone's.
+    ownerIds = t.rows.length ? t.rows.map((r) => r.user_id) : ["00000000-0000-0000-0000-000000000000"];
+  }
+  const s: Scoped = {
+    ...spec,
+    q: { ...spec.q, ...(ownerIds ? { ownerIds } : {}), reach: scopeOf(req.actor!, "analytics.view") },
+  };
   const where = kindWhere(s);
   if (!where) throw notFound("DRILL_NOT_FOUND", "That number has no list.");
   const r = await req.db.execute<{ id: string }>(sql`
-    SELECT l.id FROM leads l WHERE ${frag.leads(s)} AND ${where} LIMIT ${DRILL_MAX}`);
-  return r.rows.map((x) => x.id);
+    SELECT l.id FROM leads l WHERE ${frag.leads(s)} AND ${where} LIMIT ${DRILL_MAX + 1}`);
+  return { ids: r.rows.slice(0, DRILL_MAX).map((x) => x.id), capped: r.rows.length > DRILL_MAX };
 }

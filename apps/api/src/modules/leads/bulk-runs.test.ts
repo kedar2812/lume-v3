@@ -143,6 +143,40 @@ describe("7B: a bulk action is a run", () => {
     }
   });
 
+  it("the leads behind a number on Analytics: exactly those, never every lead the other filters show", async () => {
+    const june = [await h.seedLead({ ownerId: null }), await h.seedLead({ ownerId: null })];
+    for (const id of june)
+      await h.queryAll("UPDATE leads SET created_at = '2026-06-10T05:00:00Z' WHERE id = $1", [id]);
+    const token = (
+      await admin.inject({
+        method: "GET",
+        url: "/api/v1/analytics/overview?range=custom&from=2026-06-01&to=2026-06-30",
+      })
+    ).json().drill.new_leads as string;
+    const r = await run(admin, {
+      selection: { filters: { drill: token }, expected: 2 },
+      action: { type: "assign", ownerId: adminId },
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().run).toMatchObject({
+      total: 2,
+      done: 2,
+      selection: { kind: "filter", total: 2, analytics: true },
+    });
+    const items = await h.queryAll<{ lead_id: string }>(
+      "SELECT lead_id FROM bulk_run_items WHERE run_id = $1",
+      [r.json().run.id],
+    );
+    expect(items.map((i) => i.lead_id).sort()).toEqual([...june].sort());
+    // A token that isn't theirs, or has run out, is refused, not read as no filter.
+    const bad = await run(admin, {
+      selection: { filters: { drill: "x".repeat(40) } },
+      action: { type: "assign", ownerId: adminId },
+    });
+    expect(bad.statusCode).toBe(404);
+    expect(bad.json().error.code).toBe("DRILL_NOT_FOUND");
+  });
+
   it("over the inline limit: queued, nothing changed yet; the queue runs it on the snapshot taken", async () => {
     setInlineMaxForTests(2);
     const to = await h.seedUser({ grants: [] });

@@ -90,6 +90,7 @@ async function toQuery(req: FastifyRequest, q: Raw): Promise<AnalyticsQuery> {
     compare: q.compare === "1",
     ...(q.pipeline ? { pipelineId: q.pipeline } : {}),
     ...(ownerIds?.length ? { ownerIds } : {}),
+    ...(q.team && !q.owner ? { teamId: q.team } : {}),
     ...(q.source?.length ? { sourceIds: q.source } : {}),
     ...(q.tag?.length ? { tagIds: q.tag } : {}),
     ...(fields ? { fields } : {}),
@@ -215,14 +216,15 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
     },
     async (req) => {
       const spec = readDrill(d.keyring, req.query.token, req.actor!.userId, d.clock());
-      const ids = await drillIds(req, spec);
+      const { ids, capped } = await drillIds(req, spec);
       const page = await listLeads(req, {
         ids,
         limit: 50,
         sort: "newest",
         ...(req.query.cursor ? { cursor: req.query.cursor } : {}),
       });
-      return { kind: spec.k, total: ids.length, ...page };
+      // Capped: the first DRILL_MAX of a bigger number (the board shows the whole of it).
+      return { kind: spec.k, total: ids.length, capped, ...page };
     },
   );
 }

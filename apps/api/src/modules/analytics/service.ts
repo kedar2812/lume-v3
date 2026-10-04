@@ -35,6 +35,10 @@ export type AnalyticsQuery = {
   fields?: Record<string, string[]>;
   /** The viewer's analytics reach, once checked (reachOf): 'all' with no owner filter needs no credit test per row. */
   reach?: "own" | "team" | "all";
+  /** The owners are the viewer's own reach (narrow), not a filter they asked for. */
+  narrowed?: boolean;
+  /** The owners are this team's people (a team filter), for a drill token to name instead of listing them. */
+  teamId?: string;
 };
 export type Tile = {
   id: MetricId;
@@ -80,6 +84,21 @@ export function reachOf(req: FastifyRequest, ownerIds?: readonly string[]): "own
 
 export const seesRevenue = (req: FastifyRequest) => can(req.actor!, "analytics.revenue");
 
+const WIDTH = { own: 1, team: 2, all: 3 } as const;
+/**
+ * Numbers counted from the leads themselves (tags, fields, what converts) see only the leads the viewer can open
+ * (their leads.view, by row-level security). Someone whose analytics reach is wider would get numbers that quietly
+ * fall short of every other number they see: refused in words instead.
+ */
+export function assertLeadAccess(req: FastifyRequest, reach: "own" | "team" | "all"): void {
+  const leads = scopeOf(req.actor!, "leads.view");
+  if (!leads || WIDTH[leads] < WIDTH[reach])
+    throw badRequest(
+      "FILTER_NEEDS_LEAD_ACCESS",
+      "Tags and fields are counted from the leads you can open, and you can open fewer than these numbers cover.",
+    );
+}
+
 /**
  * The query at the viewer's reach. Someone who sees only their own (or their team's) numbers asks for exactly those
  * people's rows, which the rollups' per-person indexes (0059) find directly, instead of reading everyone's and
@@ -87,10 +106,11 @@ export const seesRevenue = (req: FastifyRequest) => can(req.actor!, "analytics.r
  */
 export function narrow<Q extends AnalyticsQuery>(req: FastifyRequest, q: Q): Q {
   const reach = reachOf(req, q.ownerIds);
+  if (isLive(q)) assertLeadAccess(req, reach);
   if (reach === "all" || q.ownerIds?.length) return { ...q, reach };
   const actor = req.actor!;
   const ownerIds = reach === "own" ? [actor.userId] : [...new Set([actor.userId, ...actor.teamMemberIds])];
-  return { ...q, reach, ownerIds };
+  return { ...q, reach, ownerIds, narrowed: true };
 }
 
 /** Rollup filters as SQL; the viewer's reach is the rollups' own row-level security. */
