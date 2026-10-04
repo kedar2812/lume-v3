@@ -3,7 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { drillFor, frag, type DrillExtra, type DrillKind } from "./drill";
-import { isLive, ownerCond, sourceCond } from "./filters";
+import { isLive, liveFilter, ownerCond, sourceCond } from "./filters";
 import { guardLive, refuseLive, spanOf } from "./live";
 import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
@@ -54,6 +54,8 @@ function leadWhere(q: AnalyticsQuery): SQL {
   if (q.pipelineId) parts.push(sql`l.pipeline_id = ${q.pipelineId}::uuid`);
   const src = sourceCond(q.sourceIds, sql`l.source_id`);
   if (src) parts.push(src);
+  const tagged = liveFilter(q);
+  if (tagged) parts.push(tagged);
   return sql.join(parts, sql` AND `);
 }
 
@@ -142,15 +144,36 @@ export async function sources(
 
 /** Lost (canvas Lost): why, from which stage, by whom and from where; and leads won back. */
 export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: Pick<AppDeps, "keyring">) {
-  refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
+  guardLive(q, range);
   const mint = minter(d, req, range, q, tz, now);
   const span = (from: Date, to: Date) =>
     sql`l.lost_at >= ${from.toISOString()}::timestamptz AND l.lost_at < ${to.toISOString()}::timestamptz`;
   const who = sql`lume_owner_at(l.id, l.lost_at, l.owner_id)`;
   const base = (from: Date, to: Date) => sql`${leadWhere(q)} AND ${span(from, to)} AND ${credit(q, who)}`;
+  // Lost in the span, then reopened after it was lost, then won in the span (canvas Lost's "Won back" flow).
+  const reopened = sql`EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = l.id AND a.type = 'reopened'
+    AND a.occurred_at > l.lost_at)`;
+  const flow = (from: Date, to: Date) => sql`
+    SELECT count(*)::int AS lost, count(*) FILTER (WHERE ${reopened})::int AS reopened,
+           count(*) FILTER (WHERE ${reopened} AND l.won_at >= ${from.toISOString()}::timestamptz
+                            AND l.won_at < ${to.toISOString()}::timestamptz)::int AS won,
+           coalesce(sum(l.value) FILTER (WHERE ${reopened} AND l.won_at >= ${from.toISOString()}::timestamptz
+                            AND l.won_at < ${to.toISOString()}::timestamptz), 0)::float8 AS value
+    FROM leads l WHERE ${base(from, to)}`;
+  type Flow = { lost: number; reopened: number; won: number; value: number };
+  const [cells, flowNow, flowBefore, reasonNames, sourceNames] = await Promise.all([
+    req.db.execute<{ reason_id: string | null; source_id: string | null; n: number }>(sql`
+      SELECT l.lost_reason_id AS reason_id, l.source_id, count(*)::int AS n FROM leads l
+      WHERE ${base(range.from, range.to)} GROUP BY 1, 2`),
+    req.db.execute<Flow>(flow(range.from, range.to)),
+    req.db.execute<Flow>(flow(range.previous.from, range.previous.to)),
+    req.db.execute<{ id: string; name: string }>(sql`SELECT id, label::text AS name FROM lost_reasons`),
+    req.db.execute<{ id: string; name: string }>(sql`SELECT id, name FROM lead_sources`),
+  ]);
+  const live = isLive(q);
   const [reasons, prevReasons, stages, owners, srcs, back] = await Promise.all([
     req.db.execute<{ id: string | null; name: string | null; n: number }>(sql`
       SELECT l.lost_reason_id AS id, r.label::text AS name, count(*)::int AS n FROM leads l
@@ -166,10 +189,14 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
                           ORDER BY h.changed_at DESC, h.id DESC LIMIT 1) h
       LEFT JOIN stages s ON s.id = h.from_stage_id
       WHERE ${base(range.from, range.to)} GROUP BY 1, 2 ORDER BY n DESC`),
-    // By who owned them when they were lost: the event rollups already credit that.
-    req.db.execute<{ id: string | null; n: number }>(sql`
-      SELECT user_id AS id, sum(lost)::int AS n FROM analytics_daily_event
-      WHERE ${rw(q, range.days[0]!, range.days.at(-1)!, true)} GROUP BY 1 HAVING sum(lost) > 0 ORDER BY n DESC`),
+    // By who owned them when they were lost: the event rollups already credit that (read live under a tag/field).
+    live
+      ? req.db.execute<{ id: string | null; n: number }>(sql`
+          SELECT ${who} AS id, count(*)::int AS n FROM leads l WHERE ${base(range.from, range.to)}
+          GROUP BY 1 ORDER BY n DESC`)
+      : req.db.execute<{ id: string | null; n: number }>(sql`
+          SELECT user_id AS id, sum(lost)::int AS n FROM analytics_daily_event
+          WHERE ${rw(q, range.days[0]!, range.days.at(-1)!, true)} GROUP BY 1 HAVING sum(lost) > 0 ORDER BY n DESC`),
     req.db.execute<{ id: string | null; n: number }>(sql`
       SELECT l.source_id AS id, count(*)::int AS n FROM leads l WHERE ${base(range.from, range.to)} GROUP BY 1 ORDER BY n DESC`),
     // Won back: reopened in the span after being lost, and won in the span.
@@ -216,8 +243,56 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
       ...(money ? { value: back.rows[0]!.value } : {}),
       drill: mint("won_back"),
     },
+    matrix: lostMatrix(cells.rows, reasonNames.rows, sourceNames.rows, mint),
+    wonBackFlow: (() => {
+      const f = flowNow.rows[0]!;
+      const p = flowBefore.rows[0]!;
+      return {
+        lost: f.lost,
+        reopened: f.reopened,
+        won: f.won,
+        ...(money ? { value: f.value, previousValue: q.compare ? p.value : null } : {}),
+        trend: money && q.compare ? trend(f.value, p.value, { kind: "pct", good: "up" }) : null,
+        drill: mint("won_back_flow"),
+      };
+    })(),
   };
 }
+
+/** Reasons by source (canvas Lost's heatmap): the six commonest reasons × the five biggest sources; under 3 is thin. */
+function lostMatrix(
+  rows: { reason_id: string | null; source_id: string | null; n: number }[],
+  reasonNames: { id: string; name: string }[],
+  sourceNames: { id: string; name: string }[],
+  mint: Mint,
+) {
+  const top = (key: "reason_id" | "source_id", k: number) => {
+    const t = new Map<string | null, number>();
+    for (const r of rows) t.set(r[key], (t.get(r[key]) ?? 0) + r.n);
+    return [...t]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, k)
+      .map(([id]) => id);
+  };
+  const reasons = top("reason_id", 6);
+  const sources = top("source_id", 5);
+  const rn = new Map(reasonNames.map((r) => [r.id, r.name]));
+  const sn = new Map(sourceNames.map((s) => [s.id, s.name]));
+  return {
+    reasons: reasons.map((id) => ({ id, name: id ? (rn.get(id) ?? "A removed reason") : "No reason given" })),
+    sources: sources.map((id) => ({ id, name: id ? (sn.get(id) ?? "A removed source") : "Added in LUME" })),
+    cells: rows
+      .filter((r) => reasons.includes(r.reason_id) && sources.includes(r.source_id))
+      .map((r) => ({
+        reasonId: r.reason_id,
+        sourceId: r.source_id,
+        n: r.n,
+        tooFew: r.n < MATRIX_MIN,
+        drill: mint("lost_cell", { reasonId: r.reason_id, sourceId: r.source_id }),
+      })),
+  };
+}
+const MATRIX_MIN = 3;
 
 /** Timing (canvas Timing): when leads arrive and reply, the best booking slots, time in each stage, and stuck leads. */
 export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) {

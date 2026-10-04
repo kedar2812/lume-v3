@@ -10,6 +10,7 @@ import { drillFor, drillIds, readDrill } from "./drill";
 import { listGoals, removeGoal, setGoal, setSpend } from "./goals";
 import { insights } from "./insights";
 import { revenue } from "./revenue";
+import { segments } from "./segments";
 import { lost, quality, sources, templates, timing } from "./modules";
 import { funnel } from "./funnel";
 import { businessTz, overview, rangeOf, team, type AnalyticsQuery } from "./service";
@@ -43,6 +44,11 @@ const query = z
     fields: z.string().max(2000).optional(),
     // The funnel, split by where leads came from or who had them (8D-1 Task 4).
     split: z.enum(["source", "owner"]).optional(),
+    // What converts, by this field (8D-1 Task 6).
+    field: z
+      .string()
+      .regex(/^[a-z][a-z0-9_]{0,39}$/)
+      .optional(),
   })
   .refine((q) => q.range !== "custom" || (q.from && q.to), "A custom range needs from and to");
 
@@ -127,6 +133,9 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
     r.get(`/api/v1/analytics/${name}`, { config: view, schema: { querystring: query } }, async (req) =>
       read(req, await toQuery(req, req.query), d.clock(), d),
     );
+  r.get("/api/v1/analytics/segments", { config: view, schema: { querystring: query } }, async (req) =>
+    segments(req, await toQuery(req, req.query), req.query.field, d.clock(), d),
+  );
   r.get("/api/v1/analytics/insights", { config: view, schema: { querystring: query } }, async (req) =>
     insights(req, await toQuery(req, req.query), d.clock()),
   );

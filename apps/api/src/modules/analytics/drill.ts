@@ -29,6 +29,7 @@ export type DrillKind =
   | "lost_stage"
   | "lost_cell"
   | "won_back"
+  | "won_back_flow"
   | "segment"
   | "product_won"
   | "slot"
@@ -276,6 +277,10 @@ export function kindWhere(s: Scoped): SQL | null {
     case "won_back":
       return sql`${frag.won(s)} AND EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = l.id AND a.type = 'reopened'
         AND a.occurred_at >= ${s.t[0]}::timestamptz AND a.occurred_at < l.won_at)`;
+    case "won_back_flow":
+      // Lost in the span, reopened after it was lost, won in the span (canvas Lost's flow).
+      return sql`${frag.lost(s)} AND ${frag.span(s, sql`l.won_at`)} AND EXISTS (SELECT 1 FROM activities a
+        WHERE a.lead_id = l.id AND a.type = 'reopened' AND a.occurred_at > l.lost_at)`;
     case "product_won":
       return sql`${frag.won(s)} AND ${eqOrNull(sql`l.product_id`, x.productId)}`;
     case "person_cohort":
@@ -297,8 +302,10 @@ export function kindWhere(s: Scoped): SQL | null {
         ? frag.meeting(s, sql`${frag.span(s, sql`m.starts_at`)} AND m.status = ${x.outcome}`)
         : null;
     case "segment":
+      // One answer of a choice field ({key: v}), or one of several answers ({key: [v]}).
       return x.field
-        ? sql`${frag.cohort(s)} AND l.custom @> ${JSON.stringify({ [x.field.key]: frag.fieldValue(x.field.value) })}::jsonb`
+        ? sql`${frag.cohort(s)} AND (l.custom @> ${JSON.stringify({ [x.field.key]: frag.fieldValue(x.field.value) })}::jsonb
+            OR l.custom @> ${JSON.stringify({ [x.field.key]: [frag.fieldValue(x.field.value)] })}::jsonb)`
         : null;
     case "unowned":
       return x.wait ? frag.unowned(x.wait) : null;
