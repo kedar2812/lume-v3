@@ -100,6 +100,7 @@
   --hud: rgba(22, 24, 30, 0.88);
   --hud-text: #f4f5f7;
   --scrim: rgba(8, 10, 14, 0.22);
+  --scrim-blur: blur(10px) saturate(120%);
   --skel: #edeff2;
   --skel-hi: #f7f8fa;
   --glow: rgba(42, 91, 255, 0.1);
@@ -158,6 +159,7 @@
   --hud: rgba(54, 58, 66, 0.9);
   --hud-text: #f4f5f7;
   --scrim: rgba(6, 7, 9, 0.55);
+  --scrim-blur: blur(10px) saturate(120%);
   --skel: #26282d;
   --skel-hi: #2f3238;
   --glow: rgba(42, 91, 255, 0.22);
@@ -218,6 +220,7 @@
     --hud: rgba(54, 58, 66, 0.9);
     --hud-text: #f4f5f7;
     --scrim: rgba(6, 7, 9, 0.55);
+    --scrim-blur: blur(10px) saturate(120%);
     --skel: #26282d;
     --skel-hi: #2f3238;
     --glow: rgba(42, 91, 255, 0.22);

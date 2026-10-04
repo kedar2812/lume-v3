@@ -2,8 +2,15 @@
   position: fixed;
   inset: 0;
   background: var(--scrim);
+  backdrop-filter: var(--scrim-blur);
   z-index: 60;
 }
+@media (prefers-reduced-transparency: reduce) {
+  .overlay {
+    backdrop-filter: none;
+  }
+}
+
 .panel {
   position: fixed;
   left: 50%;

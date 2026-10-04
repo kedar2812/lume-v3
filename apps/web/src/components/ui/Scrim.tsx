@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import type { ReactNode } from "react";
+import { BodyPortal } from "./BodyPortal";
 import s from "./Scrim.module.css";
 
 /**
@@ -16,14 +16,12 @@ export function Scrim({
   children: ReactNode;
   className?: string;
 }) {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  useEffect(() => setHost(document.body), []);
-  if (!host) return null;
-  return createPortal(
-    <div className={className ? `${s.layer} ${className}` : s.layer} data-scrim>
-      <div className={s.scrim} onClick={onClose} aria-hidden />
-      {children}
-    </div>,
-    host,
+  return (
+    <BodyPortal>
+      <div className={className ? `${s.layer} ${className}` : s.layer} data-scrim>
+        <div className={s.scrim} onClick={onClose} aria-hidden />
+        {children}
+      </div>
+    </BodyPortal>
   );
 }

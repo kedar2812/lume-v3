@@ -7,7 +7,7 @@
   display: grid;
   padding: 10px;
   background: var(--scrim);
-  backdrop-filter: blur(6px);
+  backdrop-filter: var(--scrim-blur);
 }
 @media (prefers-reduced-transparency: reduce) {
   .scrim {

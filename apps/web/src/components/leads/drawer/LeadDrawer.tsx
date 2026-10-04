@@ -1,4 +1,5 @@
 "use client";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { can, canOnRecord } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
@@ -439,373 +440,377 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const title = lead?.name ?? (state === "gone" ? "Lead not available" : "Loading lead");
 
   return (
-    <>
-      <motion.div
-        className={s.scrim}
-        onClick={onClose}
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      />
-      <motion.div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={headingId}
-        tabIndex={-1}
-        className={s.drawer}
-        onKeyDown={trap}
-        // The resting state names both properties: the server can't know the motion preference, so a
-        // drawer rendered there may start off-screen even for someone who then gets the fade.
-        initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
-        transition={toMotion(SPRINGS.drawer)}
-      >
-        <div className={s.top}>
-          <IconButton label="Close (Esc)" onClick={onClose}>
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </IconButton>
-          <IconButton label="Previous lead (K)" disabled={index <= 0} onClick={() => step(-1)}>
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path
-                d="M4 10l4-4 4 4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-          </IconButton>
-          <IconButton
-            label="Next lead (J)"
-            disabled={index === -1 || index >= neighbours.length - 1}
-            onClick={() => step(1)}
-          >
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path
-                d="M4 6l4 4 4-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-          </IconButton>
-          {index !== -1 && (
-            <span className={s.position}>
-              {index + 1} of {neighbours.length}
-            </span>
-          )}
-          {lead?.can.delete && (
-            <div className={s.topEnd}>
-              <Popover
-                label="Delete lead"
-                align="end"
-                triggerClassName={s.deleteBtn}
-                trigger={
-                  <>
-                    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-                      <path
-                        d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span className={s.srOnly}>Delete lead</span>
-                  </>
-                }
-              >
-                {(close) => (
-                  <div className={s.popForm}>
-                    <p className={s.popTitle}>Delete {lead.name ?? "this lead"}?</p>
-                    <p className={s.popSub}>This can’t be undone from here.</p>
-                    <div className={s.popActions}>
-                      <Button size="sm" variant="ghost" onClick={close}>
-                        Cancel
-                      </Button>
-                      <Button size="sm" variant="danger" onClick={() => void remove()}>
-                        Delete
-                      </Button>
+    <BodyPortal>
+      <>
+        <motion.div
+          className={s.scrim}
+          onClick={onClose}
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        />
+        <motion.div
+          ref={panel}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={headingId}
+          tabIndex={-1}
+          className={s.drawer}
+          onKeyDown={trap}
+          // The resting state names both properties: the server can't know the motion preference, so a
+          // drawer rendered there may start off-screen even for someone who then gets the fade.
+          initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
+          transition={toMotion(SPRINGS.drawer)}
+        >
+          <div className={s.top}>
+            <IconButton label="Close (Esc)" onClick={onClose}>
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </IconButton>
+            <IconButton label="Previous lead (K)" disabled={index <= 0} onClick={() => step(-1)}>
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                <path
+                  d="M4 10l4-4 4 4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </IconButton>
+            <IconButton
+              label="Next lead (J)"
+              disabled={index === -1 || index >= neighbours.length - 1}
+              onClick={() => step(1)}
+            >
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                <path
+                  d="M4 6l4 4 4-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </IconButton>
+            {index !== -1 && (
+              <span className={s.position}>
+                {index + 1} of {neighbours.length}
+              </span>
+            )}
+            {lead?.can.delete && (
+              <div className={s.topEnd}>
+                <Popover
+                  label="Delete lead"
+                  align="end"
+                  triggerClassName={s.deleteBtn}
+                  trigger={
+                    <>
+                      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
+                        <path
+                          d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span className={s.srOnly}>Delete lead</span>
+                    </>
+                  }
+                >
+                  {(close) => (
+                    <div className={s.popForm}>
+                      <p className={s.popTitle}>Delete {lead.name ?? "this lead"}?</p>
+                      <p className={s.popSub}>This can’t be undone from here.</p>
+                      <div className={s.popActions}>
+                        <Button size="sm" variant="ghost" onClick={close}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => void remove()}>
+                          Delete
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </Popover>
-            </div>
-          )}
-        </div>
-
-        <div className={s.scroll}>
-          {state === "loading" && (
-            <div className={s.skeleton} aria-busy="true">
-              <h2 id={headingId} className={s.srOnly}>
-                {title}
-              </h2>
-              <div className={s.head}>
-                <Skeleton width={52} height={52} radius={26} />
-                <div className={s.skLines}>
-                  <Skeleton width={180} height={20} />
-                  <Skeleton width={140} height={12} />
-                </div>
+                  )}
+                </Popover>
               </div>
-              <Skeleton height={36} radius={10} />
-              <Skeleton height={6} radius={99} />
-              <Skeleton height={120} radius={14} />
-            </div>
-          )}
+            )}
+          </div>
 
-          {state === "gone" && (
-            <div className={s.gone}>
-              <h2 id={headingId} ref={heading} tabIndex={-1}>
-                This lead isn’t available to you any more
-              </h2>
-              <p>It may have been handed to someone else or deleted.</p>
-              <Button onClick={onClose}>Close</Button>
-            </div>
-          )}
+          <div className={s.scroll}>
+            {state === "loading" && (
+              <div className={s.skeleton} aria-busy="true">
+                <h2 id={headingId} className={s.srOnly}>
+                  {title}
+                </h2>
+                <div className={s.head}>
+                  <Skeleton width={52} height={52} radius={26} />
+                  <div className={s.skLines}>
+                    <Skeleton width={180} height={20} />
+                    <Skeleton width={140} height={12} />
+                  </div>
+                </div>
+                <Skeleton height={36} radius={10} />
+                <Skeleton height={6} radius={99} />
+                <Skeleton height={120} radius={14} />
+              </div>
+            )}
 
-          {state === "ready" && lead && (
-            <>
-              <header className={s.head}>
-                <Avatar name={lead.name ?? "?"} size={52} />
-                <div className={s.headText}>
-                  {nameDef && editable(lead, nameDef) ? (
-                    <EditableCell
-                      lead={lead}
-                      def={nameDef}
-                      save={editor.save}
-                      error={
-                        editor.error?.leadId === lead.id && editor.error.key === "name"
-                          ? editor.error.message
-                          : null
-                      }
-                      onDismissError={editor.clearError}
-                    >
+            {state === "gone" && (
+              <div className={s.gone}>
+                <h2 id={headingId} ref={heading} tabIndex={-1}>
+                  This lead isn’t available to you any more
+                </h2>
+                <p>It may have been handed to someone else or deleted.</p>
+                <Button onClick={onClose}>Close</Button>
+              </div>
+            )}
+
+            {state === "ready" && lead && (
+              <>
+                <header className={s.head}>
+                  <Avatar name={lead.name ?? "?"} size={52} />
+                  <div className={s.headText}>
+                    {nameDef && editable(lead, nameDef) ? (
+                      <EditableCell
+                        lead={lead}
+                        def={nameDef}
+                        save={editor.save}
+                        error={
+                          editor.error?.leadId === lead.id && editor.error.key === "name"
+                            ? editor.error.message
+                            : null
+                        }
+                        onDismissError={editor.clearError}
+                      >
+                        <h2 id={headingId} ref={heading} tabIndex={-1} className={s.name}>
+                          {title}
+                        </h2>
+                      </EditableCell>
+                    ) : (
                       <h2 id={headingId} ref={heading} tabIndex={-1} className={s.name}>
                         {title}
                       </h2>
-                    </EditableCell>
-                  ) : (
-                    <h2 id={headingId} ref={heading} tabIndex={-1} className={s.name}>
-                      {title}
-                    </h2>
-                  )}
-                  <div className={s.sub}>
-                    <span data-volatile>Enquiry {relativeTime(lead.leadCreatedAt ?? lead.createdAt)}</span>
-                    <span aria-hidden> · </span>
-                    <AssignMenu
-                      lead={lead}
-                      catalog={catalog}
-                      session={session}
-                      onAssign={(o) => void assign(o)}
-                    />
-                  </div>
-                </div>
-              </header>
-
-              <div className={s.actions}>
-                {lead.can.message && (
-                  <MessageButton
-                    lead={lead}
-                    {...(stage?.kind === "lost" ? { suggest: "re_engagement" as const } : {})}
-                    promptSlot={sentSlot}
-                    onChange={() => void refresh()}
-                  />
-                )}
-                {stage?.kind === "lost"
-                  ? lead.can.move && (
-                      <Popover label="Reopen" role="menu" trigger="Reopen" triggerClassName={b.btn}>
-                        {(close) => (
-                          <div className={s.menu}>
-                            {pipeline?.stages
-                              .filter((st) => st.kind === "open")
-                              .map((st) => (
-                                <button
-                                  key={st.id}
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    close();
-                                    void reopen(st);
-                                  }}
-                                >
-                                  {st.name}
-                                </button>
-                              ))}
-                          </div>
-                        )}
-                      </Popover>
-                    )
-                  : lead.can.edit && (
-                      <Button
-                        data-replied
-                        aria-keyshortcuts="R"
-                        title="They replied (R)"
-                        disabled={replying}
-                        onClick={() => void replied()}
-                      >
-                        They replied
-                      </Button>
                     )}
-                <span data-follow-up>
-                  <FollowUpSheet
-                    key={lead.id}
-                    lead={{ id: lead.id, name: lead.name ?? "" }}
-                    tz={tz}
-                    meId={session.user.id}
-                    canAssign={forWhom.some((p) => p.id !== session.user.id)}
-                    people={forWhom}
-                    onSaved={() => {
-                      setFollowUps((v) => v + 1);
-                      logged();
-                    }}
-                  />
-                </span>
-                {lead.can.move && (
-                  <div className={s.outcomes}>
-                    {wonStage && stage?.kind !== "won" && (
-                      <span ref={wonAnchor}>
-                        <WonPopover lead={lead} catalog={catalog} onConfirm={markWon} />
-                      </span>
-                    )}
-                    {lostStage && stage?.kind !== "lost" && (
-                      <button type="button" className={s.lostBtn} onClick={() => void moveTo(lostStage)}>
-                        Lost
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div ref={setSentSlot} data-sent-slot />
-              <NextFollowUp
-                key={lead.id}
-                leadId={lead.id}
-                tz={tz}
-                meId={session.user.id}
-                version={followUps}
-                onChange={logged}
-              />
-              {seesMeetings && <NextMeeting meetings={meetings} tz={tz} now={new Date()} />}
-
-              <StageTrack
-                lead={lead}
-                catalog={catalog}
-                canMove={lead.can.move}
-                onMove={(st) => void moveTo(st)}
-              />
-
-              <div role="tablist" aria-label="Lead" className={s.tabs}>
-                {TABS.map((t, i) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    id={`${tabsId}-${t.id}`}
-                    aria-selected={tab === t.id}
-                    aria-controls={`${tabsId}-${t.id}-panel`}
-                    tabIndex={tab === t.id ? 0 : -1}
-                    className={s.tab}
-                    onClick={() => openTab(t.id)}
-                    onKeyDown={(e) => {
-                      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-                      e.preventDefault();
-                      const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length]!;
-                      openTab(next.id);
-                      document.getElementById(`${tabsId}-${next.id}`)?.focus();
-                    }}
-                  >
-                    {t.label}
-                    {t.id === "meetings" && meetings.length > 0 && (
-                      <span className={s.tabCount}>{meetings.length}</span>
-                    )}
-                    {tab === t.id && (
-                      <motion.span
-                        layoutId={`${tabsId}-ink`}
-                        className={s.tabInk}
-                        transition={toMotion(SPRINGS.default)}
+                    <div className={s.sub}>
+                      <span data-volatile>Enquiry {relativeTime(lead.leadCreatedAt ?? lead.createdAt)}</span>
+                      <span aria-hidden> · </span>
+                      <AssignMenu
+                        lead={lead}
+                        catalog={catalog}
+                        session={session}
+                        onAssign={(o) => void assign(o)}
                       />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <div
-                role="tabpanel"
-                id={`${tabsId}-${tab}-panel`}
-                aria-labelledby={`${tabsId}-${tab}`}
-                className={s.panel}
-              >
-                {tab === "details" && (
-                  <div className={s.boxes}>
-                    <ContactBox key={lead.id} lead={lead} onRevealed={logged} />
-                    {detailFields.length > 0 && (
-                      <section className={s.box} aria-label="Details">
-                        <h3 className={s.boxTitle}>Details</h3>
-                        <dl className={s.fields}>{detailFields.map(fieldRow)}</dl>
-                      </section>
-                    )}
+                    </div>
                   </div>
-                )}
-                {tab === "notes" && (
-                  <>
-                    <NoteComposer onAdd={addNote} disabled={!lead.can.edit} />
+                </header>
+
+                <div className={s.actions}>
+                  {lead.can.message && (
+                    <MessageButton
+                      lead={lead}
+                      {...(stage?.kind === "lost" ? { suggest: "re_engagement" as const } : {})}
+                      promptSlot={sentSlot}
+                      onChange={() => void refresh()}
+                    />
+                  )}
+                  {stage?.kind === "lost"
+                    ? lead.can.move && (
+                        <Popover label="Reopen" role="menu" trigger="Reopen" triggerClassName={b.btn}>
+                          {(close) => (
+                            <div className={s.menu}>
+                              {pipeline?.stages
+                                .filter((st) => st.kind === "open")
+                                .map((st) => (
+                                  <button
+                                    key={st.id}
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                      close();
+                                      void reopen(st);
+                                    }}
+                                  >
+                                    {st.name}
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </Popover>
+                      )
+                    : lead.can.edit && (
+                        <Button
+                          data-replied
+                          aria-keyshortcuts="R"
+                          title="They replied (R)"
+                          disabled={replying}
+                          onClick={() => void replied()}
+                        >
+                          They replied
+                        </Button>
+                      )}
+                  <span data-follow-up>
+                    <FollowUpSheet
+                      key={lead.id}
+                      lead={{ id: lead.id, name: lead.name ?? "" }}
+                      tz={tz}
+                      meId={session.user.id}
+                      canAssign={forWhom.some((p) => p.id !== session.user.id)}
+                      people={forWhom}
+                      onSaved={() => {
+                        setFollowUps((v) => v + 1);
+                        logged();
+                      }}
+                    />
+                  </span>
+                  {lead.can.move && (
+                    <div className={s.outcomes}>
+                      {wonStage && stage?.kind !== "won" && (
+                        <span ref={wonAnchor}>
+                          <WonPopover lead={lead} catalog={catalog} onConfirm={markWon} />
+                        </span>
+                      )}
+                      {lostStage && stage?.kind !== "lost" && (
+                        <button type="button" className={s.lostBtn} onClick={() => void moveTo(lostStage)}>
+                          Lost
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div ref={setSentSlot} data-sent-slot />
+                <NextFollowUp
+                  key={lead.id}
+                  leadId={lead.id}
+                  tz={tz}
+                  meId={session.user.id}
+                  version={followUps}
+                  onChange={logged}
+                />
+                {seesMeetings && <NextMeeting meetings={meetings} tz={tz} now={new Date()} />}
+
+                <StageTrack
+                  lead={lead}
+                  catalog={catalog}
+                  canMove={lead.can.move}
+                  onMove={(st) => void moveTo(st)}
+                />
+
+                <div role="tablist" aria-label="Lead" className={s.tabs}>
+                  {TABS.map((t, i) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="tab"
+                      id={`${tabsId}-${t.id}`}
+                      aria-selected={tab === t.id}
+                      aria-controls={`${tabsId}-${t.id}-panel`}
+                      tabIndex={tab === t.id ? 0 : -1}
+                      className={s.tab}
+                      onClick={() => openTab(t.id)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                        e.preventDefault();
+                        const next =
+                          TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length]!;
+                        openTab(next.id);
+                        document.getElementById(`${tabsId}-${next.id}`)?.focus();
+                      }}
+                    >
+                      {t.label}
+                      {t.id === "meetings" && meetings.length > 0 && (
+                        <span className={s.tabCount}>{meetings.length}</span>
+                      )}
+                      {tab === t.id && (
+                        <motion.span
+                          layoutId={`${tabsId}-ink`}
+                          className={s.tabInk}
+                          transition={toMotion(SPRINGS.default)}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div
+                  role="tabpanel"
+                  id={`${tabsId}-${tab}-panel`}
+                  aria-labelledby={`${tabsId}-${tab}`}
+                  className={s.panel}
+                >
+                  {tab === "details" && (
+                    <div className={s.boxes}>
+                      <ContactBox key={lead.id} lead={lead} onRevealed={logged} />
+                      {detailFields.length > 0 && (
+                        <section className={s.box} aria-label="Details">
+                          <h3 className={s.boxTitle}>Details</h3>
+                          <dl className={s.fields}>{detailFields.map(fieldRow)}</dl>
+                        </section>
+                      )}
+                    </div>
+                  )}
+                  {tab === "notes" && (
+                    <>
+                      <NoteComposer onAdd={addNote} disabled={!lead.can.edit} />
+                      <Timeline
+                        tz={tz}
+                        items={notes}
+                        catalog={catalog}
+                        hasMore={activities.hasMore}
+                        onMore={activities.more}
+                        empty={activities.loaded ? "No notes yet" : "Loading…"}
+                      />
+                    </>
+                  )}
+                  {tab === "meetings" && (
+                    <MeetingsTab
+                      meetings={meetings}
+                      tz={tz}
+                      now={new Date()}
+                      onLogOutcome={setLogging}
+                      // The rule the server applies: theirs, or within their calendar.view scope.
+                      canLog={(x) =>
+                        x.ownerId === session.user.id ||
+                        canOnRecord(session.actor, "calendar.view", x.ownerId)
+                      }
+                    />
+                  )}
+                  {tab === "history" && (
                     <Timeline
                       tz={tz}
-                      items={notes}
+                      items={history}
                       catalog={catalog}
                       hasMore={activities.hasMore}
                       onMore={activities.more}
-                      empty={activities.loaded ? "No notes yet" : "Loading…"}
+                      empty={activities.loaded ? "Nothing has happened yet" : "Loading…"}
                     />
-                  </>
-                )}
-                {tab === "meetings" && (
-                  <MeetingsTab
-                    meetings={meetings}
-                    tz={tz}
-                    now={new Date()}
-                    onLogOutcome={setLogging}
-                    // The rule the server applies: theirs, or within their calendar.view scope.
-                    canLog={(x) =>
-                      x.ownerId === session.user.id || canOnRecord(session.actor, "calendar.view", x.ownerId)
-                    }
-                  />
-                )}
-                {tab === "history" && (
-                  <Timeline
-                    tz={tz}
-                    items={history}
-                    catalog={catalog}
-                    hasMore={activities.hasMore}
-                    onMore={activities.more}
-                    empty={activities.loaded ? "Nothing has happened yet" : "Loading…"}
-                  />
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </motion.div>
-      {move.ui}
-      {logging && (
-        <LogOutcome
-          meeting={logging}
-          tz={tz}
-          onClose={() => setLogging(null)}
-          onDone={() => {
-            setLogging(null);
-            loadMeetings();
-            logged();
-          }}
-        />
-      )}
-      <AnimatePresence>{burst && <PetalBurst at={burst} onDone={() => setBurst(null)} />}</AnimatePresence>
-    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </motion.div>
+        {move.ui}
+        {logging && (
+          <LogOutcome
+            meeting={logging}
+            tz={tz}
+            onClose={() => setLogging(null)}
+            onDone={() => {
+              setLogging(null);
+              loadMeetings();
+              logged();
+            }}
+          />
+        )}
+        <AnimatePresence>{burst && <PetalBurst at={burst} onDone={() => setBurst(null)} />}</AnimatePresence>
+      </>
+    </BodyPortal>
   );
 }

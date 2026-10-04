@@ -884,7 +884,14 @@
   position: absolute;
   inset: 0;
   background: var(--scrim);
+  backdrop-filter: var(--scrim-blur);
 }
+@media (prefers-reduced-transparency: reduce) {
+  .scrim {
+    backdrop-filter: none;
+  }
+}
+
 .drawer {
   position: absolute;
   top: 8px;

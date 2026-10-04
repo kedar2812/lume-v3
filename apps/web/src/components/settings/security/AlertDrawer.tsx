@@ -1,4 +1,5 @@
 "use client";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -130,105 +131,159 @@ export function AlertDrawer({
   const slide = reduce ? { opacity: 0 } : { x: "104%" };
 
   return (
-    <div className={s.layer}>
-      <motion.div
-        className={s.scrim}
-        onClick={onClose}
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.25 }}
-      />
-      <motion.aside
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label={a ? `Alert: ${a.user.name}` : "Alert"}
-        className={s.drawer}
-        initial={slide}
-        animate={reduce ? { opacity: 1 } : { x: 0 }}
-        exit={slide}
-        transition={reduce ? { duration: 0.2 } : toMotion(SPRINGS.drawer)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.stopPropagation();
-            return onClose();
-          }
-          if (e.key !== "Tab") return;
-          const items = [...(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
-          if (e.shiftKey && document.activeElement === items[0]) {
-            e.preventDefault();
-            items.at(-1)?.focus();
-          } else if (!e.shiftKey && document.activeElement === items.at(-1)) {
-            e.preventDefault();
-            items[0]?.focus();
-          }
-        }}
-      >
-        <div className={s.drawerHead}>
-          {a && (
-            <span className={a.status === "open" ? s.pillWarn : s.pillMute}>
-              {a.status === "open" ? "Alert" : "Answered"} · {timeOf(new Date(a.createdAt), timezone)}
-            </span>
-          )}
-          <button type="button" className={s.close} aria-label="Close" onClick={onClose}>
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-        <div className={s.drawerBody} data-open={d ? "true" : undefined}>
-          {!d && !failed && <div className={s.loading} aria-busy="true" />}
-          {failed && (
-            <p role="alert" className={s.problem}>
-              {failed}
-            </p>
-          )}
-          {d && a && (
-            <>
-              <div className={s.person}>
-                <span className={s.avatarLg} aria-hidden>
-                  {a.user.initials}
-                </span>
-                <div>
-                  <h2 className={s.personName}>{a.user.name}</h2>
-                  <p className={s.cap}>
-                    {[
-                      d.person.roles.join(", ") || null,
-                      d.person.joined ? `joined in ${MONTHS[new Date(d.person.joined).getUTCMonth()]}` : null,
-                      `${d.person.leadCount} ${d.person.leadCount === 1 ? "lead" : "leads"}`,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
+    <BodyPortal>
+      <div className={s.layer}>
+        <motion.div
+          className={s.scrim}
+          onClick={onClose}
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+        />
+        <motion.aside
+          ref={panel}
+          role="dialog"
+          aria-modal="true"
+          aria-label={a ? `Alert: ${a.user.name}` : "Alert"}
+          className={s.drawer}
+          initial={slide}
+          animate={reduce ? { opacity: 1 } : { x: 0 }}
+          exit={slide}
+          transition={reduce ? { duration: 0.2 } : toMotion(SPRINGS.drawer)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              return onClose();
+            }
+            if (e.key !== "Tab") return;
+            const items = [...(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
+            if (e.shiftKey && document.activeElement === items[0]) {
+              e.preventDefault();
+              items.at(-1)?.focus();
+            } else if (!e.shiftKey && document.activeElement === items.at(-1)) {
+              e.preventDefault();
+              items[0]?.focus();
+            }
+          }}
+        >
+          <div className={s.drawerHead}>
+            {a && (
+              <span className={a.status === "open" ? s.pillWarn : s.pillMute}>
+                {a.status === "open" ? "Alert" : "Answered"} · {timeOf(new Date(a.createdAt), timezone)}
+              </span>
+            )}
+            <button type="button" className={s.close} aria-label="Close" onClick={onClose}>
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          <div className={s.drawerBody} data-open={d ? "true" : undefined}>
+            {!d && !failed && <div className={s.loading} aria-busy="true" />}
+            {failed && (
+              <p role="alert" className={s.problem}>
+                {failed}
+              </p>
+            )}
+            {d && a && (
+              <>
+                <div className={s.person}>
+                  <span className={s.avatarLg} aria-hidden>
+                    {a.user.initials}
+                  </span>
+                  <div>
+                    <h2 className={s.personName}>{a.user.name}</h2>
+                    <p className={s.cap}>
+                      {[
+                        d.person.roles.join(", ") || null,
+                        d.person.joined
+                          ? `joined in ${MONTHS[new Date(d.person.joined).getUTCMonth()]}`
+                          : null,
+                        `${d.person.leadCount} ${d.person.leadCount === 1 ? "lead" : "leads"}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <What d={d} />
-              <BurstChart burst={d.burst} threshold={a.threshold} timezone={timezone} label={CHART[a.rule]} />
-              <div>
-                <h3 className={s.eyebrowSm}>What LUME did</h3>
-                <ol className={s.timeline}>
-                  {d.timeline.map((t, i) => (
-                    <li key={i} className={s.step}>
-                      <span className={s.stepTime}>{timeOf(new Date(t.at), timezone)}</span>
-                      <i className={dotOf(t.words)} aria-hidden />
-                      <span>{t.words}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-              {a.status === "open" && !done && (
+                <What d={d} />
+                <BurstChart
+                  burst={d.burst}
+                  threshold={a.threshold}
+                  timezone={timezone}
+                  label={CHART[a.rule]}
+                />
                 <div>
-                  <h3 className={s.eyebrowSm}>What would you like to do?</h3>
-                  <div className={s.answers}>
-                    {a.action === "suspended" ? (
-                      <>
+                  <h3 className={s.eyebrowSm}>What LUME did</h3>
+                  <ol className={s.timeline}>
+                    {d.timeline.map((t, i) => (
+                      <li key={i} className={s.step}>
+                        <span className={s.stepTime}>{timeOf(new Date(t.at), timezone)}</span>
+                        <i className={dotOf(t.words)} aria-hidden />
+                        <span>{t.words}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                {a.status === "open" && !done && (
+                  <div>
+                    <h3 className={s.eyebrowSm}>What would you like to do?</h3>
+                    <div className={s.answers}>
+                      {a.action === "suspended" ? (
+                        <>
+                          <button
+                            type="button"
+                            className={s.answer}
+                            disabled={busy !== null}
+                            onClick={() => void answer("restored")}
+                          >
+                            <span className={`${s.answerIcon} ${s.iconOk}`} aria-hidden>
+                              <svg viewBox="0 0 16 16" width="16" height="16">
+                                <path
+                                  d="M3.5 8.5 6.5 11.5 12.5 4.5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                            <span>
+                              <b>Restore access</b>{" "}
+                              <span className={s.detail}>It was work. {who} can sign in again.</span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className={s.answer}
+                            disabled={busy !== null}
+                            onClick={() => void answer("kept_suspended")}
+                          >
+                            <span className={`${s.answerIcon} ${s.iconBad}`} aria-hidden>
+                              <svg viewBox="0 0 16 16" width="16" height="16">
+                                <path
+                                  d="M6 4v8M10 4v8"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                />
+                              </svg>
+                            </span>
+                            <span>
+                              <b>Keep {who} paused</b>{" "}
+                              <span className={s.detail}>Look into it first. Their leads stay theirs.</span>
+                            </span>
+                          </button>
+                        </>
+                      ) : (
                         <button
                           type="button"
                           className={s.answer}
                           disabled={busy !== null}
-                          onClick={() => void answer("restored")}
+                          onClick={() => void answer("dismissed")}
                         >
                           <span className={`${s.answerIcon} ${s.iconOk}`} aria-hidden>
                             <svg viewBox="0 0 16 16" width="16" height="16">
@@ -243,111 +298,66 @@ export function AlertDrawer({
                             </svg>
                           </span>
                           <span>
-                            <b>Restore access</b>{" "}
-                            <span className={s.detail}>It was work. {who} can sign in again.</span>
+                            <b>Dismiss</b>{" "}
+                            <span className={s.detail}>Nothing more to do. LUME keeps watching.</span>
                           </span>
                         </button>
-                        <button
-                          type="button"
-                          className={s.answer}
-                          disabled={busy !== null}
-                          onClick={() => void answer("kept_suspended")}
-                        >
+                      )}
+                      {canOffboard && (
+                        <Link className={s.answer} href={`/settings/people?offboard=${a.user.id}`}>
                           <span className={`${s.answerIcon} ${s.iconBad}`} aria-hidden>
                             <svg viewBox="0 0 16 16" width="16" height="16">
-                              <path
-                                d="M6 4v8M10 4v8"
+                              <circle
+                                cx="8"
+                                cy="5.4"
+                                r="2.6"
+                                fill="none"
                                 stroke="currentColor"
-                                strokeWidth="1.8"
+                                strokeWidth="1.6"
+                              />
+                              <path
+                                d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
                                 strokeLinecap="round"
                               />
                             </svg>
                           </span>
                           <span>
-                            <b>Keep {who} paused</b>{" "}
-                            <span className={s.detail}>Look into it first. Their leads stay theirs.</span>
+                            <b>Offboard {who}</b>{" "}
+                            <span className={s.detail}>
+                              Disable them, hand their leads on, see their last 30 days.
+                            </span>
                           </span>
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className={s.answer}
-                        disabled={busy !== null}
-                        onClick={() => void answer("dismissed")}
-                      >
-                        <span className={`${s.answerIcon} ${s.iconOk}`} aria-hidden>
-                          <svg viewBox="0 0 16 16" width="16" height="16">
-                            <path
-                              d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </span>
-                        <span>
-                          <b>Dismiss</b>{" "}
-                          <span className={s.detail}>Nothing more to do. LUME keeps watching.</span>
-                        </span>
-                      </button>
-                    )}
-                    {canOffboard && (
-                      <Link className={s.answer} href={`/settings/people?offboard=${a.user.id}`}>
-                        <span className={`${s.answerIcon} ${s.iconBad}`} aria-hidden>
-                          <svg viewBox="0 0 16 16" width="16" height="16">
-                            <circle
-                              cx="8"
-                              cy="5.4"
-                              r="2.6"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.6"
-                            />
-                            <path
-                              d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.6"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                        </span>
-                        <span>
-                          <b>Offboard {who}</b>{" "}
-                          <span className={s.detail}>
-                            Disable them, hand their leads on, see their last 30 days.
-                          </span>
-                        </span>
-                      </Link>
-                    )}
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-              {done && (
-                <p role="status" className={done === "kept_suspended" ? s.doneBad : s.done}>
-                  <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden>
-                    <path
-                      d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  {doneWords}
-                </p>
-              )}
-              <Link className={s.auditLink} href={`/settings/audit?actor=${a.user.id}`}>
-                Open {who}’s audit log
-              </Link>
-            </>
-          )}
-        </div>
-      </motion.aside>
-    </div>
+                )}
+                {done && (
+                  <p role="status" className={done === "kept_suspended" ? s.doneBad : s.done}>
+                    <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden>
+                      <path
+                        d="M3.5 8.5 6.5 11.5 12.5 4.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {doneWords}
+                  </p>
+                )}
+                <Link className={s.auditLink} href={`/settings/audit?actor=${a.user.id}`}>
+                  Open {who}’s audit log
+                </Link>
+              </>
+            )}
+          </div>
+        </motion.aside>
+      </div>
+    </BodyPortal>
   );
 }

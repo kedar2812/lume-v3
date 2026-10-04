@@ -1,4 +1,5 @@
 "use client";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -304,144 +305,151 @@ export function QueueRun({ id }: { id: string }) {
   const over = q && (q.status === "finished" || q.status === "cancelled");
   const spring = reduce ? { duration: 0.15 } : toMotion(SPRINGS.default);
   return (
-    <div className={s.scrim}>
-      <motion.div
-        ref={root}
-        className={s.run}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Send queue"
-        initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={spring}
-      >
-        <header className={s.head}>
-          <div className={s.title}>
-            <span className={s.kicker}>Send queue</span>
-            <span className={s.template}>{q?.templateName ?? (q ? "Your own words" : "")}</span>
-          </div>
-          <p className={s.progressText} aria-live="polite">
-            <span className={s.num}>
-              {done} of {q?.total ?? 0}
-            </span>
-          </p>
-          <div className={s.tools}>
-            <p className={s.today}>
-              Today{" "}
+    <BodyPortal>
+      <div className={s.scrim}>
+        <motion.div
+          ref={root}
+          className={s.run}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Send queue"
+          initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={spring}
+        >
+          <header className={s.head}>
+            <div className={s.title}>
+              <span className={s.kicker}>Send queue</span>
+              <span className={s.template}>{q?.templateName ?? (q ? "Your own words" : "")}</span>
+            </div>
+            <p className={s.progressText} aria-live="polite">
               <span className={s.num}>
-                {q?.today.sent ?? 0} / {q?.today.cap ?? 0}
+                {done} of {q?.total ?? 0}
               </span>
             </p>
-            {ending ? (
-              <div role="group" aria-label="End this run?" className={s.endAsk}>
-                <span className={s.endWords}>End this run? Leads not sent yet stay as they are.</span>
-                <Button size="sm" variant="ghost" onClick={() => setEnding(false)}>
-                  Keep going
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => void end()}>
-                  End it
-                </Button>
-              </div>
-            ) : (
-              <>
-                {q?.status === "active" && (
-                  <Button size="sm" variant="ghost" onClick={() => void pause()}>
-                    Pause
-                  </Button>
-                )}
-                {q && !over && (
-                  <Button size="sm" variant="ghost" onClick={() => setEnding(true)}>
-                    End run
-                  </Button>
-                )}
-              </>
-            )}
-            <button type="button" className={s.close} aria-label="Leave the run" onClick={() => void leave()}>
-              <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
-                <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          <span className={s.bar} aria-hidden>
-            <motion.span
-              className={s.fill}
-              initial={false}
-              animate={{ scaleX: q && q.total ? done / q.total : 0 }}
-              transition={reduce ? { duration: 0 } : toMotion(SPRINGS.soft)}
-            />
-          </span>
-        </header>
-
-        <div className={s.stage}>
-          {error && (
-            <p role="alert" className={s.error}>
-              {error}
-            </p>
-          )}
-          {!q ? null : over ? (
-            <QueueSummary
-              q={q}
-              finishedHere={finishedHere}
-              onDone={() => router.push("/today")}
-              {...(q.status === "finished" ? { onRetry: (pos: number) => void retry(pos) } : {})}
-            />
-          ) : q.status === "paused" ? (
-            <motion.section
-              className={s.paused}
-              aria-label="Paused"
-              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={spring}
-            >
-              <p className={s.pausedTitle}>Paused</p>
-              <p className={s.pausedLine}>
-                {capNote ??
-                  (q.pausedReason === "daily_cap"
-                    ? "Today's limit is reached; the run waits until tomorrow."
-                    : "LUME kept your place.")}
+            <div className={s.tools}>
+              <p className={s.today}>
+                Today{" "}
+                <span className={s.num}>
+                  {q?.today.sent ?? 0} / {q?.today.cap ?? 0}
+                </span>
               </p>
-              <Button variant="primary" onClick={() => void resume()}>
-                Resume
-              </Button>
-            </motion.section>
-          ) : (
-            current && (
-              <AnimatePresence mode="popLayout" initial={false}>
-                <motion.div
-                  key={current.position}
-                  data-testid="queue-card"
-                  data-motion={reduce ? "fade" : "slide"}
-                  data-leaving={leaving ?? undefined}
-                  className={s.cardWrap}
-                  initial={reduce ? { opacity: 0 } : { opacity: 0, x: 64 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={
-                    reduce
-                      ? { opacity: 0 }
-                      : leaving === "skip"
-                        ? { opacity: 0, y: 24, x: 0 }
-                        : { opacity: skippedLeaving ? 0 : 0.4, x: -64 }
-                  }
-                  transition={spring}
-                >
-                  <QueueCard
-                    runId={id}
-                    item={current}
-                    sourceName={q.sourceName}
-                    phase={phase}
-                    note={note}
-                    outcome={outcome}
-                    onSend={(text) => void send(text)}
-                    onSkip={() => void skip()}
-                    onAnswer={(sent) => void answer(sent)}
-                    onBack={() => setPhase("asking")}
-                  />
-                </motion.div>
-              </AnimatePresence>
-            )
-          )}
-        </div>
-      </motion.div>
-    </div>
+              {ending ? (
+                <div role="group" aria-label="End this run?" className={s.endAsk}>
+                  <span className={s.endWords}>End this run? Leads not sent yet stay as they are.</span>
+                  <Button size="sm" variant="ghost" onClick={() => setEnding(false)}>
+                    Keep going
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => void end()}>
+                    End it
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {q?.status === "active" && (
+                    <Button size="sm" variant="ghost" onClick={() => void pause()}>
+                      Pause
+                    </Button>
+                  )}
+                  {q && !over && (
+                    <Button size="sm" variant="ghost" onClick={() => setEnding(true)}>
+                      End run
+                    </Button>
+                  )}
+                </>
+              )}
+              <button
+                type="button"
+                className={s.close}
+                aria-label="Leave the run"
+                onClick={() => void leave()}
+              >
+                <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
+                  <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <span className={s.bar} aria-hidden>
+              <motion.span
+                className={s.fill}
+                initial={false}
+                animate={{ scaleX: q && q.total ? done / q.total : 0 }}
+                transition={reduce ? { duration: 0 } : toMotion(SPRINGS.soft)}
+              />
+            </span>
+          </header>
+
+          <div className={s.stage}>
+            {error && (
+              <p role="alert" className={s.error}>
+                {error}
+              </p>
+            )}
+            {!q ? null : over ? (
+              <QueueSummary
+                q={q}
+                finishedHere={finishedHere}
+                onDone={() => router.push("/today")}
+                {...(q.status === "finished" ? { onRetry: (pos: number) => void retry(pos) } : {})}
+              />
+            ) : q.status === "paused" ? (
+              <motion.section
+                className={s.paused}
+                aria-label="Paused"
+                initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={spring}
+              >
+                <p className={s.pausedTitle}>Paused</p>
+                <p className={s.pausedLine}>
+                  {capNote ??
+                    (q.pausedReason === "daily_cap"
+                      ? "Today's limit is reached; the run waits until tomorrow."
+                      : "LUME kept your place.")}
+                </p>
+                <Button variant="primary" onClick={() => void resume()}>
+                  Resume
+                </Button>
+              </motion.section>
+            ) : (
+              current && (
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.div
+                    key={current.position}
+                    data-testid="queue-card"
+                    data-motion={reduce ? "fade" : "slide"}
+                    data-leaving={leaving ?? undefined}
+                    className={s.cardWrap}
+                    initial={reduce ? { opacity: 0 } : { opacity: 0, x: 64 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={
+                      reduce
+                        ? { opacity: 0 }
+                        : leaving === "skip"
+                          ? { opacity: 0, y: 24, x: 0 }
+                          : { opacity: skippedLeaving ? 0 : 0.4, x: -64 }
+                    }
+                    transition={spring}
+                  >
+                    <QueueCard
+                      runId={id}
+                      item={current}
+                      sourceName={q.sourceName}
+                      phase={phase}
+                      note={note}
+                      outcome={outcome}
+                      onSend={(text) => void send(text)}
+                      onSkip={() => void skip()}
+                      onAnswer={(sent) => void answer(sent)}
+                      onBack={() => setPhase("asking")}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+              )
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </BodyPortal>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import Link from "next/link";
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { timeRange } from "@/components/leads/drawer/NextMeeting";
@@ -304,112 +305,114 @@ function MeetingSheet({
   const day = start ? nearDay(start, tz, now).split(",")[0] : "";
   const state = m ? meetingState(m, now) : null;
   return (
-    <>
-      {open && <button type="button" className={s.veil} aria-label="Close" onClick={onClose} />}
-      <section
-        ref={sheet}
-        className={s.sheet}
-        data-open={open || undefined}
-        data-dragging={dragging || undefined}
-        role="dialog"
-        aria-modal={open || undefined}
-        aria-label={m ? who(m) : "Meeting"}
-        aria-hidden={!open || undefined}
-        inert={!open || undefined}
-        tabIndex={-1}
-        style={{ transform: open ? `translateY(${dy}px)` : "translateY(105%)" }}
-      >
-        <button
-          type="button"
-          className={s.grab}
-          aria-label="Drag down to close"
-          onPointerDown={down}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerCancel={up}
-          onClick={(e) => e.detail === 0 && onClose()}
+    <BodyPortal>
+      <>
+        {open && <button type="button" className={s.veil} aria-label="Close" onClick={onClose} />}
+        <section
+          ref={sheet}
+          className={s.sheet}
+          data-open={open || undefined}
+          data-dragging={dragging || undefined}
+          role="dialog"
+          aria-modal={open || undefined}
+          aria-label={m ? who(m) : "Meeting"}
+          aria-hidden={!open || undefined}
+          inert={!open || undefined}
+          tabIndex={-1}
+          style={{ transform: open ? `translateY(${dy}px)` : "translateY(105%)" }}
         >
-          <i />
-        </button>
-        {m && start && (
-          <>
-            <div>
-              <p className={s.sheetSub}>
-                {day === "Today" ? "" : `${day} · `}
-                {timeRange(start, new Date(m.endsAt), tz)} · {m.title}
-              </p>
-              <h2 className={s.sheetTitle}>{who(m)}</h2>
-            </div>
-            {m.link && (state === "soon" || state === "scheduled") && (
-              <a className={s.primary} href={m.link} target="_blank" rel="noopener noreferrer">
-                <VideoIcon />
-                Join
-              </a>
-            )}
-            {state === "needsOutcome" && (
-              <button type="button" className={s.primary} onClick={() => onLogOutcome(m)}>
-                <svg
-                  viewBox="0 0 16 16"
-                  width="17"
-                  height="17"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.45"
-                  aria-hidden
-                >
-                  <path d="M3 2.5h7.5L13 5v8.5H3z" />
-                  <path d="M5.5 7h5M5.5 9.5h5M5.5 12h3" />
-                </svg>
-                Log how it went
-              </button>
-            )}
-            <div className={s.tiles}>
-              {m.lead && (
-                <Link className={s.tile} href={`/leads?lead=${m.lead.id}`}>
-                  <span className={s.tileIcon} data-tone="lead" aria-hidden>
-                    <svg
-                      viewBox="0 0 16 16"
-                      width="17"
-                      height="17"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.45"
-                    >
-                      <circle cx="8" cy="5.4" r="2.6" />
-                      <path d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9" />
-                    </svg>
-                  </span>
-                  Open lead
-                </Link>
+          <button
+            type="button"
+            className={s.grab}
+            aria-label="Drag down to close"
+            onPointerDown={down}
+            onPointerMove={move}
+            onPointerUp={up}
+            onPointerCancel={up}
+            onClick={(e) => e.detail === 0 && onClose()}
+          >
+            <i />
+          </button>
+          {m && start && (
+            <>
+              <div>
+                <p className={s.sheetSub}>
+                  {day === "Today" ? "" : `${day} · `}
+                  {timeRange(start, new Date(m.endsAt), tz)} · {m.title}
+                </p>
+                <h2 className={s.sheetTitle}>{who(m)}</h2>
+              </div>
+              {m.link && (state === "soon" || state === "scheduled") && (
+                <a className={s.primary} href={m.link} target="_blank" rel="noopener noreferrer">
+                  <VideoIcon />
+                  Join
+                </a>
               )}
-              {m.link && (
-                <button type="button" className={s.tile} onClick={() => void copy()}>
-                  <span className={s.tileIcon} data-done={copied || undefined} aria-hidden>
-                    <svg
-                      viewBox="0 0 16 16"
-                      width="17"
-                      height="17"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.45"
-                    >
-                      {copied ? (
-                        <path d="m3.5 8.5 3 3 6-7" />
-                      ) : (
-                        <>
-                          <rect x="5" y="5" width="8.5" height="8.5" rx="1.6" />
-                          <path d="M11 5V3.8A1.3 1.3 0 0 0 9.7 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.9A1.3 1.3 0 0 0 3.8 11H5" />
-                        </>
-                      )}
-                    </svg>
-                  </span>
-                  {copied ? "Copied" : "Copy link"}
+              {state === "needsOutcome" && (
+                <button type="button" className={s.primary} onClick={() => onLogOutcome(m)}>
+                  <svg
+                    viewBox="0 0 16 16"
+                    width="17"
+                    height="17"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.45"
+                    aria-hidden
+                  >
+                    <path d="M3 2.5h7.5L13 5v8.5H3z" />
+                    <path d="M5.5 7h5M5.5 9.5h5M5.5 12h3" />
+                  </svg>
+                  Log how it went
                 </button>
               )}
-            </div>
-          </>
-        )}
-      </section>
-    </>
+              <div className={s.tiles}>
+                {m.lead && (
+                  <Link className={s.tile} href={`/leads?lead=${m.lead.id}`}>
+                    <span className={s.tileIcon} data-tone="lead" aria-hidden>
+                      <svg
+                        viewBox="0 0 16 16"
+                        width="17"
+                        height="17"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.45"
+                      >
+                        <circle cx="8" cy="5.4" r="2.6" />
+                        <path d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9" />
+                      </svg>
+                    </span>
+                    Open lead
+                  </Link>
+                )}
+                {m.link && (
+                  <button type="button" className={s.tile} onClick={() => void copy()}>
+                    <span className={s.tileIcon} data-done={copied || undefined} aria-hidden>
+                      <svg
+                        viewBox="0 0 16 16"
+                        width="17"
+                        height="17"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.45"
+                      >
+                        {copied ? (
+                          <path d="m3.5 8.5 3 3 6-7" />
+                        ) : (
+                          <>
+                            <rect x="5" y="5" width="8.5" height="8.5" rx="1.6" />
+                            <path d="M11 5V3.8A1.3 1.3 0 0 0 9.7 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.9A1.3 1.3 0 0 0 3.8 11H5" />
+                          </>
+                        )}
+                      </svg>
+                    </span>
+                    {copied ? "Copied" : "Copy link"}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      </>
+    </BodyPortal>
   );
 }

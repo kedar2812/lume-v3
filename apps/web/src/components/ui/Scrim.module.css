@@ -9,7 +9,7 @@
   position: absolute;
   inset: 0;
   background: var(--scrim);
-  backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: var(--scrim-blur);
   animation: scrimIn 0.32s ease-out both;
 }
 @keyframes scrimIn {

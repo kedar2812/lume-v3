@@ -26,4 +26,21 @@ describe("stylesheets", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  // The owner, 2026-10-03: a popup's background is covered completely — the whole window dims and blurs, never a
+  // part of it. Every rule that dims with --scrim blurs with --scrim-blur too (the one look), unless the layer
+  // behind it is already blurred itself.
+  it("every scrim dims and blurs, with the one shared blur", () => {
+    const ownBlur = ["onboarding/onboarding.module.css"]; // the app behind the welcome is a blurred copy already
+    const offenders = cssFiles(SRC).flatMap((file) => {
+      const rel = path.relative(SRC, file).replaceAll("\\", "/");
+      if (ownBlur.some((f) => rel.endsWith(f))) return [];
+      return readFileSync(file, "utf8")
+        .split("}")
+        .filter((block) => /background:\s*var\(--scrim\)\s*;/.test(block))
+        .filter((block) => !/backdrop-filter:\s*var\(--scrim-blur\)/.test(block))
+        .map((block) => `${rel} ${block.split("{")[0]!.trim().split("\n").pop()}`);
+    });
+    expect(offenders).toEqual([]);
+  });
 });
