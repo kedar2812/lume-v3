@@ -18,7 +18,8 @@
   flex-wrap: wrap;
   padding: 12px 0;
   margin-bottom: 4px;
-  background: var(--canvas);
+  /* The page's own surface, so the bar never reads as a band across it. */
+  background: var(--sheet);
 }
 .tabs {
   position: relative;

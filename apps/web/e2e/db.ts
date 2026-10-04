@@ -124,3 +124,24 @@ export async function forgetSeededMeetings(): Promise<void> {
     await owner.end();
   }
 }
+
+/** Analytics' rollups for the last 35 business days, as the API's clock would have kept them (8C screens). */
+export async function rollupAnalytics(): Promise<void> {
+  const c = new pg.Client({ connectionString: roleUrl("lume_app", DB) });
+  await c.connect();
+  try {
+    const tz = (
+      await c.query<{ tz: string }>("SELECT coalesce(timezone, 'UTC') AS tz FROM settings WHERE id = 1")
+    ).rows[0]!.tz;
+    const { rows } = await c.query<{ d: string }>(
+      `SELECT to_char(d, 'YYYY-MM-DD') AS d FROM generate_series((now() AT TIME ZONE $1)::date - 35, (now() AT TIME ZONE $1)::date, '1 day') d`,
+      [tz],
+    );
+    for (const { d } of rows) {
+      await c.query("SELECT lume_rollup_day($1::date, $2)", [d, tz]);
+      await c.query("SELECT lume_rollup_slot_totals($1::date)", [d]);
+    }
+  } finally {
+    await c.end();
+  }
+}
