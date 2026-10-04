@@ -3,6 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { scopeOf, type Keyring, type MetricId, type Range } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { HttpError, notFound } from "../../http/errors";
+import { ownerCond, sourceCond } from "./filters";
 import type { AnalyticsQuery } from "./service";
 
 /**
@@ -60,7 +61,7 @@ export type DrillSpec = {
   t: [string, string];
   /** The business's timezone, for numbers keyed by weekday and hour. */
   z?: string;
-  q: Pick<AnalyticsQuery, "pipelineId" | "ownerId" | "sourceId">;
+  q: Pick<AnalyticsQuery, "pipelineId" | "ownerIds" | "sourceIds" | "tagIds" | "fields">;
   u: string;
   exp: number;
 };
@@ -97,8 +98,10 @@ export function drillFor(
       z: tz,
       q: {
         ...(q.pipelineId ? { pipelineId: q.pipelineId } : {}),
-        ...(q.ownerId ? { ownerId: q.ownerId } : {}),
-        ...(q.sourceId ? { sourceId: q.sourceId } : {}),
+        ...(q.ownerIds?.length ? { ownerIds: q.ownerIds } : {}),
+        ...(q.sourceIds?.length ? { sourceIds: q.sourceIds } : {}),
+        ...(q.tagIds?.length ? { tagIds: q.tagIds } : {}),
+        ...(q.fields ? { fields: q.fields } : {}),
       },
       u: req.actor!.userId,
     },
@@ -124,9 +127,10 @@ export function readDrill(keyring: Keyring, token: string, userId: string, now: 
 }
 
 const credit = (col: SQL, q: Scoped["q"]): SQL => {
-  if (q.reach === "all" && !q.ownerId) return sql`true`;
+  if (q.reach === "all" && !q.ownerIds?.length) return sql`true`;
   const parts: SQL[] = [sql`lume_sees_credit(${col})`];
-  if (q.ownerId) parts.push(q.ownerId === "none" ? sql`${col} IS NULL` : sql`${col} = ${q.ownerId}::uuid`);
+  const own = ownerCond(q.ownerIds, col);
+  if (own) parts.push(own);
   return sql.join(parts, sql` AND `);
 };
 const COHORT_OWNER = sql`coalesce(lume_owner_at(l.id, l.created_at, l.owner_id),
@@ -162,7 +166,8 @@ export const frag = {
   leads(s: Scoped): SQL {
     const parts: SQL[] = [sql`l.deleted_at IS NULL`];
     if (s.q.pipelineId) parts.push(sql`l.pipeline_id = ${s.q.pipelineId}::uuid`);
-    if (s.q.sourceId) parts.push(sql`l.source_id = ${s.q.sourceId}::uuid`);
+    const src = sourceCond(s.q.sourceIds, sql`l.source_id`);
+    if (src) parts.push(src);
     return sql.join(parts, sql` AND `);
   },
   /** A custom field's value as it's stored: yes/no fields hold JSON booleans. */

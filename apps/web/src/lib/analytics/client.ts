@@ -147,12 +147,24 @@ export type AnalyticsParams = {
   to?: string;
   compare: boolean;
   pipeline?: string;
+  /** One person (kept for the screens that pick one), or several. */
   owner?: string;
+  owners?: string[];
+  team?: string;
   source?: string;
+  sources?: string[];
+  tags?: string[];
+  fields?: Record<string, string[]>;
 };
 export function query(p: AnalyticsParams): string {
   const q = new URLSearchParams({ range: p.range, compare: p.compare ? "1" : "0" });
-  for (const k of ["from", "to", "pipeline", "owner", "source"] as const) if (p[k]) q.set(k, p[k]!);
+  for (const k of ["from", "to", "pipeline", "team"] as const) if (p[k]) q.set(k, p[k]!);
+  const owners = p.owners?.length ? p.owners : p.owner ? [p.owner] : [];
+  const sources = p.sources?.length ? p.sources : p.source ? [p.source] : [];
+  if (owners.length) q.set("owner", owners.join(","));
+  if (sources.length) q.set("source", sources.join(","));
+  if (p.tags?.length) q.set("tag", p.tags.join(","));
+  if (p.fields && Object.keys(p.fields).length) q.set("fields", JSON.stringify(p.fields));
   return q.toString();
 }
 

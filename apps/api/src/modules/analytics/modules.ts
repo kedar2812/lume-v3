@@ -3,6 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { drillFor, type DrillExtra, type DrillKind } from "./drill";
+import { ownerCond, sourceCond } from "./filters";
 import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
@@ -34,20 +35,24 @@ function rw(q: AnalyticsQuery, from: string, to: string, pipelineNullable = fals
         ? sql`(pipeline_id = ${q.pipelineId}::uuid)`
         : sql`pipeline_id = ${q.pipelineId}::uuid`,
     );
-  if (q.sourceId) parts.push(sql`source_id = ${q.sourceId}::uuid`);
-  if (q.ownerId) parts.push(q.ownerId === "none" ? sql`user_id IS NULL` : sql`user_id = ${q.ownerId}::uuid`);
+  const src = sourceCond(q.sourceIds, sql`source_id`);
+  if (src) parts.push(src);
+  const own = ownerCond(q.ownerIds, sql`user_id`);
+  if (own) parts.push(own);
   return sql.join(parts, sql` AND `);
 }
 function credit(q: AnalyticsQuery, col: SQL): SQL {
-  if (q.reach === "all" && !q.ownerId) return sql`true`;
+  if (q.reach === "all" && !q.ownerIds?.length) return sql`true`;
   const parts: SQL[] = [sql`lume_sees_credit(${col})`];
-  if (q.ownerId) parts.push(q.ownerId === "none" ? sql`${col} IS NULL` : sql`${col} = ${q.ownerId}::uuid`);
+  const own = ownerCond(q.ownerIds, col);
+  if (own) parts.push(own);
   return sql.join(parts, sql` AND `);
 }
 function leadWhere(q: AnalyticsQuery): SQL {
   const parts: SQL[] = [sql`l.deleted_at IS NULL`];
   if (q.pipelineId) parts.push(sql`l.pipeline_id = ${q.pipelineId}::uuid`);
-  if (q.sourceId) parts.push(sql`l.source_id = ${q.sourceId}::uuid`);
+  const src = sourceCond(q.sourceIds, sql`l.source_id`);
+  if (src) parts.push(src);
   return sql.join(parts, sql` AND `);
 }
 
@@ -58,7 +63,7 @@ export async function sources(
   now: Date,
   d?: Pick<AppDeps, "keyring">,
 ) {
-  q = { ...q, reach: reachOf(req, q.ownerId) };
+  q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const mint = minter(d, req, range, q, tz, now);
@@ -120,7 +125,7 @@ export async function sources(
 
 /** Lost (canvas Lost): why, from which stage, by whom and from where; and leads won back. */
 export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: Pick<AppDeps, "keyring">) {
-  q = { ...q, reach: reachOf(req, q.ownerId) };
+  q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const mint = minter(d, req, range, q, tz, now);
@@ -198,21 +203,21 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
 
 /** Timing (canvas Timing): when leads arrive and reply, the best booking slots, time in each stage, and stuck leads. */
 export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  q = { ...q, reach: reachOf(req, q.ownerId) };
+  q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const [from, to] = [range.days[0]!, range.days.at(-1)!];
   const slotWhere = (() => {
     const parts: SQL[] = [sql`day BETWEEN ${from}::date AND ${to}::date`];
-    if (q.ownerId)
-      parts.push(q.ownerId === "none" ? sql`user_id IS NULL` : sql`user_id = ${q.ownerId}::uuid`);
+    const own = ownerCond(q.ownerIds, sql`user_id`);
+    if (own) parts.push(own);
     return sql.join(parts, sql` AND `);
   })();
   const [slots, stays, stuck] = await Promise.all([
     // Everyone's, with no one picked: the totals per hour (0055), a fraction of the rows.
     req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
       SELECT kind, dow, hour, sum(n)::int AS n
-      FROM ${q.reach === "all" && !q.ownerId ? sql`analytics_daily_slot_total` : sql`analytics_daily_slot`}
+      FROM ${q.reach === "all" && !q.ownerIds?.length ? sql`analytics_daily_slot_total` : sql`analytics_daily_slot`}
       WHERE ${slotWhere} GROUP BY 1, 2, 3`),
     req.db.execute<{ stage_id: string; name: string; exited: number; h: number[] }>(sql`
       SELECT a.stage_id, s.name, sum(a.exited)::int AS exited,
@@ -220,7 +225,7 @@ export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
       FROM analytics_daily_stage a JOIN stages s ON s.id = a.stage_id
       WHERE a.day BETWEEN ${from}::date AND ${to}::date
         ${q.pipelineId ? sql`AND a.pipeline_id = ${q.pipelineId}::uuid` : sql``}
-        ${q.ownerId ? (q.ownerId === "none" ? sql`AND a.user_id IS NULL` : sql`AND a.user_id = ${q.ownerId}::uuid`) : sql``}
+        AND ${ownerCond(q.ownerIds, sql`a.user_id`) ?? sql`true`}
       GROUP BY a.stage_id, s.name, s.position ORDER BY s.position`),
     req.db.execute<{ stage_id: string; n: number }>(sql`
       SELECT l.stage_id, count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id
@@ -257,7 +262,7 @@ export async function timing(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
 
 /** Templates (canvas Templates): per template, sends, replies within 72 hours, and wins within 30 days. */
 export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  q = { ...q, reach: reachOf(req, q.ownerId) };
+  q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const r = await req.db.execute<{
@@ -289,7 +294,7 @@ export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Dat
 
 /** Data quality (canvas Quality): numbers that need a country or are invalid, unowned leads by how long they've waited, rejected import rows. */
 export async function quality(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  q = { ...q, reach: reachOf(req, q.ownerId) };
+  q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const [phones, unowned, imports] = await Promise.all([

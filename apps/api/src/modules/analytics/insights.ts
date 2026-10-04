@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { NOT_YET, noticed, type DetectorId, type InsightContext, type Seen } from "@lume/core";
+import { ownerCond } from "./filters";
 import { lost, sources, templates } from "./modules";
 import { businessTz, eventSums, funnel, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
@@ -10,7 +11,7 @@ import { businessTz, eventSums, funnel, rangeOf, reachOf, seesRevenue, type Anal
  * shown. Below about 200 leads nothing speaks; the card says what it's waiting for.
  */
 export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  const scope = reachOf(req, q.ownerId);
+  const scope = reachOf(req, q.ownerIds);
   q = { ...q, reach: scope };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
@@ -56,11 +57,11 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
       FROM (SELECT extract(epoch FROM f.first_contact_at - l.created_at) / 60 AS m, l.won_at IS NOT NULL AS won
             FROM leads l JOIN lead_firsts f ON f.lead_id = l.id AND f.first_contact_at IS NOT NULL
             WHERE l.deleted_at IS NULL AND l.created_at >= now() - interval '90 days' AND l.created_at < now() - interval '30 days'
-              AND ${scope === "all" && !q.ownerId ? sql`true` : sql`lume_sees_credit(l.owner_id)`} ${q.ownerId ? sql`AND l.owner_id = ${q.ownerId}::uuid` : sql``}) x`),
+              AND ${scope === "all" && !q.ownerIds?.length ? sql`true` : sql`lume_sees_credit(l.owner_id)`} AND ${ownerCond(q.ownerIds, sql`l.owner_id`) ?? sql`true`}) x`),
     req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
       SELECT kind, dow, (hour / 2) * 2 AS hour, sum(n)::int AS n FROM analytics_daily_slot
       WHERE day BETWEEN ${range.days[0]!}::date AND ${range.days.at(-1)!}::date AND kind IN ('sends', 'replies')
-        ${q.ownerId ? sql`AND user_id = ${q.ownerId}::uuid` : sql``}
+        AND ${ownerCond(q.ownerIds, sql`user_id`) ?? sql`true`}
       GROUP BY 1, 2, 3`),
     // Each person's follow-ups due in the range: done, on time, and the late ones by weekday.
     req.db.execute<{
@@ -76,20 +77,20 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
              NULL::int AS dow, 0 AS late
       FROM tasks t JOIN users u ON u.id = t.assignee_id JOIN leads l ON l.id = t.lead_id AND l.deleted_at IS NULL
       WHERE t.due_at >= ${range.from.toISOString()}::timestamptz AND t.due_at < ${range.to.toISOString()}::timestamptz
-        AND lume_sees_credit(t.assignee_id) ${q.ownerId ? sql`AND t.assignee_id = ${q.ownerId}::uuid` : sql``}
+        AND lume_sees_credit(t.assignee_id) AND ${ownerCond(q.ownerIds, sql`t.assignee_id`) ?? sql`true`}
       GROUP BY u.id, u.name
       UNION ALL
       SELECT u.id, u.name, 0, 0, extract(dow FROM t.due_at AT TIME ZONE ${tz})::int, count(*)::int
       FROM tasks t JOIN users u ON u.id = t.assignee_id JOIN leads l ON l.id = t.lead_id AND l.deleted_at IS NULL
       WHERE t.due_at >= ${range.from.toISOString()}::timestamptz AND t.due_at < ${range.to.toISOString()}::timestamptz
         AND t.status = 'done' AND t.done_at > t.due_at + interval '5 minutes'
-        AND lume_sees_credit(t.assignee_id) ${q.ownerId ? sql`AND t.assignee_id = ${q.ownerId}::uuid` : sql``}
+        AND lume_sees_credit(t.assignee_id) AND ${ownerCond(q.ownerIds, sql`t.assignee_id`) ?? sql`true`}
       GROUP BY u.id, u.name, 5`),
     req.db.execute<{ name: string; n: number }>(sql`
       SELECT u.name, count(*)::int AS n FROM tasks t JOIN users u ON u.id = t.assignee_id
       JOIN leads l ON l.id = t.lead_id AND l.deleted_at IS NULL
       WHERE t.status = 'open' AND t.due_at < now() AND lume_sees_credit(t.assignee_id)
-        ${q.ownerId ? sql`AND t.assignee_id = ${q.ownerId}::uuid` : sql``}
+        AND ${ownerCond(q.ownerIds, sql`t.assignee_id`) ?? sql`true`}
       GROUP BY u.name`),
   ]);
 
@@ -120,7 +121,8 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
   }
   const s = speed.rows[0]!;
   const ctx: InsightContext = {
-    view: scope === "own" || q.ownerId ? "own" : "team",
+    // Worded for one person when the numbers are one person's; several people read as a team.
+    view: scope === "own" || q.ownerIds?.length === 1 ? "own" : "team",
     money: fmtMoney,
     speed: {
       fastN: s.fast_n,

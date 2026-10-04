@@ -13,6 +13,7 @@ import {
   type Trend,
 } from "@lume/core";
 import { badRequest, forbidden } from "../../http/errors";
+import { ownerCond, sourceCond } from "./filters";
 
 /**
  * The analytics API's numbers (8A, spec §4–§5.2). Dashboards read the daily rollups (0053) under the viewer's
@@ -25,8 +26,12 @@ export type AnalyticsQuery = {
   to?: string;
   compare: boolean;
   pipelineId?: string;
-  ownerId?: string;
-  sourceId?: string;
+  /** People whose numbers to count ("none": leads nobody owns); a team arrives as its people. */
+  ownerIds?: string[];
+  sourceIds?: string[];
+  /** Live-only filters (8D-1 Task 3): any of these tags; each field's value among those listed. */
+  tagIds?: string[];
+  fields?: Record<string, string[]>;
   /** The viewer's analytics reach, once checked (reachOf): 'all' with no owner filter needs no credit test per row. */
   reach?: "own" | "team" | "all";
 };
@@ -59,15 +64,16 @@ export function rangeOf(q: AnalyticsQuery, tz: string, now: Date): Range {
 }
 
 /** The viewer's reach, and an owner filter checked against it: a filter past one's reach is refused, not emptied. */
-export function reachOf(req: FastifyRequest, ownerId?: string): "own" | "team" | "all" {
+export function reachOf(req: FastifyRequest, ownerIds?: readonly string[]): "own" | "team" | "all" {
   const actor = req.actor!;
   const scope = scopeOf(actor, "analytics.view");
   if (!scope) throw forbidden();
-  if (ownerId && scope !== "all") {
-    const mine = ownerId === actor.userId;
-    const team = scope === "team" && actor.teamMemberIds.includes(ownerId);
-    if (!mine && !team) throw forbidden("OUTSIDE_REACH", "That person's numbers aren't yours to see.");
-  }
+  if (ownerIds?.length && scope !== "all")
+    for (const id of ownerIds) {
+      const mine = id === actor.userId;
+      const team = scope === "team" && actor.teamMemberIds.includes(id);
+      if (!mine && !team) throw forbidden("OUTSIDE_REACH", "That person's numbers aren't yours to see.");
+    }
   return scope;
 }
 
@@ -83,8 +89,10 @@ function rollupWhere(
   const parts: SQL[] = [sql`day BETWEEN ${from}::date AND ${to}::date`];
   if (q.pipelineId) parts.push(sql`pipeline_id = ${q.pipelineId}::uuid`);
   else if (opts.pipelineNullable) parts.push(sql`true`);
-  if (q.sourceId) parts.push(sql`source_id = ${q.sourceId}::uuid`);
-  if (q.ownerId) parts.push(q.ownerId === "none" ? sql`user_id IS NULL` : sql`user_id = ${q.ownerId}::uuid`);
+  const src = sourceCond(q.sourceIds, sql`source_id`);
+  if (src) parts.push(src);
+  const own = ownerCond(q.ownerIds, sql`user_id`);
+  if (own) parts.push(own);
   return sql.join(parts, sql` AND `);
 }
 
@@ -156,15 +164,17 @@ export async function eventSums(req: FastifyRequest, q: AnalyticsQuery, days: st
 /** Live "now" conditions, bounded by the viewer's analytics reach as the rollups are. */
 function liveOwner(q: AnalyticsQuery, col: SQL): SQL {
   // Someone who sees everyone, filtering by no one: no per-lead credit to work out (it's the costly part at scale).
-  if (q.reach === "all" && !q.ownerId) return sql`true`;
+  if (q.reach === "all" && !q.ownerIds?.length) return sql`true`;
   const parts: SQL[] = [sql`lume_sees_credit(${col})`];
-  if (q.ownerId) parts.push(q.ownerId === "none" ? sql`${col} IS NULL` : sql`${col} = ${q.ownerId}::uuid`);
+  const own = ownerCond(q.ownerIds, col);
+  if (own) parts.push(own);
   return sql.join(parts, sql` AND `);
 }
 function liveLead(q: AnalyticsQuery): SQL {
   const parts: SQL[] = [sql`l.deleted_at IS NULL`];
   if (q.pipelineId) parts.push(sql`l.pipeline_id = ${q.pipelineId}::uuid`);
-  if (q.sourceId) parts.push(sql`l.source_id = ${q.sourceId}::uuid`);
+  const src = sourceCond(q.sourceIds, sql`l.source_id`);
+  if (src) parts.push(src);
   return sql.join(parts, sql` AND `);
 }
 
@@ -178,7 +188,7 @@ export async function overdueNow(req: FastifyRequest, q: AnalyticsQuery): Promis
 export async function forecastNow(req: FastifyRequest, q: AnalyticsQuery): Promise<number> {
   // The kept stage counts (0048) already sum each stage's value per owner: a few rows, not every open lead. They
   // carry no source, so a source filter reads the leads themselves.
-  if (!q.sourceId) {
+  if (!q.sourceIds?.length) {
     const k = await req.db.execute<{ v: number }>(sql`
       SELECT coalesce(sum(c.value * coalesce(s.win_probability, 0) / 100), 0)::float8 AS v
       FROM lead_counts_now c JOIN stages s ON s.id = c.stage_id
@@ -229,7 +239,7 @@ function tile(
 
 /** The Overview module (canvas Main): the funnel's health, the team's follow-through, the money. */
 export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  q = { ...q, reach: reachOf(req, q.ownerId) };
+  q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const [c, e, pc, pe, overdue, cyc, pcyc] = await Promise.all([
@@ -363,7 +373,7 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
  * one, open stages in order and then won.
  */
 export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  q = { ...q, reach: reachOf(req, q.ownerId) };
+  q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
   const pipeline =
@@ -430,7 +440,7 @@ export async function funnel(req: FastifyRequest, q: AnalyticsQuery, now: Date) 
 
 /** Each person (canvas Team): their own numbers side by side, for a viewer who sees more than themselves. */
 export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  const scope = reachOf(req, q.ownerId);
+  const scope = reachOf(req, q.ownerIds);
   q = { ...q, reach: scope };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);

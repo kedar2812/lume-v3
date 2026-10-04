@@ -285,7 +285,7 @@ it("a filter past one's reach is refused, never emptied", async () => {
   for (const q of [`owner=${r1.id},${r3.id}`, `team=${otherTeam}`]) {
     const res = await me.inject({ method: "GET", url: `/api/v1/analytics/overview?${Q}&${q}` });
     expect(res.statusCode).toBe(403);
-    expect(res.json().code).toBe("OUTSIDE_REACH");
+    expect(res.json().error.code).toBe("OUTSIDE_REACH");
   }
 });
 
@@ -373,9 +373,9 @@ it("over 92 days, or on a board without a live path, a tag filter is refused in 
   const a = await h.signIn(admin);
   const long = await a.inject({ method: "GET", url: `/api/v1/analytics/overview?range=custom&from=2026-01-01&to=2026-06-30&tag=${cafe}` });
   expect(long.statusCode).toBe(400);
-  expect(long.json().code).toBe("RANGE_TOO_LONG_FOR_FILTER");
+  expect(long.json().error.code).toBe("RANGE_TOO_LONG_FOR_FILTER");
   const timing = await a.inject({ method: "GET", url: `/api/v1/analytics/timing?${Q}&tag=${cafe}` });
-  expect(timing.json().code).toBe("FILTER_NOT_SUPPORTED");
+  expect(timing.json().error.code).toBe("FILTER_NOT_SUPPORTED");
 });
 ```
 
