@@ -14,7 +14,7 @@ import {
 } from "@lume/core";
 import { badRequest, forbidden } from "../../http/errors";
 import { isLive, liveFilter, ownerCond, sourceCond } from "./filters";
-import { guardLive, liveCohort, liveDaily, liveEvents, refuseLive, spanOf } from "./live";
+import { guardLive, liveCohort, liveDaily, liveEvents, spanOf } from "./live";
 
 /**
  * The analytics API's numbers (8A, spec §4–§5.2). Dashboards read the daily rollups (0053) under the viewer's
@@ -416,68 +416,4 @@ function foldBySource(
         ]
       : []),
   ];
-}
-
-/** Each person (canvas Team): their own numbers side by side, for a viewer who sees more than themselves. */
-export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
-  refuseLive(q);
-  const scope = reachOf(req, q.ownerIds);
-  q = { ...q, reach: scope };
-  const tz = await businessTz(req);
-  const range = rangeOf(q, tz, now);
-  const [from, to] = [range.days[0]!, range.days.at(-1)!];
-  const [cohort, events, overdue, people] = await Promise.all([
-    req.db.execute<{
-      user_id: string | null;
-      arrived: number;
-      contacted: number;
-      won_so_far: number;
-      h: number[];
-    }>(sql`
-      SELECT user_id, sum(arrived)::int AS arrived, sum(contacted)::int AS contacted, sum(won)::int AS won_so_far,
-             ARRAY[${sql.raw(H.map((i) => `coalesce(sum(speed_hist[${i}]), 0)::int`).join(", "))}] AS h
-      FROM analytics_daily_cohort WHERE ${rollupWhere(q, from, to)} GROUP BY user_id`),
-    req.db.execute<{
-      user_id: string | null;
-      won: number;
-      won_value: number;
-      done: number;
-      on_time: number;
-    }>(sql`
-      SELECT user_id, sum(won)::int AS won, sum(won_value)::float8 AS won_value, sum(tasks_done)::int AS done,
-             sum(tasks_on_time)::int AS on_time
-      FROM analytics_daily_event WHERE ${rollupWhere(q, from, to, { pipelineNullable: true })} GROUP BY user_id`),
-    req.db.execute<{ user_id: string; n: number }>(sql`
-      SELECT t.assignee_id AS user_id, count(*)::int AS n FROM tasks t JOIN leads l ON l.id = t.lead_id
-      WHERE t.status = 'open' AND t.due_at < now() AND ${liveLead(q)} AND ${liveOwner(q, sql`t.assignee_id`)}
-      GROUP BY t.assignee_id`),
-    req.db.execute<{ id: string; name: string; status: string }>(
-      sql`SELECT id, name, status FROM users WHERE status <> 'invited'`,
-    ),
-  ]);
-  const money = seesRevenue(req);
-  const ids = new Set<string>([
-    ...cohort.rows.flatMap((r) => (r.user_id ? [r.user_id] : [])),
-    ...events.rows.flatMap((r) => (r.user_id ? [r.user_id] : [])),
-    ...overdue.rows.map((r) => r.user_id),
-  ]);
-  const name = new Map(people.rows.map((p) => [p.id, p]));
-  const rows = [...ids].map((id) => {
-    const c = cohort.rows.find((r) => r.user_id === id);
-    const e = events.rows.find((r) => r.user_id === id);
-    return {
-      id,
-      name: name.get(id)?.name ?? "Someone",
-      active: name.get(id)?.status === "active",
-      newLeads: c?.arrived ?? 0,
-      contacted: c ? rate(c.contacted, c.arrived) : null,
-      speedToLead: c ? quantileFromHist(c.h, 0.5) : null,
-      won: e?.won ?? 0,
-      ...(money ? { revenueWon: e?.won_value ?? 0 } : {}),
-      ontime: e ? rate(e.on_time, e.done) : null,
-      overdueNow: overdue.rows.find((r) => r.user_id === id)?.n ?? 0,
-    };
-  });
-  rows.sort((a, b) => b.won - a.won || b.newLeads - a.newLeads || a.name.localeCompare(b.name));
-  return { range: { label: range.label, days: range.days }, leaderboard: scope !== "own", people: rows };
 }

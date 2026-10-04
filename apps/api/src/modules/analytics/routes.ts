@@ -13,7 +13,8 @@ import { revenue } from "./revenue";
 import { segments } from "./segments";
 import { lost, quality, sources, templates, timing } from "./modules";
 import { funnel } from "./funnel";
-import { businessTz, overview, rangeOf, team, type AnalyticsQuery } from "./service";
+import { businessTz, overview, rangeOf, type AnalyticsQuery } from "./service";
+import { team } from "./team";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -121,7 +122,7 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
     ),
   );
   r.get("/api/v1/analytics/team", { config: view, schema: { querystring: query } }, async (req) =>
-    team(req, await toQuery(req, req.query), d.clock()),
+    team(req, await toQuery(req, req.query), d.clock(), d),
   );
 
   // Modules that carry drill tokens take the keyring; the rest ignore it.

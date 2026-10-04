@@ -9,7 +9,8 @@ import type { Mailer } from "../../mail/mailer";
 import { loadActor } from "../../rbac/actor";
 import { insights } from "./insights";
 import { funnel } from "./funnel";
-import { overview, team, type AnalyticsQuery } from "./service";
+import { overview, type AnalyticsQuery } from "./service";
+import { team } from "./team";
 
 export type WeeklyDeps = {
   pool: pg.Pool;
