@@ -508,38 +508,88 @@ export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Dat
   };
 }
 
-/** Data quality (canvas Quality): numbers that need a country or are invalid, unowned leads by how long they've waited, rejected import rows. */
-export async function quality(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+/**
+ * Data quality (canvas Templates & data): how many phone numbers LUME can read and which need fixing; duplicates
+ * merged into existing leads (each leaves "imported again" on the lead it joined); unowned leads by how long they've
+ * waited; and imports, with the rows that didn't come in cleanly.
+ */
+export async function quality(
+  req: FastifyRequest,
+  q: AnalyticsQuery,
+  now: Date,
+  d?: Pick<AppDeps, "keyring">,
+) {
   refuseLive(q);
   q = { ...q, reach: reachOf(req, q.ownerIds) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
-  const [phones, unowned, imports] = await Promise.all([
+  const mint = minter(d, req, range, q, tz, now);
+  const [f, t] = [range.from.toISOString(), range.to.toISOString()];
+  const [phones, unowned, imports, merged] = await Promise.all([
     req.db.execute<{ status: string; n: number }>(sql`
       SELECT l.phone_status AS status, count(*)::int AS n FROM leads l
-      WHERE ${leadWhere(q)} AND l.phone_status IN ('needs_country', 'invalid') AND ${credit(q, sql`l.owner_id`)}
+      WHERE ${leadWhere(q)} AND l.phone_status <> 'missing' AND ${credit(q, sql`l.owner_id`)}
       GROUP BY 1`),
     req.db.execute<{ bucket: string; n: number }>(sql`
       SELECT CASE WHEN l.created_at > now() - interval '1 hour' THEN 'under_1h'
                   WHEN l.created_at > now() - interval '1 day' THEN 'under_1d'
-                  ELSE 'over_1d' END AS bucket, count(*)::int AS n
+                  WHEN l.created_at > now() - interval '7 days' THEN 'under_7d'
+                  ELSE 'over_7d' END AS bucket, count(*)::int AS n
       FROM leads l WHERE ${leadWhere(q)} AND l.owner_id IS NULL AND lume_analytics_scope() = 'all' GROUP BY 1`),
-    req.db.execute<{ source_id: string; name: string; errors: number; skipped: number }>(sql`
-      SELECT i.source_id, s.name, sum(i.errors)::int AS errors, sum(i.skipped)::int AS skipped
+    req.db.execute<{ source_id: string; name: string; rows: number; errors: number; skipped: number }>(sql`
+      SELECT i.source_id, s.name, sum(i.row_count)::int AS rows, sum(i.errors)::int AS errors,
+             sum(i.skipped)::int AS skipped
       FROM imports i JOIN lead_sources s ON s.id = i.source_id
-      WHERE i.finished_at >= ${range.from.toISOString()}::timestamptz AND i.finished_at < ${range.to.toISOString()}::timestamptz
+      WHERE i.finished_at >= ${f}::timestamptz AND i.finished_at < ${t}::timestamptz
         AND lume_analytics_scope() = 'all'
-      GROUP BY 1, 2`),
+      GROUP BY 1, 2 ORDER BY s.name`),
+    req.db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM activities a JOIN leads l ON l.id = a.lead_id
+      WHERE a.type = 'imported_again' AND a.occurred_at >= ${f}::timestamptz AND a.occurred_at < ${t}::timestamptz
+        AND ${leadWhere(q)} AND lume_analytics_scope() = 'all'`),
   ]);
+  const ph = (st: string) => phones.rows.find((r) => r.status === st)?.n ?? 0;
+  const total = phones.rows.reduce((a, r) => a + r.n, 0);
+  const wait = (b: string) => unowned.rows.find((r) => r.bucket === b)?.n ?? 0;
   return {
     range: { label: range.label, days: range.days },
-    phoneNeedsCountry: phones.rows.find((r) => r.status === "needs_country")?.n ?? 0,
-    phoneInvalid: phones.rows.find((r) => r.status === "invalid")?.n ?? 0,
-    unowned: {
-      under1h: unowned.rows.find((r) => r.bucket === "under_1h")?.n ?? 0,
-      under1d: unowned.rows.find((r) => r.bucket === "under_1d")?.n ?? 0,
-      over1d: unowned.rows.find((r) => r.bucket === "over_1d")?.n ?? 0,
+    phones: {
+      total,
+      readable: ph("valid"),
+      readableShare: rate(ph("valid"), total),
+      needsCountry: ph("needs_country"),
+      invalid: ph("invalid"),
+      drill: { needsCountry: mint("phone_needs_country"), invalid: mint("phone_invalid") },
     },
-    importsRejected: imports.rows,
+    duplicatesMerged: merged.rows[0]!.n,
+    unowned: {
+      under1h: wait("under_1h"),
+      under1d: wait("under_1d"),
+      under7d: wait("under_7d"),
+      over7d: wait("over_7d"),
+      // The 8A field the current screen reads: everything past a day.
+      over1d: wait("under_7d") + wait("over_7d"),
+      drill: {
+        under_1h: mint("unowned", { wait: "under_1h" }),
+        under_1d: mint("unowned", { wait: "under_1d" }),
+        under_7d: mint("unowned", { wait: "under_7d" }),
+        over_7d: mint("unowned", { wait: "over_7d" }),
+      },
+    },
+    imports: imports.rows.map((r) => ({
+      sourceId: r.source_id,
+      name: r.name,
+      rows: r.rows,
+      rejected: r.errors + r.skipped,
+    })),
+    // The 8A fields the current screen reads.
+    phoneNeedsCountry: ph("needs_country"),
+    phoneInvalid: ph("invalid"),
+    importsRejected: imports.rows.map((r) => ({
+      source_id: r.source_id,
+      name: r.name,
+      errors: r.errors,
+      skipped: r.skipped,
+    })),
   };
 }
