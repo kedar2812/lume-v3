@@ -1,6 +1,8 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { quantileFromHist, trend } from "@lume/core";
+import type { AppDeps } from "../../app";
+import { drillFor, type DrillExtra, type DrillKind } from "./drill";
 import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery } from "./service";
 
 /**
@@ -10,6 +12,19 @@ import { TOO_FEW, businessTz, rangeOf, reachOf, seesRevenue, type AnalyticsQuery
  */
 const rate = (a: number, b: number) => (b > 0 ? a / b : null);
 const AVG_MONTH_DAYS = 30.4375;
+
+/** Drill tokens for a module's numbers when a screen asks (routes pass `d`); none for the insights or the email. */
+type Mint = (k: DrillKind, x?: DrillExtra) => string | undefined;
+function minter(
+  d: Pick<AppDeps, "keyring"> | undefined,
+  req: FastifyRequest,
+  range: Parameters<typeof drillFor>[2],
+  q: AnalyticsQuery,
+  tz: string,
+  now: Date,
+): Mint {
+  return d ? (k, x) => drillFor(d, req, range, q, tz, k, x, now) : () => undefined;
+}
 
 function rw(q: AnalyticsQuery, from: string, to: string, pipelineNullable = false): SQL {
   const parts: SQL[] = [sql`day BETWEEN ${from}::date AND ${to}::date`];
@@ -37,10 +52,16 @@ function leadWhere(q: AnalyticsQuery): SQL {
 }
 
 /** Revenue and sources (canvas Revenue): per source, leads, how many are won, the money, and what it cost. */
-export async function sources(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+export async function sources(
+  req: FastifyRequest,
+  q: AnalyticsQuery,
+  now: Date,
+  d?: Pick<AppDeps, "keyring">,
+) {
   q = { ...q, reach: reachOf(req, q.ownerId) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
+  const mint = minter(d, req, range, q, tz, now);
   const [from, to] = [range.days[0]!, range.days.at(-1)!];
   const money = seesRevenue(req);
   const [cohort, events, srcs, series] = await Promise.all([
@@ -70,6 +91,8 @@ export async function sources(req: FastifyRequest, q: AnalyticsQuery, now: Date)
     return {
       id,
       name: s?.name ?? (id ? "A removed source" : "Added in LUME"),
+      kind: s?.type ?? "manual",
+      drill: { leads: mint("source_leads", { sourceId: id }), won: mint("source_won", { sourceId: id }) },
       leads,
       leadShare: rate(leads, totalLeads),
       winRate: rate(c?.won ?? 0, leads),
@@ -96,10 +119,11 @@ export async function sources(req: FastifyRequest, q: AnalyticsQuery, now: Date)
 }
 
 /** Lost (canvas Lost): why, from which stage, by whom and from where; and leads won back. */
-export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
+export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: Pick<AppDeps, "keyring">) {
   q = { ...q, reach: reachOf(req, q.ownerId) };
   const tz = await businessTz(req);
   const range = rangeOf(q, tz, now);
+  const mint = minter(d, req, range, q, tz, now);
   const span = (from: Date, to: Date) =>
     sql`l.lost_at >= ${from.toISOString()}::timestamptz AND l.lost_at < ${to.toISOString()}::timestamptz`;
   const who = sql`lume_owner_at(l.id, l.lost_at, l.owner_id)`;
@@ -146,6 +170,7 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
       return {
         id: r.id,
         name: r.name ?? "No reason given",
+        drill: mint("lost_reason", { reasonId: r.id }),
         n: r.n,
         before: prevReasons.rows.find((p) => p.id === r.id)?.n ?? 0,
         share,
@@ -155,10 +180,19 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date) {
             : null,
       };
     }),
-    stages: stages.rows.map((s) => ({ id: s.id, name: s.name ?? "Before any stage", n: s.n })),
+    stages: stages.rows.map((s) => ({
+      id: s.id,
+      name: s.name ?? "Before any stage",
+      n: s.n,
+      drill: mint("lost_stage", { stageId: s.id }),
+    })),
     owners: owners.rows,
     sources: srcs.rows,
-    wonBack: { n: back.rows[0]!.n, ...(money ? { value: back.rows[0]!.value } : {}) },
+    wonBack: {
+      n: back.rows[0]!.n,
+      ...(money ? { value: back.rows[0]!.value } : {}),
+      drill: mint("won_back"),
+    },
   };
 }
 

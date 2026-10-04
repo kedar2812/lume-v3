@@ -1,10 +1,10 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { METRICS, type MetricId } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { listLeads } from "../leads/query";
-import { drillIds, mintDrill, readDrill } from "./drill";
+import { drillFor, drillIds, readDrill } from "./drill";
 import { listGoals, removeGoal, setGoal, setSpend } from "./goals";
 import { insights } from "./insights";
 import { lost, quality, sources, templates, timing } from "./modules";
@@ -48,25 +48,11 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
     const q = toQuery(req.query);
     const now = d.clock();
     const body = await overview(req, q, now);
-    const range = rangeOf(q, await businessTz(req), now);
+    const tz = await businessTz(req);
+    const range = rangeOf(q, tz, now);
     const drill: Partial<Record<MetricId, string>> = {};
     for (const t of body.tiles)
-      if (METRICS[t.id].drill)
-        drill[t.id] = mintDrill(
-          d.keyring,
-          {
-            m: t.id,
-            d: [range.days[0]!, range.days.at(-1)!],
-            t: [range.from.toISOString(), range.to.toISOString()],
-            q: {
-              ...(q.pipelineId ? { pipelineId: q.pipelineId } : {}),
-              ...(q.ownerId ? { ownerId: q.ownerId } : {}),
-              ...(q.sourceId ? { sourceId: q.sourceId } : {}),
-            },
-            u: req.actor!.userId,
-          },
-          now,
-        );
+      if (METRICS[t.id].drill) drill[t.id] = drillFor(d, req, range, q, tz, t.id, undefined, now);
     return { ...body, drill };
   });
   r.get("/api/v1/analytics/funnel", { config: view, schema: { querystring: query } }, (req) =>
@@ -76,9 +62,14 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
     team(req, toQuery(req.query), d.clock()),
   );
 
-  for (const [name, read] of Object.entries({ sources, lost, timing, templates, quality }))
+  // Modules that carry drill tokens take the keyring; the rest ignore it.
+  const reads: Record<
+    string,
+    (req: FastifyRequest, q: AnalyticsQuery, now: Date, deps: AppDeps) => Promise<unknown>
+  > = { sources, lost, timing, templates, quality };
+  for (const [name, read] of Object.entries(reads))
     r.get(`/api/v1/analytics/${name}`, { config: view, schema: { querystring: query } }, (req) =>
-      read(req, toQuery(req.query), d.clock()),
+      read(req, toQuery(req.query), d.clock(), d),
     );
   r.get("/api/v1/analytics/insights", { config: view, schema: { querystring: query } }, (req) =>
     insights(req, toQuery(req.query), d.clock()),
@@ -151,7 +142,7 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
         sort: "newest",
         ...(req.query.cursor ? { cursor: req.query.cursor } : {}),
       });
-      return { metric: spec.m, total: ids.length, ...page };
+      return { kind: spec.k, total: ids.length, ...page };
     },
   );
 }

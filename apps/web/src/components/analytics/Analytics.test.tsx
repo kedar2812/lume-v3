@@ -121,7 +121,7 @@ beforeEach(() => {
   );
   c.drill.mockResolvedValue(
     ok({
-      metric: "won" as const,
+      kind: "won" as const,
       total: 1,
       items: [testLead({ id: "l1", name: "Aisha Khan" })],
       nextCursor: null,
