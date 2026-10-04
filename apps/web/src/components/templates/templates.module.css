@@ -204,7 +204,8 @@
 }
 
 /* ── the editor: the drawer shell, wide enough for words and preview side by side ── */
-.editor {
+/* Wider than the lead drawer it borrows its sheet from, whatever order the stylesheets load in. */
+.editor.editor {
   width: min(1060px, calc(100vw - 16px));
 }
 .editorTitle {

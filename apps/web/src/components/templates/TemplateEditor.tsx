@@ -1,4 +1,5 @@
 "use client";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
@@ -208,243 +209,245 @@ export function TemplateEditor({
 
   const count = body.length;
   return (
-    <>
-      <motion.div
-        className={d.scrim}
-        onClick={tryClose}
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      />
-      <motion.form
-        ref={form}
-        tabIndex={-1}
-        onKeyDown={trap}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={`${d.drawer} ${s.editor}`}
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!readOnly) void save();
-        }}
-        initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
-        transition={editorTransition(!!reduce)}
-      >
-        <div className={d.top}>
-          <IconButton label="Close (Esc)" onClick={tryClose}>
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </IconButton>
-          <h2 id={titleId} className={s.editorTitle}>
-            {template?.name ?? "New template"}
-          </h2>
-          {template && <span className={s.version}>Version {template.version}</span>}
-        </div>
+    <BodyPortal>
+      <>
+        <motion.div
+          className={d.scrim}
+          onClick={tryClose}
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        />
+        <motion.form
+          ref={form}
+          tabIndex={-1}
+          onKeyDown={trap}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className={`${d.drawer} ${s.editor}`}
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!readOnly) void save();
+          }}
+          initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
+          transition={editorTransition(!!reduce)}
+        >
+          <div className={d.top}>
+            <IconButton label="Close (Esc)" onClick={tryClose}>
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </IconButton>
+            <h2 id={titleId} className={s.editorTitle}>
+              {template?.name ?? "New template"}
+            </h2>
+            {template && <span className={s.version}>Version {template.version}</span>}
+          </div>
 
-        <div className={s.panes}>
-          <div className={s.words}>
-            <label className={s.label} htmlFor={`${bodyId}-name`}>
-              Name
-            </label>
-            <input
-              ref={nameRef}
-              id={`${bodyId}-name`}
-              className={s.input}
-              aria-label="Name"
-              maxLength={80}
-              readOnly={readOnly}
-              value={name}
-              placeholder="e.g. Gentle nudge"
-              onChange={(e) => {
-                setName(e.target.value);
-                touched();
-              }}
-            />
-
-            <span className={s.label} id={`${bodyId}-cat`}>
-              Kind
-            </span>
-            <div role="radiogroup" aria-labelledby={`${bodyId}-cat`} className={s.seg}>
-              {TEMPLATE_CATEGORIES.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={category === c.key}
-                  className={s.segBtn}
-                  disabled={readOnly}
-                  onClick={() => {
-                    setCategory(c.key);
-                    touched();
-                  }}
-                >
-                  {category === c.key && (
-                    <motion.span
-                      layoutId={`${bodyId}-thumb`}
-                      className={s.segThumb}
-                      transition={reduce ? { duration: 0 } : toMotion(SPRINGS.default)}
-                      aria-hidden
-                    />
-                  )}
-                  <span className={s.segLabel}>{c.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <label className={s.label} htmlFor={bodyId}>
-              Message
-            </label>
-            {!readOnly && <VariablePicker variables={variables} onInsert={insertAtCaret} />}
-            <div className={s.bodyWrap}>
-              <textarea
-                ref={area}
-                id={bodyId}
-                aria-label="Message"
-                className={s.body}
-                rows={9}
-                maxLength={MAX}
+          <div className={s.panes}>
+            <div className={s.words}>
+              <label className={s.label} htmlFor={`${bodyId}-name`}>
+                Name
+              </label>
+              <input
+                ref={nameRef}
+                id={`${bodyId}-name`}
+                className={s.input}
+                aria-label="Name"
+                maxLength={80}
                 readOnly={readOnly}
-                value={body}
-                placeholder="Hi {{lead.first_name}}, …"
-                // A textbox may say it suggests and which suggestion is on; "expanded" is a combobox's word.
-                aria-autocomplete="list"
-                aria-controls={suggest ? `${bodyId}-vars` : undefined}
-                aria-activedescendant={suggest ? `${bodyId}-var${suggest.active}` : undefined}
+                value={name}
+                placeholder="e.g. Gentle nudge"
                 onChange={(e) => {
-                  setBody(e.target.value);
+                  setName(e.target.value);
                   touched();
-                  lookForBraces(e.target.value, e.target.selectionStart);
                 }}
-                onKeyDown={onBodyKey}
-                onBlur={() => setSuggest(null)}
               />
-              {suggest && (
-                <ul id={`${bodyId}-vars`} role="listbox" aria-label="Variables" className={s.suggest}>
-                  {suggest.options.map((v, i) => (
-                    <li
-                      key={v.token}
-                      id={`${bodyId}-var${i}`}
-                      role="option"
-                      aria-selected={i === suggest.active}
-                      className={s.suggestItem}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        insertAt(suggest.start, area.current?.selectionStart ?? body.length, v.token);
-                      }}
-                    >
-                      {v.label}
-                      <code aria-hidden>{`{{${v.token}}}`}</code>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <p className={s.count} data-long={count > LONG || undefined}>
-              <span>
-                {count.toLocaleString("en")} / {MAX.toLocaleString("en")}
-              </span>
-              {count > LONG && " · Long for WhatsApp: it shows “Read more” after the first lines."}
-            </p>
 
-            <span className={s.label} id={`${bodyId}-who`}>
-              Who can use it
-            </span>
-            <div role="radiogroup" aria-labelledby={`${bodyId}-who`} className={s.whoChoice}>
-              {(
-                [
-                  [false, "Everyone"],
-                  [true, "Only these roles"],
-                ] as const
-              ).map(([only, label]) => (
-                <label key={label} className={s.radio}>
-                  <input
-                    type="radio"
-                    name={`${bodyId}-who`}
-                    checked={onlyRoles === only}
+              <span className={s.label} id={`${bodyId}-cat`}>
+                Kind
+              </span>
+              <div role="radiogroup" aria-labelledby={`${bodyId}-cat`} className={s.seg}>
+                {TEMPLATE_CATEGORIES.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={category === c.key}
+                    className={s.segBtn}
                     disabled={readOnly}
-                    onChange={() => {
-                      setOnlyRoles(only);
+                    onClick={() => {
+                      setCategory(c.key);
                       touched();
                     }}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-            {onlyRoles && (
-              <div className={s.roles}>
-                {roles.map((r) => {
-                  const on = roleIds.includes(r.id);
-                  return (
-                    <label key={r.id} className={s.pill} data-on={on || undefined}>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={readOnly}
-                        onChange={(e) => {
-                          setRoleIds((ids) =>
-                            e.target.checked ? [...ids, r.id] : ids.filter((x) => x !== r.id),
-                          );
-                          touched();
-                        }}
+                  >
+                    {category === c.key && (
+                      <motion.span
+                        layoutId={`${bodyId}-thumb`}
+                        className={s.segThumb}
+                        transition={reduce ? { duration: 0 } : toMotion(SPRINGS.default)}
+                        aria-hidden
                       />
-                      {r.name}
-                    </label>
-                  );
-                })}
+                    )}
+                    <span className={s.segLabel}>{c.label}</span>
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
 
-          <aside className={s.previewPane} aria-label="How it will look">
-            <PreviewAs onContext={setContext} />
-            <WhatsAppBubble text={preview.text} />
-            {preview.missing.length > 0 && (
-              <p className={s.missing}>
-                {context ? "Nothing to fill in for " : "Filled in when sent: "}
-                {preview.missing.map((m) => `{{${m}}}`).join(", ")}
+              <label className={s.label} htmlFor={bodyId}>
+                Message
+              </label>
+              {!readOnly && <VariablePicker variables={variables} onInsert={insertAtCaret} />}
+              <div className={s.bodyWrap}>
+                <textarea
+                  ref={area}
+                  id={bodyId}
+                  aria-label="Message"
+                  className={s.body}
+                  rows={9}
+                  maxLength={MAX}
+                  readOnly={readOnly}
+                  value={body}
+                  placeholder="Hi {{lead.first_name}}, …"
+                  // A textbox may say it suggests and which suggestion is on; "expanded" is a combobox's word.
+                  aria-autocomplete="list"
+                  aria-controls={suggest ? `${bodyId}-vars` : undefined}
+                  aria-activedescendant={suggest ? `${bodyId}-var${suggest.active}` : undefined}
+                  onChange={(e) => {
+                    setBody(e.target.value);
+                    touched();
+                    lookForBraces(e.target.value, e.target.selectionStart);
+                  }}
+                  onKeyDown={onBodyKey}
+                  onBlur={() => setSuggest(null)}
+                />
+                {suggest && (
+                  <ul id={`${bodyId}-vars`} role="listbox" aria-label="Variables" className={s.suggest}>
+                    {suggest.options.map((v, i) => (
+                      <li
+                        key={v.token}
+                        id={`${bodyId}-var${i}`}
+                        role="option"
+                        aria-selected={i === suggest.active}
+                        className={s.suggestItem}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          insertAt(suggest.start, area.current?.selectionStart ?? body.length, v.token);
+                        }}
+                      >
+                        {v.label}
+                        <code aria-hidden>{`{{${v.token}}}`}</code>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <p className={s.count} data-long={count > LONG || undefined}>
+                <span>
+                  {count.toLocaleString("en")} / {MAX.toLocaleString("en")}
+                </span>
+                {count > LONG && " · Long for WhatsApp: it shows “Read more” after the first lines."}
               </p>
-            )}
-          </aside>
-        </div>
 
-        {askDiscard && (
-          <div role="alertdialog" aria-label="Discard your changes?" className={`${s.foot} ${s.discard}`}>
-            <p className={s.discardText}>Discard your changes?</p>
-            <Button variant="ghost" autoFocus onClick={() => setAskDiscard(false)}>
-              Keep editing
-            </Button>
-            <Button variant="danger" onClick={onClose}>
-              Discard
-            </Button>
-          </div>
-        )}
-        {!readOnly && !askDiscard && (
-          <div className={s.foot}>
-            {problem ? (
-              <p role="alert" className={s.problem}>
-                {problem}
-              </p>
-            ) : (
-              saved && (
-                <p role="status" className={s.saved}>
-                  {saved}
+              <span className={s.label} id={`${bodyId}-who`}>
+                Who can use it
+              </span>
+              <div role="radiogroup" aria-labelledby={`${bodyId}-who`} className={s.whoChoice}>
+                {(
+                  [
+                    [false, "Everyone"],
+                    [true, "Only these roles"],
+                  ] as const
+                ).map(([only, label]) => (
+                  <label key={label} className={s.radio}>
+                    <input
+                      type="radio"
+                      name={`${bodyId}-who`}
+                      checked={onlyRoles === only}
+                      disabled={readOnly}
+                      onChange={() => {
+                        setOnlyRoles(only);
+                        touched();
+                      }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {onlyRoles && (
+                <div className={s.roles}>
+                  {roles.map((r) => {
+                    const on = roleIds.includes(r.id);
+                    return (
+                      <label key={r.id} className={s.pill} data-on={on || undefined}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          disabled={readOnly}
+                          onChange={(e) => {
+                            setRoleIds((ids) =>
+                              e.target.checked ? [...ids, r.id] : ids.filter((x) => x !== r.id),
+                            );
+                            touched();
+                          }}
+                        />
+                        {r.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <aside className={s.previewPane} aria-label="How it will look">
+              <PreviewAs onContext={setContext} />
+              <WhatsAppBubble text={preview.text} />
+              {preview.missing.length > 0 && (
+                <p className={s.missing}>
+                  {context ? "Nothing to fill in for " : "Filled in when sent: "}
+                  {preview.missing.map((m) => `{{${m}}}`).join(", ")}
                 </p>
-              )
-            )}
-            <Button type="submit" variant="primary" loading={busy}>
-              Save
-            </Button>
+              )}
+            </aside>
           </div>
-        )}
-      </motion.form>
-    </>
+
+          {askDiscard && (
+            <div role="alertdialog" aria-label="Discard your changes?" className={`${s.foot} ${s.discard}`}>
+              <p className={s.discardText}>Discard your changes?</p>
+              <Button variant="ghost" autoFocus onClick={() => setAskDiscard(false)}>
+                Keep editing
+              </Button>
+              <Button variant="danger" onClick={onClose}>
+                Discard
+              </Button>
+            </div>
+          )}
+          {!readOnly && !askDiscard && (
+            <div className={s.foot}>
+              {problem ? (
+                <p role="alert" className={s.problem}>
+                  {problem}
+                </p>
+              ) : (
+                saved && (
+                  <p role="status" className={s.saved}>
+                    {saved}
+                  </p>
+                )
+              )}
+              <Button type="submit" variant="primary" loading={busy}>
+                Save
+              </Button>
+            </div>
+          )}
+        </motion.form>
+      </>
+    </BodyPortal>
   );
 }
 

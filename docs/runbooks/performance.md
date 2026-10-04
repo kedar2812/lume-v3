@@ -144,20 +144,20 @@ and count paths in the same run stayed inside their 150 ms budget (the slowest, 
 Dashboards read daily rollups kept in the business's own days (0053): today and yesterday every 10 minutes, the last
 7 days nightly, days 8–90 weekly. A day's recompute takes about 0.85 s at a million leads on one CPU.
 
-### Measured: 1,000,000 leads, rollups for 91 days (dev box, scale database: 1 CPU, 1 GB)
+### Measured: 1,000,000 leads, rollups for 91 days (dev box, scale database: 1 CPU, 1 GB; 2026-10-04, last run)
 
 | Request (median of 5) | 30 days | 90 days |
 | --- | ---: | ---: |
-| Overview (admin) | 54 ms | 77 ms |
-| Overview (rep, own) | 134 ms | 193 ms |
-| Funnel | 33 ms | 46 ms |
-| Team | 12 ms | 26 ms |
-| Sources | 10 ms | 24 ms |
-| Lost | 7 ms | 20 ms |
-| Timing | 165 ms | 404 ms → slot totals (0055) |
+| Overview (admin) | 70 ms | 96 ms |
+| Overview (rep, own) | 189 ms | 264 ms |
+| Funnel | 43 ms | 45 ms |
+| Team | 19 ms | 27 ms |
+| Sources | 14 ms | 26 ms |
+| Lost | 24 ms | 20 ms |
+| Timing (with slot totals, 0055) | 7 ms | 5 ms |
 
 The first run had the admin overview at 1.2 s and lost at 1.2 s: working out who owned each lead at the moment it was
 won or lost, per lead, for someone who sees everything anyway. Those viewers now skip that step. Timing at 90 days read a
-row per person per hour; 0055 keeps one per hour for viewers who see everyone. Budget: 300 ms
+row per person per hour (404 ms); 0055 keeps one per hour for viewers who see everyone (5 ms). Budget: 300 ms
 (`LUME_SCALE_ANALYTICS_BUDGET`).
 

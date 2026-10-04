@@ -112,8 +112,9 @@ describe("the Views section (4B Task 6)", () => {
     vi.mocked(viewsClient.counts).mockResolvedValue(ok({ counts: { v1: 4, v2: 12 } }) as never);
     vi.mocked(viewsClient.list).mockResolvedValue(ok({ views: VIEWS.slice(0, 2) }) as never);
     act(() => leadsChanged!());
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("link", { name: /Team pipeline/ })).not.toBeInTheDocument(),
+    await vi.waitFor(
+      () => expect(screen.queryByRole("link", { name: /Team pipeline/ })).not.toBeInTheDocument(),
+      { timeout: 3000 }, // a list reload behind a counts answer: slower on a busy CI runner
     );
   });
 

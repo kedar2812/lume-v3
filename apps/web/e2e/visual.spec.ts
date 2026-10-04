@@ -172,6 +172,9 @@ for (const theme of ["porcelain", "obsidian"] as const) {
         await page.goto(s.path);
         await s.ready(page);
         await page.addStyleTag({ content: FREEZE_VOLATILE });
+        // The sign-in aura is two huge blurred circles: Chromium draws that blur a few hundred pixels differently from
+        // run to run, so the compared copy leaves the decoration out (the review copies keep it).
+        await page.addStyleTag({ content: '[class*="aura"] { visibility: hidden !important; }' });
         // Proven, not assumed: every visible relative time now takes exactly the same room.
         const widths = await page
           .locator("[data-volatile]")

@@ -1,4 +1,5 @@
 "use client";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import {
@@ -218,249 +219,251 @@ export function NewLeadSheet({
   );
 
   return (
-    <>
-      <motion.div
-        className={d.scrim}
-        onClick={requestClose}
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      />
-      <motion.form
-        ref={panel}
-        method="post"
-        noValidate
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={d.drawer}
-        onSubmit={submit}
-        onKeyDown={trap}
-        onChange={(e) => {
-          // Searching a picker's list (it floats in a portal, but its events reach the form) isn't
-          // typing into the lead.
-          if ((e.target as HTMLElement).closest("[data-search-panel]")) return;
-          setDirty(true);
-          setConfirmDiscard(false);
-        }}
-        // The resting state names both properties: the server can't know the motion preference, so a
-        // drawer rendered there may start off-screen even for someone who then gets the fade.
-        initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
-        transition={toMotion(SPRINGS.drawer)}
-      >
-        <div className={d.top}>
-          <IconButton label="Close (Esc)" onClick={requestClose}>
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </IconButton>
-          <h2 id={titleId} className={s.title}>
-            New lead
-          </h2>
-        </div>
-
-        <div className={d.scroll}>
-          <Field label="Name" error={errors.name}>
-            {(c) => (
-              <input
-                {...c}
-                autoComplete="off"
-                maxLength={200}
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  clearError("name");
-                }}
-              />
-            )}
-          </Field>
-
-          <div className={s.pair}>
-            {writable("phone") && (
-              <Field label="Phone" error={errors.phone}>
-                {(c) => (
-                  <PhoneInput
-                    {...c}
-                    value={phone}
-                    defaultCountry={catalog.country}
-                    onChange={(v) => {
-                      setPhone(v);
-                      setDirty(true);
-                      clearError("phone");
-                    }}
-                  />
-                )}
-              </Field>
-            )}
-            {writable("email") && (
-              <Field label="Email" error={errors.email}>
-                {(c) => (
-                  <input
-                    {...c}
-                    type="email"
-                    autoComplete="off"
-                    maxLength={254}
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      clearError("email");
-                    }}
-                  />
-                )}
-              </Field>
-            )}
+    <BodyPortal>
+      <>
+        <motion.div
+          className={d.scrim}
+          onClick={requestClose}
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        />
+        <motion.form
+          ref={panel}
+          method="post"
+          noValidate
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className={d.drawer}
+          onSubmit={submit}
+          onKeyDown={trap}
+          onChange={(e) => {
+            // Searching a picker's list (it floats in a portal, but its events reach the form) isn't
+            // typing into the lead.
+            if ((e.target as HTMLElement).closest("[data-search-panel]")) return;
+            setDirty(true);
+            setConfirmDiscard(false);
+          }}
+          // The resting state names both properties: the server can't know the motion preference, so a
+          // drawer rendered there may start off-screen even for someone who then gets the fade.
+          initial={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduce ? { opacity: 0, x: 0 } : { opacity: 1, x: "calc(100% + 24px)" }}
+          transition={toMotion(SPRINGS.drawer)}
+        >
+          <div className={d.top}>
+            <IconButton label="Close (Esc)" onClick={requestClose}>
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </IconButton>
+            <h2 id={titleId} className={s.title}>
+              New lead
+            </h2>
           </div>
-          <p role="status" className={s.dups}>
-            {duplicates.map((dup, i) => (
-              <span key={dup.visible ? dup.leadId : `hidden-${i}`} className={s.dup}>
-                {duplicateLine(dup)}
-              </span>
-            ))}
-          </p>
 
-          {writable("instagram") && (
-            <Field label="Instagram" error={errors.instagram}>
+          <div className={d.scroll}>
+            <Field label="Name" error={errors.name}>
               {(c) => (
                 <input
                   {...c}
                   autoComplete="off"
-                  placeholder="@handle"
-                  maxLength={31}
-                  value={instagram}
+                  maxLength={200}
+                  value={name}
                   onChange={(e) => {
-                    setInstagram(e.target.value);
-                    clearError("instagram");
+                    setName(e.target.value);
+                    clearError("name");
                   }}
                 />
               )}
             </Field>
-          )}
 
-          <div className={s.pair}>
-            {openStages.length > 1 && (
-              <Field label="Stage">
-                {(c) => (
-                  <select {...c} value={stageId} onChange={(e) => setStageId(e.target.value)}>
-                    {openStages.map((st) => (
-                      <option key={st.id} value={st.id}>
-                        {st.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </Field>
-            )}
-            {mayAssign && (
-              <Field label="Owner" error={errors.ownerId}>
-                {(c) => (
-                  <select {...c} value={owner} onChange={(e) => setOwner(e.target.value)}>
-                    <option value={ME}>{session.user.name} (you)</option>
-                    {others.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                    {mayLeaveUnassigned && <option value={NOBODY}>Unassigned</option>}
-                  </select>
-                )}
-              </Field>
-            )}
-          </div>
+            <div className={s.pair}>
+              {writable("phone") && (
+                <Field label="Phone" error={errors.phone}>
+                  {(c) => (
+                    <PhoneInput
+                      {...c}
+                      value={phone}
+                      defaultCountry={catalog.country}
+                      onChange={(v) => {
+                        setPhone(v);
+                        setDirty(true);
+                        clearError("phone");
+                      }}
+                    />
+                  )}
+                </Field>
+              )}
+              {writable("email") && (
+                <Field label="Email" error={errors.email}>
+                  {(c) => (
+                    <input
+                      {...c}
+                      type="email"
+                      autoComplete="off"
+                      maxLength={254}
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearError("email");
+                      }}
+                    />
+                  )}
+                </Field>
+              )}
+            </div>
+            <p role="status" className={s.dups}>
+              {duplicates.map((dup, i) => (
+                <span key={dup.visible ? dup.leadId : `hidden-${i}`} className={s.dup}>
+                  {duplicateLine(dup)}
+                </span>
+              ))}
+            </p>
 
-          <div className={s.pair}>
-            {writable("value") && (
-              <Field label="Deal value" error={errors.value}>
+            {writable("instagram") && (
+              <Field label="Instagram" error={errors.instagram}>
                 {(c) => (
-                  <MoneyInput
+                  <input
                     {...c}
-                    amount={value}
-                    currency={catalog.currency}
-                    onChange={(amount) => {
-                      setValue(amount);
-                      setValueTyped(amount !== "");
-                      setDirty(true);
-                      clearError("value");
+                    autoComplete="off"
+                    placeholder="@handle"
+                    maxLength={31}
+                    value={instagram}
+                    onChange={(e) => {
+                      setInstagram(e.target.value);
+                      clearError("instagram");
                     }}
                   />
                 )}
               </Field>
             )}
-            {showProduct && (
-              <Field label="Package" error={errors.product}>
-                {(c) => (
-                  <select {...c} value={productId} onChange={(e) => pickProduct(e.target.value)}>
-                    <option value="">None</option>
-                    {catalog.products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </Field>
+
+            <div className={s.pair}>
+              {openStages.length > 1 && (
+                <Field label="Stage">
+                  {(c) => (
+                    <select {...c} value={stageId} onChange={(e) => setStageId(e.target.value)}>
+                      {openStages.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              )}
+              {mayAssign && (
+                <Field label="Owner" error={errors.ownerId}>
+                  {(c) => (
+                    <select {...c} value={owner} onChange={(e) => setOwner(e.target.value)}>
+                      <option value={ME}>{session.user.name} (you)</option>
+                      {others.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                      {mayLeaveUnassigned && <option value={NOBODY}>Unassigned</option>}
+                    </select>
+                  )}
+                </Field>
+              )}
+            </div>
+
+            <div className={s.pair}>
+              {writable("value") && (
+                <Field label="Deal value" error={errors.value}>
+                  {(c) => (
+                    <MoneyInput
+                      {...c}
+                      amount={value}
+                      currency={catalog.currency}
+                      onChange={(amount) => {
+                        setValue(amount);
+                        setValueTyped(amount !== "");
+                        setDirty(true);
+                        clearError("value");
+                      }}
+                    />
+                  )}
+                </Field>
+              )}
+              {showProduct && (
+                <Field label="Package" error={errors.product}>
+                  {(c) => (
+                    <select {...c} value={productId} onChange={(e) => pickProduct(e.target.value)}>
+                      <option value="">None</option>
+                      {catalog.products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              )}
+            </div>
+
+            {catalog.tags.length > 0 && (
+              <div className={s.tagGroup} role="group" aria-label="Tags">
+                <p className={s.caption} aria-hidden>
+                  Tags
+                </p>
+                <div className={s.tags}>
+                  {catalog.tags.map((t) => {
+                    const on = tagIds.includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        aria-pressed={on}
+                        className={s.tag}
+                        style={{ ["--c" as string]: tokenColor(t.color) }}
+                        onClick={() => {
+                          setTagIds(on ? tagIds.filter((x) => x !== t.id) : [...tagIds, t.id]);
+                          setDirty(true);
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
+
+            {customFields.length > 0 && <div className={s.customs}>{customFields.map(customEditor)}</div>}
           </div>
 
-          {catalog.tags.length > 0 && (
-            <div className={s.tagGroup} role="group" aria-label="Tags">
-              <p className={s.caption} aria-hidden>
-                Tags
-              </p>
-              <div className={s.tags}>
-                {catalog.tags.map((t) => {
-                  const on = tagIds.includes(t.id);
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      aria-pressed={on}
-                      className={s.tag}
-                      style={{ ["--c" as string]: tokenColor(t.color) }}
-                      onClick={() => {
-                        setTagIds(on ? tagIds.filter((x) => x !== t.id) : [...tagIds, t.id]);
-                        setDirty(true);
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
+          {confirmDiscard ? (
+            <div className={s.footer} role="alert">
+              <p className={s.discardText}>Discard this lead?</p>
+              <Button variant="ghost" onClick={() => setConfirmDiscard(false)}>
+                Keep editing
+              </Button>
+              <Button variant="danger" onClick={onClose}>
+                Discard
+              </Button>
+            </div>
+          ) : (
+            <div className={s.footer}>
+              {formError && (
+                <p role="alert" className={s.formError}>
+                  {formError}
+                </p>
+              )}
+              <Button variant="ghost" onClick={requestClose}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" loading={busy}>
+                Create lead
+              </Button>
             </div>
           )}
-
-          {customFields.length > 0 && <div className={s.customs}>{customFields.map(customEditor)}</div>}
-        </div>
-
-        {confirmDiscard ? (
-          <div className={s.footer} role="alert">
-            <p className={s.discardText}>Discard this lead?</p>
-            <Button variant="ghost" onClick={() => setConfirmDiscard(false)}>
-              Keep editing
-            </Button>
-            <Button variant="danger" onClick={onClose}>
-              Discard
-            </Button>
-          </div>
-        ) : (
-          <div className={s.footer}>
-            {formError && (
-              <p role="alert" className={s.formError}>
-                {formError}
-              </p>
-            )}
-            <Button variant="ghost" onClick={requestClose}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" loading={busy}>
-              Create lead
-            </Button>
-          </div>
-        )}
-      </motion.form>
-    </>
+        </motion.form>
+      </>
+    </BodyPortal>
   );
 }

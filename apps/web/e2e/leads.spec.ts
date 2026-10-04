@@ -106,14 +106,14 @@ test.describe("the owner works leads", () => {
       await page.getByRole("button", { name: `Move 2 to ${stage}` }).click();
     };
     await move("Call booked"); // needs Struggles, which neither has
-    await expect(page.getByText("0 leads moved to Call booked")).toBeVisible();
+    await expect(page.getByText("0 leads moved to Call booked", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "2 skipped" }).click();
     await expect(page.getByRole("dialog", { name: "Why some were skipped" })).toContainText(
       "need a field that stage asks for",
     );
     await page.getByRole("button", { name: "Close" }).click();
     await move("Message sent");
-    await expect(page.getByText("2 leads moved to Message sent")).toBeVisible();
+    await expect(page.getByText("2 leads moved to Message sent", { exact: true })).toBeVisible();
   });
 });
 
