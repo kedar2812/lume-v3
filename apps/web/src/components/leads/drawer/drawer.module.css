@@ -344,12 +344,13 @@
 .chip:focus-within {
   box-shadow: var(--focus-ring);
 }
-.wonSubmit {
+/* Doubled: wins over the shared Button's own rule on specificity, never on stylesheet order (Phase 9 Task 2). */
+.wonSubmit.wonSubmit {
   width: 100%;
   margin-top: 4px;
   background: var(--ok);
 }
-.wonSubmit:hover {
+.wonSubmit.wonSubmit:hover {
   background: var(--ok-ink);
 }
 

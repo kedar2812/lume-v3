@@ -130,7 +130,8 @@
   text-align: center;
   margin-top: 10px;
 }
-.submit {
+/* Doubled: wins over the shared Button's 34 px on specificity, never on stylesheet order (Phase 9 Task 2). */
+.submit.submit {
   width: 100%;
   height: 46px;
   margin-top: 6px;

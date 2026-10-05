@@ -78,9 +78,10 @@ export async function today(req: FastifyRequest, d: AppDeps) {
   }));
   const out = { overdue, soon, later, done: doneToday, total: doneToday + all.length, meetings };
   if (!can(actor, "leads.view", "all")) return out;
+  // Read from the kept counts (0048, exact at every moment), not counted across every lead: 484 ms → a few at 1M.
   const unassigned = await req.db.execute<{ n: number }>(sql`
-    SELECT count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id
-     WHERE l.owner_id IS NULL AND l.deleted_at IS NULL AND s.kind = 'open'`);
+    SELECT coalesce(sum(c.n), 0)::int AS n FROM lead_counts_now c JOIN stages s ON s.id = c.stage_id
+     WHERE c.owner_id IS NULL AND s.kind = 'open'`);
   const sources = await req.db
     .select({ id: schema.leadSources.id, name: schema.leadSources.name, type: schema.leadSources.type })
     .from(schema.leadSources)

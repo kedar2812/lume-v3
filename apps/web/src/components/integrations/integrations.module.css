@@ -254,7 +254,8 @@
   height: 32px;
   border-radius: var(--r-ctl);
 }
-.danger {
+/* Doubled: its colour wins over the shared Button's danger variant on specificity, not order (Phase 9 Task 2). */
+.danger.danger {
   margin-left: auto;
   color: var(--danger-ink);
 }
