@@ -114,10 +114,11 @@ beforeAll(async () => {
   // What converts: a budget question; six said under ₹1 L (two won), six said ₹1–3 L (three won).
   await h.ownerPool.query(
     `INSERT INTO field_definitions (id, key, label, type, options)
-     VALUES (gen_random_uuid(), 'budget', 'Budget', 'select', '["Under ₹1 L", "₹1–3 L"]')`,
+     VALUES (gen_random_uuid(), 'budget', 'Budget', 'select',
+             '[{"id": "o-mid", "label": "₹1–3 L"}, {"id": "o-low", "label": "Under ₹1 L"}]')`,
   );
-  for (let i = 0; i < 6; i++) await lead({ day: 10 + i, custom: { budget: "Under ₹1 L" }, won: i < 2 });
-  for (let i = 0; i < 6; i++) await lead({ day: 16 + i, custom: { budget: "₹1–3 L" }, won: i < 3 });
+  for (let i = 0; i < 6; i++) await lead({ day: 10 + i, custom: { budget: "o-low" }, won: i < 2 });
+  for (let i = 0; i < 6; i++) await lead({ day: 16 + i, custom: { budget: "o-mid" }, won: i < 3 });
   await rollupDays(h.pool, days, TZ);
 });
 afterAll(async () => h.close());
@@ -171,9 +172,11 @@ describe("lost, won back, what converts (8D-1 Task 6)", () => {
     const s = (await get(`segments?${Q}&field=budget`)).json();
     expect(s.field).toMatchObject({ key: "budget", label: "Budget", type: "select" });
     const g = (v: string) => s.groups.find((x: { value: string }) => x.value === v);
-    expect(g("Under ₹1 L")).toMatchObject({ arrived: 6, won: 2, tooFew: true });
-    expect(g("Under ₹1 L").rate).toBeCloseTo(1 / 3, 6);
-    expect(g("₹1–3 L").rate).toBeCloseTo(1 / 2, 6);
+    // Each answer by its option's label, in the field's own order.
+    expect(s.groups.map((x: { label: string }) => x.label)).toEqual(["₹1–3 L", "Under ₹1 L", "Not answered"]);
+    expect(g("o-low")).toMatchObject({ label: "Under ₹1 L", arrived: 6, won: 2, tooFew: true });
+    expect(g("o-low").rate).toBeCloseTo(1 / 3, 6);
+    expect(g("o-mid").rate).toBeCloseTo(1 / 2, 6);
     for (const x of s.groups.filter((x: { value: string | null }) => x.value !== null))
       expect(await opens(x.drill)).toBe(x.arrived);
     expect(s.fields.map((f: { key: string }) => f.key)).toContain("budget");

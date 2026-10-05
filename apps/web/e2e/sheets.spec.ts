@@ -95,7 +95,17 @@ test.describe("Google Sheets", () => {
   test("Reduce Motion: a still card, the same words", async ({ page }) => {
     const id = await putSheet([row(7, "Still Card")]);
     await openApp(page, "/leads");
-    await connectViaApi(page, id, "new");
+    const src = await connectViaApi(page, id, "new");
+    // Its first sync done, then past Refresh's 10 s reuse of a fresh sync (spec 2B amendment A9), so this Refresh
+    // reads the sheet again rather than reporting the sync of a moment ago.
+    await expect
+      .poll(
+        async () =>
+          (await callApi<{ syncing: boolean }>(page, "GET", `/api/v1/sheets/sources/${src}`)).data.syncing,
+        { timeout: 30_000 },
+      )
+      .toBe(false);
+    await page.waitForTimeout(11_000);
     await appendRows(id, [row(8, "Still Card Two")]);
     await openApp(page, "/leads"); // the config's default is reducedMotion: "reduce"
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
@@ -142,11 +152,18 @@ test.describe("Google Sheets", () => {
     }
   });
 
-  test("with Sheets switched off there is no Refresh anywhere", async ({ page }) => {
+  test("with Sheets switched off, Refresh still reloads the list — and never syncs a sheet (owner, 2026-10-05)", async ({
+    page,
+  }) => {
     await openApp(page, "/leads");
     await callApi(page, "PUT", "/api/v1/integrations/google-sheets", { enabled: false });
     await openApp(page, "/leads");
-    await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(0);
+    const synced: string[] = [];
+    page.on("request", (r) => r.url().includes("/api/v1/sheets/refresh") && synced.push(r.url()));
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(page.getByText("Checking for new leads").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /new|Up to date/ })).toBeVisible({ timeout: 10_000 });
+    expect(synced).toEqual([]);
     await callApi(page, "PUT", "/api/v1/integrations/google-sheets", { enabled: true });
   });
 

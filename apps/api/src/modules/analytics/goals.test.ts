@@ -115,6 +115,22 @@ describe("goals and spend (8B)", () => {
       ).statusCode,
     ).toBe(403);
   });
+
+  it("Sources & spend reads each source with what it costs a month; only admins", async () => {
+    const c = await h.signIn(admin);
+    await c.inject({
+      method: "PUT",
+      url: `/api/v1/settings/sources/${fx.sources[1]}/spend`,
+      payload: { monthlySpend: 4500.5 },
+    });
+    const r = await c.inject({ method: "GET", url: "/api/v1/settings/sources" });
+    expect(r.statusCode).toBe(200);
+    const one = r.json().sources.find((x: { id: string }) => x.id === fx.sources[1]);
+    expect(one).toMatchObject({ id: fx.sources[1], monthlySpend: 4500.5 });
+    expect(one).toEqual(expect.objectContaining({ name: expect.any(String), type: expect.any(String) }));
+    const rep = await h.signIn(fx.people[1]!);
+    expect((await rep.inject({ method: "GET", url: "/api/v1/settings/sources" })).statusCode).toBe(403);
+  });
 });
 
 describe("LUME noticed (8B)", () => {

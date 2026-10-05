@@ -61,6 +61,22 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "goals",
+    title: "Goals",
+    blurb: "What the business, each team and each person aim for",
+    href: "/settings/goals",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
+    id: "sources",
+    title: "Sources & spend",
+    blurb: "What each source costs a month, so Analytics shows what a lead costs",
+    href: "/settings/sources",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
     id: "messages",
     title: "Messages",
     blurb: "The send queue: leads in a run, and a daily limit",

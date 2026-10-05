@@ -1,7 +1,7 @@
 "use client";
 import type { CSSProperties, ReactNode } from "react";
 import type { Trend } from "@lume/core/shared";
-import { areaUnder, smooth, toPts } from "@/lib/analytics/chart";
+import { areaUnder, smooth, sparkLine, toPts } from "@/lib/analytics/chart";
 import s from "./analytics.module.css";
 
 const ARROWS = {
@@ -66,10 +66,20 @@ export function Card({
 }
 
 /** The little line in a tile's corner: the period's own days, not a made-up shape. */
-export function Spark({ values }: { values: number[] }) {
-  if (values.length < 2 || values.every((v) => v === 0)) return null;
-  const max = Math.max(...values) * 1.1 || 1;
-  const pts = toPts(values, 120, 44, max, 2);
+export function Spark({ values }: { values: (number | null)[] }) {
+  const line = sparkLine(values);
+  if (!line || line.every((v) => v === 0)) return null;
+  // The line sits in the tile's lower part: its low is near the bottom, its high below the number.
+  const lo = Math.min(...line);
+  const hi = Math.max(...line);
+  const span = hi - lo || 1;
+  const pts = toPts(
+    line.map((v) => v - lo + span * 0.15),
+    120,
+    44,
+    span * 1.25,
+    2,
+  );
   return (
     <svg className={s.spark} viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden>
       <path d={areaUnder(pts, 44)} />

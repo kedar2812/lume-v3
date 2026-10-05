@@ -538,7 +538,7 @@ export async function quality(
   const range = rangeOf(q, tz, now);
   const mint = minter(d, req, range, q, tz, now);
   const [f, t] = [range.from.toISOString(), range.to.toISOString()];
-  const [phones, unowned, imports, merged] = await Promise.all([
+  const [phones, unowned, imports, merged, oldest, needing] = await Promise.all([
     // Counted with the "now" snapshot (0059) every 10 minutes: every lead's phone, at a million leads.
     req.db.execute<{ status: string; n: number }>(sql`
       SELECT phone_status AS status, sum(n)::int AS n FROM analytics_phone_now
@@ -562,6 +562,14 @@ export async function quality(
       SELECT count(*)::int AS n FROM activities a JOIN leads l ON l.id = a.lead_id
       WHERE a.type = 'imported_again' AND a.occurred_at >= ${f}::timestamptz AND a.occurred_at < ${t}::timestamptz
         AND ${leadWhere(q)} AND lume_analytics_scope() = 'all'`),
+    // How long the oldest unowned lead has waited (canvas Quality's "Nobody yet" tile).
+    req.db.execute<{ minutes: number | null }>(sql`
+      SELECT (extract(epoch FROM now() - min(l.created_at)) / 60)::float8 AS minutes
+      FROM leads l WHERE ${leadWhere(q)} AND l.owner_id IS NULL AND lume_analytics_scope() = 'all'`),
+    // Sources that stopped, or need someone to look: paused or needing attention, with what LUME last saw.
+    req.db.execute<{ id: string; name: string; type: string; status: string; message: string | null }>(sql`
+      SELECT id, name, type, status, last_error AS message FROM lead_sources
+      WHERE status IN ('paused', 'needs_attention') AND lume_analytics_scope() = 'all' ORDER BY name`),
   ]);
   const ph = (st: string) => phones.rows.find((r) => r.status === st)?.n ?? 0;
   const total = phones.rows.reduce((a, r) => a + r.n, 0);
@@ -577,6 +585,7 @@ export async function quality(
       drill: { needsCountry: mint("phone_needs_country"), invalid: mint("phone_invalid") },
     },
     duplicatesMerged: merged.rows[0]!.n,
+    sourcesNeedingLook: needing.rows,
     unowned: {
       under1h: wait("under_1h"),
       under1d: wait("under_1d"),
@@ -584,6 +593,7 @@ export async function quality(
       over7d: wait("over_7d"),
       // The 8A field the current screen reads: everything past a day.
       over1d: wait("under_7d") + wait("over_7d"),
+      oldestMinutes: oldest.rows[0]?.minutes ?? null,
       drill: {
         under_1h: mint("unowned", { wait: "under_1h" }),
         under_1d: mint("unowned", { wait: "under_1d" }),

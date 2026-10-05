@@ -89,9 +89,9 @@ test.describe("Templates and sending (4A)", () => {
     await expect(preview).toContainText("Hi Alex, still thinking about");
     await expect(preview.locator("mark[data-missing]")).toHaveText("{{lead.custom.struggles}}");
     await editor.getByRole("button", { name: "Save" }).click();
-    await expect(editor.getByRole("status")).toHaveText("Saved as version 1");
-    await expect(editor).toHaveAccessibleName("Struggles check");
-    await page.keyboard.press("Escape");
+    // Saved (owner, 2026-10-05): LUME reads it back, the editor closes, and a Saved says so.
+    await expect(page.getByRole("status").filter({ hasText: "“Struggles check” saved" })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("list", { name: "Follow-up" })).toContainText("Struggles check");
   });
 

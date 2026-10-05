@@ -96,6 +96,30 @@ describe("the analytics API (8A Task 6)", () => {
     expect(body.series.won).toEqual([0, 1, 1]);
   });
 
+  it("every tile has its own daily line, by the tile's own definition (a day with nothing to divide is a gap)", async () => {
+    const body = (
+      await (await h.signIn(money)).inject({ method: "GET", url: `/api/v1/analytics/overview?${Q}` })
+    ).json();
+    const t = body.series.tiles as Record<string, (number | null)[]>;
+    expect(t.new_leads).toEqual([1, 2, 1]);
+    expect(t.contacted).toEqual([1, 0.5, 0]);
+    expect(t.reply_rate).toEqual([1, 0, null]);
+    expect(t.win_rate).toEqual([1, 0, 1]);
+    expect(t.won).toEqual([0, 1, 1]);
+    expect(t.revenue_won).toEqual([0, 2000, 0]);
+    // A count's line adds up to its tile.
+    for (const id of ["new_leads", "won", "calls_booked", "calls_held", "revenue_won"])
+      expect(t[id]!.reduce((a, v) => a! + (v ?? 0), 0)).toBe(tile(body, id).value);
+    // "Right now" numbers have no line; neither does money for someone without analytics.revenue.
+    expect(t.overdue_now).toBeUndefined();
+    expect(t.forecast).toBeUndefined();
+    const plain = (
+      await (await h.signIn(admin)).inject({ method: "GET", url: `/api/v1/analytics/overview?${Q}` })
+    ).json();
+    expect(plain.series.tiles.revenue_won).toBeUndefined();
+    expect(plain.series.tiles.avg_deal).toBeUndefined();
+  });
+
   it("money is there only for someone with analytics.revenue, and says what had no value", async () => {
     const plain = (
       await (await h.signIn(admin)).inject({ method: "GET", url: `/api/v1/analytics/overview?${Q}` })

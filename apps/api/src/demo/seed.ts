@@ -183,13 +183,27 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
       "INSERT INTO tags (id, label) SELECT * FROM unnest($1::uuid[], $2::text[])",
       TAGS.map((t, i) => [tags[i], t]),
     );
-    const budgetKnown =
-      (await c.query("SELECT 1 FROM field_definitions WHERE key = 'budget'")).rows.length > 0;
-    if (!budgetKnown)
+    // A choice field stores {id, label} options and each lead the option's id (core/leads/custom-fields.ts), so the
+    // demo answers are read by every screen exactly as a real business's are.
+    const budgetField = (
+      await c.query<{ options: unknown }>("SELECT options FROM field_definitions WHERE key = 'budget'")
+    ).rows[0];
+    if (!budgetField)
       await c.query(
         "INSERT INTO field_definitions (id, key, label, type, options) VALUES ($1, 'budget', 'Budget', 'select', $2::jsonb)",
-        [randomUUID(), JSON.stringify(BUDGET)],
+        [
+          randomUUID(),
+          JSON.stringify(BUDGET.map((label) => ({ id: `budget-${label.toLowerCase()}`, label }))),
+        ],
       );
+    // A budget field already here: its own options, matched by label; an answer it doesn't offer is left out.
+    const budgetIds = BUDGET.map((label) => {
+      if (!budgetField) return `budget-${label.toLowerCase()}`;
+      const opts = Array.isArray(budgetField.options)
+        ? (budgetField.options as { id?: string; label?: string }[])
+        : [];
+      return opts.find((o) => o.label === label)?.id ?? null;
+    });
     let reasons = (
       await c.query<{ id: string }>("SELECT id FROM lost_reasons WHERE archived_at IS NULL ORDER BY position")
     ).rows.map((x) => x.id);
@@ -279,9 +293,11 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
             const pi = r.weighted(PRODUCTS);
             return { value: PRODUCTS[pi]!.value, product: pi };
           })(),
-          custom: r.chance(0.6)
-            ? { budget: BUDGET[r.weighted([{ weight: 0.45 }, { weight: 0.4 }, { weight: 0.15 }])]! }
-            : {},
+          custom: ((): Record<string, string> => {
+            if (!r.chance(0.6)) return {};
+            const id = budgetIds[r.weighted([{ weight: 0.45 }, { weight: 0.4 }, { weight: 0.15 }])];
+            return id ? { budget: id } : {};
+          })(),
           tag: r.chance(0.2) ? r.int(0, TAGS.length - 1) : null,
         };
         leads.push(lead);

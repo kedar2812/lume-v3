@@ -7,7 +7,7 @@ import type { AppDeps } from "../../app";
 import { badRequest, notFound } from "../../http/errors";
 import { listLeads } from "../leads/query";
 import { drillFor, drillIds, readDrill } from "./drill";
-import { listGoals, removeGoal, setGoal, setSpend } from "./goals";
+import { listGoals, listSpend, removeGoal, setGoal, setSpend } from "./goals";
 import { CSV_MODULES, boardCsv } from "./csv";
 import { insights } from "./insights";
 import { me } from "./me";
@@ -17,7 +17,7 @@ import { lost, quality, sources, templates, timing } from "./modules";
 import { funnel } from "./funnel";
 import { glance } from "./glance";
 import { recountNow } from "./rollup";
-import { businessTz, overview, rangeOf, type AnalyticsQuery } from "./service";
+import { businessTz, overview, rangeOf, reachOf, type AnalyticsQuery } from "./service";
 import { team } from "./team";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -153,6 +153,20 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
   r.post("/api/v1/analytics/refresh", { config: view }, async () =>
     recountNow(d.jobPool ?? d.pool, d.clock()),
   );
+  // The Filters panel's teams (8D-3 Filters artboard), within the viewer's reach: every team for someone who sees
+  // everyone, the teams they lead for a team lead, none for someone who sees only their own.
+  r.get("/api/v1/analytics/teams", { config: view }, async (req) => {
+    const reach = reachOf(req);
+    if (reach === "own") return { teams: [] };
+    const rows = await req.db.execute<{ id: string; name: string; member_ids: string[] }>(sql`
+      SELECT t.id, t.name, coalesce(array_agg(m.user_id) FILTER (WHERE m.user_id IS NOT NULL), '{}') AS member_ids
+      FROM teams t LEFT JOIN team_members m ON m.team_id = t.id
+      WHERE t.deleted_at IS NULL
+        AND (${reach === "all"} OR EXISTS (SELECT 1 FROM team_members x WHERE x.team_id = t.id
+                                           AND x.user_id = ${req.actor!.userId}::uuid AND x.is_lead))
+      GROUP BY t.id, t.name ORDER BY t.name`);
+    return { teams: rows.rows.map((t) => ({ id: t.id, name: t.name, memberIds: t.member_ids })) };
+  });
   // Today's quick stats: four numbers with trends and sparklines, at the viewer's reach.
   r.get("/api/v1/analytics/glance", { config: view }, async (req) => glance(req, d.clock()));
   r.get("/api/v1/analytics/me", { config: view, schema: { querystring: query } }, async (req) =>
@@ -199,6 +213,8 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
       return reply.code(204).send();
     },
   );
+  // Settings → Sources & spend (8D-3): every source still in use, with what it costs a month.
+  r.get("/api/v1/settings/sources", { config: { permission: "settings.manage" } }, (req) => listSpend(req));
   r.put(
     "/api/v1/settings/sources/:id/spend",
     {

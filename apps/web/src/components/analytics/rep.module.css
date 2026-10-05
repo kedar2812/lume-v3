@@ -1,0 +1,341 @@
+/* A rep's own numbers, card for card with the canvas (docs/design/phase8/canvas/Rep.dc.html). */
+.hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  overflow: hidden;
+  padding: 26px 26px 22px;
+  border-radius: 22px;
+  color: #fff;
+  background: linear-gradient(135deg, #3a69ff, var(--accent) 48%, #1e47d9);
+  box-shadow:
+    0 18px 40px -18px rgba(var(--accent-rgb), 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  animation: cardin 0.8s var(--spring) both;
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: -50% -10% auto auto;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.16), transparent);
+  pointer-events: none;
+}
+@keyframes cardin {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.heroText {
+  flex: 1;
+  min-width: 0;
+}
+.heroText h2 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.heroText p {
+  max-width: 560px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+.rings {
+  display: flex;
+  gap: 22px;
+}
+.ring {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ring svg {
+  width: 92px;
+  height: 92px;
+  transform: rotate(-90deg);
+}
+.ring circle {
+  fill: none;
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+.rbg {
+  stroke: rgba(255, 255, 255, 0.22);
+}
+.rfg {
+  stroke: #fff;
+  stroke-dasharray: 239;
+  stroke-dashoffset: var(--to);
+  animation: ringin 1.4s var(--spring) 0.3s both;
+}
+.rfg[data-met] {
+  stroke: #4fd69c;
+}
+@keyframes ringin {
+  from {
+    stroke-dashoffset: 239;
+  }
+}
+.rctr {
+  position: absolute;
+  top: 0;
+  width: 92px;
+  height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.rctr b {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rctr span {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.rl {
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+@media (max-width: 1000px) {
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+@media (max-width: 1280px) {
+  .tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.r3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+@media (max-width: 1180px) {
+  .r3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Your follow-ups. */
+.fu {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fuRow {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 6px;
+  border-radius: 12px;
+  transition: background 0.15s;
+}
+.fuRow:hover {
+  background: var(--hover);
+}
+.fuRow:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.fuWho {
+  min-width: 0;
+}
+.fuWho b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.fuWho span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.due {
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.due[data-late] {
+  color: var(--warn-ink);
+}
+
+/* Your funnel. */
+.fn {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.fnr {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 48px;
+  gap: 10px;
+  align-items: center;
+  font-size: 12.5px;
+}
+.fnr > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fnr b {
+  text-align: right;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.fnt {
+  height: 18px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--sunk);
+}
+.fnt i {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent), var(--sky));
+  transform-origin: 0 50%;
+  animation: grow 1s var(--spring) both;
+  animation-delay: calc(var(--i) * 70ms + 0.3s);
+}
+.fnt i[data-last] {
+  background: var(--ok);
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.fnFoot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* When your leads reply. */
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  height: 120px;
+}
+.day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+}
+.dbar {
+  display: flex;
+  align-items: flex-end;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+.dbar i {
+  display: block;
+  width: 100%;
+  border-radius: 7px 7px 3px 3px;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.25);
+  transform-origin: 50% 100%;
+  animation: rise 0.9s var(--spring) both;
+  animation-delay: calc(var(--i) * 50ms + 0.3s);
+}
+.day[data-best] .dbar i {
+  background: var(--accent);
+}
+.dbar i[data-thin] {
+  background: var(--sunk);
+  box-shadow: none;
+}
+@keyframes rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+.day b {
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.day > span:last-child {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.ins {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft), transparent 70%);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.18);
+}
+.spk {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.spk img {
+  width: 18px;
+  height: 18px;
+}
+.ins b {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+.ins p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero,
+  .rfg,
+  .fnt i,
+  .dbar i {
+    animation: none;
+  }
+}

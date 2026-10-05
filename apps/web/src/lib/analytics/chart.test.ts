@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaUnder, band, niceMax, smooth, toPts } from "./chart";
+import { areaUnder, band, niceMax, niceTicks, smooth, sparkLine, toPts } from "./chart";
 
 describe("chart geometry (8C)", () => {
   it("a round top for the axis", () => {
@@ -29,5 +29,38 @@ describe("chart geometry (8C)", () => {
     expect(areaUnder(top, 10).endsWith("Z")).toBe(true);
     expect(band(top, toPts([0, 0], 10, 10, 4)).endsWith("Z")).toBe(true);
     expect(smooth([])).toBe("");
+  });
+});
+
+describe("niceTicks", () => {
+  it("steps by 1, 2 or 5 times a power of ten, from 0 to a top at least the largest value", () => {
+    expect(niceTicks(46)).toEqual([0, 10, 20, 30, 40, 50]);
+    expect(niceTicks(50)).toEqual([0, 10, 20, 30, 40, 50]);
+    expect(niceTicks(7)).toEqual([0, 2, 4, 6, 8]);
+    expect(niceTicks(1240)).toEqual([0, 500, 1000, 1500]);
+    expect(niceTicks(0)).toEqual([0, 1]);
+    for (const v of [3, 13, 38, 99, 101, 777, 12_345]) {
+      const t = niceTicks(v);
+      expect(t.at(-1)!).toBeGreaterThanOrEqual(v);
+      expect(t.length).toBeLessThanOrEqual(6);
+      const step = t[1]! - t[0]!;
+      expect(step / 10 ** Math.floor(Math.log10(step))).toSatisfy((m: number) => [1, 2, 5].includes(m));
+    }
+  });
+});
+
+describe("sparkLine", () => {
+  it("needs three real days; a gap takes its neighbours' value", () => {
+    expect(sparkLine([null, 4, null])).toBeNull();
+    expect(sparkLine([2, null, 4])).toBeNull();
+    expect(sparkLine([2, null, 4, 5])).toEqual([2, 3, 4, 5]);
+    expect(sparkLine([null, 2, 2, 2])).toEqual([2, 2, 2, 2]);
+  });
+  it("calms a long run of noisy days with a three-day mean, keeping the total shape", () => {
+    const days = Array.from({ length: 30 }, (_, i) => (i % 2 ? 10 : 0));
+    const line = sparkLine(days)!;
+    expect(line).toHaveLength(30);
+    expect(Math.max(...line.slice(1, -1)) - Math.min(...line.slice(1, -1))).toBeLessThan(4);
+    expect(sparkLine([0, 10, 0, 10, 0])).toEqual([0, 10, 0, 10, 0]);
   });
 });

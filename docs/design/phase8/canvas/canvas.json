@@ -1,0 +1,172 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Funnel.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Funnel and pipeline",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "Lost.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Lost — and won back",
+      "w": 1440,
+      "x": 1520,
+      "y": 1340
+    },
+    "Main.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Overview — is the business healthy?",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Quality.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Templates and data quality",
+      "w": 1440,
+      "x": 0,
+      "y": 2680
+    },
+    "Rep.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "A sales rep's own analytics",
+      "w": 1440,
+      "x": 1520,
+      "y": 2680
+    },
+    "Revenue.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Revenue and sources",
+      "w": 1440,
+      "x": 0,
+      "y": 1340
+    },
+    "Team.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Team — who's following up",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "Timing.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Timing and meetings",
+      "w": 1440,
+      "x": 3040,
+      "y": 1340
+    },
+    "Filters.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Filters — narrow every board",
+      "w": 1440,
+      "x": 0,
+      "y": 4020
+    },
+    "Goals.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Settings → Goals",
+      "w": 1440,
+      "x": 1520,
+      "y": 4020
+    },
+    "Spend.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Settings → Sources & spend",
+      "w": 1440,
+      "x": 3040,
+      "y": 4020
+    },
+    "LogCall.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Log a call, in the lead drawer",
+      "w": 1440,
+      "x": 4560,
+      "y": 4020
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-03T18:40:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "t1": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Is the funnel healthy? Is the team following up?",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "t2": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Where revenue comes from, and where it's lost",
+      "w": 240,
+      "x": 0,
+      "y": 1040
+    },
+    "t3": {
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "Messages, data, and a rep's own view",
+      "w": 240,
+      "x": 0,
+      "y": 2380
+    },
+    "t4": {
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "What the numbers need: filters, goals, spend and calls",
+      "w": 240,
+      "x": 0,
+      "y": 3720
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Funnel.dc.html",
+    "Team.dc.html",
+    "Revenue.dc.html",
+    "Lost.dc.html",
+    "Timing.dc.html",
+    "Quality.dc.html",
+    "Rep.dc.html",
+    "Filters.dc.html",
+    "Goals.dc.html",
+    "Spend.dc.html",
+    "LogCall.dc.html"
+  ],
+  "pages": [],
+  "title": "LUME Phase 8 — Analytics"
+}

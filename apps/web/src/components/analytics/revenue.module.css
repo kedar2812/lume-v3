@@ -1,0 +1,454 @@
+/* Revenue & sources, card for card with the canvas (docs/design/phase8/canvas/Revenue.dc.html). */
+.rg {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1180px) {
+  .rg {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.spaced {
+  margin-top: 14px;
+}
+
+/* This month / By month. */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.seg button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  color: var(--text-2);
+  transition:
+    color 0.2s,
+    background 0.25s,
+    box-shadow 0.25s;
+}
+.seg button[aria-checked="true"] {
+  color: var(--text);
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 2px 6px -1px rgba(12, 18, 32, 0.14);
+}
+.seg button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.big {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 2px 0 12px;
+}
+.big b {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.big > span:last-child {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.chart {
+  position: relative;
+  height: 250px;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: 250px;
+  overflow: visible;
+}
+.goalln {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+}
+.goaltag {
+  font-size: 11.5px;
+  font-weight: 650;
+  fill: var(--ok-ink);
+}
+.ln {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 3000;
+  stroke-dashoffset: 3000;
+  animation: draw 1.8s cubic-bezier(0.3, 0.7, 0.3, 1) forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.paceln {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+.today {
+  stroke: var(--text-3);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+.todaytag {
+  font-size: 11px;
+  fill: var(--text-3);
+}
+.dot {
+  fill: var(--sheet);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.mbar {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: rise 0.9s var(--spring) both;
+  animation-delay: calc(var(--i) * 45ms + 0.2s);
+}
+@keyframes rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+.hit {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  border-radius: 10px;
+}
+.hit:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.tipHint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* By package. */
+.dn {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+.dnw {
+  position: relative;
+  width: 170px;
+  height: 170px;
+}
+.dnw svg {
+  width: 170px;
+  height: 170px;
+  transform: rotate(-90deg);
+}
+.dnw circle {
+  fill: none;
+  stroke-width: 24;
+}
+.track {
+  stroke: var(--sunk);
+}
+.sl {
+  transition:
+    stroke-width 0.3s var(--spring),
+    opacity 0.3s;
+  animation: fadein 0.8s ease both;
+  animation-delay: calc(var(--i) * 120ms + 0.2s);
+}
+.sl[data-hot] {
+  stroke-width: 30;
+}
+.sl[data-dim] {
+  opacity: 0.25;
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+}
+.ctr {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 36px;
+  text-align: center;
+}
+.ctr b {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.ctr span {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.dl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dl button {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 10px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.dl button:hover,
+.dl button[data-hot] {
+  background: var(--hover);
+}
+.dl button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.dl i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.dl b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dl span {
+  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.dl em {
+  font-style: normal;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dl small {
+  display: block;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.ins {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft), transparent 70%);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.18);
+}
+.spk {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.spk img {
+  width: 18px;
+  height: 18px;
+}
+.ins b {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+.ins p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+/* Sources. */
+.scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.st {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.st th {
+  padding: 0 12px 8px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.st th:first-child,
+.st td:first-child {
+  text-align: left;
+}
+.st td {
+  height: 54px;
+  padding: 0 12px;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  border-top: 0.5px solid var(--line);
+}
+.st tr:hover td {
+  background: var(--hover);
+}
+.src {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+}
+.ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+.src b {
+  display: block;
+  font-weight: 600;
+}
+.src span {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.bw {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.tr6 {
+  width: 90px;
+  height: 7px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--sunk);
+}
+.tr6 i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transform-origin: 0 50%;
+  animation: grow 0.9s var(--spring) both;
+  animation-delay: calc(var(--i) * 70ms + 0.3s);
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.roi {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-weight: 700;
+}
+.roi[data-tone="hi"] {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.roi[data-tone="lo"] {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+.roi[data-tone="mid"] {
+  background: var(--sunk);
+  color: var(--text-2);
+}
+.addsp {
+  padding: 3px 7px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+.addsp:hover {
+  background: var(--accent-soft);
+}
+.cap {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.foot {
+  margin-top: 10px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.foot a {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ln,
+  .mbar,
+  .sl,
+  .tr6 i {
+    animation: none;
+  }
+  .ln {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+}

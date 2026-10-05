@@ -1,0 +1,317 @@
+/* Filters (the approved 8D-3 artboard): a glass panel from its button, no scrim; the "Showing" chips under the bar. */
+.wrap {
+  position: relative;
+}
+.button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px 0 10px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(12, 18, 32, 0.05);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+.button:hover {
+  background: var(--hover);
+}
+.button:active {
+  transform: scale(0.97);
+}
+.button[data-on] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: 0 0 0 0.5px rgba(var(--accent-rgb), 0.35);
+}
+.button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.n {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+}
+.button:not([data-on]) .n {
+  color: var(--text-3);
+  background: var(--sunk);
+}
+.panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: 420px;
+  max-height: min(720px, calc(100dvh - 160px));
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform-origin: calc(100% - 50px) 0;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 6px;
+}
+.head h2 {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+}
+.clear {
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+}
+.clear:hover {
+  background: var(--accent-soft);
+}
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px 12px;
+}
+.sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 0.5px solid var(--line);
+}
+.sec:first-child {
+  border-top: 0;
+}
+.sec h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.sec h3 span {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-3);
+}
+.sec h3 em,
+.chip em {
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.find {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  outline: none;
+}
+.find:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.people {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.people label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.people label:hover {
+  background: var(--hover);
+}
+.people input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition: background 0.15s;
+}
+.chips button:hover {
+  background: var(--hover);
+}
+.chips button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.35);
+}
+.chips i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field > span {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.liveNote {
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.liveNote[data-warn] {
+  color: var(--warn-ink);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 0.5px solid var(--line);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.foot b {
+  color: var(--text);
+}
+.done {
+  margin-left: auto;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: #fff;
+  background: var(--accent-fill);
+}
+
+/* The "Showing" bar. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.showing {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 4px 0 11px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.3);
+}
+.chip b {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+}
+.chip button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 15px;
+  color: var(--accent-ink);
+}
+.chip button:hover {
+  background: rgba(var(--accent-rgb), 0.15);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .panel {
+    background: var(--raised);
+    backdrop-filter: none;
+  }
+}
+@media (max-width: 640px) {
+  .panel {
+    position: fixed;
+    top: 72px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}

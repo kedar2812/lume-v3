@@ -60,6 +60,20 @@ beforeAll(async () => {
      VALUES ($1, $2, 'csv', 'done', 'x', 'fair.csv', 100, 20, 3, 1, $3)`,
     [randomUUID(), src, at(6, 10)],
   );
+  // Sources: one paused with a reason, one needing attention, one fine, one archived (none of LUME's business now).
+  for (const [name, status, err] of [
+    ["Webinar sheet", "paused", "A column was renamed"],
+    ["Website form", "needs_attention", null],
+    ["Fine sheet", "active", null],
+    ["Old sheet", "archived", "Gone"],
+  ] as const) {
+    const id = await s.source(name);
+    await h.ownerPool.query("UPDATE lead_sources SET status = $2, last_error = $3 WHERE id = $1", [
+      id,
+      status,
+      err,
+    ]);
+  }
   await rollupDays(h.pool, JUNE, TZ);
 });
 afterAll(async () => h.close());
@@ -99,6 +113,22 @@ describe("data quality (8D-1 Task 9)", () => {
       expect(await opens(q.unowned.drill[k])).toBe(1);
     // A rep sees no unowned leads at all.
     expect((await get(rep)).unowned).toMatchObject({ under1h: 0, under1d: 0, under7d: 0, over7d: 0 });
+  });
+
+  it("how long the oldest unowned lead has waited, in minutes", async () => {
+    const q = await get(admin);
+    expect(q.unowned.oldestMinutes).toBeGreaterThanOrEqual(10 * 24 * 60 - 1);
+    expect(q.unowned.oldestMinutes).toBeLessThan(10 * 24 * 60 + 60);
+    expect((await get(rep)).unowned.oldestMinutes).toBeNull();
+  });
+
+  it("sources needing a look: paused or needing attention, with what LUME last saw; not for a rep", async () => {
+    const q = await get(admin);
+    expect(q.sourcesNeedingLook).toEqual([
+      expect.objectContaining({ name: "Webinar sheet", status: "paused", message: "A column was renamed" }),
+      expect.objectContaining({ name: "Website form", status: "needs_attention", message: null }),
+    ]);
+    expect((await get(rep)).sourcesNeedingLook).toEqual([]);
   });
 
   it("imports and what didn't come in cleanly", async () => {

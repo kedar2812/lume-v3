@@ -59,6 +59,19 @@ describe("the demo business (8D-1 Task 14)", () => {
     expect(t!.n).toBeGreaterThan(1000);
   });
 
+  it("stores its answers as LUME does: each budget answer is one of the field's option ids", async () => {
+    const [field] = await a.queryAll<{ options: { id: string; label: string }[] }>(
+      "SELECT options FROM field_definitions WHERE key = 'budget'",
+    );
+    expect(field!.options.length).toBeGreaterThan(1);
+    for (const o of field!.options) expect(o).toEqual({ id: expect.any(String), label: expect.any(String) });
+    const answers = await a.queryAll<{ v: string; n: number }>(
+      "SELECT custom->>'budget' AS v, count(*)::int AS n FROM leads WHERE custom ? 'budget' GROUP BY 1",
+    );
+    expect(answers.length).toBeGreaterThan(1);
+    expect(answers.map((x) => x.v).sort()).toEqual(field!.options.map((o) => o.id).sort());
+  });
+
   it("uses only made-up contacts", async () => {
     const bad = await a.queryAll<{ email: string }>(
       "SELECT email FROM leads WHERE email IS NOT NULL AND email NOT LIKE '%@example.com' LIMIT 3",

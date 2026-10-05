@@ -58,23 +58,27 @@ export async function segments(
     SELECT ${value} AS v, count(*)::int AS arrived, count(*) FILTER (WHERE l.won_at IS NOT NULL)::int AS won
     FROM ${from} WHERE ${frag.leads(s)} AND ${frag.cohort(s)} GROUP BY 1`);
 
-  const options =
+  // A lead stores the option's id (core/leads/custom-fields.ts); the board shows its label, in the field's order.
+  const options: { id: string; label: string }[] =
     field.type === "boolean"
-      ? ["true", "false"]
+      ? [
+          { id: "true", label: "Yes" },
+          { id: "false", label: "No" },
+        ]
       : Array.isArray(field.options)
-        ? (field.options as unknown[]).map((o) =>
-            typeof o === "string"
-              ? o
-              : String((o as { label?: string; value?: string }).value ?? (o as { label?: string }).label),
+        ? (field.options as unknown[]).flatMap((o) =>
+            o && typeof o === "object" && typeof (o as { id?: unknown }).id === "string"
+              ? [{ id: (o as { id: string }).id, label: String((o as { label?: unknown }).label ?? "") }]
+              : [],
           )
         : [];
   const label = (v: string | null) =>
-    v === null ? "Not answered" : field.type === "boolean" ? (v === "true" ? "Yes" : "No") : v;
+    v === null ? "Not answered" : (options.find((o) => o.id === v)?.label ?? "An answer no longer offered");
   // The field's own order first, then any answer no longer offered, then the unanswered.
   const known = r.rows.map((x) => x.v);
   const order = [
-    ...options.filter((o) => known.includes(o)),
-    ...known.filter((v) => v !== null && !options.includes(v)),
+    ...options.map((o) => o.id).filter((id) => known.includes(id)),
+    ...known.filter((v) => v !== null && !options.some((o) => o.id === v)),
     ...(known.includes(null) ? [null] : []),
   ];
   return {

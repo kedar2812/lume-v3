@@ -41,6 +41,17 @@ export default defineConfig({
       dependencies: ["seed"],
       use: { storageState: stateFile("owner") },
     },
+    // On request only (LUME_REVIEW=1): the demo business seeded in, every Analytics board captured for review.
+    ...(process.env.LUME_REVIEW
+      ? [
+          {
+            name: "analytics-review",
+            testMatch: /analytics-review\.review\.ts/,
+            dependencies: ["seed"],
+            use: { storageState: stateFile("owner") },
+          },
+        ]
+      : []),
   ],
   webServer: [
     // The fake Google (2B §11) first: the API reads its key at boot. No test ever calls Google.

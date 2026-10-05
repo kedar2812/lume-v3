@@ -10,6 +10,7 @@ import {
   businessTz,
   cohortSums,
   cycleDays,
+  cycleHist,
   eventSums,
   liveLead,
   liveOwner,
@@ -366,7 +367,7 @@ async function pipelineVelocity(
     const avgDeal = valued ? e.wonValue / valued : null;
     return { winRate, avgDeal, cycleDays: cyc };
   };
-  const [openLeads, nowParts, beforeParts] = await Promise.all([
+  const [openLeads, nowParts, beforeParts, hist] = await Promise.all([
     live
       ? req.db.execute<{ n: number }>(sql`
           SELECT count(*)::int AS n FROM leads l JOIN stages s ON s.id = l.stage_id AND s.kind = 'open'
@@ -376,6 +377,11 @@ async function pipelineVelocity(
             AND ${ownerCond(q.ownerIds, sql`owner_id`) ?? sql`true`} AND ${sourceCond(q.sourceIds, sql`source_id`) ?? sql`true`}`),
     parts(range.days.at(-1)!),
     parts(range.previous.days.at(-1)!),
+    // How long its wins took, drawn under the sum (canvas Funnel: "How long a win takes").
+    (() => {
+      const span = ninetyDays(q, tz, range.days.at(-1)!, range.to);
+      return cycleHist(req, q, span.from, span.to, tz);
+    })(),
   ]);
   const n = openLeads.rows[0]!.n;
   const per = (p: { winRate: number | null; avgDeal: number | null; cycleDays: number | null }) =>
@@ -389,6 +395,7 @@ async function pipelineVelocity(
     ...nowParts,
     perDay,
     previousPerDay,
+    cycleHist: hist,
     trend:
       q.compare && perDay !== null && previousPerDay !== null
         ? trend(perDay, previousPerDay, { kind: "pct", good: "up" })

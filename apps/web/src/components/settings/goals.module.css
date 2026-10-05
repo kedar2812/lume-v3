@@ -1,0 +1,410 @@
+/* Settings → Goals (the approved Goals board, docs/design/phase8/canvas/Goals.dc.html). */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 4px;
+  border-radius: 11px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.nav b {
+  min-width: 120px;
+  text-align: center;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.nav button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-2);
+}
+.nav button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.nav svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.err {
+  color: var(--danger-ink);
+}
+.card {
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--line);
+}
+.head h2 {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+}
+.saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ok-ink);
+}
+.saved svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.opt {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  gap: 6px 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 0.5px solid var(--line);
+}
+.row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.what b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.what span {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition: box-shadow 0.15s;
+}
+.box:focus-within {
+  box-shadow: var(--focus-ring);
+  background: var(--sheet);
+}
+.box[data-state="error"] {
+  box-shadow: inset 0 0 0 1.5px var(--danger);
+}
+.box[data-state="saved"] {
+  box-shadow: inset 0 0 0 1px rgba(24, 165, 102, 0.45);
+}
+.box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  text-align: right;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.box input::placeholder {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.cur,
+.pctSign {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.hint {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.hint b {
+  font-weight: 650;
+  color: var(--text-2);
+}
+.hint button {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.hint button:hover {
+  background: rgba(var(--accent-rgb), 0.16);
+}
+.grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.grid th {
+  padding: 10px 8px 6px;
+  text-align: right;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.grid th:first-child {
+  text-align: left;
+}
+.grid tbody th {
+  padding: 6px 8px 6px 0;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.grid td {
+  width: 170px;
+  padding: 5px 0 5px 10px;
+}
+.grid .box {
+  height: 34px;
+}
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* The preview column. */
+.side {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pane {
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.pane h3 {
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.preview {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.preview > b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.pSub {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.pEmpty {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.pBody {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+.pRing {
+  position: relative;
+  flex: none;
+  width: 92px;
+  height: 92px;
+}
+.pRing svg {
+  width: 92px;
+  height: 92px;
+  transform: rotate(-90deg);
+}
+.pRing circle {
+  fill: none;
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+.rbg {
+  stroke: var(--sunk);
+}
+.rfg {
+  stroke: var(--accent);
+  stroke-dasharray: 239;
+  stroke-dashoffset: var(--to);
+  transition: stroke-dashoffset 0.6s var(--spring);
+}
+.pRing > span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-align: center;
+}
+.pRing > span b {
+  font-size: 14px;
+  color: var(--text);
+}
+.pBars {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.pBars > div > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.pBars > div > span b {
+  font-weight: 600;
+  color: var(--text);
+}
+.pBars > div > i {
+  display: block;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--sunk);
+}
+.pBars > div > i > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.6s var(--spring);
+}
+.pPace {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--line);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.pPace b {
+  font-weight: 650;
+  color: var(--text);
+}
+.email {
+  display: flex;
+  flex-direction: column;
+}
+.email > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 0.5px dashed var(--line-2);
+  font-size: 12.5px;
+}
+.email > div:last-child {
+  border-bottom: 0;
+}
+.email dt {
+  color: var(--text-2);
+}
+.email dd {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.sees {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.sees b {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rfg,
+  .pBars > div > i > i {
+    transition: none;
+  }
+}

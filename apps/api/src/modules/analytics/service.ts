@@ -14,7 +14,7 @@ import {
 } from "@lume/core";
 import { badRequest, forbidden } from "../../http/errors";
 import { isLive, liveFilter, ownerCond, sourceCond } from "./filters";
-import { guardLive, liveCohort, liveDaily, liveEvents, spanOf } from "./live";
+import { guardLive, liveCohort, liveDaily, liveEvents, spanOf, type LiveEvents } from "./live";
 
 /**
  * The analytics API's numbers (8A, spec §4–§5.2). Dashboards read the daily rollups (0053) under the viewer's
@@ -252,6 +252,27 @@ export async function cycleDays(req: FastifyRequest, q: AnalyticsQuery, from: Da
   return r.rows[0]?.m ?? null;
 }
 
+/** Days to win, in the buckets velocity's histogram draws (Funnel board): under 1 day, 1–2, 2–3, 3–5 … a year and more. */
+export const CYCLE_EDGES = [1, 2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180, 365];
+
+/** Wins between `from` and `to` by how long each took from arriving, in CYCLE_EDGES' buckets, and the median's bucket. */
+export async function cycleHist(req: FastifyRequest, q: AnalyticsQuery, from: Date, to: Date, tz: string) {
+  const r = await req.db.execute<{ b: number; n: number }>(sql`
+    SELECT width_bucket(extract(epoch FROM l.won_at -
+             coalesce(l.lead_created_at::timestamp AT TIME ZONE ${tz}, l.created_at)) / 86400,
+             ${`{${CYCLE_EDGES.join(",")}}`}::float8[]) AS b, count(*)::int AS n
+    FROM leads l
+    WHERE l.won_at >= ${from.toISOString()}::timestamptz AND l.won_at < ${to.toISOString()}::timestamptz
+      AND ${liveLead(q)} AND ${liveOwner(q, sql`lume_owner_at(l.id, l.won_at, l.owner_id)`)}
+    GROUP BY 1`);
+  const counts = Array<number>(CYCLE_EDGES.length + 1).fill(0);
+  for (const row of r.rows) counts[row.b] = (counts[row.b] ?? 0) + row.n;
+  const total = counts.reduce((a, n) => a + n, 0);
+  let seen = 0;
+  const median = total ? counts.findIndex((n) => (seen += n) >= total / 2) : null;
+  return { edges: CYCLE_EDGES, counts, median };
+}
+
 export const rate = (a: number, b: number) => (b > 0 ? a / b : null);
 
 export function tile(
@@ -303,60 +324,130 @@ export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date
     cycleDays(req, q, range.previous.from, range.previous.to, tz),
   ]);
   const money = seesRevenue(req);
-  const valued = e.won - e.wonNoValue;
-  const pValued = pe.won - pe.wonNoValue;
+  const v = valuesOf(c, e, money);
+  const pv = valuesOf(pc, pe, money);
+  const t = (id: SummedTile, extra?: Parameters<typeof tile>[4]) =>
+    tile(id, v[id] ?? null, pv[id] ?? null, q.compare, extra);
   const tiles: Tile[] = [
-    tile("new_leads", c.arrived, pc.arrived, q.compare),
-    tile("contacted", rate(c.contacted, c.arrived), rate(pc.contacted, pc.arrived), q.compare, {
-      n: c.arrived,
-    }),
-    tile("reply_rate", rate(c.replied, c.contacted), rate(pc.replied, pc.contacted), q.compare, {
-      n: c.contacted,
-    }),
-    tile("speed_to_lead", speedOf(c), speedOf(pc), q.compare, {
+    t("new_leads"),
+    t("contacted", { n: c.arrived }),
+    t("reply_rate", { n: c.contacted }),
+    t("speed_to_lead", {
       n: c.contacted,
       note: c.arrived > c.contacted ? `${c.arrived - c.contacted} not contacted yet` : undefined,
     }),
-    tile("calls_booked", e.booked, pe.booked, q.compare),
-    tile("calls_held", e.held, pe.held, q.compare),
-    tile("no_show_rate", rate(e.noShow, e.held + e.noShow), rate(pe.noShow, pe.held + pe.noShow), q.compare, {
-      n: e.held + e.noShow,
-    }),
-    tile("won", e.won, pe.won, q.compare),
-    tile("win_rate", rate(c.won, c.arrived), rate(pc.won, pc.arrived), q.compare, { n: c.arrived }),
+    t("calls_booked"),
+    t("calls_held"),
+    t("no_show_rate", { n: e.held + e.noShow }),
+    t("won"),
+    t("win_rate", { n: c.arrived }),
     tile("overdue_now", overdue, null, false),
-    tile("ontime", rate(e.onTime, e.tasksDone), rate(pe.onTime, pe.tasksDone), q.compare, { n: e.tasksDone }),
-    tile(
-      "lateness",
-      e.lateCount ? e.lateMinutes / e.lateCount : null,
-      pe.lateCount ? pe.lateMinutes / pe.lateCount : null,
-      q.compare,
-      {
-        n: e.lateCount,
-      },
-    ),
+    t("ontime", { n: e.tasksDone }),
+    t("lateness", { n: e.lateCount }),
     tile("cycle", cyc, pcyc, q.compare, { n: e.won }),
-    tile("lost", e.lost, pe.lost, q.compare),
+    t("lost"),
   ];
   if (money)
     tiles.push(
-      tile("revenue_won", e.wonValue, pe.wonValue, q.compare, {
-        note: e.wonNoValue ? `${e.wonNoValue} won without a value` : undefined,
-      }),
-      tile(
-        "avg_deal",
-        valued ? e.wonValue / valued : null,
-        pValued ? pe.wonValue / pValued : null,
-        q.compare,
-        { n: valued },
-      ),
+      t("revenue_won", { note: e.wonNoValue ? `${e.wonNoValue} won without a value` : undefined }),
+      t("avg_deal", { n: e.won - e.wonNoValue }),
       tile("forecast", await forecastNow(req, q), null, false),
     );
+  const [series, lines] = await Promise.all([
+    live ? liveSeries(req, q, range, tz) : dailySeries(req, q, range),
+    // Each tile's daily line (the canvas's sparklines). Under a tag or field filter, only the two the chart reads.
+    live ? null : tileLines(req, q, range.days, money),
+  ]);
   return {
     range: { label: range.label, days: range.days, from: range.from, to: range.to, previous: range.previous },
     tiles,
-    series: live ? await liveSeries(req, q, range, tz) : await dailySeries(req, q, range),
+    series: { ...series, tiles: lines ?? { new_leads: series.newLeads, won: series.won } },
   };
+}
+
+/** The tiles a period's sums answer on their own ("right now" numbers and the cycle are read apart). */
+type SummedTile = Exclude<MetricId, "overdue_now" | "forecast" | "cycle">;
+type AnySums = Omit<CohortSums, "hist"> & ({ hist: number[] } | { speed: number | null });
+
+/** Each summed tile's value from one period's sums: the one definition the tiles and their daily lines share. */
+function valuesOf(c: AnySums, e: LiveEvents, money: boolean): Partial<Record<SummedTile, number | null>> {
+  const valued = e.won - e.wonNoValue;
+  return {
+    new_leads: c.arrived,
+    contacted: rate(c.contacted, c.arrived),
+    reply_rate: rate(c.replied, c.contacted),
+    speed_to_lead: speedOf(c),
+    calls_booked: e.booked,
+    calls_held: e.held,
+    no_show_rate: rate(e.noShow, e.held + e.noShow),
+    won: e.won,
+    win_rate: rate(c.won, c.arrived),
+    ontime: rate(e.onTime, e.tasksDone),
+    lateness: e.lateCount ? e.lateMinutes / e.lateCount : null,
+    lost: e.lost,
+    ...(money ? { revenue_won: e.wonValue, avg_deal: valued ? e.wonValue / valued : null } : {}),
+  };
+}
+
+const EVENT_KEYS = [
+  "won",
+  "wonValue",
+  "wonNoValue",
+  "lost",
+  "booked",
+  "held",
+  "noShow",
+  "cancelled",
+  "tasksDue",
+  "tasksDone",
+  "onTime",
+  "lateMinutes",
+  "lateCount",
+  "sends",
+  "replies72",
+] as const;
+
+/** Every summed tile, day by day, from the rollups: two reads grouped by day, whatever the range. */
+async function tileLines(req: FastifyRequest, q: AnalyticsQuery, days: string[], money: boolean) {
+  const [co, ev] = await Promise.all([
+    req.db.execute<Record<string, number | string>>(sql`
+      SELECT to_char(day, 'YYYY-MM-DD') AS day, coalesce(sum(arrived), 0)::int AS arrived,
+             coalesce(sum(contacted), 0)::int AS contacted, coalesce(sum(replied), 0)::int AS replied,
+             coalesce(sum(won), 0)::int AS won, coalesce(sum(within_1h), 0)::int AS within1h,
+             coalesce(sum(within_24h), 0)::int AS within24h, ${histCols}
+      FROM analytics_daily_cohort WHERE ${rollupWhere(q, days[0]!, days.at(-1)!)} GROUP BY day`),
+    req.db.execute<Record<string, number | string>>(sql`
+      SELECT to_char(day, 'YYYY-MM-DD') AS day, coalesce(sum(won), 0)::int AS won,
+             coalesce(sum(won_value), 0)::float8 AS "wonValue", coalesce(sum(won_no_value), 0)::int AS "wonNoValue",
+             coalesce(sum(lost), 0)::int AS lost, coalesce(sum(booked), 0)::int AS booked,
+             coalesce(sum(held), 0)::int AS held, coalesce(sum(no_show), 0)::int AS "noShow",
+             coalesce(sum(tasks_done), 0)::int AS "tasksDone", coalesce(sum(tasks_on_time), 0)::int AS "onTime",
+             coalesce(sum(late_minutes_sum), 0)::float8 AS "lateMinutes",
+             coalesce(sum(late_count), 0)::int AS "lateCount"
+      FROM analytics_daily_event
+      WHERE ${rollupWhere(q, days[0]!, days.at(-1)!, { pipelineNullable: true })} GROUP BY day`),
+  ]);
+  const num = (r: Record<string, number | string> | undefined, k: string) => Number(r?.[k] ?? 0);
+  const cByDay = new Map(co.rows.map((r) => [String(r.day), r]));
+  const eByDay = new Map(ev.rows.map((r) => [String(r.day), r]));
+  const perDay = days.map((d) => {
+    const c = cByDay.get(d);
+    const e = eByDay.get(d);
+    const cs: CohortSums = {
+      arrived: num(c, "arrived"),
+      contacted: num(c, "contacted"),
+      replied: num(c, "replied"),
+      won: num(c, "won"),
+      within1h: num(c, "within1h"),
+      within24h: num(c, "within24h"),
+      hist: H.map((i) => num(c, `h${i}`)),
+    };
+    const es = Object.fromEntries(EVENT_KEYS.map((k) => [k, num(e, k)])) as EventSums;
+    return valuesOf(cs, es, money);
+  });
+  const out: Partial<Record<SummedTile, (number | null)[]>> = {};
+  for (const id of Object.keys(perDay[0] ?? {}) as SummedTile[]) out[id] = perDay.map((v) => v[id] ?? null);
+  return out;
 }
 
 /** Speed to lead: a rollup's histogram estimate, or a live read's exact median. */
@@ -413,7 +504,7 @@ export async function dailySeries(req: FastifyRequest, q: AnalyticsQuery, range:
 }
 
 /** New leads per day by where they came from (canvas Main's bands): the four biggest sources, the rest together. */
-function foldBySource(
+export function foldBySource(
   rows: { day: string; source_id: string | null; name: string | null; n: number }[],
   days: string[],
 ) {
@@ -427,15 +518,14 @@ function foldBySource(
     totals.set(k, t);
   }
   const top = [...totals.values()].sort((a, b) => b.n - a.n);
+  const at = new Map(split.rows.map((r) => [`${r.day}|${r.source_id ?? "none"}`, r.n]));
   const named = top.slice(0, top.length > 5 ? 4 : 5);
   const rest = top.slice(named.length);
   return [
     ...named.map((t) => ({
       id: t.id,
       name: t.name,
-      values: range.days.map(
-        (d) => split.rows.find((r) => r.day === d && (r.source_id ?? null) === t.id)?.n ?? 0,
-      ),
+      values: range.days.map((d) => at.get(`${d}|${t.id ?? "none"}`) ?? 0),
     })),
     ...(rest.length
       ? [
@@ -443,9 +533,7 @@ function foldBySource(
             id: "other",
             name: `${rest.length} more ${rest.length === 1 ? "source" : "sources"}`,
             values: range.days.map((d) =>
-              split.rows
-                .filter((r) => r.day === d && rest.some((x) => x.id === (r.source_id ?? null)))
-                .reduce((a, r) => a + r.n, 0),
+              rest.reduce((a, x) => a + (at.get(`${d}|${x.id ?? "none"}`) ?? 0), 0),
             ),
           },
         ]

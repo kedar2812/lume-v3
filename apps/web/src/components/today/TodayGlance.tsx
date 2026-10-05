@@ -89,7 +89,10 @@ export function TodayPipeline() {
     };
   }, []);
   if (!f || !f.arrived) return null;
-  const stages = f.stages.slice(0, 6);
+  // The open stages (at most five) and always Won, the row that matters most.
+  const open = f.stages.filter((st) => st.kind === "open").slice(0, 5);
+  const won = f.stages.find((st) => st.kind === "won");
+  const stages = won ? [...open, won] : open;
   return (
     <section className={s.card} aria-labelledby="today-pipeline">
       <div className={s.cardHead}>

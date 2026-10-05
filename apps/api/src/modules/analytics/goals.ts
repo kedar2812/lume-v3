@@ -147,6 +147,29 @@ export async function listGoals(
   return { period, periodStart, periodEnd: end, goals: out };
 }
 
+/** Every source still in use, with its monthly spend (Settings → Sources & spend). */
+export async function listSpend(req: FastifyRequest) {
+  if (!can(req.actor!, "settings.manage")) throw forbidden();
+  const r = await req.db.execute<{
+    id: string;
+    name: string;
+    type: string;
+    status: string;
+    spend: string | null;
+  }>(sql`
+    SELECT id, name, type, status, monthly_spend::text AS spend FROM lead_sources
+    WHERE status <> 'archived' ORDER BY name`);
+  return {
+    sources: r.rows.map((x) => ({
+      id: x.id,
+      name: x.name,
+      type: x.type,
+      status: x.status,
+      monthlySpend: x.spend === null ? null : Number(x.spend),
+    })),
+  };
+}
+
 /** What a source costs a month (8B): spread over a range by its days on the Sources board. */
 export async function setSpend(req: FastifyRequest, sourceId: string, monthlySpend: number | null) {
   if (!can(req.actor!, "settings.manage")) throw forbidden();

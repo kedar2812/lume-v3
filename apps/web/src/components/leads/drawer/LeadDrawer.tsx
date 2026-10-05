@@ -36,6 +36,7 @@ import { LogOutcome } from "@/components/calendar/LogOutcome";
 import { calendarClient } from "@/lib/calendar/client";
 import type { Meeting } from "@/lib/calendar/types";
 import { AssignMenu } from "./AssignMenu";
+import { LogCall } from "./LogCall";
 import { ContactBox } from "./ContactBox";
 import { MeetingsTab } from "./MeetingsTab";
 import { MessageButton } from "./MessageButton";
@@ -205,7 +206,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     [index, neighbours, onStep],
   );
 
-  // J/K/W/F/N and Escape, only when the person isn't typing and no question is open over the drawer.
+  // J/K/W/R/C/F/N and Escape, only when the person isn't typing and no question is open over the drawer.
   const asking = move.ui !== null;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -226,6 +227,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
           ?.click();
       else if (key === "r")
         panel.current?.querySelector<HTMLButtonElement>("[data-replied]:not(:disabled)")?.click();
+      else if (key === "c")
+        panel.current?.querySelector<HTMLButtonElement>("[data-log-call] button[aria-haspopup]")?.click();
       else if (key === "f")
         panel.current?.querySelector<HTMLButtonElement>("[data-follow-up] button[aria-haspopup]")?.click();
       else if (key === "n") {
@@ -656,6 +659,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                           They replied
                         </Button>
                       )}
+                  {lead.can.edit && (
+                    <LogCall lead={{ id: lead.id, name: lead.name ?? "" }} tz={tz} onLogged={logged} />
+                  )}
                   <span data-follow-up>
                     <FollowUpSheet
                       key={lead.id}

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { RefreshMorph, Tick } from "@/components/ui/RefreshMorph";
 import { usePhasedRefresh } from "@/components/ui/usePhasedRefresh";
 import s from "@/components/ui/refresh.module.css";
+import a from "./analytics.module.css";
 import { analyticsClient } from "@/lib/analytics/client";
 
 const Arrow = ({ spin }: { spin?: boolean }) => (
@@ -68,7 +69,8 @@ export function AnalyticsRefresh({ onRecounted }: { onRecounted(): void }) {
         ) : (
           <>
             <Arrow spin={r.phase !== "idle"} />
-            Refresh
+            {/* On a narrower window only the arrow shows; the word stays for a screen reader. */}
+            <span className={a.rlabel}>Refresh</span>
           </>
         )}
       </Button>

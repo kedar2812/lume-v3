@@ -109,7 +109,9 @@
   color: var(--danger-ink);
   padding: 2px 0 8px;
 }
-.submit {
+/* Two classes deep, so it beats the shared button's own height whichever stylesheet loads last (2026-10-05: the
+   order moved and the 46 px button rendered at 34 px in one build and 46 px in the next). */
+.card .submit {
   width: 100%;
   height: 46px;
   margin-top: 4px;

@@ -198,6 +198,7 @@ export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
     Metric,
     Map<string, number>
   >;
+  const prevOf = new Map(beforeScores.map((x) => [x.id, x]));
   const ids = new Set<string>([...nowScores.map((s) => s.id), ...overdue.rows.map((r) => r.user_id)]);
   const mint = (k: "person_cohort" | "person_won", userId: string) =>
     d ? drillFor(d, req, range, q, tz, k, { userId }, now) : undefined;
@@ -225,6 +226,10 @@ export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
       ontime: e ? rate(e.on_time, e.done) : null,
       overdueNow: overdue.rows.find((r) => r.user_id === id)?.n ?? 0,
       previousRank: Object.fromEntries(metrics.map((m) => [m, before[m].get(id) ?? null])),
+      // Each metric's value the period before (null: nothing then), for the leaderboard's change chips.
+      previous: Object.fromEntries(
+        metrics.map((m) => [m, prevOf.get(id)?.[m] ?? (m === "won" || m === "revenue" ? 0 : null)]),
+      ),
       goal: g
         ? {
             metric: g.metric,

@@ -199,6 +199,11 @@ export async function logCall(req: FastifyRequest, lead: LeadRow, outcome: CallO
   const id = newId();
   const userId = req.actor!.userId;
   const payload = { outcome, ...(note ? { note } : {}) };
+  // Reached before? If not, this call is the lead's first contact (canvas LogCall says how soon it came).
+  const before = await req.db.execute<{ at: Date | null }>(
+    sql`SELECT first_contact_at AS at FROM lead_firsts WHERE lead_id = ${lead.id}::uuid`,
+  );
+  const firstTime = !before.rows[0]?.at;
   const [row] = await req.db
     .insert(schema.activities)
     .values({ id, leadId: lead.id, userId, type: "call_logged", payload })
@@ -216,6 +221,9 @@ export async function logCall(req: FastifyRequest, lead: LeadRow, outcome: CallO
       occurredAt: row!.occurredAt,
       user: { id: userId, name: me?.name ?? null },
     },
+    firstContact: firstTime
+      ? { minutes: Math.max(0, (row!.occurredAt.getTime() - new Date(lead.createdAt).getTime()) / 60_000) }
+      : null,
   };
 }
 

@@ -62,7 +62,7 @@ export async function glance(req: FastifyRequest, now: Date) {
   // Revenue builds up through the month: its line climbs, as the canvas's does.
   let run = 0;
   const climbing = m.map((d) => (run += d.revenue));
-  const kpis: (Tile & { series: number[]; period: "week" | "month" })[] = [
+  const kpis: (Tile & { series: (number | null)[]; period: "week" | "month" })[] = [
     {
       ...tile("new_leads", sum(w, "arrived"), sum(pw, "arrived"), true),
       series: w.map((d) => d.arrived),
@@ -78,7 +78,7 @@ export async function glance(req: FastifyRequest, now: Date) {
           n: sum(w, "contacted"),
         },
       ),
-      series: w.map((d) => rate(d.replied, d.contacted) ?? 0),
+      series: w.map((d) => rate(d.replied, d.contacted)),
       period: "week",
     },
     {

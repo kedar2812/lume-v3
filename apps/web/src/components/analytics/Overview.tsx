@@ -9,7 +9,7 @@ import type {
   Quality,
   Timing,
 } from "@/lib/analytics/client";
-import { band, niceMax, smooth, toPts } from "@/lib/analytics/chart";
+import { band, niceTicks, smooth, toPts } from "@/lib/analytics/chart";
 import { count, headline, money, pct, shown, type Period } from "@/lib/analytics/words";
 import { Card, Chip, Ico, Skeleton, Spark } from "./parts";
 import s from "./analytics.module.css";
@@ -89,11 +89,8 @@ export function Overview(p: OverviewProps) {
           const hero = t.id === "revenue_won";
           const alarm = t.id === "overdue_now" && (t.value ?? 0) > 0;
           const spark =
-            t.id === "new_leads"
-              ? data.series.newLeads
-              : t.id === "won" || t.id === "revenue_won"
-                ? data.series.won
-                : [];
+            data.series.tiles?.[t.id] ??
+            (t.id === "new_leads" ? data.series.newLeads : t.id === "won" ? data.series.won : []);
           const tooFew = t.n !== undefined && t.n < 10 && m.unit !== "count" && m.unit !== "money";
           const canDrill = m.drill && !!data.drill[t.id];
           const label = `${m.words}: ${v.v}${v.unit ? ` ${v.unit}` : ""}${t.trend ? `, ${t.trend.text}` : ""}.${canDrill ? " See the leads." : ""}`;
@@ -172,7 +169,8 @@ function SourcesChart({ data, compare }: { data: OverviewData; compare: boolean 
   const shownSeries = series.filter((x) => !hidden[x.id ?? "none"]);
   const totals = days.map((_, i) => shownSeries.reduce((a, x) => a + (x.values[i] ?? 0), 0));
   const prevTotals = data.series.previous.newLeads;
-  const max = niceMax(Math.max(1, ...totals, ...(compare ? prevTotals : [])) * 1.08);
+  const ticks = niceTicks(Math.max(1, ...totals, ...(compare ? prevTotals : [])));
+  const max = ticks.at(-1)!;
   const bands = useMemo(() => {
     let base = Array(n).fill(0) as number[];
     return series.map((x, k) => {
@@ -217,13 +215,13 @@ function SourcesChart({ data, compare }: { data: OverviewData; compare: boolean 
           role="img"
           aria-label="New leads per day, by source"
         >
-          {[0, 0.25, 0.5, 0.75].map((f) => {
-            const y = 6 + f * (H - 12);
+          {ticks.slice(1).map((v) => {
+            const y = 6 + (1 - v / max) * (H - 12);
             return (
-              <g key={f}>
+              <g key={v}>
                 <line className={s.gridLine} x1="0" x2={W} y1={y} y2={y} />
                 <text className={s.axis} x="0" y={y - 4}>
-                  {count(max * (1 - f))}
+                  {count(v)}
                 </text>
               </g>
             );
@@ -466,12 +464,14 @@ function GoalRing({ goals, currency }: { goals: Goals | null; currency: string }
               <b>{GOAL_WORDS[g.metric]}</b>
               <span>
                 {val(g, g.value)} of {val(g, g.target)}
-                {g.pace !== null && g.daysLeft > 0 ? ` · at this pace, ${pct(Math.min(9.99, g.pace))}` : ""}
               </span>
             </div>
             <div className={s.gtrack}>
               <i style={{ transform: `scaleX(${Math.min(1, g.progress)})` }} />
             </div>
+            {g.pace !== null && g.daysLeft > 0 && g.progress < 1 && (
+              <small className={s.gpace}>At this pace, {pct(Math.min(9.99, g.pace))} by month end</small>
+            )}
           </div>
         ))}
       </div>

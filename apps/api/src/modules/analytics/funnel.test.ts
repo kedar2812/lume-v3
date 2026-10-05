@@ -190,6 +190,16 @@ describe("the funnel's extras (8D-1 Task 4)", () => {
     expect(v.perDay).toBeCloseTo((13 * 1 * 1000) / 5, 6);
   });
 
+  it("velocity's histogram: wins of its 90 days by how long they took, in fixed buckets, the median's marked", async () => {
+    const v = (await get(admin, `funnel?${Q}`)).velocity;
+    // Both June wins took 5 days: the bucket from 5 up to 7.
+    expect(v.cycleHist.edges).toEqual([1, 2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180, 365]);
+    expect(v.cycleHist.counts).toHaveLength(16);
+    expect(v.cycleHist.counts.reduce((a: number, n: number) => a + n, 0)).toBe(2);
+    expect(v.cycleHist.counts[4]).toBe(2);
+    expect(v.cycleHist.median).toBe(4);
+  });
+
   it("the forecast by month adds up to the forecast tile", async () => {
     const f = await get(admin, `funnel?${Q}`);
     const o = await get(admin, `overview?${Q}`);

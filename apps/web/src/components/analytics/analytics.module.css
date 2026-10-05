@@ -66,6 +66,13 @@
 .spacer {
   flex: 1;
 }
+/* Refresh, the range, Filters and Export: one group, so a narrow window wraps it whole, to the right. */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
 .rbtn {
   display: flex;
   align-items: center;
@@ -278,6 +285,11 @@
   width: 13px;
   height: 13px;
 }
+/* A tile's chip sits over its sparkline, as the canvas draws it. */
+.tile .chip {
+  position: relative;
+  z-index: 1;
+}
 .chip[data-tone="good"] {
   background: var(--ok-soft);
   color: var(--ok-ink);
@@ -355,7 +367,13 @@
   color: var(--text-3);
   letter-spacing: 0;
 }
+.tile:has(.tileNote) .spark {
+  height: 28px;
+  opacity: 0.55;
+}
 .tileNote {
+  position: relative;
+  z-index: 1;
   display: block;
   margin-top: 6px;
   font-size: 11px;
@@ -814,11 +832,26 @@
 .gbar > div:first-child {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 5px;
 }
+.gbar b {
+  flex: none;
+  font-weight: 600;
+}
 .gbar span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
+}
+.gpace {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-3);
 }
 .gtrack {
   height: 7px;
@@ -1048,5 +1081,53 @@
   .sheet {
     backdrop-filter: none;
     background: var(--sheet);
+  }
+}
+
+/* Export these numbers (CSV): a quiet icon beside Filters. */
+.exportBtn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--text-2);
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(12, 18, 32, 0.05);
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+.exportBtn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.exportBtn:active {
+  transform: scale(0.96);
+}
+.exportBtn:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.exportBtn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Refresh's word gives way below 1500 px, so the bar keeps to one line at 1440. */
+@media (max-width: 1500px) {
+  .rlabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }

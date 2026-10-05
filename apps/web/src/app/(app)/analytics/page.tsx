@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { scopeOf } from "@lume/core/shared";
+import { can, scopeOf } from "@lume/core/shared";
 import { Analytics } from "@/components/analytics/Analytics";
 import { apiGet } from "@/server/api";
 import { loadCatalog } from "@/server/leads";
@@ -18,6 +18,9 @@ export default async function Page() {
       <Analytics
         catalog={catalog}
         showTeam={scopeOf(session.actor, "analytics.view") !== "own"}
+        canExport={can(session.actor, "leads.export")}
+        seesMoney={can(session.actor, "analytics.revenue")}
+        canEditSpend={can(session.actor, "settings.manage")}
         timezone={settings.data?.timezone ?? session.user.timezone ?? "UTC"}
       />
     </Suspense>

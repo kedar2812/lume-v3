@@ -210,3 +210,10 @@
     border-bottom: 0.5px solid var(--line);
   }
 }
+
+/* Below 1500 px the button keeps to the range; what it's compared with is in the popover and on each number. */
+@media (max-width: 1500px) {
+  .button .vs {
+    display: none;
+  }
+}

@@ -1,0 +1,473 @@
+/* The Lost board, card for card with the canvas (docs/design/phase8/canvas/Lost.dc.html). */
+.lg2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 0.95fr);
+  gap: 14px;
+}
+.lg3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+@media (max-width: 1280px) {
+  .lg2 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .lg2 > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 1000px) {
+  .lg2,
+  .lg3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Why they were lost. */
+.dnw {
+  position: relative;
+  width: 176px;
+  height: 176px;
+  margin: 0 auto;
+}
+.dnw svg {
+  width: 176px;
+  height: 176px;
+  transform: rotate(-90deg);
+}
+.dnw circle {
+  fill: none;
+  stroke-width: 22;
+}
+.track {
+  stroke: var(--sunk);
+}
+.sl {
+  transition:
+    stroke-width 0.3s var(--spring),
+    opacity 0.3s;
+  animation: fadein 0.8s ease both;
+  animation-delay: calc(var(--i) * 110ms + 0.2s);
+}
+.sl[data-hot] {
+  stroke-width: 28;
+}
+.sl[data-dim] {
+  opacity: 0.22;
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+}
+.ctr {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  text-align: center;
+}
+.ctr b {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.ctr span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.rl {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 12px;
+}
+.rl button {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto 40px;
+  gap: 10px;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.rl button:hover,
+.rl button[data-hot] {
+  background: var(--hover);
+}
+.rl button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.rl i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.rn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rl em {
+  font-style: normal;
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pc {
+  text-align: right;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.more {
+  padding: 4px 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Reasons, by source. */
+.hm {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.hrow {
+  display: contents;
+}
+.hh {
+  padding-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.rh {
+  display: block;
+  align-self: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 550;
+}
+.cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 40px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  animation: cellin 0.7s var(--spring) both;
+  animation-delay: calc(var(--d) * 45ms + 0.2s);
+  transition:
+    transform 0.3s var(--spring),
+    box-shadow 0.2s;
+}
+.cell:hover:not(:disabled) {
+  z-index: 1;
+  transform: scale(1.08);
+  box-shadow: var(--shadow-lift, var(--shadow-pop));
+}
+.cell:focus-visible {
+  z-index: 1;
+  box-shadow: var(--focus-ring);
+}
+.cell[data-thin] {
+  opacity: 0.7;
+}
+@keyframes cellin {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+.scale2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.scale2 i {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(229, 72, 77, 0.08), rgba(229, 72, 77, 0.85));
+}
+
+/* The stage they left at. */
+.byst {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bs {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 42px;
+  gap: 10px;
+  align-items: center;
+  height: 28px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  text-align: left;
+}
+.bs:hover:not(:disabled) {
+  background: var(--hover);
+}
+.bs:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.bs > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr7 {
+  height: 18px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--sunk);
+}
+.tr7 i {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(229, 72, 77, 0.65), rgba(229, 72, 77, 0.95));
+  transform-origin: 0 50%;
+  animation: grow 1s var(--spring) both;
+  animation-delay: calc(var(--i) * 80ms + 0.3s);
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.bs em {
+  font-style: normal;
+  text-align: right;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.ins {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft), transparent 70%);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.18);
+}
+.spk {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.spk img {
+  width: 18px;
+  height: 18px;
+}
+.ins b {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+.ins p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+/* Won back. */
+.wb {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  margin: 6px 0 14px;
+}
+.wbs {
+  position: relative;
+  margin-right: 22px;
+  padding: 14px;
+  border-radius: 14px;
+  text-align: left;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.wbs:last-child {
+  margin-right: 0;
+  background: linear-gradient(135deg, var(--ok-soft), transparent);
+  box-shadow: inset 0 0 0 0.5px rgba(24, 165, 102, 0.25);
+}
+button.wbs:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px rgba(24, 165, 102, 0.45);
+}
+button.wbs:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.wbs::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid var(--line-2);
+  border-right: 2px solid var(--line-2);
+  transform: translateY(-50%) rotate(45deg);
+}
+.wbs:last-child::after {
+  display: none;
+}
+.wbs b {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.wbs span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.rec {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, #18a566, #0f7f44);
+  box-shadow: 0 14px 30px -14px rgba(24, 165, 102, 0.6);
+}
+.rec[data-none] {
+  color: var(--text-2);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.rec b {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+.rec span {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.recChip {
+  margin-left: auto;
+  opacity: 1 !important;
+}
+
+/* What converts. */
+.pick {
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.sgb {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sg {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 62px 76px;
+  gap: 10px;
+  align-items: center;
+  height: 30px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  text-align: left;
+}
+.sg:hover:not(:disabled) {
+  background: var(--hover);
+}
+.sg:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.sg b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.tr8 {
+  position: relative;
+  height: 22px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--sunk);
+}
+.tr8 i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--accent), var(--sky));
+  transition: width 0.9s var(--spring);
+}
+.tr8 i[data-best] {
+  background: linear-gradient(90deg, var(--ok), color-mix(in srgb, var(--ok) 60%, white));
+}
+.sg em {
+  font-style: normal;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.thin {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.r2 {
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sl,
+  .cell,
+  .tr7 i {
+    animation: none;
+  }
+  .tr8 i {
+    transition: none;
+  }
+}

@@ -45,7 +45,13 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 
-type Kpi = { id: string; value: number | null; previous: number | null; series: number[]; period: string };
+type Kpi = {
+  id: string;
+  value: number | null;
+  previous: number | null;
+  series: (number | null)[];
+  period: string;
+};
 const get = async (u: SeededUser, path: string) =>
   (await (await h.signIn(u)).inject({ method: "GET", url: `/api/v1/analytics/${path}` })).json();
 
@@ -62,6 +68,8 @@ describe("Today's quick stats (owner, 2026-10-05: Today per frontend spec §8.2)
     for (const id of ["new_leads", "reply_rate", "calls_booked"]) {
       expect([id, k(id).value, k(id).previous]).toEqual([id, tile(week, id).value, tile(week, id).previous]);
       expect(k(id).series).toHaveLength(7);
+      // Today's daily line is the Analytics tile's own (a day with nobody to divide by is a gap, not a 0%).
+      expect([id, k(id).series]).toEqual([id, week.series.tiles[id]]);
     }
     expect(k("new_leads")).toMatchObject({ value: 5, previous: 2, period: "week" });
     expect(k("new_leads").series).toEqual([1, 1, 1, 1, 1, 0, 0]);

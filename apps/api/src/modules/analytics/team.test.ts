@@ -102,6 +102,22 @@ describe("the team (8D-1 Task 7)", () => {
     expect(rank(B.id).revenue).toBe(1);
   });
 
+  it("each person's numbers the period before, so the leaderboard can say how each moved", async () => {
+    const rows: (Row & { previous: Record<string, number | null> })[] = (await get(admin)).people;
+    const prev = (id: string) => rows.find((r) => r.id === id)!.previous;
+    expect([prev(A.id).won, prev(B.id).won, prev(C.id).won]).toEqual([1, 3, 2]);
+    expect([prev(A.id).revenue, prev(B.id).revenue, prev(C.id).revenue]).toEqual([100, 300, 200]);
+    // Without the money permission, the money isn't there the period before either.
+    const plain = await h.seedUser({
+      grants: [
+        { key: "analytics.view", scope: "all" },
+        { key: "leads.view", scope: "all" },
+      ],
+    });
+    const p2: (Row & { previous: Record<string, unknown> })[] = (await get(plain)).people;
+    expect(p2.every((r) => !("revenue" in r.previous))).toBe(true);
+  });
+
   it("each person: assigned, within an hour, reply rate, calls held, the goal, and the leads behind them", async () => {
     const rows: Row[] = (await get(admin)).people;
     const a = rows.find((r) => r.id === A.id)!;

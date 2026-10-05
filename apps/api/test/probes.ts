@@ -639,6 +639,7 @@ export const PROBES: Record<string, Probe> = {
   // Recount now (Analytics' Refresh).
   "POST /api/v1/analytics/refresh": { access: "analytics.view" },
   "GET /api/v1/analytics/glance": { access: "analytics.view" },
+  "GET /api/v1/analytics/teams": { access: "analytics.view" },
   // A board's numbers as CSV: whoever may export.
   "GET /api/v1/analytics/overview/csv": { access: "analytics.view", query: "range=30d" },
   "GET /api/v1/analytics/funnel/csv": { access: "analytics.view", query: "range=30d" },
@@ -668,6 +669,7 @@ export const PROBES: Record<string, Probe> = {
     access: "settings.manage",
     path: () => "/api/v1/analytics/goals/00000000-0000-7000-8000-000000000999",
   },
+  "GET /api/v1/settings/sources": { access: "settings.manage" },
   "PUT /api/v1/settings/sources/:id/spend": {
     access: "settings.manage",
     path: () => "/api/v1/settings/sources/00000000-0000-7000-8000-000000000999/spend",

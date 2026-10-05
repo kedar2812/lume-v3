@@ -92,6 +92,31 @@ describe("first contact and first reply (8A Task 1)", () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  it("a call that's a lead's first contact says how long after the enquiry it came; the next doesn't", async () => {
+    const me = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.edit", scope: "own" },
+      ],
+    });
+    const lead = await h.seedLead({ ownerId: me.id });
+    await h.queryAll("UPDATE leads SET created_at = now() - interval '44 minutes' WHERE id = $1", [lead]);
+    const c = await h.signIn(me);
+    const first = await c.inject({
+      method: "POST",
+      url: `/api/v1/leads/${lead}/calls`,
+      payload: { outcome: "talked" },
+    });
+    expect(first.json().firstContact.minutes).toBeGreaterThanOrEqual(43);
+    expect(first.json().firstContact.minutes).toBeLessThan(46);
+    const again = await c.inject({
+      method: "POST",
+      url: `/api/v1/leads/${lead}/calls`,
+      payload: { outcome: "talked" },
+    });
+    expect(again.json().firstContact).toBeNull();
+  });
+
   it("the app can read when leads were first reached, and the worker can't", async () => {
     const owner = await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] });
     const lead = await h.seedLead({ ownerId: owner.id });

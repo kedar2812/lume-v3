@@ -118,4 +118,25 @@ describe("filters for several people, a team, several sources (8D-1 Task 2)", ()
       (await a.inject({ method: "GET", url: `/api/v1/analytics/overview?${Q}&fields=notjson` })).statusCode,
     ).toBe(400);
   });
+
+  it("the Filters panel's teams: every team for someone who sees everyone, only their own for a team lead, none for a rep", async () => {
+    const all = (
+      await (await h.signIn(admin)).inject({ method: "GET", url: "/api/v1/analytics/teams" })
+    ).json();
+    expect(all.teams.map((t: { name: string }) => t.name)).toEqual(["Field", "Inbound"]);
+    expect(all.teams.find((t: { name: string }) => t.name === "Inbound").memberIds.sort()).toEqual(
+      [r1.id, r2.id].sort(),
+    );
+    const leadUser = await h.seedUser({ grants: [{ key: "analytics.view", scope: "team" }] });
+    await h.ownerPool.query("INSERT INTO team_members (team_id, user_id, is_lead) VALUES ($1, $2, true)", [
+      teamId,
+      leadUser.id,
+    ]);
+    const mine = (
+      await (await h.signIn(leadUser)).inject({ method: "GET", url: "/api/v1/analytics/teams" })
+    ).json();
+    expect(mine.teams.map((t: { name: string }) => t.name)).toEqual(["Inbound"]);
+    const r = (await (await h.signIn(r1)).inject({ method: "GET", url: "/api/v1/analytics/teams" })).json();
+    expect(r.teams).toEqual([]);
+  });
 });

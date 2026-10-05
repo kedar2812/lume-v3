@@ -1,0 +1,341 @@
+/* Timing & meetings, card for card with the canvas (docs/design/phase8/canvas/Timing.dc.html). */
+.tg {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1180px) {
+  .tg {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The week by hour. */
+.hm {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.row {
+  display: contents;
+}
+.hh {
+  position: relative;
+  padding-bottom: 4px;
+  overflow: visible;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.rh {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.cell {
+  width: 100%;
+  height: 34px;
+  border-radius: 8px;
+  animation: cellin 0.6s var(--spring) both;
+  animation-delay: calc(var(--d) * 14ms + 0.15s);
+  transition:
+    transform 0.25s var(--spring),
+    box-shadow 0.2s;
+}
+.cell:hover:not(:disabled) {
+  position: relative;
+  z-index: 1;
+  transform: scale(1.1);
+  box-shadow: var(--shadow-lift, var(--shadow-pop));
+}
+.cell:focus-visible {
+  position: relative;
+  z-index: 1;
+  box-shadow: var(--focus-ring);
+}
+.cell[data-best] {
+  box-shadow:
+    0 0 0 2px var(--sheet),
+    0 0 0 4px var(--accent);
+}
+.cell[data-thin] {
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+@keyframes cellin {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.legend > i {
+  width: 160px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, var(--sunk)), var(--accent));
+}
+.best {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+.best span {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.note {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* LUME noticed, about timing. */
+.ins {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.insRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft), transparent 70%);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.18);
+}
+.spk {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+.spk img {
+  width: 18px;
+  height: 18px;
+}
+.insRow b {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+.insRow p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.foot {
+  margin-top: 14px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* Meetings. */
+.meetings {
+  margin-top: 14px;
+}
+.cal {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+.cal:hover {
+  background: var(--accent-soft);
+}
+.cal svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mk {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .mk {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.mt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  text-align: left;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  transition: box-shadow 0.2s;
+}
+.mt:first-child,
+.mt:nth-child(2) {
+  background: linear-gradient(135deg, var(--accent-soft), transparent 80%);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), 0.22);
+}
+.mt:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.4);
+}
+.mt:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.mt span:first-child {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-2);
+}
+.mt b {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+}
+@media (max-width: 1000px) {
+  .two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.h4 {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-3);
+}
+.flow {
+  display: flex;
+  overflow: hidden;
+  height: 34px;
+  border-radius: 9px;
+}
+.fl {
+  flex: var(--f);
+  min-width: 3px;
+  padding: 0 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 650;
+  color: #fff;
+  transform-origin: 0 50%;
+  animation: grow 1s var(--spring) both;
+  animation-delay: calc(var(--i) * 120ms + 0.3s);
+}
+.fl:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.fl:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--sheet);
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.flLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.flLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.flLegend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+.flLegend b {
+  font-weight: 650;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.pp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ppr {
+  display: grid;
+  grid-template-columns: 26px 130px minmax(0, 1fr) 76px;
+  gap: 10px;
+  align-items: center;
+  font-size: 12.5px;
+}
+.ppn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr9 {
+  display: flex;
+  overflow: hidden;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--sunk);
+}
+.tr9 i {
+  display: block;
+  height: 100%;
+}
+.ppt {
+  text-align: right;
+  font-weight: 650;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell,
+  .fl {
+    animation: none;
+  }
+}
