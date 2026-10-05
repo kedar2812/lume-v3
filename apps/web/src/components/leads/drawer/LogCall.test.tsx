@@ -67,6 +67,32 @@ describe("Log a call (the approved LogCall board)", () => {
     );
   });
 
+  it("a follow-up that couldn't be set is said, even on a first contact; an enquiry date reads in days", async () => {
+    vi.mocked(tasksClient.create).mockResolvedValueOnce({ ok: false, status: 500, message: "x" } as never);
+    vi.mocked(leadsClient.logCall).mockResolvedValueOnce(
+      ok({ activity: {} as never, firstContact: { days: 3 } }),
+    );
+    await open();
+    await userEvent.click(screen.getByRole("radio", { name: "Tomorrow 10:00" }));
+    await userEvent.click(screen.getByRole("button", { name: "Log call" }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        tone: "warn",
+        title: "Call logged",
+        detail:
+          "The follow-up wasn’t set. Add it with Follow-up. First contact with Ananya: 3 days after the enquiry date.",
+      }),
+    );
+  });
+
+  it("1, 2 and 3 pick how it went, but not with Ctrl or ⌘ held, and not by holding a key down", async () => {
+    await open();
+    await userEvent.keyboard("{Control>}2{/Control}");
+    expect(screen.getByRole("radio", { name: /Talked/ })).toHaveAttribute("aria-checked", "true");
+    await userEvent.keyboard("3");
+    expect(screen.getByRole("radio", { name: /Left a message/ })).toHaveAttribute("aria-checked", "true");
+  });
+
   it("Pick a time needs a time; a failed call isn't closed or lost", async () => {
     await open();
     await userEvent.click(screen.getByRole("radio", { name: "Pick a time…" }));

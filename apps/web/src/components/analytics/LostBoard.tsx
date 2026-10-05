@@ -345,6 +345,8 @@ function Converts({
     if (tooLong) return;
     let live = true;
     setFailed(null);
+    // Another range's answers never stand under this one's title while the new ones come.
+    setData(null);
     void analyticsClient.segments(params, field ?? undefined).then((r) => {
       if (!live) return;
       if (!r.ok) return setFailed(r.message ?? "LUME couldn’t count these right now.");

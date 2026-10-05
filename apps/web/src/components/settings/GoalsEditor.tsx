@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { analyticsClient, type Goals } from "@/lib/analytics/client";
@@ -79,29 +79,52 @@ export function GoalsEditor({
   const prevWords = periodWords(prev, period);
   const metrics = (xs: GoalMetric[]) => xs.filter((m) => m !== "revenue" || seesMoney);
 
+  // Only the latest read for the period on screen lands: a read for a period since left (a save's, or a quick
+  // click through the months) is dropped, never shown, never saved against.
+  const seq = useRef(0);
+  const shown = useRef(`${start}|${period}`);
+  shown.current = `${start}|${period}`;
+  // Boxes typed in and not yet saved keep what's typed when a read comes back.
+  const dirty = useRef(new Set<string>());
   const load = useCallback(async () => {
+    const n = ++seq.current;
+    const forPeriod = `${start}|${period}`;
     const r = await analyticsClient.goals(start, period);
+    if (n !== seq.current || shown.current !== forPeriod) return;
     if (!r.ok) return setLoadError(true);
     setLoadError(false);
     setGoals(r.data);
-    const t: Record<string, string> = {};
-    for (const g of r.data.goals)
-      t[keyOf(g.scope, g.scopeId, g.metric)] = targetText(g.target, g.metric, currency);
-    setText(t);
+    setText((was) => {
+      const t: Record<string, string> = {};
+      for (const g of r.data.goals)
+        t[keyOf(g.scope, g.scopeId, g.metric)] = targetText(g.target, g.metric, currency);
+      for (const k of dirty.current) t[k] = was[k] ?? "";
+      return t;
+    });
   }, [start, period, currency]);
+  const latest = useRef(load);
+  latest.current = load;
 
   useEffect(() => {
+    let live = true;
     setGoals(null);
+    setText({});
+    setState({});
+    dirty.current.clear();
     void load();
     // The period before, as Analytics counted it: the hint beside each business goal.
     void analyticsClient
       .overview({ range: "custom", from: prev, to: periodLast(prev, period), compare: false })
       .then((r) => {
+        if (!live) return;
         if (!r.ok) return setBefore({});
         const v: Partial<Record<GoalMetric, number | null>> = {};
         for (const row of ROWS) v[row.metric] = r.data.tiles.find((x) => x.id === row.tile)?.value ?? null;
         setBefore(v);
       });
+    return () => {
+      live = false;
+    };
   }, [load, prev, period]);
   useEffect(() => {
     void analyticsClient.teams().then((r) => r.ok && setTeams(r.data.teams));
@@ -116,14 +139,18 @@ export function GoalsEditor({
     const target = parseTarget(typed, metric);
     const had = find(scope, scopeId, metric);
     if (typed.trim() && target === null) return setState((x) => ({ ...x, [k]: "error" }));
-    if ((had?.target ?? null) === target) return;
+    if ((had?.target ?? null) === target) return dirty.current.delete(k);
+    const forPeriod = `${start}|${period}`;
     setState((x) => ({ ...x, [k]: "saving" }));
     const r =
       target === null
         ? await analyticsClient.removeGoal(had!.id)
         : await analyticsClient.setGoal({ scope, scopeId, metric, period, periodStart: start, target });
+    // Saved for its own period whatever is on screen now; the screen only reflects it if it's still that period.
+    if (shown.current !== forPeriod) return;
+    if (r.ok) dirty.current.delete(k);
     setState((x) => ({ ...x, [k]: r.ok ? "saved" : "error" }));
-    if (r.ok) await load();
+    if (r.ok) await latest.current();
   };
   const fill = (metric: GoalMetric, v: number) => {
     const k = keyOf("business", null, metric);
@@ -146,6 +173,7 @@ export function GoalsEditor({
           value={text[k] ?? ""}
           onChange={(e) => {
             const v = e.target.value;
+            dirty.current.add(k);
             setText((x) => ({ ...x, [k]: v }));
             setState((x) => {
               const n = { ...x };

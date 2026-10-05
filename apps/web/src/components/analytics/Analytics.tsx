@@ -162,14 +162,19 @@ const NEEDS: Record<Tab, (keyof Data)[]> = {
 export function Analytics({
   catalog,
   showTeam,
+  reach = "all",
   timezone,
   canExport = false,
   seesMoney = false,
   canEditSpend = false,
+  canManageSources = false,
+  meId,
 }: {
   catalog: Catalog;
   /** The leaderboard is for those who see more than themselves. */
   showTeam: boolean;
+  /** The viewer's analytics reach. */
+  reach?: "all" | "team" | "own";
   timezone: string;
   /** Export these numbers (CSV), for someone who may export. */
   canExport?: boolean;
@@ -177,6 +182,10 @@ export function Analytics({
   seesMoney?: boolean;
   /** Settings → Spend, for an admin who sets what each source costs. */
   canEditSpend?: boolean;
+  /** integrations.manage: Templates & data links to the sources that need a look. */
+  canManageSources?: boolean;
+  /** The viewer, so the Filters panel can offer them among their team. */
+  meId?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -251,7 +260,9 @@ export function Analytics({
   };
   const [data, setData] = useState<Data>(EMPTY);
   const [forKey, setForKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // A board that couldn't be counted, with what LUME was told; cleared with the range, and by Try again.
+  const [failed, setFailed] = useState<Partial<Record<keyof Data, string>>>({});
+  const [attempt, setAttempt] = useState(0);
   const [drill, setDrill] = useState<{ token: string; title: string } | null>(null);
 
   const set = (
@@ -277,10 +288,15 @@ export function Analytics({
   useEffect(() => {
     if (forKey !== key) {
       setData(EMPTY);
+      setFailed({});
       setForKey(key);
     }
   }, [key, forKey]);
-  const loading = forKey === key ? needs(tab).filter((k) => data[k] === null) : needs(tab);
+  const loading = forKey === key ? needs(tab).filter((k) => data[k] === null && !failed[k]) : needs(tab);
+  const error =
+    needs(tab)
+      .map((k) => failed[k])
+      .find(Boolean) ?? null;
   useLoadingSignal(loading.length > 0);
   useEffect(() => {
     if (forKey !== key) return;
@@ -301,17 +317,17 @@ export function Analytics({
       goals: () => analyticsClient.goals(start),
     };
     // Revenue is money only: someone without analytics.revenue never asks for it.
-    for (const k of needs(tab).filter((x) => data[x] === null))
+    for (const k of needs(tab).filter((x) => data[x] === null && !failed[x]))
       void fetchers[k]().then((r) => {
         if (!live) return;
         if (r.ok) setData((d) => ({ ...d, [k]: r.data }));
-        else setError(r.message ?? "LUME couldn’t count these numbers right now.");
+        else setFailed((f) => ({ ...f, [k]: r.message ?? "LUME couldn’t count these numbers right now." }));
       });
     return () => {
       live = false;
     };
     // Each module's numbers, once per range; `data` is read only to skip what's already here.
-  }, [tab, key, forKey]);
+  }, [tab, key, forKey, attempt]);
 
   // The tab pill slides under the chosen tab.
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -374,6 +390,8 @@ export function Analytics({
                 : { shown: null, all: null }
             }
             onChange={setFilters}
+            reach={own ? "own" : reach}
+            {...(meId ? { meId } : {})}
           />
           {/* This board's numbers as a spreadsheet, for someone who may export (8D spec §5). */}
           {canExport && CSV_BOARD[tab] && (
@@ -396,9 +414,18 @@ export function Analytics({
       <FilterChips filters={filters} catalog={catalog} teamName={teamName} onChange={setFilters} />
 
       {error && (
-        <p role="alert" className={s.empty} style={{ color: "var(--danger-ink)" }}>
-          {error}
-        </p>
+        <div role="alert" className={s.failed}>
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setFailed({});
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Try again
+          </button>
+        </div>
       )}
 
       <div role="tabpanel" aria-label={tabs.find((t) => t.id === tab)!.label}>
@@ -494,6 +521,7 @@ export function Analytics({
             quality={data.quality}
             templates={data.templates}
             rangeWords={r.words}
+            canManageSources={canManageSources}
             onDrill={(token, title) => setDrill({ token, title })}
           />
         )}

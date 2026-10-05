@@ -131,6 +131,11 @@ describe("data quality (8D-1 Task 9)", () => {
     expect((await get(rep)).sourcesNeedingLook).toEqual([]);
   });
 
+  it("says whether the business-wide parts were counted for this viewer, so a narrower reach is never told all is well", async () => {
+    expect((await get(admin)).seesAll).toBe(true);
+    expect((await get(rep)).seesAll).toBe(false);
+  });
+
   it("imports and what didn't come in cleanly", async () => {
     const q = await get(admin);
     expect(q.imports).toEqual([expect.objectContaining({ name: "Fair list", rows: 20, rejected: 4 })]);

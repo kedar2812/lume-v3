@@ -318,6 +318,8 @@ export type Quality = {
   imports: { sourceId: string; name: string; rows: number; rejected: number }[];
   importsRejected: { source_id: string; name: string; errors: number; skipped: number }[];
   sourcesNeedingLook: { id: string; name: string; type: string; status: string; message: string | null }[];
+  /** Unowned leads, sources and imports were counted (the viewer sees the whole business). */
+  seesAll: boolean;
 };
 export type Insights =
   | { ready: false; title: string; body: string; progress: string; insights: [] }

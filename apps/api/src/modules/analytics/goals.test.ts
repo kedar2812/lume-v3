@@ -79,6 +79,38 @@ describe("goals and spend (8B)", () => {
     expect(rep.goals[0].value).toBe(reference("2026-06-01", "2026-06-30", 0).new_leads);
   });
 
+  it("every person's goal and a team's count their own numbers, however many there are", async () => {
+    const c = await h.signIn(admin);
+    const set = (scope: string, scopeId: string | null, metric: string, target: number) =>
+      c.inject({
+        method: "PUT",
+        url: "/api/v1/analytics/goals",
+        payload: { scope, scopeId, metric, period: "month", periodStart: "2026-07-01", target },
+      });
+    const metrics = ["won", "revenue", "new_leads", "ontime"] as const;
+    for (const p of fx.people) for (const m of metrics) await set("user", p.id, m, m === "ontime" ? 0.9 : 10);
+    const team = await h.ownerPool.query(
+      "INSERT INTO teams (id, name) VALUES (gen_random_uuid(), 'Two of them') RETURNING id",
+    );
+    const teamId = team.rows[0].id as string;
+    for (const p of fx.people.slice(0, 2))
+      await h.ownerPool.query("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)", [teamId, p.id]);
+    await set("team", teamId, "won", 10);
+    const list = (await c.inject({ method: "GET", url: "/api/v1/analytics/goals?start=2026-07-01" })).json();
+    const got = (scope: string, id: string, m: string) =>
+      list.goals.find(
+        (g: { scope: string; scopeId: string; metric: string }) =>
+          g.scope === scope && g.scopeId === id && g.metric === m,
+      )?.value;
+    const key = { won: "won", revenue: "revenue_won", new_leads: "new_leads", ontime: "ontime" } as const;
+    fx.people.forEach((p, i) => {
+      const ref = reference("2026-07-01", "2026-07-31", i);
+      for (const m of metrics) expect([i, m, got("user", p.id, m)]).toEqual([i, m, ref[key[m]] ?? 0]);
+    });
+    const two = [0, 1].reduce((a, i) => a + reference("2026-07-01", "2026-07-31", i).won!, 0);
+    expect(got("team", teamId, "won")).toBe(two);
+  });
+
   it("only admins set goals and spend; a quarter starts in its first month", async () => {
     const rep = await h.signIn(fx.people[1]!);
     const body = {

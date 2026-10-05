@@ -65,7 +65,9 @@ export function FunnelBoard({
   const key = JSON.stringify(params);
   // A split is its own ask: the board's numbers stay as they are while it comes.
   useEffect(() => {
-    if (split === "none") return setByGroup(null);
+    // A new range or split: the old split goes at once (never another range's layers under these numbers).
+    setByGroup(null);
+    if (split === "none") return;
     let live = true;
     void analyticsClient.funnel({ ...params, split }).then((r) => live && r.ok && setByGroup(r.data));
     return () => {

@@ -1131,3 +1131,27 @@
     white-space: nowrap;
   }
 }
+
+/* A board LUME couldn't count: what it was told, and Try again. */
+.failed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+  background: var(--danger-soft);
+}
+.failed button {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: var(--danger-ink);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.failed button:hover {
+  background: rgba(229, 72, 77, 0.1);
+}

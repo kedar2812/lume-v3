@@ -37,6 +37,7 @@ const quality = (o: Partial<Quality> = {}): Quality => ({
       message: "A column was renamed",
     },
   ],
+  seesAll: true,
   ...o,
 });
 const templates: Templates = {
@@ -88,6 +89,32 @@ describe("Templates & data (canvas Quality)", () => {
     const imports = screen.getByRole("region", { name: "Imports and sources" });
     expect(imports).toHaveTextContent("Webinar sheetA column was renamedPaused");
     expect(imports).toHaveTextContent("CSV import2,400 rows9 didn’t come in");
+  });
+
+  it("to someone who doesn't see everything: the business-wide parts say they aren't shown, never that all is well", () => {
+    render(
+      <QualityBoard
+        quality={quality({
+          seesAll: false,
+          sourcesNeedingLook: [],
+          imports: [],
+          unowned: {
+            ...quality().unowned,
+            under1h: 0,
+            under1d: 0,
+            under7d: 0,
+            over7d: 0,
+            oldestMinutes: null,
+          },
+        })}
+        {...props}
+        onDrill={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/Every lead has someone/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/every source is running/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Every source is bringing leads in/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/shown to those who see the whole business/).length).toBeGreaterThan(0);
   });
 
   it("when all is well it says so", () => {

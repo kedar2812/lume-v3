@@ -39,12 +39,17 @@ const amount = (raw: string): number | null | "bad" => {
 export function SpendEditor({
   initial,
   currency,
-  seesMoney,
+  seesMoney: money_,
+  reachAll = true,
 }: {
   initial: SpendSource[];
   currency: string;
   seesMoney: boolean;
+  /** Sees every lead: what follows from spend (cost per lead, return) is only shown from all of them. */
+  reachAll?: boolean;
 }) {
+  // What follows from spend counts every lead; a narrower reach would make it look dearer than it is.
+  const seesMoney = money_ && reachAll;
   const [rows, setRows] = useState(initial);
   const [text, setText] = useState<Record<string, string>>(() =>
     Object.fromEntries(initial.map((x) => [x.id, grouped(x.monthlySpend, currency)])),
@@ -52,10 +57,11 @@ export function SpendEditor({
   const [state, setState] = useState<Record<string, "saving" | "saved" | "error">>({});
   const [stats, setStats] = useState<Map<string | null, SourceRow> | null>(null);
   useEffect(() => {
+    if (!reachAll) return;
     void analyticsClient.sources({ range: "30d", compare: false }).then((r) => {
       if (r.ok) setStats(new Map(r.data.sources.map((x) => [x.id, x])));
     });
-  }, []);
+  }, [reachAll]);
 
   const save = async (id: string) => {
     const v = amount(text[id] ?? "");
@@ -107,11 +113,13 @@ export function SpendEditor({
             {paid.length} paid {paid.length === 1 ? "source" : "sources"}
           </small>
         </div>
-        <div className={s.kpi}>
-          <span>What a lead costs, paid sources</span>
-          <b>{cplAll === null ? "—" : money(cplAll, currency, false)}</b>
-          <small>From the last 30 days&rsquo; leads</small>
-        </div>
+        {reachAll && (
+          <div className={s.kpi}>
+            <span>What a lead costs, paid sources</span>
+            <b>{cplAll === null ? "—" : money(cplAll, currency, false)}</b>
+            <small>From the last 30 days&rsquo; leads</small>
+          </div>
+        )}
         {seesMoney && (
           <div className={s.kpi}>
             <span>Revenue won per {currency} 1 spent</span>
@@ -137,11 +145,11 @@ export function SpendEditor({
               <thead>
                 <tr>
                   <th scope="col">Source</th>
-                  <th scope="col">Leads · 30 days</th>
-                  <th scope="col">Won</th>
+                  {reachAll && <th scope="col">Leads · 30 days</th>}
+                  {reachAll && <th scope="col">Won</th>}
                   {seesMoney && <th scope="col">Revenue won</th>}
                   <th scope="col">Spend a month</th>
-                  <th scope="col">Cost per lead</th>
+                  {reachAll && <th scope="col">Cost per lead</th>}
                   {seesMoney && <th scope="col">Per {currency} 1 spent</th>}
                 </tr>
               </thead>
@@ -158,8 +166,8 @@ export function SpendEditor({
                         <b>{x.name}</b>
                         <span className={s.kind}>{KIND[x.type] ?? "Source"}</span>
                       </td>
-                      <td>{st ? count(st.leads) : "—"}</td>
-                      <td>{st ? count(st.won) : "—"}</td>
+                      {reachAll && <td>{st ? count(st.leads) : "—"}</td>}
+                      {reachAll && <td>{st ? count(st.won) : "—"}</td>}
                       {seesMoney && <td>{st?.revenue !== undefined ? money(st.revenue, currency) : "—"}</td>}
                       <td>
                         <span className={s.box} data-state={state[x.id]}>
@@ -185,7 +193,7 @@ export function SpendEditor({
                           />
                         </span>
                       </td>
-                      <td>{cpl === null ? "—" : money(cpl, currency, false)}</td>
+                      {reachAll && <td>{cpl === null ? "—" : money(cpl, currency, false)}</td>}
                       {seesMoney && (
                         <td>
                           {roi === null ? (
@@ -220,6 +228,11 @@ export function SpendEditor({
               </p>
             </div>
           </div>
+        )}
+        {!reachAll && (
+          <p className={s.note}>
+            What a lead costs, and what it brings back, are shown to someone who sees every lead.
+          </p>
         )}
         <p className={s.note}>
           Spread over any range: for a 7-day range, Analytics counts 7 days&rsquo; share of the month&rsquo;s

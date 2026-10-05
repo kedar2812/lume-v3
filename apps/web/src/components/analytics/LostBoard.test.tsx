@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { analyticsClient, type Lost, type Segments } from "@/lib/analytics/client";
@@ -119,6 +119,14 @@ describe("Lost board (canvas Lost)", () => {
     expect(within(card).getByRole("button", { name: /^Not answered/ })).toHaveTextContent("Too few");
     await userEvent.click(within(card).getByRole("radio", { name: "Goal" }));
     expect(analyticsClient.segments).toHaveBeenLastCalledWith(props.params, "goal");
+  });
+
+  it("what converts drops the old range's answers as soon as the range changes", async () => {
+    const { rerender } = render(<LostBoard lost={lost()} {...props} />);
+    expect(await screen.findByRole("button", { name: /^Over 1L/ })).toBeInTheDocument();
+    vi.mocked(analyticsClient.segments).mockReturnValue(new Promise(() => {}) as never);
+    rerender(<LostBoard lost={lost()} {...props} params={{ range: "7d", compare: true }} />);
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Over 1L/ })).not.toBeInTheDocument());
   });
 
   it("over 92 days, what converts says to pick a shorter range instead of asking", () => {

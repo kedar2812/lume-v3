@@ -1,4 +1,4 @@
-import { can } from "@lume/core/shared";
+import { can, scopeOf } from "@lume/core/shared";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { SpendEditor, type SpendSource } from "@/components/settings/SpendEditor";
 import { apiGet } from "@/server/api";
@@ -23,6 +23,7 @@ export default async function Page() {
           initial={r.data.sources}
           currency={catalog.currency}
           seesMoney={can(session.actor, "analytics.revenue")}
+          reachAll={scopeOf(session.actor, "analytics.view") === "all"}
         />
       ) : (
         <p role="alert">LUME couldn&apos;t load your sources just now. Reload the page to try again.</p>

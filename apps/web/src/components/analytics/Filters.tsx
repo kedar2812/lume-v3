@@ -26,6 +26,9 @@ export const filterCount = (f: AnalyticsFilters) =>
     Object.keys(f.fields ?? {}).length,
   ].filter(Boolean).length;
 const LIVE_DAYS = 92;
+/** What the API counts at once (routes.ts BAD_FILTER): three fields, ten answers each. */
+const MAX_FIELDS = 3;
+const MAX_VALUES = 10;
 
 /** A list in words: "Riya and Dev", "Riya, Dev and 2 more". */
 function listWords(names: string[]): string {
@@ -52,10 +55,15 @@ export function FiltersButton({
   rangeDays,
   coverage,
   onChange,
+  reach = "all",
+  meId,
 }: {
   filters: AnalyticsFilters;
   catalog: Catalog;
   rangeDays: number;
+  /** The viewer's analytics reach: only the people they can see are offered. */
+  reach?: "all" | "team" | "own";
+  meId?: string;
   /** New leads under these filters, and without them, in the range: "These numbers cover 690 of 4,180 leads". */
   coverage: { shown: number | null; all: number | null };
   onChange(next: AnalyticsFilters): void;
@@ -86,13 +94,27 @@ export function FiltersButton({
     for (const t of teams ?? []) for (const id of t.memberIds) if (!m.has(id)) m.set(id, t.name);
     return m;
   }, [teams]);
+  // Only people the viewer can see: everyone; their teams' members and themselves; or (own) nobody to pick.
+  const inReach = useMemo(() => {
+    if (reach === "all") return null;
+    const ids = new Set<string>(meId ? [meId] : []);
+    for (const t of teams ?? []) for (const id of t.memberIds) ids.add(id);
+    return ids;
+  }, [reach, teams, meId]);
   const people = catalog.people.filter(
-    (p) => p.active && p.name.toLowerCase().includes(find.trim().toLowerCase()),
+    (p) =>
+      p.active && (!inReach || inReach.has(p.id)) && p.name.toLowerCase().includes(find.trim().toLowerCase()),
   );
   const choiceFields = catalog.fields.filter(
     (f) => !f.archived && (f.type === "select" || f.type === "multi_select"),
   );
   const live = !!filters.tags?.length || Object.keys(filters.fields ?? {}).length > 0;
+  const chosen = filters.fields ?? {};
+  // Another answer for this field fits: under ten here, and either the field is already on or there's room.
+  const canAdd = (key: string) =>
+    (chosen[key]?.length ?? 0) < MAX_VALUES && (key in chosen || Object.keys(chosen).length < MAX_FIELDS);
+  const fieldsFull =
+    Object.keys(chosen).length >= MAX_FIELDS || Object.values(chosen).some((v) => v.length >= MAX_VALUES);
   const tooLong = live && rangeDays > LIVE_DAYS;
   const set = (patch: Partial<AnalyticsFilters>) => {
     const next: AnalyticsFilters = { ...filters, ...patch };
@@ -149,85 +171,88 @@ export function FiltersButton({
                   <h3>Pipeline</h3>
                   <SegmentedControl
                     label="Pipeline"
-                    value={
-                      filters.pipeline ??
-                      catalog.pipelines.find((p) => p.isDefault)?.id ??
-                      catalog.pipelines[0]!.id
-                    }
-                    options={catalog.pipelines.map((p) => ({ value: p.id, label: p.name }))}
-                    onChange={(v) => set({ pipeline: v })}
+                    value={filters.pipeline ?? "all"}
+                    options={[
+                      { value: "all", label: "All pipelines" },
+                      ...catalog.pipelines.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
+                    onChange={(v) => set({ pipeline: v === "all" ? undefined : v })}
                   />
                 </section>
               )}
-              <section className={s.sec}>
-                <h3>
-                  People <span>Whose leads, credited as Analytics credits them</span>
-                </h3>
-                {!!teams?.length && (
-                  <SegmentedControl
-                    label="People or teams"
-                    value={mode}
-                    options={[
-                      { value: "people", label: "People" },
-                      { value: "teams", label: "Teams" },
-                    ]}
-                    onChange={(v) => setMode(v as "people" | "teams")}
-                  />
-                )}
-                {mode === "people" || !teams?.length ? (
-                  <>
-                    {catalog.people.length > 6 && (
-                      <input
-                        className={s.find}
-                        type="search"
-                        placeholder="Find a person"
-                        aria-label="Find a person"
-                        value={find}
-                        onChange={(e) => setFind(e.target.value)}
-                      />
-                    )}
+              {reach !== "own" && (
+                <section className={s.sec}>
+                  <h3>
+                    People <span>Whose leads, credited as Analytics credits them</span>
+                  </h3>
+                  {!!teams?.length && (
+                    <SegmentedControl
+                      label="People or teams"
+                      value={mode}
+                      options={[
+                        { value: "people", label: "People" },
+                        { value: "teams", label: "Teams" },
+                      ]}
+                      onChange={(v) => setMode(v as "people" | "teams")}
+                    />
+                  )}
+                  {mode === "people" || !teams?.length ? (
+                    <>
+                      {catalog.people.length > 6 && (
+                        <input
+                          className={s.find}
+                          type="search"
+                          placeholder="Find a person"
+                          aria-label="Find a person"
+                          value={find}
+                          onChange={(e) => setFind(e.target.value)}
+                        />
+                      )}
+                      <ul className={s.people}>
+                        {people.map((p) => (
+                          <li key={p.id}>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={!!filters.owners?.includes(p.id)}
+                                onChange={() =>
+                                  set({ owners: toggle(filters.owners, p.id), team: undefined })
+                                }
+                              />
+                              <Avatar
+                                name={p.name}
+                                size={22}
+                                {...(p.avatar?.color ? { color: p.avatar.color } : {})}
+                              />
+                              <span className={s.who}>{p.name}</span>
+                              <span className={s.team}>{teamOf.get(p.id) ?? ""}</span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
                     <ul className={s.people}>
-                      {people.map((p) => (
-                        <li key={p.id}>
+                      {teams.map((t) => (
+                        <li key={t.id}>
                           <label>
                             <input
-                              type="checkbox"
-                              checked={!!filters.owners?.includes(p.id)}
-                              onChange={() => set({ owners: toggle(filters.owners, p.id), team: undefined })}
+                              type="radio"
+                              name="analytics-team"
+                              checked={filters.team === t.id}
+                              onChange={() => set({ team: t.id, owners: undefined })}
                             />
-                            <Avatar
-                              name={p.name}
-                              size={22}
-                              {...(p.avatar?.color ? { color: p.avatar.color } : {})}
-                            />
-                            <span className={s.who}>{p.name}</span>
-                            <span className={s.team}>{teamOf.get(p.id) ?? ""}</span>
+                            <span className={s.who}>{t.name}</span>
+                            <span className={s.team}>
+                              {t.memberIds.length} {t.memberIds.length === 1 ? "person" : "people"}
+                            </span>
                           </label>
                         </li>
                       ))}
                     </ul>
-                  </>
-                ) : (
-                  <ul className={s.people}>
-                    {teams.map((t) => (
-                      <li key={t.id}>
-                        <label>
-                          <input
-                            type="radio"
-                            name="analytics-team"
-                            checked={filters.team === t.id}
-                            onChange={() => set({ team: t.id, owners: undefined })}
-                          />
-                          <span className={s.who}>{t.name}</span>
-                          <span className={s.team}>
-                            {t.memberIds.length} {t.memberIds.length === 1 ? "person" : "people"}
-                          </span>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+                  )}
+                </section>
+              )}
               {catalog.sources.length > 0 && (
                 <section className={s.sec}>
                   <h3>Source</h3>
@@ -281,6 +306,7 @@ export function FiltersButton({
                             <button
                               key={o.id}
                               type="button"
+                              disabled={!filters.fields?.[f.key]?.includes(o.id) && !canAdd(f.key)}
                               aria-pressed={!!filters.fields?.[f.key]?.includes(o.id)}
                               onClick={() =>
                                 set({
@@ -297,6 +323,11 @@ export function FiltersButton({
                       </div>
                     </div>
                   ))}
+                  {fieldsFull && (
+                    <p className={s.liveNote}>
+                      LUME counts up to 3 fields at once, with up to 10 answers each.
+                    </p>
+                  )}
                 </section>
               )}
               {live && (

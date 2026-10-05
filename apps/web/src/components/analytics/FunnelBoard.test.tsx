@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { analyticsClient, type Funnel } from "@/lib/analytics/client";
@@ -139,6 +139,23 @@ describe("the Funnel board (canvas Funnel)", () => {
     const rib = screen.getByRole("region", { name: "How far the leads got" });
     expect(await within(rib).findByText("Referrals")).toBeInTheDocument();
     expect(within(rib).getByText("Website")).toBeInTheDocument();
+  });
+
+  it("a split from the old range goes as soon as the range changes, not when the new one arrives", async () => {
+    const split = funnel({
+      split: {
+        by: "source",
+        groups: [{ id: "b", name: "Referrals", arrived: 40, stages: [{ id: "s1", reached: 40, share: 1 }] }],
+      },
+    });
+    vi.mocked(analyticsClient.funnel).mockResolvedValueOnce(ok(split) as never);
+    const props = { funnel: funnel(), rangeWords: "in the last 30 days", currency: "INR", onDrill: drill };
+    const { rerender } = render(<FunnelBoard {...props} params={{ range: "30d", compare: true }} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Source" }));
+    expect(await screen.findByText("Referrals")).toBeInTheDocument();
+    vi.mocked(analyticsClient.funnel).mockReturnValueOnce(new Promise(() => {}) as never);
+    rerender(<FunnelBoard {...props} params={{ range: "7d", compare: true }} />);
+    await waitFor(() => expect(screen.queryByText("Referrals")).not.toBeInTheDocument());
   });
 
   it("velocity reads as a sum, with how long wins take and the median's bar marked", () => {

@@ -191,6 +191,22 @@ export async function addNote(req: FastifyRequest, lead: LeadRow, body: string) 
 export type CallOutcome = "talked" | "no_answer" | "left_message";
 
 /**
+ * Was this the lead's first contact, and how soon after the enquiry (canvas LogCall)? Read after the insert: the
+ * trigger keeps the earliest contact, so of two calls at once only the earlier one is the first. Minutes from when
+ * LUME saw the enquiry arrive; for a lead carrying its own enquiry date (a date, no time), whole days from it.
+ */
+async function firstContactOf(req: FastifyRequest, lead: LeadRow, at: Date) {
+  const r = await req.db.execute<{ first: Date | null; enquiry: string | null; days: number | null }>(sql`
+    SELECT f.first_contact_at AS first, l.lead_created_at::text AS enquiry,
+           (${at.toISOString()}::timestamptz::date - l.lead_created_at) AS days
+    FROM leads l LEFT JOIN lead_firsts f ON f.lead_id = l.id WHERE l.id = ${lead.id}::uuid`);
+  const row = r.rows[0];
+  if (!row?.first || new Date(row.first).getTime() !== at.getTime()) return null;
+  if (row.enquiry !== null) return { days: Math.max(0, Number(row.days)) };
+  return { minutes: Math.max(0, (at.getTime() - new Date(lead.createdAt).getTime()) / 60_000) };
+}
+
+/**
  * A phone call, logged (8A): it counts as contact (the lead's first contact, if it's the first), and says how it went.
  * Shaped like a listed activity, as a note is.
  */
@@ -199,11 +215,6 @@ export async function logCall(req: FastifyRequest, lead: LeadRow, outcome: CallO
   const id = newId();
   const userId = req.actor!.userId;
   const payload = { outcome, ...(note ? { note } : {}) };
-  // Reached before? If not, this call is the lead's first contact (canvas LogCall says how soon it came).
-  const before = await req.db.execute<{ at: Date | null }>(
-    sql`SELECT first_contact_at AS at FROM lead_firsts WHERE lead_id = ${lead.id}::uuid`,
-  );
-  const firstTime = !before.rows[0]?.at;
   const [row] = await req.db
     .insert(schema.activities)
     .values({ id, leadId: lead.id, userId, type: "call_logged", payload })
@@ -221,9 +232,7 @@ export async function logCall(req: FastifyRequest, lead: LeadRow, outcome: CallO
       occurredAt: row!.occurredAt,
       user: { id: userId, name: me?.name ?? null },
     },
-    firstContact: firstTime
-      ? { minutes: Math.max(0, (row!.occurredAt.getTime() - new Date(lead.createdAt).getTime()) / 60_000) }
-      : null,
+    firstContact: await firstContactOf(req, lead, row!.occurredAt),
   };
 }
 

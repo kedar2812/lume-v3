@@ -27,6 +27,7 @@ const row = (id: string, name: string, leads: number, revenue: number) => ({
 });
 
 beforeEach(() => {
+  vi.mocked(analyticsClient.sources).mockClear();
   vi.mocked(api.put)
     .mockReset()
     .mockResolvedValue(ok({ id: "s1", monthlySpend: 0 }) as never);
@@ -69,6 +70,14 @@ describe("Settings → Sources & spend (8D-3)", () => {
     await userEvent.tab();
     expect(ig).toHaveAttribute("aria-invalid", "true");
     expect(api.put).toHaveBeenCalledTimes(2);
+  });
+
+  it("an admin who doesn't see every lead sets spend, but isn't shown a cost per lead from part of the leads", async () => {
+    render(<SpendEditor initial={initial} currency="AED" seesMoney reachAll={false} />);
+    expect(await screen.findByText(/shown to someone who sees every lead/)).toBeInTheDocument();
+    expect(screen.queryByText("Cost per lead")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Referrals: spend a month" })).toBeInTheDocument();
+    expect(analyticsClient.sources).not.toHaveBeenCalled();
   });
 
   it("without the money permission: spend and cost per lead only", async () => {

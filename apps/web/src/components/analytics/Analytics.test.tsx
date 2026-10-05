@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { trend } from "@lume/core/shared";
@@ -238,6 +238,35 @@ describe("Analytics filters and export (8D-3)", () => {
     expect(analyticsClient.overview).toHaveBeenCalledWith(
       expect.not.objectContaining({ owners: expect.anything() }),
     );
+  });
+
+  it("a board that couldn't be counted says so with Try again, and the message goes with a new range", async () => {
+    params = new URLSearchParams("m=funnel");
+    vi.mocked(analyticsClient.funnel).mockClear();
+    vi.mocked(analyticsClient.funnel).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      message: "Down for a moment",
+    } as never);
+    const { rerender } = render(<Analytics catalog={testCatalog()} showTeam timezone="Asia/Kolkata" />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Down for a moment");
+    // Try again asks once more, and the board fills.
+    await userEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(analyticsClient.funnel).toHaveBeenCalledTimes(2);
+    // A failure on one range is gone once the range changes.
+    vi.mocked(analyticsClient.funnel).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      message: "Down again",
+    } as never);
+    params = new URLSearchParams("m=funnel&range=7d");
+    rerender(<Analytics catalog={testCatalog()} showTeam timezone="Asia/Kolkata" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Down again");
+    params = new URLSearchParams("m=funnel&range=this_month");
+    rerender(<Analytics catalog={testCatalog()} showTeam timezone="Asia/Kolkata" />);
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
   it("export is only for someone who may export", async () => {

@@ -19,6 +19,9 @@ export default async function Page() {
         catalog={catalog}
         showTeam={scopeOf(session.actor, "analytics.view") !== "own"}
         canExport={can(session.actor, "leads.export")}
+        reach={scopeOf(session.actor, "analytics.view") ?? "own"}
+        meId={session.user.id}
+        canManageSources={can(session.actor, "integrations.manage")}
         seesMoney={can(session.actor, "analytics.revenue")}
         canEditSpend={can(session.actor, "settings.manage")}
         timezone={settings.data?.timezone ?? session.user.timezone ?? "UTC"}

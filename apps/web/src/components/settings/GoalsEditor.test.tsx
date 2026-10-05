@@ -111,6 +111,47 @@ describe("Settings → Goals (8D-3)", () => {
     expect(c.setGoal).toHaveBeenCalledTimes(1);
   });
 
+  it("a save still in flight when the period changes never brings the old period back", async () => {
+    c.goals.mockImplementation(async (start) =>
+      ok(
+        start === "2026-11-01"
+          ? { period: "month" as const, periodStart: start, periodEnd: "2026-11-30", goals: [] }
+          : goals,
+      ),
+    );
+    let finish: (v: unknown) => void = () => {};
+    c.setGoal.mockImplementation(() => new Promise((r) => (finish = r)) as never);
+    render(<GoalsEditor {...props} />);
+    const won = await screen.findByRole("textbox", { name: "Won, the business, October 2026" });
+    await waitFor(() => expect(won).toHaveValue("120"));
+    await userEvent.clear(won);
+    await userEvent.type(won, "130");
+    // Leaving the box saves; the next month is picked while that save is still on its way.
+    await userEvent.click(screen.getByRole("button", { name: "The period after" }));
+    const nov = await screen.findByRole("textbox", { name: "Won, the business, November 2026" });
+    finish(ok({ id: "g1" }));
+    await waitFor(() => expect(c.setGoal).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByText("November 2026")).toBeInTheDocument();
+    expect(nov).toHaveValue("");
+  });
+
+  it("what's typed in one box stays while another box's save comes back", async () => {
+    let finish: (v: unknown) => void = () => {};
+    c.setGoal.mockImplementationOnce(() => new Promise((r) => (finish = r)) as never);
+    render(<GoalsEditor {...props} />);
+    const riya = await screen.findByRole("textbox", { name: "Won, Riya Shah, October 2026" });
+    await userEvent.type(riya, "15");
+    const dev = screen.getByRole("textbox", { name: "Won, Dev Malhotra, October 2026" });
+    await userEvent.click(dev);
+    await userEvent.type(dev, "12");
+    finish(ok({ id: "g9" }));
+    await waitFor(() => expect(c.goals).toHaveBeenCalledTimes(2));
+    expect(dev).toHaveValue("12");
+    await userEvent.tab();
+    expect(c.setGoal).toHaveBeenLastCalledWith(expect.objectContaining({ scopeId: "u2", target: 12 }));
+  });
+
   it("the period moves a month at a time, or a quarter", async () => {
     render(<GoalsEditor {...props} />);
     await userEvent.click(screen.getByRole("button", { name: "The period before" }));

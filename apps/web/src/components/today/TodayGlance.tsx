@@ -47,12 +47,15 @@ export function TodayKpis({ currency }: { currency: string }) {
             aria-label={`${LABEL[k.id] ?? METRICS[k.id].words}: ${fmt(k, currency)}${k.trend ? `, ${k.trend.text}` : ""}`}
           >
             <span className={s.k}>{LABEL[k.id] ?? METRICS[k.id].words}</span>
-            <span className={s.v}>{fmt(k, currency)}</span>
-            <span className={s.d}>
+            {/* Counted every minute or so from the rollups: as changeable as the clock, so screenshots mask it. */}
+            <span className={s.v} data-volatile>
+              {fmt(k, currency)}
+            </span>
+            <span className={s.d} data-volatile>
               {k.trend ? <Chip trend={k.trend} /> : <span className={s.flat}>No change to show</span>}
               <span className={s.vs}>{k.period === "month" ? "vs last month" : "vs last week"}</span>
             </span>
-            <span className={s.spark}>
+            <span className={s.spark} data-volatile>
               <Spark values={k.series} />
             </span>
           </Link>

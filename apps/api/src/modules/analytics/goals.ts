@@ -84,12 +84,6 @@ export async function listGoals(
     }>(sql`
       SELECT id, scope, scope_id, metric, target::text FROM goals WHERE period = ${period} AND period_start = ${periodStart}::date`)
   ).rows;
-  const teamOf = async (teamId: string) =>
-    (
-      await req.db.execute<{ user_id: string }>(
-        sql`SELECT user_id FROM team_members WHERE team_id = ${teamId}::uuid`,
-      )
-    ).rows.map((r) => r.user_id);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);
   const days = Math.round((Date.parse(end) - Date.parse(periodStart)) / 86_400_000) + 1;
   const gone = Math.min(
@@ -97,10 +91,66 @@ export async function listGoals(
     Math.max(0, Math.round((Date.parse(today) - Date.parse(periodStart)) / 86_400_000) + 1),
   );
   const money = can(actor, "analytics.revenue");
+  // Three reads whatever the number of goals (a business with hundreds of people sets hundreds): every team's
+  // members, and the period's sums per person from each rollup. A team or the business adds up its people.
+  const teamIds = [...new Set(rows.filter((g) => g.scope === "team").map((g) => g.scope_id!))];
+  type Sums = { arrived: number; won: number; wonValue: number; held: number; onTime: number; done: number };
+  const zero = (): Sums => ({ arrived: 0, won: 0, wonValue: 0, held: 0, onTime: 0, done: 0 });
+  const [members, cohort, events] = rows.length
+    ? await Promise.all([
+        teamIds.length
+          ? req.db.execute<{ team_id: string; user_id: string }>(
+              sql`SELECT team_id, user_id FROM team_members WHERE team_id = ANY(${`{${teamIds.join(",")}}`}::uuid[])`,
+            )
+          : Promise.resolve({ rows: [] as { team_id: string; user_id: string }[] }),
+        req.db.execute<{ user_id: string | null; arrived: number }>(sql`
+          SELECT user_id, coalesce(sum(arrived), 0)::float8 AS arrived FROM analytics_daily_cohort
+          WHERE day BETWEEN ${periodStart}::date AND ${end}::date GROUP BY user_id`),
+        req.db.execute<{
+          user_id: string | null;
+          won: number;
+          won_value: number;
+          held: number;
+          on_time: number;
+          done: number;
+        }>(sql`
+          SELECT user_id, coalesce(sum(won), 0)::float8 AS won, coalesce(sum(won_value), 0)::float8 AS won_value,
+                 coalesce(sum(held), 0)::float8 AS held, coalesce(sum(tasks_on_time), 0)::float8 AS on_time,
+                 coalesce(sum(tasks_done), 0)::float8 AS done
+          FROM analytics_daily_event WHERE day BETWEEN ${periodStart}::date AND ${end}::date GROUP BY user_id`),
+      ])
+    : [{ rows: [] }, { rows: [] }, { rows: [] }];
+  const byUser = new Map<string | null, Sums>();
+  const at = (u: string | null) => byUser.get(u) ?? (byUser.set(u, zero()), byUser.get(u)!);
+  for (const r of cohort.rows) at(r.user_id).arrived += r.arrived;
+  for (const r of events.rows) {
+    const x = at(r.user_id);
+    x.won += r.won;
+    x.wonValue += r.won_value;
+    x.held += r.held;
+    x.onTime += r.on_time;
+    x.done += r.done;
+  }
+  const teamOf = new Map<string, string[]>();
+  for (const m of members.rows) teamOf.set(m.team_id, [...(teamOf.get(m.team_id) ?? []), m.user_id]);
+  const sumOf = (users: string[] | null): Sums => {
+    const out = zero();
+    for (const [u, x] of byUser) {
+      if (users && (u === null || !users.includes(u))) continue;
+      out.arrived += x.arrived;
+      out.won += x.won;
+      out.wonValue += x.wonValue;
+      out.held += x.held;
+      out.onTime += x.onTime;
+      out.done += x.done;
+    }
+    return out;
+  };
   const out = [];
   for (const g of rows) {
     if (g.metric === "revenue" && !money) continue;
-    const users = g.scope === "user" ? [g.scope_id!] : g.scope === "team" ? await teamOf(g.scope_id!) : null;
+    const users =
+      g.scope === "user" ? [g.scope_id!] : g.scope === "team" ? (teamOf.get(g.scope_id!) ?? []) : null;
     // Within reach: one's own goal always; a team's or the business's with a reach that covers it.
     const visible =
       reach === "all" ||
@@ -110,24 +160,19 @@ export async function listGoals(
         reach === "team" &&
         users!.every((u) => u === actor.userId || actor.teamMemberIds.includes(u)));
     if (!visible) continue;
-    const who = users ? sql`AND user_id = ANY(${`{${users.join(",")}}`}::uuid[])` : sql``;
-    const span = sql`day BETWEEN ${periodStart}::date AND ${end}::date ${who}`;
-    let value: number;
-    if (g.metric === "new_leads")
-      value = (
-        await req.db.execute<{ v: number }>(
-          sql`SELECT coalesce(sum(arrived), 0)::float8 AS v FROM analytics_daily_cohort WHERE ${span}`,
-        )
-      ).rows[0]!.v;
-    else {
-      const col = { won: "won", revenue: "won_value", calls_held: "held", ontime: "tasks_on_time" }[g.metric];
-      const r = (
-        await req.db.execute<{ v: number; done: number }>(sql`
-          SELECT coalesce(sum(${sql.raw(col)}), 0)::float8 AS v, coalesce(sum(tasks_done), 0)::float8 AS done
-          FROM analytics_daily_event WHERE ${span}`)
-      ).rows[0]!;
-      value = g.metric === "ontime" ? (r.done ? r.v / r.done : 0) : r.v;
-    }
+    const x = sumOf(users);
+    const value =
+      g.metric === "new_leads"
+        ? x.arrived
+        : g.metric === "won"
+          ? x.won
+          : g.metric === "revenue"
+            ? x.wonValue
+            : g.metric === "calls_held"
+              ? x.held
+              : x.done
+                ? x.onTime / x.done
+                : 0;
     const target = Number(g.target);
     const elapsed = gone / days;
     out.push({

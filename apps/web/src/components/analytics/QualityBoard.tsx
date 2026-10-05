@@ -22,11 +22,14 @@ export function QualityBoard({
   quality,
   templates,
   rangeWords,
+  canManageSources = false,
   onDrill,
 }: {
   quality: Quality | null;
   templates: Templates | null;
   rangeWords: string;
+  /** integrations.manage: "See the sources" goes somewhere they can open. */
+  canManageSources?: boolean;
   onDrill(token: string, title: string): void;
 }) {
   if (!quality || !templates)
@@ -166,126 +169,141 @@ export function QualityBoard({
           )}
         </Card>
       </div>
-      <div className={s.q3}>
-        <section className={`${a.card} ${s.tile}`} aria-label="Nobody yet">
-          <span className={s.tIco} data-tone="blue" aria-hidden>
-            <svg viewBox="0 0 24 24">
-              <circle cx="10" cy="8" r="4" />
-              <path d="M2 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6" />
-            </svg>
-          </span>
-          <span className={s.tLabel}>Nobody yet</span>
-          <b className={s.tNum}>{count(waiting)}</b>
-          <span className={s.tSub}>
-            {u.oldestMinutes === null
-              ? "Every lead has someone"
-              : `The oldest has waited ${minutes(u.oldestMinutes)}`}
-          </span>
+      {quality.seesAll === false ? (
+        // Unowned leads, sources and imports are the whole business's: never an all-clear to a narrower reach.
+        <section
+          className={`${a.card} ${s.imports}`}
+          aria-label="Leads without an owner, sources and imports"
+        >
+          <p className={a.empty}>
+            Leads without an owner, sources and imports are shown to those who see the whole business.
+          </p>
         </section>
-        <section className={`${a.card} ${s.tile}`} aria-label="Sources needing a look">
-          <span
-            className={s.tIco}
-            data-tone={quality.sourcesNeedingLook.length ? "amber" : "green"}
-            aria-hidden
-          >
-            <svg viewBox="0 0 24 24">
-              <path d="M12 3 2 20h20L12 3Z" />
-              <path d="M12 10v4M12 17h.01" />
-            </svg>
-          </span>
-          <span className={s.tLabel}>Sources needing a look</span>
-          <b className={s.tNum}>{count(quality.sourcesNeedingLook.length)}</b>
-          <span className={s.tSub}>
-            {quality.sourcesNeedingLook.length === 0
-              ? "Every source is bringing leads in"
-              : quality.sourcesNeedingLook
-                  .slice(0, 2)
-                  .map(
-                    (x) => `${x.name}: ${x.message ?? (x.status === "paused" ? "paused" : "needs a look")}`,
-                  )
-                  .join(" · ")}
-          </span>
-          {quality.sourcesNeedingLook.length > 0 && (
-            <Link className={s.tLink} href="/settings/integrations">
-              See the sources
-            </Link>
-          )}
-        </section>
-        <Card title="Nobody yet, by how long" sub="Leads without an owner, and how long they’ve waited">
-          {!waiting ? (
-            <p className={a.empty}>Every lead has someone.</p>
-          ) : (
-            <div className={s.waits}>
-              {WAITS.map((w, i) => {
-                const n = u[w.field];
-                const token = u.drill[w.key];
-                return (
-                  <button
-                    key={w.key}
-                    type="button"
-                    className={s.wcol}
-                    disabled={!token || !n}
-                    aria-label={`${w.label}: ${count(n)}. See the leads.`}
-                    onClick={() => token && onDrill(token, `Nobody yet: ${w.label.toLowerCase()}`)}
-                  >
-                    <b>{count(n)}</b>
-                    <span className={s.wbar}>
-                      <i
-                        style={
-                          {
-                            height: `${Math.max(4, (n / mostWait) * 100)}%`,
-                            background: w.color,
-                            "--i": i,
-                          } as CSSProperties
-                        }
-                      />
-                    </span>
-                    <span>{w.label}</span>
-                  </button>
-                );
-              })}
+      ) : (
+        <>
+          <div className={s.q3}>
+            <section className={`${a.card} ${s.tile}`} aria-label="Nobody yet">
+              <span className={s.tIco} data-tone="blue" aria-hidden>
+                <svg viewBox="0 0 24 24">
+                  <circle cx="10" cy="8" r="4" />
+                  <path d="M2 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6" />
+                </svg>
+              </span>
+              <span className={s.tLabel}>Nobody yet</span>
+              <b className={s.tNum}>{count(waiting)}</b>
+              <span className={s.tSub}>
+                {u.oldestMinutes === null
+                  ? "Every lead has someone"
+                  : `The oldest has waited ${minutes(u.oldestMinutes)}`}
+              </span>
+            </section>
+            <section className={`${a.card} ${s.tile}`} aria-label="Sources needing a look">
+              <span
+                className={s.tIco}
+                data-tone={quality.sourcesNeedingLook.length ? "amber" : "green"}
+                aria-hidden
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3 2 20h20L12 3Z" />
+                  <path d="M12 10v4M12 17h.01" />
+                </svg>
+              </span>
+              <span className={s.tLabel}>Sources needing a look</span>
+              <b className={s.tNum}>{count(quality.sourcesNeedingLook.length)}</b>
+              <span className={s.tSub}>
+                {quality.sourcesNeedingLook.length === 0
+                  ? "Every source is bringing leads in"
+                  : quality.sourcesNeedingLook
+                      .slice(0, 2)
+                      .map(
+                        (x) =>
+                          `${x.name}: ${x.message ?? (x.status === "paused" ? "paused" : "needs a look")}`,
+                      )
+                      .join(" · ")}
+              </span>
+              {canManageSources && quality.sourcesNeedingLook.length > 0 && (
+                <Link className={s.tLink} href="/settings/integrations">
+                  See the sources
+                </Link>
+              )}
+            </section>
+            <Card title="Nobody yet, by how long" sub="Leads without an owner, and how long they’ve waited">
+              {!waiting ? (
+                <p className={a.empty}>Every lead has someone.</p>
+              ) : (
+                <div className={s.waits}>
+                  {WAITS.map((w, i) => {
+                    const n = u[w.field];
+                    const token = u.drill[w.key];
+                    return (
+                      <button
+                        key={w.key}
+                        type="button"
+                        className={s.wcol}
+                        disabled={!token || !n}
+                        aria-label={`${w.label}: ${count(n)}. See the leads.`}
+                        onClick={() => token && onDrill(token, `Nobody yet: ${w.label.toLowerCase()}`)}
+                      >
+                        <b>{count(n)}</b>
+                        <span className={s.wbar}>
+                          <i
+                            style={
+                              {
+                                height: `${Math.max(4, (n / mostWait) * 100)}%`,
+                                background: w.color,
+                                "--i": i,
+                              } as CSSProperties
+                            }
+                          />
+                        </span>
+                        <span>{w.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </div>
+          <section className={`${a.card} ${s.imports}`} aria-label="Imports and sources">
+            <div className={a.cardHead}>
+              <div>
+                <h3>Imports and sources</h3>
+                <div className={a.sub}>What didn’t come in cleanly {rangeWords}</div>
+              </div>
             </div>
-          )}
-        </Card>
-      </div>
-      <section className={`${a.card} ${s.imports}`} aria-label="Imports and sources">
-        <div className={a.cardHead}>
-          <div>
-            <h3>Imports and sources</h3>
-            <div className={a.sub}>What didn’t come in cleanly {rangeWords}</div>
-          </div>
-        </div>
-        {!quality.imports.length && !quality.sourcesNeedingLook.length ? (
-          <p className={a.empty}>Nothing was imported {rangeWords}, and every source is running.</p>
-        ) : (
-          <div className={s.chips}>
-            {quality.sourcesNeedingLook.map((x) => (
-              <span key={x.id} className={s.chip} data-tone="warn">
-                <b>{x.name}</b>
-                <span className={s.cmsg}>
-                  {x.message ?? (x.status === "paused" ? "Paused" : "Needs a look")}
-                </span>
-                <em>{x.status === "paused" ? "Paused" : "Needs a look"}</em>
-              </span>
-            ))}
-            {quality.imports.map((x) => (
-              <span key={x.sourceId} className={s.chip}>
-                <b>{x.name}</b>
-                <span className={s.cmsg}>{count(x.rows)} rows</span>
-                {x.rejected ? (
-                  <em data-tone="bad">
-                    {count(x.rejected)} <small>didn’t come in</small>
-                  </em>
-                ) : (
-                  <em data-tone="good">
-                    {count(x.rows)} <small>imported</small>
-                  </em>
-                )}
-              </span>
-            ))}
-          </div>
-        )}
-      </section>
+            {!quality.imports.length && !quality.sourcesNeedingLook.length ? (
+              <p className={a.empty}>Nothing was imported {rangeWords}, and every source is running.</p>
+            ) : (
+              <div className={s.chips}>
+                {quality.sourcesNeedingLook.map((x) => (
+                  <span key={x.id} className={s.chip} data-tone="warn">
+                    <b>{x.name}</b>
+                    <span className={s.cmsg}>
+                      {x.message ?? (x.status === "paused" ? "Paused" : "Needs a look")}
+                    </span>
+                    <em>{x.status === "paused" ? "Paused" : "Needs a look"}</em>
+                  </span>
+                ))}
+                {quality.imports.map((x) => (
+                  <span key={x.sourceId} className={s.chip}>
+                    <b>{x.name}</b>
+                    <span className={s.cmsg}>{count(x.rows)} rows</span>
+                    {x.rejected ? (
+                      <em data-tone="bad">
+                        {count(x.rejected)} <small>didn’t come in</small>
+                      </em>
+                    ) : (
+                      <em data-tone="good">
+                        {count(x.rows)} <small>imported</small>
+                      </em>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
     </>
   );
 }

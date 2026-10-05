@@ -586,6 +586,8 @@ export async function quality(
     },
     duplicatesMerged: merged.rows[0]!.n,
     sourcesNeedingLook: needing.rows,
+    // Unowned leads, sources and imports are the whole business's: counted only for someone who sees all of it.
+    seesAll: q.reach === "all",
     unowned: {
       under1h: wait("under_1h"),
       under1d: wait("under_1d"),

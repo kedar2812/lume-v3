@@ -109,6 +109,17 @@ describe("first contact and first reply (8A Task 1)", () => {
     });
     expect(first.json().firstContact.minutes).toBeGreaterThanOrEqual(43);
     expect(first.json().firstContact.minutes).toBeLessThan(46);
+    // An imported lead that carries its own enquiry date (a date, no time): said in days, never a made-up minute.
+    const old = await h.seedLead({ ownerId: me.id });
+    await h.queryAll("UPDATE leads SET lead_created_at = (now() - interval '3 days')::date WHERE id = $1", [
+      old,
+    ]);
+    const oldCall = await c.inject({
+      method: "POST",
+      url: `/api/v1/leads/${old}/calls`,
+      payload: { outcome: "talked" },
+    });
+    expect(oldCall.json().firstContact).toEqual({ days: 3 });
     const again = await c.inject({
       method: "POST",
       url: `/api/v1/leads/${lead}/calls`,

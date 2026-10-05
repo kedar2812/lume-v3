@@ -98,17 +98,17 @@ export function LogCall({
     close();
     reset();
     onLogged();
-    toast({
-      tone: followUp ? "ok" : "warn",
-      title: "Call logged",
-      ...(r.data.firstContact
-        ? {
-            detail: `First contact with ${first}: ${minutes(r.data.firstContact.minutes)} after the enquiry.`,
-          }
-        : !followUp
-          ? { detail: "The follow-up wasn’t set. Add it with Follow-up." }
-          : {}),
-    });
+    // A follow-up that wasn't set comes first: the rep must not think one exists.
+    const fc = r.data.firstContact;
+    const firstWords = !fc
+      ? null
+      : "days" in fc
+        ? `First contact with ${first}: ${fc.days} ${fc.days === 1 ? "day" : "days"} after the enquiry date.`
+        : `First contact with ${first}: ${minutes(fc.minutes)} after the enquiry.`;
+    const detail = [followUp ? null : "The follow-up wasn’t set. Add it with Follow-up.", firstWords]
+      .filter(Boolean)
+      .join(" ");
+    toast({ tone: followUp ? "ok" : "warn", title: "Call logged", ...(detail ? { detail } : {}) });
   };
 
   return (
@@ -183,6 +183,7 @@ function Panel(p: {
   // 1, 2, 3 pick how it went, while not typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT")) return;
       const o = OUTCOMES.find((x) => x.key === e.key);

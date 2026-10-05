@@ -43,10 +43,13 @@ export const leadsClient = {
   note: (id: string, body: string) => api.post<{ activity: Activity }>(`/api/v1/leads/${id}/notes`, { body }),
   /** A phone call, logged: how it went, what was said; and, if it's the lead's first contact, how soon it came. */
   logCall: (id: string, outcome: "talked" | "no_answer" | "left_message", note?: string) =>
-    api.post<{ activity: Activity; firstContact: { minutes: number } | null }>(`/api/v1/leads/${id}/calls`, {
-      outcome,
-      ...(note ? { note } : {}),
-    }),
+    api.post<{ activity: Activity; firstContact: { minutes: number } | { days: number } | null }>(
+      `/api/v1/leads/${id}/calls`,
+      {
+        outcome,
+        ...(note ? { note } : {}),
+      },
+    ),
   activities: (id: string, cursor?: string) =>
     api.get<{ items: Activity[]; nextCursor: string | null }>(
       `/api/v1/leads/${id}/activities${cursor ? `?cursor=${enc(cursor)}` : ""}`,
