@@ -78,12 +78,24 @@ test.describe("Follow-ups", () => {
     const item = centre.getByRole("listitem", { name: /^Follow Up Person/ });
     await item.getByRole("button", { name: "Done" }).click();
     await expect(item).toBeHidden();
-    // Done reads its reminder too (3B final review, Important 2): nothing is left to mark read.
-    await expect(centre.getByRole("button", { name: "Mark all read" })).toBeDisabled();
+    // Done reads its reminder too (3B final review, Important 2): none of this lead's notices is left unread.
+    // (Another unread notice, a security alert depending on what ran before, may still light the bell.)
+    await expect
+      .poll(
+        async () =>
+          (
+            await callApi<{ items: { leadId: string | null; read: boolean }[] }>(
+              page,
+              "GET",
+              "/api/v1/notifications",
+            )
+          ).data.items.filter((n) => n.leadId === id && !n.read).length,
+      )
+      .toBe(0);
     await page.keyboard.press("Escape");
     await openApp(page, "/today");
     await expect(page.getByRole("heading", { name: "All clear" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Notifications" })).toBeVisible(); // all read
+    await expect(page.getByRole("button", { name: /^Notifications/ })).toBeVisible();
   });
 
   test("screenshots and axe: Today, the drawer's next follow-up, and the sheet — both themes", async ({

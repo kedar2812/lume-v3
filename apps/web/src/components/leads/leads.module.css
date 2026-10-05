@@ -23,6 +23,11 @@
   flex: none;
   margin-left: auto;
 }
+/* The filters give way first (the search box narrows), so the list's own controls stay on the same line. */
+.bar > .filters {
+  flex: 1 1 0;
+  min-width: 0;
+}
 /* The stage row never wraps: the strip gives way (and scrolls) so the actions stay beside it. */
 .stagesBar {
   flex-wrap: nowrap;
@@ -134,7 +139,8 @@
   align-items: center;
   gap: 8px;
   height: 34px;
-  width: 240px;
+  flex: 0 1 240px;
+  min-width: 170px;
   padding: 0 10px;
   border-radius: 10px;
   background: var(--sunk);

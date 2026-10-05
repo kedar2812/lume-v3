@@ -16,6 +16,7 @@ import { CommandPalette } from "./CommandPalette";
 import { AlertHud } from "@/components/security/AlertHud";
 import { LeadWatermark } from "@/components/security/LeadWatermark";
 import { PageContent, PageTransitionProvider } from "./PageTransition";
+import { MobileTabs } from "./MobileTabs";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import s from "./shell.module.css";
@@ -83,6 +84,7 @@ export function AppShell({ session, businessName, theme, children }: Props) {
           <LoadingProvider>
             <div className={s.app}>
               <Sidebar businessName={businessName} user={user} can={can} />
+              <MobileTabs can={can} />
               <main className={s.main}>
                 {/* The licence (L-A): grace or read-only across the top; paused covers the whole page. */}
                 <LicenceBanner />

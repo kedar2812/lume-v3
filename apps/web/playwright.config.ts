@@ -50,6 +50,12 @@ export default defineConfig({
             dependencies: ["seed"],
             use: { storageState: stateFile("owner") },
           },
+          {
+            name: "design-review",
+            testMatch: /design-review\.review\.ts/,
+            dependencies: ["seed"],
+            use: { storageState: stateFile("owner") },
+          },
         ]
       : []),
   ],

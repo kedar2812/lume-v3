@@ -401,7 +401,9 @@ export function CommandPalette({ open, onOpenChange, can }: Props) {
                             onClick={() => run(i)}
                           >
                             {it.icon}
-                            <span className={s.label}>{it.label}</span>
+                            <span className={s.label}>
+                              <Marked text={it.label} query={query} />
+                            </span>
                             {it.hint && <span className={s.hint}>{it.hint}</span>}
                             {it.kbd && <kbd className={s.kbd}>{it.kbd}</kbd>}
                           </div>
@@ -437,5 +439,20 @@ export function CommandPalette({ open, onOpenChange, can }: Props) {
         )}
       </AnimatePresence>
     </Dialog.Root>
+  );
+}
+
+/** The typed words, marked where they appear in a result (canvas Phase 7, Search): you see why it matched. */
+export function Marked({ text, query }: { text: string; query: string }) {
+  const q = query.trim();
+  if (q.length < 2) return <>{text}</>;
+  const at = text.toLowerCase().indexOf(q.toLowerCase());
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark className={s.mark}>{text.slice(at, at + q.length)}</mark>
+      {text.slice(at + q.length)}
+    </>
   );
 }

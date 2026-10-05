@@ -1,23 +1,46 @@
 - navigation "Settings":
     - link "All settings":
         - /url: /settings
-    - link "Business":
-        - /url: /settings/business
-    - link "Pipeline & stages":
-        - /url: /settings/pipeline
-    - link "Fields":
-        - /url: /settings/fields
-    - link "Lost reasons, tags & packages":
-        - /url: /settings/lists
-    - link "People":
-        - /url: /settings/people
-    - link "Roles & access":
-        - /url: /settings/roles
-    - link "Teams":
-        - /url: /settings/teams
-    - link "Audit log":
-        - /url: /settings/audit
-    - link "My account":
-        - /url: /settings/account
-    - link "About":
-        - /url: /settings/about
+    - group "Your workspace":
+        - link "Business":
+            - /url: /settings/business
+        - link "Pipeline & stages":
+            - /url: /settings/pipeline
+        - link "Calendar rules":
+            - /url: /settings/calendar/rules
+        - link "Fields":
+            - /url: /settings/fields
+        - link "Lost reasons, tags & packages":
+            - /url: /settings/lists
+        - link "Follow-ups":
+            - /url: /settings/follow-ups
+        - link "Goals":
+            - /url: /settings/goals
+        - link "Sources & spend":
+            - /url: /settings/sources
+        - link "Messages":
+            - /url: /settings/messages
+        - link "System health":
+            - /url: /settings/health
+        - link "Imports":
+            - /url: /settings/imports
+        - link "Integrations":
+            - /url: /settings/integrations
+    - group "People and access":
+        - link "People":
+            - /url: /settings/people
+        - link "Roles & access":
+            - /url: /settings/roles
+        - link "Teams":
+            - /url: /settings/teams
+        - link "Security":
+            - /url: /settings/security
+        - link "Audit log":
+            - /url: /settings/audit
+    - group "You":
+        - link "Calendar":
+            - /url: /settings/calendar
+        - link "My account":
+            - /url: /settings/account
+        - link "About":
+            - /url: /settings/about

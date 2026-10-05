@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
 import { templatesClient } from "@/lib/templates/client";
 import { viewsClient } from "@/lib/views/client";
-import { CommandPalette } from "./CommandPalette";
+import { CommandPalette, Marked } from "./CommandPalette";
 
 const go = vi.fn();
 vi.mock("./PageTransition", () => ({ usePageNav: () => ({ go }) }));
@@ -83,5 +83,14 @@ describe("Search LUME (Ctrl K)", () => {
     render(<CommandPalette open onOpenChange={() => undefined} can={() => true} />);
     await userEvent.keyboard("{ArrowDown}");
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+describe("where a search matched", () => {
+  it("marks the typed letters in the result, whatever their case; nothing under two letters", () => {
+    const { container, rerender } = render(<Marked text="Anika Haddad" query="had" />);
+    expect(container.querySelector("mark")?.textContent).toBe("Had");
+    rerender(<Marked text="Anika Haddad" query="a" />);
+    expect(container.querySelector("mark")).toBeNull();
   });
 });

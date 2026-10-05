@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Calendar · Agenda and week</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"><link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.lm{--spring:linear(0, 0.048, 0.153, 0.278, 0.402, 0.515, 0.614, 0.696, 0.763, 0.817, 0.859, 0.893, 0.919, 0.939, 0.954, 0.965, 0.974, 0.981, 0.986, 0.989, 0.992, 0.994, 0.996, 0.997, 0.998, 0.998, 0.999, 0.999, 0.999, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);--sp-b:linear(0, 0.051, 0.171, 0.323, 0.48, 0.625, 0.75, 0.851, 0.927, 0.98, 1.015, 1.035, 1.044, 1.046, 1.042, 1.036, 1.029, 1.022, 1.016, 1.01, 1.006, 1.003, 1, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 0.999, 0.999, 0.999, 1, 1, 1, 1, 1, 1, 1, 1, 1);--sp-d:linear(0, 0.05, 0.164, 0.306, 0.451, 0.584, 0.698, 0.792, 0.864, 0.918, 0.957, 0.983, 0.999, 1.009, 1.014, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.002, 1.001, 1.001, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);--t:836ms;--tb:924ms;--td:660ms;
+ font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-optical-sizing:auto;
+ -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-size:14px;letter-spacing:-0.006em;line-height:1.45;
+ color:var(--text);background:var(--canvas);position:relative;overflow:hidden;box-sizing:border-box}
+.lm *,.lm *::before,.lm *::after{box-sizing:border-box}
+.lm[data-theme="porcelain"]{color-scheme:light;--canvas:#eef0f3;--side-text:#3a3f4a;--sheet:#fff;--raised:#fff;--sunk:#f6f7f9;
+ --line:rgba(12,18,32,.075);--line-2:rgba(12,18,32,.12);--text:#0a0c11;--text-2:#5a606d;--text-3:#666b76;
+ --accent:#2a5bff;--accent-soft:rgba(42,91,255,.08);--accent-ink:#1e47d9;--hover:rgba(12,18,32,.04);--press:rgba(12,18,32,.07);
+ --danger:#e5484d;--danger-soft:#fdecec;--danger-ink:#c3272d;--warn:#f2a20c;--warn-soft:#fef4dd;--warn-ink:#8a5a00;
+ --meet:#2a5bff;--sky:#5ab8ff;--meet-soft:#eaf5ff;--meet-ink:#1e47d9;--meet-line:rgba(90,184,255,.55);--meet-grad:linear-gradient(180deg,#5ab8ff,#2a5bff);--ok:#18a566;--ok-soft:#e4f6ec;--ok-ink:#0c7845;--wa:#1faf5a;--wa-fill:#0f7f44;
+ --glass:rgba(255,255,255,.78);--veil:rgba(238,240,243,.52);--hud:rgba(22,24,30,.88);--hud-text:#f4f5f7;--scrim:rgba(8,10,14,.22);
+ --skel:#edeff2;--glow:rgba(42,91,255,.1);
+ --shadow-sheet:0 0 0 .5px rgba(12,18,32,.08),0 1px 2px rgba(12,18,32,.04),0 12px 40px -12px rgba(12,18,32,.1);
+ --shadow-pop:0 0 0 .5px rgba(12,18,32,.1),0 10px 30px -6px rgba(12,18,32,.18),0 30px 80px -20px rgba(12,18,32,.22);
+ --shadow-lift:0 0 0 .5px rgba(12,18,32,.1),0 12px 30px -8px rgba(12,18,32,.25)}
+.lm[data-theme="obsidian"]{color-scheme:dark;--canvas:#141518;--side-text:#bcc0c8;--sheet:#212328;--raised:#2b2e34;--sunk:#18191c;
+ --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.12);--text:#eef0f3;--text-2:#9ca1ab;--text-3:#9297a0;
+ --accent:#2a5bff;--accent-soft:rgba(42,91,255,.2);--accent-ink:#8aa7ff;--hover:rgba(255,255,255,.045);--press:rgba(255,255,255,.08);
+ --danger:#ff5c61;--danger-soft:rgba(255,92,97,.14);--danger-ink:#ff8a8e;--warn:#ffb224;--warn-soft:rgba(255,178,36,.14);--warn-ink:#ffc75c;
+ --meet:#4d7bff;--sky:#7cc8ff;--meet-soft:rgba(90,184,255,.13);--meet-ink:#9cc9ff;--meet-line:rgba(124,200,255,.42);--meet-grad:linear-gradient(180deg,#7cc8ff,#3a6bff);--ok:#2fd08a;--ok-soft:rgba(47,208,138,.14);--ok-ink:#5fe0a8;--wa:#25c366;--wa-fill:#0f7f44;
+ --glass:rgba(41,44,50,.76);--veil:rgba(10,11,13,.55);--hud:rgba(54,58,66,.9);--hud-text:#f4f5f7;--scrim:rgba(6,7,9,.55);
+ --skel:#26282d;--glow:rgba(42,91,255,.22);
+ --shadow-sheet:0 0 0 .5px rgba(255,255,255,.075),inset 0 1px 0 rgba(255,255,255,.045),0 1px 2px rgba(0,0,0,.28),0 18px 48px -22px rgba(0,0,0,.75);
+ --shadow-pop:0 0 0 .5px rgba(255,255,255,.13),inset 0 1px 0 rgba(255,255,255,.07),0 2px 6px rgba(0,0,0,.3),0 30px 80px -12px rgba(0,0,0,.75);
+ --shadow-lift:0 0 0 .5px rgba(255,255,255,.15),0 2px 6px rgba(0,0,0,.3),0 18px 44px -10px rgba(0,0,0,.75)}
+
+/* type */
+.h1{font-size:28px;font-weight:680;letter-spacing:-0.021em;line-height:1.1;margin:0}
+.h2{font-size:18px;font-weight:600;letter-spacing:-0.014em;line-height:1.25;margin:0}
+.h3{font-size:15px;font-weight:600;letter-spacing:-0.009em;margin:0}
+.sub{font-size:13px;color:var(--text-2);letter-spacing:-0.003em}
+.cap{font-size:12px;color:var(--text-3);letter-spacing:0}
+.tiny{font-size:11px;letter-spacing:.005em;color:var(--text-3)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.num{font-variant-numeric:tabular-nums}
+
+/* shell */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);height:100%}
+.side{padding:14px 10px 12px;display:flex;flex-direction:column;gap:2px;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 10px 16px}
+.brand img{width:30px;height:30px;object-fit:contain;display:block}
+.brand b{font-size:15px;font-weight:680;letter-spacing:.02em;display:block;line-height:1.1}
+.brand span{font-size:11.5px;color:var(--text-3)}
+.navi{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:10px;color:var(--side-text);
+ font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s}
+.navi svg{width:17px;height:17px;flex:none;opacity:.85}
+.navi:hover{background:var(--hover)}
+.navi.on{background:var(--sheet);color:var(--text);box-shadow:var(--shadow-sheet)}
+.navi.on svg{color:var(--accent);opacity:1}
+.navi .badge{margin-left:auto;font-size:11px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 5px;background:var(--meet-soft);color:var(--meet-ink)}
+.me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:650;color:#fff;flex:none;letter-spacing:.02em}
+.av.sm{width:22px;height:22px;font-size:9.5px}
+.av.lg{width:44px;height:44px;font-size:15px}
+.main{padding:8px 8px 8px 0;min-width:0;min-height:0}
+.sheet{background:var(--sheet);border-radius:16px;box-shadow:var(--shadow-sheet);height:100%;display:flex;flex-direction:column;overflow:hidden;position:relative;min-height:0}
+.top{height:58px;flex:none;display:flex;align-items:center;gap:12px;padding:0 22px 0 26px;border-bottom:.5px solid var(--line)}
+.search{display:flex;align-items:center;gap:8px;height:34px;width:300px;padding:0 10px;border-radius:10px;background:var(--sunk);color:var(--text-3);font-size:13px;box-shadow:inset 0 0 0 .5px var(--line)}
+.kbd{margin-left:auto;font-size:11px;padding:1px 6px;border-radius:5px;box-shadow:inset 0 0 0 .5px var(--line-2);color:var(--text-3)}
+
+/* controls */
+.btn{appearance:none;border:0;font:inherit;font-size:13px;font-weight:550;letter-spacing:-0.003em;height:34px;padding:0 14px;border-radius:10px;
+ display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;color:var(--text);background:var(--sheet);
+ box-shadow:0 0 0 .5px var(--line-2),0 1px 2px rgba(12,18,32,.06);transition:transform .1s ease-out,background .15s,box-shadow .15s;white-space:nowrap;text-decoration:none}
+.btn:hover{background:var(--hover)}
+.btn:active{transform:scale(.97)}
+.btn svg{width:15px;height:15px;flex:none}
+.btn.pri{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(42,91,255,.35),inset 0 1px 0 rgba(255,255,255,.18)}
+.btn.pri:hover{background:#2350ec}
+.btn.meet{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(42,91,255,.35),inset 0 1px 0 rgba(255,255,255,.18)}
+.btn.meet:hover{background:#2350ec}
+.btn.ghost{background:transparent;box-shadow:none;color:var(--text-2)}
+.btn.ghost:hover{background:var(--hover);color:var(--text)}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px;border-radius:8px}
+.btn.lg{height:42px;padding:0 18px;font-size:14px;border-radius:12px}
+.btn.danger{color:var(--danger-ink)}
+.ibtn{appearance:none;border:0;background:transparent;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--text-2);cursor:pointer;transition:background .15s,transform .1s}
+.ibtn:hover{background:var(--hover);color:var(--text)}
+.ibtn:active{transform:scale(.94)}
+.ibtn svg{width:17px;height:17px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:9px;font-size:12.5px;font-weight:500;color:var(--text-2);
+ background:var(--sheet);box-shadow:0 0 0 .5px var(--line-2);cursor:pointer;border:0;font-family:inherit;transition:background .15s,color .15s,box-shadow .15s}
+.chip:hover{color:var(--text)}
+.chip.on{background:var(--accent-soft);color:var(--accent-ink);box-shadow:0 0 0 .5px rgba(42,91,255,.35)}
+.chip svg{width:14px;height:14px}
+.pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:550;letter-spacing:0;white-space:nowrap}
+.pill.meet{background:var(--meet-soft);color:var(--meet-ink)}
+.pill.ok{background:var(--ok-soft);color:var(--ok-ink)}
+.pill.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.pill.bad{background:var(--danger-soft);color:var(--danger-ink)}
+.pill.acc{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.mute{background:var(--sunk);color:var(--text-2);box-shadow:inset 0 0 0 .5px var(--line)}
+.pill svg{width:12px;height:12px}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.seg{position:relative;display:inline-flex;padding:3px;border-radius:11px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.seg button{position:relative;z-index:1;appearance:none;border:0;background:transparent;font:inherit;font-size:13px;font-weight:550;height:28px;padding:0 12px;border-radius:8px;color:var(--text-2);cursor:pointer;transition:color .2s;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.seg button svg{width:14px;height:14px;flex:none}
+.seg button.on{color:var(--text)}
+.seg .knob{position:absolute;top:3px;left:3px;height:28px;border-radius:8px;background:var(--raised);box-shadow:0 0 0 .5px var(--line-2),0 2px 6px -1px rgba(12,18,32,.14);transition:transform var(--t) var(--spring),width var(--t) var(--spring)}
+.switch{appearance:none;border:0;padding:0;width:40px;height:24px;border-radius:12px;background:var(--line-2);position:relative;cursor:pointer;transition:background .25s;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2),0 0 0 .5px rgba(0,0,0,.04);transition:transform var(--tb) var(--sp-b)}
+/* Rule: a switch is green when on, grey when off, in every place. Blue is never a state: it is the one thing to do, and where you are. */
+.switch.on{background:var(--ok)}
+.switch:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
+.switch[disabled]{opacity:.4;cursor:not-allowed}
+.switch.on::after{transform:translateX(16px)}
+.switch:active::after{width:24px}
+.switch.on:active::after{transform:translateX(12px)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12.5px;font-weight:550;color:var(--text-2)}
+.input{font:inherit;font-size:14px;height:40px;padding:0 12px;border-radius:10px;border:0;background:var(--sunk);color:var(--text);box-shadow:inset 0 0 0 .5px var(--line-2);outline:none;transition:box-shadow .15s;width:100%}
+.input:focus{box-shadow:0 0 0 4px var(--accent-soft),inset 0 0 0 1.5px var(--accent)}
+textarea.input{height:auto;padding:10px 12px;resize:none;line-height:1.5}
+.card{background:var(--sheet);border-radius:14px;box-shadow:var(--shadow-sheet)}
+.hair{height:.5px;background:var(--line);border:0;margin:0}
+.scroll{overflow:auto;scrollbar-width:thin;scrollbar-color:transparent transparent}
+.scroll:hover{scrollbar-color:var(--line-2) transparent}
+
+/* brand marks (official files, unmodified) */
+.gmark{display:inline-grid;place-items:center;border-radius:5px;background:#fff;box-shadow:0 0 0 .5px rgba(12,18,32,.12);flex:none}
+.gmark img{display:block;object-fit:contain}
+.cmark{display:block;flex:none}
+/* tooltips */
+.tip{position:relative}
+.tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translate(-50%,-4px);white-space:nowrap;font-size:12px;font-weight:550;padding:5px 9px;border-radius:8px;background:var(--hud);color:var(--hud-text);opacity:0;pointer-events:none;transition:opacity .15s,transform .2s var(--spring);z-index:40}
+.tip:hover::after{opacity:1;transform:translate(-50%,0);transition-delay:.35s}
+/* states: hover only where there is a pointer; focus rings for the keyboard; nothing jumps */
+.navi.off{opacity:.55;cursor:default}
+.navi.off:hover{background:transparent}
+.lm a,.lm button,.lm summary{-webkit-tap-highlight-color:transparent}
+.lm :is(.btn,.ibtn,.chip,.navi,.sitem,.seg button,.md,.switch,.tab,a,summary):focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
+.btn.pri:active{background:#1f4be0}
+.btn[disabled],.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
+@media (hover:none){.btn:hover,.ibtn:hover,.chip:hover,.navi:hover{background:inherit}}
+.bellpop{position:relative}
+.bellpop>summary{list-style:none;position:relative}
+.bellpop>summary::-webkit-details-marker{display:none}
+.bellpop .bdot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 2px var(--sheet)}
+.bellpop[open]>summary{background:var(--press);color:var(--text)}
+.bpanel{position:absolute;right:0;top:calc(100% + 8px);width:340px;z-index:60;border-radius:16px;padding:6px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);transform-origin:calc(100% - 16px) 0;animation:pop .5s var(--sp-b) both}
+.bph{display:flex;align-items:baseline;justify-content:space-between;padding:8px 10px 6px;font-size:13.5px}
+.bitem{display:grid;grid-template-columns:28px minmax(0,1fr) 8px;gap:10px;align-items:center;padding:9px 10px;border-radius:11px;text-decoration:none;color:inherit;transition:background .15s}
+.bitem:hover{background:var(--hover)}
+.bitem b{display:block;font-size:13px;font-weight:600}
+.bitem span{display:block;font-size:12px;color:var(--text-3)}
+.bitem i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.bitem .bic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--warn-soft);color:var(--warn-ink)}
+.pop-menu{position:absolute;z-index:50;min-width:200px;border-radius:14px;padding:5px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);opacity:0;transform:scale(.92);pointer-events:none;transition:opacity .16s,transform .45s var(--sp-b)}
+.pop-menu.open{opacity:1;transform:none;pointer-events:auto}
+.mi{appearance:none;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text);width:100%;display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:9px;cursor:pointer;text-align:left;text-decoration:none;transition:background .12s}
+.mi:hover{background:var(--hover)}
+.mi .ck{margin-left:auto;color:var(--accent);opacity:0;transition:opacity .15s}
+.mi.on .ck{opacity:1}
+.mi svg{width:15px;height:15px;color:var(--text-2)}
+/* motion */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes slideR{from{opacity:.4;transform:translateX(104%)}to{opacity:1;transform:none}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--meet-line)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,60)}to{stroke-dashoffset:0}}
+@keyframes shimmer{from{background-position:-200px 0}to{background-position:200px 0}}
+.rise{animation:rise var(--t) var(--spring) both;animation-delay:calc(var(--i,0) * 38ms)}
+.pop{animation:pop var(--tb) var(--sp-b) both}
+.fadein{animation:fade .35s ease both}
+.spin{animation:spin .9s linear infinite}
+@media (prefers-reduced-motion: reduce){.lm *{animation-duration:.01ms!important;animation-delay:0ms!important;transition-duration:.12s!important}}
+
+.sgrid{flex:1;min-height:0;display:grid;grid-template-columns:230px minmax(0,1fr)}
+.snav{padding:18px 12px;border-right:.5px solid var(--line);display:flex;flex-direction:column;gap:1px}
+.sitem{display:flex;align-items:center;height:32px;padding:0 10px;border-radius:9px;color:var(--text-2);font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s}
+.sitem:hover{background:var(--hover);color:var(--text)}
+.sitem.off{opacity:.5;cursor:default}
+.sitem.off:hover{background:transparent;color:var(--text-2)}
+.sitem.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.scont{padding:30px 44px 40px;min-height:0}
+.scont .inner{max-width:760px;display:flex;flex-direction:column;gap:20px}
+
+.rf{position:relative;display:inline-flex}
+.rf .btn .face{display:inline-flex;align-items:center;gap:6px}
+.rf .btn .landed{color:var(--ok-ink);font-weight:650}
+.rf .btn[data-busy]{cursor:default}
+.rf .arr{display:inline-flex}
+.rf .arr.go{animation:spin 1s linear infinite}
+.morph{position:absolute;z-index:30;overflow:hidden;color:var(--text);background:var(--raised);box-shadow:inset 0 0 0 .5px var(--line-2);border-radius:8px;opacity:0;pointer-events:none;
+ transition:left .6s var(--spring),top .6s var(--spring),width .6s var(--spring),height .6s var(--spring),border-radius .6s var(--spring),opacity .2s,background .35s,box-shadow .35s}
+.morph.glass{background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop)}
+.morph .ly{position:absolute;inset:0;opacity:0;filter:blur(4px);transition:opacity .28s,filter .28s;pointer-events:none}
+.morph .ly.on{opacity:1;filter:none}
+.morph .pillf{display:flex;align-items:center;justify-content:center;gap:9px;font-size:13px;font-weight:600;white-space:nowrap}
+.morph .pillf img{width:20px;height:20px}
+.morph .cardf{padding:16px 18px}
+.route{position:relative;height:58px}
+.route .end{position:absolute;top:6px;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--raised);box-shadow:0 0 0 .5px var(--line-2),0 4px 14px rgba(0,0,0,.08)}
+.route .end img{width:28px;height:28px;display:block}
+.route .g{left:0;background:#fff}
+.route .l{right:0}
+.route .gl{position:absolute;left:22px;top:18px;width:16px;height:18px;border-radius:3px;background:var(--raised);box-shadow:0 0 0 .5px rgba(42,91,255,.45),0 3px 8px rgba(42,91,255,.3);opacity:0;
+ offset-path:path("M 0 10 C 70 -24, 180 -24, 250 10");offset-rotate:auto;border-left:2.5px solid var(--accent)}
+.route.flow .gl{animation:fly 1.5s cubic-bezier(.22,1,.36,1) infinite;animation-delay:calc(var(--i) * .25s)}
+@keyframes fly{0%{offset-distance:0%;opacity:0;transform:scale(.7)}15%,80%{opacity:1}100%{offset-distance:100%;opacity:0;transform:scale(.85)}}
+.rtitle{margin:8px 0 0;font-weight:650;font-size:14px}
+.rsub{margin:2px 0 0;font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.rbar{margin-top:10px;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.rbar i{display:block;height:100%;border-radius:2px;background:var(--accent);background-image:linear-gradient(90deg,transparent,rgba(120,220,255,.55),transparent);background-size:200% 100%;animation:sheen 1.4s linear infinite;transition:width .6s var(--spring)}
+@keyframes sheen{to{background-position:-200% 0}}
+.resf{display:flex;gap:14px;align-items:center;padding:18px}
+.resf .ck{width:44px;height:44px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;flex:none;animation:pop var(--tb) var(--sp-b) both}
+.resf .ct{font-size:28px;font-weight:700;letter-spacing:-0.025em;line-height:1}
+.facef{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:650;color:var(--ok-ink)}
+@keyframes wash{0%{background:rgba(42,91,255,0)}8%{background:rgba(42,91,255,.12)}45%{background:rgba(42,91,255,.08)}100%{background:rgba(42,91,255,0)}}
+@keyframes edge{0%{box-shadow:inset 3px 0 0 rgba(42,91,255,0)}8%{box-shadow:inset 3px 0 0 rgba(42,91,255,.9)}60%{box-shadow:inset 3px 0 0 rgba(42,91,255,.35)}100%{box-shadow:inset 3px 0 0 rgba(42,91,255,0)}}
+.arrived{animation:wash 2.4s ease-out both,edge 2.4s ease-out both}
+
+.calview{position:absolute;inset:0;display:flex;flex-direction:column;transform-origin:calc(100% - 44px) 88px;transition:transform .7s var(--spring),opacity .35s,filter .35s}
+.calview.away{transform:scale(.965);opacity:0;filter:blur(3px);pointer-events:none}
+.bar{display:flex;align-items:center;gap:10px;padding:16px 22px 12px 26px}
+.title-date{font-size:22px;font-weight:680;letter-spacing:-0.019em;margin:0 6px 0 4px;white-space:nowrap}
+.title-date span{color:var(--text-3);font-weight:560}
+.vsep{width:.5px;height:20px;background:var(--line-2);margin:0 2px}
+.gearbtn svg{transition:transform .7s var(--sp-b)}
+.gearbtn.on svg{transform:rotate(90deg)}
+.privacy{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3);padding:0 26px 10px}
+.privacy .lk{color:var(--ok)}
+.privacy .src{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 300px;border-top:.5px solid var(--line)}
+.agenda{padding:6px 18px 40px 18px;min-height:0}
+.day{padding-top:14px}
+.dayhead{display:flex;align-items:baseline;gap:10px;padding:6px 10px 8px;position:sticky;top:0;z-index:2;background:linear-gradient(var(--sheet) 70%,transparent)}
+.dname{font-size:13px;font-weight:650;letter-spacing:-0.006em}
+.dname.today{color:var(--accent-ink)}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;border-radius:12px;padding:0 10px 0 0;transition:background .18s;position:relative}
+.mrow:hover{background:var(--hover)}
+.mhit{appearance:none;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;display:grid;grid-template-columns:76px 3px minmax(0,1fr);gap:14px;align-items:center;padding:11px 0 11px 10px;border-radius:12px;min-width:0}
+.mhit:active{transform:scale(.995)}
+.mtime{display:flex;flex-direction:column;gap:1px;font-size:13px}
+.mtime b{font-weight:600}
+.mtime span{font-size:12px;color:var(--text-3)}
+.mbar{width:3px;height:36px;border-radius:2px;background:var(--meet-grad)}
+.mtitle{font-size:14px;font-weight:600;letter-spacing:-0.006em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mmeta{display:flex;align-items:center;gap:8px;margin-top:3px;font-size:12.5px;color:var(--text-2);white-space:nowrap}
+.mmeta .lead{font-weight:550;color:var(--text)}
+.mrow.past .mtime b,.mrow.past .mtitle{color:var(--text-2)}
+.mrow.past .mbar{background:var(--line-2)}
+.mrow.cancelled .mtitle{text-decoration:line-through;text-decoration-color:var(--text-3);color:var(--text-3)}
+.mrow.cancelled .mbar{background:repeating-linear-gradient(180deg,var(--line-2) 0 3px,transparent 3px 6px)}
+.mrow.next{background:var(--meet-soft)}
+.mrow.next .mbar{background:var(--warn)}
+.mrow.sel{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.soon{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:650;color:var(--warn-ink)}
+.soon i{width:7px;height:7px;border-radius:50%;background:var(--warn);animation:live 1.8s infinite}
+@keyframes live{0%{box-shadow:0 0 0 0 rgba(242,162,12,.5)}70%{box-shadow:0 0 0 8px rgba(242,162,12,0)}100%{box-shadow:0 0 0 0 rgba(242,162,12,0)}}
+.rail{border-left:.5px solid var(--line);padding:18px 18px 24px;display:flex;flex-direction:column;gap:18px;min-height:0;background:linear-gradient(var(--sunk),var(--sheet) 60%)}
+.mini .grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;margin-top:8px}
+.mini .wd{font-size:10.5px;font-weight:600;color:var(--text-3);text-align:center;padding-bottom:4px}
+.md{height:32px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12.5px;position:relative;border:0;background:transparent;font-family:inherit;color:var(--text);cursor:pointer}
+.md:hover{background:var(--hover)}
+.md.out{color:var(--text-3);opacity:.6}
+.md.today{background:var(--accent);color:#fff;font-weight:650;box-shadow:0 4px 12px -4px rgba(42,91,255,.55)}
+.md .pip{position:absolute;bottom:4px;width:4px;height:4px;border-radius:50%;background:var(--sky)}
+.md.today .pip{background:#fff}
+.stat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat div{background:var(--sheet);border-radius:12px;padding:10px 12px;box-shadow:0 0 0 .5px var(--line)}
+.stat b{display:block;font-size:20px;font-weight:680;letter-spacing:-0.02em}
+.need{border-radius:14px;padding:14px;background:var(--warn-soft);display:flex;flex-direction:column;gap:10px}
+.need .h3{color:var(--warn-ink)}
+.conn{display:flex;flex-direction:column;gap:10px}
+.connrow{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.connrow .cap{display:block}
+.connrow .ok{width:7px;height:7px;border-radius:50%;background:var(--ok);margin-left:auto;box-shadow:0 0 0 3px var(--ok-soft);flex:none}
+/* week */
+.week{grid-column:1 / -1;display:flex;flex-direction:column;min-height:0;padding:0 18px 18px}
+.wh{display:grid;grid-template-columns:64px repeat(7,minmax(0,1fr));padding:10px 0 8px}
+.wh div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;color:var(--text-3);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.wh b{font-size:19px;font-weight:620;letter-spacing:-0.02em;color:var(--text);text-transform:none;width:34px;height:34px;display:grid;place-items:center;border-radius:50%}
+.wh .td b{background:var(--accent);color:#fff;box-shadow:0 4px 12px -4px rgba(42,91,255,.6)}
+.wgrid{position:relative;display:grid;grid-template-columns:64px repeat(7,minmax(0,1fr));flex:1;min-height:0;border-top:.5px solid var(--line)}
+.hours{position:relative}
+.hours span{position:absolute;right:10px;font-size:11px;color:var(--text-3);transform:translateY(-50%)}
+.hours .nowlbl{color:var(--accent-ink);font-weight:650;background:var(--sheet);padding:0 2px}
+.col{position:relative;border-left:.5px solid var(--line);background-image:repeating-linear-gradient(180deg,transparent 0 51.5px,var(--line) 51.5px 52px)}
+.col.tdc{background-color:rgba(90,184,255,.05)}
+.col.wkend{background-color:var(--sunk)}
+.blk{position:absolute;left:4px;right:4px;border-radius:8px;padding:6px 8px 6px 10px;font-size:12px;line-height:1.3;background:var(--meet-soft);color:var(--meet-ink);border:0;text-align:left;font-family:inherit;cursor:pointer;overflow:hidden;transition:transform .15s,box-shadow .2s;animation:pop var(--tb) var(--sp-b) both;animation-delay:calc(var(--i,0) * 30ms)}
+.blk::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--meet-grad)}
+.blk:hover{transform:translateY(-1px);box-shadow:0 6px 16px -6px rgba(42,91,255,.35)}
+.blk b{display:block;font-weight:650;color:var(--meet-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk span{color:var(--text-2);white-space:nowrap}
+.blk.past{background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.blk.past::before{background:var(--line-2)}
+.blk.past b{color:var(--text-2)}
+.blk.cancelled{background:repeating-linear-gradient(135deg,var(--sunk) 0 6px,transparent 6px 12px);box-shadow:inset 0 0 0 .5px var(--line-2)}
+.blk.cancelled::before{background:var(--line-2)}
+.blk.cancelled b{color:var(--text-3);text-decoration:line-through}
+.blk.next::before{background:var(--warn)}
+.blk.next{box-shadow:inset 0 0 0 1px rgba(242,162,12,.45)}
+.wnow{position:absolute;left:0;right:0;height:1px;background:var(--accent);z-index:3;pointer-events:none}
+.wnow::before{content:"";position:absolute;left:-3px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.md.picked{box-shadow:inset 0 0 0 1.5px var(--accent);color:var(--accent-ink);font-weight:650}
+.empty{margin:40px auto;max-width:360px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:13px;color:var(--text-2)}
+.empty b{font-size:15px;color:var(--text)}
+.empty .btn{margin-top:8px}
+.wempty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;padding:10px 16px;border-radius:12px;background:var(--glass);backdrop-filter:blur(20px);box-shadow:var(--shadow-sheet);font-size:13px;color:var(--text-2)}
+.week{position:relative}
+.btn.copied{box-shadow:0 0 0 .5px rgba(24,165,102,.5);background:var(--ok-soft)}
+.viewin{animation:viewin var(--t) var(--spring) both}
+@keyframes viewin{from{opacity:0;transform:scale(.985) translateY(6px);filter:blur(2px)}to{opacity:1;transform:none;filter:none}}
+/* meeting drawer */
+.drawer{position:absolute;top:8px;right:8px;bottom:8px;width:440px;border-radius:16px;background:var(--glass);backdrop-filter:blur(28px) saturate(170%);-webkit-backdrop-filter:blur(28px) saturate(170%);box-shadow:var(--shadow-pop);z-index:10;display:flex;flex-direction:column;transform:translateX(calc(100% + 24px));transition:transform var(--td) var(--sp-d),opacity .3s;opacity:0;pointer-events:none}
+.drawer.open{transform:none;opacity:1;pointer-events:auto}
+.dhead{display:flex;align-items:center;gap:8px;padding:14px 14px 0 20px}
+.dbody{padding:10px 20px 20px;display:flex;flex-direction:column;gap:16px;overflow:auto}
+.dtitle{font-size:23px;font-weight:680;letter-spacing:-0.019em;line-height:1.15;margin:4px 0 2px}
+.leadcard{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--sheet);box-shadow:var(--shadow-sheet)}
+.track{display:flex;gap:3px;margin-top:6px}
+.track i{height:4px;flex:1;border-radius:2px;background:var(--line-2)}
+.track i.on{background:var(--accent)}
+.track i.cur{background:var(--sky)}
+.kv{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;font-size:13px}
+.kv svg{color:var(--text-3);margin-top:2px}
+.kv .k{font-size:11.5px;color:var(--text-3)}
+.hist{display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--text-2)}
+.hist div{display:flex;gap:10px;align-items:baseline}
+.hist i{width:6px;height:6px;border-radius:50%;background:var(--line-2);flex:none;transform:translateY(-1px)}
+.dsec{opacity:0;animation:rise var(--t) var(--spring) both}
+/* Settings, opened from the gear: it grows out of the gear and goes back into it. */
+.setview{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--sheet);transform-origin:calc(100% - 44px) 88px;transform:scale(.55);opacity:0;border-radius:16px;pointer-events:none;
+ transition:transform .7s var(--spring),opacity .3s,border-radius .7s var(--spring);z-index:12}
+.setview.open{transform:none;opacity:1;pointer-events:auto}
+.back{display:inline-flex;align-items:center;gap:2px;height:30px;padding:0 10px 0 4px;border-radius:9px;border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--accent-ink);cursor:pointer}
+.back:hover{background:var(--accent-soft)}
+.setview .arrive{border-radius:9px}
+.setview.open .arrive{animation:wash 2.4s ease-out .45s both,edge 2.4s ease-out .45s both}
+.setview .stg{opacity:0;transform:translateY(8px);transition:opacity .4s,transform .7s var(--spring)}
+.setview.open .stg{opacity:1;transform:none;transition-delay:calc(.18s + var(--i,0) * 50ms)}
+.sc{border-radius:16px;background:var(--sheet);box-shadow:var(--shadow-sheet);overflow:hidden}
+.sch{display:flex;align-items:center;gap:14px;padding:16px 18px}
+.okb{width:36px;height:36px;border-radius:50%;background:var(--ok-soft);color:var(--ok-ink);display:grid;place-items:center;flex:none}
+.srow{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 18px;border-top:.5px solid var(--line)}
+.srow .sw{width:12px;height:12px;border-radius:4px}
+.lrow{display:flex;align-items:center;gap:14px;padding:14px 18px;text-decoration:none;color:inherit;transition:background .15s}
+.lrow+.lrow{border-top:.5px solid var(--line)}
+.lrow:hover{background:var(--hover)}
+</style>
+</helmet>
+
+<div class="lm" data-theme="{{theme}}" style="width:1440px;height:900px">
+<div class="shell">
+<aside class="side"><div class="brand"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt="LUME"><div><b>LUME</b><span>Brightpath Studio</span></div></div><a class="navi" href="Today.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg><span>Today</span></a><a class="navi" href="LeadDrawer.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M16 3.128a4 4 0 0 1 0 7.744"></path><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><circle cx="9" cy="7" r="4"></circle></svg><span>Leads</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="M15 3v18"></path></svg><span>Pipeline</span></a><a class="{{navCal}}" href="Main.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3"></path><path d="M16 2v3"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M8 13h.01"></path><path d="M12 13h.01"></path><path d="M16 13h.01"></path><path d="M8 17h.01"></path><path d="M12 17h.01"></path><path d="M16 17h.01"></path></svg><span>Calendar</span><span class="badge num">4</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"></path><rect x="2" y="4" width="20" height="16" rx="2"></rect></svg><span>Templates</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span>Analytics</span></a><a class="{{navSet}}" href="Connect.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg><span>Settings</span></a><div class="me"><div class="av" style="background:#2a5bff">MK</div><div><div style="font-size:13px;font-weight:600">Maya Kapoor</div><div class="tiny">Owner</div></div></div></aside>
+<main class="main"><div class="sheet">
+<div class="{{calCls}}">
+<header class="top"><h1 class="h2" style="font-size:16px">Calendar</h1><div style="flex:1"></div><div class="search"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.4"></circle><path d="m10.3 10.3 3.3 3.3"></path></svg><span>Search leads, actions…</span><span class="kbd">Ctrl K</span></div><details class="bellpop"><summary class="ibtn" aria-label="Notifications"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11.5h9l-1-1.6V7a3.5 3.5 0 0 0-7 0v2.9z"></path><path d="M6.6 13.4a1.5 1.5 0 0 0 2.8 0"></path></svg><span class="bdot"></span></summary><div class="bpanel"><div class="bph"><b>Notifications</b><span class="cap">2 new</span></div><a class="bitem" href="LeadDrawer.dc.html"><img src="/_blob/9828f451a803139110d86b470696c3fa" alt="" width="28" height="28"><div><b>Noor Rahman booked a Programme fit call</b><span>Oct 2, Fri, 10:30 am · moved to Call booked</span></div><i></i></a><a class="bitem" href="LogOutcome.dc.html"><span class="bic"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3z"></path><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"></path></svg></span><div><b>How did Karim’s call go?</b><span>Pricing walkthrough ended at 12:00 pm</span></div><i></i></a></div></details></header>
+<div class="bar">
+  <button class="ibtn tip" type="button" aria-label="Previous" data-tip="Previous (←)" onClick="{{prev}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.8 3.4-4.5 4.6 4.5 4.6"></path></svg></button>
+  <button class="{{todayCls}}" type="button" onClick="{{today}}" title="Today (T)">Today</button>
+  <button class="ibtn tip" type="button" aria-label="Next" data-tip="Next (→)" onClick="{{next}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.2 3.4 4.5 4.6-4.5 4.6"></path></svg></button>
+  <h2 class="title-date num">{{titleMain}} <span>{{titleSub}}</span></h2>
+  <div style="flex:1"></div>
+  <div class="seg" role="group" aria-label="Whose meetings">
+    <span class="knob" style="{{ownKnob}}"></span>
+    <button type="button" class="{{allCls}}" onClick="{{showAll}}" style="width:84px">Everyone</button>
+    <button type="button" class="{{mineCls}}" onClick="{{showMine}}" style="width:58px">Mine</button>
+  </div>
+  <span style="position:relative"><button class="{{stageChip}}" type="button" onClick="{{toggleStageMenu}}" aria-haspopup="menu">{{stageLabel}} <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6.2 4 4 4-4"></path></svg></button>
+    <div class="{{stageMenu}}" role="menu" style="top:36px;left:0;transform-origin:20px 0">
+      <button class="mi" type="button" onClick="{{anyStage}}">Any stage</button><hr class="hair" style="margin:4px 6px">
+      <sc-for list="{{stageItems}}" as="it" hint-placeholder-count="5"><button type="button" class="{{it.cls}}" role="menuitemcheckbox" onClick="{{it.flip}}">{{it.st}}<span class="ck"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-6.6"></path></svg></span></button></sc-for>
+    </div></span>
+  <span class="vsep"></span>
+  
+<span class="rf">
+  <button class="btn sm tip" type="button" data-tip="Refresh (R)" onClick="{{rf.press}}" style="width:{{rf.btnW}}px">
+    <sc-if value="{{rf.isLanded}}" hint-placeholder-val="{{ false }}"><span class="face landed"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{rf.landedLabel}}</span></sc-if>
+    <sc-if value="{{rf.notLanded}}" hint-placeholder-val="{{ true }}"><span class="face"><span class="{{rf.arrCls}}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 1 1 11.9 4.1M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>Refresh</span></sc-if>
+  </button>
+  <div class="{{rf.morphCls}}" style="{{rf.morphStyle}}" aria-hidden="true">
+    <div class="{{rf.lyPill}}"><div class="pillf" style="height:100%"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt="">Syncing your calendar…</div></div>
+    <div class="{{rf.lyCard}}"><div class="cardf">
+      <div class="{{rf.routeCls}}"><span class="end g"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt=""></span><span class="gl" style="--i:0"></span><span class="gl" style="--i:1"></span><span class="gl" style="--i:2"></span><span class="gl" style="--i:3"></span><span class="gl" style="--i:4"></span><span class="gl" style="--i:5"></span><span class="end l"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt=""></span></div>
+      <p class="rtitle">Syncing your calendar</p>
+      <p class="rsub">{{rf.sub}}</p>
+      <div class="rbar"><i style="width:{{rf.pct}}%"></i></div>
+    </div></div>
+    <div class="{{rf.lyRes}}"><div class="resf"><span class="ck"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div><div class="ct num">{{rf.count}}</div><div class="rsub">{{rf.resLine}}</div></div></div></div>
+    <div class="{{rf.lyFace}}"><div class="facef" style="height:100%"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{rf.landedLabel}}</div></div>
+  </div>
+  <span role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">{{rf.announce}}</span>
+</span>
+
+  <div class="seg" role="group" aria-label="View">
+    <span class="knob" style="{{knob}}"></span>
+    <button type="button" class="{{agendaCls}}" onClick="{{toAgenda}}" style="width:98px"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4h8M5.5 8h8M5.5 12h8"></path><circle cx="2.6" cy="4" r=".7"></circle><circle cx="2.6" cy="8" r=".7"></circle><circle cx="2.6" cy="12" r=".7"></circle></svg>Agenda</button>
+    <button type="button" class="{{weekCls}}" onClick="{{toWeek}}" style="width:84px"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.6"></rect><path d="M2 6.2h12M6 6.2v7.3M10 6.2v7.3"></path></svg>Week</button>
+  </div>
+  <button class="{{gearCls}}" type="button" data-tip="Calendar settings" aria-label="Calendar settings" onClick="{{openSettings}}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+</div>
+<div class="privacy"><span class="lk"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.8"></rect><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"></path></svg></span>Meetings with leads only. Personal events never come into LUME.<span class="src"><span class="gmark" style="width:16px;height:16px;border-radius:4px"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar" style="width:12px;height:12px"></span> Google Calendar · {{updated}}<span style="opacity:.5;margin:0 4px">·</span><img class="cmark" src="/_blob/9828f451a803139110d86b470696c3fa" alt="Calendly" width="16" height="16"> Calendly bookings arrive on their own</span></div>
+<div class="body">
+  <sc-if value="{{agenda}}" hint-placeholder-val="{{ true }}">
+    <div class="agenda scroll viewin" onClick="{{closeMenus}}">
+      <sc-for list="{{days}}" as="d" hint-placeholder-count="3">
+        <section class="day">
+          <div class="dayhead"><sc-if value="{{d.today}}" hint-placeholder-val="{{ true }}"><span class="dname today">{{d.label}}</span></sc-if><sc-if value="{{d.notToday}}" hint-placeholder-val="{{ false }}"><span class="dname">{{d.label}}</span></sc-if><span class="cap">{{d.count}}</span></div>
+          <sc-for list="{{d.items}}" as="m" hint-placeholder-count="3">
+            
+<div class="mrow {{m.cls}} rise" style="--i:{{m.i}}">
+  <button class="mhit" type="button" onClick="{{m.open}}">
+    <div class="mtime num"><b>{{m.start}}</b><span>{{m.end}}</span></div>
+    <div class="mbar"></div>
+    <div style="min-width:0">
+      <div class="mtitle">{{m.title}}</div>
+      <div class="mmeta">
+        <span class="lead">{{m.lead}}</span>
+        <span class="pill mute"><span class="dot" style="background:{{m.sc}}"></span>{{m.stage}}</span>
+        <sc-if value="{{m.isG}}" hint-placeholder-val="{{ true }}"><span class="gmark" style="width:16px;height:16px;border-radius:4px"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar" style="width:12px;height:12px"></span></sc-if>
+        <sc-if value="{{m.isC}}" hint-placeholder-val="{{ false }}"><img class="cmark" src="/_blob/9828f451a803139110d86b470696c3fa" alt="Calendly" width="16" height="16"></sc-if>
+        <span class="av sm" style="background:{{m.ownerColor}}" title="{{m.ownerName}}">{{m.own}}</span>
+      </div>
+    </div>
+  </button>
+  <div style="display:flex;align-items:center;gap:8px">
+    <sc-if value="{{m.isHeld}}" hint-placeholder-val="{{ false }}"><span class="pill ok"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-6.6"></path></svg> Held</span></sc-if>
+    <sc-if value="{{m.isNo}}" hint-placeholder-val="{{ false }}"><span class="pill bad"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="m3.8 3.8 8.4 8.4"></path></svg> No-show</span></sc-if>
+    <sc-if value="{{m.isCancel}}" hint-placeholder-val="{{ false }}"><span class="pill mute">Cancelled</span></sc-if>
+    <sc-if value="{{m.isNeeds}}" hint-placeholder-val="{{ false }}"><a class="btn sm" href="LogOutcome.dc.html" style="color:var(--warn-ink);box-shadow:0 0 0 .5px rgba(242,162,12,.5);background:var(--warn-soft)"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3z"></path><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"></path></svg> Log outcome</a></sc-if>
+    <sc-if value="{{m.isNext}}" hint-placeholder-val="{{ false }}"><span class="soon"><i></i>in 15 min</span><a class="btn sm pri" href="https://meet.google.com/" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.7" y="4" width="8.8" height="8" rx="1.8"></rect><path d="m10.5 7 3.8-2.1v6.2L10.5 9"></path></svg> Join</a></sc-if>
+    <sc-if value="{{m.isUp}}" hint-placeholder-val="{{ false }}"><a class="btn sm ghost" href="https://meet.google.com/" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.7" y="4" width="8.8" height="8" rx="1.8"></rect><path d="m10.5 7 3.8-2.1v6.2L10.5 9"></path></svg> Join</a></sc-if>
+  </div>
+</div>
+
+          </sc-for>
+          <sc-if value="{{d.empty}}" hint-placeholder-val="{{ false }}"><div class="cap" style="padding:10px">No meetings for your filter.</div></sc-if>
+        </section>
+      </sc-for>
+      <sc-if value="{{agendaEmpty}}" hint-placeholder-val="{{ false }}"><div class="empty fadein"><b>Nothing booked from here on</b><span>Meetings with leads show up as soon as they're on a calendar.</span><button class="btn sm" type="button" onClick="{{today}}">Back to today</button></div></sc-if>
+    </div>
+    <aside class="rail scroll">
+      <div class="mini">
+        <div style="display:flex;align-items:center"><span class="h3">{{monthLabel}}</span><div style="flex:1"></div><button class="ibtn" type="button" aria-label="Previous month" style="width:26px;height:26px" onClick="{{prevMonth}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.8 3.4-4.5 4.6 4.5 4.6"></path></svg></button><button class="ibtn" type="button" aria-label="Next month" style="width:26px;height:26px" onClick="{{nextMonth}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.2 3.4 4.5 4.6-4.5 4.6"></path></svg></button></div>
+        <div class="grid">
+          <span class="wd">M</span><span class="wd">T</span><span class="wd">W</span><span class="wd">T</span><span class="wd">F</span><span class="wd">S</span><span class="wd">S</span>
+          <sc-for list="{{month}}" as="c" hint-placeholder-count="35"><button type="button" class="md num {{c.cls}}" onClick="{{c.pick}}">{{c.n}}<sc-if value="{{c.dot}}" hint-placeholder-val="{{ false }}"><span class="pip"></span></sc-if></button></sc-for>
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">This week</div>
+        <div class="stat num">
+          <div><b style="color:var(--ok-ink)">5</b><span class="cap">held</span></div>
+          <div><b style="color:var(--danger-ink)">1</b><span class="cap">no-show</span></div>
+          <div><b style="color:var(--accent-ink)">4</b><span class="cap">to come</span></div>
+        </div>
+      </div>
+      <div class="need">
+        <div style="display:flex;align-items:center;gap:8px;color:var(--warn-ink)"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3z"></path><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"></path></svg><span class="h3">1 meeting needs its outcome</span></div>
+        <div class="sub" style="color:var(--text)">Karim Aziz · Pricing walkthrough, 11:30 am</div>
+        <a class="btn sm" href="LogOutcome.dc.html" style="align-self:flex-start">Log outcome</a>
+      </div>
+      <div class="conn">
+        <div class="eyebrow">Reading from</div>
+        <div class="connrow"><span class="gmark" style="width:24px;height:24px;border-radius:6px"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar" style="width:18px;height:18px"></span><div><b style="font-weight:600">Google Calendar</b><span class="cap">{{updated}}</span></div><span class="ok"></span></div>
+        <div class="connrow"><img class="cmark" src="/_blob/9828f451a803139110d86b470696c3fa" alt="Calendly" width="24" height="24"><div><b style="font-weight:600">Calendly</b><span class="cap">bookings arrive in seconds</span></div><span class="ok"></span></div>
+      </div>
+    </aside>
+  </sc-if>
+  <sc-if value="{{week}}" hint-placeholder-val="{{ false }}">
+    <div class="week viewin">
+      <sc-if value="{{weekEmpty}}" hint-placeholder-val="{{ false }}"><div class="wempty fadein">No meetings with leads this week</div></sc-if>
+      <div class="wh"><span></span><sc-for list="{{head}}" as="h" hint-placeholder-count="7"><div class="{{h.cls}}">{{h.w}}<b class="num">{{h.n}}</b></div></sc-for></div>
+      <div class="wgrid scroll">
+        <div class="hours"><sc-for list="{{hours}}" as="hr" hint-placeholder-count="11"><span class="num" style="{{hr.style}}">{{hr.label}}</span></sc-for><span class="num nowlbl" style="{{nowTop}}">2:15</span></div>
+        <sc-for list="{{cols}}" as="c" hint-placeholder-count="7">
+          <div class="col {{c.cls}}">
+            <sc-if value="{{c.isToday}}" hint-placeholder-val="{{ false }}"><div class="wnow" style="{{nowTop}}"></div></sc-if>
+            <sc-for list="{{c.blocks}}" as="b" hint-placeholder-count="2">
+              <button type="button" class="blk {{b.cls}}" style="{{b.style}}--i:{{b.i}}" onClick="{{b.open}}"><b>{{b.lead}}</b><span>{{b.start}} · {{b.title}}</span></button>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+<div class="{{drawerCls}}" role="dialog" aria-label="Meeting">
+  <sc-if value="{{hasDrawer}}" hint-placeholder-val="{{ false }}">
+    <div class="dhead">
+      <sc-if value="{{drawer.upcoming}}" hint-placeholder-val="{{ true }}"><span class="pill acc">Scheduled</span></sc-if>
+      <sc-if value="{{drawer.ended}}" hint-placeholder-val="{{ false }}"><span class="pill warn">Needs outcome</span></sc-if>
+      <sc-if value="{{drawer.held}}" hint-placeholder-val="{{ false }}"><span class="pill ok">Held</span></sc-if>
+      <sc-if value="{{drawer.no}}" hint-placeholder-val="{{ false }}"><span class="pill bad">No-show</span></sc-if>
+      <sc-if value="{{drawer.cancelled}}" hint-placeholder-val="{{ false }}"><span class="pill mute">Cancelled</span></sc-if>
+      <div style="flex:1"></div>
+      <span style="position:relative"><button class="ibtn" type="button" aria-label="More" aria-haspopup="menu" onClick="{{toggleMore}}"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="3.5" cy="8" r=".8"></circle><circle cx="8" cy="8" r=".8"></circle><circle cx="12.5" cy="8" r=".8"></circle></svg></button>
+        <div class="{{moreMenu}}" role="menu" style="top:36px;right:0;transform-origin:calc(100% - 16px) 0">
+          <a class="mi" role="menuitem" href="https://calendar.google.com/" target="_blank" rel="noopener"><span class="gmark" style="width:24px;height:24px;border-radius:6px"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar" style="width:18px;height:18px"></span> Open in Google Calendar</a>
+          <button class="mi" role="menuitem" type="button" onClick="{{copy}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.6"></rect><path d="M11 5V3.8A1.3 1.3 0 0 0 9.7 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.9A1.3 1.3 0 0 0 3.8 11H5"></path></svg> Copy the meeting link</button>
+          <a class="mi" role="menuitem" href="LeadDrawer.dc.html"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.4" r="2.6"></circle><path d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9"></path></svg> Open the lead</a>
+        </div></span>
+      <button class="ibtn" type="button" aria-label="Close" onClick="{{close}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"></path></svg></button>
+    </div>
+    <div class="dbody scroll">
+      <div class="dsec" style="animation-delay:40ms">
+        <div class="sub num">{{drawer.when}}</div>
+        <h3 class="dtitle">{{drawer.title}}</h3>
+        <sc-if value="{{drawer.isNext}}" hint-placeholder-val="{{ false }}"><div class="soon" style="margin-top:4px"><i></i>Starts in 15 minutes</div></sc-if>
+      </div>
+      <sc-if value="{{drawer.upcoming}}" hint-placeholder-val="{{ true }}">
+        <div class="dsec" style="display:flex;gap:8px;animation-delay:80ms"><a class="btn pri lg" href="https://meet.google.com/" target="_blank" rel="noopener" style="flex:1"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.7" y="4" width="8.8" height="8" rx="1.8"></rect><path d="m10.5 7 3.8-2.1v6.2L10.5 9"></path></svg> Join Google Meet</a><button class="{{copyCls}}" type="button" aria-label="Copy link" data-tip="{{copyTip}}" onClick="{{copy}}" style="width:46px;padding:0"><sc-if value="{{notCopied}}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.6"></rect><path d="M11 5V3.8A1.3 1.3 0 0 0 9.7 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.9A1.3 1.3 0 0 0 3.8 11H5"></path></svg></sc-if><sc-if value="{{copied}}" hint-placeholder-val="{{ false }}"><span class="pop" style="display:inline-flex;color:var(--ok-ink)"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-6.6"></path></svg></span></sc-if></button></div>
+      </sc-if>
+      <sc-if value="{{drawer.ended}}" hint-placeholder-val="{{ false }}">
+        <div class="dsec" style="animation-delay:80ms"><a class="btn pri lg" href="LogOutcome.dc.html" style="width:100%"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3z"></path><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"></path></svg> Log how it went</a></div>
+      </sc-if>
+      <a class="leadcard dsec" href="LeadDrawer.dc.html" style="animation-delay:120ms;text-decoration:none;color:inherit">
+        <div class="av lg" style="background:#d9822b">{{drawer.initials}}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:650;font-size:15px">{{drawer.lead}}</div><div class="cap">{{drawer.stage}} · Coaching sales</div><div class="track"><i class="on"></i><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i></div></div>
+        <span style="color:var(--text-3)"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.2 3.4 4.5 4.6-4.5 4.6"></path></svg></span>
+      </a>
+      <div class="dsec" style="display:flex;flex-direction:column;gap:14px;animation-delay:160ms">
+        <div class="kv"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.4" r="2.6"></circle><path d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9"></path></svg><div><div class="k">Whose meeting</div><div>{{drawer.ownerName}}</div></div></div>
+        <sc-if value="{{drawer.isC}}" hint-placeholder-val="{{ false }}"><div class="kv"><img class="cmark" src="/_blob/9828f451a803139110d86b470696c3fa" alt="Calendly" width="24" height="24"><div><div class="k">Why it's here</div><div>Booked through Calendly</div></div></div></sc-if>
+        <sc-if value="{{drawer.isG}}" hint-placeholder-val="{{ true }}"><div class="kv"><span class="gmark" style="width:24px;height:24px;border-radius:6px"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar" style="width:18px;height:18px"></span><div><div class="k">Why it's here</div><div>On Google Calendar, with a lead invited</div></div></div></sc-if>
+        <div class="kv"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.7 9.3a2.6 2.6 0 0 0 3.7 0l2.2-2.2a2.6 2.6 0 0 0-3.7-3.7l-.9.9"></path><path d="M9.3 6.7a2.6 2.6 0 0 0-3.7 0L3.4 8.9a2.6 2.6 0 0 0 3.7 3.7l.9-.9"></path></svg><div><div class="k">Where</div><div>meet.google.com/xvd-pqra-kmt</div></div></div>
+        <sc-if value="{{drawer.reminder}}" hint-placeholder-val="{{ false }}"><div class="kv"><span style="color:var(--wa)"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l.8-2.6A5.4 5.4 0 1 1 6 12.3z"></path><path d="M6.2 5.7c.3 1.6 1.6 3 3.2 3.4l.8-.8 1.1.5-.3 1c-2.6.2-5-2.2-4.9-4.8l1-.4.5 1.1z"></path></svg></span><div><div class="k">Reminder</div><div>{{drawer.reminder}}</div></div></div></sc-if>
+      </div>
+      <hr class="hair">
+      <div class="dsec hist" style="animation-delay:200ms">
+        <div class="eyebrow">History</div>
+        <div><i style="background:var(--sky)"></i><span>Booked Sep 29, Tue, 6:12 pm · moved to Call booked</span></div>
+        <div><i></i><span>Owner told: Maya Kapoor</span></div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</div>
+
+<section class="{{setCls}}" aria-label="Settings · Calendar">
+  <header class="top"><button class="back" type="button" onClick="{{closeSettings}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.8 3.4-4.5 4.6 4.5 4.6"></path></svg> Calendar</button><h1 class="h2" style="font-size:16px;margin-left:4px">Settings</h1><div style="flex:1"></div></header>
+  <div class="sgrid">
+    
+<nav class="snav" aria-label="Settings">
+  <div class="eyebrow" style="padding:4px 10px 6px">Your account</div>
+  <a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Profile</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Security</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Notifications</a><a class="sitem on arrive" href="Connect.dc.html">Calendar</a>
+  <div class="eyebrow" style="padding:16px 10px 6px">Business</div>
+  <a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Business</a><a class="sitem " href="Pipeline.dc.html">Pipeline &amp; stages</a><a class="sitem " href="Rules.dc.html">Calendar rules</a><a class="sitem " href="Calendly.dc.html">Integrations</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">People</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Roles &amp; access</a>
+</nav>
+
+    <div class="scont scroll"><div class="inner">
+      <div class="stg" style="--i:0"><h2 class="h1 arrive" style="font-size:26px;display:inline-block;padding:2px 8px;margin-left:-8px">Calendar</h2><div class="sub" style="margin-top:6px">Your meetings with leads show in LUME, on their leads, and remind you to log how they went.</div></div>
+      <div class="sc stg" style="--i:1">
+        <div class="sch"><span class="okb"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-6.6"></path></svg></span><div style="flex:1;min-width:0"><div style="font-weight:650;font-size:15px;display:flex;align-items:center;gap:8px"><span class="gmark" style="width:24px;height:24px;border-radius:6px"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar" style="width:18px;height:18px"></span> Connected as maya@brightpath.test</div><div class="cap num">Google Calendar · {{updated}} · every 5 minutes</div></div>
+<span class="rf">
+  <button class="btn sm tip" type="button" data-tip="Refresh (R)" onClick="{{rf.press}}" style="width:{{rf.btnW}}px">
+    <sc-if value="{{rf.isLanded}}" hint-placeholder-val="{{ false }}"><span class="face landed"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{rf.landedLabel}}</span></sc-if>
+    <sc-if value="{{rf.notLanded}}" hint-placeholder-val="{{ true }}"><span class="face"><span class="{{rf.arrCls}}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 1 1 11.9 4.1M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>Refresh</span></sc-if>
+  </button>
+  <div class="{{rf.morphCls}}" style="{{rf.morphStyle}}" aria-hidden="true">
+    <div class="{{rf.lyPill}}"><div class="pillf" style="height:100%"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt="">Syncing your calendar…</div></div>
+    <div class="{{rf.lyCard}}"><div class="cardf">
+      <div class="{{rf.routeCls}}"><span class="end g"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt=""></span><span class="gl" style="--i:0"></span><span class="gl" style="--i:1"></span><span class="gl" style="--i:2"></span><span class="gl" style="--i:3"></span><span class="gl" style="--i:4"></span><span class="gl" style="--i:5"></span><span class="end l"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt=""></span></div>
+      <p class="rtitle">Syncing your calendar</p>
+      <p class="rsub">{{rf.sub}}</p>
+      <div class="rbar"><i style="width:{{rf.pct}}%"></i></div>
+    </div></div>
+    <div class="{{rf.lyRes}}"><div class="resf"><span class="ck"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div><div class="ct num">{{rf.count}}</div><div class="rsub">{{rf.resLine}}</div></div></div></div>
+    <div class="{{rf.lyFace}}"><div class="facef" style="height:100%"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{rf.landedLabel}}</div></div>
+  </div>
+  <span role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">{{rf.announce}}</span>
+</span>
+</div>
+        <div style="padding:2px 18px 10px" class="eyebrow">Calendars LUME reads</div>
+        <sc-for list="{{cals}}" as="c" hint-placeholder-count="3">
+          <div class="srow"><span class="sw" style="background:{{c.color}}"></span><div style="min-width:0"><div style="font-weight:600;font-size:13.5px">{{c.name}}</div><div class="cap">{{c.note}}</div></div><button type="button" class="{{c.cls}}" onClick="{{c.flip}}" aria-label="Read {{c.name}}"></button></div>
+        </sc-for>
+      </div>
+      <div class="sc stg" style="--i:2">
+        <a class="lrow" href="Calendly.dc.html"><img class="cmark" src="/_blob/9828f451a803139110d86b470696c3fa" alt="Calendly" width="36" height="36"><div style="flex:1"><div style="font-weight:600">Calendly</div><div class="cap">Connected · bookings arrive in seconds and move leads to Call booked</div></div><span class="pill ok">On</span><span style="color:var(--text-3)"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.2 3.4 4.5 4.6-4.5 4.6"></path></svg></span></a>
+        <a class="lrow" href="Rules.dc.html"><span class="okb" style="background:var(--accent-soft);color:var(--accent-ink)"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8 13 3.7v4c0 3.1-2.1 5.4-5 6.5-2.9-1.1-5-3.4-5-6.5v-4z"></path><path d="m5.7 7.9 1.6 1.6 3-3.1"></path></svg></span><div style="flex:1"><div style="font-weight:600">Calendar rules</div><div class="cap">Which events are meetings with leads · set by an admin</div></div><span style="color:var(--text-3)"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.2 3.4 4.5 4.6-4.5 4.6"></path></svg></span></a>
+      </div>
+    </div></div>
+  </div>
+</section>
+</div></main>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"$preview":{"width":1440,"height":900}}'>
+
+const BASE = [
+ {id:'m1',d:0,s:10,e:10.5,title:'Discovery call',lead:'Aisha Khan',stage:'Call done',sc:'#18a566',own:'MK',src:'g',st:'held'},
+ {id:'m2',d:0,s:15.5,e:16,title:'Follow-up call',lead:'Omar Haddad',stage:'Follow-up later',sc:'#f2a20c',own:'MK',src:'g',st:'held'},
+ {id:'m3',d:1,s:11,e:11.5,title:'Intro call',lead:'Lina Farah',stage:'Replied',sc:'#0ea5b7',own:'HI',src:'c',st:'noshow'},
+ {id:'m4',d:1,s:16,e:17,title:'Plan review',lead:'Karim Aziz',stage:'Call done',sc:'#18a566',own:'MK',src:'g',st:'held'},
+ {id:'m5',d:2,s:9.5,e:10,title:'Discovery call',lead:'Sara Nasser',stage:'Call done',sc:'#18a566',own:'RR',src:'c',st:'held'},
+ {id:'m6',d:3,s:9,e:9.5,title:'Discovery call',lead:'Priya Menon',stage:'Call done',sc:'#18a566',own:'MK',src:'g',st:'held'},
+ {id:'m7',d:3,s:11.5,e:12,title:'Pricing walkthrough',lead:'Karim Aziz',stage:'Call booked',sc:'#2a5bff',own:'MK',src:'g',st:'needs'},
+ {id:'m8',d:3,s:14.5,e:15,title:'Discovery call',lead:'Dana Whitfield',stage:'Call booked',sc:'#2a5bff',own:'MK',src:'c',st:'next'},
+ {id:'m9',d:3,s:16,e:16.5,title:'Check-in',lead:'Aisha Khan',stage:'Call done',sc:'#18a566',own:'MK',src:'g',st:'up'},
+ {id:'m10',d:4,s:10.5,e:11,title:'Programme fit call',lead:'Noor Rahman',stage:'Call booked',sc:'#2a5bff',own:'HI',src:'c',st:'up'},
+ {id:'m11',d:4,s:13,e:13.5,title:'Discovery call',lead:'Lina Farah',stage:'Call booked',sc:'#2a5bff',own:'MK',src:'c',st:'up'},
+ {id:'m12',d:4,s:17,e:17.5,title:'Intro call',lead:'Ravi Menon',stage:'Replied',sc:'#0ea5b7',own:'MK',src:'g',st:'cancelled'},
+ {id:'m13',d:7,s:10,e:11,title:'Onboarding call',lead:'Sara Nasser',stage:'Won',sc:'#18a566',own:'RR',src:'g',st:'up'}
+];
+const OWNERS = { MK: ['Maya Kapoor', '#2a5bff'], HI: ['Hana Ito', '#0ea5b7'], RR: ['Rory Reid', '#d9822b'] };
+const DAYS = ['Mon 28', 'Tue 29', 'Wed 30', 'Thu 1', 'Fri 2', 'Sat 3', 'Sun 4'];
+// Dates read month first: "October 1, Thursday".
+const NOW = 14.25;
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const dayOf = (d) => new Date(2026, 8, 28 + d); // d = days from Monday, September 28
+const longDate = (d) => { const x = dayOf(d); return `${MONTHS[x.getMonth()]} ${x.getDate()}, ${WEEKDAYS[x.getDay()]}`; };
+const STAGES = ['Call booked', 'Call done', 'Replied', 'Follow-up later', 'Won'];
+const LONG = Array.from({ length: 8 }, (_, d) => longDate(d));
+const t = (h) => { const hh = Math.floor(h), mm = Math.round((h - hh) * 60); const h12 = ((hh + 11) % 12) + 1; return mm ? `${h12}:${String(mm).padStart(2, '0')}` : `${h12}`; };
+const tp = (h) => { const hh = Math.floor(h); return t(h) + (hh >= 12 ? ' pm' : ' am'); };
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { view: 'agenda', mine: false, sel: null, settings: false, refreshed: false, cals: { primary: true, team: true, hol: false },
+      off: 0, woff: 0, moff: 0, stages: [], menu: null, copied: false }; this.timers = []; this.rfOnResult = () => this.setState({ refreshed: true });
+  }
+  componentWillUnmount() { this.timers.forEach(clearTimeout); }
+  goToday() { this.setState({ off: 0, woff: 0, moff: 0, menu: null }); }
+  step(n) { if (this.state.view === 'agenda') this.setState({ off: this.state.off + n, menu: null }); else this.setState({ woff: this.state.woff + n, menu: null }); }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+
+  rfPress() {
+    if ((this.state.rf || 'idle') !== 'idle') return;
+    const at = (ms, fn) => this.later(fn, ms);
+    this.setState({ rf: 'lifting', rfRead: 0 });
+    at(650, () => this.setState({ rf: 'syncing' }));
+    at(1150, () => this.setState({ rfRead: 1 }));
+    at(1700, () => this.setState({ rfRead: 2 }));
+    at(2250, () => this.setState({ rfRead: 3 }));
+    at(2700, () => { this.setState({ rf: 'result' }); });
+    at(4100, () => { this.setState({ rf: 'landing' }); if (this.rfOnResult) this.rfOnResult(); });
+    at(4700, () => this.setState({ rf: 'landed' }));
+    at(6600, () => this.setState({ rf: 'idle' }));
+  }
+  rfVals() {
+    const ph = this.state.rf || 'idle';
+    const read = this.state.rfRead || 0;
+    const BW = 96, BH = 28, PW = 250, PH = 40, CW = 330, CH = 172, RH = 84;
+    const shape = { idle: 'button', lifting: 'pill', syncing: 'card', result: 'res', landing: 'button', landed: 'button' }[ph];
+    const box = shape === 'button' ? [0, 0, BW, BH, 8] : shape === 'pill' ? [BW - PW, BH + 8, PW, PH, 20] : shape === 'card' ? [BW - CW, BH + 8, CW, CH, 22] : [BW - CW, BH + 8, CW, RH, 22];
+    const open = ph === 'lifting' || ph === 'syncing' || ph === 'result' || ph === 'landing';
+    const ly = (on) => 'ly' + (on ? ' on' : '');
+    const subs = ['Checking 3 calendars…', 'Reading this week… 1 of 3', 'Reading next week… 2 of 3', 'Matching attendees to leads… 3 of 3'];
+    return {
+      press: () => this.rfPress(),
+      btnW: BW,
+      isLanded: ph === 'landed', notLanded: ph !== 'landed',
+      arrCls: 'arr' + (ph !== 'idle' ? ' go' : ''),
+      landedLabel: '2 updated',
+      morphCls: 'morph' + (open && shape !== 'button' ? ' glass' : ''),
+      morphStyle: `left:${box[0]}px;top:${box[1]}px;width:${box[2]}px;height:${box[3]}px;border-radius:${box[4]}px;opacity:${open ? 1 : 0}`,
+      lyPill: ly(ph === 'lifting'), lyCard: ly(ph === 'syncing'), lyRes: ly(ph === 'result'), lyFace: ly(ph === 'landing'),
+      routeCls: 'route' + (ph === 'syncing' ? ' flow' : ''),
+      sub: subs[read], pct: Math.max(6, Math.round((read / 3) * 100)),
+      count: '2', resLine: '1 new meeting · 1 moved to 5:30 pm',
+      announce: ph === 'result' ? 'Calendar synced. 1 new meeting, 1 moved.' : '',
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const theme = this.props.theme ?? 'porcelain';
+    let MEET = BASE.map((m) => (s.refreshed && m.id === 'm9' ? { ...m, s: 17.5, e: 18, fresh: true } : m));
+    if (s.refreshed) MEET = MEET.concat([{ id: 'm14', d: 3, s: 16.5, e: 17, title: 'Follow-up call', lead: 'Omar Haddad', stage: 'Follow-up later', sc: '#f2a20c', own: 'MK', src: 'g', st: 'up', fresh: true }]);
+    MEET = MEET.slice().sort((a, b) => a.d - b.d || a.s - b.s);
+    const shown = MEET.filter((m) => (!s.mine || m.own === 'MK') && (!s.stages.length || s.stages.includes(m.stage)));
+    const decorate = (m, i) => {
+      const o = OWNERS[m.own];
+      return {
+        ...m, i, start: t(m.s), end: tp(m.e), ownerName: o[0], ownerColor: o[1],
+        isG: m.src === 'g', isC: m.src === 'c',
+        isHeld: m.st === 'held', isNo: m.st === 'noshow', isNeeds: m.st === 'needs', isNext: m.st === 'next', isUp: m.st === 'up', isCancel: m.st === 'cancelled',
+        cls: [m.st === 'held' || m.st === 'noshow' || m.st === 'needs' ? 'past' : '', m.st === 'cancelled' ? 'cancelled' : '', m.st === 'next' ? 'next' : '', s.sel === m.id ? 'sel' : '', m.fresh ? 'arrived' : ''].join(' '),
+        open: () => this.setState({ sel: m.id }),
+      };
+    };
+    let n = 0;
+    const start = 3 + s.off;
+    const dayList = [...new Set(shown.map((m) => m.d))].filter((d) => d >= start).sort((a, b) => a - b).slice(0, 3);
+    const days = dayList.map((d, gi) => {
+      const items = shown.filter((m) => m.d === d).map((m) => decorate(m, n++));
+      return { i: gi, today: d === 3, notToday: d !== 3, label: d === 3 ? 'Today · ' + longDate(3) : d === 4 ? 'Tomorrow · ' + longDate(4) : d === 2 ? 'Yesterday · ' + longDate(2) : longDate(d), count: items.length + (items.length === 1 ? ' meeting' : ' meetings'), items, empty: items.length === 0 };
+    });
+    let k = 0;
+    const blocks = shown.filter((m) => m.d < 7).map((m) => { const x = decorate(m, k++); return { ...x, style: `top:${(m.s - 8) * 52 + 1}px;height:${(m.e - m.s) * 52 - 3}px;`, col: m.d }; });
+    const wk = s.woff * 7;
+    const cols = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ d, cls: (d + wk === 3 ? 'tdc ' : '') + (d >= 5 ? 'wkend' : ''), blocks: s.woff === 0 ? blocks.filter((b) => b.col === d) : [], isToday: d + wk === 3 }));
+    const hours = Array.from({ length: 11 }, (_, i) => ({ label: tp(9 + i).replace(':00', ''), style: `top:${(i + 1) * 52}px` }));
+    const head = DAYS.map((x, i) => { const dd = dayOf(i + wk); return { w: x.split(' ')[0], n: String(dd.getDate()), cls: i + wk === 3 ? 'td' : '' }; });
+    const first = new Date(2026, 9 + s.moff, 1);
+    const lead = (first.getDay() + 6) % 7;
+    const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - lead);
+    const base = new Date(2026, 8, 28);
+    const cells = Math.ceil((lead + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7) * 7;
+    const month = Array.from({ length: cells }, (_, i) => {
+      const x = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+      const d = Math.round((x - base) / 86400000);
+      const has = MEET.some((m) => m.d === d && m.st !== 'cancelled');
+      return { n: x.getDate(), cls: (x.getMonth() !== first.getMonth() ? 'out ' : '') + (d === 3 ? 'today ' : '') + (d === 3 + s.off && s.view === 'agenda' && s.off !== 0 ? 'picked' : ''), dot: has,
+        pick: () => this.setState({ view: 'agenda', off: d - 3, moff: 0, menu: null }) };
+    });
+    const sel = s.sel ? decorate(MEET.find((m) => m.id === s.sel), 0) : null;
+    const drawer = sel ? {
+      ...sel,
+      when: (sel.d === 3 ? 'Today' : LONG[sel.d]) + ` · ${tp(sel.s)} – ${tp(sel.e)}`,
+      ended: sel.isNeeds, held: sel.isHeld, no: sel.isNo, upcoming: sel.isUp || sel.isNext, cancelled: sel.isCancel,
+      initials: sel.lead.split(' ').map((p) => p[0]).join(''),
+      reminder: sel.isNext ? 'WhatsApp reminder went out at 12:30 pm' : sel.isUp ? 'WhatsApp reminder 2 hours before' : null,
+    } : null;
+    const CALS = [
+      { id: 'primary', name: 'maya@brightpath.test', note: 'Your main calendar · 12 lead meetings', color: '#2a5bff' },
+      { id: 'team', name: 'Sales team', note: 'Shared with Hana and Rory', color: '#18a566' },
+      { id: 'hol', name: 'Holidays in India', note: 'Never has meetings with leads', color: '#9ca1ab' },
+    ].map((c) => ({ ...c, cls: s.cals[c.id] ? 'switch on' : 'switch', flip: () => this.setState({ cals: { ...s.cals, [c.id]: !s.cals[c.id] } }) }));
+    return {
+      theme, days, cols, hours, head, month, rf: this.rfVals(), cals: CALS,
+      agenda: s.view === 'agenda', week: s.view === 'week',
+      titleMain: s.view === 'agenda' ? longDate(start).split(', ')[0] + ',' : `${longDate(wk).split(', ')[0]} – ${longDate(wk + 6).split(', ')[0]}`,
+      titleSub: s.view === 'agenda' ? longDate(start).split(', ')[1] : '',
+      monthLabel: `${MONTHS[first.getMonth()]} ${first.getFullYear()}`,
+      prevMonth: () => this.setState({ moff: s.moff - 1 }), nextMonth: () => this.setState({ moff: s.moff + 1 }),
+      prev: () => this.step(-1), next: () => this.step(1), today: () => this.goToday(),
+      todayCls: 'btn sm' + ((s.view === 'agenda' ? s.off : s.woff) === 0 ? ' ghost' : ''),
+      weekEmpty: s.woff !== 0, agendaEmpty: days.length === 0,
+      stageLabel: s.stages.length === 0 ? 'Any stage' : s.stages.length === 1 ? s.stages[0] : `${s.stages.length} stages`,
+      stageChip: 'chip' + (s.stages.length ? ' on' : ''),
+      stageMenu: 'pop-menu' + (s.menu === 'stage' ? ' open' : ''),
+      toggleStageMenu: () => this.setState({ menu: s.menu === 'stage' ? null : 'stage' }),
+      stageItems: STAGES.map((st) => ({ st, cls: 'mi' + (s.stages.includes(st) ? ' on' : ''), flip: () => this.setState({ stages: s.stages.includes(st) ? s.stages.filter((x) => x !== st) : [...s.stages, st] }) })),
+      anyStage: () => this.setState({ stages: [], menu: null }),
+      moreMenu: 'pop-menu' + (s.menu === 'more' ? ' open' : ''),
+      toggleMore: () => this.setState({ menu: s.menu === 'more' ? null : 'more' }),
+      closeMenus: () => s.menu && this.setState({ menu: null }),
+      copyCls: 'btn lg tip' + (s.copied ? ' copied' : ''), copyTip: s.copied ? 'Link copied' : 'Copy the meeting link',
+      copied: s.copied, notCopied: !s.copied,
+      copy: () => { try { navigator.clipboard && navigator.clipboard.writeText('https://meet.google.com/xvd-pqra-kmt'); } catch (e) {} this.setState({ copied: true, menu: null }); this.later(() => this.setState({ copied: false }), 1600); },
+      knob: s.view === 'agenda' ? 'width:98px;transform:translateX(0)' : 'width:84px;transform:translateX(98px)',
+      ownKnob: s.mine ? 'width:58px;transform:translateX(84px)' : 'width:84px;transform:translateX(0)',
+      agendaCls: s.view === 'agenda' ? 'on' : '', weekCls: s.view === 'week' ? 'on' : '',
+      allCls: s.mine ? '' : 'on', mineCls: s.mine ? 'on' : '',
+      toAgenda: () => this.setState({ view: 'agenda' }), toWeek: () => this.setState({ view: 'week' }),
+      showAll: () => this.setState({ mine: false }), showMine: () => this.setState({ mine: true }),
+      updated: s.refreshed && (s.rf || 'idle') === 'idle' ? 'updated just now' : 'updated 2 min ago',
+      drawer, drawerCls: drawer ? 'drawer open' : 'drawer', hasDrawer: !!drawer,
+      close: () => this.setState({ sel: null, menu: null }),
+      nowTop: `top:${(NOW - 8) * 52}px`,
+      calCls: s.settings ? 'calview away' : 'calview',
+      setCls: s.settings ? 'setview open' : 'setview',
+      gearCls: 'ibtn tip gearbtn' + (s.settings ? ' on' : ''),
+      navCal: s.settings ? 'navi' : 'navi on', navSet: s.settings ? 'navi on' : 'navi',
+      openSettings: () => this.setState({ settings: true, sel: null, menu: null }),
+      closeSettings: () => this.setState({ settings: false }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

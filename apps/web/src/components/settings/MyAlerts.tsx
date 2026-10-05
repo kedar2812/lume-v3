@@ -58,24 +58,29 @@ export function MyAlerts({ initial }: { initial: Preferences }) {
           <div key={x.key} className={s.switchRow}>
             <Switch checked={alerts[x.key] !== false} onChange={(v) => void flip(x.key, v)} label={x.label} />
             <p className={s.muted}>{x.hint}</p>
+            {/* When the morning email comes: under its own switch, not after the rest. */}
+            {x.key === "emailDigest" && (
+              <div className={s.subField}>
+                <Field label="Send it at" hint="In your own timezone.">
+                  {(control) => (
+                    <input
+                      {...control}
+                      type="time"
+                      disabled={!alerts.emailDigest}
+                      value={digestTime}
+                      onChange={(e) => setDigestTime(e.target.value)}
+                      onBlur={() => {
+                        if (!/^\d{2}:\d{2}$/.test(digestTime) || digestTime === savedTime.current) return;
+                        const time = digestTime;
+                        void save({ digestTime: time }).then((ok) => ok && (savedTime.current = time));
+                      }}
+                    />
+                  )}
+                </Field>
+              </div>
+            )}
           </div>
         ))}
-        <Field label="Send it at" hint="In your own timezone.">
-          {(control) => (
-            <input
-              {...control}
-              type="time"
-              disabled={!alerts.emailDigest}
-              value={digestTime}
-              onChange={(e) => setDigestTime(e.target.value)}
-              onBlur={() => {
-                if (!/^\d{2}:\d{2}$/.test(digestTime) || digestTime === savedTime.current) return;
-                const time = digestTime;
-                void save({ digestTime: time }).then((ok) => ok && (savedTime.current = time));
-              }}
-            />
-          )}
-        </Field>
         {problem && (
           <p role="alert" className={s.problem}>
             {problem}

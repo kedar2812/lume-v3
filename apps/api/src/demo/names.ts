@@ -131,3 +131,13 @@ export const TAGS = ["café", "wedding", "repeat client"] as const;
 export const BUDGET = ["Small", "Medium", "Large"] as const;
 /** Lost reasons the demo adds only if the business has none. */
 export const REASONS = ["No reply", "Chose someone else", "Too expensive", "Not the right time"] as const;
+
+/** What a booked call is called in the demo calendar (fictional, generic). */
+export const MEETING_TITLES = [
+  "Discovery call",
+  "Pricing walkthrough",
+  "Programme fit call",
+  "Check-in",
+  "Onboarding call",
+  "Intro call",
+] as const;

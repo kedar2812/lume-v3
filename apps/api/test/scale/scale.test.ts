@@ -220,6 +220,12 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     await time("rep search (own)", get(rep, "/api/v1/leads?limit=50&q=Lina"));
     await time("team lead list (10 people)", get(lead, "/api/v1/leads?limit=50"));
     await time("team lead counts", get(lead, `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}`));
+    // Opening a lead: the drawer reads the lead, its history and its follow-ups.
+    const one = (first.items as { id: string }[])[0]!.id;
+    await time("admin open a lead", get(admin, `/api/v1/leads/${one}`));
+    await time("admin open a lead's history", get(admin, `/api/v1/leads/${one}/activities?limit=30`));
+    await time("admin open a lead's follow-ups", get(admin, `/api/v1/leads/${one}/tasks`));
+    await time("admin today", get(admin, "/api/v1/today"));
 
     // Bulk at today's ceiling of 100, on the newest leads.
     const ids = (first.items as { id: string }[])
@@ -353,6 +359,22 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
         rep.inject({ method: "GET", url: `/api/v1/analytics/me?range=${range}` }),
       );
     }
+    // Phase 9: Today's quick numbers, the Filters panel's teams, and goals with one for every person (three grouped
+    // reads, whatever the number of goals).
+    const month = new Date().toISOString().slice(0, 8) + "01";
+    await h.ownerPool.query(
+      `INSERT INTO goals (id, scope, scope_id, metric, period, period_start, target)
+       SELECT gen_random_uuid(), 'user', id, m, 'month', $1::date, 10 FROM users, unnest(ARRAY['won', 'revenue']) m
+       ON CONFLICT DO NOTHING`,
+      [month],
+    );
+    await time("analytics glance (Today)", () =>
+      admin.inject({ method: "GET", url: "/api/v1/analytics/glance" }),
+    );
+    await time("analytics teams", () => admin.inject({ method: "GET", url: "/api/v1/analytics/teams" }));
+    await time("analytics goals (every person)", () =>
+      admin.inject({ method: "GET", url: `/api/v1/analytics/goals?start=${month}` }),
+    );
     const budget = Number(process.env.LUME_SCALE_ANALYTICS_BUDGET ?? 300);
     const over = timings.slice(before).filter((x) => x.ms > budget);
     expect(over, `analytics over ${budget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);

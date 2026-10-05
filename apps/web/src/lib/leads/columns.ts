@@ -12,13 +12,13 @@ export type ColumnDef = {
 };
 
 const CORE: ColumnDef[] = [
-  { id: "name", label: "Name", width: 240, fieldKey: "name", sortable: "name" },
+  { id: "name", label: "Name", width: 220, fieldKey: "name", sortable: "name" },
   { id: "stage", label: "Stage", width: 150 },
   { id: "owner", label: "Owner", width: 170 },
   { id: "phone", label: "Phone", width: 170, fieldKey: "phone" },
   { id: "email", label: "Email", width: 220, fieldKey: "email" },
   { id: "instagram", label: "Instagram", width: 150, fieldKey: "instagram" },
-  { id: "value", label: "Value", width: 120, fieldKey: "value", align: "end" },
+  { id: "value", label: "Value", width: 140, fieldKey: "value", align: "end" },
   { id: "tags", label: "Tags", width: 170 },
   { id: "created", label: "Enquiry date", width: 130, fieldKey: "lead_created_at" },
   { id: "updated", label: "Last activity", width: 130, sortable: "updated" },

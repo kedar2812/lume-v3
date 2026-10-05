@@ -1,0 +1,90 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Access.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Security — access limits per role",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "Exports.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Security — exports, and trace a file",
+      "w": 1440,
+      "x": 0,
+      "y": 1340
+    },
+    "Main.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Security — overview, and an alert",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Offboard.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "People — offboard someone",
+      "w": 1440,
+      "x": 1520,
+      "y": 1340
+    },
+    "RepView.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Leads — what a sales rep sees",
+      "w": 1440,
+      "x": 3040,
+      "y": 1340
+    },
+    "Rules.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Security — rules and the watermark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-01T16:46:04Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "row1": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Security for admins: what's happening, the rules, who can sign in when",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "row2": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Exports you can trace, offboarding, and the rep's side",
+      "w": 240,
+      "x": 0,
+      "y": 1040
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Rules.dc.html",
+    "Access.dc.html",
+    "Exports.dc.html",
+    "Offboard.dc.html",
+    "RepView.dc.html"
+  ],
+  "pages": [],
+  "title": "LUME Phase 6 — Security"
+}

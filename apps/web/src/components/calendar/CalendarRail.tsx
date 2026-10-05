@@ -20,9 +20,14 @@ const MONTHS = [
   "December",
 ];
 
-/** The six weeks shown for the month holding `key`, each day a key. */
-function monthGrid(monthKey: string, weekStart: "monday" | "sunday"): string[] {
-  return Array.from({ length: 42 }, (_, i) => addDays(weekOf(monthKey, weekStart)[0]!, i));
+/** The weeks the month holding `key` covers (four to six), each day a key: no week wholly of the next month. */
+export function monthGrid(monthKey: string, weekStart: "monday" | "sunday"): string[] {
+  const first = `${monthKey.slice(0, 7)}-01`;
+  const start = weekOf(first, weekStart)[0]!;
+  const [y, m] = first.split("-").map(Number) as [number, number];
+  const last = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  const days = Math.round((Date.parse(last) - Date.parse(start)) / 86_400_000) + 1;
+  return Array.from({ length: Math.ceil(days / 7) * 7 }, (_, i) => addDays(start, i));
 }
 
 /**

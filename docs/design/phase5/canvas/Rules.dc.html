@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings · calendar rules</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"><link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.lm{--spring:linear(0, 0.048, 0.153, 0.278, 0.402, 0.515, 0.614, 0.696, 0.763, 0.817, 0.859, 0.893, 0.919, 0.939, 0.954, 0.965, 0.974, 0.981, 0.986, 0.989, 0.992, 0.994, 0.996, 0.997, 0.998, 0.998, 0.999, 0.999, 0.999, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);--sp-b:linear(0, 0.051, 0.171, 0.323, 0.48, 0.625, 0.75, 0.851, 0.927, 0.98, 1.015, 1.035, 1.044, 1.046, 1.042, 1.036, 1.029, 1.022, 1.016, 1.01, 1.006, 1.003, 1, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 0.999, 0.999, 0.999, 1, 1, 1, 1, 1, 1, 1, 1, 1);--sp-d:linear(0, 0.05, 0.164, 0.306, 0.451, 0.584, 0.698, 0.792, 0.864, 0.918, 0.957, 0.983, 0.999, 1.009, 1.014, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.002, 1.001, 1.001, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);--t:836ms;--tb:924ms;--td:660ms;
+ font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-optical-sizing:auto;
+ -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-size:14px;letter-spacing:-0.006em;line-height:1.45;
+ color:var(--text);background:var(--canvas);position:relative;overflow:hidden;box-sizing:border-box}
+.lm *,.lm *::before,.lm *::after{box-sizing:border-box}
+.lm[data-theme="porcelain"]{color-scheme:light;--canvas:#eef0f3;--side-text:#3a3f4a;--sheet:#fff;--raised:#fff;--sunk:#f6f7f9;
+ --line:rgba(12,18,32,.075);--line-2:rgba(12,18,32,.12);--text:#0a0c11;--text-2:#5a606d;--text-3:#666b76;
+ --accent:#2a5bff;--accent-soft:rgba(42,91,255,.08);--accent-ink:#1e47d9;--hover:rgba(12,18,32,.04);--press:rgba(12,18,32,.07);
+ --danger:#e5484d;--danger-soft:#fdecec;--danger-ink:#c3272d;--warn:#f2a20c;--warn-soft:#fef4dd;--warn-ink:#8a5a00;
+ --meet:#2a5bff;--sky:#5ab8ff;--meet-soft:#eaf5ff;--meet-ink:#1e47d9;--meet-line:rgba(90,184,255,.55);--meet-grad:linear-gradient(180deg,#5ab8ff,#2a5bff);--ok:#18a566;--ok-soft:#e4f6ec;--ok-ink:#0c7845;--wa:#1faf5a;--wa-fill:#0f7f44;
+ --glass:rgba(255,255,255,.78);--veil:rgba(238,240,243,.52);--hud:rgba(22,24,30,.88);--hud-text:#f4f5f7;--scrim:rgba(8,10,14,.22);
+ --skel:#edeff2;--glow:rgba(42,91,255,.1);
+ --shadow-sheet:0 0 0 .5px rgba(12,18,32,.08),0 1px 2px rgba(12,18,32,.04),0 12px 40px -12px rgba(12,18,32,.1);
+ --shadow-pop:0 0 0 .5px rgba(12,18,32,.1),0 10px 30px -6px rgba(12,18,32,.18),0 30px 80px -20px rgba(12,18,32,.22);
+ --shadow-lift:0 0 0 .5px rgba(12,18,32,.1),0 12px 30px -8px rgba(12,18,32,.25)}
+.lm[data-theme="obsidian"]{color-scheme:dark;--canvas:#141518;--side-text:#bcc0c8;--sheet:#212328;--raised:#2b2e34;--sunk:#18191c;
+ --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.12);--text:#eef0f3;--text-2:#9ca1ab;--text-3:#9297a0;
+ --accent:#2a5bff;--accent-soft:rgba(42,91,255,.2);--accent-ink:#8aa7ff;--hover:rgba(255,255,255,.045);--press:rgba(255,255,255,.08);
+ --danger:#ff5c61;--danger-soft:rgba(255,92,97,.14);--danger-ink:#ff8a8e;--warn:#ffb224;--warn-soft:rgba(255,178,36,.14);--warn-ink:#ffc75c;
+ --meet:#4d7bff;--sky:#7cc8ff;--meet-soft:rgba(90,184,255,.13);--meet-ink:#9cc9ff;--meet-line:rgba(124,200,255,.42);--meet-grad:linear-gradient(180deg,#7cc8ff,#3a6bff);--ok:#2fd08a;--ok-soft:rgba(47,208,138,.14);--ok-ink:#5fe0a8;--wa:#25c366;--wa-fill:#0f7f44;
+ --glass:rgba(41,44,50,.76);--veil:rgba(10,11,13,.55);--hud:rgba(54,58,66,.9);--hud-text:#f4f5f7;--scrim:rgba(6,7,9,.55);
+ --skel:#26282d;--glow:rgba(42,91,255,.22);
+ --shadow-sheet:0 0 0 .5px rgba(255,255,255,.075),inset 0 1px 0 rgba(255,255,255,.045),0 1px 2px rgba(0,0,0,.28),0 18px 48px -22px rgba(0,0,0,.75);
+ --shadow-pop:0 0 0 .5px rgba(255,255,255,.13),inset 0 1px 0 rgba(255,255,255,.07),0 2px 6px rgba(0,0,0,.3),0 30px 80px -12px rgba(0,0,0,.75);
+ --shadow-lift:0 0 0 .5px rgba(255,255,255,.15),0 2px 6px rgba(0,0,0,.3),0 18px 44px -10px rgba(0,0,0,.75)}
+
+/* type */
+.h1{font-size:28px;font-weight:680;letter-spacing:-0.021em;line-height:1.1;margin:0}
+.h2{font-size:18px;font-weight:600;letter-spacing:-0.014em;line-height:1.25;margin:0}
+.h3{font-size:15px;font-weight:600;letter-spacing:-0.009em;margin:0}
+.sub{font-size:13px;color:var(--text-2);letter-spacing:-0.003em}
+.cap{font-size:12px;color:var(--text-3);letter-spacing:0}
+.tiny{font-size:11px;letter-spacing:.005em;color:var(--text-3)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.num{font-variant-numeric:tabular-nums}
+
+/* shell */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);height:100%}
+.side{padding:14px 10px 12px;display:flex;flex-direction:column;gap:2px;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 10px 16px}
+.brand img{width:30px;height:30px;object-fit:contain;display:block}
+.brand b{font-size:15px;font-weight:680;letter-spacing:.02em;display:block;line-height:1.1}
+.brand span{font-size:11.5px;color:var(--text-3)}
+.navi{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:10px;color:var(--side-text);
+ font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s}
+.navi svg{width:17px;height:17px;flex:none;opacity:.85}
+.navi:hover{background:var(--hover)}
+.navi.on{background:var(--sheet);color:var(--text);box-shadow:var(--shadow-sheet)}
+.navi.on svg{color:var(--accent);opacity:1}
+.navi .badge{margin-left:auto;font-size:11px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 5px;background:var(--meet-soft);color:var(--meet-ink)}
+.me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:650;color:#fff;flex:none;letter-spacing:.02em}
+.av.sm{width:22px;height:22px;font-size:9.5px}
+.av.lg{width:44px;height:44px;font-size:15px}
+.main{padding:8px 8px 8px 0;min-width:0;min-height:0}
+.sheet{background:var(--sheet);border-radius:16px;box-shadow:var(--shadow-sheet);height:100%;display:flex;flex-direction:column;overflow:hidden;position:relative;min-height:0}
+.top{height:58px;flex:none;display:flex;align-items:center;gap:12px;padding:0 22px 0 26px;border-bottom:.5px solid var(--line)}
+.search{display:flex;align-items:center;gap:8px;height:34px;width:300px;padding:0 10px;border-radius:10px;background:var(--sunk);color:var(--text-3);font-size:13px;box-shadow:inset 0 0 0 .5px var(--line)}
+.kbd{margin-left:auto;font-size:11px;padding:1px 6px;border-radius:5px;box-shadow:inset 0 0 0 .5px var(--line-2);color:var(--text-3)}
+
+/* controls */
+.btn{appearance:none;border:0;font:inherit;font-size:13px;font-weight:550;letter-spacing:-0.003em;height:34px;padding:0 14px;border-radius:10px;
+ display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;color:var(--text);background:var(--sheet);
+ box-shadow:0 0 0 .5px var(--line-2),0 1px 2px rgba(12,18,32,.06);transition:transform .1s ease-out,background .15s,box-shadow .15s;white-space:nowrap;text-decoration:none}
+.btn:hover{background:var(--hover)}
+.btn:active{transform:scale(.97)}
+.btn svg{width:15px;height:15px;flex:none}
+.btn.pri{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(42,91,255,.35),inset 0 1px 0 rgba(255,255,255,.18)}
+.btn.pri:hover{background:#2350ec}
+.btn.meet{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(42,91,255,.35),inset 0 1px 0 rgba(255,255,255,.18)}
+.btn.meet:hover{background:#2350ec}
+.btn.ghost{background:transparent;box-shadow:none;color:var(--text-2)}
+.btn.ghost:hover{background:var(--hover);color:var(--text)}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px;border-radius:8px}
+.btn.lg{height:42px;padding:0 18px;font-size:14px;border-radius:12px}
+.btn.danger{color:var(--danger-ink)}
+.ibtn{appearance:none;border:0;background:transparent;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--text-2);cursor:pointer;transition:background .15s,transform .1s}
+.ibtn:hover{background:var(--hover);color:var(--text)}
+.ibtn:active{transform:scale(.94)}
+.ibtn svg{width:17px;height:17px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:9px;font-size:12.5px;font-weight:500;color:var(--text-2);
+ background:var(--sheet);box-shadow:0 0 0 .5px var(--line-2);cursor:pointer;border:0;font-family:inherit;transition:background .15s,color .15s,box-shadow .15s}
+.chip:hover{color:var(--text)}
+.chip.on{background:var(--accent-soft);color:var(--accent-ink);box-shadow:0 0 0 .5px rgba(42,91,255,.35)}
+.chip svg{width:14px;height:14px}
+.pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:550;letter-spacing:0;white-space:nowrap}
+.pill.meet{background:var(--meet-soft);color:var(--meet-ink)}
+.pill.ok{background:var(--ok-soft);color:var(--ok-ink)}
+.pill.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.pill.bad{background:var(--danger-soft);color:var(--danger-ink)}
+.pill.acc{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.mute{background:var(--sunk);color:var(--text-2);box-shadow:inset 0 0 0 .5px var(--line)}
+.pill svg{width:12px;height:12px}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.seg{position:relative;display:inline-flex;padding:3px;border-radius:11px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.seg button{position:relative;z-index:1;appearance:none;border:0;background:transparent;font:inherit;font-size:13px;font-weight:550;height:28px;padding:0 12px;border-radius:8px;color:var(--text-2);cursor:pointer;transition:color .2s;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.seg button svg{width:14px;height:14px;flex:none}
+.seg button.on{color:var(--text)}
+.seg .knob{position:absolute;top:3px;left:3px;height:28px;border-radius:8px;background:var(--raised);box-shadow:0 0 0 .5px var(--line-2),0 2px 6px -1px rgba(12,18,32,.14);transition:transform var(--t) var(--spring),width var(--t) var(--spring)}
+.switch{appearance:none;border:0;padding:0;width:40px;height:24px;border-radius:12px;background:var(--line-2);position:relative;cursor:pointer;transition:background .25s;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2),0 0 0 .5px rgba(0,0,0,.04);transition:transform var(--tb) var(--sp-b)}
+/* Rule: a switch is green when on, grey when off, in every place. Blue is never a state: it is the one thing to do, and where you are. */
+.switch.on{background:var(--ok)}
+.switch:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
+.switch[disabled]{opacity:.4;cursor:not-allowed}
+.switch.on::after{transform:translateX(16px)}
+.switch:active::after{width:24px}
+.switch.on:active::after{transform:translateX(12px)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12.5px;font-weight:550;color:var(--text-2)}
+.input{font:inherit;font-size:14px;height:40px;padding:0 12px;border-radius:10px;border:0;background:var(--sunk);color:var(--text);box-shadow:inset 0 0 0 .5px var(--line-2);outline:none;transition:box-shadow .15s;width:100%}
+.input:focus{box-shadow:0 0 0 4px var(--accent-soft),inset 0 0 0 1.5px var(--accent)}
+textarea.input{height:auto;padding:10px 12px;resize:none;line-height:1.5}
+.card{background:var(--sheet);border-radius:14px;box-shadow:var(--shadow-sheet)}
+.hair{height:.5px;background:var(--line);border:0;margin:0}
+.scroll{overflow:auto;scrollbar-width:thin;scrollbar-color:transparent transparent}
+.scroll:hover{scrollbar-color:var(--line-2) transparent}
+
+/* brand marks (official files, unmodified) */
+.gmark{display:inline-grid;place-items:center;border-radius:5px;background:#fff;box-shadow:0 0 0 .5px rgba(12,18,32,.12);flex:none}
+.gmark img{display:block;object-fit:contain}
+.cmark{display:block;flex:none}
+/* tooltips */
+.tip{position:relative}
+.tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translate(-50%,-4px);white-space:nowrap;font-size:12px;font-weight:550;padding:5px 9px;border-radius:8px;background:var(--hud);color:var(--hud-text);opacity:0;pointer-events:none;transition:opacity .15s,transform .2s var(--spring);z-index:40}
+.tip:hover::after{opacity:1;transform:translate(-50%,0);transition-delay:.35s}
+/* states: hover only where there is a pointer; focus rings for the keyboard; nothing jumps */
+.navi.off{opacity:.55;cursor:default}
+.navi.off:hover{background:transparent}
+.lm a,.lm button,.lm summary{-webkit-tap-highlight-color:transparent}
+.lm :is(.btn,.ibtn,.chip,.navi,.sitem,.seg button,.md,.switch,.tab,a,summary):focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
+.btn.pri:active{background:#1f4be0}
+.btn[disabled],.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
+@media (hover:none){.btn:hover,.ibtn:hover,.chip:hover,.navi:hover{background:inherit}}
+.bellpop{position:relative}
+.bellpop>summary{list-style:none;position:relative}
+.bellpop>summary::-webkit-details-marker{display:none}
+.bellpop .bdot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 2px var(--sheet)}
+.bellpop[open]>summary{background:var(--press);color:var(--text)}
+.bpanel{position:absolute;right:0;top:calc(100% + 8px);width:340px;z-index:60;border-radius:16px;padding:6px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);transform-origin:calc(100% - 16px) 0;animation:pop .5s var(--sp-b) both}
+.bph{display:flex;align-items:baseline;justify-content:space-between;padding:8px 10px 6px;font-size:13.5px}
+.bitem{display:grid;grid-template-columns:28px minmax(0,1fr) 8px;gap:10px;align-items:center;padding:9px 10px;border-radius:11px;text-decoration:none;color:inherit;transition:background .15s}
+.bitem:hover{background:var(--hover)}
+.bitem b{display:block;font-size:13px;font-weight:600}
+.bitem span{display:block;font-size:12px;color:var(--text-3)}
+.bitem i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.bitem .bic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--warn-soft);color:var(--warn-ink)}
+.pop-menu{position:absolute;z-index:50;min-width:200px;border-radius:14px;padding:5px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);opacity:0;transform:scale(.92);pointer-events:none;transition:opacity .16s,transform .45s var(--sp-b)}
+.pop-menu.open{opacity:1;transform:none;pointer-events:auto}
+.mi{appearance:none;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text);width:100%;display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:9px;cursor:pointer;text-align:left;text-decoration:none;transition:background .12s}
+.mi:hover{background:var(--hover)}
+.mi .ck{margin-left:auto;color:var(--accent);opacity:0;transition:opacity .15s}
+.mi.on .ck{opacity:1}
+.mi svg{width:15px;height:15px;color:var(--text-2)}
+/* motion */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes slideR{from{opacity:.4;transform:translateX(104%)}to{opacity:1;transform:none}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--meet-line)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,60)}to{stroke-dashoffset:0}}
+@keyframes shimmer{from{background-position:-200px 0}to{background-position:200px 0}}
+.rise{animation:rise var(--t) var(--spring) both;animation-delay:calc(var(--i,0) * 38ms)}
+.pop{animation:pop var(--tb) var(--sp-b) both}
+.fadein{animation:fade .35s ease both}
+.spin{animation:spin .9s linear infinite}
+@media (prefers-reduced-motion: reduce){.lm *{animation-duration:.01ms!important;animation-delay:0ms!important;transition-duration:.12s!important}}
+
+.sgrid{flex:1;min-height:0;display:grid;grid-template-columns:230px minmax(0,1fr)}
+.snav{padding:18px 12px;border-right:.5px solid var(--line);display:flex;flex-direction:column;gap:1px}
+.sitem{display:flex;align-items:center;height:32px;padding:0 10px;border-radius:9px;color:var(--text-2);font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s}
+.sitem:hover{background:var(--hover);color:var(--text)}
+.sitem.off{opacity:.5;cursor:default}
+.sitem.off:hover{background:transparent;color:var(--text-2)}
+.sitem.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.scont{padding:30px 44px 40px;min-height:0}
+.scont .inner{max-width:760px;display:flex;flex-direction:column;gap:20px}
+
+.scont .inner{max-width:none}
+.twocol{display:grid;grid-template-columns:minmax(0,1fr) 470px;gap:24px;align-items:start}
+.rule{border-radius:16px;background:var(--sheet);box-shadow:var(--shadow-sheet);padding:16px 18px;display:flex;flex-direction:column;gap:0;transition:box-shadow .3s}
+.rule.on{box-shadow:var(--shadow-sheet),inset 0 0 0 1.5px rgba(42,91,255,.35)}
+.rh{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:14px;align-items:center}
+.rn{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:var(--sunk);color:var(--text-2);font-weight:680;font-size:14px;box-shadow:inset 0 0 0 .5px var(--line);transition:background .3s,color .3s}
+.rule.on .rn{background:var(--accent);color:#fff;box-shadow:none}
+.rx{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--t) var(--spring)}
+.rx.open{grid-template-rows:1fr}
+.rx>div{overflow:hidden}
+.rxi{padding:14px 0 2px 50px;display:flex;flex-direction:column;gap:10px}
+.tokens{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px;border-radius:12px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line-2)}
+.tok{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 4px 0 10px;border-radius:8px;background:var(--sheet);box-shadow:0 0 0 .5px var(--line-2),0 1px 2px rgba(12,18,32,.06);font-size:13px;font-weight:550;animation:pop var(--tb) var(--sp-b) both}
+.tok button{appearance:none;border:0;background:transparent;width:20px;height:20px;border-radius:6px;display:grid;place-items:center;color:var(--text-3);cursor:pointer}
+.tok button:hover{background:var(--hover);color:var(--text)}
+.tokin{flex:1;min-width:140px;border:0;background:transparent;font:inherit;font-size:13.5px;color:var(--text);outline:none;height:28px;padding:0 6px}
+.calpick{display:flex;gap:8px;flex-wrap:wrap}
+.prev{border-radius:18px;background:var(--sheet);box-shadow:var(--shadow-sheet);overflow:hidden;position:sticky;top:0}
+.ph{padding:16px 18px 12px;display:flex;align-items:flex-end;gap:12px;border-bottom:.5px solid var(--line)}
+.big{font-size:30px;font-weight:700;letter-spacing:-0.025em;line-height:1;color:var(--meet-ink);display:inline-block;animation:pop var(--tb) var(--sp-b) both}
+.ev{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 18px;border-top:.5px solid var(--line);transition:background .35s,opacity .35s}
+.ev:first-of-type{border-top:0}
+.ev .tm{font-size:12px;color:var(--text-3);font-weight:550}
+.ev .tt{font-size:13.5px;font-weight:600;transition:color .3s}
+.ev .meta{font-size:11.5px;color:var(--text-3)}
+.ev.kept{background:linear-gradient(90deg,var(--meet-soft),transparent 75%);box-shadow:inset 3px 0 0 var(--accent)}
+.ev.gone .tt{color:var(--text-3)}
+.verdict{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:600;white-space:nowrap;animation:pop var(--tb) var(--sp-b) both}
+.verdict.kept{background:var(--accent-soft);color:var(--accent-ink)}
+.verdict.gone{background:var(--sunk);color:var(--text-3);box-shadow:inset 0 0 0 .5px var(--line)}
+.cal{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:5px;background:var(--sunk);color:var(--text-2);box-shadow:inset 0 0 0 .5px var(--line)}
+</style>
+</helmet>
+
+<div class="lm" data-theme="{{theme}}" style="width:1440px;height:900px">
+<div class="shell">
+<aside class="side"><div class="brand"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt="LUME"><div><b>LUME</b><span>Brightpath Studio</span></div></div><a class="navi" href="Today.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg><span>Today</span></a><a class="navi" href="LeadDrawer.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M16 3.128a4 4 0 0 1 0 7.744"></path><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><circle cx="9" cy="7" r="4"></circle></svg><span>Leads</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="M15 3v18"></path></svg><span>Pipeline</span></a><a class="navi" href="Main.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3"></path><path d="M16 2v3"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M8 13h.01"></path><path d="M12 13h.01"></path><path d="M16 13h.01"></path><path d="M8 17h.01"></path><path d="M12 17h.01"></path><path d="M16 17h.01"></path></svg><span>Calendar</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"></path><rect x="2" y="4" width="20" height="16" rx="2"></rect></svg><span>Templates</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span>Analytics</span></a><a class="navi on" href="Connect.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg><span>Settings</span></a><div class="me"><div class="av" style="background:#2a5bff">MK</div><div><div style="font-size:13px;font-weight:600">Maya Kapoor</div><div class="tiny">Owner</div></div></div></aside>
+<main class="main"><div class="sheet">
+<header class="top"><h1 class="h2" style="font-size:16px">Settings</h1><div style="flex:1"></div><div class="search"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.4"></circle><path d="m10.3 10.3 3.3 3.3"></path></svg><span>Search leads, actions…</span><span class="kbd">Ctrl K</span></div><details class="bellpop"><summary class="ibtn" aria-label="Notifications"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11.5h9l-1-1.6V7a3.5 3.5 0 0 0-7 0v2.9z"></path><path d="M6.6 13.4a1.5 1.5 0 0 0 2.8 0"></path></svg><span class="bdot"></span></summary><div class="bpanel"><div class="bph"><b>Notifications</b><span class="cap">2 new</span></div><a class="bitem" href="LeadDrawer.dc.html"><img src="/_blob/9828f451a803139110d86b470696c3fa" alt="" width="28" height="28"><div><b>Noor Rahman booked a Programme fit call</b><span>Oct 2, Fri, 10:30 am · moved to Call booked</span></div><i></i></a><a class="bitem" href="LogOutcome.dc.html"><span class="bic"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3z"></path><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"></path></svg></span><div><b>How did Karim’s call go?</b><span>Pricing walkthrough ended at 12:00 pm</span></div><i></i></a></div></details></header>
+<div class="sgrid">
+
+<nav class="snav" aria-label="Settings">
+  <div class="eyebrow" style="padding:4px 10px 6px">Your account</div>
+  <a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Profile</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Security</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Notifications</a><a class="sitem " href="Connect.dc.html">Calendar</a>
+  <div class="eyebrow" style="padding:16px 10px 6px">Business</div>
+  <a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Business</a><a class="sitem " href="Pipeline.dc.html">Pipeline &amp; stages</a><a class="sitem on" href="Rules.dc.html">Calendar rules</a><a class="sitem " href="Calendly.dc.html">Integrations</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">People</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Roles &amp; access</a>
+</nav>
+
+<div class="scont scroll"><div class="inner">
+  <div class="rise"><h2 class="h1" style="font-size:26px">Calendar rules</h2><div class="sub" style="margin-top:6px">Which calendar events are meetings with leads. Everything else never comes into LUME. These apply to everyone's calendar.</div></div>
+  <div class="twocol">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="{{a.cls}} rise" style="--i:1"><div class="rh"><span class="rn">1</span><div><div class="h3">An attendee is a lead</div><div class="cap">Someone invited has the email of a lead. The meeting goes on that lead.</div></div><button type="button" class="{{a.sw}}" onClick="{{a.flip}}" aria-label="An attendee is a lead"></button></div></div>
+      <div class="{{t.cls}} rise" style="--i:2">
+        <div class="rh"><span class="rn">2</span><div><div class="h3">The title has a word</div><div class="cap">Kept even before the person is a lead; attach it to one in a tap.</div></div><button type="button" class="{{t.sw}}" onClick="{{t.flip}}" aria-label="The title has a word"></button></div>
+        <div class="{{t.rx}}"><div><div class="rxi">
+          <div class="tokens"><sc-for list="{{words}}" as="w" hint-placeholder-count="2"><span class="tok">{{w.w}}<button type="button" aria-label="Remove {{w.w}}" onClick="{{w.rm}}"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"></path></svg></button></span></sc-for><input class="tokin" placeholder="Add a word, then Enter" value="{{draft}}" onChange="{{onDraft}}" onKeyDown="{{onKey}}" aria-label="Add a title word"></div>
+          <div class="cap">Whole words, any case: “demo” won't match “Demolition”.</div>
+        </div></div></div>
+      </div>
+      <div class="{{c.cls}} rise" style="--i:3">
+        <div class="rh"><span class="rn">3</span><div><div class="h3">This calendar counts</div><div class="cap">Every event on these calendars, put on a lead by its attendees when it can be.</div></div><button type="button" class="{{c.sw}}" onClick="{{c.flip}}" aria-label="This calendar counts"></button></div>
+        <div class="{{c.rx}}"><div><div class="rxi"><div class="calpick"><sc-for list="{{calChips}}" as="k" hint-placeholder-count="3"><button type="button" class="{{k.cls}}" onClick="{{k.pick}}">{{k.c}}</button></sc-for></div></div></div></div>
+      </div>
+      <div class="cap rise" style="--i:4;display:flex;gap:8px;align-items:center;padding:4px 6px"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.8"></rect><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"></path></svg> Never counted: people who sign in to LUME, and each person's own address.</div>
+    </div>
+    <aside class="prev rise" style="--i:2">
+      <div class="ph"><div><div class="eyebrow">A sample week</div><div style="display:flex;align-items:baseline;gap:8px;margin-top:6px"><span class="big num">{{kept}}</span><span class="sub num">of {{total}} events become meetings</span></div></div></div>
+      <sc-for list="{{events}}" as="e" hint-placeholder-count="11">
+        <div class="{{e.cls}}">
+          <span class="tm num">{{e.t}}</span>
+          <div style="min-width:0"><div class="tt">{{e.title}}</div><div class="meta">{{e.who}} · <span class="cal">{{e.cal}}</span></div></div>
+          <sc-if value="{{e.kept}}" hint-placeholder-val="{{ false }}"><span class="verdict kept"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3"></path><path d="M16 2v3"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M8 13h.01"></path><path d="M12 13h.01"></path><path d="M16 13h.01"></path><path d="M8 17h.01"></path><path d="M12 17h.01"></path><path d="M16 17h.01"></path></svg> {{e.why}}</span></sc-if><sc-if value="{{e.notKept}}" hint-placeholder-val="{{ true }}"><span class="verdict gone"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l12 12"></path><path d="M6.6 6.7a2 2 0 0 0 2.7 2.7"></path><path d="M4.1 4.4C2.8 5.3 2 6.6 1.6 8c.9 2.9 3.4 4.6 6.4 4.6 1.3 0 2.5-.3 3.5-.9M7 3.5c.3 0 .7-.1 1-.1 3 0 5.5 1.7 6.4 4.6-.3 1-.8 1.8-1.4 2.6"></path></svg> {{e.why}}</span></sc-if>
+        </div>
+      </sc-for>
+    </aside>
+  </div>
+</div></div>
+</div>
+</div></main>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"$preview":{"width":1440,"height":900}}'>
+
+const EVENTS = [
+  { id: 1, t: 'Mon 10:00', title: 'Discovery call', who: 'Dana Whitfield (a lead)', lead: 'Dana', cal: 'Maya' },
+  { id: 2, t: 'Mon 13:00', title: 'Dentist', who: 'Just you', cal: 'Maya' },
+  { id: 3, t: 'Tue 09:00', title: 'Team stand-up', who: 'Hana, Rory', cal: 'Sales team' },
+  { id: 4, t: 'Tue 11:30', title: 'Pricing walkthrough', who: 'Karim Aziz (a lead)', lead: 'Karim', cal: 'Maya' },
+  { id: 5, t: 'Tue 18:00', title: 'Gym', who: 'Just you', cal: 'Maya' },
+  { id: 6, t: 'Wed 10:30', title: 'Discovery call — new enquiry', who: 'j.ortega@mail.test', cal: 'Maya' },
+  { id: 7, t: 'Wed 15:00', title: 'Product demo', who: 'tom@company.test', cal: 'Maya' },
+  { id: 8, t: 'Thu 12:30', title: 'Lunch with Sam', who: 'sam@friends.test', cal: 'Maya' },
+  { id: 9, t: 'Thu 16:00', title: 'Site visit, Al Barsha', who: 'Just you', cal: 'Sales team' },
+  { id: 10, t: 'Fri 15:30', title: 'School pickup', who: 'Just you', cal: 'Maya' },
+  { id: 11, t: 'Fri 17:00', title: 'Quarterly review', who: 'Noor Rahman (a lead)', lead: 'Noor', cal: 'Sales team' },
+];
+const hasWord = (title, w) => new RegExp('(^|[^\\p{L}\\p{N}])' + w.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split(/\s+/).join('\\s+') + '($|[^\\p{L}\\p{N}])', 'iu').test(title);
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { attendee: true, title: false, calendar: false, words: ['Discovery call', 'Demo'], draft: '', cals: ['Sales team'], bump: 0 }; }
+  set(patch) { this.setState({ ...patch, bump: this.state.bump + 1 }); }
+  renderVals() {
+    const s = this.state;
+    const judge = (e) => {
+      if (s.attendee && e.lead) return { kept: true, why: 'Meeting · with ' + e.lead };
+      if (s.title && s.words.some((w) => w.trim() && hasWord(e.title, w))) return { kept: true, why: e.lead ? 'Meeting · with ' + e.lead : 'Meeting · to attach' };
+      if (s.calendar && s.cals.includes(e.cal)) return { kept: true, why: e.lead ? 'Meeting · with ' + e.lead : 'Meeting · to attach' };
+      return { kept: false, why: 'Not stored' };
+    };
+    const events = EVENTS.map((e) => { const j = judge(e); return { ...e, ...j, notKept: !j.kept, cls: 'ev ' + (j.kept ? 'kept' : 'gone'), vcls: 'verdict ' + (j.kept ? 'kept' : 'gone'), vkey: e.id + (j.kept ? 'k' : 'g') + s.bump }; });
+    const kept = events.filter((e) => e.kept).length;
+    const rule = (k) => ({ cls: s[k] ? 'rule on' : 'rule', sw: s[k] ? 'switch on' : 'switch', rx: s[k] ? 'rx open' : 'rx', flip: () => this.set({ [k]: !s[k] }) });
+    return {
+      theme: this.props.theme ?? 'porcelain',
+      a: rule('attendee'), t: rule('title'), c: rule('calendar'),
+      words: s.words.map((w, i) => ({ w, rm: () => this.set({ words: s.words.filter((_, j) => j !== i) }) })),
+      draft: s.draft, onDraft: (e) => this.setState({ draft: e.target.value }),
+      onKey: (e) => { if (e.key === 'Enter' && s.draft.trim()) { e.preventDefault(); this.set({ words: [...s.words.filter((x) => x.toLowerCase() !== s.draft.trim().toLowerCase()), s.draft.trim()], draft: '' }); } },
+      calChips: ['Maya', 'Sales team', 'Holidays in India'].map((c) => ({ c, cls: 'chip' + (s.cals.includes(c) ? ' on' : ''), pick: () => this.set({ cals: s.cals.includes(c) ? s.cals.filter((x) => x !== c) : [...s.cals, c] }) })),
+      events, kept, total: events.length, keptKey: 'k' + kept,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

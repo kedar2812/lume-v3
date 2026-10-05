@@ -53,7 +53,9 @@ export function TodayKpis({ currency }: { currency: string }) {
             </span>
             <span className={s.d} data-volatile>
               {k.trend ? <Chip trend={k.trend} /> : <span className={s.flat}>No change to show</span>}
-              <span className={s.vs}>{k.period === "month" ? "vs last month" : "vs last week"}</span>
+              <span className={s.vs}>
+                {k.period === "month" ? sameDaysLastMonth(g!.month.to) : "vs last week"}
+              </span>
             </span>
             <span className={s.spark} data-volatile>
               <Spark values={k.series} />
@@ -105,21 +107,37 @@ export function TodayPipeline() {
           Funnel ›
         </Link>
       </div>
+      {/* Recounted every minute or so from the rollups: masked in screenshots, like the quick numbers. */}
       <ul className={s.fn}>
         {stages.map((st, i) => (
           <li key={st.id}>
             <span className={s.fl}>{st.name}</span>
-            <span className={s.fb} aria-hidden>
+            <span className={s.fb} aria-hidden data-volatile>
               <motion.i
                 initial={reduce ? false : { scaleX: 0 }}
                 animate={{ scaleX: f.arrived ? st.reached / f.arrived : 0 }}
                 transition={{ type: "spring", bounce: 0, duration: 0.9, delay: reduce ? 0 : i * 0.06 }}
               />
             </span>
-            <b className={s.fnum}>{st.reached.toLocaleString("en-US")}</b>
+            <b className={s.fnum} data-volatile>
+              {st.reached.toLocaleString("en-US")}
+            </b>
           </li>
         ))}
       </ul>
     </section>
   );
+}
+
+/**
+ * What a month-to-date number is set against, said exactly: the same days of last month ("vs Sep 1–5"), so the 5th
+ * never reads as a fall against a whole month.
+ */
+export function sameDaysLastMonth(today: string): string {
+  const [y, m, d] = today.split("-").map(Number) as [number, number, number];
+  const prev = new Date(Date.UTC(y, m - 2, 1));
+  const days = new Date(Date.UTC(y, m - 1, 0)).getUTCDate();
+  const name = prev.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const last = Math.min(d, days);
+  return last === 1 ? `vs ${name} 1` : `vs ${name} 1–${last}`;
 }

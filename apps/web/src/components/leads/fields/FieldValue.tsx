@@ -24,9 +24,15 @@ export function FieldValue({ lead, def }: { lead: Lead; def: FieldDefView }) {
       </span>
     );
   }
-  // Until intake sources exist (Google Sheets), every lead was added by someone in LUME.
+  // The source it came from, by name; one added by hand has none.
   if (def.isCore && def.key === "source")
-    return <span className={s.text}>{lead.sourceId ? "From a connected source" : "Added in LUME"}</span>;
+    return (
+      <span className={s.text}>
+        {lead.sourceId
+          ? (catalog.sources.find((x) => x.id === lead.sourceId)?.name ?? "A source since removed")
+          : "Added in LUME"}
+      </span>
+    );
   const text =
     def.isCore && ["phone", "email", "instagram"].includes(def.key)
       ? String(value ?? "")

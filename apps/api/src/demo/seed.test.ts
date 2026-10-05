@@ -72,6 +72,16 @@ describe("the demo business (8D-1 Task 14)", () => {
     expect(answers.map((x) => x.v).sort()).toEqual(field!.options.map((o) => o.id).sort());
   });
 
+  it("reads like real life in the list and the calendar: last activity spread over time, meetings named", async () => {
+    const [recent] = await a.queryAll<{ n: number; all: number }>(
+      "SELECT count(*) FILTER (WHERE last_activity_at > now() - interval '10 minutes' OR updated_at > now() - interval '10 minutes')::int AS n, count(*)::int AS all FROM leads",
+    );
+    expect(recent!.n / recent!.all).toBeLessThan(0.05);
+    const titles = await a.queryAll<{ title: string }>("SELECT DISTINCT title FROM meetings");
+    expect(titles.length).toBeGreaterThan(2);
+    expect(titles.map((t) => t.title)).not.toContain("Call");
+  });
+
   it("uses only made-up contacts", async () => {
     const bad = await a.queryAll<{ email: string }>(
       "SELECT email FROM leads WHERE email IS NOT NULL AND email NOT LIKE '%@example.com' LIMIT 3",

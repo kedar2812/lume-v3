@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { SettingsArea } from "@/lib/settings/areas";
+import { GROUP_TITLES, type SettingsArea } from "@/lib/settings/areas";
 import { SettingsSearch } from "./SettingsSearch";
 import s from "./settings.module.css";
 
@@ -20,16 +20,28 @@ export function SettingsNav({ areas }: { areas: SettingsArea[] }) {
         <Link href="/settings" className={s.navLink} aria-current={path === "/settings" ? "page" : undefined}>
           All settings
         </Link>
-        {areas.map((a) => (
-          <Link
-            key={a.id}
-            href={a.href}
-            className={s.navLink}
-            aria-current={current?.id === a.id ? "page" : undefined}
-          >
-            {a.title}
-          </Link>
-        ))}
+        {/* Grouped as the Settings home groups them (canvas Settings): a long list reads in three parts. */}
+        {(["workspace", "people", "you"] as const).map((g) => {
+          const items = areas.filter((a) => a.group === g);
+          if (!items.length) return null;
+          return (
+            <div key={g} className={s.navGroup} role="group" aria-label={GROUP_TITLES[g]}>
+              <span className={s.navGroupTitle} aria-hidden>
+                {GROUP_TITLES[g]}
+              </span>
+              {items.map((a) => (
+                <Link
+                  key={a.id}
+                  href={a.href}
+                  className={s.navLink}
+                  aria-current={current?.id === a.id ? "page" : undefined}
+                >
+                  {a.title}
+                </Link>
+              ))}
+            </div>
+          );
+        })}
       </nav>
       <label className={s.navSelect}>
         <span className={s.srOnly}>Settings section</span>

@@ -318,3 +318,99 @@
 .slot {
   display: contents;
 }
+
+/* The phone's tab bar (canvas Phone): only under 860 px, where the sidebar has no room. */
+.tabs {
+  display: none;
+}
+@media (max-width: 860px) {
+  .tabs {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 50;
+    display: flex;
+    justify-content: space-around;
+    padding: 6px;
+    border-radius: 22px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      var(--shadow-pop),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  .tab {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    padding: 6px 0 4px;
+    border-radius: 14px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-3);
+  }
+  .tab svg {
+    width: 22px;
+    height: 22px;
+  }
+  .tab[aria-current="page"],
+  .tab[data-on] {
+    color: var(--accent);
+  }
+  /* The small label in the ink shade: accent blue on the glass falls under 4.5:1 at 10.5 px. */
+  .tab[aria-current="page"] span,
+  .tab[data-on] span {
+    color: var(--accent-ink);
+  }
+  .tab:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+  .moreWrap {
+    position: relative;
+    display: flex;
+    flex: 1;
+  }
+  .moreMenu {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    display: flex;
+    flex-direction: column;
+    min-width: 190px;
+    padding: 6px;
+    border-radius: 16px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: var(--shadow-pop);
+    transform: translateX(-50%);
+  }
+  .moreMenu a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--text);
+  }
+  .moreMenu a:hover,
+  .moreMenu a[aria-current="page"] {
+    background: var(--hover);
+  }
+  .moreMenu svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .tabs,
+  .moreMenu {
+    background: var(--raised);
+    backdrop-filter: none;
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Main.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Leads — select thousands, act, undo",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Runs.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Recent bulk actions",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "Search.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Search at a million leads",
+      "w": 1440,
+      "x": 0,
+      "y": 1340
+    },
+    "Loading.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Loading — slow, offline, load more",
+      "w": 1440,
+      "x": 1520,
+      "y": 1340
+    },
+    "Profile.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 18,
+      "title": "Profile photo — initials or a photo, lined up",
+      "w": 1440,
+      "x": 0,
+      "y": 2680
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-03T13:10:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "t1": {
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "Act on thousands of leads at once: the island, the rail, undo",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "t2": {
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "Finding and waiting: search rules, the loading bar, skeletons",
+      "w": 240,
+      "x": 0,
+      "y": 1040
+    },
+    "t3": {
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "Your profile photo (outside Phase 7, asked for 2026-10-03)",
+      "w": 240,
+      "x": 0,
+      "y": 2380
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Runs.dc.html",
+    "Search.dc.html",
+    "Loading.dc.html",
+    "Profile.dc.html"
+  ],
+  "pages": [],
+  "title": "LUME Phase 7 — Bulk at scale"
+}

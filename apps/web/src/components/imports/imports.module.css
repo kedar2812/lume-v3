@@ -582,6 +582,10 @@
   letter-spacing: var(--ls-sm);
   color: var(--text-2);
 }
+/* On the amber panel the secondary grey falls under 4.5:1 in Obsidian: the panel's own text colour instead. */
+.unmatched .subLede {
+  color: var(--text);
+}
 .unmatchedGroup {
   display: grid;
   gap: 10px;

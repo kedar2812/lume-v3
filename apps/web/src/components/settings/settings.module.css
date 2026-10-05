@@ -1712,7 +1712,17 @@
   gap: 2px;
 }
 .switchRow + .switchRow {
-  margin-top: 6px;
+  margin-top: 14px;
+}
+/* A switch's hint sits under its label, not under the switch. */
+.switchRow > p {
+  padding-left: 48px;
+}
+/* A setting that belongs to the switch above it (the morning email's time), indented and as wide as it needs. */
+.subField {
+  max-width: 220px;
+  margin-top: 8px;
+  padding-left: 48px;
 }
 
 /* ── time choices (3C): when one lands ── */
@@ -1823,4 +1833,20 @@
 .textLink:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* The nav's three parts (Workspace, People, You), titled as on the Settings home. */
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 10px;
+}
+.navGroupTitle {
+  padding: 6px 10px 4px;
+  font-size: 10.5px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }

@@ -1,7 +1,10 @@
 - navigation "Settings":
     - link "All settings":
         - /url: /settings
-    - link "My account":
-        - /url: /settings/account
-    - link "About":
-        - /url: /settings/about
+    - group "You":
+        - link "Calendar":
+            - /url: /settings/calendar
+        - link "My account":
+            - /url: /settings/account
+        - link "About":
+            - /url: /settings/about

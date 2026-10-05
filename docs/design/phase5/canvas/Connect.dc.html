@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings · connect your calendar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"><link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.lm{--spring:linear(0, 0.048, 0.153, 0.278, 0.402, 0.515, 0.614, 0.696, 0.763, 0.817, 0.859, 0.893, 0.919, 0.939, 0.954, 0.965, 0.974, 0.981, 0.986, 0.989, 0.992, 0.994, 0.996, 0.997, 0.998, 0.998, 0.999, 0.999, 0.999, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);--sp-b:linear(0, 0.051, 0.171, 0.323, 0.48, 0.625, 0.75, 0.851, 0.927, 0.98, 1.015, 1.035, 1.044, 1.046, 1.042, 1.036, 1.029, 1.022, 1.016, 1.01, 1.006, 1.003, 1, 0.999, 0.998, 0.998, 0.998, 0.998, 0.998, 0.999, 0.999, 0.999, 1, 1, 1, 1, 1, 1, 1, 1, 1);--sp-d:linear(0, 0.05, 0.164, 0.306, 0.451, 0.584, 0.698, 0.792, 0.864, 0.918, 0.957, 0.983, 0.999, 1.009, 1.014, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.002, 1.001, 1.001, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);--t:836ms;--tb:924ms;--td:660ms;
+ font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-optical-sizing:auto;
+ -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-size:14px;letter-spacing:-0.006em;line-height:1.45;
+ color:var(--text);background:var(--canvas);position:relative;overflow:hidden;box-sizing:border-box}
+.lm *,.lm *::before,.lm *::after{box-sizing:border-box}
+.lm[data-theme="porcelain"]{color-scheme:light;--canvas:#eef0f3;--side-text:#3a3f4a;--sheet:#fff;--raised:#fff;--sunk:#f6f7f9;
+ --line:rgba(12,18,32,.075);--line-2:rgba(12,18,32,.12);--text:#0a0c11;--text-2:#5a606d;--text-3:#666b76;
+ --accent:#2a5bff;--accent-soft:rgba(42,91,255,.08);--accent-ink:#1e47d9;--hover:rgba(12,18,32,.04);--press:rgba(12,18,32,.07);
+ --danger:#e5484d;--danger-soft:#fdecec;--danger-ink:#c3272d;--warn:#f2a20c;--warn-soft:#fef4dd;--warn-ink:#8a5a00;
+ --meet:#2a5bff;--sky:#5ab8ff;--meet-soft:#eaf5ff;--meet-ink:#1e47d9;--meet-line:rgba(90,184,255,.55);--meet-grad:linear-gradient(180deg,#5ab8ff,#2a5bff);--ok:#18a566;--ok-soft:#e4f6ec;--ok-ink:#0c7845;--wa:#1faf5a;--wa-fill:#0f7f44;
+ --glass:rgba(255,255,255,.78);--veil:rgba(238,240,243,.52);--hud:rgba(22,24,30,.88);--hud-text:#f4f5f7;--scrim:rgba(8,10,14,.22);
+ --skel:#edeff2;--glow:rgba(42,91,255,.1);
+ --shadow-sheet:0 0 0 .5px rgba(12,18,32,.08),0 1px 2px rgba(12,18,32,.04),0 12px 40px -12px rgba(12,18,32,.1);
+ --shadow-pop:0 0 0 .5px rgba(12,18,32,.1),0 10px 30px -6px rgba(12,18,32,.18),0 30px 80px -20px rgba(12,18,32,.22);
+ --shadow-lift:0 0 0 .5px rgba(12,18,32,.1),0 12px 30px -8px rgba(12,18,32,.25)}
+.lm[data-theme="obsidian"]{color-scheme:dark;--canvas:#141518;--side-text:#bcc0c8;--sheet:#212328;--raised:#2b2e34;--sunk:#18191c;
+ --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.12);--text:#eef0f3;--text-2:#9ca1ab;--text-3:#9297a0;
+ --accent:#2a5bff;--accent-soft:rgba(42,91,255,.2);--accent-ink:#8aa7ff;--hover:rgba(255,255,255,.045);--press:rgba(255,255,255,.08);
+ --danger:#ff5c61;--danger-soft:rgba(255,92,97,.14);--danger-ink:#ff8a8e;--warn:#ffb224;--warn-soft:rgba(255,178,36,.14);--warn-ink:#ffc75c;
+ --meet:#4d7bff;--sky:#7cc8ff;--meet-soft:rgba(90,184,255,.13);--meet-ink:#9cc9ff;--meet-line:rgba(124,200,255,.42);--meet-grad:linear-gradient(180deg,#7cc8ff,#3a6bff);--ok:#2fd08a;--ok-soft:rgba(47,208,138,.14);--ok-ink:#5fe0a8;--wa:#25c366;--wa-fill:#0f7f44;
+ --glass:rgba(41,44,50,.76);--veil:rgba(10,11,13,.55);--hud:rgba(54,58,66,.9);--hud-text:#f4f5f7;--scrim:rgba(6,7,9,.55);
+ --skel:#26282d;--glow:rgba(42,91,255,.22);
+ --shadow-sheet:0 0 0 .5px rgba(255,255,255,.075),inset 0 1px 0 rgba(255,255,255,.045),0 1px 2px rgba(0,0,0,.28),0 18px 48px -22px rgba(0,0,0,.75);
+ --shadow-pop:0 0 0 .5px rgba(255,255,255,.13),inset 0 1px 0 rgba(255,255,255,.07),0 2px 6px rgba(0,0,0,.3),0 30px 80px -12px rgba(0,0,0,.75);
+ --shadow-lift:0 0 0 .5px rgba(255,255,255,.15),0 2px 6px rgba(0,0,0,.3),0 18px 44px -10px rgba(0,0,0,.75)}
+
+/* type */
+.h1{font-size:28px;font-weight:680;letter-spacing:-0.021em;line-height:1.1;margin:0}
+.h2{font-size:18px;font-weight:600;letter-spacing:-0.014em;line-height:1.25;margin:0}
+.h3{font-size:15px;font-weight:600;letter-spacing:-0.009em;margin:0}
+.sub{font-size:13px;color:var(--text-2);letter-spacing:-0.003em}
+.cap{font-size:12px;color:var(--text-3);letter-spacing:0}
+.tiny{font-size:11px;letter-spacing:.005em;color:var(--text-3)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.num{font-variant-numeric:tabular-nums}
+
+/* shell */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);height:100%}
+.side{padding:14px 10px 12px;display:flex;flex-direction:column;gap:2px;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 10px 16px}
+.brand img{width:30px;height:30px;object-fit:contain;display:block}
+.brand b{font-size:15px;font-weight:680;letter-spacing:.02em;display:block;line-height:1.1}
+.brand span{font-size:11.5px;color:var(--text-3)}
+.navi{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:10px;color:var(--side-text);
+ font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s}
+.navi svg{width:17px;height:17px;flex:none;opacity:.85}
+.navi:hover{background:var(--hover)}
+.navi.on{background:var(--sheet);color:var(--text);box-shadow:var(--shadow-sheet)}
+.navi.on svg{color:var(--accent);opacity:1}
+.navi .badge{margin-left:auto;font-size:11px;font-weight:600;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 5px;background:var(--meet-soft);color:var(--meet-ink)}
+.me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:650;color:#fff;flex:none;letter-spacing:.02em}
+.av.sm{width:22px;height:22px;font-size:9.5px}
+.av.lg{width:44px;height:44px;font-size:15px}
+.main{padding:8px 8px 8px 0;min-width:0;min-height:0}
+.sheet{background:var(--sheet);border-radius:16px;box-shadow:var(--shadow-sheet);height:100%;display:flex;flex-direction:column;overflow:hidden;position:relative;min-height:0}
+.top{height:58px;flex:none;display:flex;align-items:center;gap:12px;padding:0 22px 0 26px;border-bottom:.5px solid var(--line)}
+.search{display:flex;align-items:center;gap:8px;height:34px;width:300px;padding:0 10px;border-radius:10px;background:var(--sunk);color:var(--text-3);font-size:13px;box-shadow:inset 0 0 0 .5px var(--line)}
+.kbd{margin-left:auto;font-size:11px;padding:1px 6px;border-radius:5px;box-shadow:inset 0 0 0 .5px var(--line-2);color:var(--text-3)}
+
+/* controls */
+.btn{appearance:none;border:0;font:inherit;font-size:13px;font-weight:550;letter-spacing:-0.003em;height:34px;padding:0 14px;border-radius:10px;
+ display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;color:var(--text);background:var(--sheet);
+ box-shadow:0 0 0 .5px var(--line-2),0 1px 2px rgba(12,18,32,.06);transition:transform .1s ease-out,background .15s,box-shadow .15s;white-space:nowrap;text-decoration:none}
+.btn:hover{background:var(--hover)}
+.btn:active{transform:scale(.97)}
+.btn svg{width:15px;height:15px;flex:none}
+.btn.pri{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(42,91,255,.35),inset 0 1px 0 rgba(255,255,255,.18)}
+.btn.pri:hover{background:#2350ec}
+.btn.meet{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(42,91,255,.35),inset 0 1px 0 rgba(255,255,255,.18)}
+.btn.meet:hover{background:#2350ec}
+.btn.ghost{background:transparent;box-shadow:none;color:var(--text-2)}
+.btn.ghost:hover{background:var(--hover);color:var(--text)}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px;border-radius:8px}
+.btn.lg{height:42px;padding:0 18px;font-size:14px;border-radius:12px}
+.btn.danger{color:var(--danger-ink)}
+.ibtn{appearance:none;border:0;background:transparent;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--text-2);cursor:pointer;transition:background .15s,transform .1s}
+.ibtn:hover{background:var(--hover);color:var(--text)}
+.ibtn:active{transform:scale(.94)}
+.ibtn svg{width:17px;height:17px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:9px;font-size:12.5px;font-weight:500;color:var(--text-2);
+ background:var(--sheet);box-shadow:0 0 0 .5px var(--line-2);cursor:pointer;border:0;font-family:inherit;transition:background .15s,color .15s,box-shadow .15s}
+.chip:hover{color:var(--text)}
+.chip.on{background:var(--accent-soft);color:var(--accent-ink);box-shadow:0 0 0 .5px rgba(42,91,255,.35)}
+.chip svg{width:14px;height:14px}
+.pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:550;letter-spacing:0;white-space:nowrap}
+.pill.meet{background:var(--meet-soft);color:var(--meet-ink)}
+.pill.ok{background:var(--ok-soft);color:var(--ok-ink)}
+.pill.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.pill.bad{background:var(--danger-soft);color:var(--danger-ink)}
+.pill.acc{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.mute{background:var(--sunk);color:var(--text-2);box-shadow:inset 0 0 0 .5px var(--line)}
+.pill svg{width:12px;height:12px}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.seg{position:relative;display:inline-flex;padding:3px;border-radius:11px;background:var(--sunk);box-shadow:inset 0 0 0 .5px var(--line)}
+.seg button{position:relative;z-index:1;appearance:none;border:0;background:transparent;font:inherit;font-size:13px;font-weight:550;height:28px;padding:0 12px;border-radius:8px;color:var(--text-2);cursor:pointer;transition:color .2s;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.seg button svg{width:14px;height:14px;flex:none}
+.seg button.on{color:var(--text)}
+.seg .knob{position:absolute;top:3px;left:3px;height:28px;border-radius:8px;background:var(--raised);box-shadow:0 0 0 .5px var(--line-2),0 2px 6px -1px rgba(12,18,32,.14);transition:transform var(--t) var(--spring),width var(--t) var(--spring)}
+.switch{appearance:none;border:0;padding:0;width:40px;height:24px;border-radius:12px;background:var(--line-2);position:relative;cursor:pointer;transition:background .25s;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2),0 0 0 .5px rgba(0,0,0,.04);transition:transform var(--tb) var(--sp-b)}
+/* Rule: a switch is green when on, grey when off, in every place. Blue is never a state: it is the one thing to do, and where you are. */
+.switch.on{background:var(--ok)}
+.switch:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
+.switch[disabled]{opacity:.4;cursor:not-allowed}
+.switch.on::after{transform:translateX(16px)}
+.switch:active::after{width:24px}
+.switch.on:active::after{transform:translateX(12px)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12.5px;font-weight:550;color:var(--text-2)}
+.input{font:inherit;font-size:14px;height:40px;padding:0 12px;border-radius:10px;border:0;background:var(--sunk);color:var(--text);box-shadow:inset 0 0 0 .5px var(--line-2);outline:none;transition:box-shadow .15s;width:100%}
+.input:focus{box-shadow:0 0 0 4px var(--accent-soft),inset 0 0 0 1.5px var(--accent)}
+textarea.input{height:auto;padding:10px 12px;resize:none;line-height:1.5}
+.card{background:var(--sheet);border-radius:14px;box-shadow:var(--shadow-sheet)}
+.hair{height:.5px;background:var(--line);border:0;margin:0}
+.scroll{overflow:auto;scrollbar-width:thin;scrollbar-color:transparent transparent}
+.scroll:hover{scrollbar-color:var(--line-2) transparent}
+
+/* brand marks (official files, unmodified) */
+.gmark{display:inline-grid;place-items:center;border-radius:5px;background:#fff;box-shadow:0 0 0 .5px rgba(12,18,32,.12);flex:none}
+.gmark img{display:block;object-fit:contain}
+.cmark{display:block;flex:none}
+/* tooltips */
+.tip{position:relative}
+.tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translate(-50%,-4px);white-space:nowrap;font-size:12px;font-weight:550;padding:5px 9px;border-radius:8px;background:var(--hud);color:var(--hud-text);opacity:0;pointer-events:none;transition:opacity .15s,transform .2s var(--spring);z-index:40}
+.tip:hover::after{opacity:1;transform:translate(-50%,0);transition-delay:.35s}
+/* states: hover only where there is a pointer; focus rings for the keyboard; nothing jumps */
+.navi.off{opacity:.55;cursor:default}
+.navi.off:hover{background:transparent}
+.lm a,.lm button,.lm summary{-webkit-tap-highlight-color:transparent}
+.lm :is(.btn,.ibtn,.chip,.navi,.sitem,.seg button,.md,.switch,.tab,a,summary):focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
+.btn.pri:active{background:#1f4be0}
+.btn[disabled],.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
+@media (hover:none){.btn:hover,.ibtn:hover,.chip:hover,.navi:hover{background:inherit}}
+.bellpop{position:relative}
+.bellpop>summary{list-style:none;position:relative}
+.bellpop>summary::-webkit-details-marker{display:none}
+.bellpop .bdot{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 2px var(--sheet)}
+.bellpop[open]>summary{background:var(--press);color:var(--text)}
+.bpanel{position:absolute;right:0;top:calc(100% + 8px);width:340px;z-index:60;border-radius:16px;padding:6px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);transform-origin:calc(100% - 16px) 0;animation:pop .5s var(--sp-b) both}
+.bph{display:flex;align-items:baseline;justify-content:space-between;padding:8px 10px 6px;font-size:13.5px}
+.bitem{display:grid;grid-template-columns:28px minmax(0,1fr) 8px;gap:10px;align-items:center;padding:9px 10px;border-radius:11px;text-decoration:none;color:inherit;transition:background .15s}
+.bitem:hover{background:var(--hover)}
+.bitem b{display:block;font-size:13px;font-weight:600}
+.bitem span{display:block;font-size:12px;color:var(--text-3)}
+.bitem i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.bitem .bic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--warn-soft);color:var(--warn-ink)}
+.pop-menu{position:absolute;z-index:50;min-width:200px;border-radius:14px;padding:5px;background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop);opacity:0;transform:scale(.92);pointer-events:none;transition:opacity .16s,transform .45s var(--sp-b)}
+.pop-menu.open{opacity:1;transform:none;pointer-events:auto}
+.mi{appearance:none;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text);width:100%;display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:9px;cursor:pointer;text-align:left;text-decoration:none;transition:background .12s}
+.mi:hover{background:var(--hover)}
+.mi .ck{margin-left:auto;color:var(--accent);opacity:0;transition:opacity .15s}
+.mi.on .ck{opacity:1}
+.mi svg{width:15px;height:15px;color:var(--text-2)}
+/* motion */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes slideR{from{opacity:.4;transform:translateX(104%)}to{opacity:1;transform:none}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--meet-line)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes draw{from{stroke-dashoffset:var(--len,60)}to{stroke-dashoffset:0}}
+@keyframes shimmer{from{background-position:-200px 0}to{background-position:200px 0}}
+.rise{animation:rise var(--t) var(--spring) both;animation-delay:calc(var(--i,0) * 38ms)}
+.pop{animation:pop var(--tb) var(--sp-b) both}
+.fadein{animation:fade .35s ease both}
+.spin{animation:spin .9s linear infinite}
+@media (prefers-reduced-motion: reduce){.lm *{animation-duration:.01ms!important;animation-delay:0ms!important;transition-duration:.12s!important}}
+
+.sgrid{flex:1;min-height:0;display:grid;grid-template-columns:230px minmax(0,1fr)}
+.snav{padding:18px 12px;border-right:.5px solid var(--line);display:flex;flex-direction:column;gap:1px}
+.sitem{display:flex;align-items:center;height:32px;padding:0 10px;border-radius:9px;color:var(--text-2);font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s}
+.sitem:hover{background:var(--hover);color:var(--text)}
+.sitem.off{opacity:.5;cursor:default}
+.sitem.off:hover{background:transparent;color:var(--text-2)}
+.sitem.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.scont{padding:30px 44px 40px;min-height:0}
+.scont .inner{max-width:760px;display:flex;flex-direction:column;gap:20px}
+
+.rf{position:relative;display:inline-flex}
+.rf .btn .face{display:inline-flex;align-items:center;gap:6px}
+.rf .btn .landed{color:var(--ok-ink);font-weight:650}
+.rf .btn[data-busy]{cursor:default}
+.rf .arr{display:inline-flex}
+.rf .arr.go{animation:spin 1s linear infinite}
+.morph{position:absolute;z-index:30;overflow:hidden;color:var(--text);background:var(--raised);box-shadow:inset 0 0 0 .5px var(--line-2);border-radius:8px;opacity:0;pointer-events:none;
+ transition:left .6s var(--spring),top .6s var(--spring),width .6s var(--spring),height .6s var(--spring),border-radius .6s var(--spring),opacity .2s,background .35s,box-shadow .35s}
+.morph.glass{background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--shadow-pop)}
+.morph .ly{position:absolute;inset:0;opacity:0;filter:blur(4px);transition:opacity .28s,filter .28s;pointer-events:none}
+.morph .ly.on{opacity:1;filter:none}
+.morph .pillf{display:flex;align-items:center;justify-content:center;gap:9px;font-size:13px;font-weight:600;white-space:nowrap}
+.morph .pillf img{width:20px;height:20px}
+.morph .cardf{padding:16px 18px}
+.route{position:relative;height:58px}
+.route .end{position:absolute;top:6px;width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--raised);box-shadow:0 0 0 .5px var(--line-2),0 4px 14px rgba(0,0,0,.08)}
+.route .end img{width:28px;height:28px;display:block}
+.route .g{left:0;background:#fff}
+.route .l{right:0}
+.route .gl{position:absolute;left:22px;top:18px;width:16px;height:18px;border-radius:3px;background:var(--raised);box-shadow:0 0 0 .5px rgba(42,91,255,.45),0 3px 8px rgba(42,91,255,.3);opacity:0;
+ offset-path:path("M 0 10 C 70 -24, 180 -24, 250 10");offset-rotate:auto;border-left:2.5px solid var(--accent)}
+.route.flow .gl{animation:fly 1.5s cubic-bezier(.22,1,.36,1) infinite;animation-delay:calc(var(--i) * .25s)}
+@keyframes fly{0%{offset-distance:0%;opacity:0;transform:scale(.7)}15%,80%{opacity:1}100%{offset-distance:100%;opacity:0;transform:scale(.85)}}
+.rtitle{margin:8px 0 0;font-weight:650;font-size:14px}
+.rsub{margin:2px 0 0;font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.rbar{margin-top:10px;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.rbar i{display:block;height:100%;border-radius:2px;background:var(--accent);background-image:linear-gradient(90deg,transparent,rgba(120,220,255,.55),transparent);background-size:200% 100%;animation:sheen 1.4s linear infinite;transition:width .6s var(--spring)}
+@keyframes sheen{to{background-position:-200% 0}}
+.resf{display:flex;gap:14px;align-items:center;padding:18px}
+.resf .ck{width:44px;height:44px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;flex:none;animation:pop var(--tb) var(--sp-b) both}
+.resf .ct{font-size:28px;font-weight:700;letter-spacing:-0.025em;line-height:1}
+.facef{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:650;color:var(--ok-ink)}
+@keyframes wash{0%{background:rgba(42,91,255,0)}8%{background:rgba(42,91,255,.12)}45%{background:rgba(42,91,255,.08)}100%{background:rgba(42,91,255,0)}}
+@keyframes edge{0%{box-shadow:inset 3px 0 0 rgba(42,91,255,0)}8%{box-shadow:inset 3px 0 0 rgba(42,91,255,.9)}60%{box-shadow:inset 3px 0 0 rgba(42,91,255,.35)}100%{box-shadow:inset 3px 0 0 rgba(42,91,255,0)}}
+.arrived{animation:wash 2.4s ease-out both,edge 2.4s ease-out both}
+
+.cx{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px}
+.cxlink{position:relative;display:flex;align-items:center;margin-bottom:4px}
+.cxt{width:64px;height:64px;border-radius:18px;background:var(--raised);display:grid;place-items:center;position:relative;z-index:2;
+ box-shadow:0 0 0 .5px var(--line-2),0 10px 24px -10px rgba(12,18,32,.35);transition:transform .7s var(--sp-b),box-shadow .4s}
+.cxt img{width:40px;height:40px;object-fit:contain;display:block}
+.cxt.g{background:#fff}
+.cxwire{position:relative;width:132px;height:16px}
+.cxwire svg{position:absolute;inset:0;overflow:visible}
+.cxwire .base{stroke:var(--line-2);stroke-width:2;stroke-dasharray:3 6;stroke-linecap:round}
+.cxwire .run{stroke:var(--accent);stroke-width:2;stroke-dasharray:3 6;stroke-linecap:round;opacity:0;transition:opacity .3s}
+.cxwire .solid{stroke:var(--accent);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:124;stroke-dashoffset:124;transition:stroke-dashoffset .8s var(--spring)}
+.cxok{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;z-index:3;
+ box-shadow:0 0 0 4px var(--sheet),0 6px 14px -4px rgba(24,165,102,.6);transform:scale(0);transition:transform var(--tb) var(--sp-b)}
+.cxwire .mg{position:absolute;left:0;top:-1px;width:16px;height:18px;border-radius:3px;background:var(--raised);border-left:2.5px solid var(--accent);
+ box-shadow:0 0 0 .5px rgba(42,91,255,.4),0 3px 8px rgba(42,91,255,.28);opacity:0;offset-path:path("M 0 8 C 40 -22, 92 -22, 132 8");offset-rotate:0deg}
+/* wait */
+.cx.s-wait .cxwire .run{opacity:1;animation:cxdash .9s linear infinite}
+@keyframes cxdash{to{stroke-dashoffset:-18}}
+.cx.s-wait .cxt.g{animation:cxlift 1.6s ease-in-out infinite}
+@keyframes cxlift{0%,100%{transform:translateY(0);box-shadow:0 0 0 .5px var(--line-2),0 10px 24px -10px rgba(12,18,32,.35)}50%{transform:translateY(-5px);box-shadow:0 0 0 .5px var(--line-2),0 18px 30px -12px rgba(12,18,32,.4)}}
+/* linked, reading, done */
+.cx.s-linked .solid,.cx.s-reading .solid,.cx.s-done .solid{stroke-dashoffset:0}
+.cx.s-linked .cxt.g,.cx.s-reading .cxt.g,.cx.s-done .cxt.g{transform:translateX(8px)}
+.cx.s-linked .cxt.l,.cx.s-reading .cxt.l,.cx.s-done .cxt.l{transform:translateX(-8px)}
+.cx.s-linked .cxok{transform:scale(1);transition-delay:.45s}
+.cx.s-reading .cxok,.cx.s-done .cxok{transform:scale(0)}
+.cx.s-reading .mg{animation:cxfly 1.4s cubic-bezier(.22,1,.36,1) infinite;animation-delay:calc(var(--i) * .22s)}
+@keyframes cxfly{0%{offset-distance:0%;opacity:0;transform:scale(.7)}15%,80%{opacity:1}100%{offset-distance:100%;opacity:0;transform:scale(.85)}}
+.cx.s-reading .cxt.l{animation:cxtake .44s ease-out infinite;animation-delay:.9s}
+@keyframes cxtake{0%,100%{transform:translateX(-8px) scale(1)}40%{transform:translateX(-8px) scale(1.05)}}
+.cxstatus{height:44px;display:flex;align-items:center;justify-content:center;gap:9px;font-size:13.5px;font-weight:550;color:var(--text-2)}
+.cxstatus .big{font-size:15px;font-weight:650;color:var(--text)}
+.cxstatus .okt{color:var(--ok-ink);font-weight:650;display:inline-flex;align-items:center;gap:7px;animation:pop var(--tb) var(--sp-b) both}
+.gbtn{appearance:none;font:inherit;height:44px;padding:0 18px 0 14px;border-radius:22px;border:1px solid #747775;background:#fff;color:#1f1f1f;font-family:Roboto,Inter,system-ui,sans-serif;font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:12px;cursor:pointer;transition:transform .1s,box-shadow .2s}
+.gbtn:hover{box-shadow:0 2px 8px -2px rgba(60,64,67,.35)}
+.gbtn:active{transform:scale(.97)}
+.lm[data-theme="obsidian"] .gbtn{background:#131314;color:#e3e3e3;border-color:#8e918f}
+.gbtn img{width:20px;height:20px}
+.promises{display:flex;flex-direction:column;gap:12px;margin:4px 0 4px;text-align:left;width:100%;max-width:440px}
+.prom{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;align-items:center;font-size:13.5px}
+.prom span.i{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--sunk);color:var(--text-2);box-shadow:inset 0 0 0 .5px var(--line)}
+@media (prefers-reduced-motion: reduce){.cx .mg{display:none}}
+
+.hero{border-radius:22px;padding:34px 34px 30px;background:var(--sheet);box-shadow:var(--shadow-sheet);position:relative;overflow:hidden;transition:opacity .4s,transform .7s var(--spring)}
+.hero::before{content:"";position:absolute;left:50%;top:-150px;width:560px;height:300px;transform:translateX(-50%);background:radial-gradient(closest-side,rgba(90,184,255,.22),rgba(42,91,255,.08) 60%,transparent);pointer-events:none}
+.hero.gone{opacity:0;transform:scale(.96)}
+.conn{border-radius:18px;background:var(--sheet);box-shadow:var(--shadow-sheet);animation:pop var(--tb) var(--sp-b) both}
+.connh{display:flex;align-items:center;gap:14px;padding:18px 20px}
+.okb{width:40px;height:40px;border-radius:50%;background:var(--ok-soft);color:var(--ok-ink);display:grid;place-items:center;animation:pop var(--tb) var(--sp-b) .1s both;flex:none}
+.calrow{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:14px;align-items:center;padding:13px 20px;border-top:.5px solid var(--line)}
+.calrow .sw{width:12px;height:12px;border-radius:4px}
+.calrow{animation:rise var(--t) var(--spring) both;animation-delay:calc(120ms + var(--i,0) * 50ms)}
+.foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:.5px solid var(--line);background:var(--sunk);border-radius:0 0 18px 18px}
+.confirm{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--t) var(--spring)}
+.confirm.open{grid-template-rows:1fr}
+.confirm>div{overflow:hidden}
+.confirm .box{margin:0 20px 16px;padding:14px;border-radius:14px;background:var(--danger-soft);display:flex;align-items:center;gap:12px}
+.warnbar{border-radius:18px;padding:16px 18px;background:var(--warn-soft);display:flex;align-items:center;gap:14px;animation:pop var(--tb) var(--sp-b) both}
+.warnbar .wi{width:38px;height:38px;border-radius:11px;background:var(--sheet);color:var(--warn-ink);display:grid;place-items:center;flex:none}
+.cly{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:18px;background:var(--sheet);box-shadow:var(--shadow-sheet);text-decoration:none;color:inherit;transition:transform .2s var(--spring),box-shadow .2s}
+.cly:hover{transform:translateY(-1px);box-shadow:var(--shadow-lift)}
+</style>
+</helmet>
+
+<div class="lm" data-theme="{{theme}}" style="width:1440px;height:900px">
+<div class="shell">
+<aside class="side"><div class="brand"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt="LUME"><div><b>LUME</b><span>Brightpath Studio</span></div></div><a class="navi" href="Today.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg><span>Today</span></a><a class="navi" href="LeadDrawer.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M16 3.128a4 4 0 0 1 0 7.744"></path><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><circle cx="9" cy="7" r="4"></circle></svg><span>Leads</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="M15 3v18"></path></svg><span>Pipeline</span></a><a class="navi" href="Main.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v3"></path><path d="M16 2v3"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M8 13h.01"></path><path d="M12 13h.01"></path><path d="M16 13h.01"></path><path d="M8 17h.01"></path><path d="M12 17h.01"></path><path d="M16 17h.01"></path></svg><span>Calendar</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"></path><rect x="2" y="4" width="20" height="16" rx="2"></rect></svg><span>Templates</span></a><a class="navi off" href="#" title="Not part of this canvas" aria-disabled="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span>Analytics</span></a><a class="navi on" href="Connect.dc.html"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg><span>Settings</span></a><div class="me"><div class="av" style="background:#2a5bff">MK</div><div><div style="font-size:13px;font-weight:600">Maya Kapoor</div><div class="tiny">Owner</div></div></div></aside>
+<main class="main"><div class="sheet">
+<header class="top"><h1 class="h2" style="font-size:16px">Settings</h1><div style="flex:1"></div><div class="search"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.4"></circle><path d="m10.3 10.3 3.3 3.3"></path></svg><span>Search leads, actions…</span><span class="kbd">Ctrl K</span></div><details class="bellpop"><summary class="ibtn" aria-label="Notifications"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11.5h9l-1-1.6V7a3.5 3.5 0 0 0-7 0v2.9z"></path><path d="M6.6 13.4a1.5 1.5 0 0 0 2.8 0"></path></svg><span class="bdot"></span></summary><div class="bpanel"><div class="bph"><b>Notifications</b><span class="cap">2 new</span></div><a class="bitem" href="LeadDrawer.dc.html"><img src="/_blob/9828f451a803139110d86b470696c3fa" alt="" width="28" height="28"><div><b>Noor Rahman booked a Programme fit call</b><span>Oct 2, Fri, 10:30 am · moved to Call booked</span></div><i></i></a><a class="bitem" href="LogOutcome.dc.html"><span class="bic"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2.5h7.5L13 5v8.5H3z"></path><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"></path></svg></span><div><b>How did Karim’s call go?</b><span>Pricing walkthrough ended at 12:00 pm</span></div><i></i></a></div></details></header>
+<div class="sgrid">
+
+<nav class="snav" aria-label="Settings">
+  <div class="eyebrow" style="padding:4px 10px 6px">Your account</div>
+  <a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Profile</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Security</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Notifications</a><a class="sitem on" href="Connect.dc.html">Calendar</a>
+  <div class="eyebrow" style="padding:16px 10px 6px">Business</div>
+  <a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Business</a><a class="sitem " href="Pipeline.dc.html">Pipeline &amp; stages</a><a class="sitem " href="Rules.dc.html">Calendar rules</a><a class="sitem " href="Calendly.dc.html">Integrations</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">People</a><a class="sitem off" href="#" aria-disabled="true" title="Not part of this canvas">Roles &amp; access</a>
+</nav>
+
+<div class="scont scroll"><div class="inner">
+  <div class="rise"><h2 class="h1" style="font-size:26px">Calendar</h2><div class="sub" style="margin-top:6px">Your meetings with leads show in LUME, on their leads, and remind you to log how they went.</div></div>
+  <sc-if value="{{broken}}" hint-placeholder-val="{{ false }}">
+    <div class="warnbar"><span class="wi"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2 14.3 13H1.7z"></path><path d="M8 6.4v3M8 11.2v.1"></path></svg></span><div style="flex:1"><div style="font-weight:650;color:var(--warn-ink)">Google stopped letting LUME read your calendar</div><div class="cap">Meetings LUME already kept stay. Connect again to keep them coming.</div></div><button class="btn pri" type="button" onClick="{{reconnect}}">Connect again</button></div>
+  </sc-if>
+  <sc-if value="{{showHero}}" hint-placeholder-val="{{ true }}">
+    <div class="{{heroCls}} rise" style="--i:1">
+<div class="{{cx.cls}}">
+  <div class="cxlink">
+    <div class="cxt g"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar"></div>
+    <div class="cxwire">
+      <svg width="132" height="16" viewBox="0 0 132 16" aria-hidden="true"><line class="base" x1="4" y1="8" x2="128" y2="8"></line><line class="run" x1="4" y1="8" x2="128" y2="8"></line><line class="solid" x1="4" y1="8" x2="128" y2="8"></line></svg>
+      <span class="mg" style="--i:0"></span><span class="mg" style="--i:1"></span><span class="mg" style="--i:2"></span><span class="mg" style="--i:3"></span><span class="mg" style="--i:4"></span>
+      <span class="cxok"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="stroke-width:2"><path d="m3.4 8.4 3 3 6.2-6.6"></path></svg></span>
+    </div>
+    <div class="cxt l"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt="LUME"></div>
+  </div>
+  <h3 class="h2" style="font-size:22px">{{cx.title}}</h3>
+  <sc-if value="{{cx.showPromises}}" hint-placeholder-val="{{ true }}">
+    <div class="promises">
+      <div class="prom"><span class="i"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M16 3.128a4 4 0 0 1 0 7.744"></path><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><circle cx="9" cy="7" r="4"></circle></svg></span><span><b>Only meetings with your leads.</b> <span class="sub">An attendee who is a lead makes it a meeting.</span></span></div>
+      <div class="prom"><span class="i"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l12 12"></path><path d="M6.6 6.7a2 2 0 0 0 2.7 2.7"></path><path d="M4.1 4.4C2.8 5.3 2 6.6 1.6 8c.9 2.9 3.4 4.6 6.4 4.6 1.3 0 2.5-.3 3.5-.9M7 3.5c.3 0 .7-.1 1-.1 3 0 5.5 1.7 6.4 4.6-.3 1-.8 1.8-1.4 2.6"></path></svg></span><span><b>Personal events never leave Google.</b> <span class="sub">LUME doesn't keep them, anywhere.</span></span></div>
+      <div class="prom"><span class="i"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.8"></rect><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"></path></svg></span><span><b>Read-only.</b> <span class="sub">LUME never changes your calendar.</span></span></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{cx.isStart}}" hint-placeholder-val="{{ true }}"><button class="gbtn" type="button" onClick="{{cx.go}}"><img src="/_blob/682e54e3382041ae9bca9e5c9399b264" alt="">Continue with Google</button></sc-if>
+  <sc-if value="{{cx.isWait}}" hint-placeholder-val="{{ false }}"><div class="cxstatus"><span class="spin" style="display:inline-flex;color:var(--accent)"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.2 6.6A5.3 5.3 0 0 0 3.6 4.7L2.6 6"></path><path d="M2.6 3v3h3"></path><path d="M2.8 9.4a5.3 5.3 0 0 0 9.6 1.9l1-1.3"></path><path d="M13.4 13v-3h-3"></path></svg></span><span class="fadein">Waiting for Google… finish in the window it opened</span></div></sc-if>
+  <sc-if value="{{cx.isLinked}}" hint-placeholder-val="{{ false }}"><div class="cxstatus"><span class="okt"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-6.6"></path></svg> Connected as maya@brightpath.test</span></div></sc-if>
+  <sc-if value="{{cx.isReading}}" hint-placeholder-val="{{ false }}"><div class="cxstatus"><span>Finding meetings with your leads…</span><span class="big num">{{cx.found}}</span></div></sc-if>
+</div>
+</div>
+  </sc-if>
+  <sc-if value="{{isConnected}}" hint-placeholder-val="{{ false }}">
+    <div class="conn">
+      <div class="connh">
+        <span class="okb"><svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-6.6"></path></svg></span>
+        <div style="flex:1;min-width:0"><div style="font-weight:650;font-size:15px;display:flex;align-items:center;gap:8px"><span class="gmark" style="width:24px;height:24px;border-radius:6px"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt="Google Calendar" style="width:18px;height:18px"></span> Connected as maya@brightpath.test</div><div class="cap num">Google Calendar · {{updated}} · every 5 minutes</div></div>
+        
+<span class="rf">
+  <button class="btn sm tip" type="button" data-tip="Refresh (R)" onClick="{{rf.press}}" style="width:{{rf.btnW}}px">
+    <sc-if value="{{rf.isLanded}}" hint-placeholder-val="{{ false }}"><span class="face landed"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{rf.landedLabel}}</span></sc-if>
+    <sc-if value="{{rf.notLanded}}" hint-placeholder-val="{{ true }}"><span class="face"><span class="{{rf.arrCls}}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 1 1 11.9 4.1M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>Refresh</span></sc-if>
+  </button>
+  <div class="{{rf.morphCls}}" style="{{rf.morphStyle}}" aria-hidden="true">
+    <div class="{{rf.lyPill}}"><div class="pillf" style="height:100%"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt="">Syncing your calendar…</div></div>
+    <div class="{{rf.lyCard}}"><div class="cardf">
+      <div class="{{rf.routeCls}}"><span class="end g"><img src="/_blob/0af34e9f8c9d5a18f897c650e6106af7" alt=""></span><span class="gl" style="--i:0"></span><span class="gl" style="--i:1"></span><span class="gl" style="--i:2"></span><span class="gl" style="--i:3"></span><span class="gl" style="--i:4"></span><span class="gl" style="--i:5"></span><span class="end l"><img src="/_blob/8cc2fbd3e84f94e04a881ff2bd85b743" alt=""></span></div>
+      <p class="rtitle">Syncing your calendar</p>
+      <p class="rsub">{{rf.sub}}</p>
+      <div class="rbar"><i style="width:{{rf.pct}}%"></i></div>
+    </div></div>
+    <div class="{{rf.lyRes}}"><div class="resf"><span class="ck"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div><div class="ct num">{{rf.count}}</div><div class="rsub">{{rf.resLine}}</div></div></div></div>
+    <div class="{{rf.lyFace}}"><div class="facef" style="height:100%"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{rf.landedLabel}}</div></div>
+  </div>
+  <span role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">{{rf.announce}}</span>
+</span>
+
+      </div>
+      <div style="padding:2px 20px 10px" class="eyebrow">Calendars LUME reads</div>
+      <sc-for list="{{cals}}" as="c" hint-placeholder-count="3">
+        <div class="calrow" style="--i:{{c.i}}"><span class="sw" style="background:{{c.color}}"></span><div style="min-width:0"><div style="font-weight:600;font-size:13.5px">{{c.name}}</div><div class="cap">{{c.note}}</div></div><button type="button" class="{{c.cls}}" onClick="{{c.flip}}" aria-label="Read {{c.name}}"></button></div>
+      </sc-for>
+      <div class="{{confirmCls}}"><div><div class="box"><span style="color:var(--danger-ink)"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2 14.3 13H1.7z"></path><path d="M8 6.4v3M8 11.2v.1"></path></svg></span><div style="flex:1;font-size:13px">LUME forgets your Google access and the 12 meetings it brought. Your leads stay as they are.</div><button class="btn sm" type="button" onClick="{{cancel}}">Cancel</button><button class="btn sm" type="button" style="background:var(--danger);color:#fff;box-shadow:none" onClick="{{disconnect}}">Disconnect</button></div></div></div>
+      <div class="foot"><span class="cap" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.8"></rect><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"></path></svg> Read-only · Personal events never stored</span><div style="flex:1"></div><button class="btn sm ghost danger" type="button" onClick="{{askDisconnect}}">Disconnect</button></div>
+    </div>
+  </sc-if>
+  <a class="cly rise" style="--i:2" href="Calendly.dc.html"><img class="cmark" src="/_blob/9828f451a803139110d86b470696c3fa" alt="Calendly" width="36" height="36"><div style="flex:1"><div style="font-weight:600">Calendly</div><div class="cap">Bookings arrive in seconds and move leads to Call booked · set up by an admin in Integrations</div></div><span class="pill ok">On</span><span style="color:var(--text-3)"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.2 3.4 4.5 4.6-4.5 4.6"></path></svg></span></a>
+</div></div>
+</div>
+</div></main>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["porcelain","obsidian"],"default":"porcelain","section":"Look"},"startState":{"editor":"enum","options":["not connected","connected","needs reconnecting"],"default":"not connected","section":"State"},"$preview":{"width":1440,"height":900}}'>
+
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    const start = p.startState ?? 'not connected';
+    this.state = this.fresh(start);
+    this.timers = [];
+    this.cxOnDone = () => this.later(() => this.setState({ connected: true, broken: false, justNow: true }), 380);
+    this.rfOnResult = () => this.setState({ justNow: true });
+  }
+  fresh(st) { return { connected: st !== 'not connected', broken: st === 'needs reconnecting', cx: 'start', cxFound: 0, justNow: false, cals: { primary: true, team: false, hol: false }, confirm: false, rf: 'idle' }; }
+  componentWillUnmount() { this.timers.forEach(clearTimeout); }
+  componentDidUpdate(prev) { if (prev.startState !== this.props.startState) { this.timers.forEach(clearTimeout); this.setState(this.fresh(this.props.startState ?? 'not connected')); } }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+
+  cxGo() {
+    if ((this.state.cx || 'start') !== 'start') return;
+    const at = (ms, fn) => this.later(fn, ms);
+    this.setState({ cx: 'wait', cxFound: 0 });
+    at(1900, () => this.setState({ cx: 'linked' }));
+    at(3300, () => this.setState({ cx: 'reading', cxFound: 0 }));
+    [2, 5, 7, 9, 11, 12].forEach((n, i) => at(3550 + i * 260, () => this.setState({ cxFound: n })));
+    at(5500, () => { this.setState({ cx: 'done' }); if (this.cxOnDone) this.cxOnDone(); });
+  }
+  cxVals() {
+    const ph = this.state.cx || 'start';
+    const n = this.state.cxFound || 0;
+    return {
+      cls: 'cx s-' + ph,
+      go: () => this.cxGo(),
+      isStart: ph === 'start', isWait: ph === 'wait', isLinked: ph === 'linked', isReading: ph === 'reading',
+      showPromises: ph === 'start' || ph === 'wait',
+      title: ph === 'linked' ? 'Connected' : ph === 'reading' || ph === 'done' ? 'Bringing your meetings in' : 'Bring your calls into LUME',
+      found: n === 1 ? '1 meeting' : n + ' meetings',
+    };
+  }
+
+
+  rfPress() {
+    if ((this.state.rf || 'idle') !== 'idle') return;
+    const at = (ms, fn) => this.later(fn, ms);
+    this.setState({ rf: 'lifting', rfRead: 0 });
+    at(650, () => this.setState({ rf: 'syncing' }));
+    at(1150, () => this.setState({ rfRead: 1 }));
+    at(1700, () => this.setState({ rfRead: 2 }));
+    at(2250, () => this.setState({ rfRead: 3 }));
+    at(2700, () => { this.setState({ rf: 'result' }); });
+    at(4100, () => { this.setState({ rf: 'landing' }); if (this.rfOnResult) this.rfOnResult(); });
+    at(4700, () => this.setState({ rf: 'landed' }));
+    at(6600, () => this.setState({ rf: 'idle' }));
+  }
+  rfVals() {
+    const ph = this.state.rf || 'idle';
+    const read = this.state.rfRead || 0;
+    const BW = 96, BH = 28, PW = 250, PH = 40, CW = 330, CH = 172, RH = 84;
+    const shape = { idle: 'button', lifting: 'pill', syncing: 'card', result: 'res', landing: 'button', landed: 'button' }[ph];
+    const box = shape === 'button' ? [0, 0, BW, BH, 8] : shape === 'pill' ? [BW - PW, BH + 8, PW, PH, 20] : shape === 'card' ? [BW - CW, BH + 8, CW, CH, 22] : [BW - CW, BH + 8, CW, RH, 22];
+    const open = ph === 'lifting' || ph === 'syncing' || ph === 'result' || ph === 'landing';
+    const ly = (on) => 'ly' + (on ? ' on' : '');
+    const subs = ['Checking 3 calendars…', 'Reading this week… 1 of 3', 'Reading next week… 2 of 3', 'Matching attendees to leads… 3 of 3'];
+    return {
+      press: () => this.rfPress(),
+      btnW: BW,
+      isLanded: ph === 'landed', notLanded: ph !== 'landed',
+      arrCls: 'arr' + (ph !== 'idle' ? ' go' : ''),
+      landedLabel: '2 updated',
+      morphCls: 'morph' + (open && shape !== 'button' ? ' glass' : ''),
+      morphStyle: `left:${box[0]}px;top:${box[1]}px;width:${box[2]}px;height:${box[3]}px;border-radius:${box[4]}px;opacity:${open ? 1 : 0}`,
+      lyPill: ly(ph === 'lifting'), lyCard: ly(ph === 'syncing'), lyRes: ly(ph === 'result'), lyFace: ly(ph === 'landing'),
+      routeCls: 'route' + (ph === 'syncing' ? ' flow' : ''),
+      sub: subs[read], pct: Math.max(6, Math.round((read / 3) * 100)),
+      count: '2', resLine: '1 new meeting · 1 moved to 5:30 pm',
+      announce: ph === 'result' ? 'Calendar synced. 1 new meeting, 1 moved.' : '',
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const CALS = [
+      { id: 'primary', name: 'maya@brightpath.test', note: 'Your main calendar · 12 lead meetings', color: '#2a5bff' },
+      { id: 'team', name: 'Sales team', note: 'Shared with Hana and Rory', color: '#18a566' },
+      { id: 'hol', name: 'Holidays in India', note: 'Never has meetings with leads', color: '#9ca1ab' },
+    ].map((c, i) => ({ ...c, i, cls: s.cals[c.id] ? 'switch on' : 'switch', flip: () => this.setState({ cals: { ...s.cals, [c.id]: !s.cals[c.id] } }) }));
+    return {
+      theme: this.props.theme ?? 'porcelain',
+      cx: this.cxVals(), rf: this.rfVals(),
+      showHero: !s.connected, heroCls: s.cx === 'done' ? 'hero gone' : 'hero',
+      isConnected: s.connected, broken: s.broken && s.connected,
+      updated: s.justNow ? 'updated just now' : 'updated 4 min ago',
+      reconnect: () => { this.setState({ broken: false }); },
+      cals: CALS,
+      confirmCls: s.confirm ? 'confirm open' : 'confirm',
+      askDisconnect: () => this.setState({ confirm: true }), cancel: () => this.setState({ confirm: false }),
+      disconnect: () => { this.timers.forEach(clearTimeout); this.setState({ ...this.fresh('not connected') }); },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

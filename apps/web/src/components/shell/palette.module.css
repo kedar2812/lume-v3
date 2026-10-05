@@ -179,3 +179,11 @@
   letter-spacing: var(--ls-xs);
   color: var(--text-3);
 }
+
+/* Where the typed words matched. */
+.mark {
+  border-radius: 3px;
+  color: inherit;
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}

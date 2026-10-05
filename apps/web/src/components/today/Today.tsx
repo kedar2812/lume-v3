@@ -10,6 +10,7 @@ import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
+import { longDate } from "@/lib/dates";
 import { timezoneOf, whenInWords } from "@/lib/tasks/format";
 import type { TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
 import { ResumeRun } from "@/components/queue/ResumeRun";
@@ -32,10 +33,8 @@ const greeting = (tz: string) => {
   const h = localHour(tz);
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 };
-const dateLine = (tz: string) =>
-  new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(
-    new Date(),
-  );
+/** "October 5, Monday", the owner's date style everywhere (lib/dates). */
+const dateLine = (tz: string) => longDate(new Date(), tz);
 const localDay = (tz: string) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,

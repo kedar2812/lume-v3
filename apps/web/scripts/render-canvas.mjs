@@ -1,6 +1,6 @@
 // Renders the approved Phase 8 canvas (docs/design/phase8/canvas, the Design artifact's own boards and runtime) to
 // screenshots, in both themes, so a built screen can be checked beside its board. Run from apps/web:
-//   node scripts/render-canvas.mjs
+//   node scripts/render-canvas.mjs [phase5|phase6|phase7|phase8]
 // page.evaluate callbacks run in the page.
 /* global document, getComputedStyle */
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -9,9 +9,11 @@ import { join, resolve } from "node:path";
 import { chromium } from "@playwright/test";
 
 const here = resolve(import.meta.dirname, "..");
-const canvas = resolve(here, "../../docs/design/phase8/canvas");
-const out = resolve(here, "../../docs/design/phase8/screens");
-const work = join(tmpdir(), "lume-canvas");
+// Which phase's canvas: `node scripts/render-canvas.mjs phase5` (phase8 when not given).
+const phase = process.argv[2] ?? "phase8";
+const canvas = resolve(here, `../../docs/design/${phase}/canvas`);
+const out = resolve(here, `../../docs/design/${phase}/screens`);
+const work = join(tmpdir(), `lume-canvas-${phase}`);
 rmSync(work, { recursive: true, force: true });
 mkdirSync(work, { recursive: true });
 mkdirSync(out, { recursive: true });

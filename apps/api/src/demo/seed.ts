@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { dayOf, wallTime } from "@lume/core";
 import { rollupDays } from "../modules/analytics/rollup";
-import { BUDGET, FIRST, LAST, PEOPLE, PRODUCTS, REASONS, SOURCES, TAGS } from "./names";
+import { BUDGET, FIRST, LAST, MEETING_TITLES, PEOPLE, PRODUCTS, REASONS, SOURCES, TAGS } from "./names";
 
 /**
  * A made-up business with six months of natural data, ending at `now` (8D spec §3): for the Analytics review
@@ -424,9 +424,18 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
     }
 
     const stageOf = (l: Lead) => (l.stage === -1 ? wonStage : l.stage === -2 ? lostStage : openAt(l.stage));
+    // Each lead last touched when its latest thing happened (not the moment the demo was seeded), so the list's
+    // "Last activity" and its sorting read like a real business.
+    const lastTouch = new Map<string, number>();
+    for (const a of activities) {
+      const at = (a[3] as Date).getTime();
+      if (at > (lastTouch.get(a[1] as string) ?? 0)) lastTouch.set(a[1] as string, at);
+    }
+    const touched = (l: Lead) =>
+      new Date(Math.max(l.createdAt.getTime(), l.stageAt.getTime(), lastTouch.get(l.id) ?? 0));
     await insert(
       c,
-      "INSERT INTO leads (id, pipeline_id, stage_id, stage_entered_at, owner_id, name, email, phone_e164, phone_status, phone_raw, source_id, created_at, won_at, value, product_id, lost_at, lost_reason_id, custom) SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::timestamptz[], $5::uuid[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::uuid[], $12::timestamptz[], $13::timestamptz[], $14::numeric[], $15::uuid[], $16::timestamptz[], $17::uuid[], $18::jsonb[])",
+      "INSERT INTO leads (id, pipeline_id, stage_id, stage_entered_at, owner_id, name, email, phone_e164, phone_status, phone_raw, source_id, created_at, won_at, value, product_id, lost_at, lost_reason_id, custom, updated_at, last_activity_at) SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::timestamptz[], $5::uuid[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::uuid[], $12::timestamptz[], $13::timestamptz[], $14::numeric[], $15::uuid[], $16::timestamptz[], $17::uuid[], $18::jsonb[], $19::timestamptz[], $20::timestamptz[])",
       leads.map((l) => [
         l.id,
         pipeline,
@@ -446,6 +455,8 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
         l.lostAt,
         l.reason === null ? null : reasons[l.reason]!,
         JSON.stringify(l.custom),
+        touched(l),
+        touched(l),
       ]),
     );
     await insert(
@@ -476,7 +487,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
       await insert(
         c,
         "INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at, status, created_at) SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::text[], $5::text[], $6::text[], $7::text[], $8::timestamptz[], $9::timestamptz[], $10::text[], $11::timestamptz[])",
-        mine.map((m) => {
+        mine.map((m, i) => {
           const id = randomUUID();
           return [
             id,
@@ -485,7 +496,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
             "calendly",
             id,
             "calendly",
-            "Call",
+            MEETING_TITLES[(i + m.startsAt.getUTCDate()) % MEETING_TITLES.length]!,
             m.startsAt,
             new Date(m.startsAt.getTime() + 30 * MIN),
             m.status,
