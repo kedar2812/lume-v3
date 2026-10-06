@@ -18,7 +18,8 @@ async function axe(page: Page) {
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   return r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`);
 }
-const volatile = (page: Page) => [page.locator("[data-volatile]")];
+// Relative times, and the live numbers on Today (its tiles and lines follow the time of day).
+const volatile = (page: Page) => [page.locator("[data-volatile]"), page.locator("[data-live-count]")];
 
 /** WhatsApp itself is never contacted from a test run: its pages answer with a stub. */
 const stubWhatsApp = (context: BrowserContext) =>
@@ -151,7 +152,7 @@ test.describe("Templates and sending (4A)", () => {
       });
       await stubWhatsApp(context);
       await openApp(page, "/today");
-      const soon = page.getByRole("list", { name: "Due soon" });
+      const soon = page.getByRole("list", { name: "Up next" });
       await soon.getByRole("button", { name: "WhatsApp Teo Varga" }).click();
       const sheet = page.getByRole("dialog", { name: "WhatsApp Teo Varga" });
       // A follow-up suggests Follow-up first.
@@ -159,7 +160,8 @@ test.describe("Templates and sending (4A)", () => {
       await sheet.getByRole("option", { name: /Gentle nudge/ }).click();
       await handOff(page, context, "971509990022");
       await page.getByRole("button", { name: "Yes, sent" }).click();
-      await expect(page.getByRole("link", { name: "Teo Varga" })).toBeHidden({ timeout: 10_000 });
+      // Sent completes it: it leaves Up next.
+      await expect(soon.getByText("Teo Varga")).toBeHidden({ timeout: 10_000 });
     });
   });
 

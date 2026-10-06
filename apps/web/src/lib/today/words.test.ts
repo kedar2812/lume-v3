@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sameDaysLastMonth } from "./TodayGlance";
+import { sameDaysLastMonth } from "./words";
 
 describe("what a month-to-date number is set against", () => {
   it("names the same days of last month", () => {

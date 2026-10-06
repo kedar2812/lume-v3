@@ -1,29 +1,22 @@
 "use client";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
 import { LogOutcome } from "@/components/calendar/LogOutcome";
-import { SendSheet } from "@/components/messages/SendSheet";
-import { SNOOZE } from "@/components/tasks/NextFollowUp";
+import { ResumeRun } from "@/components/queue/ResumeRun";
 import { Popover } from "@/components/ui/Popover";
-import { SPRINGS, toMotion } from "@/lib/motion";
+import { longDate } from "@/lib/dates";
 import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
-import { longDate } from "@/lib/dates";
-import { timezoneOf, whenInWords } from "@/lib/tasks/format";
-import type { TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
-import { ResumeRun } from "@/components/queue/ResumeRun";
-import { TodayCalls, callsBrief } from "./TodayCalls";
-import { TodayKpis, TodayPipeline } from "./TodayGlance";
+import { timezoneOf } from "@/lib/tasks/format";
+import type { SnoozePreset, TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
+import { brief, callsLeft } from "@/lib/today/brief";
+import { todayClient } from "@/lib/today/client";
+import type { Tiles as TilesData } from "@/lib/today/types";
+import { DayTile } from "./DayTile";
+import { TileSkeletons, Tiles } from "./Tiles";
+import { WorkTile } from "./WorkTile";
 import s from "./today.module.css";
-
-type Group = { id: "overdue" | "soon" | "later"; label: string };
-const GROUPS: Group[] = [
-  { id: "overdue", label: "Overdue" },
-  { id: "soon", label: "Due soon" },
-  { id: "later", label: "Later today" },
-];
 
 const localHour = (tz: string) =>
   Number(
@@ -33,8 +26,6 @@ const greeting = (tz: string) => {
   const h = localHour(tz);
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 };
-/** "October 5, Monday", the owner's date style everywhere (lib/dates). */
-const dateLine = (tz: string) => longDate(new Date(), tz);
 const localDay = (tz: string) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
@@ -55,49 +46,79 @@ function firstClearToday(tz: string): boolean {
   return true;
 }
 
+/** The tiles refresh every minute, and on news from the stream, but not more than once every 15 seconds. */
+const REFRESH_MS = 60_000;
+const SOONEST_MS = 15_000;
+
 /**
- * Today (Phase 3 spec §6): whom to start with, how the day is going, and every follow-up that needs you,
- * grouped in your own day — each one a tick away from done. New reminders bring it up to date live.
+ * Today, the control centre (spec 2026-10-05-today-control-centre-design.md; canvas P7w9C2GFBNVvdn3ANBLt9N v3):
+ * LUME says where to start; Your day and Up next hold the work; six tiles say how the business — or, for someone
+ * who sees only their own, how they — are doing, each counted as it is everywhere else in LUME and each opening its
+ * page. New reminders and leads bring it up to date live.
  */
 export function Today({
   name,
   tz: userTz,
   canMessage = false,
   canQueue = false,
-  analytics,
+  currency,
+  own = false,
+  canSetUp = false,
 }: {
   name: string;
   tz: string | null;
   /** WhatsApp on each row, for someone who may send messages (4A). */
   canMessage?: boolean;
-  /** A send queue left open, picked up again here (4C). */
+  /** A send queue left open, picked up again here with why it paused (4C); nothing shows without one. */
   canQueue?: boolean;
-  /** For someone who may read Analytics: the quick stats and the pipeline, in the business's currency. */
-  analytics?: { currency: string };
+  /** The business's currency, for money on the tiles. */
+  currency: string;
+  /** The viewer sees only their own leads: "Your leads", "Your pipeline". */
+  own?: boolean;
+  /** May set LUME up (settings.manage): a business with no leads yet gets the setup steps. */
+  canSetUp?: boolean;
 }) {
   const tz = timezoneOf(userTz);
-  const reduce = useReducedMotion();
   const sound = useSound();
   const [v, setV] = useState<TodayView | null>(null);
+  const [tiles, setTiles] = useState<TilesData | null>(null);
+  const [tilesFailed, setTilesFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  /** The call whose outcome is being logged (5D Task 11): right here, not a trip to the Calendar. */
+  const [ticking, setTicking] = useState<Set<string>>(new Set());
+  const [nods, setNods] = useState(0);
   const [logging, setLogging] = useState<TodayMeeting | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const lastTiles = useRef(0);
+
   const load = useCallback(async () => {
     const r = await tasksClient.today();
     if (!r.ok) return setError(r.message);
     setError(null);
     setV(r.data);
+    setNow(new Date());
+  }, []);
+  const loadTiles = useCallback(async (force = false) => {
+    if (!force && Date.now() - lastTiles.current < SOONEST_MS) return;
+    lastTiles.current = Date.now();
+    const r = await todayClient.tiles();
+    if (r.ok) {
+      setTiles(r.data);
+      setTilesFailed(false);
+    } else setTilesFailed(true);
   }, []);
   useEffect(() => {
     void load();
-  }, [load]);
-  useStream(() => void load());
-
-  const remaining = v ? v.overdue.length + v.soon.length + v.later.length : 0;
-  // Everything due today done (and there was something): All clear. It plays its sound only when a Done
-  // here clears the day — never because the page opened (sound policy; 3A final review, Important 8).
-  const cleared = !!v && v.total > 0 && remaining === 0;
+    void loadTiles(true);
+    const t = setInterval(() => {
+      setNow(new Date());
+      void loadTiles(true);
+    }, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [load, loadTiles]);
+  useStream(() => {
+    void load();
+    void loadTiles();
+  });
 
   if (error && !v)
     return (
@@ -105,9 +126,26 @@ export function Today({
         {error}
       </p>
     );
-  if (!v) return <div className={s.page} aria-busy="true" />;
 
-  /** The row leaves with its done animation, and the ring moves on. */
+  const remaining = v ? v.overdue.length + v.soon.length + v.later.length : 0;
+  const owedCalls = v
+    ? (v.meetings ?? []).filter((m) => m.status === "scheduled" && Date.parse(m.endsAt) <= now.getTime())
+    : [];
+  const toCome = v ? callsLeft(v.meetings, now) : [];
+  // All clear: there was something today, and every follow-up and call is done.
+  const clear = !!v && v.total > 0 && remaining === 0 && !toCome.length && !owedCalls.length;
+  const nothing =
+    !!v &&
+    v.total === 0 &&
+    !(v.meetings ?? []).some((m) => m.status === "scheduled" || m.status === "completed");
+  const firstDay =
+    canSetUp &&
+    !!tiles &&
+    (tiles.pipeline?.open ?? 0) === 0 &&
+    (tiles.leads?.today ?? 0) === 0 &&
+    (tiles.pipeline?.wonThisMonth ?? 0) === 0;
+  const said = v ? brief(v, now, tz) : null;
+
   const drop = (t: TaskView) =>
     setV(
       (cur) =>
@@ -117,313 +155,262 @@ export function Today({
           soon: cur.soon.filter((x) => x.id !== t.id),
           later: cur.later.filter((x) => x.id !== t.id),
           done: cur.done + 1,
+          doneToday: [
+            ...(cur.doneToday ?? []),
+            { id: t.id, title: t.title, dueAt: t.dueAt, leadId: t.leadId, leadName: t.leadName },
+          ],
         },
     );
   const done = async (t: TaskView) => {
+    setTicking((x) => new Set(x).add(t.id));
     const r = await tasksClient.done(t.id);
+    setTicking((x) => {
+      const n = new Set(x);
+      n.delete(t.id);
+      return n;
+    });
     if (!r.ok) return setError(r.message);
     if (r.data.clearedToday && firstClearToday(tz)) sound.play("cleared");
     else sound.play("done");
-    // A repeat made the next one: it may be due today, so ask again rather than guess (Important 7).
+    // LUME's mark turns one petal for every follow-up done.
+    setNods((n) => n + 1);
+    void loadTiles();
+    // A repeat made the next one: it may be due today, so ask again rather than guess.
     if (r.data.next) return void (await load());
     drop(t);
   };
-  /** Sent from its row: the send completed the follow-up (it played `sent`), so it goes like a Done. */
   const sent = (t: TaskView) => {
+    setNods((n) => n + 1);
     drop(t);
     void load();
   };
-  const snooze = async (t: TaskView, preset: (typeof SNOOZE)[number]["preset"]) => {
+  const snooze = async (t: TaskView, preset: SnoozePreset) => {
     const r = await tasksClient.snooze(t.id, { preset });
     if (!r.ok) return setError(r.message);
     await load();
   };
 
-  const first = name.split(" ")[0] || name;
-  const oldest = v.overdue[0];
-  const calls = v.meetings ?? [];
-  // The next call leads the brief when there is one (canvas Today); else what the follow-ups need.
-  const aboutCalls = callsBrief(calls, new Date(), tz);
-  const brief = aboutCalls ? (
-    <span data-volatile>{aboutCalls}</span>
-  ) : v.total === 0 ? (
-    "Nothing's due today."
-  ) : oldest ? (
-    <>
-      {oldest.leadName} has been waiting since{" "}
-      <span data-volatile>{whenInWords(oldest.dueAt, new Date(), tz).replace(" (overdue)", "")}</span>, so
-      start there.
-    </>
-  ) : remaining ? (
-    `Nothing's overdue. ${remaining === 1 ? "One follow-up" : `${remaining} follow-ups`} still to go today.`
-  ) : (
-    "Everything due today is done."
-  );
+  const needs = v?.needsYou;
+  const needRows = needs
+    ? [
+        ...(needs.unassigned > 0
+          ? [
+              {
+                key: "unassigned",
+                tone: "blue",
+                title:
+                  needs.unassigned === 1
+                    ? "1 new lead has no one yet"
+                    : `${needs.unassigned.toLocaleString("en-US")} new leads have no one yet`,
+                sub: needs.unassignedOldest ? `The oldest came in ${ago(needs.unassignedOldest, now)}` : "",
+                href: "/leads?owner=none",
+                act: "Assign",
+              },
+            ]
+          : []),
+        ...needs.sources.map((x) => ({
+          key: x.id,
+          tone: "amber",
+          title: `${x.name} needs attention`,
+          sub: "LUME can't read new leads from it right now",
+          href:
+            x.type === "webhook"
+              ? `/settings/integrations/webhooks/${x.id}`
+              : `/settings/integrations/${x.id}`,
+          act: "Fix",
+        })),
+        ...(needs.alerts
+          ? [
+              {
+                key: "alerts",
+                tone: "red",
+                title:
+                  needs.alerts === 1
+                    ? "1 security alert needs a look"
+                    : `${needs.alerts} security alerts need a look`,
+                sub: "Sign-ins and changes to check",
+                href: "/settings/security",
+                act: "Review",
+              },
+            ]
+          : []),
+      ]
+    : [];
 
   return (
     <div className={s.page}>
-      <section className={s.hero}>
-        <div>
-          {/* The date and the time of day change between visits: marked volatile for the screenshots. */}
-          <p className={s.date}>
-            <span data-volatile>{dateLine(tz)}</span>
-          </p>
-          <h1 className={s.greet}>
-            <span data-volatile>{greeting(tz)}</span>, {first}
+      {/* LUME speaks: where to start, in one line. */}
+      <header className={s.hdr}>
+        <div
+          className={s.mark}
+          data-nod={nods ? (nods % 2 ? "1" : "2") : undefined}
+          data-thinking={!v || undefined}
+        >
+          <img src="/lume-mark.png" alt="" style={{ transform: `rotate(${nods * 60}deg)` }} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <h1 className={s.hello}>
+            <span data-volatile>{greeting(tz)}</span>, {name.split(" ")[0] || name}
           </h1>
-          <p className={s.brief}>{brief}</p>
-        </div>
-        {v.total > 0 && <Ring done={v.done} total={v.total} reduce={!!reduce} />}
-      </section>
-
-      {canQueue && <ResumeRun variant="card" />}
-
-      {/* How it's going (frontend spec §8.2: the KPI strip), for whoever may read Analytics. */}
-      {analytics && <TodayKpis currency={analytics.currency} />}
-
-      <div className={s.cols}>
-        <div className={s.colMain}>
-          {error && (
-            <p role="alert" className={s.error}>
-              {error}
-            </p>
-          )}
-
-          {cleared ? (
-            <motion.section
-              className={s.clear}
-              initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={toMotion(SPRINGS.bounce)}
-            >
-              <motion.img
-                src="/lume-mark.png"
-                alt=""
-                width={56}
-                height={56}
-                initial={reduce ? false : { rotate: -120, opacity: 0 }}
-                animate={{ rotate: 0, opacity: 1 }}
-                transition={toMotion(SPRINGS.bounce)}
-              />
-              <h2 className={s.clearTitle}>All clear</h2>
-              <p className={s.brief}>
-                Every follow-up due today is done. LUME will bring the next ones back when they're due.
-              </p>
-            </motion.section>
-          ) : remaining === 0 ? null : (
-            <section aria-labelledby="up-next">
-              <h2 id="up-next" className={s.secTitle}>
-                Up next
-              </h2>
-              {GROUPS.map((g) =>
-                v[g.id].length ? (
-                  <div key={g.id} className={s.group}>
-                    <h3 className={s.groupHead} data-group={g.id}>
-                      <i aria-hidden />
-                      {g.label}
-                      <span className={s.count}>{v[g.id].length}</span>
-                    </h3>
-                    <ul className={s.rows} aria-label={g.label}>
-                      <AnimatePresence initial={false}>
-                        {v[g.id].map((t) => (
-                          <motion.li
-                            key={t.id}
-                            layout={!reduce}
-                            className={s.row}
-                            exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0, x: 24 }}
-                            transition={toMotion(SPRINGS.default)}
-                          >
-                            <button
-                              type="button"
-                              className={s.tick}
-                              aria-label={`Done: ${t.title} — ${t.leadName}`}
-                              onClick={() => void done(t)}
-                            >
-                              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-                                <path
-                                  d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </button>
-                            <span className={s.avatar} aria-hidden>
-                              {initials(t.leadName)}
-                            </span>
-                            <span className={s.who}>
-                              <Link href={`/leads?lead=${t.leadId}`} className={s.name}>
-                                {t.leadName}
-                              </Link>
-                              <span className={s.what}>{t.title}</span>
-                            </span>
-                            <span className={s.when} data-group={g.id} data-volatile>
-                              {whenInWords(t.dueAt, new Date(), tz)}
-                            </span>
-                            <span className={s.acts}>
-                              {canMessage && (
-                                <SendSheet
-                                  compact
-                                  align="end"
-                                  lead={{ id: t.leadId, name: t.leadName }}
-                                  taskId={t.id}
-                                  suggest="follow_up"
-                                  onSettled={(yes) => yes && sent(t)}
-                                />
-                              )}
-                              <Popover
-                                label={`Snooze ${t.title} — ${t.leadName}`}
-                                trigger="Snooze"
-                                triggerLabel={`Snooze ${t.title} — ${t.leadName}`}
-                                triggerClassName={s.act}
-                                role="menu"
-                                align="end"
-                              >
-                                {(close) => (
-                                  <div className={s.menu}>
-                                    {SNOOZE.map((o) => (
-                                      <button
-                                        key={o.preset}
-                                        type="button"
-                                        role="menuitem"
-                                        className={s.menuItem}
-                                        onClick={() => {
-                                          close();
-                                          void snooze(t, o.preset);
-                                        }}
-                                      >
-                                        {o.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </Popover>
-                            </span>
-                          </motion.li>
-                        ))}
-                      </AnimatePresence>
-                    </ul>
-                  </div>
-                ) : null,
+          {said ? (
+            <p className={s.say} data-live-count>
+              {said.parts.map((p, i) =>
+                p.leadId || p.tone ? (
+                  <Link key={i} href={p.leadId ? `/leads?lead=${p.leadId}` : "/calendar"} data-tone={p.tone}>
+                    {p.text}
+                  </Link>
+                ) : (
+                  <span key={i}>{p.text}</span>
+                ),
               )}
-            </section>
-          )}
-
-          {remaining === 0 && !cleared && (
-            <section className={s.quiet} aria-label="Up next">
-              <p>No follow-ups due today.</p>
-              <span>When one falls due, it&apos;s here, with its lead one click away.</span>
-            </section>
+            </p>
+          ) : (
+            <span className={s.sk} style={{ width: 360, height: 13, marginTop: 9 }} aria-hidden />
           )}
         </div>
-
-        {/* The right column (frontend spec §8.2): today's calls, the pipeline at a glance, and what needs you. */}
-        <aside className={s.colSide} aria-label="Today at a glance">
-          <TodayCalls meetings={calls} tz={tz} now={new Date()} onLogOutcome={setLogging} />
-          {logging && (
-            <LogOutcome
-              meeting={logging}
-              tz={tz}
-              onClose={() => setLogging(null)}
-              onDone={() => {
-                setLogging(null);
-                void load();
-              }}
-            />
-          )}
-          {analytics && <TodayPipeline />}
-          {v.needsYou &&
-            (v.needsYou.unassigned > 0 || v.needsYou.sources.length > 0 || !!v.needsYou.alerts) && (
-              <section aria-labelledby="needs-you" className={s.needs}>
-                <h2 id="needs-you" className={s.secTitle}>
-                  Needs you
-                </h2>
-                <ul className={s.needsList}>
-                  {v.needsYou.unassigned > 0 && (
-                    <li>
-                      <Link href="/leads?owner=none">
-                        {v.needsYou.unassigned === 1
-                          ? "1 new lead has no one yet"
-                          : `${v.needsYou.unassigned.toLocaleString("en-US")} new leads have no one yet`}
-                      </Link>
-                    </li>
-                  )}
-                  {!!v.needsYou.alerts && (
-                    <li>
-                      <Link href="/settings/security">
-                        {v.needsYou.alerts === 1
-                          ? "1 security alert needs a look"
-                          : `${v.needsYou.alerts} security alerts need a look`}
-                      </Link>
-                    </li>
-                  )}
-                  {v.needsYou.sources.map((x) => (
-                    <li key={x.id}>
-                      <Link
-                        href={
-                          x.type === "webhook"
-                            ? `/settings/integrations/webhooks/${x.id}`
-                            : `/settings/integrations/${x.id}`
-                        }
+        <div className={s.hr}>
+          <span className={s.when} data-live-count>
+            {longDate(now, tz)}
+          </span>
+          <span
+            className={s.live}
+            title="Up to date: Today changes as things happen, and its numbers refresh every minute"
+          >
+            <i aria-hidden />
+            Live
+          </span>
+          {needs && (
+            <Popover
+              label="Needs you"
+              trigger={
+                needRows.length ? (
+                  <>
+                    Needs you<em>{needRows.length}</em>
+                  </>
+                ) : (
+                  "All good"
+                )
+              }
+              triggerLabel={needRows.length ? `Needs you, ${needRows.length}` : "Nothing needs you"}
+              triggerClassName={s.needsBtn}
+              align="end"
+              disabled={!needRows.length}
+            >
+              <div className={s.npop}>
+                {needRows.map((r) => (
+                  <div key={r.key} className={s.nitem}>
+                    <span className={s.ic} data-tone={r.tone} aria-hidden>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        {x.name} needs attention
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-        </aside>
+                        {r.tone === "red" ? (
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4M12 16h.01" />
+                        ) : r.tone === "amber" ? (
+                          <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                        ) : (
+                          <path d="M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M2 21v-1a7 7 0 0 1 11-5.7M19 15v6M16 18h6" />
+                        )}
+                      </svg>
+                    </span>
+                    <div>
+                      <b>{r.title}</b>
+                      {r.sub && <span className={s.sub}>{r.sub}</span>}
+                    </div>
+                    <Link className={s.go} href={r.href}>
+                      {r.act}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </Popover>
+          )}
+        </div>
+      </header>
+      {canQueue && <ResumeRun variant="card" />}
+      {error && (
+        <p role="alert" className={s.error}>
+          {error}
+        </p>
+      )}
+
+      <div className={s.grid}>
+        {v ? (
+          <>
+            <DayTile v={v} now={now} tz={tz} />
+            <WorkTile
+              v={v}
+              now={now}
+              tz={tz}
+              canMessage={canMessage}
+              ticking={ticking}
+              onDone={(t) => void done(t)}
+              onSent={sent}
+              onSnooze={(t, p) => void snooze(t, p)}
+              onLogOutcome={setLogging}
+              clear={clear}
+              empty={nothing ? (firstDay ? "firstDay" : "quiet") : null}
+            />
+          </>
+        ) : (
+          <>
+            <div className={`${s.tl} ${s.dayArea}`} aria-busy>
+              <span className={s.sk} style={{ width: 90, height: 14 }} />
+              <span className={s.sk} style={{ height: 3, marginTop: 62 }} />
+              <span className={s.sk} style={{ height: 46, marginTop: 40, borderRadius: 14 }} />
+            </div>
+            <div className={`${s.tl} ${s.workArea}`} aria-busy>
+              <span className={s.sk} style={{ width: 90, height: 14 }} />
+              {Array.from({ length: 6 }, (_, i) => (
+                <span key={i} className={s.sk} style={{ height: 30, marginTop: i ? 16 : 22 }} />
+              ))}
+            </div>
+          </>
+        )}
+        <div className={s.tiles} aria-label="How it's going" role="region" aria-busy={!tiles || undefined}>
+          {tiles ? (
+            <Tiles tiles={tiles} currency={currency} own={own} unassigned={needs?.unassigned} />
+          ) : tilesFailed ? (
+            <div className={s.tl} style={{ gridColumn: "1 / 3", "--i": 2 } as CSSProperties}>
+              <p className={s.quiet}>
+                LUME couldn&apos;t load these numbers.{" "}
+                <button type="button" className={s.more} onClick={() => void loadTiles(true)}>
+                  Try again
+                </button>
+              </p>
+            </div>
+          ) : (
+            <TileSkeletons />
+          )}
+        </div>
       </div>
+
+      {logging && (
+        <LogOutcome
+          meeting={logging}
+          tz={tz}
+          onClose={() => setLogging(null)}
+          onDone={() => {
+            setLogging(null);
+            void load();
+            void loadTiles(true);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-
-/** "3 / 7 cleared today", as a ring that fills with a spring. */
-function Ring({ done, total, reduce }: { done: number; total: number; reduce: boolean }) {
-  const C = 2 * Math.PI * 27;
-  const part = total ? Math.min(1, done / total) : 0;
-  return (
-    <div className={s.ring}>
-      <div className={s.ringText}>
-        {/* Its numbers change with the time of day: the visual checks mask them (data-live-count). */}
-        <span className={s.ringBig} data-live-count>
-          {done} / {total}
-        </span>
-        <span className={s.ringCap}>cleared today</span>
-      </div>
-      <svg
-        viewBox="0 0 64 64"
-        width="64"
-        height="64"
-        role="img"
-        aria-label={`${done} of ${total} cleared today`}
-      >
-        <circle className={s.ringTrack} cx="32" cy="32" r="27" fill="none" strokeWidth="6" />
-        <motion.circle
-          className={s.ringValue}
-          cx="32"
-          cy="32"
-          r="27"
-          fill="none"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={C}
-          initial={false}
-          animate={{ strokeDashoffset: C * (1 - part) }}
-          transition={reduce ? { duration: 0 } : toMotion(SPRINGS.soft)}
-        />
-      </svg>
-    </div>
-  );
+/** "12 min ago", "2 hours ago", "3 days ago". */
+function ago(iso: string, now: Date): string {
+  const m = Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 60_000));
+  if (m < 60) return `${Math.max(1, m)} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 48) return `${h} ${h === 1 ? "hour" : "hours"} ago`;
+  const d = Math.round(h / 24);
+  return `${d} days ago`;
 }

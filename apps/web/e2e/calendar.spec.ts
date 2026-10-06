@@ -280,7 +280,8 @@ test.describe("Calendar (5D)", () => {
     ]);
 
     await openApp(page, "/today");
-    const calls = page.getByRole("region", { name: "Today's calls" });
+    // A call that ended is owed its outcome in Up next (the control centre).
+    const calls = page.getByRole("list", { name: "Up next" });
     await expect(calls).toContainText("Outcome Person");
     await calls.getByRole("button", { name: "Log outcome" }).click();
     const outcome = page.getByRole("dialog", { name: "How did it go with Outcome?" });
@@ -288,7 +289,11 @@ test.describe("Calendar (5D)", () => {
     await outcome.getByRole("textbox", { name: "Note" }).fill("Signing next week");
     await outcome.getByRole("button", { name: "Save outcome" }).click();
     await expect(outcome).toBeHidden();
-    await expect(calls).toContainText("Held");
+    // Logged: it leaves Up next, and Your day shows it held.
+    await expect(calls.getByRole("button", { name: "Log outcome" })).toBeHidden();
+    await expect(
+      page.getByRole("link", { name: /^Strategy call with Outcome Person at .+, over$/ }),
+    ).toBeVisible();
 
     // Recorded on the meeting, and the lead moved on to the next open stage.
     const l = await callApi<{ lead: { stageId: string; pipelineId: string } }>(

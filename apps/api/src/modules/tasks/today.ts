@@ -34,6 +34,20 @@ export async function today(req: FastifyRequest, d: AppDeps) {
     .from(T)
     .where(and(eq(T.doneBy, actor.userId), eq(T.status, "done"), gte(T.doneAt, start), lt(T.doneAt, end)));
   const doneToday = done[0]!.n;
+  // What was done today, with when each was due: the green dots on the day's line (control centre).
+  const doneRows = await req.db
+    .select()
+    .from(T)
+    .where(and(eq(T.assigneeId, actor.userId), eq(T.status, "done"), gte(T.doneAt, start), lt(T.doneAt, end)))
+    .orderBy(asc(T.dueAt))
+    .limit(200);
+  const doneList = (await viewsOf(req, doneRows)).map((t) => ({
+    id: t.id,
+    title: t.title,
+    dueAt: t.dueAt,
+    leadId: t.leadId,
+    leadName: t.leadName,
+  }));
   // Today's calls (5C): the caller's own meetings starting today on their clock, not cancelled or moved.
   const calls = await req.db.execute<{
     id: string;
@@ -76,12 +90,24 @@ export async function today(req: FastifyRequest, d: AppDeps) {
         : { at: new Date(m.reminder_due!).toISOString(), sent: false }
       : null,
   }));
-  const out = { overdue, soon, later, done: doneToday, total: doneToday + all.length, meetings };
+  const out = {
+    overdue,
+    soon,
+    later,
+    done: doneToday,
+    total: doneToday + all.length,
+    meetings,
+    doneToday: doneList,
+  };
   if (!can(actor, "leads.view", "all")) return out;
   // Read from the kept counts (0048, exact at every moment), not counted across every lead: 484 ms → a few at 1M.
   const unassigned = await req.db.execute<{ n: number }>(sql`
     SELECT coalesce(sum(c.n), 0)::int AS n FROM lead_counts_now c JOIN stages s ON s.id = c.stage_id
      WHERE c.owner_id IS NULL AND s.kind = 'open'`);
+  // How long the oldest has waited (leads_unowned: an index read, the oldest first).
+  const oldest = await req.db.execute<{ at: string | Date | null }>(sql`
+    SELECT l.created_at AS at FROM leads l JOIN stages s ON s.id = l.stage_id
+     WHERE l.owner_id IS NULL AND l.deleted_at IS NULL AND s.kind = 'open' ORDER BY l.created_at LIMIT 1`);
   const sources = await req.db
     .select({ id: schema.leadSources.id, name: schema.leadSources.name, type: schema.leadSources.type })
     .from(schema.leadSources)
@@ -94,5 +120,14 @@ export async function today(req: FastifyRequest, d: AppDeps) {
         )
       ).rows[0]!.n
     : 0;
-  return { ...out, needsYou: { unassigned: unassigned.rows[0]!.n, sources, alerts } };
+  const oldestAt = oldest.rows[0]?.at;
+  return {
+    ...out,
+    needsYou: {
+      unassigned: unassigned.rows[0]!.n,
+      unassignedOldest: oldestAt ? new Date(oldestAt).toISOString() : null,
+      sources,
+      alerts,
+    },
+  };
 }

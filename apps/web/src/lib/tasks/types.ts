@@ -49,8 +49,12 @@ export type TodayView = {
   total: number;
   /** Today's calls (absent from an API that predates them). */
   meetings?: TodayMeeting[];
+  /** Follow-ups done today, with when each was due (the green dots on the day's line). */
+  doneToday?: { id: string; title: string; dueAt: string; leadId: string; leadName: string }[];
   needsYou?: {
     unassigned: number;
+    /** When the oldest lead with no one arrived (absent from an older API). */
+    unassignedOldest?: string | null;
     sources: { id: string; name: string; type: string }[];
     /** Open security alerts, for whoever looks after security (absent from an older API). */
     alerts?: number;

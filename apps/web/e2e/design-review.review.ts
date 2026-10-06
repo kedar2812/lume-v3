@@ -78,6 +78,8 @@ test.describe("design review", () => {
       await pool.end();
     }
     const skipped: string[] = [];
+    // LUME_REVIEW_ONLY=today,leads captures just those screens (a quick look at one page).
+    const only = process.env.LUME_REVIEW_ONLY?.split(",");
     for (const theme of ["light", "dark"] as const) {
       for (const size of [
         { w: 1440, h: 900, tag: "1440" },
@@ -90,9 +92,10 @@ test.describe("design review", () => {
           viewport: { width: size.w, height: size.h },
         });
         const page = await ctx.newPage();
-        for (const shot of size.tag === "phone"
+        for (const shot of (size.tag === "phone"
           ? SHOTS.filter((x) => ["calendar", "today", "leads"].includes(x.name))
-          : SHOTS) {
+          : SHOTS
+        ).filter((x) => !only || only.includes(x.name))) {
           try {
             await openApp(page, shot.path);
             await page.waitForLoadState("networkidle");
@@ -109,6 +112,29 @@ test.describe("design review", () => {
         await ctx.close();
       }
     }
+    // Today as a sales rep sees it: only their own leads, calls and numbers (the control centre's own-scope tiles).
+    if (!only || only.includes("today-seller"))
+      for (const theme of ["light", "dark"] as const) {
+        const ctx = await browser.newContext({
+          storageState: stateFile("seller"),
+          colorScheme: theme,
+          reducedMotion: "reduce",
+          viewport: { width: 1440, height: 900 },
+        });
+        const page = await ctx.newPage();
+        try {
+          await openApp(page, "/today");
+          await page.waitForLoadState("networkidle");
+          await settle(page);
+          await page.screenshot({
+            path: `e2e/__review__/design-review/today-seller-${theme}-1440.png`,
+            animations: "disabled",
+          });
+        } catch (e) {
+          skipped.push(`today-seller (${theme}): ${(e as Error).message.split("\n")[0]}`);
+        }
+        await ctx.close();
+      }
     console.log(`design review skipped ${skipped.length}:\n${skipped.join("\n")}`);
   });
 });

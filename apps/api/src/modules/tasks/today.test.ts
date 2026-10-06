@@ -66,6 +66,22 @@ describe("Today (Phase 3 spec §6)", () => {
     expect(t).toMatchObject({ done: 3, total: 5 });
   });
 
+  it("lists what was done today, with when each was due, for the day's line (control centre)", async () => {
+    const t = await today(await person("Asia/Dubai", [1], 2));
+    expect(t.doneToday).toHaveLength(2);
+    expect(t.doneToday[0]).toMatchObject({ title: expect.any(String), leadName: "Lead of Asia/Dubai" });
+    expect(new Date(t.doneToday[0].dueAt).getTime()).toBe(h.clock.now.getTime() - H);
+  });
+
+  it("says how long the oldest lead with no one has waited", async () => {
+    const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+    const id = await h.seedLead({ ownerId: null, name: "Waiting Longest" });
+    const at = new Date(h.clock.now.getTime() - 5 * H);
+    await h.queryAll("UPDATE leads SET created_at = $2 WHERE id = $1", [id, at]);
+    const t = await today(admin);
+    expect(new Date(t.needsYou.unassignedOldest).getTime()).toBeLessThanOrEqual(at.getTime());
+  });
+
   it("admins also see what needs them; a rep doesn't", async () => {
     const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
     await h.seedLead({ ownerId: null, name: "Nobody's Yet" });

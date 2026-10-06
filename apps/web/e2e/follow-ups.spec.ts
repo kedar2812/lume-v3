@@ -24,7 +24,8 @@ async function lead(page: Page, name: string): Promise<string> {
   return r.data.lead.id;
 }
 /** Everything time-dependent on these screens is marked data-volatile (times, the date, the greeting). */
-const volatile = (page: Page) => [page.locator("[data-volatile]")];
+// Relative times, and the live numbers on Today (its tiles and lines follow the time of day).
+const volatile = (page: Page) => [page.locator("[data-volatile]"), page.locator("[data-live-count]")];
 
 test.describe("Follow-ups", () => {
   // Leave the workspace as it was: removing the leads cancels their follow-ups too.
@@ -52,7 +53,7 @@ test.describe("Follow-ups", () => {
     await expect(next).toContainText("Follow up");
 
     await openApp(page, "/today");
-    const soon = page.getByRole("list", { name: "Due soon" });
+    const soon = page.getByRole("list", { name: "Up next" });
     await expect(soon).toContainText("Follow Up Person");
     // Chromium's own names (not jsdom's): each row's Snooze says whose follow-up it is.
     await expect(soon.getByRole("button", { name: /^Snooze .+ — Follow Up Person$/ })).toHaveCount(1);
@@ -114,7 +115,7 @@ test.describe("Follow-ups", () => {
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await openApp(page, "/today");
-      await expect(page.getByRole("list", { name: "Overdue" })).toContainText("Shot Overdue");
+      await expect(page.getByRole("list", { name: "Up next" })).toContainText("Shot Overdue");
       await reviewCopy(page.locator("main"), `today-${theme}.png`);
       await freezeVolatile(page);
       await expect(page.locator("main")).toHaveScreenshot(`today-${theme}.png`, { mask: volatile(page) });

@@ -63,6 +63,10 @@
   --sheet: #ffffff;
   --raised: #ffffff;
   --sunk: #f6f7f9;
+  /* Today's tiles (the control centre): one step off the sheet, so a grid of them reads without borders */
+  --tile: #f5f6f8;
+  --tile-line: rgba(12, 18, 32, 0.06);
+  --tile-hover: #eff1f4;
   --line: rgba(12, 18, 32, 0.075);
   --line-2: rgba(12, 18, 32, 0.12);
   --text: #0a0c11;
@@ -123,6 +127,9 @@
   --sheet: #212328;
   --raised: #2b2e34;
   --sunk: #18191c;
+  --tile: #2a2c32;
+  --tile-line: rgba(255, 255, 255, 0.06);
+  --tile-hover: #2f3238;
   --line: rgba(255, 255, 255, 0.07);
   --line-2: rgba(255, 255, 255, 0.12);
   --text: #eef0f3;
@@ -184,6 +191,9 @@
     --sheet: #212328;
     --raised: #2b2e34;
     --sunk: #18191c;
+    --tile: #2a2c32;
+    --tile-line: rgba(255, 255, 255, 0.06);
+    --tile-hover: #2f3238;
     --line: rgba(255, 255, 255, 0.07);
     --line-2: rgba(255, 255, 255, 0.12);
     --text: #eef0f3;

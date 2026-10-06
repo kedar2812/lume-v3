@@ -226,6 +226,9 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     await time("admin open a lead's history", get(admin, `/api/v1/leads/${one}/activities?limit=30`));
     await time("admin open a lead's follow-ups", get(admin, `/api/v1/leads/${one}/tasks`));
     await time("admin today", get(admin, "/api/v1/today"));
+    // Today's tiles (the control centre): every tile at once, for someone who sees all and for a rep.
+    await time("admin today tiles", get(admin, "/api/v1/today/tiles"));
+    await time("rep today tiles", get(rep, "/api/v1/today/tiles"));
 
     // Bulk at today's ceiling of 100, on the newest leads.
     const ids = (first.items as { id: string }[])
