@@ -42,7 +42,7 @@ describe("Settings → Security → Access limits (6A Task 7)", () => {
   it("business hours say the business's own hours, and save as following them", async () => {
     echo();
     render(<AccessTab initial={view} />);
-    const hours = screen.getByRole("radio", { name: /Business hours Monday to Saturday, 09:00–19:00/ });
+    const hours = screen.getByRole("radio", { name: /Business hours Monday to Saturday, 9 am – 7 pm/ });
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
     await userEvent.click(hours);
     await save();

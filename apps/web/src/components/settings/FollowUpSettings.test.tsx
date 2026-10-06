@@ -89,7 +89,7 @@ describe("Settings → Follow-ups (3C Task 6)", () => {
     render(
       <FollowUpSettings initial={{ ...full, noTouch: { enabled: true, days: 7 } }} workingHours={hours} />,
     );
-    expect(screen.getByText("Monday to Friday, 09:00–18:00")).toBeInTheDocument();
+    expect(screen.getByText("Monday to Friday, 9 am – 6 pm")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Change them in Business" })).toHaveAttribute(
       "href",
       "/settings/business",

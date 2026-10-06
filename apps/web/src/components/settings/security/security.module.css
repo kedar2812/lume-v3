@@ -31,6 +31,16 @@
   letter-spacing: var(--ls-sm);
   color: var(--text-3);
 }
+.who svg {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+/* A second group on the page gets room above it, as the canvas (Phase 6 Rules). */
+.nextSection {
+  margin-top: 14px;
+}
 .problem {
   padding: 10px 12px;
   border-radius: 10px;
@@ -468,7 +478,8 @@
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  /* Three choices sit in one row at 1440, as the canvas has them (Phase 6 Access). */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
 }
 .reveal {
@@ -1211,11 +1222,16 @@
 }
 
 /* ── exports and Trace [Exports] ── */
+/* The trace in its own card, as the canvas (Phase 6 Exports): the drop zone and the code lookup read as one tool. */
 .trace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   gap: 18px;
   align-items: start;
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
 }
 .drop {
   position: relative;

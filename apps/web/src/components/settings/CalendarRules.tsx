@@ -281,14 +281,42 @@ export function CalendarRules({
           const m = kept[i];
           return (
             <div key={e.when + e.title} className={s.ev} data-kept={m ? true : undefined}>
-              <small>{e.when}</small>
+              <span className={s.when}>
+                <small>{e.when.split(" ")[0]}</small>
+                <b>{e.when.split(" ")[1]}</b>
+              </span>
               <span>
                 <b>{e.title}</b>
                 <small>
-                  {e.who} · {e.calendar === "team" ? "Sales team" : "Maya"}
+                  {e.who} · <span className={s.cal}>{e.calendar === "team" ? "Sales team" : "Maya"}</span>
                 </small>
               </span>
               <span className={s.tag}>
+                {m ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M8 2v3M16 2v3M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM3 9h18" />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3 3.7M6.6 6.6C3.9 8.4 2 12 2 12s4 7 10 7c1.7 0 3.2-.5 4.5-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+                  </svg>
+                )}
                 {m ? `Meeting${m.leadId ? ` · with ${m.leadId}` : ""}` : "Not stored"}
               </span>
             </div>

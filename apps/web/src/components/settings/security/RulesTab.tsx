@@ -85,6 +85,17 @@ export function RulesTab({ initial, viewer }: { initial: SecuritySettings; viewe
       <div>
         <h2 className={s.h3}>Tell me when someone…</h2>
         <p className={s.who}>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M2 21v-1a7 7 0 0 1 14 0v1M17 4a4 4 0 0 1 0 8M22 21v-1a7 7 0 0 0-4-6.3" />
+          </svg>
           Applies to everyone who can’t see every contact. Never to you. Counted over the last 60 minutes, so
           a burst across the hour still counts.
         </p>
@@ -122,7 +133,7 @@ export function RulesTab({ initial, viewer }: { initial: SecuritySettings; viewe
         ))}
       </div>
 
-      <div>
+      <div className={s.nextSection}>
         <h2 className={s.h3}>On-screen watermark</h2>
         <p className={s.sub}>
           A faint name and email across lead screens. It can’t stop a screenshot, but it shows whose it was.
