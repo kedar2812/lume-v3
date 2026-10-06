@@ -33,6 +33,8 @@ export type DemoOptions = {
   months?: number;
   /** Demo mode: allowed into a LUME that has (demo) leads already. */
   demoMode?: boolean;
+  /** "growing" (the website's captures): the last 30 days clearly better than the 30 before. Default "steady". */
+  trajectory?: "steady" | "growing";
 };
 
 const MIN = 60_000;
@@ -252,8 +254,13 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
     const lastMonthStart = addDays(today, -30);
     days.forEach((day, di) => {
       const month = Math.floor(di / 30.44);
+      // The website's story (spec §4.1): a business doing well with LUME — more leads, faster first contact, more
+      // replies, more wins and follow-ups on time in the last 30 days. Off by default, so tests are unchanged.
+      const recent = o.trajectory === "growing" && day >= lastMonthStart;
       const growth = Math.pow(1.06, month) * (month === 2 ? 0.7 : 1);
-      const n = Math.round((weekday(day) === 0 ? 0.4 : 1) * 15 * growth * r.between(0.8, 1.2));
+      const n = Math.round(
+        (weekday(day) === 0 ? 0.4 : 1) * 15 * growth * (recent ? 1.18 : 1) * r.between(0.8, 1.2),
+      );
       for (let k = 0; k < n; k++) {
         const evening = r.chance(0.34);
         const hour = evening ? r.int(19, 22) : r.int(9, 18);
@@ -306,9 +313,12 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
         };
         // First contact: most within the hour; evening arrivals mostly the next morning; Leo slowest.
         let contactAt: Date | null = null;
-        if (owner !== null && r.chance(0.85)) {
+        if (owner !== null && r.chance(recent ? 0.93 : 0.85)) {
           if (evening && r.chance(0.6)) contactAt = atLocal(addDays(day, 1), 10, r.int(0, 90), tz);
-          else contactAt = new Date(createdAt.getTime() + r.lognormal(owner === leo ? 180 : 35) * MIN);
+          else
+            contactAt = new Date(
+              createdAt.getTime() + r.lognormal(owner === leo ? 180 : recent ? 18 : 35) * MIN,
+            );
           if (contactAt > now) contactAt = null;
         }
         if (contactAt) {
@@ -319,7 +329,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
         }
         const fast = contactAt !== null && contactAt.getTime() - createdAt.getTime() < HOUR;
         let replyAt: Date | null = null;
-        if (contactAt && r.chance(0.45)) {
+        if (contactAt && r.chance(recent ? 0.57 : 0.45)) {
           replyAt = new Date(contactAt.getTime() + r.between(1, 20) * HOUR);
           if (replyAt > now) replyAt = null;
           else {
@@ -338,7 +348,9 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
           const slot =
             wd === 1 && r.chance(0.85) ? 9 : wd === 5 && r.chance(0.6) ? r.int(14, 16) : r.int(10, 17);
           const startsAt = atLocal(callDay, slot, r.pick([0, 30]), tz);
-          const missRate = wd === 1 && slot === 9 ? 0.45 : wd === 5 && slot >= 14 ? 0.04 : 0.1;
+          const missRate =
+            (wd === 1 && slot === 9 ? 0.45 : wd === 5 && slot >= 14 ? 0.04 : 0.1) *
+            (o.trajectory === "growing" && callDay >= lastMonthStart ? 0.5 : 1);
           const status =
             startsAt > now
               ? "scheduled"
@@ -359,21 +371,35 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
           (contactAt ? (fast ? 0.085 : 0.035) : 0.003) *
           SOURCES[source]!.win *
           (meetings.at(-1)?.lead === lead.id ? 1.5 : 1);
-        if (r.chance(p)) {
-          const wonAt = new Date(createdAt.getTime() + r.between(4, 45) * DAY);
+        // Growing: an outcome that lands in the last 30 days is likelier to be a win, a bigger one, and less likely
+        // a loss (the extra draws happen only then, so the steady business is unchanged).
+        const growing = o.trajectory === "growing";
+        // Recent arrivals close sooner, so the period's own leads show its better win rate.
+        const wonDelay = growing ? (recent ? r.between(2, 16) : r.between(4, 45)) : 0;
+        const winsLate =
+          growing && createdAt.getTime() + wonDelay * DAY >= atLocal(lastMonthStart, 0, 0, tz).getTime();
+        if (r.chance(winsLate ? p * 1.7 : p)) {
+          const wonAt = new Date(createdAt.getTime() + (growing ? wonDelay : r.between(4, 45)) * DAY);
           if (wonAt <= now) {
-            lead.product = r.weighted(PRODUCTS);
+            lead.product = winsLate && r.chance(0.35) ? PRODUCTS.length - 1 : r.weighted(PRODUCTS);
             lead.value = Math.round((PRODUCTS[lead.product]!.value * r.between(0.8, 1.2)) / 100) * 100;
             lead.wonAt = wonAt;
             move(wonStage, wonAt, openAt(lead.stage));
             lead.stage = -1;
             lead.stageAt = wonAt;
           }
-        } else if (r.chance(0.32)) {
+        } else if (
+          r.chance(
+            growing && createdAt.getTime() + 25 * DAY >= atLocal(lastMonthStart, 0, 0, tz).getTime()
+              ? 0.22
+              : 0.32,
+          )
+        ) {
           const lostAt = new Date(createdAt.getTime() + r.between(2, 25) * DAY);
           if (lostAt <= now) {
             // "No reply" leads the reasons, more so in the last month.
-            const noReply = lostAt >= atLocal(lastMonthStart, 0, 0, tz) ? 0.55 : 0.35;
+            const noReply =
+              lostAt >= atLocal(lastMonthStart, 0, 0, tz) && o.trajectory !== "growing" ? 0.55 : 0.35;
             lead.reason = reasons.length < 2 || r.chance(noReply) ? 0 : r.int(1, reasons.length - 1);
             lead.lostAt = lostAt;
             move(lostStage, lostAt, openAt(lead.stage));
@@ -385,7 +411,8 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
         if (contactAt && owner !== null && r.chance(0.7)) {
           const due = atLocal(addDays(dayOf(contactAt, tz), r.int(1, 3)), r.int(10, 17), 0, tz);
           // Leo's Mondays slip; his other days are reliable.
-          const late = (owner === leo ? (weekday(dayOf(due, tz)) === 1 ? 0.9 : 0.03) : 0.12) > r.next();
+          const late =
+            (owner === leo ? (weekday(dayOf(due, tz)) === 1 ? 0.9 : 0.03) : recent ? 0.04 : 0.12) > r.next();
           const done =
             due > now || r.chance(0.04)
               ? null

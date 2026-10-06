@@ -140,3 +140,46 @@ describe("the demo business (8D-1 Task 14)", () => {
     expect(after!.n).toBe(before!.n);
   });
 });
+
+describe("a growing business (the website's captures, spec §4.1)", () => {
+  let g: Harness;
+  let who: SeededUser;
+  beforeAll(async () => {
+    g = await createHarness();
+    g.clock.now = NOW;
+    await seedDemoBusiness(g.ownerPool, { now: NOW, seed: 7, trajectory: "growing" });
+    who = await g.seedUser({
+      grants: [
+        { key: "analytics.view", scope: "all" },
+        { key: "analytics.revenue", scope: null },
+        { key: "leads.view", scope: "all" },
+      ],
+    });
+  }, 300_000);
+  afterAll(async () => g.close());
+
+  it("the last 30 days beat the 30 before on what an owner looks at first", async () => {
+    const o = (
+      await (
+        await g.signIn(who)
+      ).inject({ method: "GET", url: "/api/v1/analytics/overview?range=30d&compare=1" })
+    ).json();
+    const tone = (id: string) => o.tiles.find((t: { id: string }) => t.id === id)?.trend?.tone;
+    for (const id of ["new_leads", "revenue_won", "won", "reply_rate", "speed_to_lead"])
+      expect([id, tone(id)]).toEqual([id, "good"]);
+    const good = o.tiles.filter((t: { trend?: { tone?: string } }) => t.trend?.tone === "good").length;
+    expect(good).toBeGreaterThanOrEqual(8);
+  });
+
+  it("still carries the patterns LUME notices", async () => {
+    const c = await g.signIn(who);
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i++)
+      ids.push(
+        ...(await c.inject({ method: "GET", url: "/api/v1/analytics/insights?range=90d" }))
+          .json()
+          .insights.map((x: { id: string }) => x.id),
+      );
+    for (const id of ["speed_pays", "source_under", "evening_arrivals"]) expect(ids, id).toContain(id);
+  });
+});
