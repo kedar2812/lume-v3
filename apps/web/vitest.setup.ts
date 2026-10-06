@@ -4,8 +4,9 @@ import { afterEach } from "vitest";
 
 afterEach(() => cleanup());
 
-// jsdom lacks these; components feature-detect them.
-if (!window.matchMedia) {
+// jsdom lacks these; components feature-detect them. (A node-environment test, like the site captures', has no
+// window at all.)
+if (typeof window !== "undefined" && !window.matchMedia) {
   window.matchMedia = (query: string) =>
     ({
       matches: false,
@@ -20,9 +21,9 @@ if (!window.matchMedia) {
 }
 
 // jsdom has no Web Animations API; the page transition asks the page for its running animations.
-if (typeof Element.prototype.getAnimations !== "function") {
+if (typeof Element !== "undefined" && typeof Element.prototype.getAnimations !== "function") {
   Element.prototype.getAnimations = () => [];
 }
-if (typeof Element.prototype.scrollTo !== "function") {
+if (typeof Element !== "undefined" && typeof Element.prototype.scrollTo !== "function") {
   Element.prototype.scrollTo = () => undefined;
 }

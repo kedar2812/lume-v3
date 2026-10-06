@@ -7,7 +7,7 @@ export default defineConfig({
     name: "@lume/web",
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "e2e/site/**/*.test.ts"],
     css: { modules: { classNameStrategy: "non-scoped" } },
   },
   resolve: { alias: { "@": new URL("./src", import.meta.url).pathname } },
