@@ -175,7 +175,7 @@ export async function team(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
     sameAsMonth ? null : perPerson(req, q, rangeOf({ ...q, range: "custom", ...gm }, tz, now)),
     req.db.execute<{ user_id: string; n: number }>(sql`
       SELECT t.assignee_id AS user_id, count(*)::int AS n FROM tasks t JOIN leads l ON l.id = t.lead_id
-      WHERE t.status = 'open' AND t.due_at < now() AND ${liveLead(q)} AND ${liveOwner(q, sql`t.assignee_id`)}
+      WHERE t.status = 'open' AND t.due_at < ${now.toISOString()}::timestamptz AND ${liveLead(q)} AND ${liveOwner(q, sql`t.assignee_id`)}
       GROUP BY t.assignee_id`),
     req.db.execute<{ id: string; name: string; status: string }>(
       sql`SELECT id, name, status FROM users WHERE status <> 'invited'`,

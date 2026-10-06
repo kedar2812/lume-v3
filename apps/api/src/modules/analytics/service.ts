@@ -216,10 +216,11 @@ export function liveLead(q: AnalyticsQuery): SQL {
   return sql.join(parts, sql` AND `);
 }
 
-export async function overdueNow(req: FastifyRequest, q: AnalyticsQuery): Promise<number> {
+/** Open follow-ups due before `now` (the app's clock, as every other number; the database's own now() could differ). */
+export async function overdueNow(req: FastifyRequest, q: AnalyticsQuery, now: Date): Promise<number> {
   const r = await req.db.execute<{ n: number }>(sql`
     SELECT count(*)::int AS n FROM tasks t JOIN leads l ON l.id = t.lead_id
-    WHERE t.status = 'open' AND t.due_at < now() AND ${liveLead(q)} AND ${liveOwner(q, sql`t.assignee_id`)}`);
+    WHERE t.status = 'open' AND t.due_at < ${now.toISOString()}::timestamptz AND ${liveLead(q)} AND ${liveOwner(q, sql`t.assignee_id`)}`);
   return r.rows[0]!.n;
 }
 
@@ -319,7 +320,7 @@ export async function overview(req: FastifyRequest, q: AnalyticsQuery, now: Date
       ]);
   const [[c, e, pc, pe], overdue, cyc, pcyc] = await Promise.all([
     sums,
-    overdueNow(req, q),
+    overdueNow(req, q, now),
     cycleDays(req, q, range.from, range.to, tz),
     cycleDays(req, q, range.previous.from, range.previous.to, tz),
   ]);

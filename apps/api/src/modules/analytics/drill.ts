@@ -262,7 +262,9 @@ export const frag = {
       calls_booked: frag.meeting(s, sql`${span(sql`m.created_at`)} AND m.status <> 'rescheduled'`),
       calls_held: frag.meeting(s, sql`${span(sql`m.starts_at`)} AND m.status = 'completed'`),
       no_show_rate: frag.meeting(s, sql`${span(sql`m.starts_at`)} AND m.status = 'no_show'`),
-      overdue_now: sql`EXISTS (SELECT 1 FROM tasks t WHERE t.lead_id = l.id AND t.status = 'open' AND t.due_at < now()
+      // Overdue when the number was counted (the token's minting): the list is the number's own leads.
+      overdue_now: sql`EXISTS (SELECT 1 FROM tasks t WHERE t.lead_id = l.id AND t.status = 'open'
+        AND t.due_at < ${new Date(s.exp - DRILL_TTL_MS).toISOString()}::timestamptz
         AND ${credit(sql`t.assignee_id`, s.q)})`,
       // The late ones: due in the span, done after their time (five minutes' grace).
       ontime: sql`EXISTS (SELECT 1 FROM tasks t WHERE t.lead_id = l.id AND ${span(sql`t.due_at`)} AND t.status = 'done'

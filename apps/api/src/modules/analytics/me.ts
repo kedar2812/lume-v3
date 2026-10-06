@@ -63,7 +63,7 @@ export async function me(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?: 
       ORDER BY t.due_at, t.id LIMIT 5`),
     req.db.execute<{ n: number }>(sql`
       SELECT count(*)::int AS n FROM tasks t JOIN leads l ON l.id = t.lead_id
-      WHERE t.assignee_id = ${id}::uuid AND t.status = 'open' AND t.due_at < now() AND l.deleted_at IS NULL`),
+      WHERE t.assignee_id = ${id}::uuid AND t.status = 'open' AND t.due_at < ${now.toISOString()}::timestamptz AND l.deleted_at IS NULL`),
     req.db.execute<{ metric: GoalMetric; target: string }>(sql`
       SELECT metric, target::text AS target FROM goals
       WHERE scope = 'user' AND scope_id = ${id}::uuid AND period = 'month' AND period_start = ${monthStart}::date`),

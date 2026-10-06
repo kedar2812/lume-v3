@@ -103,7 +103,7 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
     req.db.execute<{ name: string; n: number }>(sql`
       SELECT u.name, count(*)::int AS n FROM tasks t JOIN users u ON u.id = t.assignee_id
       JOIN leads l ON l.id = t.lead_id AND l.deleted_at IS NULL
-      WHERE t.status = 'open' AND t.due_at < now() AND lume_sees_credit(t.assignee_id)
+      WHERE t.status = 'open' AND t.due_at < ${now.toISOString()}::timestamptz AND lume_sees_credit(t.assignee_id)
         AND ${ownerCond(q.ownerIds, sql`t.assignee_id`) ?? sql`true`}
       GROUP BY u.name`),
   ]);
