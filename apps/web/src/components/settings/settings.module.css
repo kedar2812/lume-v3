@@ -254,6 +254,29 @@
 .page {
   min-width: 0;
 }
+/* The way back, above the title: the section a page sits in, or All settings. */
+.up {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: opacity 120ms ease-out;
+}
+.up span {
+  font-size: 1.15em;
+  line-height: 1;
+}
+.up:hover {
+  text-decoration: underline;
+}
+.up:active {
+  opacity: 0.6;
+}
 .pageHead {
   display: flex;
   flex-wrap: wrap;

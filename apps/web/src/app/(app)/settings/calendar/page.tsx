@@ -17,7 +17,9 @@ export default async function Page() {
     admin ? apiGet<IntegrationsView>("/api/v1/integrations") : Promise.resolve({ data: null }),
   ]);
   return (
+    // CalendarSettings has its own way back: to the Calendar view the gear was pressed on.
     <SettingsPage
+      up={null}
       title="Calendar"
       description="Your meetings with leads show in LUME, on their leads, and remind you to log how they went."
     >

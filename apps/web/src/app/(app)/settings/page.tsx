@@ -7,7 +7,7 @@ export const metadata = { title: "Settings · LUME" };
 export default async function Page() {
   const session = await requireSession();
   return (
-    <SettingsPage title="Settings" description="Shape LUME around how your business works.">
+    <SettingsPage title="Settings" description="Shape LUME around how your business works." up={null}>
       <SettingsHome session={session} />
     </SettingsPage>
   );

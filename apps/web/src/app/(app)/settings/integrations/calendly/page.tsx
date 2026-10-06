@@ -11,7 +11,11 @@ export default async function Page() {
   await requirePermission("integrations.manage");
   const view = await apiGet<CalendlyView>("/api/v1/integrations/calendly");
   return (
-    <SettingsPage title="Calendly" description="Bookings become leads in their booking stage, on their own.">
+    <SettingsPage
+      up={{ href: "/settings/integrations", label: "Integrations" }}
+      title="Calendly"
+      description="Bookings become leads in their booking stage, on their own."
+    >
       <CalendlyCard initial={view.data ?? { connected: false }} />
     </SettingsPage>
   );

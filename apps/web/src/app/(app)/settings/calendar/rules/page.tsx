@@ -18,6 +18,7 @@ export default async function Page() {
   const conn = connection.data;
   return (
     <SettingsPage
+      up={{ href: "/settings/calendar", label: "Calendar settings" }}
       title="Calendar rules"
       description="Which calendar events are meetings with leads. Everything else never comes into LUME. These apply to everyone's calendar."
     >

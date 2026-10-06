@@ -23,3 +23,10 @@
 7. `docker compose run --rm migrate` (a no-op if the schema is current), then `docker compose up -d`.
 8. Verify: `https://<host>/readyz` is 200, spot-check lead counts, then `shred -u /tmp/lume-restore/b.dump /tmp/lume-restore/b.age`.
 9. Record the incident and the restored backup's timestamp (data after it is lost, at most 6 h).
+
+## Proved on the dev stack (Phase 9, 2026-10-06)
+- The worker's weekly restore test ran on Monday 2026-10-05 04:00 UTC: `lume-20261005T0000Z.dump.age` fetched from
+  the off-site remote, decrypted, restored into a scratch database — ok, 100 tables, 64 migrations (`ops_restore_tests`).
+- A manual round trip inside the database container: `pg_dump -Fc` (17 MB) → `pg_restore --no-owner` into a scratch
+  database → every public table's row count compared: 79 tables, 236,779 rows, identical table by table; 64
+  migrations; no restore warnings; scratch database and dump removed. Only counts were read.
