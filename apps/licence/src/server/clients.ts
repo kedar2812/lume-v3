@@ -14,6 +14,8 @@ export class Refusal extends Error {
   constructor(
     readonly status: 400 | 404 | 409,
     message: string,
+    /** A code for the panel to act on (else NOT_FOUND / REFUSED by status). */
+    readonly code?: string,
   ) {
     super(message);
   }

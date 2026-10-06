@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { api } from "@/lib/client";
+import { api, CHANGED } from "@/lib/client";
 
 export const THEME_KEY = "lume-licence-theme";
 type Theme = "light" | "dark";
@@ -15,6 +15,7 @@ const ICON: Record<string, ReactNode> = {
     </>
   ),
   analytics: <path d="M2 13.5h12M3.5 10.5l3-3.5 2.5 2 4-5" />,
+  enquiries: <path d="M2 4.5h12v8H2zM2 4.5l6 4.5 6-4.5" />,
   releases: <path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 13.5h11" />,
   payments: (
     <>
@@ -31,6 +32,7 @@ const ICON: Record<string, ReactNode> = {
 };
 const NAV = [
   ["clients", "Clients"],
+  ["enquiries", "Enquiries"],
   ["analytics", "Analytics"],
   ["releases", "Releases"],
   ["payments", "Payments"],
@@ -104,6 +106,17 @@ export function ThemeSwitch() {
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
+  // How many enquiries are still new, beside Enquiries in the sidebar (website spec §7).
+  const [newCount, setNewCount] = useState(0);
+  useEffect(() => {
+    const load = () =>
+      void api
+        .get<{ newCount: number }>("/api/enquiries?status=new")
+        .then((r) => r.ok && setNewCount(r.data.newCount));
+    load();
+    window.addEventListener(CHANGED, load);
+    return () => window.removeEventListener(CHANGED, load);
+  }, []);
   const signOut = async () => {
     await api.post("/api/auth/sign-out");
     router.push("/sign-in");
@@ -140,6 +153,11 @@ export function Shell({ children }: { children: ReactNode }) {
                 {ICON[key]}
               </svg>
               {label}
+              {key === "enquiries" && newCount > 0 && (
+                <span className="badge-soft" aria-label={`${newCount} new`} style={{ marginLeft: "auto" }}>
+                  {newCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>

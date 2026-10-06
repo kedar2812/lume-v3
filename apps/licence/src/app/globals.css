@@ -586,6 +586,37 @@ select.input {
 .pill.suspended i {
   background: #e5484d;
 }
+/* Enquiries' statuses (website spec §7): new and contacted in LUME blue, a booked demo amber, won green, not a fit grey. */
+.pill.enq-new,
+.pill.enq-contacted {
+  background: var(--tint);
+  color: var(--accentInk);
+}
+.pill.enq-new i,
+.pill.enq-contacted i {
+  background: var(--blue);
+}
+.pill.enq-demo_booked {
+  background: var(--amberBg);
+  color: var(--amberInk);
+}
+.pill.enq-demo_booked i {
+  background: #f2a20c;
+}
+.pill.enq-won {
+  background: var(--greenBg);
+  color: var(--greenInk);
+}
+.pill.enq-won i {
+  background: #18a566;
+}
+.pill.enq-not_a_fit {
+  background: var(--sunk);
+  color: var(--ink2);
+}
+.pill.enq-not_a_fit i {
+  background: var(--ink3);
+}
 .badge-soft {
   height: 20px;
   padding: 0 7px;

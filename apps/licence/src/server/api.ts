@@ -42,6 +42,14 @@ import {
   updateClient,
 } from "./clients";
 import type { Ctx } from "./context";
+import {
+  getEnquiry,
+  listEnquiries,
+  patchEnquiry,
+  patchEnquirySchema,
+  STATUSES,
+  type Status,
+} from "./enquiries";
 import { currentRates } from "./fx";
 import { clientIp, json, readCapped } from "./http";
 
@@ -189,6 +197,15 @@ route("POST", "/api/clients/:id/resume", ({ ctx, params }) => setSuspended(ctx, 
 route("POST", "/api/clients/:id/decommission", ({ ctx, params }) => decommission(ctx, params.id!));
 
 route("GET", "/api/payments", ({ ctx }) => listPayments(ctx));
+route("GET", "/api/enquiries", ({ ctx, url }) => {
+  const st = url.searchParams.get("status") ?? "all";
+  if (st !== "all" && !STATUSES.includes(st as Status)) throw new Refusal(400, "Not a status.");
+  return listEnquiries(ctx, st as Status | "all");
+});
+route("GET", "/api/enquiries/:id", ({ ctx, params }) => getEnquiry(ctx, params.id!));
+route("PATCH", "/api/enquiries/:id", ({ ctx, params, body }) =>
+  patchEnquiry(ctx, params.id!, parse(patchEnquirySchema, body)),
+);
 route("GET", "/api/rates", ({ ctx }) => currentRates(ctx));
 route("GET", "/api/analytics", async ({ ctx, url }) => {
   const r = url.searchParams.get("range") ?? "12";
@@ -289,7 +306,7 @@ export async function handleApi(req: Request, ctx: Ctx): Promise<Response> {
   } catch (e) {
     if (e instanceof Refusal)
       return json(e.status, {
-        error: { code: e.status === 404 ? "NOT_FOUND" : "REFUSED", message: e.message },
+        error: { code: e.code ?? (e.status === 404 ? "NOT_FOUND" : "REFUSED"), message: e.message },
       });
     throw e;
   }

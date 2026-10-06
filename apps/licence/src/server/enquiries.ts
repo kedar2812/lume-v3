@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { Refusal } from "./clients";
 import type { Ctx } from "./context";
 import { clientIp, json, readCapped } from "./http";
 
@@ -100,4 +101,70 @@ export async function handleEnquiry(req: Request, ctx: Ctx): Promise<Response> {
     [b.name, b.business, b.whatsapp, b.email ?? null, b.teamSize, b.how || null, now],
   );
   return json(201, { id: rows[0]!.id });
+}
+
+type Row = {
+  id: string;
+  created_at: Date;
+  name: string;
+  business: string;
+  whatsapp: string;
+  email: string | null;
+  team_size: string;
+  how: string | null;
+  source: "website";
+  status: Status;
+  notes: string;
+  updated_at: Date;
+};
+const view = (r: Row): Enquiry => ({
+  id: r.id,
+  createdAt: r.created_at.toISOString(),
+  name: r.name,
+  business: r.business,
+  whatsapp: r.whatsapp,
+  email: r.email,
+  teamSize: r.team_size,
+  how: r.how,
+  source: r.source,
+  status: r.status,
+  notes: r.notes,
+  updatedAt: r.updated_at.toISOString(),
+});
+
+/** The panel's list: newest first (the latest 500), with how many are still new. */
+export async function listEnquiries(ctx: Ctx, status: Status | "all") {
+  const { rows } = await ctx.db.query<Row>(
+    "SELECT * FROM enquiries WHERE ($1 = 'all' OR status = $1) ORDER BY created_at DESC LIMIT 500",
+    [status],
+  );
+  const n = await ctx.db.query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM enquiries WHERE status = 'new'",
+  );
+  return { enquiries: rows.map(view), newCount: n.rows[0]!.n };
+}
+
+export async function getEnquiry(ctx: Ctx, id: string) {
+  const { rows } = await ctx.db.query<Row>("SELECT * FROM enquiries WHERE id::text = $1", [id]);
+  if (!rows[0]) throw new Refusal(404, "No such enquiry.");
+  return { enquiry: view(rows[0]) };
+}
+
+/** A status and notes; refused in words when someone saved it since it was read. */
+export const patchEnquirySchema = z
+  .object({
+    status: z.enum(["new", "contacted", "demo_booked", "won", "not_a_fit"]).optional(),
+    notes: z.string().max(5000).optional(),
+    expectedUpdatedAt: z.iso.datetime(),
+  })
+  .strict();
+export async function patchEnquiry(ctx: Ctx, id: string, p: z.infer<typeof patchEnquirySchema>) {
+  const { rows } = await ctx.db.query<Row>(
+    `UPDATE enquiries SET status = coalesce($2, status), notes = coalesce($3, notes), updated_at = $4
+      WHERE id::text = $1 AND updated_at = $5 RETURNING *`,
+    [id, p.status ?? null, p.notes ?? null, ctx.now(), p.expectedUpdatedAt],
+  );
+  if (rows[0]) return { enquiry: view(rows[0]) };
+  await getEnquiry(ctx, id);
+  throw new Refusal(409, "Changed elsewhere — reload to see it.", "CHANGED");
 }
