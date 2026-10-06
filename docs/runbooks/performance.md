@@ -202,3 +202,16 @@ Budget: 300 ms for every board (`LUME_SCALE_ANALYTICS_BUDGET`). A tag or field f
 to 92 days, and has its own budget, 2.5 s (`LUME_SCALE_LIVE_BUDGET`): on this one-CPU, 1 GB box it is bound by
 reading the tagged leads from disk. A tag dimension in the rollups would bring it in line with the rest; it's not built.
 
+
+### Measured: Today at 1,000,000 leads, after the control centre (dev box, scale database: 1 CPU, 1 GB; 2026-10-06)
+
+| Path | Before | After |
+|---|---|---|
+| `/api/v1/today` (admin) | 484 ms | **8 ms**: "no one yet" reads the kept counts (lead_counts_now, 0048), not every lead |
+| `/api/v1/today/tiles` (admin: leads by hour, the month and goal, pipeline, calls, team, replies) | new | **31 ms** |
+| `/api/v1/today/tiles` (rep: own leads, streak) | new | **27 ms** |
+
+The same run, other paths at this scale:
+- Lists, searches, the drawer and Today: 2–33 ms.
+- The broad live counts: a common-word search 178 ms, the phone-status filter 314 ms, and a tag on 100,000 leads 497 ms. These are the same order as before. The gate runs at 200,000 leads; at a million they are what's left of the "broad paths" above.
+- Analytics: every board 22–172 ms at 30 and 90 days; a live tag filter 1.5 s, within its 2.5 s budget.

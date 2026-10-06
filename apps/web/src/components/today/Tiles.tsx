@@ -190,7 +190,7 @@ function LeadsTile({
           <span>{t.lastWeek === 0 ? `None by now last ${day}` : ""}</span>
         )}
       </Big>
-      <div className={s.viz} aria-hidden>
+      <div className={s.viz} aria-hidden data-live-count>
         <div
           className={s.bars}
           title={t.usual ? `Faint: a usual ${day}, from the last ${t.weeks} weeks` : undefined}
@@ -250,7 +250,7 @@ function MonthTile({
           </>
         ) : null}
       </Big>
-      <div className={`${s.viz} ${s.goalArea}`}>
+      <div className={`${s.viz} ${s.goalArea}`} data-live-count>
         {g && (
           <>
             {/* The bar is progress; the tick is where an even pace would be today. */}
@@ -316,7 +316,7 @@ function PipelineTile({
   return (
     <Tile href="/pipeline" icon={I.pipeline} label={label} i={i} aria={`${label}: ${t.open} open leads`}>
       <Big value={count(t.open)} unit="open leads" />
-      <div className={s.viz}>
+      <div className={s.viz} data-live-count>
         {t.open > 0 ? (
           <div className={s.stack}>
             <div className={s.sbar} aria-hidden>
@@ -380,7 +380,7 @@ function CalendarTile({ t, i }: { t: TilesData["calendar"]; i: number }) {
       aria={`Calendar: ${t.today} calls today, ${week} this week`}
     >
       <Big value={count(t.today)} unit={t.today === 1 ? "call today" : "calls today"} />
-      <div className={s.viz} aria-hidden>
+      <div className={s.viz} aria-hidden data-live-count>
         <div className={s.week}>
           {t.week.map((c, k) => {
             const day = addDays(t.weekStart, k);
@@ -425,7 +425,7 @@ function TeamTile({ t, i }: { t: NonNullable<TilesData["team"]>; i: number }) {
       aria={`Team: ${t.overdue} follow-ups overdue right now`}
     >
       <Big value={count(t.overdue)} unit="overdue right now" />
-      <div className={s.viz}>
+      <div className={s.viz} data-live-count>
         {t.people.length ? (
           <div className={s.ppl} data-live-count>
             {t.people.map((p) => (
@@ -468,7 +468,7 @@ function StreakTile({ t, i }: { t: NonNullable<TilesData["streak"]>; i: number }
         value={nothing ? "—" : count(t.days)}
         unit={nothing ? undefined : t.days === 1 ? "day in a row" : "days in a row"}
       />
-      <div className={s.viz} aria-hidden>
+      <div className={s.viz} aria-hidden data-live-count>
         <div className={s.week} style={{ height: 44 }}>
           {t.last7.map((d, k) => (
             <span key={k} data-ok={d === "ok" || undefined} data-missed={d === "missed" || undefined}>
@@ -535,7 +535,7 @@ function RepliesTile({ t, own, i }: { t: NonNullable<TilesData["replies"]>; own:
           </>
         ) : null}
       </Big>
-      <div className={s.viz} aria-hidden>
+      <div className={s.viz} aria-hidden data-live-count>
         {path && (
           <svg className={s.spark} viewBox="0 0 200 56" preserveAspectRatio="none" data-live-count>
             <path d={path.area} />
