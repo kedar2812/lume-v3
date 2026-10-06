@@ -10,7 +10,17 @@ export type Ctx = {
   db: pg.Pool;
   signer: Signer;
   now: () => Date;
-  limits: { ip: Limiter; instance: Limiter; wrongKey: Limiter; signIn: Limiter };
+  limits: {
+    ip: Limiter;
+    instance: Limiter;
+    wrongKey: Limiter;
+    signIn: Limiter;
+    /** The website's enquiries: per address, and everyone together (website spec §7). */
+    enquiryIp: Limiter;
+    enquiryAll: Limiter;
+  };
+  /** ENQUIRY_TOKEN: the website's key to POST /v1/enquiries; null until set up (the intake then answers 503). */
+  enquiryToken: string | null;
   /** LICENCE_MASTER_KEY: seals the admin's two-step secret. */
   master: Buffer;
   /** How the server reaches the exchange-rate service (a test's stand-in). */
@@ -61,7 +71,10 @@ export function context(): Ctx {
       instance: new Limiter(60, HOUR),
       wrongKey: new Limiter(10, HOUR),
       signIn: new Limiter(10, 15 * 60_000),
+      enquiryIp: new Limiter(10, HOUR),
+      enquiryAll: new Limiter(200, HOUR),
     },
+    enquiryToken: secretFrom(env, "ENQUIRY_TOKEN"),
     master: masterKeyFromBase64(masterKey),
     fetch: globalThis.fetch,
   };
