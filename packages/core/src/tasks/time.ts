@@ -210,6 +210,16 @@ export function nextOccurrence(due: Date, r: Recurrence, now: Date, tz: string):
   return null;
 }
 
+/** Midnight to midnight of a named day (YYYY-MM-DD) in `tz`: that very day, wherever noon UTC falls. */
+export function dayBounds(day: string, tz: string): { start: Date; end: Date } {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return {
+    start: wallTime(y, m, d, 0, 0, tz),
+    end: wallTime(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, 0, tz),
+  };
+}
+
 /** The person's own midnight to midnight around `now`. */
 export function localDayBounds(now: Date, tz: string): { start: Date; end: Date } {
   const today = local(now, tz);

@@ -95,6 +95,13 @@ describe("errors (report §4.4)", () => {
         scope.get("/slow", { config: { public: true } }, async () => {
           throw Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" });
         });
+        // How a query through the app's drizzle client actually fails: drizzle wraps pg's error, its code in .cause.
+        scope.get("/slow-wrapped", { config: { public: true } }, async () => {
+          const pgErr = Object.assign(new Error("canceling statement due to statement timeout"), {
+            code: "57014",
+          });
+          throw new Error("Failed query: select pg_sleep(60)", { cause: pgErr });
+        });
         scope.get("/busy", { config: { public: true } }, async () => {
           throw new Error("timeout exceeded when trying to connect");
         });
@@ -106,6 +113,9 @@ describe("errors (report §4.4)", () => {
     expect(slow.json()).toEqual({
       error: { code: "TOO_SLOW", message: "LUME took too long to answer that. Try again in a moment." },
     });
+    const wrapped = await app.inject({ method: "GET", url: "/slow-wrapped" });
+    expect(wrapped.statusCode).toBe(503);
+    expect(wrapped.json().error.code).toBe("TOO_SLOW");
     const busy = await app.inject({ method: "GET", url: "/busy" });
     expect(busy.statusCode).toBe(503);
     expect(busy.json()).toEqual({

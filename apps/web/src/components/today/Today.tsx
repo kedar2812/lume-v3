@@ -109,8 +109,10 @@ export function Today({
   useEffect(() => {
     void load();
     void loadTiles(true);
+    // Every minute the day's work is read again too: a follow-up that just fell due moves to overdue.
     const t = setInterval(() => {
       setNow(new Date());
+      void load();
       void loadTiles(true);
     }, REFRESH_MS);
     return () => clearInterval(t);

@@ -112,6 +112,10 @@ describe("what LUME says first on Today (spec: the header sentence)", () => {
       "Neha Joshi's call is happening now.",
     );
   });
+  it("a meeting with no lead is said by its own title, never as someone's call (Phase 9 review)", () => {
+    const sync = { ...call("x", ist(5, 12, 0)), title: "Weekly pipeline review", lead: null };
+    expect(words(view({ meetings: [sync] }))).toBe("Weekly pipeline review is in 20 minutes.");
+  });
   it("never guesses anyone's gender", () => {
     const v = view({
       overdue: [task("Kenji Sato", ist(3, 16))],

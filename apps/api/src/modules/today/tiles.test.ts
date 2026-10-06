@@ -166,7 +166,7 @@ describe("The month: what's been won, against the same days of last month", () =
     expect(m.previous).toBe(20_000);
     expect(m.goal).toBeNull();
   });
-  it("is deals won without the money permission, and the goal is the viewer's own first, else the business's", async () => {
+  it("is deals won without the money permission; everyone's number has the business goal, one's own number one's own goal", async () => {
     expect((await tiles(rep)).month).toMatchObject({ money: false, value: 0, goal: null });
     const set = async (scope: string, scopeId: string | null, metric: string, target: number) =>
       h.queryAll(
@@ -183,6 +183,43 @@ describe("The month: what's been won, against the same days of last month", () =
     });
     expect((await tiles(rep)).month!.goal).toMatchObject({ scope: "user", target: 4, value: 0 });
     await h.queryAll("DELETE FROM goals");
+  });
+});
+
+describe("The month's goal covers the very people its number counts (Phase 9 review)", () => {
+  it("everyone's number gets the business goal, a team's number its own team's goal, one's own number one's own", async () => {
+    const lead = await h.seedUser({
+      name: "Tara Lead",
+      grants: [
+        { key: "analytics.view", scope: "team" },
+        { key: "leads.view", scope: "team" },
+      ],
+    });
+    const mate = await h.seedUser({ name: "Mo Mate", grants: [{ key: "leads.view", scope: "own" }] });
+    const other = await h.seedUser({ name: "Oz Other", grants: [{ key: "leads.view", scope: "own" }] });
+    const mine = await h.seedTeam(lead.id, [mate.id]);
+    const theirs = await h.seedTeam(other.id, []);
+    const set = async (scope: string, scopeId: string | null, metric: string, target: number) =>
+      h.queryAll(
+        `INSERT INTO goals (id, scope, scope_id, metric, period, period_start, target, created_by)
+         VALUES (gen_random_uuid(), $1, $2, $3, 'month', '2026-06-01', $4, $5)`,
+        [scope, scopeId, metric, target, owner.id],
+      );
+    // Set first, so a "first one found" pick would take them: a team's, and the owner's own.
+    await set("team", theirs, "revenue", 7_000);
+    await set("user", owner.id, "revenue", 9_000);
+    await set("team", theirs, "won", 3);
+    await set("team", mine, "won", 2);
+    await set("business", null, "revenue", 200_000);
+    const o = (await tiles(owner)).month!;
+    expect(o.goal).toMatchObject({ scope: "business", target: 200_000 });
+    expect(o.goal!.value).toBe(o.value);
+    const t = (await tiles(lead)).month!;
+    expect(t.goal).toMatchObject({ scope: "team", target: 2 });
+    expect(t.goal!.value).toBe(t.value);
+    await h.queryAll("DELETE FROM goals");
+    await h.queryAll("DELETE FROM team_members WHERE team_id = ANY($1::uuid[])", [[mine, theirs]]);
+    await h.queryAll("DELETE FROM teams WHERE id = ANY($1::uuid[])", [[mine, theirs]]);
   });
 });
 

@@ -28,6 +28,7 @@ type Held = {
   failed: boolean;
   afterCommit: (() => void)[];
   beforeCommit: BeforeCommit[];
+  onError: (err: Error) => void;
 };
 const held = new WeakMap<FastifyRequest, Held>();
 
@@ -62,6 +63,7 @@ async function finish(req: FastifyRequest): Promise<void> {
   const h = held.get(req);
   if (!h) return;
   held.delete(req);
+  h.client.off("error", h.onError);
   try {
     await h.client.query(h.failed ? "ROLLBACK" : "COMMIT");
     h.client.release();
@@ -92,7 +94,11 @@ export function dbContext(app: FastifyInstance, opts: { pool: pg.Pool }): void {
   app.addHook("preHandler", async (req) => {
     if (req.routeOptions.config?.db === false) return;
     const client = await opts.pool.connect();
-    held.set(req, { client, failed: false, afterCommit: [], beforeCommit: [] });
+    // A connection lost mid-request (the database restarted, a timeout ended it) is logged, never an unhandled
+    // 'error' that would take the process down; the request then fails on its next query, or at COMMIT.
+    const onError = (err: Error) => req.log.warn({ err }, "request connection lost");
+    client.on("error", onError);
+    held.set(req, { client, failed: false, afterCommit: [], beforeCommit: [], onError });
     await client.query("BEGIN");
     if (req.actor) await applyRequestScope(client, req.actor);
     req.db = drizzle(client, { schema });

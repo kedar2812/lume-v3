@@ -73,6 +73,23 @@ describe("Today (Phase 3 spec §6)", () => {
     expect(new Date(t.doneToday[0].dueAt).getTime()).toBe(h.clock.now.getTime() - H);
   });
 
+  it("what was done today is what the person did, the same in the list as in the count (Phase 9 review)", async () => {
+    const me = await h.seedUser({ grants: repGrants, totp: true });
+    const other = await h.seedUser({ grants: repGrants, totp: true });
+    const lead = await h.seedLead({ ownerId: me.id, name: "Done Both Ways" });
+    const task = async (assignee: string, doneBy: string, title: string) =>
+      h.queryAll(
+        `INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id, status, done_at, done_by)
+         VALUES ($1, $2, $3, $4, $5, $1, 'done', $5, $6)`,
+        [newId(), lead, assignee, title, h.clock.now, doneBy],
+      );
+    await task(other.id, me.id, "Picked up for a colleague");
+    await task(me.id, other.id, "Done by someone else");
+    const t = await today(await h.signIn(me));
+    expect(t.done).toBe(1);
+    expect(t.doneToday.map((x: { title: string }) => x.title)).toEqual(["Picked up for a colleague"]);
+  });
+
   it("says how long the oldest lead with no one has waited", async () => {
     const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
     const id = await h.seedLead({ ownerId: null, name: "Waiting Longest" });
@@ -101,6 +118,28 @@ describe("Today (Phase 3 spec §6)", () => {
     const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
     expect((await today(admin)).needsYou.alerts).toBe(1);
     const leadsOnly = await h.signIn(await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] }));
-    expect((await today(leadsOnly)).needsYou.alerts).toBe(0);
+    expect((await today(leadsOnly)).needsYou?.alerts ?? 0).toBe(0);
+  });
+
+  it("each row of Needs you is for whoever can act on it (Phase 9 review)", async () => {
+    await h.seedLead({ ownerId: null, name: "Waiting For Someone" });
+    const src = newId();
+    await h.ownerPool.query(
+      "INSERT INTO lead_sources (id, type, name, status) VALUES ($1, 'webhook', 'Website form', 'needs_attention')",
+      [src],
+    );
+    const as = async (grants: Grant[]) => today(await h.signIn(await h.seedUser({ grants, totp: true })));
+    const all = (key: Grant["key"]) => ({ key, scope: "all" as const });
+    // Sees every lead but can't hand them out, or mend a source: nothing here is theirs to do.
+    expect((await as([all("leads.view")])).needsYou).toBeUndefined();
+    // Can hand leads out: the leads with no one, and only those.
+    const assigner = (await as([all("leads.view"), all("leads.assign")])).needsYou;
+    expect(assigner.unassigned).toBeGreaterThanOrEqual(1);
+    expect([assigner.sources, assigner.alerts]).toEqual([[], 0]);
+    // Looks after the integrations: the source, not the leads.
+    const fixer = (await as([{ key: "integrations.manage", scope: null }])).needsYou;
+    expect(fixer.sources.map((x: { id: string }) => x.id)).toEqual([src]);
+    expect([fixer.unassigned, fixer.unassignedOldest]).toEqual([0, null]);
+    await h.ownerPool.query("DELETE FROM lead_sources WHERE id = $1", [src]);
   });
 });

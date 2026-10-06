@@ -25,11 +25,15 @@ const pool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
   max: 10,
   connectionTimeoutMillis: 10_000,
-  // No request holds a connection for long (Phase 9 Task 4): a runaway query is stopped at 30 s and answered as
-  // "took too long" (errors.ts), and a transaction left idle is ended, so one slow screen can't starve the rest.
+  // No query on a request runs away (Phase 9 Task 4): it is stopped at 30 s and answered as "took too long"
+  // (errors.ts). No idle-in-transaction limit here: "Export all data" holds its request transaction (and audit
+  // row) open while the zip is built on the job pool, for as long as that takes.
   statement_timeout: 30_000,
-  idle_in_transaction_session_timeout: 60_000,
 });
+// A connection the database drops while idle in the pool must never take the API down with it.
+pool.on("error", (err) =>
+  console.error(JSON.stringify({ level: "error", msg: "request pool connection lost", err: err.message })),
+);
 // Background work gets its own connections: imports, three sheet syncs, two calendar syncs, webhooks,
 // reminders, the export.
 const jobPool = new pg.Pool({
@@ -39,6 +43,9 @@ const jobPool = new pg.Pool({
   // Jobs may run long statements (a 100k-row import's batches, an export), but never sit idle in a transaction.
   idle_in_transaction_session_timeout: 600_000,
 });
+jobPool.on("error", (err) =>
+  console.error(JSON.stringify({ level: "error", msg: "job pool connection lost", err: err.message })),
+);
 const publicUrl = cfg.LUME_PUBLIC_URL ?? `https://${cfg.LUME_PUBLIC_HOST}`;
 const { rows } = await pool.query<{ has_users: boolean }>("SELECT EXISTS (SELECT 1 FROM users) AS has_users");
 

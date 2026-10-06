@@ -240,7 +240,7 @@ function MonthTile({
       label={label}
       i={i}
       lit
-      aria={`${label}: ${shown(t.value)}${tr ? `, ${tr.text} ${sameDaysLastMonth(t.to)}` : ""}${g ? `, ${pct(t.value / g.target)} of the goal` : ""}`}
+      aria={`${label}: ${shown(t.value)}${tr ? `, ${tr.text} ${sameDaysLastMonth(t.to)}` : ""}${g ? `, ${pct(g.value / g.target)} of the goal` : ""}`}
     >
       <Big value={shown(t.value)} unit={t.money ? "won" : t.value === 1 ? "deal won" : "deals won"}>
         {tr ? (

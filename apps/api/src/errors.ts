@@ -34,7 +34,7 @@ export function errorHandler(err: FastifyError | HttpError, req: FastifyRequest,
   }
   // The database stopped a query that ran past the statement timeout, or no connection came free in time: a
   // moment's overload, not a fault. Said in LUME's words, with when to try again; logged for the operator.
-  const pgCode = (err as { code?: unknown }).code;
+  const pgCode = pgCodeOf(err);
   if (pgCode === "57014" || /timeout exceeded when trying to connect/.test(err.message)) {
     const slow = pgCode === "57014";
     req.log.warn({ err }, slow ? "query stopped by the statement timeout" : "no database connection in time");
@@ -52,6 +52,15 @@ export function errorHandler(err: FastifyError | HttpError, req: FastifyRequest,
   void reply
     .code(500)
     .send({ error: { code: "INTERNAL_ERROR", message: "Something went wrong" } } satisfies ErrorBody);
+}
+
+/** The Postgres error code, whether pg's error came straight through or wrapped by drizzle (its code in `.cause`). */
+export function pgCodeOf(err: unknown): string | undefined {
+  for (let e = err, i = 0; e && typeof e === "object" && i < 3; e = (e as { cause?: unknown }).cause, i++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+  }
+  return undefined;
 }
 
 export function notFoundHandler(_req: FastifyRequest, reply: FastifyReply): void {

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { localDayBounds, scopeOf } from "@lume/core";
+import { dayBounds, localDayBounds, scopeOf } from "@lume/core";
 import {
   businessTz,
   eventSums,
@@ -73,7 +73,7 @@ function arrivals(day: string, t0: Date, t1: Date, before?: Date) {
 export async function leadsTile(req: FastifyRequest, now: Date) {
   const tz = await businessTz(req);
   const today = dayOf(now, tz);
-  const bounds = (day: string) => localDayBounds(new Date(Date.parse(day + "T12:00:00Z")), tz);
+  const bounds = (day: string) => dayBounds(day, tz);
   const { start, end } = bounds(today);
   // The hour a lead entered LUME; one dated today but entered on another day goes in the first or last hour, so
   // the bars always add up to the number above them.
@@ -158,11 +158,24 @@ export async function monthTile(req: FastifyRequest, now: Date) {
   const metric = money ? "revenue" : "won";
   const mine = goals.goals.filter((g) => g.metric === metric);
   const actor = req.actor!;
-  // The viewer's own goal first, then a team's they can see, then the business's (only for someone who sees all).
-  const goal =
-    mine.find((g) => g.scope === "user" && g.scopeId === actor.userId) ??
-    mine.find((g) => g.scope === "team") ??
-    (q.reach === "all" ? mine.find((g) => g.scope === "business") : undefined);
+  // The goal for the very people the number counts: everyone's number, the business goal; one's own, one's own;
+  // a team's, the goal of the team that is exactly those people (none when their reach spans more than one team).
+  let goal: (typeof mine)[number] | undefined;
+  if (q.reach === "all") goal = mine.find((g) => g.scope === "business");
+  else if (q.reach === "own") goal = mine.find((g) => g.scope === "user" && g.scopeId === actor.userId);
+  else {
+    const teamGoals = mine.filter((g) => g.scope === "team");
+    const people = new Set(q.ownerIds);
+    if (teamGoals.length) {
+      const { rows } = await req.db.execute<{ team_id: string; users: string[] }>(sql`
+        SELECT team_id, array_agg(user_id::text) AS users FROM team_members
+        WHERE team_id = ANY(${`{${teamGoals.map((g) => g.scopeId).join(",")}}`}::uuid[]) GROUP BY team_id`);
+      goal = teamGoals.find((g) => {
+        const users = rows.find((r) => r.team_id === g.scopeId)?.users ?? [];
+        return users.length === people.size && users.every((u) => people.has(u));
+      });
+    }
+  }
   return {
     money,
     from: r.days[0],
@@ -191,10 +204,7 @@ export async function pipelineTile(req: FastifyRequest, now: Date) {
   const p = pipes[0];
   if (!p) return undefined;
   const tz = await businessTz(req);
-  const monthStart = localDayBounds(
-    new Date(Date.parse(dayOf(now, tz).slice(0, 8) + "01T12:00:00Z")),
-    tz,
-  ).start;
+  const monthStart = dayBounds(dayOf(now, tz).slice(0, 8) + "01", tz).start;
   const [stages, counts, won, allOpen] = await Promise.all([
     req.db.execute<{ id: string; name: string; kind: string; prob: number | null }>(sql`
       SELECT id, name, kind, win_probability::float8 AS prob FROM stages
@@ -236,8 +246,8 @@ export async function calendarTile(req: FastifyRequest, now: Date, tz: string) {
   const ws = await req.db.execute<{ w: number }>(sql`SELECT week_start AS w FROM settings WHERE id = 1`);
   const dow = (new Date(today + "T12:00:00Z").getUTCDay() - (ws.rows[0]?.w ?? 1) + 7) % 7;
   const first = addDays(today, -dow);
-  const from = localDayBounds(new Date(Date.parse(first + "T12:00:00Z")), tz).start;
-  const to = localDayBounds(new Date(Date.parse(addDays(first, 6) + "T12:00:00Z")), tz).end;
+  const from = dayBounds(first, tz).start;
+  const to = dayBounds(addDays(first, 6), tz).end;
   const [week, connected] = await Promise.all([
     req.db.execute<{ d: string; n: number; held: number }>(sql`
       SELECT to_char(m.starts_at AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS d, count(*)::int AS n,
@@ -291,7 +301,7 @@ export async function teamTile(req: FastifyRequest, now: Date) {
 export async function streakTile(req: FastifyRequest, now: Date, tz: string) {
   const me = req.actor!.userId;
   const today = dayOf(now, tz);
-  const from = localDayBounds(new Date(Date.parse(addDays(today, -60) + "T12:00:00Z")), tz).start;
+  const from = dayBounds(addDays(today, -60), tz).start;
   const end = localDayBounds(now, tz).end;
   const { rows } = await req.db.execute<{ d: string; due: number; ok: number }>(sql`
     SELECT to_char(t.due_at AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS d, count(*)::int AS due,

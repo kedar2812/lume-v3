@@ -34,11 +34,12 @@ export async function today(req: FastifyRequest, d: AppDeps) {
     .from(T)
     .where(and(eq(T.doneBy, actor.userId), eq(T.status, "done"), gte(T.doneAt, start), lt(T.doneAt, end)));
   const doneToday = done[0]!.n;
-  // What was done today, with when each was due: the green dots on the day's line (control centre).
+  // What was done today, with when each was due: the green dots on the day's line (control centre). Done by the
+  // person, as the count above is, so the dots and the number always agree.
   const doneRows = await req.db
     .select()
     .from(T)
-    .where(and(eq(T.assigneeId, actor.userId), eq(T.status, "done"), gte(T.doneAt, start), lt(T.doneAt, end)))
+    .where(and(eq(T.doneBy, actor.userId), eq(T.status, "done"), gte(T.doneAt, start), lt(T.doneAt, end)))
     .orderBy(asc(T.dueAt))
     .limit(200);
   const doneList = (await viewsOf(req, doneRows)).map((t) => ({
@@ -99,32 +100,45 @@ export async function today(req: FastifyRequest, d: AppDeps) {
     meetings,
     doneToday: doneList,
   };
-  if (!can(actor, "leads.view", "all")) return out;
+  // Each row of Needs you is for whoever can act on it: leads with no one for someone who can hand them out, a
+  // source that stopped for whoever looks after sources, open alerts for whoever looks after security.
+  const assigns = can(actor, "leads.view", "all") && can(actor, "leads.assign", "all");
+  const mends = can(actor, "integrations.manage") || can(actor, "settings.manage");
+  const guards = can(actor, "security.manage");
+  if (!assigns && !mends && !guards) return out;
   // Read from the kept counts (0048, exact at every moment), not counted across every lead: 484 ms → a few at 1M.
-  const unassigned = await req.db.execute<{ n: number }>(sql`
-    SELECT coalesce(sum(c.n), 0)::int AS n FROM lead_counts_now c JOIN stages s ON s.id = c.stage_id
-     WHERE c.owner_id IS NULL AND s.kind = 'open'`);
+  const unassigned = assigns
+    ? (
+        await req.db.execute<{ n: number }>(sql`
+          SELECT coalesce(sum(c.n), 0)::int AS n FROM lead_counts_now c JOIN stages s ON s.id = c.stage_id
+           WHERE c.owner_id IS NULL AND s.kind = 'open'`)
+      ).rows[0]!.n
+    : 0;
   // How long the oldest has waited (leads_unowned: an index read, the oldest first).
-  const oldest = await req.db.execute<{ at: string | Date | null }>(sql`
-    SELECT l.created_at AS at FROM leads l JOIN stages s ON s.id = l.stage_id
-     WHERE l.owner_id IS NULL AND l.deleted_at IS NULL AND s.kind = 'open' ORDER BY l.created_at LIMIT 1`);
-  const sources = await req.db
-    .select({ id: schema.leadSources.id, name: schema.leadSources.name, type: schema.leadSources.type })
-    .from(schema.leadSources)
-    .where(eq(schema.leadSources.status, "needs_attention"));
-  // Open security alerts, for whoever looks after security (frontend spec §8.2: admins see security alerts here).
-  const alerts = can(actor, "security.manage")
+  const oldestAt = unassigned
+    ? (
+        await req.db.execute<{ at: string | Date | null }>(sql`
+          SELECT l.created_at AS at FROM leads l JOIN stages s ON s.id = l.stage_id
+           WHERE l.owner_id IS NULL AND l.deleted_at IS NULL AND s.kind = 'open' ORDER BY l.created_at LIMIT 1`)
+      ).rows[0]?.at
+    : null;
+  const sources = mends
+    ? await req.db
+        .select({ id: schema.leadSources.id, name: schema.leadSources.name, type: schema.leadSources.type })
+        .from(schema.leadSources)
+        .where(eq(schema.leadSources.status, "needs_attention"))
+    : [];
+  const alerts = guards
     ? (
         await req.db.execute<{ n: number }>(
           sql`SELECT count(*)::int AS n FROM security_alerts WHERE status = 'open'`,
         )
       ).rows[0]!.n
     : 0;
-  const oldestAt = oldest.rows[0]?.at;
   return {
     ...out,
     needsYou: {
-      unassigned: unassigned.rows[0]!.n,
+      unassigned,
       unassignedOldest: oldestAt ? new Date(oldestAt).toISOString() : null,
       sources,
       alerts,

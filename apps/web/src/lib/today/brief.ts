@@ -38,7 +38,8 @@ export function brief(v: TodayView, now: Date, tz: string): { parts: BriefPart[]
     dayKey(new Date(t.dueAt), tz) < dayKey(now, tz)
       ? waitedWords(t.dueAt, now, tz)
       : `due at ${timeOf(new Date(t.dueAt), tz)}`;
-  const callName = (m: TodayMeeting) => `${m.lead?.name ?? m.title}'s call`;
+  // A meeting with no lead (kept by a title word or a calendar rule) is said by its own title.
+  const callName = (m: TodayMeeting) => (m.lead ? `${m.lead.name}'s call` : m.title);
   const mins = next ? Math.round((Date.parse(next.startsAt) - now.getTime()) / 60_000) : Infinity;
 
   if (next && mins <= 30) {

@@ -112,6 +112,20 @@ describe("Today, the control centre", () => {
     expect(notificationsClient.readAll).not.toHaveBeenCalled(); // the notification centre does the reading (3B)
   });
 
+  it("every minute the day's work is read again, not only the tiles, so what's overdue stays true (Phase 9 review)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
+      show();
+      await vi.waitFor(() => expect(tasksClient.today).toHaveBeenCalledTimes(1));
+      await act(async () => void (await vi.advanceTimersByTimeAsync(60_000)));
+      expect(tasksClient.today).toHaveBeenCalledTimes(2);
+      expect(todayClient.tiles).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("done takes the row away, moves the ring and plays done", async () => {
     vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
     vi.mocked(tasksClient.done).mockResolvedValue(

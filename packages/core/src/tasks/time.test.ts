@@ -6,6 +6,7 @@ import {
   shiftToWorkingHours,
   type DuePresetDef,
   localDayBounds,
+  dayBounds,
   nextOccurrence,
   reminderTimes,
   snoozeUntil,
@@ -160,6 +161,22 @@ describe("localDayBounds", () => {
     const b = localDayBounds(at("2026-09-28T21:00:00Z"), DUBAI); // already the 29th in Dubai
     expect(b.start.toISOString()).toBe("2026-09-28T20:00:00.000Z");
     expect(b.end.toISOString()).toBe("2026-09-29T20:00:00.000Z");
+  });
+});
+
+describe("dayBounds: a named day's midnight to midnight (Phase 9 review)", () => {
+  it("is that very day in every time zone, even where noon UTC is already tomorrow", () => {
+    // Auckland is UTC+12 in June: noon UTC on the 15th is midnight on the 16th there.
+    const nz = dayBounds("2026-06-15", "Pacific/Auckland");
+    expect(nz.start.toISOString()).toBe("2026-06-14T12:00:00.000Z");
+    expect(nz.end.toISOString()).toBe("2026-06-15T12:00:00.000Z");
+    // Kiritimati is UTC+14.
+    const ki = dayBounds("2026-06-15", "Pacific/Kiritimati");
+    expect(ki.start.toISOString()).toBe("2026-06-14T10:00:00.000Z");
+    // Honolulu, UTC-10; and a day with a clock change (Auckland, April 5 2026: 25 hours long).
+    expect(dayBounds("2026-06-15", "Pacific/Honolulu").start.toISOString()).toBe("2026-06-15T10:00:00.000Z");
+    const long = dayBounds("2026-04-05", "Pacific/Auckland");
+    expect(long.end.getTime() - long.start.getTime()).toBe(25 * 3_600_000);
   });
 });
 
