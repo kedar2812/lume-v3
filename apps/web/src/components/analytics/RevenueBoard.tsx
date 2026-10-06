@@ -8,6 +8,7 @@ import type { Catalog } from "@/lib/leads/types";
 import { Card, Chip, Skeleton } from "./parts";
 import a from "./analytics.module.css";
 import s from "./revenue.module.css";
+import { roving } from "@/lib/roving";
 
 /** Settings → Sources & spend (8D-3), where an admin sets what each source costs a month. */
 export const SPEND_HREF = "/settings/sources";
@@ -120,11 +121,23 @@ function GoalChart({
       }
       right={
         months ? (
-          <span className={s.seg} role="radiogroup" aria-label="Show">
-            <button type="button" role="radio" aria-checked={goalView} onClick={() => setView("goal")}>
+          <span className={s.seg} role="radiogroup" aria-label="Show" onKeyDown={(e) => roving(e, "radio")}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={goalView}
+              tabIndex={goalView ? 0 : -1}
+              onClick={() => setView("goal")}
+            >
               This month
             </button>
-            <button type="button" role="radio" aria-checked={!goalView} onClick={() => setView("month")}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!goalView}
+              tabIndex={goalView ? -1 : 0}
+              onClick={() => setView("month")}
+            >
               By month
             </button>
           </span>

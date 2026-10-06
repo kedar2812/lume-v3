@@ -10,6 +10,7 @@ import { useLoadingSignal } from "@/lib/loading";
 import type { Session } from "@/server/session";
 import { useCatalog } from "../CatalogProvider";
 import s from "./runs.module.css";
+import { roving } from "@/lib/roving";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -119,7 +120,12 @@ export function RunsDrawer({
             <p>The last 7 days. Undo works for 24 hours after each one.</p>
           </div>
           {everyoneAllowed && (
-            <span className={s.seg} role="radiogroup" aria-label="Whose">
+            <span
+              className={s.seg}
+              role="radiogroup"
+              aria-label="Whose"
+              onKeyDown={(e) => roving(e, "radio")}
+            >
               <span
                 className={s.knob}
                 style={{ transform: view === "mine" ? "translateX(0)" : "translateX(100%)" }}
@@ -128,11 +134,18 @@ export function RunsDrawer({
                 type="button"
                 role="radio"
                 aria-checked={view === "mine"}
+                tabIndex={view === "mine" ? 0 : -1}
                 onClick={() => setView("mine")}
               >
                 Mine
               </button>
-              <button type="button" role="radio" aria-checked={view === "all"} onClick={() => setView("all")}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={view === "all"}
+                tabIndex={view === "all" ? 0 : -1}
+                onClick={() => setView("all")}
+              >
                 Everyone’s
               </button>
             </span>

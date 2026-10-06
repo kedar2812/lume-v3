@@ -1,6 +1,7 @@
 import type { ThemePref } from "@/lib/theme";
 import s from "../onboarding.module.css";
 import { PanelHead } from "./Head";
+import { roving } from "@/lib/roving";
 
 const TILES: { id: ThemePref; name: string; detail: string }[] = [
   { id: "porcelain", name: "Porcelain", detail: "Bright and airy" },
@@ -25,13 +26,14 @@ export function LookPanel({
         title="How should LUME look?"
         lead="Try them. Everything behind this sheet changes as you pick. This is just for you."
       />
-      <div className={s.tiles} role="radiogroup" aria-label="Theme">
+      <div className={s.tiles} role="radiogroup" aria-label="Theme" onKeyDown={(e) => roving(e, "radio")}>
         {TILES.map((t) => (
           <button
             key={t.id}
             type="button"
             role="radio"
             aria-checked={theme === t.id}
+            tabIndex={theme === t.id ? 0 : -1}
             className={s.tile}
             onClick={() => onTheme(t.id)}
           >

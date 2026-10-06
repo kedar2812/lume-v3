@@ -43,6 +43,7 @@ import {
   type RangeChoice,
 } from "@/lib/analytics/range";
 import s from "./analytics.module.css";
+import { roving } from "@/lib/roving";
 
 export type Tab = "overview" | "funnel" | "team" | "revenue" | "lost" | "timing" | "quality";
 const TABS: { id: Tab; label: string }[] = [
@@ -347,7 +348,13 @@ export function Analytics({
   return (
     <div className={s.screen}>
       <div className={s.bar}>
-        <div className={s.tabs} role="tablist" aria-label="Analytics" ref={tabsRef}>
+        <div
+          className={s.tabs}
+          role="tablist"
+          aria-label="Analytics"
+          ref={tabsRef}
+          onKeyDown={(e) => roving(e, "tab")}
+        >
           {pill && <span className={s.pill} style={{ left: pill.left, width: pill.width }} aria-hidden />}
           {tabs.map((t) => (
             <button
@@ -356,6 +363,7 @@ export function Analytics({
               role="tab"
               data-tab={t.id}
               aria-selected={tab === t.id}
+              tabIndex={tab === t.id ? 0 : -1}
               className={s.tab}
               onClick={() => set({ m: t.id })}
             >

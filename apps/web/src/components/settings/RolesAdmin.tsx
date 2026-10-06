@@ -11,6 +11,7 @@ import { AccessChanged } from "./AccessChanged";
 import { FieldAccess } from "./FieldAccess";
 import { RoleMatrix } from "./RoleMatrix";
 import s from "./settings.module.css";
+import { roving } from "@/lib/roving";
 
 type Tab = "can" | "fields";
 type Note = { text: string; problem?: boolean } | null;
@@ -185,7 +186,12 @@ export function RolesAdmin({
                 Delete
               </Button>
             </div>
-            <div role="tablist" aria-label={`${open.name} settings`} className={s.tabs}>
+            <div
+              role="tablist"
+              aria-label={`${open.name} settings`}
+              className={s.tabs}
+              onKeyDown={(e) => roving(e, "tab")}
+            >
               {(
                 [
                   ["can", "What it can do"],
@@ -198,6 +204,7 @@ export function RolesAdmin({
                   role="tab"
                   id={`role-tab-${id}`}
                   aria-selected={tab === id}
+                  tabIndex={tab === id ? 0 : -1}
                   aria-controls="role-tabpanel"
                   className={s.tab}
                   onClick={() => setTab(id)}

@@ -8,6 +8,7 @@ import { Popover } from "@/components/ui/Popover";
 import { dayKey, timeOf } from "@/lib/dates";
 import type { SnoozePreset, TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
 import s from "./today.module.css";
+import { roving } from "@/lib/roving";
 
 const MIN = 60_000;
 const SHOWN = 7;
@@ -111,7 +112,7 @@ export function WorkTile({
           Up next
         </h2>
         {!clear && !empty && (
-          <div className={s.tabs} role="tablist" aria-label="Show">
+          <div className={s.tabs} role="tablist" aria-label="Show" onKeyDown={(e) => roving(e, "tab")}>
             {(
               [
                 ["all", "All", items.length],
@@ -119,7 +120,14 @@ export function WorkTile({
                 ["calls", "Calls", calls.length],
               ] as const
             ).map(([id, label, n]) => (
-              <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                tabIndex={tab === id ? 0 : -1}
+                onClick={() => setTab(id)}
+              >
                 {label}
                 <em>{n}</em>
               </button>

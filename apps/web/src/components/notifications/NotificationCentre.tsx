@@ -15,6 +15,7 @@ import { tasksClient } from "@/lib/tasks/client";
 import { timezoneOf, whenInWords } from "@/lib/tasks/format";
 import type { TaskView, TodayView } from "@/lib/tasks/types";
 import s from "./centre.module.css";
+import { roving } from "@/lib/roving";
 
 type Filter = "all" | "needs" | "updates";
 type GroupId = "overdue" | "now" | "later" | "updates";
@@ -302,7 +303,7 @@ export function NotificationCentre({
                 </svg>
               </button>
             </div>
-            <div role="radiogroup" aria-label="Show" className={s.seg}>
+            <div role="radiogroup" aria-label="Show" className={s.seg} onKeyDown={(e) => roving(e, "radio")}>
               {(
                 [
                   ["all", "All"],
@@ -315,6 +316,7 @@ export function NotificationCentre({
                   type="button"
                   role="radio"
                   aria-checked={filter === id}
+                  tabIndex={filter === id ? 0 : -1}
                   className={s.segBtn}
                   onClick={() => setFilter(id)}
                 >

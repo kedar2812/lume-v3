@@ -11,6 +11,7 @@ import type { Stage } from "@/lib/leads/types";
 import { pipelinesClient } from "@/lib/settings/pipelines";
 import { tasksClient } from "@/lib/tasks/client";
 import s from "./outcome.module.css";
+import { roving } from "@/lib/roving";
 
 /** "today", "tomorrow", "yesterday" inside a sentence; a date further off keeps its capitals. */
 const near = (d: Date, tz: string) => {
@@ -142,13 +143,19 @@ export function LogOutcome({
         </div>
       </div>
 
-      <div role="radiogroup" aria-label="How it went" className={s.choices}>
-        {CHOICES.map((c) => (
+      <div
+        role="radiogroup"
+        aria-label="How it went"
+        className={s.choices}
+        onKeyDown={(e) => roving(e, "radio")}
+      >
+        {CHOICES.map((c, i) => (
           <button
             key={c.value}
             type="button"
             role="radio"
             aria-checked={choice === c.value}
+            tabIndex={choice === c.value || (!choice && i === 0) ? 0 : -1}
             className={s.choice}
             data-tone={c.tone}
             onClick={() => setChoice(c.value)}

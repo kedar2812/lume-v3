@@ -9,6 +9,7 @@ import { accountClient } from "@/lib/settings/account";
 import type { Session } from "@/server/session";
 import { PhotoCropper } from "./PhotoCropper";
 import s from "./profile.module.css";
+import { roving } from "@/lib/roving";
 
 const COLOR_NAMES: Record<AvatarColor, string> = {
   red: "Red",
@@ -95,11 +96,17 @@ export function ProfilePhoto({ session }: { session: Session }) {
             </Button>
           )}
         </div>
-        <div className={s.swatches} role="radiogroup" aria-label="Colour behind your initials">
+        <div
+          className={s.swatches}
+          role="radiogroup"
+          aria-label="Colour behind your initials"
+          onKeyDown={(e) => roving(e, "radio")}
+        >
           <button
             type="button"
             role="radio"
             aria-checked={look.color === null}
+            tabIndex={look.color === null ? 0 : -1}
             aria-label="LUME’s pick"
             title="LUME’s pick"
             className={s.swatch}
@@ -114,6 +121,7 @@ export function ProfilePhoto({ session }: { session: Session }) {
               type="button"
               role="radio"
               aria-checked={look.color === c}
+              tabIndex={look.color === c ? 0 : -1}
               aria-label={COLOR_NAMES[c]}
               title={COLOR_NAMES[c]}
               className={s.swatch}

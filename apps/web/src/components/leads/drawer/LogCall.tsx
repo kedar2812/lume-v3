@@ -8,6 +8,7 @@ import { leadsClient } from "@/lib/leads/client";
 import { tasksClient } from "@/lib/tasks/client";
 import { localInputToIso } from "@/lib/tasks/format";
 import s from "./logcall.module.css";
+import { roving } from "@/lib/roving";
 
 type Outcome = "talked" | "no_answer" | "left_message";
 const OUTCOMES: { id: Outcome; label: string; key: string; icon: string }[] = [
@@ -198,13 +199,19 @@ function Panel(p: {
   return (
     <div className={s.panel}>
       <h3 className={s.h}>How did the call go?</h3>
-      <div className={s.outcomes} role="radiogroup" aria-label="How did the call go?">
-        {OUTCOMES.map((o) => (
+      <div
+        className={s.outcomes}
+        role="radiogroup"
+        aria-label="How did the call go?"
+        onKeyDown={(e) => roving(e, "radio")}
+      >
+        {OUTCOMES.map((o, i) => (
           <button
             key={o.id}
             type="button"
             role="radio"
             aria-checked={p.outcome === o.id}
+            tabIndex={p.outcome === o.id || (!p.outcome && i === 0) ? 0 : -1}
             aria-keyshortcuts={o.key}
             className={s.oc}
             onClick={() => p.choose(o.id)}
@@ -233,14 +240,20 @@ function Panel(p: {
       </label>
       <div className={s.lbl}>
         <span id="logcall-next">Next step</span>
-        <div className={s.nexts} role="radiogroup" aria-labelledby="logcall-next">
+        <div
+          className={s.nexts}
+          role="radiogroup"
+          aria-labelledby="logcall-next"
+          onKeyDown={(e) => roving(e, "radio")}
+        >
           {[{ id: "none", label: "No follow-up" }, ...p.choices, { id: "pick", label: "Pick a time…" }].map(
-            (c) => (
+            (c, i) => (
               <button
                 key={c.id}
                 type="button"
                 role="radio"
                 aria-checked={p.next === c.id}
+                tabIndex={p.next === c.id || (!p.next && i === 0) ? 0 : -1}
                 className={s.nx}
                 onClick={() => p.setNext(c.id)}
               >
