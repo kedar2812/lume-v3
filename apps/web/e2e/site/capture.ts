@@ -3,10 +3,15 @@ import path from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
-/** A capture as WebP, the same pixels, quality 86 (text stays crisp at 2×). */
-export async function toWebp(png: Buffer, out: string, quality = 86) {
+/**
+ * A capture as WebP, the same pixels: quality 86 for the sections, lossless for the hero (`crisp`), whose text is
+ * read at full size.
+ */
+export async function toWebp(png: Buffer, out: string, crisp = false) {
   mkdirSync(path.dirname(out), { recursive: true });
-  const info = await sharp(png).webp({ quality, effort: 5, smartSubsample: true }).toFile(out);
+  const info = await sharp(png)
+    .webp(crisp ? { lossless: true, effort: 6 } : { quality: 86, effort: 5, smartSubsample: true })
+    .toFile(out);
   return { width: info.width, height: info.height, bytes: info.size };
 }
 

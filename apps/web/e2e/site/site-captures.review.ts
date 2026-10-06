@@ -328,7 +328,9 @@ async function shoot(browser: Browser, shots: Shot[], who: Who, theme: "light" |
       });
       await settle(page);
       const png = await page.screenshot({ animations: "disabled" });
-      made.push({ name: shot.name, theme, phone, ...(await toWebp(png, `${OUT}/${file}.webp`)) });
+      // The hero's Today is read at full size: lossless.
+      const crisp = shot.name === "today";
+      made.push({ name: shot.name, theme, phone, ...(await toWebp(png, `${OUT}/${file}.webp`, crisp)) });
       if (shot.rects)
         writeFileSync(`${OUT}/${file}.rects.json`, JSON.stringify(await rectsOf(page, shot.rects), null, 2));
     } catch (e) {
