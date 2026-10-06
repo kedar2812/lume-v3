@@ -75,6 +75,16 @@ Three pieces of work, in this order:
   LUME's founder in the enquiry section and the footer (© Kedar Uttam Gurav).
 - The logo is `lume-mark.png` as it is, never redrawn.
 
+### 4.1 The story the screens tell (owner, 2026-10-06)
+
+Most screens show a business that is doing well **because** it uses LUME: revenue up, replies up, faster first
+contact, follow-ups done on time, goals on pace — green trend chips, a warm Today. Where a screen shows something
+going wrong, it is shown **being caught**: LUME naming the problem early and the one action that fixes it (a lead
+nobody touched comes back to its owner; an overdue follow-up waits in Needs you; "Webinars cost more than they
+return"; a goal behind pace with what it takes to catch up; an alert on unusual reading). The page never shows a
+problem without LUME's answer beside it. This is shaped in the demo data (§6), never by retouching a capture: LUME
+counts every number itself.
+
 ## 5. The page
 
 One long page at `/`, plus `/privacy` and `/terms` (moved verbatim from today's site, §9). Look: A's —
@@ -105,21 +115,26 @@ cross-fades under `prefers-reduced-motion`.
    ("Each rep sees their own day and numbers. You see everyone's."). Points: a personal Today; their own numbers and
    goal pace; the Team board with speed, replies, wins and on-time follow-ups per person; who has overdue work right
    now. The rep's capture slides in from the left, the Team board from the right, meeting in the middle.
-10. **Analytics** — C's section exactly as on the canvas: the Analytics capture under a dark fade, "Analytics that
+10. **Caught early** (new): "LUME spots trouble before it costs you." Four pairs, each a warning card as LUME
+    shows it and, beside it, what happens next — a lead nobody touched for 3 days → back on its owner's Today with a
+    follow-up; follow-ups overdue → Needs you, one tap to reassign; a source that costs more than it returns → its
+    cost per lead and win rate side by side, so the budget moves; a goal behind pace → "At this pace" and the gap, in
+    time to close it. Each pair turns from amber to green as it scrolls through, the fix arriving after the warning.
+11. **Analytics** — C's section exactly as on the canvas: the Analytics capture under a dark fade, "Analytics that
    read like a colleague's note.", and four insight chips. In Light the capture is the Porcelain one and the fade is
    light. The chips are LUME's real insight titles, worded as the demo business's (labelled "From the demo business").
-11. **When someone leaves, your leads don't:** roles, locked exports with approval, traceable downloads (the trace
+12. **When someone leaves, your leads don't:** roles, locked exports with approval, traceable downloads (the trace
     tool capture), unusual-reading alerts, offboarding hand-off. Four cards, the security overview capture behind.
-12. **Your own LUME + measured speed** (A's cards): own server; 1,000,000 leads tested; 8 ms Today; 50,000 per bulk
+13. **Your own LUME + measured speed** (A's cards): own server; 1,000,000 leads tested; 8 ms Today; 50,000 per bulk
     action with Undo. Numbers count up once when they enter.
-13. **FAQ** (objections): Do I need the WhatsApp Business API? (No — LUME opens your own WhatsApp.) Can I bring my
+14. **FAQ** (objections): Do I need the WhatsApp Business API? (No — LUME opens your own WhatsApp.) Can I bring my
     Excel? (Yes — import, duplicates caught.) Where does my data live? (On your own server.) Will my team use it?
     (Today is one screen of what to do; the phone layout.) Can my reps see everyone's leads? (Only what their role
     allows.) Can I see how each rep is doing? (Yes — the Team board; each rep sees their own numbers.) How do I try it? (Book a demo.) Disclosure buttons; one open at a time.
-14. **Enquiry** (A's blue panel): "See LUME on your own leads." Five fields — your name, business, WhatsApp number,
+15. **Enquiry** (A's blue panel): "See LUME on your own leads." Five fields — your name, business, WhatsApp number,
     email (optional), team size — and "How do leads reach you today?" as one optional line. Book my demo; beside it
     "Or message +91 88058 95066" on WhatsApp.
-15. **Footer:** © 2026 LUME · Kedar Uttam Gurav; the Google API Limited Use statement; Privacy, Terms.
+16. **Footer:** © 2026 LUME · Kedar Uttam Gurav; the Google API Limited Use statement; Privacy, Terms.
 
 ### 5.1 The actions (real, each with its capture)
 
@@ -143,11 +158,19 @@ cross-fades under `prefers-reduced-motion`.
   later): for the owner and for one rep (each their own day; the rep's within their own leads) — 2 overdue follow-ups, 3 due within two hours, 4 later today, 3 done this
   morning; 2 calls today (one held and logged, one at 4 pm); 3 leads waiting for someone; WhatsApps sent this morning
   with 2 replies; a deal won at 11:40. Today, the bell and Analytics then all read as a working day.
+- **A good quarter, with a few catches** (§4.1): the demo seed gains a `trajectory: "growing"` option (default off,
+  so tests and the 8D fixture are unchanged) under which the last 30 days beat the 30 before on revenue won, wins,
+  reply rate, speed to lead and on-time follow-ups, and the month's goals are on or ahead of pace; while the planted
+  patterns LUME notices still hold (Webinars under-performing, evening arrivals, a no-show slot, speed pays off),
+  plus a few live catches in the live day (a 3-day untouched lead back on Today, two overdue follow-ups in Needs you,
+  one rep behind their goal pace). The capture run checks the headline lines before it shoots: the Overview's
+  sentence and at least 8 of its 12 tiles must read as improvements, or the run fails.
 - **The run:** a Playwright project `site-captures` (beside `design-review`), captured at 10:45 am business time, at
   1440 × 900 with device scale 2, Porcelain and Obsidian, plus 390 × 844 phone captures; the phone column hidden in
   Leads (the demo's numbers are fictional UK ones); action states opened by the real keys and clicks. Output: WebP
   files named `<screen>-<theme>.webp` handed to the website repo's `public/screens/`. Nothing is retouched.
-- **Captures:** today (owner), today (a rep), my numbers (a rep), team board, leads, lead drawer, the nine action states (§5.1), pipeline, calendar week, analytics
+- **Captures:** the four "caught early" states (a no-touch follow-up on Today, Needs you with overdue work, the
+  Webinars insight, a goal behind pace), today (owner), today (a rep), my numbers (a rep), team board, leads, lead drawer, the nine action states (§5.1), pipeline, calendar week, analytics
   overview, team board, security overview, export trace, phone today / leads / lead.
 
 ## 7. Enquiries in the licence dashboard (LUME repo, `apps/licence`)
