@@ -25,7 +25,20 @@ type Shot = {
   rects?: Record<string, string>;
 };
 
-const firstLead = async (page: Page) => {
+/** The list narrowed to leads going well — replied, call booked, won — so the site never opens on a lost one. */
+const goodStages = async (page: Page, stages = ["Replied", "Call booked", "Won"]) => {
+  const strip = page.getByRole("group", { name: "Stages" });
+  let first = true;
+  for (const name of stages) {
+    const b = strip.getByRole("button", { name: new RegExp(`^${name}`) }).first();
+    if (!(await b.isVisible().catch(() => false))) continue;
+    await b.click({ modifiers: first ? [] : ["Control"] });
+    first = false;
+  }
+  await page.waitForLoadState("networkidle");
+};
+const firstLead = async (page: Page, stages?: string[]) => {
+  await goodStages(page, stages);
   await page.getByRole("row").nth(1).click();
   await page.getByRole("dialog").first().waitFor();
 };
@@ -92,7 +105,14 @@ const SHOTS: Shot[] = [
         .first()
         .scrollIntoViewIfNeeded(),
   },
-  { name: "leads", path: "/leads", then: hidePhone },
+  {
+    name: "leads",
+    path: "/leads",
+    then: async (p) => {
+      await goodStages(p);
+      await hidePhone(p);
+    },
+  },
   {
     name: "action-whatsapp",
     path: "/leads",
@@ -121,7 +141,8 @@ const SHOTS: Shot[] = [
     name: "action-won",
     path: "/leads",
     then: async (p) => {
-      await firstLead(p);
+      // A lead with its call booked, about to be won.
+      await firstLead(p, ["Call booked"]);
       await p.getByRole("dialog").first().getByRole("button", { name: /^Won$/ }).click();
     },
   },
@@ -177,7 +198,7 @@ const SHOTS: Shot[] = [
   { name: "trace", path: "/settings/security/exports" },
   { name: "calendar", path: "/calendar" },
   { name: "today", path: "/today", phone: true, rects: TODAY_RECTS },
-  { name: "leads", path: "/leads", phone: true },
+  { name: "leads", path: "/leads", phone: true, then: (p) => goodStages(p) },
   { name: "drawer", path: "/leads", phone: true, then: firstLead },
 ];
 
@@ -262,6 +283,19 @@ async function seedOnce(now: Date) {
   }
 }
 
+/**
+ * LUME holds back a note a person has seen in the last 14 days. The story check and every Analytics shot read the
+ * notes, so each shot forgets that first: the screens show them as a first look would.
+ */
+async function forgetSeen() {
+  const pool = new pg.Pool({ connectionString: roleUrl("lume_owner", "lume_e2e") });
+  try {
+    await pool.query("DELETE FROM analytics_insight_seen");
+  } finally {
+    await pool.end();
+  }
+}
+
 async function shoot(browser: Browser, shots: Shot[], who: Who, theme: "light" | "dark", phone: boolean) {
   const ctx = await browser.newContext({
     storageState: stateFile(who),
@@ -285,6 +319,7 @@ async function shoot(browser: Browser, shots: Shot[], who: Who, theme: "light" |
   for (const shot of shots) {
     const file = `${shot.name}-${theme}${phone ? "-phone" : ""}`;
     try {
+      await forgetSeen();
       await openApp(page, shot.path);
       await page.waitForLoadState("networkidle");
       if (shot.then) await shot.then(page);

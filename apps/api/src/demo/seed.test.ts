@@ -171,6 +171,13 @@ describe("a growing business (the website's captures, spec §4.1)", () => {
     expect(good).toBeGreaterThanOrEqual(8);
   });
 
+  it("has only a handful of numbers LUME couldn't read (the site shows its Overview)", async () => {
+    const [row] = await g.queryAll(
+      "SELECT (count(*) FILTER (WHERE phone_status = 'needs_country'))::float / count(*) AS share FROM leads",
+    );
+    expect(row.share).toBeLessThan(0.01);
+  });
+
   it("still carries the patterns LUME notices", async () => {
     const c = await g.signIn(who);
     const ids: string[] = [];

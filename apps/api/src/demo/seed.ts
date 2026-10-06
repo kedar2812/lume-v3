@@ -275,7 +275,8 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
             : r.int(0, PEOPLE.length - 1);
         const firstName = r.pick(FIRST);
         const lastName = r.pick(LAST);
-        const needsCountry = r.chance(0.04);
+        // A growing business has had its numbers tidied: a handful left for LUME to ask about.
+        const needsCountry = r.chance(o.trajectory === "growing" ? 0.004 : 0.04);
         const lead: Lead = {
           id: randomUUID(),
           name: `${firstName} ${lastName}`,
