@@ -1,0 +1,14 @@
+/* The Google data notice under each Continue with Google button: quiet, but readable and never hidden. */
+.note {
+  margin: 10px 0 0;
+  max-width: 520px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.note a {
+  color: var(--accent-ink);
+  font-weight: 550;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

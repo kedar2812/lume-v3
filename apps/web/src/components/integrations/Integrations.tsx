@@ -1,4 +1,5 @@
 "use client";
+import { GoogleDataNote } from "./GoogleDataNote";
 import { useCallback, useEffect, useState } from "react";
 import { AddSheetSheet } from "@/components/sheets/AddSheetSheet";
 import { Button } from "@/components/ui/Button";
@@ -120,6 +121,7 @@ export function Integrations() {
                 <p className={s.cardLede}>
                   Sign in to Google and pick the sheet. LUME can open only the sheets you pick.
                 </p>
+                <GoogleDataNote what="LUME can open only the files you pick in Google's file picker, and reads their rows as leads." />
               </div>
             )}
             {g.email &&

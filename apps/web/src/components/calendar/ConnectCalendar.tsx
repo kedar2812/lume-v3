@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Odometer } from "@/components/ui/Odometer";
+import { GoogleDataNote, LUME_PRIVACY_URL } from "@/components/integrations/GoogleDataNote";
 import { calendarClient } from "@/lib/calendar/client";
 import { safeNext } from "@/lib/safe-next";
 import s from "./connect.module.css";
@@ -156,7 +157,10 @@ export function ConnectCalendar({
           <img src="/brand/google-calendar.png" alt="" width={20} height={20} />
         </span>
         <span>
-          <b>Bring your calls into LUME.</b> Only meetings with your leads; read-only.
+          <b>Bring your calls into LUME.</b> Only meetings with your leads; read-only.{" "}
+          <a href={LUME_PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+            How LUME uses Google data
+          </a>
         </span>
         {error && (
           <span role="alert" className={s.err}>
@@ -203,6 +207,7 @@ export function ConnectCalendar({
       ) : (
         <GoogleButton busy={phase === "wait"} onClick={() => void go()} />
       )}
+      <GoogleDataNote what="LUME asks Google to read events on calendars you own, read-only, and the list of your calendars so you can choose which ones." />
       {admin && (
         <div className={s.calendly}>
           <img src="/brand/calendly.svg" alt="" width={28} height={28} />
