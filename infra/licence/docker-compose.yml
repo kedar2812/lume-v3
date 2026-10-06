@@ -55,9 +55,12 @@ services:
       LICENCE_KID: ${LICENCE_KID:?}
       LICENCE_MASTER_KEY_FILE: /run/secrets/master.key
       LICENCE_SIGNING_KEY_FILE: /run/secrets/signing.pem
+      # The website's key for POST /v1/enquiries (website spec §7); without it the intake answers 503.
+      ENQUIRY_TOKEN_FILE: /run/secrets/enquiry.token
     volumes:
       - ./secrets/signing.pem:/run/secrets/signing.pem:ro
       - ./secrets/master.key:/run/secrets/master.key:ro
+      - ./secrets/enquiry.token:/run/secrets/enquiry.token:ro
     # Nothing to add or change at run time: no capabilities, a read-only filesystem, scratch space in memory.
     cap_drop: [ALL]
     read_only: true

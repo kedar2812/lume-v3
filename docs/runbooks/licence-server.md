@@ -139,6 +139,23 @@ If the app stops with "LICENCE_MASTER_KEY_FILE … is a folder", the file was mi
 `migrate` runs first; the app starts only if it succeeds. Roll back by starting the previous tag (migrations
 are forward-only and additive).
 
+## 7a. Enquiries from the website
+
+lumecrm.in files each demo request at `POST /v1/enquiries` with a bearer token; they appear under **Enquiries**.
+The token lives only in `secrets/enquiry.token` here and in the website's Vercel env (`ENQUIRY_TOKEN`).
+
+```sh
+cd /root/lume-licence
+( umask 077; test -s secrets/enquiry.token || openssl rand -hex 32 > secrets/enquiry.token )
+chown 1000:1000 secrets/enquiry.token && chmod 600 secrets/enquiry.token
+docker compose up -d
+```
+
+Create the file **before** `up -d` (otherwise Docker makes a folder in its place). Never print it: to put it in
+Vercel, pipe it — `ssh <host> cat /root/lume-licence/secrets/enquiry.token | npx vercel@latest env add ENQUIRY_TOKEN
+production`. To rotate: write a new one, `docker compose up -d`, then replace it in Vercel and redeploy the site.
+Check: `curl -s -o /dev/null -w '%{http_code}' -X POST https://license.lumecrm.in/v1/enquiries` answers `401`.
+
 ## 8. A new client, end to end
 
 1. **Clients → New licence**: name, country (and state in India, or city), plan and price, how they found LUME.
