@@ -92,6 +92,22 @@ describe("revenue (8D-1 Task 5)", () => {
     expect(r.thisMonth.paceEnd).toBeCloseTo(JUNE / (15 / 30), 6);
   });
 
+  it("the goal line is the goal of what's shown: a person's own under their filter, none where no goal covers it", async () => {
+    await h.ownerPool.query(
+      "INSERT INTO goals (id, scope, scope_id, metric, period, period_start, target) VALUES (gen_random_uuid(), 'user', $1, 'revenue', 'month', '2026-06-01', 12000)",
+      [admin.id],
+    );
+    const mine = (await get(admin, `${Q}&owner=${admin.id}`)).json();
+    expect(mine.thisMonth.goal).toBe(12000);
+    // Someone with no goal of their own: the business's 20,000 isn't their goal, so there's no line.
+    const theirs = (await get(admin, `${Q}&owner=${plain.id}`)).json();
+    expect(theirs.thisMonth.goal).toBeNull();
+    expect(theirs.byMonth.at(-1).goal).toBeNull();
+    // Everyone's: the business goal, as before.
+    expect((await get(admin)).json().thisMonth.goal).toBe(20000);
+    await h.ownerPool.query("DELETE FROM goals WHERE scope = 'user'");
+  });
+
   it("by package: deals, money and shares; the won without a package; each opens its leads", async () => {
     const r = (await get(admin)).json();
     const total = WINS.reduce((a, w) => a + (w[2] ?? 0), 0);

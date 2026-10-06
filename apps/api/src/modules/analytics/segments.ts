@@ -47,7 +47,8 @@ export async function segments(
     field.type === "multi_select"
       ? sql`v.value`
       : field.type === "boolean"
-        ? sql`(l.custom -> ${key})::text`
+        ? // Only a real true or false is an answer; a cleared one (JSON null) is "Not answered", like a missing one.
+          sql`CASE WHEN jsonb_typeof(l.custom -> ${key}) = 'boolean' THEN (l.custom -> ${key})::text END`
         : sql`l.custom ->> ${key}`;
   const from =
     field.type === "multi_select"

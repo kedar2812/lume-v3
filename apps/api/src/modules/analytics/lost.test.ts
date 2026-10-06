@@ -119,6 +119,14 @@ beforeAll(async () => {
   );
   for (let i = 0; i < 6; i++) await lead({ day: 10 + i, custom: { budget: "o-low" }, won: i < 2 });
   for (let i = 0; i < 6; i++) await lead({ day: 16 + i, custom: { budget: "o-mid" }, won: i < 3 });
+  // A yes/no question: two yes (one won), one no, and one whose answer was cleared (JSON null).
+  await h.ownerPool.query(
+    `INSERT INTO field_definitions (id, key, label, type, options) VALUES (gen_random_uuid(), 'repeat', 'Bought before', 'boolean', '[]')`,
+  );
+  await lead({ day: 22, custom: { repeat: true }, won: true });
+  await lead({ day: 22, custom: { repeat: true } });
+  await lead({ day: 23, custom: { repeat: false } });
+  await lead({ day: 23, custom: { repeat: null } });
   await rollupDays(h.pool, days, TZ);
 });
 afterAll(async () => h.close());
@@ -180,6 +188,17 @@ describe("lost, won back, what converts (8D-1 Task 6)", () => {
     for (const x of s.groups.filter((x: { value: string | null }) => x.value !== null))
       expect(await opens(x.drill)).toBe(x.arrived);
     expect(s.fields.map((f: { key: string }) => f.key)).toContain("budget");
+  });
+
+  it("a yes/no field: Yes, No, and a cleared answer counted as Not answered, never as No (8D deferred minor)", async () => {
+    const s = (await get(`segments?${Q}&field=repeat`)).json();
+    const all = (await get(`segments?${Q}&field=budget`)).json();
+    const total = all.groups.reduce((a: number, x: { arrived: number }) => a + x.arrived, 0);
+    expect(s.groups.map((x: { label: string; arrived: number }) => [x.label, x.arrived])).toEqual([
+      ["Yes", 2],
+      ["No", 1],
+      ["Not answered", total - 3],
+    ]);
   });
 
   it("under a tag every lead carries, lost reads live and agrees with the rollups", async () => {

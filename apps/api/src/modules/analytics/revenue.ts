@@ -55,6 +55,17 @@ export async function revenue(
   const yearFrom = new Date(Date.UTC(month.y, month.m - 12, 1)).toISOString().slice(0, 10);
 
   const s = spanOf(q, range);
+  const one = q.ownerIds?.length === 1 ? q.ownerIds[0]! : null;
+  const filtered = !!(q.sourceIds?.length || q.pipelineId || live);
+  const goalScope = filtered
+    ? null
+    : q.teamId
+      ? sql`scope = 'team' AND scope_id = ${q.teamId}::uuid`
+      : one
+        ? sql`scope = 'user' AND scope_id = ${one}::uuid`
+        : q.ownerIds?.length
+          ? null
+          : sql`scope = 'business'`;
   const [thisMonthRows, byMonthRows, goals, products, now_, before] = await Promise.all([
     live
       ? req.db.execute<{ day: string; v: number }>(sql`
@@ -69,10 +80,15 @@ export async function revenue(
       : req.db.execute<{ month: string; v: number }>(sql`
           SELECT to_char(day, 'YYYY-MM') AS month, coalesce(sum(won_value), 0)::float8 AS v FROM analytics_daily_event
           WHERE ${rollupWhere(q, yearFrom, month.today, { pipelineNullable: true })} GROUP BY 1`),
-    req.db.execute<{ start: string; target: string }>(sql`
-      SELECT to_char(period_start, 'YYYY-MM-DD') AS start, target::text AS target FROM goals
-      WHERE scope = 'business' AND metric = 'revenue' AND period = 'month'
-        AND period_start BETWEEN ${yearFrom}::date AND ${month.first}::date`),
+    // The goal of what's shown, and only that: the business's for everyone's numbers, a person's for one person,
+    // a team's for a team. Under any other filter (a source, a pipeline, a tag, several people) no goal covers the
+    // numbers, so there's no line rather than a business goal set against a part of the business.
+    goalScope
+      ? req.db.execute<{ start: string; target: string }>(sql`
+          SELECT to_char(period_start, 'YYYY-MM-DD') AS start, target::text AS target FROM goals
+          WHERE ${goalScope} AND metric = 'revenue' AND period = 'month'
+            AND period_start BETWEEN ${yearFrom}::date AND ${month.first}::date`)
+      : Promise.resolve({ rows: [] as { start: string; target: string }[] }),
     // By package: the leads won in the range, each with its package (a live read of won leads only).
     req.db.execute<{ id: string | null; name: string | null; deals: number; v: number }>(sql`
       SELECT l.product_id AS id, p.name::text AS name, count(*)::int AS deals, coalesce(sum(l.value), 0)::float8 AS v
