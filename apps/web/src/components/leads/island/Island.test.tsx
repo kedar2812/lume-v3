@@ -255,7 +255,8 @@ describe("the bulk island (7C)", () => {
       const stop = await screen.findByRole("button", { name: "Stop" });
       await vi.waitFor(() => expect(stop).toHaveFocus());
       expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12408");
-      expect(screen.getByText(/LUME will say when it’s done\./)).toBeInTheDocument();
+      // Said once the run is queued (set after the request returns): waited for, not assumed.
+      await vi.waitFor(() => expect(screen.getByText(/LUME will say when it’s done\./)).toBeInTheDocument());
       await act(async () => void (await vi.advanceTimersByTimeAsync(1100)));
       const undoBtn = await screen.findByRole("button", { name: "Undo" });
       await vi.waitFor(() => expect(undoBtn).toHaveFocus());
