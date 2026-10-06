@@ -25,6 +25,10 @@ const pool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
   max: 10,
   connectionTimeoutMillis: 10_000,
+  // No request holds a connection for long (Phase 9 Task 4): a runaway query is stopped at 30 s and answered as
+  // "took too long" (errors.ts), and a transaction left idle is ended, so one slow screen can't starve the rest.
+  statement_timeout: 30_000,
+  idle_in_transaction_session_timeout: 60_000,
 });
 // Background work gets its own connections: imports, three sheet syncs, two calendar syncs, webhooks,
 // reminders, the export.
@@ -32,6 +36,8 @@ const jobPool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
   max: cfg.DB_JOB_POOL_MAX,
   connectionTimeoutMillis: 30_000,
+  // Jobs may run long statements (a 100k-row import's batches, an export), but never sit idle in a transaction.
+  idle_in_transaction_session_timeout: 600_000,
 });
 const publicUrl = cfg.LUME_PUBLIC_URL ?? `https://${cfg.LUME_PUBLIC_HOST}`;
 const { rows } = await pool.query<{ has_users: boolean }>("SELECT EXISTS (SELECT 1 FROM users) AS has_users");

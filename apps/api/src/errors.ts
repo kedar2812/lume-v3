@@ -32,6 +32,22 @@ export function errorHandler(err: FastifyError | HttpError, req: FastifyRequest,
       .send({ error: { code: err.code ?? "BAD_REQUEST", message: err.message } } satisfies ErrorBody);
     return;
   }
+  // The database stopped a query that ran past the statement timeout, or no connection came free in time: a
+  // moment's overload, not a fault. Said in LUME's words, with when to try again; logged for the operator.
+  const pgCode = (err as { code?: unknown }).code;
+  if (pgCode === "57014" || /timeout exceeded when trying to connect/.test(err.message)) {
+    const slow = pgCode === "57014";
+    req.log.warn({ err }, slow ? "query stopped by the statement timeout" : "no database connection in time");
+    void reply
+      .code(503)
+      .header("Retry-After", "5")
+      .send({
+        error: slow
+          ? { code: "TOO_SLOW", message: "LUME took too long to answer that. Try again in a moment." }
+          : { code: "BUSY", message: "LUME is busy right now. Try again in a moment." },
+      } satisfies ErrorBody);
+    return;
+  }
   req.log.error({ err }, "unhandled error");
   void reply
     .code(500)

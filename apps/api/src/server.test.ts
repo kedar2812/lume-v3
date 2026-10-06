@@ -87,4 +87,30 @@ describe("errors (report §4.4)", () => {
     expect(res.body).not.toContain("secret_table");
     await app.close();
   });
+
+  it("a query the database stopped for taking too long is a 503 in LUME's words, not a crash (Phase 9 Task 4)", async () => {
+    const app = await buildServer({
+      checks: {},
+      register: async (scope) => {
+        scope.get("/slow", { config: { public: true } }, async () => {
+          throw Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" });
+        });
+        scope.get("/busy", { config: { public: true } }, async () => {
+          throw new Error("timeout exceeded when trying to connect");
+        });
+      },
+    });
+    const slow = await app.inject({ method: "GET", url: "/slow" });
+    expect(slow.statusCode).toBe(503);
+    expect(slow.headers["retry-after"]).toBe("5");
+    expect(slow.json()).toEqual({
+      error: { code: "TOO_SLOW", message: "LUME took too long to answer that. Try again in a moment." },
+    });
+    const busy = await app.inject({ method: "GET", url: "/busy" });
+    expect(busy.statusCode).toBe(503);
+    expect(busy.json()).toEqual({
+      error: { code: "BUSY", message: "LUME is busy right now. Try again in a moment." },
+    });
+    await app.close();
+  });
 });
