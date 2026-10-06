@@ -56,6 +56,13 @@ export default defineConfig({
             dependencies: ["seed"],
             use: { storageState: stateFile("owner") },
           },
+          {
+            // The website's captures (lumecrm.in, website spec §6): e2e/site/site-captures.review.ts.
+            name: "site-captures",
+            testMatch: /site-captures\.review\.ts/,
+            dependencies: ["seed"],
+            use: { storageState: stateFile("owner") },
+          },
         ]
       : []),
   ],

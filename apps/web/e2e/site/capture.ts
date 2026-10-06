@@ -16,7 +16,7 @@ export type Rect = { x: number; y: number; w: number; h: number };
 export async function rectsOf(page: Page, selectors: Record<string, string>): Promise<Record<string, Rect>> {
   const out: Record<string, Rect> = {};
   for (const [name, sel] of Object.entries(selectors)) {
-    const b = await page.locator(sel).first().boundingBox();
+    const b = await page.locator(sel).first().boundingBox({ timeout: 5_000 });
     if (!b) throw new Error(`no box for ${name} (${sel})`);
     out[name] = { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) };
   }
@@ -28,6 +28,10 @@ export type StoryRule = { what: string; check: (page: Page) => Promise<boolean> 
 /** The rules a capture must meet before it's taken (website spec §4.1): the broken ones, in words. */
 export async function checkStory(page: Page, rules: StoryRule[]): Promise<string[]> {
   const broken: string[] = [];
-  for (const r of rules) if (!(await r.check(page).catch(() => false))) broken.push(r.what);
+  for (const r of rules) {
+    const ok = await r.check(page).catch((e: Error) => e);
+    if (ok !== true)
+      broken.push(ok instanceof Error ? `${r.what} (${ok.message.split(/\r?\n/)[0]})` : r.what);
+  }
   return broken;
 }

@@ -329,7 +329,11 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
         }
         const fast = contactAt !== null && contactAt.getTime() - createdAt.getTime() < HOUR;
         let replyAt: Date | null = null;
-        if (contactAt && r.chance(recent ? 0.57 : 0.45)) {
+        // Growing: replies climb through the last month, so each week beats the one before.
+        if (
+          contactAt &&
+          r.chance(recent ? 0.48 + 0.24 * Math.min(1, (di - (days.length - 31)) / 30) : 0.45)
+        ) {
           replyAt = new Date(contactAt.getTime() + r.between(1, 20) * HOUR);
           if (replyAt > now) replyAt = null;
           else {
@@ -364,6 +368,13 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
             move(openAt(3), booked, openAt(lead.stage));
             lead.stage = 3;
             lead.stageAt = booked;
+            // Growing: a call that was held moves the deal on, so every stage of the pipeline is lived in.
+            if (o.trajectory === "growing" && status === "completed" && r.chance(0.6)) {
+              const next = r.chance(0.3) ? 5 : 4;
+              move(openAt(next), startsAt, openAt(3));
+              lead.stage = next;
+              lead.stageAt = startsAt;
+            }
           }
         }
         // Won or lost: speed pays; referrals win far more, webinars far less.
@@ -414,7 +425,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
           const late =
             (owner === leo ? (weekday(dayOf(due, tz)) === 1 ? 0.9 : 0.03) : recent ? 0.04 : 0.12) > r.next();
           const done =
-            due > now || r.chance(0.04)
+            due > now || r.chance(o.trajectory === "growing" ? 0.004 : 0.04)
               ? null
               : new Date(due.getTime() + (late ? r.between(1, 30) * HOUR : -r.between(0, 120) * MIN));
           tasks.push([

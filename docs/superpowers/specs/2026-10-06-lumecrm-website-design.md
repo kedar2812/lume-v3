@@ -46,8 +46,8 @@ Three pieces of work, in this order:
    back to its owner; speed to lead is measured.
 2. **WhatsApp from your own number.** One tap opens a filled-in template in the person's own WhatsApp: no API
    setup, no per-message fees through LUME, keep the WhatsApp you have. A send queue works through 50 at a time.
-3. **When someone leaves, your leads don't.** Roles decide who sees which leads; exports can be locked and need
-   approval; every download is traceable; LUME alerts on unusual reading; offboarding hands a person's leads on.
+3. **When someone leaves, your leads don't.** Roles decide who sees which leads; exports are limited to the roles allowed
+   to export; every download is traceable; LUME alerts on unusual reading; offboarding hands a person's leads on.
 4. **Your own LUME, on your own server.** No database shared with other businesses; integrations off until switched on.
 5. **Every source in one list:** website and Instagram forms (webhooks, Zapier, Make), Google Sheets, Calendly,
    CSV/Excel import; duplicates caught, phone numbers fixed.
@@ -123,7 +123,7 @@ cross-fades under `prefers-reduced-motion`.
 11. **Analytics** — C's section exactly as on the canvas: the Analytics capture under a dark fade, "Analytics that
    read like a colleague's note.", and four insight chips. In Light the capture is the Porcelain one and the fade is
    light. The chips are LUME's real insight titles, worded as the demo business's (labelled "From the demo business").
-12. **When someone leaves, your leads don't:** roles, locked exports with approval, traceable downloads (the trace
+12. **When someone leaves, your leads don't:** roles, exports only for the roles allowed, traceable downloads (the trace
     tool capture), unusual-reading alerts, offboarding hand-off. Four cards, the security overview capture behind.
 13. **Your own LUME + measured speed** (A's cards): own server; 1,000,000 leads tested; 8 ms Today; 50,000 per bulk
     action with Undo. Numbers count up once when they enter.
@@ -135,6 +135,60 @@ cross-fades under `prefers-reduced-motion`.
     email (optional), team size — and "How do leads reach you today?" as one optional line. Book my demo; beside it
     "Or message +91 88058 95066" on WhatsApp.
 16. **Footer:** © 2026 LUME · Kedar Uttam Gurav; the Google API Limited Use statement; Privacy, Terms.
+
+### 5.H The hero, as the owner shaped it on the canvas (2026-10-06)
+
+- **Scroll builds Today.** At rest: the mark, the headline, the sub, Book a demo and WhatsApp us, and an empty stage
+  with "Scroll to bring LUME together". Nothing of the dashboard shows until scrolling begins; then each of Today's
+  pieces flies in from beyond the edge on its data's side, in turn, tied to scroll progress (reversible: scrolling
+  back takes it apart), and the finished screen tilts upright into its frame as the headline lifts away.
+- **The buttons move out of the way.** As the pieces start, Book a demo and WhatsApp us lift away from under the
+  headline and live in the Island (compact: progress ring, section name, WhatsApp, Book a demo), never crossing the
+  reveal.
+- **The dashboard is the other theme.** On the dark page the hero's Today is the Porcelain capture; on the light page
+  the Obsidian one. Hero only: every other capture follows the page's theme.
+- The Island's "New lead · Instagram · just now" moment shows briefly as the Leads piece lands.
+- **The headline's light sweep is LUME blue into sky (#2A5BFF → #5AB8FF) in both themes**, over the theme's text
+  colour.
+- **A crisp, plain ground:** no grid lines, no pattern; the blue glow rises only as the finished dashboard settles.
+- **The Island is liquid glass:** strong backdrop blur and saturation, a lit top edge, an inner glow, and a sheen that
+  follows the pointer across it. It is one shape that morphs between wide, compact and notification — width and
+  corners on Apple's ease (cubic-bezier(.32,.72,0,1), ~700 ms) while its contents cross-fade with a slight blur and
+  scale, the incoming state 120 ms behind the outgoing. Never a hard swap.
+- **No effect follows the cursor** (no sheen on the glass, no light on the tiles): owner, "looks gimmicky".
+- **Buttons:** never underlined. Book a demo is LUME blue with a top shine (inset white highlight) and a blue glow.
+  WhatsApp us is the same pill in WhatsApp's own green, **#25D366** (the colour of WhatsApp's app icon, read from
+  Meta's brand files), with the same shine, a green glow, and **WhatsApp's official white glyph** beside the label —
+  the app icon's look, in both themes. Every WhatsApp button and badge on the site uses this. (White text on #25D366
+  is below the 4.5:1 contrast rule: the owner chose the exact brand colour; the label is 16 px semibold.)
+- **The scroll build-up returns, sparingly — three more times, each where things genuinely come together:**
+  1. **Every lead in one list (answer 01):** the source chips start scattered at the edges and, with your scroll,
+     travel into the Leads capture, which settles upright beneath them.
+  2. **Every rep, their own dashboard (answer 04):** a rep's Today and their numbers come in from the left, the
+     owner's Team board from the right, meeting in the middle as you scroll.
+  3. **On your phone:** the three phones rise and fan out with your scroll.
+  Same motion everywhere: tied to scroll progress, reversible, critically damped (no bounce), the pieces start from
+  where their meaning comes from, nothing hidden from reduced motion (the composed state), never two at once on
+  screen.
+
+### 5.0 The story's shape (owner, 2026-10-06): problem → solution → better business
+
+The page reads as one story, in chapters the Island names: **The problems** → **Meet LUME** → **How it runs your
+day** → **What changes for your business** → **Questions** → the enquiry. The problems chapter lists six numbered
+problems; Meet LUME answers each, in the same order, and every solution carries a small "Solves 0N" tag that links
+back to its problem:
+
+| # | The problem | LUME's answer (section) |
+|---|---|---|
+| 01 | Leads are in five places (DMs, a form, a sheet, a notebook, someone's phone) | One list for every lead (sources + Leads) |
+| 02 | The first reply comes days later | Follow-up on WhatsApp in one tap (Follow-up) |
+| 03 | Follow-ups are forgotten; nobody owns the next step | Today and the nine actions (Actions) |
+| 04 | You can't see who is doing the work | Every rep's own dashboard, the Team board (Rep dashboards) |
+| 05 | You don't know which leads and ads pay | Analytics in words, problems caught early (Analytics, Caught early) |
+| 06 | When a salesperson leaves, the leads leave too | Roles, exports, traces, alerts, offboarding (Security) |
+
+How it runs your day = a lead's day + the phone. What changes = your own LUME and the measured numbers. The
+section list below keeps its content; this order wins where they differ.
 
 ### 5.1 The actions (real, each with its capture)
 

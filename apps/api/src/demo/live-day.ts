@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
-import { dayBounds, dayOf, NO_TOUCH_RULE_ID, wallTime } from "@lume/core";
+import { dayBounds, dayOf, NO_TOUCH_RULE_ID } from "@lume/core";
 import { rollupDays } from "../modules/analytics/rollup";
 import { MEETING_TITLES, PRODUCTS } from "./names";
 
 /**
- * Today's work for chosen people on the demo business (website spec §6): what a working morning looks like at
- * 10:45 — some follow-ups overdue (one brought back by the no-touch rule), some due soon, some later, a few done,
+ * Today's work for chosen people on the demo business (website spec §6): a working day around `now` (at 10:45, a
+ * morning) — some follow-ups overdue (one brought back by the no-touch rule), some due soon, some later, a few done,
  * a call held and one to come, WhatsApps sent and answered, a deal won before lunch, and (for someone who sees
  * everyone) new leads waiting for someone. Fictional and generic: for the website's captures now, and
  * demo.lumecrm.in later. Plants once per business day.
@@ -38,9 +38,16 @@ export async function seedLiveDay(
     ]);
     tz = (await c.query<{ tz: string }>("SELECT timezone AS tz FROM settings WHERE id = 1")).rows[0]!.tz;
     today = dayOf(o.now, tz);
-    const [y, m, d] = today.split("-").map(Number) as [number, number, number];
-    const at = (hh: number, mm: number) => wallTime(y, m, d, hh, mm, tz);
     const { start, end } = dayBounds(today, tz);
+    // Everything is placed around `now` (minutes before or after), kept inside the business day: at 10:45 that is
+    // 9:30 and 10:15 overdue, 11:00–12:30 due soon, 14:00–18:00 later, three done since 9.
+    const at = (minutes: number) =>
+      new Date(
+        Math.min(
+          end.getTime() - 60_000,
+          Math.max(start.getTime() + 60_000, o.now.getTime() + minutes * 60_000),
+        ),
+      );
     // Once a day: the day's no-touch follow-up is the mark that it's planted.
     const already = await c.query(
       "SELECT 1 FROM tasks WHERE auto_rule_id = $1 AND title = $2 AND due_at >= $3 AND due_at < $4 LIMIT 1",
@@ -93,47 +100,47 @@ export async function seedLiveDay(
         planted++;
       };
       // Overdue (one brought back by the no-touch rule), due within two hours, later today, done this morning.
-      await task(leads[0]!, NO_TOUCH_TITLE, at(9, 30), null, NO_TOUCH_RULE_ID);
-      await task(leads[1]!, "Send the brochure", at(10, 15), null);
-      await task(leads[2]!, "Follow up", at(11, 0), null);
-      await task(leads[3]!, "Confirm the date", at(11, 30), null);
-      await task(leads[4]!, "Follow up", at(12, 30), null);
-      await task(leads[5]!, "Share the quote", at(14, 0), null);
-      await task(leads[6]!, "Follow up", at(15, 30), null);
-      await task(leads[7]!, "Check in after the call", at(16, 30), null);
-      await task(leads[8]!, "Follow up", at(18, 0), null);
-      await task(leads[9]!, "Follow up", at(9, 0), at(9, 10));
-      await task(leads[10]!, "Send the brochure", at(9, 30), at(9, 40));
-      await task(leads[11]!, "Follow up", at(10, 0), at(10, 20));
+      await task(leads[0]!, NO_TOUCH_TITLE, at(-75), null, NO_TOUCH_RULE_ID);
+      await task(leads[1]!, "Send the brochure", at(-30), null);
+      await task(leads[2]!, "Follow up", at(15), null);
+      await task(leads[3]!, "Confirm the date", at(45), null);
+      await task(leads[4]!, "Follow up", at(105), null);
+      await task(leads[5]!, "Share the quote", at(195), null);
+      await task(leads[6]!, "Follow up", at(285), null);
+      await task(leads[7]!, "Check in after the call", at(345), null);
+      await task(leads[8]!, "Follow up", at(435), null);
+      await task(leads[9]!, "Follow up", at(-105), at(-95));
+      await task(leads[10]!, "Send the brochure", at(-75), at(-65));
+      await task(leads[11]!, "Follow up", at(-45), at(-25));
       // WhatsApps this morning, two of them answered.
-      for (const [i, when] of [at(9, 12), at(9, 41), at(10, 5), at(10, 22)].entries())
+      for (const [i, when] of [at(-93), at(-64), at(-40), at(-23)].entries())
         await c.query(
           "INSERT INTO activities (id, lead_id, type, occurred_at, user_id) VALUES ($1, $2, 'whatsapp_opened', $3, $4)",
           [randomUUID(), leads[9 + (i % 3)]!, when, p.userId],
         );
-      for (const when of [at(9, 58), at(10, 31)])
+      for (const when of [at(-47), at(-14)])
         await c.query(
           "INSERT INTO activities (id, lead_id, type, occurred_at, user_id) VALUES ($1, $2, 'reply_logged', $3, NULL)",
           [randomUUID(), leads[9]!, when],
         );
-      // A deal won before lunch.
+      // A deal won this morning.
       const won = leads[11]!;
       await c.query(
         `INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, pipeline_id, changed_at)
          SELECT id, stage_id, $2, pipeline_id, $3 FROM leads WHERE id = $1`,
-        [won, wonStage, at(11, 40)],
+        [won, wonStage, at(-20)],
       );
       await c.query(
         `UPDATE leads SET stage_id = $2, stage_entered_at = $3, won_at = $3, value = $4, updated_at = $3,
                           last_activity_at = $3 WHERE id = $1`,
-        [won, wonStage, at(11, 40), PRODUCTS[1]!.value],
+        [won, wonStage, at(-20), PRODUCTS[1]!.value],
       );
       // Two calls on their calendar: one held at 10, one at 4 (written as them: meetings' row-level security).
       await c.query("SELECT set_config('lume.user_id', $1, true)", [p.userId]);
       for (const [i, [when, status]] of (
         [
-          [at(10, 0), "completed"],
-          [at(16, 0), "scheduled"],
+          [at(-45), "completed"],
+          [at(315), "scheduled"],
         ] as const
       ).entries()) {
         const id = randomUUID();
@@ -150,7 +157,7 @@ export async function seedLiveDay(
         const src =
           (await c.query<{ id: string }>("SELECT id FROM lead_sources WHERE name = 'Instagram ads' LIMIT 1"))
             .rows[0]?.id ?? null;
-        for (const [i, when] of [at(8, 50), at(9, 55), at(10, 30)].entries())
+        for (const [i, when] of [at(-115), at(-50), at(-15)].entries())
           await c.query(
             `INSERT INTO leads (id, pipeline_id, stage_id, stage_entered_at, owner_id, name, email, phone_e164,
                                 phone_status, source_id, created_at, updated_at, last_activity_at)
