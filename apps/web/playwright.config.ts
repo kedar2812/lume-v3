@@ -37,7 +37,9 @@ export default defineConfig({
     },
     {
       name: "app",
-      testIgnore: [/setup\.spec\.ts/, /seed\.setup\.ts/],
+      // e2e/site/*.test.ts are Vitest unit tests of the capture helpers (vitest.config includes them), not browser
+      // tests: Playwright's default pattern would load them and crash on Vitest's import.
+      testIgnore: [/setup\.spec\.ts/, /seed\.setup\.ts/, /\.test\.ts$/],
       dependencies: ["seed"],
       use: { storageState: stateFile("owner") },
     },

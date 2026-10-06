@@ -175,7 +175,7 @@ describe("a growing business (the website's captures, spec §4.1)", () => {
     const [row] = await g.queryAll(
       "SELECT (count(*) FILTER (WHERE phone_status = 'needs_country'))::float / count(*) AS share FROM leads",
     );
-    expect(row.share).toBeLessThan(0.01);
+    expect(row!.share).toBeLessThan(0.01);
   });
 
   it("still carries the patterns LUME notices", async () => {
