@@ -18,7 +18,32 @@ The full set LUME asks for:
 | `calendar.events.owned.readonly` | Calendar: Calendar → Continue with Google | Read-only, and only calendars the person owns. `calendar.events.freebusy` gives busy times without guests, so LUME couldn't tell which meeting is with which lead. `calendar.events.public.readonly` covers public events only, and sales calls are private. |
 | `calendar.calendarlist.readonly` | Calendar, the same consent | Lets a person choose which of their calendars LUME reads (a work calendar, say, and not a family one). Without it LUME could only read the primary calendar. Non-sensitive. |
 
-The order to work in: 1 → 2 → 3 → 4 → 5 → 6. Steps 1, 3, 5 and 6 are yours (Google sign-ins and recording). Claude has done the code, the privacy page, and this script. Step 2's deploys run on your command.
+## Where things stand (2026-10-06, before you record)
+
+**Done by Claude (no action for you):**
+- lumecrm.in is live with the updated privacy policy, which names `calendar.events.owned.readonly`, and the Limited Use statement on both the homepage and /privacy. The homepage no longer says "Coming soon" for Calendar and Calendly.
+- app.lumecrm.in runs the latest LUME. Under every **Continue with Google** button there is now an in-product notice: what LUME reads, that Google data follows the Google API Services User Data Policy including Limited Use (never sold or used for ads), and a link to lumecrm.in/privacy. Google asks for in-product privacy notices.
+- The relay at connect.lumecrm.in was rebuilt. It now asks Google for exactly `calendar.events.owned.readonly` + `calendar.calendarlist.readonly` for Calendar, and `drive.file` for Sheets. The old build is kept as `/root/lume-connect/dist/main.js.bak-2026-10-06`.
+- Step 2 below is therefore **done**. Skip it.
+
+**Still yours, in this order:**
+1. §1 Cloud Console. Swap the scope: the relay already asks for the narrower one, so do this **before** any test connect.
+2. §3 Reviewer account and three sample leads.
+3. §4 Dry run.
+4. §5 Record. Before you start, set your **Google account language to English**: Google requires the consent screen in English in the video.
+5. §6 Reply.
+
+What Google checks, from its published requirements (support.google.com/cloud/answer/13464321), and where each is met:
+
+| Requirement | Where it's met |
+|---|---|
+| Homepage on a verified domain that describes the app (not just a login page), linking the privacy policy | https://lumecrm.in |
+| The privacy policy on the same domain says how Google user data is accessed, used, stored and shared | https://lumecrm.in/privacy (the "Google user data" table, Limited Use, retention) |
+| The same privacy URL on the consent screen | Console → Branding: `https://lumecrm.in/privacy` (check it once) |
+| In-product privacy notices, prominently displayed | Under each Continue with Google, in the app |
+| Google branding on the button | The white button with the official "G", Google's colours (#747775 stroke, #1F1F1F text) |
+| Narrowest scopes, with a justification | §1 below |
+| Video: the end-to-end OAuth flow, the same app name and branding, the complete consent screen in English with the exact scopes, and each scope's feature in use | §5 below |
 
 ## 1. Cloud Console (you, about 5 minutes)
 
@@ -35,7 +60,7 @@ The order to work in: 1 → 2 → 3 → 4 → 5 → 6. Steps 1, 3, 5 and 6 are y
 
 6. **Save**. Leave the app **In production**.
 
-## 2. Deploy the app, the relay and the site (three commands, from the repo on your PC)
+## 2. Deploy the app, the relay and the site (DONE 2026-10-06: kept for reference, if they ever need redoing)
 
 Afterwards, the relay at connect.lumecrm.in asks for exactly the three scopes above. app.lumecrm.in runs the latest LUME (all phases through 8), and https://lumecrm.in/privacy names `calendar.events.owned.readonly`.
 
@@ -93,7 +118,7 @@ Record the whole browser window **with the address bar visible**: Google checks 
 - "LUME matches calendar meetings to leads by the guest's email address."
 
 **Scene 3. Connect Google Calendar (60 s). The consent screen matters most.**
-1. Click **Calendar** in the sidebar, then **Continue with Google**.
+1. Click **Calendar** in the sidebar. Before clicking, point at the notice under the button: "LUME says here what it reads, and links its privacy policy." Then click **Continue with Google**.
 2. Pick your Google account.
 3. On Google's consent screen:
    - point at the app name **LUME**, and at `client_id=` in the address bar;
