@@ -43,6 +43,18 @@ describe("Search settings", () => {
     expect(sessionStorage.getItem("lume:settings:find")).toBe("On-screen watermark");
   });
 
+  it("leaving while the business's own things still load leaves no timer behind (Phase 9)", () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount } = render(<SettingsSearch areas={everyArea} />);
+      type("stage"); // starts the load, which never answers here
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("never offers an area the person can't open", () => {
     render(<SettingsSearch areas={everyArea.filter((a) => a.group === "you")} />);
     type("watermark");

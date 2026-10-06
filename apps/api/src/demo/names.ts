@@ -116,7 +116,7 @@ export const SOURCES = [
   { name: "Instagram ads", weight: 0.35, win: 1, spend: 180_000 },
   { name: "Website form", weight: 0.3, win: 1, spend: null },
   { name: "Referrals", weight: 0.12, win: 3, spend: null },
-  { name: "Webinars", weight: 0.13, win: 0.25, spend: 45_000 },
+  { name: "Webinars", weight: 0.13, win: 0.1, spend: 45_000 },
   { name: "Walk-in", weight: 0.1, win: 1.1, spend: null },
 ] as const;
 

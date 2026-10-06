@@ -29,6 +29,9 @@ export function SettingsSearch({ areas, onPicked }: { areas: SettingsArea[]; onP
   const [loading, setLoading] = useState(false);
   const [slow, setSlow] = useState(false);
   const asked = useRef(false);
+  // The "still loading" timer goes with the search box: leaving the page mid-load leaves nothing behind.
+  const slowTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(slowTimer.current), []);
   useLoadingSignal(loading && slow);
 
   const base = useMemo(() => settingsHits(areas), [areas]);
@@ -37,12 +40,12 @@ export function SettingsSearch({ areas, onPicked }: { areas: SettingsArea[]; onP
     if (asked.current) return;
     asked.current = true;
     setLoading(true);
-    const t = setTimeout(() => setSlow(true), SLOW_MS);
+    slowTimer.current = setTimeout(() => setSlow(true), SLOW_MS);
     void loadYours(areas)
       .then(setYours)
       .catch(() => setYours([]))
       .finally(() => {
-        clearTimeout(t);
+        clearTimeout(slowTimer.current);
         setLoading(false);
         setSlow(false);
       });
