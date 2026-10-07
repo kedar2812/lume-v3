@@ -165,6 +165,32 @@ describe("BoardScreen", () => {
     await vi.waitFor(() => expect(column("Won")).toHaveTextContent("AED 94,500"));
   });
 
+  it("a deal value set while winning (the Won step) counts in the Won total at once", async () => {
+    vi.mocked(leadsClient.move).mockResolvedValue({
+      ok: true,
+      status: 200,
+      // The lead had no value; it was won at AED 50,000.
+      data: { lead: testLead({ stageId: "s-won", value: 50000 }) },
+    });
+    board({
+      columns: {
+        "s-new": { items: [testLead({ value: null })], nextCursor: null },
+        "s-won": {
+          items: [testLead({ id: "w1", name: "Won One", stageId: "s-won", value: 10000 })],
+          nextCursor: null,
+        },
+      },
+      counts: { "s-new": 1, "s-won": 1 },
+      values: { "s-new": 0, "s-won": 10000 },
+    });
+    within(column("New"))
+      .getByRole("button", { name: /Aisha Khan/ })
+      .focus();
+    await userEvent.keyboard(" {ArrowRight}{ArrowRight}{ArrowRight}{Enter}");
+    // 10,000 already won + the 50,000 just won: only the column's total can read 60,000.
+    await vi.waitFor(() => expect(column("Won")).toHaveTextContent("AED 60,000"));
+  });
+
   it("on a touch screen, a long press lifts a card and a drop moves it; a quick swipe just scrolls", async () => {
     vi.mocked(leadsClient.move).mockResolvedValue({
       ok: true,

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Kbd } from "@/components/ui/Kbd";
 import { queuesClient, type QueueItem } from "@/lib/queues/client";
 import s from "./run.module.css";
+import { missingIn } from "@/lib/messages/missing";
 
 /** Where a lead's card is: ready to send, WhatsApp open, asking Sent?, saving the answer, or sent. */
 export type CardPhase = "ready" | "away" | "asking" | "answering" | "sent";
@@ -122,6 +123,10 @@ export function QueueCard({
         </>
       )}
 
+      {!unavailable && missingIn(text).length > 0 && (
+        // The same warning as a single send: a run must never send "{{…}}" to a customer unnoticed.
+        <p className={s.note}>Missing: {missingIn(text).join(", ")}. Fill it in, or LUME sends it as is.</p>
+      )}
       {why && (
         <p role="status" className={s.note}>
           {why}

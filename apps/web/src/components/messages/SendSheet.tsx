@@ -13,10 +13,8 @@ import { ordered } from "@/lib/templates/order";
 import { TokenLine } from "@/components/templates/TokenLine";
 import { SentPrompt, type Outcome } from "./SentPrompt";
 import s from "./messages.module.css";
+import { missingIn } from "@/lib/messages/missing";
 
-const TOKEN = /\{\{\s*([^{}]+?)\s*\}\}/g;
-/** Every {{variable}} still in the words: nothing to put there, so it goes as written unless filled in. */
-const missingIn = (text: string) => [...new Set([...text.matchAll(TOKEN)].map((m) => m[1]!))];
 const firstLine = (body: string) => body.split("\n").find((l) => l.trim()) ?? "";
 
 type Choice = { kind: "template"; t: TemplateView } | { kind: "own" };

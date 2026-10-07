@@ -162,6 +162,9 @@ function Board({
       return focusCard(lead.id);
     }
     setColumns((c) => ({ ...c, [to.id]: replaceIn(c[to.id], moved) }));
+    // A value set on the way (the Won step asks for one): the column's total follows the lead's new value.
+    const delta = (moved.value ?? 0) - (lead.value ?? 0);
+    if (delta) setValues((m) => ({ ...m, [to.id]: (m[to.id] ?? 0) + delta }));
     if (to.kind === "won") {
       sound.play("won");
       toast({

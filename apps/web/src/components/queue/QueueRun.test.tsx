@@ -169,6 +169,22 @@ describe("QueueRun (4C Task 4)", () => {
     expect(await screen.findByRole("heading", { name: "Bea Lopez" }, { timeout: 3000 })).toBeInTheDocument();
   });
 
+  it("a value the template needs but the lead lacks is named before Send, as in a single send", async () => {
+    vi.mocked(queuesClient.text).mockResolvedValueOnce(
+      ok({ text: "Hi Aisha, about your {{lead.custom.budget}} budget", missing: ["lead.custom.budget"] }),
+    );
+    render(<QueueRun id="q1" />);
+    await lead("Aisha Khan");
+    expect(
+      await screen.findByText("Missing: lead.custom.budget. Fill it in, or LUME sends it as is."),
+    ).toBeInTheDocument();
+    // Filled in by hand: the warning goes.
+    const box = screen.getByRole("textbox", { name: "Message" });
+    await userEvent.clear(box);
+    await userEvent.type(box, "Hi Aisha, about your ₹2L budget");
+    expect(screen.queryByText(/^Missing:/)).toBeNull();
+  });
+
   it("a lead that can't be sent before Send says why, and Skip is the way on (Enter too)", async () => {
     vi.mocked(queuesClient.text).mockResolvedValueOnce(ok({ unavailable: "No WhatsApp number" }));
     render(<QueueRun id="q1" />);

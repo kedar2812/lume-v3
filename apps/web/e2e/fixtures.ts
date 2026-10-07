@@ -169,6 +169,7 @@ export async function reviewCopy(target: Page | Locator, name: string): Promise<
 export async function freezeVolatile(page: Page): Promise<void> {
   await page.addStyleTag({
     content: `[data-volatile] { display: inline-block !important; width: 88px !important; height: 1.25em !important;
-      overflow: hidden !important; white-space: nowrap !important; vertical-align: bottom !important; }`,
+      overflow: hidden !important; white-space: nowrap !important; vertical-align: bottom !important; }
+      [data-volatile-day] { visibility: hidden !important; }`,
   });
 }

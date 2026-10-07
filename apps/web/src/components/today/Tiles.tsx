@@ -244,7 +244,9 @@ function MonthTile({
       label={
         <>
           {lead}
-          <span data-volatile>{month}</span>
+          <span data-volatile data-volatile-day>
+            {month}
+          </span>
         </>
       }
       i={i}
