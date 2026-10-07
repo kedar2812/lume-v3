@@ -48,7 +48,12 @@ export function TimezonePicker({
   };
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Escape") return setQuery(null);
+    if (e.key === "Escape") {
+      if (!open) return; // nothing open here: Escape belongs to the sheet or panel around it
+      e.preventDefault();
+      e.stopPropagation(); // closes the list, not the onboarding panel or sheet around it
+      return setQuery(null);
+    }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (!open) return setQuery("");

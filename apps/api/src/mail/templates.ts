@@ -1,3 +1,4 @@
+import { greetingAt } from "@lume/core";
 import type { OutgoingMail } from "./mailer";
 
 const esc = (s: string) =>
@@ -139,7 +140,7 @@ export function digestMail(a: {
       ? `Your day at ${a.businessName}`
       : `${due} follow-up${due === 1 ? "" : "s"} today${a.overdue.length ? `, ${a.overdue.length} overdue` : ""}`;
   const hour = a.localHour ?? 8;
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = greetingAt(hour);
   const text = [
     `${greeting}, ${a.firstName}.`,
     ...sections.map(

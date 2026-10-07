@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { analyticsClient, type AnalyticsParams, type Funnel } from "@/lib/analytics/client";
@@ -91,7 +92,7 @@ export function FunnelBoard({
       <div className={s.g2}>
         <Card
           title="How far the leads got"
-          sub={`Of ${count(funnel.arrived)} leads that arrived ${rangeWords}, the share that ever reached each stage, even if they skipped one`}
+          sub={`Of ${plural(funnel.arrived, "lead")} that arrived ${rangeWords}, the share that ever reached each stage, even if they skipped one`}
           right={
             <span className={s.gsel}>
               Split by
@@ -247,7 +248,7 @@ function Ribbon({ funnel, split, onDrill }: { funnel: Funnel; split: Funnel | nu
               className={s.colBtn}
               data-edge={i === 0 ? "start" : i === n - 1 ? "end" : undefined}
               style={{ left: `${(colX(i) / W) * 100}%` }}
-              aria-label={`See the ${count(st.reached)} leads that reached ${st.name}`}
+              aria-label={`See the ${plural(st.reached, "lead")} that reached ${st.name}`}
               onClick={() => onDrill(st.drill!.reached!, `Reached ${st.name}`)}
             />
           ) : null,
@@ -323,7 +324,7 @@ function StagesNow({ funnel, money, onDrill }: { funnel: Funnel; money(n: number
         <b>{now.openValue !== null ? money(now.openValue) : count(now.openN)}</b>
         <span>
           {now.openValue !== null
-            ? `open across all stages · ${count(now.openN)} leads`
+            ? `open across all stages · ${plural(now.openN, "lead")}`
             : "open leads across all stages"}
         </span>
       </div>

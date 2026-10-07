@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
-import { checkRow, newExportCode, newId, type Keyring } from "@lume/core";
+import { checkRow, newExportCode, newId, type Keyring, initialsOf } from "@lume/core";
 import { resolveDrill } from "../analytics/drill";
 import { audit } from "../../audit/audit";
 import { HttpError, notFound } from "../../http/errors";
@@ -11,13 +11,7 @@ import { buildRows, carriesCheckRow, readView, toCsv, toXlsx } from "./make";
 
 const DAY_MS = 24 * 3_600_000;
 const context = (id: string) => `lead-export:${id}`;
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
+const initials = initialsOf;
 const iso = (d: Date | string | null) => (d ? new Date(d).toISOString() : null);
 
 export type ExportInput = {

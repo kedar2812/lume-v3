@@ -85,6 +85,13 @@ describe("leads gone quiet (3C Task 4)", () => {
     expect(l!.next_task_due_at).not.toBeNull();
   });
 
+  it("a one-day rule says so in the singular: No contact for 1 day", async () => {
+    await turn(true, 1);
+    const lead = await quiet(3);
+    await run();
+    expect((await tasksOf(lead))[0]?.title).toBe("No contact for 1 day");
+  });
+
   it("not for a lead with any open follow-up, a closed lead, a disabled owner, or one touched lately", async () => {
     await turn(true, 7);
     const busy = await quiet(10, { name: "Has One" });

@@ -5,9 +5,17 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { ColumnDef } from "@/lib/leads/columns";
 import type { Sort } from "@/lib/leads/filters";
-import { fieldText } from "@/lib/leads/format";
 import type { Catalog, ContactView, Lead } from "@/lib/leads/types";
-import { ContactCell, DateCell, OwnerCell, StagePill, TagsCell, ValueCell, WhenCell } from "./cells";
+import {
+  ContactCell,
+  DateCell,
+  FieldTextCell,
+  OwnerCell,
+  StagePill,
+  TagsCell,
+  ValueCell,
+  WhenCell,
+} from "./cells";
 import s from "./leads.module.css";
 
 type Props = {
@@ -54,8 +62,11 @@ export function cellContent(lead: Lead, col: ColumnDef, catalog: Catalog): React
       return <WhenCell iso={lead.lastActivityAt ?? lead.updatedAt} />;
     default: {
       const def = catalog.fields.find((f) => f.key === col.fieldKey);
-      const text = def ? fieldText(lead.custom[def.key], def, catalog) : "";
-      return text || <span className={s.muted}>—</span>;
+      return def ? (
+        <FieldTextCell value={lead.custom[def.key]} def={def} catalog={catalog} />
+      ) : (
+        <span className={s.muted}>—</span>
+      );
     }
   }
 }

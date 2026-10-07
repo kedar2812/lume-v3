@@ -249,6 +249,8 @@
 .line b {
   flex: 1;
   min-width: 0;
+  /* A lead named with one long unbroken word (a pasted link) breaks inside the panel, never past its edge. */
+  overflow-wrap: anywhere;
   font-size: var(--fs-sm);
   letter-spacing: var(--ls-sm);
   font-weight: var(--fw-semibold);
@@ -264,6 +266,7 @@
 }
 .meta {
   margin: 2px 0 0;
+  overflow-wrap: anywhere;
   font-size: var(--fs-sm);
   letter-spacing: var(--ls-sm);
   color: var(--text-2);

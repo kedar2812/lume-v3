@@ -100,7 +100,8 @@ function customValue(key: string, ctx: RenderContext): string | null {
       const whole = Number.isInteger(n);
       // In the currency's own local form (₹5,000, $1,250.50); one with no sign in English keeps its code.
       try {
-        return new Intl.NumberFormat("en", {
+        // Rupees grouped in lakhs (₹1,50,000), as an Indian customer reads them.
+        return new Intl.NumberFormat(ctx.business.currency === "INR" ? "en-IN" : "en", {
           style: "currency",
           currency: ctx.business.currency,
           minimumFractionDigits: whole ? 0 : 2,

@@ -2,6 +2,7 @@ import { can, scopeOf } from "@lume/core/shared";
 import { Today } from "@/components/today/Today";
 import { apiGet } from "@/server/api";
 import { requireSession } from "@/server/session";
+import { zoneOf } from "@/lib/zone";
 
 export const metadata = { title: "Today · LUME" };
 
@@ -13,7 +14,7 @@ export default async function Page() {
     <section data-stagger>
       <Today
         name={session.user.name}
-        tz={session.user.timezone}
+        tz={zoneOf(session.user)}
         canMessage={can(session.actor, "messages.send")}
         canQueue={can(session.actor, "messages.send_queue")}
         currency={currency}

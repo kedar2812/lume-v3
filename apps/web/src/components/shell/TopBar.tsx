@@ -25,6 +25,7 @@ export function TopBar({
   canMessage,
   canQueue,
   onSearch,
+  mac = false,
 }: {
   theme: ThemePref;
   tz?: string | null;
@@ -32,6 +33,8 @@ export function TopBar({
   /** A send queue left open is picked up again from here (4C). */
   canQueue?: boolean;
   onSearch(): void;
+  /** The search shortcut as this computer spells it: ⌘K on a Mac, Ctrl K elsewhere. */
+  mac?: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -133,7 +136,7 @@ export function TopBar({
       <button type="button" className={s.search} onClick={onSearch} data-tour="search">
         <Search size={15} aria-hidden />
         <span className={s.searchWords}>Search leads, actions…</span>
-        <Kbd>Ctrl K</Kbd>
+        <Kbd>{mac ? "⌘K" : "Ctrl K"}</Kbd>
       </button>
       {canQueue && <ResumeRun variant="pill" />}
       {/* 7C: a bulk run tucked away shows here as a pill until it's opened again. */}

@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AddSheetSheet } from "@/components/sheets/AddSheetSheet";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
-import { shortDateTime } from "@/lib/settings/format";
+import { settingsDateTime } from "@/lib/settings/format";
+import { useZone } from "@/components/ZoneProvider";
 import { sheetsClient } from "@/lib/sheets/client";
 import { ago, inFuture } from "@/lib/sheets/format";
 import { RETRYABLE, type SheetSourceDetail, type SyncView } from "@/lib/sheets/types";
@@ -41,6 +42,7 @@ function outcome(x: SyncView): string {
 
 /** Spec §7.3: is it working, what did it do, what needs you — and every action, one tap away. */
 export function SourceDetail({ id }: { id: string }) {
+  const tz = useZone();
   const router = useRouter();
   const [v, setV] = useState<SheetSourceDetail | null>(null);
   /** The page couldn't load at all. */
@@ -241,7 +243,7 @@ export function SourceDetail({ id }: { id: string }) {
           <tbody>
             {v.syncs.map((x) => (
               <tr key={x.id}>
-                <td>{x.startedAt ? shortDateTime(x.startedAt) : "Waiting"}</td>
+                <td>{x.startedAt ? settingsDateTime(x.startedAt, tz) : "Waiting"}</td>
                 <td>{TRIGGER[x.trigger]}</td>
                 <td>{outcome(x)}</td>
               </tr>

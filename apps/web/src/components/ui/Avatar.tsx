@@ -1,18 +1,14 @@
 "use client";
 import { useState } from "react";
-import { AVATAR_COLORS } from "@lume/core/shared";
+import { AVATAR_COLORS, initialsOf } from "@lume/core/shared";
 import s from "./Avatar.module.css";
 
 // Deep enough that white initials reach 4.5:1 on every colour (WCAG AA).
 // No violet anywhere (owner, 2026-10-01): a deep rose takes its place.
 const PALETTE = Object.values(AVATAR_COLORS);
 
-export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
-}
+/** Whole characters only, emoji and Indic letters included (@lume/core initialsOf). */
+export const initials = initialsOf;
 
 /** Stable colour from the name so the same person always looks the same. */
 export function avatarColor(name: string): string {

@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { newId, scopeOf, type OnEnter } from "@lume/core";
+import { newId, plural, scopeOf, type OnEnter } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
@@ -235,7 +235,7 @@ export async function archivePipeline(req: FastifyRequest, id: string) {
       sql`SELECT count(*)::int AS n FROM leads WHERE pipeline_id = ${id} AND deleted_at IS NULL`,
     )
   ).rows as [{ n: number }];
-  if (n > 0) throw conflict("PIPELINE_HAS_LEADS", `Move its ${n} leads first`);
+  if (n > 0) throw conflict("PIPELINE_HAS_LEADS", `Move its ${plural(n, "lead")} first`);
   const now = new Date();
   await req.db
     .update(schema.stages)
@@ -327,7 +327,8 @@ export async function archiveStage(req: FastifyRequest, id: string, moveToStageI
     )
   ).rows as [{ n: number }];
   if (n > 0) {
-    if (!moveToStageId) throw badRequest("MOVE_TARGET_REQUIRED", `Choose where its ${n} leads should go`);
+    if (!moveToStageId)
+      throw badRequest("MOVE_TARGET_REQUIRED", `Choose where its ${plural(n, "lead")} should go`);
     const target = siblings.find((x) => x.id === moveToStageId);
     if (!target || target.id === id || target.kind !== "open") {
       throw badRequest("MOVE_TARGET_INVALID", "Move leads to another open stage of the same pipeline");

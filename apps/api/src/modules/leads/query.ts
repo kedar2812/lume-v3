@@ -136,7 +136,11 @@ function searchAsk(req: FastifyRequest, q: FilterQuery, fields: FieldRegistry): 
   const ctx = { actor: req.actor!, fields };
   const like = `%${likeEscape(term)}%`;
   const full = seesFullContacts(req.actor!);
-  const digits = term.replace(/\D/g, "");
+  // A whole number typed at home starts with a dialling prefix (the national trunk 0, or 00 for abroad) that is
+  // never part of a stored number; a short fragment ("0003", the end of a number) is searched as typed.
+  const typed = term.replace(/\D/g, "");
+  const bare = typed.replace(/^0+/, "");
+  const digits = bare.length >= 6 ? bare : typed;
   return {
     ...none,
     name: like,

@@ -5,10 +5,12 @@ import type { FieldDefView, Lead } from "@/lib/leads/types";
 import { useCatalog } from "../CatalogProvider";
 import { valueOf } from "../useLeadEditor";
 import s from "./fields.module.css";
+import { useZone } from "@/components/ZoneProvider";
 
 /** A field's value as a person reads it: options as coloured chips, everything else as text, "—" when empty. */
 export function FieldValue({ lead, def }: { lead: Lead; def: FieldDefView }) {
   const catalog = useCatalog();
+  const tz = useZone();
   const value = valueOf(lead, def);
   if (def.type === "select" || def.type === "multi_select") {
     const ids = (Array.isArray(value) ? value : value ? [value] : []) as string[];
@@ -36,6 +38,6 @@ export function FieldValue({ lead, def }: { lead: Lead; def: FieldDefView }) {
   const text =
     def.isCore && ["phone", "email", "instagram"].includes(def.key)
       ? String(value ?? "")
-      : fieldText(value, def, catalog);
+      : fieldText(value, def, catalog, tz);
   return text ? <span className={s.text}>{text}</span> : <span className={s.empty}>—</span>;
 }

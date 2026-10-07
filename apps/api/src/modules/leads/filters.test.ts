@@ -308,6 +308,12 @@ describe("7A: search through its indexes", () => {
     expect((await find(admin, "0% S")).names).toEqual(["SR 100% Sure"]);
     expect((await find(admin, "LongLongLong")).names).toHaveLength(1);
     expect((await find(admin, "obrien@srch")).names).toEqual(["SR O'Brien"]);
+    // A number as people type it at home: the national trunk 0, or the 00 international prefix.
+    expect((await find(admin, "050 111 0003")).names).toEqual(["SR back\\slash"]);
+    expect((await find(admin, "00971 50 111 0004")).names).toEqual(["SR O'Brien"]);
+    // The end of a number, zeros and all, is still found as typed.
+    expect((await find(admin, "1110005")).names).toEqual(["SR Zoë Ángel"]);
+    expect((await find(admin, "0005")).names).toContain("SR Zoë Ángel");
     expect((await find(admin, "1110005")).names).toEqual(["SR Zoë Ángel"]);
     expect((await find(admin, "+971 50 111 0006")).names).toEqual(["SR Rose 🌹"]);
     expect((await find(admin, "SR 100%")).capped).toBe(false);

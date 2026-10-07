@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -93,7 +94,7 @@ export function ExportSheet({
                 strokeLinejoin="round"
               />
             </svg>
-            Ready · {made.rows.toLocaleString("en-US")} leads · code {made.code}
+            Ready · {plural(made.rows, "lead")} · code {made.code}
           </p>
         )}
         <div className={s.actions}>

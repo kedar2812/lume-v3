@@ -1,5 +1,5 @@
 import { licenceFor } from "../../licence/routes";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -89,6 +89,12 @@ export async function authRoutes(
         isOwner: u.isOwner,
         theme: u.theme,
         timezone: u.timezone,
+        // The zone LUME reads this person's day in: their own, else the business's (as Today and the tasks do).
+        zone:
+          u.timezone ??
+          (await req.db.execute<{ tz: string | null }>(sql`SELECT timezone AS tz FROM settings WHERE id = 1`))
+            .rows[0]?.tz ??
+          "UTC",
         avatar: {
           color: u.avatarColor ?? null,
           version: u.avatarVersion,

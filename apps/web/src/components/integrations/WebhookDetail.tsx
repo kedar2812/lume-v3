@@ -7,7 +7,8 @@ import { SecretBox } from "@/components/webhooks/SecretStep";
 import { PresetGlyph } from "@/components/webhooks/WhereFromStep";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
-import { shortDateTime } from "@/lib/settings/format";
+import { settingsDateTime } from "@/lib/settings/format";
+import { useZone } from "@/components/ZoneProvider";
 import { ago } from "@/lib/sheets/format";
 import { PRESET_LABEL, REJECTED } from "@/lib/webhooks/format";
 import { webhooksClient } from "@/lib/webhooks/client";
@@ -27,6 +28,7 @@ function outcome(e: WebhookEventView) {
 
 /** 2C spec §7: is it working, what came in, what needs you — and every action, one tap away. */
 export function WebhookDetail({ id }: { id: string }) {
+  const tz = useZone();
   const router = useRouter();
   const [v, setV] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +209,7 @@ export function WebhookDetail({ id }: { id: string }) {
             <tbody>
               {v.events.map((e) => (
                 <tr key={e.id}>
-                  <td>{shortDateTime(e.receivedAt)}</td>
+                  <td>{settingsDateTime(e.receivedAt, tz)}</td>
                   <td>{outcome(e)}</td>
                 </tr>
               ))}
@@ -227,7 +229,7 @@ export function WebhookDetail({ id }: { id: string }) {
           <ul className={s.problems}>
             {v.problemEvents.map((p) => (
               <li key={p.id}>
-                <span className={s.rowNo}>{shortDateTime(p.receivedAt)}</span>
+                <span className={s.rowNo}>{settingsDateTime(p.receivedAt, tz)}</span>
                 <span>{p.problems.map((x) => x.message).join(" ")}</span>
                 <span>
                   <Button

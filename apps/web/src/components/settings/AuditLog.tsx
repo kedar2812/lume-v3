@@ -12,7 +12,8 @@ import {
   type AuditQuery,
 } from "@/lib/settings/audit";
 import { longDate } from "@/lib/dates";
-import { shortDateTime } from "@/lib/settings/format";
+import { settingsDateTime } from "@/lib/settings/format";
+import { useZone } from "@/components/ZoneProvider";
 import { AccessChanged } from "./AccessChanged";
 import s from "./settings.module.css";
 
@@ -38,6 +39,7 @@ export function AuditLog({
   initialAction?: string;
   initialDay?: string;
 }) {
+  const tz = useZone();
   // Opened from a security alert (6A) or a Security figure (6C): already filtered to that person, action or day.
   const [start] = useState<Omit<AuditQuery, "cursor">>(() =>
     Object.fromEntries(
@@ -138,7 +140,7 @@ export function AuditLog({
                   </Link>
                 )}
                 <time className={s.auditTime} dateTime={e.at}>
-                  {shortDateTime(e.at)}
+                  {settingsDateTime(e.at, tz)}
                 </time>
               </li>
             ))}

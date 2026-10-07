@@ -9,14 +9,14 @@ import { invitesClient, usersClient, type Invite, type RoleRef, type UserRow } f
 import { securityClient } from "@/lib/settings/security";
 import type { Session } from "@/server/session";
 import { accessGone } from "@/lib/settings/access";
-import { shortDate } from "@/lib/settings/format";
-import { timezoneOf } from "@/lib/tasks/format";
+import { settingsDate } from "@/lib/settings/format";
+import { useZone } from "@/components/ZoneProvider";
 import { AccessChanged } from "./AccessChanged";
 import { OffboardSheet } from "./OffboardSheet";
 import s from "./settings.module.css";
+import { zoneOf } from "@/lib/zone";
 
 type Note = { text: string; problem?: boolean; copy?: string } | null;
-const day = (iso: string) => shortDate(iso, false);
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -40,6 +40,7 @@ export function PeopleAdmin({
   /** Someone to offboard on arrival (`?offboard=<id>`, from a security alert). */
   offboard?: string | null;
 }) {
+  const tz = useZone();
   const [users, setUsers] = useState(initialUsers);
   const [invites, setInvites] = useState(initialInvites);
   const [resent, setResent] = useState<Set<string>>(new Set());
@@ -147,7 +148,7 @@ export function PeopleAdmin({
                         ? "New link sent"
                         : inv.expired
                           ? "Link expired"
-                          : `Expires ${day(inv.expiresAt)}`}
+                          : `Expires ${settingsDate(inv.expiresAt, tz, false)}`}
                     </span>
                     <div className={s.personActions}>
                       <Button
@@ -203,7 +204,10 @@ export function PeopleAdmin({
                       {u.id === session.user.id && <span className={s.you}> · you</span>}
                     </span>
                     <span className={s.personMeta}>
-                      {u.email} · {u.lastLoginAt ? `last in ${day(u.lastLoginAt)}` : "hasn’t signed in yet"}
+                      {u.email} ·{" "}
+                      {u.lastLoginAt
+                        ? `last in ${settingsDate(u.lastLoginAt, tz, false)}`
+                        : "hasn’t signed in yet"}
                     </span>
                   </div>
                   <span className={s.chips}>
@@ -315,7 +319,7 @@ export function PeopleAdmin({
       {offboarding && (
         <OffboardSheet
           personId={offboarding.id}
-          timeZone={timezoneOf(session.user.timezone)}
+          timeZone={zoneOf(session.user)}
           onClose={() => setOffboarding(null)}
           onDone={(outcome) => {
             const who = offboarding;

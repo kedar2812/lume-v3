@@ -87,6 +87,8 @@ describe("render (4A Task 1)", () => {
         business: { name: "B", currency, timezone: "Asia/Kolkata" },
       }).text;
     expect(inCurrency("INR", 5000)).toBe("₹5,000");
+    // A message to an Indian customer groups rupees in lakhs, as they read them.
+    expect(inCurrency("INR", 150000)).toBe("₹1,50,000");
     expect(inCurrency("USD", 1250.5)).toBe("$1,250.50");
     expect(t("sessions")).toBe("8");
     expect(t("paid")).toBe("Yes");

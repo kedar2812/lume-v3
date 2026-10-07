@@ -1,15 +1,19 @@
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+import { timeOf } from "@/lib/dates";
 
-/** "22 Sep 2026" (or "22 Sep"), spelled the same on every runtime; ICU's en-GB says "Sept". */
-export function shortDate(iso: string, withYear = true): string {
-  const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}${withYear ? ` ${d.getFullYear()}` : ""}`;
+/**
+ * "Sep 22, 2026" (or "Sep 22"): month first, as everywhere in LUME, on the person's clock (`tz`) — so the server's
+ * render and the browser's agree, and a rep abroad reads their own day.
+ */
+export function settingsDate(iso: string, tz: string, withYear = true): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    month: "short",
+    day: "numeric",
+    ...(withYear ? { year: "numeric" } : {}),
+  }).format(new Date(iso));
 }
 
-/** "22 Sep, 14:05": a moment in the viewer's own clock. */
-export function shortDateTime(iso: string): string {
-  const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${shortDate(iso, false)}, ${hh}:${mm}`;
+/** "Sep 22, 2:05 pm": a moment, in LUME's words, on the person's clock. */
+export function settingsDateTime(iso: string, tz: string): string {
+  return `${settingsDate(iso, tz, false)}, ${timeOf(new Date(iso), tz)}`;
 }

@@ -1,3 +1,4 @@
+import { plural } from "@lume/core/shared";
 import { api } from "@/lib/api";
 import type { Person } from "@/lib/leads/types";
 
@@ -110,7 +111,7 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
         parts.push(
           e.enabled === false
             ? "turned off escalation of overdue follow-ups"
-            : `set overdue follow-ups to reach managers after ${Number(e.hours ?? 24)} hours`,
+            : `set overdue follow-ups to reach managers after ${plural(Number(e.hours ?? 24), "hour")}`,
         );
       const m = d.digest as { enabled?: boolean } | undefined;
       if (m) parts.push(m.enabled ? "switched on the morning email" : "switched off the morning email");
@@ -118,7 +119,7 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
       if (q)
         parts.push(
           q.enabled
-            ? `set leads gone quiet to come back after ${Number(q.days ?? 7)} days`
+            ? `set leads gone quiet to come back after ${plural(Number(q.days ?? 7), "day")}`
             : "turned off the alert for leads gone quiet",
         );
       if (typeof d.shiftToWorkingHours === "boolean")
@@ -271,7 +272,7 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "lead.export": {
     area: "Leads",
     phrase: (d) =>
-      `exported ${String(d.label ?? "leads")}: ${n(d.rows)} leads as ${d.format === "xlsx" ? "Excel" : "CSV"} (${String(d.code ?? "")})`,
+      `exported ${String(d.label ?? "leads")}: ${plural(n(d.rows), "lead")} as ${d.format === "xlsx" ? "Excel" : "CSV"} (${String(d.code ?? "")})`,
   },
   "lead.export.download": { area: "Leads", phrase: (d) => `downloaded export ${String(d.code ?? "")}` },
   "security.trace": {

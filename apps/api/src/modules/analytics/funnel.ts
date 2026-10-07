@@ -216,7 +216,8 @@ async function splitBy(
       : await req.db.execute<{ id: string; name: string }>(sql`SELECT id, name FROM users`)
     ).rows.map((x) => [x.id, x.name]),
   );
-  const ordered = [...arrivedRows].sort((a, b) => b.n - a.n);
+  // Ties by key, so which ones are named and which fold into the rest never changes between loads.
+  const ordered = [...arrivedRows].sort((a, b) => b.n - a.n || String(a.g).localeCompare(String(b.g)));
   const top = ordered.slice(0, ordered.length > 6 ? 5 : 6);
   const rest = new Set(ordered.slice(top.length).map((x) => x.g));
   const group = (keys: (string | null)[], id: string | null, name: string) => {

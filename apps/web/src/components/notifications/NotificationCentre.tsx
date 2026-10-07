@@ -389,7 +389,7 @@ export function NotificationCentre({
                                     whenInWords(e.task.dueAt, new Date(), tz)
                                       .replace(" (overdue)", "")
                                       .replace(/ min overdue$/, " min ago")
-                                  : relativeTime(e.n.createdAt)}
+                                  : relativeTime(e.n.createdAt, undefined, tz)}
                               </time>
                             </div>
                             <p className={s.meta}>

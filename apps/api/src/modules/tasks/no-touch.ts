@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { NO_TOUCH_RULE_ID, newId, shiftToWorkingHours } from "@lume/core";
+import { newId, NO_TOUCH_RULE_ID, plural, shiftToWorkingHours } from "@lume/core";
 import { schema } from "@lume/db";
 import { followUpsFrom, workingHoursFrom } from "../settings/follow-ups";
 import { schedule, type EngineDeps } from "./engine";
@@ -56,7 +56,7 @@ export async function noTouch(
     );
     const db = drizzle(client, { schema });
     const due = shift ? shiftToWorkingHours(now, workingHoursFrom(s[0]?.wh), s[0]?.tz ?? "UTC") : now;
-    const title = `No contact for ${rule.days} days`;
+    const title = `No contact for ${plural(rule.days, "day")}`;
     for (const l of quiet) {
       // Written on its owner's behalf (a lead's row asks for a person); its history still says LUME.
       await client.query("SELECT set_config('lume.user_id', $1, true)", [l.owner_id]);

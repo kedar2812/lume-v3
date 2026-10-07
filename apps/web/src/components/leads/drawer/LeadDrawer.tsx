@@ -21,7 +21,7 @@ import { Popover } from "@/components/ui/Popover";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { FollowUpSheet } from "@/components/tasks/FollowUpSheet";
 import { NextFollowUp } from "@/components/tasks/NextFollowUp";
-import { assignable, timezoneOf } from "@/lib/tasks/format";
+import { assignable } from "@/lib/tasks/format";
 import { leadsClient } from "@/lib/leads/client";
 import { formatMoney, personName, relativeTime } from "@/lib/leads/format";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -46,6 +46,7 @@ import { StageTrack } from "./StageTrack";
 import { NoteComposer, Timeline } from "./Timeline";
 import { WonPopover, type WonChange } from "./WonPopover";
 import s from "./drawer.module.css";
+import { zoneOf } from "@/lib/zone";
 
 export type GoneReason = "handed" | "deleted";
 type Props = {
@@ -123,7 +124,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const [tab, setTab] = useState<Tab>("details");
   // Bumped when a follow-up is set here, so the next-follow-up line and the history look again.
   const [followUps, setFollowUps] = useState(0);
-  const tz = timezoneOf(session.user.timezone);
+  const tz = zoneOf(session.user);
   const forWhom = assignable(session.actor, catalog.people);
   const [burst, setBurst] = useState<{ x: number; y: number } | null>(null);
   const activities = useActivities(id);
@@ -603,7 +604,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       </h2>
                     )}
                     <div className={s.sub}>
-                      <span data-volatile>Enquiry {relativeTime(lead.leadCreatedAt ?? lead.createdAt)}</span>
+                      <span data-volatile>
+                        Enquiry {relativeTime(lead.leadCreatedAt ?? lead.createdAt, undefined, tz)}
+                      </span>
                       <span aria-hidden> · </span>
                       <AssignMenu
                         lead={lead}

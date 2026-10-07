@@ -1,3 +1,4 @@
+import { plural } from "@lume/core/shared";
 import { personName, stageOf } from "./format";
 import type { Activity, Catalog } from "./types";
 
@@ -148,7 +149,10 @@ function automationLine(p: Record<string, unknown>, cat: Catalog, tz?: string): 
   const due = typeof p.dueAt === "string" ? dueWords(p.dueAt, tz) : undefined;
   switch (p.rule) {
     case "no_touch":
-      return { title: `LUME set a follow-up: no contact for ${Number(p.days ?? 0)} days`, tone: "accent" };
+      return {
+        title: `LUME set a follow-up: no contact for ${plural(Number(p.days ?? 0), "day")}`,
+        tone: "accent",
+      };
     case "create_task":
       return done
         ? {

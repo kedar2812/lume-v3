@@ -1,6 +1,7 @@
 import pg from "pg";
 import { ALL_GRANTS, newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { whereToMeet } from "./process";
 import { startCalendlyFake, type CalendlyFake } from "../../../test/calendly-fake";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 
@@ -549,5 +550,23 @@ describe("the final review's fixes (5B)", () => {
     await h.runWebhooks();
     expect(await eventOf("WAIT1")).toMatchObject({ status: "done" });
     expect(await meetingOf("WAIT1")).toBeDefined();
+  });
+});
+
+describe("where a Calendly meeting happens", () => {
+  it("only an http(s) address is ever a link", () => {
+    expect(whereToMeet("https://meet.example/abc", "")).toEqual({
+      link: "https://meet.example/abc",
+      location: null,
+    });
+    expect(whereToMeet("", "https://zoom.example/j/1")).toEqual({
+      link: "https://zoom.example/j/1",
+      location: null,
+    });
+    expect(whereToMeet("javascript:alert(1)", "")).toEqual({ link: null, location: null });
+    expect(whereToMeet("data:text/html,x", "Studio, 2nd floor")).toEqual({
+      link: null,
+      location: "Studio, 2nd floor",
+    });
   });
 });

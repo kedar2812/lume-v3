@@ -133,7 +133,13 @@ export async function sources(
         : {}),
     };
   });
-  rows.sort((a, b) => b.leads - a.leads);
+  // Ties by name, so the order is the same on every load and every filter.
+  rows.sort(
+    (a, b) =>
+      b.leads - a.leads ||
+      String(a.name).localeCompare(String(b.name)) ||
+      String(a.id).localeCompare(String(b.id)),
+  );
   const byDay = new Map(series.rows.map((r) => [r.day, r.value]));
   return {
     range: { label: range.label, days: range.days },
@@ -180,7 +186,7 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
     req.db.execute<{ id: string | null; name: string | null; n: number }>(sql`
       SELECT l.lost_reason_id AS id, r.label::text AS name, count(*)::int AS n FROM leads l
       LEFT JOIN lost_reasons r ON r.id = l.lost_reason_id
-      WHERE ${base(range.from, range.to)} GROUP BY 1, 2 ORDER BY n DESC`),
+      WHERE ${base(range.from, range.to)} GROUP BY 1, 2 ORDER BY n DESC, 2 NULLS LAST, 1 NULLS LAST`),
     req.db.execute<{ id: string | null; n: number }>(sql`
       SELECT l.lost_reason_id AS id, count(*)::int AS n FROM leads l
       WHERE ${base(range.previous.from, range.previous.to)} GROUP BY 1`),
@@ -190,17 +196,17 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
       CROSS JOIN LATERAL (SELECT h.from_stage_id FROM lead_stage_history h WHERE h.lead_id = l.id AND h.changed_at <= l.lost_at
                           ORDER BY h.changed_at DESC, h.id DESC LIMIT 1) h
       LEFT JOIN stages s ON s.id = h.from_stage_id
-      WHERE ${base(range.from, range.to)} GROUP BY 1, 2 ORDER BY n DESC`),
+      WHERE ${base(range.from, range.to)} GROUP BY 1, 2 ORDER BY n DESC, 2 NULLS LAST, 1 NULLS LAST`),
     // By who owned them when they were lost: the event rollups already credit that (read live under a tag/field).
     live
       ? req.db.execute<{ id: string | null; n: number }>(sql`
           SELECT ${who} AS id, count(*)::int AS n FROM leads l WHERE ${base(range.from, range.to)}
-          GROUP BY 1 ORDER BY n DESC`)
+          GROUP BY 1 ORDER BY n DESC, 1 NULLS LAST`)
       : req.db.execute<{ id: string | null; n: number }>(sql`
           SELECT user_id AS id, sum(lost)::int AS n FROM analytics_daily_event
-          WHERE ${rw(q, range.days[0]!, range.days.at(-1)!, true)} GROUP BY 1 HAVING sum(lost) > 0 ORDER BY n DESC`),
+          WHERE ${rw(q, range.days[0]!, range.days.at(-1)!, true)} GROUP BY 1 HAVING sum(lost) > 0 ORDER BY n DESC, 1 NULLS LAST`),
     req.db.execute<{ id: string | null; n: number }>(sql`
-      SELECT l.source_id AS id, count(*)::int AS n FROM leads l WHERE ${base(range.from, range.to)} GROUP BY 1 ORDER BY n DESC`),
+      SELECT l.source_id AS id, count(*)::int AS n FROM leads l WHERE ${base(range.from, range.to)} GROUP BY 1 ORDER BY n DESC, 1 NULLS LAST`),
     // Won back: reopened in the span after being lost, and won in the span.
     req.db.execute<{ n: number; value: number }>(sql`
       SELECT count(*)::int AS n, coalesce(sum(l.value), 0)::float8 AS value FROM leads l
@@ -272,7 +278,7 @@ function lostMatrix(
     const t = new Map<string | null, number>();
     for (const r of rows) t.set(r[key], (t.get(r[key]) ?? 0) + r.n);
     return [...t]
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))
       .slice(0, k)
       .map(([id]) => id);
   };
@@ -514,7 +520,7 @@ export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Dat
     WHERE a.type = 'whatsapp_confirmed_sent' AND a.payload ? 'templateVersionId'
       AND a.occurred_at >= ${range.from.toISOString()}::timestamptz AND a.occurred_at < ${range.to.toISOString()}::timestamptz
       AND ${leadWhere(q)} AND ${credit(q, sql`a.user_id`)}
-    GROUP BY t.id, t.name ORDER BY sends DESC`);
+    GROUP BY t.id, t.name ORDER BY sends DESC, t.name, t.id`);
   return {
     range: { label: range.label, days: range.days },
     templates: r.rows.map((t) => ({ ...t, replyRate: rate(t.replies, t.sends), tooFew: t.sends < TOO_FEW })),

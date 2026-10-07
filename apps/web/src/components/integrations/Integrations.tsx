@@ -78,10 +78,14 @@ export function Integrations() {
     window.location.assign(r.data.url);
   };
   const copy = async () => {
-    if (!g.email) return;
-    await navigator.clipboard.writeText(g.email);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+    if (!g.email || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(g.email);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // A refused clipboard: the address is on screen to copy by hand.
+    }
   };
 
   return (

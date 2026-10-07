@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { accountClient, type MySession } from "@/lib/settings/account";
 import { deviceName } from "@lume/core/shared";
-import { shortDateTime } from "@/lib/settings/format";
+import { settingsDateTime } from "@/lib/settings/format";
+import { useZone } from "@/components/ZoneProvider";
 import type { Session } from "@/server/session";
 import { MyAlerts } from "./MyAlerts";
 import { ProfilePhoto } from "./profile/ProfilePhoto";
@@ -304,6 +305,7 @@ function TwoStep({ session }: { session: Session }) {
 }
 
 function Sessions() {
+  const tz = useZone();
   const [sessions, setSessions] = useState<MySession[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -349,7 +351,7 @@ function Sessions() {
                 <div className={s.personText}>
                   <span className={s.personName}>{device}</span>
                   <span className={s.personMeta}>
-                    {x.ip ?? "Unknown network"} · active {shortDateTime(x.lastSeenAt)}
+                    {x.ip ?? "Unknown network"} · active {settingsDateTime(x.lastSeenAt, tz)}
                   </span>
                 </div>
                 {x.current ? (

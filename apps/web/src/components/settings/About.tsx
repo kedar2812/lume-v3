@@ -2,11 +2,13 @@
 import { useEffect, useState } from "react";
 import { LUME_OWNER } from "@lume/core/shared";
 import { aboutClient, type AboutInfo } from "@/lib/settings/about";
-import { shortDate } from "@/lib/settings/format";
+import { settingsDate } from "@/lib/settings/format";
+import { useZone } from "@/components/ZoneProvider";
 import s from "./settings.module.css";
 
 /** Which LUME is running, and whether last week's backup could actually be restored (it's tested weekly). */
 export function About() {
+  const tz = useZone();
   const [info, setInfo] = useState<AboutInfo | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -49,7 +51,7 @@ export function About() {
                 <>
                   <span className={s.restoreDot} data-ok={t.ok || undefined} aria-hidden />
                   <span>
-                    Last restore test: {t.ok ? "passed" : "failed"}, {shortDate(t.finishedAt)}
+                    Last restore test: {t.ok ? "passed" : "failed"}, {settingsDate(t.finishedAt, tz)}
                   </span>
                 </>
               ) : (

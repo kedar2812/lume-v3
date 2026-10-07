@@ -45,7 +45,7 @@ export function Timeline({
                 {line.quote && <div className={s.quote}>{line.quote}</div>}
               </div>
               <time dateTime={a.occurredAt} data-volatile>
-                {relativeTime(a.occurredAt)}
+                {relativeTime(a.occurredAt, undefined, tz)}
               </time>
             </li>
           );

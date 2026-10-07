@@ -518,7 +518,10 @@ export function foldBySource(
     t.n += r.n;
     totals.set(k, t);
   }
-  const top = [...totals.values()].sort((a, b) => b.n - a.n);
+  // Ties by name, then id: the named bands and "N more sources" stay the same from load to load.
+  const top = [...totals.values()].sort(
+    (a, b) => b.n - a.n || a.name.localeCompare(b.name) || String(a.id).localeCompare(String(b.id)),
+  );
   const at = new Map(split.rows.map((r) => [`${r.day}|${r.source_id ?? "none"}`, r.n]));
   const named = top.slice(0, top.length > 5 ? 4 : 5);
   const rest = top.slice(named.length);

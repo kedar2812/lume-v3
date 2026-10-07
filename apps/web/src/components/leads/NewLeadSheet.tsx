@@ -27,6 +27,7 @@ import { FieldEditor } from "./fields/FieldEditor";
 import { useDuplicates } from "./useDuplicates";
 import d from "./drawer/drawer.module.css";
 import s from "./sheet.module.css";
+import { parseAmount } from "@/lib/money-input";
 
 const ME = "";
 const NOBODY = "none";
@@ -149,10 +150,9 @@ export function NewLeadSheet({
     setFormError(null);
     const problems: Record<string, string> = {};
     if (!name.trim()) problems.name = "Give the lead a name";
-    const rawValue = value.replace(/[\s,]/g, "");
-    const amount = rawValue === "" ? null : Number(rawValue);
-    if (amount !== null && (!Number.isFinite(amount) || amount < 0))
-      problems.value = "Enter an amount of 0 or more";
+    const parsed = parseAmount(value);
+    if ("error" in parsed) problems.value = parsed.error;
+    const amount = "error" in parsed ? null : parsed.value;
     for (const f of customFields)
       if (f.isRequired && empty(custom.current[f.key])) problems[f.key] = `${f.label} is needed`;
     setErrors(problems);

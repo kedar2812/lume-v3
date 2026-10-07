@@ -2,9 +2,11 @@
 import { lookOf } from "@/lib/avatar/look";
 import { Avatar } from "@/components/ui/Avatar";
 import { tokenColor } from "@/lib/leads/colors";
-import { formatMoney, personName, relativeTime, shortDate, stageOf } from "@/lib/leads/format";
-import type { Catalog, ContactView, Lead } from "@/lib/leads/types";
+import { fieldText, formatMoney, personName, relativeTime, shortDate, stageOf } from "@/lib/leads/format";
+import type { Catalog, ContactView, FieldDefView, Lead } from "@/lib/leads/types";
 import s from "./leads.module.css";
+import { useZone } from "@/components/ZoneProvider";
+import { timeOf } from "@/lib/dates";
 
 /** The stage as a pill: its colour dot and name (the prototype's `.stg`). */
 export function StagePill({ catalog, stageId }: { catalog: Catalog; stageId: string | undefined }) {
@@ -70,12 +72,33 @@ export const ValueCell = ({ lead, catalog }: { lead: Lead; catalog: Catalog }) =
 
 /** "3h ago" and the like. Marked volatile: it changes with the clock, so screenshots mask it. */
 export function WhenCell({ iso }: { iso: string | null | undefined }) {
+  const tz = useZone();
   if (!iso) return <span className={s.muted}>—</span>;
+  const at = new Date(iso);
   return (
-    <time dateTime={iso} title={new Date(iso).toUTCString()} data-volatile className={s.when}>
-      {relativeTime(iso)}
+    <time
+      dateTime={iso}
+      title={`${shortDate(at, true, tz)}, ${timeOf(at, tz)}`}
+      data-volatile
+      className={s.when}
+    >
+      {relativeTime(iso, undefined, tz)}
     </time>
   );
+}
+
+/** A custom field's value as text, its dates and times on the person's clock. */
+export function FieldTextCell({
+  value,
+  def,
+  catalog,
+}: {
+  value: unknown;
+  def: FieldDefView;
+  catalog: Catalog;
+}) {
+  const text = fieldText(value, def, catalog, useZone());
+  return text || <span className={s.muted}>—</span>;
 }
 
 export const DateCell = ({ iso }: { iso: string | null | undefined }) =>

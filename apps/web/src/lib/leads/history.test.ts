@@ -167,6 +167,9 @@ describe("LUME's own work, in the lead's history (3C Task 6)", () => {
     expect(describeActivity(auto({ rule: "no_touch", result: "done", days: 7 }), cat).title).toBe(
       "LUME set a follow-up: no contact for 7 days",
     );
+    expect(describeActivity(auto({ rule: "no_touch", result: "done", days: 1 }), cat).title).toBe(
+      "LUME set a follow-up: no contact for 1 day",
+    );
   });
 
   it("a follow-up's time reads in the person's own zone, not the browser's", () => {

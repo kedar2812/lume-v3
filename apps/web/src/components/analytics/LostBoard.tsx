@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { useEffect, useState, type CSSProperties } from "react";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import {
@@ -413,7 +414,7 @@ function Converts({
               type="button"
               className={s.sg}
               disabled={!g.drill}
-              aria-label={`${g.label}: ${g.rate === null ? "no leads" : `${pct(g.rate, 1)} won`}, ${count(g.arrived)} leads. See the leads.`}
+              aria-label={`${g.label}: ${g.rate === null ? "no leads" : `${pct(g.rate, 1)} won`}, ${plural(g.arrived, "lead")}. See the leads.`}
               onClick={() => g.drill && onDrill(g.drill, `${data.field?.label ?? "Answer"}: ${g.label}`)}
             >
               <b>{g.label}</b>

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import { trend } from "@lume/core/shared";
+import { trend, plural } from "@lume/core/shared";
 import { Chip } from "@/components/analytics/parts";
 import { avatarColor, initials } from "@/components/ui/Avatar";
 import { areaUnder, smooth, sparkLine, toPts } from "@/lib/analytics/chart";
@@ -60,7 +60,7 @@ function Tile({
 }: {
   href: string;
   icon: ReactNode;
-  label: string;
+  label: ReactNode;
   i: number;
   lit?: boolean;
   aria: string;
@@ -184,7 +184,9 @@ function LeadsTile({
         {tr ? (
           <>
             <Chip trend={tr} />
-            <span>vs last {day} by now</span>
+            <span>
+              vs last <span data-volatile>{day}</span> by now
+            </span>
           </>
         ) : (
           <span>{t.lastWeek === 0 ? `None by now last ${day}` : ""}</span>
@@ -193,7 +195,7 @@ function LeadsTile({
       <div className={s.viz} aria-hidden data-live-count>
         <div
           className={s.bars}
-          title={t.usual ? `Faint: a usual ${day}, from the last ${t.weeks} weeks` : undefined}
+          title={t.usual ? `Faint: a usual ${day}, from the last ${plural(t.weeks, "week")}` : undefined}
         >
           {t.hours.map((n, h) => (
             <span key={h}>
@@ -231,13 +233,20 @@ function MonthTile({
   const tr = t.previous > 0 ? trend(t.value, t.previous) : null;
   const raw = `${own ? "Your " : ""}${t.money ? "revenue" : "wins"} · ${month}`;
   const label = raw[0]!.toUpperCase() + raw.slice(1);
+  // The month changes the label each month: marked volatile, so screenshots don't break on the 1st.
+  const lead = label.slice(0, label.length - month.length);
   const g = t.goal;
   const lastDay = new Date(Date.UTC(Number(t.from.slice(0, 4)), Number(t.from.slice(5, 7)), 0)).getUTCDate();
   return (
     <Tile
       href={t.money ? "/analytics?m=revenue&range=this_month" : "/analytics?range=this_month"}
       icon={t.money ? I.money : I.won}
-      label={label}
+      label={
+        <>
+          {lead}
+          <span data-volatile>{month}</span>
+        </>
+      }
       i={i}
       lit
       aria={`${label}: ${shown(t.value)}${tr ? `, ${tr.text} ${sameDaysLastMonth(t.to)}` : ""}${g ? `, ${pct(g.value / g.target)} of the goal` : ""}`}
@@ -377,11 +386,12 @@ function CalendarTile({ t, i }: { t: TilesData["calendar"]; i: number }) {
       icon={I.calendar}
       label="Calendar"
       i={i}
-      aria={`Calendar: ${t.today} calls today, ${week} this week`}
+      aria={`Calendar: ${plural(t.today, "call")} today, ${week} this week`}
     >
       <Big value={count(t.today)} unit={t.today === 1 ? "call today" : "calls today"} />
       <div className={s.viz} aria-hidden data-live-count>
-        <div className={s.week}>
+        {/* Marks today and the days before it, so it differs every day: screenshots leave it out. */}
+        <div className={s.week} data-volatile-day>
           {t.week.map((c, k) => {
             const day = addDays(t.weekStart, k);
             return (
@@ -422,7 +432,7 @@ function TeamTile({ t, i }: { t: NonNullable<TilesData["team"]>; i: number }) {
       icon={I.team}
       label="Team"
       i={i}
-      aria={`Team: ${t.overdue} follow-ups overdue right now`}
+      aria={`Team: ${plural(t.overdue, "follow-up")} overdue right now`}
     >
       <Big value={count(t.overdue)} unit="overdue right now" />
       <div className={s.viz} data-live-count>
@@ -463,7 +473,13 @@ function StreakTile({ t, i }: { t: NonNullable<TilesData["streak"]>; i: number }
   const left = t.dueToday - t.doneToday;
   const nothing = !t.last7.length && !t.dueToday;
   return (
-    <Tile href="/analytics" icon={I.ontime} label="On time" i={i} aria={`On time: ${t.days} days in a row`}>
+    <Tile
+      href="/analytics"
+      icon={I.ontime}
+      label="On time"
+      i={i}
+      aria={`On time: ${plural(t.days, "day")} in a row`}
+    >
       <Big
         value={nothing ? "—" : count(t.days)}
         unit={nothing ? undefined : t.days === 1 ? "day in a row" : "days in a row"}

@@ -50,4 +50,9 @@ describe("signed", () => {
     expect(signed(-12.36, 1)).toBe(`${M}12.4`);
     expect(signed(-0.04, 1)).toBe("0.0");
   });
+  it("a big change is grouped like every other number: +199,900.0%, not +199900.0%", () => {
+    expect(trend(2000, 1).text).toBe("+199,900.0%");
+    expect(trend(1, 1000).text).toBe(`${"−"}99.9%`);
+    expect(trend(5000, 1, { kind: "abs" }).text).toBe("+4,999");
+  });
 });

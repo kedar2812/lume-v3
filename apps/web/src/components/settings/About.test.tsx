@@ -41,13 +41,13 @@ describe("About", () => {
         },
       });
     const first = render(<About />);
-    expect(await screen.findByText("Last restore test: passed, 22 Sep 2026")).toBeInTheDocument();
+    expect(await screen.findByText("Last restore test: passed, Sep 22, 2026")).toBeInTheDocument();
     expect(screen.getByText("Version 1.3.0")).toBeInTheDocument();
     first.unmount();
     const second = render(<About />);
     expect(await screen.findByText("No restore test has run yet")).toBeInTheDocument();
     second.unmount();
     render(<About />);
-    expect(await screen.findByText("Last restore test: failed, 22 Sep 2026")).toBeInTheDocument();
+    expect(await screen.findByText("Last restore test: failed, Sep 22, 2026")).toBeInTheDocument();
   });
 });

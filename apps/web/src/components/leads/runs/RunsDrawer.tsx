@@ -5,8 +5,9 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Scrim } from "@/components/ui/Scrim";
 import { useModalFocus } from "@/components/ui/useModalFocus";
 import { bulkRunsClient, isLive, reasonWords, runLine, took, type RunView } from "@/lib/leads/bulk-runs";
-import { longDate } from "@/lib/dates";
+import { longDate, timeOf } from "@/lib/dates";
 import { useLoadingSignal } from "@/lib/loading";
+import { zoneOf } from "@/lib/zone";
 import type { Session } from "@/server/session";
 import { useCatalog } from "../CatalogProvider";
 import s from "./runs.module.css";
@@ -88,7 +89,7 @@ export function RunsDrawer({
     tag: (id: string) => catalog.tags.find((t) => t.id === id)?.label ?? "a tag",
   };
   const shown = (runs ?? []).filter((r) => view === "all" || r.userId === session.user.id);
-  const tz = session.user.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tz = zoneOf(session.user);
   const days = [...new Set(shown.map((r) => dayWords(r.createdAt, tz)))];
   const act = async (r: RunView, what: "undo" | "cancel") => {
     const res = what === "undo" ? await bulkRunsClient.undo(r.id) : await bulkRunsClient.cancel(r.id);
@@ -284,10 +285,7 @@ export function RunsDrawer({
                             <div className={s.rt}>
                               <b>{runLine(r, name)}</b>
                               <span>
-                                {by} ·{" "}
-                                {new Date(r.createdAt)
-                                  .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-                                  .toLowerCase()}
+                                {by} · {timeOf(new Date(r.createdAt), tz)}
                                 {live
                                   ? ` · ${fmt(r.done)} of ${fmt(r.total)}`
                                   : took(r)
@@ -403,11 +401,11 @@ export function RunsDrawer({
                                   {left && (
                                     <span className={s.cap}>
                                       Undo until{" "}
-                                      {new Date(r.undoUntil!).toLocaleString("en-US", {
+                                      {new Intl.DateTimeFormat("en-US", {
+                                        timeZone: tz,
                                         weekday: "long",
-                                        hour: "numeric",
-                                        minute: "2-digit",
-                                      })}
+                                      }).format(new Date(r.undoUntil!))}{" "}
+                                      {timeOf(new Date(r.undoUntil!), tz)}
                                     </span>
                                   )}
                                 </div>

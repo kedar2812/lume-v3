@@ -70,10 +70,21 @@ function readInvitee(body: Record<string, unknown>, settings: CalendlyConfig["se
     title: str(ev.name).trim() || "Meeting",
     startsAt: starts,
     endsAt: ends < starts ? starts : ends,
-    link: join || (/^https?:\/\//.test(place) ? place : null),
-    location: place && !/^https?:\/\//.test(place) ? place : null,
+    ...whereToMeet(join, place),
     rescheduled: p.rescheduled === true,
     reason: str((p.cancellation as Record<string, unknown> | undefined)?.reason) || null,
+  };
+}
+
+/**
+ * Where to meet: a web link (the conference's join URL, else a location that is one) and a place in words. Only
+ * http(s) is ever a link — anything else (a javascript: or data: URL) would become a Join button in LUME.
+ */
+export function whereToMeet(join: string, place: string): { link: string | null; location: string | null } {
+  const web = (u: string) => /^https?:\/\//i.test(u.trim());
+  return {
+    link: web(join) ? join.trim() : web(place) ? place.trim() : null,
+    location: place && !web(place) ? place : null,
   };
 }
 

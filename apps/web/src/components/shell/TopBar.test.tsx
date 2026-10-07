@@ -153,3 +153,14 @@ describe("the bell: 3B final review", () => {
     expect(toast).not.toHaveBeenCalled();
   });
 });
+
+describe("the search shortcut", () => {
+  it("reads ⌘K on a Mac and Ctrl K elsewhere", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
+    const mac = render(<TopBar theme="system" onSearch={vi.fn()} mac />);
+    expect(screen.getByText("⌘K")).toBeInTheDocument();
+    mac.unmount();
+    render(<TopBar theme="system" onSearch={vi.fn()} />);
+    expect(screen.getByText("Ctrl K")).toBeInTheDocument();
+  });
+});

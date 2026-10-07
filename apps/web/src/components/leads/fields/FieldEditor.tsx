@@ -13,6 +13,9 @@ import { Switch } from "@/components/ui/Switch";
 import type { FieldDefView } from "@/lib/leads/types";
 import { useCatalog } from "../CatalogProvider";
 import s from "./fields.module.css";
+import { parseAmount } from "@/lib/money-input";
+import { useZone } from "@/components/ZoneProvider";
+import { localInputToIso } from "@/lib/tasks/format";
 
 type Props = {
   def: FieldDefView;
@@ -37,21 +40,33 @@ const INPUT_TYPE: Partial<Record<FieldDefView["type"], string>> = {
 
 /** Parse money or a number as a person types it ("4,750.50"). null for empty; a message when it's wrong. */
 function parseNumber(raw: string, money: boolean): { value: number | null } | { error: string } {
+  if (money) return parseAmount(raw);
   const t = raw.replace(/[\s,]/g, "");
   if (!t) return { value: null };
-  const n = Number(t);
-  if (!Number.isFinite(n)) return { error: "Enter a number" };
-  if (money && n < 0) return { error: "Enter an amount of 0 or more" };
-  if (money && Math.abs(n * 100 - Math.round(n * 100)) > 1e-6) return { error: "Use at most two decimals" };
-  return { value: n };
+  // A plain decimal: no hex ("0x1F") or scientific ("1e5") slipping through Number().
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(t)) return { error: "Enter a number" };
+  return { value: Number(t) };
 }
 
-const toLocalInput = (iso: unknown) => {
+/** A stored instant as the person's wall clock ("2026-09-29T15:00"), for a datetime-local input. */
+const toLocalInput = (iso: unknown, tz: string) => {
   if (typeof iso !== "string" || !iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const off = d.getTimezoneOffset() * 60_000;
-  return new Date(d.getTime() - off).toISOString().slice(0, 16);
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(d)
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 };
 
 /**
@@ -72,6 +87,8 @@ export function FieldEditor(props: Props) {
 
 function Editor({ def, value, onCommit, onCancel, autoFocus, error, inForm = false }: Props) {
   const catalog = useCatalog();
+  // Date-times are typed and shown on the person's clock, not the browser's.
+  const tz = useZone();
   const first = useRef<HTMLElement | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const shown = problem ?? error ?? null;
@@ -211,13 +228,13 @@ function Editor({ def, value, onCommit, onCancel, autoFocus, error, inForm = fal
     case "date":
     case "datetime": {
       const isDate = def.type === "date";
-      const start = isDate ? (typeof value === "string" ? value.slice(0, 10) : "") : toLocalInput(value);
+      const start = isDate ? (typeof value === "string" ? value.slice(0, 10) : "") : toLocalInput(value, tz);
       return (
         <DateEditor
           label={def.label}
           type={isDate ? "date" : "datetime-local"}
           start={start}
-          toValue={(raw) => (raw ? (isDate ? raw : new Date(raw).toISOString()) : null)}
+          toValue={(raw) => (raw ? (isDate ? raw : localInputToIso(raw, tz)) : null)}
           onCommit={onCommit}
           onCancel={onCancel}
           inForm={inForm}

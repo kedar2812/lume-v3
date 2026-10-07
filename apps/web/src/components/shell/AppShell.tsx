@@ -20,8 +20,17 @@ import { MobileTabs } from "./MobileTabs";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import s from "./shell.module.css";
+import { zoneOf } from "@/lib/zone";
+import { guardNumberWheel } from "@/lib/ui/wheel";
 
-type Props = { session: Session; businessName: string; theme: ThemePref; children: ReactNode };
+type Props = {
+  session: Session;
+  businessName: string;
+  theme: ThemePref;
+  /** A Mac (from the request): the search shortcut reads ⌘K. */
+  mac?: boolean;
+  children: ReactNode;
+};
 
 /** What to call someone in the sidebar: the owner, an admin (manages people), or their role's work. */
 function roleLabel(session: Session): string {
@@ -44,9 +53,12 @@ export function shellIdentity(session: Session) {
   };
 }
 
-export function AppShell({ session, businessName, theme, children }: Props) {
+export function AppShell({ session, businessName, theme, mac = false, children }: Props) {
   const [palette, setPalette] = useState(false);
   const { can, user } = shellIdentity(session);
+
+  // A wheel over a focused number field scrolls the page, never changes the value.
+  useEffect(() => guardNumberWheel(document), []);
 
   useEffect(() => {
     // Scrollbars fade in while scrolling (spec §4.4).
@@ -90,10 +102,11 @@ export function AppShell({ session, businessName, theme, children }: Props) {
                 <LicenceBanner />
                 <TopBar
                   theme={theme}
-                  tz={session.user.timezone}
+                  tz={zoneOf(session.user)}
                   canMessage={canCore(session.actor, "messages.send")}
                   canQueue={canCore(session.actor, "messages.send_queue")}
                   onSearch={() => setPalette(true)}
+                  mac={mac}
                 />
                 <div className={s.scroll} data-scroll>
                   <div className={s.page}>

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { testCatalog } from "@/lib/leads/test-catalog";
 import { CatalogProvider } from "../CatalogProvider";
+import { ZoneProvider } from "@/components/ZoneProvider";
 import { FieldEditor } from "./FieldEditor";
 
 const cat = testCatalog();
@@ -100,7 +101,7 @@ describe("FieldEditor", () => {
     await userEvent.clear(box2);
     await userEvent.type(box2, "lots{Enter}");
     expect(b.onCommit).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent(/number/i);
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter an amount, like 25,000");
   });
 
   it("clears a value when the box is emptied", async () => {
@@ -126,5 +127,27 @@ describe("FieldEditor", () => {
     const options = screen.getAllByRole("option").map((o) => o.textContent);
     expect(options).toContain("Riya Sharma");
     expect(options).not.toContain("Old Rep");
+  });
+  it("a date-time is typed and read on the person's clock, not the browser's", async () => {
+    const meeting = { ...cat.fields[0]!, key: "meet", label: "Meeting", type: "datetime" as const };
+    const onCommit = vi.fn();
+    render(
+      <ZoneProvider zone="Asia/Kolkata">
+        <CatalogProvider catalog={{ ...cat, fields: [...cat.fields, meeting] }}>
+          <FieldEditor
+            def={meeting}
+            value="2026-09-01T09:30:00Z"
+            onCommit={onCommit}
+            onCancel={vi.fn()}
+            autoFocus
+          />
+        </CatalogProvider>
+      </ZoneProvider>,
+    );
+    const box = screen.getByLabelText("Meeting") as HTMLInputElement;
+    expect(box.value).toBe("2026-09-01T15:00"); // 3 pm in Kolkata
+    await userEvent.clear(box);
+    await userEvent.type(box, "2026-09-01T16:00{Enter}");
+    expect(onCommit).toHaveBeenCalledWith("2026-09-01T10:30:00.000Z");
   });
 });

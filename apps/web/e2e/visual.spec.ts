@@ -19,10 +19,15 @@ const volatile = (page: Page) => [
 const FREEZE_VOLATILE = `[data-volatile] {
   display: inline-block !important;
   width: 88px !important;
+  min-width: 88px !important;
+  flex: none !important;
   height: 1.25em !important;
   overflow: hidden !important;
   white-space: nowrap !important;
   vertical-align: bottom !important;
+}
+[data-volatile-day] {
+  visibility: hidden !important;
 }`;
 
 type Shot = { name: string; path: string; who: Who | null; ready: (p: Page) => Promise<unknown> };
@@ -176,13 +181,12 @@ for (const theme of ["porcelain", "obsidian"] as const) {
         // run to run, so the compared copy leaves the decoration out (the review copies keep it).
         await page.addStyleTag({ content: '[class*="aura"] { visibility: hidden !important; }' });
         // Proven, not assumed: every visible relative time now takes exactly the same room.
-        const widths = await page
-          .locator("[data-volatile]")
-          .evaluateAll((els) =>
-            els
-              .filter((e) => e.getClientRects().length > 0)
-              .map((e) => Math.round(e.getBoundingClientRect().width)),
-          );
+        const widths = await page.locator("[data-volatile]").evaluateAll((els) =>
+          els
+            .filter((e) => e.getClientRects().length > 0)
+            // Layout width: a tile the tour shrinks with a transform still lays the box out at 88.
+            .map((e) => (e as HTMLElement).offsetWidth),
+        );
         expect(
           widths.every((w) => w === 88),
           `relative-time boxes: ${widths.join(", ")}`,

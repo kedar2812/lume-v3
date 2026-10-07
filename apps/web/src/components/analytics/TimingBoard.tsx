@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
-import { trend } from "@lume/core/shared";
+import { trend, plural } from "@lume/core/shared";
 import { Avatar } from "@/components/ui/Avatar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { Insights, Timing } from "@/lib/analytics/client";
@@ -139,7 +139,7 @@ function Grid({
     view === "arrivals" ? count(x.n) : x.v === null ? "—" : pct(x.v);
   const bestRate = best && "rate" in best ? (best as { rate: number }).rate : null;
   const bestText = best
-    ? `Best: ${DAY[best.dow]} ${hour12(best.hour)} · ${bestRate !== null ? pct(bestRate) : `${count(best.n)} leads`}`
+    ? `Best: ${DAY[best.dow]} ${hour12(best.hour)} · ${bestRate !== null ? pct(bestRate) : plural(best.n, "lead")}`
     : null;
   const outside =
     view === "arrivals"

@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
-import { can, canOnRecord, newId, normalizePhone, scopeOf } from "@lume/core";
+import { can, canOnRecord, newId, normalizePhone, plural, scopeOf } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { loadActor } from "../../rbac/actor";
@@ -979,13 +979,13 @@ async function fail(
     "INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, diff) VALUES ($1, 'lead.bulk', 'lead', NULL, $2)",
     [run.userId, { ...auditDiff(row!), error }],
   );
-  const done = row!.done.toLocaleString("en-US");
+  const done = row!.done;
   await send(run.userId, {
     kind: "bulk_done",
     title:
       error === "Their access changed"
-        ? `A bulk action stopped after ${done} leads: your access changed. What was done stays.`
-        : `A bulk action stopped after ${done} leads. What was done stays.`,
+        ? `A bulk action stopped after ${plural(done, "lead")}: your access changed. What was done stays.`
+        : `A bulk action stopped after ${plural(done, "lead")}. What was done stays.`,
     data: { run: run.id },
   }).catch(() => undefined);
 }

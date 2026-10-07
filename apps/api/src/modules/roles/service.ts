@@ -162,7 +162,10 @@ export async function deleteRole(req: FastifyRequest, id: string, replacementRol
   const role = await getRole(req, id);
   if (role.holders > 0) {
     if (!replacementRoleId)
-      throw badRequest("REPLACEMENT_REQUIRED", `${role.holders} people hold this role; choose a replacement`);
+      throw badRequest(
+        "REPLACEMENT_REQUIRED",
+        `${role.holders === 1 ? "1 person holds" : `${role.holders} people hold`} this role; choose a replacement`,
+      );
     if (replacementRoleId === id) throw badRequest("REPLACEMENT_REQUIRED", "Choose a different role");
     await getRole(req, replacementRoleId);
     await assertCanAssignRoles(req, [replacementRoleId]);

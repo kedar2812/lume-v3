@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { useCallback, useEffect, useState } from "react";
 import { ImportSheet } from "@/components/imports/ImportSheet";
 import { Button } from "@/components/ui/Button";
@@ -6,7 +7,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { importsClient } from "@/lib/imports/client";
 import type { ImportStatus, ImportView } from "@/lib/imports/types";
 import { accessGone } from "@/lib/settings/access";
-import { shortDateTime } from "@/lib/settings/format";
+import { settingsDateTime } from "@/lib/settings/format";
+import { useZone } from "@/components/ZoneProvider";
 import { AccessChanged } from "./AccessChanged";
 import s from "./settings.module.css";
 
@@ -31,8 +33,8 @@ function outcome(v: ImportView): string {
     c.skipped && `${n(c.skipped)} skipped`,
     c.errors && `${n(c.errors)} with problems`,
   ].filter(Boolean);
-  if (v.status === "draft") return `${n(v.rowCount)} rows, not started`;
-  return parts.length ? parts.join(" · ") : `${n(v.rowCount)} rows`;
+  if (v.status === "draft") return `${plural(v.rowCount, "row")}, not started`;
+  return parts.length ? parts.join(" · ") : plural(v.rowCount, "row");
 }
 
 type Open = { draftId: string } | { importId: string } | null;
@@ -42,6 +44,7 @@ type Open = { draftId: string } | { importId: string } | null;
  * else's draft never shows; their finished imports do, with counts (rows only for those allowed).
  */
 export function ImportsList() {
+  const tz = useZone();
   const [items, setItems] = useState<ImportView[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<"ready" | "loading" | "error" | "gone">("loading");
@@ -85,7 +88,7 @@ export function ImportsList() {
                     <p className={s.importWhen}>
                       {v.startedBy ? `${v.startedBy.name} · ` : ""}
                       <time dateTime={v.startedAt ?? v.createdAt}>
-                        {shortDateTime(v.startedAt ?? v.createdAt)}
+                        {settingsDateTime(v.startedAt ?? v.createdAt, tz)}
                       </time>
                     </p>
                   </div>

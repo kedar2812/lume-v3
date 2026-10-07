@@ -18,10 +18,16 @@ export function SecretBox({ address, secret }: { address?: string; secret: strin
 
 function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
+  // "Copied" only when it was: a secret shown once must never be thought saved when it wasn't.
   const copy = async () => {
-    await navigator.clipboard?.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+    try {
+      if (!navigator.clipboard) return;
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // A refused clipboard: the value is on screen to copy by hand.
+    }
   };
   return (
     <div className={w.secretRow}>

@@ -22,6 +22,10 @@ export type TrendOptions = {
 
 export const MINUS = "−";
 
+/** A number with its thousands grouped like every other number LUME shows: 199,900.0. */
+const grouped = (n: number, places: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: places, maximumFractionDigits: places });
+
 export function trend(now: number, before: number, o: TrendOptions = {}): Trend {
   const good = o.good ?? "up";
   const kind = o.kind ?? "pct";
@@ -43,12 +47,12 @@ export function trend(now: number, before: number, o: TrendOptions = {}): Trend 
   const tone = (dir === "up") === (good === "up") ? "good" : "bad";
   const body =
     kind === "pct"
-      ? `${shown.toFixed(1)}%`
+      ? `${grouped(shown, 1)}%`
       : kind === "pts"
-        ? `${shown.toFixed(1)} pts`
+        ? `${grouped(shown, 1)} pts`
         : o.format
           ? o.format(shown)
-          : shown.toFixed(places);
+          : grouped(shown, places);
   return { dir, tone, text: `${dir === "up" ? "+" : MINUS}${body}${vs}` };
 }
 

@@ -17,15 +17,13 @@ import { DayTile } from "./DayTile";
 import { TileSkeletons, Tiles } from "./Tiles";
 import { WorkTile } from "./WorkTile";
 import s from "./today.module.css";
+import { greetingAt } from "@lume/core/shared";
 
 const localHour = (tz: string) =>
   Number(
     new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }).format(new Date()),
   );
-const greeting = (tz: string) => {
-  const h = localHour(tz);
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-};
+const greeting = (tz: string) => greetingAt(localHour(tz));
 const localDay = (tz: string) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,

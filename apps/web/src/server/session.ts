@@ -27,6 +27,8 @@ export type SessionUser = {
   isOwner: boolean;
   theme: "system" | "porcelain" | "obsidian";
   timezone: string | null;
+  /** The zone LUME reads their day in: their own, else the business's (absent from an older API). */
+  zone?: string;
   /** Their look (7C); absent from an API before photos. */
   avatar?: Look;
 };

@@ -116,4 +116,15 @@ describe("POST /auth/login (report §12.1)", () => {
     expect(me.permissions).toEqual([{ key: "leads.view", scope: "team" }]);
     expect(me.twoFactor).toEqual({ enabled: false, required: false });
   });
+
+  it("/auth/me gives the zone LUME uses for this person: their own, else the business's", async () => {
+    await h.ownerPool.query("UPDATE settings SET timezone = 'Asia/Kolkata' WHERE id = 1");
+    const u = await h.seedUser({ grants: [] });
+    const c = await h.signIn(u);
+    let me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect([me.user.timezone, me.user.zone]).toEqual([null, "Asia/Kolkata"]);
+    await h.ownerPool.query("UPDATE users SET timezone = 'Europe/London' WHERE id = $1", [u.id]);
+    me = (await c.inject({ method: "GET", url: "/api/v1/auth/me" })).json();
+    expect([me.user.timezone, me.user.zone]).toEqual(["Europe/London", "Europe/London"]);
+  });
 });

@@ -8,6 +8,7 @@ import {
   type RuleId,
   type WatermarkMode,
   type WorkingHours,
+  initialsOf,
 } from "@lume/core";
 import type { LoginHours, SecuritySettings } from "@lume/db";
 import { audit } from "../../audit/audit";
@@ -18,13 +19,7 @@ import { notifyRbac } from "../../rbac/notify";
 import { workingHoursFrom } from "../settings/follow-ups";
 import { restoreUser } from "./suspend";
 
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
+const initials = initialsOf;
 /** Raw rows bring timestamps as text or Date, depending on the driver's parsers: one ISO string either way. */
 const iso = (d: Date | string) => new Date(d).toISOString();
 const firstName = (name: string) => name.split(/\s+/)[0] ?? name;

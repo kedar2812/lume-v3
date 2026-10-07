@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import { SendSheet } from "@/components/messages/SendSheet";
@@ -143,7 +144,7 @@ export function WorkTile({
               className={s.ring}
               viewBox="0 0 30 30"
               role="img"
-              aria-label={`${v.done} of ${v.total} follow-ups due today done`}
+              aria-label={`${v.done} of ${plural(v.total, "follow-up")} due today done`}
             >
               <circle className={s.tr} cx="15" cy="15" r="12" />
               <circle

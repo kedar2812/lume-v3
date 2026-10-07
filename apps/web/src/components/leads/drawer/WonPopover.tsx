@@ -5,6 +5,7 @@ import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Popover } from "@/components/ui/Popover";
 import type { Catalog, Lead } from "@/lib/leads/types";
 import s from "./drawer.module.css";
+import { parseAmount } from "@/lib/money-input";
 
 export type WonChange = { value?: number | null; productId?: string | null };
 
@@ -65,9 +66,9 @@ function WonForm({
       className={s.popForm}
       onSubmit={async (e) => {
         e.preventDefault();
-        const raw = value.replace(/[\s,]/g, "");
-        const n = raw === "" ? null : Number(raw);
-        if (n !== null && (!Number.isFinite(n) || n < 0)) return setProblem("Enter an amount of 0 or more");
+        const amount = parseAmount(value);
+        if ("error" in amount) return setProblem(amount.error);
+        const n = amount.value;
         const change: WonChange = {};
         if (n !== (lead.value ?? null)) change.value = n;
         if (product !== (lead.productId ?? null)) change.productId = product;
