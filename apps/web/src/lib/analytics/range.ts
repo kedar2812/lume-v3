@@ -55,7 +55,9 @@ export function daysOf(
     case "12m":
       return [plus(today, -364), today];
     case "custom":
-      return custom ? [custom.from, custom.to] : [plus(today, -29), today];
+      // End-first (a link edited by hand, or shared backwards): read start-first, as the picker would.
+      if (!custom) return [plus(today, -29), today];
+      return custom.from <= custom.to ? [custom.from, custom.to] : [custom.to, custom.from];
   }
 }
 

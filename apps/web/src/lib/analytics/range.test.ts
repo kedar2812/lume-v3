@@ -41,3 +41,17 @@ describe("the range picker's days and words", () => {
     expect(g[3]).toEqual({ day: "2026-10-01", inMonth: true });
   });
 });
+
+describe("a custom range from an edited or shared link", () => {
+  it("days given end-first are read start-first, never sent backwards (the server refuses those)", () => {
+    expect(daysOf("custom", "2026-10-07", { from: "2026-10-05", to: "2026-10-01" })).toEqual([
+      "2026-10-01",
+      "2026-10-05",
+    ]);
+    expect(apiRange("custom", "2026-10-07", { from: "2026-10-05", to: "2026-10-01" })).toEqual({
+      range: "custom",
+      from: "2026-10-01",
+      to: "2026-10-05",
+    });
+  });
+});
