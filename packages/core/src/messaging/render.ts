@@ -1,3 +1,4 @@
+import { firstNameOf } from "../words/first-name";
 /**
  * WhatsApp templates in the lead's own words (Phase 4A; report §11.1). One pure renderer for the server
  * and the screen: the server always renders again from the lead the caller may see, and the editor
@@ -29,7 +30,8 @@ export type RenderContext = {
 /** Field types that hold a way to reach someone: never in a message a masked rep can see. */
 const CONTACT_TYPES: ReadonlySet<FieldType> = new Set(["phone", "email", "url", "instagram"]);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const first = (name: string) => name.trim().split(/\s+/)[0] ?? "";
+/** Past any title ("Dr. Ananya Rao" → "Ananya"); "" for a name with no letters, so it shows as missing. */
+const first = (name: string) => firstNameOf(name);
 const listed = (xs: string[]) =>
   xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? "");
 

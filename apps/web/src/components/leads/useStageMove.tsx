@@ -1,4 +1,5 @@
 "use client";
+import { firstNameOf } from "@lume/core/shared";
 import { useCallback, useRef, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -20,7 +21,7 @@ type Pending = {
   resolve: (lead: Lead | null) => void;
 };
 type Attempt = { moved: Lead } | { missing: FieldDefView[] } | { refused: true };
-const firstName = (lead: Lead) => (lead.name ?? "this lead").split(" ")[0];
+const firstName = (lead: Lead) => firstNameOf(lead.name ?? "") || "this lead";
 
 /**
  * Every stage move in the app goes through here (drawer, board, table), so the rules are asked the same

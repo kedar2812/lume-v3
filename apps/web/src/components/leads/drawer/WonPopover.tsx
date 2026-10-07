@@ -1,4 +1,5 @@
 "use client";
+import { firstNameOf } from "@lume/core/shared";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { MoneyInput } from "@/components/ui/MoneyInput";
@@ -30,7 +31,7 @@ export function WonPopover({
   );
 }
 
-const firstName = (lead: Lead) => (lead.name ?? "this lead").split(" ")[0];
+const firstName = (lead: Lead) => firstNameOf(lead.name ?? "") || "this lead";
 
 /** Mounted each time the popover opens, so it always starts from the lead as it is now. */
 function WonForm({

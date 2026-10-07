@@ -42,3 +42,4 @@ export * from "./security/copy";
 export * from "./security/export-code";
 export * from "./words/plural";
 export * from "./words/greeting";
+export * from "./words/first-name";

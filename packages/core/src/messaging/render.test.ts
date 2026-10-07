@@ -189,4 +189,17 @@ describe("render (4A Task 1)", () => {
       "Custom",
     ]);
   });
+  it("greets past a title, and names a missing first name rather than greeting a phone number", () => {
+    const named = (name: string) =>
+      render("Hi {{lead.first_name}},", {
+        ...ctx("Asia/Kolkata"),
+        lead: { ...ctx("Asia/Kolkata").lead, name },
+      });
+    expect(named("Dr. Ananya Rao").text).toBe("Hi Ananya,");
+    expect(named("Mr Rao").text).toBe("Hi Mr Rao,");
+    expect(named("+971 50 111 2233")).toEqual({
+      text: "Hi {{lead.first_name}},",
+      missing: ["lead.first_name"],
+    });
+  });
 });
