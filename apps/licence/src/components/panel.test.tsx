@@ -474,6 +474,27 @@ describe("the chart's tooltip follows the trend rule too", () => {
   });
 });
 
+describe("one client (the first sale)", () => {
+  it("is a client, not 1 clients", async () => {
+    const base = computeAnalytics({
+      clients: CANVAS_CLIENTS.slice(0, 1),
+      rates: CANVAS_RATES,
+      now: CANVAS_NOW,
+      range: 3,
+      listPriceInr: CANVAS_LIST_PRICE,
+    });
+    vi.mocked(api.get).mockImplementation(
+      async (p: string) =>
+        (p === "/api/alerts"
+          ? ok({ alerts: [] })
+          : ok({ ...base, rates: { day: "2026-09-29", ageDays: 0, rates: CANVAS_RATES } })) as never,
+    );
+    render(<AnalyticsScreen />);
+    expect(await screen.findByText("1 client in 1 country")).toBeInTheDocument();
+    expect(screen.queryByText(/1 clients/)).toBeNull();
+  });
+});
+
 describe("payments", () => {
   it("a payment made on a day with no fresh rate says which day's rate it used", async () => {
     const pay = (id: string, paidAt: string, rateDay: string) => ({

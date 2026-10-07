@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { useCallback, useEffect, useState } from "react";
 import type { Analytics } from "@/lib/analytics";
 import { api, CHANGED } from "@/lib/client";
@@ -735,9 +736,9 @@ export function AnalyticsScreen() {
             </div>
             <span className="note" style={{ marginTop: -6 }}>
               {who === "all"
-                ? `${nClients} clients in ${countries.length} ${countries.length === 1 ? "country" : "countries"}`
+                ? `${plural(nClients, "client")} in ${plural(countries.length, "country", "countries")}`
                 : nClients
-                  ? `${nClients} joined in the last ${range} months, from ${countries.length} ${countries.length === 1 ? "country" : "countries"}`
+                  ? `${nClients} joined in the last ${range} months, from ${plural(countries.length, "country", "countries")}`
                   : ""}
             </span>
             {countries.map((c, i) => (
@@ -812,7 +813,10 @@ export function AnalyticsScreen() {
             </div>
             <span className="note" style={{ marginTop: -6 }}>
               {states.length
-                ? `${states.reduce((t, s) => t + s.clients, 0)} clients across ${states.length} ${states.length === 1 ? "state" : "states"}`
+                ? `${plural(
+                    states.reduce((t, s) => t + s.clients, 0),
+                    "client",
+                  )} across ${plural(states.length, "state")}`
                 : ""}
             </span>
             {states.map((s, i) => (
