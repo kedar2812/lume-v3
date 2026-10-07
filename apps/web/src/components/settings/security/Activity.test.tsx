@@ -74,7 +74,7 @@ describe("Security activity in the Overview (6C Task 3)", () => {
     expect(usualWords(120, 400)).toBe("quieter than usual");
     expect(usualWords(0, 0)).toBe("none yet");
     // A handful either way says nothing: no comparison under ten.
-    expect(usualWords(1, 0)).toBe("a few");
+    expect(usualWords(1, 0)).toBe("just one"); // one is never "a few"
     expect(usualWords(9, 2)).toBe("a few");
     expect(usualWords(30, 0)).toBe("more than usual");
   });

@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { leadScope, scopeOf, type Actor } from "@lume/core";
+import { leadScope, scopeOf, type Actor, plural } from "@lume/core";
 import { loadActor } from "../../rbac/actor";
 import { notify } from "../notifications/notify";
 import type { EngineDeps } from "./engine";
@@ -77,7 +77,7 @@ export async function escalate(o: EngineDeps, now: Date = new Date()): Promise<n
         continue;
       const id = await notify(o.pool, m.userId, {
         kind: "task_escalated",
-        title: `${first}'s follow-up with ${t.lead} is ${hours} h overdue`,
+        title: `${first}'s follow-up with ${t.lead} is ${overdueWords(hours)} overdue`,
         leadId: t.lead_id,
         taskId: t.id,
         data: { assigneeId: t.assignee_id },
@@ -105,4 +105,9 @@ async function candidates(pool: pg.Pool): Promise<Actor[]> {
     if (a) out.push(a);
   }
   return out;
+}
+
+/** How long overdue, read at a glance: "30 h" under two days, then "6 days" (never "164 h"). */
+export function overdueWords(hours: number): string {
+  return hours < 48 ? `${hours} h` : plural(Math.floor(hours / 24), "day");
 }

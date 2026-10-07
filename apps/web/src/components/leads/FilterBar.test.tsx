@@ -25,6 +25,26 @@ describe("FilterBar", () => {
     expect(onChange).toHaveBeenCalledWith(expect.not.objectContaining({ source: src }));
   });
 
+  it("on a phone, one Filters button opens the menus and says how many filters are on", async () => {
+    render(
+      <FilterBar
+        session={session}
+        catalog={testCatalog()}
+        filters={{ ...EMPTY_FILTERS, source: src }}
+        onChange={vi.fn()}
+        contactsVisible
+      />,
+    );
+    const toggle = screen.getByRole("button", { name: "Filters · 1" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const menus = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+    // The menus it folds away are the bar's own: the owner menu and More filters.
+    expect(menus).toContainElement(screen.getByRole("button", { name: /More filters/ }));
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(menus).toHaveAttribute("data-open");
+  });
+
   it("still filters by a source the catalog doesn't name", () => {
     render(
       <FilterBar

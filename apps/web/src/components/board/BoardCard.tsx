@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { motion, useReducedMotion } from "motion/react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { Avatar } from "@/components/ui/Avatar";
@@ -10,11 +11,21 @@ import s from "./board.module.css";
 
 const DAY = 86_400_000;
 
-/** "Today", "1 day", "12 days" — how long the lead has waited in this stage. */
+const daysIn = (lead: Lead, now: number) =>
+  lead.stageEnteredAt ? Math.floor((now - new Date(lead.stageEnteredAt).getTime()) / DAY) : null;
+
+/** "Moved today", "12d in stage" — how long the lead has waited here, short enough for a card. */
 export function inStage(lead: Lead, now = Date.now()): string {
-  if (!lead.stageEnteredAt) return "";
-  const days = Math.floor((now - new Date(lead.stageEnteredAt).getTime()) / DAY);
-  return days <= 0 ? "Today" : `${days} ${days === 1 ? "day" : "days"}`;
+  const days = daysIn(lead, now);
+  if (days === null) return "";
+  return days <= 0 ? "Moved today" : `${days}d in stage`;
+}
+
+/** The same, in full: the card's tooltip and what a screen reader hears. */
+export function inStageWords(lead: Lead, now = Date.now()): string {
+  const days = daysIn(lead, now);
+  if (days === null) return "";
+  return days <= 0 ? "Moved to this stage today" : `In this stage for ${plural(days, "day")}`;
 }
 
 /** What a card shows. Shared by the card in its column and the copy that follows the pointer. */
@@ -25,7 +36,7 @@ export function CardFace({ lead, catalog }: { lead: Lead; catalog: Catalog }) {
       <span className={s.cardName}>{lead.name ?? "Unnamed lead"}</span>
       <span className={s.cardMeta}>
         {lead.value ? <span className={s.cardValue}>{formatMoney(lead.value, catalog.currency)}</span> : null}
-        <span className={s.cardAge} data-volatile>
+        <span className={s.cardAge} data-volatile title={inStageWords(lead)}>
           {inStage(lead)}
         </span>
         <span className={s.cardOwner} title={owner}>

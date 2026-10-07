@@ -554,7 +554,7 @@ function Screen({
   })();
 
   return (
-    <section className={s.screen}>
+    <section className={s.screen} data-selecting={selectedCount > 0 || undefined}>
       {sheets && <AttentionBanner items={sheets.attention} />}
       <div className={s.toolbar} data-testid="leads-toolbar">
         {activeView && (
@@ -651,7 +651,7 @@ function Screen({
             {mayBulk && (
               <button
                 type="button"
-                className={s.historyBtn}
+                className={`${s.historyBtn} ${s.wideOnly}`}
                 aria-label="Recent bulk actions"
                 title="Recent bulk actions"
                 onClick={() => setRunsOpen(true)}
@@ -674,14 +674,16 @@ function Screen({
               </button>
             )}
             {mayImport && (
-              <Button
-                variant="secondary"
-                aria-label={unseenImport ? "Import — a finished import to look at" : "Import"}
-                onClick={() => setImporting(true)}
-              >
-                Import
-                {unseenImport && <span className={s.dot} aria-hidden />}
-              </Button>
+              <span className={s.wideOnly}>
+                <Button
+                  variant="secondary"
+                  aria-label={unseenImport ? "Import — a finished import to look at" : "Import"}
+                  onClick={() => setImporting(true)}
+                >
+                  Import
+                  {unseenImport && <span className={s.dot} aria-hidden />}
+                </Button>
+              </span>
             )}
             {mayCreate && (
               <Button variant="primary" title="New lead (N)" onClick={() => setCreating(true)}>
@@ -723,9 +725,16 @@ function Screen({
                 ))}
               </select>
             </label>
-            <ColumnPicker available={available} chosen={columns.map((c) => c.id)} onChange={chooseColumns} />
+            {/* Desk tasks: on a phone the list itself comes first. */}
+            <span className={s.wideOnly}>
+              <ColumnPicker
+                available={available}
+                chosen={columns.map((c) => c.id)}
+                onChange={chooseColumns}
+              />
+            </span>
             {mayExport && (
-              <button type="button" className={s.tool} onClick={() => setExporting(true)}>
+              <button type="button" className={`${s.tool} ${s.wideOnly}`} onClick={() => setExporting(true)}>
                 Export
               </button>
             )}

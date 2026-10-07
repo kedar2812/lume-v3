@@ -557,14 +557,15 @@ function SlaInput({ stage, onSave }: { stage: Stage; onSave: (hours: number | nu
         min={1}
         max={24 * 365}
         inputMode="numeric"
-        placeholder="—"
+        // Empty means no limit: it says so, instead of a dash beside an "h".
+        placeholder="Never"
         aria-label={`Hours allowed in ${stage.name}`}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       />
-      <span aria-hidden>h</span>
+      {text.trim() !== "" && <span aria-hidden>h</span>}
     </label>
   );
 }

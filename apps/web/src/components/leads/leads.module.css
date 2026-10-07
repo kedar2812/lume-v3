@@ -5,6 +5,10 @@
   gap: 14px;
   min-height: 0;
 }
+/* With leads selected the bulk bar floats over the bottom: the list keeps room so its last rows stay reachable. */
+.screen[data-selecting] {
+  padding-bottom: 96px;
+}
 
 /* ── Toolbar ──────────────────────────────────────────────────────────────────────────────────── */
 .toolbar {
@@ -16,7 +20,8 @@
 .bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* When the filters take two lines, the list's own controls stay on the first, not floating between them. */
+  align-items: flex-start;
   gap: 10px;
 }
 .bar > .right {
@@ -139,9 +144,13 @@
   align-items: center;
   gap: 8px;
   height: 34px;
-  flex: 0 1 240px;
+  /* Starts small and grows into spare room: a wrapping row wraps before it shrinks, so a wide starting size
+     pushed "More filters" onto a line of its own. */
+  flex: 1 1 170px;
   min-width: 170px;
+  max-width: 260px;
   padding: 0 10px;
+  container-type: inline-size;
   border-radius: 10px;
   background: var(--sunk);
   box-shadow: inset 0 0 0 0.5px var(--line-2);
@@ -1070,4 +1079,43 @@
   inset: 0 45% 0 0;
   border-radius: 5px;
   background: linear-gradient(90deg, var(--sky), var(--accent));
+}
+
+/* Phones (UX audit 2026-10-07): the filter menus fold behind one Filters button and the desktop-only tools step
+   aside, so the leads come first instead of a wall of controls. On wider screens the wrapper is invisible. */
+.filters .filtersToggle {
+  display: none;
+}
+.menus {
+  display: contents;
+}
+@media (max-width: 640px) {
+  .filters .filtersToggle {
+    display: inline-flex;
+  }
+  .menus {
+    display: none;
+  }
+  .menus[data-open] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+  .wideOnly {
+    display: none !important;
+  }
+}
+
+/* A narrow search box keeps the typed words in view: what the search looks at ("Names, emails, numbers") is then
+   said to screen readers only, instead of covering the term (UX audit 2026-10-07). */
+@container (max-width: 259px) {
+  .mode {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }

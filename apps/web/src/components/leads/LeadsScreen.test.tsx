@@ -155,7 +155,7 @@ describe("LeadsScreen", () => {
     });
     expect(screen.getByRole("columnheader", { name: "Phone" })).toBeInTheDocument();
     expect(screen.getByText("+971 50 123 4567")).toBeInTheDocument();
-    expect(screen.getByRole("searchbox")).toHaveAttribute("placeholder", "Search name, phone, email");
+    expect(screen.getByRole("searchbox")).toHaveAttribute("placeholder", "Name, phone or email");
   });
 
   it("puts a filter into the address bar and fetches the matching page", async () => {
@@ -539,6 +539,8 @@ describe("LeadsScreen", () => {
     await user.keyboard("{/Shift}");
     const bar = screen.getByRole("toolbar", { name: "Bulk actions" });
     expect(bar).toHaveTextContent(/3\s*selected/);
+    // The list leaves room under the floating bar, so its last rows can still be reached.
+    expect(document.querySelector("section[data-selecting]")).not.toBeNull();
     expect(screen.getByRole("checkbox", { name: "Select all loaded" })).toHaveProperty("indeterminate", true);
     await user.click(within(bar).getByRole("button", { name: "More bulk actions" }));
     await user.click(screen.getByRole("button", { name: "Delete 3 leads…" }));

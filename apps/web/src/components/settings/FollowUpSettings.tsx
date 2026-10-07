@@ -92,6 +92,7 @@ export function FollowUpSettings({
             <input
               {...control}
               type="number"
+              className={s.short}
               inputMode="numeric"
               min={1}
               max={168}
@@ -145,6 +146,7 @@ export function FollowUpSettings({
             <input
               {...control}
               type="number"
+              className={s.short}
               inputMode="numeric"
               min={1}
               max={90}

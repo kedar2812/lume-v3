@@ -2,7 +2,7 @@ import { ALL_GRANTS, newId, type Grant } from "@lume/core";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
-import { escalate } from "./escalation";
+import { escalate, overdueWords } from "./escalation";
 
 let h: Harness;
 let assignee: string;
@@ -124,5 +124,14 @@ describe("escalation (3B Task 3)", () => {
     await h.ownerPool.query(
       `UPDATE settings SET follow_ups = '{"escalation":{"enabled":true,"hours":24}}'::jsonb WHERE id = 1`,
     );
+  });
+});
+
+describe("how long overdue, in words a person reads at a glance", () => {
+  it("hours under two days, then days", () => {
+    expect(overdueWords(5)).toBe("5 h");
+    expect(overdueWords(47)).toBe("47 h");
+    expect(overdueWords(48)).toBe("2 days");
+    expect(overdueWords(164)).toBe("6 days");
   });
 });

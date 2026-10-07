@@ -54,6 +54,7 @@ export function MessagingSettings({ initial }: { initial: MessagingConfig }) {
             <input
               {...control}
               type="number"
+              className={s.short}
               inputMode="numeric"
               min={1}
               max={200}
@@ -81,6 +82,7 @@ export function MessagingSettings({ initial }: { initial: MessagingConfig }) {
             <input
               {...control}
               type="number"
+              className={s.short}
               inputMode="numeric"
               min={1}
               max={500}

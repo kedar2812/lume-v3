@@ -14,7 +14,7 @@ const audit = (q: Record<string, string>) => `/settings/audit?${new URLSearchPar
 /** Today's leads opened against the median of the 14 days before, in words. */
 export function usualWords(count: number, usual: number): string {
   // A handful either way says nothing: no comparison until there's something to compare.
-  if (count < 10 && usual < 10) return count === 0 ? "none yet" : "a few";
+  if (count < 10 && usual < 10) return count === 0 ? "none yet" : count === 1 ? "just one" : "a few";
   if (usual === 0) return "more than usual";
   const ratio = count / usual;
   if (ratio >= 1.5) return `${ratio >= 2 ? Math.round(ratio) : Math.round(ratio * 10) / 10}× usual`;

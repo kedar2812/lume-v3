@@ -793,7 +793,7 @@
   color: var(--text-3);
 }
 .sla input {
-  width: 48px;
+  width: 56px;
   height: 28px;
   padding: 0 6px;
   border-radius: 8px;
@@ -1872,4 +1872,9 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
+}
+
+/* A two- or three-digit number (hours, days, a run's size) is a short field, not a full-width one. */
+.panelBody input.short {
+  max-width: 120px;
 }

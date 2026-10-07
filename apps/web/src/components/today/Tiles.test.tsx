@@ -70,13 +70,14 @@ describe("Today's tiles", () => {
     render(<Tiles tiles={base} currency="INR" own={false} unassigned={6} />);
     const t = tile(/^Leads: 40 new today, \+21\.2% vs last Monday by this time/);
     expect(t).toHaveAttribute("href", "/leads");
-    expect(t).toHaveTextContent("vs last Monday by now");
+    // The short day fits the tile; its name (above) says Monday in full.
+    expect(t).toHaveTextContent("vs last Mon by now");
     expect(t).toHaveTextContent("6 with no one yet");
   });
   it("Leads, seen by someone who has only their own: reached, and half within the median", () => {
     render(<Tiles tiles={{ ...base, leads: { ...base.leads!, lastWeek: 0 } }} currency="INR" own />);
     const t = tile(/^Your leads: 40 new today$/);
-    expect(t).toHaveTextContent("Reached 34 of 40 · half within 9 min");
+    expect(t).toHaveTextContent("Contacted 34 of 40 · half within 9 min");
     expect(t).toHaveTextContent("None by now last Monday"); // no percentage against nothing
   });
   it("The month: revenue against the same days of last month, the goal bar, and the pace as an estimate", () => {

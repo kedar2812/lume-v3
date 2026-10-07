@@ -168,7 +168,11 @@ describe("PipelineEditor", () => {
     renderEditor();
     await userEvent.click(screen.getByRole("button", { name: "Open New" }));
     const sla = screen.getByRole("spinbutton", { name: "Hours allowed in New" });
+    // No limit reads as one, not a dash beside an "h".
+    expect(sla).toHaveAttribute("placeholder", "Never");
+    expect(sla.parentElement).not.toHaveTextContent("h");
     await userEvent.type(sla, "24");
+    expect(sla.parentElement).toHaveTextContent("h");
     fireEvent.blur(sla);
     expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-new", { slaHours: 24 });
   });

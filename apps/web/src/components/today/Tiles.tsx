@@ -166,7 +166,7 @@ function LeadsTile({
       </>
     ) : t.today > 0 ? (
       <>
-        Reached <b>{count(t.reached)}</b> of {count(t.today)}
+        Contacted <b>{count(t.reached)}</b> of {count(t.today)}
         {t.medianMinutes !== null && <> · half within {minutes(t.medianMinutes)}</>}
       </>
     ) : (
@@ -184,8 +184,9 @@ function LeadsTile({
         {tr ? (
           <>
             <Chip trend={tr} />
-            <span>
-              vs last <span data-volatile>{day}</span> by now
+            {/* The short day fits the tile ("vs last Wed by now"); the tile's name says it in full. */}
+            <span className={s.cmpText}>
+              vs last <span data-volatile>{day.slice(0, 3)}</span> by now
             </span>
           </>
         ) : (

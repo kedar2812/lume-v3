@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { scopeOf, type PhoneStatus } from "@lume/core/shared";
 import { Popover } from "@/components/ui/Popover";
 import { tokenColor } from "@/lib/leads/colors";
@@ -63,6 +63,9 @@ export function FilterBar({
   const extra = filterableFields(catalog);
   const count = activeFilterCount(hideStage ? { ...filters, stageIds: [] } : filters);
   const mode = searchMode(filters.q ?? "", contactsVisible);
+  // On a phone the menus fold behind one Filters button, so the leads come first (UX audit 2026-10-07).
+  const [menusOpen, setMenusOpen] = useState(false);
+  const menusId = useId();
 
   // "/" jumps to search from anywhere that isn't already a field.
   useEffect(() => {
@@ -87,7 +90,7 @@ export function FilterBar({
           ref={search}
           type="search"
           aria-label="Search leads"
-          placeholder={contactsVisible ? "Search name, phone, email" : "Search by name"}
+          placeholder={contactsVisible ? "Name, phone or email" : "Search by name"}
           maxLength={100}
           value={filters.q ?? ""}
           onChange={(e) => set({ q: e.target.value || undefined })}
@@ -106,223 +109,236 @@ export function FilterBar({
         )}
       </label>
 
-      {!hideStage && pipeline && (
+      <button
+        type="button"
+        className={`${s.tool} ${s.filtersToggle}`}
+        aria-expanded={menusOpen}
+        aria-controls={menusId}
+        data-active={count > 0 || undefined}
+        onClick={() => setMenusOpen((v) => !v)}
+      >
+        Filters{count ? ` · ${count}` : ""}
+        <Caret />
+      </button>
+      <div id={menusId} className={s.menus} data-open={menusOpen || undefined}>
+        {!hideStage && pipeline && (
+          <Popover
+            label="Stage"
+            triggerClassName={s.tool}
+            active={filters.stageIds.length > 0}
+            trigger={
+              <>
+                Stage{filters.stageIds.length ? ` · ${filters.stageIds.length}` : ""}
+                <Caret />
+              </>
+            }
+          >
+            <ul className={s.pick}>
+              {pipeline.stages.map((st) => (
+                <li key={st.id} className={s.pickRow}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={filters.stageIds.includes(st.id)}
+                      onChange={(e) =>
+                        set({
+                          stageIds: e.target.checked
+                            ? [...filters.stageIds, st.id]
+                            : filters.stageIds.filter((x) => x !== st.id),
+                        })
+                      }
+                    />
+                    <i className={s.dot} style={{ background: tokenColor(st.color) }} aria-hidden />
+                    {st.name}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </Popover>
+        )}
+
+        {viewScope && viewScope !== "own" && (
+          <Select label="Owner" value={filters.owner ?? ""} onChange={(v) => set({ owner: v || undefined })}>
+            <option value="">Any owner</option>
+            <option value="me">My leads</option>
+            {viewScope === "all" && <option value="none">Unassigned</option>}
+            {catalog.people
+              .filter((p) => p.active && p.id !== session.user.id)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+          </Select>
+        )}
+
+        {catalog.tags.length > 0 && (
+          <Select label="Tag" value={filters.tagId ?? ""} onChange={(v) => set({ tagId: v || undefined })}>
+            <option value="">Any tag</option>
+            {catalog.tags.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        )}
+
+        {phoneVisible && (
+          <Select
+            label="Phone status"
+            value={filters.phoneStatus ?? ""}
+            onChange={(v) => set({ phoneStatus: (v || undefined) as PhoneStatus | undefined })}
+          >
+            <option value="">Any phone</option>
+            {(Object.keys(PHONE_LABEL) as PhoneStatus[]).map((k) => (
+              <option key={k} value={k}>
+                {PHONE_LABEL[k]}
+              </option>
+            ))}
+          </Select>
+        )}
+
         <Popover
-          label="Stage"
+          label="Enquiry date"
           triggerClassName={s.tool}
-          active={filters.stageIds.length > 0}
+          active={!!(filters.from || filters.to)}
           trigger={
             <>
-              Stage{filters.stageIds.length ? ` · ${filters.stageIds.length}` : ""}
+              Date
               <Caret />
             </>
           }
         >
-          <ul className={s.pick}>
-            {pipeline.stages.map((st) => (
-              <li key={st.id} className={s.pickRow}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={filters.stageIds.includes(st.id)}
-                    onChange={(e) =>
-                      set({
-                        stageIds: e.target.checked
-                          ? [...filters.stageIds, st.id]
-                          : filters.stageIds.filter((x) => x !== st.id),
-                      })
-                    }
-                  />
-                  <i className={s.dot} style={{ background: tokenColor(st.color) }} aria-hidden />
-                  {st.name}
-                </label>
-              </li>
-            ))}
-          </ul>
-        </Popover>
-      )}
-
-      {viewScope && viewScope !== "own" && (
-        <Select label="Owner" value={filters.owner ?? ""} onChange={(v) => set({ owner: v || undefined })}>
-          <option value="">Any owner</option>
-          <option value="me">My leads</option>
-          {viewScope === "all" && <option value="none">Unassigned</option>}
-          {catalog.people
-            .filter((p) => p.active && p.id !== session.user.id)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-        </Select>
-      )}
-
-      {catalog.tags.length > 0 && (
-        <Select label="Tag" value={filters.tagId ?? ""} onChange={(v) => set({ tagId: v || undefined })}>
-          <option value="">Any tag</option>
-          {catalog.tags.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label}
-            </option>
-          ))}
-        </Select>
-      )}
-
-      {phoneVisible && (
-        <Select
-          label="Phone status"
-          value={filters.phoneStatus ?? ""}
-          onChange={(v) => set({ phoneStatus: (v || undefined) as PhoneStatus | undefined })}
-        >
-          <option value="">Any phone</option>
-          {(Object.keys(PHONE_LABEL) as PhoneStatus[]).map((k) => (
-            <option key={k} value={k}>
-              {PHONE_LABEL[k]}
-            </option>
-          ))}
-        </Select>
-      )}
-
-      <Popover
-        label="Enquiry date"
-        triggerClassName={s.tool}
-        active={!!(filters.from || filters.to)}
-        trigger={
-          <>
-            Date
-            <Caret />
-          </>
-        }
-      >
-        <div className={s.dates}>
-          <label>
-            From
-            <input
-              type="date"
-              value={filters.from ?? ""}
-              max={filters.to}
-              onChange={(e) => set({ from: e.target.value || undefined })}
-            />
-          </label>
-          <label>
-            To
-            <input
-              type="date"
-              value={filters.to ?? ""}
-              min={filters.from}
-              onChange={(e) => set({ to: e.target.value || undefined })}
-            />
-          </label>
-        </div>
-      </Popover>
-
-      <Popover
-        label="More filters"
-        size="form"
-        triggerClassName={s.tool}
-        active={moreFilterCount(filters) > 0}
-        trigger={
-          <>
-            More filters{moreFilterCount(filters) ? ` · ${moreFilterCount(filters)}` : ""}
-            <Caret />
-          </>
-        }
-      >
-        <div className={s.more}>
-          {/* 4B: what's gone quiet — the filters saved views are made of. */}
-          <p className={s.moreHead}>Follow-ups and replies</p>
-          <label className={s.switchRow}>
-            <span>Overdue follow-up</span>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="Overdue follow-up"
-              checked={!!filters.followUpOverdue}
-              onChange={(e) => set({ followUpOverdue: e.target.checked || undefined })}
-            />
-          </label>
-          <label>
-            No reply for
-            <select
-              aria-label="No reply for"
-              value={filters.noReplyDays ?? ""}
-              onChange={(e) => set({ noReplyDays: Number(e.target.value) || undefined })}
-            >
-              <option value="">Any</option>
-              {withCurrent(NO_REPLY_DAYS, filters.noReplyDays).map((d) => (
-                <option key={d} value={d}>
-                  {d === 1 ? "1 day" : `${d} days`}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Lost
-            <select
-              aria-label="Lost"
-              value={filters.lostDaysAgo ?? ""}
-              onChange={(e) => {
-                const d = Number(e.target.value) || undefined;
-                set({ lostDaysAgo: d, ...(d ? {} : { lostReasonId: undefined }) });
-              }}
-            >
-              <option value="">Any</option>
-              {withCurrent(LOST_DAYS, filters.lostDaysAgo).map((d) => (
-                <option key={d} value={d}>
-                  {`${d}+ days ago`}
-                </option>
-              ))}
-            </select>
-          </label>
-          {filters.lostDaysAgo && catalog.lostReasons.length > 0 && (
+          <div className={s.dates}>
             <label>
-              Reason
+              From
+              <input
+                type="date"
+                value={filters.from ?? ""}
+                max={filters.to}
+                onChange={(e) => set({ from: e.target.value || undefined })}
+              />
+            </label>
+            <label>
+              To
+              <input
+                type="date"
+                value={filters.to ?? ""}
+                min={filters.from}
+                onChange={(e) => set({ to: e.target.value || undefined })}
+              />
+            </label>
+          </div>
+        </Popover>
+
+        <Popover
+          label="More filters"
+          size="form"
+          triggerClassName={s.tool}
+          active={moreFilterCount(filters) > 0}
+          trigger={
+            <>
+              More filters{moreFilterCount(filters) ? ` · ${moreFilterCount(filters)}` : ""}
+              <Caret />
+            </>
+          }
+        >
+          <div className={s.more}>
+            {/* 4B: what's gone quiet — the filters saved views are made of. */}
+            <p className={s.moreHead}>Follow-ups and replies</p>
+            <label className={s.switchRow}>
+              <span>Overdue follow-up</span>
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="Overdue follow-up"
+                checked={!!filters.followUpOverdue}
+                onChange={(e) => set({ followUpOverdue: e.target.checked || undefined })}
+              />
+            </label>
+            <label>
+              No reply for
               <select
-                aria-label="Reason"
-                value={filters.lostReasonId ?? ""}
-                onChange={(e) => set({ lostReasonId: e.target.value || undefined })}
+                aria-label="No reply for"
+                value={filters.noReplyDays ?? ""}
+                onChange={(e) => set({ noReplyDays: Number(e.target.value) || undefined })}
               >
-                <option value="">Any reason</option>
-                {catalog.lostReasons.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label}
+                <option value="">Any</option>
+                {withCurrent(NO_REPLY_DAYS, filters.noReplyDays).map((d) => (
+                  <option key={d} value={d}>
+                    {d === 1 ? "1 day" : `${d} days`}
                   </option>
                 ))}
               </select>
             </label>
-          )}
-          <label>
-            Added
-            <select
-              aria-label="Added"
-              value={filters.createdDays ?? ""}
-              onChange={(e) => set({ createdDays: Number(e.target.value) || undefined })}
-            >
-              <option value="">Any time</option>
-              {withCurrent(CREATED_DAYS, filters.createdDays).map((d) => (
-                <option key={d} value={d}>
-                  {d === 1 ? "Today" : `Last ${d} days`}
-                </option>
-              ))}
-            </select>
-          </label>
-          {extra.length > 0 && <p className={s.moreHead}>{"The business's fields"}</p>}
-          {extra.map((def) => (
-            <CustomFilter
-              key={def.key}
-              def={def}
-              catalog={catalog}
-              value={filters.custom?.[def.key]}
-              onChange={(v) => {
-                const next = { ...(filters.custom ?? {}) };
-                if (v === undefined) delete next[def.key];
-                else next[def.key] = v;
-                set({ custom: Object.keys(next).length ? next : undefined });
-              }}
-            />
-          ))}
-        </div>
-      </Popover>
+            <label>
+              Lost
+              <select
+                aria-label="Lost"
+                value={filters.lostDaysAgo ?? ""}
+                onChange={(e) => {
+                  const d = Number(e.target.value) || undefined;
+                  set({ lostDaysAgo: d, ...(d ? {} : { lostReasonId: undefined }) });
+                }}
+              >
+                <option value="">Any</option>
+                {withCurrent(LOST_DAYS, filters.lostDaysAgo).map((d) => (
+                  <option key={d} value={d}>
+                    {`${d}+ days ago`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {filters.lostDaysAgo && catalog.lostReasons.length > 0 && (
+              <label>
+                Reason
+                <select
+                  aria-label="Reason"
+                  value={filters.lostReasonId ?? ""}
+                  onChange={(e) => set({ lostReasonId: e.target.value || undefined })}
+                >
+                  <option value="">Any reason</option>
+                  {catalog.lostReasons.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              Added
+              <select
+                aria-label="Added"
+                value={filters.createdDays ?? ""}
+                onChange={(e) => set({ createdDays: Number(e.target.value) || undefined })}
+              >
+                <option value="">Any time</option>
+                {withCurrent(CREATED_DAYS, filters.createdDays).map((d) => (
+                  <option key={d} value={d}>
+                    {d === 1 ? "Today" : `Last ${d} days`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {extra.length > 0 && <p className={s.moreHead}>{"The business's fields"}</p>}
+            {extra.map((def) => (
+              <CustomFilter
+                key={def.key}
+                def={def}
+                catalog={catalog}
+                value={filters.custom?.[def.key]}
+                onChange={(v) => {
+                  const next = { ...(filters.custom ?? {}) };
+                  if (v === undefined) delete next[def.key];
+                  else next[def.key] = v;
+                  set({ custom: Object.keys(next).length ? next : undefined });
+                }}
+              />
+            ))}
+          </div>
+        </Popover>
+      </div>
 
       {quietChips(filters, catalog).map((c) => (
         <button

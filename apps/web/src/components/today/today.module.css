@@ -478,6 +478,12 @@ a.tl:focus-visible .arrow {
   white-space: nowrap;
   overflow: hidden;
 }
+/* A line too long for a narrow tile ends in an ellipsis, never cut mid-word. */
+.cmpText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .viz {
   flex: 1;
   min-height: 40px;
