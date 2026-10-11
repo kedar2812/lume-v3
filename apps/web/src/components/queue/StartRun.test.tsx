@@ -129,6 +129,18 @@ describe("StartRun (4C Task 3)", () => {
     window.removeEventListener(QUEUE_CHANGED, changed);
   });
 
+  it("opens on <body>, so the bulk island (overflow: hidden) can't cut it away (tour, 2026-10-11)", async () => {
+    render(
+      <div data-testid="island" style={{ overflow: "hidden" }}>
+        <StartRun source={{ leadIds: ["l1"] }} label="Message" side="auto" />
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Message" }));
+    const dialog = screen.getByRole("dialog", { name: "Start a send queue" });
+    expect(screen.getByTestId("island")).not.toContainElement(dialog);
+    expect(dialog.parentElement).toBe(document.body);
+  });
+
   it("from a selection, in the person's own words", async () => {
     render(<StartRun source={{ leadIds: ["l2", "l1"] }} label="Message" />);
     await userEvent.click(screen.getByRole("button", { name: "Message" }));

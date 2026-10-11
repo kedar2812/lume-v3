@@ -41,6 +41,8 @@ export function StartRun({
       label="Start a send queue"
       size="form"
       align="end"
+      // On <body>: from the bulk island (overflow: hidden for its shape) an inline panel was cut away entirely.
+      portal
       side={side ?? "auto"}
       trigger={label}
       triggerClassName={triggerClassName ?? s.trigger}
