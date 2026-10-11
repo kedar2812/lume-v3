@@ -1,0 +1,620 @@
+<!doctype html>
+<!-- The product tour's opening (scripts/tour): where leads come from and where they end up, in LUME's Porcelain.
+     Rendered frame by frame with scripts/tour/render-anim.mjs; every logo is its owner's file from public/brand. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: Inter;
+        src: url(../../apps/web/public/fonts/InterVariable.woff2) format("woff2");
+        font-weight: 100 900;
+      }
+      :root {
+        --ground: #f5f6f8;
+        --surface: #fff;
+        --line: rgba(12, 18, 32, 0.08);
+        --text: #0a0c11;
+        --text-2: #4c525e;
+        --text-3: #5f6571;
+        --accent: #2a5bff;
+        --sky: #5ab8ff;
+        --ok: #18a566;
+        --warn: #f2a20c;
+        --spring: cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        width: 1440px;
+        height: 900px;
+        overflow: hidden;
+        background: var(--ground);
+        font-family: Inter, sans-serif;
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+      }
+      .stage {
+        position: absolute;
+        inset: 0;
+      }
+      .dia {
+        position: absolute;
+        left: 0;
+        top: 52px;
+        width: 1440px;
+        height: 900px;
+      }
+      .glow {
+        position: absolute;
+        left: 720px;
+        top: 470px;
+        width: 900px;
+        height: 900px;
+        margin: -450px;
+        border-radius: 50%;
+        background: radial-gradient(
+          closest-side,
+          rgba(42, 91, 255, 0.1),
+          rgba(90, 184, 255, 0.05) 55%,
+          transparent 72%
+        );
+        opacity: 0;
+        animation: fade 1.6s ease 1.3s both;
+      }
+
+      h1 {
+        position: absolute;
+        top: 74px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 46px;
+        font-weight: 650;
+        letter-spacing: -0.035em;
+        opacity: 0;
+        animation: rise 0.9s var(--spring) 0.1s both;
+      }
+      h1 .b {
+        background: linear-gradient(90deg, #2a5bff, #5ab8ff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .sub {
+        position: absolute;
+        top: 138px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 20px;
+        color: var(--text-2);
+        letter-spacing: -0.01em;
+        opacity: 0;
+        animation: rise 0.9s var(--spring) 0.35s both;
+      }
+
+      .tile {
+        position: absolute;
+        background: var(--surface);
+        border-radius: 22px;
+        box-shadow:
+          0 0 0 0.5px rgba(12, 18, 32, 0.08),
+          0 18px 44px -14px rgba(12, 18, 32, 0.18);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 22px;
+        height: 84px;
+        font-weight: 600;
+        font-size: 19px;
+        letter-spacing: -0.01em;
+        opacity: 0;
+        transform: translateY(18px) scale(0.94);
+        animation: pop 0.9s var(--spring) both;
+      }
+      .tile small {
+        display: block;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--text-3);
+        margin-top: 2px;
+        letter-spacing: 0;
+      }
+      .dark {
+        background: #0d0d0f;
+      }
+      .mc {
+        left: 96px;
+        top: 300px;
+        width: 268px;
+        animation-delay: 0.55s;
+        justify-content: center;
+      }
+      .mc img {
+        height: 30px;
+      }
+      .sr {
+        left: 96px;
+        top: 436px;
+        width: 268px;
+        animation-delay: 0.7s;
+      }
+      .sr img {
+        width: 44px;
+        height: 44px;
+      }
+      .sheet {
+        left: 448px;
+        top: 352px;
+        width: 240px;
+        height: 152px;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: center;
+        gap: 9px;
+        padding: 18px 20px;
+        animation-delay: 1s;
+      }
+      .sheet .hd {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .sheet .hd img {
+        width: 30px;
+        height: 30px;
+      }
+      .row {
+        height: 10px;
+        border-radius: 5px;
+        background: #e9f5ee;
+        position: relative;
+        overflow: hidden;
+      }
+      .row i {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, #34a853, #7fd19b);
+        transform-origin: left;
+        transform: scaleX(0);
+        animation: fill 0.5s var(--spring) both;
+      }
+      .row:nth-of-type(2) i {
+        animation-delay: 1.75s;
+      }
+      .row:nth-of-type(3) i {
+        animation-delay: 2s;
+        width: 78%;
+      }
+      .row:nth-of-type(4) i {
+        animation-delay: 2.25s;
+        width: 88%;
+      }
+
+      .lume {
+        left: 772px;
+        top: 380px;
+        width: 104px;
+        height: 104px;
+        padding: 0;
+        justify-content: center;
+        border-radius: 30px;
+        animation-delay: 1.45s;
+        box-shadow:
+          0 0 0 0.5px rgba(12, 18, 32, 0.08),
+          0 24px 60px -16px rgba(42, 91, 255, 0.45);
+      }
+      .lume img {
+        width: 64px;
+      }
+      .lume::after {
+        content: "";
+        position: absolute;
+        inset: -10px;
+        border-radius: 38px;
+        border: 2px solid rgba(42, 91, 255, 0.35);
+        opacity: 0;
+        animation: ring 1.4s ease-out 2.6s 3 both;
+      }
+      .lume-label {
+        position: absolute;
+        left: 772px;
+        top: 496px;
+        width: 104px;
+        text-align: center;
+        font-weight: 650;
+        font-size: 17px;
+        letter-spacing: 0.14em;
+        opacity: 0;
+        animation: fade 0.6s ease 1.8s both;
+      }
+
+      .cal {
+        left: 650px;
+        top: 214px;
+        width: 264px;
+        animation-delay: 2.35s;
+      }
+      .cal img {
+        width: 36px;
+        height: 36px;
+      }
+      .gcal {
+        left: 650px;
+        top: 578px;
+        width: 264px;
+        animation-delay: 2.5s;
+      }
+      .gcal img {
+        width: 36px;
+        height: 36px;
+      }
+
+      /* The one list */
+      .list {
+        position: absolute;
+        left: 1000px;
+        top: 262px;
+        width: 368px;
+        height: 322px;
+        background: var(--surface);
+        border-radius: 22px;
+        padding: 18px 18px;
+        box-shadow:
+          0 0 0 0.5px rgba(12, 18, 32, 0.08),
+          0 26px 60px -18px rgba(12, 18, 32, 0.22);
+        opacity: 0;
+        transform: translateX(26px);
+        animation: slide 1s var(--spring) 3s both;
+      }
+      .list .t {
+        font-size: 15px;
+        font-weight: 650;
+        margin: 2px 4px 12px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .list .t span {
+        color: var(--text-3);
+        font-weight: 500;
+      }
+      .lead {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        height: 50px;
+        padding: 0 6px;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 600;
+        opacity: 0;
+        transform: translateY(-14px);
+        animation: drop 0.7s var(--spring) both;
+      }
+      .lead .av {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        color: #fff;
+        font-size: 11.5px;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+      }
+      .lead .src {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .lead .src img {
+        width: 18px;
+        height: 18px;
+      }
+      .pill {
+        font-size: 12.5px;
+        font-weight: 600;
+        padding: 4px 9px;
+        border-radius: 99px;
+        border: 1px solid var(--line);
+        color: var(--text-2);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--c);
+      }
+      .lead.new {
+        animation-name: drop, wash;
+        animation-duration: 0.7s, 2.4s;
+      }
+      .l1 {
+        animation-delay: 3.5s;
+      }
+      .l2 {
+        animation-delay: 3.8s;
+      }
+      .l3 {
+        animation-delay: 4.1s;
+      }
+      .l4 {
+        animation-delay: 4.4s;
+      }
+      .l5 {
+        animation-delay: 4.7s;
+      }
+      .l1.new {
+        animation-delay: 3.5s, 3.5s;
+      }
+      .l2.new {
+        animation-delay: 3.8s, 3.8s;
+      }
+      .l3.new {
+        animation-delay: 4.1s, 4.1s;
+      }
+      .l4.new {
+        animation-delay: 4.4s, 4.4s;
+      }
+      .l5.new {
+        animation-delay: 4.7s, 4.7s;
+      }
+
+      /* Connectors and travelling leads */
+      svg.wires {
+        position: absolute;
+        inset: 0;
+        overflow: visible;
+      }
+      svg.wires path {
+        fill: none;
+        stroke: rgba(42, 91, 255, 0.28);
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-dasharray: 600;
+        stroke-dashoffset: 600;
+        animation: draw 1s var(--spring) both;
+      }
+      .w1 {
+        animation-delay: 0.95s !important;
+      }
+      .w2 {
+        animation-delay: 1.05s !important;
+      }
+      .w3 {
+        animation-delay: 1.6s !important;
+      }
+      .w4 {
+        animation-delay: 2.55s !important;
+      }
+      .w5 {
+        animation-delay: 2.7s !important;
+      }
+      .w6 {
+        animation-delay: 3s !important;
+      }
+      .dot {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 14px;
+        height: 14px;
+        margin: -7px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow:
+          0 0 0 4px rgba(42, 91, 255, 0.16),
+          0 4px 10px rgba(42, 91, 255, 0.4);
+        offset-rotate: 0deg;
+        offset-distance: 0%;
+        opacity: 0;
+        animation: travel 1.05s cubic-bezier(0.55, 0, 0.25, 1) both;
+      }
+      .dot.sky {
+        background: var(--sky);
+        box-shadow:
+          0 0 0 4px rgba(90, 184, 255, 0.2),
+          0 4px 10px rgba(90, 184, 255, 0.45);
+      }
+      .p1 {
+        offset-path: path("M364 342 C 410 342, 400 400, 448 410");
+      }
+      .p2 {
+        offset-path: path("M364 478 C 410 478, 400 450, 448 440");
+      }
+      .p3 {
+        offset-path: path("M688 428 C 720 428, 740 432, 772 432");
+      }
+      .p4 {
+        offset-path: path("M782 298 C 790 330, 810 350, 818 380");
+      }
+      .p5 {
+        offset-path: path("M782 578 C 790 540, 810 510, 818 484");
+      }
+      .p6 {
+        offset-path: path("M876 432 C 930 432, 950 420, 1000 420");
+      }
+
+      @keyframes fade {
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes pop {
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes slide {
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes drop {
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes wash {
+        0% {
+          background: rgba(42, 91, 255, 0.1);
+        }
+        100% {
+          background: transparent;
+        }
+      }
+      @keyframes fill {
+        to {
+          transform: scaleX(1);
+        }
+      }
+      @keyframes draw {
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes ring {
+        0% {
+          opacity: 0.9;
+          transform: scale(0.92);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.25);
+        }
+      }
+      @keyframes travel {
+        0% {
+          offset-distance: 0%;
+          opacity: 0;
+        }
+        12% {
+          opacity: 1;
+        }
+        88% {
+          opacity: 1;
+        }
+        100% {
+          offset-distance: 100%;
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="glow"></div>
+      <h1>Your bots catch the leads. <span class="b">LUME gets them answered.</span></h1>
+      <p class="sub">
+        ManyChat and Super Reply fill your Google Sheet. LUME reads it as often as every 2 minutes.
+      </p>
+      <div class="dia">
+        <svg class="wires" width="1440" height="900">
+          <path class="w1" d="M364 342 C 410 342, 400 400, 448 410" />
+          <path class="w2" d="M364 478 C 410 478, 400 450, 448 440" />
+          <path class="w3" d="M688 428 C 720 428, 740 432, 772 432" />
+          <path class="w4" d="M782 298 C 790 330, 810 350, 818 380" />
+          <path class="w5" d="M782 578 C 790 540, 810 510, 818 484" />
+          <path class="w6" d="M876 432 C 930 432, 950 420, 1000 420" />
+        </svg>
+
+        <div class="tile dark mc">
+          <img src="../../apps/web/public/brand/manychat-wordmark-white.svg" alt="Manychat" />
+        </div>
+        <div class="tile sr">
+          <img src="../../apps/web/public/brand/superreply.svg" alt="" />
+          <div>Super Reply<small>Answers your DMs</small></div>
+        </div>
+        <div class="tile sheet">
+          <div class="hd">
+            <img src="../../apps/web/public/brand/google-sheets.png" alt="" />
+            <div>Google Sheet<small>New leads, row by row</small></div>
+          </div>
+          <div class="row"><i></i></div>
+          <div class="row"><i></i></div>
+          <div class="row"><i></i></div>
+        </div>
+        <div class="tile cal">
+          <img src="../../apps/web/public/brand/calendly.svg" alt="" />
+          <div>Calendly<small>Bookings</small></div>
+        </div>
+        <div class="tile gcal">
+          <img src="../../apps/web/public/brand/google-calendar.png" alt="" />
+          <div>Google Calendar<small>Meetings with leads</small></div>
+        </div>
+        <div class="tile lume"><img src="../../apps/web/public/lume-mark.png" alt="LUME" /></div>
+        <div class="lume-label">LUME</div>
+
+        <div class="list">
+          <div class="t">Leads <span>one list</span></div>
+          <div class="lead new l1">
+            <span class="av" style="background: #0f7b4f">AR</span>Ananya Rao<span class="src"
+              ><span class="pill" style="--c: #2a5bff">New</span></span
+            >
+          </div>
+          <div class="lead new l2">
+            <span class="av" style="background: #b8336a">KM</span>Kabir Malhotra<span class="src"
+              ><span class="pill" style="--c: #2a5bff">New</span></span
+            >
+          </div>
+          <div class="lead l3">
+            <span class="av" style="background: #2a5bff">ZS</span>Zara Sheikh<span class="src"
+              ><img src="../../apps/web/public/brand/calendly.svg" alt="" /><span
+                class="pill"
+                style="--c: #f2a20c"
+                >Call booked</span
+              ></span
+            >
+          </div>
+          <div class="lead l4">
+            <span class="av" style="background: #8a5a00">RV</span>Rohan Verma<span class="src"
+              ><span class="pill" style="--c: #5ab8ff">Replied</span></span
+            >
+          </div>
+          <div class="lead l5">
+            <span class="av" style="background: #c0392b">MI</span>Meera Iyer<span class="src"
+              ><span class="pill" style="--c: #18a566">Won</span></span
+            >
+          </div>
+        </div>
+
+        <!-- leads travelling: bots → sheet → LUME → the list; meetings → LUME -->
+        <i class="dot p1" style="animation-delay: 1.25s"></i>
+        <i class="dot p2" style="animation-delay: 1.5s"></i>
+        <i class="dot p1" style="animation-delay: 1.85s"></i>
+        <i class="dot p2" style="animation-delay: 2.15s"></i>
+        <i class="dot p3" style="animation-delay: 2.05s"></i>
+        <i class="dot p3" style="animation-delay: 2.4s"></i>
+        <i class="dot p3" style="animation-delay: 2.75s"></i>
+        <i class="dot sky p4" style="animation-delay: 2.9s"></i>
+        <i class="dot sky p5" style="animation-delay: 3.15s"></i>
+        <i class="dot p6" style="animation-delay: 3.05s"></i>
+        <i class="dot p6" style="animation-delay: 3.35s"></i>
+        <i class="dot p6" style="animation-delay: 3.65s"></i>
+        <i class="dot sky p6" style="animation-delay: 3.95s"></i>
+        <i class="dot p6" style="animation-delay: 4.25s"></i>
+      </div>
+    </div>
+  </body>
+</html>

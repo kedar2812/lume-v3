@@ -1,0 +1,36 @@
+{
+  "one-list": {
+    "problem": "Leads pile up in a sheet no one owns.",
+    "lume": "Every enquiry lands in one list, with its stage and its owner."
+  },
+  "needs-you": {
+    "problem": "New leads go cold while everyone thinks someone else replied.",
+    "lume": "LUME spots the leads with no one on them. Two clicks assign them all."
+  },
+  "follow-up": {
+    "problem": "Follow-ups live in someone's head.",
+    "lume": "Set the next one in a click. Anything missed comes first."
+  },
+  "whatsapp": {
+    "problem": "Typing the same WhatsApp message 40 times a day.",
+    "lume": "One tap, their name already in, sent from your own WhatsApp."
+  },
+  "queue": {
+    "lume": "Or work through a whole list: LUME opens each chat with the message ready."
+  },
+  "calendar": {
+    "problem": "The call's on Calendly, the notes in a notebook, the lead in a sheet.",
+    "lume": "Calendly and Google Calendar meetings sit beside their lead. Then mark the win."
+  },
+  "analytics": {
+    "problem": "You can't see which source or which rep is actually working.",
+    "lume": "What each source costs and wins, and every rep side by side."
+  },
+  "rep": {
+    "problem": "When a rep leaves, your leads can leave with them.",
+    "lume": "Each rep sees only their own leads."
+  },
+  "security": {
+    "lume": "And every export carries a hidden mark that says whose it was."
+  }
+}

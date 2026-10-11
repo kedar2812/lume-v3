@@ -65,6 +65,17 @@ export default defineConfig({
             dependencies: ["seed"],
             use: { storageState: stateFile("owner") },
           },
+          {
+            // The product tour, recorded (the interactive demo): e2e/site/demo-tour.review.ts.
+            name: "demo-tour",
+            testMatch: /demo-tour\.review\.ts/,
+            dependencies: ["seed"],
+            // Chrome's screencast sends frames at CSS size unless the browser itself runs at 2× (crisp zooms).
+            use: {
+              storageState: stateFile("owner"),
+              launchOptions: { args: ["--force-device-scale-factor=2"] },
+            },
+          },
         ]
       : []),
   ],

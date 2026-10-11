@@ -23,6 +23,7 @@ apps/web/playwright-report/
 apps/web/e2e/.artifacts/
 apps/web/e2e/__review__/
 apps/web/e2e/__site__/
+apps/web/e2e/__demo__/
 apps/licence/e2e/.artifacts/
 apps/licence/e2e/__review__/
 apps/licence/test-results/
