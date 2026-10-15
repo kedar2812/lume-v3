@@ -14,6 +14,8 @@ export type Ctx = {
     ip: Limiter;
     instance: Limiter;
     wrongKey: Limiter;
+    /** Key activations per address (spec 2026-10-15 §2.1). */
+    activate: Limiter;
     signIn: Limiter;
     /** The website's enquiries: per address, and everyone together (website spec §7). */
     enquiryIp: Limiter;
@@ -70,6 +72,7 @@ export function context(): Ctx {
       ip: new Limiter(300, HOUR),
       instance: new Limiter(60, HOUR),
       wrongKey: new Limiter(10, HOUR),
+      activate: new Limiter(30, HOUR),
       signIn: new Limiter(10, 15 * 60_000),
       enquiryIp: new Limiter(10, HOUR),
       enquiryAll: new Limiter(200, HOUR),

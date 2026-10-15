@@ -84,6 +84,7 @@ export function testCtx(pool: pg.Pool, now: () => Date, over: Partial<Ctx> = {})
       ip: new Limiter(300, HOUR),
       instance: new Limiter(60, HOUR),
       wrongKey: new Limiter(10, HOUR),
+      activate: new Limiter(30, HOUR),
       signIn: new Limiter(10, 15 * 60_000),
       enquiryIp: new Limiter(10, HOUR),
       enquiryAll: new Limiter(200, HOUR),

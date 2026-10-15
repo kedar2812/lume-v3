@@ -140,23 +140,9 @@ async function record(
         await event("version", { from: last.app_version, to: c.appVersion });
       if (last.state !== c.state) await event("state", { from: last.state, to: c.state });
     }
-    const n = (
-      await conn.query<{ id: string; note: string; due_date: string | null; contact: string | null }>(
-        `SELECT n.id, n.note, to_char(n.due_date, 'YYYY-MM-DD') AS due_date, s.billing_contact AS contact
-           FROM notices n CROSS JOIN settings s
-          WHERE n.client_id = $1 AND n.cleared_at IS NULL`,
-        [clientId],
-      )
-    ).rows[0];
+    const notice = await openNotice(conn, clientId);
     await conn.query("COMMIT");
-    if (!n) return null;
-    return {
-      id: n.id,
-      kind: "payment_due",
-      dueDate: n.due_date,
-      note: n.note,
-      ...(n.contact ? { contact: n.contact } : {}),
-    };
+    return notice;
   } catch (e) {
     await conn.query("ROLLBACK").catch(() => {});
     throw e;
@@ -165,7 +151,27 @@ async function record(
   }
 }
 
-function limited(retryAfterS: number): Response {
+/** The client's open payment reminder, as the token carries it, or null. */
+export async function openNotice(db: pg.Pool | pg.PoolClient, clientId: string): Promise<LicenceNotice | null> {
+  const n = (
+    await db.query<{ id: string; note: string; due_date: string | null; contact: string | null }>(
+      `SELECT n.id, n.note, to_char(n.due_date, 'YYYY-MM-DD') AS due_date, s.billing_contact AS contact
+         FROM notices n CROSS JOIN settings s
+        WHERE n.client_id = $1 AND n.cleared_at IS NULL`,
+      [clientId],
+    )
+  ).rows[0];
+  if (!n) return null;
+  return {
+    id: n.id,
+    kind: "payment_due",
+    dueDate: n.due_date,
+    note: n.note,
+    ...(n.contact ? { contact: n.contact } : {}),
+  };
+}
+
+export function limited(retryAfterS: number): Response {
   return json(
     429,
     { error: { code: "RATE_LIMITED", message: "Too many checks. Try again later." } },
