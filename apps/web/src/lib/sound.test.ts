@@ -34,8 +34,14 @@ function fakeContext() {
 }
 
 describe("sound policy", () => {
-  it("only has the four achievement cues", () => {
-    expect([...SOUND_CUES].sort()).toEqual(["cleared", "done", "sent", "won"]);
+  it("only has the five achievement cues", () => {
+    expect([...SOUND_CUES].sort()).toEqual(["cleared", "done", "online", "sent", "won"]);
+  });
+
+  it("online (your LUME is online, spec 2026-10-15 §1.1): its last notes start 0.3 s in, where the ring closes", () => {
+    const starts = CUE_NOTES.online.map((n) => n.at);
+    expect(Math.max(...starts)).toBe(0.3);
+    expect(starts.filter((t) => t === 0.3)).toHaveLength(2); // the C and its shimmer, together
   });
 
   it("every note is soft (gain ≤ 0.03) and short (≤ 1.2 s)", () => {

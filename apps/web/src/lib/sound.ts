@@ -1,8 +1,8 @@
 /**
- * Achievement sounds (spec §6.2): synthesised, soft, short. Only these four exist on purpose.
+ * Achievement sounds (spec §6.2): synthesised, soft, short. Only these five exist on purpose.
  * Clicks, hover, navigation, toggles, panels, snooze, undo, sign-in and arrivals are silent.
  */
-export type SoundCue = "done" | "sent" | "won" | "cleared";
+export type SoundCue = "done" | "sent" | "won" | "cleared" | "online";
 export type Note = { freq: number; at: number; dur: number; gain: number };
 
 export const CUE_NOTES: Record<SoundCue, readonly Note[]> = {
@@ -27,6 +27,15 @@ export const CUE_NOTES: Record<SoundCue, readonly Note[]> = {
     dur: 1.1 - i * 0.1,
     gain: 0.022,
   })),
+  // This LUME is online (spec 2026-10-15 §1.1): C E G rising, then C with a soft G shimmer 0.3 s in, timed to land
+  // on the green ring closing round the mark.
+  online: [
+    { freq: 523.3, at: 0, dur: 0.5, gain: 0.022 },
+    { freq: 659.3, at: 0.09, dur: 0.55, gain: 0.022 },
+    { freq: 784, at: 0.18, dur: 0.7, gain: 0.021 },
+    { freq: 1046.5, at: 0.3, dur: 1.1, gain: 0.02 },
+    { freq: 1568, at: 0.3, dur: 1.2, gain: 0.012 },
+  ],
 };
 export const SOUND_CUES = Object.keys(CUE_NOTES) as SoundCue[];
 
