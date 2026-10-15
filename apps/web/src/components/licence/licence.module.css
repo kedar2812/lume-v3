@@ -617,3 +617,123 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* The product key (spec 2026-10-15 §1.3; canvas AboutKey). */
+.keyRow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--line);
+}
+.keyLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.keyWhat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.keyWhat > span:first-child {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.keyWhat strong {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  font-feature-settings: "tnum", "zero";
+}
+.keyNote {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.keyRefused {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--danger-ink);
+}
+.btnTint,
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition:
+    transform 0.1s ease-out,
+    background-color 0.15s;
+}
+.btnTint {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.25);
+}
+.btnGhost {
+  background: none;
+  color: var(--text-2);
+}
+.btnTint:active,
+.btnGhost:active {
+  transform: scale(0.97);
+}
+.btnTint:focus-visible,
+.btnGhost:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.keyForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--r-row);
+  background: var(--sunk);
+}
+.keyForm label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}
+.keyInputs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.keyInputs input {
+  flex: 1 1 280px;
+  min-width: 0;
+  height: 42px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--sheet);
+  box-shadow: 0 0 0 1px var(--line-2);
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  font-feature-settings: "tnum", "zero";
+  color: var(--text);
+  outline: none;
+}
+.keyInputs input:focus {
+  box-shadow: var(--focus-ring);
+}
+.keyInputs .btnPrimary {
+  height: 42px;
+}

@@ -5,6 +5,7 @@ import type { LicenceForPerson } from "@/lib/licence/client";
 import { licenceClient } from "@/lib/licence/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { ExportAll } from "./ExportAll";
+import { KeyRow } from "./KeyRow";
 import { ago, day, until, useLicence } from "./LicenceProvider";
 import s from "./licence.module.css";
 
@@ -155,6 +156,7 @@ export function LicenceCard() {
               <dd className={s.num}>{licence.nextCheckAt ? until(licence.nextCheckAt) : "—"}</dd>
             </div>
           </dl>
+          <KeyRow licence={licence} onChanged={set} />
           {licence.canCheck && !licence.dev && (
             <div className={s.checkRow}>
               <button
@@ -205,6 +207,7 @@ export function LicenceCard() {
           <div className={s.chips}>
             {[
               "This installation's ID",
+              "Install ID",
               "Licence key",
               "LUME version",
               "How many people use it",
@@ -217,7 +220,8 @@ export function LicenceCard() {
             ))}
           </div>
           <p className={s.aboutWords}>
-            Never a lead&apos;s name, number, email or anything they said. Those stay on this server.
+            Never a lead&apos;s name, number, email or anything they said. Those stay on this server. The
+            install ID is a random code this LUME made for itself, so its key works on this server only.
           </p>
         </section>
         <section aria-label="Your data, always yours" className={s.aboutCard}>

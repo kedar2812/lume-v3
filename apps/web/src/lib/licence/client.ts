@@ -12,6 +12,8 @@ export type LicenceForPerson = LicenceView & {
   canCheck: boolean;
   /** Why the last check brought no new answer (people who manage settings only), or null. */
   lastError: string | null;
+  /** The product key (spec 2026-10-15 §1.3): its last four, where it's set, and whether this person may change it. */
+  key: { masked: string | null; source: "env" | "stored" | null; canChange: boolean };
 };
 
 /** Said on window when the API refuses for the licence (403 LICENSE_*): the shell looks at it again. */
@@ -21,6 +23,8 @@ export const licenceClient = {
   get: () => api.get<LicenceForPerson>("/api/v1/licence"),
   check: () => api.post<LicenceForPerson>("/api/v1/licence/check"),
   dismiss: () => api.post<null>("/api/v1/licence/notice/dismiss"),
+  /** The owner's Change key (Settings → About): approved, the licence as it now is. */
+  changeKey: (key: string) => api.post<LicenceForPerson>("/api/v1/licence/key", { key }),
 };
 
 /** Where Export all data downloads from (a zip, in every licence state). */

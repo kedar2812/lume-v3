@@ -73,6 +73,9 @@ export type MePayload = Omit<
   flags: Omit<Session["flags"], "needsAgreement"> & { needsAgreement?: boolean };
 };
 
+/** An API from before product keys (spec 2026-10-15) says nothing of one: nothing to show, nothing to change. */
+const NO_KEY: LicenceForPerson["key"] = { masked: null, source: null, canChange: false };
+
 /** What a web app talking to an API from before licensing assumes: all is well, and quiet. */
 export const UNLICENSED_API: LicenceForPerson = {
   state: "active",
@@ -89,6 +92,7 @@ export const UNLICENSED_API: LicenceForPerson = {
   showNotice: false,
   canCheck: false,
   lastError: null,
+  key: NO_KEY,
 };
 
 export function toSession(me: MePayload): Session {
@@ -107,7 +111,7 @@ export function toSession(me: MePayload): Session {
     // An API from before the agreement existed sends no flag: nobody is asked.
     flags: { ...me.flags, needsAgreement: me.flags.needsAgreement ?? false },
     // An API from before licensing sends none: nothing is locked, nothing is said.
-    licence: me.licence ?? UNLICENSED_API,
+    licence: me.licence ? { ...me.licence, key: me.licence.key ?? NO_KEY } : UNLICENSED_API,
     // An API from before the watch draws no watermark.
     watermark: me.watermark ?? false,
     today: me.today ?? new Date().toISOString().slice(0, 10),

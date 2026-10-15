@@ -2,27 +2,10 @@
 import { useState, type FormEvent } from "react";
 import { displayKey, keyChars, KEY_CHARS } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
+import { keyFieldValue, REFUSAL_WORDS, typedPrefix } from "@/lib/key-words";
 import type { KeyAnswer, KeyLicence, KeyRefusal } from "@/lib/setup-client";
 import k from "./key.module.css";
 import s from "./setup.module.css";
-
-/** What each refusal says, in LUME's voice (spec 2026-10-15 §1.1; canvas KeyStates). */
-export const REFUSAL_WORDS: Record<KeyRefusal, string> = {
-  format: "That doesn’t look like a LUME key yet: it has five groups of four.",
-  not_recognised: "LUME doesn’t recognise that key. Check it against the message you were sent.",
-  in_use: "This key is already active on another LUME. Ask whoever gave it to you to release it.",
-  decommissioned: "This key has been decommissioned and works nowhere. Use the newest key you were sent.",
-  paused: "This key’s licence is paused.",
-  too_many: "Too many tries. Try again in an hour.",
-  unreachable:
-    "LUME couldn’t reach the licence server. Check this server’s internet connection, then try again.",
-};
-
-/** Still typing "LUME" itself (L, LU, LUM, LUME, any case, any punctuation): nothing of the key yet. */
-const typedPrefix = (v: string) => {
-  const alnum = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return alnum.length > 0 && "LUME".startsWith(alnum);
-};
 
 /**
  * Setup's first step on a client's install (spec 2026-10-15 §1.1; canvas Main): the product key, grouped as it's
@@ -88,7 +71,7 @@ export function KeyStep({
           aria-describedby="product-key-hint"
           aria-invalid={refused && !amber ? true : undefined}
           onChange={(e) => {
-            setText(typedPrefix(e.target.value) ? e.target.value.toUpperCase() : displayKey(e.target.value));
+            setText(keyFieldValue(e.target.value));
             setRefused(null);
           }}
         />

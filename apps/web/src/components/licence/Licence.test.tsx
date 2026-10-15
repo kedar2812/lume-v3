@@ -11,7 +11,7 @@ import { PaymentReminder } from "./PaymentReminder";
 
 vi.mock("@/lib/licence/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/licence/client")>()),
-  licenceClient: { get: vi.fn(), check: vi.fn(), dismiss: vi.fn() },
+  licenceClient: { get: vi.fn(), check: vi.fn(), dismiss: vi.fn(), changeKey: vi.fn() },
 }));
 let reduce = false;
 vi.mock("motion/react", async (orig) => ({
@@ -35,6 +35,7 @@ const L = (over: Partial<LicenceForPerson> = {}): LicenceForPerson => ({
   showNotice: false,
   canCheck: false,
   lastError: null,
+  key: { masked: "LUME-••••-••••-••••-••••-7Q2K", source: "stored", canChange: false },
   ...over,
 });
 const ADMIN = [
@@ -330,9 +331,82 @@ describe("Settings → About: the licence card", () => {
     expect(told).toHaveTextContent("Never a lead's name, number, email or anything they said.");
   });
 
+  it("what's told includes this install's own id, and why", () => {
+    shell(rep(L()), <LicenceCard />);
+    const told = screen.getByRole("region", { name: "What LUME tells its licence server" });
+    expect(told).toHaveTextContent("Install ID");
+    expect(told).toHaveTextContent(
+      "The install ID is a random code this LUME made for itself, so its key works on this server only.",
+    );
+  });
+
   it("reduced motion: the ring is drawn at once", () => {
     reduce = true;
     shell(rep(L()), <LicenceCard />);
     expect(screen.getByTestId("licence-ring")).toHaveAttribute("data-motion", "none");
+  });
+});
+
+describe("Settings → About: the product key (spec 2026-10-15 §1.3)", () => {
+  const owner = (licence: LicenceForPerson) =>
+    fakeSession({ permissions: ADMIN, licence: { ...licence, canCheck: true } });
+  const changeable = L({
+    key: { masked: "LUME-••••-••••-••••-••••-7Q2K", source: "stored", canChange: true },
+  });
+
+  it("shows the key's last four; Change key only for the owner", () => {
+    const { unmount } = shell(rep(L()), <LicenceCard />);
+    const card = screen.getByRole("region", { name: "Licence" });
+    expect(card).toHaveTextContent("LUME-••••-••••-••••-••••-7Q2K");
+    expect(within(card).queryByRole("button", { name: "Change key" })).not.toBeInTheDocument();
+    unmount();
+    shell(owner(changeable), <LicenceCard />);
+    expect(screen.getByRole("button", { name: "Change key" })).toBeInTheDocument();
+  });
+
+  it("a key set on the server says so, with nothing to change", () => {
+    shell(
+      owner(L({ key: { masked: "LUME-••••-••••-••••-••••-0001", source: "env", canChange: false } })),
+      <LicenceCard />,
+    );
+    expect(screen.getByRole("region", { name: "Licence" })).toHaveTextContent("Key set on the server");
+    expect(screen.queryByRole("button", { name: "Change key" })).not.toBeInTheDocument();
+  });
+
+  it("Change key: the new key, Save key, and the card shows its last four", async () => {
+    vi.mocked(licenceClient.changeKey).mockResolvedValue(
+      ok({
+        ...changeable,
+        key: { masked: "LUME-••••-••••-••••-••••-3VXA", source: "stored", canChange: true },
+      }),
+    );
+    shell(owner(changeable), <LicenceCard />);
+    await userEvent.click(screen.getByRole("button", { name: "Change key" }));
+    await userEvent.type(screen.getByLabelText("New product key"), "w4nb 8tzc 1kpe 6rdj 3vxa");
+    expect(screen.getByLabelText("New product key")).toHaveValue("LUME-W4NB-8TZC-1KPE-6RDJ-3VXA");
+    await userEvent.click(screen.getByRole("button", { name: "Save key" }));
+    expect(licenceClient.changeKey).toHaveBeenCalledWith("LUME-W4NB-8TZC-1KPE-6RDJ-3VXA");
+    expect(await screen.findByText("LUME-••••-••••-••••-••••-3VXA")).toBeInTheDocument();
+    expect(screen.queryByLabelText("New product key")).not.toBeInTheDocument();
+  });
+
+  it("a refused key keeps the old one and says why, in the setup step's words", async () => {
+    vi.mocked(licenceClient.changeKey).mockResolvedValue({
+      ok: false,
+      status: 422,
+      code: "KEY_REFUSED",
+      message: "no",
+      details: { reason: "in_use" },
+    });
+    shell(owner(changeable), <LicenceCard />);
+    await userEvent.click(screen.getByRole("button", { name: "Change key" }));
+    await userEvent.type(screen.getByLabelText("New product key"), "LUME-W4NB-8TZC-1KPE-6RDJ-3VXA");
+    await userEvent.click(screen.getByRole("button", { name: "Save key" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This key is already active on another LUME. Ask whoever gave it to you to release it.",
+    );
+    expect(screen.getByRole("region", { name: "Licence" })).toHaveTextContent(
+      "LUME-••••-••••-••••-••••-7Q2K",
+    );
   });
 });
