@@ -7,6 +7,8 @@ import type { Ctx } from "./context";
 import { licenceDb, seedClient, TEST_PAIR, testCtx, type LicenceTestDb } from "./testing";
 
 const KEYS = { t1: rawPublicKey(TEST_PAIR.publicKey) };
+/** The install the seeded licences are checked from (spec 2026-10-15 §2.2). */
+const INSTALL_A = "0190e0c0-0000-7000-8000-0000000000a1";
 let t: LicenceTestDb;
 let now = new Date("2026-10-05T09:00:00Z");
 let ctx: Ctx;
@@ -15,6 +17,7 @@ const body = (o: { instanceId: string; licenseKey: string; appVersion?: string; 
   checkBody({
     instanceId: o.instanceId,
     licenseKey: o.licenseKey,
+    installId: INSTALL_A,
     appVersion: o.appVersion ?? "1.4.2",
     activeUserCount: 4,
     leadCount: o.leadCount ?? 312,

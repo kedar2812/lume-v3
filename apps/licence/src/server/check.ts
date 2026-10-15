@@ -12,6 +12,8 @@ const checkSchema = z
   .object({
     instanceId: z.string().min(1).max(64),
     licenseKey: z.string().min(1).max(128),
+    // This install's own id (spec 2026-10-15 §2.2): accepted now, acted on and required in plan Task 4.
+    installId: z.uuid().optional(),
     appVersion: z.string().min(1).max(40),
     activeUserCount: z.number().int().min(0).max(1_000_000),
     leadCount: z.number().int().min(0).max(1_000_000_000),

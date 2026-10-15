@@ -36,6 +36,8 @@ export * from "./calendar/rules";
 export * from "./messaging/render";
 // The licence as people see it (no crypto: safe for the browser).
 export * from "./licence/state";
+// The product key's one spelling (pure: the setup field groups it as the licence server hashes it).
+export * from "./licence/product-key";
 // Phase 6A: the watch rules and the paused words (pure: the screens show the same limits).
 export * from "./security/rules";
 export * from "./security/copy";

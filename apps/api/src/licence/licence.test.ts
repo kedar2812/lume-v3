@@ -117,16 +117,17 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     expect(Date.parse(l.nextCheckAt) - Date.parse(l.checkedAt)).toBe(6 * H);
   });
 
-  it("sends only the six things it may, with real counts and never a lead", async () => {
+  it("sends only the seven things it may (this install's own id among them), with real counts and never a lead", async () => {
     await h.seedLead({ ownerId: repUser.id, name: "Counted Lead", phone: "+971501234567" });
     answer = ok(token());
     await check();
     const { url, body } = sent[0]!;
     expect(url).toBe("https://licence.test/v1/check");
     expect(Object.keys(body).sort()).toEqual(
-      ["activeUserCount", "appVersion", "instanceId", "leadCount", "licenseKey", "serverTime"].sort(),
+      ["activeUserCount", "appVersion", "installId", "instanceId", "leadCount", "licenseKey", "serverTime"].sort(),
     );
     expect(body).toMatchObject({ instanceId: INSTANCE, licenseKey: KEY, appVersion: "1.4.2" });
+    expect(body.installId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(body.leadCount).toBeGreaterThanOrEqual(1);
     expect(body.activeUserCount).toBeGreaterThanOrEqual(3);
     expect(JSON.stringify(body)).not.toMatch(/Counted Lead|1234567/);

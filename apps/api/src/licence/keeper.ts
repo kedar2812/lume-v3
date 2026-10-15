@@ -4,6 +4,8 @@ import type { LicenceOptions } from "./options";
 
 const REFRESH_MS = 30_000;
 const CHECK_TIMEOUT_MS = 10_000;
+/** Stands in for this install's id until licence_state carries it (plan 2026-10-15 Task 8 replaces it). */
+const NO_INSTALL_YET = "00000000-0000-0000-0000-000000000000";
 /** Every 6 hours (spec §3.2). */
 export const CHECK_EVERY_MS = 6 * 3_600_000;
 /** A sign-in checks again if the last try is older than this (so a payment reminder shows at the next one). */
@@ -134,6 +136,7 @@ export class LicenceKeeper {
             checkBody({
               instanceId: this.opts.instanceId,
               licenseKey: this.opts.licenseKey,
+              installId: NO_INSTALL_YET,
               appVersion: this.opts.version,
               ...counts,
               now: at,

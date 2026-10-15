@@ -60,10 +60,14 @@ export function verifyLicence(
   return parsed.data.instanceId === instanceId ? parsed.data : null;
 }
 
-/** What an instance sends when it checks (the source spec §2.4) — only this, never anything about a lead. */
+/**
+ * What an instance sends when it checks (the source spec §2.4) — only this, never anything about a lead. The
+ * install's id is a random code it made for itself, so its key works on this server only (spec 2026-10-15 §2.2).
+ */
 export function checkBody(o: {
   instanceId: string;
   licenseKey: string;
+  installId: string;
   appVersion: string;
   activeUserCount: number;
   leadCount: number;
@@ -72,9 +76,20 @@ export function checkBody(o: {
   return {
     instanceId: o.instanceId,
     licenseKey: o.licenseKey,
+    installId: o.installId,
     appVersion: o.appVersion,
     activeUserCount: o.activeUserCount,
     leadCount: o.leadCount,
+    serverTime: o.now.toISOString(),
+  };
+}
+
+/** What an instance sends to activate a key (spec 2026-10-15 §2.1) — only this. */
+export function activateBody(o: { licenseKey: string; installId: string; appVersion: string; now: Date }) {
+  return {
+    licenseKey: o.licenseKey,
+    installId: o.installId,
+    appVersion: o.appVersion,
     serverTime: o.now.toISOString(),
   };
 }

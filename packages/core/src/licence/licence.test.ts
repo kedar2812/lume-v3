@@ -176,17 +176,18 @@ describe("the licence state (what the instance does with it)", () => {
 });
 
 describe("what the check sends (spec §2.4: only this)", () => {
-  it("exactly six fields, and nothing about any lead", () => {
+  it("exactly seven fields (the install's own id among them), and nothing about any lead", () => {
     const body = checkBody({
       instanceId: "LUME-H4RB-8C2L",
       licenseKey: "LUME-HC-K7PX-2MWD-9RTA",
+      installId: "0190e0c0-0000-7000-8000-000000000001",
       appVersion: "1.4.2",
       activeUserCount: 6,
       leadCount: 1284,
       now: at("2026-09-30T10:00:00Z"),
     });
     expect(Object.keys(body).sort()).toEqual(
-      ["activeUserCount", "appVersion", "instanceId", "leadCount", "licenseKey", "serverTime"].sort(),
+      ["activeUserCount", "appVersion", "installId", "instanceId", "leadCount", "licenseKey", "serverTime"].sort(),
     );
     expect(body.serverTime).toBe("2026-09-30T10:00:00.000Z");
   });

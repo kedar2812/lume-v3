@@ -39,7 +39,15 @@ async function check(instanceId: string, licenseKey: string) {
     new Request("https://licence.test/v1/check", {
       method: "POST",
       body: JSON.stringify(
-        checkBody({ instanceId, licenseKey, appVersion: "1.4.2", activeUserCount: 3, leadCount: 10, now }),
+        checkBody({
+          instanceId,
+          licenseKey,
+          installId: "0190e0c0-0000-7000-8000-0000000000c1",
+          appVersion: "1.4.2",
+          activeUserCount: 3,
+          leadCount: 10,
+          now,
+        }),
       ),
     }),
     ctx,
