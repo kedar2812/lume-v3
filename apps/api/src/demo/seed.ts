@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
-import { dayOf, wallTime } from "@lume/core";
+import { dayOf, idAt, wallTime } from "@lume/core";
 import { rollupDays } from "../modules/analytics/rollup";
 import { BUDGET, FIRST, LAST, MEETING_TITLES, PEOPLE, PRODUCTS, REASONS, SOURCES, TAGS } from "./names";
 
@@ -323,7 +323,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
           if (contactAt > now) contactAt = null;
         }
         if (contactAt) {
-          activities.push([randomUUID(), lead.id, "whatsapp_opened", contactAt, people[owner!]!.id]);
+          activities.push([idAt(contactAt), lead.id, "whatsapp_opened", contactAt, people[owner!]!.id]);
           move(openAt(1), contactAt, openAt(0));
           lead.stage = 1;
           lead.stageAt = contactAt;
@@ -338,7 +338,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
           replyAt = new Date(contactAt.getTime() + r.between(1, 20) * HOUR);
           if (replyAt > now) replyAt = null;
           else {
-            activities.push([randomUUID(), lead.id, "reply_logged", replyAt, null]);
+            activities.push([idAt(replyAt), lead.id, "reply_logged", replyAt, null]);
             move(openAt(2), replyAt, openAt(1));
             lead.stage = 2;
             lead.stageAt = replyAt;
@@ -450,7 +450,7 @@ export async function seedDemoBusiness(pool: pg.Pool, o: DemoOptions) {
       const l = lost.splice(r.int(0, lost.length - 1), 1)[0]!;
       const reopened = new Date(l.lostAt!.getTime() + r.between(3, 10) * DAY);
       const wonAt = new Date(reopened.getTime() + r.between(2, 8) * DAY);
-      activities.push([randomUUID(), l.id, "reopened", reopened, people[l.owner!]!.id]);
+      activities.push([idAt(reopened), l.id, "reopened", reopened, people[l.owner!]!.id]);
       history.push([l.id, lostStage, openAt(1), pipeline, reopened]);
       history.push([l.id, openAt(1), wonStage, pipeline, wonAt]);
       l.product = r.weighted(PRODUCTS);

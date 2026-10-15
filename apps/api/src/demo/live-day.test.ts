@@ -64,6 +64,15 @@ describe("a working day on Today (website spec §6)", () => {
     expect(t.needsYou).toBeUndefined();
   });
 
+  it("this morning's WhatsApps and replies read in order in a lead's history (ids are time-ordered)", async () => {
+    const [out] = await h.queryAll<{ n: number }>(
+      `SELECT count(*)::int AS n FROM (
+         SELECT occurred_at, lag(occurred_at) OVER (PARTITION BY lead_id ORDER BY id) AS before FROM activities
+       ) x WHERE before > occurred_at`,
+    );
+    expect(out!.n).toBe(0);
+  });
+
   it("a deal won this morning counts in the month", async () => {
     const s = await tiles(owner);
     expect(s.month.value).toBeGreaterThan(0);

@@ -82,6 +82,15 @@ describe("the demo business (8D-1 Task 14)", () => {
     expect(titles.map((t) => t.title)).not.toContain("Call");
   });
 
+  it("a lead's history reads in order: activity ids are time-ordered, as the app's own are (History lists by id)", async () => {
+    const [out] = await a.queryAll<{ n: number }>(
+      `SELECT count(*)::int AS n FROM (
+         SELECT occurred_at, lag(occurred_at) OVER (PARTITION BY lead_id ORDER BY id) AS before FROM activities
+       ) x WHERE before > occurred_at`,
+    );
+    expect(out!.n).toBe(0);
+  });
+
   it("uses only made-up contacts", async () => {
     const bad = await a.queryAll<{ email: string }>(
       "SELECT email FROM leads WHERE email IS NOT NULL AND email NOT LIKE '%@example.com' LIMIT 3",

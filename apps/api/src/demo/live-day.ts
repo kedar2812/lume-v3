@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
-import { dayBounds, dayOf, NO_TOUCH_RULE_ID } from "@lume/core";
+import { dayBounds, dayOf, idAt, NO_TOUCH_RULE_ID } from "@lume/core";
 import { rollupDays } from "../modules/analytics/rollup";
 import { MEETING_TITLES, PRODUCTS } from "./names";
 
@@ -116,12 +116,12 @@ export async function seedLiveDay(
       for (const [i, when] of [at(-93), at(-64), at(-40), at(-23)].entries())
         await c.query(
           "INSERT INTO activities (id, lead_id, type, occurred_at, user_id) VALUES ($1, $2, 'whatsapp_opened', $3, $4)",
-          [randomUUID(), leads[9 + (i % 3)]!, when, p.userId],
+          [idAt(when), leads[9 + (i % 3)]!, when, p.userId],
         );
       for (const when of [at(-47), at(-14)])
         await c.query(
           "INSERT INTO activities (id, lead_id, type, occurred_at, user_id) VALUES ($1, $2, 'reply_logged', $3, NULL)",
-          [randomUUID(), leads[9]!, when],
+          [idAt(when), leads[9]!, when],
         );
       // A deal won this morning.
       const won = leads[11]!;
