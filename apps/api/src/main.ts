@@ -17,7 +17,7 @@ import { REDACT_PATHS } from "./logger";
 import { createMailer } from "./mail/mailer";
 import { fixedRates, openErApi, openExchangeRates } from "./money/rates";
 import { sweepLeftExports } from "./export/service";
-import { appVersion, isReleaseBuild, resolveLicence } from "./licence/options";
+import { appVersion, asksForKey, isReleaseBuild, resolveLicence } from "./licence/options";
 
 const cfg = loadConfig(apiSchema);
 // A request never waits long for a connection: exhaustion fails loudly instead of hanging the API.
@@ -76,6 +76,8 @@ const tasks: NonNullable<AppDeps["tasks"]> = {
 
 const mailer = createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`);
 
+// The licence (L-A): a release image checks and enforces; a development build is always active.
+const licence = resolveLicence({ env: process.env, release: isReleaseBuild(), version: appVersion(cfg) });
 const app = await buildApp({
   pool,
   keyring,
@@ -99,17 +101,15 @@ const app = await buildApp({
         ? openExchangeRates(cfg.LUME_FX_KEY)
         : openErApi(),
   clock: () => new Date(),
-  // Printed to stdout (not the redacting logger) so the owner can copy it from `docker compose logs api`.
-  setupTokens: processSetupTokens(!rows[0]!.has_users, (m) => console.log(m)),
+  // Printed to stdout (not the redacting logger) so the owner can copy it from `docker compose logs api`;
+  // never on an install that asks for its product key, where the key's approval hands it over instead.
+  setupTokens: processSetupTokens(!rows[0]!.has_users, (m) => console.log(m), {
+    keyMode: asksForKey(licence),
+  }),
   isBreached: await loadBreachedChecker(cfg.BREACHED_LIST_FILE),
   argon2: ARGON2_PRODUCTION,
   logger: { level: cfg.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: "[redacted]" } },
-  // The licence (L-A): a release image checks and enforces; a development build is always active.
-  licence: resolveLicence({
-    env: process.env,
-    release: isReleaseBuild(),
-    version: appVersion(cfg),
-  }),
+  licence,
 });
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;

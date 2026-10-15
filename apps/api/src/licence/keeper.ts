@@ -9,7 +9,7 @@ import {
   type LicencePayload,
   type LicenceView,
 } from "@lume/core";
-import type { LicenceOptions } from "./options";
+import { asksForKey, type LicenceOptions } from "./options";
 
 const REFRESH_MS = 30_000;
 const CHECK_TIMEOUT_MS = 10_000;
@@ -83,7 +83,7 @@ export class LicenceKeeper {
 
   /** A key is asked for at setup (spec 2026-10-15 §1.1): an enforced licence with none in .env. */
   needsKey(): boolean {
-    return this.opts.mode === "enforce" && !(this.opts.instanceId && this.opts.licenseKey);
+    return asksForKey(this.opts);
   }
 
   get dev(): boolean {

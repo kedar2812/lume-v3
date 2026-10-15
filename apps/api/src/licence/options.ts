@@ -16,6 +16,10 @@ export type LicenceOptions = {
   fetch?: typeof fetch;
 };
 
+/** A client's install asks for its product key at setup (spec 2026-10-15 §1.1): enforcing, with none in .env. */
+export const asksForKey = (o: Pick<LicenceOptions, "mode" | "instanceId" | "licenseKey">): boolean =>
+  o.mode === "enforce" && !(o.instanceId && o.licenseKey);
+
 export const LICENCE_URL = "https://license.lumecrm.in";
 
 /** Baked into a release image at build time (ruling R4): a file, not a variable a client's .env could set. */

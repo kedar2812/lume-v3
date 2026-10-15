@@ -30,6 +30,12 @@ export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
     return { needsSetup: true, needsKey: app.licence.needsKey() };
   });
 
+  // Until a key is approved, the setup token opens nothing on an install that asks for one (spec 2026-10-15 §1.1).
+  const keyFirst = () => {
+    if (app.licence.needsKey() && app.licence.keySource() === null)
+      throw forbidden("KEY_FIRST", "Enter this LUME's product key first");
+  };
+
   // The product key (spec 2026-10-15 §1.1, §4.1): ten tries an hour from one address, sixty in all. Approval hands
   // the setup token to this browser only; every later step takes it as before.
   const tries = createLimiter({ perSource: 10, perInstance: 60, windowMs: 3_600_000 });
@@ -60,6 +66,7 @@ export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
     "/api/v1/setup/totp",
     { config: { public: true }, schema: { body: z.object({ token: z.string().min(1).max(128) }) } },
     async (req) => {
+      keyFirst();
       const current = d.setupTokens.current();
       if (!current || !safeEqual(current, req.body.token))
         throw forbidden("SETUP_TOKEN", "That setup token isn't valid");
@@ -90,6 +97,9 @@ export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
         }),
       },
     },
-    (req, reply) => runSetup(req, reply, d, req.body),
+    (req, reply) => {
+      keyFirst();
+      return runSetup(req, reply, d, req.body);
+    },
   );
 }

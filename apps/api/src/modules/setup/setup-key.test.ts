@@ -79,6 +79,31 @@ describe("setup asks for the product key (spec 2026-10-15 §1.1)", () => {
     });
   });
 
+  it("until a key is approved, the setup token opens nothing (spec 2026-10-15 §1.1: setup goes on only once approved)", async () => {
+    const totp = await h.app.inject({
+      method: "POST",
+      url: "/api/v1/setup/totp",
+      payload: { token: h.setupToken },
+      ...(await h.csrf()),
+    });
+    expect(totp.statusCode).toBe(403);
+    expect(totp.json().error.code).toBe("KEY_FIRST");
+    const setup = await h.app.inject({
+      method: "POST",
+      url: "/api/v1/setup",
+      payload: {
+        token: h.setupToken,
+        business: { name: "Harbour Clinic", timezone: "Asia/Kolkata", currency: "INR", defaultCountry: "IN" },
+        preset: "general",
+        owner: { name: "Asha Rao", email: "owner@example.com", password: "a long enough passphrase 42" },
+        totp: { secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", code: "123456" },
+      },
+      ...(await h.csrf()),
+    });
+    expect(setup.statusCode).toBe(403);
+    expect(setup.json().error.code).toBe("KEY_FIRST");
+  });
+
   it("a refused key gets its reason, and no token", async () => {
     answer = () => new Response(JSON.stringify({ error: { code: "UNAUTHORIZED" } }), { status: 401 });
     const r = await enter(KEY);
