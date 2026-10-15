@@ -1187,6 +1187,64 @@ a.lit:hover {
     opacity: 1;
   }
 }
+/* A phone: the header on two lines (title and progress, then the tabs), and each follow-up or call on two (name
+   over what's due, the time over the quick actions), so a name is never cut off by the actions beside it. */
+@media (max-width: 859px) {
+  .workArea > .th {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .workArea > .th h2,
+  .workArea > .th .r {
+    white-space: nowrap;
+  }
+  .workArea > .th .tabs {
+    order: 1;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  .workArea > .th .tabs button {
+    flex: 1;
+    justify-content: center;
+  }
+  .row:has(> .tick),
+  .row:has(> .callIc) {
+    grid-template-columns: 26px 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "mark av who wh"
+      "mark av who acts";
+    row-gap: 4px;
+    padding-block: 8px;
+  }
+  .row > .tick,
+  .row > .callIc {
+    grid-area: mark;
+  }
+  .row > .av {
+    grid-area: av;
+  }
+  .row > .who {
+    grid-area: who;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .row > .who b,
+  .row > .who span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row > .wh {
+    grid-area: wh;
+    justify-self: end;
+  }
+  .row > .acts {
+    grid-area: acts;
+    justify-self: end;
+    opacity: 1;
+  }
+}
 .act {
   height: 26px;
   padding: 0 9px;
