@@ -1,6 +1,6 @@
 # Product key activation — design
 
-**Status:** sections 1–4 approved by the owner in chat, 2026-10-15. Builds on the licensing design
+**Status:** sections 1–4 approved by the owner in chat, 2026-10-15; screens on the canvas https://claude.ai/artifact/2PhEkUtJvecyqdvFi5hyfn (awaiting approval). Builds on the licensing design
 (`2026-09-30-licensing-deployment-design.md`); where the two differ, this one wins.
 
 **Goal.** The owner hands each client one product key from the licence dashboard instead of putting it in
@@ -67,7 +67,7 @@ key and instance ID are used. Checks every 6 hours run as today, with the instal
 - The body gains `installId` (uuid, required).
 - A check from a different install than the bound one gets 409 `KEY_IN_USE`; it isn't recorded as a check-in, and
   it raises `activation_refused`, at most once an hour per IP.
-- A licence with no binding yet binds on its first check (installs keyed through `.env`).
+- A licence that has never been bound binds on its first check (installs keyed through `.env`); a released one never does (§2.4).
 
 ### 2.3 Storing keys
 - New `licences.key_enc`: the key sealed with `LICENCE_MASTER_KEY` (AES-256-GCM, bound to the client id, as the
@@ -77,8 +77,11 @@ key and instance ID are used. Checks every 6 hours run as today, with the instal
 ### 2.4 Rotate and Release
 - **Rotate:** a new key (hash, sealed, last four); **the binding is kept**. The client enters the new key in
   Settings → About. Event `key_rotated`.
-- **Release:** clears `install_id`, `activated_at`, `activated_ip`; the next server to activate takes it.
-  Event `key_released`.
+- **Release:** clears `install_id`, `activated_at`, `activated_ip` and sets `released_at`; the next server to
+  activate takes it. Event `key_released`. After a release, **only `/v1/activate` (a key entered by hand) can bind
+  the key**: a check-in never binds a released licence, so the old server can't quietly take it back at its next
+  6-hourly check; its check-ins get 409 `KEY_IN_USE` once another server holds the key, and until then are answered
+  without binding. (The bind-on-first-check rule in §2.2 applies only to a licence that has never been bound.)
 
 ## 3. The dashboard
 
@@ -121,7 +124,7 @@ After Create, the sheet shows:
 ### 4.2 Changeover
 - **Migrations:** instance `licence_state` (+ `install_id` default `gen_random_uuid()`, `license_key_enc`,
   `instance_id`, `activated_at`); licence server `licences` (+ `key_enc`, `install_id`, `activated_at`,
-  `activated_ip`, unique `key_hash`).
+  `activated_ip`, `released_at`, unique `key_hash`).
 - Existing licences stay valid; an `.env`-keyed server binds at its first check.
 - `scripts/provision.sh`: `LUME_LICENSE_KEY` becomes optional; the closing line tells the owner to send the
   client their address and key (Copy message on the dashboard). `docs/runbooks/fleet.md` updated to match.
