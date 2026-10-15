@@ -9,7 +9,9 @@ describe("demo mode", () => {
   it("can't be turned on by a client's install, even with the flag copied over", () => {
     expect(demoMode({ LUME_DEMO_MODE: "true", LUME_PUBLIC_HOST: "acme.lumecrm.in" })).toBe(false);
     expect(demoMode({ LUME_DEMO_MODE: "true", LUME_PUBLIC_HOST: "app.lumecrm.in" })).toBe(false);
-    expect(demoMode({ LUME_DEMO_MODE: "true", LUME_PUBLIC_HOST: "demo.lumecrm.in.evil.example" })).toBe(false);
+    expect(demoMode({ LUME_DEMO_MODE: "true", LUME_PUBLIC_HOST: "demo.lumecrm.in.evil.example" })).toBe(
+      false,
+    );
     expect(demoMode({ LUME_DEMO_MODE: "true" })).toBe(false);
   });
   it("is off without the flag, or with anything but exactly true", () => {
