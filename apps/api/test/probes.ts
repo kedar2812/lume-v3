@@ -225,6 +225,11 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/licence": { access: "auth.self" },
   "POST /api/v1/licence/check": { access: "settings.manage" },
   "POST /api/v1/licence/notice/dismiss": { access: "auth.self" },
+  // Change key (spec 2026-10-15 §1.3): settings.manage at the door, then the owner only (403 OWNER_ONLY).
+  "POST /api/v1/licence/key": {
+    access: "settings.manage",
+    body: () => ({ key: "LUME-0000-0000-0000-0000-0000" }),
+  },
   "GET /api/v1/export": { access: "data.export" },
   "POST /api/v1/export": { access: "data.export" },
   // An export that was never prepared: 404 for those allowed, refused for the rest.
@@ -382,6 +387,8 @@ export const PROBES: Record<string, Probe> = {
   },
   "GET /api/v1/setup/status": { access: "public" },
   "POST /api/v1/setup/totp": { access: "public", body: () => ({ token: "wrong-wrong-wrong-wrong" }) },
+  // The product key step (spec 2026-10-15 §1.1): public, closed once anyone has set LUME up.
+  "POST /api/v1/setup/key": { access: "public", body: () => ({ key: "LUME-0000-0000-0000-0000-0000" }) },
   "POST /api/v1/setup": {
     access: "public",
     body: () => ({
