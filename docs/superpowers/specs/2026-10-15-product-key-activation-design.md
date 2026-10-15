@@ -17,9 +17,21 @@ works on one server only.
 - **The field** ("Your product key") accepts the key with or without dashes or spaces, in any case, and shows it
   grouped as `LUME-XXXX-XXXX-XXXX-XXXX-XXXX`.
 - **Continue** sends it to `POST /api/v1/setup/key`; the button reads "Checking with LUME…" meanwhile.
-- **Approved:** a green tick, "Key approved — this LUME is yours", then the existing steps (business, owner,
-  two-step). The answer carries the setup token to this browser only; every later step uses it exactly as today,
-  so a stranger who finds a half-finished install can't take it over. The client never sees a token.
+- **Approved: the "your LUME is online" moment** (owner, 2026-10-15). The form fades inside the card and the small
+  mark above it steps aside; then, from the answer (0 s):
+  1. the LUME mark rises on a spring (0.05–0.67 s) and turns one full rotation with a slight overshoot (0.62–1.44 s);
+  2. a green ring draws itself round it (1.40–2.12 s), a soft green pulse ripples out once, and a ✓ badge pops onto
+     the ring (2.1 s);
+  3. "Congratulations — your LUME is online", then "Your key is approved and this LUME is yours. {Plan} · paid until
+     {date}.", then **Proceed to onboarding** rise in (2.25–2.5 s), and lead to the existing steps (business, owner,
+     two-step).
+  - **Sound:** a fifth achievement cue, `online`, in `apps/web/src/lib/sound.ts`'s style: soft sines C5 E5 G5 C6 with a
+    G6 shimmer, low gain. It starts at 1.82 s so its last note lands on the ring closing and the badge (Apple's
+    "harmony": sound and picture on the same frame). Continue is the user gesture that unlocks audio. No other step of
+    setup makes a sound.
+  - **Reduced motion:** a cross-fade straight to the final frame; the chime plays at once.
+  - The answer also carries the setup token to this browser only; every later step uses it exactly as today, so a
+    stranger who finds a half-finished install can't take it over. The client never sees a token.
 - **Refused** (LUME's voice):
   - unknown key: "LUME doesn't recognise that key. Check it against the message you were sent."
   - in use elsewhere: "This key is already active on another LUME. Ask whoever gave it to you to release it."
