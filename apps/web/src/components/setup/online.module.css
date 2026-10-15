@@ -1,0 +1,245 @@
+/* "Your LUME is online" (spec 2026-10-15 §1.1; canvas Main, KeyObsidian). Times are from the approved answer:
+   the mark rises (0.05–0.67 s) and turns (0.62–1.44 s), the ring draws (1.40–2.12 s), the pulse and badge land at
+   ~2.1 s with the online chime, then the words (2.25–2.5 s). */
+.cel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 10px 4px 2px;
+  animation: celIn 0.45s ease-out both;
+}
+@keyframes celIn {
+  from {
+    opacity: 0;
+  }
+}
+.stage {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  margin: 6px 0 4px;
+}
+.riser {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  animation: logoRise 0.62s cubic-bezier(0.2, 0.9, 0.25, 1) 0.05s both;
+}
+@keyframes logoRise {
+  from {
+    opacity: 0;
+    transform: translateY(46px) scale(0.62);
+  }
+}
+.turner {
+  width: 76px;
+  height: 76px;
+  filter: drop-shadow(0 12px 28px rgba(42, 91, 255, 0.42));
+  animation: logoTurn 0.82s cubic-bezier(0.3, 1.32, 0.5, 1) 0.62s both;
+}
+@keyframes logoTurn {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ring {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.track {
+  fill: none;
+  stroke: var(--ok-soft);
+  stroke-width: 5;
+  opacity: 0;
+  animation: fadeIn 0.3s ease-out 1.38s forwards;
+}
+.arc {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 427.3;
+  stroke-dashoffset: 427.3;
+  transform: rotate(-90deg);
+  transform-origin: 74px 74px;
+  animation: drawRing 0.72s cubic-bezier(0.45, 0, 0.2, 1) 1.4s forwards;
+}
+@keyframes drawRing {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+.pulse {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  opacity: 0;
+  animation: pulse 1s cubic-bezier(0.2, 0.9, 0.25, 1) 2.12s;
+}
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(24, 165, 102, 0.42);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 0 26px rgba(24, 165, 102, 0);
+  }
+}
+.badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #18a566;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0 0 4px var(--raised),
+    0 8px 20px -6px rgba(24, 165, 102, 0.7);
+  transform: scale(0);
+  animation: badgePop 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) 2.1s forwards;
+}
+.badge svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@keyframes badgePop {
+  to {
+    transform: scale(1);
+  }
+}
+.tick {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: drawTick 0.32s ease-out 2.3s forwards;
+}
+@keyframes drawTick {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.title {
+  margin: 14px 0 0;
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-2xl);
+  line-height: 1.2;
+}
+.sub {
+  margin: 8px 0 0;
+  max-width: 360px;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.sub strong {
+  color: var(--ok-ink);
+  font-weight: var(--fw-semibold);
+}
+.go {
+  align-self: stretch;
+  margin-top: 22px;
+}
+.proceed.proceed {
+  width: 100%;
+  height: 46px;
+}
+.arrow {
+  width: 16px;
+  height: 16px;
+  margin-left: 8px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -3px;
+}
+.w1,
+.w2,
+.w3 {
+  animation: wordsUp 0.55s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.w1 {
+  animation-delay: 2.25s;
+}
+.w2 {
+  animation-delay: 2.36s;
+}
+.w3 {
+  animation-delay: 2.5s;
+}
+@keyframes wordsUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+/* Reduced motion (or a still render): the final frame, at once. */
+.cel[data-still] .riser,
+.cel[data-still] .turner,
+.cel[data-still] .w1,
+.cel[data-still] .w2,
+.cel[data-still] .w3 {
+  animation: none;
+}
+.cel[data-still] .track {
+  animation: none;
+  opacity: 1;
+}
+.cel[data-still] .arc,
+.cel[data-still] .tick {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+.cel[data-still] .pulse {
+  display: none;
+}
+.cel[data-still] .badge {
+  animation: none;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .riser,
+  .turner,
+  .w1,
+  .w2,
+  .w3 {
+    animation: none;
+  }
+  .track {
+    animation: none;
+    opacity: 1;
+  }
+  .arc,
+  .tick {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .pulse {
+    display: none;
+  }
+  .badge {
+    animation: none;
+    transform: none;
+  }
+}

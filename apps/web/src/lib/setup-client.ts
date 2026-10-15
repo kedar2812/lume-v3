@@ -36,3 +36,36 @@ export async function completeSetup(input: SetupInput): Promise<SetupResult> {
     return { status: "weak", problems: (r.details as { problems?: string[] } | undefined)?.problems ?? [] };
   return { status: "unavailable" };
 }
+
+/** Why a product key wasn't approved (spec 2026-10-15 §1.1); the API's KEY_REFUSED says which. */
+export type KeyRefusal =
+  "format" | "not_recognised" | "in_use" | "decommissioned" | "paused" | "too_many" | "unreachable";
+/** What the licence is, as the moment says it. */
+export type KeyLicence = {
+  licenseType: "subscription" | "perpetual" | "trial" | null;
+  paidUntil: string | null;
+  trialEndsAt: string | null;
+};
+export type KeyAnswer = { ok: true; token: string; licence: KeyLicence } | { ok: false; reason: KeyRefusal };
+
+const REFUSALS: readonly KeyRefusal[] = [
+  "format",
+  "not_recognised",
+  "in_use",
+  "decommissioned",
+  "paused",
+  "too_many",
+  "unreachable",
+];
+
+/** Setup's first step on a client's install (`POST /api/v1/setup/key`): approved, the setup token comes back. */
+export async function activateKey(key: string): Promise<KeyAnswer> {
+  const r = await api.post<{ token: string; licence: KeyLicence }>("/api/v1/setup/key", { key });
+  if (r.ok) return { ok: true, token: r.data.token, licence: r.data.licence };
+  if (r.status === 429) return { ok: false, reason: "too_many" };
+  const reason = (r.details as { reason?: string } | undefined)?.reason;
+  return {
+    ok: false,
+    reason: REFUSALS.includes(reason as KeyRefusal) ? (reason as KeyRefusal) : "unreachable",
+  };
+}

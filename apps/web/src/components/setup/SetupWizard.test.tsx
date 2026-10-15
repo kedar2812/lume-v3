@@ -68,6 +68,30 @@ async function fillToTwoFactor(p: ReturnType<typeof props>) {
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 }
 
+describe("SetupWizard with a product key (spec 2026-10-15 §1.1)", () => {
+  it("key → your LUME is online → Proceed → business …, and setup uses the token the key unlocked", async () => {
+    const p = props();
+    const onActivateKey = vi.fn(async () => ({
+      ok: true as const,
+      token: "token-the-key-unlocked",
+      licence: { licenseType: "subscription" as const, paidUntil: "2026-11-15", trialEndsAt: null },
+    }));
+    const onCelebrate = vi.fn();
+    render(<SetupWizard {...p} needsKey onActivateKey={onActivateKey} onCelebrate={onCelebrate} />);
+    expect(screen.queryByLabelText("Setup token")).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Product key"), "LUME-7K2P-Q9XD-4MRT-H8VC-7Q2K");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Congratulations — your LUME is online")).toBeInTheDocument();
+    expect(onCelebrate).toHaveBeenLastCalledWith(true);
+    await userEvent.click(screen.getByRole("button", { name: "Proceed to onboarding" }));
+    expect(onCelebrate).toHaveBeenLastCalledWith(false);
+    expect(p.onStartTotp).toHaveBeenCalledWith("token-the-key-unlocked");
+    expect(await screen.findByLabelText("Business name")).toBeInTheDocument();
+    // The key is done: there's no going back to it from the business step.
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  });
+});
+
 describe("SetupWizard", () => {
   it("walks token → business → owner → two-step → recovery codes", async () => {
     const p = props();

@@ -302,3 +302,15 @@
     transform: none;
   }
 }
+
+/* The mark above the card steps aside while "your LUME is online" plays (it has its own). */
+.head {
+  transition:
+    opacity 0.35s ease-out,
+    transform 0.5s var(--spring-soft);
+}
+.head[data-away] {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.92);
+  pointer-events: none;
+}
