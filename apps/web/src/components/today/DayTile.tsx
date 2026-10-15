@@ -53,7 +53,8 @@ export function DayTile({ v, now, tz }: { v: TodayView; now: Date; tz: string })
             : "Nothing planned yet"}
         </span>
       </div>
-      <div className={s.day} data-live-count>
+      {/* Where now and each dot sit follows the hour: screenshots hide it (dots can sit past either end). */}
+      <div className={s.day} data-live-count data-volatile-day>
         <div className={s.rail}>
           <i style={{ width: `${Math.max(0, Math.min(100, d.now))}%` }} />
         </div>

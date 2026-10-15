@@ -269,7 +269,7 @@ export function Today({
           )}
         </div>
         <div className={s.hr}>
-          <span className={s.when} data-live-count>
+          <span className={s.when} data-live-count data-volatile>
             {longDate(now, tz)}
           </span>
           <span
