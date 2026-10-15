@@ -119,7 +119,7 @@ for (const t of ["light", "dark"] as const) {
   });
 }
 
-test("a client's actions, end to end: New licence, Mark paid, the reminder, Rotate, Suspend", async () => {
+test("a client's actions, end to end: New licence, Ready to send, Mark paid, the reminder, the key, Suspend", async () => {
   await theme(page, "light");
   await page.goto("/clients");
   await page.getByRole("button", { name: "New licence" }).click();
@@ -129,9 +129,15 @@ test("a client's actions, end to end: New licence, Mark paid, the reminder, Rota
   await sheet.getByLabel("City", { exact: true }).fill("Dubai");
   await sheet.getByLabel("Price").fill("450");
   await sheet.getByRole("button", { name: "Create licence" }).click();
-  const done = page.getByRole("dialog", { name: "Licence created" });
+  const done = page.getByRole("dialog", { name: "Ready to send" });
   await expect(done).toContainText(/LUME(-[0-9A-Z]{4}){5}/);
+  await expect(done).toContainText("Not activated yet.");
+  await expect(done.getByRole("link", { name: "Send on WhatsApp" })).toHaveAttribute(
+    "href",
+    /^https:\/\/wa\.me\/\?text=/,
+  );
   await shot(page, "licence-created");
+  expect(await axe(page)).toEqual([]);
   await done.getByRole("link", { name: "Open Palm Bay Clinic" }).click();
   await expect(page.getByRole("heading", { name: "Palm Bay Clinic" })).toBeVisible();
 
@@ -140,8 +146,34 @@ test("a client's actions, end to end: New licence, Mark paid, the reminder, Rota
   await page.getByRole("button", { name: "Send payment reminder" }).click();
   await page.getByRole("button", { name: "Send reminder" }).click();
   await expect(page.getByText("Reminder on.")).toBeVisible();
-  await page.getByRole("button", { name: "Rotate key" }).click();
-  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  const key = page.getByRole("region", { name: "Licence key" });
+  await expect(key).toContainText("Not activated yet");
+  await key.getByRole("button", { name: "Show" }).click();
+  await expect(key).toContainText(/LUME(-[0-9A-Z]{4}){5}/);
+  await key.getByRole("button", { name: "Rotate key" }).click();
+  await key
+    .getByRole("group", { name: "Rotate the key?" })
+    .getByRole("button", { name: "Rotate key" })
+    .click();
+  await expect(key.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+  // Hold to decommission: letting go early does nothing; a full hold decommissions the key.
+  const hold = key.getByRole("button", { name: "Hold to decommission key" });
+  await hold.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  await expect(key).not.toContainText("Key decommissioned.");
+  await hold.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(1900);
+  await page.mouse.up();
+  await expect(key).toContainText("Key decommissioned.");
+  await shot(page, "client-key-decommissioned");
+  expect(await axe(page)).toEqual([]);
+  await key.getByRole("button", { name: "Issue a new key" }).click();
+  await expect(key.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+  await expect(key).toContainText("Not activated yet");
   await page.getByRole("button", { name: "Suspend…" }).click();
   await page.getByRole("button", { name: "Suspend", exact: true }).click();
   await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();

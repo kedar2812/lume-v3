@@ -432,6 +432,21 @@ describe("the Licence key card (spec 2026-10-15 §3.2)", () => {
     );
   });
 
+  it("history: the old key a Rotate retired reads apart from a key held to decommission", async () => {
+    serve({
+      ...DETAIL,
+      history: [
+        { at: "2026-10-15T10:02:00Z", kind: "key_decommissioned", detail: { last4: "8HNW", via: "hold" } },
+        { at: "2026-10-15T10:01:00Z", kind: "key_decommissioned", detail: { last4: "7Q2F", via: "rotate" } },
+        { at: "2026-10-15T10:01:00Z", kind: "key_rotated", detail: { last4: "8HNW" } },
+      ],
+    });
+    render(<ClientScreen id="c2" />);
+    const history = await screen.findByRole("region", { name: "History" });
+    expect(history).toHaveTextContent("Old key decommissioned by the rotate");
+    expect(within(history).getAllByText("Key decommissioned")).toHaveLength(1);
+  });
+
   it("Release asks first, naming the server", async () => {
     serve(DETAIL);
     render(<ClientScreen id="c2" />);
@@ -473,6 +488,41 @@ describe("the Licence key card (spec 2026-10-15 §3.2)", () => {
     await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/api/clients/c2/key/issue"));
     await act(async () => vi.advanceTimersByTime(3000));
     expect(screen.getByText("LUME-NEW0-KEY0-0000-0000-0001")).toBeInTheDocument();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("decommissioning a key just rotated in this visit: the new key and its 7-day words go, Issue a new key shows", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16) as unknown as number,
+    );
+    vi.stubGlobal("cancelAnimationFrame", (h: number) => clearTimeout(h));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    serve(DETAIL);
+    render(<ClientScreen id="c2" />);
+    await user.click(await screen.findByRole("button", { name: "Rotate key" }));
+    vi.mocked(api.post).mockResolvedValueOnce(ok({ ...DETAIL, licenseKey: "LUME-K7PX-2MWD-9RTA-4QZC-8HNW" }));
+    await user.click(
+      within(screen.getByRole("group", { name: "Rotate the key?" })).getByRole("button", {
+        name: "Rotate key",
+      }),
+    );
+    await act(async () => vi.advanceTimersByTime(3000));
+    expect(await card()).toHaveTextContent("keeps working on it for 7 days");
+    vi.mocked(api.post).mockResolvedValueOnce(
+      ok(withKey({ ...gone, status: "decommissioned" }, { keyShowable: false })),
+    );
+    const hold = screen.getByRole("button", { name: "Hold to decommission key" });
+    fireEvent.pointerDown(hold, { button: 0, pointerId: 1 });
+    await act(async () => vi.advanceTimersByTime(1700));
+    expect(api.post).toHaveBeenLastCalledWith("/api/clients/c2/key/decommission");
+    const c = await card();
+    await waitFor(() => expect(c).toHaveTextContent("Key decommissioned."));
+    expect(c).not.toHaveTextContent("LUME-K7PX-2MWD-9RTA-4QZC-8HNW");
+    expect(c).not.toHaveTextContent("7 days");
+    expect(within(c).getByRole("button", { name: "Issue a new key" })).toBeInTheDocument();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });

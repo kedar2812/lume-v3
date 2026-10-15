@@ -98,7 +98,11 @@ function said(e: Detail["history"][number]): { text: string; color: string } {
     case "key_created":
       return { text: "New key issued", color: "#2a5bff" };
     case "key_decommissioned":
-      return { text: "Key decommissioned", color: "#e5484d" };
+      // Rotate retires the old key in the same moment (spec 2026-10-15 §2.4): said so, not a second "decommissioned".
+      return {
+        text: d.via === "rotate" ? "Old key decommissioned by the rotate" : "Key decommissioned",
+        color: d.via === "rotate" ? "#9297a0" : "#e5484d",
+      };
     case "key_released":
       return { text: d.ip ? `Key released from ${String(d.ip)}` : "Key released", color: "#f2a20c" };
     case "activated":

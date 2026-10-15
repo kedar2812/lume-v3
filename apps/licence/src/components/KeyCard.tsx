@@ -99,9 +99,18 @@ export function KeyCard({
     setAsk(null);
     await run(`/api/clients/${c.id}/release`, "Released · the next server to enter the key takes it");
   };
-  const decommission = async () =>
-    (await run(`/api/clients/${c.id}/key/decommission`, "Key decommissioned · it works nowhere now")) !==
-    null;
+  const decommission = async () => {
+    if (
+      (await run(`/api/clients/${c.id}/key/decommission`, "Key decommissioned · it works nowhere now")) ===
+      null
+    )
+      return false;
+    // A key rotated or shown in this visit is decommissioned too: its words no longer hold.
+    clearInterval(typing.current);
+    setFresh(null);
+    setShown(null);
+    return true;
+  };
   const issue = async () => {
     const r = await run(`/api/clients/${c.id}/key/issue`, "A new key, ready to send");
     if (r?.licenseKey)
