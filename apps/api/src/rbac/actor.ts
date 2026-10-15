@@ -9,6 +9,7 @@ import {
   type Scope,
 } from "@lume/core";
 import type { LoginHours } from "@lume/db";
+import { demoMode } from "../demo/mode";
 
 export type RoleRestriction = { loginHours: LoginHours | null; ipAllowlist: string[] | null };
 export type ActorRecord = Actor & {
@@ -79,6 +80,7 @@ export async function loadActor(pool: pg.Pool | pg.PoolClient, userId: string): 
     perms: effectivePermissions(list),
     teamMemberIds: team.rows.map((r) => r.user_id),
     twoFactorEnabled: user.totp_enabled,
+    ...(demoMode() ? { twoFactorWaived: true } : {}),
     roleIds: [...restrictions.keys()],
     restrictions: [...restrictions.values()],
     fieldAccess: user.is_owner

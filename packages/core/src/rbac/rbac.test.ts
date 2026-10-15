@@ -91,6 +91,12 @@ describe("mandatory two-factor (report §12.1)", () => {
     expect(requiresTwoFactor(actor([...grants]))).toBe(expected);
   });
   it("always applies to the owner", () => expect(requiresTwoFactor(actor([], { isOwner: true }))).toBe(true));
+  it("is waived for everyone on LUME's own demo (the API marks the actor only there)", () => {
+    expect(requiresTwoFactor(actor([], { isOwner: true, twoFactorWaived: true }))).toBe(false);
+    expect(requiresTwoFactor(actor([{ key: "users.manage", scope: null }], { twoFactorWaived: true }))).toBe(
+      false,
+    );
+  });
 });
 
 describe("seeded roles", () => {

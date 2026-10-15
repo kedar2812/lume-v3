@@ -10,6 +10,8 @@ export type Actor = {
   teamMemberIds: readonly string[];
   twoFactorEnabled: boolean;
   roleIds: readonly string[];
+  /** LUME's own demo only (the API sets it in demo mode): no one there is asked for two-step sign-in. */
+  twoFactorWaived?: boolean;
 };
 
 /** Union of all the user's roles; a scoped permission keeps its widest scope (report §5.1). */
@@ -47,6 +49,7 @@ export const leadScope = (actor: Actor): Scope | null => scopeOf(actor, "leads.v
 const TWO_FACTOR_KEYS: PermissionKey[] = ["users.manage", "roles.manage", "leads.export", "security.manage"];
 /** Report §12.1: owner, people/role/security managers, anyone who can export, full contacts at `all`. */
 export function requiresTwoFactor(actor: Actor): boolean {
+  if (actor.twoFactorWaived) return false;
   if (actor.isOwner) return true;
   if (TWO_FACTOR_KEYS.some((k) => actor.perms.has(k))) return true;
   return actor.perms.get("leads.contact.full") === "all";
