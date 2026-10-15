@@ -724,9 +724,10 @@
   background: var(--sheet);
   box-shadow: 0 0 0 1px var(--line-2);
   font: inherit;
-  font-size: var(--fs-md);
+  /* The whole key in view, to check it against the message before saving. */
+  font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   font-feature-settings: "tnum", "zero";
   color: var(--text);
   outline: none;

@@ -214,7 +214,13 @@ export function SetupWizard({
           )}
 
         {step === "online" && licence && (
-          <motion.div key="online" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div
+            key="online"
+            className={s.frame}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <OnlineMoment licence={licence} reduce={reduce} busy={busy} onProceed={() => void proceed()} />
           </motion.div>
         )}
