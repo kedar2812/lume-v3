@@ -89,6 +89,12 @@ describe("Today's tiles", () => {
     expect(t).toHaveTextContent("At this pace: ₹1.3Cr by Oct 31");
     expect(within(t).getByRole("img", { name: /an even pace would be at 16%/ })).toBeInTheDocument();
   });
+  it("The month's icon is a banknote, not a rupee sign: it reads right in every business's currency", () => {
+    render(<Tiles tiles={base} currency="AED" own={false} />);
+    const icon = tile(/^Revenue · October/).querySelector("svg path");
+    expect(icon).toHaveAttribute("d", expect.stringContaining("M4 6h16"));
+    expect(icon).not.toHaveAttribute("d", expect.stringContaining("M6 13l8.5 8"));
+  });
   it("The month without a goal says so, and without money it counts deals", () => {
     render(
       <Tiles
