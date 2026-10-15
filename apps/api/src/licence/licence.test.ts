@@ -156,6 +156,22 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     );
   });
 
+  it("a key from .env can't be changed in Settings → About: the card says so", async () => {
+    const me = await owner.inject({ method: "GET", url: "/api/v1/licence" });
+    expect(me.json().key).toEqual({
+      masked: `LUME-••••-••••-••••-••••-${KEY.slice(-4)}`,
+      source: "env",
+      canChange: false,
+    });
+    const r = await owner.inject({
+      method: "POST",
+      url: "/api/v1/licence/key",
+      payload: { key: "LUME-W4NB-8TZC-1KPE-6RDJ-3VXA" },
+    });
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error.code).toBe("KEY_FROM_ENV");
+  });
+
   it("counts a paused person: pausing someone never frees a place (6A ruling R7)", async () => {
     answer = ok(token());
     await check();

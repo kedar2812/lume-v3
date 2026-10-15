@@ -2,6 +2,9 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { can, type LicenceView } from "@lume/core";
 import { schema } from "@lume/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { audit } from "../audit/audit";
+import { conflict, forbidden, HttpError } from "../http/errors";
 
 /** Owners and admins (people who manage settings) see the payment reminder and may Check now. */
 const manages = (req: FastifyRequest) =>
@@ -15,6 +18,8 @@ export type LicenceForPerson = LicenceView & {
   canCheck: boolean;
   /** Why the last check brought no new answer: for people who manage settings, else null. */
   lastError: string | null;
+  /** The product key (spec 2026-10-15 §1.3): its last four, where it's set, and whether this person may change it. */
+  key: { masked: string | null; source: "env" | "stored" | null; canChange: boolean };
 };
 
 /** The licence as this person sees it (L-A): with /auth/me, and on its own. */
@@ -37,6 +42,18 @@ export async function licenceFor(req: FastifyRequest): Promise<LicenceForPerson>
     showNotice: !!v.notice && admin && dismissed !== v.notice.id,
     canCheck: admin,
     lastError: admin ? req.server.licence.lastError() : null,
+    key: keyFor(req),
+  };
+}
+
+function keyFor(req: FastifyRequest): LicenceForPerson["key"] {
+  const k = req.server.licence;
+  const last4 = k.keyLast4();
+  const source = k.keySource();
+  return {
+    masked: last4 ? `LUME-••••-••••-••••-••••-${last4}` : null,
+    source,
+    canChange: !!req.actor?.isOwner && source !== "env" && !k.dev,
   };
 }
 
@@ -48,6 +65,30 @@ export async function licenceRoutes(app: FastifyInstance): Promise<void> {
     { config: { permission: "settings.manage", idempotent: false } },
     async (req) => {
       await req.server.licence.check();
+      return licenceFor(req);
+    },
+  );
+  // Change key (spec 2026-10-15 §1.3): the owner only; the new key goes through the same activation, on this
+  // install, and replaces the old one only once approved. A key from .env is the server's to change.
+  app.post(
+    "/api/v1/licence/key",
+    {
+      config: { permission: "settings.manage", idempotent: false },
+      schema: { body: z.object({ key: z.string().min(1).max(128) }).strict() },
+    },
+    async (req) => {
+      if (!req.actor?.isOwner) throw forbidden("OWNER_ONLY", "Only the owner can change the product key");
+      if (req.server.licence.keySource() === "env")
+        throw conflict("KEY_FROM_ENV", "This LUME's key is set on its server");
+      const r = await req.server.licence.activate((req.body as { key: string }).key);
+      if (!r.ok)
+        throw new HttpError(422, "KEY_REFUSED", "That product key wasn't approved", { reason: r.reason });
+      await audit(req, {
+        action: "licence.key_changed",
+        entityType: "licence",
+        entityId: "1",
+        diff: { last4: req.server.licence.keyLast4() },
+      });
       return licenceFor(req);
     },
   );

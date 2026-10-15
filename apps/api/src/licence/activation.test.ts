@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from "node:crypto";
-import { rawPublicKey, signLicence, type LicencePayload } from "@lume/core";
+import { ALL_GRANTS, rawPublicKey, signLicence, type LicencePayload } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "../../test/harness";
 
@@ -173,5 +173,60 @@ describe("this install's key (spec 2026-10-15 §1.2)", () => {
     answer = refused(403, "KEY_DECOMMISSIONED");
     await h.app.licence.check();
     expect(h.app.licence.lastError()).toBe("This key has been decommissioned");
+  });
+});
+
+describe("Change key in Settings → About (spec 2026-10-15 §1.3)", () => {
+  const NEXT = "LUME-W4NB-8TZC-1KPE-6RDJ-3VXA";
+  const change = (
+    c: { inject: Harness["app"]["inject"] } | Awaited<ReturnType<Harness["signIn"]>>,
+    key: string,
+  ) => c.inject({ method: "POST", url: "/api/v1/licence/key", payload: { key } });
+
+  // One owner per LUME (users_one_owner): seeded once for these tests.
+  let owner: Awaited<ReturnType<Harness["signIn"]>>;
+  beforeAll(async () => {
+    owner = await h.signIn(await h.seedUser({ owner: true, grants: ALL_GRANTS, totp: true }));
+  });
+
+  it("the owner changes the key; the card shows the new last four; the audit keeps only those", async () => {
+    expect((await owner.inject({ method: "GET", url: "/api/v1/licence" })).json().key).toEqual({
+      masked: null,
+      source: null,
+      canChange: true,
+    });
+    answer = approved();
+    await h.app.licence.activate(KEY);
+    await h.app.licence.idle();
+    answer = approved();
+    const r = await change(owner, NEXT.toLowerCase());
+    expect(r.statusCode).toBe(200);
+    expect(r.json().key).toEqual({
+      masked: "LUME-••••-••••-••••-••••-3VXA",
+      source: "stored",
+      canChange: true,
+    });
+    const audit = await h.ownerPool.query<{ action: string; diff: unknown }>(
+      "SELECT action, diff FROM audit_log WHERE action = 'licence.key_changed'",
+    );
+    expect(audit.rows).toEqual([{ action: "licence.key_changed", diff: { last4: "3VXA" } }]);
+    expect(JSON.stringify(audit.rows)).not.toContain("W4NB");
+  });
+
+  it("a refused key leaves the old one working, and says why", async () => {
+    answer = approved();
+    await h.app.licence.activate(KEY);
+    await h.app.licence.idle();
+    answer = () => new Response(JSON.stringify({ error: { code: "KEY_IN_USE" } }), { status: 409 });
+    const r = await change(owner, NEXT);
+    expect(r.statusCode).toBe(422);
+    expect(r.json().error).toMatchObject({ code: "KEY_REFUSED", details: { reason: "in_use" } });
+    expect(h.app.licence.keyLast4()).toBe("7Q2K");
+  });
+
+  it("only the owner: an admin who manages settings is refused", async () => {
+    const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+    expect((await change(admin, NEXT)).statusCode).toBe(403);
+    expect((await admin.inject({ method: "GET", url: "/api/v1/licence" })).json().key.canChange).toBe(false);
   });
 });
