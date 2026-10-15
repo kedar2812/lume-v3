@@ -2,6 +2,8 @@
 import { currencyForCountry, CURRENCIES } from "@lume/core/shared";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clientMessage, whatsappLink } from "@/lib/message";
+import { WhatsAppMark } from "@/lib/wa-mark";
 import type { ClientView } from "@/server/clients";
 import { SOURCES, type Source } from "@/lib/analytics";
 import { api } from "@/lib/client";
@@ -69,7 +71,7 @@ export function NewLicence({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [made, setMade] = useState<{ client: ClientView; key: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"key" | "message" | null>(null);
   const first = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -125,48 +127,71 @@ export function NewLicence({
     onCreated(r.data.client);
   };
 
-  if (made)
+  if (made) {
+    const message = clientMessage(made.client.slug, made.key);
+    const copy = (text: string, what: "key" | "message") => {
+      void navigator.clipboard?.writeText(text);
+      setCopied(what);
+    };
     return (
       <>
         <div className="scrim" onClick={onClose} aria-hidden />
-        <div className="sheet" role="dialog" aria-modal="true" aria-label="Licence created">
+        <div className="sheet" role="dialog" aria-modal="true" aria-label="Ready to send">
           <div className="top">
-            Licence created
+            Ready to send
             <CloseButton onClose={onClose} />
           </div>
           <div className="mid">
-            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--ink2)" }}>
-              {made.client.name}&apos;s installation needs this key and its instance ID. Paste them into its{" "}
-              <code>.env</code> as <code>LUME_LICENSE_KEY</code> and <code>LUME_INSTANCE_ID</code>.
-            </p>
-            <div className="field">
-              Licence key
-              <div className="keybox reveal">
-                <span className="mono" style={{ flexGrow: 1, wordBreak: "break-all" }}>
-                  {made.key}
-                </span>
-                <button
-                  type="button"
-                  className="btn second small"
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(made.key);
-                    setCopied(true);
-                  }}
+            <div className="made reveal">
+              <span className="tick" aria-hidden>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  {copied ? "Copied" : "Copy"}
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              </span>
+              <span className="words">
+                <strong>Licence created for {made.client.name}</strong>
+                <span>{made.client.slug}.lumecrm.in</span>
+              </span>
+            </div>
+            <div className="field">
+              Product key
+              <div className="keybox">
+                <span className="mono big-key">{made.key}</span>
+                <button type="button" className="btn second small" onClick={() => copy(made.key, "key")}>
+                  {copied === "key" ? "Copied" : "Copy key"}
                 </button>
               </div>
             </div>
             <div className="field">
-              Instance ID
-              <div className="keybox">
-                <span className="mono">{made.client.instanceId}</span>
+              Message for the client
+              <p className="message">{message}</p>
+              <div className="pair">
+                <button type="button" className="btn second" onClick={() => copy(message, "message")}>
+                  {copied === "message" ? "Copied" : "Copy message"}
+                </button>
+                <a className="btn wa" href={whatsappLink(message)} target="_blank" rel="noopener noreferrer">
+                  <span className="watile" aria-hidden>
+                    <WhatsAppMark />
+                  </span>
+                  Send on WhatsApp
+                </a>
               </div>
             </div>
-            <p className="preview col" style={{ margin: 0 }}>
-              <strong>Shown once.</strong>
-              <span style={{ color: "var(--ink2)" }}>
-                LUME keeps only a fingerprint of the key. Lost, it can be rotated from the client&apos;s page.
+            <p className="waiting">
+              <i aria-hidden />
+              <span>
+                <strong>Not activated yet.</strong> When {made.client.name} enters the key, their page shows
+                the server it&apos;s active on. It works on one server; to move them, press Release on their
+                page.
               </span>
             </p>
           </div>
@@ -181,6 +206,7 @@ export function NewLicence({
         </div>
       </>
     );
+  }
 
   return (
     <>

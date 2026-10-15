@@ -1574,3 +1574,247 @@ a.row:hover {
     animation: none;
   }
 }
+
+/* ---------- product keys (spec 2026-10-15 §3; canvas DashReady, DashClient, DashClients) ---------- */
+.pill.waiting {
+  background: var(--greyBg);
+  color: var(--greyInk);
+}
+.pill.waiting i {
+  background: #9aa0ab;
+}
+.keyhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.keystatus {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.kico {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+.kwords {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.kwords strong {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.kwords span,
+.knote {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink2);
+}
+.keyalert {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--redBg);
+  color: var(--redInk);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.keyacts,
+.cbtns,
+.pair {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn.tight {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+.btn.amber {
+  background: var(--amberBg);
+  color: var(--amberInk);
+}
+.btn.amber-solid {
+  background: #f2a20c;
+  color: #1a1300;
+}
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.confirm.blue {
+  background: var(--tint);
+}
+.confirm.amber {
+  background: var(--amberBg);
+}
+.confirm.red {
+  background: var(--redBg);
+}
+.confirm strong {
+  font-weight: 700;
+}
+.confirm .red,
+.confirm strong.red {
+  color: var(--redInk);
+}
+.holdwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 0.5px solid var(--line);
+}
+/* Hold to decommission: the red fills from the left while it's held (owner, 2026-10-15). */
+.hold {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--redBg);
+  color: var(--redInk);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.12s ease-out;
+}
+.hold:active {
+  transform: scale(0.985);
+}
+.hold:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(229, 72, 77, 0.18),
+    inset 0 0 0 1.5px #e5484d;
+}
+.hold .fill {
+  position: absolute;
+  inset: 0;
+  background: #e5484d;
+  transform-origin: left;
+  pointer-events: none;
+}
+.hold .lbl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.15s;
+}
+.hold .lbl.lit {
+  color: #fff;
+}
+/* Ready to send */
+.made {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--greenBg);
+  color: var(--greenInk);
+}
+.made .tick {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #18a566;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 6px 18px -6px rgba(24, 165, 102, 0.6);
+}
+.made .words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.made strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+.big-key {
+  flex-grow: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.message {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.pair > * {
+  flex: 1;
+}
+/* WhatsApp's own green for the button; its mark sits on a white tile (official mark, unchanged). */
+.btn.wa,
+a.btn.wa {
+  background: #0f7f44;
+  color: #fff;
+}
+.watile {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+}
+.waiting {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--greyBg);
+  color: var(--greyInk);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.waiting i {
+  flex: none;
+  margin-top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9aa0ab;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hold,
+  .hold .lbl {
+    transition: none;
+  }
+}

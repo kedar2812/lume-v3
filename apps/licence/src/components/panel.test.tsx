@@ -11,6 +11,7 @@ import { ClientScreen } from "./ClientScreen";
 import { ClientsScreen } from "./ClientsScreen";
 import { PaymentsScreen } from "./PaymentsScreen";
 import { SignIn } from "./SignIn";
+import { clientMessage, whatsappLink } from "@/lib/message";
 import { ThemeSwitch } from "./Shell";
 
 vi.mock("@/lib/client", () => ({
@@ -33,7 +34,11 @@ vi.mock("next/navigation", () => ({
 const ok = <T,>(data: T) => ({ ok: true as const, data });
 const RATES = { day: "2026-09-29", ageDays: 0, rates: { INR: 1, AED: 24.07, USD: 88.4, GBP: 118.6 } };
 
+const clipboard = { writeText: vi.fn(() => Promise.resolve()) };
+Object.defineProperty(navigator, "clipboard", { value: clipboard, configurable: true });
+
 beforeEach(() => {
+  clipboard.writeText.mockClear();
   vi.mocked(api.get).mockReset();
   vi.mocked(api.post).mockReset();
   vi.mocked(api.del).mockReset();
@@ -91,6 +96,33 @@ describe("the bell (spec §4.4)", () => {
     expect(api.post).toHaveBeenLastCalledWith("/api/alerts/dismiss", { all: true });
     expect(await within(pop).findByText("All clear")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nothing needs a look" })).toBeInTheDocument();
+  });
+
+  it("a key nobody entered: Copy message fetches the key and copies the ready-to-send text", async () => {
+    const idle = {
+      id: "idle-key:c4",
+      fingerprint: "2026-10-06T08:00:00Z",
+      tone: "grey",
+      title: "Not activated after 9 days — Coral Bay Physio",
+      body: "Key issued 6 Oct. Send the message again?",
+      clientId: "c4",
+      clientName: "Coral Bay Physio",
+      action: { kind: "copy_message", slug: "coral-bay" },
+    };
+    vi.mocked(api.get).mockImplementation(
+      async (p: string) =>
+        (p === "/api/alerts"
+          ? ok({ alerts: [idle] })
+          : ok({ licenseKey: "LUME-C0RA-LBAY-0000-0000-0004" })) as never,
+    );
+    render(<Bell />);
+    await userEvent.click(await screen.findByRole("button", { name: "1 thing needs a look" }));
+    await userEvent.click(screen.getByRole("button", { name: "Copy message" }));
+    expect(api.get).toHaveBeenCalledWith("/api/clients/c4/key");
+    expect(clipboard.writeText).toHaveBeenLastCalledWith(
+      clientMessage("coral-bay", "LUME-C0RA-LBAY-0000-0000-0004"),
+    );
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
   });
 
   it("Escape closes it", async () => {
@@ -165,6 +197,13 @@ const row = (o: Record<string, unknown>) => ({
   createdAt: "2026-03-10T09:00:00Z",
   instanceId: "LUME-7F3K-Q9M2",
   keyMasked: "LUME-••••-••••-••••-••••-7Q2F",
+  keyShowable: true,
+  activation: {
+    status: "active",
+    ip: "203.0.113.10",
+    at: "2026-10-01T09:00:00Z",
+    installId: "0190e0c0-0000-7000-8000-0000000000a1",
+  },
   type: "subscription",
   state: "active",
   reason: "paid",
@@ -243,7 +282,28 @@ describe("Clients (spec §4.4)", () => {
     expect(screen.getByText("No client matches that.")).toBeInTheDocument();
   });
 
-  it("New licence: the live rupee line, then the key, shown once", async () => {
+  it("a licence nobody has entered yet: its own pill, and a Not activated tile that filters to it", async () => {
+    const waiting = row({
+      id: "c4",
+      name: "Coral Bay Physio",
+      slug: "coral-bay",
+      lastCheckIn: null,
+      activation: { status: "not_activated", ip: null, at: null, installId: null },
+    });
+    vi.mocked(api.get).mockImplementation(
+      async (p: string) =>
+        (p === "/api/alerts"
+          ? ok({ alerts: [] })
+          : ok({ ...LIST, clients: [...LIST.clients, waiting] })) as never,
+    );
+    render(<ClientsScreen />);
+    const table = await screen.findByRole("table", { name: "Clients" });
+    expect(within(table).getByRole("row", { name: /Coral Bay Physio/ })).toHaveTextContent("Not activated");
+    await userEvent.click(screen.getByRole("button", { name: /Not activated/ }));
+    expect(within(table).getAllByRole("row")).toHaveLength(2); // the head and the one waiting
+  });
+
+  it("New licence: the live rupee line, then the key, ready to send", async () => {
     vi.mocked(api.get).mockImplementation(
       async (p: string) => (p === "/api/alerts" ? ok({ alerts: [] }) : ok(LIST)) as never,
     );
@@ -277,9 +337,20 @@ describe("Clients (spec §4.4)", () => {
       source: "referrals",
       plan: { type: "subscription", currency: "AED", amount: 450, periodMonths: 1 },
     });
-    const done = await screen.findByRole("dialog", { name: "Licence created" });
-    expect(within(done).getByText("LUME-K7PX-2MWD-9RTA-4QZC-7Q2F")).toBeInTheDocument();
-    expect(done).toHaveTextContent("Shown once");
+    const done = await screen.findByRole("dialog", { name: "Ready to send" });
+    expect(within(done).getAllByText("LUME-K7PX-2MWD-9RTA-4QZC-7Q2F").length).toBeGreaterThan(0);
+    expect(done).toHaveTextContent("Licence created for Palm Bay Clinic");
+    expect(done).toHaveTextContent("Not activated yet.");
+    const message = clientMessage("brightpath", "LUME-K7PX-2MWD-9RTA-4QZC-7Q2F");
+    expect(done).toHaveTextContent(message);
+    await userEvent.click(within(done).getByRole("button", { name: "Copy key" }));
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("LUME-K7PX-2MWD-9RTA-4QZC-7Q2F");
+    await userEvent.click(within(done).getByRole("button", { name: "Copy message" }));
+    expect(clipboard.writeText).toHaveBeenLastCalledWith(message);
+    expect(within(done).getByRole("link", { name: "Send on WhatsApp" })).toHaveAttribute(
+      "href",
+      whatsappLink(message),
+    );
     expect(within(done).getByRole("link", { name: "Open Palm Bay Clinic" })).toHaveAttribute(
       "href",
       "/clients/c9",
@@ -319,6 +390,94 @@ const DETAIL = {
   listPriceInr: 3999,
 };
 
+describe("the Licence key card (spec 2026-10-15 §3.2)", () => {
+  const withKey = (activation: Record<string, unknown>, over: Record<string, unknown> = {}) => ({
+    ...DETAIL,
+    client: { ...DETAIL.client, activation: { ...DETAIL.client.activation, ...activation }, ...over },
+  });
+  const serve = (detail: unknown, extra: Record<string, unknown> = {}) =>
+    vi
+      .mocked(api.get)
+      .mockImplementation(
+        async (p: string) =>
+          (p === "/api/alerts" ? ok({ alerts: [] }) : p in extra ? ok(extra[p]) : ok(detail)) as never,
+      );
+  const card = () => screen.findByRole("region", { name: "Licence key" });
+  const gone = { status: "not_activated", ip: null, at: null, installId: null };
+
+  it("says where the key is: active on a server, not activated yet, or released", async () => {
+    serve(DETAIL);
+    const first = render(<ClientScreen id="c2" />);
+    expect(await card()).toHaveTextContent("Active on 203.0.113.10");
+    first.unmount();
+    serve(withKey(gone));
+    const second = render(<ClientScreen id="c2" />);
+    expect(await card()).toHaveTextContent("Not activated yet");
+    expect(screen.queryByRole("button", { name: "Release key" })).not.toBeInTheDocument();
+    second.unmount();
+    serve(withKey({ ...gone, status: "released" }));
+    render(<ClientScreen id="c2" />);
+    expect(await card()).toHaveTextContent("Released — the next server to enter it takes it");
+  });
+
+  it("Show fetches the key and shows it; Copy message copies the ready-to-send text", async () => {
+    serve(DETAIL, { "/api/clients/c2/key": { licenseKey: "LUME-K7PX-2MWD-9RTA-4QZC-7Q2F" } });
+    render(<ClientScreen id="c2" />);
+    const c = await card();
+    await userEvent.click(within(c).getByRole("button", { name: "Show" }));
+    expect(await within(c).findByText("LUME-K7PX-2MWD-9RTA-4QZC-7Q2F")).toBeInTheDocument();
+    await userEvent.click(within(c).getByRole("button", { name: "Copy message for client" }));
+    expect(clipboard.writeText).toHaveBeenLastCalledWith(
+      clientMessage("harbour-clinic", "LUME-K7PX-2MWD-9RTA-4QZC-7Q2F"),
+    );
+  });
+
+  it("Release asks first, naming the server", async () => {
+    serve(DETAIL);
+    render(<ClientScreen id="c2" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Release key" }));
+    const ask = screen.getByRole("group", { name: "Release from 203.0.113.10?" });
+    vi.mocked(api.post).mockResolvedValueOnce(ok(withKey({ ...gone, status: "released" })));
+    await userEvent.click(within(ask).getByRole("button", { name: "Release key" }));
+    expect(api.post).toHaveBeenCalledWith("/api/clients/c2/release");
+    expect(await card()).toHaveTextContent("Released");
+  });
+
+  it("hold to decommission: a short press does nothing; a full hold decommissions once; then Issue a new key", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16) as unknown as number,
+    );
+    vi.stubGlobal("cancelAnimationFrame", (h: number) => clearTimeout(h));
+    serve(DETAIL);
+    render(<ClientScreen id="c2" />);
+    const hold = await screen.findByRole("button", { name: "Hold to decommission key" });
+    fireEvent.pointerDown(hold, { button: 0, pointerId: 1 });
+    await act(async () => vi.advanceTimersByTime(600));
+    fireEvent.pointerUp(hold, { pointerId: 1 });
+    await act(async () => vi.advanceTimersByTime(600));
+    expect(api.post).not.toHaveBeenCalled();
+    vi.mocked(api.post).mockResolvedValueOnce(
+      ok(withKey({ ...gone, status: "decommissioned" }, { keyShowable: false })),
+    );
+    fireEvent.pointerDown(hold, { button: 0, pointerId: 1 });
+    await act(async () => vi.advanceTimersByTime(1700));
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith("/api/clients/c2/key/decommission");
+    expect(await card()).toHaveTextContent("Key decommissioned");
+    vi.mocked(api.post).mockResolvedValueOnce(
+      ok({ ...withKey(gone), licenseKey: "LUME-NEW0-KEY0-0000-0000-0001" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Issue a new key" }));
+    await waitFor(() => expect(api.post).toHaveBeenLastCalledWith("/api/clients/c2/key/issue"));
+    await act(async () => vi.advanceTimersByTime(3000));
+    expect(screen.getByText("LUME-NEW0-KEY0-0000-0000-0001")).toBeInTheDocument();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+});
+
 describe("one client's actions (spec §4.4)", () => {
   beforeEach(() => {
     vi.mocked(api.get).mockImplementation(
@@ -345,16 +504,19 @@ describe("one client's actions (spec §4.4)", () => {
     expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
   });
 
-  it("Rotate types the new key out once, with Copy", async () => {
+  it("Rotate asks first, then types the new key out with Copy; the old key is decommissioned", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<ClientScreen id="c2" />);
-    vi.mocked(api.post).mockResolvedValueOnce(ok({ ...DETAIL, licenseKey: "LUME-K7PX-2MWD-9RTA-4QZC-8HNW" }));
     await user.click(await screen.findByRole("button", { name: "Rotate key" }));
+    const ask = screen.getByRole("group", { name: "Rotate the key?" });
+    expect(ask).toHaveTextContent("decommissioned");
+    vi.mocked(api.post).mockResolvedValueOnce(ok({ ...DETAIL, licenseKey: "LUME-K7PX-2MWD-9RTA-4QZC-8HNW" }));
+    await user.click(within(ask).getByRole("button", { name: "Rotate key" }));
+    expect(api.post).toHaveBeenCalledWith("/api/clients/c2/rotate");
     await act(async () => vi.advanceTimersByTime(3000));
     expect(screen.getByText("LUME-K7PX-2MWD-9RTA-4QZC-8HNW")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
-    expect(screen.getByText(/Shown once/)).toBeInTheDocument();
     vi.useRealTimers();
   });
 

@@ -322,7 +322,10 @@ describe("a client's actions (spec §4.4)", () => {
     expect((await check(client.instanceId, licenseKey)).status).toBe(403);
     expect((await check(client.instanceId, r.data.licenseKey)).status).toBe(200);
     expect((await detail(client.id)).client.keyMasked).toMatch(new RegExp(`${r.data.licenseKey.slice(-4)}$`));
-    expect((await events(client.id)).slice(-2).map((e) => e.kind)).toEqual(["key_rotated", "key_decommissioned"]);
+    expect((await events(client.id)).slice(-2).map((e) => e.kind)).toEqual([
+      "key_rotated",
+      "key_decommissioned",
+    ]);
   });
 
   it("decommissioning later doesn't rewrite the history: the client left when it was suspended", async () => {
@@ -402,8 +405,7 @@ describe("a client's actions (spec §4.4)", () => {
 });
 
 describe("keys you can copy again, and where they're active (spec 2026-10-15 §2.3, §3.2)", () => {
-  const set = (id: string, sql: string, params: unknown[] = []) =>
-    t.pool.query(`UPDATE licences SET ${sql} WHERE client_id = $1`, [id, ...params]);
+  const q = (sql: string, params: unknown[]) => t.pool.query(sql, params);
 
   it("a new licence's key can be copied again later; nobody has entered it yet", async () => {
     const { client, licenseKey } = await create();
@@ -418,22 +420,28 @@ describe("keys you can copy again, and where they're active (spec 2026-10-15 §2
   it("active on a server, released, or decommissioned: the client says which", async () => {
     const { client } = await create();
     const install = "0190e0c0-0000-7000-8000-0000000000b1";
-    await set(client.id, "install_id = $2, activated_at = $3, activated_ip = '203.0.113.10'", [install, now]);
+    await q(
+      "UPDATE licences SET install_id = $2, activated_at = $3, activated_ip = '203.0.113.10' WHERE client_id = $1",
+      [client.id, install, now],
+    );
     expect((await detail(client.id)).client.activation).toEqual({
       status: "active",
       ip: "203.0.113.10",
       at: now.toISOString(),
       installId: install,
     });
-    await set(client.id, "install_id = NULL, activated_at = NULL, activated_ip = NULL, released_at = $2", [now]);
+    await q(
+      "UPDATE licences SET install_id = NULL, activated_at = NULL, activated_ip = NULL, released_at = $2 WHERE client_id = $1",
+      [client.id, now],
+    );
     expect((await detail(client.id)).client.activation.status).toBe("released");
-    await set(client.id, "key_dead_at = $2", [now]);
+    await q("UPDATE licences SET key_dead_at = $2 WHERE client_id = $1", [client.id, now]);
     expect((await detail(client.id)).client.activation.status).toBe("decommissioned");
   });
 
   it("a licence made before keys were kept can't be shown; Rotate is the way to one that can", async () => {
     const { client } = await create();
-    await set(client.id, "key_enc = NULL");
+    await q("UPDATE licences SET key_enc = NULL WHERE client_id = $1", [client.id]);
     const r = await admin.call("GET", `/api/clients/${client.id}/key`);
     expect(r.status).toBe(404);
     expect(r.data.error.code).toBe("NOT_SHOWABLE");
@@ -478,13 +486,17 @@ describe("the key's actions (spec 2026-10-15 §2.4, §3.2)", () => {
       { reason: "rotated", install_id: INSTALL, key_last4: licenseKey.slice(-4) },
     ]);
     // The new key can be shown again; the old server keeps going on its old key for now.
-    expect((await admin.call("GET", `/api/clients/${client.id}/key`)).data.licenseKey).toBe(r.data.licenseKey);
+    expect((await admin.call("GET", `/api/clients/${client.id}/key`)).data.licenseKey).toBe(
+      r.data.licenseKey,
+    );
     expect((await check(client.instanceId, licenseKey)).status).toBe(200);
   });
 
   it("release frees the key for a new server; a key nobody holds can't be released", async () => {
     const { client, licenseKey } = await create({ name: "Hilltop Fitness" });
-    expect((await admin.call("POST", `/api/clients/${client.id}/release`)).data.error.code).toBe("NOT_ACTIVE");
+    expect((await admin.call("POST", `/api/clients/${client.id}/release`)).data.error.code).toBe(
+      "NOT_ACTIVE",
+    );
     await check(client.instanceId, licenseKey);
     const r = await admin.call("POST", `/api/clients/${client.id}/release`);
     expect(r.status).toBe(200);
@@ -520,7 +532,9 @@ describe("the key's actions (spec 2026-10-15 §2.4, §3.2)", () => {
     expect(r.data.licenseKey).toMatch(/^LUME(-[0-9A-HJKMNP-TV-Z]{4}){5}$/);
     expect(r.data.client.activation.status).toBe("not_activated");
     expect(await lic(client.id)).toMatchObject({ install_id: null, key_dead_at: null, released_at: null });
-    expect((await admin.call("GET", `/api/clients/${client.id}/key`)).data.licenseKey).toBe(r.data.licenseKey);
+    expect((await admin.call("GET", `/api/clients/${client.id}/key`)).data.licenseKey).toBe(
+      r.data.licenseKey,
+    );
     expect((await check(client.instanceId, r.data.licenseKey)).status).toBe(200);
     expect((await events(client.id)).at(-1)?.kind).toBe("key_created");
   });
@@ -535,12 +549,19 @@ describe("the key's actions (spec 2026-10-15 §2.4, §3.2)", () => {
         method: "POST",
         headers: { "x-real-ip": "198.51.100.7" },
         body: JSON.stringify(
-          activateBody({ licenseKey, installId: "0190e0c0-0000-7000-8000-0000000000d4", appVersion: "1.5.0", now }),
+          activateBody({
+            licenseKey,
+            installId: "0190e0c0-0000-7000-8000-0000000000d4",
+            appVersion: "1.5.0",
+            now,
+          }),
         ),
       }),
       ctx,
     );
-    const { alerts } = (await admin.call("GET", "/api/alerts")).data as { alerts: { id: string; body: string }[] };
+    const { alerts } = (await admin.call("GET", "/api/alerts")).data as {
+      alerts: { id: string; body: string }[];
+    };
     expect(alerts.find((a) => a.id === `tried:${client.id}`)?.body).toMatch(/^198\.51\.100\.7 tried it on/);
   });
 

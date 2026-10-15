@@ -21,14 +21,25 @@ export type ClientsList = {
   latestVersion: string | null;
   listPriceInr: number;
 };
-type Filter = "all" | "active" | "grace" | "read_only" | "suspended";
+type Filter = "all" | "active" | "not_activated" | "grace" | "read_only" | "suspended";
 const TILES: { k: Filter; label: string; color: string }[] = [
   { k: "all", label: "All clients", color: "#2a5bff" },
   { k: "active", label: "Active", color: "#18a566" },
+  // Issued, nobody has entered the key yet (spec 2026-10-15 §3.3); shown only when there's one.
+  { k: "not_activated", label: "Not activated", color: "#9aa0ab" },
   { k: "grace", label: "Grace", color: "#f2a20c" },
   { k: "read_only", label: "Read-only", color: "#5b82ff" },
   { k: "suspended", label: "Suspended", color: "#e5484d" },
 ];
+
+/** Issued and waiting: nobody has entered the key yet, and it isn't paused (spec 2026-10-15 §3.3). */
+const waiting = (c: ClientView) => c.activation.status === "not_activated" && c.state !== "suspended";
+function inFilter(c: ClientView, f: Filter): boolean {
+  if (f === "all") return true;
+  if (f === "not_activated") return waiting(c);
+  if (f === "active") return c.state === "active" && !waiting(c);
+  return c.state === f;
+}
 
 /** Where a client is: "Pune, Maharashtra · brightpath", or its country when there's no city. */
 export function whereOf(c: Pick<ClientView, "city" | "region" | "country" | "slug">): string {
@@ -88,12 +99,12 @@ export function ClientsScreen() {
 
   const today = utcDay(new Date());
   const clients = useMemo(() => data?.clients ?? [], [data]);
-  const count = (k: Filter) => (k === "all" ? clients.length : clients.filter((c) => c.state === k).length);
-  const tiles = TILES.filter((t) => t.k !== "read_only" || count("read_only") > 0);
+  const count = (k: Filter) => clients.filter((c) => inFilter(c, k)).length;
+  const tiles = TILES.filter((t) => (t.k !== "read_only" && t.k !== "not_activated") || count(t.k) > 0);
   const needle = q.trim().toLowerCase();
   const shown = clients.filter(
     (c) =>
-      (filter === "all" || c.state === filter) &&
+      inFilter(c, filter) &&
       (!needle ||
         `${c.name} ${c.city ?? ""} ${c.region ? (INDIA_STATES[c.region] ?? "") : ""} ${countryName(c.country)} ${c.slug}`
           .toLowerCase()
@@ -217,7 +228,14 @@ export function ClientsScreen() {
                 <span className="s num">{plan.sub}</span>
               </span>
               <span role="cell">
-                <StatePill state={c.state} />
+                {waiting(c) ? (
+                  <span className="pill waiting">
+                    <i />
+                    Not activated
+                  </span>
+                ) : (
+                  <StatePill state={c.state} />
+                )}
               </span>
               <span role="cell" className="stack">
                 <span>{paid.main}</span>

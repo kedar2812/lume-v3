@@ -22,6 +22,8 @@ export type AlertClient = {
   /** The newest refused try from another server, and from where. */
   refusedAt?: string | null;
   refusedIp?: string | null;
+  /** Its subdomain, for the ready-to-send message. */
+  slug?: string;
 };
 export type Alert = {
   /** Stable per condition ("late:<client>"): a hidden alert stays hidden while its fingerprint holds. */
@@ -32,6 +34,8 @@ export type Alert = {
   body: string;
   clientId: string | null;
   clientName: string | null;
+  /** A one-press action the bell offers beside Open (spec 2026-10-15 §3.4): copy the ready-to-send message. */
+  action?: { kind: "copy_message"; slug: string };
 };
 
 const DAY = 86_400_000;
@@ -145,6 +149,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
           body: `Key issued ${shortDay(c.createdAt.slice(0, 10))}. Send the message again?`,
           clientId: c.id,
           clientName: c.name,
+          ...(c.slug ? { action: { kind: "copy_message" as const, slug: c.slug } } : {}),
         });
     }
   }

@@ -578,7 +578,11 @@ export async function revealKey(ctx: Ctx, id: string) {
   );
   const r = rows[0];
   if (!r?.key_enc || r.key_dead_at)
-    throw new Refusal(404, "This key wasn't kept, so it can't be shown. Rotate to get one that can.", "NOT_SHOWABLE");
+    throw new Refusal(
+      404,
+      "This key wasn't kept, so it can't be shown. Rotate to get one that can.",
+      "NOT_SHOWABLE",
+    );
   return { licenseKey: unseal(ctx.master, r.key_enc, `key:${id}`) };
 }
 
@@ -613,7 +617,8 @@ export async function rotateKey(ctx: Ctx, id: string) {
   await tx(ctx, async (c) => {
     await lockRow(c, id);
     const k = await keyRow(c, id);
-    if (k.key_dead_at) throw new Refusal(409, "This key was decommissioned. Issue a new key instead.", "KEY_DEAD");
+    if (k.key_dead_at)
+      throw new Refusal(409, "This key was decommissioned. Issue a new key instead.", "KEY_DEAD");
     await retire(c, id, k, "rotated", now);
     await c.query("UPDATE licences SET key_hash = $2, key_last4 = $3, key_enc = $4 WHERE client_id = $1", [
       id,
@@ -862,6 +867,7 @@ async function currentAlerts(ctx: Ctx) {
     monthlyInr: c.monthlyInr,
     activation: c.activation.status,
     createdAt: c.createdAt,
+    slug: c.slug,
     refusedAt: refused.get(c.id)?.at.toISOString() ?? null,
     refusedIp: refused.get(c.id)?.ip ?? null,
   }));

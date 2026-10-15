@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ClientView } from "@/server/clients";
 import { api, CHANGED } from "@/lib/client";
 import { ago, day, dayShort, perWords, when } from "@/lib/format";
@@ -11,6 +11,7 @@ import { Bell } from "./Bell";
 import { Flag, StatePill, Toast, useToast } from "./bits";
 import { paidOf } from "./ClientsScreen";
 import { amountOf, SOURCE_WORDS, symbolOf, vsList } from "./NewLicence";
+import { KeyCard } from "./KeyCard";
 import { Head } from "./Shell";
 
 type Detail = {
@@ -94,6 +95,19 @@ function said(e: Detail["history"][number]): { text: string; color: string } {
       return { text: "Payment reminder stopped", color: "#9297a0" };
     case "key_rotated":
       return { text: "Licence key rotated", color: "#9297a0" };
+    case "key_created":
+      return { text: "New key issued", color: "#2a5bff" };
+    case "key_decommissioned":
+      return { text: "Key decommissioned", color: "#e5484d" };
+    case "key_released":
+      return { text: d.ip ? `Key released from ${String(d.ip)}` : "Key released", color: "#f2a20c" };
+    case "activated":
+      return { text: d.ip ? `Activated on ${String(d.ip)}` : "Activated", color: "#18a566" };
+    case "activation_refused":
+      return {
+        text: `Key tried on another server${d.ip ? ` (${String(d.ip)})` : ""}`,
+        color: "#e5484d",
+      };
     case "suspended":
       return { text: "Suspended", color: "#e5484d" };
     case "resumed":
@@ -120,13 +134,9 @@ export function ClientScreen({ id }: { id: string }) {
     periodMonths: number;
     from: string;
   } | null>(null);
-  const [newKey, setNewKey] = useState<string | null>(null);
-  const [typed, setTyped] = useState(0);
-  const [copied, setCopied] = useState(false);
   const [morph, setMorph] = useState(0);
   const [busy, setBusy] = useState(false);
   const [toast, say] = useToast();
-  const typing = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const load = useCallback(async () => {
     const r = await api.get<Detail>(`/api/clients/${id}`);
@@ -137,10 +147,7 @@ export function ClientScreen({ id }: { id: string }) {
     void load();
     const again = () => void load();
     window.addEventListener(CHANGED, again);
-    return () => {
-      window.removeEventListener(CHANGED, again);
-      clearInterval(typing.current);
-    };
+    return () => window.removeEventListener(CHANGED, again);
   }, [load]);
 
   if (missing)
@@ -216,25 +223,6 @@ export function ClientScreen({ id }: { id: string }) {
         : "Extended";
     });
   };
-  const rotate = async () => {
-    const r = await act(
-      `/api/clients/${id}/rotate`,
-      undefined,
-      () => "New key made · the old one stops at once",
-    );
-    const key = (r as (Detail & { licenseKey?: string }) | null)?.licenseKey;
-    if (!key) return;
-    setNewKey(key);
-    setCopied(false);
-    setTyped(0);
-    clearInterval(typing.current);
-    typing.current = setInterval(() => {
-      setTyped((n) => {
-        if (n + 1 >= key.length) clearInterval(typing.current);
-        return n + 1;
-      });
-    }, 38);
-  };
 
   const p = c.price;
   const draft = editing;
@@ -246,9 +234,14 @@ export function ClientScreen({ id }: { id: string }) {
   const bars = d.checkIns;
   const lastAt = d.installation?.lastCheckInAt ?? null;
   const silentH = lastAt ? Math.floor((Date.now() - Date.parse(lastAt)) / 3_600_000) : null;
-  const typingNow = newKey !== null && typed < newKey.length;
   /** Decommissioned: the record stays, marked; nothing changes it any more. */
   const gone = !!c.decommissionedAt;
+  // The newest refused try from another server this week (spec 2026-10-15 §3.2).
+  const tried = d.history.find((e) => e.kind === "activation_refused");
+  const refused =
+    tried && Date.now() - Date.parse(tried.at) < 7 * 86_400_000
+      ? { at: tried.at, ip: typeof tried.detail.ip === "string" ? tried.detail.ip : null }
+      : null;
   const canRemind = !gone && !d.notice && !composing && c.type !== "perpetual" && c.state !== "suspended";
 
   return (
@@ -753,45 +746,13 @@ export function ClientScreen({ id }: { id: string }) {
             )}
           </section>
 
-          <section className="card" aria-label="Licence key" style={{ animationDelay: ".1s" }}>
-            <h2 className="h">Licence key</h2>
-            <div className="keybox">
-              <span className="mono" style={{ flexGrow: 1, overflowWrap: "anywhere" }}>
-                {newKey === null ? c.keyMasked : newKey.slice(0, typed)}
-                {typingNow && <span className="caret" aria-hidden />}
-              </span>
-              {newKey !== null && !typingNow && (
-                <button
-                  type="button"
-                  className="btn second small"
-                  style={{ height: 30, padding: "0 10px" }}
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(newKey);
-                    setCopied(true);
-                  }}
-                >
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              )}
-            </div>
-            <span style={{ fontSize: 13, color: "var(--ink2)" }}>
-              {newKey !== null && !typingNow
-                ? "Shown once. Paste it into their .env as LUME_LICENSE_KEY; the old key has already stopped."
-                : "Only the last four are ever shown again."}
-            </span>
-            {!gone && (
-              <div>
-                <button
-                  type="button"
-                  className="btn second"
-                  onClick={() => void rotate()}
-                  disabled={typingNow || busy}
-                >
-                  Rotate key
-                </button>
-              </div>
-            )}
-          </section>
+          <KeyCard
+            c={c}
+            gone={gone}
+            busy={busy}
+            refused={refused}
+            run={(path, words) => act(path, undefined, () => words)}
+          />
 
           <section
             className="card"

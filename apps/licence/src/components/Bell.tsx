@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Alert } from "@/lib/alerts";
 import { api, CHANGED } from "@/lib/client";
+import { clientMessage } from "@/lib/message";
 
 /** Each kind of alert's icon (the canvas's), in a 16×16 box. */
 const ICONS: Record<string, string> = {
@@ -11,6 +12,10 @@ const ICONS: Record<string, string> = {
   due: "M2.5 5.5h11M5 1.5v2.5M11 1.5v2.5M3.5 3.5h9a1 1 0 011 1v8a1 1 0 01-1 1h-9a1 1 0 01-1-1v-8a1 1 0 011-1z",
   trial: "M3 13.5V2.5M3 3h8l-1.5 2.5L11 8H3",
   old: "M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 13.5h11",
+  // A key (spec 2026-10-15 §3.4): tried on another server.
+  tried: "M5.5 13a3 3 0 100-6 3 3 0 000 6zM7.6 7.9L13.5 2M11.5 4l2 2",
+  // A clock: issued, not entered yet.
+  "idle-key": "M8 14.5a6.5 6.5 0 100-13 6.5 6.5 0 000 13zM8 4.5V8l2.2 1.4",
 };
 const words = (n: number) =>
   n === 0 ? "Nothing needs a look" : n === 1 ? "1 thing needs a look" : `${n} things need a look`;
@@ -44,6 +49,15 @@ export function Bell() {
     return () => window.removeEventListener("keydown", key);
   }, [open]);
 
+  const [copied, setCopied] = useState<string | null>(null);
+  // "Send the message again" (spec 2026-10-15 §3.4): the key fetched now, the ready-to-send text copied.
+  const copyMessage = async (a: Alert) => {
+    if (!a.action || !a.clientId) return;
+    const r = await api.get<{ licenseKey: string }>(`/api/clients/${a.clientId}/key`);
+    if (!r.ok) return;
+    void navigator.clipboard?.writeText(clientMessage(a.action.slug, r.data.licenseKey));
+    setCopied(a.id);
+  };
   const hide = async (body: { id: string } | { all: true }) => {
     const r = await api.post<{ alerts: Alert[] }>("/api/alerts/dismiss", body);
     if (r.ok) setAlerts(r.data.alerts);
@@ -131,6 +145,11 @@ export function Bell() {
                         <Link href={`/clients/${a.clientId}`} onClick={() => setOpen(false)}>
                           Open {a.clientName}
                         </Link>
+                      )}
+                      {a.action?.kind === "copy_message" && (
+                        <button type="button" className="link" onClick={() => void copyMessage(a)}>
+                          {copied === a.id ? "Copied" : "Copy message"}
+                        </button>
                       )}
                     </div>
                     <button
