@@ -113,6 +113,11 @@
   box-shadow: 0 0 0 0.5px color-mix(in srgb, currentColor 30%, transparent);
   white-space: nowrap;
 }
+a.bannerBtn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
 
 /* ─ Suspended: the lock screen ─ */
 .lockScrim {
@@ -173,6 +178,15 @@
   margin: 6px 0 0;
   font-size: var(--fs-xs);
   color: var(--text-3);
+}
+/* The owner's new product key, under the words: the same form as Settings → About. */
+.lockKey {
+  align-self: stretch;
+  margin-top: 6px;
+  text-align: left;
+}
+.keyLine[data-cta] {
+  justify-content: center;
 }
 
 /* ─ Export all data, ticking through the files ─ */

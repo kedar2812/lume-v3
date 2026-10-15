@@ -12,8 +12,10 @@ const checkSchema = z
   .object({
     instanceId: z.string().min(1).max(64),
     licenseKey: z.string().min(1).max(128),
-    // This install's own random id (spec 2026-10-15 §2.2): a key answers only the install it's bound to.
-    installId: z.uuid(),
+    // This install's own random id (spec 2026-10-15 §2.2): a key answers only the install it's bound to. An install
+    // from before product keys sends none: answered, never bound, only while no install holds the key, so the
+    // licence server and the fleet can be updated in either order.
+    installId: z.uuid().optional(),
     appVersion: z.string().min(1).max(40),
     activeUserCount: z.number().int().min(0).max(1_000_000),
     leadCount: z.number().int().min(0).max(1_000_000_000),
@@ -37,7 +39,7 @@ type Row = {
 };
 const DAY = 86_400_000;
 /** A rotated key keeps its server going this long, while the client enters the new one (spec 2026-10-15 §2.4). */
-const ROTATE_OVERLAP_MS = 7 * DAY;
+export const ROTATE_OVERLAP_MS = 7 * DAY;
 const refusal = (status: number, code: string, message: string) => json(status, { error: { code, message } });
 
 /** POST /v1/check (spec §4.3): the key, the state worked out here, the check-in recorded, a signed answer. */
@@ -83,12 +85,14 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
   // A key the owner decommissioned answers its own server "suspended", signed, so that LUME pauses.
   let paused = false;
   if (keyMatches(b.licenseKey, l.key_hash)) {
-    if ((await bindForCheck(ctx, l, b.installId, b.appVersion, ip, now)) === "other")
-      return refusal(409, "KEY_IN_USE", "This key is active on another LUME.");
+    const inUse = b.installId
+      ? (await bindForCheck(ctx, l, b.installId, b.appVersion, ip, now)) === "other"
+      : l.install_id !== null;
+    if (inUse) return refusal(409, "KEY_IN_USE", "This key is active on another LUME.");
   } else {
     const retired = await retiredKey(ctx.db, l.client_id, b.licenseKey);
     if (!retired) return unknown();
-    const fromHolder = retired.install_id === b.installId;
+    const fromHolder = !!b.installId && retired.install_id === b.installId;
     const gone = () => refusal(403, "KEY_DECOMMISSIONED", "This key has been decommissioned.");
     if (retired.reason === "decommissioned") {
       if (!fromHolder) return gone();

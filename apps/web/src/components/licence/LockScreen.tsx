@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { licenceClient } from "@/lib/licence/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { ExportAll } from "./ExportAll";
+import { KeyRow } from "./KeyRow";
 import { useLicence } from "./LicenceProvider";
 import s from "./licence.module.css";
 
@@ -73,6 +74,12 @@ export function LockScreen() {
             </p>
             {canExport && <ExportAll variant="primary" />}
             <p className={s.lockFoot}>To carry on, contact whoever licensed LUME to you.</p>
+            {/* The owner puts it right with the new key they were sent (spec 2026-10-15 §2.4: Issue a new key). */}
+            {licence.key?.canChange && (
+              <div className={s.lockKey}>
+                <KeyRow licence={licence} onChanged={set} cta="Enter a new product key" />
+              </div>
+            )}
             {/* Once the pause is lifted, an admin needn't wait for the next check (every 6 hours). */}
             {licence.canCheck && (
               <p className={s.lockAgain} aria-live="polite">

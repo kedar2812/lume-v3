@@ -123,6 +123,9 @@ Build the new image (step 1) with its version tag, then `LICENCE_IMAGE=lume-lice
 Back up first (step 6's `pg_dump`). Migration 0004 (product key activation) adds the binding columns and
 `retired_keys`; licences made before it keep working, but their key can't be shown again (Rotate makes one that
 can).
+Update order doesn't matter: from 0004 the server still answers an installation from before product keys (its
+check has no install ID), without binding it, for as long as no installation holds that key. Update the licence
+server first all the same, then the fleet.
 
 **Upgrading from a master key in `.env`** (servers set up before 2026-10-01): the compose file now reads the key
 from `secrets/master.key`. Move the *same* key there before `up -d` — a new one would lock the admin out (it

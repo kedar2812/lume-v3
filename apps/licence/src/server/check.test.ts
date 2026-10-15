@@ -345,10 +345,55 @@ describe("check-ins come from the bound install (spec 2026-10-15 §2.2, §2.4)",
     expect((await post(body({ ...c, installId: INSTALL_B }))).status).toBe(403);
   });
 
-  it("an install id is required", async () => {
+  it("a key rotated and then decommissioned in its overlap: the install still on the old key hears it's suspended", async () => {
+    const { rotateKey, decommissionKey } = await import("./clients");
     const c = await seedClient(t.pool, { type: "perpetual" });
-    const { installId: _i, ...noInstall } = body(c);
-    void _i;
-    expect((await post(noInstall)).status).toBe(400);
+    await post(body(c));
+    await rotateKey(ctx, c.clientId);
+    now = new Date(now.getTime() + DAY);
+    await decommissionKey(ctx, c.clientId);
+    const r = await post(body(c));
+    expect(r.status).toBe(200);
+    expect(verifyLicence(await tokenOf(r), KEYS, c.instanceId)).toMatchObject({
+      state: "suspended",
+      reason: "key_decommissioned",
+    });
+    expect((await post(body({ ...c, installId: INSTALL_B }))).status).toBe(403);
+  });
+
+  describe("an install from before product keys sends no install id (spec 2026-10-15 §2.2, the update window)", () => {
+    const legacy = (c: { instanceId: string; licenseKey: string }) => {
+      const { installId: _i, ...rest } = body(c);
+      void _i;
+      return rest;
+    };
+
+    it("is answered while no install holds the key, and binds nothing", async () => {
+      const c = await seedClient(t.pool, { type: "perpetual" });
+      const r = await post(legacy(c));
+      expect(r.status).toBe(200);
+      expect(verifyLicence(await tokenOf(r), KEYS, c.instanceId)?.state).toBe("active");
+      expect((await licence(c.clientId)).install_id).toBeNull();
+    });
+
+    it("is refused with KEY_IN_USE once an install holds the key", async () => {
+      const c = await seedClient(t.pool, { type: "perpetual" });
+      await post(body(c));
+      const r = await post(legacy(c));
+      expect(r.status).toBe(409);
+      expect(((await r.json()) as { error: { code: string } }).error.code).toBe("KEY_IN_USE");
+    });
+
+    it("a retired key without an install id is refused", async () => {
+      const c = await seedClient(t.pool, { type: "perpetual" });
+      await post(body(c));
+      const { hashKey } = await import("@/lib/keys");
+      await q("UPDATE licences SET key_hash = $2 WHERE client_id = $1", [
+        c.clientId,
+        hashKey("LUME-NEWK-EY00-0000-0000-0004"),
+      ]);
+      await retire(c.clientId, c.licenseKey, "rotated", now);
+      expect((await post(legacy(c))).status).toBe(403);
+    });
   });
 });

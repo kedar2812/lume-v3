@@ -13,9 +13,12 @@ import s from "./licence.module.css";
 export function KeyRow({
   licence,
   onChanged,
+  cta,
 }: {
   licence: LicenceForPerson;
   onChanged(next: LicenceForPerson): void;
+  /** On the lock screen: just this button (no current key line), opening the same form. */
+  cta?: string;
 }) {
   // An API from before product keys sends none: nothing to show.
   const key = licence.key ?? { masked: null, source: null, canChange: false };
@@ -45,12 +48,14 @@ export function KeyRow({
 
   return (
     <div className={s.keyRow}>
-      <div className={s.keyLine}>
-        <div className={s.keyWhat}>
-          <span>Product key</span>
-          <strong className={s.num}>{key.masked ?? "Not set yet"}</strong>
-          {key.source === "env" && <span className={s.keyNote}>Key set on the server</span>}
-        </div>
+      <div className={s.keyLine} data-cta={cta ? "" : undefined}>
+        {!cta && (
+          <div className={s.keyWhat}>
+            <span>Product key</span>
+            <strong className={s.num}>{key.masked ?? "Not set yet"}</strong>
+            {key.source === "env" && <span className={s.keyNote}>Key set on the server</span>}
+          </div>
+        )}
         {key.canChange && (
           <button
             type="button"
@@ -61,7 +66,7 @@ export function KeyRow({
               setRefused(null);
             }}
           >
-            Change key
+            {cta ?? "Change key"}
           </button>
         )}
       </div>

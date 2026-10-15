@@ -5,7 +5,7 @@ import { LICENCE_REFUSED, licenceClient, type LicenceForPerson } from "@/lib/lic
 import { fakeSession } from "@/server/session";
 import { LicenceBanner } from "./LicenceBanner";
 import { LicenceCard } from "./LicenceCard";
-import { LicenceProvider } from "./LicenceProvider";
+import { LicenceProvider, useLicence } from "./LicenceProvider";
 import { LockScreen } from "./LockScreen";
 import { PaymentReminder } from "./PaymentReminder";
 
@@ -408,5 +408,49 @@ describe("Settings → About: the product key (spec 2026-10-15 §1.3)", () => {
     expect(screen.getByRole("region", { name: "Licence" })).toHaveTextContent(
       "LUME-••••-••••-••••-••••-7Q2K",
     );
+  });
+});
+
+describe("a new product key puts a locked LUME right (spec 2026-10-15 §1.3, §2.4)", () => {
+  const ownerKey = { masked: "LUME-••••-••••-••••-••••-7Q2K", source: "stored" as const, canChange: true };
+
+  it("paused: the owner enters the new key on the lock screen, and LUME carries on", async () => {
+    vi.mocked(licenceClient.changeKey).mockResolvedValue(
+      ok({ ...L({ key: { ...ownerKey, masked: "LUME-••••-••••-••••-••••-3VXA" } }), canCheck: true }),
+    );
+    // What the shell acts on: the licence's state (the lock itself then leaves on its exit animation).
+    const State = () => <output aria-label="Licence state">{useLicence().licence.state}</output>;
+    shell(
+      admin(L({ state: "suspended", reason: "key_decommissioned", key: ownerKey })),
+      <>
+        <LockScreen />
+        <State />
+      </>,
+    );
+    const lock = screen.getByRole("alertdialog", { name: "LUME is paused" });
+    await userEvent.click(within(lock).getByRole("button", { name: "Enter a new product key" }));
+    await userEvent.type(within(lock).getByLabelText("New product key"), "LUME-W4NB-8TZC-1KPE-6RDJ-3VXA");
+    await userEvent.click(within(lock).getByRole("button", { name: "Save key" }));
+    expect(licenceClient.changeKey).toHaveBeenCalledWith("LUME-W4NB-8TZC-1KPE-6RDJ-3VXA");
+    await waitFor(() => expect(screen.getByLabelText("Licence state")).toHaveTextContent("active"));
+  });
+
+  it("only the owner is offered it", () => {
+    shell(admin(L({ state: "suspended", reason: "key_decommissioned" })), <LockScreen />);
+    expect(screen.queryByRole("button", { name: "Enter a new product key" })).not.toBeInTheDocument();
+  });
+
+  it("read-only: the owner's bar leads to Settings → About to enter the new key; nobody else's", () => {
+    const { unmount } = shell(
+      admin(L({ state: "read_only", reason: "unreachable", key: ownerKey })),
+      <LicenceBanner />,
+    );
+    expect(screen.getByRole("link", { name: "Enter a new product key" })).toHaveAttribute(
+      "href",
+      "/settings/about",
+    );
+    unmount();
+    shell(admin(L({ state: "read_only", reason: "unreachable" })), <LicenceBanner />);
+    expect(screen.queryByRole("link", { name: "Enter a new product key" })).not.toBeInTheDocument();
   });
 });

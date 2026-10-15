@@ -10,6 +10,7 @@ import { INDIA_STATES, isCountry } from "@/lib/places";
 import { seal, unseal } from "@/lib/seal";
 import { addDays, serverState, utcDay } from "@/lib/state";
 import type { Ctx } from "./context";
+import { ROTATE_OVERLAP_MS } from "./check";
 import { currentRates } from "./fx";
 
 export class Refusal extends Error {
@@ -661,6 +662,12 @@ export async function decommissionKey(ctx: Ctx, id: string) {
     const k = await keyRow(c, id);
     if (k.key_dead_at) throw new Refusal(409, "This key is already decommissioned.", "KEY_DEAD");
     await retire(c, id, k, "decommissioned", now);
+    // A key rotated out but still keeping its server going (the 7-day overlap) goes too: that server pauses.
+    await c.query(
+      `UPDATE retired_keys SET reason = 'decommissioned'
+        WHERE client_id = $1 AND reason = 'rotated' AND retired_at > $2`,
+      [id, new Date(now.getTime() - ROTATE_OVERLAP_MS)],
+    );
     const dead = createHash("sha256").update(`dead:${id}:`).update(randomBytes(32)).digest();
     await c.query(
       `UPDATE licences SET key_hash = $2, key_enc = NULL, key_dead_at = $3,

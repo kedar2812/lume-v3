@@ -154,6 +154,28 @@ describe("setup asks for the product key (spec 2026-10-15 §1.1)", () => {
     expect((await enter(KEY, "198.51.100.21")).statusCode).toBe(422);
   });
 
+  it("a key entered more than 7 days after the install first started still activates, and setup goes on", async () => {
+    // Provisioned 8 days ago, and never checked in: it can't, without its key.
+    await h.ownerPool.query(
+      "UPDATE licence_state SET token = NULL, instance_id = NULL, license_key_enc = NULL, last_success_at = NULL, first_boot_at = $1",
+      [new Date(h.clock.now.getTime() - 8 * D)],
+    );
+    await h.app.licence.refresh();
+    {
+      expect(h.app.licence.view().state).toBe("read_only");
+      answer = approved;
+      const ok = await enter(KEY, "192.0.2.40");
+      expect(ok.statusCode).toBe(200);
+      const totp = await h.app.inject({
+        method: "POST",
+        url: "/api/v1/setup/totp",
+        payload: { token: ok.json().token },
+        ...(await h.csrf()),
+      });
+      expect(totp.statusCode).toBe(200);
+    }
+  });
+
   it("once someone has set LUME up, the key step is closed", async () => {
     await h.seedUser({ owner: true });
     answer = approved;

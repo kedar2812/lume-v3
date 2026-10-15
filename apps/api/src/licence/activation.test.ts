@@ -224,6 +224,44 @@ describe("Change key in Settings → About (spec 2026-10-15 §1.3)", () => {
     expect(h.app.licence.keyLast4()).toBe("7Q2K");
   });
 
+  it("a paused LUME (its key decommissioned) takes a new key from the owner, and carries on", async () => {
+    answer = approved();
+    await h.app.licence.activate(KEY);
+    await h.app.licence.idle();
+    answer = () =>
+      new Response(
+        JSON.stringify({
+          instanceId: INSTANCE,
+          token: token({ state: "suspended", reason: "key_decommissioned" }),
+        }),
+        { status: 200 },
+      );
+    expect((await h.app.licence.check()).state).toBe("suspended");
+    answer = approved();
+    const r = await change(owner, NEXT);
+    expect(r.statusCode).toBe(200);
+    await h.app.licence.idle();
+    expect(h.app.licence.view().state).toBe("active");
+    expect(h.app.licence.keyLast4()).toBe("3VXA");
+  });
+
+  it("a read-only LUME (a rotated key past its 7 days) takes the new key from the owner", async () => {
+    answer = approved();
+    await h.app.licence.activate(KEY);
+    await h.app.licence.idle();
+    // Its last good answer was 8 days ago; since then the old key is refused.
+    await h.ownerPool.query("UPDATE licence_state SET last_success_at = $1", [
+      new Date(h.clock.now.getTime() - 8 * D),
+    ]);
+    await h.app.licence.refresh();
+    answer = refused(403, "KEY_DECOMMISSIONED");
+    expect((await h.app.licence.check()).state).toBe("read_only");
+    answer = approved();
+    expect((await change(owner, NEXT)).statusCode).toBe(200);
+    await h.app.licence.idle();
+    expect(h.app.licence.view().state).toBe("active");
+  });
+
   it("only the owner: an admin who manages settings is refused", async () => {
     const admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
     expect((await change(admin, NEXT)).statusCode).toBe(403);

@@ -1,5 +1,6 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import { useState } from "react";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { licenceClient, type LicenceForPerson } from "@/lib/licence/client";
@@ -93,6 +94,11 @@ export function LicenceBanner() {
                 ? "you can look around and export everything, and changes wait until it’s sorted."
                 : "you can look around, and changes wait until it’s sorted."}
             </span>
+            {licence.key?.canChange && (
+              <Link href="/settings/about" className={s.bannerBtn}>
+                Enter a new product key
+              </Link>
+            )}
             {canExport && <ExportAll variant="bar" />}
           </motion.div>
         )}
