@@ -131,6 +131,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     deps.pool,
     deps.licence ?? { mode: "dev", instanceId: null, licenseKey: null, url: "", keys: {}, version: "dev" },
     deps.clock,
+    undefined,
+    deps.keyring,
   );
   await licence.refresh();
   try {

@@ -1,11 +1,24 @@
 import type pg from "pg";
-import { checkBody, licenceState, verifyLicence, type LicencePayload, type LicenceView } from "@lume/core";
+import {
+  activateBody,
+  canonicalKey,
+  checkBody,
+  licenceState,
+  verifyLicence,
+  type Keyring,
+  type LicencePayload,
+  type LicenceView,
+} from "@lume/core";
 import type { LicenceOptions } from "./options";
 
 const REFRESH_MS = 30_000;
 const CHECK_TIMEOUT_MS = 10_000;
-/** Stands in for this install's id until licence_state carries it (plan 2026-10-15 Task 8 replaces it). */
-const NO_INSTALL_YET = "00000000-0000-0000-0000-000000000000";
+/** Why an activation didn't go through (spec 2026-10-15 §1.1): the words for each live in the web. */
+export type ActivateRefusal =
+  "format" | "not_recognised" | "in_use" | "decommissioned" | "paused" | "too_many" | "unreachable";
+export type ActivateOutcome = { ok: true; view: LicenceView } | { ok: false; reason: ActivateRefusal };
+/** What the sealed key is bound to in the keyring. */
+const KEY_CONTEXT = "licence-key";
 /** Every 6 hours (spec §3.2). */
 export const CHECK_EVERY_MS = 6 * 3_600_000;
 /** A sign-in checks again if the last try is older than this (so a payment reminder shows at the next one). */
@@ -17,6 +30,9 @@ type Row = {
   last_attempt_at: Date | null;
   last_success_at: Date | null;
   last_error: string | null;
+  install_id: string;
+  instance_id: string | null;
+  license_key_enc: Buffer | null;
 };
 
 /**
@@ -37,7 +53,38 @@ export class LicenceKeeper {
     private readonly opts: LicenceOptions,
     private readonly now: () => Date,
     private readonly log: (o: object, msg: string) => void = () => undefined,
+    /** Seals the product key the owner gave (spec 2026-10-15 §1.2); without it only an .env key can be used. */
+    private readonly keyring: Keyring | null = null,
   ) {}
+
+  /** The key in .env wins (the owner's own servers); otherwise the one entered at setup or in Settings → About. */
+  private creds(): { instanceId: string; licenseKey: string } | null {
+    if (this.opts.instanceId && this.opts.licenseKey)
+      return { instanceId: this.opts.instanceId, licenseKey: this.opts.licenseKey };
+    const r = this.row;
+    if (!r?.instance_id || !r.license_key_enc || !this.keyring) return null;
+    try {
+      return { instanceId: r.instance_id, licenseKey: this.keyring.decrypt(r.license_key_enc, KEY_CONTEXT) };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Where this install's key comes from: its .env, the database, or nowhere yet. */
+  keySource(): "env" | "stored" | null {
+    if (this.opts.instanceId && this.opts.licenseKey) return "env";
+    return this.creds() ? "stored" : null;
+  }
+
+  /** The key's last four, for Settings → About. */
+  keyLast4(): string | null {
+    return this.creds()?.licenseKey.slice(-4) ?? null;
+  }
+
+  /** A key is asked for at setup (spec 2026-10-15 §1.1): an enforced licence with none in .env. */
+  needsKey(): boolean {
+    return this.opts.mode === "enforce" && !(this.opts.instanceId && this.opts.licenseKey);
+  }
 
   get dev(): boolean {
     return this.opts.mode === "dev";
@@ -47,7 +94,7 @@ export class LicenceKeeper {
   info(): { instanceId: string | null; nextCheckAt: string | null } {
     const last = this.row?.last_attempt_at;
     return {
-      instanceId: this.opts.instanceId,
+      instanceId: this.creds()?.instanceId ?? this.opts.instanceId,
       nextCheckAt: !this.dev && last ? new Date(last.getTime() + CHECK_EVERY_MS).toISOString() : null,
     };
   }
@@ -76,13 +123,14 @@ export class LicenceKeeper {
   /** Read what the database holds, and act on it from now on. */
   async refresh(): Promise<LicenceView> {
     const { rows } = await this.pool.query<Row>(
-      "SELECT token, first_boot_at, last_attempt_at, last_success_at, last_error FROM licence_state WHERE id = 1",
+      `SELECT token, first_boot_at, last_attempt_at, last_success_at, last_error, install_id, instance_id,
+              license_key_enc
+         FROM licence_state WHERE id = 1`,
     );
     this.row = rows[0] ?? null;
+    const instanceId = this.creds()?.instanceId ?? null;
     this.payload =
-      this.row?.token && this.opts.instanceId
-        ? verifyLicence(this.row.token, this.opts.keys, this.opts.instanceId)
-        : null;
+      this.row?.token && instanceId ? verifyLicence(this.row.token, this.opts.keys, instanceId) : null;
     this.loadedAt = Date.now();
     return this.compute();
   }
@@ -124,8 +172,9 @@ export class LicenceKeeper {
     const at = this.now();
     let error: string | null = null;
     let token: string | null = null;
-    if (!this.opts.instanceId || !this.opts.licenseKey) {
-      error = "This install has no licence key yet (LUME_LICENSE_KEY and LUME_INSTANCE_ID)";
+    const creds = this.creds();
+    if (!creds || !this.row) {
+      error = "This install has no licence key yet";
     } else {
       try {
         const counts = await this.counts();
@@ -134,9 +183,9 @@ export class LicenceKeeper {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(
             checkBody({
-              instanceId: this.opts.instanceId,
-              licenseKey: this.opts.licenseKey,
-              installId: NO_INSTALL_YET,
+              instanceId: creds.instanceId,
+              licenseKey: creds.licenseKey,
+              installId: this.row.install_id,
               appVersion: this.opts.version,
               ...counts,
               now: at,
@@ -144,11 +193,14 @@ export class LicenceKeeper {
           ),
           signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
         });
+        const code = r.ok ? null : await errorCode(r);
         if (r.status === 401) error = "The licence server didn't recognise this install's key";
+        else if (code === "KEY_IN_USE") error = "This key is in use on another server";
+        else if (code === "KEY_DECOMMISSIONED") error = "This key has been decommissioned";
         else if (!r.ok) error = `The licence server answered ${r.status}`;
         else {
           const got = ((await r.json()) as { token?: unknown }).token;
-          const p = typeof got === "string" ? verifyLicence(got, this.opts.keys, this.opts.instanceId) : null;
+          const p = typeof got === "string" ? verifyLicence(got, this.opts.keys, creds.instanceId) : null;
           if (!p) error = "The licence server's answer was not signed by LUME for this install";
           // An answer older than the one kept is an old answer replayed: it never undoes a newer one.
           else if (this.payload && Date.parse(p.issuedAt) < Date.parse(this.payload.issuedAt))
@@ -173,6 +225,58 @@ export class LicenceKeeper {
     return this.refresh();
   }
 
+  /**
+   * Activate a product key (spec 2026-10-15 §1.1, §2.1): the licence server binds it to this install and answers
+   * the instance id and a signed licence. Only an answer LUME can verify is kept; on any refusal nothing changes.
+   * Never throws.
+   */
+  async activate(typed: string): Promise<ActivateOutcome> {
+    const key = canonicalKey(typed);
+    if (!key) return { ok: false, reason: "format" };
+    if (!this.keyring) return { ok: false, reason: "unreachable" };
+    if (!this.row) await this.refresh();
+    const installId = this.row!.install_id;
+    const at = this.now();
+    let r: Response;
+    try {
+      r = await (this.opts.fetch ?? fetch)(`${this.opts.url}/v1/activate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          activateBody({ licenseKey: key, installId, appVersion: this.opts.version, now: at }),
+        ),
+        signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+      });
+    } catch (e) {
+      this.log({ error: (e as Error).message }, "licence activation unreachable");
+      return { ok: false, reason: "unreachable" };
+    }
+    if (!r.ok) return { ok: false, reason: refusalOf(r.status, await errorCode(r)) };
+    let instanceId: unknown;
+    let token: unknown;
+    try {
+      ({ instanceId, token } = (await r.json()) as { instanceId?: unknown; token?: unknown });
+    } catch {
+      return { ok: false, reason: "unreachable" };
+    }
+    if (
+      typeof instanceId !== "string" ||
+      typeof token !== "string" ||
+      !verifyLicence(token, this.opts.keys, instanceId)
+    )
+      return { ok: false, reason: "unreachable" };
+    await this.pool.query(
+      `UPDATE licence_state SET license_key_enc = $1, instance_id = $2, activated_at = $3, token = $4,
+              last_attempt_at = $3, last_success_at = $3, last_error = NULL, updated_at = $3
+        WHERE id = 1`,
+      [this.keyring.encrypt(key, KEY_CONTEXT), instanceId, at, token],
+    );
+    const view = await this.refresh();
+    // The first check-in, with this install's counts, follows at once (the activation sent none).
+    void this.check().catch(() => undefined);
+    return { ok: true, view };
+  }
+
   /** The two numbers the check sends (spec §2.4): members (a paused person included, 6A R7), and leads — counts only. */
   private async counts(): Promise<{ activeUserCount: number; leadCount: number }> {
     const c = await this.pool.connect();
@@ -193,4 +297,24 @@ export class LicenceKeeper {
       c.release();
     }
   }
+}
+
+/** A refusal's code from the licence server's answer, if it says one. */
+async function errorCode(r: Response): Promise<string | null> {
+  try {
+    const body = (await r.json()) as { error?: { code?: unknown } };
+    return typeof body.error?.code === "string" ? body.error.code : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What an activation's refusal means for the person entering the key. */
+function refusalOf(status: number, code: string | null): ActivateRefusal {
+  if (status === 401) return "not_recognised";
+  if (status === 409) return "in_use";
+  if (status === 429) return "too_many";
+  if (code === "KEY_DECOMMISSIONED") return "decommissioned";
+  if (code === "LICENCE_PAUSED") return "paused";
+  return "unreachable";
 }

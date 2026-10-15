@@ -141,6 +141,21 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     expect(JSON.stringify(body)).not.toMatch(/Counted Lead|1234567/);
   });
 
+  it("a key in .env wins over one stored in the database (spec 2026-10-15 §1.2)", async () => {
+    await h.ownerPool.query(
+      "UPDATE licence_state SET instance_id = 'LUME-OTHR-0001', license_key_enc = '\\x00'::bytea WHERE id = 1",
+    );
+    await h.app.licence.refresh();
+    answer = ok(token());
+    await check();
+    expect(sent.at(-1)!.body).toMatchObject({ instanceId: INSTANCE, licenseKey: KEY });
+    expect(h.app.licence.keySource()).toBe("env");
+    expect(h.app.licence.needsKey()).toBe(false);
+    await h.ownerPool.query(
+      "UPDATE licence_state SET instance_id = NULL, license_key_enc = NULL WHERE id = 1",
+    );
+  });
+
   it("counts a paused person: pausing someone never frees a place (6A ruling R7)", async () => {
     answer = ok(token());
     await check();
