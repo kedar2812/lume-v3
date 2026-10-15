@@ -94,3 +94,35 @@ describe("the bell: what needs a look (spec §4.4)", () => {
     ).toEqual(["late:l", "quiet:l", "due:d", "trial:t", "old"]);
   });
 });
+
+describe("the bell and product keys (spec 2026-10-15 §3.4)", () => {
+  it("a key tried on another server, red, until a week has passed", () => {
+    const tried = { ...base, activation: "active" as const, refusedAt: "2026-09-29T09:42:00Z", refusedIp: "198.51.100.7" };
+    expect(alertsFor([tried], { now, latestVersion: "1.4.2" })).toEqual([
+      expect.objectContaining({
+        id: "tried:c1",
+        fingerprint: "2026-09-29T09:42:00Z",
+        tone: "red",
+        title: "Key tried on another server — Harbour Clinic",
+        body: "198.51.100.7 tried it on 29 Sep. It was refused. A move, or a leaked key?",
+        clientId: "c1",
+      }),
+    ]);
+    expect(ids([{ ...tried, refusedAt: "2026-09-22T11:00:00Z" }])).toEqual([]);
+  });
+  it("a key nobody has entered after 7 days, grey; never once it's active, released or decommissioned", () => {
+    const idle = { ...base, lastCheckInAt: null, activation: "not_activated" as const, createdAt: "2026-09-20T08:00:00Z" };
+    expect(alertsFor([idle], { now, latestVersion: "1.4.2" })).toEqual([
+      expect.objectContaining({
+        id: "idle-key:c1",
+        fingerprint: "2026-09-20T08:00:00Z",
+        tone: "grey",
+        title: "Not activated after 9 days — Harbour Clinic",
+        body: "Key issued 20 Sep. Send the message again?",
+      }),
+    ]);
+    expect(ids([{ ...idle, createdAt: "2026-09-23T08:00:00Z" }])).toEqual([]);
+    for (const activation of ["active", "released", "decommissioned"] as const)
+      expect(ids([{ ...idle, activation }])).toEqual([]);
+  });
+});

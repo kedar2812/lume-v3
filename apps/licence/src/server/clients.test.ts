@@ -525,6 +525,25 @@ describe("the key's actions (spec 2026-10-15 §2.4, §3.2)", () => {
     expect((await events(client.id)).at(-1)?.kind).toBe("key_created");
   });
 
+  it("the bell hears when the key is tried on another server", async () => {
+    const { client, licenseKey } = await create({ name: "Pinecrest Clinic" });
+    await check(client.instanceId, licenseKey); // binds to the test install
+    const { handleActivate } = await import("./activate");
+    const { activateBody } = await import("@lume/core");
+    await handleActivate(
+      new Request("https://licence.test/v1/activate", {
+        method: "POST",
+        headers: { "x-real-ip": "198.51.100.7" },
+        body: JSON.stringify(
+          activateBody({ licenseKey, installId: "0190e0c0-0000-7000-8000-0000000000d4", appVersion: "1.5.0", now }),
+        ),
+      }),
+      ctx,
+    );
+    const { alerts } = (await admin.call("GET", "/api/alerts")).data as { alerts: { id: string; body: string }[] };
+    expect(alerts.find((a) => a.id === `tried:${client.id}`)?.body).toMatch(/^198\.51\.100\.7 tried it on/);
+  });
+
   it("rotate after a decommission is refused: issue a new key instead", async () => {
     const { client } = await create({ name: "Birch Wellness" });
     await admin.call("POST", `/api/clients/${client.id}/key/decommission`);

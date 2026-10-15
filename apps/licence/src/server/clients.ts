@@ -837,6 +837,17 @@ async function latestVersion(db: pg.Pool): Promise<string | null> {
 
 async function currentAlerts(ctx: Ctx) {
   const { clients } = await listClients(ctx);
+  // The newest refused try from another server in the last week, per client (spec 2026-10-15 §3.4).
+  const refused = new Map(
+    (
+      await ctx.db.query<{ client_id: string; at: Date; ip: string | null }>(
+        `SELECT DISTINCT ON (client_id) client_id, at, detail->>'ip' AS ip FROM events
+          WHERE kind = 'activation_refused' AND at > $1::timestamptz - interval '7 days'
+          ORDER BY client_id, at DESC, id DESC`,
+        [ctx.now()],
+      )
+    ).rows.map((r) => [r.client_id, r]),
+  );
   const ac: AlertClient[] = clients.map((c) => ({
     id: c.id,
     name: c.name,
@@ -849,6 +860,10 @@ async function currentAlerts(ctx: Ctx) {
     version: c.lastCheckIn?.version ?? null,
     price: c.price,
     monthlyInr: c.monthlyInr,
+    activation: c.activation.status,
+    createdAt: c.createdAt,
+    refusedAt: refused.get(c.id)?.at.toISOString() ?? null,
+    refusedIp: refused.get(c.id)?.ip ?? null,
   }));
   return alertsFor(ac, { now: ctx.now(), latestVersion: await latestVersion(ctx.db) });
 }

@@ -15,6 +15,13 @@ export type AlertClient = {
   version: string | null;
   price: Price | null;
   monthlyInr: number | null;
+  /** Where its key is (spec 2026-10-15 §3.4); absent says nothing. */
+  activation?: "not_activated" | "active" | "released" | "decommissioned";
+  /** When the licence was issued (for "not activated after 7 days"). */
+  createdAt?: string;
+  /** The newest refused try from another server, and from where. */
+  refusedAt?: string | null;
+  refusedIp?: string | null;
 };
 export type Alert = {
   /** Stable per condition ("late:<client>"): a hidden alert stays hidden while its fingerprint holds. */
@@ -60,6 +67,8 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
   const quiet: Alert[] = [];
   const due: Alert[] = [];
   const trial: Alert[] = [];
+  const tried: Alert[] = [];
+  const idle: Alert[] = [];
   const owed = (c: AlertClient) =>
     c.price && c.price.periodMonths ? formatMoney(c.price.amount, c.price.currency) : null;
   for (const c of live) {
@@ -114,7 +123,32 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
         });
     }
   }
-  const alerts = [...late, ...quiet, ...due, ...trial];
+  for (const c of clients.filter((x) => !x.decommissioned)) {
+    if (c.refusedAt && o.now.getTime() - Date.parse(c.refusedAt) < 7 * DAY)
+      tried.push({
+        id: `tried:${c.id}`,
+        fingerprint: c.refusedAt,
+        tone: "red",
+        title: `Key tried on another server — ${c.name}`,
+        body: `${c.refusedIp ?? "Another server"} tried it on ${shortDay(c.refusedAt.slice(0, 10))}. It was refused. A move, or a leaked key?`,
+        clientId: c.id,
+        clientName: c.name,
+      });
+    if (c.activation === "not_activated" && c.createdAt && !c.suspended) {
+      const waited = daysBetween(c.createdAt.slice(0, 10), today);
+      if (waited >= 7)
+        idle.push({
+          id: `idle-key:${c.id}`,
+          fingerprint: c.createdAt,
+          tone: "grey",
+          title: `Not activated after ${days(waited)} — ${c.name}`,
+          body: `Key issued ${shortDay(c.createdAt.slice(0, 10))}. Send the message again?`,
+          clientId: c.id,
+          clientName: c.name,
+        });
+    }
+  }
+  const alerts = [...late, ...tried, ...quiet, ...due, ...trial, ...idle];
   const latest = o.latestVersion;
   if (latest) {
     const behind = live.filter((c) => c.version && compareVersions(c.version, latest) < 0);
