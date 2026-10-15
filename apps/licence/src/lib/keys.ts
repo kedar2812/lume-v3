@@ -1,4 +1,5 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { canonicalKey } from "@lume/core";
 
 /** Crockford's base32: no I, L, O or U, so a key read aloud or retyped isn't misread. */
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -11,8 +12,8 @@ export const newLicenceKey = (): string => `LUME-${[1, 2, 3, 4, 5].map(() => gro
 export const lastFour = (key: string): string => key.slice(-4);
 export const maskedKey = (last4: string): string => `LUME-••••-••••-••••-••••-${last4}`;
 
-/** The key as it was issued: what's typed around it and its case don't matter. */
-const normal = (key: string) => key.trim().toUpperCase();
+/** The key as it was issued: however it's typed (case, spaces, any dash, O for 0…) it has one spelling (spec 2026-10-15 §1.1). */
+const normal = (key: string) => canonicalKey(key) ?? key.trim().toUpperCase();
 export const hashKey = (key: string): Buffer => createHash("sha256").update(normal(key)).digest();
 const NOTHING = Buffer.alloc(32);
 

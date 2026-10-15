@@ -36,6 +36,7 @@ import {
   releases,
   reminderOff,
   reminderOn,
+  revealKey,
   rotateKey,
   setSuspended,
   settingsSchema,
@@ -191,6 +192,7 @@ route("POST", "/api/clients/:id/reminder", ({ ctx, params, body }) =>
   ),
 );
 route("DELETE", "/api/clients/:id/reminder", ({ ctx, params }) => reminderOff(ctx, params.id!));
+route("GET", "/api/clients/:id/key", ({ ctx, params }) => revealKey(ctx, params.id!));
 route("POST", "/api/clients/:id/rotate", ({ ctx, params }) => rotateKey(ctx, params.id!));
 route("POST", "/api/clients/:id/suspend", ({ ctx, params }) => setSuspended(ctx, params.id!, true));
 route("POST", "/api/clients/:id/resume", ({ ctx, params }) => setSuspended(ctx, params.id!, false));

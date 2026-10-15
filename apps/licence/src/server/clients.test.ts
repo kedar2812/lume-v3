@@ -399,6 +399,57 @@ describe("a client's actions (spec §4.4)", () => {
   });
 });
 
+describe("keys you can copy again, and where they're active (spec 2026-10-15 §2.3, §3.2)", () => {
+  const set = (id: string, sql: string, params: unknown[] = []) =>
+    t.pool.query(`UPDATE licences SET ${sql} WHERE client_id = $1`, [id, ...params]);
+
+  it("a new licence's key can be copied again later; nobody has entered it yet", async () => {
+    const { client, licenseKey } = await create();
+    const shown = await admin.call("GET", `/api/clients/${client.id}/key`);
+    expect(shown.status).toBe(200);
+    expect(shown.data).toEqual({ licenseKey });
+    const d = await detail(client.id);
+    expect(d.client.keyShowable).toBe(true);
+    expect(d.client.activation).toEqual({ status: "not_activated", ip: null, at: null, installId: null });
+  });
+
+  it("active on a server, released, or decommissioned: the client says which", async () => {
+    const { client } = await create();
+    const install = "0190e0c0-0000-7000-8000-0000000000b1";
+    await set(client.id, "install_id = $2, activated_at = $3, activated_ip = '203.0.113.10'", [install, now]);
+    expect((await detail(client.id)).client.activation).toEqual({
+      status: "active",
+      ip: "203.0.113.10",
+      at: now.toISOString(),
+      installId: install,
+    });
+    await set(client.id, "install_id = NULL, activated_at = NULL, activated_ip = NULL, released_at = $2", [now]);
+    expect((await detail(client.id)).client.activation.status).toBe("released");
+    await set(client.id, "key_dead_at = $2", [now]);
+    expect((await detail(client.id)).client.activation.status).toBe("decommissioned");
+  });
+
+  it("a licence made before keys were kept can't be shown; Rotate is the way to one that can", async () => {
+    const { client } = await create();
+    await set(client.id, "key_enc = NULL");
+    const r = await admin.call("GET", `/api/clients/${client.id}/key`);
+    expect(r.status).toBe(404);
+    expect(r.data.error.code).toBe("NOT_SHOWABLE");
+    expect((await detail(client.id)).client.keyShowable).toBe(false);
+  });
+
+  it("two licences can never share a key", async () => {
+    const a = await create();
+    const b = await create({ name: "Northwind Interiors" });
+    await expect(
+      t.pool.query(
+        "UPDATE licences SET key_hash = (SELECT key_hash FROM licences WHERE client_id = $1) WHERE client_id = $2",
+        [a.client.id, b.client.id],
+      ),
+    ).rejects.toThrow(/licences_key_hash/);
+  });
+});
+
 describe("settings (spec §4.4)", () => {
   it("list price, latest version and billing contact; a bad contact link is refused", async () => {
     expect(

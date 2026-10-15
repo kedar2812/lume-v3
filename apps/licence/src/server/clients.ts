@@ -6,6 +6,7 @@ import { computeAnalytics, SOURCES, type AClient, type Source } from "@/lib/anal
 import { hashKey, lastFour, maskedKey, newInstanceId, newLicenceKey } from "@/lib/keys";
 import { monthlyInr, rateOf, type Rates } from "@/lib/money";
 import { INDIA_STATES, isCountry } from "@/lib/places";
+import { seal, unseal } from "@/lib/seal";
 import { addDays, serverState, utcDay } from "@/lib/state";
 import type { Ctx } from "./context";
 import { currentRates } from "./fx";
@@ -104,11 +105,19 @@ type Row = {
   period_months: number | null;
   last_at: Date | null;
   last_version: string | null;
+  install_id: string | null;
+  activated_at: Date | null;
+  activated_ip: string | null;
+  released_at: Date | null;
+  key_dead_at: Date | null;
+  key_showable: boolean;
 };
 const CLIENTS_SQL = `
   SELECT c.id, c.name, c.slug, c.country, c.region, c.city, c.source, c.created_at, c.decommissioned_at,
          l.instance_id, l.key_last4, l.type, to_char(l.paid_until, 'YYYY-MM-DD') AS paid_until,
          to_char(l.trial_ends, 'YYYY-MM-DD') AS trial_ends, l.suspended_at, l.paying_since,
+         l.install_id, l.activated_at, l.activated_ip, l.released_at, l.key_dead_at,
+         (l.key_enc IS NOT NULL AND l.key_dead_at IS NULL) AS key_showable,
          p.currency, p.amount::text AS amount, p.period_months,
          ci.at AS last_at, ci.app_version AS last_version
     FROM clients c
@@ -120,6 +129,7 @@ const CLIENTS_SQL = `
 const ONE_CLIENT_SQL = CLIENTS_SQL + " WHERE c.id = $1";
 const ALL_CLIENTS_SQL = CLIENTS_SQL + " ORDER BY c.created_at DESC, c.id";
 
+export type ActivationStatus = "not_activated" | "active" | "released" | "decommissioned";
 export type ClientView = ReturnType<typeof view>;
 function view(r: Row, rates: Rates, now: Date) {
   const price = r.currency
@@ -147,6 +157,21 @@ function view(r: Row, rates: Rates, now: Date) {
     createdAt: r.created_at.toISOString(),
     instanceId: r.instance_id,
     keyMasked: maskedKey(r.key_last4),
+    /** The key can be shown and copied again (spec 2026-10-15 §2.3): kept sealed, and still alive. */
+    keyShowable: r.key_showable,
+    /** Where the key is in use (spec 2026-10-15 §3.2). */
+    activation: {
+      status: (r.key_dead_at
+        ? "decommissioned"
+        : r.install_id
+          ? "active"
+          : r.released_at
+            ? "released"
+            : "not_activated") as ActivationStatus,
+      ip: r.activated_ip,
+      at: r.activated_at?.toISOString() ?? null,
+      installId: r.install_id,
+    },
     type: r.type,
     state,
     reason,
@@ -366,8 +391,8 @@ export async function createClient(ctx: Ctx, body: z.infer<typeof newClientSchem
     while ((await c.query("SELECT 1 FROM licences WHERE instance_id = $1", [instanceId])).rowCount)
       instanceId = newInstanceId();
     await c.query(
-      `INSERT INTO licences (client_id, instance_id, key_hash, key_last4, type, paid_until, trial_ends, paying_since, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO licences (client_id, instance_id, key_hash, key_last4, type, paid_until, trial_ends, paying_since, created_at, key_enc)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         cid,
         instanceId,
@@ -379,6 +404,7 @@ export async function createClient(ctx: Ctx, body: z.infer<typeof newClientSchem
         plan.type === "trial" ? addDays(today, TRIAL_DAYS) : null,
         plan.type === "subscription" ? now : null,
         now,
+        sealKey(ctx, cid, licenseKey),
       ],
     );
     await c.query(
@@ -537,6 +563,22 @@ export async function reminderOff(ctx: Ctx, id: string) {
     await clearReminder(c, id, ctx.now());
   });
   return getClient(ctx, id);
+}
+
+/** The key, sealed for this client only (spec 2026-10-15 §2.3). */
+const sealKey = (ctx: Ctx, clientId: string, key: string) => seal(ctx.master, key, `key:${clientId}`);
+
+/** The key again, to copy or send (spec 2026-10-15 §3.2): only a live key that was kept sealed. */
+export async function revealKey(ctx: Ctx, id: string) {
+  await row(ctx.db, id);
+  const { rows } = await ctx.db.query<{ key_enc: Buffer | null; key_dead_at: Date | null }>(
+    "SELECT key_enc, key_dead_at FROM licences WHERE client_id = $1",
+    [id],
+  );
+  const r = rows[0];
+  if (!r?.key_enc || r.key_dead_at)
+    throw new Refusal(404, "This key wasn't kept, so it can't be shown. Rotate to get one that can.", "NOT_SHOWABLE");
+  return { licenseKey: unseal(ctx.master, r.key_enc, `key:${id}`) };
 }
 
 /** A new key, shown once; the old one stops at once. */

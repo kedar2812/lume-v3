@@ -1,9 +1,10 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { newTotpSecret, otpauthUri, safeEqual, verifyTotp } from "@lume/core";
 import { ARGON2_PRODUCTION, hashPassword, verifyPassword } from "@lume/core/password";
 import type pg from "pg";
 import type { Ctx } from "./context";
 import { clientIp } from "./http";
+import { seal, unseal } from "@/lib/seal";
 
 /** One admin (R4), argon2 and two-step; sessions httpOnly, Secure, SameSite=Strict, with a CSRF token each. */
 export const SESSION_COOKIE = "lume_licence";
@@ -23,20 +24,9 @@ export const SIGN_IN_FAILED = {
 
 const sha = (s: string) => createHash("sha256").update(s).digest();
 
-/** The two-step secret, sealed with LICENCE_MASTER_KEY (AES-256-GCM) and bound to its admin. */
-function seal(master: Buffer, plain: string, adminId: string): Buffer {
-  const iv = randomBytes(12);
-  const c = createCipheriv("aes-256-gcm", master, iv).setAAD(Buffer.from(`totp:${adminId}`));
-  const body = Buffer.concat([c.update(plain, "utf8"), c.final()]);
-  return Buffer.concat([iv, c.getAuthTag(), body]);
-}
-function unseal(master: Buffer, blob: Buffer, adminId: string): string {
-  const d = createDecipheriv("aes-256-gcm", master, blob.subarray(0, 12)).setAAD(
-    Buffer.from(`totp:${adminId}`),
-  );
-  d.setAuthTag(blob.subarray(12, 28));
-  return Buffer.concat([d.update(blob.subarray(28)), d.final()]).toString("utf8");
-}
+/** The two-step secret, sealed with LICENCE_MASTER_KEY and bound to its admin (the AAD is unchanged: "totp:<id>"). */
+const sealTotp = (master: Buffer, plain: string, adminId: string) => seal(master, plain, `totp:${adminId}`);
+const unsealTotp = (master: Buffer, blob: Buffer, adminId: string) => unseal(master, blob, `totp:${adminId}`);
 
 export function passwordProblem(pw: unknown): string | null {
   if (typeof pw !== "string" || [...pw].length < PASSWORD_MIN)
@@ -61,7 +51,7 @@ export async function createAdmin(
     id,
     email,
     await hashPassword(o.password, ARGON2_PRODUCTION),
-    seal(ctx.master, secret, id),
+    sealTotp(ctx.master, secret, id),
   ]);
   return { secret, uri: otpauthUri({ secret, account: email, issuer: ISSUER }) };
 }
@@ -148,7 +138,7 @@ export async function codeStep(
     // One code at a time, so the same code can't win twice in a race.
     const a = (await conn.query<AdminRow>("SELECT * FROM admins WHERE id = $1 FOR UPDATE", [p.admin_id]))
       .rows[0]!;
-    const step = verifyTotp(unseal(ctx.master, a.totp_secret, a.id), code, {
+    const step = verifyTotp(unsealTotp(ctx.master, a.totp_secret, a.id), code, {
       nowMs: now.getTime(),
       lastUsedStep: a.totp_last_step === null ? null : Number(a.totp_last_step),
     });
@@ -242,7 +232,7 @@ export async function startTwoStep(
 ): Promise<{ secret: string; uri: string } | null> {
   // The current six digits first: a session alone can't swap the only admin's authenticator.
   const a = (await ctx.db.query<AdminRow>("SELECT * FROM admins WHERE id = $1", [admin.id])).rows[0]!;
-  const step = verifyTotp(unseal(ctx.master, a.totp_secret, a.id), code, {
+  const step = verifyTotp(unsealTotp(ctx.master, a.totp_secret, a.id), code, {
     nowMs: ctx.now().getTime(),
     lastUsedStep: a.totp_last_step === null ? null : Number(a.totp_last_step),
   });
@@ -251,7 +241,7 @@ export async function startTwoStep(
   const secret = newTotpSecret();
   await ctx.db.query("UPDATE admins SET totp_pending = $2 WHERE id = $1", [
     admin.id,
-    seal(ctx.master, secret, admin.id),
+    sealTotp(ctx.master, secret, admin.id),
   ]);
   return { secret, uri: otpauthUri({ secret, account: admin.email, issuer: ISSUER }) };
 }
@@ -259,7 +249,7 @@ export async function startTwoStep(
 export async function confirmTwoStep(ctx: Ctx, admin: Admin, code: string): Promise<boolean> {
   const a = (await ctx.db.query<AdminRow>("SELECT * FROM admins WHERE id = $1", [admin.id])).rows[0]!;
   if (!a.totp_pending) return false;
-  const step = verifyTotp(unseal(ctx.master, a.totp_pending, a.id), code, { nowMs: ctx.now().getTime() });
+  const step = verifyTotp(unsealTotp(ctx.master, a.totp_pending, a.id), code, { nowMs: ctx.now().getTime() });
   if (step === null) return false;
   await ctx.db.query(
     "UPDATE admins SET totp_secret = totp_pending, totp_pending = NULL, totp_last_step = $2 WHERE id = $1",

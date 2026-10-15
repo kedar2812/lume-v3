@@ -23,12 +23,20 @@ describe("instance ids and licence keys", () => {
     expect(lastFour(a)).toBe(a.slice(-4));
     expect(maskedKey(a.slice(-4))).toBe(`LUME-••••-••••-••••-••••-${a.slice(-4)}`);
   });
+  it("a key typed loosely hashes as the issued one (spec 2026-10-15 §1.1)", () => {
+    const k = newLicenceKey();
+    const loose = k.toLowerCase().replaceAll("-", " ").replace(/^lume /, "").replaceAll("0", "o");
+    expect(hashKey(loose).equals(hashKey(k))).toBe(true);
+    expect(keyMatches(loose.replaceAll(" ", "–"), hashKey(k))).toBe(true);
+  });
   it("only a hash is kept; the key matches however it was typed, and nothing else does", () => {
     const k = newLicenceKey();
     const h = hashKey(k);
     expect(h).toHaveLength(32);
     expect(keyMatches(` ${k.toLowerCase()} `, h)).toBe(true);
-    expect(keyMatches(k.replace(/-/g, ""), h)).toBe(false);
+    // Dashes don't matter any more (spec 2026-10-15 §1.1): the same key without them still matches.
+    expect(keyMatches(k.replace(/-/g, ""), h)).toBe(true);
+    expect(keyMatches(k.slice(0, -1), h)).toBe(false);
     expect(keyMatches(newLicenceKey(), h)).toBe(false);
     expect(keyMatches(k, null)).toBe(false);
   });
