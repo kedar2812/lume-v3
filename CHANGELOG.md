@@ -6,6 +6,14 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **Product keys (2026-10-15):** a client's LUME asks for its product key at the first step of setup and goes on
+  once license.lumecrm.in approves it ("your LUME is online", with the new online chime). A key works on one
+  server: another server is refused and the owner's bell says so. The owner changes the key in Settings → About.
+  On license.lumecrm.in, New licence ends on Ready to send (Copy message, Send on WhatsApp); each client's
+  Licence key card shows where the key is active, and offers Rotate (decommissions the old key), Release, and
+  Hold to decommission key. `provision.sh` no longer needs a key in `.env`. Licence server: back up, then update
+  (migration 0004); installations: migration 0065.
+
 - **Security (Phase 6A):** LUME watches for anyone taking more lead data than their work needs: contacts
   revealed, different leads opened, and send-queue runs, each with a limit and an action (tell admins, or tell
   them and pause access). A pause ends every session and stops the act that crossed the line. Admins review

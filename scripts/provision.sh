@@ -7,7 +7,9 @@
 #
 # Before it: the client is in deploy/clients.yml (status: new), <slug>.lumecrm.in points at its server, the
 # server has the sudo user lume-deploy with LUME's SSH key, and deploy/clients/<slug>.env has the inputs:
-#   LUME_LICENSE_KEY=…      (New licence on license.lumecrm.in; the instance ID is in clients.yml)
+#   LUME_LICENSE_KEY=…      (optional: only for a server you keep the key on yourself, with its instance ID in
+#                            clients.yml. Without it, the client enters their product key at the first step of
+#                            setup — spec 2026-10-15 — which is the usual way.)
 #   GHCR_USER=… GHCR_TOKEN=…  (this client's own read-only registry token)
 #   OWNER_AGE_RECIPIENT=age1… (the owner's offline backup key)
 #   SMTP_URL=… MAIL_FROM=…  (optional)
@@ -50,15 +52,19 @@ if [ "$status" = active ] && [[ "$running" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "
   die "refusing: $version is older than the $running it runs (update.sh is how versions move)"
 fi
 instance="$(inv get "$slug" instance)"
-[ -n "$instance" ] || die "$slug has no instance in clients.yml (New licence on the licence server gives it)"
 
 inputs="$CLIENTS_DIR/$slug.env"
 [ -f "$inputs" ] || die "no $inputs: put the client's inputs there first (see the top of this script)"
 # The last value for a key, with any Windows line end (\r) taken off.
 envget() { sed -n "s/^$1=//p" "$inputs" | tail -n 1 | tr -d '\r'; }
-for key in LUME_LICENSE_KEY GHCR_USER GHCR_TOKEN OWNER_AGE_RECIPIENT; do
+for key in GHCR_USER GHCR_TOKEN OWNER_AGE_RECIPIENT; do
   [ -n "$(envget "$key")" ] || die "$inputs has no $key"
 done
+# A key in the inputs is kept in the server's .env (with its instance ID); none, and the client enters it at setup.
+licence_key="$(envget LUME_LICENSE_KEY)"
+if [ -n "$licence_key" ] && [ -z "$instance" ]; then
+  die "$inputs has a LUME_LICENSE_KEY but $slug has no instance in clients.yml (the licence's page shows it)"
+fi
 host_name="$slug.$DOMAIN"
 image="$REGISTRY/worker:$version"
 
@@ -142,8 +148,10 @@ kv() {
   kv LUME_TLS ""
   kv LUME_IMAGE_PREFIX "$REGISTRY"
   kv LUME_TAG "$version"
-  kv LUME_INSTANCE_ID "$instance"
-  kv LUME_LICENSE_KEY "$(envget LUME_LICENSE_KEY)"
+  if [ -n "$licence_key" ]; then
+    kv LUME_INSTANCE_ID "$instance"
+    kv LUME_LICENSE_KEY "$licence_key"
+  fi
   for key in LUME_MASTER_KEY POSTGRES_SUPERUSER_PASSWORD LUME_OWNER_PASSWORD LUME_APP_PASSWORD LUME_WORKER_PASSWORD LUME_BACKUP_PASSWORD LUME_RESTORE_PASSWORD; do
     kv "$key" "$(envget "$key")"
   done
@@ -181,7 +189,12 @@ fi
 # ---------- 10. the setup link, and the inventory ----------
 step "setup"
 if $DRY; then
-  echo "[dry-run] print the setup link and token"
+  echo "[dry-run] print what to send the client"
+elif [ -z "$licence_key" ]; then
+  # The usual way (spec 2026-10-15): the client's own product key opens setup; no token goes anywhere.
+  printf '\nLUME is up at https://%s.\nSend the client their address and their product key (Copy message on license.lumecrm.in).\nLUME asks for the key at the first step of setup, and it works on this server only.\n' "$host_name"
+  inv set "$slug" version "$version"
+  inv set "$slug" status active
 else
   token="$(remote "cd /opt/lume && docker compose logs api" | sed -n 's/.*first-run setup token: \([A-Za-z0-9_-]*\).*/\1/p' | tail -n 1)"
   if [ -n "$token" ]; then

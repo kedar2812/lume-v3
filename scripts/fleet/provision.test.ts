@@ -105,6 +105,29 @@ describe("provision.sh (L-C Task 3)", () => {
     expect(r.stdout + r.stderr).not.toContain(TOKEN);
   });
 
+  it("no key in the inputs (spec 2026-10-15 §4.2): no licence lines in .env, no instance needed, and it says to send the address and the product key — never the setup token", () => {
+    const f = fleet({
+      inputs: INPUTS.split("\n")
+        .filter((l) => !l.startsWith("LUME_LICENSE_KEY="))
+        .join("\n"),
+      // No instance yet: the licence server names it when the client enters the key.
+      client: Object.fromEntries(Object.entries(CLIENT).filter(([k]) => k !== "instance")),
+    });
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: ANSWERS,
+    });
+    expect(r.code, r.stderr).toBe(0);
+    const server = readFileSync(path.join(r.dir, "uploads", ".env"), "utf8");
+    expect(server).not.toMatch(/^LUME_LICENSE_KEY=/m);
+    expect(server).not.toMatch(/^LUME_INSTANCE_ID=/m);
+    expect(r.stdout).toContain("https://harbour-clinic.lumecrm.in");
+    expect(r.stdout).toMatch(/product key/);
+    expect(r.stdout).toMatch(/Copy message on license\.lumecrm\.in/);
+    expect(r.stdout).not.toContain("TOK123abc");
+  });
+
   it("run again: nothing new is generated (a new master key would lock every encrypted value)", () => {
     const f = fleet();
     run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
@@ -231,7 +254,8 @@ describe("provision.sh (L-C Task 3)", () => {
       dir: partial.dir,
       env: partial.env,
     });
-    expect(b.stderr).toMatch(/LUME_LICENSE_KEY/);
+    // The product key is optional now (spec 2026-10-15 §4.2); the registry token isn't.
+    expect(b.stderr).toMatch(/GHCR_TOKEN/);
     expect(b.calls).toEqual([]);
     const gone = fleet({ client: { ...CLIENT, status: "decommissioned" } });
     const c = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {

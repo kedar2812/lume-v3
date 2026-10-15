@@ -120,6 +120,9 @@ signing key no new answer can be signed, and without the master key the admin's 
 ## 7. Update
 
 Build the new image (step 1) with its version tag, then `LICENCE_IMAGE=lume-licence:<version> docker compose up -d`.
+Back up first (step 6's `pg_dump`). Migration 0004 (product key activation) adds the binding columns and
+`retired_keys`; licences made before it keep working, but their key can't be shown again (Rotate makes one that
+can).
 
 **Upgrading from a master key in `.env`** (servers set up before 2026-10-01): the compose file now reads the key
 from `secrets/master.key`. Move the *same* key there before `up -d` — a new one would lock the admin out (it
@@ -159,12 +162,28 @@ Check: `curl -s -o /dev/null -w '%{http_code}' -X POST https://license.lumecrm.i
 ## 8. A new client, end to end
 
 1. **Clients → New licence**: name, country (and state in India, or city), plan and price, how they found LUME.
-2. The sheet shows the **licence key and instance ID once**. Put them in the client's `.env`:
-   `LUME_INSTANCE_ID=…` and `LUME_LICENSE_KEY=…` (the release image already points at
-   `https://license.lumecrm.in`).
-3. The installation checks in at start, every 6 hours, and at sign-in when its last check is stale. Its row
-   turns from "Not yet" to a green dot.
-4. **Mark paid** when money arrives: paid until moves on one period, the payment keeps that day's rate.
+2. The sheet ends on **Ready to send**: the product key, **Copy message** (their address and the key, ready to
+   paste) and **Send on WhatsApp**. Send it. The key can be shown and copied again from the client's page.
+3. The client opens their LUME and enters the key at the first step of setup. The licence server binds it to
+   that server (spec 2026-10-15) and the client sees "your LUME is online". The client's row turns from
+   **Not activated** to Active, and their page says **Active on {address}**. Still not entered after 7 days, the
+   bell says so, with Copy message.
+4. The installation checks in at start, every 6 hours, and at sign-in when its last check is stale.
+5. **Mark paid** when money arrives: paid until moves on one period, the payment keeps that day's rate.
+
+For a server you keep the key on yourself, `.env` can still carry `LUME_INSTANCE_ID=…` and
+`LUME_LICENSE_KEY=…` (the instance ID is on the licence's page); it binds at its first check-in.
+
+## 8a. The key's actions (a client's Licence key card)
+
+| Action | What it does | When |
+|---|---|---|
+| **Rotate key** | A new key on the same server; the old key is decommissioned (its server keeps going on it for 7 days while the client enters the new one in Settings → About) | a key that may have leaked |
+| **Release key** | The key leaves its server; only a key entered by hand takes it again, and the old server is refused from then on | the client is moving servers |
+| **Hold to decommission key** | Held for 1.5 s: the key works nowhere, for good; its server pauses at its next check-in (export still works). Then **Issue a new key** | stopping misuse at once |
+
+The bell says **Key tried on another server** when a second server tries a bound key: a move (Release) or a
+leak (Rotate).
 
 If an installation can't reach the licence server it keeps working: 24 hours on it shows its admins a grace
 banner, 7 days on it's read-only (never locked; everyone can still export everything).

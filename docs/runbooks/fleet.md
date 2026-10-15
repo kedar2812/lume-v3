@@ -26,7 +26,9 @@ start with none.
 
 ## A new client
 
-1. **Licence:** on license.lumecrm.in, New licence → note the **instance ID** and the **key** (shown once).
+1. **Licence:** on license.lumecrm.in, New licence → **Ready to send** gives the product key and the message
+   for the client. The client enters the key at the first step of setup (spec 2026-10-15); it isn't needed in
+   `.env`.
 2. **Server:** the client buys an Ubuntu 24.04 VPS (2 vCPU, 8 GB), creates the user `lume-deploy` with
    **passwordless sudo** and LUME's SSH public key:
    ```sh
@@ -49,12 +51,13 @@ start with none.
        user: lume-deploy
        version: none
        licence: subscription
-       instance: LUME-XXXX-XXXX
        status: new
    ```
+   (`instance: LUME-XXXX-XXXX` only when the key goes in `.env`; otherwise the licence server names it when the
+   client enters the key.)
 6. **Inputs:** `deploy/clients/harbour-clinic.env` (mode 600):
    ```sh
-   LUME_LICENSE_KEY=LUME-…            # from step 1
+   # LUME_LICENSE_KEY=LUME-…          # optional: only to keep the key in .env (then clients.yml needs the instance)
    GHCR_USER=…                        # the token's GitHub user
    GHCR_TOKEN=…                       # from step 4
    OWNER_AGE_RECIPIENT=age1…          # the owner's offline backup key (public half)
@@ -65,11 +68,13 @@ start with none.
    checks DNS; makes the client's secrets once (kept in its `.env`, never regenerated); hardens the server
    (SSH keys only, ufw 22/80/443, unattended upgrades, fail2ban, Docker); writes `/opt/lume`; logs in to the
    registry with the token on stdin; makes the restore-test key on the server; pulls the pinned version,
-   migrates and starts; waits for `https://harbour-clinic.lumecrm.in/healthz`; prints the **setup link and
-   token**. The clients file then says `status: active` and the version.
-8. **Setup:** send the client the link and token (or sit with them): the owner account, the business, then
-   Settings (stages, fields, roles, people, integrations, templates), and optionally an import.
-9. The installation checks in at start: its row on license.lumecrm.in turns green.
+   migrates and starts; waits for `https://harbour-clinic.lumecrm.in/healthz`; then says what to send the
+   client (their address and product key; with a key in `.env`, the setup link and token instead). The clients
+   file then says `status: active` and the version.
+8. **Setup:** send the client the message from Ready to send (or sit with them): the product key, then the
+   owner account, the business, then Settings (stages, fields, roles, people, integrations, templates), and
+   optionally an import.
+9. Its row on license.lumecrm.in turns from Not activated to Active, "Active on {its address}".
 
 Running `provision.sh` again is safe: it changes nothing that's already right.
 
