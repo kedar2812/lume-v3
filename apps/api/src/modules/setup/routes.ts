@@ -3,7 +3,8 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { newTotpSecret, otpauthUri, safeEqual } from "@lume/core";
 import type { AppDeps } from "../../app";
-import { forbidden } from "../../http/errors";
+import { forbidden, HttpError, notFound, tooMany } from "../../http/errors";
+import { createLimiter } from "../webhooks/limits";
 import {
   countrySchema,
   currencySchema,
@@ -25,8 +26,36 @@ export async function setupRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
     );
     if (rows[0]!.has_users) return { needsSetup: false };
     d.setupTokens.ensure(); // a wiped installation can still be set up; the token is printed again
-    return { needsSetup: true };
+    // A client's install starts with the product key instead of the token (spec 2026-10-15 §1.1).
+    return { needsSetup: true, needsKey: app.licence.needsKey() };
   });
+
+  // The product key (spec 2026-10-15 §1.1, §4.1): ten tries an hour from one address, sixty in all. Approval hands
+  // the setup token to this browser only; every later step takes it as before.
+  const tries = createLimiter({ perSource: 10, perInstance: 60, windowMs: 3_600_000 });
+  r.post(
+    "/api/v1/setup/key",
+    { config: { public: true }, schema: { body: z.object({ key: z.string().min(1).max(128) }).strict() } },
+    async (req) => {
+      if (!app.licence.needsKey()) throw notFound("NO_KEY_NEEDED", "This LUME doesn't ask for a product key");
+      const { rows } = await d.pool.query<{ has_users: boolean }>(
+        "SELECT EXISTS (SELECT 1 FROM users) AS has_users",
+      );
+      if (rows[0]!.has_users) throw forbidden("SETUP_DONE", "LUME is already set up");
+      for (const t of [tries.source(req.ip), tries.instance()]) if (!t.ok) throw tooMany(t.retryAfterSec);
+      const r = await app.licence.activate(req.body.key);
+      if (!r.ok)
+        throw new HttpError(422, "KEY_REFUSED", "That product key wasn't approved", { reason: r.reason });
+      return {
+        token: d.setupTokens.ensure(),
+        licence: {
+          licenseType: r.view.licenseType,
+          paidUntil: r.view.paidUntil,
+          trialEndsAt: r.view.trialEndsAt,
+        },
+      };
+    },
+  );
   r.post(
     "/api/v1/setup/totp",
     { config: { public: true }, schema: { body: z.object({ token: z.string().min(1).max(128) }) } },

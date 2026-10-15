@@ -20,7 +20,20 @@ describe("first-run setup (report §15.3)", () => {
   it("reports that setup is needed", async () => {
     expect((await h.app.inject({ method: "GET", url: "/api/v1/setup/status" })).json()).toEqual({
       needsSetup: true,
+      // A development build (and an install keyed through .env) uses the setup token, not a product key.
+      needsKey: false,
     });
+  });
+
+  it("asks no product key here: the key step answers that none is needed", async () => {
+    const r = await h.app.inject({
+      method: "POST",
+      url: "/api/v1/setup/key",
+      payload: { key: "LUME-7K2P-Q9XD-4MRT-H8VC-7Q2K" },
+      ...(await h.csrf()),
+    });
+    expect(r.statusCode).toBe(404);
+    expect(r.json().error.code).toBe("NO_KEY_NEEDED");
   });
 
   it("answers a burst of status checks larger than the connection pool (no pool deadlock)", async () => {
@@ -155,7 +168,7 @@ describe("the first-run token when an installation is wiped", () => {
     const fresh = await createHarness({ noSettings: true, forgetSetupToken: true });
     try {
       const status = await fresh.app.inject({ method: "GET", url: "/api/v1/setup/status" });
-      expect(status.json()).toEqual({ needsSetup: true });
+      expect(status.json()).toEqual({ needsSetup: true, needsKey: false });
       expect(fresh.mintedTokens).toHaveLength(1);
       // The same token stays valid until it is used.
       await fresh.app.inject({ method: "GET", url: "/api/v1/setup/status" });
