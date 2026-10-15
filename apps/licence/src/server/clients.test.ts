@@ -29,8 +29,8 @@ const detail = async (id: string) => (await admin.call("GET", `/api/clients/${id
 const events = async (id: string) =>
   (
     await t.pool.query<{ kind: string; detail: Record<string, unknown> }>(
-      // The admin's actions (check-ins add their own: first_check_in, version, state).
-      "SELECT kind, detail FROM events WHERE client_id = $1 AND kind NOT IN ('first_check_in', 'version', 'state') ORDER BY id",
+      // The admin's actions (check-ins add their own: first_check_in, version, state, and the binding at the first).
+      "SELECT kind, detail FROM events WHERE client_id = $1 AND kind NOT IN ('first_check_in', 'version', 'state', 'activated') ORDER BY id",
       [id],
     )
   ).rows;

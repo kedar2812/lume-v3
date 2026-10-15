@@ -9,15 +9,22 @@ import { licenceDb, seedClient, TEST_PAIR, testCtx, type LicenceTestDb } from ".
 const KEYS = { t1: rawPublicKey(TEST_PAIR.publicKey) };
 /** The install the seeded licences are checked from (spec 2026-10-15 §2.2). */
 const INSTALL_A = "0190e0c0-0000-7000-8000-0000000000a1";
+const INSTALL_B = "0190e0c0-0000-7000-8000-0000000000b2";
 let t: LicenceTestDb;
 let now = new Date("2026-10-05T09:00:00Z");
 let ctx: Ctx;
 
-const body = (o: { instanceId: string; licenseKey: string; appVersion?: string; leadCount?: number }) =>
+const body = (o: {
+  instanceId: string;
+  licenseKey: string;
+  appVersion?: string;
+  leadCount?: number;
+  installId?: string;
+}) =>
   checkBody({
     instanceId: o.instanceId,
     licenseKey: o.licenseKey,
-    installId: INSTALL_A,
+    installId: o.installId ?? INSTALL_A,
     appVersion: o.appVersion ?? "1.4.2",
     activeUserCount: 4,
     leadCount: o.leadCount ?? 312,
@@ -232,5 +239,107 @@ describe("/v1/check (spec §4.3)", () => {
     );
     expect(await pruneCheckIns(t.pool, now)).toBe(1);
     expect(await q("SELECT 1 FROM check_ins WHERE client_id = $1", [c.clientId])).toHaveLength(1);
+  });
+});
+
+describe("check-ins come from the bound install (spec 2026-10-15 §2.2, §2.4)", () => {
+  const DAY = 86_400_000;
+  const licence = async (clientId: string) =>
+    (
+      await q<{ install_id: string | null; released_at: Date | null }>(
+        "SELECT install_id, released_at FROM licences WHERE client_id = $1",
+        [clientId],
+      )
+    )[0]!;
+  const checkInsOf = async (clientId: string) =>
+    Number((await q<{ n: string }>("SELECT count(*) AS n FROM check_ins WHERE client_id = $1", [clientId]))[0]!.n);
+  const retire = async (clientId: string, key: string, reason: "rotated" | "decommissioned", at: Date) => {
+    const { hashKey } = await import("@/lib/keys");
+    await q(
+      "INSERT INTO retired_keys (key_hash, client_id, key_last4, reason, retired_at, install_id) VALUES ($1, $2, $3, $4, $5, $6)",
+      [hashKey(key), clientId, key.slice(-4), reason, at, INSTALL_A],
+    );
+  };
+
+  it("a licence that was never bound binds to the install of its first check (keyed through .env)", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    expect((await post(body(c))).status).toBe(200);
+    expect((await licence(c.clientId)).install_id).toBe(INSTALL_A);
+    expect((await post(body({ ...c, installId: INSTALL_B }))).status).toBe(409);
+  });
+
+  it("another install is refused with KEY_IN_USE and isn't recorded as a check-in", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(body(c));
+    const before = await checkInsOf(c.clientId);
+    const r = await post(body({ ...c, installId: INSTALL_B }), "198.51.100.7");
+    expect(r.status).toBe(409);
+    expect(((await r.json()) as { error: { code: string } }).error.code).toBe("KEY_IN_USE");
+    expect(await checkInsOf(c.clientId)).toBe(before);
+    // The owner hears of it, at most once an hour from one address.
+    await post(body({ ...c, installId: INSTALL_B }), "198.51.100.7");
+    expect(
+      await q("SELECT kind FROM events WHERE client_id = $1 AND kind = 'activation_refused'", [c.clientId]),
+    ).toHaveLength(1);
+  });
+
+  it("a released key is answered but never bound by a check: only a key entered by hand takes it", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(body(c));
+    await q(
+      "UPDATE licences SET install_id = NULL, activated_at = NULL, activated_ip = NULL, released_at = $2 WHERE client_id = $1",
+      [c.clientId, now],
+    );
+    expect((await post(body(c))).status).toBe(200);
+    expect(await licence(c.clientId)).toMatchObject({ install_id: null });
+  });
+
+  it("a rotated key keeps the bound install going for 7 days, then KEY_DECOMMISSIONED", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(body(c));
+    const old = c.licenseKey;
+    const { hashKey } = await import("@/lib/keys");
+    await q("UPDATE licences SET key_hash = $2 WHERE client_id = $1", [c.clientId, hashKey("LUME-NEWK-EY00-0000-0000-0001")]);
+    await retire(c.clientId, old, "rotated", now);
+    now = new Date(now.getTime() + 6 * DAY);
+    const r = await post(body({ instanceId: c.instanceId, licenseKey: old }));
+    expect(r.status).toBe(200);
+    expect(verifyLicence(await tokenOf(r), KEYS, c.instanceId)?.state).toBe("active");
+    now = new Date(now.getTime() + 2 * DAY);
+    const late = await post(body({ instanceId: c.instanceId, licenseKey: old }));
+    expect(late.status).toBe(403);
+    expect(((await late.json()) as { error: { code: string } }).error.code).toBe("KEY_DECOMMISSIONED");
+  });
+
+  it("a rotated key from any other install is refused at once", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(body(c));
+    const { hashKey } = await import("@/lib/keys");
+    await q("UPDATE licences SET key_hash = $2 WHERE client_id = $1", [c.clientId, hashKey("LUME-NEWK-EY00-0000-0000-0002")]);
+    await retire(c.clientId, c.licenseKey, "rotated", now);
+    expect((await post(body({ ...c, installId: INSTALL_B }))).status).toBe(403);
+  });
+
+  it("a decommissioned key: the install that held it hears it's suspended (signed); anywhere else, refused", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(body(c));
+    const { hashKey } = await import("@/lib/keys");
+    await q(
+      "UPDATE licences SET key_hash = $2, key_dead_at = $3, install_id = NULL WHERE client_id = $1",
+      [c.clientId, hashKey("LUME-DEAD-0000-0000-0000-0003"), now],
+    );
+    await retire(c.clientId, c.licenseKey, "decommissioned", now);
+    const r = await post(body(c));
+    expect(r.status).toBe(200);
+    const p = verifyLicence(await tokenOf(r), KEYS, c.instanceId);
+    expect(p).toMatchObject({ state: "suspended", reason: "key_decommissioned" });
+    expect((await post(body({ ...c, installId: INSTALL_B }))).status).toBe(403);
+  });
+
+  it("an install id is required", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    const { installId: _i, ...noInstall } = body(c);
+    void _i;
+    expect((await post(noInstall)).status).toBe(400);
   });
 });

@@ -1,7 +1,7 @@
 import type { LicenceNotice, LicenceType } from "@lume/core";
 import type pg from "pg";
 import { z } from "zod";
-import { keyMatches } from "@/lib/keys";
+import { hashKey, keyMatches } from "@/lib/keys";
 import { issueToken } from "@/lib/sign";
 import { serverState } from "@/lib/state";
 import type { Ctx } from "./context";
@@ -12,8 +12,8 @@ const checkSchema = z
   .object({
     instanceId: z.string().min(1).max(64),
     licenseKey: z.string().min(1).max(128),
-    // This install's own id (spec 2026-10-15 §2.2): accepted now, acted on and required in plan Task 4.
-    installId: z.uuid().optional(),
+    // This install's own random id (spec 2026-10-15 §2.2): a key answers only the install it's bound to.
+    installId: z.uuid(),
     appVersion: z.string().min(1).max(40),
     activeUserCount: z.number().int().min(0).max(1_000_000),
     leadCount: z.number().int().min(0).max(1_000_000_000),
@@ -31,7 +31,14 @@ type Row = {
   trial_ends: string | null;
   suspended: boolean;
   decommissioned: boolean;
+  install_id: string | null;
+  activated_at: Date | null;
+  released_at: Date | null;
 };
+const DAY = 86_400_000;
+/** A rotated key keeps its server going this long, while the client enters the new one (spec 2026-10-15 §2.4). */
+const ROTATE_OVERLAP_MS = 7 * DAY;
+const refusal = (status: number, code: string, message: string) => json(status, { error: { code, message } });
 
 /** POST /v1/check (spec §4.3): the key, the state worked out here, the check-in recorded, a signed answer. */
 export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
@@ -61,29 +68,53 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
   const { rows } = await ctx.db.query<Row>(
     `SELECT l.client_id, l.key_hash, l.type,
             to_char(l.paid_until, 'YYYY-MM-DD') AS paid_until, to_char(l.trial_ends, 'YYYY-MM-DD') AS trial_ends,
-            l.suspended_at IS NOT NULL AS suspended, c.decommissioned_at IS NOT NULL AS decommissioned
+            l.suspended_at IS NOT NULL AS suspended, c.decommissioned_at IS NOT NULL AS decommissioned,
+            l.install_id, l.activated_at, l.released_at
        FROM licences l JOIN clients c ON c.id = l.client_id
       WHERE l.instance_id = $1`,
     [b.instanceId],
   );
   const l = rows[0];
-  if (!keyMatches(b.licenseKey, l?.key_hash ?? null) || !l) {
+  const unknown = () => {
     ctx.limits.wrongKey.take(pair, now.getTime());
     return json(401, UNAUTHORIZED);
+  };
+  if (!l) return unknown();
+  // A key the owner decommissioned answers its own server "suspended", signed, so that LUME pauses.
+  let paused = false;
+  if (keyMatches(b.licenseKey, l.key_hash)) {
+    if ((await bindForCheck(ctx, l, b.installId, b.appVersion, ip, now)) === "other")
+      return refusal(409, "KEY_IN_USE", "This key is active on another LUME.");
+  } else {
+    const retired = await retiredKey(ctx.db, l.client_id, b.licenseKey);
+    if (!retired) return unknown();
+    const fromHolder = retired.install_id === b.installId;
+    const gone = () => refusal(403, "KEY_DECOMMISSIONED", "This key has been decommissioned.");
+    if (retired.reason === "decommissioned") {
+      if (!fromHolder) return gone();
+      paused = true;
+    } else if (
+      !fromHolder ||
+      l.install_id !== b.installId ||
+      now.getTime() - retired.retired_at.getTime() >= ROTATE_OVERLAP_MS
+    )
+      return gone();
   }
   const byInstance = ctx.limits.instance.take(b.instanceId, now.getTime());
   if (!byInstance.ok) return limited(byInstance.retryAfterS);
 
-  const { state, reason } = serverState(
-    {
-      type: l.type,
-      paidUntil: l.paid_until,
-      trialEnds: l.trial_ends,
-      suspended: l.suspended,
-      decommissioned: l.decommissioned,
-    },
-    now,
-  );
+  const { state, reason } = paused
+    ? { state: "suspended" as const, reason: "key_decommissioned" }
+    : serverState(
+        {
+          type: l.type,
+          paidUntil: l.paid_until,
+          trialEnds: l.trial_ends,
+          suspended: l.suspended,
+          decommissioned: l.decommissioned,
+        },
+        now,
+      );
   const notice = await record(ctx.db, l.client_id, { ...b, ip, state, now });
   const token = issueToken(ctx.signer, now, {
     instanceId: b.instanceId,
@@ -95,6 +126,66 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
     notice,
   });
   return json(200, { token });
+}
+
+/**
+ * Whether this install may check in on the licence's live key (spec 2026-10-15 §2.2): the bound install, yes; a
+ * licence never bound binds to it (an install keyed through .env); a released one is answered without binding
+ * (only a key entered by hand takes it); any other install is refused, and the owner hears of it at most once an
+ * hour from one address.
+ */
+async function bindForCheck(
+  ctx: Ctx,
+  l: Row,
+  installId: string,
+  version: string,
+  ip: string,
+  now: Date,
+): Promise<"ok" | "other"> {
+  if (l.install_id === installId) return "ok";
+  if (!l.install_id) {
+    if (l.released_at || l.activated_at) return "ok";
+    const bound = await ctx.db.query(
+      `UPDATE licences SET install_id = $2, activated_at = $3, activated_ip = $4
+        WHERE client_id = $1 AND install_id IS NULL AND activated_at IS NULL AND released_at IS NULL`,
+      [l.client_id, installId, now, ip],
+    );
+    if (bound.rowCount) {
+      await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'activated', $3)", [
+        l.client_id,
+        now,
+        JSON.stringify({ ip, version, via: "check" }),
+      ]);
+      return "ok";
+    }
+    // Another install bound it a moment ago.
+    const now2 = (
+      await ctx.db.query<{ install_id: string | null }>("SELECT install_id FROM licences WHERE client_id = $1", [
+        l.client_id,
+      ])
+    ).rows[0];
+    if (!now2?.install_id || now2.install_id === installId) return "ok";
+  }
+  await ctx.db.query(
+    `INSERT INTO events (client_id, at, kind, detail)
+     SELECT $1, $2, 'activation_refused', $3
+      WHERE NOT EXISTS (SELECT 1 FROM events WHERE client_id = $1 AND kind = 'activation_refused'
+                          AND detail->>'ip' = $4 AND at > $2::timestamptz - interval '1 hour')`,
+    [l.client_id, now, JSON.stringify({ ip }), ip],
+  );
+  return "other";
+}
+
+/** A retired key of this client's (rotated or decommissioned), or null. */
+async function retiredKey(db: pg.Pool, clientId: string, key: string) {
+  return (
+    (
+      await db.query<{ reason: "rotated" | "decommissioned"; retired_at: Date; install_id: string | null }>(
+        "SELECT reason, retired_at, install_id FROM retired_keys WHERE key_hash = $1 AND client_id = $2",
+        [hashKey(key), clientId],
+      )
+    ).rows[0] ?? null
+  );
 }
 
 /** The check-in, and what changed since the last one (a new version, a new state), in one transaction. */
