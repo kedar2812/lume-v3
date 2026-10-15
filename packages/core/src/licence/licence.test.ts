@@ -187,7 +187,15 @@ describe("what the check sends (spec §2.4: only this)", () => {
       now: at("2026-09-30T10:00:00Z"),
     });
     expect(Object.keys(body).sort()).toEqual(
-      ["activeUserCount", "appVersion", "installId", "instanceId", "leadCount", "licenseKey", "serverTime"].sort(),
+      [
+        "activeUserCount",
+        "appVersion",
+        "installId",
+        "instanceId",
+        "leadCount",
+        "licenseKey",
+        "serverTime",
+      ].sort(),
     );
     expect(body.serverTime).toBe("2026-09-30T10:00:00.000Z");
   });

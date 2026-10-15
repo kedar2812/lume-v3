@@ -53,7 +53,9 @@ describe("POST /v1/activate (spec 2026-10-15 §2.1)", () => {
     expect(p?.state).toBe("active");
     expect(p?.paidUntil).toBe("2026-12-01");
     expect(
-      await q("SELECT install_id, activated_ip, activated_at FROM licences WHERE client_id = $1", [c.clientId]),
+      await q("SELECT install_id, activated_ip, activated_at FROM licences WHERE client_id = $1", [
+        c.clientId,
+      ]),
     ).toEqual([{ install_id: A, activated_ip: "203.0.113.9", activated_at: now }]);
     expect(await kinds(c.clientId)).toEqual(["activated"]);
   });
@@ -136,9 +138,9 @@ describe("POST /v1/activate (spec 2026-10-15 §2.1)", () => {
       [c.clientId, now],
     );
     expect((await activate(c.licenseKey, B)).status).toBe(200);
-    expect(await q("SELECT install_id, released_at FROM licences WHERE client_id = $1", [c.clientId])).toEqual([
-      { install_id: B, released_at: null },
-    ]);
+    expect(
+      await q("SELECT install_id, released_at FROM licences WHERE client_id = $1", [c.clientId]),
+    ).toEqual([{ install_id: B, released_at: null }]);
   });
 
   it("takes nothing it doesn't expect: no lead data, no extra fields, no junk", async () => {

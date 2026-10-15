@@ -124,7 +124,15 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     const { url, body } = sent[0]!;
     expect(url).toBe("https://licence.test/v1/check");
     expect(Object.keys(body).sort()).toEqual(
-      ["activeUserCount", "appVersion", "installId", "instanceId", "leadCount", "licenseKey", "serverTime"].sort(),
+      [
+        "activeUserCount",
+        "appVersion",
+        "installId",
+        "instanceId",
+        "leadCount",
+        "licenseKey",
+        "serverTime",
+      ].sort(),
     );
     expect(body).toMatchObject({ instanceId: INSTANCE, licenseKey: KEY, appVersion: "1.4.2" });
     expect(body.installId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);

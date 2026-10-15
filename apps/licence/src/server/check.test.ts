@@ -252,7 +252,9 @@ describe("check-ins come from the bound install (spec 2026-10-15 §2.2, §2.4)",
       )
     )[0]!;
   const checkInsOf = async (clientId: string) =>
-    Number((await q<{ n: string }>("SELECT count(*) AS n FROM check_ins WHERE client_id = $1", [clientId]))[0]!.n);
+    Number(
+      (await q<{ n: string }>("SELECT count(*) AS n FROM check_ins WHERE client_id = $1", [clientId]))[0]!.n,
+    );
   const retire = async (clientId: string, key: string, reason: "rotated" | "decommissioned", at: Date) => {
     const { hashKey } = await import("@/lib/keys");
     await q(
@@ -299,7 +301,10 @@ describe("check-ins come from the bound install (spec 2026-10-15 §2.2, §2.4)",
     await post(body(c));
     const old = c.licenseKey;
     const { hashKey } = await import("@/lib/keys");
-    await q("UPDATE licences SET key_hash = $2 WHERE client_id = $1", [c.clientId, hashKey("LUME-NEWK-EY00-0000-0000-0001")]);
+    await q("UPDATE licences SET key_hash = $2 WHERE client_id = $1", [
+      c.clientId,
+      hashKey("LUME-NEWK-EY00-0000-0000-0001"),
+    ]);
     await retire(c.clientId, old, "rotated", now);
     now = new Date(now.getTime() + 6 * DAY);
     const r = await post(body({ instanceId: c.instanceId, licenseKey: old }));
@@ -315,7 +320,10 @@ describe("check-ins come from the bound install (spec 2026-10-15 §2.2, §2.4)",
     const c = await seedClient(t.pool, { type: "perpetual" });
     await post(body(c));
     const { hashKey } = await import("@/lib/keys");
-    await q("UPDATE licences SET key_hash = $2 WHERE client_id = $1", [c.clientId, hashKey("LUME-NEWK-EY00-0000-0000-0002")]);
+    await q("UPDATE licences SET key_hash = $2 WHERE client_id = $1", [
+      c.clientId,
+      hashKey("LUME-NEWK-EY00-0000-0000-0002"),
+    ]);
     await retire(c.clientId, c.licenseKey, "rotated", now);
     expect((await post(body({ ...c, installId: INSTALL_B }))).status).toBe(403);
   });
@@ -324,10 +332,11 @@ describe("check-ins come from the bound install (spec 2026-10-15 §2.2, §2.4)",
     const c = await seedClient(t.pool, { type: "perpetual" });
     await post(body(c));
     const { hashKey } = await import("@/lib/keys");
-    await q(
-      "UPDATE licences SET key_hash = $2, key_dead_at = $3, install_id = NULL WHERE client_id = $1",
-      [c.clientId, hashKey("LUME-DEAD-0000-0000-0000-0003"), now],
-    );
+    await q("UPDATE licences SET key_hash = $2, key_dead_at = $3, install_id = NULL WHERE client_id = $1", [
+      c.clientId,
+      hashKey("LUME-DEAD-0000-0000-0000-0003"),
+      now,
+    ]);
     await retire(c.clientId, c.licenseKey, "decommissioned", now);
     const r = await post(body(c));
     expect(r.status).toBe(200);

@@ -25,7 +25,11 @@ describe("instance ids and licence keys", () => {
   });
   it("a key typed loosely hashes as the issued one (spec 2026-10-15 §1.1)", () => {
     const k = newLicenceKey();
-    const loose = k.toLowerCase().replaceAll("-", " ").replace(/^lume /, "").replaceAll("0", "o");
+    const loose = k
+      .toLowerCase()
+      .replaceAll("-", " ")
+      .replace(/^lume /, "")
+      .replaceAll("0", "o");
     expect(hashKey(loose).equals(hashKey(k))).toBe(true);
     expect(keyMatches(loose.replaceAll(" ", "–"), hashKey(k))).toBe(true);
   });

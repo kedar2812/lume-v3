@@ -151,18 +151,18 @@ async function bindForCheck(
       [l.client_id, installId, now, ip],
     );
     if (bound.rowCount) {
-      await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'activated', $3)", [
-        l.client_id,
-        now,
-        JSON.stringify({ ip, version, via: "check" }),
-      ]);
+      await ctx.db.query(
+        "INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'activated', $3)",
+        [l.client_id, now, JSON.stringify({ ip, version, via: "check" })],
+      );
       return "ok";
     }
     // Another install bound it a moment ago.
     const now2 = (
-      await ctx.db.query<{ install_id: string | null }>("SELECT install_id FROM licences WHERE client_id = $1", [
-        l.client_id,
-      ])
+      await ctx.db.query<{ install_id: string | null }>(
+        "SELECT install_id FROM licences WHERE client_id = $1",
+        [l.client_id],
+      )
     ).rows[0];
     if (!now2?.install_id || now2.install_id === installId) return "ok";
   }
@@ -243,7 +243,10 @@ async function record(
 }
 
 /** The client's open payment reminder, as the token carries it, or null. */
-export async function openNotice(db: pg.Pool | pg.PoolClient, clientId: string): Promise<LicenceNotice | null> {
+export async function openNotice(
+  db: pg.Pool | pg.PoolClient,
+  clientId: string,
+): Promise<LicenceNotice | null> {
   const n = (
     await db.query<{ id: string; note: string; due_date: string | null; contact: string | null }>(
       `SELECT n.id, n.note, to_char(n.due_date, 'YYYY-MM-DD') AS due_date, s.billing_contact AS contact
