@@ -23,7 +23,8 @@ works on one server only.
 - **Refused** (LUME's voice):
   - unknown key: "LUME doesn't recognise that key. Check it against the message you were sent."
   - in use elsewhere: "This key is already active on another LUME. Ask whoever gave it to you to release it."
-  - paused or decommissioned: "This key's licence is paused."
+  - paused, or the client decommissioned: "This key's licence is paused."
+  - a retired key: "This key has been decommissioned and works nowhere. Use the newest key you were sent."
   - licence server unreachable or erroring: "LUME couldn't reach the licence server. Check this server's internet
     connection, then try again."
   - too many tries: "Too many tries. Try again in an hour."
@@ -74,9 +75,21 @@ key and instance ID are used. Checks every 6 hours run as today, with the instal
   admins' TOTP secrets are), alongside the existing `key_hash` and `key_last4`.
 - Licences created before this have no `key_enc`; their card offers Rotate to get a showable key.
 
-### 2.4 Rotate and Release
-- **Rotate:** a new key (hash, sealed, last four); **the binding is kept**. The client enters the new key in
-  Settings → About. Event `key_rotated`.
+### 2.4 Rotate, Release and Decommission
+- **Retired keys (new table `retired_keys`:** key hash, client, `retired_at`, reason `rotated | decommissioned`).
+  A retired key never works again anywhere: `/v1/activate` answers 403 `KEY_DECOMMISSIONED` ("This key has been
+  decommissioned and works nowhere. Use the newest key you were sent."), and a key can never be issued twice.
+- **Rotate** (owner, 2026-10-15: "the old key gets decommissioned automatically"): a new key (hash, sealed, last
+  four); the old key goes to `retired_keys` as `rotated`; **the binding is kept**. The client enters the new key in
+  Settings → About. Until then, its check-ins with the old key are answered with the current licence (so a
+  rotation never locks a client out mid-day) for 7 days, then 403 `KEY_DECOMMISSIONED`. Events `key_rotated`,
+  `key_decommissioned`.
+- **Decommission** (owner: a red press-and-hold button, "so that it is not misused anywhere"): held for 1.5 s on the
+  Licence key card (Space or Enter held works too; letting go early springs back and does nothing). The key goes to
+  `retired_keys` as `decommissioned` at once, the binding is cleared, and the licence has no live key until
+  **Issue a new key**. The server that was using it is answered with a **signed `suspended` token** at its next
+  check (so it pauses, with export still working); every other use answers 403 `KEY_DECOMMISSIONED`. Event
+  `key_decommissioned`. Issue a new key makes a fresh key with no binding (the ready-to-send card again).
 - **Release:** clears `install_id`, `activated_at`, `activated_ip` and sets `released_at`; the next server to
   activate takes it. Event `key_released`. After a release, **only `/v1/activate` (a key entered by hand) can bind
   the key**: a check-in never binds a released licence, so the old server can't quietly take it back at its next
@@ -99,9 +112,11 @@ After Create, the sheet shows:
   - "Active on {ip} since {date}" (green);
   - "Released — the next server to enter it takes it" (amber).
 - **Key:** masked, with Show, Copy and Copy message (when `key_enc` exists).
-- **Actions** (inline confirm): Rotate, Release, and the existing Pause this LUME.
+- **Actions** (inline confirm): Rotate (decommissions the old key), Release, and the existing Pause this LUME.
+- **Hold to decommission key** (red, press and hold 1.5 s, §2.4); afterwards the card reads "Key decommissioned"
+  with **Issue a new key**.
 - **History** words: "Key created", "Activated on {ip}", "Key tried on another server ({ip})", "Key rotated",
-  "Key released".
+  "Key decommissioned", "Key released".
 
 ### 3.3 Clients list
 - A **"Not activated"** state (pill and filter tile): a licence nobody has entered yet.
@@ -131,8 +146,8 @@ After Create, the sheet shows:
 - Development builds and the demo are unchanged.
 
 ### 4.3 Testing
-- **Licence server:** activate (new, same install, other install, unknown, paused, rate limit); check with an
-  install ID (bound, unbound binds, other install refused); rotate keeps the binding; release; seal/unseal; the
+- **Licence server:** activate (new, same install, other install, unknown, paused, retired, rate limit); check with an
+  install ID (bound, unbound binds, other install refused); rotate keeps the binding and retires the old key (7-day overlap); decommission (suspended token to the bound server, 403 elsewhere, Issue a new key); release; seal/unseal; the
   bell items.
 - **Instance:** the key step (release vs development, `.env` precedence, each refusal, retry, rate limit, token to
   that browser only); Change key; the pinned check body.
