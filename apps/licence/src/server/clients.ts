@@ -1,4 +1,5 @@
 import { isCurrency, type LicenceType } from "@lume/core/shared";
+import { createHash, randomBytes } from "node:crypto";
 import type pg from "pg";
 import { z } from "zod";
 import { alertsFor, compareVersions, visibleAlerts, type AlertClient } from "@/lib/alerts";
@@ -581,17 +582,107 @@ export async function revealKey(ctx: Ctx, id: string) {
   return { licenseKey: unseal(ctx.master, r.key_enc, `key:${id}`) };
 }
 
-/** A new key, shown once; the old one stops at once. */
+type KeyRow = {
+  key_hash: Buffer;
+  key_last4: string;
+  install_id: string | null;
+  activated_ip: string | null;
+  key_dead_at: Date | null;
+};
+const keyRow = async (c: pg.PoolClient, id: string) =>
+  (
+    await c.query<KeyRow>(
+      "SELECT key_hash, key_last4, install_id, activated_ip, key_dead_at FROM licences WHERE client_id = $1",
+      [id],
+    )
+  ).rows[0]!;
+const retire = (c: pg.PoolClient, id: string, k: KeyRow, reason: "rotated" | "decommissioned", at: Date) =>
+  c.query(
+    `INSERT INTO retired_keys (key_hash, client_id, key_last4, reason, retired_at, install_id)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [k.key_hash, id, k.key_last4, reason, at, k.install_id],
+  );
+
+/**
+ * Rotate (spec 2026-10-15 §2.4, owner: "the old key gets decommissioned automatically"): a new key on the same
+ * server; the old one is retired for good (its server keeps going on it for 7 days while the client enters the new).
+ */
 export async function rotateKey(ctx: Ctx, id: string) {
   const licenseKey = newLicenceKey();
+  const now = ctx.now();
   await tx(ctx, async (c) => {
     await lockRow(c, id);
-    await c.query("UPDATE licences SET key_hash = $2, key_last4 = $3 WHERE client_id = $1", [
+    const k = await keyRow(c, id);
+    if (k.key_dead_at) throw new Refusal(409, "This key was decommissioned. Issue a new key instead.", "KEY_DEAD");
+    await retire(c, id, k, "rotated", now);
+    await c.query("UPDATE licences SET key_hash = $2, key_last4 = $3, key_enc = $4 WHERE client_id = $1", [
       id,
       hashKey(licenseKey),
       lastFour(licenseKey),
+      sealKey(ctx, id, licenseKey),
     ]);
-    await event(c, id, ctx.now(), "key_rotated", { last4: lastFour(licenseKey) });
+    await event(c, id, now, "key_rotated", { last4: lastFour(licenseKey) });
+    await event(c, id, now, "key_decommissioned", { last4: k.key_last4, via: "rotate" });
+  });
+  return { licenseKey, ...(await getClient(ctx, id)) };
+}
+
+/** Release (spec §2.4): the key leaves its server; the next one to enter it by hand takes it. */
+export async function releaseKey(ctx: Ctx, id: string) {
+  const now = ctx.now();
+  await tx(ctx, async (c) => {
+    await lockRow(c, id);
+    const k = await keyRow(c, id);
+    if (!k.install_id) throw new Refusal(409, "No server holds this key yet.", "NOT_ACTIVE");
+    await c.query(
+      `UPDATE licences SET install_id = NULL, activated_at = NULL, activated_ip = NULL, released_at = $2
+        WHERE client_id = $1`,
+      [id, now],
+    );
+    await event(c, id, now, "key_released", { ip: k.activated_ip });
+  });
+  return getClient(ctx, id);
+}
+
+/**
+ * Decommission the key (spec §2.4: held for 1.5 s on the card): retired for good, so it works nowhere; its server
+ * hears "suspended" at its next check. The licence keeps no live key until Issue a new key: its hash becomes one
+ * no key can make, so the unique index still holds.
+ */
+export async function decommissionKey(ctx: Ctx, id: string) {
+  const now = ctx.now();
+  await tx(ctx, async (c) => {
+    await lockRow(c, id);
+    const k = await keyRow(c, id);
+    if (k.key_dead_at) throw new Refusal(409, "This key is already decommissioned.", "KEY_DEAD");
+    await retire(c, id, k, "decommissioned", now);
+    const dead = createHash("sha256").update(`dead:${id}:`).update(randomBytes(32)).digest();
+    await c.query(
+      `UPDATE licences SET key_hash = $2, key_enc = NULL, key_dead_at = $3,
+              install_id = NULL, activated_at = NULL, activated_ip = NULL, released_at = NULL
+        WHERE client_id = $1`,
+      [id, dead, now],
+    );
+    await event(c, id, now, "key_decommissioned", { last4: k.key_last4, via: "hold" });
+  });
+  return getClient(ctx, id);
+}
+
+/** Issue a new key (spec §2.4), only after a decommission: fresh, bound to nothing, shown and copyable. */
+export async function issueKey(ctx: Ctx, id: string) {
+  const licenseKey = newLicenceKey();
+  const now = ctx.now();
+  await tx(ctx, async (c) => {
+    await lockRow(c, id);
+    const k = await keyRow(c, id);
+    if (!k.key_dead_at)
+      throw new Refusal(409, "This licence already has a live key. Rotate it instead.", "KEY_ALIVE");
+    await c.query(
+      `UPDATE licences SET key_hash = $2, key_last4 = $3, key_enc = $4, key_dead_at = NULL, released_at = NULL
+        WHERE client_id = $1`,
+      [id, hashKey(licenseKey), lastFour(licenseKey), sealKey(ctx, id, licenseKey)],
+    );
+    await event(c, id, now, "key_created", { last4: lastFour(licenseKey) });
   });
   return { licenseKey, ...(await getClient(ctx, id)) };
 }

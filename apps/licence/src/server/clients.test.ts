@@ -38,6 +38,7 @@ async function check(instanceId: string, licenseKey: string) {
   const r = await handleCheck(
     new Request("https://licence.test/v1/check", {
       method: "POST",
+      headers: { "x-real-ip": "203.0.113.9" },
       body: JSON.stringify(
         checkBody({
           instanceId,
@@ -312,15 +313,16 @@ describe("a client's actions (spec §4.4)", () => {
     expect((await detail(client.id)).notice).toBeNull();
   });
 
-  it("rotate: a new key shown once; the old one stops working", async () => {
+  it("rotate: a new key; the old one is decommissioned (spec 2026-10-15 §2.4), never unknown", async () => {
     const { client, licenseKey } = await create({ name: "Meridian Tutors" });
     const r = await admin.call("POST", `/api/clients/${client.id}/rotate`);
     expect(r.status).toBe(200);
     expect(r.data.licenseKey).not.toBe(licenseKey);
-    expect((await check(client.instanceId, licenseKey)).status).toBe(401);
+    // Never checked in, so no server holds the old key: it's refused as decommissioned at once.
+    expect((await check(client.instanceId, licenseKey)).status).toBe(403);
     expect((await check(client.instanceId, r.data.licenseKey)).status).toBe(200);
     expect((await detail(client.id)).client.keyMasked).toMatch(new RegExp(`${r.data.licenseKey.slice(-4)}$`));
-    expect((await events(client.id)).at(-1)?.kind).toBe("key_rotated");
+    expect((await events(client.id)).slice(-2).map((e) => e.kind)).toEqual(["key_rotated", "key_decommissioned"]);
   });
 
   it("decommissioning later doesn't rewrite the history: the client left when it was suspended", async () => {
@@ -447,6 +449,86 @@ describe("keys you can copy again, and where they're active (spec 2026-10-15 §2
         [a.client.id, b.client.id],
       ),
     ).rejects.toThrow(/licences_key_hash/);
+  });
+});
+
+describe("the key's actions (spec 2026-10-15 §2.4, §3.2)", () => {
+  const INSTALL = "0190e0c0-0000-7000-8000-0000000000c1"; // the install check() sends
+  const lic = async (id: string) =>
+    (
+      await t.pool.query<{ install_id: string | null; released_at: Date | null; key_dead_at: Date | null }>(
+        "SELECT install_id, released_at, key_dead_at FROM licences WHERE client_id = $1",
+        [id],
+      )
+    ).rows[0]!;
+  const retired = async (id: string) =>
+    (
+      await t.pool.query<{ reason: string; install_id: string | null; key_last4: string }>(
+        "SELECT reason, install_id, key_last4 FROM retired_keys WHERE client_id = $1 ORDER BY retired_at, key_last4",
+        [id],
+      )
+    ).rows;
+
+  it("rotate keeps the server: the new key works there, the old one goes to the retired keys with it", async () => {
+    const { client, licenseKey } = await create({ name: "Lakeside Dental" });
+    await check(client.instanceId, licenseKey); // binds
+    const r = await admin.call("POST", `/api/clients/${client.id}/rotate`);
+    expect((await lic(client.id)).install_id).toBe(INSTALL);
+    expect(await retired(client.id)).toEqual([
+      { reason: "rotated", install_id: INSTALL, key_last4: licenseKey.slice(-4) },
+    ]);
+    // The new key can be shown again; the old server keeps going on its old key for now.
+    expect((await admin.call("GET", `/api/clients/${client.id}/key`)).data.licenseKey).toBe(r.data.licenseKey);
+    expect((await check(client.instanceId, licenseKey)).status).toBe(200);
+  });
+
+  it("release frees the key for a new server; a key nobody holds can't be released", async () => {
+    const { client, licenseKey } = await create({ name: "Hilltop Fitness" });
+    expect((await admin.call("POST", `/api/clients/${client.id}/release`)).data.error.code).toBe("NOT_ACTIVE");
+    await check(client.instanceId, licenseKey);
+    const r = await admin.call("POST", `/api/clients/${client.id}/release`);
+    expect(r.status).toBe(200);
+    expect(r.data.client.activation.status).toBe("released");
+    expect(await lic(client.id)).toMatchObject({ install_id: null, released_at: now });
+    expect((await events(client.id)).at(-1)).toEqual({ kind: "key_released", detail: { ip: "203.0.113.9" } });
+  });
+
+  it("decommission (held on the card): the key is dead for good, the client has no live key, twice is refused", async () => {
+    const { client, licenseKey } = await create({ name: "Cedar Physio" });
+    await check(client.instanceId, licenseKey);
+    const r = await admin.call("POST", `/api/clients/${client.id}/key/decommission`);
+    expect(r.status).toBe(200);
+    expect(r.data.client.activation.status).toBe("decommissioned");
+    expect(r.data.client.keyShowable).toBe(false);
+    expect(await retired(client.id)).toEqual([
+      { reason: "decommissioned", install_id: INSTALL, key_last4: licenseKey.slice(-4) },
+    ]);
+    expect((await admin.call("GET", `/api/clients/${client.id}/key`)).status).toBe(404);
+    expect((await admin.call("POST", `/api/clients/${client.id}/key/decommission`)).status).toBe(409);
+    expect((await events(client.id)).at(-1)).toEqual({
+      kind: "key_decommissioned",
+      detail: { last4: licenseKey.slice(-4), via: "hold" },
+    });
+  });
+
+  it("issue a new key: only after a decommission; it's fresh, unbound, and can be shown", async () => {
+    const { client } = await create({ name: "Maple Learning" });
+    expect((await admin.call("POST", `/api/clients/${client.id}/key/issue`)).status).toBe(409);
+    await admin.call("POST", `/api/clients/${client.id}/key/decommission`);
+    const r = await admin.call("POST", `/api/clients/${client.id}/key/issue`);
+    expect(r.status).toBe(200);
+    expect(r.data.licenseKey).toMatch(/^LUME(-[0-9A-HJKMNP-TV-Z]{4}){5}$/);
+    expect(r.data.client.activation.status).toBe("not_activated");
+    expect(await lic(client.id)).toMatchObject({ install_id: null, key_dead_at: null, released_at: null });
+    expect((await admin.call("GET", `/api/clients/${client.id}/key`)).data.licenseKey).toBe(r.data.licenseKey);
+    expect((await check(client.instanceId, r.data.licenseKey)).status).toBe(200);
+    expect((await events(client.id)).at(-1)?.kind).toBe("key_created");
+  });
+
+  it("rotate after a decommission is refused: issue a new key instead", async () => {
+    const { client } = await create({ name: "Birch Wellness" });
+    await admin.call("POST", `/api/clients/${client.id}/key/decommission`);
+    expect((await admin.call("POST", `/api/clients/${client.id}/rotate`)).data.error.code).toBe("KEY_DEAD");
   });
 });
 

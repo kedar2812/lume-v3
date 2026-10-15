@@ -36,6 +36,9 @@ import {
   releases,
   reminderOff,
   reminderOn,
+  decommissionKey,
+  issueKey,
+  releaseKey,
   revealKey,
   rotateKey,
   setSuspended,
@@ -194,6 +197,9 @@ route("POST", "/api/clients/:id/reminder", ({ ctx, params, body }) =>
 route("DELETE", "/api/clients/:id/reminder", ({ ctx, params }) => reminderOff(ctx, params.id!));
 route("GET", "/api/clients/:id/key", ({ ctx, params }) => revealKey(ctx, params.id!));
 route("POST", "/api/clients/:id/rotate", ({ ctx, params }) => rotateKey(ctx, params.id!));
+route("POST", "/api/clients/:id/release", ({ ctx, params }) => releaseKey(ctx, params.id!));
+route("POST", "/api/clients/:id/key/decommission", ({ ctx, params }) => decommissionKey(ctx, params.id!));
+route("POST", "/api/clients/:id/key/issue", ({ ctx, params }) => issueKey(ctx, params.id!));
 route("POST", "/api/clients/:id/suspend", ({ ctx, params }) => setSuspended(ctx, params.id!, true));
 route("POST", "/api/clients/:id/resume", ({ ctx, params }) => setSuspended(ctx, params.id!, false));
 route("POST", "/api/clients/:id/decommission", ({ ctx, params }) => decommission(ctx, params.id!));
