@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { blockSize, encodeSteps, fitWithin, normRect, notSent, screenOf, themeOf, toImageRect } from "./shots";
+import {
+  blockSize,
+  encodeSteps,
+  fitWithin,
+  normRect,
+  notSent,
+  screenOf,
+  themeOf,
+  toImageRect,
+} from "./shots";
 
 describe("fitWithin", () => {
   it("keeps a picture within 2400 px on its long edge, in proportion, and never enlarges it", () => {
@@ -40,9 +49,12 @@ describe("rectangles", () => {
 
 describe("what travels with it", () => {
   it("says the screen and the theme", () => {
-    expect(screenOf({ innerWidth: 1536, innerHeight: 864, devicePixelRatio: 1.25 })).toBe("1536 × 864 · 1.25×");
+    expect(screenOf({ innerWidth: 1536, innerHeight: 864, devicePixelRatio: 1.25 })).toBe(
+      "1536 × 864 · 1.25×",
+    );
     expect(screenOf({ innerWidth: 390, innerHeight: 844, devicePixelRatio: 3 })).toBe("390 × 844 · 3×");
-    const doc = (t?: string) => ({ documentElement: { dataset: t ? { theme: t } : {} } }) as unknown as Document;
+    const doc = (t?: string) =>
+      ({ documentElement: { dataset: t ? { theme: t } : {} } }) as unknown as Document;
     expect(themeOf(doc("obsidian"), false)).toBe("obsidian");
     expect(themeOf(doc("porcelain"), true)).toBe("porcelain");
     expect(themeOf(doc("system"), true)).toBe("obsidian");

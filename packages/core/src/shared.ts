@@ -20,6 +20,7 @@ export * from "./users/device";
 export * from "./users/avatar";
 // Feedback from a client's LUME (spec 2026-10-16): the limits and checks the sheet and both servers share.
 export * from "./feedback/rules";
+export * from "./images/clean";
 export * from "./users/initials";
 export * from "./analytics";
 export * from "./onboarding/steps";

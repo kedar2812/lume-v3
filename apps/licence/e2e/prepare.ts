@@ -98,6 +98,8 @@ const HEARD_H: Record<string, number> = {
 };
 const OLD = new Set(["Oakline Realty", "Kestrel Logistics"]);
 const ids: Record<string, string> = {};
+// One client's LUME, bound to a known install, so the feedback test can send a report as it (spec 2026-10-16 §2.1).
+let feedback: { instanceId: string; licenseKey: string; installId: string } | null = null;
 for (const [i, c] of CANVAS_CLIENTS.entries()) {
   const first = c.prices[0]!;
   const made = await createClient(ctx, {
@@ -115,6 +117,14 @@ for (const [i, c] of CANVAS_CLIENTS.entries()) {
   });
   const id = made.client.id;
   ids[c.name] = id;
+  if (i === 0) {
+    const installId = "0190e0c0-0000-7000-8000-00000000fb01";
+    const { rows } = await pool.query<{ instance_id: string }>(
+      "UPDATE licences SET install_id = $2, activated_at = $3, activated_ip = '203.0.113.24' WHERE client_id = $1 RETURNING instance_id",
+      [id, installId, now],
+    );
+    feedback = { instanceId: rows[0]!.instance_id, licenseKey: made.licenseKey, installId };
+  }
   const created = moved(c.createdAt);
   await pool.query("UPDATE clients SET created_at = $2 WHERE id = $1", [id, created]);
   await pool.query("UPDATE events SET at = $2 WHERE client_id = $1", [id, created]);
@@ -202,6 +212,6 @@ writeFileSync(
 );
 writeFileSync(
   path.join(out, "admin.json"),
-  JSON.stringify({ email: "owner@lume.test", password: PASSWORD, secret, ids }),
+  JSON.stringify({ email: "owner@lume.test", password: PASSWORD, secret, ids, feedback }),
 );
 console.log(`licence e2e: ${CANVAS_CLIENTS.length} clients in ${db.name}`);

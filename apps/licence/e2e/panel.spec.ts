@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { cleanImage } from "@lume/core/shared";
 
 /** The seeded admin (prepare.ts) and each client's id. */
 const seed = () =>
@@ -10,6 +11,8 @@ const seed = () =>
     password: string;
     secret: string;
     ids: Record<string, string>;
+    /** Brightpath Studio's LUME, bound to a known install. */
+    feedback: { instanceId: string; licenseKey: string; installId: string };
   };
 
 /** The authenticator's six digits (RFC 6238), for the seeded secret. */
@@ -180,4 +183,106 @@ test("a client's actions, end to end: New licence, Ready to send, Mark paid, the
   await shot(page, "client-after-actions");
   await page.getByRole("button", { name: "Resume" }).click();
   await expect(page.getByRole("button", { name: "Suspend…" })).toBeVisible();
+});
+
+test("Feedback: a report from a client's LUME, the inbox, one report, the viewer, Fixed in, the client card and Releases", async () => {
+  const s = seed();
+  await theme(page, "light");
+  // A real JPEG, made the way a browser makes one, and cleaned the way LUME's sheet cleans it before sending.
+  const made = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 1280;
+    c.height = 720;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#eef0f3";
+    x.fillRect(0, 0, 1280, 720);
+    x.fillStyle = "#ffffff";
+    x.fillRect(190, 10, 1080, 700);
+    x.fillStyle = "#2a5bff";
+    x.fillRect(220, 60, 520, 36);
+    x.fillStyle = "#0a0c11";
+    for (let i = 0; i < 8; i++) x.fillRect(220, 140 + i * 56, 300 + ((i * 97) % 400), 14);
+    return c.toDataURL("image/jpeg", 0.85).split(",")[1]!;
+  });
+  const data = Buffer.from(cleanImage(new Uint8Array(Buffer.from(made, "base64")), "image/jpeg")).toString(
+    "base64",
+  );
+  const r = await page.request.post("/v1/feedback", {
+    headers: { "x-real-ip": "198.51.100.40" },
+    data: {
+      ...s.feedback,
+      appVersion: "1.4.1",
+      browser:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      reporter: { name: "Priya Shah", email: "priya@harbour.example", role: "Sales rep" },
+      kind: "bug",
+      text: "I dragged a lead from Contacted to Meeting set. The card jumped back until I refreshed.\n\nTwice this morning.",
+      page: "/pipeline",
+      theme: "porcelain",
+      screen: "1536 × 864 · 1.25×",
+      images: [{ type: "image/jpeg", data }],
+    },
+  });
+  expect(r.status(), await r.text()).toBe(201);
+
+  await page.goto("/feedback");
+  await expect(page.getByRole("link", { name: /Feedback/ }).getByLabel("1 new")).toBeVisible();
+  const row = page.getByRole("link", { name: /The card jumped back/ });
+  await expect(row).toBeVisible();
+  for (const t of ["light", "dark"] as const) {
+    await theme(page, t);
+    await shot(page, `feedback-list-${t}`);
+    expect(await axe(page)).toEqual([]);
+  }
+  await theme(page, "light");
+  await row.click();
+  await expect(page.getByText("Twice this morning.")).toBeVisible();
+  await expect(page.getByText("Chrome 141 on Windows")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Seen" })).toHaveAttribute("aria-pressed", "true");
+  await shot(page, "feedback-report");
+  expect(await axe(page)).toEqual([]);
+
+  await page.getByRole("button", { name: "Open screenshot 1 of 1" }).click();
+  const viewer = page.getByRole("dialog", { name: "Screenshot 1 of 1" });
+  await expect(viewer.getByRole("img")).toBeVisible();
+  await shot(page, "feedback-viewer");
+  expect(await axe(page)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(viewer).toBeHidden();
+
+  await page.getByRole("button", { name: "Fixed in…" }).click();
+  await page.getByLabel("Fixed in which release?").fill("1.4.3");
+  await page.getByRole("button", { name: "Mark fixed" }).click();
+  const fixed = page.getByRole("button", { name: "Fixed in 1.4.3" });
+  await expect(fixed).toHaveAttribute("aria-pressed", "true");
+  // One line, like its neighbours.
+  expect((await fixed.boundingBox())!.height).toBe(
+    (await page.getByRole("button", { name: "Seen" }).boundingBox())!.height,
+  );
+  expect(await fixed.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+  await page.getByRole("textbox", { name: "Your note" }).fill("Pipeline drag race");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await shot(page, "feedback-report-fixed");
+
+  await page.getByRole("link", { name: "Brightpath Studio", exact: true }).first().click();
+  const card = page.getByRole("region", { name: "Feedback" });
+  await expect(card).toContainText("Fixed in 1.4.3");
+  await shot(page, "feedback-client-card");
+  expect(await axe(page)).toEqual([]);
+  await card.getByRole("link", { name: /^All 1 from Brightpath Studio/ }).click();
+  await expect(page).toHaveURL(/\/feedback\?client=/);
+  await expect(page.getByRole("link", { name: /The card jumped back/ })).toBeVisible();
+
+  // Releases counts it under 1.4.3 once 1.4.3 is the latest (no installation runs it yet).
+  await page.goto("/settings");
+  const latest = page.getByLabel("Latest version");
+  await latest.fill("1.4.3");
+  await latest.press("Enter");
+  await expect(page.getByText("Saved")).toBeVisible();
+  await page.goto("/releases");
+  await expect(page.getByRole("link", { name: "Fixed 1 report" })).toBeVisible();
+  await shot(page, "feedback-releases");
+  await page.getByRole("link", { name: "Fixed 1 report" }).click();
+  await expect(page).toHaveURL(/\/feedback\?fixedIn=1\.4\.3/);
+  await expect(page.getByRole("link", { name: /The card jumped back/ })).toBeVisible();
 });

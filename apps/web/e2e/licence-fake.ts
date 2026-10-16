@@ -33,6 +33,10 @@ const dir = here.endsWith(".artifacts") ? here : path.join(here, ".artifacts");
 const keys = generateKeyPairSync("ed25519");
 let says: Says = { ...ACTIVE };
 let checks = 0;
+// Feedback (spec 2026-10-16 §2.1): the last report taken, and how the next ones are answered ({} takes them).
+let lastFeedback: unknown = null;
+let feedbackCount = 0;
+let feedbackSays: { status?: number; code?: string; index?: number; retryAfter?: number } = {};
 
 const body = (req: import("node:http").IncomingMessage) =>
   new Promise<string>((done) => {
@@ -73,6 +77,25 @@ const server = createServer((req, res) => {
         ),
       });
     }
+    if (req.method === "POST" && req.url === "/v1/feedback") {
+      const b = JSON.parse(await body(req)) as { instanceId?: string; licenseKey?: string };
+      if (b.instanceId !== E2E_INSTANCE || b.licenseKey !== E2E_KEY)
+        return send(res, 401, { error: { code: "UNAUTHORIZED" } });
+      if (feedbackSays.status) {
+        if (feedbackSays.retryAfter) res.setHeader("retry-after", String(feedbackSays.retryAfter));
+        return send(res, feedbackSays.status, {
+          error: { code: feedbackSays.code ?? "DOWN", index: feedbackSays.index },
+        });
+      }
+      lastFeedback = b;
+      feedbackCount++;
+      return send(res, 201, { id: `e2e-${feedbackCount}` });
+    }
+    if (req.url === "/__fake/feedback" && req.method === "POST") {
+      feedbackSays = JSON.parse(await body(req)) as typeof feedbackSays;
+      return send(res, 200, { feedbackSays });
+    }
+    if (req.url === "/__fake/feedback") return send(res, 200, { last: lastFeedback, count: feedbackCount });
     if (req.url === "/__fake/state" && req.method === "POST") {
       says = { ...ACTIVE, ...(JSON.parse(await body(req)) as Partial<Says>) };
       return send(res, 200, { says });

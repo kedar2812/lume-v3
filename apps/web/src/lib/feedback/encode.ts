@@ -1,4 +1,4 @@
-import { FEEDBACK_LIMITS } from "@lume/core/shared";
+import { cleanImage, FEEDBACK_LIMITS } from "@lume/core/shared";
 import { blockSize, encodeSteps, fitWithin, type Rect } from "./shots";
 
 /** A screenshot as it will travel, and its thumbnail. */
@@ -24,8 +24,7 @@ export async function loadImage(file: Blob): Promise<ImageBitmap | null> {
 
 const toBlob = (c: HTMLCanvasElement, type: string, q: number) =>
   new Promise<Blob | null>((r) => c.toBlob(r, type, q));
-async function base64(b: Blob): Promise<string> {
-  const bytes = new Uint8Array(await b.arrayBuffer());
+function base64(bytes: Uint8Array): string {
   let s = "";
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
@@ -54,8 +53,8 @@ function burn(ctx: CanvasRenderingContext2D, r: Rect) {
 
 /**
  * The screenshot as it will be sent (spec 2026-10-16 §1.2): drawn afresh, so no metadata survives; within 2400 px;
- * every blur burned into its pixels; WebP, or JPEG where the browser can't make WebP; stepped down until it is 1.5 MB
- * or less. Blur boxes are in the source's own pixels.
+ * every blur burned into its pixels; WebP, or JPEG where the browser can't make WebP; with nothing the browser added
+ * (cleanImage); stepped down until it is 1.5 MB or less. Blur boxes are in the source's own pixels.
  */
 export async function encodeShot(source: ImageBitmap, rects: Rect[]): Promise<Prepared> {
   const fit = fitWithin(source.width, source.height, FEEDBACK_LIMITS.longEdge);
@@ -69,14 +68,18 @@ export async function encodeShot(source: ImageBitmap, rects: Rect[]): Promise<Pr
     for (const r of rects) burn(ctx, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k });
     let blob = await toBlob(c, "image/webp", step.quality);
     if (!blob || blob.type !== "image/webp") blob = await toBlob(c, "image/jpeg", step.quality);
-    if (blob && blob.size <= FEEDBACK_LIMITS.imageBytes)
+    if (!blob) continue;
+    const type = blob.type as Prepared["type"];
+    // What the browser added (Chrome's colour profile in every WebP) goes; what's left is what's sent and shown.
+    const bytes = cleanImage(new Uint8Array(await blob.arrayBuffer()), type);
+    if (bytes.length <= FEEDBACK_LIMITS.imageBytes)
       return {
-        type: blob.type as Prepared["type"],
-        data: await base64(blob),
-        url: URL.createObjectURL(blob),
+        type,
+        data: base64(bytes),
+        url: URL.createObjectURL(new Blob([bytes], { type })),
         width: c.width,
         height: c.height,
-        bytes: blob.size,
+        bytes: bytes.length,
       };
   }
   throw new Error("This picture can't be made small enough to send");

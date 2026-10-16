@@ -31,7 +31,12 @@ export const normRect = (a: Point, b: Point): Rect => ({
 export function toImageRect(r: Rect, shown: { w: number; h: number }, image: { w: number; h: number }): Rect {
   const kx = image.w / shown.w;
   const ky = image.h / shown.h;
-  return { x: Math.round(r.x * kx), y: Math.round(r.y * ky), w: Math.round(r.w * kx), h: Math.round(r.h * ky) };
+  return {
+    x: Math.round(r.x * kx),
+    y: Math.round(r.y * ky),
+    w: Math.round(r.w * kx),
+    h: Math.round(r.h * ky),
+  };
 }
 
 /** Blocks at least 12 px, and an eighth of the box's short side: text under them can't be read back. */
@@ -49,9 +54,11 @@ export function themeOf(doc: Document, systemDark: boolean): "porcelain" | "obsi
   return systemDark ? "obsidian" : "porcelain";
 }
 
-const UNREACHABLE = "LUME couldn't reach its team just now. Your report is still here — try again in a minute.";
+const UNREACHABLE =
+  "LUME couldn't reach its team just now. Your report is still here — try again in a minute.";
 const LICENCE = "This LUME's licence can't send feedback right now. Your report is still here.";
-const IMAGE = "One screenshot can't be sent. Remove it or choose it again; the rest of your report is still here.";
+const IMAGE =
+  "One screenshot can't be sent. Remove it or choose it again; the rest of your report is still here.";
 
 /** The one line under the words when a report didn't go (spec 2026-10-16 §4.1). */
 export function notSent(r: ApiResult<unknown>): { text: string; imageIndex?: number } {
