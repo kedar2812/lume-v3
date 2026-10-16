@@ -105,7 +105,12 @@ export async function listFeedback(ctx: Ctx, url: URL) {
 
   const filters = [kind, client, fixedIn, q ? like(q) : null];
   const counts = (await ctx.db.query<Record<FeedbackTab, number>>(COUNTS, filters)).rows[0]!;
-  const { rows } = await ctx.db.query<Row>(PAGE_SQL, [...filters, TABS[tab], cursor?.[0] ?? null, cursor?.[1] ?? null]);
+  const { rows } = await ctx.db.query<Row>(PAGE_SQL, [
+    ...filters,
+    TABS[tab],
+    cursor?.[0] ?? null,
+    cursor?.[1] ?? null,
+  ]);
   const shown = rows.slice(0, PAGE);
   const last = shown.at(-1);
   return {
@@ -178,7 +183,9 @@ export async function feedbackImage(ctx: Ctx, id: string, n: string, download: b
       "content-type": img.type,
       "x-content-type-options": "nosniff",
       "cache-control": "private, max-age=3600",
-      "content-disposition": download ? `attachment; filename="feedback-${id.slice(0, 8)}-${n}.${ext}"` : "inline",
+      "content-disposition": download
+        ? `attachment; filename="feedback-${id.slice(0, 8)}-${n}.${ext}"`
+        : "inline",
     },
   });
 }
@@ -220,11 +227,10 @@ export async function patchFeedback(ctx: Ctx, id: string, b: z.infer<typeof patc
       b.note ?? r.note,
     ]);
     if (to !== r.status || fixedIn !== r.fixed_in)
-      await c.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'feedback_status', $3)", [
-        r.client_id,
-        now,
-        { id, from: r.status, to, ...(to === "fixed" ? { fixedIn } : {}) },
-      ]);
+      await c.query(
+        "INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'feedback_status', $3)",
+        [r.client_id, now, { id, from: r.status, to, ...(to === "fixed" ? { fixedIn } : {}) }],
+      );
     await c.query("COMMIT");
   } catch (e) {
     await c.query("ROLLBACK").catch(() => undefined);

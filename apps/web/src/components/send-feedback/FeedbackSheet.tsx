@@ -155,7 +155,13 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
   const blurShot = blurring === null ? null : shots.find((x) => x.id === blurring);
   return (
     <>
-      <Dialog label="Send feedback" onClose={askClose} width={600} className={s.panel} layerClassName={s.layer}>
+      <Dialog
+        label="Send feedback"
+        onClose={askClose}
+        width={600}
+        className={s.panel}
+        layerClassName={s.layer}
+      >
         <div className={s.sheet} onPaste={onPaste} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
           <header className={s.head}>
             <h2>Send feedback</h2>
@@ -226,7 +232,9 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
                     <div className={s.shot} data-refused={sh.refused || undefined}>
                       {/* A local blob of the person's own screenshot. */}
                       {sh.prepared && <img src={sh.prepared.url} alt={`Screenshot ${i + 1}`} />}
-                      {sh.refused && <span className={s.refused}>LUME can&apos;t send this one — choose it again</span>}
+                      {sh.refused && (
+                        <span className={s.refused}>LUME can&apos;t send this one — choose it again</span>
+                      )}
                       <button
                         type="button"
                         className={s.remove}
@@ -284,8 +292,8 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
               </div>
             </div>
             <p className={s.plain}>
-              This goes to the team that makes LUME, with your name, email and role, the page you were on and your
-              LUME version. Screenshots show whatever is on them — blur anything private first.
+              This goes to the team that makes LUME, with your name, email and role, the page you were on and
+              your LUME version. Screenshots show whatever is on them — blur anything private first.
             </p>
           </div>
           {confirm && (

@@ -57,7 +57,12 @@ async function file(clientId: string, o: Filed = {}) {
   for (let n = 0; n < (o.images ?? 0); n++)
     await db.pool.query(
       "INSERT INTO feedback_images (feedback_id, n, type, width, height, bytes) VALUES ($1, $2, $3, 800, 600, $4)",
-      [id, n, n % 2 ? "image/jpeg" : "image/webp", Buffer.from(n % 2 ? testJpeg(800, 600) : testWebp(800, 600))],
+      [
+        id,
+        n,
+        n % 2 ? "image/jpeg" : "image/webp",
+        Buffer.from(n % 2 ? testJpeg(800, 600) : testWebp(800, 600)),
+      ],
     );
   return id;
 }
@@ -89,7 +94,9 @@ describe("the Feedback inbox", () => {
     ]);
     expect(r.data.next).toBeNull();
     expect(kinds((await jar.call("GET", "/api/feedback?tab=fixing")).data.items)).toEqual(["idea"]);
-    expect((await jar.call("GET", `/api/feedback?tab=all&client=${north.clientId}`)).data.items).toHaveLength(2);
+    expect((await jar.call("GET", `/api/feedback?tab=all&client=${north.clientId}`)).data.items).toHaveLength(
+      2,
+    );
     expect((await jar.call("GET", "/api/feedback?tab=all&fixedIn=1.4.2")).data.items).toHaveLength(1);
     expect(kinds((await jar.call("GET", "/api/feedback?tab=all&kind=idea")).data.items)).toEqual(["idea"]);
     expect((await jar.call("GET", "/api/feedback/new-count")).data).toEqual({ newCount: 1 });
@@ -111,7 +118,10 @@ describe("the Feedback inbox", () => {
     const first = await jar.call("GET", "/api/feedback?tab=all");
     expect(first.data.items).toHaveLength(50);
     expect(first.data.next).toBeTruthy();
-    const second = await jar.call("GET", `/api/feedback?tab=all&before=${encodeURIComponent(first.data.next)}`);
+    const second = await jar.call(
+      "GET",
+      `/api/feedback?tab=all&before=${encodeURIComponent(first.data.next)}`,
+    );
     expect(second.data.items).toHaveLength(3);
     expect(second.data.next).toBeNull();
     const ids = new Set([...first.data.items, ...second.data.items].map((i: { id: string }) => i.id));
@@ -169,7 +179,9 @@ describe("one report", () => {
     expect(r.headers.get("cache-control")).toBe("private, max-age=3600");
     expect(Buffer.from(await r.arrayBuffer())).toEqual(Buffer.from(testJpeg(800, 600)));
     const d = await jar.raw("GET", `/api/feedback/${id}/images/0?download=1`);
-    expect(d.headers.get("content-disposition")).toMatch(/^attachment; filename="feedback-[0-9a-f]{8}-0\.webp"$/);
+    expect(d.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="feedback-[0-9a-f]{8}-0\.webp"$/,
+    );
     expect((await jar.raw("GET", `/api/feedback/${id}/images/4`)).status).toBe(404);
     expect((await jar.raw("GET", `/api/feedback/${id}/images/9`)).status).toBe(404);
   });
@@ -184,7 +196,9 @@ describe("one report", () => {
     expect(fixed.data).toMatchObject({ status: "fixed", fixedIn: "1.4.3", closedAt: now.toISOString() });
     const reopened = await patch({ status: "seen" });
     expect(reopened.data).toMatchObject({ status: "seen", fixedIn: null, closedAt: null });
-    expect((await patch({ note: "Pipeline drag race — see #212" })).data.note).toBe("Pipeline drag race — see #212");
+    expect((await patch({ note: "Pipeline drag race — see #212" })).data.note).toBe(
+      "Pipeline drag race — see #212",
+    );
     expect((await patch({ status: "new" })).status).toBe(400);
     expect((await patch({ status: "fixed", fixedIn: "v2" })).status).toBe(400);
     expect((await patch({ fixedIn: "1.4.4" })).status).toBe(400);
@@ -236,8 +250,9 @@ describe("elsewhere", () => {
     expect(await pruneFeedbackImages(db.pool, new Date(now.getTime() + 90 * 86_400_000))).toBe(1);
     const left = await db.pool.query("SELECT DISTINCT feedback_id FROM feedback_images");
     expect(left.rows.map((r) => r.feedback_id)).toEqual([open]);
-    const f = (await db.pool.query("SELECT text, image_count, images_removed_at FROM feedback WHERE id = $1", [old]))
-      .rows[0];
+    const f = (
+      await db.pool.query("SELECT text, image_count, images_removed_at FROM feedback WHERE id = $1", [old])
+    ).rows[0];
     expect(f.text).toBe("It jumped back.\nTwice.");
     expect(f.image_count).toBe(2);
     expect(f.images_removed_at).not.toBeNull();

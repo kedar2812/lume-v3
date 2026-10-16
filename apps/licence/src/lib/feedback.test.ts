@@ -62,7 +62,9 @@ describe("bugReport", () => {
   it("is Markdown with the words fenced longer than any fence inside them, and no name or email", () => {
     const md = bugReport(d);
     expect(md.startsWith("## Something's broken: It jumped back.\n")).toBe(true);
-    expect(md).toContain("````\nIt jumped back.\n```\nconsole.log(1)\n```\n<img src=x onerror=alert(1)>\n````");
+    expect(md).toContain(
+      "````\nIt jumped back.\n```\nconsole.log(1)\n```\n<img src=x onerror=alert(1)>\n````",
+    );
     expect(md).toContain("- Client: Harbour Clinic");
     expect(md).toContain("- Reporter: Sales rep");
     expect(md).toContain("- Page: `/pipeline`");

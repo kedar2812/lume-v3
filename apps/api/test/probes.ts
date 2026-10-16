@@ -233,7 +233,14 @@ export const PROBES: Record<string, Probe> = {
   // Send feedback (spec 2026-10-16 §1.4): anyone signed in.
   "POST /api/v1/feedback": {
     access: "auth.self",
-    body: () => ({ kind: "bug", text: "A probe", page: "/today", theme: "porcelain", screen: "1280 × 800 · 1×", images: [] }),
+    body: () => ({
+      kind: "bug",
+      text: "A probe",
+      page: "/today",
+      theme: "porcelain",
+      screen: "1280 × 800 · 1×",
+      images: [],
+    }),
   },
   "GET /api/v1/export": { access: "data.export" },
   "POST /api/v1/export": { access: "data.export" },

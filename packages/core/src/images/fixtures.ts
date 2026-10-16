@@ -6,7 +6,22 @@ const le32 = (n: number) => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24)
 const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0));
 
 export function testWebp(w: number, h: number): Uint8Array {
-  const payload = [0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a, w & 255, (w >> 8) & 0x3f, h & 255, (h >> 8) & 0x3f, 1, 2, 3, 4];
+  const payload = [
+    0x10,
+    0x02,
+    0x00,
+    0x9d,
+    0x01,
+    0x2a,
+    w & 255,
+    (w >> 8) & 0x3f,
+    h & 255,
+    (h >> 8) & 0x3f,
+    1,
+    2,
+    3,
+    4,
+  ];
   const chunk = [...ascii("VP8 "), ...le32(payload.length), ...payload];
   const body = [...ascii("WEBP"), ...chunk];
   return new Uint8Array([...ascii("RIFF"), ...le32(body.length), ...body]);

@@ -46,7 +46,14 @@ export function allowed(
   o: { firstRun?: boolean } = {},
 ): boolean {
   if (state === "active" || state === "grace") return true;
-  if (isAuth(url) || isExport(url) || isSetup(url) || isFeedback(url) || LICENCE_WRITES.has(url) || o.firstRun)
+  if (
+    isAuth(url) ||
+    isExport(url) ||
+    isSetup(url) ||
+    isFeedback(url) ||
+    LICENCE_WRITES.has(url) ||
+    o.firstRun
+  )
     return true;
   if (state === "read_only") return !WRITES.has(method) || READS_BY_POST.has(url);
   return (

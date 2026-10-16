@@ -42,11 +42,20 @@ export function FeedbackPill({ status, fixedIn }: { status: FeedbackStatus; fixe
   return <span className={`pill fb-${status}`}>{statusText(status, fixedIn)}</span>;
 }
 export const KindDot = ({ kind }: { kind: Kind }) => (
-  <span className="fb-dot" style={{ background: KIND_COLOR[kind] }} role="img" aria-label={KIND_WORDS[kind]} />
+  <span
+    className="fb-dot"
+    style={{ background: KIND_COLOR[kind] }}
+    role="img"
+    aria-label={KIND_WORDS[kind]}
+  />
 );
 
 /** Feedback (spec 2026-10-16 §3.2): what clients' teams told LUME, a tab at a time, newest first. */
-export function FeedbackScreen({ initial }: { initial: { client?: string; fixedIn?: string; tab?: string } }) {
+export function FeedbackScreen({
+  initial,
+}: {
+  initial: { client?: string; fixedIn?: string; tab?: string };
+}) {
   const scoped = !!(initial.client || initial.fixedIn);
   const asked = TABS.find(([t]) => t === initial.tab)?.[0];
   const [tab, setTab] = useState<Tab>(asked ?? (scoped ? "all" : "new"));
@@ -164,7 +173,11 @@ export function FeedbackScreen({ initial }: { initial: { client?: string; fixedI
             ))}
           {list && list.items.length === 0 && <p className="note fb-empty">{EMPTY[tab]}</p>}
           {list?.items.map((f) => (
-            <Link key={f.id} href={`/feedback/${f.id}`} className={`fb-row${f.status === "new" ? " fb-new" : ""}`}>
+            <Link
+              key={f.id}
+              href={`/feedback/${f.id}`}
+              className={`fb-row${f.status === "new" ? " fb-new" : ""}`}
+            >
               <KindDot kind={f.kind} />
               <span className="fb-main">
                 <span className="fb-line">{f.firstLine}</span>

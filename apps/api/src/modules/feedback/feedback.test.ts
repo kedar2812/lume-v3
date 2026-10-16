@@ -44,13 +44,19 @@ beforeAll(async () => {
       fetch: fakeFetch,
     },
   });
-  const r = await h.seedUser({ name: "Priya Shah", email: "priya@harbour.example", grants: [{ key: "leads.view", scope: "own" }] });
+  const r = await h.seedUser({
+    name: "Priya Shah",
+    email: "priya@harbour.example",
+    grants: [{ key: "leads.view", scope: "own" }],
+  });
   await h.ownerPool.query(
     "UPDATE roles SET name = 'Sales rep' WHERE id = (SELECT role_id FROM user_roles WHERE user_id = $1)",
     [r.id],
   );
   rep = await h.signIn(r);
-  owner = await h.signIn(await h.seedUser({ owner: true, grants: ALL_GRANTS, totp: true, name: "Asha Pillai" }));
+  owner = await h.signIn(
+    await h.seedUser({ owner: true, grants: ALL_GRANTS, totp: true, name: "Asha Pillai" }),
+  );
 });
 afterAll(() => h.close());
 beforeEach(() => {
@@ -68,7 +74,10 @@ const toLicence = () => sent.filter((s) => s.url === "https://licence.test/v1/fe
 
 describe("POST /api/v1/feedback", () => {
   it("forwards the report under the install's key, the person from the session, the page without its search", async () => {
-    const claims = await send(rep, { ...report(), reporter: { name: "Someone Else", email: "x@y.z", role: "Owner" } });
+    const claims = await send(rep, {
+      ...report(),
+      reporter: { name: "Someone Else", email: "x@y.z", role: "Owner" },
+    });
     expect(claims.statusCode).toBe(400); // a body may not say who sent it
     const ok = await send(rep, report());
     expect(ok.statusCode, ok.body).toBe(200);
@@ -123,13 +132,24 @@ describe("POST /api/v1/feedback", () => {
 
   it("holds the report to its limits", async () => {
     const six = Array(6).fill({ type: "image/jpeg", data: b64(testJpeg(10, 10)) });
-    for (const over of [{ text: "" }, { text: "  " }, { text: "x".repeat(4001) }, { kind: "rant" }, { theme: "sepia" }, { images: six }])
+    for (const over of [
+      { text: "" },
+      { text: "  " },
+      { text: "x".repeat(4001) },
+      { kind: "rant" },
+      { theme: "sepia" },
+      { images: six },
+    ])
       expect((await send(owner, report(over))).statusCode, JSON.stringify(Object.keys(over))).toBe(400);
     expect(toLicence()).toHaveLength(0);
   });
 
   it("cuts a long browser, name and role rather than refusing them", async () => {
-    const long = await h.seedUser({ name: "N".repeat(200), email: "long@harbour.example", grants: [{ key: "leads.view", scope: "own" }] });
+    const long = await h.seedUser({
+      name: "N".repeat(200),
+      email: "long@harbour.example",
+      grants: [{ key: "leads.view", scope: "own" }],
+    });
     await h.ownerPool.query(
       "UPDATE roles SET name = $2 WHERE id = (SELECT role_id FROM user_roles WHERE user_id = $1)",
       [long.id, "R".repeat(90)],
@@ -149,10 +169,16 @@ describe("POST /api/v1/feedback", () => {
         status: 429,
         headers: { "retry-after": "1440" },
       });
-    const refused = (status: number, code: string, extra: object = {}) => () =>
-      new Response(JSON.stringify({ error: { code, ...extra } }), { status });
+    const refused =
+      (status: number, code: string, extra: object = {}) =>
+      () =>
+        new Response(JSON.stringify({ error: { code, ...extra } }), { status });
     const cases: [Answer, number, string][] = [
-      [() => Promise.reject(Object.assign(new Error("timeout"), { name: "TimeoutError" })), 503, "FEEDBACK_UNREACHABLE"],
+      [
+        () => Promise.reject(Object.assign(new Error("timeout"), { name: "TimeoutError" })),
+        503,
+        "FEEDBACK_UNREACHABLE",
+      ],
       [() => new Response("{}", { status: 502 }), 503, "FEEDBACK_UNREACHABLE"],
       [limited, 429, "FEEDBACK_LIMITED"],
       [refused(422, "FEEDBACK_IMAGE_REFUSED", { index: 0 }), 422, "FEEDBACK_IMAGE_REFUSED"],
@@ -173,7 +199,11 @@ describe("POST /api/v1/feedback", () => {
 
   it("lets a person send ten an hour; a try that didn't reach LUME's team doesn't count", async () => {
     const p = await h.signIn(
-      await h.seedUser({ name: "Omar Farooq", email: "omar@harbour.example", grants: [{ key: "leads.view", scope: "own" }] }),
+      await h.seedUser({
+        name: "Omar Farooq",
+        email: "omar@harbour.example",
+        grants: [{ key: "leads.view", scope: "own" }],
+      }),
     );
     answer = () => Promise.reject(new Error("down"));
     for (let i = 0; i < 3; i++) expect((await send(p, report({ images: [] }))).statusCode).toBe(503);

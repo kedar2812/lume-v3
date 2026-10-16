@@ -329,7 +329,11 @@ export class LicenceKeeper {
     }
     if (r.status === 201) return { ok: true };
     if (r.status === 429)
-      return { ok: false, reason: "limited", retryAfterS: Math.max(1, Number(r.headers.get("retry-after")) || 3600) };
+      return {
+        ok: false,
+        reason: "limited",
+        retryAfterS: Math.max(1, Number(r.headers.get("retry-after")) || 3600),
+      };
     if (r.status === 422) {
       let index: number | undefined;
       try {

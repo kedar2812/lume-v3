@@ -185,7 +185,9 @@ export function FeedbackReport({ id }: { id: string }) {
                     aria-pressed={asking ? c.value === "fixed" : d.status === c.value}
                     onClick={() => choose(c.value)}
                   >
-                    {c.value === "fixed" && d.status === "fixed" && !asking ? `Fixed in ${d.fixedIn}` : c.label}
+                    {c.value === "fixed" && d.status === "fixed" && !asking
+                      ? `Fixed in ${d.fixedIn}`
+                      : c.label}
                   </button>
                 ))}
               </div>
@@ -194,7 +196,9 @@ export function FeedbackReport({ id }: { id: string }) {
                   className="fb-version fb-rise"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    void patch({ status: "fixed", fixedIn: version.trim() }).then((ok) => ok && setAsking(false));
+                    void patch({ status: "fixed", fixedIn: version.trim() }).then(
+                      (ok) => ok && setAsking(false),
+                    );
                   }}
                 >
                   <label htmlFor="fix-v">Fixed in which release?</label>
@@ -211,8 +215,8 @@ export function FeedbackReport({ id }: { id: string }) {
                     </button>
                   </div>
                   <span className="note">
-                    {d.latestRelease ? `The latest release is ${d.latestRelease}. ` : ""}Type the next one if the fix
-                    ships later.
+                    {d.latestRelease ? `The latest release is ${d.latestRelease}. ` : ""}Type the next one if
+                    the fix ships later.
                   </span>
                 </form>
               )}
@@ -297,7 +301,13 @@ export function FeedbackReport({ id }: { id: string }) {
         </div>
       </div>
       {viewing !== null && d.images.length > 0 && (
-        <ShotViewer id={d.id} shots={d.images} start={viewing} label={label} onClose={() => setViewing(null)} />
+        <ShotViewer
+          id={d.id}
+          shots={d.images}
+          start={viewing}
+          label={label}
+          onClose={() => setViewing(null)}
+        />
       )}
     </>
   );

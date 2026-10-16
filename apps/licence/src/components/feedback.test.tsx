@@ -111,7 +111,9 @@ describe("the Feedback list", () => {
       },
     });
     render(<FeedbackScreen initial={{ client: "c1" }} />);
-    expect(await screen.findByText("No feedback yet. It arrives here from your clients' LUME.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No feedback yet. It arrives here from your clients' LUME."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /All/ })).toHaveAttribute("aria-selected", "true");
   });
 });
@@ -135,7 +137,10 @@ describe("one report", () => {
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith("/api/feedback/f1", { status: "fixed", fixedIn: "1.4.3" }),
     );
-    expect(await screen.findByRole("button", { name: "Fixed in 1.4.3" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("button", { name: "Fixed in 1.4.3" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await user.type(screen.getByRole("textbox", { name: "Your note" }), "Drag race");
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/api/feedback/f1", { note: "Drag race" }), {
       timeout: 2000,
@@ -180,7 +185,12 @@ describe("one report", () => {
 
   it("says the screenshots were removed, once they have been", async () => {
     answer({
-      "/api/feedback/f1": detail({ status: "fixed", fixedIn: "1.4.0", imagesRemovedAt: "2026-10-16T00:00:00.000Z", images: [] }),
+      "/api/feedback/f1": detail({
+        status: "fixed",
+        fixedIn: "1.4.0",
+        imagesRemovedAt: "2026-10-16T00:00:00.000Z",
+        images: [],
+      }),
     });
     render(<FeedbackReport id="f1" />);
     expect(await screen.findByText("Screenshots removed 90 days after this was closed.")).toBeInTheDocument();

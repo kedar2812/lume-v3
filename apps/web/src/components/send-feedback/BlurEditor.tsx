@@ -54,8 +54,8 @@ export function BlurEditor({
         <header className={s.blurHead}>
           <h2>Blur private parts</h2>
           <p>
-            Drag over anything private — a lead&apos;s name, number or message. The blur is burned into the picture
-            before it&apos;s sent.
+            Drag over anything private — a lead&apos;s name, number or message. The blur is burned into the
+            picture before it&apos;s sent.
           </p>
         </header>
         <div className={s.blurStage}>

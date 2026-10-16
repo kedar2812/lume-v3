@@ -67,15 +67,20 @@ describe("Send feedback in the profile menu (spec 2026-10-16 §1.1)", () => {
   it("sits between Replay the tour and Sign out, and opens the sheet", async () => {
     const onFeedback = vi.fn();
     render(
-      <Sidebar businessName="X" user={{ name: "Priya Shah", role: "Sales" }} can={() => true} onFeedback={onFeedback} />,
+      <Sidebar
+        businessName="X"
+        user={{ name: "Priya Shah", role: "Sales" }}
+        can={() => true}
+        onFeedback={onFeedback}
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /Priya Shah/ }));
     const menu = screen.getByRole("menu", { name: "Your account" });
-    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
-      "Replay the tour",
-      "Send feedback",
-      "Sign out",
-    ]);
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((i) => i.textContent),
+    ).toEqual(["Replay the tour", "Send feedback", "Sign out"]);
     await userEvent.click(within(menu).getByRole("menuitem", { name: "Send feedback" }));
     expect(onFeedback).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("menu")).toBeNull();

@@ -59,7 +59,12 @@ const limited = (retryAfterS: number) =>
 
 type Who = { ok: true; clientId: string } | { ok: false; status: number; code: string; message: string };
 const UNKNOWN: Who = { ok: false, status: 401, code: "UNAUTHORIZED", message: "Unknown licence." };
-const GONE: Who = { ok: false, status: 403, code: "KEY_DECOMMISSIONED", message: "This key has been decommissioned." };
+const GONE: Who = {
+  ok: false,
+  status: 403,
+  code: "KEY_DECOMMISSIONED",
+  message: "This key has been decommissioned.",
+};
 
 /**
  * Which client a report is from, if the install may send one (spec 2026-10-16 §2.1): the install the licence's live
@@ -176,11 +181,10 @@ export async function handleFeedback(req: Request, ctx: Ctx): Promise<Response> 
         "INSERT INTO feedback_images (feedback_id, n, type, width, height, bytes) VALUES ($1, $2, $3, $4, $5, $6)",
         [id, n, img.type, img.width, img.height, img.bytes],
       );
-    await c.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'feedback_received', $3)", [
-      who.clientId,
-      now,
-      { id, kind: b.kind },
-    ]);
+    await c.query(
+      "INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'feedback_received', $3)",
+      [who.clientId, now, { id, kind: b.kind }],
+    );
     await c.query("COMMIT");
     return json(201, { id });
   } catch (e) {
