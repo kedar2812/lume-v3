@@ -18,7 +18,13 @@ import { NAV_ITEMS, visibleNav } from "./nav";
 import { usePageNav } from "./PageTransition";
 import s from "./palette.module.css";
 
-type Props = { open: boolean; onOpenChange(v: boolean): void; can(p: string): boolean };
+type Props = {
+  open: boolean;
+  onOpenChange(v: boolean): void;
+  can(p: string): boolean;
+  /** Send feedback (spec 2026-10-16 §1.1): absent where there is nowhere to send it. */
+  onFeedback?: () => void;
+};
 type Group = "Recent" | "Leads" | "Actions" | "Go to" | "Views" | "Settings" | "Templates";
 type Item = {
   id: string;
@@ -65,6 +71,7 @@ const G = {
   plus: "M12 5v14M5 12h14",
   upload: "M12 16V4M7 9l5-5 5 5M4 20h16",
   bell: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0",
+  feedback: "M4 5h16v10h-9l-4.5 3.5V15H4z",
   sun: "M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
   moon: "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z",
   auto: "M12 3a9 9 0 1 0 0 18V3z",
@@ -79,7 +86,7 @@ const initials = initialsOf;
  * type; things to do (a new lead, an import, the theme, notifications); every page, saved view, setting and template,
  * found by a few letters even with a typo. Empty, it offers the leads you opened last. ↑↓ and Enter, all by keyboard.
  */
-export function CommandPalette({ open, onOpenChange, can }: Props) {
+export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -184,6 +191,18 @@ export function CommandPalette({ open, onOpenChange, can }: Props) {
         kbd: ".",
         run: () => window.dispatchEvent(new Event(OPEN_NOTIFICATIONS)),
       },
+      ...(onFeedback
+        ? [
+            {
+              id: "a:feedback",
+              group: "Actions" as const,
+              label: "Send feedback",
+              keywords: ["bug", "report", "idea", "problem", "screenshot", "broken"],
+              icon: <Glyph d={G.feedback} />,
+              run: () => onFeedback(),
+            },
+          ]
+        : []),
       {
         id: "a:obsidian",
         group: "Actions",
@@ -257,7 +276,7 @@ export function CommandPalette({ open, onOpenChange, can }: Props) {
         run: () => go("/templates"),
       });
     return out;
-  }, [can, views, templates, go]);
+  }, [can, views, templates, go, onFeedback]);
 
   const items = useMemo<Item[]>(() => {
     const leadItems: Item[] = leads.map((l) => {

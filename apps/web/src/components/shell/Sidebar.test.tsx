@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PERMISSIONS, TOUR_STEPS } from "@lume/core/shared";
 import { fakeSession } from "@/server/session";
@@ -59,5 +60,30 @@ describe("Sidebar", () => {
         `missing data-tour="${target}"`,
       ).not.toBeNull();
     }
+  });
+});
+
+describe("Send feedback in the profile menu (spec 2026-10-16 §1.1)", () => {
+  it("sits between Replay the tour and Sign out, and opens the sheet", async () => {
+    const onFeedback = vi.fn();
+    render(
+      <Sidebar businessName="X" user={{ name: "Priya Shah", role: "Sales" }} can={() => true} onFeedback={onFeedback} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Priya Shah/ }));
+    const menu = screen.getByRole("menu", { name: "Your account" });
+    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
+      "Replay the tour",
+      "Send feedback",
+      "Sign out",
+    ]);
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Send feedback" }));
+    expect(onFeedback).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("isn't there when there's nowhere to send it", async () => {
+    render(<Sidebar businessName="X" user={{ name: "Priya Shah", role: "Sales" }} can={() => true} />);
+    await userEvent.click(screen.getByRole("button", { name: /Priya Shah/ }));
+    expect(screen.queryByRole("menuitem", { name: "Send feedback" })).toBeNull();
   });
 });

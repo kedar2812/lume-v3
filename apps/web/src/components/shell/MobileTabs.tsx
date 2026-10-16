@@ -13,7 +13,14 @@ const PRIMARY = ["today", "leads", "calendar", "settings"] as const;
  * Navigation on a phone (canvas Phone board): the sidebar has no room under 860 px, so the main places sit in a
  * tab bar at the bottom, within the thumb's reach, and the rest open from More. Hidden on wider screens.
  */
-export function MobileTabs({ can }: { can: (p: string) => boolean }) {
+export function MobileTabs({
+  can,
+  onFeedback,
+}: {
+  can: (p: string) => boolean;
+  /** Send feedback, last in More (spec 2026-10-16 §1.1). */
+  onFeedback?: () => void;
+}) {
   const pathname = usePathname();
   const items = visibleNav(NAV_ITEMS, can);
   const current = activeNav(items, pathname);
@@ -42,7 +49,7 @@ export function MobileTabs({ can }: { can: (p: string) => boolean }) {
   return (
     <nav className={s.tabs} aria-label="Tabs">
       {tabs.filter((i) => i.id !== "settings").map(tab)}
-      {more.length > 0 && (
+      {(more.length > 0 || onFeedback) && (
         <div className={s.moreWrap} ref={box}>
           <button
             type="button"
@@ -72,6 +79,25 @@ export function MobileTabs({ can }: { can: (p: string) => boolean }) {
                   {i.label}
                 </Link>
               ))}
+              {onFeedback && (
+                <>
+                  {more.length > 0 && <span role="separator" className={s.moreSep} />}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={s.moreItem}
+                    onClick={() => {
+                      setOpen(false);
+                      onFeedback();
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                      <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" strokeLinejoin="round" />
+                    </svg>
+                    Send feedback
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

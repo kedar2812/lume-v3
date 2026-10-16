@@ -1,0 +1,394 @@
+/* Send feedback (spec 2026-10-16 §1.2; canvas 4F4RK4iLdxsMPXcBEvZhyY boards 1–5). */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.014em;
+}
+.x {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text-2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.x:hover {
+  background: var(--hover);
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kinds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.kind {
+  position: relative;
+  min-height: 34px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+}
+.kind input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.kind i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.kind[data-on] {
+  background: var(--sheet);
+  color: var(--text);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 3px rgba(12, 18, 32, 0.08);
+}
+.kind:has(input:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.28);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.field > label,
+.label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--side-text);
+}
+.field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 132px;
+  resize: vertical;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.field textarea::placeholder {
+  color: var(--text-3);
+}
+.field textarea:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(var(--accent-rgb), 0.1),
+    inset 0 0 0 1.5px var(--accent);
+}
+.count {
+  align-self: flex-end;
+  font-size: 12px;
+  color: var(--text-3);
+  font-feature-settings: "tnum";
+}
+.problem {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.shotsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.muted {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.shotCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.shot {
+  position: relative;
+  width: 132px;
+  height: 84px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--sunk);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+  display: block;
+}
+.shot[data-refused] {
+  box-shadow: 0 0 0 1.5px var(--danger);
+}
+.refused {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  text-align: center;
+  background: color-mix(in srgb, var(--danger-soft) 92%, var(--sheet));
+  color: var(--danger-ink);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(10, 12, 17, 0.62);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.chip {
+  align-self: flex-start;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.chip:active,
+.remove:active {
+  transform: scale(0.96);
+}
+.drop {
+  width: 132px;
+  height: 84px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  border: 1.5px dashed var(--line-2);
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--text-3);
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(0, 0, 0, 0.05);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.pick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.pick[data-disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+.pick:has(input:focus-visible) {
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.18);
+}
+.plain {
+  margin: 0;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--sunk);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--side-text);
+}
+.discard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--danger-soft);
+}
+.discard span {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--danger-ink);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hint {
+  font-size: 12.5px;
+  color: var(--warn-ink);
+}
+.grow {
+  flex: 1;
+}
+.blur {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.blurHead h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.blurHead p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.blurStage {
+  display: grid;
+  place-items: center;
+}
+.blurArea {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--sunk);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.blurArea img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.blurBox {
+  position: absolute;
+  border-radius: 4px;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  background: repeating-conic-gradient(rgba(190, 195, 204, 0.55) 0 25%, rgba(214, 217, 223, 0.55) 0 50%) 0 0 /
+    10px 10px;
+  box-shadow: 0 0 0 1.5px var(--accent);
+  pointer-events: none;
+}
+.draftBox {
+  position: absolute;
+  border-radius: 4px;
+  background: rgba(var(--accent-rgb), 0.1);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  pointer-events: none;
+}
+.blurFoot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* A phone: the sheet takes the whole screen (canvas board "Phone · the sheet"). */
+@media (max-width: 560px) {
+  .layer.layer {
+    padding: 0;
+  }
+  .panel.panel {
+    width: 100% !important;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .sheet {
+    min-height: 100%;
+  }
+  .body {
+    flex: 1;
+  }
+  .foot :global(button[data-variant="primary"]) {
+    flex: 1;
+    height: 46px;
+  }
+  .field textarea {
+    font-size: 16px; /* no zoom on focus */
+  }
+  .kind {
+    font-size: 12.5px;
+    min-height: 40px;
+  }
+}

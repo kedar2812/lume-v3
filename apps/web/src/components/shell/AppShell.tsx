@@ -4,6 +4,7 @@ import { LoadingProvider } from "@/lib/loading";
 import { LicenceBanner } from "@/components/licence/LicenceBanner";
 import { LicenceProvider } from "@/components/licence/LicenceProvider";
 import { PendingSent } from "@/components/messages/PendingSent";
+import { FeedbackSheet } from "@/components/send-feedback/FeedbackSheet";
 import { LockScreen } from "@/components/licence/LockScreen";
 import { PaymentReminder } from "@/components/licence/PaymentReminder";
 import { useEffect, useState, type ReactNode } from "react";
@@ -55,7 +56,10 @@ export function shellIdentity(session: Session) {
 
 export function AppShell({ session, businessName, theme, mac = false, children }: Props) {
   const [palette, setPalette] = useState(false);
+  const [feedback, setFeedback] = useState(false);
   const { can, user } = shellIdentity(session);
+  // Send feedback (spec 2026-10-16 §1.1): wherever there is a product key to send it under.
+  const openFeedback = session.licence.feedback ? () => setFeedback(true) : undefined;
 
   // A wheel over a focused number field scrolls the page, never changes the value.
   useEffect(() => guardNumberWheel(document), []);
@@ -95,8 +99,8 @@ export function AppShell({ session, businessName, theme, mac = false, children }
         <LicenceProvider session={session}>
           <LoadingProvider>
             <div className={s.app}>
-              <Sidebar businessName={businessName} user={user} can={can} />
-              <MobileTabs can={can} />
+              <Sidebar businessName={businessName} user={user} can={can} onFeedback={openFeedback} />
+              <MobileTabs can={can} onFeedback={openFeedback} />
               <main className={s.main}>
                 {/* The licence (L-A): grace or read-only across the top; paused covers the whole page. */}
                 <LicenceBanner />
@@ -125,7 +129,9 @@ export function AppShell({ session, businessName, theme, mac = false, children }
             <PendingSent />
             {/* A security alert, live, for whoever reviews them (6A). */}
             {can("security.manage") && <AlertHud />}
-            <CommandPalette open={palette} onOpenChange={setPalette} can={can} />
+            <CommandPalette open={palette} onOpenChange={setPalette} can={can} onFeedback={openFeedback} />
+            {/* Mounted only while open: every opening is a fresh sheet, from the page it was opened on. */}
+            {feedback && <FeedbackSheet open onClose={() => setFeedback(false)} />}
           </LoadingProvider>
         </LicenceProvider>
       </TourProvider>

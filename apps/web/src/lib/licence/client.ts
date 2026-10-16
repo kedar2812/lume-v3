@@ -14,6 +14,8 @@ export type LicenceForPerson = LicenceView & {
   lastError: string | null;
   /** The product key (spec 2026-10-15 §1.3): its last four, where it's set, and whether this person may change it. */
   key: { masked: string | null; source: "env" | "stored" | null; canChange: boolean };
+  /** Send feedback shows (spec 2026-10-16 §1.1): there is a key to send it under. */
+  feedback: boolean;
 };
 
 /** Said on window when the API refuses for the licence (403 LICENSE_*): the shell looks at it again. */

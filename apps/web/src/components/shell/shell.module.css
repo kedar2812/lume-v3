@@ -388,7 +388,8 @@
     box-shadow: var(--shadow-pop);
     transform: translateX(-50%);
   }
-  .moreMenu a {
+  .moreMenu a,
+  .moreItem {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -398,7 +399,20 @@
     font-weight: 500;
     color: var(--text);
   }
+  .moreItem {
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .moreSep {
+    height: 0.5px;
+    margin: 5px 10px;
+    background: var(--line-2);
+  }
   .moreMenu a:hover,
+  .moreItem:hover,
   .moreMenu a[aria-current="page"] {
     background: var(--hover);
   }

@@ -15,9 +15,11 @@ type Props = {
   businessName: string;
   user: { name: string; role: string; color?: string; photo?: string };
   can: (p: string) => boolean;
+  /** Send feedback, in the profile menu (spec 2026-10-16 §1.1). */
+  onFeedback?: () => void;
 };
 
-export function Sidebar({ businessName, user, can }: Props) {
+export function Sidebar({ businessName, user, can, onFeedback }: Props) {
   const pathname = usePathname();
   const items = visibleNav(NAV_ITEMS, can);
   const current = activeNav(items, pathname);
@@ -68,7 +70,7 @@ export function Sidebar({ businessName, user, can }: Props) {
         </Suspense>
       )}
       <div className={s.spacer} />
-      <ProfileMenu user={user} />
+      <ProfileMenu user={user} onFeedback={onFeedback} />
     </aside>
   );
 }

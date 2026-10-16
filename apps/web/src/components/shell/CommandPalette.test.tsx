@@ -94,3 +94,18 @@ describe("where a search matched", () => {
     expect(container.querySelector("mark")).toBeNull();
   });
 });
+
+describe("Send feedback from the palette (spec 2026-10-16 §1.1)", () => {
+  it("is an action, found by what people call it", async () => {
+    const onFeedback = vi.fn();
+    render(<CommandPalette open onOpenChange={() => undefined} can={() => true} onFeedback={onFeedback} />);
+    await typeIn("bug report");
+    await userEvent.click(await screen.findByRole("option", { name: /Send feedback/ }));
+    expect(onFeedback).toHaveBeenCalledTimes(1);
+  });
+  it("isn't there without somewhere to send it", async () => {
+    render(<CommandPalette open onOpenChange={() => undefined} can={() => true} />);
+    await typeIn("feedback");
+    expect(screen.queryByRole("option", { name: /Send feedback/ })).toBeNull();
+  });
+});

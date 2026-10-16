@@ -5,11 +5,14 @@ import { Avatar } from "@/components/ui/Avatar";
 import { api } from "@/lib/api";
 import s from "./shell.module.css";
 
-/** The person's row at the foot of the sidebar, opening a small menu: replay the tour, or sign out. */
+/** The person's row at the foot of the sidebar, opening a small menu: replay the tour, send feedback, or sign out. */
 export function ProfileMenu({
   user,
+  onFeedback,
 }: {
   user: { name: string; role: string; color?: string; photo?: string };
+  /** Send feedback (spec 2026-10-16 §1.1): absent where there is nowhere to send it. */
+  onFeedback?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -51,6 +54,18 @@ export function ProfileMenu({
           >
             Replay the tour
           </button>
+          {onFeedback && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onFeedback();
+              }}
+            >
+              Send feedback
+            </button>
+          )}
           <button type="button" role="menuitem" onClick={() => void signOut()} disabled={leaving}>
             {leaving ? "Signing out…" : "Sign out"}
           </button>

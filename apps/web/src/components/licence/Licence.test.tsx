@@ -36,6 +36,7 @@ const L = (over: Partial<LicenceForPerson> = {}): LicenceForPerson => ({
   canCheck: false,
   lastError: null,
   key: { masked: "LUME-••••-••••-••••-••••-7Q2K", source: "stored", canChange: false },
+  feedback: true,
   ...over,
 });
 const ADMIN = [

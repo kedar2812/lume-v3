@@ -93,6 +93,7 @@ export const UNLICENSED_API: LicenceForPerson = {
   canCheck: false,
   lastError: null,
   key: NO_KEY,
+  feedback: false,
 };
 
 export function toSession(me: MePayload): Session {
