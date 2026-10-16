@@ -1,6 +1,7 @@
 # Feedback from a client's LUME — design
 
-**Status:** sections 1–4 approved by the owner in chat, 2026-10-16; screens on canvas next (awaiting approval).
+**Status:** sections 1–4 approved by the owner in chat, 2026-10-16; spec approved the same day; screens on the canvas
+https://claude.ai/artifact/4F4RK4iLdxsMPXcBEvZhyY (11 boards, awaiting approval).
 First of Project B's five parts (owner, 2026-10-16: feedback, run the fleet, control each client, get paid, win
 clients; each its own spec, in that order). Builds on the licensing design
 (`2026-09-30-licensing-deployment-design.md`) and product key activation (`2026-10-15-product-key-activation-design.md`).
@@ -22,7 +23,8 @@ from the demo (it has no product key to send under).
 ## 1. In a client's LUME
 
 ### 1.1 Where it lives
-- **Send feedback** in the profile menu (top right), above Sign out, and a command palette entry ("Send feedback").
+- **Send feedback** in the profile menu at the foot of the sidebar (between Replay the tour and Sign out); on a phone,
+  the last item of the tab bar's **More** menu, after a divider; and a command palette entry ("Send feedback").
 - Shown only when the install holds a product key (`.env` or stored). With none (the demo, development, a LUME not
   set up yet) the menu item and palette entry are absent — not disabled. A paused or read-only LUME still shows it.
 
@@ -50,10 +52,12 @@ feedback**.
   while in flight (the sheet can't be closed meanwhile, but can after a failure).
 - **Sent:** the sheet closes and a toast says "Sent — thank you. LUME's team reads every report." No sound
   (sound policy: achievements only).
-- **Not sent:** the sheet stays, everything in it intact, with one message under the text (§4.1).
+- **Not sent:** the sheet stays, everything in it intact, with one message under the text (§4.1), and Send reads
+  **Try again**.
 - Closing the sheet with content asks "Discard this report?" (Discard / Keep writing). The draft lives only in
   the sheet's state.
-- Phone: the sheet is full-height; Choose images opens the photo picker; Capture is absent.
+- Phone: the sheet is full-height (Cancel top right, Send full-width at the foot); Choose images opens the photo
+  picker; Capture is absent.
 - Copy speaks as LUME (voice rule); no founder promises.
 
 ### 1.3 What travels with it (filled in, not asked)
@@ -205,7 +209,7 @@ The sheet keeps the text, kind and every image in all cases.
 |---|---|
 | Licence server unreachable, timed out, or 5xx | "LUME couldn't reach its team just now. Your report is still here — try again in a minute." |
 | 429 from either server | "That's a lot of reports in an hour — thank you. Try again in N minutes." |
-| 422 image refused | That thumbnail is marked "LUME can't send this one — choose it again"; the others stay. |
+| 422 image refused | That thumbnail is marked "LUME can't send this one — choose it again"; the others stay. Under the text: "One screenshot can't be sent. Remove it or choose it again; the rest of your report is still here." |
 | 401, `KEY_IN_USE`, `KEY_DECOMMISSIONED`, `NO_LICENCE_KEY` | "This LUME's licence can't send feedback right now. Your report is still here." |
 | Capture refused or unsupported | Nothing (button absent when unsupported). |
 
@@ -239,6 +243,6 @@ The sheet keeps the text, kind and every image in all cases.
   migration 0005, licence server image, nginx location, `/healthz` and a 64k-cap check on another path.
 
 ### 4.4 Screens (canvas, for approval before the plan)
-1. The profile menu with Send feedback. 2. The sheet, empty and filled (Porcelain, Obsidian). 3. Blur editor.
+1. The sidebar profile menu with Send feedback (and the phone More menu). 2. The sheet, empty and filled (Porcelain, Obsidian). 3. Blur editor.
 4. Not sent (kept). 5. Phone sheet. 6. Dashboard Feedback list. 7. One report (with status control and note).
 8. Screenshot viewer. 9. Client page Feedback card and Releases "Fixed N reports".
