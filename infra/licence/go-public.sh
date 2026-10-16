@@ -20,6 +20,15 @@ server {
     listen 80;
     server_name $HOST;
     client_max_body_size 64k;
+    # Feedback from a client's LUME (spec 2026-10-16 §2.3): up to five screenshots. Everything else stays at 64k.
+    location = /v1/feedback {
+        client_max_body_size 12m;
+        proxy_pass http://127.0.0.1:8480;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
     location / {
         proxy_pass http://127.0.0.1:8480;
         proxy_set_header Host \$host;

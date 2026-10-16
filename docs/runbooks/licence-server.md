@@ -91,6 +91,15 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/license.lumecrm.in/privkey.pem;
     add_header Strict-Transport-Security "max-age=31536000" always;
     client_max_body_size 64k;
+    # Feedback from a client's LUME: up to five screenshots. Everything else stays at 64k.
+    location = /v1/feedback {
+        client_max_body_size 12m;
+        proxy_pass http://127.0.0.1:8480;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
     location / {
         proxy_pass http://127.0.0.1:8480;
         proxy_set_header Host $host;
@@ -120,7 +129,8 @@ signing key no new answer can be signed, and without the master key the admin's 
 ## 7. Update
 
 Build the new image (step 1) with its version tag, then `LICENCE_IMAGE=lume-licence:<version> docker compose up -d`.
-Back up first (step 6's `pg_dump`). Migration 0004 (product key activation) adds the binding columns and
+Back up first (step 6's `pg_dump`). Migration 0005 (feedback) adds the `feedback` and `feedback_images` tables;
+see 7b for the nginx block it needs. Migration 0004 (product key activation) adds the binding columns and
 `retired_keys`; licences made before it keep working, but their key can't be shown again (Rotate makes one that
 can).
 Update order doesn't matter: from 0004 the server still answers an installation from before product keys (its
@@ -161,6 +171,25 @@ Create the file **before** `up -d` (otherwise Docker makes a folder in its place
 Vercel, pipe it — `ssh <host> cat /root/lume-licence/secrets/enquiry.token | npx vercel@latest env add ENQUIRY_TOKEN
 production`. To rotate: write a new one, `docker compose up -d`, then replace it in Vercel and redeploy the site.
 Check: `curl -s -o /dev/null -w '%{http_code}' -X POST https://license.lumecrm.in/v1/enquiries` answers `401`.
+
+## 7b. Feedback from clients' LUME
+
+A person in a client's LUME sends a report (what happened, a kind, up to five screenshots) from the profile menu;
+their LUME forwards it at once under its own key to `POST /v1/feedback` and keeps no copy. It lands under
+**Feedback** (spec `docs/superpowers/specs/2026-10-16-feedback-design.md`).
+
+- **What's kept here:** the `feedback` table (the words, kind, page, theme, screen, browser, LUME version, the
+  reporter's name, email and role, the status, Fixed in, your note) and `feedback_images` (the screenshots, WebP or
+  JPEG, checked byte by byte: no metadata, no colour profile, 2400 px and 1.5 MB at most each). Nothing about leads.
+- **Clean-up:** screenshots of a report that's been closed (Fixed or Not a bug) for 90 days are deleted by the app
+  itself (the hourly upkeep); the words and details stay.
+- **Backups:** both tables are in the licence database, so step 6's `pg_dump` covers them.
+- **Limits:** 10 reports an hour per person (counted in the client's LUME), 30 an hour per installation and 60 per
+  address here.
+- **nginx:** the route takes up to 12 MB while every other path stays at 64 KB. A site set up before 2026-10-16
+  needs the `location = /v1/feedback { … }` block from step 5 added by hand, inside the 443 `server` (and the 80 one
+  if certbot left a `location /` proxy there), then `nginx -t && systemctl reload nginx`. Check: a 2 MB POST to
+  `/v1/feedback` answers 400 or 401, not 413; a 100 KB POST to `/v1/check` still answers 413.
 
 ## 8. A new client, end to end
 
