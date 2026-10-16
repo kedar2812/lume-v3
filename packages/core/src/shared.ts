@@ -21,6 +21,8 @@ export * from "./users/avatar";
 // Feedback from a client's LUME (spec 2026-10-16): the limits and checks the sheet and both servers share.
 export * from "./feedback/rules";
 export * from "./images/clean";
+// Fleet (spec 2026-10-16 fleet): the health a LUME reports and the announcement claim, zod only.
+export * from "./licence/fleet";
 export * from "./users/initials";
 export * from "./analytics";
 export * from "./onboarding/steps";

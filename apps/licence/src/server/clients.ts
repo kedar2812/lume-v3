@@ -12,6 +12,7 @@ import { addDays, serverState, utcDay } from "@/lib/state";
 import type { Ctx } from "./context";
 import { ROTATE_OVERLAP_MS } from "./check";
 import { clientFeedback, fixedByVersion } from "./feedback-admin";
+import { clientHealth, healthForAlerts } from "./fleet";
 import { currentRates } from "./fx";
 
 export class Refusal extends Error {
@@ -278,6 +279,8 @@ export async function getClient(ctx: Ctx, id: string) {
     rates,
     listPriceInr: Number((await settingsRow(ctx.db)).list_price_inr),
     feedback: await clientFeedback(ctx.db, id),
+    // Fleet (spec 2026-10-16 fleet §3.3): how its LUME is, and 14 days of database size and disk free.
+    ...(await clientHealth(ctx.db, id, now)),
   };
 }
 
@@ -862,6 +865,7 @@ async function currentAlerts(ctx: Ctx) {
       )
     ).rows.map((r) => [r.client_id, r]),
   );
+  const health = await healthForAlerts(ctx.db, ctx.now());
   const ac: AlertClient[] = clients.map((c) => ({
     id: c.id,
     name: c.name,
@@ -879,6 +883,7 @@ async function currentAlerts(ctx: Ctx) {
     slug: c.slug,
     refusedAt: refused.get(c.id)?.at.toISOString() ?? null,
     refusedIp: refused.get(c.id)?.ip ?? null,
+    problems: health.get(c.id) ?? [],
   }));
   return alertsFor(ac, { now: ctx.now(), latestVersion: await latestVersion(ctx.db) });
 }

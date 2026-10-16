@@ -1,4 +1,5 @@
 import type { LicenceType } from "@lume/core/shared";
+import type { Problem } from "./fleet";
 import { formatMoney, type Price } from "./money";
 import { daysBetween, utcDay } from "./state";
 
@@ -24,6 +25,8 @@ export type AlertClient = {
   refusedIp?: string | null;
   /** Its subdomain, for the ready-to-send message. */
   slug?: string;
+  /** What its LUME reported at its newest check-in within a day (spec 2026-10-16 fleet §2.4). */
+  problems?: Problem[];
 };
 export type Alert = {
   /** Stable per condition ("late:<client>"): a hidden alert stays hidden while its fingerprint holds. */
@@ -73,6 +76,8 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
   const trial: Alert[] = [];
   const tried: Alert[] = [];
   const idle: Alert[] = [];
+  const disk: Alert[] = [];
+  const look: Alert[] = [];
   const owed = (c: AlertClient) =>
     c.price && c.price.periodMonths ? formatMoney(c.price.amount, c.price.currency) : null;
   for (const c of live) {
@@ -113,6 +118,32 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
           clientName: c.name,
         });
     }
+    // Fleet (spec 2026-10-16 fleet §2.4): a disk almost full in red; anything else its LUME reported, in amber.
+    const red = (c.problems ?? []).filter((p) => p.severity === "red");
+    const amber = (c.problems ?? []).filter((p) => p.severity === "amber");
+    if (red.length)
+      disk.push({
+        id: `disk:${c.id}`,
+        fingerprint: red.map((p) => p.key).join(","),
+        tone: "red",
+        title: `${c.name}'s disk is almost full`,
+        body: red.map((p) => p.words).join(" "),
+        clientId: c.id,
+        clientName: c.name,
+      });
+    if (amber.length)
+      look.push({
+        id: `look:${c.id}`,
+        fingerprint: amber
+          .map((p) => p.key)
+          .sort()
+          .join(","),
+        tone: "amber",
+        title: `${c.name}'s LUME needs a look`,
+        body: amber.map((p) => p.words).join(" "),
+        clientId: c.id,
+        clientName: c.name,
+      });
     if (c.type === "trial" && c.trialEnds) {
       const left = daysBetween(today, c.trialEnds);
       if (left >= 0 && left <= 15)
@@ -153,7 +184,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
         });
     }
   }
-  const alerts = [...late, ...tried, ...quiet, ...due, ...trial, ...idle];
+  const alerts = [...late, ...tried, ...disk, ...quiet, ...look, ...due, ...trial, ...idle];
   const latest = o.latestVersion;
   if (latest) {
     const behind = live.filter((c) => c.version && compareVersions(c.version, latest) < 0);
