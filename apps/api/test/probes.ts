@@ -230,6 +230,11 @@ export const PROBES: Record<string, Probe> = {
     access: "settings.manage",
     body: () => ({ key: "LUME-0000-0000-0000-0000-0000" }),
   },
+  // Send feedback (spec 2026-10-16 §1.4): anyone signed in.
+  "POST /api/v1/feedback": {
+    access: "auth.self",
+    body: () => ({ kind: "bug", text: "A probe", page: "/today", theme: "porcelain", screen: "1280 × 800 · 1×", images: [] }),
+  },
   "GET /api/v1/export": { access: "data.export" },
   "POST /api/v1/export": { access: "data.export" },
   // An export that was never prepared: 404 for those allowed, refused for the rest.
