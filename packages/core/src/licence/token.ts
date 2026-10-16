@@ -1,4 +1,5 @@
 import { createPublicKey, sign, verify, type KeyObject } from "node:crypto";
+import type { FeedbackReport } from "../feedback/rules";
 import { licencePayloadSchema, type LicencePayload } from "./state";
 
 /** Ed25519's DER prefix for a raw 32-byte public key (SubjectPublicKeyInfo). */
@@ -91,5 +92,31 @@ export function activateBody(o: { licenseKey: string; installId: string; appVers
     installId: o.installId,
     appVersion: o.appVersion,
     serverTime: o.now.toISOString(),
+  };
+}
+
+/** What an install sends with a report (spec 2026-10-16 §2.1): its credentials, who sent it, and the report — only this. */
+export function feedbackBody(o: {
+  instanceId: string;
+  licenseKey: string;
+  installId: string;
+  appVersion: string;
+  browser: string;
+  reporter: { name: string; email: string; role: string };
+  report: FeedbackReport;
+}) {
+  return {
+    instanceId: o.instanceId,
+    licenseKey: o.licenseKey,
+    installId: o.installId,
+    appVersion: o.appVersion,
+    browser: o.browser,
+    reporter: { name: o.reporter.name, email: o.reporter.email, role: o.reporter.role },
+    kind: o.report.kind,
+    text: o.report.text,
+    page: o.report.page,
+    theme: o.report.theme,
+    screen: o.report.screen,
+    images: o.report.images.map((i) => ({ type: i.type, data: i.data })),
   };
 }

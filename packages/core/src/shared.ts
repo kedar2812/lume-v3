@@ -18,6 +18,8 @@ export * from "./leads/contact-access";
 export * from "./users/preferences";
 export * from "./users/device";
 export * from "./users/avatar";
+// Feedback from a client's LUME (spec 2026-10-16): the limits and checks the sheet and both servers share.
+export * from "./feedback/rules";
 export * from "./users/initials";
 export * from "./analytics";
 export * from "./onboarding/steps";
