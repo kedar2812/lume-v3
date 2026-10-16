@@ -10,13 +10,20 @@ export type ClientHealth = {
 
 /** Bars for a 14-day line, tallest = the biggest value (the panel's check-in bar style). */
 function Bars({ values, label, color }: { values: number[]; label: string; color: (v: number) => string }) {
+  // From just under the fortnight's smallest, so a database that grew 10% shows it.
   const max = Math.max(1, ...values);
+  const floor = Math.min(...values) * 0.85;
+  const span = Math.max(1e-9, max - floor);
   return (
     <div className="fl-bars" role="img" aria-label={label}>
       {values.map((v, i) => (
         <i
           key={i}
-          style={{ height: `${Math.max(6, (v / max) * 100)}%`, background: color(v), animationDelay: `${i * 0.02}s` }}
+          style={{
+            height: `${Math.max(6, ((v - floor) / span) * 100)}%`,
+            background: color(v),
+            animationDelay: `${i * 0.02}s`,
+          }}
         />
       ))}
     </div>
@@ -43,8 +50,8 @@ export function HealthCard({ data, version }: { data: ClientHealth; version: str
       </div>
       {s.status === "down" && (
         <p className="fl-prob fl-red">
-          Nothing heard for {ago(s.at).replace(/ ago$/, "")}. Its server may be off or offline; LUME keeps working
-          there for 7 days.
+          Its server may be off or offline. LUME keeps working there for 7 days, then turns read-only until it
+          checks in again.
         </p>
       )}
       {!h && s.status !== "down" && (
@@ -67,14 +74,16 @@ export function HealthCard({ data, version }: { data: ClientHealth; version: str
           <dl className="fl-facts">
             <div>
               <dt>Database</dt>
-              <dd className="num">{bytesText(h.dbBytes)}</dd>
-              {trend.length > 1 && (
+              <dd className="num">
+                {bytesText(h.dbBytes)}
+                {trend.length > 1 && (
                 <Bars
                   values={trend.map((p) => p.dbBytes)}
                   label={`Database size over ${trend.length} days, from ${bytesText(trend[0]!.dbBytes)} to ${bytesText(trend.at(-1)!.dbBytes)}`}
                   color={() => "var(--blue)"}
                 />
               )}
+              </dd>
             </div>
             <div>
               <dt>Disk free</dt>
@@ -90,7 +99,7 @@ export function HealthCard({ data, version }: { data: ClientHealth; version: str
                 }}
               >
                 {h.diskFreePct === null ? "—" : `${h.diskFreePct}%`}
-              </dd>
+              
               {trend.length > 1 && trend.every((p) => p.diskFreePct !== null) && (
                 <Bars
                   values={trend.map((p) => p.diskFreePct!)}
@@ -98,6 +107,7 @@ export function HealthCard({ data, version }: { data: ClientHealth; version: str
                   color={(v) => (v < 5 ? "#e5484d" : v < 15 ? "#f2a20c" : "#18a566")}
                 />
               )}
+              </dd>
             </div>
             <div>
               <dt>Up for</dt>

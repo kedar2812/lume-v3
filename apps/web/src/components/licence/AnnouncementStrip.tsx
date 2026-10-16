@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { licenceClient } from "@/lib/licence/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { useLicence } from "./LicenceProvider";
@@ -38,8 +38,20 @@ export function AnnouncementStrip({ zone }: { zone: string }) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // More only when the words really run past two lines (measured; by length where there's no layout, as in tests).
+  const bodyRef = useRef<HTMLSpanElement>(null);
+  const [overflows, setOverflows] = useState(false);
   const left = (licence.announcements ?? []).filter((a) => !a.gotIt);
   const a = left[0];
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !a) return;
+    const measure = () =>
+      setOverflows(el.clientHeight ? el.scrollHeight > el.clientHeight + 1 : a.body.length > 120);
+    if (!open) measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [a?.id, a?.body, open]);
   const gotIt = async () => {
     if (!a || busy) return;
     setBusy(true);
@@ -68,10 +80,10 @@ export function AnnouncementStrip({ zone }: { zone: string }) {
             {a.windowStart && a.windowEnd && (
               <span className={s.window}>{windowText(a.windowStart, a.windowEnd, zone)}</span>
             )}
-            <span className={s.body} data-open={open || undefined}>
+            <span ref={bodyRef} className={s.body} data-open={open || undefined}>
               {a.body}
             </span>
-            {a.body.length > 120 && (
+            {(overflows || open) && (
               <button type="button" className={s.more} aria-expanded={open} onClick={() => setOpen(!open)}>
                 {open ? "Less" : "More"}
               </button>

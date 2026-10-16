@@ -276,6 +276,8 @@ test("Feedback: a report from a client's LUME, the inbox, one report, the viewer
   // Releases counts it under 1.4.3 once 1.4.3 is the latest (no installation runs it yet).
   await page.goto("/settings");
   const latest = page.getByLabel("Latest version");
+  // Settings loads its values first: typing before then would be added to them.
+  await expect(latest).toHaveValue("1.4.2");
   await latest.fill("1.4.3");
   await latest.press("Enter");
   await expect(page.getByText("Saved")).toBeVisible();
@@ -285,4 +287,64 @@ test("Feedback: a report from a client's LUME, the inbox, one report, the viewer
   await page.getByRole("link", { name: "Fixed 1 report" }).click();
   await expect(page).toHaveURL(/\/feedback\?fixedIn=1\.4\.3/);
   await expect(page.getByRole("link", { name: /The card jumped back/ })).toBeVisible();
+});
+
+test("Fleet: every LUME worst first, a client's Health card, an announcement published and withdrawn", async () => {
+  await theme(page, "light");
+  await page.goto("/fleet");
+  const list = page.getByRole("region", { name: "Every client's LUME" });
+  await expect(list.getByRole("link").first()).toContainText("Harbour Clinic");
+  await expect(list.getByRole("link").first()).toContainText("Down");
+  const saffron = list.getByRole("link", { name: /Saffron Events/ });
+  await expect(saffron).toContainText("Disk almost full");
+  await expect(saffron).toContainText("Jobs failing");
+  await expect(list.getByRole("link", { name: /Oakline Realty/ })).toContainText("No health yet");
+  await expect(page.getByRole("link", { name: /^Fleet/ }).getByLabel(/need a look or are down/)).toBeVisible();
+  for (const t of ["light", "dark"] as const) {
+    await theme(page, t);
+    await shot(page, `fleet-${t}`);
+    expect(await axe(page)).toEqual([]);
+  }
+  await theme(page, "light");
+  await page.getByRole("button", { name: /Problems their LUME reported/ }).click();
+  await expect(list.getByRole("link")).toHaveCount(3);
+  await saffron.click();
+  const card = page.getByRole("region", { name: "Health" });
+  await expect(card).toContainText("The server’s disk is almost full: 4% free.");
+  await expect(card.getByRole("img", { name: /Disk free over \d+ days/ })).toBeVisible();
+  await shot(page, "fleet-client");
+  expect(await axe(page)).toEqual([]);
+
+  await page.goto("/fleet?tab=announcements");
+  await page.getByRole("button", { name: "New announcement" }).click();
+  const sheet = page.getByRole("dialog", { name: "New announcement" });
+  await sheet.getByRole("radio", { name: "Maintenance" }).click();
+  const at = (d: number, h: number) => {
+    const x = new Date(Date.now() + d * 86_400_000);
+    x.setHours(h, 0, 0, 0);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}T${String(h).padStart(2, "0")}:00`;
+  };
+  await sheet.getByLabel("Maintenance starts").fill(at(2, 22));
+  await sheet.getByLabel("Ends").fill(at(2, 23));
+  await sheet.getByLabel("Title").fill("LUME will be updated on Sunday night");
+  await sheet.getByLabel("Message").fill("LUME will be away for about 30 minutes while it’s updated. Nothing you’ve saved is touched.");
+  await sheet.getByRole("radio", { name: "Admins only" }).click();
+  await shot(page, "announce-new");
+  expect(await axe(page)).toEqual([]);
+  await sheet.getByRole("button", { name: "Publish" }).click();
+  await expect(sheet).toBeHidden();
+  const head = page.getByRole("button", { name: /LUME will be updated on Sunday night/ });
+  await expect(head).toContainText("Admins at all clients");
+  await expect(head).toContainText(/Reached 0 of \d+/);
+  await shot(page, "announce-list");
+  expect(await axe(page)).toEqual([]);
+  await head.click();
+  await page.getByRole("button", { name: "Withdraw…" }).click();
+  await page.getByRole("button", { name: "Withdraw", exact: true }).click();
+  await expect(page.getByRole("button", { name: /LUME will be updated on Sunday night/ })).toContainText("Withdrawn");
+  // The client's history says so.
+  await page.goto(`/clients/${seed().ids["Brightpath Studio"]}`);
+  await expect(page.getByRole("region", { name: "History" })).toContainText(
+    "Announcement withdrawn: LUME will be updated on Sunday night",
+  );
 });

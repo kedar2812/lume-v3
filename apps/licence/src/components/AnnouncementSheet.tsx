@@ -11,13 +11,20 @@ const local = (d: Date) => {
   return z.toISOString().slice(0, 16);
 };
 const isoOf = (v: string) => (v ? new Date(v).toISOString() : null);
+/** The window as LUME writes it in its strip: "Sunday, October 18 · 10:00 – 10:30 pm"; across midnight, both days. */
 const windowWords = (a: string, b: string) => {
   if (!a || !b) return "";
+  const day = (d: Date) => d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const time = (d: Date) =>
+    d
+      .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+      .replace(/\s?(AM|PM)$/, (_, m: string) => ` ${m.toLowerCase()}`);
   const s = new Date(a);
   const e = new Date(b);
-  const d = s.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  const t = (x: Date) => x.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
-  return `${d}, ${t(s)} – ${t(e)}`;
+  if (day(s) !== day(e)) return `${day(s)}, ${time(s)} – ${day(e)}, ${time(e)}`;
+  const t1 = time(s);
+  const t2 = time(e);
+  return `${day(s)} · ${t1.slice(-2) === t2.slice(-2) ? t1.slice(0, -3) : t1} – ${t2}`;
 };
 
 /**

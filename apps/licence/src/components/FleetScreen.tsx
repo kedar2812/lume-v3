@@ -182,7 +182,7 @@ function Health({
       <div className="fb-bar">
         <div className="seg" role="group" aria-label="Status">
           {FILTERS.map(([f, label]) => (
-            <button key={f} type="button" aria-selected={filter === f} onClick={() => setFilter(f)}>
+            <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>
               {label} <b className="fb-count">{data ? count(f) : ""}</b>
             </button>
           ))}
@@ -245,7 +245,7 @@ function Health({
               <span className="num r fl-dim">{bytesText(r.dbBytes)}</span>
               <span
                 className={`num r fl-disk${
-                  r.diskFreePct === null ? "" : r.diskFreePct < 5 ? " fl-red-text" : r.diskFreePct < 15 ? " fl-amber-text" : ""
+                  r.diskFreePct === null ? " fl-dim" : r.diskFreePct < 5 ? " fl-red-text" : r.diskFreePct < 15 ? " fl-amber-text" : ""
                 }`}
               >
                 {r.diskFreePct === null ? "—" : `${r.diskFreePct}%`}

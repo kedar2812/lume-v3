@@ -5,7 +5,13 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
-import { rawPublicKey, signLicence, type LicenceNotice, type LicenceStateName } from "@lume/core";
+import {
+  rawPublicKey,
+  signLicence,
+  type AnnouncementClaim,
+  type LicenceNotice,
+  type LicenceStateName,
+} from "@lume/core";
 
 export const E2E_INSTANCE = "LUME-E2E-0001";
 export const E2E_KEY = "LUME-E2E-KEY-0001";
@@ -18,6 +24,8 @@ type Says = {
   notice: LicenceNotice | null;
   /** Refuse checks as if unreachable (the API keeps its last token). */
   down: boolean;
+  /** From LUME's team (spec 2026-10-16 fleet §2.3): signed only for an install that says it can show them. */
+  announcements?: AnnouncementClaim[];
 };
 const ACTIVE: Says = {
   state: "active",
@@ -33,6 +41,8 @@ const dir = here.endsWith(".artifacts") ? here : path.join(here, ".artifacts");
 const keys = generateKeyPairSync("ed25519");
 let says: Says = { ...ACTIVE };
 let checks = 0;
+/** The last check's body, so a test can see what a LUME sent (fleet: accepts, health, seen). */
+let lastCheck: unknown = null;
 // Feedback (spec 2026-10-16 §2.1): the last report taken, and how the next ones are answered ({} takes them).
 let lastFeedback: unknown = null;
 let feedbackCount = 0;
@@ -52,8 +62,9 @@ const send = (res: import("node:http").ServerResponse, status: number, data: unk
 const server = createServer((req, res) => {
   void (async () => {
     if (req.method === "POST" && req.url === "/v1/check") {
-      const b = JSON.parse(await body(req)) as { instanceId?: string; licenseKey?: string };
+      const b = JSON.parse(await body(req)) as { instanceId?: string; licenseKey?: string; accepts?: string[] };
       checks++;
+      lastCheck = b;
       if (says.down) return send(res, 503, { error: { code: "DOWN" } });
       if (b.instanceId !== E2E_INSTANCE || b.licenseKey !== E2E_KEY)
         return send(res, 401, { error: { code: "UNKNOWN_KEY" } });
@@ -72,6 +83,9 @@ const server = createServer((req, res) => {
             trialEndsAt: null,
             reason: says.reason,
             notice: says.notice,
+            ...(says.announcements && b.accepts?.includes("announcements")
+              ? { announcements: says.announcements }
+              : {}),
           },
           keys.privateKey,
         ),
@@ -100,7 +114,7 @@ const server = createServer((req, res) => {
       says = { ...ACTIVE, ...(JSON.parse(await body(req)) as Partial<Says>) };
       return send(res, 200, { says });
     }
-    if (req.url === "/__fake/state") return send(res, 200, { says, checks });
+    if (req.url === "/__fake/state") return send(res, 200, { says, checks, lastCheck });
     send(res, 404, {});
   })();
 });

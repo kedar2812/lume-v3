@@ -97,6 +97,27 @@ const HEARD_H: Record<string, number> = {
   "Kestrel Logistics": 6,
 };
 const OLD = new Set(["Oakline Realty", "Kestrel Logistics"]);
+// Fleet (spec 2026-10-16 fleet): what each LUME on the newer version says about itself; the older two send none.
+const SICK: Record<string, { diskFreePct?: number; failed24h?: number; problems?: string[]; restoreDays?: number }> = {
+  "Saffron Events": { diskFreePct: 4, failed24h: 3, problems: ["jobs_failed"] },
+  "Coral Bay Physio": { problems: ["reminders_late"] },
+  "Summit Fitness": { restoreDays: 9, problems: ["restore_test"] },
+};
+const healthAt = (name: string, i: number, hoursAgo: number) => {
+  const sick = SICK[name] ?? {};
+  const grow = 1 - (hoursAgo / (14 * 24)) * 0.15;
+  return JSON.stringify({
+    uptimeS: Math.max(60, Math.round((5 * 24 - (hoursAgo % (5 * 24))) * 3600)),
+    dbBytes: Math.round((90 + i * 23) * 1_000_000 * grow),
+    diskFreePct: sick.diskFreePct !== undefined ? Math.round(sick.diskFreePct + (hoursAgo / 24) * 1.4) : 40 + ((i * 7) % 40),
+    errors24h: i % 3,
+    queue: { waiting: i % 4, retrying: 0, failed24h: sick.failed24h ?? 0 },
+    remindersLate: sick.problems?.includes("reminders_late") ? 2 : 0,
+    restoreTest: { at: new Date(now.getTime() - ((sick.restoreDays ?? 1) * 24 + hoursAgo) * 3_600_000).toISOString(), ok: true },
+    problems: sick.problems ?? [],
+    sourcesNeedingAttention: 0,
+  });
+};
 const ids: Record<string, string> = {};
 // One client's LUME, bound to a known install, so the feedback test can send a report as it (spec 2026-10-16 §2.1).
 let feedback: { instanceId: string; licenseKey: string; installId: string } | null = null;
@@ -152,19 +173,26 @@ for (const [i, c] of CANVAS_CLIENTS.entries()) {
       ? (now.getTime() - moved(c.endedAt).getTime()) / 3_600_000
       : (HEARD_H[c.name] ?? 2 + (i % 4));
     const version = OLD.has(c.name) ? "1.3.8" : "1.4.2";
+    const insert = (at: Date, hoursAgo: number) =>
+      pool.query(
+        "INSERT INTO check_ins (client_id, at, ip, app_version, active_users, lead_count, server_time, state, health, accepts) VALUES ($1, $2, $3, $4, $5, $6, $2, 'active', $7, $8)",
+        [
+          id,
+          at,
+          `198.51.100.${10 + i}`,
+          version,
+          2 + (i % 6),
+          120 + i * 97,
+          OLD.has(c.name) ? null : healthAt(c.name, i, hoursAgo),
+          OLD.has(c.name) ? null : ["announcements"],
+        ],
+      );
     for (let h = 14 * 24; h >= lastH; h -= 6) {
       const at = new Date(now.getTime() - h * 3_600_000);
       if (at < created) continue;
-      await pool.query(
-        "INSERT INTO check_ins (client_id, at, ip, app_version, active_users, lead_count, server_time, state) VALUES ($1, $2, $3, $4, $5, $6, $2, 'active')",
-        [id, at, `198.51.100.${10 + i}`, version, 2 + (i % 6), 120 + i * 97],
-      );
+      await insert(at, h);
     }
-    const at = new Date(now.getTime() - lastH * 3_600_000);
-    await pool.query(
-      "INSERT INTO check_ins (client_id, at, ip, app_version, active_users, lead_count, server_time, state) VALUES ($1, $2, $3, $4, $5, $6, $2, 'active')",
-      [id, at, `198.51.100.${10 + i}`, version, 2 + (i % 6), 120 + i * 97],
-    );
+    await insert(new Date(now.getTime() - lastH * 3_600_000), lastH);
     await pool.query(
       "INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'first_check_in', $3)",
       [

@@ -1860,6 +1860,7 @@ a.btn.wa {
   text-overflow: ellipsis;
 }
 .fb-bar .seg button[aria-selected="true"],
+.fb-bar .seg button[aria-pressed="true"],
 .fb-status button[aria-pressed="true"] {
   color: var(--ink);
   background: var(--pill);
@@ -1871,6 +1872,11 @@ a.btn.wa {
   font-weight: 600;
   color: var(--ink3);
   font-feature-settings: "tnum";
+}
+/* On the selected pill the count needs the stronger ink (Obsidian's pill is lighter than its sheet). */
+[aria-selected="true"] > .fb-count,
+[aria-pressed="true"] > .fb-count {
+  color: var(--ink2);
 }
 .fb-kind select,
 .fb-search {
