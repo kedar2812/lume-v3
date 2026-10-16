@@ -11,8 +11,8 @@ type Releases = {
   latest: string | null;
   versions: { version: string; clients: { id: string; name: string; lastCheckInAt: string }[] }[];
   waiting: { id: string; name: string }[];
-  /** How many reports each version fixed (spec 2026-10-16 §3.4). */
-  fixed: Record<string, number>;
+  /** How many reports each version fixed (spec 2026-10-16 §3.4); absent from a server older than it. */
+  fixed?: Record<string, number>;
 };
 
 function Fixed({ version, n }: { version: string; n: number | undefined }) {
@@ -55,7 +55,7 @@ export function ReleasesScreen() {
               </span>
             </div>
             {r.latest && !r.versions.some((v) => v.version === r.latest) && (
-              <Fixed version={r.latest} n={r.fixed[r.latest]} />
+              <Fixed version={r.latest} n={r.fixed?.[r.latest]} />
             )}
           </section>
         )}
@@ -87,7 +87,7 @@ export function ReleasesScreen() {
                   {v.clients.length} {v.clients.length === 1 ? "installation" : "installations"}
                 </span>
               </div>
-              <Fixed version={v.version} n={r.fixed[v.version]} />
+              <Fixed version={v.version} n={r.fixed?.[v.version]} />
               <ul
                 style={{
                   margin: 0,

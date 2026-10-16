@@ -28,8 +28,8 @@ type Detail = {
   } | null;
   checkIns: { from: string; seen: boolean }[];
   history: { at: string; kind: string; detail: Record<string, unknown> }[];
-  /** Feedback from this client's team (spec 2026-10-16 §3.4). */
-  feedback: {
+  /** Feedback from this client's team (spec 2026-10-16 §3.4); absent from a server older than it. */
+  feedback?: {
     total: number;
     new: number;
     latest: {
@@ -441,17 +441,17 @@ export function ClientScreen({ id }: { id: string }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
-          {d.feedback.total > 0 && (
+          {!!d.feedback?.total && (
             <section className="card" aria-label="Feedback">
               <div className="fb-card-head">
                 <h2 className="h">Feedback</h2>
                 <span className="note">
-                  {d.feedback.new ? `${d.feedback.new} new · ` : ""}
-                  {d.feedback.total} in all
+                  {d.feedback!.new ? `${d.feedback!.new} new · ` : ""}
+                  {d.feedback!.total} in all
                 </span>
               </div>
               <div className="fb-card-list">
-                {d.feedback.latest.map((f) => (
+                {d.feedback!.latest.map((f) => (
                   <Link
                     key={f.id}
                     href={`/feedback/${f.id}`}
@@ -469,7 +469,7 @@ export function ClientScreen({ id }: { id: string }) {
                 ))}
               </div>
               <Link href={`/feedback?client=${c.id}`} className="fb-all">
-                All {d.feedback.total} from {c.name} ›
+                All {d.feedback!.total} from {c.name} ›
               </Link>
             </section>
           )}
