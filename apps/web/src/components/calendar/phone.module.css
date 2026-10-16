@@ -1,5 +1,7 @@
 /* The Calendar on a phone (Phase 5 canvas, Phone): under 700 px the page is one list and a bottom sheet. */
 .phone {
+  /* The calendar note lines up with the cards here (canvas Phone), not the desktop page's inset. */
+  --connect-inset: 0;
   display: flex;
   flex-direction: column;
   padding-bottom: 24px;

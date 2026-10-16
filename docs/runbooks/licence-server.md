@@ -129,7 +129,8 @@ signing key no new answer can be signed, and without the master key the admin's 
 ## 7. Update
 
 Build the new image (step 1) with its version tag, then `LICENCE_IMAGE=lume-licence:<version> docker compose up -d`.
-Back up first (step 6's `pg_dump`). Migration 0005 (feedback) adds the `feedback` and `feedback_images` tables;
+Back up first (step 6's `pg_dump`). Migration 0006 (fleet) adds health to check-ins and the announcement tables
+(7c). Migration 0005 (feedback) adds the `feedback` and `feedback_images` tables;
 see 7b for the nginx block it needs. Migration 0004 (product key activation) adds the binding columns and
 `retired_keys`; licences made before it keep working, but their key can't be shown again (Rotate makes one that
 can).
@@ -190,6 +191,23 @@ their LUME forwards it at once under its own key to `POST /v1/feedback` and keep
   needs the `location = /v1/feedback { … }` block from step 5 added by hand, inside the 443 `server` (and the 80 one
   if certbot left a `location /` proxy there), then `nginx -t && systemctl reload nginx`. Check: a 2 MB POST to
   `/v1/feedback` answers 400 or 401, not 413; a 100 KB POST to `/v1/check` still answers 413.
+
+## 7c. Fleet: each LUME's health, and announcements
+
+Each client's LUME (from the release that brings Fleet) sends its health with every check-in, every 6 hours:
+uptime, database size, free disk, server errors in the last day, background jobs, late reminders, the last backup
+restore test, and fixed problem keys. Counts and sizes only, never a lead or a source's name. They show under
+**Fleet** (worst first), on each client's **Health** card, and in the bell (a disk under 5% in red; any other
+problem in amber). A LUME on an older version shows "No health yet".
+
+**Announcements** (Fleet → Announcements → New announcement) go inside the signed answer to the LUMEs that say they
+can show them (an older LUME gets exactly the answer it always did). Each reaches its LUME at the next check-in,
+within 6 hours, and shows there as a strip, "From LUME's team", to everyone or to admins; each person presses Got
+it once. Withdrawing one removes it at the next check-in. Reach on the list: reached / on an older LUME / waiting,
+and how many pressed Got it.
+
+Migration 0006 adds `check_ins.health` and `accepts` and the `announcements`, `announcement_clients` and
+`announcement_seen` tables; `pg_dump` covers them. Health kept with check-ins is pruned with them at 180 days.
 
 ## 8. A new client, end to end
 
