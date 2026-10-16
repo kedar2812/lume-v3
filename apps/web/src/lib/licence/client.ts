@@ -1,9 +1,14 @@
 "use client";
-import type { LicenceView } from "@lume/core/shared";
+import type { AnnouncementClaim, LicenceView } from "@lume/core/shared";
 import { api } from "@/lib/api";
 
 /** The licence as one person sees it (licensing L-A): what the API sends with /auth/me and on its own. */
-export type LicenceForPerson = LicenceView & {
+/** An announcement from LUME's team as one person sees it (spec 2026-10-16 fleet §4). */
+export type AnnouncementForPerson = AnnouncementClaim & { gotIt: boolean };
+
+export type LicenceForPerson = Omit<LicenceView, "announcements"> & {
+  /** From LUME's team: the ones meant for this person, not ended (absent from an older API: normalised to []). */
+  announcements: AnnouncementForPerson[];
   instanceId: string | null;
   nextCheckAt: string | null;
   /** Show the payment reminder now (owners and admins; not closed this session). */
@@ -27,6 +32,9 @@ export const licenceClient = {
   dismiss: () => api.post<null>("/api/v1/licence/notice/dismiss"),
   /** The owner's Change key (Settings → About): approved, the licence as it now is. */
   changeKey: (key: string) => api.post<LicenceForPerson>("/api/v1/licence/key", { key }),
+  /** Got it on an announcement (fleet §4): once per person, on every device. */
+  gotIt: (id: string) =>
+    api.post<LicenceForPerson>(`/api/v1/licence/announcements/${encodeURIComponent(id)}/got-it`),
 };
 
 /** Where Export all data downloads from (a zip, in every licence state). */

@@ -752,3 +752,18 @@ a.bannerBtn {
 .keyInputs .btnPrimary {
   height: 42px;
 }
+/* From LUME's team in About (spec 2026-10-16 fleet §4): every live one, Got it or not, to read again. */
+.announcement {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.announcement + .announcement {
+  padding-top: 12px;
+  border-top: 0.5px solid var(--line);
+}
+.announcement p {
+  margin: 0;
+  white-space: pre-wrap;
+}

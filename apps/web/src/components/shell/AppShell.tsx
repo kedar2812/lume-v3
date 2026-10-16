@@ -1,6 +1,7 @@
 "use client";
 import { lookOf } from "@/lib/avatar/look";
 import { LoadingProvider } from "@/lib/loading";
+import { AnnouncementStrip } from "@/components/licence/AnnouncementStrip";
 import { LicenceBanner } from "@/components/licence/LicenceBanner";
 import { LicenceProvider } from "@/components/licence/LicenceProvider";
 import { PendingSent } from "@/components/messages/PendingSent";
@@ -112,6 +113,8 @@ export function AppShell({ session, businessName, theme, mac = false, children }
                   onSearch={() => setPalette(true)}
                   mac={mac}
                 />
+                {/* From LUME's team (spec 2026-10-16 fleet §4): one at a time, under the top bar. */}
+                <AnnouncementStrip zone={zoneOf(session.user)} />
                 <div className={s.scroll} data-scroll>
                   <div className={s.page}>
                     <PageContent>{children}</PageContent>

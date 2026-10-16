@@ -190,6 +190,18 @@ export function LicenceCard() {
         </div>
       </motion.section>
 
+      {licence.announcements.length > 0 && (
+        <section aria-label="From LUME’s team, now showing" className={s.aboutCard}>
+          <h3 className={s.aboutCardTitle}>From LUME’s team</h3>
+          {licence.announcements.map((a) => (
+            <div key={a.id} className={s.announcement}>
+              <b>{a.title}</b>
+              <p className={s.aboutWords}>{a.body}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
       <div className={s.aboutPair}>
         <section aria-label="What LUME tells its licence server" className={s.aboutCard}>
           <h3 className={s.aboutCardTitle}>
@@ -213,6 +225,8 @@ export function LicenceCard() {
               "How many people use it",
               "How many leads (a number)",
               "Server time",
+              "Its health: counts and sizes",
+              "How many pressed Got it",
             ].map((c) => (
               <span key={c} className={s.chip}>
                 {c}
@@ -220,8 +234,10 @@ export function LicenceCard() {
             ))}
           </div>
           <p className={s.aboutWords}>
-            Never a lead&apos;s name, number, email or anything they said. Those stay on this server. The
-            install ID is a random code this LUME made for itself, so its key works on this server only.
+            Never a lead&apos;s name, number, email or anything they said. Those stay on this server. Its
+            health is numbers only: uptime, database size, free disk, errors, background jobs and backup
+            checks. The install ID is a random code this LUME made for itself, so its key works on this server
+            only.
           </p>
         </section>
         <section aria-label="Your data, always yours" className={s.aboutCard}>

@@ -1,0 +1,112 @@
+/* From LUME's team (spec 2026-10-16 fleet §4; canvas page "2 · Fleet"): the licence banner's family, quieter. */
+.strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--sunk);
+  border-bottom: 0.5px solid var(--line);
+}
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.dot[data-kind="maintenance"] {
+  background: var(--warn);
+}
+.words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.from {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.window {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warn-ink);
+}
+.body {
+  max-width: 760px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* Two lines until More (no vendor-prefixed clamp: the stylesheets are prefixed by the build). */
+  max-height: calc(1.5em * 2);
+  overflow: hidden;
+}
+.body[data-open] {
+  max-height: none;
+}
+.more {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.got {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  transition: transform 0.1s ease-out;
+}
+.got:active {
+  transform: scale(0.97);
+}
+.got:disabled {
+  opacity: 0.6;
+}
+.more:focus-visible,
+.got:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* A phone: full width, three lines, Got it a whole row to reach with a thumb. */
+@media (max-width: 560px) {
+  .strip {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+  .body {
+    max-height: calc(1.5em * 3);
+    font-size: 13.5px;
+  }
+  .got {
+    flex: 1 1 100%;
+    height: 44px;
+    font-size: 14px;
+  }
+}
