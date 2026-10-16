@@ -23,6 +23,8 @@ export type Ctx = {
     /** Feedback (spec 2026-10-16 §2.1): reports per install, and per address. */
     feedbackInstall: Limiter;
     feedbackIp: Limiter;
+    /** Every POST /v1/feedback from one address, refused or not: 12 MB bodies aren't read without end. */
+    feedbackTries: Limiter;
   };
   /** ENQUIRY_TOKEN: the website's key to POST /v1/enquiries; null until set up (the intake then answers 503). */
   enquiryToken: string | null;
@@ -81,6 +83,7 @@ export function context(): Ctx {
       enquiryAll: new Limiter(200, HOUR),
       feedbackInstall: new Limiter(30, HOUR),
       feedbackIp: new Limiter(60, HOUR),
+      feedbackTries: new Limiter(120, HOUR),
     },
     enquiryToken: secretFrom(env, "ENQUIRY_TOKEN"),
     master: masterKeyFromBase64(masterKey),

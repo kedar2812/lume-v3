@@ -185,7 +185,7 @@ their LUME forwards it at once under its own key to `POST /v1/feedback` and keep
   itself (the hourly upkeep); the words and details stay.
 - **Backups:** both tables are in the licence database, so step 6's `pg_dump` covers them.
 - **Limits:** 10 reports an hour per person (counted in the client's LUME), 30 an hour per installation and 60 per
-  address here.
+  address here, and 120 tries an hour per address, refused ones included, before a body is read.
 - **nginx:** the route takes up to 12 MB while every other path stays at 64 KB. A site set up before 2026-10-16
   needs the `location = /v1/feedback { … }` block from step 5 added by hand, inside the 443 `server` (and the 80 one
   if certbot left a `location /` proxy there), then `nginx -t && systemctl reload nginx`. Check: a 2 MB POST to

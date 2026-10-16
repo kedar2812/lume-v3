@@ -148,6 +148,30 @@ describe("one report", () => {
     expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
 
+  it("keeps the note being typed when a status is chosen, and saves it on leaving the page", async () => {
+    const user = userEvent.setup();
+    answer({ "/api/feedback/f1": detail({ note: "Old" }) });
+    // The server's own copy: a note saved only when one is sent.
+    let server = detail({ note: "Old" });
+    vi.mocked(api.patch).mockImplementation(async (_p: string, body: unknown) => {
+      server = { ...server, ...(body as Partial<FeedbackDetail>) };
+      return ok(server) as never;
+    });
+    const view = render(<FeedbackReport id="f1" />);
+    const box = await screen.findByRole("textbox", { name: "Your note" });
+    await user.clear(box);
+    await user.type(box, "Race");
+    await user.click(screen.getByRole("button", { name: "Fixing" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/api/feedback/f1", { status: "fixing" }));
+    expect(box).toHaveValue("Race");
+    await waitFor(() => expect(server.note).toBe("Race"), { timeout: 2000 });
+    expect(box).toHaveValue("Race");
+
+    await user.type(box, " ends here");
+    view.unmount();
+    expect(api.patch).toHaveBeenLastCalledWith("/api/feedback/f1", { note: "Race ends here" });
+  });
+
   it("shows the words as text, the email as a mailto, and behind when the client's LUME is older", async () => {
     answer({ "/api/feedback/f1": detail({ text: "<img src=x onerror=alert(1)>" }) });
     render(<FeedbackReport id="f1" />);

@@ -112,7 +112,10 @@ export async function feedbackClient(
 export async function handleFeedback(req: Request, ctx: Ctx): Promise<Response> {
   const now = ctx.now();
   const ip = clientIp(req);
-  // A flood from one address is turned away before anything is read.
+  // A flood from one address is turned away before anything is read: every try counts (a body can be 12 MB, and
+  // made-up instance ids would slip past the wrong-key limit), and so does every report kept.
+  const tries = ctx.limits.feedbackTries.take(ip, now.getTime());
+  if (!tries.ok) return limited(tries.retryAfterS);
   const byIp = ctx.limits.feedbackIp.check(ip, now.getTime());
   if (!byIp.ok) return limited(byIp.retryAfterS);
 

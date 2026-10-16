@@ -218,4 +218,13 @@ describe("POST /v1/feedback", () => {
     const c = await bound();
     expect((await post(report(c, { images: [] }), "203.0.113.77")).status).toBe(429);
   });
+
+  it("turns an address away after 120 tries an hour, refused ones too, before reading what it sends", async () => {
+    for (let i = 0; i < 120; i++) expect((await post("not json", "192.0.2.50")).status).toBe(400);
+    const s = await bound();
+    const r = await post(report(s, { images: [] }), "192.0.2.50");
+    expect(r.status).toBe(429);
+    expect(Number(r.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect((await post(report(s, { images: [] }), "192.0.2.51")).status).toBe(201);
+  });
 });

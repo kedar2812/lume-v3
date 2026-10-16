@@ -99,6 +99,7 @@ export function testCtx(pool: pg.Pool, now: () => Date, over: Partial<Ctx> = {})
       enquiryAll: new Limiter(200, HOUR),
       feedbackInstall: new Limiter(30, HOUR),
       feedbackIp: new Limiter(60, HOUR),
+      feedbackTries: new Limiter(120, HOUR),
     },
     enquiryToken: "test-enquiry-token-0123456789abcdef",
     master: randomBytes(32),

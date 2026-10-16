@@ -46,12 +46,14 @@ export function FeedbackReport({ id }: { id: string }) {
   const [saved, setSaved] = useState(false);
   const [viewing, setViewing] = useState<number | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The note typed but not yet sent: saved after a pause, or at once when the page is left.
+  const unsent = useRef<string | null>(null);
 
   const patch = async (body: Record<string, string>) => {
     const r = await api.patch<FeedbackDetail>(`/api/feedback/${id}`, body);
     if (r.ok) {
-      // A note saved while the owner kept typing keeps what's in the box now.
-      setD((prev) => (body.note !== undefined && prev ? { ...r.data, note: prev.note } : r.data));
+      // Once it's open, the box is the note: no answer (a status's, or an earlier note's) writes over what's typed.
+      setD((prev) => (prev ? { ...r.data, note: prev.note } : r.data));
       setProblem(null);
     } else setProblem(r.message);
     return r.ok;
@@ -68,6 +70,8 @@ export function FeedbackReport({ id }: { id: string }) {
     return () => {
       live = false;
       if (noteTimer.current) clearTimeout(noteTimer.current);
+      if (unsent.current !== null) void api.patch(`/api/feedback/${id}`, { note: unsent.current });
+      unsent.current = null;
     };
   }, [id]);
 
@@ -104,8 +108,12 @@ export function FeedbackReport({ id }: { id: string }) {
   const onNote = (note: string) => {
     setD({ ...d, note });
     setSaved(false);
+    unsent.current = note;
     if (noteTimer.current) clearTimeout(noteTimer.current);
-    noteTimer.current = setTimeout(() => void patch({ note }).then(setSaved), 600);
+    noteTimer.current = setTimeout(() => {
+      unsent.current = null;
+      void patch({ note }).then(setSaved);
+    }, 600);
   };
   const copy = async () => {
     await navigator.clipboard.writeText(bugReport(d));
