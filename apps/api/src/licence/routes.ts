@@ -20,6 +20,8 @@ export type LicenceForPerson = LicenceView & {
   lastError: string | null;
   /** The product key (spec 2026-10-15 §1.3): its last four, where it's set, and whether this person may change it. */
   key: { masked: string | null; source: "env" | "stored" | null; canChange: boolean };
+  /** Send feedback shows (spec 2026-10-16 §1.1): there is a key to send it under. */
+  feedback: boolean;
 };
 
 /** The licence as this person sees it (L-A): with /auth/me, and on its own. */
@@ -43,6 +45,7 @@ export async function licenceFor(req: FastifyRequest): Promise<LicenceForPerson>
     canCheck: admin,
     lastError: admin ? req.server.licence.lastError() : null,
     key: keyFor(req),
+    feedback: req.server.licence.canSendFeedback(),
   };
 }
 

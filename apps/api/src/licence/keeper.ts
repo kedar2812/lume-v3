@@ -3,8 +3,10 @@ import {
   activateBody,
   canonicalKey,
   checkBody,
+  feedbackBody,
   licenceState,
   verifyLicence,
+  type FeedbackReport,
   type Keyring,
   type LicencePayload,
   type LicenceView,
@@ -17,6 +19,15 @@ const CHECK_TIMEOUT_MS = 10_000;
 export type ActivateRefusal =
   "format" | "not_recognised" | "in_use" | "decommissioned" | "paused" | "too_many" | "unreachable";
 export type ActivateOutcome = { ok: true; view: LicenceView } | { ok: false; reason: ActivateRefusal };
+/** What became of a report (spec 2026-10-16 §4.1): the words for each live in the web. */
+export type FeedbackOutcome =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "no_key" | "unreachable" | "limited" | "licence" | "image";
+      retryAfterS?: number;
+      index?: number;
+    };
 /** What the sealed key is bound to in the keyring. */
 const KEY_CONTEXT = "licence-key";
 /** Every 6 hours (spec §3.2). */
@@ -275,6 +286,62 @@ export class LicenceKeeper {
     // The first check-in, with this install's counts, follows at once (the activation sent none).
     void this.check().catch(() => undefined);
     return { ok: true, view };
+  }
+
+  /** A report can go: an enforced licence that holds a key (the demo and development have none to send under). */
+  canSendFeedback(): boolean {
+    return !this.dev && !!this.creds();
+  }
+
+  /**
+   * Forward one report to the licence server (spec 2026-10-16 §1.4) under this install's credentials, as a check-in
+   * goes. Nothing is kept here. Never throws.
+   */
+  async sendFeedback(o: {
+    browser: string;
+    reporter: { name: string; email: string; role: string };
+    report: FeedbackReport;
+  }): Promise<FeedbackOutcome> {
+    if (!this.row) await this.refresh().catch(() => undefined);
+    const creds = this.creds();
+    if (this.dev || !creds || !this.row) return { ok: false, reason: "no_key" };
+    let r: Response;
+    try {
+      r = await (this.opts.fetch ?? fetch)(`${this.opts.url}/v1/feedback`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          feedbackBody({
+            instanceId: creds.instanceId,
+            licenseKey: creds.licenseKey,
+            installId: this.row.install_id,
+            appVersion: this.opts.version,
+            browser: o.browser,
+            reporter: o.reporter,
+            report: o.report,
+          }),
+        ),
+        signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+      });
+    } catch (e) {
+      this.log({ error: (e as Error).message }, "feedback: the licence server is unreachable");
+      return { ok: false, reason: "unreachable" };
+    }
+    if (r.status === 201) return { ok: true };
+    if (r.status === 429)
+      return { ok: false, reason: "limited", retryAfterS: Math.max(1, Number(r.headers.get("retry-after")) || 3600) };
+    if (r.status === 422) {
+      let index: number | undefined;
+      try {
+        const i = ((await r.json()) as { error?: { index?: unknown } }).error?.index;
+        if (typeof i === "number" && Number.isInteger(i)) index = i;
+      } catch {
+        // Which screenshot is a nicety; the refusal stands without it.
+      }
+      return { ok: false, reason: "image", ...(index === undefined ? {} : { index }) };
+    }
+    if (r.status === 401 || r.status === 403 || r.status === 409) return { ok: false, reason: "licence" };
+    return { ok: false, reason: "unreachable" };
   }
 
   /** The two numbers the check sends (spec §2.4): members (a paused person included, 6A R7), and leads — counts only. */

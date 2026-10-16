@@ -11,6 +11,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../test/harness";
 import { fire, sweep } from "../modules/tasks/engine";
+import { allowed } from "./enforce";
 
 const server = generateKeyPairSync("ed25519");
 const INSTANCE = "LUME-TEST-0002";
@@ -216,5 +217,13 @@ describe("work LUME holds back while locked says so in its log (spec §3.4)", ()
     s = "active";
     expect(heldBack(app, "the follow-up clock")).toBe(false);
     expect(info.mock.calls.at(-1)![1]).toBe("the follow-up clock carries on: the licence is active");
+  });
+});
+
+describe("feedback while locked (spec 2026-10-16 §1.1)", () => {
+  it("lets a report through a read-only or paused LUME: a lock screen can have bugs too", () => {
+    expect(allowed("read_only", "POST", "/api/v1/feedback")).toBe(true);
+    expect(allowed("suspended", "POST", "/api/v1/feedback")).toBe(true);
+    expect(allowed("suspended", "POST", "/api/v1/feedback/other")).toBe(false);
   });
 });

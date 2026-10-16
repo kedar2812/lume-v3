@@ -26,14 +26,16 @@ const LICENCE_WRITES = new Set([
 // First-run setup closes itself once anyone exists; before that, a client's install that can't check in without
 // its key ages towards read-only from its first start, and must still take the key (spec 2026-10-15 §1.1).
 const isSetup = (url: string) => url === "/api/v1/setup" || url.startsWith("/api/v1/setup/");
+// Feedback (spec 2026-10-16 §1.1) goes out whatever the licence: a lock screen can have bugs too.
+const isFeedback = (url: string) => url === "/api/v1/feedback";
 /** Reads done over POST: revealing a masked contact writes only the record of who looked. */
 const READS_BY_POST = new Set(["/api/v1/leads/:id/contact/reveal"]);
 
 /**
  * What a locked instance still does (spec §3.4). Read-only: anything that doesn't write, and signing in
- * and out, the licence's own Check now, reminder and Change key, first-run setup, and the export. Suspended: signing
+ * and out, the licence's own Check now, reminder and Change key, first-run setup, feedback, and the export. Suspended: signing
  * in, the licence (its Check now and Change key), first-run setup,
- * the business's name (for the lock screen), and the export — nothing else. In both, the steps LUME puts
+ * the business's name (for the lock screen), feedback, and the export — nothing else. In both, the steps LUME puts
  * before the app (the agreement, a required two-step enrolment: the routes marked `allowDuringEnrolment`)
  * stay open, or someone who must take them could never reach the export behind them.
  */
@@ -44,7 +46,8 @@ export function allowed(
   o: { firstRun?: boolean } = {},
 ): boolean {
   if (state === "active" || state === "grace") return true;
-  if (isAuth(url) || isExport(url) || isSetup(url) || LICENCE_WRITES.has(url) || o.firstRun) return true;
+  if (isAuth(url) || isExport(url) || isSetup(url) || isFeedback(url) || LICENCE_WRITES.has(url) || o.firstRun)
+    return true;
   if (state === "read_only") return !WRITES.has(method) || READS_BY_POST.has(url);
   return (
     method === "GET" && (url === "/api/v1/licence" || url === "/api/v1/settings" || url === "/api/v1/about")

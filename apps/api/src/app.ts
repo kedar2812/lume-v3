@@ -19,6 +19,7 @@ import { fieldRoutes } from "./modules/fields/routes";
 import { leadRoutes } from "./modules/leads/routes";
 import { LicenceKeeper } from "./licence/keeper";
 import { licenceRoutes } from "./licence/routes";
+import { feedbackRoutes } from "./modules/feedback/routes";
 import type { LicenceOptions } from "./licence/options";
 import { queueRoutes } from "./modules/queues/routes";
 import { importRoutes } from "./modules/imports/routes";
@@ -201,6 +202,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(templateRoutes);
         await scope.register(viewRoutes);
         await scope.register(licenceRoutes);
+        await scope.register(feedbackRoutes);
         await scope.register(exportRoutes, deps);
         await scope.register(queueRoutes, deps);
         await scope.register(notificationRoutes, deps);
