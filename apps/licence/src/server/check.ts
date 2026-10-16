@@ -5,6 +5,7 @@ import { hashKey, keyMatches } from "@/lib/keys";
 import { answerVerifies, issueToken } from "@/lib/sign";
 import { serverState } from "@/lib/state";
 import { liveAnnouncements, recordSeen } from "./announcements";
+import { planOf } from "./plan";
 import type { Ctx } from "./context";
 import { clientIp, json, readCapped } from "./http";
 
@@ -45,6 +46,8 @@ type Row = {
   install_id: string | null;
   activated_at: Date | null;
   released_at: Date | null;
+  places: number | null;
+  modules: Record<string, boolean>;
 };
 const DAY = 86_400_000;
 /** A rotated key keeps its server going this long, while the client enters the new one (spec 2026-10-15 §2.4). */
@@ -80,7 +83,7 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
     `SELECT l.client_id, l.key_hash, l.type,
             to_char(l.paid_until, 'YYYY-MM-DD') AS paid_until, to_char(l.trial_ends, 'YYYY-MM-DD') AS trial_ends,
             l.suspended_at IS NOT NULL AS suspended, c.decommissioned_at IS NOT NULL AS decommissioned,
-            l.install_id, l.activated_at, l.released_at
+            l.install_id, l.activated_at, l.released_at, l.places, l.modules
        FROM licences l JOIN clients c ON c.id = l.client_id
       WHERE l.instance_id = $1`,
     [b.instanceId],
@@ -134,6 +137,8 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
   const announcements = b.accepts?.includes("announcements")
     ? await liveAnnouncements(ctx.db, l.client_id, now)
     : undefined;
+  // The client's plan (spec 2026-10-17 control §1), likewise only for a LUME that says it can keep one.
+  const plan = b.accepts?.includes("plan") ? planOf(l) : undefined;
   const sign = () =>
     issueToken(ctx.signer, now, {
       instanceId: b.instanceId,
@@ -144,6 +149,7 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
       reason,
       notice,
       announcements,
+      plan,
     });
   let token = sign();
   // An answer LUME would refuse turns it read-only in 7 days: drop announcements, oldest first, until it verifies.

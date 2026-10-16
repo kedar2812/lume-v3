@@ -1,4 +1,4 @@
-import { isCurrency, type LicenceType } from "@lume/core/shared";
+import { isCurrency, PLAN_MODULES, type LicenceType } from "@lume/core/shared";
 import { createHash, randomBytes } from "node:crypto";
 import type pg from "pg";
 import { z } from "zod";
@@ -13,6 +13,7 @@ import type { Ctx } from "./context";
 import { ROTATE_OVERLAP_MS } from "./check";
 import { clientFeedback, fixedByVersion } from "./feedback-admin";
 import { clientHealth, healthForAlerts } from "./fleet";
+import { planOf } from "./plan";
 import { currentRates } from "./fx";
 
 export class Refusal extends Error {
@@ -231,8 +232,10 @@ export async function getClient(ctx: Ctx, id: string) {
       active_users: number;
       lead_count: number;
       server_time: Date | null;
+      health: { modulesOn?: string[] } | null;
+      accepts: string[] | null;
     }>(
-      "SELECT at, ip, app_version, active_users, lead_count, server_time FROM check_ins WHERE client_id = $1 ORDER BY at DESC, id DESC LIMIT 1",
+      "SELECT at, ip, app_version, active_users, lead_count, server_time, health, accepts FROM check_ins WHERE client_id = $1 ORDER BY at DESC, id DESC LIMIT 1",
       [id],
     ),
     ctx.db.query<{ at: Date }>("SELECT at FROM check_ins WHERE client_id = $1 AND at >= $2 ORDER BY at", [
@@ -281,7 +284,59 @@ export async function getClient(ctx: Ctx, id: string) {
     feedback: await clientFeedback(ctx.db, id),
     // Fleet (spec 2026-10-16 fleet §3.3): how its LUME is, and 14 days of database size and disk free.
     ...(await clientHealth(ctx.db, id, now)),
+    // Control each client (spec 2026-10-17 control §3.2): the plan, and what their LUME uses now.
+    plan: planOf(
+      (
+        await ctx.db.query<{ places: number | null; modules: Record<string, boolean> }>(
+          "SELECT places, modules FROM licences WHERE client_id = $1",
+          [id],
+        )
+      ).rows[0] ?? { places: null, modules: {} },
+    ),
+    usage: {
+      people: l?.active_users ?? 0,
+      modulesOn: l?.health?.modulesOn ?? [],
+      knows: !!l?.accepts?.includes("plan"),
+    },
   };
+}
+
+export const planSchema = z
+  .object({
+    places: z.number().int().min(1, "At least one place.").max(10_000, "10,000 places at most.").nullable(),
+    modules: z.object(Object.fromEntries(PLAN_MODULES.map((k) => [k, z.boolean().optional()]))).strict(),
+  })
+  .strict();
+
+/** Set a client's plan (control §3.2): kept, said in their history, and signed into their next check-in. */
+export async function patchPlan(
+  ctx: Ctx,
+  id: string,
+  body: { places: number | null; modules: Partial<Record<string, boolean>> },
+) {
+  const p = planSchema.safeParse(body);
+  if (!p.success) throw new Refusal(400, p.error.issues[0]?.message ?? "That plan doesn't look right.");
+  await row(ctx.db, id);
+  const left = PLAN_MODULES.filter((k) => p.data.modules[k] === false);
+  const before = (
+    await ctx.db.query<{ places: number | null; modules: Record<string, boolean> }>(
+      "SELECT places, modules FROM licences WHERE client_id = $1",
+      [id],
+    )
+  ).rows[0]!;
+  const was = PLAN_MODULES.filter((k) => before.modules?.[k] === false);
+  if (before.places === p.data.places && was.join() === left.join()) return getClient(ctx, id);
+  await ctx.db.query("UPDATE licences SET places = $2, modules = $3 WHERE client_id = $1", [
+    id,
+    p.data.places,
+    JSON.stringify(Object.fromEntries(left.map((k) => [k, false]))),
+  ]);
+  await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'plan', $3)", [
+    id,
+    ctx.now(),
+    JSON.stringify({ places: p.data.places, left }),
+  ]);
+  return getClient(ctx, id);
 }
 
 type PaymentRow = {

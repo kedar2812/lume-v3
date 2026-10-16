@@ -40,6 +40,7 @@ export function issueToken(
       notice: p.notice,
       // Present only when given: an answer to an older LUME has exactly the keys it knows.
       ...(p.announcements ? { announcements: p.announcements } : {}),
+      ...(p.plan ? { plan: p.plan } : {}),
     },
     signer.privateKey,
   );

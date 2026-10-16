@@ -1,0 +1,120 @@
+import { checkBody, rawPublicKey, verifyLicence } from "@lume/core";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { handleCheck } from "./check";
+import { getClient, patchPlan, Refusal } from "./clients";
+import type { Ctx } from "./context";
+import { licenceDb, seedClient, TEST_PAIR, testCtx, type LicenceTestDb } from "./testing";
+
+/** Control each client (spec 2026-10-17 control §1, §3). */
+const KEYS = { t1: rawPublicKey(TEST_PAIR.publicKey) };
+const INSTALL = "0190e0c0-0000-7000-8000-0000000000a1";
+let t: LicenceTestDb;
+let now = new Date("2026-10-17T09:00:00Z");
+let ctx: Ctx;
+const post = (c: { instanceId: string; licenseKey: string }, accepts?: string[], modulesOn?: string[]) =>
+  handleCheck(
+    new Request("http://licence.test/v1/check", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-real-ip": "203.0.113.9" },
+      body: JSON.stringify(
+        checkBody({
+          instanceId: c.instanceId,
+          licenseKey: c.licenseKey,
+          installId: INSTALL,
+          appVersion: "1.5.0",
+          activeUserCount: 4,
+          leadCount: 300,
+          now,
+          ...(accepts ? { accepts } : {}),
+          ...(modulesOn
+            ? {
+                health: {
+                  uptimeS: 60,
+                  dbBytes: 1,
+                  diskFreePct: 50,
+                  errors24h: 0,
+                  queue: { waiting: 0, retrying: 0, failed24h: 0 },
+                  remindersLate: 0,
+                  restoreTest: null,
+                  problems: [],
+                  sourcesNeedingAttention: 0,
+                  modulesOn: modulesOn as never,
+                },
+              }
+            : {}),
+        }),
+      ),
+    }),
+    ctx,
+  );
+const payloadOf = async (r: Response, instanceId: string) =>
+  verifyLicence(((await r.json()) as { token: string }).token, KEYS, instanceId);
+
+beforeAll(async () => {
+  t = await licenceDb();
+});
+afterAll(async () => {
+  await t?.close();
+});
+beforeEach(() => {
+  now = new Date("2026-10-17T09:00:00Z");
+  ctx = testCtx(t.pool, () => now);
+});
+
+describe("the plan, signed", () => {
+  it("goes only to a LUME that says it can keep one, with every module filled in", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await patchPlan(ctx, c.clientId, { places: 5, modules: { calendly: false } });
+    expect((await payloadOf(await post(c), c.instanceId))!).not.toHaveProperty("plan");
+    expect((await payloadOf(await post(c, ["announcements"]), c.instanceId))!).not.toHaveProperty("plan");
+    expect((await payloadOf(await post(c, ["announcements", "plan"]), c.instanceId))!.plan).toEqual({
+      places: 5,
+      modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: false },
+    });
+  });
+  it("is no limit and everything included until it's set", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    expect((await payloadOf(await post(c, ["plan"]), c.instanceId))!.plan).toEqual({
+      places: null,
+      modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true },
+    });
+  });
+});
+
+describe("PATCH /api/clients/:id/plan", () => {
+  it("saves it, writes it to the history in words, and the client shows it with what their LUME uses", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(c, ["announcements", "plan"], ["webhooks", "calendly"]);
+    const r = await patchPlan(ctx, c.clientId, {
+      places: 5,
+      modules: { calendly: false, googleSheets: false },
+    });
+    expect(r.plan).toEqual({
+      places: 5,
+      modules: { googleSheets: false, webhooks: true, googleCalendar: true, calendly: false },
+    });
+    expect(r.usage).toEqual({ people: 4, modulesOn: ["webhooks", "calendly"], knows: true });
+    expect(r.history[0]).toMatchObject({
+      kind: "plan",
+      detail: { places: 5, left: ["googleSheets", "calendly"] },
+    });
+    const again = await getClient(ctx, c.clientId);
+    expect(again.plan.places).toBe(5);
+  });
+  it("on an older LUME says it can't keep one yet", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(c);
+    expect((await getClient(ctx, c.clientId)).usage).toMatchObject({ knows: false });
+  });
+  it("refuses places out of bounds or a module it doesn't know, and writes nothing when nothing changes", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await expect(patchPlan(ctx, c.clientId, { places: 0, modules: {} })).rejects.toBeInstanceOf(Refusal);
+    await expect(patchPlan(ctx, c.clientId, { places: 10_001, modules: {} })).rejects.toBeInstanceOf(Refusal);
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: { whatsapp: false } as never }),
+    ).rejects.toBeInstanceOf(Refusal);
+    const before = (await getClient(ctx, c.clientId)).history.length;
+    await patchPlan(ctx, c.clientId, { places: null, modules: {} });
+    expect((await getClient(ctx, c.clientId)).history.length).toBe(before);
+  });
+});
