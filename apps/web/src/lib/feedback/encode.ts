@@ -1,5 +1,5 @@
 import { cleanImage, FEEDBACK_LIMITS } from "@lume/core/shared";
-import { blockSize, encodeSteps, fitWithin, type Rect } from "./shots";
+import { blockSize, burnBox, encodeSteps, fitWithin, type Rect } from "./shots";
 
 /** A screenshot as it will travel, and its thumbnail. */
 export type Prepared = {
@@ -30,21 +30,31 @@ function base64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-/** Pixelate a box: drawn down to one pixel a block, then back up without smoothing. Nothing under it survives. */
+/**
+ * Burn a box in (spec 2026-10-16 §1.2: a heavy blur, then pixelation): what's under it is blurred first, so the
+ * blocks aren't the plain averages that tools match against a known font, then drawn down to one pixel a block and
+ * back up without smoothing. Opaque throughout, so nothing of the original shows through at an edge.
+ */
 function burn(ctx: CanvasRenderingContext2D, r: Rect) {
-  const x = Math.max(0, Math.floor(r.x));
-  const y = Math.max(0, Math.floor(r.y));
-  const w = Math.min(ctx.canvas.width - x, Math.ceil(r.w));
-  const h = Math.min(ctx.canvas.height - y, Math.ceil(r.h));
-  if (w < 1 || h < 1) return;
-  const b = blockSize({ x, y, w, h });
+  const box = burnBox(r, ctx.canvas.width, ctx.canvas.height);
+  if (!box) return;
+  const { x, y, w, h } = box;
+  const b = blockSize(box);
+  const soft = document.createElement("canvas");
+  soft.width = w;
+  soft.height = h;
+  const t = soft.getContext("2d", { alpha: false })!;
+  t.drawImage(ctx.canvas, x, y, w, h, 0, 0, w, h); // the box as it is: no blank edge to blur in from
+  t.filter = `blur(${Math.max(4, Math.round(b / 2))}px)`; // ignored where a browser has no canvas filters
+  t.drawImage(ctx.canvas, x, y, w, h, 0, 0, w, h);
+  t.filter = "none";
   const small = document.createElement("canvas");
   small.width = Math.max(1, Math.ceil(w / b));
   small.height = Math.max(1, Math.ceil(h / b));
-  const s = small.getContext("2d")!;
+  const s = small.getContext("2d", { alpha: false })!;
   s.imageSmoothingEnabled = true;
   s.imageSmoothingQuality = "high";
-  s.drawImage(ctx.canvas, x, y, w, h, 0, 0, small.width, small.height);
+  s.drawImage(soft, 0, 0, w, h, 0, 0, small.width, small.height);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(small, 0, 0, small.width, small.height, x, y, w, h);

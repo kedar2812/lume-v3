@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   blockSize,
+  burnBox,
   encodeSteps,
   fitWithin,
   normRect,
@@ -89,5 +90,13 @@ describe("notSent", () => {
       expect(notSent(no(409, code)).text).toBe(
         "This LUME's licence can't send feedback right now. Your report is still here.",
       );
+  });
+});
+
+describe("burnBox", () => {
+  it("covers every pixel the box touches, even partly, and stays on the picture", () => {
+    expect(burnBox({ x: 10.9, y: 4.2, w: 20, h: 5.5 }, 100, 100)).toEqual({ x: 10, y: 4, w: 21, h: 6 });
+    expect(burnBox({ x: 90.5, y: -3, w: 20, h: 10 }, 100, 50)).toEqual({ x: 90, y: 0, w: 10, h: 7 });
+    expect(burnBox({ x: 120, y: 0, w: 5, h: 5 }, 100, 50)).toBeNull();
   });
 });

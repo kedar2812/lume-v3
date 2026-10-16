@@ -216,6 +216,18 @@
   color: var(--text);
   cursor: pointer;
 }
+.chip:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+.preparing {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
 .chip:active,
 .remove:active {
   transform: scale(0.96);

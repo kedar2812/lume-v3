@@ -9,17 +9,19 @@ vi.mock("@/lib/feedback/client", () => ({ feedbackClient: { send: (b: unknown) =
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/leads" }));
 let encoded = 0;
+const shot = (data = "UklGRg==") => ({
+  type: "image/webp" as const,
+  data,
+  url: `blob:shot-${++encoded}`,
+  width: 1600,
+  height: 900,
+  bytes: 6,
+});
+const encode = vi.fn();
 vi.mock("@/lib/feedback/encode", () => ({
   canCapture: () => false,
   loadImage: async () => ({ width: 1600, height: 900, close() {} }),
-  encodeShot: async () => ({
-    type: "image/webp",
-    data: "UklGRg==",
-    url: `blob:shot-${++encoded}`,
-    width: 1600,
-    height: 900,
-    bytes: 6,
-  }),
+  encodeShot: (...a: unknown[]) => encode(...a),
   captureTab: async () => null,
 }));
 
@@ -30,7 +32,15 @@ const png = (i = 0) => new File([new Uint8Array([i])], `${i}.png`, { type: "imag
 beforeEach(() => {
   post.mockReset();
   toast.mockReset();
+  encode.mockReset();
+  encode.mockImplementation(async () => shot());
 });
+/** An encode that finishes when the test says so. */
+function held() {
+  let done!: (v: ReturnType<typeof shot>) => void;
+  encode.mockImplementationOnce(() => new Promise((r) => (done = r)));
+  return (data: string) => done(shot(data));
+}
 
 describe("Send feedback", () => {
   it("opens on Something's broken, with the plain line, and Send waits for words", () => {
@@ -133,5 +143,43 @@ describe("Send feedback", () => {
     await waitFor(() => expect(screen.getAllByRole("img", { name: /Screenshot \d/ })).toHaveLength(5));
     expect(screen.getByLabelText("Choose images")).toBeDisabled();
     expect(screen.getByText("5 of 5")).toBeInTheDocument();
+  });
+
+  it("never sends a screenshot before its blur is burned in: Send waits, and the blurred one goes", async () => {
+    const user = userEvent.setup();
+    post.mockResolvedValue({ ok: true, status: 200, data: { ok: true } });
+    open();
+    await user.type(screen.getByLabelText("What happened?"), "A lead's number shows in the wrong field");
+    await user.upload(screen.getByLabelText("Choose images"), png());
+    await screen.findByRole("img", { name: "Screenshot 1" });
+    const finish = held();
+    await user.click(screen.getByRole("button", { name: "Blur screenshot 1" }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    // Burning in: nothing can go, and the blur can't be reopened on the old picture.
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Blur screenshot 1" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    expect(post).not.toHaveBeenCalled();
+    finish("QkxVUlJFRA==");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0]![0].images).toEqual([{ type: "image/webp", data: "QkxVUlJFRA==" }]);
+  });
+
+  it("holds Send while a screenshot is still being made ready, then sends it", async () => {
+    const user = userEvent.setup();
+    post.mockResolvedValue({ ok: true, status: 200, data: { ok: true } });
+    open();
+    await user.type(screen.getByLabelText("What happened?"), "Pasted and sent at once");
+    const finish = held();
+    await user.upload(screen.getByLabelText("Choose images"), png());
+    expect(await screen.findByText("1 of 5")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    finish("UkVBRFk=");
+    await screen.findByRole("img", { name: "Screenshot 1" });
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0]![0].images).toEqual([{ type: "image/webp", data: "UkVBRFk=" }]);
   });
 });

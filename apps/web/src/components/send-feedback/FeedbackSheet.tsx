@@ -11,7 +11,19 @@ import { notSent, screenOf, themeOf, type Rect } from "@/lib/feedback/shots";
 import { BlurEditor } from "./BlurEditor";
 import s from "./send-feedback.module.css";
 
-type Shot = { id: number; source: ImageBitmap; rects: Rect[]; prepared: Prepared | null; refused: boolean };
+/**
+ * A screenshot in the sheet. It joins the moment it's chosen, and while it's being made ready (`pending`, the
+ * number of the encode under way) nothing can be sent: the picture that goes is always the last one asked for,
+ * blur and all.
+ */
+type Shot = {
+  id: number;
+  source: ImageBitmap;
+  rects: Rect[];
+  prepared: Prepared | null;
+  refused: boolean;
+  pending: number | null;
+};
 const KINDS: { value: FeedbackKind; label: string; dot: string }[] = [
   { value: "bug", label: "Something's broken", dot: "var(--danger)" },
   { value: "idea", label: "An idea", dot: "var(--accent)" },
@@ -62,6 +74,7 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
     urls.current.delete(p.url);
   };
   const empty = text.trim() === "";
+  const busy = shots.some((x) => x.pending !== null);
   const hasContent = !empty || shots.length > 0;
   const close = () => {
     for (const sh of shots) drop(sh.prepared);
@@ -73,14 +86,30 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
     else close();
   };
 
+  // Make a shot's picture afresh (with these blur boxes); only the encode asked for last is kept.
+  const prepare = async (id: number, source: ImageBitmap, rects: Rect[]) => {
+    const run = ++seq.current;
+    setShots((all) => all.map((x) => (x.id === id ? { ...x, rects, pending: run } : x)));
+    const prepared = keep(await encodeShot(source, rects).catch(() => null));
+    setShots((all) => {
+      const sh = all.find((x) => x.id === id);
+      if (!sh || sh.pending !== run) {
+        drop(prepared); // removed meanwhile, or asked for again
+        return all;
+      }
+      drop(sh.prepared);
+      return all.map((x) => (x.id === id ? { ...x, prepared, refused: !prepared, pending: null } : x));
+    });
+  };
   const addSource = async (source: ImageBitmap) => {
     const id = ++seq.current;
-    const prepared = keep(await encodeShot(source, []).catch(() => null));
-    setShots((all) => {
-      if (all.length < L.images) return [...all, { id, source, rects: [], prepared, refused: !prepared }];
-      drop(prepared);
-      return all;
-    });
+    // Five at most: one that doesn't fit never joins, and its picture is let go when it's made.
+    setShots((all) =>
+      all.length >= L.images
+        ? all
+        : [...all, { id, source, rects: [], prepared: null, refused: false, pending: id }],
+    );
+    await prepare(id, source, []);
   };
   const add = async (files: Blob[]) => {
     for (const file of files.slice(0, Math.max(0, L.images - shots.length))) {
@@ -117,14 +146,11 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
   const blurDone = async (id: number, rects: Rect[]) => {
     setBlurring(null);
     const sh = shots.find((x) => x.id === id);
-    if (!sh) return;
-    const prepared = keep(await encodeShot(sh.source, rects).catch(() => null));
-    drop(sh.prepared);
-    setShots((all) => all.map((x) => (x.id === id ? { ...x, rects, prepared, refused: !prepared } : x)));
+    if (sh) await prepare(id, sh.source, rects);
   };
 
   const send = async () => {
-    if (empty || inFlight.current || shots.some((x) => !x.prepared)) return;
+    if (empty || inFlight.current || busy || shots.some((x) => !x.prepared)) return;
     inFlight.current = true;
     setSending(true);
     setProblem(null);
@@ -232,6 +258,9 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
                     <div className={s.shot} data-refused={sh.refused || undefined}>
                       {/* A local blob of the person's own screenshot. */}
                       {sh.prepared && <img src={sh.prepared.url} alt={`Screenshot ${i + 1}`} />}
+                      {!sh.prepared && sh.pending !== null && (
+                        <span className={s.preparing}>Getting it ready…</span>
+                      )}
                       {sh.refused && (
                         <span className={s.refused}>LUME can&apos;t send this one — choose it again</span>
                       )}
@@ -261,8 +290,9 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
                         className={s.chip}
                         onClick={() => setBlurring(sh.id)}
                         aria-label={`Blur screenshot ${i + 1}`}
+                        disabled={sh.pending !== null}
                       >
-                        {sh.rects.length ? "Blurred" : "Blur"}
+                        {sh.pending !== null ? "Blurring…" : sh.rects.length ? "Blurred" : "Blur"}
                       </button>
                     )}
                   </div>
@@ -313,7 +343,7 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
             <Button variant="ghost" onClick={askClose} disabled={sending}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={() => void send()} disabled={empty || sending}>
+            <Button variant="primary" onClick={() => void send()} disabled={empty || sending || busy}>
               {sending ? "Sending…" : failed ? "Try again" : "Send"}
             </Button>
           </footer>

@@ -39,6 +39,15 @@ export function toImageRect(r: Rect, shown: { w: number; h: number }, image: { w
   };
 }
 
+/** The whole pixels a blur box touches, even partly, kept on a `w` × `h` picture; null when it misses it. */
+export function burnBox(r: Rect, w: number, h: number): Rect | null {
+  const x = Math.max(0, Math.floor(r.x));
+  const y = Math.max(0, Math.floor(r.y));
+  const x2 = Math.min(w, Math.ceil(r.x + r.w));
+  const y2 = Math.min(h, Math.ceil(r.y + r.h));
+  return x2 > x && y2 > y ? { x, y, w: x2 - x, h: y2 - y } : null;
+}
+
 /** Blocks at least 12 px, and an eighth of the box's short side: text under them can't be read back. */
 export const blockSize = (r: Rect) => Math.max(12, Math.round(Math.min(r.w, r.h) / 8));
 
