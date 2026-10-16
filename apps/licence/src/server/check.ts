@@ -1,9 +1,10 @@
-import type { LicenceNotice, LicenceType } from "@lume/core";
+import { fleetHealthSchema, type FleetHealth, type LicenceNotice, type LicenceType } from "@lume/core";
 import type pg from "pg";
 import { z } from "zod";
 import { hashKey, keyMatches } from "@/lib/keys";
 import { issueToken } from "@/lib/sign";
 import { serverState } from "@/lib/state";
+import { liveAnnouncements, recordSeen } from "./announcements";
 import type { Ctx } from "./context";
 import { clientIp, json, readCapped } from "./http";
 
@@ -20,6 +21,14 @@ const checkSchema = z
     activeUserCount: z.number().int().min(0).max(1_000_000),
     leadCount: z.number().int().min(0).max(1_000_000_000),
     serverTime: z.iso.datetime(),
+    // Fleet (spec 2026-10-16 fleet §1): what this LUME can show, its health (counts and fixed keys only), and how
+    // many people pressed Got it. Each optional: a LUME from before them sends none.
+    accepts: z.array(z.string().min(1).max(32)).max(8).optional(),
+    health: fleetHealthSchema.optional(),
+    seen: z
+      .array(z.object({ id: z.uuid(), people: z.number().int().min(0).max(1_000_000) }).strict())
+      .max(3)
+      .optional(),
   })
   .strict();
 const MAX_BODY = 4096;
@@ -120,6 +129,11 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
         now,
       );
   const notice = await record(ctx.db, l.client_id, { ...b, ip, state, now });
+  // Only an install that said it can show them gets announcements: an older LUME refuses a payload with a key it
+  // doesn't know, and would turn read-only.
+  const announcements = b.accepts?.includes("announcements")
+    ? await liveAnnouncements(ctx.db, l.client_id, now)
+    : undefined;
   const token = issueToken(ctx.signer, now, {
     instanceId: b.instanceId,
     state,
@@ -128,6 +142,7 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
     trialEndsAt: l.trial_ends,
     reason,
     notice,
+    announcements,
   });
   return json(200, { token });
 }
@@ -204,6 +219,9 @@ async function record(
     ip: string;
     state: string;
     now: Date;
+    health?: FleetHealth;
+    accepts?: string[];
+    seen?: { id: string; people: number }[];
   },
 ): Promise<LicenceNotice | null> {
   const conn = await db.connect();
@@ -218,10 +236,22 @@ async function record(
       )
     ).rows[0];
     await conn.query(
-      `INSERT INTO check_ins (client_id, at, ip, app_version, active_users, lead_count, server_time, state)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [clientId, c.now, c.ip, c.appVersion, c.activeUserCount, c.leadCount, c.serverTime, c.state],
+      `INSERT INTO check_ins (client_id, at, ip, app_version, active_users, lead_count, server_time, state, health, accepts)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        clientId,
+        c.now,
+        c.ip,
+        c.appVersion,
+        c.activeUserCount,
+        c.leadCount,
+        c.serverTime,
+        c.state,
+        c.health ? JSON.stringify(c.health) : null,
+        c.accepts ?? null,
+      ],
     );
+    if (c.seen?.length) await recordSeen(conn, clientId, c.seen, c.now);
     const event = (kind: string, detail: object) =>
       conn.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, $3, $4)", [
         clientId,

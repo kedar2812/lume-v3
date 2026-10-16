@@ -38,6 +38,8 @@ export function issueToken(
       trialEndsAt: p.trialEndsAt,
       reason: p.reason,
       notice: p.notice,
+      // Present only when given: an answer to an older LUME has exactly the keys it knows.
+      ...(p.announcements ? { announcements: p.announcements } : {}),
     },
     signer.privateKey,
   );
