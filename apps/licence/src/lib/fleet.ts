@@ -102,3 +102,24 @@ export function fleetStatus(
 
 /** Worst first. */
 export const STATUS_RANK: Record<FleetStatus, number> = { down: 0, look: 1, none: 2, ok: 3 };
+
+/** "412 MB", "1.9 GB" — a database's size as people say it. */
+export function bytesText(n: number | null): string {
+  if (n === null) return "—";
+  if (n >= 1e9) return `${(n / 1e9).toFixed(n >= 1e10 ? 0 : 1)} GB`;
+  if (n >= 1e6) return `${Math.round(n / 1e6)} MB`;
+  return `${Math.max(1, Math.round(n / 1e3))} KB`;
+}
+/** "12 days", "5 h", "40 min" — how long LUME's API has been up. */
+export function uptimeText(s: number | null): string {
+  if (s === null) return "—";
+  if (s >= 2 * 86_400) return `${Math.floor(s / 86_400)} days`;
+  if (s >= 3_600) return `${Math.floor(s / 3_600)} h`;
+  return `${Math.max(1, Math.floor(s / 60))} min`;
+}
+export const STATUS_WORDS: Record<FleetStatus, string> = {
+  down: "Down",
+  look: "Needs a look",
+  none: "No health yet",
+  ok: "Healthy",
+};

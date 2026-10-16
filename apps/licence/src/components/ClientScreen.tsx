@@ -13,10 +13,11 @@ import { Flag, StatePill, Toast, useToast } from "./bits";
 import { paidOf } from "./ClientsScreen";
 import { amountOf, SOURCE_WORDS, symbolOf, vsList } from "./NewLicence";
 import { FeedbackPill, KindDot, received } from "./FeedbackScreen";
+import { HealthCard, type ClientHealth } from "./HealthCard";
 import { KeyCard } from "./KeyCard";
 import { Head } from "./Shell";
 
-type Detail = {
+type Detail = Partial<ClientHealth> & {
   client: ClientView;
   installation: {
     version: string;
@@ -143,6 +144,11 @@ function said(e: Detail["history"][number]): { text: string; color: string } {
       return {
         text: `Feedback marked ${statusText(d.to as FeedbackStatus, (d.fixedIn as string | undefined) ?? null)}`,
         color: d.to === "fixed" ? "#18a566" : d.to === "fixing" ? "#5ab8ff" : "#9297a0",
+      };
+    case "announcement":
+      return {
+        text: `${d.action === "withdrawn" ? "Announcement withdrawn" : "Announcement"}: ${String(d.title ?? "")}`,
+        color: d.action === "withdrawn" ? "#9297a0" : "#2a5bff",
       };
     default:
       return { text: e.kind, color: "#9297a0" };
@@ -371,6 +377,10 @@ export function ClientScreen({ id }: { id: string }) {
               <span>Now</span>
             </div>
           </section>
+
+          {d.health && (
+            <HealthCard data={{ health: d.health, healthTrend: d.healthTrend ?? [] }} version={d.installation?.version ?? null} />
+          )}
 
           <section className="card" aria-label="This installation" style={{ animationDelay: ".06s" }}>
             <h2 className="h">This installation</h2>

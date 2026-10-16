@@ -15,6 +15,13 @@ const ICON: Record<string, ReactNode> = {
     </>
   ),
   analytics: <path d="M2 13.5h12M3.5 10.5l3-3.5 2.5 2 4-5" />,
+  fleet: (
+    <>
+      <rect x="2" y="2.5" width="12" height="4.5" rx="1.5" />
+      <rect x="2" y="9" width="12" height="4.5" rx="1.5" />
+      <path d="M4.5 4.75h.01M4.5 11.25h.01" />
+    </>
+  ),
   enquiries: <path d="M2 4.5h12v8H2zM2 4.5l6 4.5 6-4.5" />,
   feedback: <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />,
   releases: <path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 13.5h11" />,
@@ -33,6 +40,7 @@ const ICON: Record<string, ReactNode> = {
 };
 const NAV = [
   ["clients", "Clients"],
+  ["fleet", "Fleet"],
   ["enquiries", "Enquiries"],
   ["feedback", "Feedback"],
   ["analytics", "Analytics"],
@@ -112,6 +120,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [newCount, setNewCount] = useState(0);
   // And how many feedback reports are (spec 2026-10-16 §3.1).
   const [feedbackNew, setFeedbackNew] = useState(0);
+  // And how many LUMEs need a look or are down (spec 2026-10-16 fleet §3.1).
+  const [fleetBad, setFleetBad] = useState(0);
   useEffect(() => {
     const load = () => {
       void api
@@ -120,6 +130,9 @@ export function Shell({ children }: { children: ReactNode }) {
       void api
         .get<{ newCount: number }>("/api/feedback/new-count")
         .then((r) => r.ok && setFeedbackNew(r.data.newCount));
+      void api
+        .get<{ counts: { look: number; down: number } }>("/api/fleet")
+        .then((r) => r.ok && setFleetBad(r.data.counts.look + r.data.counts.down));
     };
     load();
     window.addEventListener(CHANGED, load);
@@ -164,6 +177,15 @@ export function Shell({ children }: { children: ReactNode }) {
               {key === "enquiries" && newCount > 0 && (
                 <span className="badge-soft" aria-label={`${newCount} new`} style={{ marginLeft: "auto" }}>
                   {newCount}
+                </span>
+              )}
+              {key === "fleet" && fleetBad > 0 && (
+                <span
+                  className="badge-soft fl-badge"
+                  aria-label={`${fleetBad} need a look or are down`}
+                  style={{ marginLeft: "auto" }}
+                >
+                  {fleetBad}
                 </span>
               )}
               {key === "feedback" && feedbackNew > 0 && (

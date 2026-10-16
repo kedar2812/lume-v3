@@ -2354,3 +2354,454 @@ a.btn.wa {
     animation: none;
   }
 }
+
+/* ─ Fleet (spec 2026-10-16 fleet §3; canvas page "2 · Fleet") ─ */
+.pill.fl-down {
+  background: var(--redBg);
+  color: var(--redInk);
+}
+.pill.fl-down i {
+  background: #e5484d;
+}
+.pill.fl-look {
+  background: var(--amberBg);
+  color: var(--amberInk);
+}
+.pill.fl-look i {
+  background: #f2a20c;
+}
+.pill.fl-none {
+  background: var(--greyBg);
+  color: var(--greyInk);
+}
+.pill.fl-none i {
+  background: #9aa0ab;
+}
+.pill.fl-ok {
+  background: var(--greenBg);
+  color: var(--greenInk);
+}
+.pill.fl-ok i {
+  background: #18a566;
+}
+.pill.fl-update-pill {
+  background: var(--tint);
+  color: var(--accentInk);
+}
+.fl-tiles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0;
+}
+.fl-tiles .tile:disabled {
+  opacity: 1;
+}
+.fl-tiles .tile:disabled:active {
+  transform: none;
+}
+.fl-list {
+  padding: 8px 6px;
+  gap: 0;
+}
+.fl-scroll {
+  overflow-x: auto;
+}
+.fl-row {
+  display: grid;
+  grid-template-columns:
+    128px minmax(150px, 1.4fr) 96px 112px 64px 80px 86px 80px
+    minmax(170px, 1.6fr);
+  gap: 14px;
+  align-items: center;
+  min-width: 1120px;
+  min-height: 54px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 13.5px;
+  text-decoration: none;
+  transition: background-color 0.15s;
+  animation: in 0.5s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.fl-row + .fl-row {
+  box-shadow: 0 -0.5px 0 var(--line);
+}
+a.fl-row:hover {
+  background: var(--sunk);
+}
+.fl-head {
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink3);
+  animation: none;
+}
+.fl-row .r {
+  text-align: right;
+}
+.fl-name {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fl-dim {
+  color: var(--ink3);
+  font-size: 13px;
+}
+.fl-down-text,
+.fl-red-text {
+  color: var(--redInk);
+  font-weight: 600;
+}
+.fl-amber-text {
+  color: var(--amberInk);
+  font-weight: 600;
+}
+.fl-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pill.fl-update {
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.fl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.fl-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--amberBg);
+  color: var(--amberInk);
+}
+.fl-chip.fl-red {
+  background: var(--redBg);
+  color: var(--redInk);
+}
+.fl-prob {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  background: var(--amberBg);
+  color: var(--amberInk);
+}
+.fl-prob.fl-red {
+  background: var(--redBg);
+  color: var(--redInk);
+}
+.fl-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 22px;
+}
+.fl-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.fl-facts dt {
+  font-size: 12px;
+  color: var(--ink3);
+}
+.fl-facts dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.fl-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 44px;
+  margin-top: 6px;
+}
+.fl-bars i {
+  flex: 1;
+  max-width: 14px;
+  border-radius: 3px 3px 1px 1px;
+  transform-origin: bottom;
+  animation: grow 0.6s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.fl-badge {
+  font-variant-numeric: tabular-nums;
+}
+.fl-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.fl-ann {
+  padding: 6px;
+  gap: 0;
+}
+.fl-group {
+  padding: 14px 14px 6px;
+}
+.fl-an + .fl-an,
+.fl-group + .fl-an {
+  box-shadow: 0 -0.5px 0 var(--line);
+}
+.fl-an-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: center;
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.fl-an-head:hover {
+  background: var(--sunk);
+}
+.fl-an-main,
+.fl-reach {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.fl-an-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fl-an-title b {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.fl-past .fl-an-title b {
+  color: var(--ink2);
+}
+.fl-reach-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--greyBg);
+  overflow: hidden;
+}
+.fl-reach-bar i {
+  display: block;
+  height: 100%;
+  transition: width 0.5s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+.fl-an-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 0 14px 16px;
+  animation: in 0.35s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.fl-an-body {
+  margin: 0;
+  max-width: 720px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.fl-an-clients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.fl-an-client {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.fl-reach-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.fl-r-reached {
+  background: var(--blue);
+}
+.fl-r-older {
+  background: #9aa0ab;
+}
+.fl-r-waiting {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px #9aa0ab;
+}
+.fl-confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--redBg);
+  color: var(--redInk);
+  font-size: 13px;
+  font-weight: 500;
+}
+.sheet.fl-sheet {
+  width: min(520px, calc(100vw - 16px));
+}
+.fl-two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.fl-area {
+  min-height: 108px;
+  height: auto;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.fl-count {
+  align-self: flex-end;
+  font-weight: 500;
+}
+.fl-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fl-pick-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 168px;
+  overflow: auto;
+  padding: 4px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--line2);
+}
+.fl-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.fl-check:hover {
+  background: var(--sunk);
+}
+.fl-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+}
+.fl-strip {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f6f7f9;
+  color: #0a0c11;
+  box-shadow: 0 0 0 0.5px rgba(12, 18, 32, 0.12);
+}
+.fl-strip > i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+.fl-strip > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.fl-strip small {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #666b76;
+}
+.fl-strip b {
+  font-size: 13.5px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.fl-strip em {
+  font-style: normal;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8a5a00;
+}
+.fl-strip span span {
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #3a3f4a;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.fl-strip-dark {
+  background: #18191c;
+  color: #eef0f3;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+}
+.fl-strip-dark small {
+  color: #9297a0;
+}
+.fl-strip-dark em {
+  color: #ffc75c;
+}
+.fl-strip-dark span span {
+  color: #9ca1ab;
+}
+.fl-plain {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--sunk);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink2);
+}
+@media (max-width: 900px) {
+  .fl-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fl-an-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .fl-facts,
+  .fl-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
