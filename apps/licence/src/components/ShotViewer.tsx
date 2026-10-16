@@ -74,7 +74,6 @@ export function ShotViewer({
         </button>
       </header>
       <div className={actual ? "viewer-stage actual" : "viewer-stage"}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- a private screenshot from the admin API, never optimised */}
         <img src={src} alt={`Screenshot ${i + 1} from ${label}`} width={shot.width} height={shot.height} />
       </div>
       <button

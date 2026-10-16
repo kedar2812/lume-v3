@@ -81,7 +81,6 @@ export function FeedbackScreen({ initial }: { initial: { client?: string; fixedI
       clearTimeout(t);
       window.removeEventListener(CHANGED, load);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- query() reads exactly these
   }, [tab, kind, q]);
 
   const loadMore = async () => {

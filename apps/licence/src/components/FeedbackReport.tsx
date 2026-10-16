@@ -69,7 +69,6 @@ export function FeedbackReport({ id }: { id: string }) {
       live = false;
       if (noteTimer.current) clearTimeout(noteTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per report
   }, [id]);
 
   if (missing)
@@ -163,7 +162,6 @@ export function FeedbackReport({ id }: { id: string }) {
                           onClick={() => setViewing(i)}
                           aria-label={`Open screenshot ${i + 1} of ${d.images.length}`}
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element -- a private screenshot from the admin API */}
                           <img src={`/api/feedback/${d.id}/images/${s.n}`} alt="" loading="lazy" />
                         </button>
                       ))}

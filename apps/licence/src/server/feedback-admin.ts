@@ -40,9 +40,26 @@ type Row = {
   closed_at: Date | null;
   images_removed_at: Date | null;
 };
-const COLS = `f.id, f.received_at, f.kind, f.text, f.client_id, c.name AS client_name, f.reporter_name,
+/** Every report column, with its client's name. */
+const SELECT = `SELECT f.id, f.received_at, f.kind, f.text, f.client_id, c.name AS client_name, f.reporter_name,
   f.reporter_role, f.reporter_email, f.page, f.status, f.fixed_in, f.image_count, f.app_version, f.browser, f.screen,
-  f.theme, f.note, f.closed_at, f.images_removed_at`;
+  f.theme, f.note, f.closed_at, f.images_removed_at
+  FROM feedback f JOIN clients c ON c.id = f.client_id`;
+/** The list's filters, each off when its parameter is null: kind $1, client $2, fixed in $3, search $4. */
+const FILTERS = `($1::text IS NULL OR f.kind = $1)
+  AND ($2::uuid IS NULL OR f.client_id = $2)
+  AND ($3::text IS NULL OR f.fixed_in = $3)
+  AND ($4::text IS NULL OR f.text ILIKE $4 OR f.reporter_name ILIKE $4 OR f.reporter_email ILIKE $4)`;
+const COUNTS = `SELECT count(*) FILTER (WHERE status = 'new')::int AS new,
+  count(*) FILTER (WHERE status IN ('seen', 'fixing'))::int AS fixing,
+  count(*) FILTER (WHERE status IN ('fixed', 'not_a_bug'))::int AS fixed,
+  count(*)::int AS all
+  FROM feedback f WHERE ${FILTERS}`;
+const PAGE_SQL = `${SELECT} WHERE ${FILTERS}
+  AND f.status = ANY($5)
+  AND ($6::timestamptz IS NULL OR (f.received_at, f.id) < ($6, $7::uuid))
+  ORDER BY f.received_at DESC, f.id DESC LIMIT ${PAGE + 1}`;
+const ONE_SQL = `${SELECT} WHERE f.id = $1`;
 
 /** The first line of a report, for a list: 160 characters at most. */
 export function firstLine(text: string): string {
@@ -86,38 +103,9 @@ export async function listFeedback(ctx: Ctx, url: URL) {
     cursor = [at, id];
   }
 
-  const where: string[] = [];
-  const args: unknown[] = [];
-  const arg = (v: unknown) => {
-    args.push(v);
-    return `$${args.length}`;
-  };
-  if (kind) where.push(`f.kind = ${arg(kind)}`);
-  if (client) where.push(`f.client_id = ${arg(client)}`);
-  if (fixedIn) where.push(`f.fixed_in = ${arg(fixedIn)}`);
-  if (q) {
-    const pat = arg(like(q));
-    where.push(`(f.text ILIKE ${pat} OR f.reporter_name ILIKE ${pat} OR f.reporter_email ILIKE ${pat})`);
-  }
-  const counts = (
-    await ctx.db.query<Record<FeedbackTab, number>>(
-      `SELECT count(*) FILTER (WHERE status = 'new')::int AS new,
-              count(*) FILTER (WHERE status IN ('seen', 'fixing'))::int AS fixing,
-              count(*) FILTER (WHERE status IN ('fixed', 'not_a_bug'))::int AS fixed,
-              count(*)::int AS all
-         FROM feedback f ${where.length ? `WHERE ${where.join(" AND ")}` : ""}`,
-      args,
-    )
-  ).rows[0]!;
-
-  const page = [...where, `f.status = ANY(${arg(TABS[tab])})`];
-  if (cursor) page.push(`(f.received_at, f.id) < (${arg(cursor[0])}::timestamptz, ${arg(cursor[1])}::uuid)`);
-  const { rows } = await ctx.db.query<Row>(
-    `SELECT ${COLS} FROM feedback f JOIN clients c ON c.id = f.client_id
-      WHERE ${page.join(" AND ")}
-      ORDER BY f.received_at DESC, f.id DESC LIMIT ${PAGE + 1}`,
-    args,
-  );
+  const filters = [kind, client, fixedIn, q ? like(q) : null];
+  const counts = (await ctx.db.query<Record<FeedbackTab, number>>(COUNTS, filters)).rows[0]!;
+  const { rows } = await ctx.db.query<Row>(PAGE_SQL, [...filters, TABS[tab], cursor?.[0] ?? null, cursor?.[1] ?? null]);
   const shown = rows.slice(0, PAGE);
   const last = shown.at(-1);
   return {
@@ -137,10 +125,7 @@ export async function newCount(ctx: Ctx) {
 
 async function one(db: pg.Pool | pg.PoolClient, id: string): Promise<Row> {
   if (!uuid.safeParse(id).success) throw new Refusal(404, "No such report.");
-  const { rows } = await db.query<Row>(
-    `SELECT ${COLS} FROM feedback f JOIN clients c ON c.id = f.client_id WHERE f.id = $1`,
-    [id],
-  );
+  const { rows } = await db.query<Row>(ONE_SQL, [id]);
   if (!rows[0]) throw new Refusal(404, "No such report.");
   return rows[0];
 }
