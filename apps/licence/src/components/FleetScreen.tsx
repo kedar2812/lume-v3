@@ -170,13 +170,21 @@ function Health({
     <>
       <div className="tiles fl-tiles">
         {tile(null, "Online", c ? `${c.online} of ${c.total}` : "—", "Checked in within 24 hours")}
-        {tile("look", "Need a look", c ? String(c.look) : "—", "Problems their LUME reported", "var(--amberInk)")}
+        {tile(
+          "look",
+          "Need a look",
+          c ? String(c.look) : "—",
+          "Problems their LUME reported",
+          "var(--amberInk)",
+        )}
         {tile("down", "Down", c ? String(c.down) : "—", "Not heard from in over a day", "var(--redInk)")}
         {tile(
           null,
           "Behind",
           c ? String(c.behind) : "—",
-          data?.latestVersion ? `Not on ${data.latestVersion}, the latest` : "Set the latest version in Settings",
+          data?.latestVersion
+            ? `Not on ${data.latestVersion}, the latest`
+            : "Set the latest version in Settings",
         )}
       </div>
       <div className="fb-bar">
@@ -229,7 +237,12 @@ function Health({
             </p>
           )}
           {rows.map((r, i) => (
-            <Link key={r.id} href={`/clients/${r.id}`} className="fl-row" style={{ animationDelay: `${Math.min(i, 12) * 0.02}s` }}>
+            <Link
+              key={r.id}
+              href={`/clients/${r.id}`}
+              className="fl-row"
+              style={{ animationDelay: `${Math.min(i, 12) * 0.02}s` }}
+            >
               <span className={`pill fl-${r.status}`}>
                 <i />
                 {STATUS_WORDS[r.status]}
@@ -245,7 +258,13 @@ function Health({
               <span className="num r fl-dim">{bytesText(r.dbBytes)}</span>
               <span
                 className={`num r fl-disk${
-                  r.diskFreePct === null ? " fl-dim" : r.diskFreePct < 5 ? " fl-red-text" : r.diskFreePct < 15 ? " fl-amber-text" : ""
+                  r.diskFreePct === null
+                    ? " fl-dim"
+                    : r.diskFreePct < 5
+                      ? " fl-red-text"
+                      : r.diskFreePct < 15
+                        ? " fl-amber-text"
+                        : ""
                 }`}
               >
                 {r.diskFreePct === null ? "—" : `${r.diskFreePct}%`}
@@ -286,7 +305,10 @@ function Announcements({ clients }: { clients: { id: string; name: string }[] })
   const [composing, setComposing] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
-  const load = () => void api.get<{ announcements: Announcement[] }>("/api/announcements").then((r) => r.ok && setList(r.data.announcements));
+  const load = () =>
+    void api
+      .get<{ announcements: Announcement[] }>("/api/announcements")
+      .then((r) => r.ok && setList(r.data.announcements));
   useEffect(load, []);
   const withdraw = async (id: string) => {
     const r = await api.post(`/api/announcements/${id}/withdraw`);
@@ -295,7 +317,9 @@ function Announcements({ clients }: { clients: { id: string; name: string }[] })
   };
   const groups = (["live", "scheduled", "ended"] as const).map((g) => ({
     g,
-    items: (list ?? []).filter((a) => (g === "ended" ? a.state === "ended" || a.state === "withdrawn" : a.state === g)),
+    items: (list ?? []).filter((a) =>
+      g === "ended" ? a.state === "ended" || a.state === "withdrawn" : a.state === g,
+    ),
   }));
   return (
     <>
@@ -320,26 +344,48 @@ function Announcements({ clients }: { clients: { id: string; name: string }[] })
                 const pct = (n: number) => (a.reach.audience ? `${(n / a.reach.audience) * 100}%` : "0%");
                 const expanded = open === a.id;
                 return (
-                  <div key={a.id} className={`fl-an${a.state === "withdrawn" || a.state === "ended" ? " fl-past" : ""}`}>
-                    <button type="button" className="fl-an-head" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : a.id)}>
+                  <div
+                    key={a.id}
+                    className={`fl-an${a.state === "withdrawn" || a.state === "ended" ? " fl-past" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="fl-an-head"
+                      aria-expanded={expanded}
+                      onClick={() => setOpen(expanded ? null : a.id)}
+                    >
                       <span className="fl-an-main">
                         <span className="fl-an-title">
-                          <span className={`pill ${a.state === "withdrawn" ? "fl-none" : a.kind === "maintenance" ? "grace" : "fl-update-pill"}`}>
-                            {a.state === "withdrawn" ? "Withdrawn" : a.kind === "maintenance" ? "Maintenance" : "Update"}
+                          <span
+                            className={`pill ${a.state === "withdrawn" ? "fl-none" : a.kind === "maintenance" ? "grace" : "fl-update-pill"}`}
+                          >
+                            {a.state === "withdrawn"
+                              ? "Withdrawn"
+                              : a.kind === "maintenance"
+                                ? "Maintenance"
+                                : "Update"}
                           </span>
                           <b>{a.title}</b>
                         </span>
                         <span className="note">
                           {a.audienceText}
-                          {a.windowStart && a.windowEnd ? ` · ${when(a.windowStart)} – ${when(a.windowEnd).split(", ").pop()}` : ""}
-                          {a.state === "scheduled" ? ` · starts ${when(a.startsAt)}` : ` · until ${day(a.endsAt.slice(0, 10))}`}
+                          {a.windowStart && a.windowEnd
+                            ? ` · ${when(a.windowStart)} – ${when(a.windowEnd).split(", ").pop()}`
+                            : ""}
+                          {a.state === "scheduled"
+                            ? ` · starts ${when(a.startsAt)}`
+                            : ` · until ${day(a.endsAt.slice(0, 10))}`}
                         </span>
                       </span>
                       {a.state === "scheduled" ? (
                         <span className="note">Not started</span>
                       ) : (
                         <span className="fl-reach">
-                          <span className="fl-reach-bar" role="img" aria-label={`Reached ${a.reach.reached} of ${a.reach.audience}`}>
+                          <span
+                            className="fl-reach-bar"
+                            role="img"
+                            aria-label={`Reached ${a.reach.reached} of ${a.reach.audience}`}
+                          >
                             <i style={{ width: pct(a.reach.reached), background: "var(--blue)" }} />
                             <i style={{ width: pct(a.reach.cannot), background: "var(--line2)" }} />
                           </span>
@@ -360,7 +406,11 @@ function Announcements({ clients }: { clients: { id: string; name: string }[] })
                               <i className={`fl-reach-dot fl-r-${x.reach}`} aria-hidden />
                               {x.name}
                               <span className="note">
-                                {x.reach === "reached" ? "Reached" : x.reach === "older" ? "Older LUME" : "Waiting for its check-in"}
+                                {x.reach === "reached"
+                                  ? "Reached"
+                                  : x.reach === "older"
+                                    ? "Older LUME"
+                                    : "Waiting for its check-in"}
                               </span>
                             </span>
                           ))}
@@ -369,15 +419,27 @@ function Announcements({ clients }: { clients: { id: string; name: string }[] })
                           (confirm === a.id ? (
                             <div className="fl-confirm" role="group" aria-label="Withdraw this announcement?">
                               <span>It leaves each LUME at its next check-in, within 6 hours.</span>
-                              <button type="button" className="btn second small" onClick={() => setConfirm(null)}>
+                              <button
+                                type="button"
+                                className="btn second small"
+                                onClick={() => setConfirm(null)}
+                              >
                                 Keep it
                               </button>
-                              <button type="button" className="btn danger small" onClick={() => void withdraw(a.id)}>
+                              <button
+                                type="button"
+                                className="btn danger small"
+                                onClick={() => void withdraw(a.id)}
+                              >
                                 Withdraw
                               </button>
                             </div>
                           ) : (
-                            <button type="button" className="btn second small" onClick={() => setConfirm(a.id)}>
+                            <button
+                              type="button"
+                              className="btn second small"
+                              onClick={() => setConfirm(a.id)}
+                            >
                               Withdraw…
                             </button>
                           ))}

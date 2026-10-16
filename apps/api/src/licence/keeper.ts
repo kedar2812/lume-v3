@@ -212,24 +212,28 @@ export class LicenceKeeper {
         // Health and Got it counts never hold a check-in up: unreadable, it goes without them.
         const health = this.health ? await this.health().catch(() => null) : null;
         const seen = await this.seen().catch(() => undefined);
-        const r = await (this.opts.fetch ?? fetch)(`${this.opts.url}/v1/check`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(
-            checkBody({
-              instanceId: creds.instanceId,
-              licenseKey: creds.licenseKey,
-              installId: this.row.install_id,
-              appVersion: this.opts.version,
-              ...counts,
-              now: at,
-              accepts: ACCEPTS,
-              health,
-              ...(seen ? { seen } : {}),
-            }),
-          ),
-          signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-        });
+        const base = {
+          instanceId: creds.instanceId,
+          licenseKey: creds.licenseKey,
+          installId: this.row.install_id,
+          appVersion: this.opts.version,
+          ...counts,
+          now: at,
+        };
+        const post = (body: object) =>
+          (this.opts.fetch ?? fetch)(`${this.opts.url}/v1/check`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+          });
+        let r = await post(checkBody({ ...base, accepts: ACCEPTS, health, ...(seen ? { seen } : {}) }));
+        // A licence server from before Fleet refuses a body it doesn't know (400): ask again the old way, once, so a
+        // LUME newer than its licence server never loses its licence over it (spec 2026-10-16 fleet §1.3).
+        if (r.status === 400) {
+          await r.body?.cancel().catch(() => undefined);
+          r = await post(checkBody(base));
+        }
         const code = r.ok ? null : await errorCode(r);
         if (r.status === 401) error = "The licence server didn't recognise this install's key";
         else if (code === "KEY_IN_USE") error = "This key is in use on another server";

@@ -248,7 +248,8 @@ export async function createAnnouncement(ctx: Ctx, input: z.infer<typeof newAnno
     throw new Refusal(400, "The maintenance must end after it starts.");
   if (ends <= now) throw new Refusal(400, "It would end before anyone saw it.");
   if (ends <= starts) throw new Refusal(400, "It must end after it starts.");
-  if (ends.getTime() - starts.getTime() > 60 * DAY) throw new Refusal(400, "An announcement shows for 60 days at most.");
+  if (ends.getTime() - starts.getTime() > 60 * DAY)
+    throw new Refusal(400, "An announcement shows for 60 days at most.");
   const live = await liveLatest(ctx.db);
   const chosen = b.clients === "all" ? null : [...new Set(b.clients)];
   if (chosen && (!chosen.length || chosen.some((id) => !live.some((c) => c.client_id === id))))
@@ -266,7 +267,10 @@ export async function createAnnouncement(ctx: Ctx, input: z.infer<typeof newAnno
       )
     ).rows[0]!.id;
     for (const clientId of chosen ?? [])
-      await c.query("INSERT INTO announcement_clients (announcement_id, client_id) VALUES ($1, $2)", [id, clientId]);
+      await c.query("INSERT INTO announcement_clients (announcement_id, client_id) VALUES ($1, $2)", [
+        id,
+        clientId,
+      ]);
     for (const x of chosen ?? live.map((l) => l.client_id))
       await c.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'announcement', $3)", [
         x,
@@ -288,13 +292,15 @@ export async function withdrawAnnouncement(ctx: Ctx, id: string) {
   const a = await one(ctx, id);
   if (a.withdrawnAt) return { announcement: a };
   const now = ctx.now();
-  await ctx.db.query("UPDATE announcements SET withdrawn_at = $2 WHERE id = $1 AND withdrawn_at IS NULL", [id, now]);
+  await ctx.db.query("UPDATE announcements SET withdrawn_at = $2 WHERE id = $1 AND withdrawn_at IS NULL", [
+    id,
+    now,
+  ]);
   for (const x of a.clients)
-    await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'announcement', $3)", [
-      x.id,
-      now,
-      JSON.stringify({ id, title: a.title, action: "withdrawn" }),
-    ]);
+    await ctx.db.query(
+      "INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'announcement', $3)",
+      [x.id, now, JSON.stringify({ id, title: a.title, action: "withdrawn" })],
+    );
   return { announcement: await one(ctx, id) };
 }
 
@@ -302,6 +308,7 @@ export async function withdrawAnnouncement(ctx: Ctx, id: string) {
 export async function healthForAlerts(db: pg.Pool, now: Date): Promise<Map<string, Problem[]>> {
   const out = new Map<string, Problem[]>();
   for (const r of await liveLatest(db))
-    if (r.at && now.getTime() - r.at.getTime() <= DAY && r.health) out.set(r.client_id, problemsOf(r.health, now));
+    if (r.at && now.getTime() - r.at.getTime() <= DAY && r.health)
+      out.set(r.client_id, problemsOf(r.health, now));
   return out;
 }

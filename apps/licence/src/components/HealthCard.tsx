@@ -56,8 +56,8 @@ export function HealthCard({ data, version }: { data: ClientHealth; version: str
       )}
       {!h && s.status !== "down" && (
         <p className="note" style={{ margin: 0, fontSize: 13.5, color: "var(--ink2)" }}>
-          {version ? `This LUME runs ${version}. ` : ""}Health arrives once this LUME is updated. It last checked in{" "}
-          {ago(s.at)}.
+          {version ? `This LUME runs ${version}. ` : ""}Health arrives once this LUME is updated. It last
+          checked in {ago(s.at)}.
         </p>
       )}
       {s.problems.length > 0 && (
@@ -77,12 +77,12 @@ export function HealthCard({ data, version }: { data: ClientHealth; version: str
               <dd className="num">
                 {bytesText(h.dbBytes)}
                 {trend.length > 1 && (
-                <Bars
-                  values={trend.map((p) => p.dbBytes)}
-                  label={`Database size over ${trend.length} days, from ${bytesText(trend[0]!.dbBytes)} to ${bytesText(trend.at(-1)!.dbBytes)}`}
-                  color={() => "var(--blue)"}
-                />
-              )}
+                  <Bars
+                    values={trend.map((p) => p.dbBytes)}
+                    label={`Database size over ${trend.length} days, from ${bytesText(trend[0]!.dbBytes)} to ${bytesText(trend.at(-1)!.dbBytes)}`}
+                    color={() => "var(--blue)"}
+                  />
+                )}
               </dd>
             </div>
             <div>
@@ -99,14 +99,14 @@ export function HealthCard({ data, version }: { data: ClientHealth; version: str
                 }}
               >
                 {h.diskFreePct === null ? "—" : `${h.diskFreePct}%`}
-              
-              {trend.length > 1 && trend.every((p) => p.diskFreePct !== null) && (
-                <Bars
-                  values={trend.map((p) => p.diskFreePct!)}
-                  label={`Disk free over ${trend.length} days, from ${trend[0]!.diskFreePct}% to ${trend.at(-1)!.diskFreePct}%`}
-                  color={(v) => (v < 5 ? "#e5484d" : v < 15 ? "#f2a20c" : "#18a566")}
-                />
-              )}
+
+                {trend.length > 1 && trend.every((p) => p.diskFreePct !== null) && (
+                  <Bars
+                    values={trend.map((p) => p.diskFreePct!)}
+                    label={`Disk free over ${trend.length} days, from ${trend[0]!.diskFreePct}% to ${trend.at(-1)!.diskFreePct}%`}
+                    color={(v) => (v < 5 ? "#e5484d" : v < 15 ? "#f2a20c" : "#18a566")}
+                  />
+                )}
               </dd>
             </div>
             <div>

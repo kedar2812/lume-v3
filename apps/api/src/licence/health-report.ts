@@ -14,7 +14,9 @@ export function toFleetHealth(
   h: Health,
   o: { uptimeS: number; dbBytes: number; diskFreePct: number | null; errors24h: number },
 ): FleetHealth {
-  const keys = h.problems.map((p) => (p.key.startsWith("source:") ? "source" : p.key)).filter((k) => KNOWN.has(k));
+  const keys = h.problems
+    .map((p) => (p.key.startsWith("source:") ? "source" : p.key))
+    .filter((k) => KNOWN.has(k));
   return capHealth({
     uptimeS: o.uptimeS,
     dbBytes: o.dbBytes,
@@ -57,7 +59,8 @@ export async function healthReport(
       ...(o.lastSweepAt ? { lastSweepAt: o.lastSweepAt } : {}),
       ...(o.queueStartedAt ? { startedAt: o.queueStartedAt } : {}),
     });
-    const size = (await db.query<{ n: string }>("SELECT pg_database_size(current_database())::text AS n")).rows[0];
+    const size = (await db.query<{ n: string }>("SELECT pg_database_size(current_database())::text AS n"))
+      .rows[0];
     return toFleetHealth(h, {
       uptimeS: (o.now.getTime() - o.startedAt.getTime()) / 1000,
       dbBytes: Number(size?.n ?? 0),

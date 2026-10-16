@@ -62,7 +62,11 @@ const send = (res: import("node:http").ServerResponse, status: number, data: unk
 const server = createServer((req, res) => {
   void (async () => {
     if (req.method === "POST" && req.url === "/v1/check") {
-      const b = JSON.parse(await body(req)) as { instanceId?: string; licenseKey?: string; accepts?: string[] };
+      const b = JSON.parse(await body(req)) as {
+        instanceId?: string;
+        licenseKey?: string;
+        accepts?: string[];
+      };
       checks++;
       lastCheck = b;
       if (says.down) return send(res, 503, { error: { code: "DOWN" } });

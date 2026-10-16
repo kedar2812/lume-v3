@@ -98,7 +98,10 @@ const HEARD_H: Record<string, number> = {
 };
 const OLD = new Set(["Oakline Realty", "Kestrel Logistics"]);
 // Fleet (spec 2026-10-16 fleet): what each LUME on the newer version says about itself; the older two send none.
-const SICK: Record<string, { diskFreePct?: number; failed24h?: number; problems?: string[]; restoreDays?: number }> = {
+const SICK: Record<
+  string,
+  { diskFreePct?: number; failed24h?: number; problems?: string[]; restoreDays?: number }
+> = {
   "Saffron Events": { diskFreePct: 4, failed24h: 3, problems: ["jobs_failed"] },
   "Coral Bay Physio": { problems: ["reminders_late"] },
   "Summit Fitness": { restoreDays: 9, problems: ["restore_test"] },
@@ -109,11 +112,17 @@ const healthAt = (name: string, i: number, hoursAgo: number) => {
   return JSON.stringify({
     uptimeS: Math.max(60, Math.round((5 * 24 - (hoursAgo % (5 * 24))) * 3600)),
     dbBytes: Math.round((90 + i * 23) * 1_000_000 * grow),
-    diskFreePct: sick.diskFreePct !== undefined ? Math.round(sick.diskFreePct + (hoursAgo / 24) * 1.4) : 40 + ((i * 7) % 40),
+    diskFreePct:
+      sick.diskFreePct !== undefined
+        ? Math.round(sick.diskFreePct + (hoursAgo / 24) * 1.4)
+        : 40 + ((i * 7) % 40),
     errors24h: i % 3,
     queue: { waiting: i % 4, retrying: 0, failed24h: sick.failed24h ?? 0 },
     remindersLate: sick.problems?.includes("reminders_late") ? 2 : 0,
-    restoreTest: { at: new Date(now.getTime() - ((sick.restoreDays ?? 1) * 24 + hoursAgo) * 3_600_000).toISOString(), ok: true },
+    restoreTest: {
+      at: new Date(now.getTime() - ((sick.restoreDays ?? 1) * 24 + hoursAgo) * 3_600_000).toISOString(),
+      ok: true,
+    },
     problems: sick.problems ?? [],
     sourcesNeedingAttention: 0,
   });

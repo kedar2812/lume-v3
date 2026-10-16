@@ -32,7 +32,8 @@ export const fleetHealthSchema = z
 export type FleetHealth = z.infer<typeof fleetHealthSchema>;
 
 const MAX_COUNT = 1_000_000_000;
-const whole = (n: number, max = MAX_COUNT) => Math.min(max, Math.max(0, Math.floor(Number.isFinite(n) ? n : 0)));
+const whole = (n: number, max = MAX_COUNT) =>
+  Math.min(max, Math.max(0, Math.floor(Number.isFinite(n) ? n : 0)));
 
 /** Health as it may travel: whole numbers within bounds, a percentage 0–100, each known problem key once. */
 export function capHealth(h: FleetHealth): FleetHealth {
@@ -42,7 +43,11 @@ export function capHealth(h: FleetHealth): FleetHealth {
     dbBytes: whole(h.dbBytes, Number.MAX_SAFE_INTEGER),
     diskFreePct: h.diskFreePct === null ? null : whole(h.diskFreePct, 100),
     errors24h: whole(h.errors24h),
-    queue: { waiting: whole(h.queue.waiting), retrying: whole(h.queue.retrying), failed24h: whole(h.queue.failed24h) },
+    queue: {
+      waiting: whole(h.queue.waiting),
+      retrying: whole(h.queue.retrying),
+      failed24h: whole(h.queue.failed24h),
+    },
     remindersLate: whole(h.remindersLate),
     restoreTest: h.restoreTest ? { at: h.restoreTest.at, ok: !!h.restoreTest.ok } : null,
     problems: [...new Set(h.problems)].filter((p): p is HealthProblem => known.has(p)),

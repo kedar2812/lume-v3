@@ -299,7 +299,9 @@ test("Fleet: every LUME worst first, a client's Health card, an announcement pub
   await expect(saffron).toContainText("Disk almost full");
   await expect(saffron).toContainText("Jobs failing");
   await expect(list.getByRole("link", { name: /Oakline Realty/ })).toContainText("No health yet");
-  await expect(page.getByRole("link", { name: /^Fleet/ }).getByLabel(/need a look or are down/)).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /^Fleet/ }).getByLabel(/need a look or are down/),
+  ).toBeVisible();
   for (const t of ["light", "dark"] as const) {
     await theme(page, t);
     await shot(page, `fleet-${t}`);
@@ -327,7 +329,9 @@ test("Fleet: every LUME worst first, a client's Health card, an announcement pub
   await sheet.getByLabel("Maintenance starts").fill(at(2, 22));
   await sheet.getByLabel("Ends").fill(at(2, 23));
   await sheet.getByLabel("Title").fill("LUME will be updated on Sunday night");
-  await sheet.getByLabel("Message").fill("LUME will be away for about 30 minutes while it’s updated. Nothing you’ve saved is touched.");
+  await sheet
+    .getByLabel("Message")
+    .fill("LUME will be away for about 30 minutes while it’s updated. Nothing you’ve saved is touched.");
   await sheet.getByRole("radio", { name: "Admins only" }).click();
   await shot(page, "announce-new");
   expect(await axe(page)).toEqual([]);
@@ -341,7 +345,9 @@ test("Fleet: every LUME worst first, a client's Health card, an announcement pub
   await head.click();
   await page.getByRole("button", { name: "Withdraw…" }).click();
   await page.getByRole("button", { name: "Withdraw", exact: true }).click();
-  await expect(page.getByRole("button", { name: /LUME will be updated on Sunday night/ })).toContainText("Withdrawn");
+  await expect(page.getByRole("button", { name: /LUME will be updated on Sunday night/ })).toContainText(
+    "Withdrawn",
+  );
   // The client's history says so.
   await page.goto(`/clients/${seed().ids["Brightpath Studio"]}`);
   await expect(page.getByRole("region", { name: "History" })).toContainText(

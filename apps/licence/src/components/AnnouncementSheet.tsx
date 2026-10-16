@@ -64,7 +64,8 @@ export function AnnouncementSheet({
     (all || chosen.length > 0) &&
     !!until;
   const shown = clients.filter((c) => c.name.toLowerCase().includes(find.trim().toLowerCase()));
-  const toggle = (id: string) => setChosen((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+  const toggle = (id: string) =>
+    setChosen((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
 
   const publish = async () => {
     if (!can || busy) return;
@@ -142,11 +143,21 @@ export function AnnouncementSheet({
             <div className="fl-two">
               <label className="field">
                 Maintenance starts
-                <input className="input" type="datetime-local" value={winStart} onChange={(e) => setWinStart(e.target.value)} />
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={winStart}
+                  onChange={(e) => setWinStart(e.target.value)}
+                />
               </label>
               <label className="field">
                 Ends
-                <input className="input" type="datetime-local" value={winEnd} onChange={(e) => setWinEnd(e.target.value)} />
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={winEnd}
+                  onChange={(e) => setWinEnd(e.target.value)}
+                />
               </label>
             </div>
           )}
@@ -180,7 +191,14 @@ export function AnnouncementSheet({
                   ["admins", "Admins only"],
                 ] as const
               ).map(([v, label]) => (
-                <button key={v} type="button" className="chip" role="radio" aria-checked={who === v} onClick={() => setWho(v)}>
+                <button
+                  key={v}
+                  type="button"
+                  className="chip"
+                  role="radio"
+                  aria-checked={who === v}
+                  onClick={() => setWho(v)}
+                >
                   {label}
                 </button>
               ))}
@@ -189,10 +207,22 @@ export function AnnouncementSheet({
           <div className="field">
             Which clients
             <div className="chips" role="radiogroup" aria-label="Which clients">
-              <button type="button" className="chip" role="radio" aria-checked={all} onClick={() => setAll(true)}>
+              <button
+                type="button"
+                className="chip"
+                role="radio"
+                aria-checked={all}
+                onClick={() => setAll(true)}
+              >
                 All clients
               </button>
-              <button type="button" className="chip" role="radio" aria-checked={!all} onClick={() => setAll(false)}>
+              <button
+                type="button"
+                className="chip"
+                role="radio"
+                aria-checked={!all}
+                onClick={() => setAll(false)}
+              >
                 Choose…
               </button>
             </div>
@@ -222,10 +252,22 @@ export function AnnouncementSheet({
             <div className="field">
               Shows from
               <div className="chips" role="radiogroup" aria-label="Shows from">
-                <button type="button" className="chip" role="radio" aria-checked={!later} onClick={() => setLater(false)}>
+                <button
+                  type="button"
+                  className="chip"
+                  role="radio"
+                  aria-checked={!later}
+                  onClick={() => setLater(false)}
+                >
                   Now
                 </button>
-                <button type="button" className="chip" role="radio" aria-checked={later} onClick={() => setLater(true)}>
+                <button
+                  type="button"
+                  className="chip"
+                  role="radio"
+                  aria-checked={later}
+                  onClick={() => setLater(true)}
+                >
                   Later
                 </button>
               </div>
@@ -241,7 +283,12 @@ export function AnnouncementSheet({
             </div>
             <label className="field">
               Until
-              <input className="input" type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
+              <input
+                className="input"
+                type="datetime-local"
+                value={until}
+                onChange={(e) => setUntil(e.target.value)}
+              />
             </label>
           </div>
           <div className="field">

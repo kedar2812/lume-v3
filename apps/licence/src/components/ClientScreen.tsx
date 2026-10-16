@@ -379,7 +379,10 @@ export function ClientScreen({ id }: { id: string }) {
           </section>
 
           {d.health && (
-            <HealthCard data={{ health: d.health, healthTrend: d.healthTrend ?? [] }} version={d.installation?.version ?? null} />
+            <HealthCard
+              data={{ health: d.health, healthTrend: d.healthTrend ?? [] }}
+              version={d.installation?.version ?? null}
+            />
           )}
 
           <section className="card" aria-label="This installation" style={{ animationDelay: ".06s" }}>

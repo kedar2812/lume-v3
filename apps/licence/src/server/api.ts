@@ -243,8 +243,12 @@ route("PATCH", "/api/feedback/:id", ({ ctx, params, body }) =>
 // Fleet (spec 2026-10-16 fleet §2.4).
 route("GET", "/api/fleet", ({ ctx }) => fleet(ctx));
 route("GET", "/api/announcements", ({ ctx }) => listAnnouncements(ctx));
-route("POST", "/api/announcements", ({ ctx, body }) => createAnnouncement(ctx, parse(newAnnouncementSchema, body)));
-route("GET", "/api/announcements/:id", async ({ ctx, params }) => ({ announcement: await getAnnouncement(ctx, params.id!) }));
+route("POST", "/api/announcements", ({ ctx, body }) =>
+  createAnnouncement(ctx, parse(newAnnouncementSchema, body)),
+);
+route("GET", "/api/announcements/:id", async ({ ctx, params }) => ({
+  announcement: await getAnnouncement(ctx, params.id!),
+}));
 route("POST", "/api/announcements/:id/withdraw", ({ ctx, params }) => withdrawAnnouncement(ctx, params.id!));
 route("GET", "/api/rates", ({ ctx }) => currentRates(ctx));
 route("GET", "/api/analytics", async ({ ctx, url }) => {

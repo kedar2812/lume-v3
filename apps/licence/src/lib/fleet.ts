@@ -26,7 +26,12 @@ export function problemsOf(h: FleetHealth | null, now: Date): Problem[] {
       `The server’s disk is almost full: ${h.diskFreePct}% free. When it fills, LUME stops saving. Free space on their server, or give it a bigger disk.`,
     );
   else if (h.diskFreePct !== null && h.diskFreePct < 15)
-    add("disk", "amber", "Disk filling", `The server’s disk is filling: ${h.diskFreePct}% free. Free space before it runs out.`);
+    add(
+      "disk",
+      "amber",
+      "Disk filling",
+      `The server’s disk is filling: ${h.diskFreePct}% free. Free space before it runs out.`,
+    );
   if (has("reminders_late"))
     add(
       "reminders_late",
@@ -75,7 +80,12 @@ export function problemsOf(h: FleetHealth | null, now: Date): Problem[] {
   }
   const t = h.restoreTest;
   if (t && !t.ok)
-    add("restore_test", "amber", "Restore test failed", "The last backup restore test failed. Check the backups on their server.");
+    add(
+      "restore_test",
+      "amber",
+      "Restore test failed",
+      "The last backup restore test failed. Check the backups on their server.",
+    );
   else if (has("restore_test") || (t && now.getTime() - Date.parse(t.at) > 8 * 24 * H))
     add(
       "restore_test",
@@ -84,7 +94,12 @@ export function problemsOf(h: FleetHealth | null, now: Date): Problem[] {
       "No backup restore test in over 8 days. Check the worker on their server.",
     );
   if (h.errors24h >= 20)
-    add("errors", "amber", "Errors", `${h.errors24h} errors in the last 24 hours. Look at the API’s log on their server.`);
+    add(
+      "errors",
+      "amber",
+      "Errors",
+      `${h.errors24h} errors in the last 24 hours. Look at the API’s log on their server.`,
+    );
 
   return [...out.filter((p) => p.severity === "red"), ...out.filter((p) => p.severity === "amber")];
 }

@@ -62,7 +62,17 @@ test.describe("From LUME's team", () => {
     const sent = (await (await page.request.get(FAKE)).json()) as { lastCheck: Record<string, unknown> };
     expect(sent.lastCheck.accepts).toEqual(["announcements"]);
     expect(Object.keys(sent.lastCheck.health as object).sort()).toEqual(
-      ["dbBytes", "diskFreePct", "errors24h", "problems", "queue", "remindersLate", "restoreTest", "sourcesNeedingAttention", "uptimeS"].sort(),
+      [
+        "dbBytes",
+        "diskFreePct",
+        "errors24h",
+        "problems",
+        "queue",
+        "remindersLate",
+        "restoreTest",
+        "sourcesNeedingAttention",
+        "uptimeS",
+      ].sort(),
     );
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
@@ -87,14 +97,18 @@ test.describe("From LUME's team", () => {
     await reviewCopy(page, "about-announcements.png");
     // Got it goes back as a count with the next check-in.
     await callApi(page, "POST", "/api/v1/licence/check");
-    const after = (await (await page.request.get(FAKE)).json()) as { lastCheck: { seen: { id: string; people: number }[] } };
+    const after = (await (await page.request.get(FAKE)).json()) as {
+      lastCheck: { seen: { id: string; people: number }[] };
+    };
     expect(after.lastCheck.seen).toEqual([
       { id: A, people: 1 },
       { id: B, people: 0 },
     ]);
   });
 
-  test("a sales rep sees only what's for everyone, and on a phone the strip takes the full width", async ({ browser }) => {
+  test("a sales rep sees only what's for everyone, and on a phone the strip takes the full width", async ({
+    browser,
+  }) => {
     const ctx = await browser.newContext({
       storageState: stateFile("seller"),
       viewport: { width: 390, height: 844 },

@@ -29,7 +29,15 @@ const health: FleetHealth = {
 describe("checkBody", () => {
   it("is exactly today's body when nothing new is given, so an older licence server takes it", () => {
     expect(Object.keys(checkBody(base)).sort()).toEqual(
-      ["activeUserCount", "appVersion", "installId", "instanceId", "leadCount", "licenseKey", "serverTime"].sort(),
+      [
+        "activeUserCount",
+        "appVersion",
+        "installId",
+        "instanceId",
+        "leadCount",
+        "licenseKey",
+        "serverTime",
+      ].sort(),
     );
   });
   it("carries what this LUME can show, its health and the seen counts, when given", () => {
@@ -88,7 +96,16 @@ describe("announcements in the signed answer", () => {
 
   it("verifies with up to three, and three long ones still fit", () => {
     const long = { ...claim, title: "ä".repeat(80), body: "अ".repeat(600) };
-    const t = signLicence(payload({ announcements: [long, { ...long, id: claim.id.replace("a1", "a2") }, { ...long, id: claim.id.replace("a1", "a3") }] }), privateKey);
+    const t = signLicence(
+      payload({
+        announcements: [
+          long,
+          { ...long, id: claim.id.replace("a1", "a2") },
+          { ...long, id: claim.id.replace("a1", "a3") },
+        ],
+      }),
+      privateKey,
+    );
     expect(verifyLicence(t, keys, base.instanceId)?.announcements).toHaveLength(3);
   });
   it("refuses a claim with a key it doesn't know", () => {
@@ -97,13 +114,21 @@ describe("announcements in the signed answer", () => {
   });
   it("keeps the ones that haven't ended in the view, and none when the answer has none", () => {
     const view = licenceState({
-      payload: payload({ announcements: [claim, { ...claim, id: claim.id.replace("a1", "a2"), endsAt: "2026-10-15T00:00:00.000Z" }] }),
+      payload: payload({
+        announcements: [
+          claim,
+          { ...claim, id: claim.id.replace("a1", "a2"), endsAt: "2026-10-15T00:00:00.000Z" },
+        ],
+      }),
       lastSuccessAt: now,
       firstBootAt: now,
       now,
       dev: false,
     });
     expect(view.announcements.map((a) => a.id)).toEqual([claim.id]);
-    expect(licenceState({ payload: payload(), lastSuccessAt: now, firstBootAt: now, now, dev: false }).announcements).toEqual([]);
+    expect(
+      licenceState({ payload: payload(), lastSuccessAt: now, firstBootAt: now, now, dev: false })
+        .announcements,
+    ).toEqual([]);
   });
 });

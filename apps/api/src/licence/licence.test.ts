@@ -136,9 +136,24 @@ describe("the instance checks its licence (L-A Task 2)", () => {
         "health",
       ].sort(),
     );
-    expect(body).toMatchObject({ instanceId: INSTANCE, licenseKey: KEY, appVersion: "1.4.2", accepts: ["announcements"] });
+    expect(body).toMatchObject({
+      instanceId: INSTANCE,
+      licenseKey: KEY,
+      appVersion: "1.4.2",
+      accepts: ["announcements"],
+    });
     expect(Object.keys(body.health as object).sort()).toEqual(
-      ["dbBytes", "diskFreePct", "errors24h", "problems", "queue", "remindersLate", "restoreTest", "sourcesNeedingAttention", "uptimeS"].sort(),
+      [
+        "dbBytes",
+        "diskFreePct",
+        "errors24h",
+        "problems",
+        "queue",
+        "remindersLate",
+        "restoreTest",
+        "sourcesNeedingAttention",
+        "uptimeS",
+      ].sort(),
     );
     expect(body.installId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(body.leadCount).toBeGreaterThanOrEqual(1);
@@ -390,7 +405,9 @@ describe("From LUME's team (spec 2026-10-16 fleet §4)", () => {
   it("Got it is per person, kept on the server, and its count goes back with the next check", async () => {
     answer = ok(token({ announcements: [claim(A), claim(B)] }));
     await check();
-    const r = await (await h.signIn(repUser)).inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` });
+    const r = await (
+      await h.signIn(repUser)
+    ).inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` });
     expect(r.statusCode).toBe(200);
     expect(await people(await h.signIn(repUser))).toEqual([
       [A, true],
@@ -401,7 +418,9 @@ describe("From LUME's team (spec 2026-10-16 fleet §4)", () => {
       [B, false],
     ]);
     // Twice is still once.
-    await (await h.signIn(repUser)).inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` });
+    await (
+      await h.signIn(repUser)
+    ).inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` });
     sent.length = 0;
     await check();
     expect(sent[0]!.body.seen).toEqual([
@@ -414,12 +433,18 @@ describe("From LUME's team (spec 2026-10-16 fleet §4)", () => {
     answer = ok(token({ announcements: [claim(A, { audience: "admins" })] }));
     await check();
     const rp = await h.signIn(repUser);
-    expect((await rp.inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` })).statusCode).toBe(404);
-    expect((await rp.inject({ method: "POST", url: `/api/v1/licence/announcements/${B}/got-it` })).statusCode).toBe(404);
+    expect(
+      (await rp.inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` })).statusCode,
+    ).toBe(404);
+    expect(
+      (await rp.inject({ method: "POST", url: `/api/v1/licence/announcements/${B}/got-it` })).statusCode,
+    ).toBe(404);
   });
 
   it("an announcement past its end goes, even from the answer LUME keeps", async () => {
-    answer = ok(token({ announcements: [claim(A, { endsAt: new Date(h.clock.now.getTime() + H).toISOString() })] }));
+    answer = ok(
+      token({ announcements: [claim(A, { endsAt: new Date(h.clock.now.getTime() + H).toISOString() })] }),
+    );
     await check();
     expect(await people(await h.signIn(adminUser))).toEqual([[A, false]]);
     h.clock.advance(2 * H);
@@ -430,7 +455,28 @@ describe("From LUME's team (spec 2026-10-16 fleet §4)", () => {
   it("Got it works while LUME is read-only", async () => {
     answer = ok(token({ state: "read_only", reason: "overdue", announcements: [claim(B)] }));
     await check();
-    const r = await (await h.signIn(repUser)).inject({ method: "POST", url: `/api/v1/licence/announcements/${B}/got-it` });
+    const r = await (
+      await h.signIn(repUser)
+    ).inject({ method: "POST", url: `/api/v1/licence/announcements/${B}/got-it` });
     expect(r.statusCode).toBe(200);
+  });
+});
+
+describe("an older licence server (spec 2026-10-16 fleet §1.3)", () => {
+  it("refuses a body with health in it: LUME asks again the old way, once, and keeps its licence", async () => {
+    answer = () => {
+      const last = sent.at(-1)!.body;
+      return "accepts" in last || "health" in last
+        ? new Response(JSON.stringify({ error: { code: "BAD_REQUEST", message: "Not a licence check." } }), {
+            status: 400,
+          })
+        : new Response(JSON.stringify({ token: token() }), { status: 200 });
+    };
+    const r = (await check()).json();
+    expect(sent).toHaveLength(2);
+    expect(Object.keys(sent[1]!.body)).not.toContain("accepts");
+    expect(Object.keys(sent[1]!.body)).not.toContain("health");
+    expect(r.state).toBe("active");
+    expect(r.lastError).toBeNull();
   });
 });

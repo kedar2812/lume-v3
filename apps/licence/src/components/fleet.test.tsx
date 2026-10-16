@@ -51,11 +51,24 @@ const fleet = {
       diskFreePct: 4,
       dbBytes: 1_900_000_000,
       problems: [
-        { key: "disk", severity: "red", short: "Disk almost full", words: "The server’s disk is almost full: 4% free." },
+        {
+          key: "disk",
+          severity: "red",
+          short: "Disk almost full",
+          words: "The server’s disk is almost full: 4% free.",
+        },
         { key: "jobs_failed", severity: "amber", short: "Jobs failing", words: "3 background jobs failed." },
       ],
     }),
-    row({ id: "c4", name: "Oakline <b>Realty</b>", status: "none", version: "1.3.8", behind: true, dbBytes: null, diskFreePct: null }),
+    row({
+      id: "c4",
+      name: "Oakline <b>Realty</b>",
+      status: "none",
+      version: "1.3.8",
+      behind: true,
+      dbBytes: null,
+      diskFreePct: null,
+    }),
     row({}),
   ],
   latestVersion: "1.5.0",
@@ -86,7 +99,20 @@ beforeEach(() => {
   vi.mocked(api.post).mockReset();
   vi.mocked(api.get).mockImplementation(async (path: string) => {
     if (path === "/api/fleet") return ok(fleet) as never;
-    if (path === "/api/announcements") return ok({ announcements: [announcement(), announcement({ id: "a2", title: "Calendar sync paused", kind: "update", windowStart: null, windowEnd: null, state: "withdrawn" })] }) as never;
+    if (path === "/api/announcements")
+      return ok({
+        announcements: [
+          announcement(),
+          announcement({
+            id: "a2",
+            title: "Calendar sync paused",
+            kind: "update",
+            windowStart: null,
+            windowEnd: null,
+            state: "withdrawn",
+          }),
+        ],
+      }) as never;
     if (path.startsWith("/api/alerts")) return ok({ alerts: [] }) as never;
     return { ok: false, status: 404, message: "Nothing here." } as never;
   });
@@ -101,7 +127,12 @@ describe("Fleet · Health", () => {
     const names = within(list)
       .getAllByRole("link")
       .map((a) => a.querySelector(".fl-name")!.textContent);
-    expect(names).toEqual(["Harbour Clinic", "Kestrel Logistics", "Oakline <b>Realty</b>", "Brightpath Studio"]);
+    expect(names).toEqual([
+      "Harbour Clinic",
+      "Kestrel Logistics",
+      "Oakline <b>Realty</b>",
+      "Brightpath Studio",
+    ]);
     const kestrel = within(list).getByText("Kestrel Logistics").closest("a")!;
     expect(within(kestrel).getByText("Disk almost full")).toHaveClass("fl-chip", "fl-red");
     expect(within(kestrel).getByText("4%")).toHaveClass("fl-red-text");
@@ -115,7 +146,9 @@ describe("Fleet · Health", () => {
     render(<FleetScreen />);
     const list = await screen.findByRole("region", { name: "Every client's LUME" });
     await within(list).findByText("Kestrel Logistics");
-    await user.click(within(screen.getByRole("group", { name: "Status" })).getByRole("button", { name: /^Down/ }));
+    await user.click(
+      within(screen.getByRole("group", { name: "Status" })).getByRole("button", { name: /^Down/ }),
+    );
     expect(within(list).getAllByRole("link")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: /Problems their LUME reported/ }));
     expect(within(list).getByText("Kestrel Logistics")).toBeInTheDocument();
@@ -189,7 +222,11 @@ describe("New announcement", () => {
 
   it("says why the server refused, and keeps everything", async () => {
     const user = userEvent.setup();
-    vi.mocked(api.post).mockResolvedValue({ ok: false, status: 400, message: "An announcement shows for 60 days at most." } as never);
+    vi.mocked(api.post).mockResolvedValue({
+      ok: false,
+      status: 400,
+      message: "An announcement shows for 60 days at most.",
+    } as never);
     render(<AnnouncementSheet clients={[]} onClose={vi.fn()} onPublished={vi.fn()} />);
     await user.type(screen.getByLabelText("Title"), "Hello");
     await user.type(screen.getByLabelText("Message"), "Words.");
@@ -202,9 +239,14 @@ describe("New announcement", () => {
 describe("a client's Health card", () => {
   it("on an older LUME says when health arrives", () => {
     render(
-      <HealthCard data={{ health: { status: "none", problems: [], health: null, at: hoursAgo(5) }, healthTrend: [] }} version="1.3.8" />,
+      <HealthCard
+        data={{ health: { status: "none", problems: [], health: null, at: hoursAgo(5) }, healthTrend: [] }}
+        version="1.3.8"
+      />,
     );
-    expect(screen.getByText(/This LUME runs 1\.3\.8\. Health arrives once this LUME is updated\./)).toBeInTheDocument();
+    expect(
+      screen.getByText(/This LUME runs 1\.3\.8\. Health arrives once this LUME is updated\./),
+    ).toBeInTheDocument();
   });
   it("shows the problems in words and the trend", () => {
     render(
@@ -212,7 +254,14 @@ describe("a client's Health card", () => {
         data={{
           health: {
             status: "look",
-            problems: [{ key: "disk", severity: "red", short: "Disk almost full", words: "The server’s disk is almost full: 4% free." }],
+            problems: [
+              {
+                key: "disk",
+                severity: "red",
+                short: "Disk almost full",
+                words: "The server’s disk is almost full: 4% free.",
+              },
+            ],
             health: {
               uptimeS: 1_036_800,
               dbBytes: 1_900_000_000,

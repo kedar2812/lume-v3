@@ -10,7 +10,15 @@ const read: Health = {
   queue: { waiting: 4, active: 1, retrying: 0, failed24h: 3 },
   digest: { lastSentAt: null, sentToday: 0, failures24h: 0 },
   noTouch: { enabled: false, lastRunAt: null, createdToday: 0 },
-  sources: [{ id: "s1", name: "Instagram leads — Dubai", type: "google_sheet", status: "needs_attention", lastSyncAt: null }],
+  sources: [
+    {
+      id: "s1",
+      name: "Instagram leads — Dubai",
+      type: "google_sheet",
+      status: "needs_attention",
+      lastSyncAt: null,
+    },
+  ],
   restoreTest: { at: "2026-10-14T03:15:00.000Z", ok: true },
   problems: [
     { key: "reminders_late", words: "2 reminders are late." },
@@ -37,7 +45,12 @@ describe("toFleetHealth", () => {
     expect(JSON.stringify(h)).not.toMatch(/Instagram|Website|Dubai/);
   });
   it("says no restore test when there's been none", () => {
-    expect(toFleetHealth({ ...read, restoreTest: { at: null, ok: null } }, { uptimeS: 1, dbBytes: 1, diskFreePct: null, errors24h: 0 }).restoreTest).toBeNull();
+    expect(
+      toFleetHealth(
+        { ...read, restoreTest: { at: null, ok: null } },
+        { uptimeS: 1, dbBytes: 1, diskFreePct: null, errors24h: 0 },
+      ).restoreTest,
+    ).toBeNull();
   });
 });
 

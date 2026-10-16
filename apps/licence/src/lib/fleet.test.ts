@@ -23,14 +23,28 @@ describe("problemsOf (spec 2026-10-16 fleet §2.2)", () => {
   });
   it("disk: amber under 15%, red under 5%, nothing at 15%", () => {
     expect(keys({ ...well, diskFreePct: 15 })).toEqual([]);
-    expect(problemsOf({ ...well, diskFreePct: 14 }, now)[0]).toMatchObject({ key: "disk", severity: "amber", short: "Disk filling" });
-    expect(problemsOf({ ...well, diskFreePct: 4 }, now)[0]).toMatchObject({ key: "disk", severity: "red", short: "Disk almost full" });
-    expect(problemsOf({ ...well, diskFreePct: 4 }, now)[0]!.words).toMatch(/^The server’s disk is almost full: 4% free\./);
+    expect(problemsOf({ ...well, diskFreePct: 14 }, now)[0]).toMatchObject({
+      key: "disk",
+      severity: "amber",
+      short: "Disk filling",
+    });
+    expect(problemsOf({ ...well, diskFreePct: 4 }, now)[0]).toMatchObject({
+      key: "disk",
+      severity: "red",
+      short: "Disk almost full",
+    });
+    expect(problemsOf({ ...well, diskFreePct: 4 }, now)[0]!.words).toMatch(
+      /^The server’s disk is almost full: 4% free\./,
+    );
     expect(keys({ ...well, diskFreePct: null })).toEqual([]);
   });
   it("failed jobs, from the count or the key, once", () => {
-    expect(problemsOf({ ...well, queue: { ...well.queue, failed24h: 3 } }, now)[0]!.words).toMatch(/^3 background jobs failed/);
-    expect(keys({ ...well, problems: ["jobs_failed"], queue: { ...well.queue, failed24h: 1 } })).toEqual(["jobs_failed"]);
+    expect(problemsOf({ ...well, queue: { ...well.queue, failed24h: 3 } }, now)[0]!.words).toMatch(
+      /^3 background jobs failed/,
+    );
+    expect(keys({ ...well, problems: ["jobs_failed"], queue: { ...well.queue, failed24h: 1 } })).toEqual([
+      "jobs_failed",
+    ]);
   });
   it("errors: 20 or more in a day", () => {
     expect(keys({ ...well, errors24h: 19 })).toEqual([]);
@@ -46,7 +60,14 @@ describe("problemsOf (spec 2026-10-16 fleet §2.2)", () => {
     const all = problemsOf(
       {
         ...well,
-        problems: ["reminders_late", "sweeper_stopped", "jobs_unreadable", "digest_failing", "source", "restore_test"],
+        problems: [
+          "reminders_late",
+          "sweeper_stopped",
+          "jobs_unreadable",
+          "digest_failing",
+          "source",
+          "restore_test",
+        ],
         sourcesNeedingAttention: 2,
       },
       now,
@@ -63,7 +84,10 @@ describe("problemsOf (spec 2026-10-16 fleet §2.2)", () => {
     expect(all.find((p) => p.key === "source")!.words).toMatch(/^2 lead sources need attention/);
   });
   it("red ones come first", () => {
-    expect(keys({ ...well, problems: ["reminders_late"], diskFreePct: 3 })).toEqual(["disk", "reminders_late"]);
+    expect(keys({ ...well, problems: ["reminders_late"], diskFreePct: 3 })).toEqual([
+      "disk",
+      "reminders_late",
+    ]);
   });
 });
 
