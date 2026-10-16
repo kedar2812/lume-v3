@@ -130,6 +130,14 @@ export class Jar {
     this.cookies = new Map(m);
   }
 
+  /** A request whose answer isn't JSON (a screenshot): the Response itself. */
+  async raw(method: string, path: string): Promise<Response> {
+    const headers: Record<string, string> = { "x-real-ip": this.ip, origin: "https://licence.test" };
+    if (this.cookies.size) headers.cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
+    const { handleApi } = await import("./api");
+    return handleApi(new Request(`https://licence.test${path}`, { method, headers }), this.ctx());
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a test reads whatever the API answered
   async call<T = any>(
     method: string,

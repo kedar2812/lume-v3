@@ -54,6 +54,14 @@ import {
   STATUSES,
   type Status,
 } from "./enquiries";
+import {
+  feedbackImage,
+  getFeedback,
+  listFeedback,
+  newCount,
+  patchFeedback,
+  patchFeedbackSchema,
+} from "./feedback-admin";
 import { currentRates } from "./fx";
 import { clientIp, json, readCapped } from "./http";
 
@@ -213,6 +221,16 @@ route("GET", "/api/enquiries", ({ ctx, url }) => {
 route("GET", "/api/enquiries/:id", ({ ctx, params }) => getEnquiry(ctx, params.id!));
 route("PATCH", "/api/enquiries/:id", ({ ctx, params, body }) =>
   patchEnquiry(ctx, params.id!, parse(patchEnquirySchema, body)),
+);
+// Feedback (spec 2026-10-16 §3.5); new-count before :id, as the first match wins.
+route("GET", "/api/feedback", ({ ctx, url }) => listFeedback(ctx, url));
+route("GET", "/api/feedback/new-count", ({ ctx }) => newCount(ctx));
+route("GET", "/api/feedback/:id", ({ ctx, params }) => getFeedback(ctx, params.id!));
+route("GET", "/api/feedback/:id/images/:n", ({ ctx, params, url }) =>
+  feedbackImage(ctx, params.id!, params.n!, url.searchParams.get("download") === "1"),
+);
+route("PATCH", "/api/feedback/:id", ({ ctx, params, body }) =>
+  patchFeedback(ctx, params.id!, parse(patchFeedbackSchema, body)),
 );
 route("GET", "/api/rates", ({ ctx }) => currentRates(ctx));
 route("GET", "/api/analytics", async ({ ctx, url }) => {

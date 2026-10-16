@@ -11,6 +11,7 @@ import { seal, unseal } from "@/lib/seal";
 import { addDays, serverState, utcDay } from "@/lib/state";
 import type { Ctx } from "./context";
 import { ROTATE_OVERLAP_MS } from "./check";
+import { clientFeedback, fixedByVersion } from "./feedback-admin";
 import { currentRates } from "./fx";
 
 export class Refusal extends Error {
@@ -276,6 +277,7 @@ export async function getClient(ctx: Ctx, id: string) {
     notice: n ? { id: n.id, note: n.note, dueDate: n.due_date, createdAt: n.created_at.toISOString() } : null,
     rates,
     listPriceInr: Number((await settingsRow(ctx.db)).list_price_inr),
+    feedback: await clientFeedback(ctx.db, id),
   };
 }
 
@@ -838,7 +840,7 @@ export async function analytics(ctx: Ctx, range: 3 | 6 | 12) {
   };
 }
 
-async function latestVersion(db: pg.Pool): Promise<string | null> {
+export async function latestVersion(db: pg.Pool): Promise<string | null> {
   const s = await settingsRow(db);
   if (s.latest_version) return s.latest_version;
   const seen = (await db.query<{ v: string }>("SELECT DISTINCT app_version AS v FROM check_ins")).rows.map(
@@ -921,5 +923,7 @@ export async function releases(ctx: Ctx) {
     waiting: clients
       .filter((c) => !c.lastCheckIn && !c.suspendedAt && !c.decommissionedAt)
       .map((c) => ({ id: c.id, name: c.name })),
+    // How many reports each version fixed (spec 2026-10-16 §3.4).
+    fixed: await fixedByVersion(ctx.db),
   };
 }
