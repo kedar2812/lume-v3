@@ -28,6 +28,14 @@ const FREEZE_VOLATILE = `[data-volatile] {
 }
 [data-volatile-day] {
   visibility: hidden !important;
+}
+/* Today's "N calls · N follow-ups" changes width with the hour; masked, it keeps one box. */
+[data-volatile-count] {
+  display: inline-block !important;
+  width: 180px !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
 }`;
 
 type Shot = { name: string; path: string; who: Who | null; ready: (p: Page) => Promise<unknown> };

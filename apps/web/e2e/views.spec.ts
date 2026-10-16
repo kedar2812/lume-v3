@@ -110,6 +110,8 @@ test.describe("Saved views (4B)", () => {
     await openApp(page, "/today");
     const names = async () =>
       (await views(page).getByRole("link").allInnerTexts()).map((t) => t.split("\n")[0]!.trim());
+    // The sidebar's views arrive after the page: read them once they're there.
+    await expect(views(page).getByRole("link").first()).toBeVisible();
     const first = (await names())[0]!;
     // Leave the order as found: other specs' screenshots show the sidebar.
     const original = (

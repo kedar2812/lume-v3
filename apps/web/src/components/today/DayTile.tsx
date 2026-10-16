@@ -47,7 +47,7 @@ export function DayTile({ v, now, tz }: { v: TodayView; now: Date; tz: string })
           <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
         </svg>
         <span id="your-day">Your day</span>
-        <span className={s.r} data-live-count>
+        <span className={s.r} data-live-count data-volatile-count>
           {calls || fus
             ? `${calls} ${calls === 1 ? "call" : "calls"} · ${fus} ${fus === 1 ? "follow-up" : "follow-ups"}`
             : "Nothing planned yet"}
