@@ -332,7 +332,6 @@
   cursor: crosshair;
   touch-action: none;
   user-select: none;
-  -webkit-user-select: none;
 }
 .blurArea img {
   width: 100%;
@@ -344,7 +343,6 @@
   position: absolute;
   border-radius: 4px;
   backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
   background: repeating-conic-gradient(rgba(190, 195, 204, 0.55) 0 25%, rgba(214, 217, 223, 0.55) 0 50%) 0 0 /
     10px 10px;
   box-shadow: 0 0 0 1.5px var(--accent);
