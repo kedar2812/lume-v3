@@ -2811,3 +2811,133 @@ a.fl-row:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ─ Plan limits (spec 2026-10-17 control §3.3; canvas page "3 · Control each client") ─ */
+.pl-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pl-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.pl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pl-step {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--line2);
+  overflow: hidden;
+  animation: in 0.3s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.pl-step button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pl-step button:active {
+  background: var(--sunk);
+}
+.pl-step button:disabled {
+  color: var(--ink3);
+  cursor: default;
+}
+.pl-step .num {
+  min-width: 48px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+.pl-warn {
+  font-size: 12.5px;
+  color: var(--amberInk);
+}
+.pl-mod {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  box-shadow: 0 -0.5px 0 var(--line);
+}
+.pl-mark {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #5a606d;
+  box-shadow: 0 0 0 0.5px rgba(12, 18, 32, 0.12);
+}
+.pl-mod-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pl-mod-words b {
+  font-size: 14px;
+  font-weight: 600;
+}
+/* LUME's own switch: green when on, the knob springs across. */
+.pl-switch {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 99px;
+}
+.pl-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(42, 91, 255, 0.18);
+}
+.pl-track {
+  display: block;
+  width: 34px;
+  height: 20px;
+  border-radius: 99px;
+  background: var(--line2);
+  position: relative;
+  transition: background-color 0.25s;
+}
+.pl-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.4s cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+.pl-switch[aria-checked="true"] .pl-track {
+  background: #18a566;
+}
+.pl-switch[aria-checked="true"] .pl-track::after {
+  transform: translateX(14px);
+}
+.pl-saved {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--greenInk);
+  animation: in 0.3s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}

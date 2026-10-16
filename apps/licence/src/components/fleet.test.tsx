@@ -141,6 +141,15 @@ describe("Fleet · Health", () => {
     expect(within(list).getByText("update")).toBeInTheDocument();
   });
 
+  it("shows people against places where a client's plan has a limit (spec 2026-10-17 control §3.3)", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/api/fleet") return ok({ ...fleet, rows: [row({ people: 4, places: 5 })] }) as never;
+      return ok({ alerts: [] }) as never;
+    });
+    render(<FleetScreen />);
+    expect(await screen.findByText("4 of 5")).toBeInTheDocument();
+  });
+
   it("narrows to a status from the filter or a tile, and says when there's none", async () => {
     const user = userEvent.setup();
     render(<FleetScreen />);

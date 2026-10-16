@@ -14,10 +14,14 @@ import { paidOf } from "./ClientsScreen";
 import { amountOf, SOURCE_WORDS, symbolOf, vsList } from "./NewLicence";
 import { FeedbackPill, KindDot, received } from "./FeedbackScreen";
 import { HealthCard, type ClientHealth } from "./HealthCard";
+import { PlanLimits, type Plan, type Usage } from "./PlanLimits";
 import { KeyCard } from "./KeyCard";
 import { Head } from "./Shell";
 
 type Detail = Partial<ClientHealth> & {
+  /** Control each client (spec 2026-10-17 control §3.3); absent from a server older than it. */
+  plan?: Plan;
+  usage?: Usage;
   client: ClientView;
   installation: {
     version: string;
@@ -145,6 +149,20 @@ function said(e: Detail["history"][number]): { text: string; color: string } {
         text: `Feedback marked ${statusText(d.to as FeedbackStatus, (d.fixedIn as string | undefined) ?? null)}`,
         color: d.to === "fixed" ? "#18a566" : d.to === "fixing" ? "#5ab8ff" : "#9297a0",
       };
+    case "plan": {
+      const left = (d.left as string[] | undefined) ?? [];
+      const names: Record<string, string> = {
+        googleSheets: "Google Sheets",
+        webhooks: "Webhooks",
+        googleCalendar: "Google Calendar",
+        calendly: "Calendly",
+      };
+      const places = d.places ? `${d.places} ${d.places === 1 ? "place" : "places"}` : "no limit on places";
+      const out = left.length
+        ? `; ${left.map((k) => names[k] ?? k).join(", ")} not included`
+        : "; every module included";
+      return { text: `Plan: ${places}${out}`, color: "#2a5bff" };
+    }
     case "announcement":
       return {
         text: `${d.action === "withdrawn" ? "Announcement withdrawn" : "Announcement"}: ${String(d.title ?? "")}`,
@@ -654,6 +672,18 @@ export function ClientScreen({ id }: { id: string }) {
               </div>
             )}
           </section>
+
+          {d.plan && d.usage && (
+            <PlanLimits
+              key={JSON.stringify(d.plan)}
+              clientId={c.id}
+              clientName={c.name}
+              version={d.installation?.version ?? null}
+              plan={d.plan}
+              usage={d.usage}
+              onSaved={(x) => setD(x as Detail)}
+            />
+          )}
 
           <section className="card" aria-label="Payment" style={{ animationDelay: ".08s" }}>
             <h2 className="h">Payment</h2>

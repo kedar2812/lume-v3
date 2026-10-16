@@ -18,6 +18,8 @@ export type FleetRow = {
   version: string;
   behind: boolean;
   people: number;
+  /** The client's places, when its plan has a limit (spec 2026-10-17 control §3.3). */
+  places?: number | null;
   leads: number;
   dbBytes: number | null;
   diskFreePct: number | null;
@@ -261,7 +263,10 @@ function Health({
                 <span className="num">{r.version}</span>
                 {r.behind && <span className="pill grace fl-update">update</span>}
               </span>
-              <span className="num r">{r.people.toLocaleString("en-IN")}</span>
+              <span className="num r">
+                {r.people.toLocaleString("en-IN")}
+                {r.places ? ` of ${r.places.toLocaleString("en-IN")}` : ""}
+              </span>
               <span className="num r">{r.leads.toLocaleString("en-IN")}</span>
               <span className="num r fl-dim">{bytesText(r.dbBytes)}</span>
               <span

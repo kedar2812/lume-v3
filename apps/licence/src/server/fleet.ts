@@ -20,10 +20,11 @@ type Latest = {
   lead_count: number | null;
   health: FleetHealth | null;
   accepts: string[] | null;
+  places: number | null;
 };
 /** Every live client (not suspended, not decommissioned) with its newest check-in, if any. */
 const LIVE_LATEST_SQL = `
-  SELECT c.id AS client_id, c.name, ci.at, ci.app_version, ci.active_users, ci.lead_count, ci.health, ci.accepts
+  SELECT c.id AS client_id, c.name, l.places, ci.at, ci.app_version, ci.active_users, ci.lead_count, ci.health, ci.accepts
     FROM clients c
     JOIN licences l ON l.client_id = c.id
     LEFT JOIN LATERAL (SELECT at, app_version, active_users, lead_count, health, accepts FROM check_ins
@@ -42,6 +43,7 @@ export type FleetRow = {
   version: string;
   behind: boolean;
   people: number;
+  places: number | null;
   leads: number;
   uptimeS: number | null;
   dbBytes: number | null;
@@ -70,6 +72,7 @@ export async function fleet(ctx: Ctx) {
       version: r.app_version!,
       behind: !!latest && compareVersions(r.app_version!, latest) < 0,
       people: r.active_users ?? 0,
+      places: r.places,
       leads: r.lead_count ?? 0,
       uptimeS: h?.uptimeS ?? null,
       dbBytes: h?.dbBytes ?? null,
