@@ -22,6 +22,8 @@ const LICENCE_WRITES = new Set([
   "/api/v1/licence/check",
   "/api/v1/licence/notice/dismiss",
   "/api/v1/licence/key",
+  // Got it on an announcement from LUME's team (spec 2026-10-16 fleet §4): a person's own note, whatever the licence.
+  "/api/v1/licence/announcements/:id/got-it",
 ]);
 // First-run setup closes itself once anyone exists; before that, a client's install that can't check in without
 // its key ages towards read-only from its first start, and must still take the key (spec 2026-10-15 §1.1).

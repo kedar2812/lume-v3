@@ -225,6 +225,11 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/licence": { access: "auth.self" },
   "POST /api/v1/licence/check": { access: "settings.manage" },
   "POST /api/v1/licence/notice/dismiss": { access: "auth.self" },
+  // Got it on an announcement from LUME's team (spec 2026-10-16 fleet §4): anyone signed in (404 when it isn't showing).
+  "POST /api/v1/licence/announcements/:id/got-it": {
+    access: "auth.self",
+    path: () => "/api/v1/licence/announcements/0190e0c0-0000-7000-8000-00000000abcd/got-it",
+  },
   // Change key (spec 2026-10-15 §1.3): settings.manage at the door, then the owner only (403 OWNER_ONLY).
   "POST /api/v1/licence/key": {
     access: "settings.manage",

@@ -1,5 +1,6 @@
 import type pg from "pg";
 import {
+  ACCEPTS,
   activateBody,
   canonicalKey,
   checkBody,
@@ -7,6 +8,7 @@ import {
   licenceState,
   verifyLicence,
   type FeedbackReport,
+  type FleetHealth,
   type Keyring,
   type LicencePayload,
   type LicenceView,
@@ -58,6 +60,8 @@ export class LicenceKeeper {
   private loadedAt = 0;
   private inFlight: Promise<LicenceView> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** Reads this LUME's health for the check-in (spec 2026-10-16 fleet §1.1); set by the app once it's built. */
+  private health: (() => Promise<FleetHealth | null>) | null = null;
 
   constructor(
     private readonly pool: pg.Pool,
@@ -168,6 +172,22 @@ export class LicenceKeeper {
     while (this.inFlight) await this.inFlight.catch(() => undefined);
   }
 
+  /** How this LUME reads its own health for each check-in (app.ts). */
+  reportHealth(read: () => Promise<FleetHealth | null>): void {
+    this.health = read;
+  }
+
+  /** How many people pressed Got it on each announcement LUME is showing (fleet §1.2): counts, never who. */
+  private async seen(): Promise<{ id: string; people: number }[] | undefined> {
+    const ids = (this.payload?.announcements ?? []).map((a) => a.id);
+    if (!ids.length) return undefined;
+    const { rows } = await this.pool.query<{ id: string; n: number }>(
+      "SELECT announcement_id::text AS id, count(*)::int AS n FROM announcement_got_it WHERE announcement_id = ANY($1::uuid[]) GROUP BY announcement_id",
+      [ids],
+    );
+    return ids.map((id) => ({ id, people: rows.find((r) => r.id === id)?.n ?? 0 }));
+  }
+
   /** At start and every 6 hours (main.ts). */
   start(): void {
     if (this.dev) return;
@@ -189,6 +209,9 @@ export class LicenceKeeper {
     } else {
       try {
         const counts = await this.counts();
+        // Health and Got it counts never hold a check-in up: unreadable, it goes without them.
+        const health = this.health ? await this.health().catch(() => null) : null;
+        const seen = await this.seen().catch(() => undefined);
         const r = await (this.opts.fetch ?? fetch)(`${this.opts.url}/v1/check`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -200,6 +223,9 @@ export class LicenceKeeper {
               appVersion: this.opts.version,
               ...counts,
               now: at,
+              accepts: ACCEPTS,
+              health,
+              ...(seen ? { seen } : {}),
             }),
           ),
           signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),

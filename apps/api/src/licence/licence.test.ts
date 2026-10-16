@@ -117,7 +117,7 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     expect(Date.parse(l.nextCheckAt) - Date.parse(l.checkedAt)).toBe(6 * H);
   });
 
-  it("sends only the seven things it may (this install's own id among them), with real counts and never a lead", async () => {
+  it("sends only the things it may (this install's own id, what it can show, its health), with real counts and never a lead", async () => {
     await h.seedLead({ ownerId: repUser.id, name: "Counted Lead", phone: "+971501234567" });
     answer = ok(token());
     await check();
@@ -132,9 +132,14 @@ describe("the instance checks its licence (L-A Task 2)", () => {
         "leadCount",
         "licenseKey",
         "serverTime",
+        "accepts",
+        "health",
       ].sort(),
     );
-    expect(body).toMatchObject({ instanceId: INSTANCE, licenseKey: KEY, appVersion: "1.4.2" });
+    expect(body).toMatchObject({ instanceId: INSTANCE, licenseKey: KEY, appVersion: "1.4.2", accepts: ["announcements"] });
+    expect(Object.keys(body.health as object).sort()).toEqual(
+      ["dbBytes", "diskFreePct", "errors24h", "problems", "queue", "remindersLate", "restoreTest", "sourcesNeedingAttention", "uptimeS"].sort(),
+    );
     expect(body.installId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(body.leadCount).toBeGreaterThanOrEqual(1);
     expect(body.activeUserCount).toBeGreaterThanOrEqual(3);
@@ -352,5 +357,80 @@ describe("a development build", () => {
       dev: true,
     });
     expect(sent.length).toBe(before);
+  });
+});
+
+describe("From LUME's team (spec 2026-10-16 fleet §4)", () => {
+  const A = "0190e0c0-0000-7000-8000-0000000000a1";
+  const B = "0190e0c0-0000-7000-8000-0000000000b2";
+  const claim = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    title: id === A ? "LUME will be updated on Saturday night" : "Snooze by an hour",
+    body: "Plain words.",
+    kind: "update" as const,
+    audience: "everyone" as const,
+    windowStart: null,
+    windowEnd: null,
+    endsAt: new Date(h.clock.now.getTime() + 3 * D).toISOString(),
+    ...over,
+  });
+  const people = async (c: AuthedClient) =>
+    ((await me(c)).licence.announcements as { id: string; gotIt: boolean }[]).map((a) => [a.id, a.gotIt]);
+
+  it("shows each person the ones meant for them: admins-only never to a rep", async () => {
+    answer = ok(token({ announcements: [claim(A, { audience: "admins" }), claim(B)] }));
+    await check();
+    expect(await people(await h.signIn(adminUser))).toEqual([
+      [A, false],
+      [B, false],
+    ]);
+    expect(await people(await h.signIn(repUser))).toEqual([[B, false]]);
+  });
+
+  it("Got it is per person, kept on the server, and its count goes back with the next check", async () => {
+    answer = ok(token({ announcements: [claim(A), claim(B)] }));
+    await check();
+    const r = await (await h.signIn(repUser)).inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` });
+    expect(r.statusCode).toBe(200);
+    expect(await people(await h.signIn(repUser))).toEqual([
+      [A, true],
+      [B, false],
+    ]);
+    expect(await people(await h.signIn(adminUser))).toEqual([
+      [A, false],
+      [B, false],
+    ]);
+    // Twice is still once.
+    await (await h.signIn(repUser)).inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` });
+    sent.length = 0;
+    await check();
+    expect(sent[0]!.body.seen).toEqual([
+      { id: A, people: 1 },
+      { id: B, people: 0 },
+    ]);
+  });
+
+  it("an admins-only one can't be marked by a rep, and an unknown id is 404", async () => {
+    answer = ok(token({ announcements: [claim(A, { audience: "admins" })] }));
+    await check();
+    const rp = await h.signIn(repUser);
+    expect((await rp.inject({ method: "POST", url: `/api/v1/licence/announcements/${A}/got-it` })).statusCode).toBe(404);
+    expect((await rp.inject({ method: "POST", url: `/api/v1/licence/announcements/${B}/got-it` })).statusCode).toBe(404);
+  });
+
+  it("an announcement past its end goes, even from the answer LUME keeps", async () => {
+    answer = ok(token({ announcements: [claim(A, { endsAt: new Date(h.clock.now.getTime() + H).toISOString() })] }));
+    await check();
+    expect(await people(await h.signIn(adminUser))).toEqual([[A, false]]);
+    h.clock.advance(2 * H);
+    await h.app.licence.refresh();
+    expect(await people(await h.signIn(adminUser))).toEqual([]);
+  });
+
+  it("Got it works while LUME is read-only", async () => {
+    answer = ok(token({ state: "read_only", reason: "overdue", announcements: [claim(B)] }));
+    await check();
+    const r = await (await h.signIn(repUser)).inject({ method: "POST", url: `/api/v1/licence/announcements/${B}/got-it` });
+    expect(r.statusCode).toBe(200);
   });
 });

@@ -1,4 +1,4 @@
-import { pgTable, smallint, text, uuid } from "drizzle-orm/pg-core";
+import { pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 /** What this instance knows of its licence (licensing L-A): one row, the last good token and its timings. */
@@ -17,3 +17,14 @@ export const licenceState = pgTable("licence_state", {
   instanceId: text("instance_id"),
   activatedAt: tz("activated_at"),
 });
+
+/** From LUME's team (spec 2026-10-16 fleet §4): who pressed Got it on which announcement. */
+export const announcementGotIt = pgTable(
+  "announcement_got_it",
+  {
+    userId: uuid("user_id").notNull(),
+    announcementId: uuid("announcement_id").notNull(),
+    at: tz("at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.announcementId] })],
+);

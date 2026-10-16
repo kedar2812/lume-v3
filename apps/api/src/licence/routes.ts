@@ -1,16 +1,21 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { can, type LicenceView } from "@lume/core";
+import { can, type AnnouncementClaim, type LicenceView } from "@lume/core";
 import { schema } from "@lume/db";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit/audit";
-import { conflict, forbidden, HttpError } from "../http/errors";
+import { conflict, forbidden, HttpError, notFound } from "../http/errors";
 
 /** Owners and admins (people who manage settings) see the payment reminder and may Check now. */
 const manages = (req: FastifyRequest) =>
   !!req.actor && (req.actor.isOwner || can(req.actor, "settings.manage"));
 
-export type LicenceForPerson = LicenceView & {
+/** An announcement as one person sees it (spec 2026-10-16 fleet §4): and whether they pressed Got it. */
+export type AnnouncementForPerson = AnnouncementClaim & { gotIt: boolean };
+
+export type LicenceForPerson = Omit<LicenceView, "announcements"> & {
+  /** From LUME's team: the ones meant for this person (admins-only to people who manage settings), not ended. */
+  announcements: AnnouncementForPerson[];
   instanceId: string | null;
   nextCheckAt: string | null;
   /** Show the payment reminder now: there is one, this person runs the business, and not closed this session. */
@@ -36,8 +41,25 @@ export async function licenceFor(req: FastifyRequest): Promise<LicenceForPerson>
     dismissed = s?.d ?? null;
   }
   const admin = manages(req);
+  const mine = v.announcements.filter((a) => a.audience === "everyone" || admin);
+  const got = new Set<string>();
+  if (mine.length && req.actor)
+    for (const r of await req.db
+      .select({ id: schema.announcementGotIt.announcementId })
+      .from(schema.announcementGotIt)
+      .where(
+        and(
+          eq(schema.announcementGotIt.userId, req.actor.userId),
+          inArray(
+            schema.announcementGotIt.announcementId,
+            mine.map((a) => a.id),
+          ),
+        ),
+      ))
+      got.add(r.id);
   return {
     ...v,
+    announcements: mine.map((a) => ({ ...a, gotIt: got.has(a.id) })),
     // The reminder is between LUME's provider and the people who pay: never sent to anyone else.
     notice: admin ? v.notice : null,
     ...req.server.licence.info(),
@@ -92,6 +114,27 @@ export async function licenceRoutes(app: FastifyInstance): Promise<void> {
         entityId: "1",
         diff: { last4: req.server.licence.keyLast4() },
       });
+      return licenceFor(req);
+    },
+  );
+  // Got it (spec 2026-10-16 fleet §4): once per person, on every device; only the count leaves this server.
+  app.post(
+    "/api/v1/licence/announcements/:id/got-it",
+    {
+      config: { permission: "auth.self", idempotent: false },
+      schema: { params: z.object({ id: z.string().max(64) }) },
+    },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const admin = manages(req);
+      const a = req.server.licence
+        .view()
+        .announcements.find((x) => x.id === id && (x.audience === "everyone" || admin));
+      if (!a || !req.actor) throw notFound("NO_SUCH_ANNOUNCEMENT", "That announcement isn't showing");
+      await req.db
+        .insert(schema.announcementGotIt)
+        .values({ userId: req.actor.userId, announcementId: a.id })
+        .onConflictDoNothing();
       return licenceFor(req);
     },
   );

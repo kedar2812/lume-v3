@@ -17,6 +17,7 @@ import { auditRoutes } from "./modules/audit/routes";
 import { catalogRoutes } from "./modules/catalog/routes";
 import { fieldRoutes } from "./modules/fields/routes";
 import { leadRoutes } from "./modules/leads/routes";
+import { ErrorWindow, healthReport } from "./licence/health-report";
 import { LicenceKeeper } from "./licence/keeper";
 import { licenceRoutes } from "./licence/routes";
 import { feedbackRoutes } from "./modules/feedback/routes";
@@ -136,6 +137,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     deps.keyring,
   );
   await licence.refresh();
+  // Fleet (spec 2026-10-16 fleet §1.1): its health goes with each check-in — counts and fixed keys only.
+  const errors = new ErrorWindow();
+  const startedAt = deps.clock();
+  licence.reportHealth(() =>
+    healthReport(deps.pool, {
+      now: deps.clock(),
+      startedAt,
+      errors24h: errors.count(deps.clock()),
+      ...(deps.tasks?.lastSweepAt ? { lastSweepAt: deps.tasks.lastSweepAt } : {}),
+      ...(deps.tasks?.startedAt ? { queueStartedAt: deps.tasks.startedAt } : {}),
+    }),
+  );
   try {
     const app = await buildServer({
       checks: dbChecks(deps.pool),
@@ -148,6 +161,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       configure: (a) => {
         a.decorate("licence", licence);
         a.addHook("onClose", async () => licence.stop());
+        // Server errors, counted for the health a check-in carries (no detail kept: a count by the hour).
+        a.addHook("onResponse", async (_req, reply) => {
+          if (reply.statusCode >= 500) errors.add(deps.clock());
+        });
         a.setValidatorCompiler(validatorCompiler);
         a.setSerializerCompiler(serializerCompiler);
       },

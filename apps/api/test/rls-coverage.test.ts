@@ -32,6 +32,9 @@ const WITHOUT_RLS: Record<string, string> = {
   user_invites: "People and accounts",
   user_avatars: "People and accounts",
   legal_acceptances: "People and accounts",
+  // Got it on an announcement from LUME's team (fleet §4): a person's own row, no lead data; counted across people
+  // by the licence keeper for its check-in.
+  announcement_got_it: "People and accounts",
   // Sign-in and security internals: read by the auth code for the caller's own row, or by security.manage routes
   sessions: "Sign-in and security internals",
   password_resets: "Sign-in and security internals",
