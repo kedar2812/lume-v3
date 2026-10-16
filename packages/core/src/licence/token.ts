@@ -1,11 +1,13 @@
 import { createPublicKey, sign, verify, type KeyObject } from "node:crypto";
 import type { FeedbackReport } from "../feedback/rules";
+import type { FleetHealth } from "./fleet";
 import { licencePayloadSchema, type LicencePayload } from "./state";
 
 /** Ed25519's DER prefix for a raw 32-byte public key (SubjectPublicKeyInfo). */
 const SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const B64URL = /^[A-Za-z0-9_-]+$/;
-const MAX_TOKEN = 4096;
+/** Room for three announcements in any script (spec 2026-10-16 fleet §2.3); an older answer is well under it. */
+const MAX_TOKEN = 16_384;
 
 /** A public key as LUME ships it: its raw 32 bytes, base64url. */
 export function rawPublicKey(key: KeyObject): string {
@@ -73,6 +75,12 @@ export function checkBody(o: {
   activeUserCount: number;
   leadCount: number;
   now: Date;
+  /** What this LUME can show (spec 2026-10-16 fleet §1.1): the licence server signs those claims only then. */
+  accepts?: readonly string[];
+  /** Its health, counts only (fleet §1.1); absent when it couldn't be read. */
+  health?: FleetHealth | null;
+  /** How many people pressed Got it on each announcement it shows (fleet §1.2). */
+  seen?: { id: string; people: number }[];
 }) {
   return {
     instanceId: o.instanceId,
@@ -82,6 +90,10 @@ export function checkBody(o: {
     activeUserCount: o.activeUserCount,
     leadCount: o.leadCount,
     serverTime: o.now.toISOString(),
+    // Each only when given: called as before, this is exactly the body an older licence server takes.
+    ...(o.accepts ? { accepts: [...o.accepts] } : {}),
+    ...(o.health ? { health: o.health } : {}),
+    ...(o.seen ? { seen: o.seen } : {}),
   };
 }
 

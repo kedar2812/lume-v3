@@ -85,6 +85,7 @@ export const UNLICENSED_API: LicenceForPerson = {
   paidUntil: null,
   trialEndsAt: null,
   notice: null,
+  announcements: [],
   checkedAt: null,
   dev: true,
   instanceId: null,
@@ -112,7 +113,10 @@ export function toSession(me: MePayload): Session {
     // An API from before the agreement existed sends no flag: nobody is asked.
     flags: { ...me.flags, needsAgreement: me.flags.needsAgreement ?? false },
     // An API from before licensing sends none: nothing is locked, nothing is said.
-    licence: me.licence ? { ...me.licence, key: me.licence.key ?? NO_KEY } : UNLICENSED_API,
+    // An API from before announcements (spec 2026-10-16 fleet) sends none: an empty list, never undefined.
+    licence: me.licence
+      ? { ...me.licence, key: me.licence.key ?? NO_KEY, announcements: me.licence.announcements ?? [] }
+      : UNLICENSED_API,
     // An API from before the watch draws no watermark.
     watermark: me.watermark ?? false,
     today: me.today ?? new Date().toISOString().slice(0, 10),
