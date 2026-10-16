@@ -20,6 +20,9 @@ export type Ctx = {
     /** The website's enquiries: per address, and everyone together (website spec §7). */
     enquiryIp: Limiter;
     enquiryAll: Limiter;
+    /** Feedback (spec 2026-10-16 §2.1): reports per install, and per address. */
+    feedbackInstall: Limiter;
+    feedbackIp: Limiter;
   };
   /** ENQUIRY_TOKEN: the website's key to POST /v1/enquiries; null until set up (the intake then answers 503). */
   enquiryToken: string | null;
@@ -76,6 +79,8 @@ export function context(): Ctx {
       signIn: new Limiter(10, 15 * 60_000),
       enquiryIp: new Limiter(10, HOUR),
       enquiryAll: new Limiter(200, HOUR),
+      feedbackInstall: new Limiter(30, HOUR),
+      feedbackIp: new Limiter(60, HOUR),
     },
     enquiryToken: secretFrom(env, "ENQUIRY_TOKEN"),
     master: masterKeyFromBase64(masterKey),

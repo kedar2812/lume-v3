@@ -1,4 +1,4 @@
-import { generateKeyPairSync, randomBytes } from "node:crypto";
+import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { createTestDatabase, migrate } from "@lume/db";
 import pg from "pg";
@@ -70,6 +70,15 @@ export async function seedClient(
   return { clientId, instanceId, licenseKey };
 }
 
+/** Bind a seeded licence to an install, as its first check-in would. */
+export async function bindInstall(db: pg.Pool, clientId: string, installId = randomUUID()): Promise<string> {
+  await db.query(
+    "UPDATE licences SET install_id = $2, activated_at = now(), activated_ip = '203.0.113.10' WHERE client_id = $1",
+    [clientId, installId],
+  );
+  return installId;
+}
+
 const HOUR = 3_600_000;
 /** A signing pair made once per test file; its public half is `TEST_KEYS`' "t1". */
 export const TEST_PAIR = generateKeyPairSync("ed25519");
@@ -88,6 +97,8 @@ export function testCtx(pool: pg.Pool, now: () => Date, over: Partial<Ctx> = {})
       signIn: new Limiter(10, 15 * 60_000),
       enquiryIp: new Limiter(10, HOUR),
       enquiryAll: new Limiter(200, HOUR),
+      feedbackInstall: new Limiter(30, HOUR),
+      feedbackIp: new Limiter(60, HOUR),
     },
     enquiryToken: "test-enquiry-token-0123456789abcdef",
     master: randomBytes(32),

@@ -181,7 +181,7 @@ async function bindForCheck(
 }
 
 /** A retired key of this client's (rotated or decommissioned), or null. */
-async function retiredKey(db: pg.Pool, clientId: string, key: string) {
+export async function retiredKey(db: pg.Pool, clientId: string, key: string) {
   return (
     (
       await db.query<{ reason: "rotated" | "decommissioned"; retired_at: Date; install_id: string | null }>(
