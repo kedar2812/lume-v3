@@ -6,11 +6,13 @@ import { api, CHANGED } from "@/lib/client";
 import { ago, day, dayShort, perWords, when } from "@/lib/format";
 import { convertAmount, formatMoney, inr, monthlyInr } from "@/lib/money";
 import { countryName, INDIA_STATES } from "@/lib/places";
+import { KIND_WORDS, statusText, type FeedbackStatus, type Kind } from "@/lib/feedback";
 import { utcDay } from "@/lib/state";
 import { Bell } from "./Bell";
 import { Flag, StatePill, Toast, useToast } from "./bits";
 import { paidOf } from "./ClientsScreen";
 import { amountOf, SOURCE_WORDS, symbolOf, vsList } from "./NewLicence";
+import { FeedbackPill, KindDot, received } from "./FeedbackScreen";
 import { KeyCard } from "./KeyCard";
 import { Head } from "./Shell";
 
@@ -26,6 +28,20 @@ type Detail = {
   } | null;
   checkIns: { from: string; seen: boolean }[];
   history: { at: string; kind: string; detail: Record<string, unknown> }[];
+  /** Feedback from this client's team (spec 2026-10-16 §3.4). */
+  feedback: {
+    total: number;
+    new: number;
+    latest: {
+      id: string;
+      kind: Kind;
+      firstLine: string;
+      status: FeedbackStatus;
+      fixedIn: string | null;
+      receivedAt: string;
+      reporterName: string;
+    }[];
+  };
   payments: {
     id: string;
     amount: number;
@@ -118,6 +134,16 @@ function said(e: Detail["history"][number]): { text: string; color: string } {
       return { text: "Resumed", color: "#18a566" };
     case "decommissioned":
       return { text: "Decommissioned", color: "#9297a0" };
+    case "feedback_received":
+      return {
+        text: `Feedback received: ${KIND_WORDS[d.kind as Kind]?.toLowerCase() ?? "a report"}`,
+        color: "#2a5bff",
+      };
+    case "feedback_status":
+      return {
+        text: `Feedback marked ${statusText(d.to as FeedbackStatus, (d.fixedIn as string | undefined) ?? null)}`,
+        color: d.to === "fixed" ? "#18a566" : d.to === "fixing" ? "#5ab8ff" : "#9297a0",
+      };
     default:
       return { text: e.kind, color: "#9297a0" };
   }
@@ -415,6 +441,38 @@ export function ClientScreen({ id }: { id: string }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+          {d.feedback.total > 0 && (
+            <section className="card" aria-label="Feedback">
+              <div className="fb-card-head">
+                <h2 className="h">Feedback</h2>
+                <span className="note">
+                  {d.feedback.new ? `${d.feedback.new} new · ` : ""}
+                  {d.feedback.total} in all
+                </span>
+              </div>
+              <div className="fb-card-list">
+                {d.feedback.latest.map((f) => (
+                  <Link
+                    key={f.id}
+                    href={`/feedback/${f.id}`}
+                    className={`fb-mini${f.status === "new" ? " fb-new" : ""}`}
+                  >
+                    <KindDot kind={f.kind} />
+                    <span className="fb-main">
+                      <span className="fb-line">{f.firstLine}</span>
+                      <span className="fb-sub">
+                        {f.reporterName} · {received(f.receivedAt)}
+                      </span>
+                    </span>
+                    <FeedbackPill status={f.status} fixedIn={f.fixedIn} />
+                  </Link>
+                ))}
+              </div>
+              <Link href={`/feedback?client=${c.id}`} className="fb-all">
+                All {d.feedback.total} from {c.name} ›
+              </Link>
+            </section>
+          )}
           <section className="card" aria-label="Plan and price" style={{ animationDelay: ".02s" }}>
             <div
               style={{

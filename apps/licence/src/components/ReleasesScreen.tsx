@@ -11,7 +11,18 @@ type Releases = {
   latest: string | null;
   versions: { version: string; clients: { id: string; name: string; lastCheckInAt: string }[] }[];
   waiting: { id: string; name: string }[];
+  /** How many reports each version fixed (spec 2026-10-16 §3.4). */
+  fixed: Record<string, number>;
 };
+
+function Fixed({ version, n }: { version: string; n: number | undefined }) {
+  if (!n) return null;
+  return (
+    <Link className="fb-fixed" href={`/feedback?fixedIn=${encodeURIComponent(version)}`}>
+      Fixed {n} report{n === 1 ? "" : "s"}
+    </Link>
+  );
+}
 
 /** Releases (spec §4.4): the latest version, and which clients run which. */
 export function ReleasesScreen() {
@@ -43,6 +54,9 @@ export function ReleasesScreen() {
                   : "Set the latest version in Settings, or it's the newest any installation reports."}
               </span>
             </div>
+            {r.latest && !r.versions.some((v) => v.version === r.latest) && (
+              <Fixed version={r.latest} n={r.fixed[r.latest]} />
+            )}
           </section>
         )}
         {r?.versions.map((v, i) => {
@@ -73,6 +87,7 @@ export function ReleasesScreen() {
                   {v.clients.length} {v.clients.length === 1 ? "installation" : "installations"}
                 </span>
               </div>
+              <Fixed version={v.version} n={r.fixed[v.version]} />
               <ul
                 style={{
                   margin: 0,

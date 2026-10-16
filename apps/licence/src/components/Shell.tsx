@@ -16,6 +16,7 @@ const ICON: Record<string, ReactNode> = {
   ),
   analytics: <path d="M2 13.5h12M3.5 10.5l3-3.5 2.5 2 4-5" />,
   enquiries: <path d="M2 4.5h12v8H2zM2 4.5l6 4.5 6-4.5" />,
+  feedback: <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />,
   releases: <path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 13.5h11" />,
   payments: (
     <>
@@ -33,6 +34,7 @@ const ICON: Record<string, ReactNode> = {
 const NAV = [
   ["clients", "Clients"],
   ["enquiries", "Enquiries"],
+  ["feedback", "Feedback"],
   ["analytics", "Analytics"],
   ["releases", "Releases"],
   ["payments", "Payments"],
@@ -108,11 +110,17 @@ export function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   // How many enquiries are still new, beside Enquiries in the sidebar (website spec §7).
   const [newCount, setNewCount] = useState(0);
+  // And how many feedback reports are (spec 2026-10-16 §3.1).
+  const [feedbackNew, setFeedbackNew] = useState(0);
   useEffect(() => {
-    const load = () =>
+    const load = () => {
       void api
         .get<{ newCount: number }>("/api/enquiries?status=new")
         .then((r) => r.ok && setNewCount(r.data.newCount));
+      void api
+        .get<{ newCount: number }>("/api/feedback/new-count")
+        .then((r) => r.ok && setFeedbackNew(r.data.newCount));
+    };
     load();
     window.addEventListener(CHANGED, load);
     return () => window.removeEventListener(CHANGED, load);
@@ -156,6 +164,11 @@ export function Shell({ children }: { children: ReactNode }) {
               {key === "enquiries" && newCount > 0 && (
                 <span className="badge-soft" aria-label={`${newCount} new`} style={{ marginLeft: "auto" }}>
                   {newCount}
+                </span>
+              )}
+              {key === "feedback" && feedbackNew > 0 && (
+                <span className="badge-soft" aria-label={`${feedbackNew} new`} style={{ marginLeft: "auto" }}>
+                  {feedbackNew}
                 </span>
               )}
             </Link>
