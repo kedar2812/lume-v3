@@ -283,14 +283,14 @@ test.describe("Calendar (5D)", () => {
     // A call that ended is owed its outcome in Up next (the control centre).
     const calls = page.getByRole("list", { name: "Up next" });
     await expect(calls).toContainText("Outcome Person");
-    await calls.getByRole("button", { name: "Log outcome" }).click();
+    await calls.getByRole("button", { name: "Log outcome", exact: true }).click();
     const outcome = page.getByRole("dialog", { name: "How did it go with Outcome?" });
     await outcome.getByRole("radio", { name: /Held/ }).click();
     await outcome.getByRole("textbox", { name: "Note" }).fill("Signing next week");
     await outcome.getByRole("button", { name: "Save outcome" }).click();
     await expect(outcome).toBeHidden();
     // Logged: it leaves Up next, and Your day shows it held.
-    await expect(calls.getByRole("button", { name: "Log outcome" })).toBeHidden();
+    await expect(calls.getByRole("button", { name: "Log outcome", exact: true })).toBeHidden();
     await expect(
       page.getByRole("link", { name: /^Strategy call with Outcome Person at .+, over$/ }),
     ).toBeVisible();
