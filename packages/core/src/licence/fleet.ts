@@ -15,6 +15,10 @@ export const HEALTH_PROBLEMS = [
 ] as const;
 export type HealthProblem = (typeof HEALTH_PROBLEMS)[number];
 
+/** The modules a plan can leave out (spec 2026-10-17 control §1): LUME's optional ones, by these keys only. */
+export const PLAN_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly"] as const;
+export type PlanModule = (typeof PLAN_MODULES)[number];
+
 const count = z.number().int().min(0).max(1_000_000_000);
 export const fleetHealthSchema = z
   .object({
@@ -27,6 +31,8 @@ export const fleetHealthSchema = z
     restoreTest: z.object({ at: z.iso.datetime(), ok: z.boolean() }).strict().nullable(),
     problems: z.array(z.enum(HEALTH_PROBLEMS)).max(HEALTH_PROBLEMS.length),
     sourcesNeedingAttention: count,
+    /** Which plan modules are switched on now (control §1), so the dashboard can warn before taking one away. */
+    modulesOn: z.array(z.enum(PLAN_MODULES)).max(PLAN_MODULES.length).optional(),
   })
   .strict();
 export type FleetHealth = z.infer<typeof fleetHealthSchema>;
@@ -52,6 +58,7 @@ export function capHealth(h: FleetHealth): FleetHealth {
     restoreTest: h.restoreTest ? { at: h.restoreTest.at, ok: !!h.restoreTest.ok } : null,
     problems: [...new Set(h.problems)].filter((p): p is HealthProblem => known.has(p)),
     sourcesNeedingAttention: whole(h.sourcesNeedingAttention),
+    ...(h.modulesOn ? { modulesOn: PLAN_MODULES.filter((m) => h.modulesOn!.includes(m)) } : {}),
   };
 }
 
@@ -69,5 +76,18 @@ export const announcementClaimSchema = z
   })
   .strict();
 export type AnnouncementClaim = z.infer<typeof announcementClaimSchema>;
-/** What a LUME from this release can show, sent with its check-in. */
-export const ACCEPTS = ["announcements"] as const;
+/**
+ * A client's plan as the licence server signs it (spec 2026-10-17 control §1): how many places, and which modules are
+ * in it. Kept by the client's LUME; no plan in an answer means no limits.
+ */
+export const planClaimSchema = z
+  .object({
+    places: z.number().int().min(1).max(10_000).nullable(),
+    modules: z
+      .object({ googleSheets: z.boolean(), webhooks: z.boolean(), googleCalendar: z.boolean(), calendly: z.boolean() })
+      .strict(),
+  })
+  .strict();
+export type PlanClaim = z.infer<typeof planClaimSchema>;
+/** What a LUME from this release can keep, sent with its check-in: the licence server signs those claims only then. */
+export const ACCEPTS = ["announcements", "plan"] as const;

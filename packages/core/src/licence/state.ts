@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { announcementClaimSchema, type AnnouncementClaim } from "./fleet";
+import { announcementClaimSchema, planClaimSchema, type AnnouncementClaim, type PlanClaim } from "./fleet";
 
 /** Worst last: a state never improves by combining (spec §3.3). */
 export const LICENCE_STATES = ["active", "grace", "read_only", "suspended"] as const;
@@ -42,6 +42,8 @@ export const licencePayloadSchema = z
     notice: licenceNoticeSchema.nullable(),
     /** From LUME's team (spec 2026-10-16 fleet §2.3): only for an install that said it can show them. */
     announcements: z.array(announcementClaimSchema).max(3).optional(),
+    /** The client's plan (spec 2026-10-17 control §1): only for an install that said it can keep one. */
+    plan: planClaimSchema.optional(),
   })
   .strict();
 export type LicencePayload = z.infer<typeof licencePayloadSchema>;
@@ -62,6 +64,8 @@ export type LicenceView = {
   notice: LicenceNotice | null;
   /** Announcements from LUME's team that haven't ended (spec 2026-10-16 fleet §4); for everyone, filtered per person later. */
   announcements: AnnouncementClaim[];
+  /** The client's plan (control §2), or null: no limits. */
+  plan: PlanClaim | null;
   /** The last time the licence server answered. */
   checkedAt: string | null;
   /** A development build's licence: always active. */
@@ -96,6 +100,7 @@ export function licenceState(o: {
     notice: p?.notice ?? null,
     // An ended one goes even from a kept answer: it never shows past its end.
     announcements: (p?.announcements ?? []).filter((a) => Date.parse(a.endsAt) > o.now.getTime()),
+    plan: p?.plan ?? null,
     checkedAt: o.lastSuccessAt ? o.lastSuccessAt.toISOString() : null,
     dev: o.dev,
   };

@@ -29,6 +29,7 @@ const L = (over: Partial<LicenceForPerson> = {}): LicenceForPerson => ({
   trialEndsAt: null,
   notice: null,
   announcements: [],
+  plan: null,
   checkedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
   dev: false,
   instanceId: "LUME-7F3K-Q9M2",
