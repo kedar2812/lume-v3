@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { api, CHANGED } from "@/lib/client";
 import { bytesText, STATUS_WORDS, type FleetStatus, type Problem } from "@/lib/fleet";
-import { ago, day } from "@/lib/format";
+import { ago } from "@/lib/format";
 import { AnnouncementSheet } from "./AnnouncementSheet";
 import { Bell } from "./Bell";
 import { Head } from "./Shell";
@@ -51,10 +51,18 @@ const FILTERS: [Filter, string][] = [
   ["none", "No health yet"],
 ];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const when = (iso: string) => {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** The owner's own day, from their own clock: "19 Oct" (the UTC day would be wrong at night in IST). */
+const localDay = (iso: string) => {
   const d = new Date(iso);
-  return `${day(iso.slice(0, 10))}, ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 };
+const localTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
+const when = (iso: string) => `${localDay(iso)}, ${localTime(iso)}`;
+/** "19 Oct, 12:30 am – 1:00 am"; across midnight, both days. */
+const windowWords = (a: string, b: string) =>
+  localDay(a) === localDay(b) ? `${when(a)} – ${localTime(b)}` : `${when(a)} – ${when(b)}`;
 
 /** Fleet (spec 2026-10-16 fleet §3): every client's LUME worst first, and announcements to them. */
 export function FleetScreen({ initialTab }: { initialTab?: string }) {
@@ -370,11 +378,11 @@ function Announcements({ clients }: { clients: { id: string; name: string }[] })
                         <span className="note">
                           {a.audienceText}
                           {a.windowStart && a.windowEnd
-                            ? ` · ${when(a.windowStart)} – ${when(a.windowEnd).split(", ").pop()}`
+                            ? ` · ${windowWords(a.windowStart, a.windowEnd)}`
                             : ""}
                           {a.state === "scheduled"
                             ? ` · starts ${when(a.startsAt)}`
-                            : ` · until ${day(a.endsAt.slice(0, 10))}`}
+                            : ` · until ${localDay(a.endsAt)}`}
                         </span>
                       </span>
                       {a.state === "scheduled" ? (

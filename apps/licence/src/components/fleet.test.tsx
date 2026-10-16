@@ -289,3 +289,32 @@ describe("a client's Health card", () => {
     expect(screen.getByRole("img", { name: /Disk free over 2 days, from 9% to 4%/ })).toBeInTheDocument();
   });
 });
+
+describe("dates on the Announcements list (final review)", () => {
+  it("a night window shows the owner's own day, not the UTC one", async () => {
+    const tz = process.env.TZ;
+    process.env.TZ = "Asia/Kolkata";
+    try {
+      vi.mocked(api.get).mockImplementation(async (path: string) => {
+        if (path === "/api/fleet") return ok(fleet) as never;
+        if (path === "/api/announcements")
+          return ok({
+            announcements: [
+              announcement({
+                windowStart: "2026-10-18T19:00:00.000Z",
+                windowEnd: "2026-10-18T19:30:00.000Z",
+                endsAt: "2026-10-19T20:00:00.000Z",
+              }),
+            ],
+          }) as never;
+        return ok({ alerts: [] }) as never;
+      });
+      render(<FleetScreen initialTab="announcements" />);
+      const head = await screen.findByRole("button", { name: /LUME will be updated/ });
+      expect(head).toHaveTextContent("19 Oct, 12:30 am – 1:00 am");
+      expect(head).toHaveTextContent("until 20 Oct");
+    } finally {
+      process.env.TZ = tz;
+    }
+  });
+});

@@ -480,3 +480,15 @@ describe("an older licence server (spec 2026-10-16 fleet §1.3)", () => {
     expect(r.lastError).toBeNull();
   });
 });
+
+describe("health never holds a check-in up (spec 2026-10-16 fleet §1.1; final review)", () => {
+  it("a health read that hangs is given up after a few seconds, and the check goes without it", async () => {
+    h.app.licence.reportHealth(() => new Promise(() => undefined));
+    answer = ok(token());
+    const started = Date.now();
+    const r = (await check()).json();
+    expect(r.state).toBe("active");
+    expect(sent[0]!.body).not.toHaveProperty("health");
+    expect(Date.now() - started).toBeLessThan(8000);
+  }, 15_000);
+});

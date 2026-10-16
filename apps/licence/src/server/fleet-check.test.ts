@@ -178,3 +178,25 @@ describe("/v1/check and the fleet", () => {
     expect(after.rows).toEqual([{ people: 11 }]);
   });
 });
+
+describe("an answer LUME can always verify (final review)", () => {
+  it("drops announcements, oldest first, until the signed answer fits and verifies", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    // Rows written straight to the database: three messages whose JSON is far bigger than their length.
+    const heavy = "\u0001".repeat(600);
+    for (let i = 0; i < 3; i++) {
+      const id = await announce({ title: `Heavy ${i}` });
+      await t.pool.query("UPDATE announcements SET title = $3, body = $2 WHERE id = $1", [
+        id,
+        heavy,
+        heavy.slice(0, 80),
+      ]);
+    }
+    const r = await post(body(c, { accepts: ["announcements"] }));
+    const { token } = (await r.json()) as { token: string };
+    expect(token.length).toBeLessThanOrEqual(16_384);
+    const p = verifyLicence(token, KEYS, c.instanceId);
+    expect(p).not.toBeNull();
+    expect(p!.announcements!.length).toBeLessThan(3);
+  });
+});

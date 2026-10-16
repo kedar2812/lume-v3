@@ -133,10 +133,26 @@ export async function clientHealth(db: pg.Pool, clientId: string, now: Date) {
 
 const DAY = 86_400_000;
 const iso = z.iso.datetime();
+// Control characters other than a new line and a tab: unreadable in LUME, and six bytes each in the signed answer.
+// eslint-disable-next-line no-control-regex -- control characters are exactly what's refused
+const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 export const newAnnouncementSchema = z
   .object({
-    title: z.string().trim().min(1, "Give it a title.").max(80, "A title is 80 characters at most."),
-    body: z.string().trim().min(1, "Write the message.").max(600, "A message is 600 characters at most."),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Give it a title.")
+      .max(80, "A title is 80 characters at most.")
+      .refine((v) => !CONTROL.test(v) && !/[\n\r\t]/.test(v), "A title is one line of plain text."),
+    body: z
+      .string()
+      .trim()
+      .min(1, "Write the message.")
+      .max(600, "A message is 600 characters at most.")
+      .refine(
+        (v) => !CONTROL.test(v),
+        "A message is plain text: new lines are fine, other control characters aren't.",
+      ),
     kind: z.enum(["update", "maintenance"]),
     windowStart: iso.nullable(),
     windowEnd: iso.nullable(),
@@ -304,11 +320,32 @@ export async function withdrawAnnouncement(ctx: Ctx, id: string) {
   return { announcement: await one(ctx, id) };
 }
 
-/** The bell's view of each live client's health (spec fleet §2.4), for alertsFor. */
-export async function healthForAlerts(db: pg.Pool, now: Date): Promise<Map<string, Problem[]>> {
-  const out = new Map<string, Problem[]>();
-  for (const r of await liveLatest(db))
-    if (r.at && now.getTime() - r.at.getTime() <= DAY && r.health)
-      out.set(r.client_id, problemsOf(r.health, now));
+/**
+ * The bell's view of each live client's health (spec fleet §2.4): its problems now, and when the current run of red
+ * and of amber problems began, so one that clears and comes back is a new alert even if the old one was dismissed.
+ */
+export async function healthForAlerts(
+  db: pg.Pool,
+  now: Date,
+): Promise<Map<string, { problems: Problem[]; since: { red: string | null; amber: string | null } }>> {
+  const out = new Map<string, { problems: Problem[]; since: { red: string | null; amber: string | null } }>();
+  for (const r of await liveLatest(db)) {
+    if (!r.at || now.getTime() - r.at.getTime() > DAY || !r.health) continue;
+    const problems = problemsOf(r.health, now);
+    if (!problems.length) continue;
+    const { rows } = await db.query<{ at: Date; health: FleetHealth | null }>(
+      "SELECT at, health FROM check_ins WHERE client_id = $1 AND at >= $2::timestamptz - interval '30 days' ORDER BY at DESC, id DESC",
+      [r.client_id, now],
+    );
+    const since = (severity: Problem["severity"]) => {
+      let start: string | null = null;
+      for (const x of rows) {
+        if (!x.health || !problemsOf(x.health, x.at).some((p) => p.severity === severity)) break;
+        start = x.at.toISOString();
+      }
+      return start;
+    };
+    out.set(r.client_id, { problems, since: { red: since("red"), amber: since("amber") } });
+  }
   return out;
 }

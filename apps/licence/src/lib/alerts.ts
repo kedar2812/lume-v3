@@ -27,6 +27,8 @@ export type AlertClient = {
   slug?: string;
   /** What its LUME reported at its newest check-in within a day (spec 2026-10-16 fleet §2.4). */
   problems?: Problem[];
+  /** When the current run of each kind of problem began: a problem that clears and comes back is a new alert. */
+  problemsSince?: { red: string | null; amber: string | null };
 };
 export type Alert = {
   /** Stable per condition ("late:<client>"): a hidden alert stays hidden while its fingerprint holds. */
@@ -124,7 +126,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
     if (red.length)
       disk.push({
         id: `disk:${c.id}`,
-        fingerprint: red.map((p) => p.key).join(","),
+        fingerprint: `${red.map((p) => p.key).join(",")}|${c.problemsSince?.red ?? ""}`,
         tone: "red",
         title: `${c.name}'s disk is almost full`,
         body: red.map((p) => p.words).join(" "),
@@ -134,10 +136,10 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
     if (amber.length)
       look.push({
         id: `look:${c.id}`,
-        fingerprint: amber
+        fingerprint: `${amber
           .map((p) => p.key)
           .sort()
-          .join(","),
+          .join(",")}|${c.problemsSince?.amber ?? ""}`,
         tone: "amber",
         title: `${c.name}'s LUME needs a look`,
         body: amber.map((p) => p.words).join(" "),

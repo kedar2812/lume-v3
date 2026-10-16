@@ -1,6 +1,6 @@
 import type { FleetHealth } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { getClient, listAlerts, Refusal } from "./clients";
+import { dismissAlerts, getClient, listAlerts, Refusal } from "./clients";
 import type { Ctx } from "./context";
 import { createAnnouncement, fleet, getAnnouncement, listAnnouncements, withdrawAnnouncement } from "./fleet";
 import { licenceDb, seedClient, testCtx, type LicenceTestDb } from "./testing";
@@ -208,7 +208,35 @@ describe("the bell", () => {
     const look = alerts.find((a) => a.id === `look:${c.clientId}`)!;
     expect(disk).toMatchObject({ tone: "red" });
     expect(disk.body).toMatch(/3% free/);
-    expect(look).toMatchObject({ tone: "amber", fingerprint: "reminders_late" });
+    expect(look).toMatchObject({ tone: "amber" });
+    expect(look.fingerprint).toMatch(/^reminders_late\|/);
     expect(look.body).toMatch(/Follow-up reminders are late/);
+  });
+});
+
+describe("the bell, again (final review)", () => {
+  it("a dismissed disk alert comes back when the disk fills again after it was cleared", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await checkIn(c.clientId, ago(3), { health: { ...well, diskFreePct: 3 } });
+    await dismissAlerts(ctx, { id: `disk:${c.clientId}` });
+    expect((await listAlerts(ctx)).alerts.some((a) => a.id === `disk:${c.clientId}`)).toBe(false);
+    await checkIn(c.clientId, ago(2), { health: { ...well, diskFreePct: 60 } });
+    expect((await listAlerts(ctx)).alerts.some((a) => a.id === `disk:${c.clientId}`)).toBe(false);
+    await checkIn(c.clientId, ago(1), { health: { ...well, diskFreePct: 4 } });
+    expect((await listAlerts(ctx)).alerts.some((a) => a.id === `disk:${c.clientId}`)).toBe(true);
+  });
+});
+
+describe("announcements: what can be signed (final review)", () => {
+  it("refuses control characters in a title or message", async () => {
+    await seedClient(t.pool, { type: "perpetual" });
+    await expect(createAnnouncement(ctx, { ...valid, title: "Hello\u0001" })).rejects.toBeInstanceOf(Refusal);
+    await expect(createAnnouncement(ctx, { ...valid, body: "Line one\u0007" })).rejects.toBeInstanceOf(
+      Refusal,
+    );
+    // A new line or a tab is fine.
+    await expect(
+      createAnnouncement(ctx, { ...valid, body: "Line one\nLine two\twith a tab" }),
+    ).resolves.toBeTruthy();
   });
 });

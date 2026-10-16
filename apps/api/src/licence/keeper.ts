@@ -17,6 +17,23 @@ import { asksForKey, type LicenceOptions } from "./options";
 
 const REFRESH_MS = 30_000;
 const CHECK_TIMEOUT_MS = 10_000;
+/** Health and Got it counts are given up after this: a stuck read must never hold a check-in (fleet §1.1). */
+const EXTRAS_TIMEOUT_MS = 3_000;
+const within = <T>(p: Promise<T>, fallback: T): Promise<T> =>
+  new Promise<T>((done) => {
+    const t = setTimeout(() => done(fallback), EXTRAS_TIMEOUT_MS);
+    t.unref?.();
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        done(v);
+      },
+      () => {
+        clearTimeout(t);
+        done(fallback);
+      },
+    );
+  });
 /** Why an activation didn't go through (spec 2026-10-15 §1.1): the words for each live in the web. */
 export type ActivateRefusal =
   "format" | "not_recognised" | "in_use" | "decommissioned" | "paused" | "too_many" | "unreachable";
@@ -210,8 +227,8 @@ export class LicenceKeeper {
       try {
         const counts = await this.counts();
         // Health and Got it counts never hold a check-in up: unreadable, it goes without them.
-        const health = this.health ? await this.health().catch(() => null) : null;
-        const seen = await this.seen().catch(() => undefined);
+        const health = this.health ? await within(this.health(), null) : null;
+        const seen = await within(this.seen(), undefined);
         const base = {
           instanceId: creds.instanceId,
           licenseKey: creds.licenseKey,

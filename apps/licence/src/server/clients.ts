@@ -883,11 +883,13 @@ async function currentAlerts(ctx: Ctx) {
     slug: c.slug,
     refusedAt: refused.get(c.id)?.at.toISOString() ?? null,
     refusedIp: refused.get(c.id)?.ip ?? null,
-    problems: health.get(c.id) ?? [],
+    problems: health.get(c.id)?.problems ?? [],
+    problemsSince: health.get(c.id)?.since,
   }));
   return alertsFor(ac, { now: ctx.now(), latestVersion: await latestVersion(ctx.db) });
 }
 export async function listAlerts(ctx: Ctx) {
+  const current = await currentAlerts(ctx);
   const hidden = new Map(
     (
       await ctx.db.query<{ alert_id: string; fingerprint: string }>(
@@ -895,7 +897,7 @@ export async function listAlerts(ctx: Ctx) {
       )
     ).rows.map((r) => [r.alert_id, r.fingerprint]),
   );
-  return { alerts: visibleAlerts(await currentAlerts(ctx), hidden) };
+  return { alerts: visibleAlerts(current, hidden) };
 }
 /** Hide one alert, or all of them, for as long as each one's condition stays the same. */
 export async function dismissAlerts(ctx: Ctx, which: { id?: string; all?: boolean }) {

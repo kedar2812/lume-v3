@@ -1,5 +1,5 @@
 import { createPublicKey, type KeyObject } from "node:crypto";
-import { rawPublicKey, signLicence, type LicencePayload } from "@lume/core";
+import { rawPublicKey, signLicence, verifyLicence, type LicencePayload } from "@lume/core";
 
 /** The private key (from the secrets file) and the `kid` its public half ships under in LUME's releases. */
 export type Signer = { kid: string; privateKey: KeyObject };
@@ -43,4 +43,13 @@ export function issueToken(
     },
     signer.privateKey,
   );
+}
+
+/**
+ * Whether LUME will take this answer (spec 2026-10-16 fleet §2.3): it verifies against this signer's own public key
+ * under LUME's own rules (size, strict shape), for this install.
+ */
+export function answerVerifies(signer: Signer, token: string, instanceId: string): boolean {
+  const pub = rawPublicKey(createPublicKey(signer.privateKey));
+  return verifyLicence(token, { [signer.kid]: pub }, instanceId) !== null;
 }

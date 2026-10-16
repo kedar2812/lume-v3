@@ -2,7 +2,7 @@ import { fleetHealthSchema, type FleetHealth, type LicenceNotice, type LicenceTy
 import type pg from "pg";
 import { z } from "zod";
 import { hashKey, keyMatches } from "@/lib/keys";
-import { issueToken } from "@/lib/sign";
+import { answerVerifies, issueToken } from "@/lib/sign";
 import { serverState } from "@/lib/state";
 import { liveAnnouncements, recordSeen } from "./announcements";
 import type { Ctx } from "./context";
@@ -134,16 +134,24 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
   const announcements = b.accepts?.includes("announcements")
     ? await liveAnnouncements(ctx.db, l.client_id, now)
     : undefined;
-  const token = issueToken(ctx.signer, now, {
-    instanceId: b.instanceId,
-    state,
-    licenseType: l.type,
-    paidUntil: l.paid_until,
-    trialEndsAt: l.trial_ends,
-    reason,
-    notice,
-    announcements,
-  });
+  const sign = () =>
+    issueToken(ctx.signer, now, {
+      instanceId: b.instanceId,
+      state,
+      licenseType: l.type,
+      paidUntil: l.paid_until,
+      trialEndsAt: l.trial_ends,
+      reason,
+      notice,
+      announcements,
+    });
+  let token = sign();
+  // An answer LUME would refuse turns it read-only in 7 days: drop announcements, oldest first, until it verifies.
+  while (announcements?.length && !answerVerifies(ctx.signer, token, b.instanceId)) {
+    announcements.pop();
+    console.warn(`check: an announcement was left out of ${b.instanceId}'s answer so that it verifies`);
+    token = sign();
+  }
   return json(200, { token });
 }
 
