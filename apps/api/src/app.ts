@@ -18,6 +18,7 @@ import { catalogRoutes } from "./modules/catalog/routes";
 import { fieldRoutes } from "./modules/fields/routes";
 import { leadRoutes } from "./modules/leads/routes";
 import { ErrorWindow, healthReport } from "./licence/health-report";
+import { applyPlan } from "./licence/plan";
 import { LicenceKeeper } from "./licence/keeper";
 import { licenceRoutes } from "./licence/routes";
 import { feedbackRoutes } from "./modules/feedback/routes";
@@ -149,6 +150,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       ...(deps.tasks?.startedAt ? { queueStartedAt: deps.tasks.startedAt } : {}),
     }),
   );
+  // Control each client (spec 2026-10-17 control §2.2): a module the plan leaves out is switched off once.
+  licence.keepPlan((plan) => applyPlan(deps.pool, plan));
   try {
     const app = await buildServer({
       checks: dbChecks(deps.pool),

@@ -10,6 +10,7 @@ import {
   type FeedbackReport,
   type FleetHealth,
   type Keyring,
+  type PlanClaim,
   type LicencePayload,
   type LicenceView,
 } from "@lume/core";
@@ -79,6 +80,8 @@ export class LicenceKeeper {
   private timer: ReturnType<typeof setInterval> | null = null;
   /** Reads this LUME's health for the check-in (spec 2026-10-16 fleet §1.1); set by the app once it's built. */
   private health: (() => Promise<FleetHealth | null>) | null = null;
+  /** Keeps the plan an answer carries (spec 2026-10-17 control §2.2); set by the app once it's built. */
+  private onPlan: ((plan: PlanClaim | null) => Promise<void>) | null = null;
 
   constructor(
     private readonly pool: pg.Pool,
@@ -189,6 +192,16 @@ export class LicenceKeeper {
     while (this.inFlight) await this.inFlight.catch(() => undefined);
   }
 
+  /** The app's own clock (tests move it): what "still open" means for an invite is measured by it. */
+  clock(): Date {
+    return this.now();
+  }
+
+  /** What this LUME does with the plan each good answer carries (app.ts). */
+  keepPlan(apply: (plan: PlanClaim | null) => Promise<void>): void {
+    this.onPlan = apply;
+  }
+
   /** How this LUME reads its own health for each check-in (app.ts). */
   reportHealth(read: () => Promise<FleetHealth | null>): void {
     this.health = read;
@@ -280,7 +293,9 @@ export class LicenceKeeper {
         [at, error],
       );
     if (error) this.log({ error }, "licence check failed");
-    return this.refresh();
+    const view = await this.refresh();
+    if (token && this.onPlan) await this.onPlan(this.payload?.plan ?? null).catch(() => undefined);
+    return view;
   }
 
   /**

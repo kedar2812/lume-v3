@@ -1,3 +1,4 @@
+import { assertModule } from "../../licence/plan";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { can, newId, type Mapping, type Rules } from "@lume/core";
@@ -33,6 +34,8 @@ export async function webhooksOn(req: FastifyRequest): Promise<boolean> {
 }
 
 export async function setWebhooksEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
+  // Control each client (spec 2026-10-17 control §2.2): not while the plan leaves it out.
+  if (enabled) assertModule(req, "webhooks");
   await req.db.execute(
     sql`UPDATE settings SET integrations = jsonb_set(integrations, '{webhooks}', ${JSON.stringify({ enabled })}::jsonb) WHERE id = 1`,
   );

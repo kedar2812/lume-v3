@@ -1,3 +1,4 @@
+import { assertModule } from "../../licence/plan";
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -44,6 +45,8 @@ async function requireOn(req: FastifyRequest, d: AppDeps) {
 }
 
 export async function setCalendarEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
+  // Control each client (spec 2026-10-17 control §2.2): not while the plan leaves it out.
+  if (enabled) assertModule(req, "googleCalendar");
   if (enabled && !d.googleOAuth)
     throw new HttpError(
       409,

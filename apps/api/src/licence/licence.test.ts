@@ -140,13 +140,14 @@ describe("the instance checks its licence (L-A Task 2)", () => {
       instanceId: INSTANCE,
       licenseKey: KEY,
       appVersion: "1.4.2",
-      accepts: ["announcements"],
+      accepts: ["announcements", "plan"],
     });
     expect(Object.keys(body.health as object).sort()).toEqual(
       [
         "dbBytes",
         "diskFreePct",
         "errors24h",
+        "modulesOn",
         "problems",
         "queue",
         "remindersLate",

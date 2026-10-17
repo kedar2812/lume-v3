@@ -1,4 +1,4 @@
-import { pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
+import { jsonb, pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 /** What this instance knows of its licence (licensing L-A): one row, the last good token and its timings. */
@@ -16,6 +16,8 @@ export const licenceState = pgTable("licence_state", {
   licenseKeyEnc: bytea("license_key_enc"),
   instanceId: text("instance_id"),
   activatedAt: tz("activated_at"),
+  /** The modules the plan last left out (spec 2026-10-17 control §2.2): each is switched off once per change. */
+  planApplied: jsonb("plan_applied"),
 });
 
 /** From LUME's team (spec 2026-10-16 fleet §4): who pressed Got it on which announcement. */

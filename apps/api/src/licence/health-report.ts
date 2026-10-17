@@ -1,7 +1,8 @@
 import { statfs } from "node:fs/promises";
-import { capHealth, HEALTH_PROBLEMS, type FleetHealth, type HealthProblem } from "@lume/core";
+import { capHealth, HEALTH_PROBLEMS, type FleetHealth, type HealthProblem, type PlanModule } from "@lume/core";
 import type pg from "pg";
 import { readHealth, type Health } from "../modules/health/service";
+import { modulesOn } from "./plan";
 
 const H = 3_600_000;
 const KNOWN = new Set<string>(HEALTH_PROBLEMS);
@@ -12,7 +13,13 @@ const KNOWN = new Set<string>(HEALTH_PROBLEMS);
  */
 export function toFleetHealth(
   h: Health,
-  o: { uptimeS: number; dbBytes: number; diskFreePct: number | null; errors24h: number },
+  o: {
+    uptimeS: number;
+    dbBytes: number;
+    diskFreePct: number | null;
+    errors24h: number;
+    modulesOn?: PlanModule[];
+  },
 ): FleetHealth {
   const keys = h.problems
     .map((p) => (p.key.startsWith("source:") ? "source" : p.key))
@@ -28,6 +35,7 @@ export function toFleetHealth(
       h.restoreTest.at && h.restoreTest.ok !== null ? { at: h.restoreTest.at, ok: h.restoreTest.ok } : null,
     problems: keys as HealthProblem[],
     sourcesNeedingAttention: h.problems.filter((p) => p.key.startsWith("source:")).length,
+    ...(o.modulesOn ? { modulesOn: o.modulesOn } : {}),
   });
 }
 
@@ -66,6 +74,8 @@ export async function healthReport(
       dbBytes: Number(size?.n ?? 0),
       diskFreePct: await (o.disk ?? diskFree)(),
       errors24h: o.errors24h,
+      // Control each client (spec 2026-10-17 control §1): which plan modules are on, keys only.
+      modulesOn: await modulesOn(db),
     });
   } catch {
     return null;

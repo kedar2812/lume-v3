@@ -5,6 +5,7 @@ import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { revokeUserSessions } from "../../auth/sessions";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
+import { assertPlace } from "../../licence/plan";
 import { assertCanAssignRoles } from "../../rbac/escalation";
 import { notifyRbac } from "../../rbac/notify";
 
@@ -93,6 +94,8 @@ export async function setDisabled(
   // A paused person comes back through Restore, in Security, where their alert is reviewed (6A).
   if (!disabled && u.status === "suspended")
     throw conflict("PAUSED", "Their access is paused. Restore it in Settings → Security.");
+  // Control each client (spec 2026-10-17 control §2.1): bringing someone back takes a place.
+  if (!disabled && u.status === "disabled") await assertPlace(req);
   if (disabled && reassignTo) {
     const [to] = await req.db
       .select({ id: schema.users.id })

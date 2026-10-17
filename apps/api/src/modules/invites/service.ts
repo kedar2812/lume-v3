@@ -8,6 +8,7 @@ import { audit } from "../../audit/audit";
 import { setSessionCookie } from "../../auth/cookies";
 import { createSession } from "../../auth/sessions";
 import { badRequest, conflict, notFound } from "../../http/errors";
+import { assertPlace } from "../../licence/plan";
 import { sendAfterCommit } from "../../mail/mailer";
 import { inviteMail } from "../../mail/templates";
 import { assertCanAssignRoles } from "../../rbac/escalation";
@@ -25,6 +26,8 @@ export async function createInvite(
     .from(schema.users)
     .where(eq(schema.users.email, a.email));
   if (existing) throw conflict("USER_EXISTS", "That person already has an account");
+  // Control each client (spec 2026-10-17 control §2.1): no invite past this LUME's places.
+  await assertPlace(req, { inviteEmail: a.email });
   if (a.roleIds.length) {
     const found = await req.db
       .select({ id: schema.roles.id })

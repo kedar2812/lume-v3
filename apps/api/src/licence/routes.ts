@@ -4,6 +4,7 @@ import { schema } from "@lume/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit/audit";
+import { planForPerson } from "./plan";
 import { conflict, forbidden, HttpError, notFound } from "../http/errors";
 
 /** Owners and admins (people who manage settings) see the payment reminder and may Check now. */
@@ -13,7 +14,9 @@ const manages = (req: FastifyRequest) =>
 /** An announcement as one person sees it (spec 2026-10-16 fleet §4): and whether they pressed Got it. */
 export type AnnouncementForPerson = AnnouncementClaim & { gotIt: boolean };
 
-export type LicenceForPerson = Omit<LicenceView, "announcements"> & {
+export type LicenceForPerson = Omit<LicenceView, "announcements" | "plan"> & {
+  /** This LUME's plan (spec 2026-10-17 control §2): places taken and modules, for people who manage settings; else null. */
+  plan: { places: number | null; taken: number; modules: Record<string, boolean> } | null;
   /** From LUME's team: the ones meant for this person (admins-only to people who manage settings), not ended. */
   announcements: AnnouncementForPerson[];
   instanceId: string | null;
@@ -60,6 +63,7 @@ export async function licenceFor(req: FastifyRequest): Promise<LicenceForPerson>
   return {
     ...v,
     announcements: mine.map((a) => ({ ...a, gotIt: got.has(a.id) })),
+    plan: await planForPerson(req, admin),
     // The reminder is between LUME's provider and the people who pay: never sent to anyone else.
     notice: admin ? v.notice : null,
     ...req.server.licence.info(),

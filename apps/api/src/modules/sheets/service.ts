@@ -1,3 +1,4 @@
+import { assertModule } from "../../licence/plan";
 import { createHash, randomBytes } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -97,6 +98,8 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
 }
 
 export async function setSheetsEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
+  // Control each client (spec 2026-10-17 control §2.2): not while the plan leaves it out.
+  if (enabled) assertModule(req, "googleSheets");
   if (enabled && !d.google && !d.googleOAuth)
     throw new HttpError(
       409,

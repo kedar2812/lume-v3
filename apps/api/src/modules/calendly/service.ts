@@ -1,3 +1,4 @@
+import { assertModule } from "../../licence/plan";
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -102,6 +103,8 @@ function said(e: unknown): never {
  * subscription asked of Calendly with a new signing key. Nothing is kept if Calendly says no.
  */
 export async function connectCalendly(req: FastifyRequest, d: AppDeps, token: string) {
+  // Control each client (spec 2026-10-17 control §2.2): not while the plan leaves it out.
+  assertModule(req, "calendly");
   await req.db.execute(sql`SELECT pg_advisory_xact_lock(hashtext('lume.calendly_connect'))`);
   if (await liveCalendly(req))
     throw new HttpError(

@@ -87,6 +87,10 @@ export async function calendlyReceiveRoutes(app: FastifyInstance, d: AppDeps) {
         if (all.first) reject(id, "rate_limited");
         return slowDown(reply, all.retryAfterSec);
       }
+      // Control each client (spec 2026-10-17 control §2.2): left out of the plan, a booking is taken and ignored, so
+      // Calendly doesn't keep retrying it; the connection is kept for when it's back in.
+      if (req.server.licence.view().plan?.modules.calendly === false)
+        return reply.code(202).send({ accepted: true, ignored: true });
 
       let body: Posted | null = null;
       try {
