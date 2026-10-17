@@ -11,6 +11,7 @@ import {
   type AnnouncementClaim,
   type LicenceNotice,
   type LicenceStateName,
+  type PlanClaim,
 } from "@lume/core";
 
 export const E2E_INSTANCE = "LUME-E2E-0001";
@@ -26,6 +27,8 @@ type Says = {
   down: boolean;
   /** From LUME's team (spec 2026-10-16 fleet §2.3): signed only for an install that says it can show them. */
   announcements?: AnnouncementClaim[];
+  /** The client's plan (spec 2026-10-17 control §1): signed only for an install that says it can keep one. */
+  plan?: PlanClaim;
 };
 const ACTIVE: Says = {
   state: "active",
@@ -90,6 +93,7 @@ const server = createServer((req, res) => {
             ...(says.announcements && b.accepts?.includes("announcements")
               ? { announcements: says.announcements }
               : {}),
+            ...(says.plan && b.accepts?.includes("plan") ? { plan: says.plan } : {}),
           },
           keys.privateKey,
         ),

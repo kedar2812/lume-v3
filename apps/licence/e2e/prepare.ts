@@ -125,6 +125,8 @@ const healthAt = (name: string, i: number, hoursAgo: number) => {
     },
     problems: sick.problems ?? [],
     sourcesNeedingAttention: 0,
+    // Control each client (spec 2026-10-17 §3.3): which modules are on, for the Plan limits card's warning.
+    modulesOn: i % 2 ? ["googleSheets", "webhooks", "calendly"] : ["webhooks"],
   });
 };
 const ids: Record<string, string> = {};
@@ -193,7 +195,7 @@ for (const [i, c] of CANVAS_CLIENTS.entries()) {
           2 + (i % 6),
           120 + i * 97,
           OLD.has(c.name) ? null : healthAt(c.name, i, hoursAgo),
-          OLD.has(c.name) ? null : ["announcements"],
+          OLD.has(c.name) ? null : ["announcements", "plan"],
         ],
       );
     for (let h = 14 * 24; h >= lastH; h -= 6) {

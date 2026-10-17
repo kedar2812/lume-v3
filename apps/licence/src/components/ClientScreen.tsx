@@ -675,7 +675,8 @@ export function ClientScreen({ id }: { id: string }) {
 
           {d.plan && d.usage && (
             <PlanLimits
-              key={JSON.stringify(d.plan)}
+              // Keyed by client, not by plan: after Save its own state already is the plan, and "Saved" stays.
+              key={c.id}
               clientId={c.id}
               clientName={c.name}
               version={d.installation?.version ?? null}

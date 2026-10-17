@@ -354,3 +354,36 @@ test("Fleet: every LUME worst first, a client's Health card, an announcement pub
     "Announcement withdrawn: LUME will be updated on Sunday night",
   );
 });
+
+test("Plan limits: places and a module left out, the warning, Save, and the history — both themes", async () => {
+  await theme(page, "light");
+  await page.goto(`/clients/${seed().ids["Lotus Wellness"]}`);
+  const card = page.getByRole("region", { name: "Plan limits" });
+  await expect(card.getByRole("radio", { name: "No limit" })).toHaveAttribute("aria-checked", "true");
+  await expect(card.getByRole("button", { name: "Save" })).toBeDisabled();
+  await card.getByRole("radio", { name: "A number" }).click();
+  await card.getByRole("button", { name: "One more" }).click();
+  await card.getByRole("switch", { name: "Webhooks in their plan" }).click();
+  await expect(card).toContainText(
+    "On at Lotus Wellness now — switching it off stops it at their next check-in.",
+  );
+  await card.scrollIntoViewIfNeeded();
+  for (const t of ["light", "dark"] as const) {
+    await theme(page, t);
+    await card.screenshot({ path: `e2e/__review__/plan-limits-${t}.png`, animations: "disabled" });
+    expect(await axe(page)).toEqual([]);
+  }
+  await theme(page, "light");
+  await card.getByRole("button", { name: "Save" }).click();
+  await expect(card).toContainText("Saved. Their LUME keeps it from its next check-in, within 6 hours.");
+  await expect(page.getByRole("region", { name: "History" })).toContainText(
+    /Plan: \d+ places; Webhooks not included/,
+  );
+  // Kept: the page again, the same.
+  await page.reload();
+  await expect(card.getByRole("radio", { name: "A number" })).toHaveAttribute("aria-checked", "true");
+  await expect(card.getByRole("switch", { name: "Webhooks in their plan" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+});
