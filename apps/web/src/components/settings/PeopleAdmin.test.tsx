@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invitesClient, usersClient, type Invite, type UserRow } from "@/lib/settings/people";
 import { fakeSession } from "@/server/session";
 import { securityClient } from "@/lib/settings/security";
+import { LicenceProvider } from "@/components/licence/LicenceProvider";
 import { PeopleAdmin } from "./PeopleAdmin";
 
 vi.mock("@/lib/settings/people", () => ({
@@ -240,5 +241,68 @@ describe("PeopleAdmin", () => {
     const row = screen.getByText("Riya Sharma").closest("li")!;
     expect(within(row).getByText("Paused")).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: /Restore access/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("places on this LUME's plan (spec 2026-10-17 control §2.1)", () => {
+  const withPlan = (places: number | null, users: UserRow[], invites: Invite[]) => {
+    const session = admin();
+    const plan = {
+      places,
+      taken: 0,
+      modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true },
+    };
+    return render(
+      <LicenceProvider session={{ ...session, licence: { ...session.licence, plan } }}>
+        <PeopleAdmin users={users} invites={invites} roles={roles} session={session} />
+      </LicenceProvider>,
+    );
+  };
+  const paused = person({ id: "u-off", name: "Omar Haddad", email: "o@x.test", status: "disabled" });
+
+  it("says how many places are taken: people active or paused, and open invites; never a disabled person", () => {
+    withPlan(5, [riya, tas, paused], [invite, { ...invite, id: "i2", email: "e@x.test", expired: true }]);
+    expect(screen.getByText("3 of 5 places")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send invite" })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("when every place is taken, says so before anyone types, and Send invite waits", () => {
+    withPlan(3, [riya, tas], [invite]);
+    expect(screen.getByText("3 of 3 places")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Every place on this LUME’s plan is taken (3 of 3). Pause someone, or ask LUME’s team about more places.",
+    );
+    expect(screen.getByRole("button", { name: "Send invite" })).toBeDisabled();
+  });
+
+  it("over the limit after the plan shrinks: one line, nobody loses access", () => {
+    withPlan(2, [riya, tas, person({ id: "u-3", name: "Sana Malik", email: "s@x.test" })], []);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "3 people use this LUME and its plan has 2 places. Nobody loses access; new people can be added once there’s room.",
+    );
+    expect(screen.getByRole("button", { name: "Send invite" })).toBeDisabled();
+    expect(screen.getByText("Riya Sharma")).toBeInTheDocument();
+  });
+
+  it("open invites past the limit: every place is taken, said as the plan's places", () => {
+    withPlan(2, [riya], [invite, { ...invite, id: "i2", email: "e@x.test" }]);
+    expect(screen.getByText("3 of 2 places")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Every place on this LUME’s plan is taken (2 of 2).");
+  });
+
+  it("revoking an invite makes room at once", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invitesClient.revoke).mockResolvedValue(ok(null) as never);
+    withPlan(3, [riya, tas], [invite]);
+    await user.click(screen.getByRole("button", { name: `Revoke invite to ${invite.email}` }));
+    await user.click(screen.getByRole("button", { name: "Revoke" }));
+    expect(await screen.findByText("2 of 3 places")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send invite" })).toBeEnabled();
+  });
+
+  it("no limit: nothing about places", () => {
+    withPlan(null, [riya, tas], [invite]);
+    expect(screen.queryByText(/places/)).not.toBeInTheDocument();
   });
 });

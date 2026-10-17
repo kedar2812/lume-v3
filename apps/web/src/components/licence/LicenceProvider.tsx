@@ -1,7 +1,12 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { can } from "@lume/core/shared";
-import { LICENCE_REFUSED, licenceClient, type LicenceForPerson } from "@/lib/licence/client";
+import {
+  LICENCE_REFUSED,
+  licenceClient,
+  type LicenceForPerson,
+  type PlanForPerson,
+} from "@/lib/licence/client";
 import type { Session } from "@/server/session";
 
 type LicenceContext = {
@@ -42,6 +47,14 @@ export function LicenceProvider({ session, children }: { session: Session; child
       {children}
     </Ctx.Provider>
   );
+}
+
+/**
+ * This LUME's plan as this person sees it (spec 2026-10-17 control §2), or null: no plan, no limits, or not theirs
+ * to see. Safe outside a provider (a screen under test without one has no plan).
+ */
+export function usePlan(): PlanForPerson | null {
+  return useContext(Ctx)?.licence.plan ?? null;
 }
 
 export function useLicence(): LicenceContext {

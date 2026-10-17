@@ -1,12 +1,17 @@
 "use client";
-import type { AnnouncementClaim, LicenceView } from "@lume/core/shared";
+import type { AnnouncementClaim, LicenceView, PlanClaim } from "@lume/core/shared";
 import { api } from "@/lib/api";
 
 /** The licence as one person sees it (licensing L-A): what the API sends with /auth/me and on its own. */
 /** An announcement from LUME's team as one person sees it (spec 2026-10-16 fleet §4). */
 export type AnnouncementForPerson = AnnouncementClaim & { gotIt: boolean };
 
-export type LicenceForPerson = Omit<LicenceView, "announcements"> & {
+/** The plan as one person sees it (spec 2026-10-17 control §2): people who manage settings only, else null. */
+export type PlanForPerson = PlanClaim & { taken: number };
+
+export type LicenceForPerson = Omit<LicenceView, "announcements" | "plan"> & {
+  /** The plan with places taken now (people who manage settings), or null: no limits, or not theirs to see. */
+  plan: PlanForPerson | null;
   /** From LUME's team: the ones meant for this person, not ended (absent from an older API: normalised to []). */
   announcements: AnnouncementForPerson[];
   instanceId: string | null;

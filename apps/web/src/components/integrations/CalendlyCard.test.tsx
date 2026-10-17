@@ -5,6 +5,8 @@ import { calendarClient } from "@/lib/calendar/client";
 import type { CalendlyView } from "@/lib/calendar/types";
 import { CalendlyCard } from "./CalendlyCard";
 import { GoogleCalendarCard } from "./GoogleCalendarCard";
+import { LicenceProvider } from "@/components/licence/LicenceProvider";
+import { fakeSession } from "@/server/session";
 
 vi.mock("@/lib/calendar/client", () => ({
   calendarClient: {
@@ -134,5 +136,46 @@ describe("Google Calendar in Integrations", () => {
     expect(
       screen.getByText(/comes through Connect with Google, which isn't set up on this server yet/),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Calendly and Google Calendar not in this LUME's plan (spec 2026-10-17 control §2.2)", () => {
+  const inside = (ui: React.ReactNode, modules: Record<string, boolean>) => {
+    const session = fakeSession();
+    const plan = {
+      places: null,
+      taken: 1,
+      modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true, ...modules },
+    };
+    return render(
+      <LicenceProvider session={{ ...session, licence: { ...session.licence, plan } }}>{ui}</LicenceProvider>,
+    );
+  };
+
+  it("Calendly: says so, and Connect is gone", () => {
+    inside(<CalendlyCard initial={{ connected: false }} />, { calendly: false });
+    expect(screen.getByText("Not in this LUME’s plan")).toBeInTheDocument();
+    expect(
+      screen.getByText("Its settings are kept. Ask LUME’s team to add it to your plan."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Connect Calendly" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/token/i)).not.toBeInTheDocument();
+  });
+
+  it("Calendly connected but left out: no Receiving and no switches; the connection is kept", () => {
+    inside(<CalendlyCard initial={connected()} />, { calendly: false });
+    expect(screen.getByText("Not in this LUME’s plan")).toBeInTheDocument();
+    expect(screen.queryByText("Receiving")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+
+  it("Google Calendar: the switch is off and still", () => {
+    inside(<GoogleCalendarCard googleCalendar={{ enabled: true, available: true }} onView={vi.fn()} />, {
+      googleCalendar: false,
+    });
+    const sw = screen.getByRole("switch", { name: "Google Calendar, not in this LUME’s plan" });
+    expect(sw).toHaveAttribute("aria-checked", "false");
+    expect(sw).toBeDisabled();
+    expect(screen.getByText("Not in this LUME’s plan")).toBeInTheDocument();
   });
 });

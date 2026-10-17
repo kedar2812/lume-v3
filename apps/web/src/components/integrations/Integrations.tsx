@@ -11,6 +11,8 @@ import type { IntegrationsView, SheetSourceView } from "@/lib/sheets/types";
 import { AttentionBanner } from "./AttentionBanner";
 import { CalendlyCard } from "./CalendlyCard";
 import { GoogleCalendarCard } from "./GoogleCalendarCard";
+import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
+import { usePlan } from "@/components/licence/LicenceProvider";
 import { SheetSourceList } from "./SheetSourceList";
 import { WebhooksCard } from "./WebhooksCard";
 import s from "./integrations.module.css";
@@ -23,6 +25,7 @@ export function Integrations() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [calendly, setCalendly] = useState<CalendlyView | null>(null);
+  const plan = usePlan();
 
   const loadSources = useCallback(async () => {
     const r = await sheetsClient.list();
@@ -63,6 +66,8 @@ export function Integrations() {
     );
   if (!view) return null;
   const g = view.googleSheets;
+  // Left out of this LUME's plan (control §2.2): said on the card, its switch off and still, nothing else shown.
+  const out = !inPlan(plan, "googleSheets");
 
   const toggle = async (enabled: boolean) => {
     setError(null);
@@ -99,22 +104,31 @@ export function Integrations() {
           <div className={s.cardText}>
             <h2 id="gs-title" className={s.cardTitle}>
               Google Sheets
+              {out && <NotInPlanPill />}
             </h2>
             <p className={s.cardLede}>
-              New rows in your sheets become leads — every few minutes, or at once with Refresh.
+              {out
+                ? NOT_IN_PLAN_NOTE
+                : "New rows in your sheets become leads — every few minutes, or at once with Refresh."}
             </p>
           </div>
-          {g.available && (
-            <Switch checked={g.enabled} onChange={(v) => void toggle(v)} label="Google Sheets" labelHidden />
+          {(g.available || out) && (
+            <Switch
+              checked={g.enabled && !out}
+              onChange={(v) => void toggle(v)}
+              label={out ? "Google Sheets, not in this LUME’s plan" : "Google Sheets"}
+              labelHidden
+              disabled={out}
+            />
           )}
         </header>
-        {!g.available && (
+        {!g.available && !out && (
           <p className={s.note}>
             Google Sheets isn't set up on this server yet. The person who installed LUME can add its Google
             key.
           </p>
         )}
-        {g.enabled && (g.email || g.connectWithGoogle) && (
+        {g.enabled && !out && (g.email || g.connectWithGoogle) && (
           <>
             {g.connectWithGoogle && (
               <div className={s.connect}>

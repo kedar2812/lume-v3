@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sheetsClient } from "@/lib/sheets/client";
 import type { SheetSourceView } from "@/lib/sheets/types";
+import { LicenceProvider } from "@/components/licence/LicenceProvider";
+import { fakeSession } from "@/server/session";
 import { Integrations } from "./Integrations";
 import { SheetSourceList } from "./SheetSourceList";
 
@@ -173,5 +175,47 @@ describe("Settings → Integrations", () => {
     );
     expect(screen.getByText("LUME couldn't read it the last few tries")).toBeInTheDocument();
     expect(screen.getByText("LUME hasn't reached Google for a while")).toBeInTheDocument();
+  });
+});
+
+describe("a module not in this LUME's plan (spec 2026-10-17 control §2.2)", () => {
+  const withPlan = (
+    modules: Partial<Record<"googleSheets" | "webhooks" | "googleCalendar" | "calendly", boolean>>,
+  ) => {
+    const session = fakeSession();
+    const plan = {
+      places: null,
+      taken: 1,
+      modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true, ...modules },
+    };
+    return render(
+      <LicenceProvider session={{ ...session, licence: { ...session.licence, plan } }}>
+        <Integrations />
+      </LicenceProvider>,
+    );
+  };
+
+  it("says so on its card, keeps the switch off and still, and shows nothing it would need", async () => {
+    vi.mocked(sheetsClient.integrations).mockResolvedValue(ok(on) as never);
+    vi.mocked(sheetsClient.list).mockResolvedValue(ok({ sources: [] }) as never);
+    withPlan({ googleSheets: false });
+    const sw = await screen.findByRole("switch", { name: "Google Sheets, not in this LUME’s plan" });
+    expect(sw).toHaveAttribute("aria-checked", "false");
+    expect(sw).toBeDisabled();
+    const card = sw.closest("article")!;
+    expect(within(card).getByText("Not in this LUME’s plan")).toBeInTheDocument();
+    expect(
+      within(card).getByText("Its settings are kept. Ask LUME’s team to add it to your plan."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("lume@p.iam.gserviceaccount.com")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a sheet" })).not.toBeInTheDocument();
+  });
+
+  it("in the plan, the card is as it always was", async () => {
+    vi.mocked(sheetsClient.integrations).mockResolvedValue(ok(on) as never);
+    vi.mocked(sheetsClient.list).mockResolvedValue(ok({ sources: [] }) as never);
+    withPlan({ calendly: false });
+    expect(await screen.findByRole("switch", { name: "Google Sheets" })).toBeEnabled();
+    expect(screen.queryByText("Not in this LUME’s plan")).not.toBeInTheDocument();
   });
 });

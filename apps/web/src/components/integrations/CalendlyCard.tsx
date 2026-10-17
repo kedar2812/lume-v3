@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Switch } from "@/components/ui/Switch";
 import { calendarClient } from "@/lib/calendar/client";
 import type { CalendlySettings, CalendlyView } from "@/lib/calendar/types";
+import { usePlan } from "@/components/licence/LicenceProvider";
+import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
 import s from "./calendly.module.css";
 
 const STEP_MS = 650;
@@ -24,6 +26,8 @@ export function CalendlyCard({ initial }: { initial: CalendlyView }) {
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState(initial.connected ? (initial.settings.phoneQuestion ?? "") : "");
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Left out of this LUME's plan (control §2.2): its connection is kept, its bookings ignored; nothing to do here.
+  const out = !inPlan(usePlan(), "calendly");
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const connect = async () => {
@@ -78,7 +82,8 @@ export function CalendlyCard({ initial }: { initial: CalendlyView }) {
       <div>
         <h2 id="calendly-title" className={s.title}>
           Calendly
-          {view.connected && view.status === "active" && (
+          {out && <NotInPlanPill flush />}
+          {!out && view.connected && view.status === "active" && (
             <span className={s.live}>
               <i aria-hidden />
               Receiving
@@ -86,11 +91,20 @@ export function CalendlyCard({ initial }: { initial: CalendlyView }) {
           )}
         </h2>
         <p className={s.lede}>
-          A booking makes or finds its lead, moves it to the booking stage, and tells its owner. In seconds.
+          {out
+            ? NOT_IN_PLAN_NOTE
+            : "A booking makes or finds its lead, moves it to the booking stage, and tells its owner. In seconds."}
         </p>
       </div>
     </header>
   );
+
+  if (out)
+    return (
+      <article className={s.card} aria-labelledby="calendly-title">
+        {head}
+      </article>
+    );
 
   if (pending)
     return (

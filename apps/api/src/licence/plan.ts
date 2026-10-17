@@ -55,7 +55,7 @@ export async function assertPlace(req: FastifyRequest, o: { inviteEmail?: string
   if (n >= plan.places)
     throw conflict(
       "PLAN_PLACES",
-      `Every place on this LUME's plan is taken (${Math.max(n, plan.places)} of ${plan.places}). Pause someone, or ask LUME's team about more places.`,
+      `Every place on this LUME's plan is taken (${plan.places} of ${plan.places}). Pause someone, or ask LUME's team about more places.`,
     );
 }
 
@@ -63,13 +63,18 @@ export async function assertPlace(req: FastifyRequest, o: { inviteEmail?: string
 export function assertModule(req: FastifyRequest, key: PlanModule): void {
   const plan = req.server.licence.view().plan;
   if (plan && plan.modules[key] === false)
-    throw conflict("PLAN_MODULE", `${MODULE_NAMES[key]} isn't in this LUME's plan. Ask LUME's team to add it.`);
+    throw conflict(
+      "PLAN_MODULE",
+      `${MODULE_NAMES[key]} isn't in this LUME's plan. Ask LUME's team to add it.`,
+    );
 }
 
 /** Which of the plan's modules are switched on now (for the check-in's health): keys only. */
 export async function modulesOn(q: Pick<pg.Pool, "query">): Promise<PlanModule[]> {
   const s = (
-    await q.query<{ i: Record<string, { enabled?: boolean }> }>("SELECT integrations AS i FROM settings WHERE id = 1")
+    await q.query<{ i: Record<string, { enabled?: boolean }> }>(
+      "SELECT integrations AS i FROM settings WHERE id = 1",
+    )
   ).rows[0]?.i;
   const calendly = (
     await q.query("SELECT 1 FROM lead_sources WHERE type = 'calendly' AND status <> 'archived' LIMIT 1")
@@ -94,8 +99,11 @@ export async function applyPlan(
     await c.query("BEGIN");
     await c.query("SELECT pg_advisory_xact_lock(hashtext('lume.plan'))");
     const before =
-      (await c.query<{ p: { excluded?: string[] } | null }>("SELECT plan_applied AS p FROM licence_state WHERE id = 1"))
-        .rows[0]?.p?.excluded ?? [];
+      (
+        await c.query<{ p: { excluded?: string[] } | null }>(
+          "SELECT plan_applied AS p FROM licence_state WHERE id = 1",
+        )
+      ).rows[0]?.p?.excluded ?? [];
     const on = new Set(await modulesOn(c));
     for (const k of excluded.filter((x) => !before.includes(x))) {
       if (!on.has(k)) continue;

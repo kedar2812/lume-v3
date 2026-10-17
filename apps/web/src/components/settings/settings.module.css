@@ -1023,6 +1023,50 @@
 }
 
 /* ── people ── */
+/* Places on this LUME's plan (control §2.1): the count beside the Invite title, and why Send waits when full. */
+.inviteTitleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.places {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.planFull {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.45;
+  animation: planFullIn 0.32s var(--spring, ease-out);
+}
+.planFull svg {
+  flex: none;
+  margin-top: 2px;
+}
+@keyframes planFullIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planFull {
+    animation: none;
+  }
+}
 .inviteGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr);

@@ -11,6 +11,7 @@ import type { Session } from "@/server/session";
 import { accessGone } from "@/lib/settings/access";
 import { settingsDate } from "@/lib/settings/format";
 import { useZone } from "@/components/ZoneProvider";
+import { usePlan } from "@/components/licence/LicenceProvider";
 import { AccessChanged } from "./AccessChanged";
 import { OffboardSheet } from "./OffboardSheet";
 import s from "./settings.module.css";
@@ -19,6 +20,25 @@ import { zoneOf } from "@/lib/zone";
 type Note = { text: string; problem?: boolean; copy?: string } | null;
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Places on this LUME's plan (spec 2026-10-17 control §2.1), counted from what's on screen so it moves the moment an
+ * invite is sent or revoked: people active or paused, plus invites not yet accepted or expired — as the API counts.
+ */
+function placesWords(places: number | null | undefined, users: UserRow[], invites: Invite[]) {
+  if (places === null || places === undefined) return null;
+  const people = users.filter((u) => u.status === "active" || u.status === "suspended").length;
+  const taken = people + invites.filter((i) => !i.expired).length;
+  return {
+    count: `${taken} of ${places} places`,
+    full:
+      people > places
+        ? `${people} people use this LUME and its plan has ${places} places. Nobody loses access; new people can be added once there’s room.`
+        : taken >= places
+          ? `Every place on this LUME’s plan is taken (${places} of ${places}). Pause someone, or ask LUME’s team about more places.`
+          : null,
+  };
+}
 
 /**
  * Everyone who uses LUME: invite someone with a role, follow invites until they're accepted, and change
@@ -43,6 +63,7 @@ export function PeopleAdmin({
   const tz = useZone();
   const [users, setUsers] = useState(initialUsers);
   const [invites, setInvites] = useState(initialInvites);
+  const places = placesWords(usePlan()?.places, users, invites);
   const [resent, setResent] = useState<Set<string>>(new Set());
   const [note, setNote] = useState<Note>(null);
   const [forbidden, setForbidden] = useState(false);
@@ -65,6 +86,7 @@ export function PeopleAdmin({
     <div className={s.stack}>
       <InviteForm
         roles={roles}
+        places={places}
         onSend={async (input) => {
           setNote(null);
           const r = await invitesClient.create(input);
@@ -337,9 +359,11 @@ export function PeopleAdmin({
 
 function InviteForm({
   roles,
+  places,
   onSend,
 }: {
   roles: RoleRef[];
+  places: ReturnType<typeof placesWords>;
   onSend: (input: { email: string; name: string; roleIds: string[] }) => Promise<boolean>;
 }) {
   const [email, setEmail] = useState("");
@@ -378,10 +402,31 @@ function InviteForm({
       }}
     >
       <div className={s.panelHead}>
-        <h2 id="invite-title" className={s.panelTitle}>
-          Invite someone
-        </h2>
+        <div className={s.inviteTitleRow}>
+          <h2 id="invite-title" className={s.panelTitle}>
+            Invite someone
+          </h2>
+          {places && <span className={s.places}>{places.count}</span>}
+        </div>
         <p className={s.muted}>They get an email with a link to set their password. It works for 3 days.</p>
+        {places?.full && (
+          <p role="alert" className={s.planFull}>
+            <svg
+              aria-hidden
+              viewBox="0 0 16 16"
+              width="15"
+              height="15"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            >
+              <circle cx="8" cy="8" r="6.2" />
+              <path d="M8 4.8v3.6M8 11v.01" />
+            </svg>
+            <span>{places.full}</span>
+          </p>
+        )}
       </div>
       <div className={`${s.panelBody} ${s.inviteGrid}`}>
         <Field label="Email" error={errors.email}>
@@ -435,7 +480,7 @@ function InviteForm({
         </Field>
       </div>
       <div className={s.panelFoot}>
-        <Button type="submit" variant="primary" loading={busy}>
+        <Button type="submit" variant="primary" loading={busy} disabled={!!places?.full}>
           Send invite
         </Button>
       </div>

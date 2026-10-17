@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Switch } from "@/components/ui/Switch";
 import { calendarClient } from "@/lib/calendar/client";
 import type { IntegrationsView } from "@/lib/sheets/types";
+import { usePlan } from "@/components/licence/LicenceProvider";
+import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
 import s from "./integrations.module.css";
 
 /**
@@ -17,6 +19,7 @@ export function GoogleCalendarCard({
   onView(v: IntegrationsView): void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const out = !inPlan(usePlan(), "googleCalendar");
   const toggle = async (enabled: boolean) => {
     setError(null);
     const r = await calendarClient.setEnabled(enabled);
@@ -32,23 +35,27 @@ export function GoogleCalendarCard({
         <div className={s.cardText}>
           <h2 id="gc-title" className={s.cardTitle}>
             Google Calendar
+            {out && <NotInPlanPill />}
           </h2>
           <p className={s.cardLede}>
-            {googleCalendar.enabled
-              ? "On · people connect their own calendar, and only meetings with leads come in."
-              : "Meetings with leads show on their leads and in the Calendar. Read-only; personal events are never kept."}
+            {out
+              ? NOT_IN_PLAN_NOTE
+              : googleCalendar.enabled
+                ? "On · people connect their own calendar, and only meetings with leads come in."
+                : "Meetings with leads show on their leads and in the Calendar. Read-only; personal events are never kept."}
           </p>
         </div>
-        {googleCalendar.available && (
+        {(googleCalendar.available || out) && (
           <Switch
-            checked={googleCalendar.enabled}
+            checked={googleCalendar.enabled && !out}
             onChange={(v) => void toggle(v)}
-            label="Google Calendar"
+            label={out ? "Google Calendar, not in this LUME’s plan" : "Google Calendar"}
             labelHidden
+            disabled={out}
           />
         )}
       </header>
-      {!googleCalendar.available && (
+      {!googleCalendar.available && !out && (
         <p className={s.note}>
           Google Calendar comes through Connect with Google, which isn&apos;t set up on this server yet. The
           person who installed LUME can switch it on.

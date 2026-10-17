@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { webhooksClient } from "@/lib/webhooks/client";
 import type { WebhookView } from "@/lib/webhooks/types";
+import { LicenceProvider } from "@/components/licence/LicenceProvider";
+import { fakeSession } from "@/server/session";
 import { WebhooksCard } from "./WebhooksCard";
 
 vi.mock("@/lib/webhooks/client", () => ({ webhooksClient: { setEnabled: vi.fn(), list: vi.fn() } }));
@@ -69,5 +71,25 @@ describe("the Webhooks card", () => {
     render(<WebhooksCard webhooks={{ enabled: true, manychat: true }} onView={vi.fn()} />);
     await userEvent.click(await screen.findByRole("button", { name: "Add a webhook" }));
     expect(screen.getByRole("dialog", { name: "Add a webhook" })).toHaveAttribute("data-manychat", "true");
+  });
+});
+
+describe("Webhooks not in this LUME's plan (spec 2026-10-17 control §2.2)", () => {
+  it("says so, keeps the switch off and still, and lists nothing", () => {
+    const session = fakeSession();
+    const modules = { googleSheets: true, webhooks: false, googleCalendar: true, calendly: true };
+    render(
+      <LicenceProvider
+        session={{ ...session, licence: { ...session.licence, plan: { places: null, taken: 1, modules } } }}
+      >
+        <WebhooksCard webhooks={{ enabled: true, manychat: false }} onView={vi.fn()} />
+      </LicenceProvider>,
+    );
+    const sw = screen.getByRole("switch", { name: "Webhooks, not in this LUME’s plan" });
+    expect(sw).toHaveAttribute("aria-checked", "false");
+    expect(sw).toBeDisabled();
+    expect(screen.getByText("Not in this LUME’s plan")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a webhook" })).not.toBeInTheDocument();
+    expect(webhooksClient.list).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,8 @@ import type { IntegrationsView } from "@/lib/sheets/types";
 import { webhookHealth } from "@/lib/webhooks/format";
 import { webhooksClient } from "@/lib/webhooks/client";
 import type { WebhookStatus, WebhookView } from "@/lib/webhooks/types";
+import { usePlan } from "@/components/licence/LicenceProvider";
+import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
 import s from "./integrations.module.css";
 
 const STATUS: Record<WebhookStatus, string> = {
@@ -29,14 +31,15 @@ export function WebhooksCard({
   const [sources, setSources] = useState<WebhookView[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const out = !inPlan(usePlan(), "webhooks");
 
   const load = useCallback(async () => {
     const r = await webhooksClient.list();
     if (r.ok) setSources(r.data.sources);
   }, []);
   useEffect(() => {
-    if (webhooks.enabled) void load();
-  }, [webhooks.enabled, load]);
+    if (webhooks.enabled && !out) void load();
+  }, [webhooks.enabled, out, load]);
 
   const toggle = async (enabled: boolean) => {
     setError(null);
@@ -52,19 +55,28 @@ export function WebhooksCard({
         <div className={s.cardText}>
           <h2 id="wh-title" className={s.cardTitle}>
             Webhooks
+            {out && <NotInPlanPill />}
           </h2>
           <p className={s.cardLede}>
-            Your website form, Zapier or Make post each new enquiry to LUME, and it's a lead in a second.
+            {out
+              ? NOT_IN_PLAN_NOTE
+              : "Your website form, Zapier or Make post each new enquiry to LUME, and it's a lead in a second."}
           </p>
         </div>
-        <Switch checked={webhooks.enabled} onChange={(v) => void toggle(v)} label="Webhooks" labelHidden />
+        <Switch
+          checked={webhooks.enabled && !out}
+          onChange={(v) => void toggle(v)}
+          label={out ? "Webhooks, not in this LUME’s plan" : "Webhooks"}
+          labelHidden
+          disabled={out}
+        />
       </header>
       {error && (
         <p role="alert" className={s.error}>
           {error}
         </p>
       )}
-      {webhooks.enabled && (
+      {webhooks.enabled && !out && (
         <>
           {sources &&
             (sources.length ? (
