@@ -710,3 +710,55 @@ describe("LUME AI's use count leaves the request's own scope as it was", () => {
     expect(seen).toEqual([L.rep]);
   });
 });
+
+describe("LUME AI's slots: reserved under one lock, then finished (spec 2026-10-18 §2.2)", () => {
+  const reserve = (c: pg.Client, now: string, hourLimit: number | null, weekLimit: number | null) =>
+    c
+      .query<{ id: string | null; refused: string | null; hour_oldest: Date | null }>(
+        `SELECT * FROM lume_ai_reserve($1, $2, 'next_step', NULL, 'fake', 'fake-1', $3::timestamptz, $4, $5,
+                                       $3::timestamptz - interval '1 hour', $3::timestamptz - interval '7 days')`,
+        [L.rep, U.rep, now, hourLimit, weekLimit],
+      )
+      .then((r) => r.rows[0]!);
+  const NOW = "2030-01-07T10:00:00Z"; // well after every other read in this file
+
+  it("reserves a slot while there's room, and refuses the one past the hourly limit with when it frees up", async () => {
+    const first = await as("lume_app", { scope: "own" }, (c) => reserve(c, NOW, 1, null));
+    expect(first.id).toMatch(/^[0-9a-f-]{36}$/);
+    const second = await as("lume_app", { scope: "own" }, (c) => reserve(c, NOW, 1, null));
+    expect(second).toMatchObject({ id: null, refused: "hour" });
+    expect(second.hour_oldest!.toISOString()).toBe("2030-01-07T10:00:00.000Z");
+  });
+
+  it("a slot that was never finished stops counting after two minutes", async () => {
+    const later = "2030-01-07T10:03:00Z";
+    expect((await as("lume_app", { scope: "own" }, (c) => reserve(c, later, 1, null))).id).not.toBeNull();
+  });
+
+  it("two reserves at the last slot at once: only one gets it", async () => {
+    const at = "2030-02-04T10:00:00Z";
+    const [a, b] = await Promise.all([
+      as("lume_app", { scope: "own" }, (c) => reserve(c, at, 1, null)),
+      as("lume_app", { scope: "own" }, (c) => reserve(c, at, 1, null)),
+    ]);
+    expect([a.id, b.id].filter(Boolean)).toHaveLength(1);
+  });
+
+  it("finishing a slot sets its status, result and tokens once; the app still can't edit them itself", async () => {
+    const at = "2030-03-04T10:00:00Z";
+    const { id } = await as("lume_app", { scope: "own" }, (c) => reserve(c, at, null, null));
+    await as("lume_app", { scope: "own" }, (c) =>
+      c.query("SELECT lume_ai_finish($1, 'ok', '{\"summary\":\"x\"}'::jsonb, 120, 30)", [id]),
+    );
+    await as("lume_app", { scope: "own" }, (c) =>
+      c.query("SELECT lume_ai_finish($1, 'failed', NULL, 0, 0)", [id]),
+    );
+    const row = await as("lume_app", { scope: "own" }, async (c) =>
+      (await c.query("SELECT status, result, input_tokens FROM ai_reads WHERE id = $1", [id])).rows[0],
+    );
+    expect(row).toEqual({ status: "ok", result: { summary: "x" }, input_tokens: 120 });
+    await expect(
+      as("lume_app", { scope: "own" }, (c) => c.query("UPDATE ai_reads SET status = 'ok' WHERE id = $1", [id])),
+    ).rejects.toThrow(/permission/);
+  });
+});

@@ -71,6 +71,7 @@ describe("the Sheets module", () => {
       webhooks: { enabled: false, manychat: false },
       googleCalendar: { enabled: false, available: false },
       calendly: { connected: false },
+      ai: { enabled: false, available: false, inPlan: true },
     });
     const off = await call(b, "PUT", "/api/v1/integrations/google-sheets", { enabled: true });
     expect(off.statusCode).toBe(409);
@@ -89,6 +90,7 @@ describe("the Sheets module", () => {
       webhooks: { enabled: false, manychat: false },
       googleCalendar: { enabled: false, available: false },
       calendly: { connected: false },
+      ai: { enabled: false, available: false, inPlan: true },
     });
     const [a] = await h.queryAll<{ action: string }>(
       "SELECT action FROM audit_log WHERE action = 'integration.enabled'",

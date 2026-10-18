@@ -178,6 +178,9 @@ export async function createHarness(
     licence?: AppDeps["licence"];
     /** Calendly (5B): where the fake Calendly listens. */
     calendlyEndpoint?: string;
+    /** LUME AI (spec 2026-10-18): the provider (a fake), and how long a read may take. */
+    ai?: AppDeps["ai"];
+    aiTimeoutMs?: number;
   } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
@@ -278,6 +281,8 @@ export async function createHarness(
       ? { calendlyEndpoint: opts.calendlyEndpoint, calendlyWait: async () => undefined }
       : {}),
     ...(opts.licence ? { licence: opts.licence } : {}),
+    ...(opts.ai !== undefined ? { ai: opts.ai } : {}),
+    ...(opts.aiTimeoutMs ? { aiTimeoutMs: opts.aiTimeoutMs } : {}),
   });
 
   const addRole = async (userId: string, grants: Grant[]) => {

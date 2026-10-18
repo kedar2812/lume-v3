@@ -3,7 +3,7 @@ import type pg from "pg";
 import { moduleIncluded, PLAN_MODULES, type PlanClaim, type PlanModule } from "@lume/core";
 import { sql } from "drizzle-orm";
 import { conflict } from "../http/errors";
-import { notify } from "../modules/notifications/notify";
+import { adminIds, notify } from "../modules/notifications/notify";
 
 /**
  * Control each client (spec 2026-10-17 control §2): what this LUME's plan allows — its places and modules — kept from
@@ -135,15 +135,10 @@ export async function applyPlan(
     c.release();
   }
   if (!told.length) return;
-  const { rows: admins } = await pool.query<{ id: string }>(
-    `SELECT u.id FROM users u WHERE u.status = 'active' AND (u.is_owner OR EXISTS (
-       SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id AND r.deleted_at IS NULL
-         JOIN role_permissions rp ON rp.role_id = r.id
-        WHERE ur.user_id = u.id AND rp.permission_key = 'settings.manage'))`,
-  );
+  const admins = await adminIds(pool);
   for (const k of told)
     for (const a of admins)
-      await notify(pool, a.id, {
+      await notify(pool, a, {
         kind: "system_alert",
         title: `${MODULE_NAMES[k]} was switched off`,
         body: "It isn't in this LUME's plan any more. Its settings are kept.",

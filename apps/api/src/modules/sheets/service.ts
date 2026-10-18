@@ -6,6 +6,7 @@ import Papa from "papaparse";
 import {
   can,
   instanceIdOf,
+  moduleIncluded,
   newId,
   sign,
   unseal,
@@ -94,6 +95,12 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
     googleCalendar: { enabled: !!s?.i.googleCalendar?.enabled, available: !!d.googleOAuth },
     // Calendly (5B) is on while it's connected.
     calendly: { connected: !!(await liveCalendly(req)) },
+    // LUME AI (spec 2026-10-18 §2.2): needs a provider set up on this server, and to be in this LUME's plan.
+    ai: {
+      enabled: !!s?.i.ai?.enabled,
+      available: !!d.ai,
+      inPlan: moduleIncluded(req.server.licence.view().plan, "ai"),
+    },
   };
 }
 

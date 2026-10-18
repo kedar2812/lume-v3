@@ -13,7 +13,7 @@ export const aiReads = pgTable("ai_reads", {
   model: text("model").notNull(),
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),
-  status: text("status").$type<"ok" | "failed">().notNull(),
+  status: text("status").$type<"pending" | "ok" | "failed">().notNull(),
   /** The cleaned output (a next step or a catch-up); null when the read failed. */
   result: jsonb("result").$type<Record<string, unknown> | null>(),
   outcome: text("outcome").$type<"applied" | "dismissed" | null>(),

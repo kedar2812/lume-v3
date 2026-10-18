@@ -43,6 +43,17 @@ export function wants(stored: unknown, kind: NotifyKind): boolean {
   return !s || mergePreferences(stored, {}).alerts[s] !== false;
 }
 
+/** The people who manage this LUME: the owner, and anyone whose role manages settings (active only). */
+export async function adminIds(pool: pg.Pool): Promise<string[]> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT u.id FROM users u WHERE u.status = 'active' AND (u.is_owner OR EXISTS (
+       SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id AND r.deleted_at IS NULL
+         JOIN role_permissions rp ON rp.role_id = r.id
+        WHERE ur.user_id = u.id AND rp.permission_key = 'settings.manage'))`,
+  );
+  return rows.map((r) => r.id);
+}
+
 /**
  * Write a notification as its recipient (their own row-level security) and tell the live stream. Nothing
  * for someone who isn't active, or who switched that kind off. Returns its id, or null when skipped.

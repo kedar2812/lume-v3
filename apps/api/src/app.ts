@@ -45,6 +45,7 @@ import { peopleRoutes } from "./modules/people/routes";
 import { analyticsRoutes } from "./modules/analytics/routes";
 import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
+import { aiRoutes } from "./modules/ai/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
@@ -82,6 +83,8 @@ export type AppDeps = {
   imports?: { enqueue(id: string): Promise<void> };
   /** LUME AI (spec 2026-10-18 §2.1): the provider this server reads notes with, or null when none is set up. */
   ai?: AiProvider | null;
+  /** Tests only: how long a read may take before it's given up (20 s otherwise). */
+  aiTimeoutMs?: number;
   /** Where a bulk run over the inline limit is queued (7B: pg-boss in production, a list in tests). */
   bulk?: { enqueue(id: string): Promise<void> };
   /**
@@ -116,7 +119,7 @@ export type AppDeps = {
   /** LUME_MANYCHAT_PRESET=on: offer the ManyChat preset (hidden until verified, 2C spec §2). */
   manychatPreset?: boolean;
   /** Tests only: extra routes registered inside the authenticated scope. */
-  extraRoutes?: (app: FastifyInstance) => void;
+  extraRoutes?: (app: FastifyInstance, deps: AppDeps) => void;
   /** The licence (licensing L-A): how it's checked. Unset: a development build's licence, always active. */
   licence?: LicenceOptions;
 };
@@ -236,7 +239,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(analyticsRoutes, deps);
         await scope.register(securityRoutes, deps);
         await scope.register(leadExportRoutes, deps);
-        deps.extraRoutes?.(scope);
+        await scope.register(aiRoutes, deps);
+        deps.extraRoutes?.(scope, deps);
       },
     });
     return app;
