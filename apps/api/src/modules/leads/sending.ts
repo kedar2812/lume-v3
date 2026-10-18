@@ -193,6 +193,8 @@ export async function confirmSend(
   d: AppDeps,
   id: string,
   body: { sent: boolean; taskId?: string },
+  /** `via: "echo"`: answered by the message itself arriving from the phone (WhatsApp, spec 2026-10-18 §4.1). */
+  o: { via?: "echo" } = {},
 ): Promise<MoveResult> {
   const lead = await sendable(req, id);
   // One answer at a time per lead: a double-tap's second answer waits, then finds the first (Important 1).
@@ -239,6 +241,7 @@ export async function confirmSend(
     ...(from.templateVersionId ? { templateVersionId: from.templateVersionId } : {}),
     ...(used ? { template: used.name } : {}),
     ...(from.queueId ? { queueId: from.queueId } : {}),
+    ...(o.via ? { via: o.via } : {}),
   });
   const now = new Date();
   await req.db
@@ -271,5 +274,10 @@ export async function logReply(req: FastifyRequest, id: string): Promise<MoveRes
     .update(schema.leads)
     .set({ lastReplyAt: now, lastActivityAt: now })
     .where(eq(schema.leads.id, id));
-  return applyMove(req, await visibleLead(req, id), await stageMoveOf(req, lead, "reply"));
+  return replyArrived(req, await visibleLead(req, id));
+}
+
+/** What a reply does to a lead, tapped or arrived on WhatsApp (spec 2026-10-18 §4.1): the stage's reply move. */
+export async function replyArrived(req: FastifyRequest, lead: LeadRow): Promise<MoveResult> {
+  return applyMove(req, lead, await stageMoveOf(req, lead, "reply"));
 }

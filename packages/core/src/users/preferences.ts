@@ -9,7 +9,14 @@ export type Preferences = {
   digestTime: string;
   sounds: { enabled: boolean; volume: number };
   /** weeklyAnalytics (8B): the Monday email of last week's numbers, for those who see all analytics; on unless switched off. */
-  alerts: { assigned: boolean; dueFollowUps: boolean; emailDigest: boolean; weeklyAnalytics?: boolean };
+  alerts: {
+    assigned: boolean;
+    dueFollowUps: boolean;
+    emailDigest: boolean;
+    weeklyAnalytics?: boolean;
+    /** A lead replies on WhatsApp (spec 2026-10-18 §4.2). Absent: on. */
+    replies?: boolean;
+  };
 };
 
 export const PREFERENCES_DEFAULTS: Preferences = {
@@ -33,6 +40,7 @@ const full = z.strictObject({
     dueFollowUps: z.boolean(),
     emailDigest: z.boolean(),
     weeklyAnalytics: z.boolean().optional(),
+    replies: z.boolean().optional(),
   }),
 });
 

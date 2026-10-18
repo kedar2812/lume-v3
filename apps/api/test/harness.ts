@@ -42,6 +42,7 @@ import { loadActor, type ActorRecord } from "../src/rbac/actor";
 import { startGoogleFake, type GoogleFake } from "./google-fake";
 import { createLimiter } from "../src/modules/webhooks/limits";
 import { processEvent } from "../src/modules/webhooks/process";
+import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
@@ -152,6 +153,8 @@ export type Harness = {
   whatsappQueued: number[];
   /** WhatsApp media queued for fetching (Task 7). */
   whatsappMediaQueued: string[];
+  /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
+  runWhatsApp(): Promise<void>;
   /** Calendar connections whose sync was asked for (5A), in order. */
   calendarQueue: string[];
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
@@ -259,7 +262,7 @@ export async function createHarness(
   const googleOAuth = opts.oauth ? { relayUrl: "", relayToken: opts.oauth.relayToken } : null;
   const clientFor = oauthClientFor(googleOAuth, fake?.url);
 
-  const app = await buildApp({
+  const deps: AppDeps = {
     pool,
     keyring,
     mailer,
@@ -296,7 +299,8 @@ export async function createHarness(
       enqueue: async (id) => void whatsappQueued.push(id),
       enqueueMedia: async (id) => void whatsappMediaQueued.push(id),
     },
-  });
+  };
+  const app = await buildApp(deps);
 
   const addRole = async (userId: string, grants: Grant[]) => {
     const roleId = newId();
@@ -494,6 +498,10 @@ export async function createHarness(
     reminderQueue,
     failReminderQueue(on) {
       reminderQueueDown = on;
+    },
+    async runWhatsApp() {
+      for (let id = whatsappQueued.shift(); id; id = whatsappQueued.shift())
+        await processWhatsAppEvent({ app, d: deps }, id);
     },
     async runWebhooks() {
       for (let id = webhookQueue.shift(); id; id = webhookQueue.shift())

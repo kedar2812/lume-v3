@@ -11,6 +11,7 @@ import { startSheetsQueue } from "./modules/sheets/queue";
 import { calendarClientFor } from "./modules/calendar/google";
 import { startCalendarQueue } from "./modules/calendar/queue";
 import { startWebhookQueue } from "./modules/webhooks/queue";
+import { startWhatsAppQueue } from "./modules/whatsapp/queue";
 import { startTaskQueue } from "./modules/tasks/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
@@ -74,12 +75,17 @@ const webhooks: { enqueue(id: number): Promise<void> } = { enqueue: async () => 
 const tasks: NonNullable<AppDeps["tasks"]> = {
   enqueue: async () => undefined,
 };
+// WhatsApp (spec 2026-10-18 §4): filled once its queue is up; the sweep queues anything accepted meanwhile.
+const whatsapp: NonNullable<AppDeps["whatsapp"]> = {
+  enqueue: async () => undefined,
+  enqueueMedia: async () => undefined,
+};
 
 const mailer = createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`);
 
 // The licence (L-A): a release image checks and enforces; a development build is always active.
 const licence = resolveLicence({ env: process.env, release: isReleaseBuild(), version: appVersion(cfg) });
-const app = await buildApp({
+const deps: AppDeps = {
   pool,
   keyring,
   imports,
@@ -119,7 +125,9 @@ const app = await buildApp({
   argon2: ARGON2_PRODUCTION,
   logger: { level: cfg.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: "[redacted]" } },
   licence,
-});
+  whatsapp,
+};
+const app = await buildApp(deps);
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
 imports.enqueue = queue.enqueue;
 const bulkQueue = await startBulkQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, tasks });
@@ -157,6 +165,9 @@ const webhookQueue = await startWebhookQueue({
   tasks, // filled in once the follow-up queue is running, below
 });
 webhooks.enqueue = webhookQueue.enqueue;
+const whatsappQueue = await startWhatsAppQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
+whatsapp.enqueue = whatsappQueue.enqueue;
+whatsapp.enqueueMedia = whatsappQueue.enqueueMedia;
 const taskQueue = await startTaskQueue({
   connectionString: cfg.DATABASE_URL_APP,
   app,
@@ -177,6 +188,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, async () => {
     await taskQueue.stop();
     await webhookQueue.stop();
+    await whatsappQueue.stop();
     await sheetQueue?.stop();
     await calendarQueue?.stop();
     await queue.stop();

@@ -13,5 +13,7 @@ export const QUEUE_NAMES = [
   "webhooks.retention",
   "tasks.fire",
   "notifications.retention",
+  "whatsapp.process",
+  "whatsapp.media",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

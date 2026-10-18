@@ -16,7 +16,8 @@ export type NotifyKind =
   | "meeting_booked"
   | "meeting_cancelled"
   | "security_alert"
-  | "bulk_done";
+  | "bulk_done"
+  | "lead_replied";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */
@@ -33,6 +34,7 @@ const SWITCH: Partial<Record<NotifyKind, keyof Preferences["alerts"]>> = {
   follow_up_soon: "dueFollowUps",
   follow_up_assigned: "assigned",
   lead_assigned: "assigned",
+  lead_replied: "replies",
 };
 /**
  * Whether this person wants this kind. Escalations to managers, and a manager's "Remind them", always go:
