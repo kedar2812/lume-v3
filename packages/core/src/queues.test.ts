@@ -17,6 +17,8 @@ describe("QUEUE_NAMES", () => {
       "webhooks.retention",
       "tasks.fire",
       "notifications.retention",
+      "whatsapp.process",
+      "whatsapp.media",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });

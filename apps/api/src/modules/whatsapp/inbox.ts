@@ -68,6 +68,18 @@ export async function makeLead(req: FastifyRequest, numberId: string, peer: stri
   const name = rows.findLast((m) => m.name)?.name ?? peer;
   const { lead } = await createLead(req, { name, phone: peer, ownerId: n?.owner ?? null });
   for (const m of rows) {
+    // A file keeps what it is (a photo stays a photo on the lead).
+    const [f] = m.mediaId
+      ? await req.db
+          .select({
+            kind: schema.whatsappMedia.kind,
+            mime: schema.whatsappMedia.mime,
+            filename: schema.whatsappMedia.filename,
+            voice: schema.whatsappMedia.voice,
+          })
+          .from(schema.whatsappMedia)
+          .where(eq(schema.whatsappMedia.id, m.mediaId))
+      : [];
     await req.db.insert(schema.activities).values({
       id: newId(),
       leadId: lead.id,
@@ -79,7 +91,7 @@ export async function makeLead(req: FastifyRequest, numberId: string, peer: stri
         wamid: m.wamid,
         numberId,
         ...(m.name ? { name: m.name } : {}),
-        ...(m.mediaId ? { media: { id: m.mediaId } } : {}),
+        ...(m.mediaId ? { media: { id: m.mediaId, ...(f ?? {}) } } : {}),
       },
     });
     if (m.mediaId)

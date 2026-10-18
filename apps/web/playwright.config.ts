@@ -105,7 +105,8 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: "node ../../scripts/bundle.mjs . e2e/relay.ts e2e/.artifacts/relay.mjs && node e2e/.artifacts/relay.mjs",
+      command:
+        "node ../../scripts/bundle.mjs . e2e/relay.ts e2e/.artifacts/relay.mjs && node e2e/.artifacts/relay.mjs",
       url: "http://127.0.0.1:3115/healthz",
       reuseExistingServer: false,
       timeout: 60_000,

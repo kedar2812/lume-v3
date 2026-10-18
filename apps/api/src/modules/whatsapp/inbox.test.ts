@@ -166,4 +166,40 @@ describe("Not a lead yet", () => {
     await sweepWhatsApp(h.ownerPool);
     expect((await h.ownerPool.query("SELECT count(*) FROM whatsapp_events")).rows[0].count).toBe("0");
   });
+
+  it("a stranger's photo stays a photo on the lead it becomes", async () => {
+    expect(
+      (
+        await deliver(
+          h,
+          inbound({
+            from: "919000000777",
+            name: "Ravi K",
+            id: "wamid.P9",
+            at: h.clock.now.toISOString(),
+            type: "image",
+            image: { id: "MP9", mime_type: "image/jpeg" },
+          }),
+        )
+      ).statusCode,
+    ).toBe(200);
+    await h.runWhatsApp();
+    const r = await (
+      await h.signIn(rep)
+    ).inject({
+      method: "POST",
+      url: `/api/v1/whatsapp/inbox/${numberId}/${encodeURIComponent(STRANGER)}/lead`,
+    });
+    const leadId = r.json().leadId as string;
+    const thread = (
+      await (await h.signIn(rep)).inject({ method: "GET", url: `/api/v1/leads/${leadId}/whatsapp` })
+    ).json();
+    expect(thread.messages[0].media).toEqual({
+      id: expect.any(String),
+      kind: "image",
+      mime: "image/jpeg",
+      filename: null,
+      voice: false,
+    });
+  });
 });
