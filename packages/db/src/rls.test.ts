@@ -753,12 +753,17 @@ describe("LUME AI's slots: reserved under one lock, then finished (spec 2026-10-
     await as("lume_app", { scope: "own" }, (c) =>
       c.query("SELECT lume_ai_finish($1, 'failed', NULL, 0, 0)", [id]),
     );
-    const row = await as("lume_app", { scope: "own" }, async (c) =>
-      (await c.query("SELECT status, result, input_tokens FROM ai_reads WHERE id = $1", [id])).rows[0],
+    const row = await as(
+      "lume_app",
+      { scope: "own" },
+      async (c) =>
+        (await c.query("SELECT status, result, input_tokens FROM ai_reads WHERE id = $1", [id])).rows[0],
     );
     expect(row).toEqual({ status: "ok", result: { summary: "x" }, input_tokens: 120 });
     await expect(
-      as("lume_app", { scope: "own" }, (c) => c.query("UPDATE ai_reads SET status = 'ok' WHERE id = $1", [id])),
+      as("lume_app", { scope: "own" }, (c) =>
+        c.query("UPDATE ai_reads SET status = 'ok' WHERE id = $1", [id]),
+      ),
     ).rejects.toThrow(/permission/);
   });
 });

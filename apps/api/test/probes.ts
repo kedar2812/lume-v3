@@ -705,6 +705,28 @@ export const PROBES: Record<string, Probe> = {
     path: () => "/api/v1/analytics/drilldown?token=not-a-real-token-at-all",
   },
   // 8A: a call, logged as contact.
+  // LUME AI (spec 2026-10-18 §2.2, §5.2–5.3): its status for anyone, its switch for admins, reads on a lead.
+  "GET /api/v1/ai": { access: "auth.self" },
+  "PUT /api/v1/integrations/ai": { access: "integrations.manage", body: () => ({ enabled: false }) },
+  "POST /api/v1/leads/:id/ai/next-step": {
+    access: "leads.edit",
+    path: (f) => `/api/v1/leads/${f.leadId}/ai/next-step`,
+    body: () => ({ activityId: uuid }),
+  },
+  "POST /api/v1/ai/reads/:id/apply": {
+    access: "leads.edit",
+    path: () => `/api/v1/ai/reads/${uuid}/apply`,
+    body: () => ({ stage: false, followUp: false, tags: false }),
+  },
+  "POST /api/v1/ai/reads/:id/dismiss": {
+    access: "leads.edit",
+    path: () => `/api/v1/ai/reads/${uuid}/dismiss`,
+  },
+  "GET /api/v1/leads/:id/ai": { access: "leads.view", path: (f) => `/api/v1/leads/${f.leadId}/ai` },
+  "POST /api/v1/leads/:id/ai/catch-up": {
+    access: "leads.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/ai/catch-up`,
+  },
   "POST /api/v1/leads/:id/calls": {
     access: "leads.edit",
     path: (f) => `/api/v1/leads/${f.leadId}/calls`,

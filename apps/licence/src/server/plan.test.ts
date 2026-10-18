@@ -85,7 +85,14 @@ describe("the plan, signed", () => {
     expect(v1).not.toHaveProperty("aiReadsHourly");
     expect((await payloadOf(await post(c, ["announcements", "plan", "plan2"]), c.instanceId))!.plan).toEqual({
       places: 5,
-      modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true, ai: false, whatsapp: true },
+      modules: {
+        googleSheets: true,
+        webhooks: true,
+        googleCalendar: true,
+        calendly: true,
+        ai: false,
+        whatsapp: true,
+      },
       aiReadsHourly: 100,
       aiReadsWeekly: 750,
     });
@@ -109,7 +116,14 @@ describe("PATCH /api/clients/:id/plan", () => {
     });
     expect(r.plan).toEqual({
       places: 5,
-      modules: { googleSheets: false, webhooks: true, googleCalendar: true, calendly: false, ai: true, whatsapp: true },
+      modules: {
+        googleSheets: false,
+        webhooks: true,
+        googleCalendar: true,
+        calendly: false,
+        ai: true,
+        whatsapp: true,
+      },
       aiReadsHourly: null,
       aiReadsWeekly: null,
     });
@@ -124,7 +138,12 @@ describe("PATCH /api/clients/:id/plan", () => {
   it("keeps the AI limits and says them in the history", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
     await post(c, ["announcements", "plan", "plan2"], ["ai"]);
-    const r = await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiReadsHourly: 40, aiReadsWeekly: 250 });
+    const r = await patchPlan(ctx, c.clientId, {
+      places: null,
+      modules: {},
+      aiReadsHourly: 40,
+      aiReadsWeekly: 250,
+    });
     expect(r.plan).toMatchObject({ aiReadsHourly: 40, aiReadsWeekly: 250 });
     expect(r.usage).toMatchObject({ modulesOn: ["ai"], knowsAi: true });
     expect(r.history[0]).toMatchObject({

@@ -230,8 +230,8 @@ export function PlanLimits({
         <span className="pl-label">LUME AI limits</span>
         {usage.knows && !usage.knowsAi && (
           <span className="note">
-            Their LUME{version ? ` (${version})` : ""} can’t keep LUME AI and WhatsApp settings yet; it will once
-            it’s updated.
+            Their LUME{version ? ` (${version})` : ""} can’t keep LUME AI and WhatsApp settings yet; it will
+            once it’s updated.
           </span>
         )}
         <div className="pl-row">
@@ -269,7 +269,12 @@ export function PlanLimits({
         </p>
       )}
       <div className="pl-row">
-        <button type="button" className="btn primary" disabled={!dirty || busy || invalid} onClick={() => void save()}>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={!dirty || busy || invalid}
+          onClick={() => void save()}
+        >
           {busy ? "Saving…" : "Save"}
         </button>
         {saved && (

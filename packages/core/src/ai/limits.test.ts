@@ -14,8 +14,12 @@ describe("the windows", () => {
     expect(w.nextWeekStart.toISOString()).toBe("2026-10-25T18:30:00.000Z"); // Mon 26 Oct 00:00 IST
   });
   it("on Monday just after midnight it's already the new week; on Sunday 23:59 still the old one", () => {
-    expect(aiWindows(at("2026-10-25T18:31:00Z"), TZ).weekStart.toISOString()).toBe("2026-10-25T18:30:00.000Z");
-    expect(aiWindows(at("2026-10-25T18:29:00Z"), TZ).weekStart.toISOString()).toBe("2026-10-18T18:30:00.000Z");
+    expect(aiWindows(at("2026-10-25T18:31:00Z"), TZ).weekStart.toISOString()).toBe(
+      "2026-10-25T18:30:00.000Z",
+    );
+    expect(aiWindows(at("2026-10-25T18:29:00Z"), TZ).weekStart.toISOString()).toBe(
+      "2026-10-18T18:30:00.000Z",
+    );
   });
 });
 
@@ -23,7 +27,12 @@ describe("the state", () => {
   const now = at("2026-10-21T10:00:00Z");
   const limits = { hourly: 2, weekly: 10 };
   it("no limits: never paused", () => {
-    const s = aiLimitState({ hourN: 500, hourOldest: now, weekN: 9000 }, { hourly: null, weekly: null }, now, TZ);
+    const s = aiLimitState(
+      { hourN: 500, hourOldest: now, weekN: 9000 },
+      { hourly: null, weekly: null },
+      now,
+      TZ,
+    );
     expect(s.paused).toBeNull();
     expect(s.hour.limit).toBeNull();
   });
@@ -53,7 +62,9 @@ describe("when LUME AI is back, in words", () => {
   const now = at("2026-10-21T10:00:00Z"); // 3:30 pm in Kolkata
   it("the hour: a time today, or tomorrow", () => {
     expect(backWords({ by: "hour", until: "2026-10-21T10:10:00.000Z" }, now, TZ)).toBe("at 3:40 pm");
-    expect(backWords({ by: "hour", until: "2026-10-21T18:40:00.000Z" }, now, TZ)).toBe("tomorrow at 12:10 am");
+    expect(backWords({ by: "hour", until: "2026-10-21T18:40:00.000Z" }, now, TZ)).toBe(
+      "tomorrow at 12:10 am",
+    );
   });
   it("the week: the day", () => {
     expect(backWords({ by: "week", until: "2026-10-25T18:30:00.000Z" }, now, TZ)).toBe("Monday");

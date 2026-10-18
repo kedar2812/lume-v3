@@ -33,7 +33,14 @@ describe("the plan in the signed answer", () => {
   it("verifies with places and the four modules, and LUME says it can keep one", () => {
     const t = signLicence(payload({ plan }), privateKey);
     expect(verifyLicence(t, keys, "LUME-K7RD-2MXQ")?.plan).toEqual(plan);
-    expect(PLAN_MODULES).toEqual(["googleSheets", "webhooks", "googleCalendar", "calendly", "ai", "whatsapp"]);
+    expect(PLAN_MODULES).toEqual([
+      "googleSheets",
+      "webhooks",
+      "googleCalendar",
+      "calendly",
+      "ai",
+      "whatsapp",
+    ]);
     expect(ACCEPTS).toEqual(["announcements", "plan", "plan2"]);
   });
   it("refuses a module it doesn't know, or places out of bounds", () => {
@@ -51,7 +58,12 @@ describe("the plan in the signed answer", () => {
     expect(moduleIncluded(p, "whatsapp")).toBe(true);
     expect(moduleIncluded(p, "calendly")).toBe(false);
     expect(moduleIncluded(null, "calendly")).toBe(true);
-    const v2 = { ...plan, modules: { ...plan.modules, ai: false, whatsapp: true }, aiReadsHourly: 100, aiReadsWeekly: 750 };
+    const v2 = {
+      ...plan,
+      modules: { ...plan.modules, ai: false, whatsapp: true },
+      aiReadsHourly: 100,
+      aiReadsWeekly: 750,
+    };
     const back = verifyLicence(signLicence(payload({ plan: v2 }), privateKey), keys, "LUME-K7RD-2MXQ")!.plan!;
     expect(back).toEqual(v2);
     expect(moduleIncluded(back, "ai")).toBe(false);

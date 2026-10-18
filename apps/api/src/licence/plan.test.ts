@@ -101,23 +101,33 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     await check();
     await check();
     expect((sent.at(-1)!.health as { modulesOn: string[] }).modulesOn).not.toContain("ai");
-    plan = { places: null, modules: { ...all, ai: true, whatsapp: true }, aiReadsHourly: null, aiReadsWeekly: null };
+    plan = {
+      places: null,
+      modules: { ...all, ai: true, whatsapp: true },
+      aiReadsHourly: null,
+      aiReadsWeekly: null,
+    };
     await check();
     await check();
     expect((sent.at(-1)!.health as { modulesOn: string[] }).modulesOn).toContain("ai");
-    await h.ownerPool.query(
-      `UPDATE settings SET integrations = integrations - 'ai' WHERE id = 1`,
-    );
+    await h.ownerPool.query(`UPDATE settings SET integrations = integrations - 'ai' WHERE id = 1`);
   });
 
   it("switches LUME AI off once when the plan leaves it out", async () => {
     await h.ownerPool.query(
       `UPDATE settings SET integrations = jsonb_set(integrations, '{ai}', '{"enabled": true}'::jsonb) WHERE id = 1`,
     );
-    plan = { places: null, modules: { ...all, ai: false, whatsapp: true }, aiReadsHourly: null, aiReadsWeekly: null };
+    plan = {
+      places: null,
+      modules: { ...all, ai: false, whatsapp: true },
+      aiReadsHourly: null,
+      aiReadsWeekly: null,
+    };
     await check();
     await check();
-    const s = await h.ownerPool.query("SELECT integrations -> 'ai' ->> 'enabled' AS on FROM settings WHERE id = 1");
+    const s = await h.ownerPool.query(
+      "SELECT integrations -> 'ai' ->> 'enabled' AS on FROM settings WHERE id = 1",
+    );
     expect(s.rows[0].on).toBe("false");
     const audits = await h.ownerPool.query(
       "SELECT diff FROM audit_log WHERE action = 'integration.disabled' AND diff ->> 'by' = 'plan' AND diff ->> 'module' = 'ai'",

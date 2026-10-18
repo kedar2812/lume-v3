@@ -58,8 +58,14 @@ export function aiLimitState(u: AiUsage, limits: AiLimits, now: Date, tz: string
 /** "at 3:40 pm", "tomorrow at 12:10 am", or "Monday": when LUME AI is back, on the business's clock. */
 export function backWords(p: AiPause, now: Date, tz: string): string {
   const until = new Date(p.until);
-  if (p.by === "week") return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(until);
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true })
+  if (p.by === "week")
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(until);
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
     .format(until)
     .replace(/\s?([AP])M$/, (_, x: string) => ` ${x.toLowerCase()}m`);
   const a = localDay(now, tz);

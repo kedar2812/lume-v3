@@ -168,7 +168,10 @@ export function said(e: Detail["history"][number]): { text: string; color: strin
       const week = n(d.aiReadsWeekly);
       const ai =
         hour || week
-          ? `; LUME AI ${[hour && `${hour} reads an hour`, week && `${week} ${hour ? "a week" : "reads a week"}`]
+          ? `; LUME AI ${[
+              hour && `${hour} reads an hour`,
+              week && `${week} ${hour ? "a week" : "reads a week"}`,
+            ]
               .filter(Boolean)
               .join(", ")}`
           : "";

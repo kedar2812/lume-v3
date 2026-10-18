@@ -11,7 +11,14 @@ vi.mock("@/lib/client", () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), del: vi.fn() },
 }));
 
-const all = { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true, ai: true, whatsapp: true };
+const all = {
+  googleSheets: true,
+  webhooks: true,
+  googleCalendar: true,
+  calendly: true,
+  ai: true,
+  whatsapp: true,
+};
 const card = (o: Partial<Parameters<typeof PlanLimits>[0]> = {}) =>
   render(
     <PlanLimits
@@ -66,7 +73,9 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
   it("on a LUME that can keep a plan but not LUME AI's limits yet, says so", () => {
     card({ usage: { people: 3, modulesOn: [], knows: true, knowsAi: false } });
     expect(
-      screen.getByText("Their LUME (1.5.0) can’t keep LUME AI and WhatsApp settings yet; it will once it’s updated."),
+      screen.getByText(
+        "Their LUME (1.5.0) can’t keep LUME AI and WhatsApp settings yet; it will once it’s updated.",
+      ),
     ).toBeInTheDocument();
   });
 

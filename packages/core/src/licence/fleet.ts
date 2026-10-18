@@ -16,7 +16,14 @@ export const HEALTH_PROBLEMS = [
 export type HealthProblem = (typeof HEALTH_PROBLEMS)[number];
 
 /** The modules a plan can leave out (spec 2026-10-17 control §1): LUME's optional ones, by these keys only. */
-export const PLAN_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly", "ai", "whatsapp"] as const;
+export const PLAN_MODULES = [
+  "googleSheets",
+  "webhooks",
+  "googleCalendar",
+  "calendly",
+  "ai",
+  "whatsapp",
+] as const;
 /** The modules every licence server since Control signs; `ai` and `whatsapp` only go to a LUME that accepts plan2. */
 export const PLAN_V1_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly"] as const;
 export type PlanModule = (typeof PLAN_MODULES)[number];
