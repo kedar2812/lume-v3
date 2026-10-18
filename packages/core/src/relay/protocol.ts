@@ -11,10 +11,21 @@ import {
 /** What the relay hands back to an instance, sealed with that instance's token (2B spec §6). */
 export type Handoff = {
   nonce: string;
-  refreshToken: string;
-  /** What the grant is for: a sheet (with the picked file) or a calendar (Phase 5A; no file). Absent: a sheet. */
-  kind?: "sheet" | "calendar";
+  /** Google's grant (a sheet's or a calendar's); a WhatsApp hand-back carries `whatsapp` instead. */
+  refreshToken?: string;
+  /** What the grant is for: a sheet (with the picked file), a calendar (Phase 5A; no file) or a WhatsApp number. */
+  kind?: "sheet" | "calendar" | "whatsapp";
   file?: { id: string; name: string };
+  /** A connected WhatsApp number (spec 2026-10-18 §3.2): the client's business token, sealed for its LUME only. */
+  whatsapp?: {
+    token: string;
+    wabaId: string;
+    phoneNumberId: string;
+    display: string;
+    name: string | null;
+    /** Whether Meta took the request to share past chats. */
+    history: boolean;
+  };
   exp: number;
 };
 
