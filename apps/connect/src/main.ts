@@ -30,11 +30,19 @@ const env = z
     META_CONFIG_ID: z.string().regex(/^\d+$/).optional(),
     META_VERIFY_TOKEN: z.string().min(16).optional(),
     META_GRAPH_URL: z.url({ protocol: /^https?$/ }).default("https://graph.facebook.com"),
-    META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v23.0"),
+    META_GRAPH_VERSION: z
+      .string()
+      .regex(/^v\d+\.\d+$/)
+      .default("v23.0"),
   })
   .refine(
-    (c) => [c.META_APP_ID, c.META_APP_SECRET, c.META_CONFIG_ID, c.META_VERIFY_TOKEN].filter(Boolean).length % 4 === 0,
-    { path: ["META_APP_ID"], message: "set all of META_APP_ID, META_APP_SECRET, META_CONFIG_ID and META_VERIFY_TOKEN, or none" },
+    (c) =>
+      [c.META_APP_ID, c.META_APP_SECRET, c.META_CONFIG_ID, c.META_VERIFY_TOKEN].filter(Boolean).length % 4 ===
+      0,
+    {
+      path: ["META_APP_ID"],
+      message: "set all of META_APP_ID, META_APP_SECRET, META_CONFIG_ID and META_VERIFY_TOKEN, or none",
+    },
   )
   .safeParse(process.env);
 

@@ -135,20 +135,35 @@ describe("connecting a WhatsApp number (Embedded Signup)", () => {
       },
     });
     const sub = meta.calls.find((c) => c.path.endsWith("/102290129340398/subscribed_apps"))!;
-    expect(sub.body).toEqual({ override_callback_uri: `http://relay.test/wa/in/${ID}`, verify_token: meta.verifyToken });
-    const syncs = meta.calls.filter((c) => c.path.endsWith("/smb_app_data")).map((c) => (c.body as { sync_type: string }).sync_type);
+    expect(sub.body).toEqual({
+      override_callback_uri: `http://relay.test/wa/in/${ID}`,
+      verify_token: meta.verifyToken,
+    });
+    const syncs = meta.calls
+      .filter((c) => c.path.endsWith("/smb_app_data"))
+      .map((c) => (c.body as { sync_type: string }).sync_type);
     expect(syncs).toEqual(["smb_app_state_sync", "history"]);
   });
 
   it("a history sync Meta refuses still connects, and says so", async () => {
     meta.failHistorySync = true;
-    const r = await done({ state: await stateFrom("n2"), code: "good-code", waba_id: "102290129340398", phone_number_id: "106540352242922" });
+    const r = await done({
+      state: await stateFrom("n2"),
+      code: "good-code",
+      waba_id: "102290129340398",
+      phone_number_id: "106540352242922",
+    });
     const p = new URL(r.headers.get("location")!).searchParams.get("p")!;
     expect(unseal<Handoff>(TOKEN, p)?.whatsapp?.history).toBe(false);
   });
 
   it("a code Meta refuses is said in words, with a way back to LUME", async () => {
-    const r = await done({ state: await stateFrom("n3"), code: "bad-code", waba_id: "102290129340398", phone_number_id: "106540352242922" });
+    const r = await done({
+      state: await stateFrom("n3"),
+      code: "bad-code",
+      waba_id: "102290129340398",
+      phone_number_id: "106540352242922",
+    });
     expect(r.status).toBe(400);
     const html = await r.text();
     expect(html).toContain("Back to LUME");
@@ -156,15 +171,21 @@ describe("connecting a WhatsApp number (Embedded Signup)", () => {
   });
 
   it("done refuses a forged state, and ids that aren't Meta's", async () => {
-    expect((await done({ state: "x.y", code: "good-code", waba_id: "102290129340398", phone_number_id: "2" })).status).toBe(400);
+    expect(
+      (await done({ state: "x.y", code: "good-code", waba_id: "102290129340398", phone_number_id: "2" }))
+        .status,
+    ).toBe(400);
     const s = await stateFrom("n4");
-    expect((await done({ state: s, code: "good-code", waba_id: "../x", phone_number_id: "2" })).status).toBe(400);
+    expect((await done({ state: s, code: "good-code", waba_id: "../x", phone_number_id: "2" })).status).toBe(
+      400,
+    );
   });
 });
 
 describe("Meta's deliveries", () => {
   it("the verify handshake: the right token gets the challenge back, a wrong one doesn't", async () => {
-    const q = (t: string) => `${base}/wa/in/${ID}?hub.mode=subscribe&hub.verify_token=${t}&hub.challenge=12345`;
+    const q = (t: string) =>
+      `${base}/wa/in/${ID}?hub.mode=subscribe&hub.verify_token=${t}&hub.challenge=12345`;
     const ok = await fetch(q(meta.verifyToken));
     expect(ok.status).toBe(200);
     expect(await ok.text()).toBe("12345");
@@ -177,7 +198,15 @@ describe("Meta's deliveries", () => {
     expect(forwarded).toHaveLength(1);
     const f = forwarded[0]!;
     expect(f.raw.toString()).toBe(JSON.stringify(inbound()));
-    expect(relayCheck(TOKEN, f.headers["x-lume-timestamp"] as string, f.headers["x-lume-signature"] as string, f.raw, Date.now())).toBe("ok");
+    expect(
+      relayCheck(
+        TOKEN,
+        f.headers["x-lume-timestamp"] as string,
+        f.headers["x-lume-signature"] as string,
+        f.raw,
+        Date.now(),
+      ),
+    ).toBe("ok");
   });
 
   it("not signed by Meta: 401, nothing forwarded; an unknown instance: 404", async () => {
@@ -197,7 +226,9 @@ describe("Meta's deliveries", () => {
   });
 
   it("a body over 3 MB is refused", async () => {
-    expect((await meta.deliver(`${base}/wa/in/${ID}`, { pad: "x".repeat(3 * 1024 * 1024) })).status).toBe(413);
+    expect((await meta.deliver(`${base}/wa/in/${ID}`, { pad: "x".repeat(3 * 1024 * 1024) })).status).toBe(
+      413,
+    );
   });
 
   it("a relay without Meta's settings has no WhatsApp routes, and Google's still work", async () => {

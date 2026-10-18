@@ -46,6 +46,7 @@ import { analyticsRoutes } from "./modules/analytics/routes";
 import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { aiRoutes } from "./modules/ai/routes";
+import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
@@ -102,6 +103,11 @@ export type AppDeps = {
   googleOAuth?: { relayUrl: string; relayToken: string } | null;
   /** Tests and e2e only: where the Google APIs are (the fake). */
   googleEndpoint?: string;
+  /**
+   * WhatsApp (spec 2026-10-18 §3): Meta's Graph API, which this server calls with each number's own token (media,
+   * disconnecting). Connecting goes through the relay (googleOAuth), so WhatsApp needs both.
+   */
+  meta?: { graphUrl: string; version: string } | null;
   /** Tests and e2e only: where Calendly's API is (the fake, 5B). */
   calendlyEndpoint?: string;
   /** Tests only: how the Calendly client waits between retries (no real 1-2-4 s). */
@@ -240,6 +246,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(securityRoutes, deps);
         await scope.register(leadExportRoutes, deps);
         await scope.register(aiRoutes, deps);
+        await scope.register(whatsappRoutes, deps);
         deps.extraRoutes?.(scope, deps);
       },
     });

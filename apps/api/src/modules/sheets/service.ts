@@ -96,6 +96,12 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
     // Calendly (5B) is on while it's connected.
     calendly: { connected: !!(await liveCalendly(req)) },
     // LUME AI (spec 2026-10-18 §2.2): needs a provider set up on this server, and to be in this LUME's plan.
+    whatsapp: {
+      enabled: !!s?.i.whatsapp?.enabled,
+      // Connecting goes through the relay, and the server calls Meta itself afterwards.
+      available: !!d.googleOAuth && !!d.meta,
+      inPlan: moduleIncluded(req.server.licence.view().plan, "whatsapp"),
+    },
     ai: {
       enabled: !!s?.i.ai?.enabled,
       available: !!d.ai,

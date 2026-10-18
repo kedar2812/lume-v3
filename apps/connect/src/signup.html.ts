@@ -3,7 +3,13 @@
  * "connect my existing WhatsApp Business app number" and scans the code with the phone. Meta's popup tells this page
  * the account and number ids; the login callback gives a one-time code. Both go to /wa/done; nothing else leaves.
  */
-export function signupPage(o: { appId: string; configId: string; version: string; state: string; back: string | null }) {
+export function signupPage(o: {
+  appId: string;
+  configId: string;
+  version: string;
+  state: string;
+  back: string | null;
+}) {
   const js = (v: string) => JSON.stringify(v).replace(/</g, "\\u003c");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Connect WhatsApp · LUME</title>

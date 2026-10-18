@@ -72,7 +72,8 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         return send(res, 200, { ok: true });
       }
       if (u.pathname.startsWith("/download/")) {
-        if (!auth || !tokens().has(auth) || state.revoked.has(auth)) return send(res, 401, oauthError(190, "Invalid token"));
+        if (!auth || !tokens().has(auth) || state.revoked.has(auth))
+          return send(res, 401, oauthError(190, "Invalid token"));
         const m = state.media.get(u.pathname.slice("/download/".length));
         if (!m) return send(res, 404, oauthError(100, "Not found"));
         res.writeHead(200, { "content-type": m.mime, "content-length": String(m.bytes.length) });
@@ -85,7 +86,10 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
 
       if (parts[0] === "oauth" && parts[1] === "access_token") {
         const token = state.codes.get(u.searchParams.get("code") ?? "");
-        if (u.searchParams.get("client_id") !== state.appId || u.searchParams.get("client_secret") !== state.appSecret)
+        if (
+          u.searchParams.get("client_id") !== state.appId ||
+          u.searchParams.get("client_secret") !== state.appSecret
+        )
           return send(res, 400, oauthError(1, "Invalid client"));
         if (!token) return send(res, 400, oauthError(100, "Invalid verification code format."));
         return send(res, 200, { access_token: token, token_type: "bearer" });
@@ -128,7 +132,11 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     deliver: (to: string, body: unknown) => {
       const raw = Buffer.from(JSON.stringify(body));
       const sig = `sha256=${createHmac("sha256", state.appSecret).update(raw).digest("hex")}`;
-      return fetch(to, { method: "POST", headers: { "content-type": "application/json", "x-hub-signature-256": sig }, body: raw });
+      return fetch(to, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-hub-signature-256": sig },
+        body: raw,
+      });
     },
     close: () => new Promise<void>((r) => server.close(() => r())),
   });

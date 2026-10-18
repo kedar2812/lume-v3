@@ -93,6 +93,13 @@ const app = await buildApp({
   tasks,
   manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",
   googleOAuth,
+  // WhatsApp connects through the relay: without it there's no WhatsApp on this server.
+  meta: googleOAuth
+    ? {
+        graphUrl: cfg.META_GRAPH_URL ?? "https://graph.facebook.com",
+        version: cfg.META_GRAPH_VERSION ?? "v23.0",
+      }
+    : null,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   mailer,
   config: { publicUrl, cookieSecure: true, version: appVersion(cfg) },

@@ -96,6 +96,9 @@ export const apiSchema = base
      * server. "fake" answers fixed suggestions (tests, e2e). The model is chosen by the eval, never in code.
      */
     LUME_AI_PROVIDER: optional(z.enum(["anthropic", "google", "fake"])),
+    /** WhatsApp (spec 2026-10-18 §3): Meta's Graph API, for media and disconnecting. Tests and e2e point it at a fake. */
+    META_GRAPH_URL: optional(z.url({ protocol: /^https?$/ })),
+    META_GRAPH_VERSION: optional(z.string().regex(/^v\d+\.\d+$/)),
     LUME_AI_MODEL: optional(z.string().min(1).max(100)),
     LUME_AI_KEY: optional(z.string().min(20).max(400)),
   })

@@ -71,6 +71,7 @@ describe("the Sheets module", () => {
       webhooks: { enabled: false, manychat: false },
       googleCalendar: { enabled: false, available: false },
       calendly: { connected: false },
+      whatsapp: { enabled: false, available: false, inPlan: true },
       ai: { enabled: false, available: false, inPlan: true },
     });
     const off = await call(b, "PUT", "/api/v1/integrations/google-sheets", { enabled: true });
@@ -90,6 +91,7 @@ describe("the Sheets module", () => {
       webhooks: { enabled: false, manychat: false },
       googleCalendar: { enabled: false, available: false },
       calendly: { connected: false },
+      whatsapp: { enabled: false, available: false, inPlan: true },
       ai: { enabled: false, available: false, inPlan: true },
     });
     const [a] = await h.queryAll<{ action: string }>(

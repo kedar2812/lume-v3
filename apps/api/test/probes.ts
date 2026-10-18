@@ -705,6 +705,23 @@ export const PROBES: Record<string, Probe> = {
     path: () => "/api/v1/analytics/drilldown?token=not-a-real-token-at-all",
   },
   // 8A: a call, logged as contact.
+  // WhatsApp (spec 2026-10-18 §3): the switch, connecting numbers and whose each is — admins only.
+  "PUT /api/v1/integrations/whatsapp": { access: "integrations.manage", body: () => ({ enabled: false }) },
+  "POST /api/v1/whatsapp/connect": { access: "integrations.manage" },
+  "POST /api/v1/whatsapp/connect/complete": {
+    access: "integrations.manage",
+    body: () => ({ p: "x", s: "y" }),
+  },
+  "GET /api/v1/whatsapp/numbers": { access: "integrations.manage" },
+  "PATCH /api/v1/whatsapp/numbers/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/whatsapp/numbers/${uuid}`,
+    body: () => ({ ownerId: null }),
+  },
+  "DELETE /api/v1/whatsapp/numbers/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/whatsapp/numbers/${uuid}`,
+  },
   // LUME AI (spec 2026-10-18 §2.2, §5.2–5.3): its status for anyone, its switch for admins, reads on a lead.
   "GET /api/v1/ai": { access: "auth.self" },
   "PUT /api/v1/integrations/ai": { access: "integrations.manage", body: () => ({ enabled: false }) },

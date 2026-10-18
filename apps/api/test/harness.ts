@@ -181,6 +181,8 @@ export async function createHarness(
     /** LUME AI (spec 2026-10-18): the provider (a fake), and how long a read may take. */
     ai?: AppDeps["ai"];
     aiTimeoutMs?: number;
+    /** WhatsApp (spec 2026-10-18 §3): where the fake Meta Graph API listens. */
+    meta?: AppDeps["meta"];
   } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
@@ -283,6 +285,7 @@ export async function createHarness(
     ...(opts.licence ? { licence: opts.licence } : {}),
     ...(opts.ai !== undefined ? { ai: opts.ai } : {}),
     ...(opts.aiTimeoutMs ? { aiTimeoutMs: opts.aiTimeoutMs } : {}),
+    ...(opts.meta ? { meta: opts.meta } : {}),
   });
 
   const addRole = async (userId: string, grants: Grant[]) => {

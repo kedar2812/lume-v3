@@ -32,7 +32,11 @@ export type WhatsAppContext = {
 const TEN_MIN = 10 * 60_000;
 const BODY_MAX = 3 * 1024 * 1024;
 const META_ID = /^\d{5,30}$/;
-const HARDENED = { "cache-control": "no-store", "referrer-policy": "no-referrer", "x-content-type-options": "nosniff" };
+const HARDENED = {
+  "cache-control": "no-store",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+};
 
 /** The raw bytes, or "too_large" past `max` (Meta's history chunks can be big; nothing bigger is read). */
 function rawBody(req: http.IncomingMessage, max: number): Promise<Buffer | "too_large"> {
@@ -112,7 +116,9 @@ export function whatsappRoutes(c: WhatsAppContext) {
         `${graph("oauth/access_token")}?${new URLSearchParams({ client_id: c.meta.appId, client_secret: c.meta.appSecret, code })}`,
         { signal: AbortSignal.timeout(15_000) },
       ).catch(() => null);
-      const token = ex?.ok ? ((await ex.json().catch(() => ({}))) as { access_token?: string }).access_token : undefined;
+      const token = ex?.ok
+        ? ((await ex.json().catch(() => ({}))) as { access_token?: string }).access_token
+        : undefined;
       if (!token) {
         refused("Meta didn't give LUME access to the number. Go back to LUME and choose Connect again.");
         return true;
@@ -124,13 +130,21 @@ export function whatsappRoutes(c: WhatsAppContext) {
       });
       const num = await call("GET", `${phone}?fields=display_phone_number,verified_name`, token);
       if (!sub.ok || !num.ok) {
-        refused("Meta didn't let LUME finish connecting the number. Go back to LUME and choose Connect again.");
+        refused(
+          "Meta didn't let LUME finish connecting the number. Go back to LUME and choose Connect again.",
+        );
         return true;
       }
       // Contacts, then past chats (the person chose whether to share them in Meta's popup). A refused sync is said
       // on LUME's side; the number still connects.
-      await call("POST", `${phone}/smb_app_data`, token, { messaging_product: "whatsapp", sync_type: "smb_app_state_sync" });
-      const history = await call("POST", `${phone}/smb_app_data`, token, { messaging_product: "whatsapp", sync_type: "history" });
+      await call("POST", `${phone}/smb_app_data`, token, {
+        messaging_product: "whatsapp",
+        sync_type: "smb_app_state_sync",
+      });
+      const history = await call("POST", `${phone}/smb_app_data`, token, {
+        messaging_product: "whatsapp",
+        sync_type: "history",
+      });
       const handoff: Handoff = {
         nonce: state.n,
         kind: "whatsapp",
@@ -184,7 +198,11 @@ export function whatsappRoutes(c: WhatsAppContext) {
       const ts = String(Math.floor(c.now() / 1000));
       const r = await fetch(new URL("/whatsapp/in", inst.url), {
         method: "POST",
-        headers: { "content-type": "application/json", "x-lume-timestamp": ts, "x-lume-signature": relaySign(inst.token, ts, raw) },
+        headers: {
+          "content-type": "application/json",
+          "x-lume-timestamp": ts,
+          "x-lume-signature": relaySign(inst.token, ts, raw),
+        },
         body: raw,
         signal: AbortSignal.timeout(10_000),
       }).catch(() => null);
