@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
+import { ignorePeer, inboxPerson, inboxView, makeLead } from "./inbox";
+import { mediaInfo, sendMedia } from "./media";
 import {
   connectComplete,
   connectStart,
@@ -38,5 +40,35 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
   );
   r.delete("/api/v1/whatsapp/numbers/:id", { ...manage, schema: { params: id } }, (req) =>
     disconnect(req, d, req.params.id),
+  );
+
+  // A file on a lead, or waiting in Not a lead yet: row-level security decides who sees it (§4.1).
+  r.get(
+    "/api/v1/whatsapp/media/:id",
+    { config: { permission: "leads.view" }, schema: { params: id } },
+    (req, reply) => sendMedia(req, reply, req.params.id),
+  );
+  r.get(
+    "/api/v1/whatsapp/media/:id/info",
+    { config: { permission: "leads.view" }, schema: { params: id } },
+    (req) => mediaInfo(req, req.params.id),
+  );
+  // Not a lead yet (§4.1): the number's owner and whoever sees every lead (row-level security decides).
+  const person = z.object({ numberId: z.uuid(), peer: z.string().regex(/^\+\d{6,16}$/) });
+  r.get("/api/v1/whatsapp/inbox", { config: { permission: "auth.self" } }, (req) => inboxView(req));
+  r.get(
+    "/api/v1/whatsapp/inbox/:numberId/:peer",
+    { config: { permission: "auth.self" }, schema: { params: person } },
+    (req) => inboxPerson(req, req.params.numberId, req.params.peer),
+  );
+  r.post(
+    "/api/v1/whatsapp/inbox/:numberId/:peer/lead",
+    { config: { permission: "leads.create" }, schema: { params: person } },
+    async (req, reply) => reply.code(201).send(await makeLead(req, req.params.numberId, req.params.peer)),
+  );
+  r.post(
+    "/api/v1/whatsapp/inbox/:numberId/:peer/ignore",
+    { config: { permission: "auth.self" }, schema: { params: person } },
+    (req) => ignorePeer(req, req.params.numberId, req.params.peer),
   );
 }

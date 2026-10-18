@@ -43,6 +43,7 @@ import { startGoogleFake, type GoogleFake } from "./google-fake";
 import { createLimiter } from "../src/modules/webhooks/limits";
 import { processEvent } from "../src/modules/webhooks/process";
 import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
+import { fetchMedia } from "../src/modules/whatsapp/media";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
@@ -155,6 +156,8 @@ export type Harness = {
   whatsappMediaQueued: string[];
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
   runWhatsApp(): Promise<void>;
+  /** Fetch the queued WhatsApp media (Task 7). */
+  runWhatsAppMedia(): Promise<void>;
   /** Calendar connections whose sync was asked for (5A), in order. */
   calendarQueue: string[];
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
@@ -502,6 +505,10 @@ export async function createHarness(
     async runWhatsApp() {
       for (let id = whatsappQueued.shift(); id; id = whatsappQueued.shift())
         await processWhatsAppEvent({ app, d: deps }, id);
+    },
+    async runWhatsAppMedia() {
+      for (let id = whatsappMediaQueued.shift(); id; id = whatsappMediaQueued.shift())
+        await fetchMedia({ app, d: deps }, id).catch(() => undefined);
     },
     async runWebhooks() {
       for (let id = webhookQueue.shift(); id; id = webhookQueue.shift())

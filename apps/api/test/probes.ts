@@ -722,6 +722,24 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     path: () => `/api/v1/whatsapp/numbers/${uuid}`,
   },
+  "GET /api/v1/whatsapp/media/:id": { access: "leads.view", path: () => `/api/v1/whatsapp/media/${uuid}` },
+  "GET /api/v1/whatsapp/media/:id/info": {
+    access: "leads.view",
+    path: () => `/api/v1/whatsapp/media/${uuid}/info`,
+  },
+  "GET /api/v1/whatsapp/inbox": { access: "auth.self" },
+  "GET /api/v1/whatsapp/inbox/:numberId/:peer": {
+    access: "auth.self",
+    path: () => `/api/v1/whatsapp/inbox/${uuid}/%2B919000000777`,
+  },
+  "POST /api/v1/whatsapp/inbox/:numberId/:peer/lead": {
+    access: "leads.create",
+    path: () => `/api/v1/whatsapp/inbox/${uuid}/%2B919000000777/lead`,
+  },
+  "POST /api/v1/whatsapp/inbox/:numberId/:peer/ignore": {
+    access: "auth.self",
+    path: () => `/api/v1/whatsapp/inbox/${uuid}/%2B919000000777/ignore`,
+  },
   // LUME AI (spec 2026-10-18 §2.2, §5.2–5.3): its status for anyone, its switch for admins, reads on a lead.
   "GET /api/v1/ai": { access: "auth.self" },
   "PUT /api/v1/integrations/ai": { access: "integrations.manage", body: () => ({ enabled: false }) },
