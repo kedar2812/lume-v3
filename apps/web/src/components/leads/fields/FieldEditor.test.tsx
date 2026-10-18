@@ -52,6 +52,21 @@ describe("FieldEditor", () => {
     expect(a.onCommit).toHaveBeenCalledWith("+91 501234567");
   });
 
+  it("picks a country with the mouse without closing the phone editor", async () => {
+    const a = edit("phone", "+971501234567");
+    await userEvent.click(screen.getByRole("button", { name: /^Country code/ }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search countries" }), "india");
+    await userEvent.click(screen.getByRole("option", { name: "India +91" }));
+    expect(a.onCancel).not.toHaveBeenCalled();
+    expect(a.onCommit).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /^Country code/ })).toHaveAccessibleName(
+      "Country code: India +91",
+    );
+    expect(screen.getByRole("textbox", { name: "Phone" })).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    expect(a.onCommit).toHaveBeenCalledWith("+91 501234567");
+  });
+
   it("cancels a phone edit on Escape, and clearing it saves nothing as empty", async () => {
     const a = edit("phone", "+971501234567");
     await userEvent.keyboard("{Escape}");

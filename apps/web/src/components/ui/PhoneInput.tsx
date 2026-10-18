@@ -185,6 +185,9 @@ export function PhoneInput({
         }
         aria-haspopup="listbox"
         aria-expanded={open}
+        // A press keeps focus where it is: phones and Safari don't focus a pressed button, so focus would
+        // otherwise leave the field and an inline editor around it would close before the list opens.
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen((o) => !o)}
       >
         <Flag iso={current?.iso} />

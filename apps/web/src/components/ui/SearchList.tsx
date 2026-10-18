@@ -125,6 +125,11 @@ export function SearchList({
       data-search-panel=""
       data-up={place?.bottom !== undefined || undefined}
       style={{ position: "fixed", left: place?.left ?? 0, top: place?.top, bottom: place?.bottom }}
+      // A press on an option or the list keeps focus in the search box, so an inline editor around the
+      // picker doesn't read it as leaving the field (and close before the click picks anything).
+      onMouseDown={(e) => {
+        if (e.target !== e.currentTarget.querySelector("input")) e.preventDefault();
+      }}
     >
       <input
         role="combobox"

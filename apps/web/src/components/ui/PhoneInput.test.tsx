@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -26,6 +26,13 @@ const country = () => screen.getByRole("button", { name: /^Country code/ });
 const value = () => screen.getByTestId("value").textContent;
 
 describe("PhoneInput", () => {
+  it("keeps focus in the field when the country button is pressed, as phones and Safari don't focus buttons", () => {
+    render(<Harness initial="+971501234567" />);
+    screen.getByRole("textbox", { name: "Phone" }).focus();
+    expect(fireEvent.mouseDown(country())).toBe(false); // the press doesn't move focus out of the field
+    expect(screen.getByRole("textbox", { name: "Phone" })).toHaveFocus();
+  });
+
   it("starts on the business country and puts its code in front of what is typed", async () => {
     render(<Harness />);
     expect(country()).toHaveAccessibleName("Country code: United Arab Emirates +971");
