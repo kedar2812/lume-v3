@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
+import { catchUp, leadAi } from "./catch-up";
 import { applyRead, dismissRead, suggestNextStep } from "./next-step";
 import { aiStatus, setAiEnabled } from "./service";
 
@@ -37,6 +38,15 @@ export async function aiRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
       },
     },
     (req) => applyRead(req, d, req.params.id, req.body),
+  );
+  // A lead's LUME AI: a catch-up to offer, a next step waiting (§5.3), and the catch-up itself, on request.
+  r.get("/api/v1/leads/:id/ai", { config: { permission: "leads.view" }, schema: { params: id } }, (req) =>
+    leadAi(req, d, req.params.id),
+  );
+  r.post(
+    "/api/v1/leads/:id/ai/catch-up",
+    { config: { permission: "leads.view" }, schema: { params: id } },
+    (req) => catchUp(req, d, req.params.id),
   );
   r.post(
     "/api/v1/ai/reads/:id/dismiss",
