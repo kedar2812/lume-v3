@@ -9,6 +9,7 @@ import type { CalendlyView } from "@/lib/calendar/types";
 import { sheetsClient } from "@/lib/sheets/client";
 import type { IntegrationsView, SheetSourceView } from "@/lib/sheets/types";
 import { AttentionBanner } from "./AttentionBanner";
+import { AiCard } from "./AiCard";
 import { CalendlyCard } from "./CalendlyCard";
 import { GoogleCalendarCard } from "./GoogleCalendarCard";
 import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
@@ -18,7 +19,8 @@ import { WebhooksCard } from "./WebhooksCard";
 import s from "./integrations.module.css";
 
 /** Spec §7.1: each optional module is one card — what it does, a switch, and what it needs from you. */
-export function Integrations() {
+/** `tz`: the person's clock, for when LUME AI's limits reset. */
+export function Integrations({ tz }: { tz?: string } = {}) {
   const [view, setView] = useState<IntegrationsView | null>(null);
   const [sources, setSources] = useState<SheetSourceView[] | null>(null);
   const [adding, setAdding] = useState(false);
@@ -168,6 +170,9 @@ export function Integrations() {
       <WebhooksCard webhooks={view.webhooks} onView={setView} />
       {view.googleCalendar && <GoogleCalendarCard googleCalendar={view.googleCalendar} onView={setView} />}
       {calendly && <CalendlyCard initial={calendly} />}
+      {view.ai && (
+        <AiCard ai={view.ai} tz={tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone} onView={setView} />
+      )}
       <AddSheetSheet
         open={adding}
         onClose={() => {

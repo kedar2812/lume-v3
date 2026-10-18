@@ -370,3 +370,70 @@
   font-weight: var(--fw-medium);
   margin-bottom: 8px;
 }
+
+/* LUME AI (spec 2026-10-18 §2.2; canvas "LUME AI — part 1 screens"). */
+.aiTile {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.aiPrivacy {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+  background: var(--sunk);
+  border-radius: var(--r-ctl);
+  padding: 10px 12px;
+}
+.aiPaused {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+  border-radius: var(--r-ctl);
+  padding: 12px 14px;
+}
+.meters {
+  display: grid;
+  gap: 14px;
+}
+.meter {
+  display: grid;
+  gap: 6px;
+}
+.meterHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.meterLabel {
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+.meterTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+.meterFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.meterFill[data-high] {
+  background: var(--warn);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .meterFill {
+    transition: width 0.4s cubic-bezier(0.2, 0.9, 0.25, 1);
+  }
+}
