@@ -1,6 +1,6 @@
 import type { FastifyRequest } from "fastify";
 import type pg from "pg";
-import { PLAN_MODULES, type PlanClaim, type PlanModule } from "@lume/core";
+import { moduleIncluded, PLAN_MODULES, type PlanClaim, type PlanModule } from "@lume/core";
 import { sql } from "drizzle-orm";
 import { conflict } from "../http/errors";
 import { notify } from "../modules/notifications/notify";
@@ -15,6 +15,8 @@ export const MODULE_NAMES: Record<PlanModule, string> = {
   webhooks: "Webhooks",
   googleCalendar: "Google Calendar",
   calendly: "Calendly",
+  ai: "LUME AI",
+  whatsapp: "WhatsApp",
 };
 /** How each module is named in the audit log, as the module switches already write it. */
 const AUDIT_NAMES: Record<PlanModule, string> = {
@@ -22,6 +24,8 @@ const AUDIT_NAMES: Record<PlanModule, string> = {
   webhooks: "webhooks",
   googleCalendar: "google_calendar",
   calendly: "calendly",
+  ai: "ai",
+  whatsapp: "whatsapp",
 };
 
 /** The plan as this person may see it: places, taken and modules for people who manage settings. */
@@ -62,7 +66,7 @@ export async function assertPlace(req: FastifyRequest, o: { inviteEmail?: string
 /** Refuses switching on a module the plan leaves out (control §2.2). */
 export function assertModule(req: FastifyRequest, key: PlanModule): void {
   const plan = req.server.licence.view().plan;
-  if (plan && plan.modules[key] === false)
+  if (!moduleIncluded(plan, key))
     throw conflict(
       "PLAN_MODULE",
       `${MODULE_NAMES[key]} isn't in this LUME's plan. Ask LUME's team to add it.`,
@@ -79,7 +83,10 @@ export async function modulesOn(q: Pick<pg.Pool, "query">): Promise<PlanModule[]
   const calendly = (
     await q.query("SELECT 1 FROM lead_sources WHERE type = 'calendly' AND status <> 'archived' LIMIT 1")
   ).rowCount;
-  return PLAN_MODULES.filter((k) => (k === "calendly" ? !!calendly : !!s?.[k]?.enabled));
+  // WhatsApp (spec 2026-10-18 part D) has no switch yet: never on.
+  return PLAN_MODULES.filter((k) =>
+    k === "calendly" ? !!calendly : k === "whatsapp" ? false : !!s?.[k]?.enabled,
+  );
 }
 
 /**

@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { ACCEPTS, fleetHealthSchema, PLAN_MODULES } from "./fleet";
+import { ACCEPTS, fleetHealthSchema, moduleIncluded, PLAN_MODULES } from "./fleet";
 import { licenceState, type LicencePayload } from "./state";
 import { rawPublicKey, signLicence, verifyLicence } from "./token";
 
@@ -33,16 +33,37 @@ describe("the plan in the signed answer", () => {
   it("verifies with places and the four modules, and LUME says it can keep one", () => {
     const t = signLicence(payload({ plan }), privateKey);
     expect(verifyLicence(t, keys, "LUME-K7RD-2MXQ")?.plan).toEqual(plan);
-    expect(PLAN_MODULES).toEqual(["googleSheets", "webhooks", "googleCalendar", "calendly"]);
-    expect(ACCEPTS).toEqual(["announcements", "plan"]);
+    expect(PLAN_MODULES).toEqual(["googleSheets", "webhooks", "googleCalendar", "calendly", "ai", "whatsapp"]);
+    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2"]);
   });
   it("refuses a module it doesn't know, or places out of bounds", () => {
     const bad = (p: unknown) =>
       verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
-    expect(bad({ ...plan, modules: { ...plan.modules, whatsapp: true } })).toBeNull();
+    expect(bad({ ...plan, modules: { ...plan.modules, instagram: true } })).toBeNull();
     expect(bad({ ...plan, places: 0 })).toBeNull();
     expect(bad({ ...plan, places: 10_001 })).toBeNull();
     expect(bad({ ...plan, places: null })).not.toBeNull();
+  });
+  it("a plan without ai or whatsapp parses (an older licence server), and they count as included", () => {
+    const t = signLicence(payload({ plan }), privateKey);
+    const p = verifyLicence(t, keys, "LUME-K7RD-2MXQ")!.plan!;
+    expect(moduleIncluded(p, "ai")).toBe(true);
+    expect(moduleIncluded(p, "whatsapp")).toBe(true);
+    expect(moduleIncluded(p, "calendly")).toBe(false);
+    expect(moduleIncluded(null, "calendly")).toBe(true);
+    const v2 = { ...plan, modules: { ...plan.modules, ai: false, whatsapp: true }, aiReadsHourly: 100, aiReadsWeekly: 750 };
+    const back = verifyLicence(signLicence(payload({ plan: v2 }), privateKey), keys, "LUME-K7RD-2MXQ")!.plan!;
+    expect(back).toEqual(v2);
+    expect(moduleIncluded(back, "ai")).toBe(false);
+  });
+  it("AI limits are whole numbers from 1, or none", () => {
+    const sign = (p: unknown) =>
+      verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
+    expect(sign({ ...plan, aiReadsHourly: 0 })).toBeNull();
+    expect(sign({ ...plan, aiReadsWeekly: 0 })).toBeNull();
+    expect(sign({ ...plan, aiReadsHourly: 100_001 })).toBeNull();
+    expect(sign({ ...plan, aiReadsWeekly: 1.5 })).toBeNull();
+    expect(sign({ ...plan, aiReadsHourly: null, aiReadsWeekly: null })).not.toBeNull();
   });
   it("the view carries the plan, or null when the answer has none (no limits)", () => {
     expect(view(payload({ plan })).plan).toEqual(plan);
@@ -61,6 +82,7 @@ describe("the plan in the signed answer", () => {
       sourcesNeedingAttention: 0,
     };
     expect(fleetHealthSchema.safeParse({ ...base, modulesOn: ["webhooks", "calendly"] }).success).toBe(true);
+    expect(fleetHealthSchema.safeParse({ ...base, modulesOn: ["ai", "whatsapp"] }).success).toBe(true);
     expect(fleetHealthSchema.safeParse({ ...base, modulesOn: ["Instagram sheet"] }).success).toBe(false);
     expect(fleetHealthSchema.safeParse(base).success).toBe(true);
   });

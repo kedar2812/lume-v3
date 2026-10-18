@@ -2,16 +2,36 @@
 import { useState } from "react";
 import { api } from "@/lib/client";
 
-type Module = "googleSheets" | "webhooks" | "googleCalendar" | "calendly";
-export type Plan = { places: number | null; modules: Record<Module, boolean> };
-export type Usage = { people: number; modulesOn: string[]; knows: boolean };
+type Module = "googleSheets" | "webhooks" | "googleCalendar" | "calendly" | "ai" | "whatsapp";
+export type Plan = {
+  places: number | null;
+  modules: Record<Module, boolean>;
+  aiReadsHourly: number | null;
+  aiReadsWeekly: number | null;
+};
+/** `knowsAi`: their LUME accepts plan2, so it keeps LUME AI, WhatsApp and the AI limits (spec 2026-10-18 §2.2). */
+export type Usage = { people: number; modulesOn: string[]; knows: boolean; knowsAi: boolean };
 
 const MODULES: { key: Module; name: string; mark: string | null }[] = [
   { key: "googleSheets", name: "Google Sheets", mark: "/brand/google-sheets.png" },
   { key: "webhooks", name: "Webhooks", mark: null },
   { key: "googleCalendar", name: "Google Calendar", mark: "/brand/google-calendar.png" },
   { key: "calendly", name: "Calendly", mark: "/brand/calendly.svg" },
+  { key: "ai", name: "LUME AI", mark: null },
+  { key: "whatsapp", name: "WhatsApp", mark: "/brand/whatsapp.svg" },
 ];
+const AI_LIMITS = [
+  { key: "aiReadsHourly", label: "AI reads an hour", most: 100_000 },
+  { key: "aiReadsWeekly", label: "AI reads a week", most: 1_000_000 },
+] as const;
+/** What's typed in an AI limit: empty is no limit; a whole number from 1 to its most; anything else is invalid. */
+const limitOf = (typed: string, most: number): number | null | "invalid" => {
+  const t = typed.trim();
+  if (!t) return null;
+  if (!/^\d+$/.test(t)) return "invalid";
+  const n = Number(t);
+  return n >= 1 && n <= most ? n : "invalid";
+};
 const DEFAULT_PLACES = 5;
 
 /**
@@ -36,12 +56,28 @@ export function PlanLimits({
   const [unlimited, setUnlimited] = useState(plan.places === null);
   const [places, setPlaces] = useState(plan.places ?? Math.max(DEFAULT_PLACES, usage.people + 1));
   const [modules, setModules] = useState(plan.modules);
+  const [typed, setTyped] = useState({
+    aiReadsHourly: plan.aiReadsHourly === null ? "" : String(plan.aiReadsHourly),
+    aiReadsWeekly: plan.aiReadsWeekly === null ? "" : String(plan.aiReadsWeekly),
+  });
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  const now = { places: unlimited ? null : places, modules };
-  const dirty = now.places !== plan.places || MODULES.some((m) => modules[m.key] !== plan.modules[m.key]);
+  const hourly = limitOf(typed.aiReadsHourly, 100_000);
+  const weekly = limitOf(typed.aiReadsWeekly, 1_000_000);
+  const invalid = hourly === "invalid" || weekly === "invalid";
+  const now = {
+    places: unlimited ? null : places,
+    modules,
+    aiReadsHourly: hourly === "invalid" ? null : hourly,
+    aiReadsWeekly: weekly === "invalid" ? null : weekly,
+  };
+  const dirty =
+    now.places !== plan.places ||
+    MODULES.some((m) => modules[m.key] !== plan.modules[m.key]) ||
+    now.aiReadsHourly !== plan.aiReadsHourly ||
+    now.aiReadsWeekly !== plan.aiReadsWeekly;
   const change = (f: () => void) => {
     f();
     setSaved(false);
@@ -135,6 +171,19 @@ export function PlanLimits({
               <span className="pl-mark" aria-hidden>
                 {m.mark ? (
                   <img src={m.mark} alt="" width={20} height={20} />
+                ) : m.key === "ai" ? (
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 3.5 13.8 9a2 2 0 0 0 1.2 1.2l5.5 1.8-5.5 1.8a2 2 0 0 0-1.2 1.2L12 20.5 10.2 15A2 2 0 0 0 9 13.8L3.5 12 9 10.2A2 2 0 0 0 10.2 9z" />
+                  </svg>
                 ) : (
                   <svg
                     width="18"
@@ -177,13 +226,50 @@ export function PlanLimits({
           );
         })}
       </div>
+      <div className="pl-group">
+        <span className="pl-label">LUME AI limits</span>
+        {usage.knows && !usage.knowsAi && (
+          <span className="note">
+            Their LUME{version ? ` (${version})` : ""} can’t keep LUME AI and WhatsApp settings yet; it will once
+            it’s updated.
+          </span>
+        )}
+        <div className="pl-row">
+          {AI_LIMITS.map((l) => {
+            const bad = limitOf(typed[l.key], l.most) === "invalid";
+            return (
+              <label key={l.key} className="field pl-limit">
+                <span>{l.label}</span>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={l.most}
+                  step={1}
+                  placeholder="No limit"
+                  value={typed[l.key]}
+                  aria-invalid={bad || undefined}
+                  aria-describedby={bad ? `${l.key}-problem` : undefined}
+                  onChange={(e) => change(() => setTyped((x) => ({ ...x, [l.key]: e.target.value })))}
+                />
+                {bad && (
+                  <span id={`${l.key}-problem`} className="pl-warn">
+                    A whole number from 1, or empty for no limit.
+                  </span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+      </div>
       {problem && (
         <p role="alert" className="fl-prob fl-red">
           {problem}
         </p>
       )}
       <div className="pl-row">
-        <button type="button" className="btn primary" disabled={!dirty || busy} onClick={() => void save()}>
+        <button type="button" className="btn primary" disabled={!dirty || busy || invalid} onClick={() => void save()}>
           {busy ? "Saving…" : "Save"}
         </button>
         {saved && (

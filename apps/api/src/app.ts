@@ -4,7 +4,7 @@ import cookie from "@fastify/cookie";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import type pg from "pg";
-import type { Keyring } from "@lume/core";
+import { PLAN_MODULES, PLAN_V1_MODULES, type Keyring } from "@lume/core";
 import type { Argon2Params } from "@lume/core/password";
 import { csrfRoutes } from "./auth/csrf";
 import { authPlugin } from "./auth/plugin";
@@ -148,6 +148,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       errors24h: errors.count(deps.clock()),
       ...(deps.tasks?.lastSweepAt ? { lastSweepAt: deps.tasks.lastSweepAt } : {}),
       ...(deps.tasks?.startedAt ? { queueStartedAt: deps.tasks.startedAt } : {}),
+      // A licence server that signs LUME AI in a plan knows it; until one has, only the modules every server knows.
+      reportable: licence.view().plan && "ai" in licence.view().plan!.modules ? PLAN_MODULES : PLAN_V1_MODULES,
     }),
   );
   // Control each client (spec 2026-10-17 control §2.2): a module the plan leaves out is switched off once.

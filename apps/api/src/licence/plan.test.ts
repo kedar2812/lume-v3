@@ -89,8 +89,40 @@ const invite = (email: string) =>
 describe("the plan, kept (spec 2026-10-17 control §2)", () => {
   it("says it can keep a plan and which modules are on, with its check-in", async () => {
     await check();
-    expect(sent[0]!.accepts).toEqual(["announcements", "plan"]);
+    expect(sent[0]!.accepts).toEqual(["announcements", "plan", "plan2"]);
     expect((sent[0]!.health as { modulesOn: string[] }).modulesOn).toContain("webhooks");
+  });
+
+  it("tells only a licence server that knows LUME AI that it's on (an older one would refuse the check-in)", async () => {
+    await h.ownerPool.query(
+      `UPDATE settings SET integrations = jsonb_set(integrations, '{ai}', '{"enabled": true}'::jsonb) WHERE id = 1`,
+    );
+    plan = { places: null, modules: all }; // an older licence server: no ai key in what it signs
+    await check();
+    await check();
+    expect((sent.at(-1)!.health as { modulesOn: string[] }).modulesOn).not.toContain("ai");
+    plan = { places: null, modules: { ...all, ai: true, whatsapp: true }, aiReadsHourly: null, aiReadsWeekly: null };
+    await check();
+    await check();
+    expect((sent.at(-1)!.health as { modulesOn: string[] }).modulesOn).toContain("ai");
+    await h.ownerPool.query(
+      `UPDATE settings SET integrations = integrations - 'ai' WHERE id = 1`,
+    );
+  });
+
+  it("switches LUME AI off once when the plan leaves it out", async () => {
+    await h.ownerPool.query(
+      `UPDATE settings SET integrations = jsonb_set(integrations, '{ai}', '{"enabled": true}'::jsonb) WHERE id = 1`,
+    );
+    plan = { places: null, modules: { ...all, ai: false, whatsapp: true }, aiReadsHourly: null, aiReadsWeekly: null };
+    await check();
+    await check();
+    const s = await h.ownerPool.query("SELECT integrations -> 'ai' ->> 'enabled' AS on FROM settings WHERE id = 1");
+    expect(s.rows[0].on).toBe("false");
+    const audits = await h.ownerPool.query(
+      "SELECT diff FROM audit_log WHERE action = 'integration.disabled' AND diff ->> 'by' = 'plan' AND diff ->> 'module' = 'ai'",
+    );
+    expect(audits.rows).toHaveLength(1);
   });
 
   it("shows places taken to people who manage settings, and nothing to anyone else", async () => {
@@ -136,7 +168,7 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     );
     expect(s.rows[0].on).toBe("false");
     const audits = await h.ownerPool.query(
-      "SELECT diff FROM audit_log WHERE action = 'integration.disabled' AND diff ->> 'by' = 'plan'",
+      "SELECT diff FROM audit_log WHERE action = 'integration.disabled' AND diff ->> 'by' = 'plan' AND diff ->> 'module' = 'webhooks'",
     );
     expect(audits.rows.map((r) => r.diff.module)).toEqual(["webhooks"]);
     // One notice per admin (the owner and anyone who manages settings), however many check-ins carried the plan.

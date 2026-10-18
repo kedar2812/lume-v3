@@ -65,6 +65,11 @@ export async function healthReport(
     lastSweepAt?: () => Date | null;
     queueStartedAt?: Date;
     disk?: () => Promise<number | null>;
+    /**
+     * The modules this licence server knows (spec 2026-10-18 §2.2): an older one refuses a check-in whose health
+     * names a module it doesn't, so only those are reported.
+     */
+    reportable?: readonly PlanModule[];
   },
 ): Promise<FleetHealth | null> {
   try {
@@ -81,7 +86,7 @@ export async function healthReport(
       diskFreePct: await (o.disk ?? diskFree)(),
       errors24h: o.errors24h,
       // Control each client (spec 2026-10-17 control §1): which plan modules are on, keys only.
-      modulesOn: await modulesOn(db),
+      modulesOn: (await modulesOn(db)).filter((m) => !o.reportable || o.reportable.includes(m)),
     });
   } catch {
     return null;

@@ -72,6 +72,24 @@ describe("the plan, signed", () => {
       modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: false },
     });
   });
+  it("signs LUME AI, WhatsApp and the AI limits only for a LUME that accepts plan2", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await patchPlan(ctx, c.clientId, {
+      places: 5,
+      modules: { ai: false },
+      aiReadsHourly: 100,
+      aiReadsWeekly: 750,
+    });
+    const v1 = (await payloadOf(await post(c, ["announcements", "plan"]), c.instanceId))!.plan!;
+    expect(Object.keys(v1.modules)).toEqual(["googleSheets", "webhooks", "googleCalendar", "calendly"]);
+    expect(v1).not.toHaveProperty("aiReadsHourly");
+    expect((await payloadOf(await post(c, ["announcements", "plan", "plan2"]), c.instanceId))!.plan).toEqual({
+      places: 5,
+      modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true, ai: false, whatsapp: true },
+      aiReadsHourly: 100,
+      aiReadsWeekly: 750,
+    });
+  });
   it("is no limit and everything included until it's set", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
     expect((await payloadOf(await post(c, ["plan"]), c.instanceId))!.plan).toEqual({
@@ -91,15 +109,28 @@ describe("PATCH /api/clients/:id/plan", () => {
     });
     expect(r.plan).toEqual({
       places: 5,
-      modules: { googleSheets: false, webhooks: true, googleCalendar: true, calendly: false },
+      modules: { googleSheets: false, webhooks: true, googleCalendar: true, calendly: false, ai: true, whatsapp: true },
+      aiReadsHourly: null,
+      aiReadsWeekly: null,
     });
-    expect(r.usage).toEqual({ people: 4, modulesOn: ["webhooks", "calendly"], knows: true });
+    expect(r.usage).toEqual({ people: 4, modulesOn: ["webhooks", "calendly"], knows: true, knowsAi: false });
     expect(r.history[0]).toMatchObject({
       kind: "plan",
       detail: { places: 5, left: ["googleSheets", "calendly"] },
     });
     const again = await getClient(ctx, c.clientId);
     expect(again.plan.places).toBe(5);
+  });
+  it("keeps the AI limits and says them in the history", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(c, ["announcements", "plan", "plan2"], ["ai"]);
+    const r = await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiReadsHourly: 40, aiReadsWeekly: 250 });
+    expect(r.plan).toMatchObject({ aiReadsHourly: 40, aiReadsWeekly: 250 });
+    expect(r.usage).toMatchObject({ modulesOn: ["ai"], knowsAi: true });
+    expect(r.history[0]).toMatchObject({
+      kind: "plan",
+      detail: { places: null, left: [], aiReadsHourly: 40, aiReadsWeekly: 250 },
+    });
   });
   it("on an older LUME says it can't keep one yet", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
@@ -111,7 +142,13 @@ describe("PATCH /api/clients/:id/plan", () => {
     await expect(patchPlan(ctx, c.clientId, { places: 0, modules: {} })).rejects.toBeInstanceOf(Refusal);
     await expect(patchPlan(ctx, c.clientId, { places: 10_001, modules: {} })).rejects.toBeInstanceOf(Refusal);
     await expect(
-      patchPlan(ctx, c.clientId, { places: null, modules: { whatsapp: false } as never }),
+      patchPlan(ctx, c.clientId, { places: null, modules: { instagram: false } as never }),
+    ).rejects.toBeInstanceOf(Refusal);
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: {}, aiReadsHourly: 0 }),
+    ).rejects.toBeInstanceOf(Refusal);
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: {}, aiReadsWeekly: 1_000_001 }),
     ).rejects.toBeInstanceOf(Refusal);
     const before = (await getClient(ctx, c.clientId)).history.length;
     await patchPlan(ctx, c.clientId, { places: null, modules: {} });

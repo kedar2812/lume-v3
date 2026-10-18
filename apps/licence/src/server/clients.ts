@@ -287,24 +287,46 @@ export async function getClient(ctx: Ctx, id: string) {
     // Control each client (spec 2026-10-17 control §3.2): the plan, and what their LUME uses now.
     plan: planOf(
       (
-        await ctx.db.query<{ places: number | null; modules: Record<string, boolean> }>(
-          "SELECT places, modules FROM licences WHERE client_id = $1",
+        await ctx.db.query<PlanRow>(
+          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly FROM licences WHERE client_id = $1",
           [id],
         )
-      ).rows[0] ?? { places: null, modules: {} },
+      ).rows[0] ?? { places: null, modules: {}, ai_reads_hourly: null, ai_reads_weekly: null },
+      { v2: true },
     ),
     usage: {
       people: l?.active_users ?? 0,
       modulesOn: l?.health?.modulesOn ?? [],
       knows: !!l?.accepts?.includes("plan"),
+      // LUME AI and WhatsApp in the plan (spec 2026-10-18 §2.2) reach only a LUME that accepts plan2.
+      knowsAi: !!l?.accepts?.includes("plan2"),
     },
   };
 }
+
+type PlanRow = {
+  places: number | null;
+  modules: Record<string, boolean>;
+  ai_reads_hourly: number | null;
+  ai_reads_weekly: number | null;
+};
+
+const aiLimit = (most: number, words: string) =>
+  z
+    .number()
+    .int(`${words} is a whole number.`)
+    .min(1, `${words}: at least 1, or no limit.`)
+    .max(most, `${words}: ${most.toLocaleString("en-IN")} at most.`)
+    .nullable()
+    .optional();
 
 export const planSchema = z
   .object({
     places: z.number().int().min(1, "At least one place.").max(10_000, "10,000 places at most.").nullable(),
     modules: z.object(Object.fromEntries(PLAN_MODULES.map((k) => [k, z.boolean().optional()]))).strict(),
+    // LUME AI's limits (spec 2026-10-18 §2.2): absent or null is no limit (the Plan limits card always sends both).
+    aiReadsHourly: aiLimit(100_000, "AI reads an hour"),
+    aiReadsWeekly: aiLimit(1_000_000, "AI reads a week"),
   })
   .strict();
 
@@ -312,29 +334,41 @@ export const planSchema = z
 export async function patchPlan(
   ctx: Ctx,
   id: string,
-  body: { places: number | null; modules: Partial<Record<string, boolean>> },
+  body: {
+    places: number | null;
+    modules: Partial<Record<string, boolean>>;
+    aiReadsHourly?: number | null;
+    aiReadsWeekly?: number | null;
+  },
 ) {
   const p = planSchema.safeParse(body);
   if (!p.success) throw new Refusal(400, p.error.issues[0]?.message ?? "That plan doesn't look right.");
   await row(ctx.db, id);
   const left = PLAN_MODULES.filter((k) => p.data.modules[k] === false);
+  const hourly = p.data.aiReadsHourly ?? null;
+  const weekly = p.data.aiReadsWeekly ?? null;
   const before = (
-    await ctx.db.query<{ places: number | null; modules: Record<string, boolean> }>(
-      "SELECT places, modules FROM licences WHERE client_id = $1",
+    await ctx.db.query<PlanRow>(
+      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly FROM licences WHERE client_id = $1",
       [id],
     )
   ).rows[0]!;
   const was = PLAN_MODULES.filter((k) => before.modules?.[k] === false);
-  if (before.places === p.data.places && was.join() === left.join()) return getClient(ctx, id);
-  await ctx.db.query("UPDATE licences SET places = $2, modules = $3 WHERE client_id = $1", [
-    id,
-    p.data.places,
-    JSON.stringify(Object.fromEntries(left.map((k) => [k, false]))),
-  ]);
+  if (
+    before.places === p.data.places &&
+    was.join() === left.join() &&
+    before.ai_reads_hourly === hourly &&
+    before.ai_reads_weekly === weekly
+  )
+    return getClient(ctx, id);
+  await ctx.db.query(
+    "UPDATE licences SET places = $2, modules = $3, ai_reads_hourly = $4, ai_reads_weekly = $5 WHERE client_id = $1",
+    [id, p.data.places, JSON.stringify(Object.fromEntries(left.map((k) => [k, false]))), hourly, weekly],
+  );
   await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'plan', $3)", [
     id,
     ctx.now(),
-    JSON.stringify({ places: p.data.places, left }),
+    JSON.stringify({ places: p.data.places, left, aiReadsHourly: hourly, aiReadsWeekly: weekly }),
   ]);
   return getClient(ctx, id);
 }

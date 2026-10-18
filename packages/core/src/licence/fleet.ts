@@ -16,7 +16,9 @@ export const HEALTH_PROBLEMS = [
 export type HealthProblem = (typeof HEALTH_PROBLEMS)[number];
 
 /** The modules a plan can leave out (spec 2026-10-17 control §1): LUME's optional ones, by these keys only. */
-export const PLAN_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly"] as const;
+export const PLAN_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly", "ai", "whatsapp"] as const;
+/** The modules every licence server since Control signs; `ai` and `whatsapp` only go to a LUME that accepts plan2. */
+export const PLAN_V1_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly"] as const;
 export type PlanModule = (typeof PLAN_MODULES)[number];
 
 const count = z.number().int().min(0).max(1_000_000_000);
@@ -89,10 +91,19 @@ export const planClaimSchema = z
         webhooks: z.boolean(),
         googleCalendar: z.boolean(),
         calendly: z.boolean(),
+        // LUME AI and WhatsApp (spec 2026-10-18 §2.2): absent from an older licence server's answer = included.
+        ai: z.boolean().optional(),
+        whatsapp: z.boolean().optional(),
       })
       .strict(),
+    /** LUME AI's limits (§2.2): reads in a rolling hour, and in a week from Monday 00:00. Absent or null: none. */
+    aiReadsHourly: z.number().int().min(1).max(100_000).nullable().optional(),
+    aiReadsWeekly: z.number().int().min(1).max(1_000_000).nullable().optional(),
   })
   .strict();
 export type PlanClaim = z.infer<typeof planClaimSchema>;
+/** Whether a plan includes a module: everything does with no plan, and a module the plan doesn't name is in it. */
+export const moduleIncluded = (plan: PlanClaim | null | undefined, key: PlanModule): boolean =>
+  plan?.modules[key] !== false;
 /** What a LUME from this release can keep, sent with its check-in: the licence server signs those claims only then. */
-export const ACCEPTS = ["announcements", "plan"] as const;
+export const ACCEPTS = ["announcements", "plan", "plan2"] as const;

@@ -77,7 +77,7 @@ const STATE_WORD: Record<string, string> = {
   suspended: "suspended",
 };
 /** A history entry in words, with its dot's colour. */
-function said(e: Detail["history"][number]): { text: string; color: string } {
+export function said(e: Detail["history"][number]): { text: string; color: string } {
   const d = e.detail;
   const money = (p: unknown) => {
     const x = p as { currency: string; amount: number; periodMonths: number } | null;
@@ -156,12 +156,23 @@ function said(e: Detail["history"][number]): { text: string; color: string } {
         webhooks: "Webhooks",
         googleCalendar: "Google Calendar",
         calendly: "Calendly",
+        ai: "LUME AI",
+        whatsapp: "WhatsApp",
       };
       const places = d.places ? `${d.places} ${d.places === 1 ? "place" : "places"}` : "no limit on places";
       const out = left.length
         ? `; ${left.map((k) => names[k] ?? k).join(", ")} not included`
         : "; every module included";
-      return { text: `Plan: ${places}${out}`, color: "#2a5bff" };
+      const n = (v: unknown) => (typeof v === "number" ? v.toLocaleString("en-IN") : null);
+      const hour = n(d.aiReadsHourly);
+      const week = n(d.aiReadsWeekly);
+      const ai =
+        hour || week
+          ? `; LUME AI ${[hour && `${hour} reads an hour`, week && `${week} ${hour ? "a week" : "reads a week"}`]
+              .filter(Boolean)
+              .join(", ")}`
+          : "";
+      return { text: `Plan: ${places}${out}${ai}`, color: "#2a5bff" };
     }
     case "announcement":
       return {

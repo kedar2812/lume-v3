@@ -2941,3 +2941,7 @@ a.fl-row:hover {
   color: var(--greenInk);
   animation: in 0.3s cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
+.pl-limit {
+  flex: 1 1 160px;
+  max-width: 220px;
+}
