@@ -379,7 +379,7 @@
   display: grid;
   place-items: center;
   background: var(--mark-ground);
-  box-shadow: 0 0 0 0.5px var(--line-2);
+  box-shadow: var(--shadow-sheet);
 }
 .aiPrivacy {
   margin: 0;
