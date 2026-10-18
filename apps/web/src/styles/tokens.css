@@ -59,6 +59,8 @@
 [data-theme="system"] {
   color-scheme: light;
   --canvas: #eef0f3;
+  /* LUME AI's mark sits on plain ground (owner, 2026-10-18): clear white here, the dashboard's black in Obsidian. */
+  --mark-ground: #ffffff;
   --side-text: #3a3f4a;
   --sheet: #ffffff;
   --raised: #ffffff;
@@ -123,6 +125,7 @@
 [data-theme="obsidian"] {
   color-scheme: dark;
   --canvas: #141518;
+  --mark-ground: #141518;
   --side-text: #bcc0c8;
   --sheet: #212328;
   --raised: #2b2e34;
@@ -187,6 +190,7 @@
   [data-theme="system"] {
     color-scheme: dark;
     --canvas: #141518;
+    --mark-ground: #141518;
     --side-text: #bcc0c8;
     --sheet: #212328;
     --raised: #2b2e34;

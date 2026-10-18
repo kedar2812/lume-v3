@@ -378,8 +378,8 @@
   border-radius: 12px;
   display: grid;
   place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--mark-ground);
+  box-shadow: 0 0 0 0.5px var(--line-2);
 }
 .aiPrivacy {
   margin: 0;
