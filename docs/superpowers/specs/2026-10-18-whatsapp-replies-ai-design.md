@@ -227,7 +227,7 @@ history (who they are, where it stands, what was promised). Generated on request
 - Uses only facts in the lead's record and the business's own settings. Never invents prices, dates, offers or urgency.
 - Never writes to a lead. Never applies anything except do-not-contact without a tap.
 - Every suggestion says where it came from ("From Sneha's reply at 4:12 pm").
-- If the read fails or the allowance is used up, the screen simply shows no suggestion and says why once.
+- If the read fails, the screen shows no suggestion and says so once; at a limit it says which limit and when LUME AI is back (§2.2).
 
 ## 6. Cost, choice and checks
 
