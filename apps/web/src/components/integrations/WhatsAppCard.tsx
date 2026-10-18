@@ -178,7 +178,7 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
                 <div className={s.waRow}>
                   <div className={s.waWho}>
                     <span className={s.waDisplay}>{n.display}</span>
-                    <span className={s.waMeta}>
+                    <span className={s.waMeta} data-volatile>
                       {[
                         n.name,
                         `Connected ${shortDate(new Date(n.connectedAt), TZ()).replace(/, \w+$/, "")}`,
