@@ -320,8 +320,8 @@ describe("dates on the Announcements list (final review)", () => {
       });
       render(<FleetScreen initialTab="announcements" />);
       const head = await screen.findByRole("button", { name: /LUME will be updated/ });
-      expect(head).toHaveTextContent("19 Oct, 12:30 am – 1:00 am");
-      expect(head).toHaveTextContent("until 20 Oct");
+      expect(head).toHaveTextContent("Oct 19, 12:30 am – 1:00 am");
+      expect(head).toHaveTextContent("until Oct 20");
     } finally {
       process.env.TZ = tz;
     }

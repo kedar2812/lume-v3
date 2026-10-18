@@ -29,7 +29,7 @@ describe("the bell: what needs a look (spec §4.4)", () => {
         id: "late:c1",
         tone: "red",
         title: "Harbour Clinic's payment is 3 days late",
-        body: "₹2,999 was due on 26 Sep. Send a reminder and they see it at every sign-in until it's paid.",
+        body: "₹2,999 was due on Sep 26. Send a reminder and they see it at every sign-in until it's paid.",
         clientId: "c1",
       }),
     ]);
@@ -109,7 +109,7 @@ describe("the bell and product keys (spec 2026-10-15 §3.4)", () => {
         fingerprint: "2026-09-29T09:42:00Z",
         tone: "red",
         title: "Key tried on another server — Harbour Clinic",
-        body: "198.51.100.7 tried it on 29 Sep. It was refused. A move, or a leaked key?",
+        body: "198.51.100.7 tried it on Sep 29. It was refused. A move, or a leaked key?",
         clientId: "c1",
       }),
     ]);
@@ -128,7 +128,7 @@ describe("the bell and product keys (spec 2026-10-15 §3.4)", () => {
         fingerprint: "2026-09-20T08:00:00Z",
         tone: "grey",
         title: "Not activated after 9 days — Harbour Clinic",
-        body: "Key issued 20 Sep. Send the message again?",
+        body: "Key issued Sep 20. Send the message again?",
       }),
     ]);
     expect(ids([{ ...idle, createdAt: "2026-09-23T08:00:00Z" }])).toEqual([]);

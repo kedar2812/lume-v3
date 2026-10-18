@@ -54,15 +54,15 @@ const FILTERS: [Filter, string][] = [
 ];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-/** The owner's own day, from their own clock: "19 Oct" (the UTC day would be wrong at night in IST). */
+/** The owner's own day, from their own clock: "Oct 19" (the UTC day would be wrong at night in IST). */
 const localDay = (iso: string) => {
   const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
 };
 const localTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
 const when = (iso: string) => `${localDay(iso)}, ${localTime(iso)}`;
-/** "19 Oct, 12:30 am – 1:00 am"; across midnight, both days. */
+/** "Oct 19, 12:30 am – 1:00 am"; across midnight, both days. */
 const windowWords = (a: string, b: string) =>
   localDay(a) === localDay(b) ? `${when(a)} – ${localTime(b)}` : `${when(a)} – ${when(b)}`;
 

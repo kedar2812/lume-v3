@@ -615,7 +615,7 @@ describe("one client's actions (spec §4.4)", () => {
     );
     await userEvent.click(await screen.findByRole("button", { name: "Mark paid" }));
     expect(api.post).toHaveBeenCalledWith("/api/clients/c2/paid", {});
-    expect(await screen.findByRole("status")).toHaveTextContent("Paid until 29 Oct 2026");
+    expect(await screen.findByRole("status")).toHaveTextContent("Paid until Oct 29, 2026");
     await userEvent.click(screen.getByRole("button", { name: "Extend…" }));
     vi.mocked(api.post).mockResolvedValueOnce(ok(DETAIL));
     await userEvent.click(screen.getByRole("button", { name: "+3 months" }));
@@ -640,7 +640,7 @@ describe("decommission (the source spec §6)", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Decommission" }));
     expect(api.post).toHaveBeenCalledWith("/api/clients/c2/decommission");
-    expect(await screen.findByText(/Decommissioned on 30 Sep 2026/)).toBeInTheDocument();
+    expect(await screen.findByText(/Decommissioned on Sep 30, 2026/)).toBeInTheDocument();
     for (const name of ["Resume", "Mark paid", "Extend…", "Rotate key", "Send payment reminder", "Change"])
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   });
@@ -732,7 +732,7 @@ describe("payments", () => {
     );
     render(<PaymentsScreen />);
     const late = (await screen.findByText("Client 1")).closest("tr")!;
-    expect(late).toHaveTextContent("at ₹88.40, the rate of 29 Sep");
+    expect(late).toHaveTextContent("at ₹88.40, the rate of Sep 29");
     const same = screen.getByText("Client 2").closest("tr")!;
     expect(same).toHaveTextContent("at ₹88.40");
     expect(same).not.toHaveTextContent("the rate of");

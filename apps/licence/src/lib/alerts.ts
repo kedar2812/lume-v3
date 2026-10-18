@@ -46,8 +46,8 @@ export type Alert = {
 const DAY = 86_400_000;
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-/** "26 Sep" */
-export const shortDay = (day: string) => `${Number(day.slice(8, 10))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
+/** "Sep 26" */
+export const shortDay = (day: string) => `${MONTHS[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}`;
 const hours = (ms: number) =>
   ms >= 2 * DAY ? `${Math.floor(ms / DAY)}\u00a0days` : `${Math.floor(ms / 3_600_000)}\u00a0h`;
 const andList = (xs: string[]) =>
