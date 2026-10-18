@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { aiClient } from "@/lib/ai/client";
 import { leadsClient } from "@/lib/leads/client";
 import { testCatalog, testLead } from "@/lib/leads/test-catalog";
 import type { Lead } from "@/lib/leads/types";
@@ -30,6 +31,22 @@ vi.mock("@/lib/templates/client", () => ({
   templatesClient: {
     list: vi.fn(async () => ({ ok: true, status: 200, data: { templates: [] } })),
     context: vi.fn(async () => ({ ok: false, status: 403, code: "FORBIDDEN", message: "No" })),
+  },
+}));
+const aiOff = {
+  on: false,
+  hour: { used: 0, limit: null, resetsAt: "" },
+  week: { used: 0, limit: null, resetsAt: "" },
+  paused: null,
+};
+vi.mock("@/lib/ai/client", () => ({
+  aiClient: {
+    status: vi.fn(),
+    lead: vi.fn(),
+    nextStep: vi.fn(() => new Promise(() => {})),
+    apply: vi.fn(),
+    dismiss: vi.fn(),
+    catchUp: vi.fn(),
   },
 }));
 const play = vi.fn();
@@ -87,6 +104,8 @@ const open = (lead: Lead = testLead(), session = rep()) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(aiClient.status).mockResolvedValue(ok(aiOff));
+  vi.mocked(aiClient.lead).mockResolvedValue(ok({ offerCatchUp: false, pending: null }));
 });
 
 describe("LeadDrawer", () => {
@@ -541,5 +560,57 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
     await screen.findByRole("dialog", { name: "Aisha Khan" });
     expect(screen.queryByRole("tab", { name: /Meetings/ })).not.toBeInTheDocument();
     expect(calendarClient.leadMeetings).not.toHaveBeenCalled();
+  });
+
+  describe("LUME AI in the drawer (spec 2026-10-18 §5.2–5.3)", () => {
+    const note = {
+      id: "n1",
+      type: "note",
+      payload: { body: "Wants a site visit on Saturday." },
+      occurredAt: "2026-09-24T10:00:00Z",
+      user: { id: "u-riya", name: "Riya" },
+    };
+    const withNote = () =>
+      vi.mocked(leadsClient.activities).mockResolvedValue(ok({ items: [note], nextCursor: null }));
+
+    it("when it's off, none of it shows", async () => {
+      open();
+      withNote();
+      await screen.findByRole("dialog", { name: "Aisha Khan" });
+      await userEvent.click(screen.getByRole("tab", { name: "Notes" }));
+      await screen.findByText("Wants a site visit on Saturday.");
+      expect(screen.queryByRole("button", { name: "Suggest next step" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Catch me up" })).toBeNull();
+      expect(aiClient.nextStep).not.toHaveBeenCalled();
+    });
+
+    it("when it's on: a suggestion still waiting, a catch-up offered, and Suggest next step on a note", async () => {
+      vi.mocked(aiClient.status).mockResolvedValue(ok({ ...aiOff, on: true }));
+      vi.mocked(aiClient.lead).mockResolvedValue(
+        ok({
+          offerCatchUp: true,
+          pending: {
+            id: "r1",
+            suggestion: {
+              summary: "Wants a site visit.",
+              stageId: "s-booked",
+              followUp: null,
+              lostReasonId: null,
+              tagIds: [],
+              decisionMaker: null,
+            },
+            dueAt: null,
+            from: { activityId: "n0", at: "2026-09-24T09:00:00Z" },
+          },
+        }),
+      );
+      open();
+      withNote();
+      expect(await screen.findByRole("heading", { name: "Suggested next step" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Catch me up" })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("tab", { name: "Notes" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Suggest next step" }));
+      expect(aiClient.nextStep).toHaveBeenCalledWith("l1", "n1");
+    });
   });
 });

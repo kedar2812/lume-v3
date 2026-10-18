@@ -20,7 +20,8 @@ import { runRead, type AiUnavailable } from "./service";
 
 /** What's kept on a next-step read: the cleaned suggestion, and the stage the lead was at when it was read. */
 type Kept = { suggestion: NextStep; stageAtRead: string };
-export type NextStepRead = { read: { id: string; suggestion: NextStep } };
+/** `dueAt`: the follow-up as a moment, so each person reads it on their own clock (null when there's none). */
+export type NextStepRead = { read: { id: string; suggestion: NextStep; dueAt: string | null } };
 export type Part = "stage" | "followUp" | "tags";
 
 /**
@@ -49,7 +50,22 @@ export async function suggestNextStep(
     clean: (out) => cleanNextStep(out, facts),
     store: (out): Kept => ({ suggestion: out, stageAtRead: lead.stageId }),
   });
-  return "unavailable" in r ? r : { read: { id: r.id, suggestion: r.output } };
+  return "unavailable" in r
+    ? r
+    : { read: { id: r.id, suggestion: r.output, dueAt: dueAtOf(r.output, facts.timezone) } };
+}
+
+/** The business's own zone: a suggested follow-up's "11:00" is on its clock. */
+export async function businessZone(req: FastifyRequest): Promise<string> {
+  return (
+    (await req.db.execute<{ tz: string }>(sql`SELECT timezone AS tz FROM settings WHERE id = 1`)).rows[0]
+      ?.tz ?? "UTC"
+  );
+}
+
+/** A cleaned suggestion's follow-up as an ISO moment. */
+export function dueAtOf(s: NextStep, tz: string): string | null {
+  return s.followUp ? followUpMoment(s.followUp, tz).toISOString() : null;
 }
 
 /** A read on a lead this person can see, not yet applied or dismissed; 404 / 409 otherwise. */
@@ -125,10 +141,7 @@ export async function applyRead(
       });
   }
   if (parts.followUp && s.followUp) {
-    const tz =
-      (await req.db.execute<{ tz: string }>(sql`SELECT timezone AS tz FROM settings WHERE id = 1`)).rows[0]
-        ?.tz ?? "UTC";
-    const due = followUpMoment(s.followUp, tz);
+    const due = followUpMoment(s.followUp, await businessZone(req));
     if (due.getTime() <= d.clock().getTime())
       skipped.push({ part: "followUp", why: "That time has passed. Set a new follow-up." });
     else

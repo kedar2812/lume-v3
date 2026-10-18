@@ -36,6 +36,7 @@ import { LogOutcome } from "@/components/calendar/LogOutcome";
 import { calendarClient } from "@/lib/calendar/client";
 import type { Meeting } from "@/lib/calendar/types";
 import { AssignMenu } from "./AssignMenu";
+import { useLeadAi } from "./LeadAi";
 import { LogCall } from "./LogCall";
 import { ContactBox } from "./ContactBox";
 import { MeetingsTab } from "./MeetingsTab";
@@ -286,6 +287,19 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     const fresh = await leadsClient.get(lead.id);
     if (fresh.ok) changed(fresh.data.lead);
   };
+  // LUME AI (spec 2026-10-18): after an applied suggestion the stage and follow-ups have moved.
+  const ai = useLeadAi(id, {
+    tz,
+    catalog,
+    canEdit: !!lead?.can.edit,
+    onApplied: () => {
+      setFollowUps((v) => v + 1);
+      void refresh();
+    },
+  });
+  const suggestFrom = ai.canSuggest
+    ? (a: Activity) => ai.suggest(a.id, a.type === "note" ? "note" : "call", a.occurredAt)
+    : undefined;
   const moveBack = async (stageId: string) => {
     if (!lead) return;
     const r = await leadsClient.move(lead.id, stageId);
@@ -663,7 +677,14 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         </Button>
                       )}
                   {lead.can.edit && (
-                    <LogCall lead={{ id: lead.id, name: lead.name ?? "" }} tz={tz} onLogged={logged} />
+                    <LogCall
+                      lead={{ id: lead.id, name: lead.name ?? "" }}
+                      tz={tz}
+                      onLogged={(activityId, said) => {
+                        logged();
+                        if (said && ai.canSuggest) ai.suggest(activityId, "call");
+                      }}
+                    />
                   )}
                   <span data-follow-up>
                     <FollowUpSheet
@@ -696,6 +717,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                 </div>
 
                 <div ref={setSentSlot} data-sent-slot />
+                {ai.ui}
                 <NextFollowUp
                   key={lead.id}
                   leadId={lead.id}
@@ -773,6 +795,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         tz={tz}
                         items={notes}
                         catalog={catalog}
+                        onSuggest={suggestFrom}
                         hasMore={activities.hasMore}
                         onMore={activities.more}
                         empty={activities.loaded ? "No notes yet" : "Loading…"}
@@ -797,6 +820,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       tz={tz}
                       items={history}
                       catalog={catalog}
+                      onSuggest={suggestFrom}
                       hasMore={activities.hasMore}
                       onMore={activities.more}
                       empty={activities.loaded ? "Nothing has happened yet" : "Loading…"}

@@ -23,7 +23,7 @@ beforeEach(() => {
   );
   vi.mocked(tasksClient.create).mockResolvedValue(ok({}) as never);
   vi.mocked(leadsClient.logCall).mockResolvedValue(
-    ok({ activity: {} as never, firstContact: { minutes: 44 } }),
+    ok({ activity: { id: "a1" } as never, firstContact: { minutes: 44 } }),
   );
 });
 const open = async () => {
@@ -42,7 +42,8 @@ describe("Log a call (the approved LogCall board)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Log call" }));
     expect(leadsClient.logCall).toHaveBeenCalledWith("l1", "talked", "Wants the café package");
     expect(tasksClient.create).not.toHaveBeenCalled();
-    await waitFor(() => expect(onLogged).toHaveBeenCalled());
+    // The call it saved, and that it has words in it: LUME AI can read it into a next step.
+    await waitFor(() => expect(onLogged).toHaveBeenCalledWith("a1", true));
     expect(toast).toHaveBeenCalledWith({
       tone: "ok",
       title: "Call logged",
@@ -51,7 +52,7 @@ describe("Log a call (the approved LogCall board)", () => {
   });
 
   it("2 picks no answer, which suggests trying again tomorrow, and sets that follow-up", async () => {
-    await open();
+    const onLogged = await open();
     await userEvent.keyboard("2");
     expect(screen.getByRole("radio", { name: /No answer/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Tomorrow 10:00" })).toHaveAttribute("aria-checked", "true");
@@ -65,6 +66,8 @@ describe("Log a call (the approved LogCall board)", () => {
         recurrence: null,
       }),
     );
+    // No words, nothing for LUME AI to read.
+    await waitFor(() => expect(onLogged).toHaveBeenCalledWith("a1", false));
   });
 
   it("a follow-up that couldn't be set is said, even on a first contact; an enquiry date reads in days", async () => {

@@ -1,0 +1,289 @@
+/* LUME AI in the drawer (spec 2026-10-18 §5.2–5.3; canvas boards NextStep, CatchUp, Phone). */
+.live {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.live:empty {
+  display: none;
+}
+
+.card {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: var(--shadow-sheet);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.title:focus {
+  outline: none;
+}
+.title:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 6px;
+}
+.summary {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* The parts: one row each, a real checkbox, the whole row is the target. */
+.parts {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  overflow: hidden;
+}
+.part {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.part + .part {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.part:hover {
+  background: var(--hover);
+}
+.part input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.part b {
+  font-weight: var(--fw-semibold);
+}
+.sub {
+  display: block;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+
+.problem {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--danger-ink);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.from {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.footSplit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fromStart {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+
+/* After Apply. */
+.done {
+  padding: 14px 16px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.done[data-tone="ok"] {
+  background: var(--ok-soft);
+}
+.done[data-tone="quiet"] {
+  background: var(--sunk);
+}
+.doneTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  font-weight: var(--fw-semibold);
+  color: var(--ok-ink);
+}
+.done[data-tone="quiet"] .doneTitle {
+  color: var(--text);
+}
+.doneTitle:focus {
+  outline: none;
+}
+.doneTitle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 6px;
+}
+.doneTitle svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.doneText {
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.5;
+  color: var(--text);
+}
+.skipped {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.doneFoot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* At a limit, or a read that didn't work: a quiet line, never an alarm. */
+.note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 12px;
+  background: var(--sunk);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+p.note {
+  align-items: flex-start;
+  padding: 12px 14px;
+}
+.note svg {
+  flex: none;
+  margin-top: 1px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.noteText {
+  flex: 1;
+}
+
+/* Catch me up, offered. */
+.offer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background: var(--sunk);
+}
+.offerText {
+  flex: 1;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.offer button {
+  flex: none;
+}
+.lines {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.5;
+}
+
+/* "Suggest next step" on a note or a logged call: always there, never hover-only. */
+.suggest {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+  background: transparent;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  transition: background-color 0.15s;
+}
+.suggest:hover {
+  background: var(--hover);
+}
+.suggest:active {
+  transform: scale(0.97);
+}
+
+/* On a phone, the buttons grow to a thumb's size and Apply takes the row (canvas board Phone). */
+@media (max-width: 720px) {
+  .foot button,
+  .offer button,
+  .note button {
+    height: 44px;
+  }
+  .foot button[data-variant="primary"] {
+    flex: 1 1 100%;
+  }
+  .from {
+    margin-left: 0;
+  }
+  .part {
+    min-height: 52px;
+  }
+  .suggest {
+    height: 36px;
+  }
+}
+
+/* Where LUME AI sits in the drawer: under the actions (their 20px above it), the same 20px below it. */
+.zone {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

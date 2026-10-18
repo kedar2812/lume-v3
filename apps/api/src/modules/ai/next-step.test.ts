@@ -94,6 +94,8 @@ describe("reading a call note", () => {
     expect(r.json().read).toMatchObject({
       id: expect.any(String),
       suggestion: { stageId: second, followUp: { at: "2026-10-24T11:00" }, tagIds: [tag] },
+      // The follow-up as a moment (11:00 in Kolkata), so each person reads it on their own clock.
+      dueAt: "2026-10-24T05:30:00.000Z",
     });
     expect(first).toBeDefined();
   });
@@ -112,7 +114,9 @@ describe("reading a call note", () => {
     provider = fakeProvider({
       next_step: answer({ followUp: { at: "2026-10-21T09:00", title: "Call back" } }),
     });
-    expect((await suggest(me, lead, activity)).json().read.suggestion.followUp).toBeNull();
+    const read = (await suggest(me, lead, activity)).json().read;
+    expect(read.suggestion.followUp).toBeNull();
+    expect(read.dueAt).toBeNull();
   });
 
   it("no contacts reach the provider, only facts from the record and the note", async () => {

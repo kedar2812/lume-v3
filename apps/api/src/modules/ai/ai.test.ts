@@ -17,7 +17,14 @@ import { runRead } from "./service";
 /** LUME AI's switch, its Claude-style limits and its notices (spec 2026-10-18 §2.2). */
 const server = generateKeyPairSync("ed25519");
 const D = 86_400_000;
-const all = { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true, ai: true, whatsapp: true };
+const all = {
+  googleSheets: true,
+  webhooks: true,
+  googleCalendar: true,
+  calendly: true,
+  ai: true,
+  whatsapp: true,
+};
 let h: Harness;
 let ownerUser: { id: string; email: string; password: string };
 let repUser: { id: string; email: string; password: string };
@@ -61,7 +68,9 @@ const asBackup = async <T>(fn: (c: pg.Client) => Promise<T>): Promise<T> => {
   return fn(reader).finally(() => reader.end());
 };
 const okReads = () =>
-  asBackup(async (c) => Number((await c.query("SELECT count(*) FROM ai_reads WHERE status = 'ok'")).rows[0].count));
+  asBackup(async (c) =>
+    Number((await c.query("SELECT count(*) FROM ai_reads WHERE status = 'ok'")).rows[0].count),
+  );
 let noticesFrom = 0;
 const alerts = (like: string) =>
   asBackup(
@@ -88,15 +97,18 @@ beforeAll(async () => {
     ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" },
     aiTimeoutMs: 200,
     extraRoutes: (app, d) => {
-      app.post<{ Params: { id: string } }>("/test/ai-read/:id", { config: { permission: "leads.view" } }, (req) =>
-        runRead(req, d, {
-          task: "next_step",
-          leadId: req.params.id,
-          instructions: "Rules.",
-          input: "{}",
-          schema: nextStepOutput,
-          maxOutputTokens: 500,
-        }),
+      app.post<{ Params: { id: string } }>(
+        "/test/ai-read/:id",
+        { config: { permission: "leads.view" } },
+        (req) =>
+          runRead(req, d, {
+            task: "next_step",
+            leadId: req.params.id,
+            instructions: "Rules.",
+            input: "{}",
+            schema: nextStepOutput,
+            maxOutputTokens: 500,
+          }),
       );
     },
   });
@@ -110,7 +122,9 @@ beforeEach(async () => {
   provider = fakeProvider();
   // No read is ever deleted (no delete policy, by design): the owner empties the table between tests.
   await h.ownerPool.query("TRUNCATE ai_reads, ai_limit_notices");
-  noticesFrom = await asBackup(async (r) => Number((await r.query("SELECT coalesce(max(id), 0) AS n FROM notifications")).rows[0].n));
+  noticesFrom = await asBackup(async (r) =>
+    Number((await r.query("SELECT coalesce(max(id), 0) AS n FROM notifications")).rows[0].n),
+  );
   await h.ownerPool.query(`UPDATE settings SET integrations = integrations - 'ai' WHERE id = 1`);
   h.clock.now = new Date("2026-10-21T10:00:00Z"); // Wednesday 3:30 pm in Kolkata
   await withPlan({ places: null, modules: all, aiReadsHourly: null, aiReadsWeekly: null });
@@ -122,13 +136,18 @@ describe("the switch", () => {
   it("off by default: no read, nothing written, and the screen says it's off", async () => {
     expect((await read()).json()).toEqual({ unavailable: "off" });
     expect(await okReads()).toBe(0);
-    expect((await (await rep()).inject({ method: "GET", url: "/api/v1/ai" })).json()).toMatchObject({ on: false });
+    expect((await (await rep()).inject({ method: "GET", url: "/api/v1/ai" })).json()).toMatchObject({
+      on: false,
+    });
   });
 
   it("an admin switches it on, with an audit row; a rep can't", async () => {
     expect(
-      (await (await rep()).inject({ method: "PUT", url: "/api/v1/integrations/ai", payload: { enabled: true } }))
-        .statusCode,
+      (
+        await (
+          await rep()
+        ).inject({ method: "PUT", url: "/api/v1/integrations/ai", payload: { enabled: true } })
+      ).statusCode,
     ).toBe(403);
     const r = await switchOn();
     expect(r.statusCode).toBe(200);
@@ -221,7 +240,9 @@ describe("the limits", () => {
       "LUME AI has reached this week's limit",
     ]);
     expect(notes.find((n) => n.title.includes("reached"))!.body).toBe("It's back Monday.");
-    expect(notes.find((n) => n.title.includes("75%"))!.body).toBe("8 of 10 used this week. It starts again Monday.");
+    expect(notes.find((n) => n.title.includes("75%"))!.body).toBe(
+      "8 of 10 used this week. It starts again Monday.",
+    );
     expect(new Set(notes.map((n) => n.user_id)).size * 3).toBe(notes.length);
   });
 

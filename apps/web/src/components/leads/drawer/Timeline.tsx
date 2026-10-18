@@ -1,13 +1,20 @@
 "use client";
 import { useId, useState } from "react";
+import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Button } from "@/components/ui/Button";
 import { tokenColor } from "@/lib/leads/colors";
 import { relativeTime } from "@/lib/leads/format";
 import { describeActivity } from "@/lib/leads/history";
 import type { Activity, Catalog } from "@/lib/leads/types";
+import x from "./ai.module.css";
 import s from "./drawer.module.css";
 
 const TONE: Record<string, string> = { wa: "var(--wa-fill)" };
+/** A note, or a logged call with words in it: what LUME AI can read into a next step. */
+const said = (a: Activity) => {
+  const text = a.type === "note" ? a.payload.body : a.type === "call_logged" ? a.payload.note : null;
+  return typeof text === "string" && text.trim() !== "";
+};
 
 /** A vertical line of events (the prototype's `.tl`): a coloured dot, what happened, who, and when. */
 export function Timeline({
@@ -17,6 +24,7 @@ export function Timeline({
   onMore,
   empty,
   tz,
+  onSuggest,
 }: {
   /** The person's own zone: follow-up times in the history read in it. */
   tz?: string;
@@ -25,6 +33,8 @@ export function Timeline({
   hasMore: boolean;
   onMore: () => void;
   empty: string;
+  /** With LUME AI on, a "Suggest next step" action on each note and logged call with words in it. */
+  onSuggest?: ((a: Activity) => void) | undefined;
 }) {
   if (!items.length && !hasMore) return <p className={s.none}>{empty}</p>;
   return (
@@ -43,6 +53,12 @@ export function Timeline({
                 <b>{line.title}</b>
                 {line.detail && <p>{line.detail}</p>}
                 {line.quote && <div className={s.quote}>{line.quote}</div>}
+                {onSuggest && said(a) && (
+                  <button type="button" className={x.suggest} onClick={() => onSuggest(a)}>
+                    <AiGlyph size={14} />
+                    Suggest next step
+                  </button>
+                )}
               </div>
               <time dateTime={a.occurredAt} data-volatile>
                 {relativeTime(a.occurredAt, undefined, tz)}

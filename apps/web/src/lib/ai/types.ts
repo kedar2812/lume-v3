@@ -9,10 +9,16 @@ export type AiUnavailable =
   | { unavailable: "off" | "not_configured" | "failed" }
   | { unavailable: "limit"; by: AiPause["by"]; until: string };
 export type Part = "stage" | "followUp" | "tags";
-export type NextStepRead = { read: { id: string; suggestion: NextStep } };
+/** `dueAt`: the suggested follow-up as a moment, read on the person's own clock (null when there's none). */
+export type NextStepRead = { read: { id: string; suggestion: NextStep; dueAt: string | null } };
 export type Applied = { applied: Part[]; skipped: { part: Part; why: string }[] };
 export type LeadAi = {
   offerCatchUp: boolean;
-  pending: { id: string; suggestion: NextStep; from: { activityId: string | null; at: string } } | null;
+  pending: {
+    id: string;
+    suggestion: NextStep;
+    dueAt: string | null;
+    from: { activityId: string | null; at: string };
+  } | null;
 };
 export type CatchUpRead = { read: { id: string; lines: [string, string, string] } };

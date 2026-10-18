@@ -43,6 +43,14 @@ describe("when it's offered", () => {
     expect((await status(lead)).offerCatchUp).toBe(true);
   });
 
+  it("not on a lead I just made: being its first owner isn't being handed it", async () => {
+    const made = await (
+      await as(me)
+    ).inject({ method: "POST", url: "/api/v1/leads", payload: { name: "Karan Mehta" } });
+    expect(made.statusCode).toBe(201);
+    expect((await status(made.json().lead.id)).offerCatchUp).toBe(false);
+  });
+
   it("after 14 quiet days, and not before", async () => {
     const lead = await h.seedLead({ ownerId: me.id, name: "Divya Nair" });
     await h.queryAll("UPDATE leads SET last_activity_at = now() - interval '13 days' WHERE id = $1", [lead]);
@@ -107,6 +115,7 @@ describe("a suggestion still waiting", () => {
     expect(s.pending).toMatchObject({
       id: read.id,
       suggestion: read.suggestion,
+      dueAt: read.dueAt,
       from: { activityId: activity },
     });
     await (await as(me)).inject({ method: "POST", url: `/api/v1/ai/reads/${read.id}/dismiss` });

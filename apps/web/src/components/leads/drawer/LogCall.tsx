@@ -49,7 +49,8 @@ export function LogCall({
 }: {
   lead: { id: string; name: string };
   tz: string;
-  onLogged(): void;
+  /** The call it saved, and whether it has words in it (LUME AI can read those into a next step). */
+  onLogged(activityId: string, said: boolean): void;
 }) {
   const { toast } = useToast();
   const [outcome, setOutcome] = useState<Outcome>("talked");
@@ -77,10 +78,11 @@ export function LogCall({
 
   const log = async (close: () => void) => {
     const at = next === "pick" ? localInputToIso(picked, tz) : null;
+    const said = note.trim();
     if (next === "pick" && !at) return setProblem("Pick a date and time.");
     setBusy(true);
     setProblem(null);
-    const r = await leadsClient.logCall(lead.id, outcome, note.trim() || undefined);
+    const r = await leadsClient.logCall(lead.id, outcome, said || undefined);
     if (!r.ok) {
       setBusy(false);
       return setProblem(r.message ?? "LUME couldn’t log the call just now.");
@@ -98,7 +100,7 @@ export function LogCall({
     setBusy(false);
     close();
     reset();
-    onLogged();
+    onLogged(r.data.activity.id, said !== "");
     // A follow-up that wasn't set comes first: the rep must not think one exists.
     const fc = r.data.firstContact;
     const firstWords = !fc
