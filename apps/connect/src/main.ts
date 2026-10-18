@@ -24,7 +24,18 @@ const env = z
       })
       .pipe(z.array(z.object({ url: z.url({ protocol: /^https?$/ }), token: z.string().min(32) }))),
     PORT: z.coerce.number().int().min(1).max(65535).default(3200),
+    // WhatsApp (spec 2026-10-18 §3.1): Meta's app. All four or none; without them the relay is Google's only.
+    META_APP_ID: z.string().regex(/^\d+$/).optional(),
+    META_APP_SECRET: z.string().min(16).optional(),
+    META_CONFIG_ID: z.string().regex(/^\d+$/).optional(),
+    META_VERIFY_TOKEN: z.string().min(16).optional(),
+    META_GRAPH_URL: z.url({ protocol: /^https?$/ }).default("https://graph.facebook.com"),
+    META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v23.0"),
   })
+  .refine(
+    (c) => [c.META_APP_ID, c.META_APP_SECRET, c.META_CONFIG_ID, c.META_VERIFY_TOKEN].filter(Boolean).length % 4 === 0,
+    { path: ["META_APP_ID"], message: "set all of META_APP_ID, META_APP_SECRET, META_CONFIG_ID and META_VERIFY_TOKEN, or none" },
+  )
   .safeParse(process.env);
 
 if (!env.success) {
@@ -43,6 +54,18 @@ http
       appId: c.GOOGLE_PROJECT_NUMBER,
       secret: c.RELAY_SECRET,
       instances: c.RELAY_INSTANCES,
+      ...(c.META_APP_ID && c.META_APP_SECRET && c.META_CONFIG_ID && c.META_VERIFY_TOKEN
+        ? {
+            meta: {
+              appId: c.META_APP_ID,
+              appSecret: c.META_APP_SECRET,
+              configId: c.META_CONFIG_ID,
+              verifyToken: c.META_VERIFY_TOKEN,
+              graphUrl: c.META_GRAPH_URL.replace(/\/$/, ""),
+              version: c.META_GRAPH_VERSION,
+            },
+          }
+        : {}),
     }),
   )
   .listen(c.PORT, "0.0.0.0", () =>

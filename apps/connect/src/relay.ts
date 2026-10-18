@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type http from "node:http";
 import { instanceIdOf, seal, sign, verify, type Handoff } from "@lume/core";
 import { pickerPage } from "./picker.html";
+import { whatsappRoutes, type MetaConfig } from "./whatsapp";
 
 export type RelayConfig = {
   publicUrl: string;
@@ -16,6 +17,8 @@ export type RelayConfig = {
   googleTokenUrl?: string;
   /** Google's API (Drive), to check a picked file is a spreadsheet. */
   googleApiUrl?: string;
+  /** Meta's app (spec 2026-10-18 §3.1): with it, the relay also connects WhatsApp numbers and passes on their messages. */
+  meta?: MetaConfig;
   now?: () => number;
 };
 
@@ -29,8 +32,8 @@ const CALENDAR_SCOPE = [
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 ].join(" ");
 const TEN_MIN = 10 * 60_000;
-/** `k`: "calendar" for a calendar's grant (Phase 5A); absent, a sheet's. */
-type State = { i: string; n: string; exp: number; k?: "calendar" };
+/** `k`: "calendar" for a calendar's grant (Phase 5A), "whatsapp" for a WhatsApp number's; absent, a sheet's. */
+type State = { i: string; n: string; exp: number; k?: "calendar" | "whatsapp" };
 
 /**
  * The relay (2B spec §6): the one place Google calls back to, for every LUME instance. It holds the OAuth
@@ -143,10 +146,27 @@ export function createRelay(o: RelayConfig): Relay {
     return { status: r.status, data: (await r.json().catch(() => ({}))) as Record<string, unknown> };
   }
 
+  const whatsapp = o.meta
+    ? whatsappRoutes({
+        meta: o.meta,
+        publicUrl: o.publicUrl,
+        now,
+        byId,
+        packState,
+        readState,
+        plain,
+        page,
+        wordsPage,
+        backTo,
+        formBody: body,
+      })
+    : null;
+
   const listener = (req: http.IncomingMessage, res: http.ServerResponse) => {
     void (async () => {
       const u = new URL(req.url ?? "/", o.publicUrl);
       if (u.pathname === "/healthz") return json(res, 200, { status: "ok" });
+      if (whatsapp && u.pathname.startsWith("/wa/") && (await whatsapp(req, res, u))) return;
 
       if (u.pathname === "/start" && req.method === "GET") {
         const id = u.searchParams.get("i") ?? "";
