@@ -107,6 +107,7 @@
 }
 .message {
   max-width: 70%;
+  align-self: flex-start;
   display: flex;
   flex-direction: column-reverse;
   gap: 2px;

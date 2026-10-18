@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance } from "fastify";
 import type { AppDeps } from "../../app";
 import { isLocked } from "../../licence/enforce";
+import { relayOf } from "./service";
 
 const E = schema.whatsappEvents;
 const N = schema.whatsappNumbers;
@@ -31,7 +32,7 @@ export async function whatsappReceiveRoutes(app: FastifyInstance, d: AppDeps) {
     "/whatsapp/in",
     { config: { public: true, csrf: false, db: false }, bodyLimit: BODY_LIMIT },
     async (req, reply) => {
-      const token = d.googleOAuth?.relayToken;
+      const token = relayOf(d)?.relayToken;
       if (!token) return reply.code(404).send({ error: "not_found" });
       const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
       const now = d.clock().getTime();

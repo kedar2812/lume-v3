@@ -99,13 +99,18 @@ const deps: AppDeps = {
   tasks,
   manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",
   googleOAuth,
+  whatsappRelay:
+    cfg.WHATSAPP_RELAY_URL && cfg.WHATSAPP_RELAY_TOKEN
+      ? { relayUrl: cfg.WHATSAPP_RELAY_URL.replace(/\/$/, ""), relayToken: cfg.WHATSAPP_RELAY_TOKEN }
+      : null,
   // WhatsApp connects through the relay: without it there's no WhatsApp on this server.
-  meta: googleOAuth
-    ? {
-        graphUrl: cfg.META_GRAPH_URL ?? "https://graph.facebook.com",
-        version: cfg.META_GRAPH_VERSION ?? "v23.0",
-      }
-    : null,
+  meta:
+    googleOAuth || cfg.WHATSAPP_RELAY_URL
+      ? {
+          graphUrl: cfg.META_GRAPH_URL ?? "https://graph.facebook.com",
+          version: cfg.META_GRAPH_VERSION ?? "v23.0",
+        }
+      : null,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   mailer,
   config: { publicUrl, cookieSecure: true, version: appVersion(cfg) },

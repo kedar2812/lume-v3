@@ -14,6 +14,8 @@ const N = schema.whatsappNumbers;
 const OC = schema.oauthConnects;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const tokenContext = (id: string) => `whatsapp-number:${id}`;
+/** The relay WhatsApp goes through: its own when set (e2e), else Connect with Google's — one relay on a client's server. */
+export const relayOf = (d: AppDeps) => d.whatsappRelay ?? d.googleOAuth ?? null;
 
 const notConfigured = () =>
   new HttpError(
@@ -37,7 +39,7 @@ export async function whatsappOn(req: FastifyRequest): Promise<boolean> {
 }
 
 async function requireOn(req: FastifyRequest, d: AppDeps) {
-  if (!d.googleOAuth || !d.meta) throw notConfigured();
+  if (!relayOf(d) || !d.meta) throw notConfigured();
   if (!(await whatsappOn(req))) throw whatsappOff();
 }
 
@@ -45,7 +47,7 @@ async function requireOn(req: FastifyRequest, d: AppDeps) {
 export async function setWhatsAppEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
   if (enabled) {
     assertModule(req, "whatsapp");
-    if (!d.googleOAuth || !d.meta) throw notConfigured();
+    if (!relayOf(d) || !d.meta) throw notConfigured();
   }
   await req.db.execute(
     sql`UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp}', ${JSON.stringify({ enabled })}::jsonb) WHERE id = 1`,
@@ -93,7 +95,7 @@ export async function numbersView(req: FastifyRequest) {
 /** A signed link to the relay's Embedded Signup: the kind is signed with the nonce, as a calendar's. */
 export async function connectStart(req: FastifyRequest, d: AppDeps) {
   await requireOn(req, d);
-  const { relayUrl, relayToken } = d.googleOAuth!;
+  const { relayUrl, relayToken } = relayOf(d)!;
   const nonce = randomBytes(24).toString("base64url");
   await req.db
     .insert(OC)
@@ -114,7 +116,7 @@ export async function connectStart(req: FastifyRequest, d: AppDeps) {
  */
 export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p: string; s: string }) {
   await requireOn(req, d);
-  const token = d.googleOAuth!.relayToken;
+  const token = relayOf(d)!.relayToken;
   const invalid = () =>
     badRequest("CONNECT_INVALID", "This connection isn't valid. Try connecting the number again.");
   if (!verify(token, body.p, body.s)) throw invalid();

@@ -99,7 +99,7 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
     whatsapp: {
       enabled: !!s?.i.whatsapp?.enabled,
       // Connecting goes through the relay, and the server calls Meta itself afterwards.
-      available: !!d.googleOAuth && !!d.meta,
+      available: !!(d.whatsappRelay ?? d.googleOAuth) && !!d.meta,
       inPlan: moduleIncluded(req.server.licence.view().plan, "whatsapp"),
     },
     ai: {

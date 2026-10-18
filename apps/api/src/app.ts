@@ -109,6 +109,8 @@ export type AppDeps = {
    * disconnecting). Connecting goes through the relay (googleOAuth), so WhatsApp needs both.
    */
   meta?: { graphUrl: string; version: string } | null;
+  /** WhatsApp's relay, when it isn't Connect with Google's (e2e only); otherwise `googleOAuth` is used. */
+  whatsappRelay?: { relayUrl: string; relayToken: string } | null;
   /** WhatsApp's queues (plan W1 Tasks 5–7): an event to make into lead activity, a media item to fetch. */
   whatsapp?: { enqueue(eventId: number): Promise<void>; enqueueMedia(mediaId: string): Promise<void> };
   /** Tests and e2e only: where Calendly's API is (the fake, 5B). */

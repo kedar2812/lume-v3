@@ -98,6 +98,12 @@ export const apiSchema = base
     LUME_AI_PROVIDER: optional(z.enum(["anthropic", "google", "fake"])),
     /** WhatsApp (spec 2026-10-18 §3): Meta's Graph API, for media and disconnecting. Tests and e2e point it at a fake. */
     META_GRAPH_URL: optional(z.url({ protocol: /^https?$/ })),
+    /**
+     * WhatsApp's relay, when it isn't the Connect with Google one (e2e turns WhatsApp on alone). Unset: the same
+     * GOOGLE_OAUTH_RELAY_URL/TOKEN — one relay for everything, as on a client's server.
+     */
+    WHATSAPP_RELAY_URL: optional(z.url({ protocol: /^https?$/ })),
+    WHATSAPP_RELAY_TOKEN: optional(z.string().min(32).max(200)),
     META_GRAPH_VERSION: optional(z.string().regex(/^v\d+\.\d+$/)),
     LUME_AI_MODEL: optional(z.string().min(1).max(100)),
     LUME_AI_KEY: optional(z.string().min(20).max(400)),

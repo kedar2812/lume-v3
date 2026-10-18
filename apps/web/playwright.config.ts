@@ -96,6 +96,21 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 60_000,
     },
+    // WhatsApp (plan W1): the fake Meta, then the real relay pointed at it. No test ever calls Meta.
+    {
+      command:
+        "node ../../scripts/bundle.mjs . e2e/meta-fake.ts e2e/.artifacts/meta-fake.mjs && node e2e/.artifacts/meta-fake.mjs",
+      url: "http://127.0.0.1:3114/v23.0/oauth/access_token",
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      command: "node ../../scripts/bundle.mjs . e2e/relay.ts e2e/.artifacts/relay.mjs && node e2e/.artifacts/relay.mjs",
+      url: "http://127.0.0.1:3115/healthz",
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: { E2E_EDGE_PORT: String(EDGE) },
+    },
     {
       command: "node e2e/smtp-sink.mjs",
       url: "http://127.0.0.1:3111/messages",
