@@ -48,6 +48,9 @@ export function allowed(
   o: { firstRun?: boolean } = {},
 ): boolean {
   if (state === "active" || state === "grace") return true;
+  // WhatsApp's intake answers for itself: it takes nothing new while locked, and still tells Meta 200 (a refusal would
+  // only make Meta try again for days).
+  if (url === "/whatsapp/in") return true;
   if (
     isAuth(url) ||
     isExport(url) ||

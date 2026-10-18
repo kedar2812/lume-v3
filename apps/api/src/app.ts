@@ -47,6 +47,7 @@ import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { aiRoutes } from "./modules/ai/routes";
 import { whatsappRoutes } from "./modules/whatsapp/routes";
+import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
@@ -108,6 +109,8 @@ export type AppDeps = {
    * disconnecting). Connecting goes through the relay (googleOAuth), so WhatsApp needs both.
    */
   meta?: { graphUrl: string; version: string } | null;
+  /** WhatsApp's queues (plan W1 Tasks 5–7): an event to make into lead activity, a media item to fetch. */
+  whatsapp?: { enqueue(eventId: number): Promise<void>; enqueueMedia(mediaId: string): Promise<void> };
   /** Tests and e2e only: where Calendly's API is (the fake, 5B). */
   calendlyEndpoint?: string;
   /** Tests only: how the Calendly client waits between retries (no real 1-2-4 s). */
@@ -175,6 +178,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       open: async (a) => {
         await receiveRoutes(a, deps);
         await calendlyReceiveRoutes(a, deps);
+        await whatsappReceiveRoutes(a, deps);
       },
       configure: (a) => {
         a.decorate("licence", licence);

@@ -148,6 +148,10 @@ export type Harness = {
   runSyncs(ids?: string[]): Promise<void>;
   /** Webhook events queued for processing (2C), in the order they were accepted. */
   webhookQueue: number[];
+  /** WhatsApp events queued for processing (plan W1 Task 5); `runWhatsApp` processes them (Task 6). */
+  whatsappQueued: number[];
+  /** WhatsApp media queued for fetching (Task 7). */
+  whatsappMediaQueued: string[];
   /** Calendar connections whose sync was asked for (5A), in order. */
   calendarQueue: string[];
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
@@ -241,6 +245,8 @@ export async function createHarness(
     : null;
   const syncs: string[] = [];
   const webhookQueue: number[] = [];
+  const whatsappQueued: number[] = [];
+  const whatsappMediaQueued: string[] = [];
   const calendarQueue: string[] = [];
   const reminderQueue: { id: number; fireAt: Date }[] = [];
   let reminderQueueDown = false;
@@ -286,6 +292,10 @@ export async function createHarness(
     ...(opts.ai !== undefined ? { ai: opts.ai } : {}),
     ...(opts.aiTimeoutMs ? { aiTimeoutMs: opts.aiTimeoutMs } : {}),
     ...(opts.meta ? { meta: opts.meta } : {}),
+    whatsapp: {
+      enqueue: async (id) => void whatsappQueued.push(id),
+      enqueueMedia: async (id) => void whatsappMediaQueued.push(id),
+    },
   });
 
   const addRole = async (userId: string, grants: Grant[]) => {
@@ -478,6 +488,8 @@ export async function createHarness(
     fake,
     google,
     webhookQueue,
+    whatsappQueued,
+    whatsappMediaQueued,
     calendarQueue,
     reminderQueue,
     failReminderQueue(on) {
