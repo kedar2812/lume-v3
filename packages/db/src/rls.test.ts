@@ -767,3 +767,93 @@ describe("LUME AI's slots: reserved under one lock, then finished (spec 2026-10-
     ).rejects.toThrow(/permission/);
   });
 });
+
+describe("WhatsApp (spec 2026-10-18 §4.1, §6.3; plan W1 Task 3)", () => {
+  const N = { rep: "0190e0c0-0000-7000-8000-0000000000e1", biz: "0190e0c0-0000-7000-8000-0000000000e2" };
+  beforeAll(async () => {
+    await as("lume_owner", { scope: "all", user: U.rep }, async (c) => {
+      for (const [id, owner, pnid] of [
+        [N.rep, U.rep, "1111111111"],
+        [N.biz, null, "2222222222"],
+      ] as const)
+        await c.query(
+          `INSERT INTO whatsapp_numbers (id, phone_number_id, waba_id, display_phone, owner_user_id, run_as, status, token_enc)
+           VALUES ($1, $2, '99999', '+91 90000 00001', $3, $4, 'active', decode('00', 'hex'))`,
+          [id, pnid, owner, U.rep],
+        );
+      for (const [n, peer, wamid] of [
+        [N.rep, "+919000000011", "wamid.R1"],
+        [N.biz, "+919000000022", "wamid.B1"],
+      ] as const)
+        await c.query(
+          "INSERT INTO whatsapp_inbox (id, number_id, peer, wamid, at, text) VALUES (gen_random_uuid(), $1, $2, $3, now(), 'hi')",
+          [n, peer, wamid],
+        );
+      for (const lead of [L.rep, L.other])
+        await c.query(
+          "INSERT INTO whatsapp_media (id, number_id, meta_id, lead_id, kind, mime, status) VALUES (gen_random_uuid(), $1, $2, $3, 'image', 'image/jpeg', 'waiting')",
+          [N.rep, `m-${lead.slice(-2)}`, lead],
+        );
+    });
+  });
+
+  it("Not a lead yet: a rep sees their own number's strangers only; someone who sees every lead sees all", async () => {
+    const peers = (s: Scope) =>
+      as("lume_app", s, async (c) =>
+        (await c.query<{ peer: string }>("SELECT peer FROM whatsapp_inbox ORDER BY peer")).rows.map(
+          (r) => r.peer,
+        ),
+      );
+    expect(await peers({ scope: "own", user: U.rep })).toEqual(["+919000000011"]);
+    expect(await peers({ scope: "own", user: U.mate })).toEqual([]);
+    expect(await peers({ scope: "all", user: U.mate })).toEqual(["+919000000011", "+919000000022"]);
+    // Nothing at all without a person on the request.
+    expect(await peers({ scope: null })).toEqual([]);
+  });
+
+  it("a rep can't clear another number's strangers", async () => {
+    await as("lume_app", { scope: "own", user: U.mate }, (c) => c.query("DELETE FROM whatsapp_inbox"));
+    expect(
+      await as("lume_owner", { scope: "all" }, async (c) =>
+        Number((await c.query("SELECT count(*) FROM whatsapp_inbox")).rows[0].count),
+      ),
+    ).toBe(2);
+  });
+
+  it("a photo on a lead is seen with its lead; purging the lead purges its media", async () => {
+    const seen = (s: Scope) =>
+      as("lume_app", s, async (c) =>
+        (await c.query<{ meta_id: string }>("SELECT meta_id FROM whatsapp_media ORDER BY meta_id")).rows.map(
+          (r) => r.meta_id,
+        ),
+      );
+    expect(await seen({ scope: "own", user: U.rep })).toEqual([`m-${L.rep.slice(-2)}`]);
+    expect(await seen({ scope: "all" })).toHaveLength(2);
+    // Leads are soft-deleted (no DELETE policy); a purge that removes one takes its media with it.
+    const cascade = await as("lume_owner", { scope: "all" }, async (c) =>
+      (
+        await c.query<{ t: string }>(
+          "SELECT confdeltype AS t FROM pg_constraint WHERE conrelid = 'whatsapp_media'::regclass AND confrelid = 'leads'::regclass",
+        )
+      ).rows.map((r) => r.t),
+    );
+    expect(cascade).toEqual(["c"]);
+  });
+
+  it("a number's token is never readable by the worker, and the same message twice is one event", async () => {
+    await expect(
+      as("lume_worker", { scope: null }, (c) => c.query("SELECT token_enc FROM whatsapp_numbers")),
+    ).rejects.toThrow(/permission/);
+    await as("lume_app", { scope: "all" }, async (c) => {
+      const ins = () =>
+        c.query(
+          "INSERT INTO whatsapp_events (phone_number_id, wamid, kind, status) VALUES ('1111111111', 'wamid.X', 'received', 'queued') ON CONFLICT DO NOTHING",
+        );
+      await ins();
+      await ins();
+      expect(
+        Number((await c.query("SELECT count(*) FROM whatsapp_events WHERE wamid = 'wamid.X'")).rows[0].count),
+      ).toBe(1);
+    });
+  });
+});

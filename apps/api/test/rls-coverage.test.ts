@@ -62,6 +62,10 @@ const WITHOUT_RLS: Record<string, string> = {
   ai_limit_notices: "Background work and its bookkeeping",
   weekly_runs: "Background work and its bookkeeping",
   webhook_signatures: "Background work and its bookkeeping",
+  // WhatsApp (spec 2026-10-18 §3–4): an intake table (as webhook_events, its body encrypted and cleared once
+  // processed), and the business's connected numbers (configuration; the token is encrypted, never selected by routes)
+  whatsapp_events: "Background work and its bookkeeping",
+  whatsapp_numbers: "Business configuration",
   // Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes
   lead_firsts:
     "Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes",
