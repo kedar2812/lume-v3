@@ -1,0 +1,90 @@
+{
+  "interiors": {
+    "timezone": "Asia/Kolkata",
+    "stages": [
+      { "key": "new", "name": "New enquiry", "kind": "open" },
+      { "key": "contacted", "name": "Contacted", "kind": "open" },
+      { "key": "visit", "name": "Site visit booked", "kind": "open" },
+      { "key": "quote", "name": "Quote sent", "kind": "open" },
+      { "key": "negotiation", "name": "Negotiation", "kind": "open" },
+      { "key": "won", "name": "Won", "kind": "won" },
+      { "key": "lost", "name": "Lost", "kind": "lost" }
+    ],
+    "lostReasons": [
+      { "key": "price", "label": "Too expensive" },
+      { "key": "competitor", "label": "Went with someone else" },
+      { "key": "timing", "label": "Not now" },
+      { "key": "unreachable", "label": "Couldn't reach" }
+    ],
+    "tags": [
+      { "key": "budget-tight", "label": "budget tight" },
+      { "key": "decision-pending", "label": "decision pending" },
+      { "key": "referral", "label": "referral" },
+      { "key": "urgent", "label": "urgent" }
+    ]
+  },
+  "coaching": {
+    "timezone": "Asia/Kolkata",
+    "stages": [
+      { "key": "new", "name": "New", "kind": "open" },
+      { "key": "call-booked", "name": "Call booked", "kind": "open" },
+      { "key": "call-done", "name": "Call done", "kind": "open" },
+      { "key": "proposal", "name": "Proposal sent", "kind": "open" },
+      { "key": "won", "name": "Joined", "kind": "won" },
+      { "key": "lost", "name": "Lost", "kind": "lost" }
+    ],
+    "lostReasons": [
+      { "key": "price", "label": "Price" },
+      { "key": "not-ready", "label": "Not ready yet" },
+      { "key": "no-show", "label": "Didn't show up" }
+    ],
+    "tags": [
+      { "key": "price-objection", "label": "price objection" },
+      { "key": "needs-partner", "label": "needs partner's okay" },
+      { "key": "hot", "label": "hot" }
+    ]
+  },
+  "clinic": {
+    "timezone": "Asia/Kolkata",
+    "stages": [
+      { "key": "new", "name": "New enquiry", "kind": "open" },
+      { "key": "consult", "name": "Consultation booked", "kind": "open" },
+      { "key": "consulted", "name": "Consulted", "kind": "open" },
+      { "key": "treatment", "name": "Treatment plan sent", "kind": "open" },
+      { "key": "won", "name": "Started treatment", "kind": "won" },
+      { "key": "lost", "name": "Lost", "kind": "lost" }
+    ],
+    "lostReasons": [
+      { "key": "price", "label": "Price" },
+      { "key": "distance", "label": "Too far" },
+      { "key": "fear", "label": "Not comfortable with the procedure" }
+    ],
+    "tags": [
+      { "key": "insurance", "label": "asks about insurance" },
+      { "key": "emi", "label": "wants EMI" },
+      { "key": "referral", "label": "referral" }
+    ]
+  },
+  "realestate": {
+    "timezone": "Asia/Kolkata",
+    "stages": [
+      { "key": "new", "name": "New lead", "kind": "open" },
+      { "key": "qualified", "name": "Qualified", "kind": "open" },
+      { "key": "visit", "name": "Site visit scheduled", "kind": "open" },
+      { "key": "visited", "name": "Site visit done", "kind": "open" },
+      { "key": "booking", "name": "Booking discussion", "kind": "open" },
+      { "key": "won", "name": "Booked", "kind": "won" },
+      { "key": "lost", "name": "Lost", "kind": "lost" }
+    ],
+    "lostReasons": [
+      { "key": "budget", "label": "Over budget" },
+      { "key": "location", "label": "Location" },
+      { "key": "bought", "label": "Bought elsewhere" }
+    ],
+    "tags": [
+      { "key": "nri", "label": "NRI" },
+      { "key": "loan", "label": "needs home loan" },
+      { "key": "investor", "label": "investor" }
+    ]
+  }
+}

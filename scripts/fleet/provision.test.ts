@@ -194,6 +194,32 @@ describe("provision.sh (L-C Task 3)", () => {
     expect(server).toMatch(/^RCLONE_REMOTE='offsite:lume-harbour'$/m);
   });
 
+  it("LUME AI's provider, model and key come from the client's inputs (runbook ai.md), so a second run keeps them", () => {
+    const f = fleet({
+      inputs: `${INPUTS}
+LUME_AI_PROVIDER=anthropic
+LUME_AI_MODEL=model-x
+LUME_AI_KEY=sk-client-key`,
+    });
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: ANSWERS,
+    });
+    const server = readFileSync(path.join(r.dir, "uploads", ".env"), "utf8");
+    expect(server).toMatch(/^LUME_AI_PROVIDER='anthropic'$/m);
+    expect(server).toMatch(/^LUME_AI_MODEL='model-x'$/m);
+    expect(server).toMatch(/^LUME_AI_KEY='sk-client-key'$/m);
+    // Without them, no AI lines at all: LUME AI isn't set up on that server.
+    const plain = fleet();
+    const r2 = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: plain.dir,
+      env: plain.env,
+      answers: ANSWERS,
+    });
+    expect(readFileSync(path.join(r2.dir, "uploads", ".env"), "utf8")).not.toContain("LUME_AI_");
+  });
+
   it("with no --version, a new client gets LUME's own version (read from the repository's package.json)", () => {
     const f = fleet();
     const r = run("scripts/provision.sh", ["harbour-clinic"], { dir: f.dir, env: f.env, answers: ANSWERS });

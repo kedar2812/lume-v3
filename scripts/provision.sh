@@ -13,6 +13,7 @@
 #   GHCR_USER=… GHCR_TOKEN=…  (this client's own read-only registry token)
 #   OWNER_AGE_RECIPIENT=age1… (the owner's offline backup key)
 #   SMTP_URL=… MAIL_FROM=…  (optional)
+#   LUME_AI_PROVIDER=… LUME_AI_MODEL=… LUME_AI_KEY=…  (optional: LUME AI, with this client's own key; docs/runbooks/ai.md)
 set -euo pipefail
 # shellcheck source=scripts/fleet/lib.sh
 . "$(dirname "$0")/fleet/lib.sh"
@@ -164,6 +165,10 @@ kv() {
   kv RCLONE_REMOTE "${offsite_remote:-offsite:/var/lib/lume/offsite}"
   kv SMTP_URL "$(envget SMTP_URL)"
   kv MAIL_FROM "$(envget MAIL_FROM)"
+  # LUME AI (docs/runbooks/ai.md): only when the inputs name a provider; without one it isn't set up on this server.
+  if [ -n "$(envget LUME_AI_PROVIDER)" ]; then
+    for key in LUME_AI_PROVIDER LUME_AI_MODEL LUME_AI_KEY; do kv "$key" "$(envget "$key")"; done
+  fi
   kv LOG_LEVEL info
 } > "$rendered"
 upload "$rendered" /opt/lume/.env
