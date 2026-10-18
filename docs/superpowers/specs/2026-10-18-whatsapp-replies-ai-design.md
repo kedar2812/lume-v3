@@ -53,7 +53,7 @@ screens before they're built, as every phase.
 
 | Piece | Where it runs | Needs Meta approval |
 |---|---|---|
-| A. AI foundation: one provider plug, allowance, audit | client's LUME | no |
+| A. AI foundation: one provider plug, hourly and weekly limits, audit | client's LUME | no |
 | B. Call notes → pipeline suggestion | client's LUME | no |
 | C. Catch-up summary | client's LUME | no |
 | D. WhatsApp connection (Embedded Signup, coexistence) | connect relay + client's LUME | yes (live); test numbers before |
@@ -75,7 +75,7 @@ Meta's test numbers while verification runs, released when Meta approves.
   (`.env`: `LUME_AI_PROVIDER`, `LUME_AI_MODEL`, `LUME_AI_KEY`), chosen by the §6.4 test, not in code.
 - The same shape as `MessageChannel` (`apps/api/src/messaging/channel.ts`): callers never know which provider runs.
 
-### 2.2 Switches and allowance
+### 2.2 Switches and limits
 
 - **Business switch:** Settings → Integrations → "LUME AI", off by default, admin only. Copy says plainly that the text
   of notes and replies is sent to the AI provider to be read, and isn't used to train it.
@@ -83,10 +83,17 @@ Meta's test numbers while verification runs, released when Meta approves.
   claim's schema is strict, so a LUME from before this release would refuse the new keys: they're signed only for a
   LUME that lists a new capability (`accepts: ["plan2"]`); an older licence server sends none and both count as
   included (the existing "absent = included" rule).
-- **Monthly allowance:** the plan carries `aiReadsMonthly` (null = no limit). Each AI call counts one read. At the
-  allowance, AI suggestions pause until the 1st of next month; replies and notes keep arriving and saving. Admins see
-  "LUME AI has read 3,000 of 3,000 this month" in Settings, and one notice at 90%. *My call:* default 3,000 for a team
-  plan, 1,000 for a solo plan, set per client on the licence dashboard.
+- **Limits, Claude-style (owner, 2026-10-18: "follow claude's ai allowance, the weekly and hourly limit type design and
+  notify the user about the limits"):** each AI call counts one read, per business. Two limits from the plan:
+  - **hourly** (`aiReadsHourly`): a rolling 60 minutes; at the limit AI pauses until the oldest read in the window is
+    an hour old;
+  - **weekly** (`aiReadsWeekly`): resets every Monday 00:00 on the business's clock.
+  null = no limit. *My call* defaults: team plan 100 an hour / 750 a week; solo plan 40 / 250.
+  - **Telling people:** a meter in Settings → Integrations → LUME AI ("This week: 640 of 750 · resets Monday 12:00
+    am"; "This hour: 12 of 100"); admins get one bell notice at 75% and one at 90% of the week, and one when either
+    limit is reached; where a suggestion would appear, everyone sees "LUME AI has reached this hour's limit. It's back
+    at 3:40 pm." / "…this week's limit. It's back Monday." Coming back says nothing; it just works. Replies and notes
+    keep arriving and saving throughout.
 - **Spend cap at the provider:** each client gets its own provider key in its own workspace/project with a hard monthly
   spend limit, so one busy client can never surprise the owner's bill. Set at provisioning (runbook).
 
@@ -184,7 +191,7 @@ It changes LUME's line "your own WhatsApp, no API" (marketing updates it when th
     client's LUME by an unguessable link that can be switched off — works with today's tap-to-send.
 - **Media templates:** created in LUME, submitted to Meta from LUME, status shown (pending / approved / rejected with
   Meta's reason). Only approved ones can be picked.
-- **Cost guard:** paid template sends count against a plan allowance (like AI reads); at the limit LUME stops offering
+- **Cost guard:** paid template sends count against a weekly plan limit (like AI reads); at the limit LUME stops offering
   paid sends for the month and says why. A person always picks the file and taps Send.
 
 ## 5. Reading replies and notes (F, B, C)

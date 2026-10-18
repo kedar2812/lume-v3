@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship LUME's first AI, behind a switch and a monthly allowance: a suggested next step from a call note, and a three-line catch-up on a lead — with no Meta dependency.
+**Goal:** Ship LUME's first AI, behind a switch and Claude-style hourly and weekly limits: a suggested next step from a call note, and a three-line catch-up on a lead — with no Meta dependency.
 
-**Architecture:** Pure task definitions (input shaping, output schemas, rules) live in `@lume/core`; the API owns one `AiProvider` plug (Anthropic and Google adapters plus a fake), a reads service that enforces the switch, the plan and the allowance, and writes one `ai_reads` row per call; the web shows one suggestion card and one catch-up card. The plan claim grows `ai`/`whatsapp` modules and `aiReadsMonthly`, signed only for a LUME that accepts `plan2`.
+**Architecture:** Pure task definitions (input shaping, output schemas, rules) live in `@lume/core`; the API owns one `AiProvider` plug (Anthropic and Google adapters plus a fake), a reads service that enforces the switch, the plan and the hourly and weekly limits, and writes one `ai_reads` row per call; the web shows one suggestion card and one catch-up card. The plan claim grows `ai`/`whatsapp` modules and `aiReadsHourly`/`aiReadsWeekly`, signed only for a LUME that accepts `plan2`.
 
 **Tech Stack:** TypeScript, Fastify, Drizzle + Postgres (RLS), zod, Next.js (App Router), vitest, Playwright; `@anthropic-ai/sdk`, `@google/genai`.
 
@@ -14,9 +14,9 @@
 
 - A suggestion is never applied without a tap; nothing is sent to a lead. (§5.4)
 - The AI reads only facts from the lead's record and the business's own settings; never a phone, email, web address or Instagram handle (same exclusion as `contextFor`, `apps/api/src/modules/leads/sending.ts`). (§5.4)
-- With the AI switch off, the plan leaving `ai` out, no provider configured, or the allowance used: no AI call is made and LUME works exactly as today. (§0, §2.2)
+- With the AI switch off, the plan leaving `ai` out, no provider configured, or a limit reached: no AI call is made and LUME works exactly as today. (§0, §2.2)
 - AI switch: Settings → Integrations → "LUME AI", off by default, admins (`integrations.manage`) only. Copy says the text of notes is sent to the AI provider to be read and isn't used to train it. (§2.2)
-- Allowance: plan `aiReadsMonthly` (null = no limit); one successful AI call = one read; counted per calendar month on the business's clock; at the limit suggestions pause until the 1st; a notice to admins once at 90%. (§2.2)
+- Limits: plan `aiReadsHourly` (rolling 60 minutes) and `aiReadsWeekly` (resets Monday 00:00 on the business's clock), null = no limit; one successful AI call = one read, per business. At a limit, AI pauses until it resets and every place a suggestion would appear says which limit and when it's back ("LUME AI has reached this hour's limit. It's back at 3:40 pm." / "LUME AI has reached this week's limit. It's back Monday."). Admins: one bell notice at 75% and one at 90% of the week, one when either limit is reached. Coming back is silent. (§2.2)
 - Provider, model and key come only from `.env` (`LUME_AI_PROVIDER` = `anthropic` | `google` | `fake`, `LUME_AI_MODEL`, `LUME_AI_KEY`); no model is hard-coded. The model is chosen by the eval (Task 11). (§2.1, §6.2)
 - `ai_reads` rows hold no message text from the lead's record beyond the structured result; never in logs, exports, health or check-ins. (§2.3, §6.3)
 - Older licence servers / older LUMEs keep working: `ai` and `whatsapp` absent from a plan = included; `plan2` keys signed only when the LUME lists `accepts: ["plan2"]`. (§2.2)
@@ -28,7 +28,7 @@
 1. **Provider returns ids that aren't the business's** (a stage or tag id made up or from another list) → dropped server-side before the suggestion is shown; the rest of the suggestion stands. (Task 6 test "drops ids the business doesn't have")
 2. **A follow-up time in the past or unreadable** ("call me Thursday" read on Friday) → no follow-up part; never a task due in the past. (Task 6 test "never suggests a follow-up in the past")
 3. **Two Applies at once / Apply after the lead changed** (stage moved by someone else, lead version stale) → the apply re-reads the lead, applies what's still valid, and says what it skipped; a second Apply of the same read is refused (409). (Task 6 tests)
-4. **Provider slow or down** → the read fails after 20 s, isn't counted against the allowance, and the card says "LUME couldn't read this note just now" once; the call/note itself is already saved. (Task 5 test)
+4. **Provider slow or down** → the read fails after 20 s, isn't counted against the limits, and the card says "LUME couldn't read this note just now" once; the call/note itself is already saved. (Task 5 test)
 5. **A rep without access to the lead, or a lead deleted between read and apply** → 404 on read and apply (RLS + `visibleLead`); no suggestion leaks across leads. (Task 6 test)
 
 ---
@@ -64,7 +64,7 @@
 - [ ] **Step 4: Run** the same command — Expected: PASS.
 - [ ] **Step 5: Commit** `feat(core): LUME AI's tasks — next step and catch-up, their rules and schemas`
 
-### Task 2: The plan grows `ai`, `whatsapp` and an AI allowance (licence server + LUME)
+### Task 2: The plan grows `ai`, `whatsapp` and Claude-style AI limits (licence server + LUME)
 
 **Files:**
 - Modify: `packages/core/src/licence/fleet.ts` (`PLAN_MODULES`, `planClaimSchema`, `ACCEPTS`), `packages/core/src/licence/plan.test.ts`
@@ -76,21 +76,21 @@
 **Interfaces:**
 - Produces:
   - `PLAN_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly", "ai", "whatsapp"] as const`.
-  - `planClaimSchema`: `places`, `modules` with the four existing keys required and `ai?`, `whatsapp?` optional booleans, `aiReadsMonthly?: number | null` (int 1..1,000,000). Strict.
+  - `planClaimSchema`: `places`, `modules` with the four existing keys required and `ai?`, `whatsapp?` optional booleans, `aiReadsHourly?: number | null` (int 1..100,000) and `aiReadsWeekly?: number | null` (int 1..1,000,000). Strict.
   - `ACCEPTS = ["announcements", "plan", "plan2"]`.
-  - Licence server: `licences.ai_reads_monthly integer NULL CHECK (ai_reads_monthly BETWEEN 1 AND 1000000)`; `planOf(l, { v2: boolean })` → v2 adds `ai`, `whatsapp`, `aiReadsMonthly`; `check.ts` passes `v2: b.accepts?.includes("plan2")`.
+  - Licence server: `licences.ai_reads_hourly integer NULL CHECK (ai_reads_hourly BETWEEN 1 AND 100000)` and `licences.ai_reads_weekly integer NULL CHECK (ai_reads_weekly BETWEEN 1 AND 1000000)`; `planOf(l, { v2: boolean })` → v2 adds `ai`, `whatsapp`, `aiReadsHourly`, `aiReadsWeekly`; `check.ts` passes `v2: b.accepts?.includes("plan2")`.
   - `modulesOn`: `ai` from `settings.integrations.ai.enabled`; `whatsapp` always false in this plan.
-  - Dashboard Plan limits card: two more module rows ("LUME AI", "WhatsApp") and a number field "AI reads a month" (empty = no limit), same patterns as Places.
+  - Dashboard Plan limits card: two more module rows ("LUME AI", "WhatsApp") and two number fields "AI reads an hour" and "AI reads a week" (empty = no limit), same patterns as Places.
 
 - [ ] **Step 1: Write the failing tests**:
-  - core: `"a plan without ai or whatsapp parses, and they count as included"`; `"aiReadsMonthly 0 is refused"`.
-  - licence: `"signs ai, whatsapp and aiReadsMonthly only for a LUME that accepts plan2"` (accepts `["plan"]` → payload `plan.modules` has exactly the four keys, no `aiReadsMonthly`); `patchPlan` stores `aiReadsMonthly` and records it in the client's history event.
-  - licence UI: the card shows "AI reads a month" and saves `{ aiReadsMonthly: 3000 }`.
+  - core: `"a plan without ai or whatsapp parses, and they count as included"`; `"aiReadsHourly 0 and aiReadsWeekly 0 are refused"`.
+  - licence: `"signs ai, whatsapp and the AI limits only for a LUME that accepts plan2"` (accepts `["plan"]` → payload `plan.modules` has exactly the four keys, no AI limits); `patchPlan` stores both limits and records it in the client's history event.
+  - licence UI: the card shows both fields and saves `{ aiReadsHourly: 100, aiReadsWeekly: 750 }`.
   - api: `applyPlan` switches `ai` off once when the plan leaves it out (audit row `module: "ai"`), and `modulesOn` reports `ai` when on.
 - [ ] **Step 2: Run** `bash scripts/dev.sh run pnpm exec vitest run packages/core/src/licence apps/licence apps/api/src/licence` — Expected: FAIL.
 - [ ] **Step 3: Implement** as in Interfaces; migration `0008_ai_reads.sql` with the column and its comment.
 - [ ] **Step 4: Run** the same — Expected: PASS; also `pnpm --filter @lume/licence exec playwright test` (panel spec) green.
-- [ ] **Step 5: Commit** `feat(licence): plans carry LUME AI, WhatsApp and a monthly AI allowance (plan2)`
+- [ ] **Step 5: Commit** `feat(licence): plans carry LUME AI, WhatsApp and hourly and weekly AI limits (plan2)`
 
 ### Task 3: `ai_reads` table and the AI switch's storage
 
@@ -129,7 +129,7 @@
 - [ ] **Step 4: Run** the same — Expected: PASS.
 - [ ] **Step 5: Commit** `feat(api): one plug for LUME AI — Anthropic, Google and a fake`
 
-### Task 5: The AI switch, the allowance and the reads service
+### Task 5: The AI switch, the hourly and weekly limits, and the reads service
 
 **Files:**
 - Create: `apps/api/src/modules/ai/service.ts`, `apps/api/src/modules/ai/routes.ts`; register in `apps/api/src/app.ts`
@@ -139,14 +139,15 @@
 **Interfaces:**
 - Consumes: `AiProvider` (Task 4), `instructionsFor`/`inputFor` and schemas (Task 1), `assertModule` (`apps/api/src/licence/plan.ts`), `schema.aiReads` (Task 3), `notify` (notifications).
 - Produces:
-  - `GET /api/v1/ai` (any signed-in person) → `{ on: boolean, used: number, allowance: number | null, resetsOn: string /* YYYY-MM-DD */ }`.
+  - `type AiLimit = { used: number; limit: number | null; resetsAt: string /* ISO */ }`.
+  - `GET /api/v1/ai` (any signed-in person) → `{ on: boolean, hour: AiLimit, week: AiLimit, paused: null | { by: "hour" | "week"; until: string } }`. Hour: `used` = ok reads in the last 60 minutes, `resetsAt` = oldest of them + 60 minutes (now + 60 minutes when none). Week: `used` = ok reads since Monday 00:00 business clock, `resetsAt` = next Monday 00:00.
   - `POST /api/v1/integrations/ai { enabled: boolean }` (`integrations.manage`) → refuses `enabled: true` with 409 `PLAN_MODULE` when left out, 409 `AI_NOT_CONFIGURED` when no provider; audit `integration.enabled|disabled` with `module: "ai"`.
-  - `runRead<T>(req, d, o: { task: AiTask; leadId: string; sourceActivityId?: string; instructions: string; input: string; schema: z.ZodType<T>; maxOutputTokens: number }): Promise<{ id: string; output: T } | { unavailable: "off" | "not_configured" | "allowance" | "failed" }>` — checks switch, plan, allowance (count of `status='ok'` rows since the 1st of this month on the business clock), calls the provider with a 20 s `AbortSignal.timeout`, writes the row (`ok` or `failed`; `failed` not counted), sends the 90% notice once a month to admins (`system_alert`, title "LUME AI has used 90% of this month's reads").
-- [ ] **Step 1: Write the failing tests** (`ai.test.ts`, harness + `fakeProvider`): `"off by default: no read, nothing written"`; `"refuses to switch on when the plan leaves it out"`; `"counts only good reads, and stops at the allowance until the 1st"` (allowance 2: two ok → third `{unavailable:"allowance"}`; move `h.clock` to the 1st → ok); `"a provider that hangs fails after 20 s and isn't counted"` (fake with a never-resolving promise and fake timers); `"tells admins once at 90%"`; `"GET /ai says used and allowance"`.
+  - `runRead<T>(req, d, o: { task: AiTask; leadId: string; sourceActivityId?: string; instructions: string; input: string; schema: z.ZodType<T>; maxOutputTokens: number }): Promise<{ id: string; output: T } | { unavailable: "off" | "not_configured" | "failed" } | { unavailable: "limit"; by: "hour" | "week"; until: string }>` — checks switch, plan and both limits (counted under an advisory lock so two reads at the last slot can't both pass), calls the provider with a 20 s `AbortSignal.timeout`, writes the row (`ok` or `failed`; `failed` not counted), then sends admin notices (`system_alert`): once per week each "LUME AI has used 75% of this week's reads" and "…90%…", and once per window when a limit is reached: "LUME AI has reached this hour's limit. It's back at 3:40 pm." / "LUME AI has reached this week's limit. It's back Monday." (business clock and format).
+- [ ] **Step 1: Write the failing tests** (`ai.test.ts`, harness + `fakeProvider`): `"off by default: no read, nothing written"`; `"refuses to switch on when the plan leaves it out"`; `"the hourly limit rolls: at 2 an hour the third read waits until the first is an hour old"` (third → `{unavailable:"limit", by:"hour", until: first+60m}`; move `h.clock` 61 minutes → ok); `"the weekly limit resets Monday 00:00 on the business's clock"` (Asia/Kolkata; Sunday 23:59 refused, Monday 00:00 ok); `"failed reads aren't counted"`; `"two reads at the last slot: only one passes"`; `"a provider that hangs fails after 20 s and isn't counted"` (fake timers); `"tells admins once at 75%, once at 90%, once at the limit"` (no repeat on the next read); `"GET /ai says this hour's and this week's use and when each resets"`.
 - [ ] **Step 2: Run** `bash scripts/dev.sh run pnpm exec vitest run apps/api/src/modules/ai` — Expected: FAIL.
 - [ ] **Step 3: Implement** service and routes.
 - [ ] **Step 4: Run** the same — Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): the LUME AI switch, its monthly allowance and one row per read`
+- [ ] **Step 5: Commit** `feat(api): the LUME AI switch, its hourly and weekly limits and one row per read`
 
 ### Task 6: Next step from a call note — read, apply, dismiss
 
@@ -190,10 +191,10 @@
 
 **Files:** a claude.ai artifact canvas (apple-design skill; LUME's real chrome as earlier canvases).
 
-- [ ] **Step 1:** Draw, in Porcelain and Obsidian, desktop and phone: (a) Integrations → "LUME AI" card (switch, one line on what's sent and that it isn't used for training, "Not in this LUME's plan" state); (b) Settings usage line "LUME AI has read 1,240 of 3,000 this month"; (c) the next-step card under a logged call in the drawer: title "Suggested next step", the summary line, three checkable rows (stage, follow-up, tags), primary "Apply", quiet "Dismiss", "From your call at 4:12 pm"; loading and "couldn't read" states; (d) the "Catch me up" button and its three-line card.
+- [ ] **Step 1:** Draw, in Porcelain and Obsidian, desktop and phone: (a) Integrations → "LUME AI" card (switch, one line on what's sent and that it isn't used for training, "Not in this LUME's plan" state); (b) the usage meter on that card: two plain bars with numbers, "This hour: 12 of 100 · resets 3:40 pm" and "This week: 640 of 750 · resets Monday 12:00 am" (colour plus text, never colour alone), and the paused state; (c) the next-step card under a logged call in the drawer: title "Suggested next step", the summary line, three checkable rows (stage, follow-up, tags), primary "Apply", quiet "Dismiss", "From your call at 4:12 pm"; loading, "couldn't read" and "limit reached, back at …" states; (d) the "Catch me up" button and its three-line card.
 - [ ] **Step 2:** Send the owner the link; record approval (or changes) in the ledger. UI tasks start only after approval.
 
-### Task 9: Web — the LUME AI card and the usage line
+### Task 9: Web — the LUME AI card and its usage meter
 
 **Files:**
 - Create: `apps/web/src/components/integrations/AiCard.tsx`, `apps/web/src/lib/ai/client.ts`
@@ -202,11 +203,11 @@
 
 **Interfaces:** consumes `GET /api/v1/ai`, `POST /api/v1/integrations/ai`, `integrationsView().ai`; reuses `Switch`, `NotInPlan`, the integrations card styles.
 
-- [ ] **Step 1: Failing tests**: switch off by default; turning on calls the API and shows the usage line; "Not in this LUME's plan" disables the switch; a 409 `AI_NOT_CONFIGURED` shows "LUME AI isn't set up on this server yet."; axe clean.
+- [ ] **Step 1: Failing tests**: switch off by default; turning on calls the API and shows the meter with both limits and their reset times; a paused week shows "It's back Monday"; "Not in this LUME's plan" disables the switch; a 409 `AI_NOT_CONFIGURED` shows "LUME AI isn't set up on this server yet."; axe clean.
 - [ ] **Step 2: Run** `bash scripts/dev.sh run bash -c "cd apps/web && pnpm exec vitest run src/components/integrations"` — FAIL.
 - [ ] **Step 3: Implement** to the approved canvas.
 - [ ] **Step 4: Run** — PASS.
-- [ ] **Step 5: Commit** `feat(web): LUME AI in Integrations — the switch and this month's reads`
+- [ ] **Step 5: Commit** `feat(web): LUME AI in Integrations — the switch and its hourly and weekly meter`
 
 ### Task 10: Web — the suggestion card and Catch me up, plus e2e
 
@@ -215,7 +216,7 @@
 - Modify: `apps/web/src/components/leads/drawer/LogCall.tsx` (after a saved call with a note, request the next step when AI is on), the drawer's activity list (a "Suggest next step" action on a note or logged call, keyboard-reachable, not hover-only), `apps/web/src/components/leads/drawer/LeadDrawer.tsx` (show `pending` and `offerCatchUp` from `GET /leads/:id/ai`)
 - Test: `NextStepCard.test.tsx`, `CatchUp.test.tsx`
 
-- [ ] **Step 1: Failing tests**: card shows summary and the three parts checked; unticking a part sends `false` for it; Apply shows what was applied and skipped in words; Dismiss removes the card; Escape/Tab order; focus moves to the card's heading when it appears (announced via `aria-live="polite"`); catch-up shows a loading state then three lines; nothing renders when AI is off. e2e (`ai.spec.ts`, fake provider): log a call with a note → card → Apply → stage and follow-up visible on the lead; screenshots + axe both themes.
+- [ ] **Step 1: Failing tests**: card shows summary and the three parts checked; unticking a part sends `false` for it; Apply shows what was applied and skipped in words; Dismiss removes the card; Escape/Tab order; focus moves to the card's heading when it appears (announced via `aria-live="polite"`); catch-up shows a loading state then three lines; nothing renders when AI is off; at a limit the card area says "LUME AI has reached this hour's limit. It's back at 3:40 pm." and offers no button. e2e (`ai.spec.ts`, fake provider): log a call with a note → card → Apply → stage and follow-up visible on the lead; screenshots + axe both themes.
 - [ ] **Step 2: Run** unit tests — FAIL.
 - [ ] **Step 3: Implement** to the approved canvas.
 - [ ] **Step 4: Run** unit tests — PASS; full e2e on the build host with `--update-snapshots=changed` (only inside a FULL run) — PASS; check the new review copies light and dark.
