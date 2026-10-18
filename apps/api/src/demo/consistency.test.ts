@@ -244,24 +244,29 @@ describe("the demo business's numbers add up", () => {
     }
   });
 
-  it("a rep's numbers are the admin's filtered to them; a team lead's are the admin's filtered to the team", async () => {
-    for (const range of ["30d", "90d"]) {
-      const mine = await get(rep, `overview?range=${range}`);
-      const filtered = await get(admin, `overview?range=${range}&owner=${repUser.id}`);
-      for (const t of mine.tiles as Tile[])
-        expect([range, t.id, t.value]).toEqual([range, t.id, tile(filtered, t.id)]);
-      const me = await get(rep, `me?range=${range}`);
-      for (const t of me.tiles as Tile[])
-        expect(["me", range, t.id, t.value]).toEqual(["me", range, t.id, tile(filtered, t.id)]);
-      const team = await get(lead, `overview?range=${range}`);
-      const byTeam = await get(admin, `overview?range=${range}&team=${teamId}`);
-      for (const t of team.tiles as Tile[])
-        expect(["team", range, t.id, t.value]).toEqual(["team", range, t.id, tile(byTeam, t.id)]);
-      // And the team lead's team board lists exactly their team's people.
-      const tb = await get(lead, `team?range=${range}`);
-      for (const p of tb.people) expect(teamIds, p.name).toContain(p.id);
-    }
-  });
+  // Several analytics reads per range against the whole demo business: well past 5 s on a slow CI runner.
+  it(
+    "a rep's numbers are the admin's filtered to them; a team lead's are the admin's filtered to the team",
+    { timeout: 120_000 },
+    async () => {
+      for (const range of ["30d", "90d"]) {
+        const mine = await get(rep, `overview?range=${range}`);
+        const filtered = await get(admin, `overview?range=${range}&owner=${repUser.id}`);
+        for (const t of mine.tiles as Tile[])
+          expect([range, t.id, t.value]).toEqual([range, t.id, tile(filtered, t.id)]);
+        const me = await get(rep, `me?range=${range}`);
+        for (const t of me.tiles as Tile[])
+          expect(["me", range, t.id, t.value]).toEqual(["me", range, t.id, tile(filtered, t.id)]);
+        const team = await get(lead, `overview?range=${range}`);
+        const byTeam = await get(admin, `overview?range=${range}&team=${teamId}`);
+        for (const t of team.tiles as Tile[])
+          expect(["team", range, t.id, t.value]).toEqual(["team", range, t.id, tile(byTeam, t.id)]);
+        // And the team lead's team board lists exactly their team's people.
+        const tb = await get(lead, `team?range=${range}`);
+        for (const p of tb.people) expect(teamIds, p.name).toContain(p.id);
+      }
+    },
+  );
 
   it(
     "a filter every lead passes changes nothing on any board that reads live",
