@@ -40,6 +40,9 @@ import { useLeadAi } from "./LeadAi";
 import { LogCall } from "./LogCall";
 import { ContactBox } from "./ContactBox";
 import { MeetingsTab } from "./MeetingsTab";
+import { WhatsAppThread } from "./WhatsAppThread";
+import { whatsappClient } from "@/lib/whatsapp/client";
+import type { WaThread } from "@/lib/whatsapp/types";
 import { MessageButton } from "./MessageButton";
 import { NextMeeting } from "./NextMeeting";
 import { PetalBurst } from "./PetalBurst";
@@ -60,7 +63,7 @@ type Props = {
   onChanged: (lead: Lead) => void;
   onGone: (id: string, why: GoneReason) => void;
 };
-type Tab = "details" | "notes" | "history" | "meetings";
+type Tab = "details" | "notes" | "history" | "meetings" | "whatsapp";
 const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "details", label: "Details" },
   { id: "notes", label: "Notes" },
@@ -154,7 +157,21 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     setMeetings([]);
     loadMeetings();
   }, [loadMeetings]);
-  const TABS = seesMeetings ? [...BASE_TABS, { id: "meetings" as const, label: "Meetings" }] : BASE_TABS;
+  // WhatsApp on this lead (spec 2026-10-18 §4.2): a tab while WhatsApp is on, or when the lead has messages.
+  const [wa, setWa] = useState<WaThread | null>(null);
+  const loadWa = useCallback(() => {
+    void whatsappClient.thread(id).then((r) => r.ok && shown.current === id && setWa(r.data));
+  }, [id]);
+  useEffect(() => {
+    setWa(null);
+    loadWa();
+  }, [loadWa]);
+  const seesWa = !!wa && (wa.on || wa.messages.length > 0);
+  const TABS: { id: Tab; label: string }[] = [
+    ...BASE_TABS,
+    ...(seesWa ? [{ id: "whatsapp" as const, label: "WhatsApp" }] : []),
+    ...(seesMeetings ? [{ id: "meetings" as const, label: "Meetings" }] : []),
+  ];
 
   // Load (and re-load on J/K). An answer for a lead that is no longer shown is dropped.
   useEffect(() => {
@@ -263,7 +280,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
 
   const openTab = (t: Tab) => {
     setTab(t);
-    if (t !== "details") reloadActivities();
+    if (t === "whatsapp") loadWa();
+    else if (t !== "details") reloadActivities();
   };
 
   const pipeline = lead ? catalog.pipelines.find((p) => p.id === lead.pipelineId) : undefined;
@@ -801,6 +819,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         empty={activities.loaded ? "No notes yet" : "Loading…"}
                       />
                     </>
+                  )}
+                  {tab === "whatsapp" && wa && (
+                    <WhatsAppThread leadName={lead.name ?? "this lead"} tz={tz} messages={wa.messages} />
                   )}
                   {tab === "meetings" && (
                     <MeetingsTab

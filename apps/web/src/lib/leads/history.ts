@@ -47,8 +47,26 @@ export function describeActivity(a: Activity, cat: Catalog, tz?: string): Histor
     case "whatsapp_confirmed_sent":
       return {
         title: "WhatsApp sent",
-        detail: join(p.template ? `from “${String(p.template)}”` : undefined, by(a)),
+        detail: join(
+          p.template ? `from “${String(p.template)}”` : undefined,
+          p.via === "echo" ? "seen on the phone" : undefined,
+          by(a),
+        ),
         tone: "ok",
+      };
+    // WhatsApp (spec 2026-10-18 §4.1): a lead's message, or one sent from the business's phone.
+    case "whatsapp_received":
+      return {
+        title: "Wrote on WhatsApp",
+        tone: "ok",
+        ...(p.text ? { quote: String(p.text) } : p.media ? { detail: "Sent a photo or a file" } : {}),
+      };
+    case "whatsapp_sent":
+      return {
+        title: "Sent from the phone on WhatsApp",
+        detail: by(a),
+        tone: "ok",
+        ...(p.text ? { quote: String(p.text) } : {}),
       };
     case "reply_logged":
       return { title: "They replied", detail: by(a), tone: "ok" };

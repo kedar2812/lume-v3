@@ -10,6 +10,8 @@ import { viewsClient } from "@/lib/views/client";
 import { LeadsScreen } from "./LeadsScreen";
 
 // Sheets aren't connected in these tests: no Refresh, no banner.
+// WhatsApp's Not a lead yet link fetches on its own; its own test covers it.
+vi.mock("@/components/whatsapp/NotYetLink", () => ({ NotYetLink: () => null }));
 vi.mock("@/lib/sheets/client", () => ({
   sheetsClient: {
     status: vi.fn().mockResolvedValue({ ok: true, status: 200, data: { refresh: false, attention: [] } }),

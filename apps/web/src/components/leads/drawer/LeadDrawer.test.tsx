@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiClient } from "@/lib/ai/client";
+import { whatsappClient } from "@/lib/whatsapp/client";
 import { leadsClient } from "@/lib/leads/client";
 import { testCatalog, testLead } from "@/lib/leads/test-catalog";
 import type { Lead } from "@/lib/leads/types";
@@ -39,6 +40,10 @@ const aiOff = {
   week: { used: 0, limit: null, resetsAt: "" },
   paused: null,
 };
+vi.mock("@/lib/whatsapp/client", () => ({
+  whatsappClient: { thread: vi.fn(), mediaInfo: vi.fn() },
+  mediaUrl: (id: string) => `/api/v1/whatsapp/media/${id}`,
+}));
 vi.mock("@/lib/ai/client", () => ({
   aiClient: {
     status: vi.fn(),
@@ -106,6 +111,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(aiClient.status).mockResolvedValue(ok(aiOff));
   vi.mocked(aiClient.lead).mockResolvedValue(ok({ offerCatchUp: false, pending: null }));
+  vi.mocked(whatsappClient.thread).mockResolvedValue(ok({ on: false, messages: [] }));
 });
 
 describe("LeadDrawer", () => {
@@ -641,6 +647,35 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
       await userEvent.click(screen.getByRole("tab", { name: "Notes" }));
       await screen.findByText("Wants a site visit on Saturday.");
       expect(screen.queryByRole("button", { name: "Suggest next step" })).toBeNull();
+    });
+  });
+
+  describe("WhatsApp on the lead (spec 2026-10-18 §4.2)", () => {
+    it("no WhatsApp tab while WhatsApp is off and the lead has no messages", async () => {
+      open();
+      await screen.findByRole("dialog", { name: "Aisha Khan" });
+      expect(screen.queryByRole("tab", { name: "WhatsApp" })).toBeNull();
+    });
+
+    it("with WhatsApp on: the tab, and the lead's messages in it", async () => {
+      vi.mocked(whatsappClient.thread).mockResolvedValue(
+        ok({
+          on: true,
+          messages: [
+            {
+              id: "w1",
+              direction: "in" as const,
+              at: "2026-09-24T10:00:00Z",
+              text: "Is Saturday ok?",
+              media: null,
+            },
+          ],
+        }),
+      );
+      open();
+      await userEvent.click(await screen.findByRole("tab", { name: "WhatsApp" }));
+      expect(await screen.findByText("Is Saturday ok?")).toBeInTheDocument();
+      expect(whatsappClient.thread).toHaveBeenCalledWith("l1");
     });
   });
 });

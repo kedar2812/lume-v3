@@ -50,6 +50,7 @@ import { StageStrip } from "./StageStrip";
 import { editable, useLeadEditor } from "./useLeadEditor";
 import { useArrivals } from "./useArrivals";
 import s from "./leads.module.css";
+import { NotYetLink } from "@/components/whatsapp/NotYetLink";
 
 type Props = {
   session: Session;
@@ -673,6 +674,7 @@ function Screen({
                 </svg>
               </button>
             )}
+            <NotYetLink />
             {mayImport && (
               <span className={s.wideOnly}>
                 <Button

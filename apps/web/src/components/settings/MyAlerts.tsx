@@ -11,6 +11,11 @@ const SWITCHES: { key: keyof Alerts; label: string; hint: string }[] = [
   { key: "dueFollowUps", label: "Follow-ups due", hint: "A reminder at the time you chose, and before it." },
   { key: "assigned", label: "Given to me", hint: "When someone gives you a lead or a follow-up." },
   {
+    key: "replies",
+    label: "A lead replies on WhatsApp",
+    hint: "When one of your leads writes to a connected WhatsApp number. Once a lead at most every 10 minutes.",
+  },
+  {
     key: "emailDigest",
     label: "Morning email",
     hint: "Your day ahead, on your working days. First names and times only.",

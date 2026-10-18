@@ -1,0 +1,165 @@
+/* WhatsApp on a lead (spec 2026-10-18 §4.2; canvas "LUME WhatsApp — part 1 screens", boards Thread and Phone). */
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.list {
+  margin: 0;
+  padding: 14px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 14px;
+  background: var(--sunk);
+}
+.day {
+  align-self: center;
+  padding: 4px 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+/* The meta line comes first for screen readers (who, when, then what) and sits under the bubble on screen. */
+.msg {
+  max-width: 78%;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  align-self: flex-start;
+}
+.msg[data-direction="out"] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.meta {
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.msg[data-direction="out"] .bubble {
+  border-radius: 14px 14px 4px 14px;
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+.text {
+  white-space: pre-wrap;
+}
+.photo {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--skel);
+}
+.audio {
+  width: 240px;
+  max-width: 100%;
+  height: 40px;
+}
+.doc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  color: inherit;
+  text-decoration: none;
+}
+.doc:hover .docName {
+  text-decoration: underline;
+}
+.docType {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--sunk);
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  color: var(--text-2);
+}
+.docText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.docName {
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.docMeta {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.mediaNote {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.mediaWait {
+  width: 220px;
+  max-width: 100%;
+  height: 90px;
+  border-radius: 9px;
+  background: var(--skel);
+}
+.foot,
+.empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-3);
+}
+.empty {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--sunk);
+  color: var(--text-2);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .msg {
+    animation: arrive 0.24s ease-out;
+  }
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}

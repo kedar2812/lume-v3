@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { ignorePeer, inboxPerson, inboxView, makeLead } from "./inbox";
 import { mediaInfo, sendMedia } from "./media";
+import { leadThread } from "./thread";
 import {
   connectComplete,
   connectStart,
@@ -42,6 +43,12 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
     disconnect(req, d, req.params.id),
   );
 
+  // A lead's WhatsApp thread, for the drawer (§4.2): seen with the lead.
+  r.get(
+    "/api/v1/leads/:id/whatsapp",
+    { config: { permission: "leads.view" }, schema: { params: id } },
+    (req) => leadThread(req, req.params.id),
+  );
   // A file on a lead, or waiting in Not a lead yet: row-level security decides who sees it (§4.1).
   r.get(
     "/api/v1/whatsapp/media/:id",

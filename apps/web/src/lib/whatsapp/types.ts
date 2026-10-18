@@ -29,3 +29,18 @@ export type WaMediaInfo = {
   size: number | null;
   voice: boolean;
 };
+export type WaThreadMessage = {
+  id: string;
+  /** "in": from the lead; "out": sent from the business's phone. */
+  direction: "in" | "out";
+  at: string;
+  text: string | null;
+  media: {
+    id: string;
+    kind: WaMediaInfo["kind"];
+    mime: string;
+    filename: string | null;
+    voice: boolean;
+  } | null;
+};
+export type WaThread = { on: boolean; messages: WaThreadMessage[] };

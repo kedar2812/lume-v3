@@ -1,7 +1,7 @@
 "use client";
 import { api } from "@/lib/api";
 import type { IntegrationsView } from "@/lib/sheets/types";
-import type { WaInboxMessage, WaMediaInfo, WaNumbers, WaPerson } from "./types";
+import type { WaInboxMessage, WaMediaInfo, WaNumbers, WaPerson, WaThread } from "./types";
 
 const person = (numberId: string, peer: string) =>
   `/api/v1/whatsapp/inbox/${encodeURIComponent(numberId)}/${encodeURIComponent(peer)}`;
@@ -16,6 +16,7 @@ export const whatsappClient = {
     api.patch<WaNumbers>(`/api/v1/whatsapp/numbers/${encodeURIComponent(id)}`, { ownerId }),
   disconnect: (id: string) => api.del<WaNumbers>(`/api/v1/whatsapp/numbers/${encodeURIComponent(id)}`),
   people: () => api.get<{ people: { id: string; name: string; active: boolean }[] }>("/api/v1/people"),
+  thread: (leadId: string) => api.get<WaThread>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp`),
   mediaInfo: (id: string) => api.get<WaMediaInfo>(`/api/v1/whatsapp/media/${encodeURIComponent(id)}/info`),
   inbox: () => api.get<{ people: WaPerson[] }>("/api/v1/whatsapp/inbox"),
   inboxPerson: (numberId: string, peer: string) =>

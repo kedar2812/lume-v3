@@ -722,6 +722,10 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     path: () => `/api/v1/whatsapp/numbers/${uuid}`,
   },
+  "GET /api/v1/leads/:id/whatsapp": {
+    access: "leads.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/whatsapp`,
+  },
   "GET /api/v1/whatsapp/media/:id": { access: "leads.view", path: () => `/api/v1/whatsapp/media/${uuid}` },
   "GET /api/v1/whatsapp/media/:id/info": {
     access: "leads.view",
