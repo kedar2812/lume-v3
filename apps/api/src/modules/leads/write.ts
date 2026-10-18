@@ -34,6 +34,8 @@ export async function moveStage(
   req: FastifyRequest,
   lead: LeadRow,
   input: { stageId: string; lostReasonId?: string; lostNote?: string },
+  /** Where the move came from, kept on its activity (LUME AI's suggestion: spec 2026-10-18 §2.3). */
+  o: { via?: "ai_suggestion" } = {},
 ): Promise<LeadRow> {
   const actor = req.actor!;
   if (!canOnRecord(actor, "leads.change_stage", lead.ownerId)) throw forbidden();
@@ -99,6 +101,7 @@ export async function moveStage(
     from: lead.stageId,
     to: target.id,
     ...(target.kind === "lost" && input.lostReasonId ? { lostReasonId: input.lostReasonId } : {}),
+    ...(o.via ? { via: o.via } : {}),
   });
   await req.db
     .update(L)

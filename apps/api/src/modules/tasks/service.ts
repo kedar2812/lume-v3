@@ -170,7 +170,14 @@ const auditForOther = (
         diff: { what, title: t.title, assigneeId: t.assigneeId },
       });
 
-export async function createTask(req: FastifyRequest, d: AppDeps, leadId: string, body: TaskInput) {
+export async function createTask(
+  req: FastifyRequest,
+  d: AppDeps,
+  leadId: string,
+  body: TaskInput,
+  /** Where it came from, kept on its activity (LUME AI's suggestion: spec 2026-10-18 §2.3). */
+  o: { via?: "ai_suggestion" } = {},
+) {
   const lead = await visibleLead(req, leadId);
   const actor = req.actor!;
   const assigneeId = body.assigneeId ?? actor.userId;
@@ -202,6 +209,7 @@ export async function createTask(req: FastifyRequest, d: AppDeps, leadId: string
     title: t!.title,
     dueAt: dueAt.toISOString(),
     assigneeId,
+    ...(o.via ? { via: o.via } : {}),
   });
   await auditForOther(req, t!, "set");
   await queueReminders(req, d, [id]);

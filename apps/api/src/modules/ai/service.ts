@@ -42,7 +42,10 @@ const limitsOf = (req: FastifyRequest) => ({
 });
 
 /** Switched on, set up on this server, and in this LUME's plan. */
-async function available(req: FastifyRequest, d: AppDeps): Promise<{ ok: boolean; why: "off" | "not_configured"; tz: string }> {
+async function available(
+  req: FastifyRequest,
+  d: AppDeps,
+): Promise<{ ok: boolean; why: "off" | "not_configured"; tz: string }> {
   const s = await settingsOf(req);
   if (!d.ai) return { ok: false, why: "not_configured", tz: s.tz };
   return { ok: s.on && moduleIncluded(planOf(req), "ai"), why: "off", tz: s.tz };
@@ -121,6 +124,10 @@ export async function runRead<T>(
     input: string;
     schema: z.ZodType<T>;
     maxOutputTokens: number;
+    /** What the business can actually use of the answer (ids from its own lists, a time after now…). */
+    clean?: (out: T) => T;
+    /** What's kept on the read, from the cleaned answer (the answer itself when unset). */
+    store?: (out: T) => unknown;
   },
 ): Promise<{ id: string; output: T } | AiUnavailable> {
   const a = await available(req, d);
@@ -153,10 +160,15 @@ export async function runRead<T>(
       slot.refused === "week"
         ? { by: "week", until: w.nextWeekStart.toISOString() }
         : { by: "hour", until: new Date((slot.hour_oldest ?? now).getTime() + 3_600_000).toISOString() };
-    await noticeOnce(side, pause.by === "week" ? "week_limit" : "hour_limit", pause.by === "week" ? w.weekStart : new Date(pause.until), {
-      title: `LUME AI has reached this ${pause.by}'s limit`,
-      body: `It's back ${backWords(pause, now, a.tz)}.`,
-    }).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's limit"));
+    await noticeOnce(
+      side,
+      pause.by === "week" ? "week_limit" : "hour_limit",
+      pause.by === "week" ? w.weekStart : new Date(pause.until),
+      {
+        title: `LUME AI has reached this ${pause.by}'s limit`,
+        body: `It's back ${backWords(pause, now, a.tz)}.`,
+      },
+    ).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's limit"));
     return { unavailable: "limit", by: pause.by, until: pause.until };
   }
   const finish = (status: "ok" | "failed", result: unknown, input = 0, output = 0) =>
@@ -181,7 +193,8 @@ export async function runRead<T>(
     await finish("failed", null);
     return { unavailable: "failed" };
   }
-  await finish("ok", answer.output, answer.inputTokens, answer.outputTokens);
+  const output = o.clean ? o.clean(answer.output) : answer.output;
+  await finish("ok", o.store ? o.store(output) : output, answer.inputTokens, answer.outputTokens);
   if (limits.weekly !== null) {
     const used = (await stateNow(req, d, a.tz)).week.used;
     for (const [share, kind] of [
@@ -195,5 +208,5 @@ export async function runRead<T>(
         }).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's use"));
       }
   }
-  return { id: slot.id, output: answer.output };
+  return { id: slot.id, output };
 }
