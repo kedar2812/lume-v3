@@ -84,7 +84,12 @@ export const planClaimSchema = z
   .object({
     places: z.number().int().min(1).max(10_000).nullable(),
     modules: z
-      .object({ googleSheets: z.boolean(), webhooks: z.boolean(), googleCalendar: z.boolean(), calendly: z.boolean() })
+      .object({
+        googleSheets: z.boolean(),
+        webhooks: z.boolean(),
+        googleCalendar: z.boolean(),
+        calendly: z.boolean(),
+      })
       .strict(),
   })
   .strict();

@@ -22,8 +22,12 @@ const payload = (over: Partial<LicencePayload> = {}): LicencePayload => ({
   notice: null,
   ...over,
 });
-const plan = { places: 5, modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: false } };
-const view = (p: LicencePayload) => licenceState({ payload: p, lastSuccessAt: now, firstBootAt: now, now, dev: false });
+const plan = {
+  places: 5,
+  modules: { googleSheets: true, webhooks: true, googleCalendar: true, calendly: false },
+};
+const view = (p: LicencePayload) =>
+  licenceState({ payload: p, lastSuccessAt: now, firstBootAt: now, now, dev: false });
 
 describe("the plan in the signed answer", () => {
   it("verifies with places and the four modules, and LUME says it can keep one", () => {
@@ -33,7 +37,8 @@ describe("the plan in the signed answer", () => {
     expect(ACCEPTS).toEqual(["announcements", "plan"]);
   });
   it("refuses a module it doesn't know, or places out of bounds", () => {
-    const bad = (p: unknown) => verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
+    const bad = (p: unknown) =>
+      verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
     expect(bad({ ...plan, modules: { ...plan.modules, whatsapp: true } })).toBeNull();
     expect(bad({ ...plan, places: 0 })).toBeNull();
     expect(bad({ ...plan, places: 10_001 })).toBeNull();

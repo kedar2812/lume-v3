@@ -60,7 +60,9 @@ afterAll(() => h.close());
 beforeEach(async () => {
   plan = undefined;
   sent.length = 0;
-  await h.ownerPool.query("UPDATE user_invites SET revoked_at = now() WHERE accepted_at IS NULL AND revoked_at IS NULL");
+  await h.ownerPool.query(
+    "UPDATE user_invites SET revoked_at = now() WHERE accepted_at IS NULL AND revoked_at IS NULL",
+  );
   await h.ownerPool.query(
     `UPDATE settings SET integrations = jsonb_set(integrations, '{webhooks}', '{"enabled": true}'::jsonb) WHERE id = 1`,
   );
@@ -78,7 +80,11 @@ const taken = async () =>
     ).rows[0]!.n,
   );
 const invite = (email: string) =>
-  owner.inject({ method: "POST", url: "/api/v1/invites", payload: { email, name: "New Person", roleIds: [] } });
+  owner.inject({
+    method: "POST",
+    url: "/api/v1/invites",
+    payload: { email, name: "New Person", roleIds: [] },
+  });
 
 describe("the plan, kept (spec 2026-10-17 control §2)", () => {
   it("says it can keep a plan and which modules are on, with its check-in", async () => {
@@ -125,7 +131,9 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     plan = { places: null, modules: { ...all, webhooks: false } };
     await check();
     await check();
-    const s = await h.ownerPool.query("SELECT integrations -> 'webhooks' ->> 'enabled' AS on FROM settings WHERE id = 1");
+    const s = await h.ownerPool.query(
+      "SELECT integrations -> 'webhooks' ->> 'enabled' AS on FROM settings WHERE id = 1",
+    );
     expect(s.rows[0].on).toBe("false");
     const audits = await h.ownerPool.query(
       "SELECT diff FROM audit_log WHERE action = 'integration.disabled' AND diff ->> 'by' = 'plan'",
@@ -136,7 +144,9 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     const reader = new pg.Client({ connectionString: h.url("lume_readonly_backup") });
     await reader.connect();
     const notes = await reader
-      .query("SELECT user_id, title, body FROM notifications WHERE kind = 'system_alert' AND title LIKE 'Webhooks%'")
+      .query(
+        "SELECT user_id, title, body FROM notifications WHERE kind = 'system_alert' AND title LIKE 'Webhooks%'",
+      )
       .finally(() => reader.end());
     expect(notes.rows.length).toBeGreaterThan(0);
     expect(new Set(notes.rows.map((r) => r.user_id)).size).toBe(notes.rows.length);
@@ -145,7 +155,11 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
       body: "It isn't in this LUME's plan any more. Its settings are kept.",
     });
     // And it can't be switched back on while the plan leaves it out.
-    const on = await owner.inject({ method: "PUT", url: "/api/v1/integrations/webhooks", payload: { enabled: true } });
+    const on = await owner.inject({
+      method: "PUT",
+      url: "/api/v1/integrations/webhooks",
+      payload: { enabled: true },
+    });
     expect(on.statusCode).toBe(409);
     expect(on.json().error.code).toBe("PLAN_MODULE");
   });
@@ -155,7 +169,11 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     await check();
     expect((await owner.inject({ method: "GET", url: "/api/v1/licence" })).json().plan).toBeNull();
     expect((await invite("free@plan.example")).statusCode).toBe(201);
-    const on = await owner.inject({ method: "PUT", url: "/api/v1/integrations/webhooks", payload: { enabled: true } });
+    const on = await owner.inject({
+      method: "PUT",
+      url: "/api/v1/integrations/webhooks",
+      payload: { enabled: true },
+    });
     expect(on.statusCode).toBe(200);
   });
 });
