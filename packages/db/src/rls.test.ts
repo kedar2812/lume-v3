@@ -634,3 +634,79 @@ describe("0029_send_queue (4C): a run and its items are only their person's", ()
     ).rejects.toThrow(/permission/);
   });
 });
+
+describe("LUME AI's reads (spec 2026-10-18 §2.3)", () => {
+  const read = (lead: string, at = "now()") =>
+    `INSERT INTO ai_reads (id, lead_id, user_id, task, provider, model, input_tokens, output_tokens, status, created_at)
+     VALUES (gen_random_uuid(), '${lead}', '${U.rep}', 'next_step', 'fake', 'fake-1', 10, 5, 'ok', ${at})`;
+  beforeAll(async () => {
+    await as("lume_owner", { scope: "all" }, async (c) => {
+      for (const lead of [L.rep, L.other]) await c.query(read(lead));
+      await c.query(read(L.other, "now() - interval '2 hours'"));
+      await c.query(
+        `INSERT INTO ai_reads (id, lead_id, user_id, task, provider, model, input_tokens, output_tokens, status)
+         VALUES (gen_random_uuid(), '${L.rep}', '${U.rep}', 'next_step', 'fake', 'fake-1', 10, 0, 'failed')`,
+      );
+    });
+  });
+
+  it("each read is seen only with its lead", async () => {
+    const leads = await as("lume_app", { scope: "own" }, async (c) =>
+      (await c.query<{ lead_id: string }>("SELECT DISTINCT lead_id FROM ai_reads")).rows.map(
+        (r) => r.lead_id,
+      ),
+    );
+    expect(leads).toEqual([L.rep]);
+    await expect(as("lume_app", { scope: "own" }, (c) => c.query(read(L.other)))).rejects.toThrow(
+      /row-level security/,
+    );
+  });
+
+  it("only its outcome can change, and no read is ever deleted by the app", async () => {
+    await as("lume_app", { scope: "own" }, (c) =>
+      c.query(
+        `UPDATE ai_reads SET outcome = 'dismissed', outcome_by = '${U.rep}', outcome_at = now() WHERE lead_id = '${L.rep}'`,
+      ),
+    );
+    await expect(
+      as("lume_app", { scope: "own" }, (c) => c.query("UPDATE ai_reads SET result = '{}'::jsonb")),
+    ).rejects.toThrow(/permission/);
+    await expect(as("lume_app", { scope: "all" }, (c) => c.query("DELETE FROM ai_reads"))).rejects.toThrow(
+      /permission/,
+    );
+  });
+
+  it("the business's use counts every good read, whoever asks, and says the oldest in the hour", async () => {
+    const usage = await as(
+      "lume_app",
+      { scope: "own" },
+      async (c) =>
+        (
+          await c.query<{ hour_n: number; hour_oldest: Date | null; week_n: number }>(
+            "SELECT * FROM lume_ai_usage(now() - interval '1 hour', now() - interval '7 days')",
+          )
+        ).rows[0]!,
+    );
+    expect(usage.hour_n).toBe(2); // one on the rep's lead, one on a lead the rep can't see; the failed read isn't counted
+    expect(usage.week_n).toBe(3);
+    expect(usage.hour_oldest).toBeInstanceOf(Date);
+  });
+
+  it("the backup role reads every read", async () => {
+    expect(
+      await as("lume_readonly_backup", { scope: null }, async (c) =>
+        Number((await c.query("SELECT count(*) FROM ai_reads")).rows[0].count),
+      ),
+    ).toBe(4);
+  });
+});
+
+describe("LUME AI's use count leaves the request's own scope as it was", () => {
+  it("a rep's next query in the same transaction still sees only their leads", async () => {
+    const seen = await as("lume_app", { scope: "own" }, async (c) => {
+      await c.query("SELECT * FROM lume_ai_usage(now() - interval '1 hour', now() - interval '7 days')");
+      return (await c.query<{ id: string }>("SELECT id FROM leads")).rows.map((r) => r.id);
+    });
+    expect(seen).toEqual([L.rep]);
+  });
+});

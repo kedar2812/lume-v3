@@ -11,3 +11,4 @@ export * from "./calendar";
 export * from "./security";
 export * from "./bulk";
 export * from "./analytics";
+export * from "./ai";

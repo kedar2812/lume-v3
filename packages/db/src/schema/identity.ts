@@ -66,6 +66,8 @@ export const settings = pgTable("settings", {
       googleSheets?: { enabled: boolean };
       webhooks?: { enabled: boolean };
       googleCalendar?: { enabled: boolean };
+      /** LUME AI (spec 2026-10-18 §2.2): off unless an admin switches it on. */
+      ai?: { enabled: boolean };
     }>()
     .notNull()
     .default(sql`'{}'::jsonb`),
