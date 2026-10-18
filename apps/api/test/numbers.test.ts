@@ -35,7 +35,8 @@ beforeAll(async () => {
   await h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1", [seed]);
   // The analytics job's next minutes: today and yesterday, then every marked past day.
   for (let i = 0; i < 12; i++) await analyticsTick(h.pool, h.clock.now, i * 10, {});
-});
+  // An import-sized write and twelve analytics minutes: more than the default 10 s on a busy CI runner.
+}, 60_000);
 afterAll(async () => h.close());
 
 const get = async (url: string) => {

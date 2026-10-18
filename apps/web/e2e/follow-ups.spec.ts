@@ -24,8 +24,13 @@ async function lead(page: Page, name: string): Promise<string> {
   return r.data.lead.id;
 }
 /** Everything time-dependent on these screens is marked data-volatile (times, the date, the greeting). */
-// Relative times, and the live numbers on Today (its tiles and lines follow the time of day).
-const volatile = (page: Page) => [page.locator("[data-volatile]"), page.locator("[data-live-count]")];
+// Relative times, the live numbers on Today (its tiles and lines follow the time of day), and the bell: whether
+// another spec's notice (an alert, an escalation) is still unread when the picture is taken depends on run order.
+const volatile = (page: Page) => [
+  page.locator("[data-volatile]"),
+  page.locator("[data-live-count]"),
+  page.getByRole("button", { name: /^Notifications/ }),
+];
 
 test.describe("Follow-ups", () => {
   // Leave the workspace as it was: removing the leads cancels their follow-ups too.
@@ -107,9 +112,10 @@ test.describe("Follow-ups", () => {
     await openApp(page, "/leads");
     const a = await lead(page, "Shot Overdue");
     const b = await lead(page, "Shot Soon");
+    // Overdue since yesterday at any hour of the run, so "done of due today" counts only Shot Soon's.
     await callApi(page, "POST", `/api/v1/leads/${a}/tasks`, {
       title: "Send the plan",
-      due: { at: new Date(Date.now() - 3 * 3_600_000).toISOString() },
+      due: { at: new Date(Date.now() - 26 * 3_600_000).toISOString() },
     });
     await callApi(page, "POST", `/api/v1/leads/${b}/tasks`, { title: "Call back", due: { preset: "in_1h" } });
     for (const theme of ["light", "dark"] as const) {
