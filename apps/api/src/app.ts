@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import type pg from "pg";
 import { PLAN_MODULES, PLAN_V1_MODULES, type Keyring } from "@lume/core";
+import type { AiProvider } from "./ai/provider";
 import type { Argon2Params } from "@lume/core/password";
 import { csrfRoutes } from "./auth/csrf";
 import { authPlugin } from "./auth/plugin";
@@ -79,6 +80,8 @@ export type AppDeps = {
   onRbacEvent?: (payload: string) => void;
   /** Where a started import is queued (pg-boss in production, an inline list in tests). */
   imports?: { enqueue(id: string): Promise<void> };
+  /** LUME AI (spec 2026-10-18 §2.1): the provider this server reads notes with, or null when none is set up. */
+  ai?: AiProvider | null;
   /** Where a bulk run over the inline limit is queued (7B: pg-boss in production, a list in tests). */
   bulk?: { enqueue(id: string): Promise<void> };
   /**
@@ -149,7 +152,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       ...(deps.tasks?.lastSweepAt ? { lastSweepAt: deps.tasks.lastSweepAt } : {}),
       ...(deps.tasks?.startedAt ? { queueStartedAt: deps.tasks.startedAt } : {}),
       // A licence server that signs LUME AI in a plan knows it; until one has, only the modules every server knows.
-      reportable: licence.view().plan && "ai" in licence.view().plan!.modules ? PLAN_MODULES : PLAN_V1_MODULES,
+      reportable:
+        licence.view().plan && "ai" in licence.view().plan!.modules ? PLAN_MODULES : PLAN_V1_MODULES,
     }),
   );
   // Control each client (spec 2026-10-17 control §2.2): a module the plan leaves out is switched off once.

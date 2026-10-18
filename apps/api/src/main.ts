@@ -5,6 +5,7 @@ import { apiSchema, loadConfig } from "@lume/config";
 import { buildApp, type AppDeps } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
 import { startBulkQueue } from "./modules/leads/bulk-queue";
+import { providerFromConfig } from "./ai/from-config";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
 import { calendarClientFor } from "./modules/calendar/google";
@@ -87,6 +88,7 @@ const app = await buildApp({
   google,
   sheets,
   calendar,
+  ai: providerFromConfig(cfg),
   webhooks,
   tasks,
   manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",

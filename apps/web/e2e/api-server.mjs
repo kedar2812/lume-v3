@@ -32,6 +32,8 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     BREACHED_LIST_FILE: path.join(root, "packages/core/data/breached-sha1.bin"),
     // Never the live rates site in tests: a fixed table, so a switch quotes the same rate every run.
     LUME_FX_PROVIDER: "fixed",
+    // LUME AI answers fixed suggestions in e2e (spec 2026-10-18 §7): never a real model.
+    LUME_AI_PROVIDER: "fake",
     LUME_FX_FIXED: "AED:USD=0.27",
     // Google Sheets against the fake Google (e2e/google-fake.ts), never the real one.
     GOOGLE_SERVICE_ACCOUNT_JSON: readFileSync(path.join(here, ".artifacts/google-key.b64"), "utf8"),

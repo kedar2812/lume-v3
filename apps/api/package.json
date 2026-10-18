@@ -8,7 +8,9 @@
     "build": "node ../../scripts/bundle.mjs . src/main.ts dist/main.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@fastify/cookie": "^11.1.2",
+    "@google/genai": "^2.30.0",
     "@lume/config": "workspace:*",
     "@node-rs/argon2": "^2.2.1",
     "archiver": "^7.0.1",

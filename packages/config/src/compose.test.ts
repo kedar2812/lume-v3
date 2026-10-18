@@ -19,4 +19,10 @@ describe("what a client's server passes to LUME", () => {
     expect(api).toMatch(/GOOGLE_OAUTH_RELAY_URL: \$\{GOOGLE_OAUTH_RELAY_URL:-\}/);
     expect(api).toMatch(/GOOGLE_OAUTH_RELAY_TOKEN: \$\{GOOGLE_OAUTH_RELAY_TOKEN:-\}/);
   });
+
+  it("LUME AI's provider, model and key reach the API (without them LUME AI can't be switched on)", () => {
+    const api = service("api");
+    for (const k of ["LUME_AI_PROVIDER", "LUME_AI_MODEL", "LUME_AI_KEY"])
+      expect(api).toContain(`${k}: \${${k}:-}`);
+  });
 });
