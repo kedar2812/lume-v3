@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TodayView } from "@/lib/tasks/types";
-import { dayline } from "./dayline";
+import { clusterDots, dayline, type DayDot } from "./dayline";
 
 const TZ = "Asia/Kolkata";
 const NOW = new Date("2026-10-05T06:10:00Z"); // 11:40 in Kolkata
@@ -83,5 +83,37 @@ describe("the day on one line (spec: Your day)", () => {
       ["a", true, false],
       ["b", false, true],
     ]);
+  });
+});
+
+describe("dots that would sit on each other (axe target-size; three follow-ups at 10 am)", () => {
+  const dot = (id: string, left: number, state: DayDot["state"] = "later"): DayDot => ({
+    id,
+    leadId: id,
+    leadName: id,
+    title: "x",
+    dueAt: "2026-10-05T04:30:00.000Z",
+    left,
+    state,
+  });
+
+  it("dots closer than 24 px on the track share one marker; ones further apart keep their own", () => {
+    // 600 px track: 1% is 6 px.
+    const groups = clusterDots([dot("a", 10), dot("b", 10), dot("c", 13), dot("d", 14.1), dot("e", 50)], 600);
+    expect(groups.map((g) => g.map((d) => d.id))).toEqual([["a", "b", "c"], ["d"], ["e"]]);
+  });
+
+  it("each marker is at least 24 px from the one before, measured from where each group starts", () => {
+    const groups = clusterDots(
+      Array.from({ length: 12 }, (_, i) => dot(String(i), 20 + i * 1.5)),
+      600,
+    );
+    const starts = groups.map((g) => g[0]!.left * 6);
+    for (let i = 1; i < starts.length; i++) expect(starts[i]! - starts[i - 1]!).toBeGreaterThanOrEqual(24);
+  });
+
+  it("a narrow track groups more; an unmeasured one (0) leaves every dot alone", () => {
+    expect(clusterDots([dot("a", 10), dot("b", 15)], 300)).toHaveLength(1);
+    expect(clusterDots([dot("a", 10), dot("b", 10)], 0)).toHaveLength(2);
   });
 });

@@ -612,5 +612,35 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
       await userEvent.click(await screen.findByRole("button", { name: "Suggest next step" }));
       expect(aiClient.nextStep).toHaveBeenCalledWith("l1", "n1");
     });
+
+    it("someone who can only view the lead isn't offered a suggestion to apply, but can still catch up", async () => {
+      vi.mocked(aiClient.status).mockResolvedValue(ok({ ...aiOff, on: true }));
+      vi.mocked(aiClient.lead).mockResolvedValue(
+        ok({
+          offerCatchUp: true,
+          pending: {
+            id: "r1",
+            suggestion: {
+              summary: "Wants a site visit.",
+              stageId: "s-booked",
+              followUp: null,
+              lostReasonId: null,
+              tagIds: [],
+              decisionMaker: null,
+            },
+            dueAt: null,
+            from: { activityId: "n0", at: "2026-09-24T09:00:00Z" },
+          },
+        }),
+      );
+      const viewOnly = testLead();
+      open({ ...viewOnly, can: { ...viewOnly.can, edit: false } });
+      withNote();
+      expect(await screen.findByRole("button", { name: "Catch me up" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Suggested next step" })).toBeNull();
+      await userEvent.click(screen.getByRole("tab", { name: "Notes" }));
+      await screen.findByText("Wants a site visit on Saturday.");
+      expect(screen.queryByRole("button", { name: "Suggest next step" })).toBeNull();
+    });
   });
 });

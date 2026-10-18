@@ -1,15 +1,33 @@
 "use client";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { timeOf } from "@/lib/dates";
 import type { TodayView } from "@/lib/tasks/types";
 import { callsLeft } from "@/lib/today/brief";
-import { dayline } from "@/lib/today/dayline";
+import { clusterDots, dayline, type DayDot } from "@/lib/today/dayline";
 import s from "./today.module.css";
 
 const MIN = 60_000;
 const first = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 const STATE = { done: "done", over: "overdue", soon: "due soon", later: "later today" } as const;
+/** In a group, the one that needs you most is the one its marker opens. */
+const URGENCY: DayDot["state"][] = ["over", "soon", "later", "done"];
+
+/** The day line's width in px, kept up to date: dots group by real distance, not by percent. */
+function useWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setW(el.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return { ref, w };
+}
 
 /**
  * Your day (spec: Your day): one line from morning to night with now on it — calls above, follow-ups on it by where
@@ -17,6 +35,7 @@ const STATE = { done: "done", over: "overdue", soon: "due soon", later: "later t
  */
 export function DayTile({ v, now, tz }: { v: TodayView; now: Date; tz: string }) {
   const d = dayline(v, now, tz);
+  const track = useWidth();
   const next = callsLeft(v.meetings, now)[0];
   const calls = (v.meetings ?? []).filter((m) => m.status === "scheduled" || m.status === "completed").length;
   const fus = d.dots.length + d.older.length;
@@ -54,7 +73,7 @@ export function DayTile({ v, now, tz }: { v: TodayView; now: Date; tz: string })
         </span>
       </div>
       {/* Where now and each dot sit follows the hour: screenshots hide it (dots can sit past either end). */}
-      <div className={s.day} data-live-count data-volatile-day>
+      <div ref={track.ref} className={s.day} data-live-count data-volatile-day>
         <div className={s.rail}>
           <i style={{ width: `${Math.max(0, Math.min(100, d.now))}%` }} />
         </div>
@@ -105,17 +124,39 @@ export function DayTile({ v, now, tz }: { v: TodayView; now: Date; tz: string })
             {first(c.m.lead?.name ?? c.m.title)} {timeOf(new Date(c.m.startsAt), tz)}
           </Link>
         ))}
-        {d.dots.map((t) => (
-          <Link
-            key={t.id}
-            href={`/leads?lead=${t.leadId}`}
-            className={s.dot}
-            data-state={t.state}
-            style={{ left: `${t.left}%` }}
-            aria-label={`${t.title}, ${t.leadName}, ${timeOf(new Date(t.dueAt), tz)}, ${STATE[t.state]}`}
-            title={`${t.leadName} · ${t.title} · ${timeOf(new Date(t.dueAt), tz)}`}
-          />
-        ))}
+        {clusterDots(d.dots, track.w).map((g) => {
+          const say = (t: DayDot) =>
+            `${t.title}, ${t.leadName}, ${timeOf(new Date(t.dueAt), tz)}, ${STATE[t.state]}`;
+          if (g.length === 1) {
+            const t = g[0]!;
+            return (
+              <Link
+                key={t.id}
+                href={`/leads?lead=${t.leadId}`}
+                className={s.dot}
+                data-state={t.state}
+                style={{ left: `${t.left}%` }}
+                aria-label={say(t)}
+                title={`${t.leadName} · ${t.title} · ${timeOf(new Date(t.dueAt), tz)}`}
+              />
+            );
+          }
+          // Several at about the same time: one marker with their count, opening the one that needs you most.
+          const top = [...g].sort((a, b) => URGENCY.indexOf(a.state) - URGENCY.indexOf(b.state))[0]!;
+          return (
+            <Link
+              key={g.map((t) => t.id).join(":")}
+              href={`/leads?lead=${top.leadId}`}
+              className={`${s.dot} ${s.dots}`}
+              data-state={top.state}
+              style={{ left: `${g[0]!.left}%` }}
+              aria-label={`${g.length} follow-ups: ${g.map(say).join("; ")}`}
+              title={g.map((t) => `${t.leadName} · ${t.title} · ${timeOf(new Date(t.dueAt), tz)}`).join("\n")}
+            >
+              {g.length}
+            </Link>
+          );
+        })}
         {d.older.length > 0 && (
           <Link
             href={`/leads?lead=${d.older[0]!.leadId}`}

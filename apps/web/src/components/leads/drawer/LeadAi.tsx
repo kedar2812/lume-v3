@@ -45,9 +45,10 @@ export function useLeadAi(
   );
 
   const ui =
-    on && (card || offer) ? (
+    on && ((card && o.canEdit) || offer) ? (
       <div className={s.zone}>
-        {card && (
+        {/* Only someone who may change the lead is shown a suggestion to apply. */}
+        {card && o.canEdit && (
           <NextStepCard
             key={card.key}
             leadId={leadId}

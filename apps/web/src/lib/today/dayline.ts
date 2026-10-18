@@ -20,6 +20,22 @@ export type DayDot = {
   left: number;
   state: "done" | "over" | "soon" | "later";
 };
+/**
+ * Dots that would sit within `gapPx` of each other on a track `trackPx` wide share one marker (a 12 px dot needs 24 px
+ * to itself: WCAG 2.2 target size). A group starts at its first dot, so each marker is at least `gapPx` from the one
+ * before. An unmeasured track (0) leaves every dot alone.
+ */
+export function clusterDots(dots: DayDot[], trackPx: number, gapPx = 24): DayDot[][] {
+  if (trackPx <= 0) return dots.map((d) => [d]);
+  const groups: DayDot[][] = [];
+  for (const d of [...dots].sort((a, b) => a.left - b.left)) {
+    const g = groups.at(-1);
+    if (g && ((d.left - g[0]!.left) / 100) * trackPx < gapPx) g.push(d);
+    else groups.push([d]);
+  }
+  return groups;
+}
+
 export type DayCall = { id: string; m: TodayMeeting; left: number; done: boolean; next: boolean };
 
 /**

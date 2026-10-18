@@ -14,11 +14,22 @@ const HINT: Record<WebhookPreset, string> = {
   manychat: "Instagram and Messenger chats, from an External Request.",
 };
 
-/** A neutral mark: LUME has no official files for these yet, and draws no one's logo. */
-export function PresetGlyph({ large = false }: { large?: boolean }) {
+/** The official marks LUME has (unmodified, from /brand; sources in its README). */
+const MARK: Partial<Record<WebhookPreset, string>> = { zapier: "/brand/zapier.ico", make: "/brand/make.png" };
+
+/** A preset's official mark on a white tile; the others, and Webhooks itself, get LUME's neutral mark. */
+export function PresetGlyph({ preset, large = false }: { preset?: WebhookPreset; large?: boolean }) {
   const px = large ? 20 : 15;
+  const mark = preset ? MARK[preset] : undefined;
+  const tile = [w.glyph, large && w.glyphLarge, mark && w.glyphBrand].filter(Boolean).join(" ");
+  if (mark)
+    return (
+      <span className={tile} aria-hidden>
+        <img src={mark} alt="" width={large ? 28 : 20} height={large ? 28 : 20} />
+      </span>
+    );
   return (
-    <span className={large ? `${w.glyph} ${w.glyphLarge}` : w.glyph} aria-hidden>
+    <span className={tile} aria-hidden>
       <svg viewBox="0 0 16 16" width={px} height={px}>
         <path
           d="M8 2.5v7m0 0L5 6.5m3 3 3-3M3 11v1.5c0 .6.4 1 1 1h8c.6 0 1-.4 1-1V11"
@@ -63,7 +74,7 @@ export function WhereFromStep({
           {presets.map((p) => (
             <label key={p} className={w.preset}>
               <input type="radio" name="preset" checked={preset === p} onChange={() => choose(p)} />
-              <PresetGlyph />
+              <PresetGlyph preset={p} />
               <span className={w.presetName}>{PRESET_LABEL[p]}</span>
               <small>{HINT[p]}</small>
             </label>

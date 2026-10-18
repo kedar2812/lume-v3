@@ -902,6 +902,23 @@ a.lit:hover {
 .dot:hover {
   transform: scale(1.45);
 }
+/* Several follow-ups at about the same time: one marker, with how many. */
+.dots {
+  top: 38px;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+}
+.dots[data-state="later"] {
+  color: var(--accent-ink);
+}
 .dot[data-state="later"] {
   background: var(--tile);
   box-shadow: inset 0 0 0 2px var(--accent);

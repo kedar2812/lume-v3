@@ -60,6 +60,11 @@
     0 0 0 0.5px var(--line-2),
     0 2px 8px rgba(12, 18, 32, 0.08);
 }
+/* An official mark sits on white, as each company asks (the brand README). */
+.glyphBrand {
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(12, 18, 32, 0.12);
+}
 .presetName {
   font-weight: var(--fw-semibold);
 }
