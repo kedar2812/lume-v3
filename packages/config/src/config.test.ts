@@ -54,6 +54,29 @@ describe("loadConfig", () => {
       "http://connect.lumecrm.in",
     );
   });
+  it("LUME AI is off without a provider; a real provider needs its model and key, the fake needs neither", () => {
+    expect(loadConfig(apiSchema, apiEnv).LUME_AI_PROVIDER).toBeUndefined();
+    expect(loadConfig(apiSchema, { ...apiEnv, LUME_AI_PROVIDER: "fake" }).LUME_AI_PROVIDER).toBe("fake");
+    const ok = loadConfig(apiSchema, {
+      ...apiEnv,
+      LUME_AI_PROVIDER: "anthropic",
+      LUME_AI_MODEL: "claude-haiku-5-5",
+      LUME_AI_KEY: "k".repeat(40),
+    });
+    expect(ok).toMatchObject({ LUME_AI_PROVIDER: "anthropic", LUME_AI_MODEL: "claude-haiku-5-5" });
+    expect(
+      issuesOf(() => loadConfig(apiSchema, { ...apiEnv, LUME_AI_PROVIDER: "anthropic" })).join(),
+    ).toMatch(/LUME_AI_KEY/);
+    expect(
+      issuesOf(() =>
+        loadConfig(apiSchema, { ...apiEnv, LUME_AI_PROVIDER: "google", LUME_AI_KEY: "k".repeat(40) }),
+      ).join(),
+    ).toMatch(/LUME_AI_MODEL/);
+    expect(issuesOf(() => loadConfig(apiSchema, { ...apiEnv, LUME_AI_PROVIDER: "openai" })).join()).toMatch(
+      /LUME_AI_PROVIDER/,
+    );
+  });
+
   it("Connect with Google needs both the relay's address and this instance's token", () => {
     expect(loadConfig(apiSchema, apiEnv).GOOGLE_OAUTH_RELAY_URL).toBeUndefined();
     const ok = loadConfig(apiSchema, {

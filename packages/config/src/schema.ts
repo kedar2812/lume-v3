@@ -91,8 +91,19 @@ export const apiSchema = base
     DB_JOB_POOL_MAX: z.coerce.number().int().min(2).max(100).default(14),
     GOOGLE_OAUTH_RELAY_URL: optional(z.url({ protocol: /^https?$/ })),
     GOOGLE_OAUTH_RELAY_TOKEN: optional(z.string().min(32).max(200)),
+    /**
+     * LUME AI (spec 2026-10-18 §2.1): which provider reads notes, with which model and key. Unset: no AI on this
+     * server. "fake" answers fixed suggestions (tests, e2e). The model is chosen by the eval, never in code.
+     */
+    LUME_AI_PROVIDER: optional(z.enum(["anthropic", "google", "fake"])),
+    LUME_AI_MODEL: optional(z.string().min(1).max(100)),
+    LUME_AI_KEY: optional(z.string().min(20).max(400)),
   })
   .superRefine((c, ctx) => {
+    if (c.LUME_AI_PROVIDER === "anthropic" || c.LUME_AI_PROVIDER === "google")
+      for (const k of ["LUME_AI_MODEL", "LUME_AI_KEY"] as const)
+        if (!c[k])
+          ctx.addIssue({ code: "custom", path: [k], message: `${k} is required with LUME_AI_PROVIDER` });
     // The relay carries a Google grant back: https everywhere but a developer's own machine and tests.
     if (
       c.GOOGLE_OAUTH_RELAY_URL?.startsWith("http:") &&
