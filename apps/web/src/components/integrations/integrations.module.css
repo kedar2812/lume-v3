@@ -437,3 +437,162 @@
     transition: width 0.4s cubic-bezier(0.2, 0.9, 0.25, 1);
   }
 }
+
+/* WhatsApp (spec 2026-10-18 §3.2; canvas "LUME WhatsApp — part 1 screens", board Main). */
+.waNote {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--sunk);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.waEmpty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--sunk);
+}
+.waEmpty p {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--text-2);
+}
+.waNumbers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.waNumber {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.waNumber + .waNumber {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.waRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.waWho {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.waDisplay {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.waMeta {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.waOwner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.waOwner select {
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+.waAttention {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 8px 8px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-sm);
+}
+.waAttention span {
+  flex: 1;
+  min-width: 200px;
+}
+.waFoot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.waLink {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+}
+.waSheet {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.waSheetHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.waSheetTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+}
+.waSheetText {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.waChanges {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.waChanges p {
+  margin: 0;
+  padding: 11px 14px;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+.waChanges p + p {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.waChanges .waChangesHead {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+.waSheetFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

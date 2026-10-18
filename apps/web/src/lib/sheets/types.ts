@@ -10,6 +10,8 @@ export type IntegrationsView = {
   calendly: { connected: boolean };
   /** LUME AI (spec 2026-10-18 §2.2): a provider set up here (`available`), and in this LUME's plan. */
   ai?: { enabled: boolean; available: boolean; inPlan: boolean };
+  /** WhatsApp (spec 2026-10-18 §3): the relay and Meta set up here (`available`), and in this LUME's plan. */
+  whatsapp?: { enabled: boolean; available: boolean; inPlan: boolean };
 };
 /** A file picked with Connect with Google, ready to be set up. */
 export type PickedFile = { connectId: string; file: { id: string; name: string } };

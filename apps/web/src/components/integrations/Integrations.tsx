@@ -10,6 +10,7 @@ import { sheetsClient } from "@/lib/sheets/client";
 import type { IntegrationsView, SheetSourceView } from "@/lib/sheets/types";
 import { AttentionBanner } from "./AttentionBanner";
 import { AiCard } from "./AiCard";
+import { WhatsAppCard } from "./WhatsAppCard";
 import { CalendlyCard } from "./CalendlyCard";
 import { GoogleCalendarCard } from "./GoogleCalendarCard";
 import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
@@ -170,6 +171,7 @@ export function Integrations({ tz }: { tz?: string } = {}) {
       <WebhooksCard webhooks={view.webhooks} onView={setView} />
       {view.googleCalendar && <GoogleCalendarCard googleCalendar={view.googleCalendar} onView={setView} />}
       {calendly && <CalendlyCard initial={calendly} />}
+      {view.whatsapp && <WhatsAppCard wa={view.whatsapp} onView={setView} />}
       {view.ai && (
         <AiCard ai={view.ai} tz={tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone} onView={setView} />
       )}
