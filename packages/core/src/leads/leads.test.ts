@@ -20,6 +20,19 @@ describe("phone normalisation (report §8.4: never guess silently)", () => {
     expect(normalizePhone(input, country)).toMatchObject(expected);
   });
 
+  // Meta's lead ads export every number as "p:+91…" (or "p:98…" with no code); a tel: link pasted in is the same.
+  // A client's first import was 27 of 28 numbers "invalid" until this (2026-10-19).
+  it.each([
+    ["p:+918328618224", null, { e164: "+918328618224", countryIso: "IN", status: "valid" }],
+    ["p:9876543210", "IN", { e164: "+919876543210", countryIso: "IN", status: "valid" }],
+    ["P: +91 98765 43210", null, { e164: "+919876543210", countryIso: "IN", status: "valid" }],
+    ["tel:+971501234567", null, { e164: "+971501234567", countryIso: "AE", status: "valid" }],
+    ["p:9876543210", null, { e164: null, countryIso: null, status: "needs_country" }],
+  ] as const)("reads past a label in front of the number: %s (default %s)", (input, country, expected) => {
+    expect(normalizePhone(input, country)).toMatchObject(expected);
+    expect(normalizePhone(input, country).raw).toBe(input);
+  });
+
   it("keeps the raw value exactly as received", () => {
     expect(normalizePhone(" 050 123 4567 ", "AE").raw).toBe("050 123 4567");
     expect(normalizePhone(null).raw).toBeNull();

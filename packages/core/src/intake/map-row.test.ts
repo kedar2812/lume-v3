@@ -66,6 +66,14 @@ describe("contacts (§6.3)", () => {
     expect(o.draft.phone).toMatchObject({ raw: "050 123 4567", e164: "+971501234567", status: "valid" });
   });
 
+  it("reads a Meta lead ads export's numbers (p:+91…), with no warning", () => {
+    const o = draft(
+      run(["name", "email", "phone"], ["Rohan Kulkarni", "rohan@example.com", "p:+919876543210"]),
+    );
+    expect(o.draft.phone).toMatchObject({ raw: "p:+919876543210", e164: "+919876543210", status: "valid" });
+    expect(warns(o)).not.toContain("PHONE_INVALID");
+  });
+
   it("imports unreadable phones with a warning, never an error", () => {
     const o = draft(run(["name", "phone"], ["A", "12345"]));
     expect(o.draft.phone.status).toBe("invalid");
