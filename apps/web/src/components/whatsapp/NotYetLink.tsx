@@ -1,4 +1,5 @@
 "use client";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { whatsappClient } from "@/lib/whatsapp/client";
@@ -17,6 +18,7 @@ export function NotYetLink() {
   if (!count) return null;
   return (
     <Link href="/leads/not-yet" className={s.link}>
+      <WhatsAppIcon size={16} className={s.linkIcon} />
       Not a lead yet · {count}
     </Link>
   );

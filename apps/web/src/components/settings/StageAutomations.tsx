@@ -8,6 +8,7 @@ import type { Person } from "@/lib/leads/types";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import a from "./automations.module.css";
 import s from "./settings.module.css";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 
 const MAX = 5;
 export type Moves = { afterSentStageId: string | null; afterReplyStageId: string | null };
@@ -262,7 +263,7 @@ export function StageAutomations({
                   </div>
                   {templates.find((t) => t.id === r.templateId) && (
                     <p className={a.preview} data-testid="reminder-preview">
-                      <img src="/brand/whatsapp.svg" alt="" width={14} height={14} />
+                      <WhatsAppIcon size={16} />
                       {templates.find((t) => t.id === r.templateId)!.body}
                     </p>
                   )}

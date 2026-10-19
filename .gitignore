@@ -31,3 +31,5 @@ apps/licence/playwright-report/
 
 # Each client's secrets (licensing L-C): made by scripts/provision.sh, never committed.
 deploy/clients/*.env
+
+.claude/settings.local.json

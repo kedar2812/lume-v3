@@ -213,6 +213,9 @@
   text-decoration: none;
   box-shadow: inset 0 0 0 0.5px var(--line-2);
 }
+.linkIcon {
+  margin-right: 6px;
+}
 .link:hover {
   background: var(--hover);
 }

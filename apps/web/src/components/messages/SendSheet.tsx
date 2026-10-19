@@ -14,6 +14,7 @@ import { TokenLine } from "@/components/templates/TokenLine";
 import { SentPrompt, type Outcome } from "./SentPrompt";
 import s from "./messages.module.css";
 import { missingIn } from "@/lib/messages/missing";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 
 const firstLine = (body: string) => body.split("\n").find((l) => l.trim()) ?? "";
 
@@ -147,10 +148,8 @@ export function SendSheet({
         {...(compact ? { triggerLabel: `WhatsApp ${lead.name}` } : {})}
         trigger={
           <>
-            {/* WhatsApp's own mark, unmodified, on a white tile (public/brand/README.md) */}
-            <span className={b.brandTile} aria-hidden>
-              <img src="/brand/whatsapp.svg" alt="" width={14} height={14} />
-            </span>
+            {/* WhatsApp's own app icon, unmodified; a white ring keeps it apart from the green button. */}
+            <WhatsAppIcon size={compact ? 18 : 20} ring={!compact} />
             {!compact && "WhatsApp"}
           </>
         }

@@ -1,4 +1,5 @@
 "use client";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { useIsPresent } from "motion/react";
 import { useEffect, useId, useState } from "react";
 import { SentPrompt, type Outcome } from "@/components/messages/SentPrompt";
@@ -162,6 +163,7 @@ export function QueueCard({
                 Skip
               </Button>
               <Button type="submit" variant="whatsapp" disabled={!ready || !text.trim()}>
+                <WhatsAppIcon size={18} ring />
                 Send
               </Button>
             </>

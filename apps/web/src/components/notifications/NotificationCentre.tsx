@@ -1,4 +1,5 @@
 "use client";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
@@ -541,6 +542,8 @@ function icon(e: Entry): ReactNode {
   // A Calendly booking (5D) wears Calendly's own mark, unmodified.
   if (e.type !== "task" && e.n.kind === "meeting_booked")
     return <img src="/brand/calendly.svg" alt="" width={16} height={16} />;
+  // A reply on WhatsApp wears WhatsApp's own app icon, as everywhere in LUME.
+  if (e.type !== "task" && e.n.kind === "lead_replied") return <WhatsAppIcon size={16} />;
   const path =
     e.type === "task"
       ? "M8 3.5v4.5l3 2M14.5 8a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" // a clock: a follow-up

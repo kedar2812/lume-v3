@@ -41,6 +41,8 @@ describe("back from Meta (spec 2026-10-18 §3.2)", () => {
       tone: "ok",
       title: "WhatsApp connected",
       detail: "+91 90000 00001",
+      // WhatsApp's own app icon, as everywhere else LUME shows WhatsApp.
+      mark: { src: "/brand/whatsapp-app.png", alt: "" },
     });
     expect(window.location.search).toBe("");
   });

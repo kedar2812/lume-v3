@@ -12,6 +12,7 @@ import type { WaNumber } from "@/lib/whatsapp/types";
 import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
 import { WhatsAppKeep } from "./WhatsAppKeep";
 import s from "./integrations.module.css";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 
 type WaView = NonNullable<IntegrationsView["whatsapp"]>;
 const BUSINESS = "";
@@ -35,9 +36,7 @@ function ConnectSheet({ onClose }: { onClose(): void }) {
     <Dialog label="Connect a WhatsApp number" onClose={onClose} wide>
       <div className={s.waSheet}>
         <div className={s.waSheetHead}>
-          <span className={s.brandTile} aria-hidden>
-            <img src="/brand/whatsapp.svg" alt="" width={24} height={24} />
-          </span>
+          <WhatsAppIcon size={44} />
           <h2 className={s.waSheetTitle}>Connect a WhatsApp number</h2>
         </div>
         <p className={s.waSheetText}>
@@ -127,9 +126,7 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
   return (
     <article className={s.card} aria-labelledby="wa-title">
       <header className={s.cardHead}>
-        <span className={s.brandTile} aria-hidden>
-          <img src="/brand/whatsapp.svg" alt="" width={26} height={26} />
-        </span>
+        <WhatsAppIcon size={44} />
         <div className={s.cardText}>
           <h2 id="wa-title" className={s.cardTitle}>
             WhatsApp

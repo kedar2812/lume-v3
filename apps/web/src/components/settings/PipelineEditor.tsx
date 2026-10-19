@@ -25,6 +25,7 @@ import {
 import a from "./automations.module.css";
 import p from "./pipeline.module.css";
 import s from "./settings.module.css";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 
 const KINDS = [
   ["open", "Open"],
@@ -410,7 +411,7 @@ export function PipelineEditor({
                   >
                     <span className={p.autoIcon} aria-hidden>
                       {line.startsWith("Sets the lead's owner a WhatsApp") ? (
-                        <img src="/brand/whatsapp.svg" alt="" width={16} height={16} />
+                        <WhatsAppIcon size={16} />
                       ) : (
                         <svg viewBox="0 0 16 16" width="14" height="14">
                           <path

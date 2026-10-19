@@ -31,7 +31,12 @@ export function WhatsAppConnected() {
       window.history.replaceState?.(null, "", window.location.pathname);
       if (!r.ok) return setError(r.message);
       const newest = [...r.data.numbers].sort((a, b) => b.connectedAt.localeCompare(a.connectedAt))[0];
-      toast({ tone: "ok", title: "WhatsApp connected", ...(newest ? { detail: newest.display } : {}) });
+      toast({
+        tone: "ok",
+        title: "WhatsApp connected",
+        mark: { src: "/brand/whatsapp-app.png", alt: "" },
+        ...(newest ? { detail: newest.display } : {}),
+      });
       router.replace("/settings/integrations");
     })();
   }, [params, router, toast]);
