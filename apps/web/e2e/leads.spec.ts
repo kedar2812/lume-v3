@@ -74,6 +74,23 @@ test.describe("the owner works leads", () => {
     await expect(page.getByRole("dialog", { name: "Karim Aziz" })).toBeInViewport({ ratio: 0.9 });
   });
 
+  test("@smoke a lead found with Ctrl+K opens in its drawer, also from the Leads page itself", async ({
+    page,
+  }) => {
+    // From the page that shows leads, the pick used to close the search and open nothing (2026-10-19).
+    await page.goto("/leads");
+    for (let i = 0; i < 2; i++) {
+      await page.keyboard.press("Control+k");
+      await page.getByRole("combobox", { name: /^Search leads/ }).fill("Karim");
+      await page.getByRole("option", { name: /Karim Aziz/ }).click();
+      const drawer = page.getByRole("dialog", { name: "Karim Aziz" });
+      await expect(drawer).toBeInViewport({ ratio: 0.9 });
+      // And the same lead again, once it's been closed.
+      await page.keyboard.press("Escape");
+      await expect(drawer).toHaveCount(0);
+    }
+  });
+
   test("@smoke reassign: the previous rep loses the lead at once", async ({ page, browser }) => {
     await page.goto("/leads?q=Priya");
     await page.getByRole("button", { name: "Open Priya Menon" }).click();

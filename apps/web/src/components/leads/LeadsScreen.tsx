@@ -51,6 +51,7 @@ import { editable, useLeadEditor } from "./useLeadEditor";
 import { useArrivals } from "./useArrivals";
 import s from "./leads.module.css";
 import { NotYetLink } from "@/components/whatsapp/NotYetLink";
+import { useAskedLead } from "@/lib/leads/asked-lead";
 
 type Props = {
   session: Session;
@@ -216,6 +217,7 @@ function Screen({
     viewsChanged();
   };
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
+  useAskedLead(setOpenId);
   const [creating, setCreating] = useState(
     () => initialAction === "new" && can(session.actor, "leads.create"),
   );

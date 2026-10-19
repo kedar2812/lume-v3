@@ -101,6 +101,9 @@ export function serializeLead(row: LeadRow, ctx: SerializeCtx): LeadView {
     lostAt: row.lostAt,
     leadCreatedAt: row.leadCreatedAt,
     lastActivityAt: row.lastActivityAt,
+    // When LUME last sent them a message and when they last replied: whether a reply is in since (the drawer).
+    lastMessageAt: row.lastMessageAt,
+    lastReplyAt: row.lastReplyAt,
     stageEnteredAt: row.stageEnteredAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

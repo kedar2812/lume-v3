@@ -449,6 +449,11 @@
 .tab[aria-selected="true"] {
   color: var(--text);
 }
+.tabIcon {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 6px;
+}
 .tabCount {
   margin-left: 6px;
   padding: 1px 6px;
@@ -712,4 +717,12 @@
     transition: none;
     animation: none;
   }
+}
+
+/* They replied, once the reply is in: a check and when, in the ok green; still a button for a later reply. */
+.replyIn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok);
 }

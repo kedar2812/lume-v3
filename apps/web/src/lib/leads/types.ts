@@ -33,6 +33,8 @@ export type Lead = {
   lostAt?: string | null;
   leadCreatedAt?: string | null;
   lastActivityAt?: string | null;
+  lastMessageAt?: string | null;
+  lastReplyAt?: string | null;
   stageEnteredAt?: string;
   createdAt: string;
   updatedAt: string;

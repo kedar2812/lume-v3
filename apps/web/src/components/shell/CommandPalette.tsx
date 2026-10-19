@@ -86,6 +86,18 @@ const initials = initialsOf;
  * type; things to do (a new lead, an import, the theme, notifications); every page, saved view, setting and template,
  * found by a few letters even with a typo. Empty, it offers the leads you opened last. ↑↓ and Enter, all by keyboard.
  */
+/** How the search leaves: faded, or at once after a pick (`custom` on AnimatePresence, read as it exits). */
+const LEAVE = {
+  overlay: (picked: boolean) => ({ opacity: 0, ...(picked ? { transition: { duration: 0 } } : {}) }),
+  panel: (picked: boolean) => ({
+    opacity: 0,
+    scale: 0.97,
+    y: -4,
+    x: "-50%",
+    transition: { duration: picked ? 0 : 0.15 },
+  }),
+};
+
 export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
@@ -97,6 +109,9 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
   const [views, setViews] = useState<{ id: string; name: string }[]>([]);
   const [templates, setTemplates] = useState<{ id: string; name: string; category: string }[]>([]);
   const { go } = usePageNav();
+  // A pick leaves at once: whatever was picked takes over, and an Escape meant for it (closing the lead it opened)
+  // never lands on a search still fading out. Escape and a click outside keep the fade.
+  const [picked, setPicked] = useState(false);
   const listId = useId();
   const asked = useRef(0);
   const q = query.trim();
@@ -114,6 +129,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
   // What's worth having at hand, read once each time it opens.
   useEffect(() => {
     if (!open) return;
+    setPicked(false);
     setRecent(readRecent());
     if (can("leads.view"))
       void viewsClient
@@ -332,6 +348,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
   function run(i: number) {
     const it = items[i];
     if (!it) return;
+    setPicked(true);
     close();
     it.run();
   }
@@ -354,7 +371,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => (v ? onOpenChange(true) : close())}>
-      <AnimatePresence>
+      <AnimatePresence custom={picked}>
         {open && (
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild forceMount>
@@ -362,7 +379,8 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
                 className={s.overlay}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                variants={LEAVE}
+                exit="overlay"
               />
             </Dialog.Overlay>
             <Dialog.Content asChild forceMount aria-describedby={undefined} onKeyDown={onKey}>
@@ -370,7 +388,8 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
                 className={s.panel}
                 initial={{ opacity: 0, scale: 0.96, y: -6, filter: "blur(6px)", x: "-50%" }}
                 animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)", x: "-50%" }}
-                exit={{ opacity: 0, scale: 0.97, y: -4, x: "-50%", transition: { duration: 0.15 } }}
+                variants={LEAVE}
+                exit="panel"
                 transition={toMotion(SPRINGS.default)}
               >
                 <Dialog.Title className={s.srOnly}>Search LUME</Dialog.Title>
@@ -386,7 +405,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
                     aria-expanded
                     aria-controls={listId}
                     aria-activedescendant={items[sel] ? `${listId}-${sel}` : undefined}
-                    placeholder="Search leads by name, phone or email — or type a page, setting or action"
+                    placeholder="Search leads by name, phone or email, or type a page, setting or action"
                     value={query}
                     autoFocus
                     onChange={(e) => {

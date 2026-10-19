@@ -244,6 +244,10 @@ describe("sending (4A Task 4)", () => {
     expect(r.statusCode).toBe(200);
     expect(r.json()).toMatchObject({ moved: { stageName: "Replied" } });
     expect(await activities(lead, "reply_logged")).toHaveLength(1);
+    // The lead says when they last replied and when LUME last sent, so the drawer can show the reply is in.
+    const got = (await rep.inject({ method: "GET", url: `/api/v1/leads/${lead}` })).json().lead;
+    expect(got.lastReplyAt).toEqual(expect.any(String));
+    expect(got.lastMessageAt).toBeNull();
     const [t] = await h.queryAll<{ id: string }>(
       "SELECT id FROM tasks WHERE lead_id = $1 AND status = 'open'",
       [lead],

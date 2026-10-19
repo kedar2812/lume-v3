@@ -8,6 +8,7 @@ import { testCatalog, testLead as lead } from "@/lib/leads/test-catalog";
 import { fakeSession } from "@/server/session";
 import { viewsClient } from "@/lib/views/client";
 import { LeadsScreen } from "./LeadsScreen";
+import { useAddressSearchParams } from "@/lib/testing/address";
 
 // Sheets aren't connected in these tests: no Refresh, no banner.
 // WhatsApp's Not a lead yet link fetches on its own; its own test covers it.
@@ -22,6 +23,8 @@ vi.mock("@/lib/sheets/client", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => "/leads",
+  // As in Next: the address as it stands, including what the screen itself wrote with replaceState.
+  useSearchParams: () => useAddressSearchParams(),
 }));
 const address = () => window.location.pathname + window.location.search;
 vi.mock("@/lib/views/client", async (orig) => ({
@@ -448,6 +451,32 @@ describe("LeadsScreen", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(address()).toBe("/leads");
+  });
+
+  it("opens the lead the search palette picks while Leads is already showing, and the same one again after a close", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue({ ok: true, status: 200, data: { lead: lead() } });
+    const screenFor = () => (
+      <LeadsScreen
+        session={rep()}
+        catalog={testCatalog()}
+        contactsVisible={false}
+        initialFilters={EMPTY_FILTERS}
+        first={{ items: [lead()], nextCursor: null }}
+      />
+    );
+    const { rerender } = render(screenFor());
+    // The palette goes to /leads?lead=l1. Next keeps this screen and renders it again: no remount.
+    const pick = () =>
+      act(() => {
+        window.history.pushState(null, "", "/leads?lead=l1");
+        rerender(screenFor());
+      });
+    pick();
+    expect(await screen.findByRole("dialog", { name: "Aisha Khan" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    pick();
+    expect(await screen.findByRole("dialog", { name: "Aisha Khan" })).toBeInTheDocument();
   });
 
   it("takes a deleted lead out of the list and closes the drawer", async () => {

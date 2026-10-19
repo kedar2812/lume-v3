@@ -1,4 +1,5 @@
 "use client";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { useLoadingSignal } from "@/lib/loading";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { can, canOnRecord } from "@lume/core/shared";
@@ -309,6 +310,10 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const pipeline = lead ? catalog.pipelines.find((p) => p.id === lead.pipelineId) : undefined;
   const stage = pipeline?.stages.find((st) => st.id === lead?.stageId);
   const wonStage = pipeline?.stages.find((st) => st.kind === "won");
+  // Their reply is in when one was logged after LUME last sent them anything; a later message asks again.
+  const replyIn =
+    !!lead?.lastReplyAt &&
+    (!lead.lastMessageAt || Date.parse(lead.lastReplyAt) >= Date.parse(lead.lastMessageAt));
   const lostStage = pipeline?.stages.find((st) => st.kind === "lost");
 
   const moveTo = async (target: Stage) => {
@@ -360,6 +365,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   /** They replied (report §11.2 step 6): one tap, then whatever the stage does after a reply, undoable. */
   // One reply per tap: the button rests for a moment after each, so a double-tap logs it once.
   const [replying, setReplying] = useState(false);
+  const shapesPipelines = can(session.actor, "pipelines.manage");
   const replied = async () => {
     if (!lead || replying) return;
     setReplying(true);
@@ -368,10 +374,15 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     if (!r.ok) return toast({ tone: "danger", title: "The reply wasn’t logged", detail: r.message });
     sound.play("sent");
     const m = r.data.moved;
+    // Not moved: said in words, so a tap is never met with nothing (a stage with no reply move just logs it).
+    const stays = `It stays in ${stage?.name ?? "this stage"}: no stage is set to follow a reply`;
+    const notMoved =
+      r.data.notMoved?.message ??
+      (shapesPipelines ? `${stays}. Set one in Settings, under Pipelines.` : stays);
     toast({
       tone: "ok",
-      title: m ? `They replied · Moved to ${m.stageName}` : "They replied",
-      ...(r.data.notMoved ? { detail: r.data.notMoved.message } : {}),
+      title: m ? `They replied · Moved to ${m.stageName}` : "Reply logged",
+      ...(m ? {} : { detail: notMoved }),
       ...(m?.undoable
         ? { action: { label: "Undo", onClick: () => void undoReply(m.stageId, m.fromStageId) } }
         : {}),
@@ -709,11 +720,30 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         <Button
                           data-replied
                           aria-keyshortcuts="R"
-                          title="They replied (R)"
+                          title={replyIn ? "Log another reply (R)" : "They replied (R)"}
                           disabled={replying}
                           onClick={() => void replied()}
                         >
-                          They replied
+                          {replyIn && lead.lastReplyAt ? (
+                            <span className={s.replyIn}>
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden
+                              >
+                                <path d="M20 6 9 17l-5-5" />
+                              </svg>
+                              Replied · {relativeTime(lead.lastReplyAt, undefined, tz)}
+                            </span>
+                          ) : (
+                            "They replied"
+                          )}
                         </Button>
                       )}
                   {lead.can.edit && (
@@ -796,6 +826,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         document.getElementById(`${tabsId}-${next.id}`)?.focus();
                       }}
                     >
+                      {t.id === "whatsapp" && <WhatsAppIcon size={16} className={s.tabIcon} />}
                       {t.label}
                       {t.id === "meetings" && meetings.length > 0 && (
                         <span className={s.tabCount}>{meetings.length}</span>

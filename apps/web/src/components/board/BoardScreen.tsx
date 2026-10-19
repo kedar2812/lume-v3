@@ -36,6 +36,7 @@ import { BoardCard, CardFace } from "./BoardCard";
 import { BoardColumn } from "./BoardColumn";
 import { boardKeys, type BoardKeysState } from "./boardKeys";
 import s from "./board.module.css";
+import { useAskedLead } from "@/lib/leads/asked-lead";
 
 type Props = {
   session: Session;
@@ -99,6 +100,7 @@ function Board({
   const [keys, setKeys] = useState<BoardKeysState>({ picked: null });
   const [message, setMessage] = useState("");
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
+  useAskedLead(setOpenId);
   const [creating, setCreating] = useState(false);
   const [loadingMore, setLoadingMore] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);

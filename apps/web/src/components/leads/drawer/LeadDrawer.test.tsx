@@ -216,11 +216,11 @@ describe("LeadDrawer", () => {
     expect(h.onClose).toHaveBeenCalled();
   });
 
-  it("shows WhatsApp's own official mark on its button, never a drawn look-alike", async () => {
+  it("shows WhatsApp's own app icon (as on iOS) on its button, never a drawn look-alike", async () => {
     open();
     const button = await screen.findByRole("button", { name: "WhatsApp" });
     const mark = button.querySelector("img");
-    expect(mark).toHaveAttribute("src", "/brand/whatsapp.svg");
+    expect(mark).toHaveAttribute("src", "/brand/whatsapp-app.png");
     expect(button.querySelector("svg")).toBeNull();
   });
 
@@ -341,9 +341,64 @@ describe("LeadDrawer", () => {
     await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
     await vi.waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "They replied", detail: "Fill in Package first" }),
+        expect.objectContaining({ title: "Reply logged", detail: "Fill in Package first" }),
       ),
     );
+  });
+
+  it("a reply on a stage that doesn't move on one says it's logged and where the lead stays", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(ok({ moved: null }));
+    open();
+    await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Reply logged",
+          detail: "It stays in New: no stage is set to follow a reply",
+        }),
+      ),
+    );
+  });
+
+  it("someone who sets up pipelines also hears where a reply's stage is set", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(ok({ moved: null }));
+    open(
+      testLead(),
+      fakeSession({
+        permissions: [
+          { key: "leads.view", scope: "own" },
+          { key: "pipelines.manage", scope: null },
+        ],
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: "It stays in New: no stage is set to follow a reply. Set one in Settings, under Pipelines.",
+        }),
+      ),
+    );
+  });
+
+  it("a reply logged since the last message shows as Replied, with when; a later one can still be logged", async () => {
+    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    vi.mocked(leadsClient.replied).mockResolvedValue(ok({ moved: null }));
+    open(testLead({ lastMessageAt: ago(60), lastReplyAt: ago(5) }));
+    const replied = await screen.findByRole("button", { name: "Replied · 5m ago" });
+    expect(screen.queryByRole("button", { name: "They replied" })).not.toBeInTheDocument();
+    vi.mocked(leadsClient.get).mockResolvedValue(
+      ok({ lead: testLead({ lastMessageAt: ago(60), lastReplyAt: ago(0) }) }),
+    );
+    await userEvent.click(replied);
+    expect(leadsClient.replied).toHaveBeenCalledWith("l1");
+    expect(await screen.findByRole("button", { name: "Replied · just now" })).toBeInTheDocument();
+  });
+
+  it("a message sent after the last reply asks again", async () => {
+    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    open(testLead({ lastReplyAt: ago(120), lastMessageAt: ago(60) }));
+    expect(await screen.findByRole("button", { name: "They replied" })).toBeInTheDocument();
   });
 
   it("a lost lead offers Reopen instead: the first open stage first, or any other", async () => {

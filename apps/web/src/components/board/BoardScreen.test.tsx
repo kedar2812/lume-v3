@@ -6,6 +6,7 @@ import { EMPTY_FILTERS } from "@/lib/leads/filters";
 import { testCatalog, testLead } from "@/lib/leads/test-catalog";
 import { fakeSession } from "@/server/session";
 import { BoardScreen } from "./BoardScreen";
+import { useAddressSearchParams } from "@/lib/testing/address";
 
 // Sheets aren't connected in these tests: no Refresh, no banner.
 vi.mock("@/lib/sheets/client", () => ({
@@ -16,7 +17,8 @@ vi.mock("@/lib/sheets/client", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => "/pipeline",
-  useSearchParams: () => new URLSearchParams(),
+  // As in Next: the address as it stands, including what the screen itself wrote with replaceState.
+  useSearchParams: () => useAddressSearchParams(),
 }));
 vi.mock("@/lib/leads/client", () => ({
   leadsClient: { move: vi.fn(), list: vi.fn(), counts: vi.fn(), get: vi.fn(), activities: vi.fn() },
@@ -26,29 +28,32 @@ vi.mock("@/components/feedback/SoundProvider", () => ({ useSound: () => ({ play 
 
 const cat = testCatalog();
 const pipeline = cat.pipelines[0]!;
-const board = (over: Partial<Parameters<typeof BoardScreen>[0]> = {}) =>
-  render(
-    <BoardScreen
-      session={fakeSession({
-        permissions: [
-          { key: "leads.view", scope: "own" },
-          { key: "leads.change_stage", scope: "own" },
-        ],
-      })}
-      catalog={cat}
-      pipeline={pipeline}
-      filters={EMPTY_FILTERS}
-      columns={{
-        "s-new": { items: [testLead()], nextCursor: null },
-        "s-sent": { items: [], nextCursor: null },
-      }}
-      counts={{ "s-new": 1, "s-sent": 0 }}
-      {...over}
-    />,
-  );
+const boardElement = (over: Partial<Parameters<typeof BoardScreen>[0]> = {}) => (
+  <BoardScreen
+    session={fakeSession({
+      permissions: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.change_stage", scope: "own" },
+      ],
+    })}
+    catalog={cat}
+    pipeline={pipeline}
+    filters={EMPTY_FILTERS}
+    columns={{
+      "s-new": { items: [testLead()], nextCursor: null },
+      "s-sent": { items: [], nextCursor: null },
+    }}
+    counts={{ "s-new": 1, "s-sent": 0 }}
+    {...over}
+  />
+);
+const board = (over: Partial<Parameters<typeof BoardScreen>[0]> = {}) => render(boardElement(over));
 const column = (name: string) => screen.getByRole("region", { name: new RegExp(`^${name}`) });
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  window.history.replaceState(null, "", "/pipeline");
+});
 
 describe("BoardScreen", () => {
   it("shows one column per stage with its count", () => {
@@ -238,6 +243,23 @@ describe("BoardScreen", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.getByRole("status")).toHaveTextContent(/put back/i);
     await userEvent.click(card);
+    expect(await screen.findByRole("dialog", { name: "Aisha Khan" })).toBeInTheDocument();
+  });
+
+  it("opens a lead the address asks for while the board is already showing, and the same one again after a close", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue({ ok: true, status: 200, data: { lead: testLead() } });
+    const { rerender } = board();
+    // A link to /pipeline?lead=l1 from this page: Next renders the screen again without remounting it.
+    const ask = () =>
+      act(() => {
+        window.history.pushState(null, "", "/pipeline?lead=l1");
+        rerender(boardElement());
+      });
+    ask();
+    expect(await screen.findByRole("dialog", { name: "Aisha Khan" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    ask();
     expect(await screen.findByRole("dialog", { name: "Aisha Khan" })).toBeInTheDocument();
   });
 });
