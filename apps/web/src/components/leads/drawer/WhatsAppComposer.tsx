@@ -168,8 +168,10 @@ export function WhatsAppComposer({
       accept={ACCEPT}
       aria-label="Attach a photo or a file"
       className={s.srOnly}
-      // Behind the menu's "From this device" when there is a menu: it opens the chooser, this takes the file.
+      // Behind the menu's "From this device" when there is a menu: it opens the chooser, this takes the file. Out of
+      // the tab order and hidden from screen readers then, so they hear one Attach, not two.
       tabIndex={library ? -1 : undefined}
+      aria-hidden={library || undefined}
       disabled={!!attaching || sending}
       onChange={(e) => {
         void attach(e.target.files?.[0]);

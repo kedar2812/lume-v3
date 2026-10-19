@@ -133,6 +133,27 @@ Nothing extra: WhatsApp uses the same relay connection as Connect with Google (`
     documents for viruses: it never opens them, it only hands them over.
   - Media are fetched only from Meta's own hosts, so a number's token never goes anywhere else.
 
+## The file library and file links (W3b-1, 2026-10-20)
+
+- **What it is.** Settings → Files (admins with `templates.manage`): brochures, price lists and photos the business
+  sends often. Anyone who may use templates can attach one from a lead's reply box (Attach → From your files); nothing
+  is uploaded again.
+- **Where they live.** In the same `files` volume as WhatsApp's own files, kept once by content, so the same brochure
+  in the library and on 150 messages is one file. The library holds its own claim on each file: "Keep WhatsApp files
+  for" never removes a library file, and archiving one keeps it on disk for the messages that already sent it. The
+  6-hourly off-site copy and the restore steps cover library files with no extra step.
+- **Share by link.** A file's switch gives it an unguessable address (`/f/` and 43 random characters) for when
+  WhatsApp isn't connected; the send sheet's **Add a file** puts it under the message. Anyone with the address can
+  open the file, no sign-in, 60 opens a minute from one address. The address only works while the switch is on and the
+  file isn't archived; otherwise it answers exactly as an address that never existed. Switching it on again gives the
+  same address back.
+- **A client's proxy.** `/f/*` must reach the API, as `infra/Caddyfile` does (it's beside `/api/*`). A client on an
+  older Caddyfile gets the web app's "not found" for every link: update the Caddyfile from this release and reload.
+- **A link that leaked.** The admin switches **Share by link** off. Anyone with the old address sees nothing from that
+  moment (a browser that already opened it may keep its copy for up to 5 minutes). Switching it back on brings the
+  same address back, so to share the file again under a new address: archive it, then add it again (a new upload is a
+  new address).
+
 ## When something's wrong
 
 | What the card says | What to do |

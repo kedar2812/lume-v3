@@ -86,7 +86,13 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
       // Replies from LUME (W3a): what was sent, each with the id Meta gave it, for e2e to send its statuses.
       if (u.pathname === "/__fake/sent" && req.method === "GET")
         return send(res, 200, {
-          sent: state.sent.map((m, i) => ({ to: m.body.to, type: m.body.type, wamid: `wamid.OUT${i + 1}` })),
+          sent: state.sent.map((m, i) => ({
+            to: m.body.to,
+            type: m.body.type,
+            wamid: `wamid.OUT${i + 1}`,
+            // A document's name as WhatsApp shows it (W3b-1: a library file keeps its name on the way out).
+            ...(m.body.document ? { filename: (m.body.document as { filename?: string }).filename } : {}),
+          })),
         });
       if (u.pathname === "/__fake/revoke" && req.method === "POST") {
         state.revoked.add((body as { token: string }).token);

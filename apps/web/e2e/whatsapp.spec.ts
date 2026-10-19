@@ -268,6 +268,100 @@ test.describe.serial("WhatsApp", () => {
     await expect(card.getByRole("switch", { name: "Reply from LUME" })).not.toBeChecked();
   });
 
+  test("the file library: an admin adds a PDF and shares it by link; it goes from the reply box too (W3b-1)", async ({
+    page,
+    browser,
+  }) => {
+    const PDF = Buffer.from("%PDF-1.7\n1 0 obj\nendobj\n");
+    await openApp(page, "/settings/files");
+    await page.getByLabel("Choose files").setInputFiles({
+      name: "Price list.pdf",
+      mimeType: "application/pdf",
+      buffer: PDF,
+    });
+    const row = page.getByRole("listitem", { name: "Price list.pdf" });
+    await expect(row).toContainText("PDF · 1 KB");
+
+    // Shared by link: anyone with it gets the file, signed in or not; switched off, the same address is gone.
+    await row.getByRole("switch", { name: "Share Price list.pdf by link" }).click();
+    const url = (await row.getByText(/\/f\/[A-Za-z0-9_-]{43}$/).textContent())!;
+    expect(new URL(url).origin).toBe(new URL(page.url()).origin);
+    const stranger = await browser.newContext();
+    const got = await stranger.request.get(url);
+    expect(got.status()).toBe(200);
+    expect(got.headers()["content-type"]).toBe("application/pdf");
+    expect(Buffer.from(await got.body()).equals(PDF)).toBe(true);
+    // The count is read when the page loads.
+    await openApp(page, "/settings/files");
+    await expect(row).toContainText("Opened once");
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(page, `files-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await row.getByRole("switch", { name: "Share Price list.pdf by link" }).click();
+    await expect(row).toContainText("Anyone with the old link now sees nothing.");
+    expect((await stranger.request.get(url)).status()).toBe(404);
+    await stranger.close();
+
+    // From the reply box: Attach → From your files, and it reaches Meta as a document with its name.
+    await openApp(page, "/settings/integrations");
+    const card = page.getByRole("article", { name: /^WhatsApp/ });
+    await card.getByRole("switch", { name: "Reply from LUME" }).click();
+    await expect(card.getByRole("switch", { name: "Reply from LUME" })).toBeChecked();
+    const id = await lead(page, "Meera Iyer", "+919876512399");
+    await meta(
+      page.request,
+      inbound({
+        from: "919876512399",
+        name: "Meera Iyer",
+        id: "wamid.E2ELIBRARY1",
+        at: new Date().toISOString(),
+        type: "text",
+        text: { body: "What do you charge?" },
+      }),
+    );
+    await openApp(page, `/leads?lead=${id}`);
+    const drawer = page.getByRole("dialog", { name: "Meera Iyer" });
+    const form = drawer.getByRole("form", { name: "Reply to Meera on WhatsApp" });
+    await expect(async () => {
+      await drawer.getByRole("tab", { name: "WhatsApp" }).click();
+      await expect(form).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+    await form.getByRole("button", { name: "Attach" }).click();
+    await form.getByRole("menuitem", { name: "From your files" }).click();
+    await expect(form.getByRole("option", { name: /Price list\.pdf/ })).toBeVisible();
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(drawer, `attach-from-files-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await form.getByRole("option", { name: /Price list\.pdf/ }).click();
+    // The picker closes with the pick (its exit can still be on screen a moment under load).
+    await expect(form.getByRole("listbox", { name: "Your files" })).toBeHidden();
+    await expect(form.getByText("PDF · 1 KB")).toBeVisible();
+    await form.getByRole("textbox", { name: "Words with the file" }).fill("Our prices");
+    await form.getByRole("button", { name: "Send" }).click();
+    type Sent = { sent: { to: string; type: string; filename?: string }[] };
+    await expect
+      .poll(
+        async () =>
+          ((await (await page.request.get(`${META}/__fake/sent`)).json()) as Sent).sent
+            .filter((m) => m.to === "919876512399")
+            .map((m) => [m.type, m.filename]),
+        { timeout: 20_000 },
+      )
+      .toEqual([["document", "Price list.pdf"]]);
+
+    await openApp(page, "/settings/integrations");
+    await card.getByRole("switch", { name: "Reply from LUME" }).click();
+    await expect(card.getByRole("switch", { name: "Reply from LUME" })).not.toBeChecked();
+  });
+
   test("System health shows the disk, the database and WhatsApp's files — both themes", async ({ page }) => {
     await openApp(page, "/settings/health");
     const storage = page.getByRole("region", { name: "Storage" });

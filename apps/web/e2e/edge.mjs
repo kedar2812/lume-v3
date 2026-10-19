@@ -5,9 +5,10 @@ import { createServer, request } from "node:http";
 const API = Number(process.env.E2E_API_PORT ?? 3101);
 const WEB = Number(process.env.E2E_WEB_PORT ?? 3102);
 const PORT = Number(process.env.E2E_EDGE_PORT ?? 3100);
-// WhatsApp's deliveries from the relay (spec 2026-10-18 §3.3) go to the API, as on a client's server (infra/Caddyfile).
+// WhatsApp's deliveries from the relay (spec 2026-10-18 §3.3) and a library file's link (/f/, W3b-1) go to the API, as
+// on a client's server (infra/Caddyfile).
 const toApi = (url) =>
-  /^\/(api|webhooks)\//.test(url) || url === "/whatsapp/in" || url === "/healthz" || url === "/readyz";
+  /^\/(api|webhooks|f)\//.test(url) || url === "/whatsapp/in" || url === "/healthz" || url === "/readyz";
 
 createServer((req, res) => {
   const proxied = request(
