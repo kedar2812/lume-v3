@@ -121,6 +121,91 @@ export function metaClient(meta: NonNullable<AppDeps["meta"]>, token: string) {
       if (!wamid) throw new MetaError("transient", "WhatsApp didn't answer properly just now.");
       return wamid;
     },
+    /**
+     * A template's header file (W3b-2), in Meta's resumable upload for the app: the handle a template names as its
+     * sample. Meta's docs ask for the token as `OAuth` here.
+     */
+    async uploadForTemplate(appId: string, bytes: Buffer, mime: string, name: string): Promise<string> {
+      const q = new URLSearchParams({ file_name: name, file_length: String(bytes.length), file_type: mime });
+      const start = await call(graph(`${encodeURIComponent(appId)}/uploads?${q}`), { method: "POST" });
+      const session = ((await start.json()) as { id?: string }).id;
+      if (!session?.startsWith("upload:"))
+        throw new MetaError("transient", "WhatsApp didn't answer properly just now.");
+      const up = await call(graph(session), {
+        method: "POST",
+        headers: { authorization: `OAuth ${token}`, file_offset: "0", "content-type": mime },
+        body: new Uint8Array(bytes),
+      });
+      const h = ((await up.json()) as { h?: string }).h;
+      if (!h) throw new MetaError("transient", "WhatsApp didn't answer properly just now.");
+      return h;
+    },
+    /** A template for WhatsApp to review (W3b-2): its id there, and where review stands. */
+    async createTemplate(
+      wabaId: string,
+      payload: Record<string, unknown>,
+    ): Promise<{ id: string; status: string; category: string }> {
+      const r = await call(graph(`${encodeURIComponent(wabaId)}/message_templates`), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const d = (await r.json()) as { id?: string; status?: string; category?: string };
+      if (!d.id) throw new MetaError("transient", "WhatsApp didn't answer properly just now.");
+      return { id: String(d.id), status: d.status ?? "PENDING", category: d.category ?? "" };
+    },
+    /**
+     * These templates as WhatsApp holds them now (W3b-2's sweep, for a webhook that never came), a page at a time.
+     * A next page anywhere but Meta is never asked with the token.
+     */
+    async templates(
+      wabaId: string,
+      names: string[],
+    ): Promise<
+      {
+        id: string;
+        name: string;
+        language: string;
+        status: string;
+        category: string;
+        reason: string | null;
+      }[]
+    > {
+      const wanted = new Set(names);
+      const out: Awaited<ReturnType<typeof this.templates>> = [];
+      const fields = "id,name,language,status,category,rejected_reason";
+      let next: string | null = graph(
+        `${encodeURIComponent(wabaId)}/message_templates?fields=${fields}&limit=100`,
+      );
+      for (let pages = 0; next && pages < 50; pages++) {
+        if (!trustedMediaUrl(next, meta.graphUrl))
+          throw new MetaError("untrusted", "WhatsApp sent a link that isn't Meta's.");
+        const r = await call(next);
+        const d = (await r.json()) as {
+          data?: {
+            id: string;
+            name: string;
+            language: string;
+            status: string;
+            category: string;
+            rejected_reason?: string;
+          }[];
+          paging?: { next?: string };
+        };
+        for (const t of d.data ?? [])
+          if (wanted.has(t.name))
+            out.push({
+              id: String(t.id),
+              name: t.name,
+              language: t.language,
+              status: t.status,
+              category: t.category,
+              reason: t.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : null,
+            });
+        next = d.paging?.next ?? null;
+      }
+      return out;
+    },
     /** Stop Meta delivering this WhatsApp account's messages to LUME. */
     async unsubscribe(wabaId: string): Promise<void> {
       await call(graph(`${encodeURIComponent(wabaId)}/subscribed_apps`), { method: "DELETE" });

@@ -94,6 +94,7 @@ services:
       # Unset: neither Connect with Google nor Google Calendar can be switched on.
       GOOGLE_OAUTH_RELAY_URL: ${GOOGLE_OAUTH_RELAY_URL:-}
       GOOGLE_OAUTH_RELAY_TOKEN: ${GOOGLE_OAUTH_RELAY_TOKEN:-}
+      LUME_META_APP_ID: ${LUME_META_APP_ID:-}
       # LUME AI (optional, spec 2026-10-18; docs/runbooks/ai.md): which provider reads notes, its model and this
       # client's own key with a spend cap. Unset: LUME AI can't be switched on.
       LUME_AI_PROVIDER: ${LUME_AI_PROVIDER:-}

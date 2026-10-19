@@ -111,6 +111,7 @@ const deps: AppDeps = {
       ? {
           graphUrl: cfg.META_GRAPH_URL ?? "https://graph.facebook.com",
           version: cfg.META_GRAPH_VERSION ?? "v23.0",
+          appId: cfg.LUME_META_APP_ID ?? null,
         }
       : null,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),

@@ -110,7 +110,7 @@ export type AppDeps = {
    * WhatsApp (spec 2026-10-18 §3): Meta's Graph API, which this server calls with each number's own token (media,
    * disconnecting). Connecting goes through the relay (googleOAuth), so WhatsApp needs both.
    */
-  meta?: { graphUrl: string; version: string } | null;
+  meta?: { graphUrl: string; version: string; appId?: string | null } | null;
   /** WhatsApp's relay, when it isn't Connect with Google's (e2e only); otherwise `googleOAuth` is used. */
   whatsappRelay?: { relayUrl: string; relayToken: string } | null;
   /**

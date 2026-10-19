@@ -99,6 +99,11 @@ export const apiSchema = base
     /** WhatsApp (spec 2026-10-18 §3): Meta's Graph API, for media and disconnecting. Tests and e2e point it at a fake. */
     META_GRAPH_URL: optional(z.url({ protocol: /^https?$/ })),
     /**
+     * LUME's Meta app (W3b-2): a template's header file goes up through it. Not a secret. Unset: templates without a
+     * file at the top still go to WhatsApp; one with a file says the server needs this first.
+     */
+    LUME_META_APP_ID: optional(z.string().regex(/^\d{5,20}$/)),
+    /**
      * WhatsApp's relay, when it isn't the Connect with Google one (e2e turns WhatsApp on alone). Unset: the same
      * GOOGLE_OAUTH_RELAY_URL/TOKEN — one relay for everything, as on a client's server.
      */

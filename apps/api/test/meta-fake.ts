@@ -32,12 +32,39 @@ export type MetaFake = {
   expired: Set<string>;
   /** The next sends answer with these Meta error codes, one each, in order. */
   failNext: number[];
+  /** Templates (W3b-2), by name: what WhatsApp holds for each and how many variables its body has. */
+  templates: Map<string, FakeTemplate>;
+  /** How many templates a page of the list holds, and a `paging.next` to answer with instead of the fake's own. */
+  templatePageSize: number;
+  templateNextUrl: string | null;
+  /** Header files uploaded for templates (resumable upload): each handle, the bytes' size and type. */
+  headerUploads: Map<string, { size: number; type: string }>;
+  /**
+   * WhatsApp's decision on a template (or its new category): the template changes, and the webhook Meta would send
+   * for its account comes back, for a test to deliver.
+   */
+  templateUpdate(
+    name: string,
+    o: { status: string; reason?: string; category?: "MARKETING" | "UTILITY" },
+  ): Record<string, unknown>;
   /** POST a webhook body to `to`, signed with the app secret as Meta signs it (`X-Hub-Signature-256`). */
   deliver(to: string, body: unknown): Promise<Response>;
   close(): Promise<void>;
 };
 
 const oauthError = (code: number, message: string) => ({ error: { message, type: "OAuthException", code } });
+
+export type FakeTemplate = {
+  id: string;
+  wabaId: string;
+  name: string;
+  language: string;
+  category: string;
+  status: string;
+  reason: string | null;
+  /** How many numbered variables its body has. */
+  params: number;
+};
 
 export async function startMetaFake(o: { port?: number; version?: string } = {}): Promise<MetaFake> {
   const version = o.version ?? "v23.0";
@@ -57,8 +84,55 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     sent: [] as { numberId: string; body: Record<string, unknown> }[],
     expired: new Set<string>(),
     failNext: [] as number[],
+    templates: new Map<string, FakeTemplate>(),
+    templatePageSize: 100,
+    templateNextUrl: null as string | null,
+    headerUploads: new Map<string, { size: number; type: string }>(),
+  };
+  const uploadSessions = new Map<string, string>();
+  /** WhatsApp's webhook for a template's account, as Meta sends it. */
+  const templateUpdate = (
+    name: string,
+    o: { status: string; reason?: string; category?: "MARKETING" | "UTILITY" },
+  ) => {
+    const t = state.templates.get(name);
+    if (!t) throw new Error(`no template ${name}`);
+    const previous = t.category;
+    t.status = o.status;
+    t.reason = o.reason ?? null;
+    const ids = {
+      message_template_id: Number(t.id),
+      message_template_name: t.name,
+      message_template_language: t.language,
+    };
+    const changes: Record<string, unknown>[] = [
+      {
+        field: "message_template_status_update",
+        value: { event: o.status, ...ids, reason: o.reason ?? "NONE" },
+      },
+    ];
+    if (o.category) {
+      t.category = o.category;
+      changes.push({
+        field: "template_category_update",
+        value: { ...ids, previous_category: previous, new_category: o.category },
+      });
+    }
+    return {
+      object: "whatsapp_business_account",
+      entry: [{ id: t.wabaId, time: Math.floor(Date.now() / 1000), changes }],
+    };
   };
   let base = "";
+  const deliver = (to: string, body: unknown) => {
+    const raw = Buffer.from(JSON.stringify(body));
+    const sig = `sha256=${createHmac("sha256", state.appSecret).update(raw).digest("hex")}`;
+    return fetch(to, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-hub-signature-256": sig },
+      body: raw,
+    });
+  };
   const tokens = () => new Set(state.codes.values());
   const send = (res: http.ServerResponse, status: number, body: unknown) => {
     res.writeHead(status, { "content-type": "application/json" });
@@ -74,7 +148,9 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
       const json = (req.headers["content-type"] ?? "").includes("json");
       const raw = json ? bytes.toString("utf8") : "";
       const body = raw ? (JSON.parse(raw) as unknown) : null;
+      // Meta takes a token as Bearer, and as OAuth for the resumable upload (W3b-2): `auth` keeps the latter's word.
       const auth = (req.headers.authorization ?? "").replace(/^Bearer /, "") || null;
+      const token = auth?.replace(/^OAuth /, "") ?? null;
       state.calls.push({ method: req.method ?? "GET", path: u.pathname, body, auth });
 
       // e2e drives the fake over HTTP.
@@ -94,6 +170,23 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
             ...(m.body.document ? { filename: (m.body.document as { filename?: string }).filename } : {}),
           })),
         });
+      // WhatsApp decides on a template (W3b-2): e2e delivers the webhook to the relay, as Meta would.
+      if (u.pathname === "/__fake/template" && req.method === "POST") {
+        const b = body as {
+          name: string;
+          status: string;
+          reason?: string;
+          category?: "MARKETING" | "UTILITY";
+          to?: string;
+        };
+        const hook = templateUpdate(b.name, b);
+        if (!b.to) return send(res, 200, hook);
+        void deliver(b.to, hook).then(
+          (r) => send(res, 200, { delivered: r.status }),
+          () => send(res, 502, { delivered: null }),
+        );
+        return;
+      }
       if (u.pathname === "/__fake/revoke" && req.method === "POST") {
         state.revoked.add((body as { token: string }).token);
         return send(res, 200, { ok: true });
@@ -127,10 +220,84 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         return send(res, 200, { access_token: token, token_type: "bearer" });
       }
       // Everything else needs a business token Meta still accepts.
-      if (!auth || !tokens().has(auth) || state.revoked.has(auth))
+      if (!token || !tokens().has(token) || state.revoked.has(token))
         return send(res, 401, oauthError(190, "Error validating access token"));
 
       const [id, edge] = parts;
+      // A template's header file (W3b-2), Meta's resumable upload: a session for the app, then the bytes.
+      if (edge === "uploads" && req.method === "POST") {
+        if (id !== state.appId) return send(res, 400, oauthError(100, "Invalid app id"));
+        const session = `upload:${uploadSessions.size + 1}`;
+        uploadSessions.set(session, u.searchParams.get("file_type") ?? "application/octet-stream");
+        return send(res, 200, { id: session });
+      }
+      if (!edge && id && uploadSessions.has(id) && req.method === "POST") {
+        if (req.headers.file_offset !== "0")
+          return send(res, 400, oauthError(100, "file_offset is required"));
+        const h = `4::${Buffer.from(id).toString("base64")}`;
+        state.headerUploads.set(h, { size: bytes.length, type: uploadSessions.get(id)! });
+        return send(res, 200, { h });
+      }
+      // Templates (W3b-2): created for review, listed a page at a time.
+      if (edge === "message_templates" && req.method === "POST") {
+        const t = body as {
+          name: string;
+          language: string;
+          category: string;
+          components?: Record<string, unknown>[];
+        };
+        const comps = t.components ?? [];
+        const bodyComp = comps.find((c) => c.type === "BODY") as
+          { text?: string; example?: { body_text?: string[][] } } | undefined;
+        const params = new Set((bodyComp?.text ?? "").match(/\{\{\d+\}\}/g) ?? []).size;
+        if (params && (bodyComp?.example?.body_text?.[0]?.length ?? 0) !== params)
+          return send(
+            res,
+            400,
+            oauthError(100, "Param example_body_text requires a value for each variable"),
+          );
+        const header = comps.find((c) => c.type === "HEADER") as
+          { example?: { header_handle?: string[] } } | undefined;
+        if (header && !header.example?.header_handle?.[0])
+          return send(res, 400, oauthError(100, "Param example_header_handle is required"));
+        if (state.templates.has(t.name))
+          return send(res, 400, oauthError(100, "Content in this language already exists"));
+        const made: FakeTemplate = {
+          id: String(800_000_000 + state.templates.size + 1),
+          wabaId: id!,
+          name: t.name,
+          language: t.language,
+          category: t.category,
+          status: "PENDING",
+          reason: null,
+          params,
+        };
+        state.templates.set(t.name, made);
+        return send(res, 200, { id: made.id, status: made.status, category: made.category });
+      }
+      if (edge === "message_templates" && req.method === "GET") {
+        const all = [...state.templates.values()].filter((t) => t.wabaId === id);
+        const from = Number(u.searchParams.get("after") ?? 0);
+        const page = all.slice(from, from + state.templatePageSize);
+        const more = from + page.length < all.length;
+        return send(res, 200, {
+          data: page.map((t) => ({
+            id: t.id,
+            name: t.name,
+            language: t.language,
+            status: t.status,
+            category: t.category,
+            rejected_reason: t.reason ?? "NONE",
+          })),
+          paging: more
+            ? {
+                next:
+                  state.templateNextUrl ??
+                  `${base}/${version}/${id}/message_templates?after=${from + page.length}`,
+              }
+            : {},
+        });
+      }
       // Replies from LUME (W3a): a file uploaded for a number, then a message that names it.
       if (edge === "media" && req.method === "POST") {
         const up = { id: `UP${state.uploads.length + 1}`, numberId: id!, size: bytes.length };
@@ -141,6 +308,19 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         const code = state.failNext.shift();
         if (code) return send(res, 400, oauthError(code, "Message failed"));
         const m = body as Record<string, unknown>;
+        if (m.type === "template") {
+          const tm = m.template as { name: string; components?: { type: string; parameters?: unknown[] }[] };
+          const t = state.templates.get(tm.name);
+          if (!t || t.status !== "APPROVED")
+            return send(res, 400, oauthError(132001, "Template name does not exist in the translation"));
+          const given = tm.components?.find((c) => c.type === "body")?.parameters?.length ?? 0;
+          if (given !== t.params)
+            return send(
+              res,
+              400,
+              oauthError(132000, "Number of parameters does not match the expected number"),
+            );
+        }
         const file = (m[String(m.type)] ?? {}) as { id?: string };
         if (file.id && (state.expired.has(file.id) || !state.uploads.some((u) => u.id === file.id)))
           return send(res, 400, oauthError(131053, "Media upload error"));
@@ -181,15 +361,8 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
   return Object.assign(state, {
     url: base,
     version,
-    deliver: (to: string, body: unknown) => {
-      const raw = Buffer.from(JSON.stringify(body));
-      const sig = `sha256=${createHmac("sha256", state.appSecret).update(raw).digest("hex")}`;
-      return fetch(to, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-hub-signature-256": sig },
-        body: raw,
-      });
-    },
+    deliver,
+    templateUpdate,
     close: () => new Promise<void>((r) => server.close(() => r())),
   });
 }
