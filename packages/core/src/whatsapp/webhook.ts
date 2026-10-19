@@ -136,3 +136,49 @@ export function readWebhook(raw: unknown): WaEvent[] {
     }
   return out;
 }
+
+/** A delivery status for a message LUME sent (plan W3a): sent, delivered, read, or failed with Meta's code. */
+export type WaStatus = {
+  phoneNumberId: string;
+  wamid: string;
+  /** Whom it went to, E.164 with "+". */
+  peer: string;
+  status: "sent" | "delivered" | "read" | "failed";
+  at: string;
+  errorCode: number | null;
+};
+const status = z.object({
+  id: z.string(),
+  status: z.enum(["sent", "delivered", "read", "failed"]),
+  timestamp: z.string().regex(/^\d+$/),
+  recipient_id: z.string(),
+  errors: z.array(z.object({ code: z.number() }).catchall(z.unknown())).optional(),
+});
+
+/**
+ * Each delivery status Meta sent, apart from the messages (`readWebhook`): a separate list, because a status is never
+ * a message on a lead, only a change to one LUME sent. A status LUME doesn't know, or anything malformed, is left out.
+ */
+export function readStatuses(raw: unknown): WaStatus[] {
+  const b = body.safeParse(raw);
+  if (!b.success) return [];
+  const out: WaStatus[] = [];
+  for (const entry of b.data.entry)
+    for (const c of entry.changes) {
+      const ch = change.safeParse(c);
+      if (!ch.success || ch.data.field !== "messages" || !Array.isArray(ch.data.value.statuses)) continue;
+      for (const item of ch.data.value.statuses) {
+        const s = status.safeParse(item);
+        if (!s.success) continue;
+        out.push({
+          phoneNumberId: ch.data.value.metadata.phone_number_id,
+          wamid: s.data.id,
+          peer: e164(s.data.recipient_id),
+          status: s.data.status,
+          at: iso(s.data.timestamp),
+          errorCode: s.data.errors?.[0]?.code ?? null,
+        });
+      }
+    }
+  return out;
+}

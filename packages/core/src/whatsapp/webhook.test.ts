@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { echo, envelope, history, inbound, PHONE_NUMBER_ID, statuses } from "./fixtures";
-import { readWebhook } from "./webhook";
+import { readStatuses, readWebhook } from "./webhook";
 
 /** Meta's deliveries as LUME reads them (spec 2026-10-18 §4.1; plan W1 Task 1). */
 describe("reading Meta's WhatsApp webhooks", () => {
@@ -123,5 +123,39 @@ describe("reading Meta's WhatsApp webhooks", () => {
 
   it("an unknown field is ignored", () => {
     expect(readWebhook(envelope("account_update", { event: "VERIFIED" }))).toEqual([]);
+  });
+});
+
+/** Delivery receipts for what LUME sent (plan W3a Task 1). */
+describe("reading Meta's delivery statuses", () => {
+  it("a status: which message, to whom, what happened and when", () => {
+    expect(readStatuses(statuses())).toEqual([
+      {
+        phoneNumberId: PHONE_NUMBER_ID,
+        wamid: "wamid.OUT1",
+        peer: "+919876543210",
+        status: "read",
+        at: "2026-10-21T06:06:00.000Z",
+        errorCode: null,
+      },
+    ]);
+  });
+
+  it("a failed one carries Meta's error code", () => {
+    expect(readStatuses(statuses({ status: "failed", code: 131047 }))).toMatchObject([
+      { status: "failed", errorCode: 131047 },
+    ]);
+  });
+
+  it("a status LUME doesn't know, messages, and anything malformed are nothing — never a throw", () => {
+    expect(readStatuses(statuses({ status: "deleted" }))).toEqual([]);
+    expect(readStatuses(inbound())).toEqual([]);
+    for (const bad of [
+      null,
+      {},
+      "x",
+      { entry: [{ changes: [{ field: "messages", value: { statuses: 5 } }] }] },
+    ])
+      expect(readStatuses(bad)).toEqual([]);
   });
 });

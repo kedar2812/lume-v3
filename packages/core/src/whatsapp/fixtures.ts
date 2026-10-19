@@ -77,15 +77,16 @@ export function history(
   });
 }
 
-/** Delivery receipts only: nothing for LUME. */
-export const statuses = () =>
+/** Delivery receipts for messages LUME sent (W3a): read by `readStatuses`, never by `readWebhook`. */
+export const statuses = (o: { id?: string; status?: string; at?: string; code?: number } = {}) =>
   envelope("messages", {
     statuses: [
       {
-        id: "wamid.OUT1",
-        status: "read",
-        timestamp: ts("2026-10-21T06:06:00Z"),
+        id: o.id ?? "wamid.OUT1",
+        status: o.status ?? "read",
+        timestamp: ts(o.at ?? "2026-10-21T06:06:00Z"),
         recipient_id: "919876543210",
+        ...(o.code ? { errors: [{ code: o.code, title: "Message failed" }] } : {}),
       },
     ],
   });
