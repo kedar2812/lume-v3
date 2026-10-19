@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { leadsClient } from "@/lib/leads/client";
 import { markAway, onBack, sheetShown } from "@/lib/messages/pending";
+import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
 import { ordered } from "@/lib/templates/order";
 import { TokenLine } from "@/components/templates/TokenLine";
+import { FilePicker } from "@/components/whatsapp/FilePicker";
 import { SentPrompt, type Outcome } from "./SentPrompt";
 import s from "./messages.module.css";
 import { missingIn } from "@/lib/messages/missing";
@@ -216,6 +218,9 @@ function SheetBody({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The business's files shared by link (W3b-1 Task 6): a file goes as its link when WhatsApp isn't connected.
+  const [shared, setShared] = useState<LibraryFile[]>([]);
+  const [addingFile, setAddingFile] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -228,6 +233,10 @@ function SheetBody({
       setTemplates(l.ok ? ordered(l.data.templates, suggest) : []);
       if (c.ok) setCtx(c.data);
       else setError(c.message);
+    });
+    // Not everyone may see the files (templates.use); then there's simply nothing to add.
+    void filesClient.list().then((r) => {
+      if (live && r.ok) setShared(r.data.files.filter((f) => f.link.on && f.link.url));
     });
     return () => {
       live = false;
@@ -255,6 +264,14 @@ function SheetBody({
       const c = choices[active];
       if (c) pick(c);
     }
+  };
+
+  const addFile = (f: LibraryFile) => {
+    setAddingFile(false);
+    const url = f.link.url!;
+    // Once: a second pick of the same file leaves the words as they are.
+    if (!text.includes(url)) setText((t) => `${t.trimEnd()}${t.trim() ? "\n\n" : ""}${f.name}: ${url}`);
+    requestAnimationFrame(() => textRef.current?.focus());
   };
 
   const open = async () => {
@@ -369,6 +386,36 @@ function SheetBody({
           }}
         />
       </div>
+      {shared.length > 0 && (
+        <div className={s.addFile}>
+          <button
+            type="button"
+            className={s.addFileButton}
+            aria-expanded={addingFile}
+            onClick={() => setAddingFile((v) => !v)}
+          >
+            <svg
+              aria-hidden="true"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 11.5 12.6 19.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" />
+            </svg>
+            Add a file
+          </button>
+          {addingFile && (
+            <div className={s.filePicker}>
+              <FilePicker files={shared} onPick={addFile} />
+            </div>
+          )}
+        </div>
+      )}
       {missing.length > 0 && (
         <p className={s.missing}>Missing: {missing.join(", ")}. Fill it in, or LUME sends it as is.</p>
       )}

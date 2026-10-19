@@ -2,11 +2,13 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RenderContext } from "@lume/core/shared";
+import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { leadsClient } from "@/lib/leads/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
 import { SendSheet } from "./SendSheet";
 
 vi.mock("@/lib/templates/client", () => ({ templatesClient: { list: vi.fn(), context: vi.fn() } }));
+vi.mock("@/lib/files/client", () => ({ filesClient: { list: vi.fn() } }));
 vi.mock("@/lib/leads/client", () => ({
   leadsClient: { prepareMessage: vi.fn(), confirmMessage: vi.fn(), move: vi.fn() },
 }));
@@ -74,6 +76,7 @@ beforeEach(() => {
   vi.mocked(templatesClient.list).mockResolvedValue(ok({ templates: TEMPLATES }) as never);
   vi.mocked(templatesClient.context).mockResolvedValue(ok(CTX) as never);
   vi.mocked(leadsClient.prepareMessage).mockResolvedValue(ok({ url: "https://wa.me/971501234567" }) as never);
+  vi.mocked(filesClient.list).mockResolvedValue(ok({ files: [] }));
 });
 
 describe("the send sheet (4A Task 6)", () => {
@@ -344,5 +347,60 @@ describe("the Sent prompt (4A Task 6)", () => {
     const ask = await screen.findByRole("group", { name: "Was the WhatsApp message to Aisha Khan sent?" });
     await userEvent.click(within(ask).getByRole("button", { name: "Yes, sent" }));
     expect(leadsClient.confirmMessage).toHaveBeenCalledWith("l1", true, "task-1");
+  });
+});
+
+describe("a file's link in the message (plan W3b-1 Task 6)", () => {
+  const LINK = "https://crm.example.com/f/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde";
+  const libraryFile = (o: Partial<LibraryFile> & Pick<LibraryFile, "id" | "name">): LibraryFile => ({
+    kind: "document",
+    mime: "application/pdf",
+    size: 1_258_291,
+    link: { on: false, url: null, opens: 0 },
+    createdAt: "2026-10-19T06:00:00.000Z",
+    archived: false,
+    ...o,
+  });
+
+  it("Add a file puts the file's name and link under the words, once, and WhatsApp gets them", async () => {
+    vi.mocked(filesClient.list).mockResolvedValue(
+      ok({
+        files: [
+          libraryFile({ id: "f1", name: "Brochure.pdf", link: { on: true, url: LINK, opens: 0 } }),
+          libraryFile({ id: "f2", name: "Internal notes.pdf" }),
+        ],
+      }),
+    );
+    tab();
+    const { dialog } = await sheet();
+    await userEvent.click(within(dialog).getByRole("option", { name: /Write your own/ }));
+    await userEvent.type(message(), "Hi Aisha, here's our brochure.");
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Add a file" }));
+    const files = within(dialog).getByRole("listbox", { name: "Your files" });
+    expect(within(files).queryByRole("option", { name: /Internal notes/ })).toBeNull();
+    await userEvent.click(within(files).getByRole("option", { name: /Brochure\.pdf/ }));
+    expect(message().value).toBe(`Hi Aisha, here's our brochure.\n\nBrochure.pdf: ${LINK}`);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add a file" }));
+    await userEvent.click(
+      within(within(dialog).getByRole("listbox", { name: "Your files" })).getByRole("option", {
+        name: /Brochure\.pdf/,
+      }),
+    );
+    expect(message().value.split(LINK)).toHaveLength(2);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Open WhatsApp" }));
+    expect(leadsClient.prepareMessage).toHaveBeenCalledWith(
+      "l1",
+      `Hi Aisha, here's our brochure.\n\nBrochure.pdf: ${LINK}`,
+      {},
+    );
+  });
+
+  it("no file shared by link: no Add a file", async () => {
+    vi.mocked(filesClient.list).mockResolvedValue(
+      ok({ files: [libraryFile({ id: "f2", name: "Internal.pdf" })] }),
+    );
+    const { dialog } = await sheet();
+    await userEvent.click(within(dialog).getByRole("option", { name: /Write your own/ }));
+    expect(within(dialog).queryByRole("button", { name: "Add a file" })).toBeNull();
   });
 });

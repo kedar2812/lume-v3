@@ -14,30 +14,35 @@ const typeOf = (f: LibraryFile) => fileTypeWord(f);
  * "Add a file". A search by name; arrows choose and Enter picks from the search box, as every LUME list does.
  */
 export function FilePicker({
+  files: given,
   kinds,
   onPick,
 }: {
+  /** The files to choose from, when the caller has them already (only those shared by link); else LUME's list. */
+  files?: LibraryFile[];
   /** Only these kinds (a sheet that can carry only some); every kind when left out. */
   kinds?: LibraryFile["kind"][];
   onPick(file: LibraryFile): void;
 }) {
-  const [files, setFiles] = useState<LibraryFile[] | null>(null);
+  const [fetched, setFetched] = useState<LibraryFile[] | null>(null);
+  const files = given ?? fetched;
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listId = useId();
 
   useEffect(() => {
+    if (given) return;
     let live = true;
     void filesClient.list().then((r) => {
       if (!live) return;
-      if (r.ok) setFiles(r.data.files);
+      if (r.ok) setFetched(r.data.files);
       else setError(r.message);
     });
     return () => {
       live = false;
     };
-  }, []);
+  }, [given]);
   useEffect(() => setActive(0), [query]);
 
   const usable = (files ?? []).filter((f) => !kinds || kinds.includes(f.kind));
