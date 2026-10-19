@@ -150,3 +150,73 @@ describe("W3b-1 file library", () => {
     expect((await as("lume_readonly_backup", "SELECT id FROM message_files")).length).toBeGreaterThan(0);
   });
 });
+
+describe("W3b-2 template submissions", () => {
+  const T = "00000000-0000-7000-8000-0000000000b1";
+  const V = "00000000-0000-7000-8000-0000000000b2";
+  const submit = (id: string, waba = "WABA1", language = "en") =>
+    as(
+      "lume_app",
+      `INSERT INTO whatsapp_template_submissions (id, template_version_id, waba_id, language, category, meta_name, status)
+       VALUES ($1, $2, $3, $4, 'MARKETING', 'hello_v1', 'pending')`,
+      [id, V, waba, language],
+    );
+
+  it("a template version is submitted once per WhatsApp account and language", async () => {
+    await as(
+      "lume_app",
+      "INSERT INTO message_templates (id, name, category) VALUES ($1, 'Visit hello', 'first_touch')",
+      [T],
+    );
+    await as(
+      "lume_app",
+      "INSERT INTO template_versions (id, template_id, body) VALUES ($1, $2, 'Hi there')",
+      [V, T],
+    );
+    await submit("00000000-0000-7000-8000-0000000000b3");
+    await expect(submit("00000000-0000-7000-8000-0000000000b4")).rejects.toThrow(/duplicate key/);
+    await submit("00000000-0000-7000-8000-0000000000b5", "WABA2");
+    await submit("00000000-0000-7000-8000-0000000000b6", "WABA1", "hi");
+    await expect(
+      as(
+        "lume_app",
+        `INSERT INTO whatsapp_template_submissions (id, template_version_id, waba_id, language, category, meta_name, status)
+         VALUES (gen_random_uuid(), $1, 'WABA3', 'en', 'AUTHENTICATION', 'x_v1', 'pending')`,
+        [V],
+      ),
+    ).rejects.toThrow(/whatsapp_template_submissions_category_check/);
+  });
+
+  it("a lead can be marked as having turned off marketing messages", async () => {
+    const cols = await as<{ column_name: string }>(
+      "lume_owner",
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'leads' AND column_name = 'whatsapp_marketing_off_at'",
+    );
+    expect(cols).toHaveLength(1);
+  });
+
+  it("an outbox message may carry a template instead of words or a file", async () => {
+    const check = await as<{ def: string }>(
+      "lume_owner",
+      `SELECT pg_get_constraintdef(c.oid) AS def FROM pg_constraint c
+       WHERE c.conrelid = 'whatsapp_outbox'::regclass AND c.contype = 'c' AND pg_get_constraintdef(c.oid) LIKE '%media_id%'`,
+    );
+    expect(check.map((c) => c.def).join(" ")).toContain("submission_id IS NOT NULL");
+    const cols = await as<{ column_name: string }>(
+      "lume_owner",
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'whatsapp_outbox' ORDER BY column_name",
+    );
+    expect(cols.map((c) => c.column_name)).toEqual(
+      expect.arrayContaining(["submission_id", "params", "cost", "cost_currency", "paid"]),
+    );
+  });
+
+  it("the worker can't read submissions; the backup role can", async () => {
+    await expect(as("lume_worker", "SELECT id FROM whatsapp_template_submissions")).rejects.toThrow(
+      /permission denied/,
+    );
+    expect(
+      (await as("lume_readonly_backup", "SELECT id FROM whatsapp_template_submissions")).length,
+    ).toBeGreaterThan(0);
+  });
+});

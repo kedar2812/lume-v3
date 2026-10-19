@@ -1,4 +1,16 @@
-import { bigint, bigserial, boolean, integer, pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  bigserial,
+  boolean,
+  char,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 /** WhatsApp replies, part 1 (spec 2026-10-18 §3–4): a connected number. Its token never leaves the module. */
@@ -133,8 +145,38 @@ export const whatsappOutbox = pgTable("whatsapp_outbox", {
   wamid: text("wamid"),
   problem: text("problem"),
   tries: integer("tries").notNull().default(0),
+  /** An approved template (W3b-2) with this lead's values for its numbered variables, in order. */
+  submissionId: uuid("submission_id"),
+  params: jsonb("params").$type<string[]>(),
+  /** What WhatsApp charges for it, "about", as shown when it was sent; and whether it counts against the limit. */
+  cost: numeric("cost", { precision: 10, scale: 4 }),
+  costCurrency: char("cost_currency", { length: 3 }),
+  paid: boolean("paid").notNull().default(false),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * A template version sent to WhatsApp for approval (W3b-2), per business account and language. `tokens` are LUME's
+ * variables in the order of WhatsApp's numbers.
+ */
+export const whatsappTemplateSubmissions = pgTable("whatsapp_template_submissions", {
+  id: uuid("id").primaryKey(),
+  templateVersionId: uuid("template_version_id").notNull(),
+  wabaId: text("waba_id").notNull(),
+  language: text("language").notNull(),
+  category: text("category").$type<"MARKETING" | "UTILITY">().notNull(),
+  metaName: text("meta_name").notNull(),
+  metaTemplateId: text("meta_template_id"),
+  headerFileId: uuid("header_file_id"),
+  tokens: jsonb("tokens").$type<string[]>().notNull().default([]),
+  status: text("status")
+    .$type<"submitting" | "pending" | "approved" | "rejected" | "paused" | "disabled" | "failed">()
+    .notNull(),
+  reason: text("reason"),
+  submittedBy: uuid("submitted_by"),
+  submittedAt: tz("submitted_at").notNull().defaultNow(),
+  decidedAt: tz("decided_at"),
 });
 
 /** A file uploaded to Meta for a number: its Meta id, reused for 25 days (Meta's last 30). */
