@@ -1,0 +1,123 @@
+/* Send an approved template (TemplatePick), under the reply box's reason outside WhatsApp's 24 hours. */
+.pick {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  animation: rise 0.28s var(--spring) both;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.list {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.option {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  outline: 0;
+  transition:
+    box-shadow 0.15s,
+    background 0.15s;
+}
+.option:focus-visible {
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.option[data-on] {
+  box-shadow: 0 0 0 1.5px var(--wa);
+}
+.option[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.72;
+}
+.dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+  transition: box-shadow 0.18s var(--spring);
+}
+.option[data-on] .dot {
+  box-shadow: inset 0 0 0 5px var(--wa);
+}
+.body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.name {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.preview {
+  /* Three lines at most: the whole message is what goes, this is a glance at it. */
+  max-height: calc(1.45em * 3);
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cost,
+.needs {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.needs {
+  color: var(--warn-ink);
+}
+.error {
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--danger-ink);
+}
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.from {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pick {
+    animation: none;
+  }
+}

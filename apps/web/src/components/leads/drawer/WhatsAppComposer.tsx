@@ -3,6 +3,7 @@ import { bytesText } from "@lume/core/shared";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Popover } from "@/components/ui/Popover";
 import { FilePicker } from "@/components/whatsapp/FilePicker";
+import { TemplatePick } from "@/components/whatsapp/TemplatePick";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
 import type { LibraryFile } from "@/lib/files/client";
 import { fileTypeWord } from "@/lib/files/words";
@@ -116,6 +117,8 @@ export function WhatsAppComposer({
     return (
       <section className={s.composerClosed} aria-label={`Reply to ${who}`}>
         <p>{reply.reason}</p>
+        {/* Outside the 24 hours an approved template can still go (W3b-2). */}
+        <TemplatePick leadId={leadId} leadName={leadName} onSent={onSent} />
         {fallback}
       </section>
     );

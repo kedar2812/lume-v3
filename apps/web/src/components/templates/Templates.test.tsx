@@ -15,6 +15,9 @@ vi.mock("@/lib/templates/client", () => ({
     restore: vi.fn(),
     reorder: vi.fn(),
     context: vi.fn(),
+    // WhatsApp approval (W3b-2): not set up in these tests, so the panel stays away.
+    whatsapp: vi.fn(async () => ({ ok: true, status: 200, data: { on: false, submissions: [] } })),
+    submitToWhatsApp: vi.fn(),
   },
 }));
 vi.mock("@/lib/leads/client", () => ({ leadsClient: { list: vi.fn() } }));

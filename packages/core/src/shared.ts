@@ -39,6 +39,9 @@ export * from "./tasks/rules";
 // Settings → Calendar's rules (5A): no I/O, safe for the browser.
 export * from "./calendar/rules";
 export * from "./messaging/render";
+// WhatsApp's template rules and rate card (W3b-2): pure, so the editor checks a template as the server will.
+export * from "./whatsapp/templates";
+export * from "./whatsapp/rates";
 // The licence as people see it (no crypto: safe for the browser).
 export * from "./licence/state";
 // The product key's one spelling (pure: the setup field groups it as the licence server hashes it).

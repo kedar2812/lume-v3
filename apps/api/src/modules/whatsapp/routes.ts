@@ -170,7 +170,7 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
   r.get(
     "/api/v1/templates/:id/whatsapp",
     { config: { permission: "templates.use" }, schema: { params: id } },
-    (req) => submissionsOf(req, req.params.id),
+    (req) => submissionsOf(req, d, req.params.id),
   );
   const fileId = z.object({ id: z.uuid() });
   r.get(

@@ -7,7 +7,13 @@ import type { WaReply, WaThreadMessage } from "@/lib/whatsapp/types";
 import { WhatsAppComposer } from "./WhatsAppComposer";
 
 vi.mock("@/lib/whatsapp/client", () => ({
-  whatsappClient: { send: vi.fn(), attach: vi.fn(), attachFromLibrary: vi.fn() },
+  whatsappClient: {
+    send: vi.fn(),
+    attach: vi.fn(),
+    attachFromLibrary: vi.fn(),
+    templateState: vi.fn(),
+    sendTemplate: vi.fn(),
+  },
 }));
 vi.mock("@/lib/files/client", () => ({ filesClient: { list: vi.fn() } }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 202, data });
@@ -36,6 +42,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-21T06:00:00Z")); // 11:30 am in Kolkata
   vi.mocked(whatsappClient.send).mockImplementation(async (_lead, b) => ok({ message: sent(b.text ?? "") }));
+  vi.mocked(whatsappClient.templateState).mockResolvedValue(ok(null));
 });
 afterEach(() => vi.useRealTimers());
 
@@ -212,6 +219,41 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
       new File(["x"], "site.jpg", { type: "image/jpeg" }),
     );
     expect(await screen.findByRole("button", { name: "Remove site.jpg" })).toBeInTheDocument();
+  });
+
+  it("W3b-2: after WhatsApp's 24 hours, the business's approved templates are offered beside the reason", async () => {
+    vi.mocked(whatsappClient.templateState).mockResolvedValue(
+      ok({
+        number: { id: "n1", display: "+91 90000 00001" },
+        reason: null,
+        options: [
+          {
+            submissionId: "s1",
+            name: "Gentle nudge",
+            category: "MARKETING" as const,
+            preview: "Hi Sneha, still keen on a visit this week?",
+            missing: [],
+            cost: { amount: 0.86, currency: "INR", asOf: "2026-10-18" },
+          },
+        ],
+      }),
+    );
+    render(
+      <WhatsAppComposer
+        leadId="l1"
+        leadName="Sneha Reddy"
+        tz={TZ}
+        reply={{
+          allowed: false,
+          number: null,
+          until: null,
+          reason: "It's been over 24 hours since Sneha's last WhatsApp message.",
+        }}
+        onSent={vi.fn()}
+      />,
+    );
+    expect(await screen.findByRole("radio", { name: /Gentle nudge/ })).toBeInTheDocument();
+    expect(whatsappClient.templateState).toHaveBeenCalledWith("l1");
   });
 
   it("after WhatsApp's 24 hours: the reason, and the usual way to open WhatsApp; no box", () => {

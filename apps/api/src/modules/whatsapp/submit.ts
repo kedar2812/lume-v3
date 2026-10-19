@@ -71,8 +71,9 @@ const VOICE_AT_TOP = "A voice note can't go at the top of a template. Choose a p
 /** Every submission of a template (all its versions), newest first, as the template's WhatsApp panel shows them. */
 export async function submissionsOf(
   req: FastifyRequest,
+  d: AppDeps,
   templateId: string,
-): Promise<{ submissions: SubmissionView[] }> {
+): Promise<{ on: boolean; submissions: SubmissionView[] }> {
   const [t] = await req.db.select({ current: T.currentVersionId }).from(T).where(eq(T.id, templateId));
   if (!t) throw notFound();
   const rows = await req.db
@@ -94,7 +95,16 @@ export async function submissionsOf(
       .filter((n) => n.waba === waba)
       .map((n) => n.display)
       .join(", ") || "A WhatsApp account no longer connected";
+  // Whether a template can go to WhatsApp here at all: WhatsApp set up, switched on, with a connected number. The
+  // template's panel hides where it can't (an optional integration).
+  const [settings] = await req.db
+    .select({ i: schema.settings.integrations })
+    .from(schema.settings)
+    .where(eq(schema.settings.id, 1));
+  const [active] = await req.db.select({ id: N.id }).from(N).where(eq(N.status, "active")).limit(1);
+  const on = !!d.meta && !!relayOf(d) && !!settings?.i.whatsapp?.enabled && !!active;
   return {
+    on,
     submissions: rows.map(({ s }) => ({
       id: s.id,
       versionId: s.templateVersionId,
@@ -120,7 +130,7 @@ export async function submitTemplate(
   d: AppDeps,
   templateId: string,
   input: { language: string; category?: MetaCategory | undefined; headerFileId?: string | undefined },
-): Promise<{ submissions: SubmissionView[] }> {
+): Promise<{ on: boolean; submissions: SubmissionView[] }> {
   if (!d.meta || !relayOf(d)) throw conflict("WHATSAPP_OFF", "WhatsApp isn't set up on this server yet.");
   const [t] = await req.db
     .select({
@@ -265,7 +275,7 @@ export async function submitTemplate(
     entityId: t.id,
     diff: { language: input.language, category, accounts: todo.length },
   });
-  return submissionsOf(req, t.id);
+  return submissionsOf(req, d, t.id);
 }
 
 /**

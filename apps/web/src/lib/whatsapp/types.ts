@@ -66,6 +66,21 @@ export type WaAttached = {
   filename: string | null;
   size: number;
 };
+/** An approved template to send a lead (W3b-2), in their words, with what's missing and what it costs. */
+export type WaTemplateOption = {
+  submissionId: string;
+  name: string;
+  category: "MARKETING" | "UTILITY";
+  preview: string;
+  missing: string[];
+  cost: { amount: number; currency: string; asOf: string } | null;
+};
+/** Null: nothing to offer here (replying from LUME off, or this person can't message the lead). */
+export type WaTemplateState = {
+  number: { id: string; display: string } | null;
+  options: WaTemplateOption[];
+  reason: string | null;
+} | null;
 /** "Keep WhatsApp files for" (2026-10-19): null keeps them forever. */
 export type KeepMonths = 3 | 6 | 12 | 24 | null;
 /** What a shorter "keep for" would remove: files, and about how many bytes it frees. */

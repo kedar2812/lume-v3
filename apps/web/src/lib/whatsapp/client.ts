@@ -10,6 +10,7 @@ import type {
   WaNumbers,
   WaPerson,
   WaThread,
+  WaTemplateState,
   WaThreadMessage,
 } from "./types";
 
@@ -36,6 +37,14 @@ export const whatsappClient = {
     api.post<{ media: WaAttached }>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/files/library`, {
       fileId,
     }),
+  /** Approved templates for a lead (W3b-2), and sending one, outside the 24 hours too. */
+  templateState: (leadId: string) =>
+    api.get<WaTemplateState>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/templates`),
+  sendTemplate: (leadId: string, body: { submissionId: string; clientKey: string }) =>
+    api.post<{ message: WaThreadMessage }>(
+      `/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/template`,
+      body,
+    ),
   keepPreview: (months: Exclude<KeepMonths, null>) =>
     api.get<KeepPreview>(`/api/v1/whatsapp/files/keep-preview?months=${months}`),
   connect: () => api.post<{ url: string }>("/api/v1/whatsapp/connect"),

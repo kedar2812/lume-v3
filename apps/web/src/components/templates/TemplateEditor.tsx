@@ -18,6 +18,7 @@ import { leadsClient } from "@/lib/leads/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { templatesClient, type RoleName, type TemplateView } from "@/lib/templates/client";
 import { VariablePicker } from "./VariablePicker";
+import { WhatsAppApproval } from "./WhatsAppApproval";
 import { WhatsAppBubble } from "./WhatsAppBubble";
 import s from "./templates.module.css";
 
@@ -413,6 +414,15 @@ export function TemplateEditor({
                     );
                   })}
                 </div>
+              )}
+              {template && (
+                <WhatsAppApproval
+                  templateId={template.id}
+                  body={body}
+                  kind={category}
+                  dirty={dirty}
+                  readOnly={readOnly}
+                />
               )}
             </div>
 

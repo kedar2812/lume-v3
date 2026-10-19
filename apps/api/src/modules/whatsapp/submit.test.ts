@@ -97,6 +97,7 @@ describe("submitting a template to WhatsApp", () => {
     ).json().file;
     const r = await submit(t.id, { headerFileId: file.id });
     expect(r.statusCode, r.body).toBe(202);
+    expect(r.json().on).toBe(true);
     expect(r.json().submissions).toEqual([
       expect.objectContaining({
         current: true,
@@ -152,6 +153,8 @@ describe("submitting a template to WhatsApp", () => {
   it("no connected number: nowhere to submit it, said so", async () => {
     await h.ownerPool.query("DELETE FROM whatsapp_numbers");
     const t = await templateWith("Hello there, see you at the studio soon.");
+    // The template's panel hides where WhatsApp isn't set up.
+    expect((await view(admin, t.id)).on).toBe(false);
     const r = await submit(t.id);
     expect(r.statusCode).toBe(409);
     expect(r.json().error.message).toBe("Connect a WhatsApp number first, in Settings, under Integrations.");
