@@ -115,7 +115,7 @@ choices. They are always editable in Settings → LUME AI (admins), and the shee
 
 ### 1.4 Before Start
 
-A line of plain numbers: "50 first messages · about ₹43 to Meta · uses about 6% of this week's LUME AI". Start shows
+A line of plain numbers: "50 first messages · about ₹43 to Meta · uses about 6% of this month's LUME AI". Start shows
 the mark drawing once, closes the sheet, and the island says "LUME AI is on 1 of 50. Watch it live."
 
 ## 2. Watching it work (Autopilot)
@@ -173,7 +173,15 @@ watch; only the person who started it and admins can pause, end or change it.
   picks the template that fits and fills its variables per lead (a highlighted variable is never left blank or
   invented; a lead missing a value gets a template that doesn't need it, or is skipped with the reason).
 - **Hands over** (Needs you) when the lead: asks something an "Ask me"/"Never" action covers, complains, is upset,
-  asks for a person, asks whether it's a bot (*see §10*), or says anything LUME AI isn't confident about.
+  asks for a person, or says anything LUME AI isn't confident about.
+- **Responsible and lawful** (owner: "lume ai will abide to the laws and be a responsible ai, should be contextual to
+  avoid risks"): it reads the context and steps back from anything risky (legal, medical or financial advice, threats,
+  minors, anything sensitive) by handing over.
+- **"Are you a bot?"** is a business setting (owner, 2026-10-19), with two choices: **Say so honestly** ("I'm LUME AI,
+  writing for Priya at Sutra Interiors"; the default) or **Hand over to a person**. Denying it is AI is never offered
+  (the law in several markets, and the owner's rule above).
+- **Outside working hours** is a business setting (owner: "a business decision"): **Reply any time** or **Wait for
+  working hours** for answers to a lead who just wrote. First messages and follow-ups always keep to working hours.
 - **Converted** when the goal is reached: a stage move into the goal stage, a meeting booked, or, for a written goal,
   LUME AI's judgement with the lead's words as evidence.
 - **Stop:** any opt-out ("stop", "not interested", "don't message me", in any language the model reads) → one short
@@ -188,17 +196,23 @@ watch; only the person who started it and admins can pause, end or change it.
 - **Paid as part of the plan:** each client's plan includes a LUME AI allowance, metered by the licence (Control's plan
   modules; the 2026-10-18 design §2.2). The AI runs on LUME's provider account per client, with a hard monthly spend
   cap at the provider so one busy client can never surprise the owner.
-- **Limits, Claude-style** (owner, 2026-10-18): an hourly and a weekly allowance (resets Monday on the business's
-  clock). Each AI call LUME AI makes in a run counts. *Question for the owner, §10.*
-- **The ring:** a small progress ring in the top bar, beside the bell, filling with the week's use and turning amber
-  past 80%. Clicking opens a panel: the percentage used, "about N days left at this pace", this week's and this hour's
+- **Monthly, and generous** (owner, 2026-10-19: "switch to monthly usage, we can keep it a bit generous"): one monthly
+  allowance per plan, resetting on the plan's monthly date, plus the existing hourly safety limit (2026-10-18 §2.2) so a
+  runaway run can't drain a month in an afternoon. Each AI call LUME AI makes counts. This replaces the weekly allowance
+  of the 2026-10-18 design for every LUME AI feature, so a business sees one number.
+- **The ring:** a small progress ring in the top bar, beside the bell, filling with the month's use and turning amber
+  past 80%. Clicking opens a panel: the percentage used, "about N days left at this pace", this month's and this hour's
   use, spend against the cap, when it resets, a link to Settings. Admins get one notice at 75% and 90%.
-- **At a limit:** runs pause by themselves, saying which limit and when they resume ("LUME AI has reached this hour's
-  limit. It carries on at 3:40 pm."). Nothing half-sent; replies still arrive and save. *Top-ups: §10.*
+- **At a limit:** runs pause by themselves, saying which limit ("LUME AI has reached this hour's limit. It carries on at
+  3:40 pm." / "…this month's allowance."). Nothing half-sent; replies still arrive and save.
+- **Top-up (owner, 2026-10-19):** at the monthly limit a run stays paused **until the admin asks for a top-up**: the
+  ring's panel and the paused run show **Ask for a top-up**, which sends the request to the owner (the licence
+  dashboard's client page, and the owner's alert). The owner adds the top-up to the client's plan; runs resume by
+  themselves. No self-serve payment in LUME.
 
 ## 5. Settings → LUME AI
 
-Admins only. Sections: **Standing choices** (the goal stages, default permissions, presets, speaker, caps, the "use
+Admins only. Sections: **Standing choices** (including "Are you a bot?" and replies outside working hours) (the goal stages, default permissions, presets, speaker, caps, the "use
 these every time" set); **What LUME AI knows** (a service description, FAQs, the price list, files it may send, things
 it must never say), all the business's own words; **Voice** (tone, language, signing off); **Usage** (the meter, the
 history of runs). The business switch for LUME AI (2026-10-18 design §2.2) gates all of it; off by default; LUME works
@@ -241,15 +255,12 @@ business. Copy speaks as LUME, with no em dashes.
   never inventing a price, template choice, conversion judgement), scored before release.
 - Before any client sees it: the walkthrough on a staging copy of that client's data with the exact images to ship.
 
-## 10. Questions for the owner (answers change what gets built)
+## 10. Owner's answers (2026-10-19)
 
-1. **Limits period:** the 2026-10-18 ruling is hourly + weekly (Claude-style); the mockup's panel showed a month. Keep
-   weekly, or move to monthly to match the plan's billing?
-2. **Running out mid-run:** pause until the allowance resets, or let an admin buy a top-up on the spot?
-3. **"Are you a bot?":** when a lead asks, LUME AI should hand over to a person, or say it's LUME AI writing for the
-   business? (Several markets' laws require an honest answer to that question.)
-4. **Replies outside working hours:** a lead who replies at 11 pm gets an answer at once (better for conversion), or in
-   the morning?
+1. **Usage:** monthly, generous (§4).
+2. **Out of allowance:** the run pauses until the admin asks the owner for a top-up (§4).
+3. **"Are you a bot?":** a business setting: say so honestly, or hand over; never deny (§3).
+4. **Replies outside working hours:** a business setting (§3).
 
 ## 11. My calls (settled in writing this; the owner can overrule)
 
