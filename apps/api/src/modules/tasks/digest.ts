@@ -141,6 +141,12 @@ async function digestFor(d: DigestDeps, u: Person, businessName: string, now: Da
         url: `${d.publicUrl.replace(/\/$/, "")}/today`,
         ...items,
         localHour: Number(wall(now, u.tz).time.slice(0, 2)),
+        day: new Intl.DateTimeFormat("en-US", {
+          timeZone: u.tz,
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        }).format(now),
       }),
     );
   } catch (err) {

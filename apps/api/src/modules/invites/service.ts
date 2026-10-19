@@ -28,13 +28,15 @@ export async function createInvite(
   if (existing) throw conflict("USER_EXISTS", "That person already has an account");
   // Control each client (spec 2026-10-17 control §2.1): no invite past this LUME's places.
   await assertPlace(req, { inviteEmail: a.email });
+  let roleNames: string[] = [];
   if (a.roleIds.length) {
     const found = await req.db
-      .select({ id: schema.roles.id })
+      .select({ id: schema.roles.id, name: schema.roles.name })
       .from(schema.roles)
       .where(and(inArray(schema.roles.id, a.roleIds), isNull(schema.roles.deletedAt)));
     if (found.length !== new Set(a.roleIds).size)
       throw badRequest("UNKNOWN_ROLE", "One of those roles doesn't exist");
+    roleNames = found.map((r) => r.name);
   }
   await assertCanAssignRoles(req, a.roleIds);
   // One live invite per address: a new one replaces any still-open link.
@@ -66,7 +68,9 @@ export async function createInvite(
     .select({ name: schema.users.name })
     .from(schema.users)
     .where(eq(schema.users.id, req.actor!.userId));
-  const [s] = await req.db.select({ name: schema.settings.businessName }).from(schema.settings);
+  const [s] = await req.db
+    .select({ name: schema.settings.businessName, tz: schema.settings.timezone })
+    .from(schema.settings);
   sendAfterCommit(
     req,
     d.mailer,
@@ -77,6 +81,8 @@ export async function createInvite(
       inviterName: inviter?.name ?? "Someone",
       url,
       expiresAt,
+      roleNames,
+      ...(s?.tz ? { tz: s.tz } : {}),
     }),
   );
   await audit(req, {
