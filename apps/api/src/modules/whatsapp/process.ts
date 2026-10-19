@@ -140,6 +140,9 @@ export async function processWhatsAppEvent(
         const dup = await req.db.execute(sql`
           SELECT 1 FROM activities
            WHERE lead_id = ${leadId} AND type IN ('whatsapp_received', 'whatsapp_sent') AND payload->>'wamid' = ${ev.wamid}
+          UNION ALL
+          -- A reply sent from LUME (plan W3a) is already on the thread: an echo of it is the same message.
+          SELECT 1 FROM whatsapp_outbox WHERE lead_id = ${leadId} AND wamid = ${ev.wamid}
            LIMIT 1`);
         if (!dup.rows.length) {
           const mediaId = ev.media ? await addMedia(req, numberId, ev.media, { leadId }) : null;

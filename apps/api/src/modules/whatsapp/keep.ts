@@ -85,6 +85,14 @@ export async function sweepWhatsAppFiles(o: {
         removed += n;
         if (n < BATCH) break;
       }
+      // Files attached in the composer and never sent (plan W3a): gone after a day; their files follow when unused.
+      await tx(() =>
+        c.query(
+          `DELETE FROM whatsapp_media WHERE id IN (
+             SELECT id FROM whatsapp_media WHERE draft AND created_at < $1::timestamptz - interval '24 hours' LIMIT $2)`,
+          [now, BATCH],
+        ),
+      );
       let deleted = 0;
       let mended = 0;
       while (inTime()) {

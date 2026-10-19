@@ -25,6 +25,13 @@ export type MetaFake = {
   /** Tokens Meta no longer accepts (190). */
   revoked: Set<string>;
   failHistorySync: boolean;
+  /** Replies from LUME (W3a): files uploaded for a number, and messages sent, in order. */
+  uploads: { id: string; numberId: string; size: number }[];
+  sent: { numberId: string; body: Record<string, unknown> }[];
+  /** Media ids Meta no longer has (expired): a send with one fails as Meta's does. */
+  expired: Set<string>;
+  /** The next sends answer with these Meta error codes, one each, in order. */
+  failNext: number[];
   /** POST a webhook body to `to`, signed with the app secret as Meta signs it (`X-Hub-Signature-256`). */
   deliver(to: string, body: unknown): Promise<Response>;
   close(): Promise<void>;
@@ -46,6 +53,10 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     mediaUrls: new Map<string, string>(),
     revoked: new Set<string>(),
     failHistorySync: false,
+    uploads: [] as { id: string; numberId: string; size: number }[],
+    sent: [] as { numberId: string; body: Record<string, unknown> }[],
+    expired: new Set<string>(),
+    failNext: [] as number[],
   };
   let base = "";
   const tokens = () => new Set(state.codes.values());
@@ -59,7 +70,9 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       const u = new URL(req.url ?? "/", "http://fake");
-      const raw = Buffer.concat(chunks).toString("utf8");
+      const bytes = Buffer.concat(chunks);
+      const json = (req.headers["content-type"] ?? "").includes("json");
+      const raw = json ? bytes.toString("utf8") : "";
       const body = raw ? (JSON.parse(raw) as unknown) : null;
       const auth = (req.headers.authorization ?? "").replace(/^Bearer /, "") || null;
       state.calls.push({ method: req.method ?? "GET", path: u.pathname, body, auth });
@@ -70,6 +83,11 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         state.media.set(b.id, { mime: b.mime, bytes: Buffer.from(b.base64, "base64") });
         return send(res, 200, { ok: true });
       }
+      // Replies from LUME (W3a): what was sent, each with the id Meta gave it, for e2e to send its statuses.
+      if (u.pathname === "/__fake/sent" && req.method === "GET")
+        return send(res, 200, {
+          sent: state.sent.map((m, i) => ({ to: m.body.to, type: m.body.type, wamid: `wamid.OUT${i + 1}` })),
+        });
       if (u.pathname === "/__fake/revoke" && req.method === "POST") {
         state.revoked.add((body as { token: string }).token);
         return send(res, 200, { ok: true });
@@ -107,6 +125,26 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         return send(res, 401, oauthError(190, "Error validating access token"));
 
       const [id, edge] = parts;
+      // Replies from LUME (W3a): a file uploaded for a number, then a message that names it.
+      if (edge === "media" && req.method === "POST") {
+        const up = { id: `UP${state.uploads.length + 1}`, numberId: id!, size: bytes.length };
+        state.uploads.push(up);
+        return send(res, 200, { id: up.id });
+      }
+      if (edge === "messages" && req.method === "POST") {
+        const code = state.failNext.shift();
+        if (code) return send(res, 400, oauthError(code, "Message failed"));
+        const m = body as Record<string, unknown>;
+        const file = (m[String(m.type)] ?? {}) as { id?: string };
+        if (file.id && (state.expired.has(file.id) || !state.uploads.some((u) => u.id === file.id)))
+          return send(res, 400, oauthError(131053, "Media upload error"));
+        state.sent.push({ numberId: id!, body: m });
+        return send(res, 200, {
+          messaging_product: "whatsapp",
+          contacts: [{ input: m.to, wa_id: m.to }],
+          messages: [{ id: `wamid.OUT${state.sent.length}` }],
+        });
+      }
       if (edge === "subscribed_apps") return send(res, 200, { success: true });
       if (edge === "smb_app_data") {
         const kind = (body as { sync_type?: string } | null)?.sync_type;

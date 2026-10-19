@@ -4,9 +4,11 @@ import { sweepWhatsApp } from "./inbox";
 import { scanWhatsAppFiles, sweepWhatsAppFiles } from "./keep";
 import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
+import { sendOutbox } from "./sender";
 
 const SWEEP_MS = 60_000;
 const MEDIA_WORKERS = 4;
+const SEND_WORKERS = 8;
 
 /**
  * Messages that waited too long (2 minutes) without a job — a restart, a failed send — are queued again; ones for a
@@ -44,6 +46,26 @@ export async function staleMedia(pool: pg.Pool): Promise<string[]> {
   }
 }
 
+/**
+ * Replies from LUME a lost job left behind (plan W3a): queued or sending, untouched for 2 minutes. Queued again;
+ * the sender fails a "sending" one with words rather than sending it twice.
+ */
+export async function staleOutbox(pool: pg.Pool): Promise<string[]> {
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
+    const { rows } = await c.query<{ id: string }>(
+      `SELECT id FROM whatsapp_outbox WHERE status IN ('queued', 'sending') AND updated_at < now() - interval '2 minutes'
+        ORDER BY updated_at LIMIT 500`,
+    );
+    await c.query("COMMIT");
+    return rows.map((r) => r.id);
+  } finally {
+    c.release();
+  }
+}
+
 export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString: string }) {
   const boss = new PgBoss({
     connectionString: o.connectionString,
@@ -51,7 +73,7 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     migrate: false,
     supervise: false,
     schedule: false,
-    max: 2 + MEDIA_WORKERS,
+    max: 2 + MEDIA_WORKERS + SEND_WORKERS,
   });
   boss.on("error", (err) => o.app.log.error({ err }, "whatsapp queue error"));
   await boss.start();
@@ -81,7 +103,16 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
   const enqueueMedia = async (id: string) => {
     await boss.send("whatsapp.media", { id }, { retryLimit: 3, retryDelay: 120, singletonKey: id });
   };
-  // Replies from LUME (plan W3a): sent by Task 4's workers; each message once (singleton), tried again with backoff.
+  // Replies from LUME (plan W3a): eight senders, so a team of hundreds replying at once doesn't wait in line; each
+  // message once (singleton), tried again with backoff when Meta is busy.
+  for (let i = 0; i < SEND_WORKERS; i++)
+    await boss.work<{ id: string }>(
+      "whatsapp.send",
+      { batchSize: 1, pollingIntervalSeconds: 0.5 },
+      async ([job]) => {
+        if (job) await sendOutbox(o, job.data.id);
+      },
+    );
   const enqueueSend = async (id: string) => {
     await boss.send("whatsapp.send", { id }, { retryLimit: 5, retryBackoff: true, singletonKey: id });
   };
@@ -90,6 +121,7 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     try {
       for (const id of await staleEvents(pool)) await enqueue(id);
       for (const id of await staleMedia(pool)) await enqueueMedia(id);
+      for (const id of await staleOutbox(pool)) await enqueueSend(id);
     } catch (err) {
       o.app.log.error({ err }, "whatsapp sweep failed");
     }

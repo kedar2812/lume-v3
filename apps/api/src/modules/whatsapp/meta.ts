@@ -8,6 +8,8 @@ export class MetaError extends Error {
   constructor(
     readonly kind: "token" | "too_large" | "not_found" | "transient" | "untrusted",
     message: string,
+    /** Meta's own error code, when it gave one (a reply's refusal is said from it: core's `refusalOf`). */
+    readonly code: number | null = null,
   ) {
     super(message);
     this.name = "MetaError";
@@ -48,15 +50,16 @@ export function metaClient(meta: NonNullable<AppDeps["meta"]>, token: string) {
       throw new MetaError("transient", "LUME couldn't reach WhatsApp just now.");
     });
     if (r.status === 401 || r.status === 403)
-      throw new MetaError("token", "WhatsApp stopped letting LUME in.");
+      throw new MetaError("token", "WhatsApp stopped letting LUME in.", 190);
     if (r.status === 404) throw new MetaError("not_found", "WhatsApp no longer has this.");
     // A redirect asked to be handled by the caller (media links): checked there.
     if (init.redirect === "manual" && r.status >= 300 && r.status < 400) return r;
     if (!r.ok) {
       // Meta says an expired or revoked token with code 190, sometimes as a 400.
       const body = (await r.json().catch(() => ({}))) as { error?: { code?: number } };
-      if (body.error?.code === 190) throw new MetaError("token", "WhatsApp stopped letting LUME in.");
-      throw new MetaError("transient", "WhatsApp didn't answer properly just now.");
+      const code = typeof body.error?.code === "number" ? body.error.code : null;
+      if (code === 190) throw new MetaError("token", "WhatsApp stopped letting LUME in.", 190);
+      throw new MetaError("transient", "WhatsApp didn't answer properly just now.", code);
     }
     return r;
   };
@@ -91,6 +94,32 @@ export function metaClient(meta: NonNullable<AppDeps["meta"]>, token: string) {
         chunks.push(Buffer.from(c));
       }
       return Buffer.concat(chunks);
+    },
+    /** A file for a reply from LUME (plan W3a), uploaded for this number: Meta's id for it, good for 30 days. */
+    async uploadMedia(phoneNumberId: string, bytes: Buffer, mime: string, filename: string): Promise<string> {
+      const form = new FormData();
+      form.set("messaging_product", "whatsapp");
+      form.set("type", mime);
+      form.set("file", new Blob([bytes], { type: mime }), filename);
+      const r = await call(graph(`${encodeURIComponent(phoneNumberId)}/media`), {
+        method: "POST",
+        body: form,
+      });
+      const d = (await r.json()) as { id?: string };
+      if (!d.id) throw new MetaError("transient", "WhatsApp didn't answer properly just now.");
+      return d.id;
+    },
+    /** One message from this number (plan W3a): Meta's id for it (the `wamid` its statuses name). */
+    async sendMessage(phoneNumberId: string, body: Record<string, unknown>): Promise<string> {
+      const r = await call(graph(`${encodeURIComponent(phoneNumberId)}/messages`), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = (await r.json()) as { messages?: { id?: string }[] };
+      const wamid = d.messages?.[0]?.id;
+      if (!wamid) throw new MetaError("transient", "WhatsApp didn't answer properly just now.");
+      return wamid;
     },
     /** Stop Meta delivering this WhatsApp account's messages to LUME. */
     async unsubscribe(wabaId: string): Promise<void> {

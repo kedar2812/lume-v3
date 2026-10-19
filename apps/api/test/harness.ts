@@ -38,6 +38,7 @@ import {
 } from "../src/modules/sheets/google";
 import { runSync } from "../src/modules/sheets/sync";
 import { fileStore, type Disk, type FilesDeps } from "../src/modules/whatsapp/files";
+import { sendOutbox } from "../src/modules/whatsapp/sender";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
 import { fixedRates } from "../src/money/rates";
@@ -160,6 +161,8 @@ export type Harness = {
   whatsappMediaQueued: string[];
   /** Replies from LUME queued for sending (W3a). */
   whatsappSendQueued: string[];
+  /** Send the queued replies once each, as the queue would; one that throws is queued again (pg-boss's retry). */
+  runWhatsAppSend(): Promise<void>;
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
   runWhatsApp(): Promise<void>;
   /** Fetch the queued WhatsApp media (Task 7). */
@@ -528,6 +531,11 @@ export async function createHarness(
     async runWhatsApp() {
       for (let id = whatsappQueued.shift(); id; id = whatsappQueued.shift())
         await processWhatsAppEvent({ app, d: deps }, id);
+    },
+    async runWhatsAppSend() {
+      const now = whatsappSendQueued.splice(0);
+      for (const id of now)
+        await sendOutbox({ app, d: deps }, id).catch(() => void whatsappSendQueued.push(id));
     },
     async runWhatsAppMedia() {
       for (let id = whatsappMediaQueued.shift(); id; id = whatsappMediaQueued.shift())

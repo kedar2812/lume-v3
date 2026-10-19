@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { moduleIncluded, readWebhook, relayCheck } from "@lume/core";
+import { moduleIncluded, readStatuses, readWebhook, relayCheck } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance } from "fastify";
 import type { AppDeps } from "../../app";
 import { isLocked } from "../../licence/enforce";
+import { applyStatuses } from "./sender";
 import { relayOf } from "./service";
 
 const E = schema.whatsappEvents;
@@ -58,6 +59,8 @@ export async function whatsappReceiveRoutes(app: FastifyInstance, d: AppDeps) {
       } catch {
         return ok();
       }
+      // Delivery statuses for replies LUME sent (plan W3a): applied now, forward only, so a repeat changes nothing.
+      await applyStatuses(d.pool, readStatuses(body));
       const events = readWebhook(body);
       if (!events.length) return ok();
       const known = new Set(

@@ -243,13 +243,26 @@ export async function confirmSend(
     ...(from.queueId ? { queueId: from.queueId } : {}),
     ...(o.via ? { via: o.via } : {}),
   });
+  return countSend(req, d, lead, body.taskId ?? from.taskId);
+}
+
+/**
+ * What a send means once it's gone (report §11.2 step 4), for "Yes, sent" and for a reply from LUME that Meta took
+ * (plan W3a): the lead's last message time, the follow-up it was sent from done, then the stage's move.
+ */
+export async function countSend(
+  req: FastifyRequest,
+  d: AppDeps,
+  lead: LeadRow,
+  taskId: string | undefined,
+): Promise<MoveResult> {
+  const id = lead.id;
   const now = new Date();
   await req.db
     .update(schema.leads)
     .set({ lastMessageAt: now, lastActivityAt: now })
     .where(eq(schema.leads.id, id));
   // The follow-up it was sent from is done (if it's still open, and the caller may change it).
-  const taskId = body.taskId ?? from.taskId;
   if (taskId) {
     await req.db.execute(sql`SAVEPOINT lume_send_task`);
     try {
