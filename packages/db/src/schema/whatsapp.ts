@@ -1,4 +1,4 @@
-import { bigserial, boolean, integer, pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, integer, pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 /** WhatsApp replies, part 1 (spec 2026-10-18 §3–4): a connected number. Its token never leaves the module. */
@@ -57,7 +57,23 @@ export const whatsappIgnored = pgTable(
   (t) => [primaryKey({ columns: [t.numberId, t.peer] })],
 );
 
-/** A photo, voice note, video or document, on this server; at most 25 MB. */
+/** A file on this server's disk, named by its SHA-256 (migration 0074): one file however many media point at it. */
+export const whatsappFiles = pgTable("whatsapp_files", {
+  sha256: text("sha256").primaryKey(),
+  size: bigint("size", { mode: "number" }).notNull(),
+  /** Kept by a trigger on whatsapp_media; the hourly sweep removes a file at 0. */
+  refs: integer("refs").notNull().default(0),
+  lastRefAt: tz("last_ref_at").notNull().defaultNow(),
+  createdAt: tz("created_at").notNull().defaultNow(),
+});
+
+/** Files gone from the server: their off-site copies go 200 days later. */
+export const whatsappFilesGone = pgTable("whatsapp_files_gone", {
+  sha256: text("sha256").primaryKey(),
+  goneAt: tz("gone_at").notNull().defaultNow(),
+});
+
+/** A photo, voice note, video or document, kept on this server's disk; at most 25 MB. */
 export const whatsappMedia = pgTable("whatsapp_media", {
   id: uuid("id").primaryKey(),
   numberId: uuid("number_id").notNull(),
@@ -69,9 +85,12 @@ export const whatsappMedia = pgTable("whatsapp_media", {
   filename: text("filename"),
   voice: boolean("voice").notNull().default(false),
   size: integer("size"),
-  data: bytea("data"),
-  status: text("status").$type<"waiting" | "ready" | "too_large" | "failed">().notNull(),
+  /** The file on disk (whatsapp_files) once it's here: status 'ready'. */
+  sha256: text("sha256"),
+  status: text("status").$type<"waiting" | "ready" | "too_large" | "failed" | "removed">().notNull(),
   problem: text("problem"),
   tries: integer("tries").notNull().default(0),
+  /** Not tried again before this (the disk was full, or the folder not writable). */
+  retryAt: tz("retry_at"),
   createdAt: tz("created_at").notNull().defaultNow(),
 });

@@ -126,7 +126,12 @@ beforeEach(async () => {
 describe("the switch", () => {
   it("off by default; an admin switches it on", async () => {
     const before = await (await as(admin)).inject({ method: "GET", url: "/api/v1/integrations" });
-    expect(before.json().whatsapp).toEqual({ enabled: false, available: true, inPlan: true });
+    expect(before.json().whatsapp).toEqual({
+      enabled: false,
+      available: true,
+      inPlan: true,
+      keepFilesMonths: null,
+    });
     const r = await switchTo(true);
     expect(r.statusCode).toBe(200);
     expect(r.json().whatsapp.enabled).toBe(true);

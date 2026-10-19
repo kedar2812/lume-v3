@@ -1,7 +1,15 @@
 "use client";
 import { api } from "@/lib/api";
 import type { IntegrationsView } from "@/lib/sheets/types";
-import type { WaInboxMessage, WaMediaInfo, WaNumbers, WaPerson, WaThread } from "./types";
+import type {
+  KeepMonths,
+  KeepPreview,
+  WaInboxMessage,
+  WaMediaInfo,
+  WaNumbers,
+  WaPerson,
+  WaThread,
+} from "./types";
 
 const person = (numberId: string, peer: string) =>
   `/api/v1/whatsapp/inbox/${encodeURIComponent(numberId)}/${encodeURIComponent(peer)}`;
@@ -9,6 +17,10 @@ const person = (numberId: string, peer: string) =>
 /** WhatsApp (spec 2026-10-18 §3–4): the switch and numbers (admins), a file's state, and Not a lead yet. */
 export const whatsappClient = {
   setEnabled: (enabled: boolean) => api.put<IntegrationsView>("/api/v1/integrations/whatsapp", { enabled }),
+  setKeepFiles: (keepFilesMonths: KeepMonths) =>
+    api.put<IntegrationsView>("/api/v1/integrations/whatsapp", { keepFilesMonths }),
+  keepPreview: (months: Exclude<KeepMonths, null>) =>
+    api.get<KeepPreview>(`/api/v1/whatsapp/files/keep-preview?months=${months}`),
   connect: () => api.post<{ url: string }>("/api/v1/whatsapp/connect"),
   complete: (b: { p: string; s: string }) => api.post<WaNumbers>("/api/v1/whatsapp/connect/complete", b),
   numbers: () => api.get<WaNumbers>("/api/v1/whatsapp/numbers"),

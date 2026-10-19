@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import type pg from "pg";
 import { localDayBounds } from "@lume/core";
+import { bytesText } from "@lume/core/shared";
 import type { Mailer } from "../../mail/mailer";
 import { opsAlertMail } from "../../mail/templates";
 import { notify } from "../notifications/notify";
 import { followUpsFrom } from "../settings/follow-ups";
+import { usedShare, type FilesDeps } from "../whatsapp/files";
 
 type Q = Pick<pg.Pool, "query">;
 const H = 3_600_000;
@@ -18,8 +20,18 @@ export type Health = {
   noTouch: { enabled: boolean; lastRunAt: string | null; createdToday: number };
   sources: { id: string; name: string; type: string; status: string; lastSyncAt: string | null }[];
   restoreTest: { at: string | null; ok: boolean | null };
+  /** The server's disk and what LUME keeps on it, in bytes (2026-10-19); null where it can't be read. */
+  storage: {
+    diskTotal: number | null;
+    diskFree: number | null;
+    database: number | null;
+    whatsappFiles: number;
+  };
   problems: Problem[];
 };
+
+/** From this share of the disk in use, admins are told (once a business day). */
+export const DISK_WARN = 0.85;
 
 const n = (v: unknown) => Number(v ?? 0);
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -35,11 +47,13 @@ const SETTLE_MS = 5 * 60_000;
 
 export async function readHealth(
   db: Q,
-  o: { now?: Date; lastSweepAt?: () => Date | null; startedAt?: Date } = {},
+  o: { now?: Date; lastSweepAt?: () => Date | null; startedAt?: Date; files?: FilesDeps | null } = {},
 ): Promise<Health> {
   const now = o.now ?? new Date();
-  const { rows: s } = await db.query<{ tz: string; f: unknown; created_at: Date }>(
-    "SELECT timezone AS tz, follow_ups AS f, created_at FROM settings WHERE id = 1",
+  const { rows: s } = await db.query<{ tz: string; f: unknown; created_at: Date; whatsapp: boolean | null }>(
+    `SELECT timezone AS tz, follow_ups AS f, created_at,
+            (integrations -> 'whatsapp' ->> 'enabled')::boolean AS whatsapp
+       FROM settings WHERE id = 1`,
   );
   const tz = s[0]?.tz ?? "UTC";
   const { start } = localDayBounds(now, tz);
@@ -95,6 +109,19 @@ export async function readHealth(
     "SELECT finished_at, ok FROM ops_restore_tests ORDER BY finished_at DESC LIMIT 1",
   );
   const lastSweep = o.lastSweepAt?.() ?? null;
+  // Storage (2026-10-19): the disk under the files, the database, and WhatsApp's files; and their off-site copy.
+  const disk = o.files ? await o.files.disk().catch(() => null) : null;
+  const database = await one<{ bytes: string }>("SELECT pg_database_size(current_database()) AS bytes").then(
+    (r) => Number(r.bytes),
+    () => null,
+  );
+  const files = await one<{ bytes: string; oldest: Date | null }>(
+    "SELECT coalesce(sum(size), 0) AS bytes, min(created_at) AS oldest FROM whatsapp_files",
+  );
+  const filesBackup = await one<{ at: Date | null }>(
+    "SELECT max(at) AS at FROM ops_events WHERE kind = 'backup.files' AND ok",
+  );
+  const writable = o.files && s[0]?.whatsapp ? await o.files.store.writable() : true;
 
   const problems: Problem[] = [];
   const late = n(reminders.late);
@@ -141,6 +168,28 @@ export async function readHealth(
   )
     problems.push({ key: "restore_test", words: "No backup restore test in over a week. Check the worker." });
 
+  if (disk && usedShare(disk) >= DISK_WARN)
+    problems.push({
+      key: "disk_full",
+      words: `The server's disk is ${Math.round(usedShare(disk) * 100)}% full (${bytesText(disk.free)} left). Keep WhatsApp files for fewer months in Integrations, or move LUME to a bigger server.`,
+    });
+  if (!writable)
+    problems.push({
+      key: "files_unwritable",
+      words: "LUME can't write WhatsApp files on this server. Check the files volume.",
+    });
+  // Backups run every 6 hours: a day without one that carried the files, once there have been files for a day.
+  const DAY = 24 * H;
+  if (
+    files.oldest &&
+    now.getTime() - files.oldest.getTime() > DAY &&
+    (!filesBackup.at || now.getTime() - filesBackup.at.getTime() > DAY)
+  )
+    problems.push({
+      key: "files_backup",
+      words: "WhatsApp files haven't reached the backup for over a day. Check the worker.",
+    });
+
   return {
     checkedAt: now.toISOString(),
     followUps: {
@@ -169,6 +218,12 @@ export async function readHealth(
       lastSyncAt: iso(x.last_synced_at),
     })),
     restoreTest: { at: iso(restore?.finished_at), ok: restore ? restore.ok : null },
+    storage: {
+      diskTotal: disk?.total ?? null,
+      diskFree: disk?.free ?? null,
+      database,
+      whatsappFiles: Number(files.bytes),
+    },
     problems,
   };
 }
@@ -186,11 +241,13 @@ export async function opsAlerts(
     publicUrl?: string;
     lastSweepAt?: () => Date | null;
     startedAt?: Date;
+    files?: FilesDeps | null;
   },
   now: Date = new Date(),
 ): Promise<number> {
   const h = await readHealth(o.pool, {
     now,
+    files: o.files ?? null,
     ...(o.lastSweepAt ? { lastSweepAt: o.lastSweepAt } : {}),
     ...(o.startedAt ? { startedAt: o.startedAt } : {}),
   });

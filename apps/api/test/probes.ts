@@ -713,6 +713,10 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ p: "x", s: "y" }),
   },
   "GET /api/v1/whatsapp/numbers": { access: "integrations.manage" },
+  "GET /api/v1/whatsapp/files/keep-preview": {
+    access: "integrations.manage",
+    path: () => "/api/v1/whatsapp/files/keep-preview?months=6",
+  },
   "PATCH /api/v1/whatsapp/numbers/:id": {
     access: "integrations.manage",
     path: () => `/api/v1/whatsapp/numbers/${uuid}`,

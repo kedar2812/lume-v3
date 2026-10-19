@@ -10,6 +10,7 @@ import type { IntegrationsView } from "@/lib/sheets/types";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaNumber } from "@/lib/whatsapp/types";
 import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
+import { WhatsAppKeep } from "./WhatsAppKeep";
 import s from "./integrations.module.css";
 
 type WaView = NonNullable<IntegrationsView["whatsapp"]>;
@@ -230,6 +231,9 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
             </Link>
           </div>
         </>
+      )}
+      {on && numbers && numbers.length > 0 && (
+        <WhatsAppKeep months={wa.keepFilesMonths ?? null} onView={onView} />
       )}
       {connecting && <ConnectSheet onClose={() => setConnecting(false)} />}
       {leaving && (

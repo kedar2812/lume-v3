@@ -8,6 +8,7 @@ import { audit } from "../../audit/audit";
 import { HttpError, badRequest, notFound } from "../../http/errors";
 import { assertModule } from "../../licence/plan";
 import { integrationsView } from "../sheets/service";
+import type { KeepMonths } from "./keep";
 import { metaClient } from "./meta";
 
 const N = schema.whatsappNumbers;
@@ -43,20 +44,46 @@ async function requireOn(req: FastifyRequest, d: AppDeps) {
   if (!(await whatsappOn(req))) throw whatsappOff();
 }
 
-/** Settings → Integrations → WhatsApp (admins): off by default; only while the plan includes it. */
-export async function setWhatsAppEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
-  if (enabled) {
+/**
+ * Settings → Integrations → WhatsApp (admins): the switch (off by default; on only while the plan includes it) and how
+ * long LUME keeps WhatsApp's files (forever by default). Each is changed alone and the other kept: switching WhatsApp
+ * off and on never loses "keep for".
+ */
+export async function setWhatsAppSettings(
+  req: FastifyRequest,
+  d: AppDeps,
+  body: { enabled?: boolean | undefined; keepFilesMonths?: KeepMonths | undefined },
+) {
+  if (body.enabled) {
     assertModule(req, "whatsapp");
     if (!relayOf(d) || !d.meta) throw notConfigured();
   }
+  const patch: { enabled?: boolean; keepFilesMonths?: KeepMonths } = {};
+  if (body.enabled !== undefined) patch.enabled = body.enabled;
+  if (body.keepFilesMonths !== undefined) patch.keepFilesMonths = body.keepFilesMonths;
+  const [before] = await req.db
+    .select({ i: schema.settings.integrations })
+    .from(schema.settings)
+    .where(eq(schema.settings.id, 1));
   await req.db.execute(
-    sql`UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp}', ${JSON.stringify({ enabled })}::jsonb) WHERE id = 1`,
+    sql`UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp}',
+          coalesce(integrations -> 'whatsapp', '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb) WHERE id = 1`,
   );
-  await audit(req, {
-    action: enabled ? "integration.enabled" : "integration.disabled",
-    entityType: "integration",
-    diff: { module: "whatsapp" },
-  });
+  if (body.enabled !== undefined)
+    await audit(req, {
+      action: body.enabled ? "integration.enabled" : "integration.disabled",
+      entityType: "integration",
+      diff: { module: "whatsapp" },
+    });
+  if (body.keepFilesMonths !== undefined)
+    await audit(req, {
+      action: "integration.updated",
+      entityType: "integration",
+      diff: {
+        module: "whatsapp",
+        keepFilesMonths: { from: before?.i.whatsapp?.keepFilesMonths ?? null, to: body.keepFilesMonths },
+      },
+    });
   return integrationsView(req, d);
 }
 

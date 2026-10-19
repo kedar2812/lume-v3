@@ -18,6 +18,9 @@ volumes:
   caddy_data: {}
   caddy_config: {}
   offsite: {}
+  # WhatsApp's photos, voice notes, videos and documents, each once, named by its content (2026-10-19): the API
+  # writes them; the worker reads them for the off-site copy. Back it up with the database (docs/runbooks/restore.md).
+  files: {}
 
 secrets:
   restore_agekey:
@@ -103,6 +106,8 @@ services:
       LUME_LICENSE_KEY: ${LUME_LICENSE_KEY:-}
       # LUME's own demo only: "true" waives two-step sign-in, honoured solely at demo.lumecrm.in (api/src/demo/mode.ts).
       LUME_DEMO_MODE: ${LUME_DEMO_MODE:-}
+    volumes:
+      - files:/var/lib/lume/files
     networks: [frontend, backend]
     mem_limit: 768m
     depends_on:
@@ -127,6 +132,7 @@ services:
     secrets: [restore_agekey]
     volumes:
       - offsite:/var/lib/lume/offsite
+      - files:/var/lib/lume/files:ro
     networks: [backend]
     mem_limit: 768m
     depends_on:

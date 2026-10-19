@@ -78,6 +78,16 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
   "import.discarded": { area: "Leads", phrase: "discarded an import draft" },
   "integration.enabled": { area: "Settings", phrase: (d) => `switched on ${moduleName(d.module)}` },
   "integration.disabled": { area: "Settings", phrase: (d) => `switched off ${moduleName(d.module)}` },
+  // WhatsApp's "keep files for" (2026-10-19).
+  "integration.updated": {
+    area: "Settings",
+    phrase: (d) => {
+      const to = (d.keepFilesMonths as { to?: unknown } | undefined)?.to;
+      return typeof to === "number"
+        ? `set ${moduleName(d.module)} files to be kept for ${to} months`
+        : `set ${moduleName(d.module)} files to be kept forever`;
+    },
+  },
   // The send queue (4C): a person's run through a list of leads.
   "queue.started": {
     area: "Leads",

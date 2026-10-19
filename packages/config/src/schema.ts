@@ -103,6 +103,8 @@ export const apiSchema = base
      * GOOGLE_OAUTH_RELAY_URL/TOKEN — one relay for everything, as on a client's server.
      */
     WHATSAPP_RELAY_URL: optional(z.url({ protocol: /^https?$/ })),
+    /** Where WhatsApp's files are kept (2026-10-19): the `files` volume. The worker reads it for the off-site copy. */
+    LUME_FILES_DIR: z.string().startsWith("/").default("/var/lib/lume/files"),
     WHATSAPP_RELAY_TOKEN: optional(z.string().min(32).max(200)),
     META_GRAPH_VERSION: optional(z.string().regex(/^v\d+\.\d+$/)),
     LUME_AI_MODEL: optional(z.string().min(1).max(100)),
@@ -153,6 +155,8 @@ export const workerSchema = base.extend({
   BACKUP_AGE_IDENTITY_FILE: z.string().min(1),
   RCLONE_REMOTE: z.string().min(1).default("offsite:/var/lib/lume/offsite"),
   OPS_SCRIPTS_DIR: z.string().min(1).default("/app/scripts"),
+  /** WhatsApp's files, mounted read-only: each goes off-site once (backup-files.sh). */
+  LUME_FILES_DIR: z.string().startsWith("/").default("/var/lib/lume/files"),
 });
 
 export const migrateSchema = base.extend({

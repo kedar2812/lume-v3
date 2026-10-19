@@ -6,12 +6,31 @@ export const MEDIA_MAX = 25 * 1024 * 1024;
 /** Why Meta said no: the token (revoked, the number disconnected in the app), too large, or for now only. */
 export class MetaError extends Error {
   constructor(
-    readonly kind: "token" | "too_large" | "not_found" | "transient",
+    readonly kind: "token" | "too_large" | "not_found" | "transient" | "untrusted",
     message: string,
   ) {
     super(message);
     this.name = "MetaError";
   }
+}
+
+/** Where Meta serves media from. The token only ever goes to these, or to the Graph API itself. */
+const MEDIA_HOSTS = /(^|\.)(fbsbx\.com|facebook\.com|fbcdn\.net|whatsapp\.net)$/;
+
+/**
+ * Whether a media link may be fetched with a number's token: https on Meta's own media hosts, or the configured Graph
+ * API's origin (the fake, in tests). Anything else would hand the token to someone else's server.
+ */
+export function trustedMediaUrl(url: string, graphUrl: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.username || u.password) return false;
+  if (u.origin === new URL(graphUrl).origin) return true;
+  return u.protocol === "https:" && MEDIA_HOSTS.test(u.hostname);
 }
 
 /**
@@ -31,6 +50,8 @@ export function metaClient(meta: NonNullable<AppDeps["meta"]>, token: string) {
     if (r.status === 401 || r.status === 403)
       throw new MetaError("token", "WhatsApp stopped letting LUME in.");
     if (r.status === 404) throw new MetaError("not_found", "WhatsApp no longer has this.");
+    // A redirect asked to be handled by the caller (media links): checked there.
+    if (init.redirect === "manual" && r.status >= 300 && r.status < 400) return r;
     if (!r.ok) {
       // Meta says an expired or revoked token with code 190, sometimes as a 400.
       const body = (await r.json().catch(() => ({}))) as { error?: { code?: number } };
@@ -49,7 +70,17 @@ export function metaClient(meta: NonNullable<AppDeps["meta"]>, token: string) {
     },
     /** The bytes, never more than 25 MB (checked as they arrive, whatever Meta said the size was). */
     async download(url: string): Promise<Buffer> {
-      const r = await call(url);
+      if (!trustedMediaUrl(url, meta.graphUrl))
+        throw new MetaError("untrusted", "WhatsApp sent a link that isn't Meta's.");
+      // Redirects are followed only on Meta's hosts: one elsewhere would carry the token.
+      const r = await call(url, { redirect: "manual" }).then(async (first) => {
+        const to = first.status >= 300 && first.status < 400 ? first.headers.get("location") : null;
+        if (!to) return first;
+        const next = new URL(to, url).toString();
+        if (!trustedMediaUrl(next, meta.graphUrl))
+          throw new MetaError("untrusted", "WhatsApp sent a link that isn't Meta's.");
+        return call(next, { redirect: "error" });
+      });
       const len = Number(r.headers.get("content-length") ?? 0);
       if (len > MEDIA_MAX) throw new MetaError("too_large", "This file is over 25 MB.");
       const chunks: Buffer[] = [];

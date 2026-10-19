@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from "fastify";
 import pg from "pg";
@@ -34,6 +37,7 @@ import {
   type GoogleSheets,
 } from "../src/modules/sheets/google";
 import { runSync } from "../src/modules/sheets/sync";
+import { fileStore, type Disk, type FilesDeps } from "../src/modules/whatsapp/files";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
 import { fixedRates } from "../src/money/rates";
@@ -158,6 +162,8 @@ export type Harness = {
   runWhatsApp(): Promise<void>;
   /** Fetch the queued WhatsApp media (Task 7). */
   runWhatsAppMedia(): Promise<void>;
+  /** WhatsApp's files (2026-10-19): a folder of this harness's own, and a disk whose fullness a test sets. */
+  files: FilesDeps & { dir: string; setDisk(d: Disk | null): void };
   /** Calendar connections whose sync was asked for (5A), in order. */
   calendarQueue: string[];
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
@@ -263,6 +269,16 @@ export async function createHarness(
     },
   };
   const googleOAuth = opts.oauth ? { relayUrl: "", relayToken: opts.oauth.relayToken } : null;
+  const filesDir = await mkdtemp(path.join(tmpdir(), "lume-files-"));
+  let diskNow: Disk | null = { total: 100 * 1024 ** 3, free: 60 * 1024 ** 3 };
+  const files = {
+    dir: filesDir,
+    store: fileStore(filesDir),
+    disk: async () => diskNow,
+    setDisk(d: Disk | null) {
+      diskNow = d;
+    },
+  };
   const clientFor = oauthClientFor(googleOAuth, fake?.url);
 
   const deps: AppDeps = {
@@ -302,6 +318,7 @@ export async function createHarness(
       enqueue: async (id) => void whatsappQueued.push(id),
       enqueueMedia: async (id) => void whatsappMediaQueued.push(id),
     },
+    files,
   };
   const app = await buildApp(deps);
 
@@ -497,6 +514,7 @@ export async function createHarness(
     webhookQueue,
     whatsappQueued,
     whatsappMediaQueued,
+    files,
     calendarQueue,
     reminderQueue,
     failReminderQueue(on) {
@@ -528,6 +546,7 @@ export async function createHarness(
       await pool.end();
       await ownerPool.end();
       await tdb.drop();
+      await rm(filesDir, { recursive: true, force: true });
     },
   };
   return h;

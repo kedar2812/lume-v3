@@ -156,3 +156,34 @@
   color: var(--warn-ink);
   font-weight: var(--fw-medium);
 }
+/* Storage (2026-10-19): the disk in use as a bar; amber from 85%. */
+.disk {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.diskBar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  overflow: hidden;
+}
+.diskBar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.diskBar[data-warn] span {
+  background: var(--warn);
+}
+.diskPct {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}

@@ -1,10 +1,12 @@
 import PgBoss from "pg-boss";
 import type pg from "pg";
 import { sweepWhatsApp } from "./inbox";
+import { scanWhatsAppFiles, sweepWhatsAppFiles } from "./keep";
 import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
 
 const SWEEP_MS = 60_000;
+const MEDIA_WORKERS = 4;
 
 /**
  * Messages that waited too long (2 minutes) without a job — a restart, a failed send — are queued again; ones for a
@@ -32,7 +34,7 @@ export async function staleMedia(pool: pg.Pool): Promise<string[]> {
     const { rows } = await c.query<{ id: string }>(
       `SELECT m.id FROM whatsapp_media m JOIN whatsapp_numbers n ON n.id = m.number_id
         WHERE m.status = 'waiting' AND n.status = 'active' AND m.created_at < now() - interval '2 minutes'
-          AND m.created_at > now() - interval '30 days'
+          AND m.created_at > now() - interval '30 days' AND (m.retry_at IS NULL OR m.retry_at <= now())
         ORDER BY m.created_at LIMIT 200`,
     );
     await c.query("COMMIT");
@@ -49,7 +51,7 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     migrate: false,
     supervise: false,
     schedule: false,
-    max: 2,
+    max: 2 + MEDIA_WORKERS,
   });
   boss.on("error", (err) => o.app.log.error({ err }, "whatsapp queue error"));
   await boss.start();
@@ -60,13 +62,15 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
       if (job) await processWhatsAppEvent(o, job.data.id);
     },
   );
-  await boss.work<{ id: string }>(
-    "whatsapp.media",
-    { batchSize: 1, pollingIntervalSeconds: 1 },
-    async ([job]) => {
-      if (job) await fetchMedia(o, job.data.id);
-    },
-  );
+  // Four fetchers: a team of hundreds sends bursts of photos and brochures; each fetch is mostly waiting on Meta.
+  for (let i = 0; i < MEDIA_WORKERS; i++)
+    await boss.work<{ id: string }>(
+      "whatsapp.media",
+      { batchSize: 1, pollingIntervalSeconds: 1 },
+      async ([job]) => {
+        if (job) await fetchMedia(o, job.data.id);
+      },
+    );
   const enqueue = async (id: number) => {
     await boss.send(
       "whatsapp.process",
@@ -89,12 +93,25 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
   const timer = setInterval(() => void sweep(), SWEEP_MS);
   timer.unref();
   void sweep();
-  // Hourly: Not a lead yet keeps 14 days, processed events 30.
-  const hourly = setInterval(
-    () =>
-      void sweepWhatsApp(pool).catch((err: unknown) => o.app.log.error({ err }, "whatsapp retention failed")),
-    3_600_000,
-  );
+  // Hourly: Not a lead yet keeps 14 days, processed events 30; then files past "keep for", and files nothing points
+  // to any more (2026-10-19). Daily: the disk against the database (strays, temp files a crash left).
+  let lastScan = 0;
+  const files = o.d.files;
+  const hourlyWork = async () => {
+    await sweepWhatsApp(pool).catch((err: unknown) => o.app.log.error({ err }, "whatsapp retention failed"));
+    if (!files) return;
+    const r = await sweepWhatsAppFiles({ pool, store: files.store, log: o.app.log }).catch((err: unknown) => {
+      o.app.log.error({ err }, "whatsapp files sweep failed");
+      return null;
+    });
+    if (r && (r.removed || r.deleted || r.mended)) o.app.log.info(r, "whatsapp files swept");
+    if (Date.now() - lastScan < 86_400_000) return;
+    lastScan = Date.now();
+    await scanWhatsAppFiles({ pool, store: files.store, log: o.app.log }).catch((err: unknown) =>
+      o.app.log.error({ err }, "whatsapp files scan failed"),
+    );
+  };
+  const hourly = setInterval(() => void hourlyWork(), 3_600_000);
   hourly.unref();
   return {
     enqueue,

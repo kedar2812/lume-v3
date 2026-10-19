@@ -22,6 +22,8 @@ ARG LUME_VERSION
 ENV LUME_VERSION=$LUME_VERSION
 COPY --from=build /src/infra/docker/release-marker.sh /tmp/release-marker.sh
 RUN sh /tmp/release-marker.sh "$LUME_RELEASE" "$LUME_VERSION" /app && rm /tmp/release-marker.sh
+# WhatsApp's files (2026-10-19): owned by node, so a fresh named volume mounted here is writable by the API.
+RUN install -d -o node -g node -m 750 /var/lib/lume/files
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=15s --timeout=3s CMD node -e "fetch('http://127.0.0.1:3001/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"

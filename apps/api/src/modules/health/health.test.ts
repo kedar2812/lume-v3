@@ -197,3 +197,102 @@ describe("System health: 3C final review", () => {
     expect(keys).not.toContain("digest_failing");
   });
 });
+
+/** Storage (2026-10-19): how full the server's disk is, what LUME keeps, and a word before it fills. */
+describe("System health: storage", () => {
+  const GB = 1024 ** 3;
+  const filesWith = (disk: { total: number; free: number } | null, writable = true) => ({
+    store: { ...h.files.store, writable: async () => writable },
+    disk: async () => disk,
+  });
+  const keys = (x: { problems: { key: string }[] }) => x.problems.map((p) => p.key);
+  const whatsapp = (enabled: boolean) =>
+    h.ownerPool.query(
+      "UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp}', $1::jsonb) WHERE id = 1",
+      [JSON.stringify({ enabled })],
+    );
+
+  it("the card: the disk, the database and WhatsApp's files, in bytes", async () => {
+    await h.ownerPool.query("INSERT INTO whatsapp_files (sha256, size) VALUES ($1, 300), ($2, 700)", [
+      "1".repeat(64),
+      "2".repeat(64),
+    ]);
+    try {
+      const s = await health();
+      expect(s.storage).toMatchObject({ diskTotal: 100 * GB, diskFree: 60 * GB, whatsappFiles: 1000 });
+      expect(s.storage.database).toBeGreaterThan(1024 * 1024);
+      expect(keys(s)).not.toContain("disk_full");
+    } finally {
+      await h.ownerPool.query("DELETE FROM whatsapp_files");
+    }
+  });
+
+  it("85% full or more: a problem in words, with what's left and what to do", async () => {
+    const s = await readHealth(h.pool, { files: filesWith({ total: 100 * GB, free: 8.2 * GB }) });
+    expect(s.problems).toContainEqual({
+      key: "disk_full",
+      words:
+        "The server's disk is 92% full (8.2 GB left). Keep WhatsApp files for fewer months in Integrations, or move LUME to a bigger server.",
+    });
+    const fine = await readHealth(h.pool, { files: filesWith({ total: 100 * GB, free: 15.5 * GB }) });
+    expect(keys(fine)).not.toContain("disk_full");
+  });
+
+  it("a disk LUME can't read is 'not known', never an alarm; the rest of the page still loads", async () => {
+    const s = await readHealth(h.pool, { files: filesWith(null) });
+    expect(s.storage).toMatchObject({ diskTotal: null, diskFree: null });
+    expect(keys(s)).not.toContain("disk_full");
+    const none = await readHealth(h.pool, {});
+    expect(none.storage).toMatchObject({ diskTotal: null, diskFree: null, whatsappFiles: 0 });
+  });
+
+  it("a files folder LUME can't write is a problem only while WhatsApp is on", async () => {
+    await whatsapp(false);
+    expect(keys(await readHealth(h.pool, { files: filesWith(null, false) }))).not.toContain(
+      "files_unwritable",
+    );
+    await whatsapp(true);
+    try {
+      expect((await readHealth(h.pool, { files: filesWith(null, false) })).problems).toContainEqual({
+        key: "files_unwritable",
+        words: "LUME can't write WhatsApp files on this server. Check the files volume.",
+      });
+      expect(keys(await readHealth(h.pool, { files: filesWith(null, true) }))).not.toContain(
+        "files_unwritable",
+      );
+    } finally {
+      await whatsapp(false);
+    }
+  });
+
+  it("files that haven't reached the backup in over a day are a problem; a new install's first day isn't", async () => {
+    const now = new Date();
+    const old = new Date(now.getTime() - 40 * 3_600_000);
+    await h.ownerPool.query("INSERT INTO whatsapp_files (sha256, size, created_at) VALUES ($1, 10, $2)", [
+      "3".repeat(64),
+      now,
+    ]);
+    try {
+      // Kept today, no backup yet: the first one comes within 6 hours.
+      expect(keys(await readHealth(h.pool, { now }))).not.toContain("files_backup");
+      await h.ownerPool.query("UPDATE whatsapp_files SET created_at = $1", [old]);
+      expect((await readHealth(h.pool, { now })).problems).toContainEqual({
+        key: "files_backup",
+        words: "WhatsApp files haven't reached the backup for over a day. Check the worker.",
+      });
+      await h.queryAll(
+        "INSERT INTO ops_events (kind, ok, detail, at) VALUES ('backup.files', false, '{}', $1)",
+        [new Date(now.getTime() - 3_600_000)],
+      );
+      expect(keys(await readHealth(h.pool, { now }))).toContain("files_backup");
+      await h.queryAll(
+        "INSERT INTO ops_events (kind, ok, detail, at) VALUES ('backup.files', true, '{}', $1)",
+        [new Date(now.getTime() - 2 * 3_600_000)],
+      );
+      expect(keys(await readHealth(h.pool, { now }))).not.toContain("files_backup");
+    } finally {
+      await h.ownerPool.query("DELETE FROM whatsapp_files");
+      await h.queryAll("DELETE FROM ops_events WHERE kind = 'backup.files'");
+    }
+  });
+});

@@ -8,6 +8,7 @@ export async function healthRoutes(app: FastifyInstance, d: AppDeps): Promise<vo
     readHealth(d.pool, {
       ...(d.tasks?.lastSweepAt ? { lastSweepAt: d.tasks.lastSweepAt } : {}),
       ...(d.tasks?.startedAt ? { startedAt: d.tasks.startedAt } : {}),
+      files: d.files ?? null,
     }),
   );
 }

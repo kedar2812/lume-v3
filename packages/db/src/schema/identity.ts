@@ -68,10 +68,14 @@ export const settings = pgTable("settings", {
       googleCalendar?: { enabled: boolean };
       /** LUME AI (spec 2026-10-18 §2.2): off unless an admin switches it on. */
       ai?: { enabled: boolean };
-      whatsapp?: { enabled: boolean };
+      whatsapp?: { enabled?: boolean; keepFilesMonths?: 3 | 6 | 12 | 24 | null };
     }>()
     .notNull()
     .default(sql`'{}'::jsonb`),
+  /** Names the off-site copies of WhatsApp's files (migration 0074): the worker's only, never shown. */
+  filesSalt: text("files_salt")
+    .notNull()
+    .default(sql`(gen_random_uuid()::text || gen_random_uuid()::text)`),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });

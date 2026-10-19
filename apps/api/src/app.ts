@@ -46,6 +46,7 @@ import { analyticsRoutes } from "./modules/analytics/routes";
 import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { aiRoutes } from "./modules/ai/routes";
+import type { FilesDeps } from "./modules/whatsapp/files";
 import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
 import { lockoutAlerts } from "./modules/auth/lockout";
@@ -111,6 +112,11 @@ export type AppDeps = {
   meta?: { graphUrl: string; version: string } | null;
   /** WhatsApp's relay, when it isn't Connect with Google's (e2e only); otherwise `googleOAuth` is used. */
   whatsappRelay?: { relayUrl: string; relayToken: string } | null;
+  /**
+   * WhatsApp's files on this server's disk (2026-10-19): where they're kept, and how full that disk is. Unset: media
+   * wait with "LUME can't save files on this server yet".
+   */
+  files?: FilesDeps | null;
   /** WhatsApp's queues (plan W1 Tasks 5–7): an event to make into lead activity, a media item to fetch. */
   whatsapp?: { enqueue(eventId: number): Promise<void>; enqueueMedia(mediaId: string): Promise<void> };
   /** Tests and e2e only: where Calendly's API is (the fake, 5B). */

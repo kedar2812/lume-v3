@@ -840,6 +840,69 @@ describe("WhatsApp (spec 2026-10-18 §4.1, §6.3; plan W1 Task 3)", () => {
     expect(cascade).toEqual(["c"]);
   });
 
+  it("a file's count of media follows every insert, change and cascade, whoever's rows are hidden (migration 0074)", async () => {
+    const A = "a".repeat(64);
+    const B = "b".repeat(64);
+    const refs = () =>
+      as("lume_app", { scope: null }, async (c) =>
+        Object.fromEntries(
+          (
+            await c.query<{ sha256: string; refs: number }>("SELECT sha256, refs FROM whatsapp_files")
+          ).rows.map((r) => [r.sha256.slice(0, 1), r.refs]),
+        ),
+      );
+    // The API writes the file row first, then points media at it, as the rep (row-level security on).
+    await as("lume_app", { scope: "own", user: U.rep }, async (c) => {
+      await c.query("INSERT INTO whatsapp_files (sha256, size) VALUES ($1, 10), ($2, 20)", [A, B]);
+      await c.query("UPDATE whatsapp_media SET status = 'ready', sha256 = $1 WHERE lead_id = $2", [A, L.rep]);
+    });
+    // The same brochure on a lead the rep can't see: pointed at by someone who sees every lead.
+    await as("lume_app", { scope: "all" }, (c) =>
+      c.query("UPDATE whatsapp_media SET status = 'ready', sha256 = $1 WHERE lead_id = $2", [A, L.other]),
+    );
+    expect(await refs()).toEqual({ a: 2, b: 0 });
+    // Moving one to another file: one down, one up.
+    await as("lume_app", { scope: "all" }, (c) =>
+      c.query("UPDATE whatsapp_media SET sha256 = $1 WHERE lead_id = $2", [B, L.other]),
+    );
+    expect(await refs()).toEqual({ a: 1, b: 1 });
+    // A file media still points at can't be deleted, whatever its count says.
+    await expect(
+      as("lume_app", { scope: null }, (c) => c.query("DELETE FROM whatsapp_files WHERE sha256 = $1", [A])),
+    ).rejects.toThrow(/foreign key/);
+    // A purge removes media as another role: the counts follow.
+    await as("lume_owner", { scope: "all" }, (c) =>
+      c.query("DELETE FROM whatsapp_media WHERE lead_id = $1", [L.rep]),
+    );
+    expect(await refs()).toEqual({ a: 0, b: 1 });
+    // A count can't go below 0, and never blocks a delete.
+    await as("lume_owner", { scope: "all" }, async (c) => {
+      await c.query("UPDATE whatsapp_files SET refs = 0 WHERE sha256 = $1", [B]);
+      await c.query("DELETE FROM whatsapp_media WHERE lead_id = $1", [L.other]);
+    });
+    expect(await refs()).toEqual({ a: 0, b: 0 });
+  });
+
+  it("the worker never sees which files exist; it only clears the off-site list of files that went", async () => {
+    await expect(
+      as("lume_worker", { scope: null }, (c) => c.query("SELECT sha256 FROM whatsapp_files")),
+    ).rejects.toThrow(/permission/);
+    await expect(
+      as("lume_worker", { scope: null }, (c) =>
+        c.query("INSERT INTO whatsapp_files_gone (sha256) VALUES ($1)", ["c".repeat(64)]),
+      ),
+    ).rejects.toThrow(/permission/);
+    await as("lume_app", { scope: null }, (c) =>
+      c.query("INSERT INTO whatsapp_files_gone (sha256) VALUES ($1)", ["c".repeat(64)]),
+    );
+    await as("lume_worker", { scope: null }, async (c) => {
+      expect((await c.query("SELECT sha256 FROM whatsapp_files_gone")).rows).toEqual([
+        { sha256: "c".repeat(64) },
+      ]);
+      await c.query("DELETE FROM whatsapp_files_gone");
+    });
+  });
+
   it("a number's token is never readable by the worker, and the same message twice is one event", async () => {
     await expect(
       as("lume_worker", { scope: null }, (c) => c.query("SELECT token_enc FROM whatsapp_numbers")),

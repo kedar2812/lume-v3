@@ -21,7 +21,8 @@ export type WaPerson = {
 };
 export type WaInboxMessage = { id: string; at: string; text: string | null; mediaId: string | null };
 export type WaMediaInfo = {
-  status: "waiting" | "ready" | "too_large" | "failed";
+  /** "removed": past the client's "keep files for"; "missing": the database has it, the disk doesn't. */
+  status: "waiting" | "ready" | "too_large" | "failed" | "removed" | "missing";
   problem: string | null;
   kind: "image" | "audio" | "video" | "document" | "sticker";
   mime: string;
@@ -44,3 +45,7 @@ export type WaThreadMessage = {
   } | null;
 };
 export type WaThread = { on: boolean; messages: WaThreadMessage[] };
+/** "Keep WhatsApp files for" (2026-10-19): null keeps them forever. */
+export type KeepMonths = 3 | 6 | 12 | 24 | null;
+/** What a shorter "keep for" would remove: files, and about how many bytes it frees. */
+export type KeepPreview = { files: number; bytes: number };

@@ -14,11 +14,15 @@ export async function startQueue(opts: {
   const boss = new PgBoss({ connectionString: opts.connectionString, schema: "pgboss", migrate: false });
   boss.on("error", (err) => opts.log.error({ err }, "queue error"));
   await boss.start();
-  await boss.schedule("ops.backup", "0 */6 * * *", {}, { tz: "UTC" });
+  // An hour to run: the dump, then a big first copy of WhatsApp's files (30 minutes at most a run).
+  await boss.schedule("ops.backup", "0 */6 * * *", {}, { tz: "UTC", expireInSeconds: 3600 });
   await boss.schedule("ops.restore-test", "0 4 * * 1", {}, { tz: "UTC" });
   await boss.work("ops.backup", { batchSize: 1 }, async () => {
     const r = await opts.jobs.backup();
-    opts.log.info({ backup: r.name, bytes: r.bytes, deleted: r.deleted.length }, "backup complete");
+    opts.log.info(
+      { backup: r.name, bytes: r.bytes, deleted: r.deleted.length, files: r.files ?? null },
+      "backup complete",
+    );
   });
   await boss.work("ops.restore-test", { batchSize: 1 }, async () => {
     await opts.jobs.restoreTest();

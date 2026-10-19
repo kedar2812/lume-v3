@@ -20,6 +20,8 @@ export type MetaFake = {
   codes: Map<string, string>;
   numbers: Map<string, { display: string; name: string }>;
   media: Map<string, { mime: string; bytes: Buffer }>;
+  /** A media item's link, when it isn't the fake's own download (a host that isn't Meta's, a redirect). */
+  mediaUrls: Map<string, string>;
   /** Tokens Meta no longer accepts (190). */
   revoked: Set<string>;
   failHistorySync: boolean;
@@ -41,6 +43,7 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     codes: new Map<string, string>([["good-code", "EAAG-business-token"]]),
     numbers: new Map([["106540352242922", { display: "+91 90000 00001", name: "Harbour Studio" }]]),
     media: new Map<string, { mime: string; bytes: Buffer }>(),
+    mediaUrls: new Map<string, string>(),
     revoked: new Set<string>(),
     failHistorySync: false,
   };
@@ -70,6 +73,11 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
       if (u.pathname === "/__fake/revoke" && req.method === "POST") {
         state.revoked.add((body as { token: string }).token);
         return send(res, 200, { ok: true });
+      }
+      // A redirect, as a CDN might answer: wherever `to` says.
+      if (u.pathname === "/redirect") {
+        res.writeHead(302, { location: u.searchParams.get("to") ?? "/" });
+        return res.end();
       }
       if (u.pathname.startsWith("/download/")) {
         if (!auth || !tokens().has(auth) || state.revoked.has(auth))
@@ -114,7 +122,7 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         const m = state.media.get(id)!;
         return send(res, 200, {
           id,
-          url: `${base}/download/${id}`,
+          url: state.mediaUrls.get(id) ?? `${base}/download/${id}`,
           mime_type: m.mime,
           file_size: m.bytes.length,
           messaging_product: "whatsapp",

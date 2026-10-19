@@ -1,9 +1,16 @@
 import path from "node:path";
 import { backupName, selectBackupsToDelete } from "@lume/core";
 import type { Exec } from "./exec";
+import { syncFiles, type FilesDb, type FilesResult } from "./files-offsite";
 
 export type { Exec } from "./exec";
-export type BackupResult = { name: string; bytes: number; deleted: string[] };
+/** `files`: WhatsApp's files sent off-site after the dump; `{ error }` when that failed (the dump still stands). */
+export type BackupResult = {
+  name: string;
+  bytes: number;
+  deleted: string[];
+  files?: FilesResult | { error: string };
+};
 export type RestoreTestResult = {
   startedAt: Date;
   finishedAt: Date;
@@ -22,6 +29,8 @@ export type OpsDeps = {
   env: Record<string, string>;
   now: () => Date;
   recordRestoreTest: (r: RestoreTestResult) => Promise<void>;
+  /** WhatsApp's files (2026-10-19): the volume (read-only), the age keys, and the database's part. */
+  files?: { db: FilesDb; filesDir: string; recipients: string[]; tmpDir: string };
 };
 
 function lastJsonLine(out: string): Record<string, unknown> {
@@ -53,7 +62,18 @@ export function makeOpsJobs(d: OpsDeps): OpsJobs {
         d.now(),
       );
       for (const n of deleted) await d.exec("rclone", ["deletefile", `${d.remote}/${n}`], d.env);
-      return { name, bytes: Number(out.bytes ?? 0), deleted };
+      const result: BackupResult = { name, bytes: Number(out.bytes ?? 0), deleted };
+      // Then WhatsApp's files: each once, after the dump that points at them. Its failure never fails the dump;
+      // it's recorded, and System health says so after a day without.
+      if (d.files)
+        result.files = await syncFiles({
+          exec: d.exec,
+          remote: d.remote,
+          env: d.env,
+          now: d.now,
+          ...d.files,
+        }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }));
+      return result;
     },
     async restoreTest() {
       const startedAt = d.now();

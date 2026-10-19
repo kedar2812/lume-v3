@@ -1,6 +1,7 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
+import { bytesText } from "@lume/core/shared";
 import { healthClient, type Health } from "@/lib/settings/health";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import h from "./health.module.css";
@@ -169,6 +170,7 @@ export function SystemHealth({ initial }: { initial: Health }) {
             <p className={h.off}>No sheets or webhooks yet.</p>
           )}
         </Card>
+        <Storage storage={health.storage} />
         <Card title="Backups" warn={health.restoreTest.ok === false}>
           <Line label="Last restore test">
             {health.restoreTest.at
@@ -178,6 +180,45 @@ export function SystemHealth({ initial }: { initial: Health }) {
         </Card>
       </div>
     </div>
+  );
+}
+
+/** From this share of the disk in use, the card warns (the API tells the admins at the same point). */
+const DISK_WARN = 0.85;
+
+/**
+ * Storage (2026-10-19): how full the server's disk is, as a bar, and what LUME keeps on it. A disk LUME can't read is
+ * "not known", never a guess.
+ */
+function Storage({ storage }: { storage: Health["storage"] }) {
+  const { diskTotal: total, diskFree: free, database, whatsappFiles } = storage;
+  const used = total && free !== null ? Math.min(1, Math.max(0, 1 - free / total)) : null;
+  const pct = used === null ? null : Math.round(used * 100);
+  return (
+    <Card title="Storage" warn={used !== null && used >= DISK_WARN}>
+      {used !== null && pct !== null ? (
+        <div className={h.disk}>
+          <div
+            className={h.diskBar}
+            role="meter"
+            aria-label="Server disk in use"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+            aria-valuetext={`${pct}% in use`}
+            data-warn={used >= DISK_WARN || undefined}
+          >
+            <span style={{ width: `${pct}%` }} />
+          </div>
+          <span className={h.diskPct}>{pct}% in use</span>
+        </div>
+      ) : null}
+      <Line label="Free">
+        {free !== null && total ? `${bytesText(free)} of ${bytesText(total)}` : "not known"}
+      </Line>
+      <Line label="Database">{database !== null ? bytesText(database) : "not known"}</Line>
+      <Line label="WhatsApp files">{bytesText(whatsappFiles)}</Line>
+    </Card>
   );
 }
 

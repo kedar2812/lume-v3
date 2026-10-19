@@ -8,6 +8,7 @@ import { runDigests } from "./digest";
 import { noTouch } from "./no-touch";
 import { askOutcomes } from "../meetings/outcomes";
 import { opsAlerts } from "../health/service";
+import type { FilesDeps } from "../whatsapp/files";
 import { securitySweep } from "../security/sweep";
 import { clearExpiredExports } from "../lead-exports/service";
 import { rollupLeadCounts } from "../leads/query";
@@ -30,6 +31,8 @@ export async function startTaskQueue(o: {
   digest?: { mailer: Mailer; publicUrl: string };
   /** How often the clock ticks (LUME_FOLLOW_UP_TICK_MS); a minute unless tests ask for faster. */
   tickMs?: number;
+  /** WhatsApp's files (2026-10-19): the disk they're on, for the storage alerts. */
+  files?: FilesDeps | null;
 }) {
   const boss = new PgBoss({
     connectionString: o.connectionString,
@@ -137,6 +140,7 @@ export async function startTaskQueue(o: {
               pool: o.pool,
               lastSweepAt: () => lastSweepAt,
               startedAt,
+              files: o.files ?? null,
               ...(o.digest ? { mailer: o.digest.mailer, publicUrl: o.digest.publicUrl } : {}),
             }),
           "system alerts failed",

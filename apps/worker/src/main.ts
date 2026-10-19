@@ -28,6 +28,32 @@ const jobs = makeOpsJobs({
     BACKUP_AGE_RECIPIENTS: cfg.BACKUP_AGE_RECIPIENTS.join(","),
     BACKUP_AGE_IDENTITY_FILE: cfg.BACKUP_AGE_IDENTITY_FILE,
   },
+  // WhatsApp's files (2026-10-19): sent off-site after each dump, as lume_worker (it never reads what a file is).
+  files: {
+    filesDir: cfg.LUME_FILES_DIR,
+    recipients: cfg.BACKUP_AGE_RECIPIENTS,
+    tmpDir: "/tmp",
+    db: {
+      salt: async () =>
+        (await pool.query<{ s: string }>("SELECT files_salt AS s FROM settings WHERE id = 1")).rows[0]!.s,
+      goneBefore: async (at) =>
+        (
+          await pool.query<{ sha256: string }>(
+            "SELECT sha256 FROM whatsapp_files_gone WHERE gone_at < $1 ORDER BY gone_at LIMIT 1000",
+            [at],
+          )
+        ).rows.map((r) => r.sha256),
+      forgetGone: async (sha256) => {
+        await pool.query("DELETE FROM whatsapp_files_gone WHERE sha256 = $1", [sha256]);
+      },
+      record: async (ok, detail) => {
+        await pool.query("INSERT INTO ops_events (kind, ok, detail) VALUES ('backup.files', $1, $2)", [
+          ok,
+          JSON.stringify(detail),
+        ]);
+      },
+    },
+  },
   recordRestoreTest: async (r) => {
     await pool.query(
       "INSERT INTO ops_restore_tests (started_at, finished_at, backup_name, ok, details) VALUES ($1, $2, $3, $4, $5)",

@@ -25,4 +25,11 @@ describe("what a client's server passes to LUME", () => {
     for (const k of ["LUME_AI_PROVIDER", "LUME_AI_MODEL", "LUME_AI_KEY"])
       expect(api).toContain(`${k}: \${${k}:-}`);
   });
+
+  it("WhatsApp's files live on their own volume: the API writes it, the worker only reads it for the off-site copy", () => {
+    const volumes = compose.slice(compose.indexOf("\nvolumes:\n"), compose.indexOf("\nsecrets:\n"));
+    expect(volumes).toContain("\n  files: {}\n");
+    expect(service("api")).toContain("      - files:/var/lib/lume/files\n");
+    expect(service("worker")).toContain("      - files:/var/lib/lume/files:ro\n");
+  });
 });

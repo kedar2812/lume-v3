@@ -101,6 +101,8 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
       // Connecting goes through the relay, and the server calls Meta itself afterwards.
       available: !!(d.whatsappRelay ?? d.googleOAuth) && !!d.meta,
       inPlan: moduleIncluded(req.server.licence.view().plan, "whatsapp"),
+      // How long WhatsApp's files are kept (2026-10-19): null, forever.
+      keepFilesMonths: s?.i.whatsapp?.keepFilesMonths ?? null,
     },
     ai: {
       enabled: !!s?.i.ai?.enabled,

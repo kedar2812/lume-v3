@@ -544,6 +544,24 @@
   gap: 12px;
   flex-wrap: wrap;
 }
+/* "Keep WhatsApp files" (2026-10-19): the choice, and what it means, under the numbers. */
+.waKeep {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.waKeepNote {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+  padding-bottom: 7px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
 .waLink {
   font-size: var(--fs-sm);
   font-weight: var(--fw-medium);

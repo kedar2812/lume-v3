@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaMediaInfo, WaThreadMessage } from "@/lib/whatsapp/types";
@@ -147,6 +147,76 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
     );
     expect(await screen.findByText("Getting this photo from WhatsApp…")).toBeInTheDocument();
     expect(await screen.findByText("This file is over 25 MB. Open it on the phone.")).toBeInTheDocument();
+  });
+
+  it("files LUME let go, or the disk lost, and files waiting for a reason: said in words (2026-10-19)", async () => {
+    const words: Record<string, Partial<WaMediaInfo>> = {
+      r1: {
+        status: "removed",
+        problem: "LUME keeps WhatsApp files for 6 months. This one is still on the phone.",
+      },
+      x1: { status: "missing", problem: "This file isn't on the server any more. It's still on the phone." },
+      f1: { status: "waiting", problem: "The server's disk is full. LUME will try again." },
+    };
+    vi.mocked(whatsappClient.mediaInfo).mockImplementation(async (id) => ok(info(words[id]!)));
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={Object.keys(words).map((id, i) =>
+          msg({
+            id: String(i),
+            media: { id, kind: "image", mime: "image/jpeg", filename: null, voice: false },
+          }),
+        )}
+      />,
+    );
+    for (const w of Object.values(words)) expect(await screen.findByText(w.problem!)).toBeInTheDocument();
+    expect(screen.queryByText(/Getting this photo/)).toBeNull();
+  });
+
+  it("a file on its way is looked at again until it's here", async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(whatsappClient.mediaInfo)
+      .mockResolvedValueOnce(ok(info({ status: "waiting" })))
+      .mockResolvedValue(ok(info({})));
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={[
+          msg({
+            id: "1",
+            media: { id: "m1", kind: "image", mime: "image/jpeg", filename: null, voice: false },
+          }),
+        ]}
+      />,
+    );
+    expect(await screen.findByText("Getting this photo from WhatsApp…")).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(await screen.findByRole("img", { name: "Photo from Sneha" })).toBeInTheDocument();
+  });
+
+  it("a photo that won't load says so instead of a broken image", async () => {
+    vi.mocked(whatsappClient.mediaInfo).mockResolvedValue(ok(info({})));
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={[
+          msg({
+            id: "1",
+            media: { id: "m1", kind: "image", mime: "image/jpeg", filename: null, voice: false },
+          }),
+        ]}
+      />,
+    );
+    const img = await screen.findByRole("img", { name: "Photo from Sneha" });
+    fireEvent.error(img);
+    expect(
+      await screen.findByText("LUME couldn’t show this photo. Open it on the phone."),
+    ).toBeInTheDocument();
   });
 
   it("nothing yet: says so, naming the lead (no guessed pronoun)", () => {

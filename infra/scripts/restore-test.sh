@@ -30,4 +30,14 @@ if [ "$migrations" -lt 1 ] || [ "$tables" -lt 3 ]; then
   fail "sanity counts failed (migrations=$migrations tables=$tables)"
 fi
 
-printf '{"ok":true,"backup":"%s","migrations":%s,"tables":%s}\n' "$latest" "$migrations" "$tables"
+# WhatsApp's files (2026-10-19): one at random, from the files that go off-site on their own, downloads and decrypts
+# with the restore-test key (age refuses anything tampered with).
+files="none"
+pick="$(rclone lsf --files-only "$RCLONE_REMOTE/files" 2>/dev/null | grep -E '^[0-9a-f]{64}\.age$' | shuf -n 1 || true)"
+if [ -n "$pick" ]; then
+  rclone copyto "$RCLONE_REMOTE/files/$pick" "$work/file.age" || fail "a WhatsApp file didn't download"
+  age -d -i "$BACKUP_AGE_IDENTITY_FILE" -o "$work/file" "$work/file.age" || fail "a WhatsApp file didn't decrypt"
+  files="checked"
+fi
+
+printf '{"ok":true,"backup":"%s","migrations":%s,"tables":%s,"files":"%s"}\n' "$latest" "$migrations" "$tables" "$files"

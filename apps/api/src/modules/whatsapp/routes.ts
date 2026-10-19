@@ -3,6 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { ignorePeer, inboxPerson, inboxView, makeLead } from "./inbox";
+import { KEEP_MONTHS, keepPreview } from "./keep";
 import { mediaInfo, sendMedia } from "./media";
 import { leadThread } from "./thread";
 import {
@@ -11,7 +12,7 @@ import {
   disconnect,
   numbersView,
   setOwner,
-  setWhatsAppEnabled,
+  setWhatsAppSettings,
 } from "./service";
 
 /** WhatsApp (spec 2026-10-18 §3): the module switch, connecting numbers and whose each is — admins only. */
@@ -21,8 +22,25 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
   const id = z.object({ id: z.uuid() });
   r.put(
     "/api/v1/integrations/whatsapp",
-    { ...manage, schema: { body: z.object({ enabled: z.boolean() }).strict() } },
-    (req) => setWhatsAppEnabled(req, d, req.body.enabled),
+    {
+      ...manage,
+      schema: {
+        body: z
+          .object({ enabled: z.boolean().optional(), keepFilesMonths: KEEP_MONTHS.optional() })
+          .strict()
+          .refine((b) => b.enabled !== undefined || b.keepFilesMonths !== undefined, "Nothing to change."),
+      },
+    },
+    (req) => setWhatsAppSettings(req, d, req.body),
+  );
+  // How many files a shorter "keep for" would remove, for the sheet that asks first.
+  r.get(
+    "/api/v1/whatsapp/files/keep-preview",
+    {
+      ...manage,
+      schema: { querystring: z.object({ months: z.coerce.number().pipe(KEEP_MONTHS.unwrap()) }).strict() },
+    },
+    (req) => keepPreview(d, req.query.months),
   );
   r.post("/api/v1/whatsapp/connect", manage, (req) => connectStart(req, d));
   r.post(
@@ -53,12 +71,12 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
   r.get(
     "/api/v1/whatsapp/media/:id",
     { config: { permission: "leads.view" }, schema: { params: id } },
-    (req, reply) => sendMedia(req, reply, req.params.id),
+    (req, reply) => sendMedia(req, reply, d, req.params.id),
   );
   r.get(
     "/api/v1/whatsapp/media/:id/info",
     { config: { permission: "leads.view" }, schema: { params: id } },
-    (req) => mediaInfo(req, req.params.id),
+    (req) => mediaInfo(req, d, req.params.id),
   );
   // Not a lead yet (§4.1): the number's owner and whoever sees every lead (row-level security decides).
   const person = z.object({ numberId: z.uuid(), peer: z.string().regex(/^\+\d{6,16}$/) });

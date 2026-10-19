@@ -177,6 +177,34 @@ test.describe.serial("WhatsApp", () => {
     await expect(page.getByRole("dialog", { name: "Ravi K" })).toBeVisible();
   });
 
+  test("an admin keeps WhatsApp files for 3 months, then forever again (2026-10-19)", async ({ page }) => {
+    await openApp(page, "/settings/integrations");
+    const card = page.getByRole("article", { name: /^WhatsApp/ });
+    const keep = card.getByRole("combobox", { name: "Keep WhatsApp files" });
+    await expect(keep).toHaveValue("");
+    // Every file here is from today: nothing would go, so nothing is asked.
+    await keep.selectOption("3 months");
+    await expect(page.getByText("WhatsApp files are kept for 3 months")).toBeVisible();
+    await expect(card.getByText("Older files go from LUME. They stay on the phone.")).toBeVisible();
+    await keep.selectOption("Forever");
+    await expect(page.getByText("WhatsApp files are kept forever")).toBeVisible();
+    await expect(keep).toHaveValue("");
+  });
+
+  test("System health shows the disk, the database and WhatsApp's files — both themes", async ({ page }) => {
+    await openApp(page, "/settings/health");
+    const storage = page.getByRole("region", { name: "Storage" });
+    await expect(storage).toContainText("WhatsApp files");
+    await expect(storage).toContainText("Database");
+    await expect(storage.getByRole("meter", { name: "Server disk in use" })).toBeVisible();
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(storage, `storage-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+  });
+
   test("screenshots and axe: the card, the connect sheet, the thread and Not a lead yet — both themes", async ({
     page,
   }) => {

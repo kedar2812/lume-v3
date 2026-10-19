@@ -77,12 +77,40 @@ Nothing extra: WhatsApp uses the same relay connection as Connect with Google (`
 4. Back in LUME: choose **whose number** it is, a person or the business. A person's number sends its replies'
    notices to the lead's owner; strangers who write to it wait in that person's Not a lead yet.
 
+## Files: where they're kept, how long, and their backup (2026-10-19)
+
+- **Where they live.** Photos, voice notes, videos and documents (25 MB at most) are kept on the client's server,
+  in the `files` volume, each once and named by its content's SHA-256. A brochure sent to 150 leads is one file. The
+  database holds only which message points at which file.
+- **How long they're kept.** Forever by default. An admin can choose 2 years, 1 year, 6 months or 3 months (Settings →
+  Integrations → WhatsApp → Keep WhatsApp files). LUME asks first and says how many files would go. Older files leave
+  within the hour; the messages stay on their leads, saying the file is still on the phone. A removed file doesn't
+  come back: Meta's links expire, so LUME can't fetch it again.
+- **Disk guards.**
+  - System health shows the disk, the database and WhatsApp's files. Admins are told once a business day, in the app
+    and by email, when the disk is 85% full.
+  - At 95%, LUME stops keeping new files: they wait with "The server's disk is full" and are tried again every
+    15 minutes. The database never runs out of room first.
+  - Files from numbers no lead has are capped at 1 GB a day for each connected number.
+- **Backup.** After each 6-hourly dump, the worker sends off-site every file the remote doesn't have yet, encrypted to
+  the same age keys. Each file goes once (30 minutes a run at most; a big first copy carries on in the next run). The
+  weekly restore test decrypts one at random. Restoring them is step 7 of `docs/runbooks/restore.md`.
+- **Serving.**
+  - A file is reached only through a message the person may see.
+  - Photos, voice notes and video show in place, with byte ranges so Safari can play them.
+  - Everything else downloads, and nothing is ever run as a page (`sandbox` CSP, `nosniff`). LUME doesn't scan
+    documents for viruses: it never opens them, it only hands them over.
+  - Media are fetched only from Meta's own hosts, so a number's token never goes anywhere else.
+
 ## When something's wrong
 
 | What the card says | What to do |
 |---|---|
 | "WhatsApp stopped letting LUME in. Connect this number again." | The token was revoked, or the number was disconnected in the app. Choose **Connect again**. Photos waiting since then are fetched once it's back. |
 | "Whoever connected this number can't see leads any more. Connect it again." | The admin who connected it was paused or lost the permission. Another admin connects it again. Messages wait meanwhile. |
+| A photo says "The server's disk is full. LUME will try again." | The disk is 95% full. Free space, choose a shorter "Keep WhatsApp files", or move to a bigger server; waiting files are fetched again by themselves. |
+| System health: "LUME can't write WhatsApp files on this server." | The `files` volume isn't mounted (an old `docker-compose.yml`). Update the compose file from this release and `docker compose up -d`. |
+| System health: "WhatsApp files haven't reached the backup for over a day." | Check `docker compose logs worker` for `backup complete` and its `files` line, and that the `offsite` remote is reachable. |
 | No messages arriving | Check the relay's logs for `/wa/in` and the client's API log for `/whatsapp/in`. A 401 at the client means the relay token differs. |
 
 ## What to verify against the test number (before the first client)

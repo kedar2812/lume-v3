@@ -20,6 +20,7 @@ const read: Health = {
     },
   ],
   restoreTest: { at: "2026-10-14T03:15:00.000Z", ok: true },
+  storage: { diskTotal: 100e9, diskFree: 38e9, database: 5e8, whatsappFiles: 0 },
   problems: [
     { key: "reminders_late", words: "2 reminders are late." },
     { key: "jobs_failed", words: "3 background jobs failed." },

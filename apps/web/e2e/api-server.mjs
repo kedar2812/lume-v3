@@ -1,7 +1,7 @@
 // Starts the real API (built bundle) against the e2e database, logging to e2e/.artifacts/api.log so the
 // tests can read the first-run setup token exactly as an operator would.
 import { spawn } from "node:child_process";
-import { createWriteStream, mkdirSync, readFileSync } from "node:fs";
+import { createWriteStream, mkdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 
 const here = import.meta.dirname;
@@ -14,6 +14,10 @@ if (!appPw) throw new Error("TEST_PW_LUME_APP is required");
 const dbUrl = `postgres://lume_app:${encodeURIComponent(appPw)}@${admin.host}/lume_e2e`;
 
 mkdirSync(path.join(here, ".artifacts"), { recursive: true });
+// WhatsApp's files (2026-10-19): a fresh folder each run, as a client's `files` volume.
+const filesDir = path.join(here, ".artifacts/files");
+rmSync(filesDir, { recursive: true, force: true });
+mkdirSync(filesDir, { recursive: true });
 const log = createWriteStream(path.join(here, ".artifacts/api.log"), { flags: "w" });
 
 const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")], {
@@ -39,6 +43,7 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     WHATSAPP_RELAY_URL: `http://127.0.0.1:${process.env.E2E_RELAY_PORT ?? 3115}`,
     WHATSAPP_RELAY_TOKEN: "e2e-relay-token-0123456789-abcdefghij",
     META_GRAPH_URL: `http://127.0.0.1:${process.env.E2E_META_PORT ?? 3114}`,
+    LUME_FILES_DIR: filesDir,
     LUME_FX_FIXED: "AED:USD=0.27",
     // Google Sheets against the fake Google (e2e/google-fake.ts), never the real one.
     GOOGLE_SERVICE_ACCOUNT_JSON: readFileSync(path.join(here, ".artifacts/google-key.b64"), "utf8"),

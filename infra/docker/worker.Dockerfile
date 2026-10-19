@@ -17,9 +17,11 @@ ENV NODE_ENV=production NODE_OPTIONS="--max-old-space-size=512 --enable-source-m
 WORKDIR /app
 COPY --from=build /src/apps/worker/dist ./dist
 COPY --from=build /src/packages/db/migrations ./migrations
-COPY --from=build /src/infra/scripts/backup.sh /src/infra/scripts/restore-test.sh ./scripts/
-# Owned by node so a fresh named volume mounted here inherits writable ownership.
-RUN install -d -o node -g node /var/lib/lume/offsite
+COPY --from=build /src/infra/scripts/backup.sh /src/infra/scripts/restore-test.sh /src/infra/scripts/restore-files.sh ./scripts/
+# Owned by node so a fresh named volume mounted here inherits writable ownership. The files volume is read-only here
+# (the API writes it); restore-files.sh mounts it writable on its own run.
+RUN install -d -o node -g node /var/lib/lume/offsite \
+ && install -d -o node -g node -m 750 /var/lib/lume/files
 # A release (licensing L-C): LUME_RELEASE=1 bakes /app/release.json; the version is the image's own.
 ARG LUME_RELEASE
 # None for a dev image: it then reports LUME's own version (package.json).

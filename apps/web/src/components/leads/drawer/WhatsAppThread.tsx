@@ -1,4 +1,5 @@
 "use client";
+import { bytesText } from "@lume/core/shared";
 import { useEffect, useState } from "react";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
 import { mediaUrl, whatsappClient } from "@/lib/whatsapp/client";
@@ -13,28 +14,44 @@ const NOUN: Record<WaMediaInfo["kind"], string> = {
   document: "document",
   sticker: "sticker",
 };
-/** "1.2 MB", "84 KB". */
-export function sizeWords(bytes: number | null): string | null {
-  if (bytes === null) return null;
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
+/** "1.2 MB", "84 KB": the same words as everywhere else in LUME. */
+export const sizeWords = (bytes: number | null): string | null => (bytes === null ? null : bytesText(bytes));
 const typeWord = (mime: string, filename: string | null) =>
   mime === "application/pdf" ? "PDF" : (filename?.split(".").pop()?.toUpperCase() ?? "File");
 
-/** One file in a message: here, on its way, or said in words when it can't be shown. */
+/** While a file is on its way: looked at again this often, for this long (then the next open of the lead). */
+const RECHECK_MS = 4_000;
+const RECHECK_FOR_MS = 120_000;
+
+/**
+ * One file in a message: here, on its way, or said in words when it can't be shown (too large, past "keep files for",
+ * gone from the disk, or waiting for a reason such as a full disk). A file on its way is looked at again until it's
+ * here; one that won't load says so rather than showing a broken image.
+ */
 function MediaPart({ media, from }: { media: NonNullable<WaThreadMessage["media"]>; from: string }) {
   const [info, setInfo] = useState<WaMediaInfo | null>(null);
+  const [broken, setBroken] = useState(false);
   useEffect(() => {
     let live = true;
-    void whatsappClient.mediaInfo(media.id).then((r) => live && r.ok && setInfo(r.data));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const started = Date.now();
+    const look = async () => {
+      const r = await whatsappClient.mediaInfo(media.id);
+      if (!live || !r.ok) return;
+      setInfo(r.data);
+      // On its way (no reason given to wait): look again shortly. A reason (a full disk) means minutes, not seconds.
+      if (r.data.status === "waiting" && !r.data.problem && Date.now() - started < RECHECK_FOR_MS)
+        timer = setTimeout(() => void look(), RECHECK_MS);
+    };
+    void look();
     return () => {
       live = false;
+      if (timer) clearTimeout(timer);
     };
   }, [media.id]);
   const noun = media.kind === "audio" && !media.voice ? "audio file" : NOUN[media.kind];
   if (!info) return <div className={s.mediaWait} aria-hidden />;
-  if (info.status === "waiting")
+  if (info.status === "waiting" && !info.problem)
     return (
       <div className={s.mediaNote}>
         <span>Getting this {noun} from WhatsApp…</span>
@@ -47,12 +64,22 @@ function MediaPart({ media, from }: { media: NonNullable<WaThreadMessage["media"
         {info.problem ?? `LUME couldn’t fetch this ${noun}. Open it on the phone.`}
       </p>
     );
+  if (broken) return <p className={s.mediaNote}>LUME couldn’t show this {noun}. Open it on the phone.</p>;
   const src = mediaUrl(media.id);
   const label = `${noun[0]!.toUpperCase()}${noun.slice(1)} from ${from}`;
   if (media.kind === "image" || media.kind === "sticker")
-    return <img className={s.photo} src={src} alt={label} loading="lazy" />;
+    return <img className={s.photo} src={src} alt={label} loading="lazy" onError={() => setBroken(true)} />;
   if (media.kind === "video")
-    return <video className={s.photo} src={src} controls preload="metadata" aria-label={label} />;
+    return (
+      <video
+        className={s.photo}
+        src={src}
+        controls
+        preload="metadata"
+        aria-label={label}
+        onError={() => setBroken(true)}
+      />
+    );
   if (media.kind === "audio")
     return <audio className={s.audio} src={src} controls preload="metadata" aria-label={label} />;
   return (

@@ -11,6 +11,7 @@ import { startSheetsQueue } from "./modules/sheets/queue";
 import { calendarClientFor } from "./modules/calendar/google";
 import { startCalendarQueue } from "./modules/calendar/queue";
 import { startWebhookQueue } from "./modules/webhooks/queue";
+import { diskOf, fileStore } from "./modules/whatsapp/files";
 import { startWhatsAppQueue } from "./modules/whatsapp/queue";
 import { startTaskQueue } from "./modules/tasks/queue";
 import { processSetupTokens } from "./auth/setup-token";
@@ -131,6 +132,8 @@ const deps: AppDeps = {
   logger: { level: cfg.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: "[redacted]" } },
   licence,
   whatsapp,
+  // WhatsApp's files (2026-10-19): the `files` volume, and how full the disk under it is.
+  files: { store: fileStore(cfg.LUME_FILES_DIR), disk: () => diskOf(cfg.LUME_FILES_DIR) },
 };
 const app = await buildApp(deps);
 const queue = await startImportQueue({ connectionString: cfg.DATABASE_URL_APP, app, pool: jobPool, keyring });
@@ -179,6 +182,7 @@ const taskQueue = await startTaskQueue({
   pool: jobPool,
   digest: { mailer, publicUrl },
   tickMs: cfg.LUME_FOLLOW_UP_TICK_MS,
+  files: deps.files ?? null,
 });
 tasks.enqueue = taskQueue.enqueue;
 tasks.lastSweepAt = taskQueue.lastSweepAt;

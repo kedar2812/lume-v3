@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { makeOpsJobs, type Exec } from "./ops";
 
@@ -31,6 +34,39 @@ describe("ops.backup", () => {
     expect(calls[0]?.[0]).toBe("/app/scripts/backup.sh");
     expect(calls).toContainEqual(["rclone", "deletefile", "offsite:/b/lume-20250101T0000Z.dump.age"]);
     expect(calls.some((c) => c.includes("offsite:/b/notes.txt"))).toBe(false);
+  });
+});
+
+describe("ops.backup with WhatsApp's files (2026-10-19)", () => {
+  const filesDb = (record = vi.fn()) => ({
+    salt: async () => "salt",
+    goneBefore: async () => [],
+    forgetGone: async () => undefined,
+    record,
+  });
+  it("the files go after the dump; a failed file sync is reported, and the dump still stands", async () => {
+    const calls: string[] = [];
+    const exec: Exec = vi.fn(async (file, args) => {
+      calls.push(`${file} ${args[0] ?? ""}`);
+      if (file === "rclone" && args[0] === "lsf" && args[2] === "offsite:/b/files")
+        throw Object.assign(new Error("network down"), { code: 1 });
+      if (file === "rclone" && args[0] === "lsf") return "";
+      return '{"backup":"lume-20260921T1200Z.dump.age","bytes":10}\n';
+    });
+    const dir = await mkdtemp(path.join(tmpdir(), "lume-ops-"));
+    await mkdir(path.join(dir, "aa"));
+    await writeFile(path.join(dir, "aa", "a".repeat(64)), "x");
+    const record = vi.fn();
+    const res = await makeOpsJobs({
+      ...base,
+      exec,
+      recordRestoreTest: vi.fn(),
+      files: { db: filesDb(record), filesDir: dir, recipients: ["age1a", "age1b"], tmpDir: dir },
+    }).backup();
+    expect(calls[0]).toBe("/app/scripts/backup.sh ");
+    expect(calls.indexOf("rclone lsf")).toBeLessThan(calls.lastIndexOf("rclone lsf"));
+    expect(res).toMatchObject({ name: "lume-20260921T1200Z.dump.age", files: { error: "network down" } });
+    expect(record).toHaveBeenCalledWith(false, { error: "LUME couldn't list the backup's files." });
   });
 });
 

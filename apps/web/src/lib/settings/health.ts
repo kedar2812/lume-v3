@@ -10,6 +10,13 @@ export type Health = {
   noTouch: { enabled: boolean; lastRunAt: string | null; createdToday: number };
   sources: { id: string; name: string; type: string; status: string; lastSyncAt: string | null }[];
   restoreTest: { at: string | null; ok: boolean | null };
+  /** The server's disk and what LUME keeps on it, in bytes (2026-10-19); null where it can't be read. */
+  storage: {
+    diskTotal: number | null;
+    diskFree: number | null;
+    database: number | null;
+    whatsappFiles: number;
+  };
   problems: { key: string; words: string }[];
 };
 

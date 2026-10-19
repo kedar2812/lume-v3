@@ -14,6 +14,12 @@ const healthy: Health = {
   noTouch: { enabled: true, lastRunAt: null, createdToday: 0 },
   sources: [{ id: "s1", name: "Site form", type: "webhook", status: "active", lastSyncAt: null }],
   restoreTest: { at: "2026-09-27T03:00:00.000Z", ok: true },
+  storage: {
+    diskTotal: 96 * 1024 ** 3,
+    diskFree: 61 * 1024 ** 3,
+    database: 1.2 * 1024 ** 3,
+    whatsappFiles: 640 * 1024 ** 2,
+  },
   problems: [],
 };
 
@@ -33,6 +39,41 @@ describe("System health (3C Task 7)", () => {
     expect(screen.getByRole("region", { name: "Morning emails" })).toHaveTextContent("6");
     expect(screen.getByRole("region", { name: "Sources" })).toHaveTextContent("Site form");
     expect(screen.getByRole("region", { name: "Backups" })).toHaveTextContent(/passed/);
+  });
+
+  it("storage: how full the disk is as a bar, and what LUME keeps, in words people read", () => {
+    render(<SystemHealth initial={healthy} />);
+    const card = screen.getByRole("region", { name: "Storage" });
+    const bar = within(card).getByRole("meter", { name: "Server disk in use" });
+    expect(bar).toHaveAttribute("aria-valuenow", "36");
+    expect(bar).not.toHaveAttribute("data-warn");
+    expect(card).toHaveTextContent("36% in use");
+    expect(card).toHaveTextContent("Free 61 GB of 96 GB");
+    expect(card).toHaveTextContent("Database 1.2 GB");
+    expect(card).toHaveTextContent("WhatsApp files 640 MB");
+    expect(card).not.toHaveAttribute("data-warn");
+  });
+
+  it("storage: 85% or more warns; a disk LUME can't read is 'not known', with no bar", () => {
+    const { unmount } = render(
+      <SystemHealth initial={{ ...healthy, storage: { ...healthy.storage, diskFree: 9 * 1024 ** 3 } }} />,
+    );
+    expect(screen.getByRole("region", { name: "Storage" })).toHaveAttribute("data-warn");
+    expect(screen.getByRole("meter")).toHaveAttribute("data-warn");
+    unmount();
+    render(
+      <SystemHealth
+        initial={{
+          ...healthy,
+          storage: { diskTotal: null, diskFree: null, database: null, whatsappFiles: 0 },
+        }}
+      />,
+    );
+    const card = screen.getByRole("region", { name: "Storage" });
+    expect(within(card).queryByRole("meter")).toBeNull();
+    expect(card).toHaveTextContent("Free not known");
+    expect(card).toHaveTextContent("Database not known");
+    expect(card).toHaveTextContent("WhatsApp files 0 KB");
   });
 
   it("what needs a look, in words", () => {

@@ -66,6 +66,10 @@ const WITHOUT_RLS: Record<string, string> = {
   // processed), and the business's connected numbers (configuration; the token is encrypted, never selected by routes)
   whatsapp_events: "Background work and its bookkeeping",
   whatsapp_numbers: "Business configuration",
+  // WhatsApp's files on disk (2026-10-19): a content hash, a size and a count of media pointing at it; no lead data.
+  // A file is only ever reached through whatsapp_media, whose row-level security decides who sees it.
+  whatsapp_files: "Background work and its bookkeeping",
+  whatsapp_files_gone: "Background work and its bookkeeping",
   // Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes
   lead_firsts:
     "Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes",
