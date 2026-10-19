@@ -90,7 +90,7 @@ test.describe("Send feedback", () => {
       await reviewCopy(page, `filled-${theme}.png`);
       const before = (await lastReport(page)).count;
       await sheet.getByRole("button", { name: "Send" }).click();
-      await expect(page.getByText("Sent — thank you.")).toBeVisible();
+      await expect(page.getByText("Sent. Thank you.")).toBeVisible();
       await expect(sheet).toBeHidden();
 
       const { last, count } = await lastReport(page);
@@ -139,7 +139,7 @@ test.describe("Send feedback", () => {
       .setInputFiles({ name: "4k.png", mimeType: "image/png", buffer: await picture(page, 3840, 2160) });
     await expect(sheet.getByRole("img", { name: "Screenshot 1" })).toBeVisible({ timeout: 30_000 });
     await sheet.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByText("Sent — thank you.")).toBeVisible();
+    await expect(page.getByText("Sent. Thank you.")).toBeVisible();
     const [img] = (await lastReport(page)).last!.images as { data: string }[];
     expect(Buffer.from(img!.data, "base64").length).toBeLessThanOrEqual(1_572_864);
   });
@@ -150,13 +150,13 @@ test.describe("Send feedback", () => {
     await sheet.getByLabel("What happened?").fill("Calendar is off by 30 minutes");
     await sheet.getByRole("button", { name: "Send" }).click();
     await expect(sheet.getByRole("alert")).toHaveText(
-      "LUME couldn't reach its team just now. Your report is still here — try again in a minute.",
+      "LUME couldn't reach its team just now. Your report is still here. Try again in a minute.",
     );
     await reviewCopy(page, "not-sent.png");
     await expect(sheet.getByLabel("What happened?")).toHaveValue("Calendar is off by 30 minutes");
     await page.request.post(FAKE, { data: {} });
     await sheet.getByRole("button", { name: "Try again" }).click();
-    await expect(page.getByText("Sent — thank you.")).toBeVisible();
+    await expect(page.getByText("Sent. Thank you.")).toBeVisible();
     expect((await lastReport(page)).last).toMatchObject({
       text: "Calendar is off by 30 minutes",
       page: "/calendar",

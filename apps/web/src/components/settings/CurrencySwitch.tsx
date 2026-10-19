@@ -109,8 +109,8 @@ export function CurrencySwitch({
       busy: false,
       problem:
         r.code === "CURRENCY_CHANGED"
-          ? "The currency was just changed by someone else. Reload to see it — nothing was converted."
-          : "The currency couldn’t be changed. Nothing was converted — try again.",
+          ? "The currency was just changed by someone else. Reload to see it. Nothing was converted."
+          : "The currency couldn’t be changed. Nothing was converted. Try again.",
     });
   };
 
@@ -179,7 +179,7 @@ export function CurrencySwitch({
             </>
           ) : (
             <p className={s.dialogText}>
-              The live rate isn’t available right now. Type today’s rate to go ahead — every amount is
+              The live rate isn’t available right now. Type today’s rate to go ahead. Every amount is
               converted with it, once.
             </p>
           )}

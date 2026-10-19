@@ -133,7 +133,7 @@ function finish(
   } else instant = zonedToUtc(y, m, d, h, mi, s, ctx.timezone);
   // A written offset pins the instant, so its business-day date can differ from the digits typed.
   const date = offset ? dateIn(instant, ctx.timezone) : `${y}-${pad(m)}-${pad(d)}`;
-  if (date > ctx.today) return bad("DATE_FUTURE", "Date is in the future — check the day/month order.");
+  if (date > ctx.today) return bad("DATE_FUTURE", "Date is in the future. Check the day/month order.");
   if (date < "1990-01-01") return bad("DATE_TOO_OLD", "Date looks wrong (before 1990).");
   return okv({ date, instant: new Date(instant).toISOString() });
 }

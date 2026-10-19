@@ -166,7 +166,7 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
     setSending(false);
     if (r.ok) {
       // No sound: sending a report isn't an achievement.
-      toast({ tone: "ok", title: "Sent — thank you.", detail: "LUME's team reads every report." });
+      toast({ tone: "ok", title: "Sent. Thank you.", detail: "LUME's team reads every report." });
       close();
       return;
     }
@@ -262,7 +262,7 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
                         <span className={s.preparing}>Getting it ready…</span>
                       )}
                       {sh.refused && (
-                        <span className={s.refused}>LUME can&apos;t send this one — choose it again</span>
+                        <span className={s.refused}>LUME can&apos;t send this one. Choose it again</span>
                       )}
                       <button
                         type="button"
@@ -323,7 +323,7 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
             </div>
             <p className={s.plain}>
               This goes to the team that makes LUME, with your name, email and role, the page you were on and
-              your LUME version. Screenshots show whatever is on them — blur anything private first.
+              your LUME version. Screenshots show whatever is on them, so blur anything private first.
             </p>
           </div>
           {confirm && (

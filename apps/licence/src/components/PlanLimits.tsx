@@ -204,7 +204,7 @@ export function PlanLimits({
                 <b>{m.name}</b>
                 <span className={warn ? "pl-warn" : "note"}>
                   {warn
-                    ? `On at ${clientName} now — switching it off stops it at their next check-in.`
+                    ? `On at ${clientName} now. Switching it off stops it at their next check-in.`
                     : on
                       ? onNow
                         ? "In their plan · on now"

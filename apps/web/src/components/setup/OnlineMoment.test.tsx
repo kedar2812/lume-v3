@@ -16,7 +16,7 @@ describe("your LUME is online (spec 2026-10-15 §1.1)", () => {
   it("says so, with the licence, and Proceed to onboarding goes on", async () => {
     const onProceed = vi.fn();
     render(<OnlineMoment licence={LICENCE} reduce={false} onProceed={onProceed} />);
-    expect(screen.getByRole("status")).toHaveTextContent("Congratulations — your LUME is online");
+    expect(screen.getByRole("status")).toHaveTextContent("Congratulations, your LUME is online");
     expect(screen.getByRole("status")).toHaveTextContent("Subscription · paid until November 15, 2026");
     await userEvent.click(screen.getByRole("button", { name: "Proceed to onboarding" }));
     expect(onProceed).toHaveBeenCalledOnce();

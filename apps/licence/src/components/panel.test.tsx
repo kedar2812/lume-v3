@@ -417,7 +417,7 @@ describe("the Licence key card (spec 2026-10-15 §3.2)", () => {
     second.unmount();
     serve(withKey({ ...gone, status: "released" }));
     render(<ClientScreen id="c2" />);
-    expect(await card()).toHaveTextContent("Released — the next server to enter it takes it");
+    expect(await card()).toHaveTextContent("Released: the next server to enter it takes it");
   });
 
   it("Show fetches the key and shows it; Copy message copies the ready-to-send text", async () => {

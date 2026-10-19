@@ -65,7 +65,7 @@ export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () =
     <div>
       <p className={s.title}>Your recovery codes</p>
       <p className={s.sub}>
-        Each one signs you in once if you ever lose your phone. Save these somewhere safe — LUME can’t show
+        Each one signs you in once if you ever lose your phone. Save these somewhere safe. LUME can’t show
         them again.
       </p>
       <RecoveryCodeList codes={codes} saved={saved} onSavedChange={setSaved} />

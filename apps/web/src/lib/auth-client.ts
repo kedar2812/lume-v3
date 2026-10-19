@@ -78,7 +78,7 @@ export async function acceptInvite(token: string, password: string): Promise<Acc
 
 /** The API's password problems, in words a person can act on. */
 export const PASSWORD_PROBLEMS: Record<string, string> = {
-  too_short: "Use at least 12 characters — a short sentence works well.",
+  too_short: "Use at least 12 characters. A short sentence works well.",
   too_long: "That’s too long; keep it under 256 characters.",
   breached: "That password has appeared in a known data breach. Pick something else.",
   contains_email: "Don’t use your email address inside your password.",

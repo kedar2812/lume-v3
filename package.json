@@ -11,7 +11,7 @@
     "pnpm": ">=10"
   },
   "scripts": {
-    "lint": "eslint . && prettier --check . && node --test scripts/check-client-names.test.mjs && node scripts/check-client-names.mjs",
+    "lint": "eslint . && prettier --check . && node --test scripts/check-client-names.test.mjs scripts/check-copy.test.mjs && node scripts/check-client-names.mjs && node scripts/check-copy.mjs",
     "format": "prettier --write .",
     "typecheck": "pnpm -r --parallel typecheck",
     "test": "vitest run",

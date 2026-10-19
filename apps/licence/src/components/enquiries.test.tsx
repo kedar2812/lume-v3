@@ -94,12 +94,12 @@ describe("Enquiries (website spec §7)", () => {
     vi.mocked(api.patch).mockResolvedValue({
       ok: false,
       status: 409,
-      message: "Changed elsewhere — reload to see it.",
+      message: "Changed elsewhere. Reload to see it.",
     });
     render(<EnquiryScreen id="e1" />);
     await screen.findByRole("link", { name: "WhatsApp" });
     await userEvent.click(screen.getByRole("radio", { name: "Won" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Changed elsewhere — reload to see it.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Changed elsewhere. Reload to see it.");
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
 });

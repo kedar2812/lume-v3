@@ -190,7 +190,7 @@ export function readCsv(
   if (decoded.guessed)
     fileWarnings.push({
       code: "ENCODING_GUESSED",
-      message: "Some characters may be wrong — check the accents in the preview.",
+      message: "Some characters may be wrong. Check the accents in the preview.",
     });
   if (ragged)
     fileWarnings.push({

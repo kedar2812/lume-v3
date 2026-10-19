@@ -171,7 +171,7 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
             issue(
               c.column,
               "PHONE_EXCEL",
-              "Excel shortened this number; the full number is lost — re-export the column as text.",
+              "Excel shortened this number; the full number is lost. Re-export the column as text.",
             ),
           );
           break;
@@ -538,7 +538,7 @@ export function resolveColumnSettings(
           issue(
             a.column,
             "DATE_ORDER_NEEDED",
-            "This column has dates like 13/03 and 03/13 — choose how to read them.",
+            "This column has dates like 13/03 and 03/13. Choose how to read them.",
           ),
         );
       else dateOrders[a.column] = a.dateOrder === "ambiguous" ? defaultDateOrder(ctx.country) : a.dateOrder;

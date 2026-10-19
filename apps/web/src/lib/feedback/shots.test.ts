@@ -73,14 +73,14 @@ describe("notSent", () => {
   });
   it("has words for every way a report doesn't go", () => {
     expect(notSent(no(503, "FEEDBACK_UNREACHABLE")).text).toBe(
-      "LUME couldn't reach its team just now. Your report is still here — try again in a minute.",
+      "LUME couldn't reach its team just now. Your report is still here. Try again in a minute.",
     );
     expect(notSent(no(0, "OFFLINE")).text).toMatch(/couldn't reach its team/);
     expect(notSent(no(429, "FEEDBACK_LIMITED", { retryAfterSec: 1440 })).text).toBe(
-      "That's a lot of reports in an hour — thank you. Try again in 24 minutes.",
+      "That's a lot of reports in an hour, thank you. Try again in 24 minutes.",
     );
     expect(notSent(no(429, "FEEDBACK_LIMITED", { retryAfterSec: 30 })).text).toBe(
-      "That's a lot of reports in an hour — thank you. Try again in a minute.",
+      "That's a lot of reports in an hour, thank you. Try again in a minute.",
     );
     expect(notSent(no(422, "FEEDBACK_IMAGE_REFUSED", { index: 2 }))).toEqual({
       text: "One screenshot can't be sent. Remove it or choose it again; the rest of your report is still here.",

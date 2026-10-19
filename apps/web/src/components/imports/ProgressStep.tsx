@@ -149,7 +149,7 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
                     {n(c.errors)} with problems
                   </span>
                 )}
-                <p className={s.lede}>You can close this — LUME will let you know when it&apos;s done.</p>
+                <p className={s.lede}>You can close this. LUME will let you know when it&apos;s done.</p>
               </div>
             </div>
           </>
@@ -174,7 +174,7 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
                 ? view.fileName
                 : c.created + c.merged > 0
                   ? `${view.fileName} is in LUME`
-                  : `${view.fileName} was checked — nothing was added`}
+                  : `${view.fileName} was checked: nothing was added`}
             </h3>
             {view.status === "cancelled" && (
               <p className={s.lede}>
@@ -229,8 +229,8 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
             </div>
             {c.errors > 0 && (
               <p className={s.hintLine}>
-                Fix them in your spreadsheet and import that file — rows already in LUME merge, so nothing
-                doubles.
+                Fix them in your spreadsheet and import that file again. Rows already in LUME merge, so
+                nothing doubles.
               </p>
             )}
           </>

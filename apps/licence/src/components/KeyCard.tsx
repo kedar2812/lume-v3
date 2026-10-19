@@ -124,7 +124,7 @@ export function KeyCard({
       : status === "not_activated"
         ? "Not activated yet"
         : status === "released"
-          ? "Released — the next server to enter it takes it"
+          ? "Released: the next server to enter it takes it"
           : "Key decommissioned";
   const sub =
     status === "active"

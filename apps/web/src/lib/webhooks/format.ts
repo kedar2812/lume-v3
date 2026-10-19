@@ -24,7 +24,7 @@ const n = (v: number) => v.toLocaleString("en");
 
 /** "Last post 3 min ago · 12 today · 1 problem": is it working, and is it bringing leads? */
 export function webhookHealth(v: WebhookView): string {
-  if (v.status === "draft") return "Setting up — waiting for a test post";
+  if (v.status === "draft") return "Setting up: waiting for a test post";
   const parts = [
     v.lastEventAt ? `Last post ${ago(v.lastEventAt)}` : "No posts yet",
     `${n(v.eventsToday)} today`,

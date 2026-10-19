@@ -63,7 +63,7 @@ export const STARTER_VIEWS: { name: string; color: string; filters: Record<strin
   { name: "My overdue", color: "danger", filters: { ownerId: "me", followUpOverdue: "true" } },
   { name: "New today", color: "accent", filters: { createdDays: "1" } },
   { name: "No reply 3+ days", color: "warn", filters: { noReplyDays: "3" } },
-  { name: "Lost — re-engage", color: "meet", filters: { lostDaysAgo: "30" } },
+  { name: "Lost 30+ days", color: "meet", filters: { lostDaysAgo: "30" } },
 ];
 export type PresetKey = "coaching" | "general";
 

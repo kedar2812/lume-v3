@@ -103,7 +103,7 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
     card({ onSaved });
     await user.click(screen.getByRole("switch", { name: "Calendly in their plan" }));
     expect(
-      screen.getByText("On at Kestrel Logistics now — switching it off stops it at their next check-in."),
+      screen.getByText("On at Kestrel Logistics now. Switching it off stops it at their next check-in."),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "A number" }));
     await user.click(screen.getByRole("button", { name: "Save" }));

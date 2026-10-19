@@ -112,7 +112,7 @@ export function Integrations({ tz }: { tz?: string } = {}) {
             <p className={s.cardLede}>
               {out
                 ? NOT_IN_PLAN_NOTE
-                : "New rows in your sheets become leads — every few minutes, or at once with Refresh."}
+                : "New rows in your sheets become leads every few minutes, or at once with Refresh."}
             </p>
           </div>
           {(g.available || out) && (

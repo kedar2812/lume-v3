@@ -111,7 +111,7 @@ test.describe("The send queue (4C)", () => {
     await o.close();
   });
 
-  test("a masked rep runs a three-lead queue from “Lost — re-engage”: sent, skipped, not sent — the number never on the page", async ({
+  test("a masked rep runs a three-lead queue from “Lost 30+ days”: sent, skipped, not sent, the number never on the page", async ({
     page,
     context,
     browser,
@@ -132,7 +132,7 @@ test.describe("The send queue (4C)", () => {
     await endOpenRun(page);
     const views = (await callApi<{ views: { id: string; name: string }[] }>(page, "GET", "/api/v1/views"))
       .data.views;
-    const lostView = views.find((v) => v.name === "Lost — re-engage")!;
+    const lostView = views.find((v) => v.name === "Lost 30+ days")!;
     await openApp(page, `/leads?view=${lostView.id}`);
     await page.getByRole("button", { name: "Message these" }).click();
     const sheet = page.getByRole("dialog", { name: "Start a send queue" });

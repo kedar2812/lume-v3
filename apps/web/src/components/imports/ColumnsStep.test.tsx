@@ -114,13 +114,13 @@ describe("ColumnsStep", () => {
         {
           column: 1,
           code: "DATE_ORDER_NEEDED",
-          message: "This column has dates like 13/03 and 03/13 — choose how to read them.",
+          message: "This column has dates like 13/03 and 03/13. Choose how to read them.",
         },
       ],
     });
     render(<ColumnsStep draft={draft} onDraft={vi.fn()} onContinue={vi.fn()} blocked />);
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    expect(screen.getByText(/choose how to read them/)).toBeInTheDocument();
+    expect(screen.getByText(/Choose how to read them/)).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Read dates in Date as" })).toBeInTheDocument();
   });
 

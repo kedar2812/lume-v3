@@ -64,7 +64,7 @@ export function themeOf(doc: Document, systemDark: boolean): "porcelain" | "obsi
 }
 
 const UNREACHABLE =
-  "LUME couldn't reach its team just now. Your report is still here — try again in a minute.";
+  "LUME couldn't reach its team just now. Your report is still here. Try again in a minute.";
 const LICENCE = "This LUME's licence can't send feedback right now. Your report is still here.";
 const IMAGE =
   "One screenshot can't be sent. Remove it or choose it again; the rest of your report is still here.";
@@ -76,7 +76,7 @@ export function notSent(r: ApiResult<unknown>): { text: string; imageIndex?: num
   if (r.code === "FEEDBACK_LIMITED") {
     const m = Math.max(1, Math.ceil((Number(details.retryAfterSec) || 3600) / 60));
     return {
-      text: `That's a lot of reports in an hour — thank you. Try again in ${m === 1 ? "a minute" : `${m} minutes`}.`,
+      text: `That's a lot of reports in an hour, thank you. Try again in ${m === 1 ? "a minute" : `${m} minutes`}.`,
     };
   }
   if (r.code === "FEEDBACK_IMAGE_REFUSED") return { text: IMAGE, imageIndex: Number(details.index) || 0 };

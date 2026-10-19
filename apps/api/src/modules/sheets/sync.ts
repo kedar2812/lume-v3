@@ -322,8 +322,8 @@ async function syncSource(
     throw new Attention(
       "COLUMNS_CHANGED",
       broken.now
-        ? `The column “${broken.was}” is now called “${broken.now}”. Open the sheet's columns to check them — LUME won't guess.`
-        : `The column “${broken.was}” is gone from the sheet. Open the sheet's columns to check them — LUME won't guess.`,
+        ? `The column “${broken.was}” is now called “${broken.now}”. Open the sheet's columns to check them. LUME won't guess.`
+        : `The column “${broken.was}” is gone from the sheet. Open the sheet's columns to check them. LUME won't guess.`,
     );
   const first = firstRaw[0] ?? [];
   const anchorNow = anchorHash(header.slice(0, width), first, src.rowsRead ? (tailRaw[0] ?? []) : undefined);

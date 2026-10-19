@@ -166,5 +166,5 @@ export async function patchEnquiry(ctx: Ctx, id: string, p: z.infer<typeof patch
   );
   if (rows[0]) return { enquiry: view(rows[0]) };
   await getEnquiry(ctx, id);
-  throw new Refusal(409, "Changed elsewhere — reload to see it.", "CHANGED");
+  throw new Refusal(409, "Changed elsewhere. Reload to see it.", "CHANGED");
 }

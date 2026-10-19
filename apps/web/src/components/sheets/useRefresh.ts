@@ -39,7 +39,7 @@ export function resultLine(p: RefreshProgress | null, failure: string | null, pe
   if (failure) return failure;
   if (!p) return "Up to date";
   if (p.unreachable) return `Couldn't reach Google. LUME will try again in ${waitWords(p.retryInS)}.`;
-  if (p.status !== "done") return "Still bringing leads in — they'll appear as they arrive.";
+  if (p.status !== "done") return "Still bringing leads in. They'll appear as they arrive.";
   if (!p.created && !p.merged) return "Up to date";
   const parts = [
     p.created ? `${plural(p.created, "new lead", "new leads")}${personal ? " for you" : ""}` : null,

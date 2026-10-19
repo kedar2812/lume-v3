@@ -192,7 +192,7 @@ export function ColumnsStep({
           Match your columns
         </h3>
         <p className={s.lede}>
-          LUME matched what it could. Check each column, and choose where the rest go — anything set to Ignore
+          LUME matched what it could. Check each column, and choose where the rest go. Anything set to Ignore
           stays out.
         </p>
         {notice}

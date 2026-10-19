@@ -150,7 +150,7 @@ describe("the panel's enquiries (website spec §7)", () => {
     expect(stale.status).toBe(409);
     expect((stale.data as { error: { code: string; message: string } }).error).toEqual({
       code: "CHANGED",
-      message: "Changed elsewhere — reload to see it.",
+      message: "Changed elsewhere. Reload to see it.",
     });
     const one = (await admin.call("GET", `/api/enquiries/${e.id}`)).data as { enquiry: { status: string } };
     expect(one.enquiry.status).toBe("contacted");

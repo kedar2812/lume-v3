@@ -44,7 +44,7 @@ export async function forgetDigests(email: string): Promise<void> {
   }
 }
 
-/** Lost this many days ago (a view such as "Lost — re-engage" wants leads lost a while back). */
+/** Lost this many days ago (a view such as "Lost 30+ days" wants leads lost a while back). */
 export async function backdateLost(leadIds: string[], days: number): Promise<void> {
   // As the test database's superuser: test housekeeping, outside anyone's row-level scope.
   const url = new URL(adminUrl());

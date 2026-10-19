@@ -44,7 +44,7 @@ const SAMPLE: SampleEvent[] = [
   { when: "Tue 18:00", title: "Gym", who: "Just you", calendar: "own", attendees: [] },
   {
     when: "Wed 10:30",
-    title: "Discovery call — new enquiry",
+    title: "Discovery call: new enquiry",
     who: "j.ortega@mail.example",
     calendar: "own",
     attendees: ["j.ortega@mail.example"],

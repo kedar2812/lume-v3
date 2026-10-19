@@ -395,7 +395,7 @@ export function SetupWizard({
           frame(
             "totp",
             "Two-step sign-in",
-            "Scan this with an authenticator app — Google Authenticator, 1Password, Authy. It’s required for the owner.",
+            "Scan this with an authenticator app (Google Authenticator, 1Password, Authy). It’s required for the owner.",
             <form method="post" onSubmit={finish} noValidate>
               <div className={s.qrRow}>
                 {totp && <QrCode text={totp.otpauthUri} />}

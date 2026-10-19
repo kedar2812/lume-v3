@@ -142,7 +142,7 @@ describe("first-run setup (report §15.3)", () => {
       { name: "My overdue", n: 2 },
       { name: "New today", n: 2 },
       { name: "No reply 3+ days", n: 2 },
-      { name: "Lost — re-engage", n: 2 },
+      { name: "Lost 30+ days", n: 2 },
     ]);
     const custom = await h.pool.query("SELECT key FROM field_definitions WHERE NOT is_core ORDER BY key");
     expect(custom.rows.map((r) => r.key)).toEqual(["handled_by", "struggles"]);

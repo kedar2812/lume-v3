@@ -57,7 +57,7 @@ describe("ProgressStep", () => {
       );
     render(<ProgressStep initial={view() as never} onClose={vi.fn()} />);
     expect(
-      screen.getByText("You can close this — LUME will let you know when it's done."),
+      screen.getByText("You can close this. LUME will let you know when it's done."),
     ).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Rows done" })).toHaveAttribute("aria-valuenow", "400");
     await act(async () => vi.advanceTimersByTimeAsync(4100));
@@ -107,7 +107,7 @@ describe("ProgressStep", () => {
       />,
     );
     expect(
-      screen.getByRole("heading", { name: "leads.csv was checked — nothing was added" }),
+      screen.getByRole("heading", { name: "leads.csv was checked: nothing was added" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "View imported leads" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Download the 2 rows with problems" })).toBeInTheDocument();

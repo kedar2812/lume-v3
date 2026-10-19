@@ -80,7 +80,7 @@ describe("Send feedback", () => {
       images: [{ type: "image/webp", data: "UklGRg==" }],
     });
     expect(post.mock.calls[0]![0].screen).toMatch(/^\d+ × \d+ · [\d.]+×$/);
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Sent — thank you." }));
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Sent. Thank you." }));
     expect(toast.mock.calls[0]![0].sound).toBeUndefined(); // sending isn't an achievement
   });
 
@@ -92,7 +92,7 @@ describe("Send feedback", () => {
     await user.type(screen.getByLabelText("What happened?"), "The calendar is off by 30 minutes");
     await user.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "LUME couldn't reach its team just now. Your report is still here — try again in a minute.",
+      "LUME couldn't reach its team just now. Your report is still here. Try again in a minute.",
     );
     expect(screen.getByLabelText("What happened?")).toHaveValue("The calendar is off by 30 minutes");
     expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
@@ -113,7 +113,7 @@ describe("Send feedback", () => {
     await user.upload(screen.getByLabelText("Choose images"), [png(1), png(2)]);
     await screen.findByRole("img", { name: "Screenshot 2" });
     await user.click(screen.getByRole("button", { name: "Send" }));
-    expect(await screen.findByText("LUME can't send this one — choose it again")).toBeInTheDocument();
+    expect(await screen.findByText("LUME can't send this one. Choose it again")).toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: /Screenshot \d/ })).toHaveLength(2);
   });
 

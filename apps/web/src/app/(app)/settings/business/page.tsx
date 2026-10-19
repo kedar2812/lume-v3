@@ -15,7 +15,7 @@ export default async function Page() {
   return (
     <SettingsPage
       title="Business"
-      description="Your name, clock and currency — what every screen in LUME is measured in."
+      description="Your name, clock and currency: what every screen in LUME is measured in."
     >
       <div className={s.stack}>
         <BusinessForm initial={r.status === 200 && r.data ? r.data : undefined} />

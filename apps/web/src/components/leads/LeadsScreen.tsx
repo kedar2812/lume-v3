@@ -681,7 +681,7 @@ function Screen({
               <span className={s.wideOnly}>
                 <Button
                   variant="secondary"
-                  aria-label={unseenImport ? "Import — a finished import to look at" : "Import"}
+                  aria-label={unseenImport ? "Import: a finished import to look at" : "Import"}
                   onClick={() => setImporting(true)}
                 >
                   Import

@@ -81,7 +81,7 @@ describe("SetupWizard with a product key (spec 2026-10-15 §1.1)", () => {
     expect(screen.queryByLabelText("Setup token")).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Product key"), "LUME-7K2P-Q9XD-4MRT-H8VC-7Q2K");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText("Congratulations — your LUME is online")).toBeInTheDocument();
+    expect(await screen.findByText("Congratulations, your LUME is online")).toBeInTheDocument();
     expect(onCelebrate).toHaveBeenLastCalledWith(true);
     await userEvent.click(screen.getByRole("button", { name: "Proceed to onboarding" }));
     expect(onCelebrate).toHaveBeenLastCalledWith(false);

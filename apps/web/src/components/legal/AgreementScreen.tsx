@@ -82,7 +82,7 @@ export function AgreementScreen({ agreedVersion, next }: { agreedVersion: string
 
         {LEGAL_DRAFT && (
           <p className={s.draft}>
-            Draft for legal review — the final wording may change before LUME goes live.
+            Draft for legal review. The final wording may change before LUME goes live.
           </p>
         )}
 

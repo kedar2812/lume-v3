@@ -365,7 +365,7 @@ test("Plan limits: places and a module left out, the warning, Save, and the hist
   await card.getByRole("button", { name: "One more" }).click();
   await card.getByRole("switch", { name: "Webhooks in their plan" }).click();
   await expect(card).toContainText(
-    "On at Lotus Wellness now — switching it off stops it at their next check-in.",
+    "On at Lotus Wellness now. Switching it off stops it at their next check-in.",
   );
   await card.scrollIntoViewIfNeeded();
   for (const t of ["light", "dark"] as const) {

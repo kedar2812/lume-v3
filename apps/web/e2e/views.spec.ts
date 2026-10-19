@@ -48,7 +48,7 @@ test.describe("Saved views (4B)", () => {
 
   test("a new install's four views are in the sidebar, each with a count", async ({ page }) => {
     await openApp(page, "/today");
-    for (const name of ["My overdue", "New today", "No reply 3+ days", "Lost — re-engage"]) {
+    for (const name of ["My overdue", "New today", "No reply 3+ days", "Lost 30+ days"]) {
       const link = row(page, name);
       await expect(link).toBeVisible();
       await expect.poll(() => countOf(link)).not.toBeNaN();

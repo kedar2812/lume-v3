@@ -34,7 +34,7 @@ export function licenceLine(l: KeyLicence): string {
 const CHIME_AT_MS = 1820;
 
 /**
- * "Congratulations — your LUME is online" (owner, 2026-10-15; canvas Main, KeyObsidian): the mark rises and turns,
+ * "Congratulations, your LUME is online" (owner, 2026-10-15; canvas Main, KeyObsidian): the mark rises and turns,
  * a green ring draws round it as the online chime lands, then the words and Proceed to onboarding. With reduced
  * motion it's the final frame, and the chime at once.
  */
@@ -72,7 +72,7 @@ export function OnlineMoment({
           </svg>
         </span>
       </div>
-      <p className={`${o.title} ${o.w1}`}>Congratulations — your LUME is online</p>
+      <p className={`${o.title} ${o.w1}`}>Congratulations, your LUME is online</p>
       <p className={`${o.sub} ${o.w2}`}>
         Your key is approved and this LUME is yours. <strong>{licenceLine(licence)}.</strong>
       </p>
