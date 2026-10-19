@@ -89,7 +89,7 @@ const invite = (email: string) =>
 describe("the plan, kept (spec 2026-10-17 control §2)", () => {
   it("says it can keep a plan and which modules are on, with its check-in", async () => {
     await check();
-    expect(sent[0]!.accepts).toEqual(["announcements", "plan", "plan2"]);
+    expect(sent[0]!.accepts).toEqual(["announcements", "plan", "plan2", "plan3"]);
     expect((sent[0]!.health as { modulesOn: string[] }).modulesOn).toContain("webhooks");
   });
 

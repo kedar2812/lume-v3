@@ -17,14 +17,28 @@ const url = "/api/v1/settings/messaging";
 
 describe("Settings → Messages (4C Task 1)", () => {
   it("runs of 50 and 150 a day, until someone changes them", async () => {
-    expect((await admin.inject({ method: "GET", url })).json()).toEqual({ queueSize: 50, dailyCap: 150 });
+    expect((await admin.inject({ method: "GET", url })).json()).toEqual({
+      queueSize: 50,
+      dailyCap: 150,
+      paidSendsMonthly: null,
+    });
+  });
+
+  it("W3b-2: an admin's own monthly limit on paid WhatsApp messages, or none", async () => {
+    const a = await admin.inject({ method: "PUT", url, payload: { paidSendsMonthly: 500 } });
+    expect(a.json()).toMatchObject({ paidSendsMonthly: 500 });
+    expect((await admin.inject({ method: "PUT", url, payload: { paidSendsMonthly: 0 } })).statusCode).toBe(
+      400,
+    );
+    const b = await admin.inject({ method: "PUT", url, payload: { paidSendsMonthly: null } });
+    expect(b.json()).toMatchObject({ paidSendsMonthly: null });
   });
 
   it("each changes on its own, in range, and the change is audited", async () => {
     const a = await admin.inject({ method: "PUT", url, payload: { queueSize: 80 } });
-    expect(a.json()).toEqual({ queueSize: 80, dailyCap: 150 });
+    expect(a.json()).toEqual({ queueSize: 80, dailyCap: 150, paidSendsMonthly: null });
     const b = await admin.inject({ method: "PUT", url, payload: { dailyCap: 300 } });
-    expect(b.json()).toEqual({ queueSize: 80, dailyCap: 300 });
+    expect(b.json()).toEqual({ queueSize: 80, dailyCap: 300, paidSendsMonthly: null });
     for (const bad of [
       { queueSize: 0 },
       { queueSize: 201 },

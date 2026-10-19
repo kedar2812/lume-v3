@@ -175,7 +175,9 @@ export function said(e: Detail["history"][number]): { text: string; color: strin
               .filter(Boolean)
               .join(", ")}`
           : "";
-      return { text: `Plan: ${places}${out}${ai}`, color: "#2a5bff" };
+      const paid = n(d.paidSendsMonthly);
+      const wa = paid ? `; ${paid} paid WhatsApp messages a month` : "";
+      return { text: `Plan: ${places}${out}${ai}${wa}`, color: "#2a5bff" };
     }
     case "announcement":
       return {

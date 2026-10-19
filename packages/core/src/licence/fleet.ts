@@ -106,6 +106,11 @@ export const planClaimSchema = z
     /** LUME AI's limits (§2.2): reads in a rolling hour, and in a week from Monday 00:00. Absent or null: none. */
     aiReadsHourly: z.number().int().min(1).max(100_000).nullable().optional(),
     aiReadsWeekly: z.number().int().min(1).max(1_000_000).nullable().optional(),
+    /**
+     * Paid WhatsApp messages a month (W3b-2; owner 2026-10-19: usage is monthly): templates WhatsApp charges for, on the
+     * business's clock. Absent or null: none. Only for a LUME that accepts plan3.
+     */
+    paidSendsMonthly: z.number().int().min(1).max(10_000_000).nullable().optional(),
   })
   .strict();
 export type PlanClaim = z.infer<typeof planClaimSchema>;
@@ -113,4 +118,4 @@ export type PlanClaim = z.infer<typeof planClaimSchema>;
 export const moduleIncluded = (plan: PlanClaim | null | undefined, key: PlanModule): boolean =>
   plan?.modules[key] !== false;
 /** What a LUME from this release can keep, sent with its check-in: the licence server signs those claims only then. */
-export const ACCEPTS = ["announcements", "plan", "plan2"] as const;
+export const ACCEPTS = ["announcements", "plan", "plan2", "plan3"] as const;

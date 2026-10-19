@@ -41,7 +41,15 @@ describe("the plan in the signed answer", () => {
       "ai",
       "whatsapp",
     ]);
-    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2"]);
+    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3"]);
+  });
+  it("W3b-2: a monthly limit on paid WhatsApp messages, within bounds", () => {
+    const sign = (p: unknown) =>
+      verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
+    expect(sign({ ...plan, paidSendsMonthly: 1000 })?.plan?.paidSendsMonthly).toBe(1000);
+    expect(sign({ ...plan, paidSendsMonthly: null })).not.toBeNull();
+    expect(sign({ ...plan, paidSendsMonthly: 0 })).toBeNull();
+    expect(sign({ ...plan, paidSendsMonthly: 10_000_001 })).toBeNull();
   });
   it("refuses a module it doesn't know, or places out of bounds", () => {
     const bad = (p: unknown) =>

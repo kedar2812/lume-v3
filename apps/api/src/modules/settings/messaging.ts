@@ -3,15 +3,19 @@ import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import { schema } from "@lume/db";
 
-/** Settings → Messages (4C): how many leads a run holds, and how many queued sends a person makes a day. */
-export type MessagingSettings = { queueSize: number; dailyCap: number };
-export const MESSAGING_DEFAULTS: MessagingSettings = { queueSize: 50, dailyCap: 150 };
+/**
+ * Settings → Messages (4C): how many leads a run holds, and how many queued sends a person makes a day; and (W3b-2) an
+ * admin's own monthly limit on paid WhatsApp messages, under the plan's (null: only the plan's).
+ */
+export type MessagingSettings = { queueSize: number; dailyCap: number; paidSendsMonthly: number | null };
+export const MESSAGING_DEFAULTS: MessagingSettings = { queueSize: 50, dailyCap: 150, paidSendsMonthly: null };
 
 /** Each changes on its own. */
 export const messagingBody = z
   .object({
     queueSize: z.number().int().min(1).max(200),
     dailyCap: z.number().int().min(1).max(500),
+    paidSendsMonthly: z.number().int().min(1).max(10_000_000).nullable(),
   })
   .partial()
   .strict();

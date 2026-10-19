@@ -97,6 +97,15 @@ describe("the plan, signed", () => {
       aiReadsWeekly: 750,
     });
   });
+  it("W3b-2: signs the monthly limit on paid WhatsApp messages only for a LUME that accepts plan3", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, paidSendsMonthly: 1000 });
+    const v2 = (await payloadOf(await post(c, ["announcements", "plan", "plan2"]), c.instanceId))!.plan!;
+    expect(v2).not.toHaveProperty("paidSendsMonthly");
+    const v3 = (await payloadOf(await post(c, ["announcements", "plan", "plan2", "plan3"]), c.instanceId))!
+      .plan!;
+    expect(v3.paidSendsMonthly).toBe(1000);
+  });
   it("is no limit and everything included until it's set", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
     expect((await payloadOf(await post(c, ["plan"]), c.instanceId))!.plan).toEqual({
@@ -126,8 +135,15 @@ describe("PATCH /api/clients/:id/plan", () => {
       },
       aiReadsHourly: null,
       aiReadsWeekly: null,
+      paidSendsMonthly: null,
     });
-    expect(r.usage).toEqual({ people: 4, modulesOn: ["webhooks", "calendly"], knows: true, knowsAi: false });
+    expect(r.usage).toEqual({
+      people: 4,
+      modulesOn: ["webhooks", "calendly"],
+      knows: true,
+      knowsAi: false,
+      knowsPaid: false,
+    });
     expect(r.history[0]).toMatchObject({
       kind: "plan",
       detail: { places: 5, left: ["googleSheets", "calendly"] },
@@ -150,6 +166,17 @@ describe("PATCH /api/clients/:id/plan", () => {
       kind: "plan",
       detail: { places: null, left: [], aiReadsHourly: 40, aiReadsWeekly: 250 },
     });
+  });
+  it("W3b-2: keeps the paid-message limit, says it in the history, and refuses one out of bounds", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await post(c, ["announcements", "plan", "plan2", "plan3"]);
+    const r = await patchPlan(ctx, c.clientId, { places: null, modules: {}, paidSendsMonthly: 2500 });
+    expect(r.plan).toMatchObject({ paidSendsMonthly: 2500 });
+    expect(r.usage).toMatchObject({ knowsPaid: true });
+    expect(r.history[0]).toMatchObject({ kind: "plan", detail: { paidSendsMonthly: 2500 } });
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: {}, paidSendsMonthly: 0 }),
+    ).rejects.toThrow("Paid WhatsApp messages a month: at least 1, or no limit.");
   });
   it("on an older LUME says it can't keep one yet", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });

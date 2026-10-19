@@ -288,11 +288,17 @@ export async function getClient(ctx: Ctx, id: string) {
     plan: planOf(
       (
         await ctx.db.query<PlanRow>(
-          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly FROM licences WHERE client_id = $1",
+          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly FROM licences WHERE client_id = $1",
           [id],
         )
-      ).rows[0] ?? { places: null, modules: {}, ai_reads_hourly: null, ai_reads_weekly: null },
-      { v2: true },
+      ).rows[0] ?? {
+        places: null,
+        modules: {},
+        ai_reads_hourly: null,
+        ai_reads_weekly: null,
+        paid_sends_monthly: null,
+      },
+      { v2: true, v3: true },
     ),
     usage: {
       people: l?.active_users ?? 0,
@@ -300,6 +306,8 @@ export async function getClient(ctx: Ctx, id: string) {
       knows: !!l?.accepts?.includes("plan"),
       // LUME AI and WhatsApp in the plan (spec 2026-10-18 §2.2) reach only a LUME that accepts plan2.
       knowsAi: !!l?.accepts?.includes("plan2"),
+      // Paid WhatsApp messages a month (W3b-2) reach only a LUME that accepts plan3.
+      knowsPaid: !!l?.accepts?.includes("plan3"),
     },
   };
 }
@@ -309,6 +317,7 @@ type PlanRow = {
   modules: Record<string, boolean>;
   ai_reads_hourly: number | null;
   ai_reads_weekly: number | null;
+  paid_sends_monthly: number | null;
 };
 
 const aiLimit = (most: number, words: string) =>
@@ -327,6 +336,7 @@ export const planSchema = z
     // LUME AI's limits (spec 2026-10-18 §2.2): absent or null is no limit (the Plan limits card always sends both).
     aiReadsHourly: aiLimit(100_000, "AI reads an hour"),
     aiReadsWeekly: aiLimit(1_000_000, "AI reads a week"),
+    paidSendsMonthly: aiLimit(10_000_000, "Paid WhatsApp messages a month"),
   })
   .strict();
 
@@ -339,6 +349,7 @@ export async function patchPlan(
     modules: Partial<Record<string, boolean>>;
     aiReadsHourly?: number | null;
     aiReadsWeekly?: number | null;
+    paidSendsMonthly?: number | null;
   },
 ) {
   const p = planSchema.safeParse(body);
@@ -347,9 +358,10 @@ export async function patchPlan(
   const left = PLAN_MODULES.filter((k) => p.data.modules[k] === false);
   const hourly = p.data.aiReadsHourly ?? null;
   const weekly = p.data.aiReadsWeekly ?? null;
+  const paid = p.data.paidSendsMonthly ?? null;
   const before = (
     await ctx.db.query<PlanRow>(
-      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly FROM licences WHERE client_id = $1",
+      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly FROM licences WHERE client_id = $1",
       [id],
     )
   ).rows[0]!;
@@ -358,17 +370,32 @@ export async function patchPlan(
     before.places === p.data.places &&
     was.join() === left.join() &&
     before.ai_reads_hourly === hourly &&
-    before.ai_reads_weekly === weekly
+    before.ai_reads_weekly === weekly &&
+    before.paid_sends_monthly === paid
   )
     return getClient(ctx, id);
   await ctx.db.query(
-    "UPDATE licences SET places = $2, modules = $3, ai_reads_hourly = $4, ai_reads_weekly = $5 WHERE client_id = $1",
-    [id, p.data.places, JSON.stringify(Object.fromEntries(left.map((k) => [k, false]))), hourly, weekly],
+    `UPDATE licences SET places = $2, modules = $3, ai_reads_hourly = $4, ai_reads_weekly = $5, paid_sends_monthly = $6
+      WHERE client_id = $1`,
+    [
+      id,
+      p.data.places,
+      JSON.stringify(Object.fromEntries(left.map((k) => [k, false]))),
+      hourly,
+      weekly,
+      paid,
+    ],
   );
   await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'plan', $3)", [
     id,
     ctx.now(),
-    JSON.stringify({ places: p.data.places, left, aiReadsHourly: hourly, aiReadsWeekly: weekly }),
+    JSON.stringify({
+      places: p.data.places,
+      left,
+      aiReadsHourly: hourly,
+      aiReadsWeekly: weekly,
+      paidSendsMonthly: paid,
+    }),
   ]);
   return getClient(ctx, id);
 }

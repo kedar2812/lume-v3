@@ -18,7 +18,8 @@ export type NotifyKind =
   | "security_alert"
   | "bulk_done"
   | "lead_replied"
-  | "template_decided";
+  | "template_decided"
+  | "whatsapp_usage";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */

@@ -8,9 +8,20 @@ export type Plan = {
   modules: Record<Module, boolean>;
   aiReadsHourly: number | null;
   aiReadsWeekly: number | null;
+  /** Paid WhatsApp messages a month (W3b-2). */
+  paidSendsMonthly: number | null;
 };
-/** `knowsAi`: their LUME accepts plan2, so it keeps LUME AI, WhatsApp and the AI limits (spec 2026-10-18 §2.2). */
-export type Usage = { people: number; modulesOn: string[]; knows: boolean; knowsAi: boolean };
+/**
+ * `knowsAi`: their LUME accepts plan2, so it keeps LUME AI, WhatsApp and the AI limits (spec 2026-10-18 §2.2).
+ * `knowsPaid`: it accepts plan3, so it keeps the monthly limit on paid WhatsApp messages (W3b-2).
+ */
+export type Usage = {
+  people: number;
+  modulesOn: string[];
+  knows: boolean;
+  knowsAi: boolean;
+  knowsPaid: boolean;
+};
 
 const MODULES: { key: Module; name: string; mark: string | null }[] = [
   { key: "googleSheets", name: "Google Sheets", mark: "/brand/google-sheets.png" },
@@ -24,6 +35,7 @@ const AI_LIMITS = [
   { key: "aiReadsHourly", label: "AI reads an hour", most: 100_000 },
   { key: "aiReadsWeekly", label: "AI reads a week", most: 1_000_000 },
 ] as const;
+const PAID_MOST = 10_000_000;
 /** What's typed in an AI limit: empty is no limit; a whole number from 1 to its most; anything else is invalid. */
 const limitOf = (typed: string, most: number): number | null | "invalid" => {
   const t = typed.trim();
@@ -59,6 +71,7 @@ export function PlanLimits({
   const [typed, setTyped] = useState({
     aiReadsHourly: plan.aiReadsHourly === null ? "" : String(plan.aiReadsHourly),
     aiReadsWeekly: plan.aiReadsWeekly === null ? "" : String(plan.aiReadsWeekly),
+    paidSendsMonthly: plan.paidSendsMonthly === null ? "" : String(plan.paidSendsMonthly),
   });
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -66,18 +79,21 @@ export function PlanLimits({
 
   const hourly = limitOf(typed.aiReadsHourly, 100_000);
   const weekly = limitOf(typed.aiReadsWeekly, 1_000_000);
-  const invalid = hourly === "invalid" || weekly === "invalid";
+  const paid = limitOf(typed.paidSendsMonthly, PAID_MOST);
+  const invalid = hourly === "invalid" || weekly === "invalid" || paid === "invalid";
   const now = {
     places: unlimited ? null : places,
     modules,
     aiReadsHourly: hourly === "invalid" ? null : hourly,
     aiReadsWeekly: weekly === "invalid" ? null : weekly,
+    paidSendsMonthly: paid === "invalid" ? null : paid,
   };
   const dirty =
     now.places !== plan.places ||
     MODULES.some((m) => modules[m.key] !== plan.modules[m.key]) ||
     now.aiReadsHourly !== plan.aiReadsHourly ||
-    now.aiReadsWeekly !== plan.aiReadsWeekly;
+    now.aiReadsWeekly !== plan.aiReadsWeekly ||
+    now.paidSendsMonthly !== plan.paidSendsMonthly;
   const change = (f: () => void) => {
     f();
     setSaved(false);
@@ -262,6 +278,41 @@ export function PlanLimits({
             );
           })}
         </div>
+      </div>
+      <div className="pl-group">
+        <span className="pl-label">WhatsApp limit</span>
+        {usage.knows && !usage.knowsPaid && (
+          <span className="note">
+            Their LUME{version ? ` (${version})` : ""} can’t keep this limit yet; it will once it’s updated.
+          </span>
+        )}
+        <div className="pl-row">
+          <label className="field pl-limit">
+            <span>Paid WhatsApp messages a month</span>
+            <input
+              className="input"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={PAID_MOST}
+              step={1}
+              placeholder="No limit"
+              value={typed.paidSendsMonthly}
+              aria-invalid={paid === "invalid" || undefined}
+              aria-describedby={paid === "invalid" ? "paidSendsMonthly-problem" : undefined}
+              onChange={(e) => change(() => setTyped((x) => ({ ...x, paidSendsMonthly: e.target.value })))}
+            />
+            {paid === "invalid" && (
+              <span id="paidSendsMonthly-problem" className="pl-warn">
+                A whole number from 1, or empty for no limit.
+              </span>
+            )}
+          </label>
+        </div>
+        <span className="note">
+          Templates WhatsApp charges the client for, on their clock. At the limit their LUME sends no more
+          until next month.
+        </span>
       </div>
       {problem && (
         <p role="alert" className="fl-prob fl-red">

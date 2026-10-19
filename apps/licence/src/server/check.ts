@@ -50,6 +50,7 @@ type Row = {
   modules: Record<string, boolean>;
   ai_reads_hourly: number | null;
   ai_reads_weekly: number | null;
+  paid_sends_monthly: number | null;
 };
 const DAY = 86_400_000;
 /** A rotated key keeps its server going this long, while the client enters the new one (spec 2026-10-15 §2.4). */
@@ -85,7 +86,8 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
     `SELECT l.client_id, l.key_hash, l.type,
             to_char(l.paid_until, 'YYYY-MM-DD') AS paid_until, to_char(l.trial_ends, 'YYYY-MM-DD') AS trial_ends,
             l.suspended_at IS NOT NULL AS suspended, c.decommissioned_at IS NOT NULL AS decommissioned,
-            l.install_id, l.activated_at, l.released_at, l.places, l.modules, l.ai_reads_hourly, l.ai_reads_weekly
+            l.install_id, l.activated_at, l.released_at, l.places, l.modules, l.ai_reads_hourly, l.ai_reads_weekly,
+            l.paid_sends_monthly
        FROM licences l JOIN clients c ON c.id = l.client_id
       WHERE l.instance_id = $1`,
     [b.instanceId],
@@ -140,7 +142,9 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
     ? await liveAnnouncements(ctx.db, l.client_id, now)
     : undefined;
   // The client's plan (spec 2026-10-17 control §1), likewise only for a LUME that says it can keep one.
-  const plan = b.accepts?.includes("plan") ? planOf(l, { v2: !!b.accepts?.includes("plan2") }) : undefined;
+  const plan = b.accepts?.includes("plan")
+    ? planOf(l, { v2: !!b.accepts?.includes("plan2"), v3: !!b.accepts?.includes("plan3") })
+    : undefined;
   const sign = () =>
     issueToken(ctx.signer, now, {
       instanceId: b.instanceId,

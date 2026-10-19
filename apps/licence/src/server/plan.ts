@@ -5,6 +5,7 @@ type Row = {
   modules: Record<string, boolean> | null;
   ai_reads_hourly?: number | null;
   ai_reads_weekly?: number | null;
+  paid_sends_monthly?: number | null;
 };
 
 /**
@@ -12,7 +13,7 @@ type Row = {
  * unless the owner left it out. LUME AI, WhatsApp and the AI limits (spec 2026-10-18 §2.2) only for a LUME that
  * accepts plan2 (`v2`): an older one refuses keys it doesn't know.
  */
-export function planOf(l: Row, o: { v2: boolean }): PlanClaim {
+export function planOf(l: Row, o: { v2: boolean; v3?: boolean }): PlanClaim {
   const m = l.modules ?? {};
   const keys = o.v2 ? PLAN_MODULES : PLAN_V1_MODULES;
   const modules = Object.fromEntries(keys.map((k) => [k, m[k] !== false])) as PlanClaim["modules"];
@@ -22,6 +23,8 @@ export function planOf(l: Row, o: { v2: boolean }): PlanClaim {
     modules,
     aiReadsHourly: l.ai_reads_hourly ?? null,
     aiReadsWeekly: l.ai_reads_weekly ?? null,
+    // Paid WhatsApp messages a month (W3b-2) only for a LUME that accepts plan3.
+    ...(o.v3 ? { paidSendsMonthly: l.paid_sends_monthly ?? null } : {}),
   };
 }
 
