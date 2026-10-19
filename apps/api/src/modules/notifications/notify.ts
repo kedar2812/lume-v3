@@ -17,7 +17,8 @@ export type NotifyKind =
   | "meeting_cancelled"
   | "security_alert"
   | "bulk_done"
-  | "lead_replied";
+  | "lead_replied"
+  | "template_decided";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */

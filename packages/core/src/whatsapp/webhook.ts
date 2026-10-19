@@ -182,3 +182,43 @@ export function readStatuses(raw: unknown): WaStatus[] {
     }
   return out;
 }
+
+export type WaTemplateEvent = {
+  /** WhatsApp's id for the template (the submission's `meta_template_id`). */
+  templateId: string;
+  /** WhatsApp's word on it (APPROVED, REJECTED, PAUSED, DISABLED…), or CATEGORY when only its category changed. */
+  event: string;
+  /** Why, when WhatsApp gave a reason ("NONE" is none). */
+  reason: string | null;
+  category?: "MARKETING" | "UTILITY";
+};
+const templateIds = z.object({ message_template_id: z.union([z.number(), z.string()]) });
+
+/**
+ * WhatsApp's word on a business's templates (W3b-2): approved, turned down and why, paused, or moved to another
+ * category. These come for the business account, with no number in them, unlike messages. Malformed: left out.
+ */
+export function readTemplateEvents(raw: unknown): WaTemplateEvent[] {
+  const b = body.safeParse(raw);
+  if (!b.success) return [];
+  const out: WaTemplateEvent[] = [];
+  for (const entry of b.data.entry)
+    for (const c of entry.changes) {
+      const ch = z.object({ field: z.string(), value: z.record(z.string(), z.unknown()) }).safeParse(c);
+      if (!ch.success) continue;
+      const ids = templateIds.safeParse(ch.data.value);
+      if (!ids.success) continue;
+      const templateId = String(ids.data.message_template_id);
+      if (ch.data.field === "message_template_status_update") {
+        const v = z.object({ event: z.string(), reason: z.string().nullish() }).safeParse(ch.data.value);
+        if (!v.success) continue;
+        const reason = v.data.reason && v.data.reason !== "NONE" ? v.data.reason : null;
+        out.push({ templateId, event: v.data.event, reason });
+      } else if (ch.data.field === "template_category_update") {
+        const v = z.object({ new_category: z.enum(["MARKETING", "UTILITY"]) }).safeParse(ch.data.value);
+        if (v.success)
+          out.push({ templateId, event: "CATEGORY", reason: null, category: v.data.new_category });
+      }
+    }
+  return out;
+}

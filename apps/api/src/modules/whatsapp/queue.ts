@@ -5,6 +5,7 @@ import { scanWhatsAppFiles, sweepWhatsAppFiles } from "./keep";
 import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
 import { sendOutbox } from "./sender";
+import { sweepTemplates } from "./submit";
 
 const SWEEP_MS = 60_000;
 const MEDIA_WORKERS = 4;
@@ -148,6 +149,15 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     );
   };
   const hourly = setInterval(() => void hourlyWork(), 3_600_000);
+  // Templates still with WhatsApp after 10 minutes, asked about every 15 (W3b-2): a webhook can be lost.
+  const templates = setInterval(
+    () =>
+      void sweepTemplates(pool, o.d).catch((err: unknown) =>
+        o.app.log.error({ err }, "whatsapp templates sweep failed"),
+      ),
+    15 * 60_000,
+  );
+  templates.unref();
   hourly.unref();
   return {
     enqueue,
@@ -156,6 +166,7 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     stop: async () => {
       clearInterval(timer);
       clearInterval(hourly);
+      clearInterval(templates);
       await boss.stop({ graceful: true, wait: true, timeout: 20_000 });
     },
   };

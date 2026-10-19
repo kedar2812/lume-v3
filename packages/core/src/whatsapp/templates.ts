@@ -134,3 +134,16 @@ export function paramsFor(tokens: string[], ctx: RenderContext): { values: strin
   });
   return { values, missing };
 }
+
+/** WhatsApp's reasons for turning a template down, in LUME's words. */
+const REASONS: Record<string, string> = {
+  INVALID_FORMAT:
+    "WhatsApp found its format wrong: often a variable at the very start or end, or a sample that doesn't fit.",
+  INCORRECT_CATEGORY: "WhatsApp thinks it belongs in another category.",
+  TAG_CONTENT_MISMATCH: "WhatsApp thinks its category doesn't match what it says.",
+  PROMOTIONAL: "WhatsApp read it as selling something, which a reminder can't do.",
+  ABUSIVE_CONTENT: "WhatsApp found something in it that it doesn't allow.",
+  SCAM: "WhatsApp thought it could mislead people.",
+};
+export const templateReasonWords = (reason: string | null): string | null =>
+  reason === null ? null : (REASONS[reason] ?? `WhatsApp said: ${reason.toLowerCase().replace(/_/g, " ")}.`);

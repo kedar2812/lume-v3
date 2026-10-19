@@ -10,6 +10,8 @@ export class MetaError extends Error {
     message: string,
     /** Meta's own error code, when it gave one (a reply's refusal is said from it: core's `refusalOf`). */
     readonly code: number | null = null,
+    /** Meta's own words for a person, when it gave them (a template it won't take says why). */
+    readonly detail: string | null = null,
   ) {
     super(message);
     this.name = "MetaError";
@@ -56,10 +58,18 @@ export function metaClient(meta: NonNullable<AppDeps["meta"]>, token: string) {
     if (init.redirect === "manual" && r.status >= 300 && r.status < 400) return r;
     if (!r.ok) {
       // Meta says an expired or revoked token with code 190, sometimes as a 400.
-      const body = (await r.json().catch(() => ({}))) as { error?: { code?: number } };
+      const body = (await r.json().catch(() => ({}))) as {
+        error?: { code?: number; message?: string; error_user_msg?: string };
+      };
       const code = typeof body.error?.code === "number" ? body.error.code : null;
       if (code === 190) throw new MetaError("token", "WhatsApp stopped letting LUME in.", 190);
-      throw new MetaError("transient", "WhatsApp didn't answer properly just now.", code);
+      const said = body.error?.error_user_msg ?? body.error?.message ?? null;
+      throw new MetaError(
+        "transient",
+        "WhatsApp didn't answer properly just now.",
+        code,
+        said?.slice(0, 300) ?? null,
+      );
     }
     return r;
   };

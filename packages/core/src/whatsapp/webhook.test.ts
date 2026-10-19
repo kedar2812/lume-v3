@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { echo, envelope, history, inbound, PHONE_NUMBER_ID, statuses } from "./fixtures";
-import { readStatuses, readWebhook } from "./webhook";
+import { readStatuses, readTemplateEvents, readWebhook } from "./webhook";
 
 /** Meta's deliveries as LUME reads them (spec 2026-10-18 §4.1; plan W1 Task 1). */
 describe("reading Meta's WhatsApp webhooks", () => {
@@ -157,5 +157,52 @@ describe("reading Meta's delivery statuses", () => {
       { entry: [{ changes: [{ field: "messages", value: { statuses: 5 } }] }] },
     ])
       expect(readStatuses(bad)).toEqual([]);
+  });
+});
+
+describe("WhatsApp's word on a template (W3b-2 Task 4)", () => {
+  const hook = (changes: unknown[]) => ({
+    object: "whatsapp_business_account",
+    entry: [{ id: "102290129340398", time: 1760000000, changes }],
+  });
+  const ids = {
+    message_template_id: 800000001,
+    message_template_name: "visit_v1",
+    message_template_language: "en",
+  };
+
+  it("approved, turned down with its reason, and a new category", () => {
+    expect(
+      readTemplateEvents(
+        hook([
+          { field: "message_template_status_update", value: { event: "APPROVED", ...ids, reason: "NONE" } },
+          {
+            field: "message_template_status_update",
+            value: { event: "REJECTED", ...ids, reason: "INVALID_FORMAT" },
+          },
+          {
+            field: "template_category_update",
+            value: { ...ids, previous_category: "MARKETING", new_category: "UTILITY" },
+          },
+        ]),
+      ),
+    ).toEqual([
+      { templateId: "800000001", event: "APPROVED", reason: null },
+      { templateId: "800000001", event: "REJECTED", reason: "INVALID_FORMAT" },
+      { templateId: "800000001", event: "CATEGORY", reason: null, category: "UTILITY" },
+    ]);
+  });
+
+  it("messages, statuses and anything malformed are not template news", () => {
+    expect(readTemplateEvents(inbound())).toEqual([]);
+    expect(readTemplateEvents(null)).toEqual([]);
+    expect(
+      readTemplateEvents(hook([{ field: "message_template_status_update", value: { event: "APPROVED" } }])),
+    ).toEqual([]);
+    expect(
+      readTemplateEvents(
+        hook([{ field: "template_category_update", value: { ...ids, new_category: "AUTHENTICATION" } }]),
+      ),
+    ).toEqual([]);
   });
 });

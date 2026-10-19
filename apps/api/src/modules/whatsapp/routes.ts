@@ -9,6 +9,7 @@ import { archiveFile, listFiles, renameFile, setFileLink, uploadFile } from "./l
 import { mediaInfo, sendMedia } from "./media";
 import { attachFile, attachLibraryFile, sendLimiter, sendReply } from "./send";
 import { LIMITS } from "./sniff";
+import { submissionsOf, submitTemplate } from "./submit";
 import { leadThread } from "./thread";
 import {
   connectComplete,
@@ -132,6 +133,29 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
         reply.code(201).send(await uploadFile(req, d, bytesOf(req.body), fileNameOf(req))),
     );
   });
+  // A template to WhatsApp for approval (W3b-2), and where it stands.
+  r.post(
+    "/api/v1/templates/:id/whatsapp",
+    {
+      config: { permission: "templates.manage", idempotent: false },
+      schema: {
+        params: id,
+        body: z
+          .object({
+            language: z.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/),
+            category: z.enum(["MARKETING", "UTILITY"]).optional(),
+            headerFileId: z.uuid().optional(),
+          })
+          .strict(),
+      },
+    },
+    async (req, reply) => reply.code(202).send(await submitTemplate(req, d, req.params.id, req.body)),
+  );
+  r.get(
+    "/api/v1/templates/:id/whatsapp",
+    { config: { permission: "templates.use" }, schema: { params: id } },
+    (req) => submissionsOf(req, req.params.id),
+  );
   const fileId = z.object({ id: z.uuid() });
   r.get(
     "/api/v1/files",

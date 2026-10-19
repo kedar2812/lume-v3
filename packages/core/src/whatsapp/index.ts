@@ -1,4 +1,12 @@
-export { readStatuses, readWebhook, type WaEvent, type WaMedia, type WaStatus } from "./webhook";
+export {
+  readStatuses,
+  readTemplateEvents,
+  readWebhook,
+  type WaEvent,
+  type WaMedia,
+  type WaStatus,
+  type WaTemplateEvent,
+} from "./webhook";
 export {
   outboundBody,
   refusalOf,
@@ -13,6 +21,7 @@ export {
   metaNameOf,
   paramsFor,
   templateProblems,
+  templateReasonWords,
   toMetaTemplate,
   type HeaderKind,
   type MetaCategory,
