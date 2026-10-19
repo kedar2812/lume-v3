@@ -6,24 +6,14 @@ import type { AppDeps } from "../../app";
 import { HttpError, badRequest } from "../../http/errors";
 import { assertTaskOf, sendable } from "../leads/sending";
 import type { LeadRow } from "../leads/serialize";
-import { sha256Of, usedShare } from "./files";
-import { DISK_STOP } from "./media";
+import { checkFile, keepBytes } from "./keep-bytes";
 import { relayOf } from "./service";
-import { LIMITS, sniffType } from "./sniff";
 import { messagesOf, type ThreadMessage } from "./thread";
 
 /** WhatsApp's window for a free reply after the lead's last message (spec 2026-10-18 §3.4). */
 const WINDOW_MS = 24 * 3_600_000;
 const TEXT_MAX = 4096;
 const CAPTION_MAX = 1024;
-const KIND_WORDS: Record<keyof typeof LIMITS, string> = {
-  image: "Photos",
-  video: "Videos",
-  audio: "Voice notes and audio",
-  document: "Documents",
-};
-const TYPES =
-  "LUME can send photos (JPEG, PNG), videos (MP4), voice notes and documents (PDF, Word, Excel, PowerPoint, text).";
 
 const conflict = (code: string, message: string) => new HttpError(409, code, message);
 const windowClosed = (lead: LeadRow) => {
@@ -172,31 +162,8 @@ export async function attachFile(
   filename: string | null,
 ) {
   const { lead, number } = await mayReply(req, d, leadId);
-  const type = sniffType(bytes, filename ?? undefined);
-  if (!type) throw new HttpError(415, "FILE_TYPE", TYPES);
-  if (bytes.length > LIMITS[type.kind])
-    throw new HttpError(
-      413,
-      "FILE_TOO_BIG",
-      `${KIND_WORDS[type.kind]} can be up to ${LIMITS[type.kind] / (1024 * 1024)} MB.`,
-    );
-  const disk = d.files ? await d.files.disk() : null;
-  if (!d.files || (disk && usedShare(disk) >= DISK_STOP))
-    throw new HttpError(507, "DISK_FULL", "The server's disk is full. Ask an admin to free space.");
-  const sha256 = sha256Of(bytes);
-  // The file's row first, touched now, so the hourly sweep can't take the file between the write and the draft.
-  await req.db.execute(sql`
-    INSERT INTO whatsapp_files (sha256, size) VALUES (${sha256}, ${bytes.length})
-    ON CONFLICT (sha256) DO UPDATE SET last_ref_at = now()`);
-  await req.db.execute(sql`DELETE FROM whatsapp_files_gone WHERE sha256 = ${sha256}`);
-  try {
-    await d.files.store.put(bytes);
-  } catch (e) {
-    const code = (e as NodeJS.ErrnoException).code ?? "";
-    if (code === "ENOSPC" || code === "EDQUOT")
-      throw new HttpError(507, "DISK_FULL", "The server's disk is full. Ask an admin to free space.");
-    throw e;
-  }
+  const type = checkFile(bytes, filename);
+  const sha256 = await keepBytes(req, d, bytes);
   const id = newId();
   const name = filename?.trim().slice(0, 200) || null;
   await req.db.insert(schema.whatsappMedia).values({

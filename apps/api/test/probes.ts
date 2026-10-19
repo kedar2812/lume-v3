@@ -155,6 +155,13 @@ export const PROBES: Record<string, Probe> = {
   "PATCH /api/v1/templates/:id": { access: "templates.manage" },
   "POST /api/v1/templates/:id/archive": { access: "templates.manage" },
   "POST /api/v1/templates/:id/restore": { access: "templates.manage" },
+  // W3b-1: the file library is messaging content like templates: who uses templates sees it, who manages them changes it.
+  "GET /api/v1/files": { access: "templates.use" },
+  "POST /api/v1/files": { access: "templates.manage" },
+  "PATCH /api/v1/files/:id": { access: "templates.manage", body: () => ({ name: "Brochure.pdf" }) },
+  "POST /api/v1/files/:id/archive": { access: "templates.manage" },
+  "POST /api/v1/files/:id/restore": { access: "templates.manage" },
+  "PUT /api/v1/files/:id/link": { access: "templates.manage", body: () => ({ on: true }) },
   // 4B: saved views are anyone's who sees leads; sharing is checked inside (views.manage).
   "GET /api/v1/views": { access: "leads.view" },
   "GET /api/v1/views/counts": { access: "leads.view" },

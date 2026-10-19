@@ -4,6 +4,8 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { ignorePeer, inboxPerson, inboxView, makeLead } from "./inbox";
 import { KEEP_MONTHS, keepPreview } from "./keep";
+import { fileNameOf } from "./keep-bytes";
+import { archiveFile, listFiles, renameFile, setFileLink, uploadFile } from "./library";
 import { mediaInfo, sendMedia } from "./media";
 import { attachFile, sendLimiter, sendReply } from "./send";
 import { LIMITS } from "./sniff";
@@ -95,12 +97,13 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
     async (req, reply) => reply.code(202).send(await sendReply(req, d, limiter, req.params.id, req.body)),
   );
   await r.register(async (files) => {
-    // Scoped: only this route takes a raw body, at most a document's 25 MB (+1, so one byte over is refused in words).
+    // Scoped: only these routes take a raw body, at most a document's 25 MB (+1, so one byte over is refused in words).
     files.addContentTypeParser(
       "*",
       { parseAs: "buffer", bodyLimit: LIMITS.document + 1 },
       (_req, body, done) => done(null, body),
     );
+    const bytesOf = (body: unknown) => (Buffer.isBuffer(body) ? body : Buffer.alloc(0));
     files.withTypeProvider<ZodTypeProvider>().post(
       "/api/v1/leads/:id/whatsapp/files",
       {
@@ -108,19 +111,52 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
         bodyLimit: LIMITS.document + 1,
         schema: { params: id },
       },
-      async (req, reply) => {
-        const raw = req.headers["x-file-name"];
-        let name: string | null = null;
-        try {
-          name = typeof raw === "string" ? decodeURIComponent(raw).replace(/[\\/\r\n"]/g, "") : null;
-        } catch {
-          name = null;
-        }
-        const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-        return reply.code(201).send(await attachFile(req, d, req.params.id, body, name));
-      },
+      async (req, reply) =>
+        reply.code(201).send(await attachFile(req, d, req.params.id, bytesOf(req.body), fileNameOf(req))),
+    );
+    // The file library (W3b-1): a brochure or photo for the whole business, kept once.
+    files.post(
+      "/api/v1/files",
+      { config: { permission: "templates.manage", idempotent: false }, bodyLimit: LIMITS.document + 1 },
+      async (req, reply) =>
+        reply.code(201).send(await uploadFile(req, d, bytesOf(req.body), fileNameOf(req))),
     );
   });
+  const fileId = z.object({ id: z.uuid() });
+  r.get(
+    "/api/v1/files",
+    {
+      config: { permission: "templates.use" },
+      schema: { querystring: z.object({ archived: z.literal("1").optional() }) },
+    },
+    (req) => listFiles(req, d, req.query.archived === "1"),
+  );
+  r.patch(
+    "/api/v1/files/:id",
+    {
+      config: { permission: "templates.manage" },
+      schema: { params: fileId, body: z.object({ name: z.string().trim().min(1).max(120) }).strict() },
+    },
+    (req) => renameFile(req, d, req.params.id, req.body.name),
+  );
+  r.post(
+    "/api/v1/files/:id/archive",
+    { config: { permission: "templates.manage" }, schema: { params: fileId } },
+    (req) => archiveFile(req, d, req.params.id, true),
+  );
+  r.post(
+    "/api/v1/files/:id/restore",
+    { config: { permission: "templates.manage" }, schema: { params: fileId } },
+    (req) => archiveFile(req, d, req.params.id, false),
+  );
+  r.put(
+    "/api/v1/files/:id/link",
+    {
+      config: { permission: "templates.manage" },
+      schema: { params: fileId, body: z.object({ on: z.boolean() }).strict() },
+    },
+    (req) => setFileLink(req, d, req.params.id, req.body.on),
+  );
   // A file on a lead, or waiting in Not a lead yet: row-level security decides who sees it (§4.1).
   r.get(
     "/api/v1/whatsapp/media/:id",
