@@ -8,3 +8,13 @@ export {
   type Refusal,
 } from "./outbound";
 export { metaSignatureOk, relayCheck, relaySign } from "./sign";
+export {
+  metaCategoryOf,
+  metaNameOf,
+  paramsFor,
+  templateProblems,
+  toMetaTemplate,
+  type HeaderKind,
+  type MetaCategory,
+} from "./templates";
+export { costOf, TEMPLATE_RATES, type TemplateCost } from "./rates";

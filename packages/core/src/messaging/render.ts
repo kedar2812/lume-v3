@@ -128,7 +128,8 @@ function customValue(key: string, ctx: RenderContext): string | null {
   }
 }
 
-function valueOf(token: string, ctx: RenderContext): string | null {
+/** One variable's value for this lead, or null when there's nothing to say. */
+export function valueOf(token: string, ctx: RenderContext): string | null {
   switch (token) {
     case "lead.first_name":
       return first(ctx.lead.name) || null;
@@ -157,6 +158,38 @@ export function render(body: string, ctx: RenderContext): { text: string; missin
 }
 
 export type Variable = { token: string; label: string; needs?: "calendar" };
+
+const EXAMPLES: Record<string, string> = {
+  "lead.first_name": "Aisha",
+  "lead.name": "Aisha Khan",
+  "owner.first_name": "Riya",
+  "business.name": "Acme Studio",
+  "meeting.date": "October 24, Saturday",
+  "meeting.time": "10:30 am",
+  "meeting.link": "https://meet.google.com/abc-defg-hij",
+};
+const FIELD_EXAMPLES: Partial<Record<FieldType, string>> = {
+  number: "2",
+  currency: "5,000",
+  date: "24 Oct",
+  datetime: "24 Oct, 10:30",
+  boolean: "Yes",
+  user: "Riya",
+};
+
+/**
+ * What a variable looks like with a made-up lead: the sample WhatsApp asks for beside a template it reviews
+ * (W3b-2). Readable and the same for every business; a custom field's by its type.
+ */
+export function exampleOf(token: string, fields: { key: string; type: FieldType }[] = []): string {
+  const fixed = EXAMPLES[token];
+  if (fixed) return fixed;
+  if (token.startsWith("lead.custom.")) {
+    const f = fields.find((x) => x.key === token.slice("lead.custom.".length));
+    return (f && FIELD_EXAMPLES[f.type]) ?? "Premium";
+  }
+  return "example";
+}
 
 /** What the variable picker offers: the lead, the owner, the business, each non-contact field, and meetings. */
 export function VARIABLES(fields: { key: string; type: FieldType; label?: string }[]): Variable[] {
