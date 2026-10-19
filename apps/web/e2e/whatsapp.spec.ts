@@ -1,7 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { echo, inbound } from "../../../packages/core/src/whatsapp/fixtures";
+import { echo, inbound, statuses } from "../../../packages/core/src/whatsapp/fixtures";
 import { callApi, expect, freezeVolatile, openApp, reviewCopy, stateFile, test } from "./fixtures";
 import { settle } from "./settle";
 
@@ -189,6 +189,76 @@ test.describe.serial("WhatsApp", () => {
     await keep.selectOption("Forever");
     await expect(page.getByText("WhatsApp files are kept forever")).toBeVisible();
     await expect(keep).toHaveValue("");
+  });
+
+  test("reply from LUME: an admin switches it on; a rep replies with words and a PDF; the ticks follow (W3a)", async ({
+    page,
+  }) => {
+    await openApp(page, "/settings/integrations");
+    const card = page.getByRole("article", { name: /^WhatsApp/ });
+    await card.getByRole("switch", { name: "Reply from LUME" }).click();
+    await expect(card.getByRole("switch", { name: "Reply from LUME" })).toBeChecked();
+
+    const id = await lead(page, "Ananya Rao", "+919876512345");
+    await meta(
+      page.request,
+      inbound({
+        from: "919876512345",
+        name: "Ananya Rao",
+        id: "wamid.E2EREPLY1",
+        at: new Date().toISOString(),
+        type: "text",
+        text: { body: "Can you send the brochure?" },
+      }),
+    );
+    await openApp(page, `/leads?lead=${id}`);
+    const drawer = page.getByRole("dialog", { name: "Ananya Rao" });
+    const form = drawer.getByRole("form", { name: "Reply to Ananya on WhatsApp" });
+    await expect(async () => {
+      await drawer.getByRole("tab", { name: "WhatsApp" }).click();
+      await expect(form).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+    await expect(form).toContainText("You can reply until");
+
+    // Words, sent with Enter.
+    await form.getByRole("textbox", { name: "Message to Ananya" }).fill("Of course, sending it now.");
+    await form.getByRole("textbox", { name: "Message to Ananya" }).press("Enter");
+    const list = drawer.getByRole("list", { name: "WhatsApp messages with Ananya" });
+    await expect(list).toContainText("Of course, sending it now.");
+    await expect(list.getByText("Sent", { exact: true })).toBeVisible({ timeout: 20_000 });
+
+    // A PDF, with its words.
+    await form.getByLabel("Attach a photo or a file").setInputFiles({
+      name: "Brochure.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.7\n1 0 obj\n"),
+    });
+    await expect(form.getByText("Brochure.pdf")).toBeVisible();
+    await form.getByRole("textbox", { name: "Words with the file" }).fill("Our brochure");
+    await form.getByRole("button", { name: "Send" }).click();
+    await expect(list).toContainText("Our brochure");
+
+    // Meta says delivered, then read: the ticks follow by themselves.
+    const sent = (await (await page.request.get(`${META}/__fake/sent`)).json()) as {
+      sent: { to: string; type: string; wamid: string }[];
+    };
+    const mine = sent.sent.filter((m) => m.to === "919876512345");
+    expect(mine.map((m) => m.type)).toEqual(["text", "document"]);
+    for (const status of ["delivered", "read"])
+      await meta(page.request, statuses({ id: mine[0]!.wamid, status, at: new Date().toISOString() }));
+    await expect(list.getByText("Read", { exact: true })).toBeVisible({ timeout: 20_000 });
+
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(drawer, `reply-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+
+    // Back off, as every other test expects.
+    await openApp(page, "/settings/integrations");
+    await card.getByRole("switch", { name: "Reply from LUME" }).click();
+    await expect(card.getByRole("switch", { name: "Reply from LUME" })).not.toBeChecked();
   });
 
   test("System health shows the disk, the database and WhatsApp's files — both themes", async ({ page }) => {

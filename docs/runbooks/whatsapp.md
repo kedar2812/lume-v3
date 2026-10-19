@@ -77,6 +77,37 @@ Nothing extra: WhatsApp uses the same relay connection as Connect with Google (`
 4. Back in LUME: choose **whose number** it is, a person or the business. A person's number sends its replies'
    notices to the lead's owner; strangers who write to it wait in that person's Not a lead yet.
 
+## Reply from LUME (plan W3a, 2026-10-19)
+
+- **The switch.** Off by default. An admin switches it on in Settings → Integrations → WhatsApp → **Reply from
+  LUME** (audited). It only works while WhatsApp is on and in the plan.
+- **Who may reply.** Anyone with `messages.send` who can see the lead, the same rule as tap-to-send. The message goes
+  from the number the lead last wrote to, shows on that phone too, and the thread says who sent it.
+- **When.** Only within WhatsApp's 24 hours of the lead's last message on that number. LUME checks again when Send is
+  tapped. Outside that window the box shows the reason and the usual **Message** button (tap-to-send on this device).
+  Approved templates for later messages are W3b.
+- **What.** Words up to 4,096 characters, or a file with up to 1,024 characters of words. Allowed files: photos (JPEG,
+  PNG, 5 MB), videos (MP4, 3GPP, 16 MB), voice notes and audio (16 MB, no words), and documents (PDF, Word, Excel,
+  PowerPoint, text; 25 MB). The type is read from the file's bytes, never from its name. A file attached and never
+  sent is cleared after a day.
+- **How it goes.**
+  1. The message is queued, and the `whatsapp.send` queue sends it as the person who tapped Send (8 senders).
+  2. A file is uploaded to Meta once per number and content, then reused for 25 days.
+  3. Once Meta takes the message, it counts as a send: the lead's last message time, first contact, the follow-up
+     done, the stage's move.
+  4. Meta's statuses move it forward: Sent, Delivered, Read.
+- **Never twice.**
+  - A double tap or a retried request is one message, because each message carries its own key.
+  - A message found "sending" for over 2 minutes (a crash mid-send) is failed with "LUME couldn't tell whether this
+    went. Check the phone before sending it again." It is never sent again by itself.
+- **When Meta says no.** Each refusal is put into words on the message, with Try again for words.
+  - Busy or rate limited: tried 5 times with backoff.
+  - A revoked token: the number goes to "needs attention".
+- **Limits.** 30 messages a minute and 600 an hour for each person: "That's a lot of messages at once. Wait a
+  minute and send again."
+- **Cost.** Replies within the 24 hours are Meta's service messages. Meta's pricing is to verify against the
+  business's own account before telling clients a number.
+
 ## Files: where they're kept, how long, and their backup (2026-10-19)
 
 - **Where they live.** Photos, voice notes, videos and documents (25 MB at most) are kept on the client's server,
