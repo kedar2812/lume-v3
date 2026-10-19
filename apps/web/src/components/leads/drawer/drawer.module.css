@@ -719,10 +719,10 @@
   }
 }
 
-/* They replied, once the reply is in: a check and when, in the ok green; still a button for a later reply. */
+/* They replied, once the reply is in: a check and when, in the ok ink (its text green, AA in both themes); still a button for a later reply. */
 .replyIn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--ok);
+  color: var(--ok-ink);
 }
