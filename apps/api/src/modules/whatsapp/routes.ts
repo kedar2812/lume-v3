@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
+import { sendable } from "../leads/sending";
 import { ignorePeer, inboxPerson, inboxView, makeLead } from "./inbox";
 import { KEEP_MONTHS, keepPreview } from "./keep";
 import { fileNameOf } from "./keep-bytes";
@@ -10,6 +11,7 @@ import { mediaInfo, sendMedia } from "./media";
 import { attachFile, attachLibraryFile, sendLimiter, sendReply } from "./send";
 import { LIMITS } from "./sniff";
 import { submissionsOf, submitTemplate } from "./submit";
+import { sendTemplate, templateState } from "./template-send";
 import { leadThread } from "./thread";
 import {
   connectComplete,
@@ -96,6 +98,20 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
       },
     },
     async (req, reply) => reply.code(202).send(await sendReply(req, d, limiter, req.params.id, req.body)),
+  );
+  // An approved template (W3b-2): what there is to send this lead, and sending one, outside the 24 hours too.
+  r.get(
+    "/api/v1/leads/:id/whatsapp/templates",
+    { config: { permission: "messages.send" }, schema: { params: id } },
+    async (req) => templateState(req, d, await sendable(req, req.params.id)),
+  );
+  r.post(
+    "/api/v1/leads/:id/whatsapp/template",
+    {
+      config: { permission: "messages.send" },
+      schema: { params: id, body: z.object({ submissionId: z.uuid(), clientKey: z.uuid() }).strict() },
+    },
+    async (req, reply) => reply.code(202).send(await sendTemplate(req, d, limiter, req.params.id, req.body)),
   );
   // A file from the business's library (W3b-1), attached with nothing uploaded again.
   r.post(

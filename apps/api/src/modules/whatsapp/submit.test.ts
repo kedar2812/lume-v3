@@ -73,7 +73,7 @@ afterAll(async () => {
   await meta.close();
 });
 beforeEach(async () => {
-  await h.ownerPool.query("DELETE FROM whatsapp_outbox");
+  await h.queryAll("DELETE FROM whatsapp_outbox"); // row-level secured: deleted with every lead in scope
   await h.ownerPool.query("DELETE FROM whatsapp_template_submissions");
   await h.ownerPool.query("DELETE FROM whatsapp_numbers");
   meta.templates.clear();

@@ -20,6 +20,36 @@ export function outboundBody(to: string, m: { text: string } | OutboundFile): Re
   return { ...base, type: m.kind, [m.kind]: part };
 }
 
+/**
+ * An approved template (W3b-2): its WhatsApp name and language, this lead's values for its numbered variables in
+ * order, and a file at the top by Meta's id.
+ */
+export function templateBody(
+  to: string,
+  t: {
+    name: string;
+    language: string;
+    values: string[];
+    header?: { kind: "image" | "video" | "document"; mediaId: string; filename?: string };
+  },
+): Record<string, unknown> {
+  const components: Record<string, unknown>[] = [];
+  if (t.header) {
+    const part: Record<string, string> = { id: t.header.mediaId };
+    if (t.header.filename && t.header.kind === "document") part.filename = t.header.filename;
+    components.push({ type: "header", parameters: [{ type: t.header.kind, [t.header.kind]: part }] });
+  }
+  if (t.values.length)
+    components.push({ type: "body", parameters: t.values.map((text) => ({ type: "text", text })) });
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: to.replace(/\D/g, ""),
+    type: "template",
+    template: { name: t.name, language: { code: t.language }, components },
+  };
+}
+
 export type Refusal = { words: string; retry: boolean; token: boolean };
 const TRY_AGAIN = "WhatsApp didn't take this message. Try again.";
 const REFUSALS: Record<number, Refusal> = {
@@ -33,6 +63,22 @@ const REFUSALS: Record<number, Refusal> = {
   131053: { words: "WhatsApp couldn't read this file.", retry: false, token: false },
   130472: { words: "WhatsApp held this message back.", retry: false, token: false },
   190: { words: "WhatsApp stopped letting LUME in. Connect this number again.", retry: false, token: true },
+  // Templates (W3b-2): the person turned off this business's marketing; the template isn't approved any more.
+  131050: {
+    words: "This person turned off marketing messages from you on WhatsApp.",
+    retry: false,
+    token: false,
+  },
+  132000: {
+    words: "WhatsApp no longer has this template as approved. Submit it again.",
+    retry: false,
+    token: false,
+  },
+  132001: {
+    words: "WhatsApp no longer has this template as approved. Submit it again.",
+    retry: false,
+    token: false,
+  },
 };
 /** Meta busy, rate limits, its own hiccups: tried again with backoff. */
 const PASSING = new Set([130429, 131056, 131000, 2, 4, 80007]);

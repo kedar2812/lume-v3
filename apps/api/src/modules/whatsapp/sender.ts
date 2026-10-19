@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { canOnRecord, outboundBody, refusalOf, type WaStatus } from "@lume/core";
+import { canOnRecord, outboundBody, refusalOf, templateBody, type WaStatus } from "@lume/core";
 import { sql } from "drizzle-orm";
 import type pg from "pg";
 import { loadActor } from "../../rbac/actor";
@@ -57,6 +57,15 @@ type Row = {
   media_mime: string | null;
   media_filename: string | null;
   media_sha: string | null;
+  /** An approved template (W3b-2): WhatsApp's name for it, its language, this lead's values, a file at the top. */
+  sub_id: string | null;
+  sub_name: string | null;
+  sub_language: string | null;
+  params: string[] | null;
+  header_kind: "image" | "video" | "audio" | "document" | null;
+  header_mime: string | null;
+  header_name: string | null;
+  header_sha: string | null;
 };
 
 /**
@@ -83,12 +92,16 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
           `SELECT o.status, o.updated_at < now() - make_interval(secs => $2) AS stuck, o.tries, o.text, o.task_id, o.user_id, u.name AS user_name, o.lead_id,
                   l.deleted_at IS NOT NULL AS lead_deleted, l.phone_e164 AS lead_phone,
                   n.id AS number_id, n.phone_number_id, n.status AS number_status, n.display_phone, n.token_enc,
-                  m.kind AS media_kind, m.mime AS media_mime, m.filename AS media_filename, m.sha256 AS media_sha
+                  m.kind AS media_kind, m.mime AS media_mime, m.filename AS media_filename, m.sha256 AS media_sha,
+                  s.id AS sub_id, s.meta_name AS sub_name, s.language AS sub_language, o.params,
+                  hf.kind AS header_kind, hf.mime AS header_mime, hf.name AS header_name, hf.sha256 AS header_sha
              FROM whatsapp_outbox o
              JOIN leads l ON l.id = o.lead_id
              JOIN whatsapp_numbers n ON n.id = o.number_id
              LEFT JOIN users u ON u.id = o.user_id
              LEFT JOIN whatsapp_media m ON m.id = o.media_id
+             LEFT JOIN whatsapp_template_submissions s ON s.id = o.submission_id
+             LEFT JOIN message_files hf ON hf.id = s.header_file_id
             WHERE o.id = $1`,
           [id, SENDING_STUCK_MS / 1000],
         )
@@ -146,7 +159,7 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
       if (!first.reused || !(e instanceof MetaError) || e.code !== 131053) throw e;
       await pool.query("DELETE FROM whatsapp_meta_uploads WHERE number_id = $1 AND sha256 = $2", [
         row.number_id,
-        row.media_sha,
+        row.media_sha ?? row.header_sha,
       ]);
       wamid = await meta.sendMessage(row.phone_number_id, (await bodyOf(o, row, meta, true)).body);
     }
@@ -167,6 +180,19 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
       await set("queued");
       throw e; // the queue tries again later, with backoff
     }
+    // The person turned off this business's marketing (131050): no marketing template is offered for them again.
+    if (e.code === 131050)
+      await withJobRequest(
+        { app: jobServer(o.app), pool, actor, requestId: `whatsapp-marketing-off:${id}`, allLeads: true },
+        (req) =>
+          req.db.execute(sql`UPDATE leads SET whatsapp_marketing_off_at = now() WHERE id = ${row.lead_id}`),
+      );
+    // WhatsApp no longer has the template as approved (132000, 132001): it says so where it's submitted.
+    if ((e.code === 132000 || e.code === 132001) && row.sub_id)
+      await pool.query(
+        "UPDATE whatsapp_template_submissions SET status = 'failed', reason = $2 WHERE id = $1",
+        [row.sub_id, why.words],
+      );
     // Meta's error codes only: never its message text, which can quote the request.
     o.app.log.warn({ outbox: id, code: e.code }, "whatsapp reply refused");
     return void (await fail(why.words));
@@ -190,8 +216,9 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
 class MissingFile extends Error {}
 
 /**
- * What to send: the words, or the file by Meta's id with its caption. The id is reused when this number uploaded the
- * same file in the last 25 days (`reused`), unless `fresh` asks for a new upload.
+ * What to send: the words, the file by Meta's id with its caption, or an approved template with this lead's values (and
+ * its file at the top). A file's id is reused when this number uploaded the same file in the last 25 days (`reused`),
+ * unless `fresh` asks for a new upload.
  */
 async function bodyOf(
   o: WhatsAppJobDeps,
@@ -200,37 +227,80 @@ async function bodyOf(
   fresh: boolean,
 ): Promise<{ body: Record<string, unknown>; reused: boolean }> {
   const to = row.lead_phone!;
+  if (row.sub_id) {
+    const header =
+      row.header_sha && row.header_kind && row.header_kind !== "audio"
+        ? { kind: row.header_kind, sha: row.header_sha, mime: row.header_mime, filename: row.header_name }
+        : null;
+    const up = header ? await uploaded(o, row, meta, fresh, header) : null;
+    return {
+      body: templateBody(to, {
+        name: row.sub_name!,
+        language: row.sub_language!,
+        values: row.params ?? [],
+        ...(header && up
+          ? {
+              header: {
+                kind: header.kind,
+                mediaId: up.mediaId,
+                ...(header.filename ? { filename: header.filename } : {}),
+              },
+            }
+          : {}),
+      }),
+      reused: up?.reused ?? false,
+    };
+  }
   if (!row.media_kind) return { body: outboundBody(to, { text: row.text ?? "" }), reused: false };
-  if (!row.media_sha || !o.d.files) throw new MissingFile();
-  const pool = o.d.jobPool ?? o.d.pool;
+  if (!row.media_sha) throw new MissingFile();
+  const kind = row.media_kind;
+  const up = await uploaded(o, row, meta, fresh, {
+    kind,
+    sha: row.media_sha,
+    mime: row.media_mime,
+    filename: row.media_filename,
+  });
   const file = {
-    kind: row.media_kind,
+    kind,
     ...(row.text ? { caption: row.text } : {}),
     ...(row.media_filename ? { filename: row.media_filename } : {}),
   };
+  return { body: outboundBody(to, { ...file, mediaId: up.mediaId }), reused: up.reused };
+}
+
+/** A file's id at Meta for this number: reused for 25 days, else uploaded now (and remembered). */
+async function uploaded(
+  o: WhatsAppJobDeps,
+  row: Row,
+  meta: ReturnType<typeof metaClient>,
+  fresh: boolean,
+  f: { kind: string; sha: string; mime: string | null; filename: string | null },
+): Promise<{ mediaId: string; reused: boolean }> {
+  if (!o.d.files) throw new MissingFile();
+  const pool = o.d.jobPool ?? o.d.pool;
   if (!fresh) {
     const cached = await pool.query<{ meta_media_id: string }>(
       "SELECT meta_media_id FROM whatsapp_meta_uploads WHERE number_id = $1 AND sha256 = $2 AND uploaded_at > $3",
-      [row.number_id, row.media_sha, new Date(o.d.clock().getTime() - UPLOAD_KEEP_MS)],
+      [row.number_id, f.sha, new Date(o.d.clock().getTime() - UPLOAD_KEEP_MS)],
     );
     const reused = cached.rows[0]?.meta_media_id;
-    if (reused) return { body: outboundBody(to, { ...file, mediaId: reused }), reused: true };
+    if (reused) return { mediaId: reused, reused: true };
   }
-  const bytes = await readFile(o.d.files.store.path(row.media_sha)).catch(() => {
+  const bytes = await readFile(o.d.files.store.path(f.sha)).catch(() => {
     throw new MissingFile();
   });
   const mediaId = await meta.uploadMedia(
     row.phone_number_id,
     bytes,
-    row.media_mime ?? "application/octet-stream",
-    row.media_filename ?? `file.${row.media_kind}`,
+    f.mime ?? "application/octet-stream",
+    f.filename ?? `file.${f.kind}`,
   );
   await pool.query(
     `INSERT INTO whatsapp_meta_uploads (number_id, sha256, meta_media_id, uploaded_at) VALUES ($1, $2, $3, $4)
      ON CONFLICT (number_id, sha256) DO UPDATE SET meta_media_id = excluded.meta_media_id, uploaded_at = excluded.uploaded_at`,
-    [row.number_id, row.media_sha, mediaId, o.d.clock()],
+    [row.number_id, f.sha, mediaId, o.d.clock()],
   );
-  return { body: outboundBody(to, { ...file, mediaId }), reused: false };
+  return { mediaId, reused: false };
 }
 
 /**

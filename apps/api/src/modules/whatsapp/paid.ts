@@ -1,4 +1,6 @@
 import type { PlanClaim } from "@lume/core";
+import { sql } from "drizzle-orm";
+import type { FastifyRequest } from "fastify";
 import type pg from "pg";
 import { HttpError } from "../../http/errors";
 import { readAs } from "../notifications/hub";
@@ -36,6 +38,16 @@ export async function paidUse(q: Pick<pg.Pool, "query">, now: Date, tz: string):
   const [from, to] = await monthOf(q, now, tz);
   const { rows } = await q.query<{ n: number }>("SELECT lume_whatsapp_paid_count($1, $2) AS n", [from, to]);
   return rows[0]!.n;
+}
+
+/** The same count inside a request's own transaction (a send checks it there, under its lock). */
+export async function paidUseIn(req: FastifyRequest, now: Date, tz: string): Promise<number> {
+  const r = await req.db.execute<{ n: number }>(sql`
+    SELECT lume_whatsapp_paid_count(
+      date_trunc('month', ${now}::timestamptz AT TIME ZONE ${tz}) AT TIME ZONE ${tz},
+      (date_trunc('month', ${now}::timestamptz AT TIME ZONE ${tz}) + interval '1 month') AT TIME ZONE ${tz}
+    ) AS n`);
+  return Number(r.rows[0]?.n ?? 0);
 }
 
 const n = (x: number) => x.toLocaleString("en");

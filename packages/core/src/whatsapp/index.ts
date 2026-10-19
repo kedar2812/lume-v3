@@ -11,6 +11,7 @@ export {
   outboundBody,
   refusalOf,
   STATUS_RANK,
+  templateBody,
   type OutboundFile,
   type OutboxStatus,
   type Refusal,
