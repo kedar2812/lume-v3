@@ -238,12 +238,19 @@ test.describe.serial("WhatsApp", () => {
     await form.getByRole("button", { name: "Send" }).click();
     await expect(list).toContainText("Our brochure");
 
+    // The thread shows a message the moment it's sent; the queue hands it to Meta a moment later (slower under a
+    // full run's load), so wait for both to reach Meta.
+    type Sent = { sent: { to: string; type: string; wamid: string }[] };
+    const toMeta = async () =>
+      ((await (await page.request.get(`${META}/__fake/sent`)).json()) as Sent).sent.filter(
+        (m) => m.to === "919876512345",
+      );
+    await expect
+      .poll(async () => (await toMeta()).map((m) => m.type), { timeout: 20_000 })
+      .toEqual(["text", "document"]);
+    const mine = await toMeta();
+
     // Meta says delivered, then read: the ticks follow by themselves.
-    const sent = (await (await page.request.get(`${META}/__fake/sent`)).json()) as {
-      sent: { to: string; type: string; wamid: string }[];
-    };
-    const mine = sent.sent.filter((m) => m.to === "919876512345");
-    expect(mine.map((m) => m.type)).toEqual(["text", "document"]);
     for (const status of ["delivered", "read"])
       await meta(page.request, statuses({ id: mine[0]!.wamid, status, at: new Date().toISOString() }));
     await expect(list.getByText("Read", { exact: true })).toBeVisible({ timeout: 20_000 });
