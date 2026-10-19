@@ -85,6 +85,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "files",
+    title: "Files",
+    blurb: "Brochures, price lists and photos to send from any lead",
+    href: "/settings/files",
+    anyOf: ["templates.manage"],
+    group: "workspace",
+  },
+  {
     id: "health",
     title: "System health",
     blurb: "Whether every reminder, email and sync is running",
