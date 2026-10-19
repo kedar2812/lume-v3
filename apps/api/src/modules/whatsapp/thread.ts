@@ -1,5 +1,5 @@
 import { schema } from "@lume/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { visibleLead } from "../leads/service";
 import { whatsappOn } from "./service";
@@ -14,12 +14,15 @@ type Media = { id: string; kind: string; mime: string; filename: string | null; 
  */
 export async function leadThread(req: FastifyRequest, leadId: string) {
   const lead = await visibleLead(req, leadId);
-  const rows = await req.db
-    .select({ id: A.id, type: A.type, at: A.occurredAt, payload: A.payload })
-    .from(A)
-    .where(and(eq(A.leadId, lead.id), inArray(A.type, ["whatsapp_received", "whatsapp_sent"])))
-    .orderBy(asc(A.occurredAt), asc(A.id))
-    .limit(THREAD_MAX);
+  // The newest 500, then put oldest first: a long chat must never show its first 500 with today's hidden.
+  const rows = (
+    await req.db
+      .select({ id: A.id, type: A.type, at: A.occurredAt, payload: A.payload })
+      .from(A)
+      .where(and(eq(A.leadId, lead.id), inArray(A.type, ["whatsapp_received", "whatsapp_sent"])))
+      .orderBy(desc(A.occurredAt), desc(A.id))
+      .limit(THREAD_MAX)
+  ).reverse();
   return {
     on: await whatsappOn(req),
     messages: rows.map((r) => {

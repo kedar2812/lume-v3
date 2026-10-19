@@ -55,6 +55,22 @@ describe("GET /api/v1/leads/:id/whatsapp", () => {
     });
   });
 
+  it("a long chat shows its newest 500 messages, oldest first: never the oldest 500 with today's hidden", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Long Chat", phone: "+919876500999" });
+    await h.queryAll(
+      `INSERT INTO activities (id, lead_id, type, payload, occurred_at)
+       SELECT gen_random_uuid(), $1, 'whatsapp_received', jsonb_build_object('text', 'message ' || g),
+              timestamptz '2026-10-01T00:00:00Z' + make_interval(mins => g)
+         FROM generate_series(1, 520) g`,
+      [lead],
+    );
+    const r = await (await h.signIn(rep)).inject({ method: "GET", url: `/api/v1/leads/${lead}/whatsapp` });
+    const texts = (r.json().messages as { text: string }[]).map((m) => m.text);
+    expect(texts).toHaveLength(500);
+    expect(texts[0]).toBe("message 21");
+    expect(texts.at(-1)).toBe("message 520");
+  });
+
   it("someone who can't see the lead gets 404", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Private", phone: "+919000000123" });
     expect(
