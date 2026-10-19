@@ -31,6 +31,18 @@ test("Ctrl+K opens the palette and Enter navigates", async ({ page }) => {
   await expect(page).toHaveURL(/\/leads$/);
 });
 
+test("Today's tiles show every footer line in full, never cut off mid-word", async ({ page }) => {
+  // The Team tile read "The on-time rate shows after 10 are c" on a client's demo (2026-10-19): a one-line
+  // footer clipped its text with no ellipsis.
+  await openApp(page, "/today");
+  const feet = page.locator('[class*="__foot"]');
+  await expect(feet.first()).toBeVisible();
+  const cut = await feet.evaluateAll((els) =>
+    els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent?.trim()),
+  );
+  expect(cut).toEqual([]);
+});
+
 test("every response carries a nonce CSP", async ({ page }) => {
   const res = await page.goto("/sign-in");
   expect(res?.headers()["content-security-policy"]).toMatch(/script-src 'self' 'nonce-/);

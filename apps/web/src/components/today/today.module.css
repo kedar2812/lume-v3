@@ -498,10 +498,10 @@ a.tl:focus-visible .arrow {
   gap: 6px;
   margin-top: 12px;
   font-size: 12.5px;
+  line-height: 1.4;
   color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* A longer line wraps rather than being cut: an ellipsis can't apply to the bare text of a flex box, so a
+     one-line footer was clipped mid-word ("…after 10 are c"). */
 }
 .foot b {
   color: var(--text-2);
