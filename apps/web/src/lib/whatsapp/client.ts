@@ -31,6 +31,11 @@ export const whatsappClient = {
     ),
   attach: (leadId: string, file: File) =>
     api.upload<{ media: WaAttached }>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/files`, file),
+  /** A file from the business's library (W3b-1), attached with nothing uploaded again. */
+  attachFromLibrary: (leadId: string, fileId: string) =>
+    api.post<{ media: WaAttached }>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/files/library`, {
+      fileId,
+    }),
   keepPreview: (months: Exclude<KeepMonths, null>) =>
     api.get<KeepPreview>(`/api/v1/whatsapp/files/keep-preview?months=${months}`),
   connect: () => api.post<{ url: string }>("/api/v1/whatsapp/connect"),

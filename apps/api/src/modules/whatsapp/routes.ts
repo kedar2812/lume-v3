@@ -7,7 +7,7 @@ import { KEEP_MONTHS, keepPreview } from "./keep";
 import { fileNameOf } from "./keep-bytes";
 import { archiveFile, listFiles, renameFile, setFileLink, uploadFile } from "./library";
 import { mediaInfo, sendMedia } from "./media";
-import { attachFile, sendLimiter, sendReply } from "./send";
+import { attachFile, attachLibraryFile, sendLimiter, sendReply } from "./send";
 import { LIMITS } from "./sniff";
 import { leadThread } from "./thread";
 import {
@@ -95,6 +95,16 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
       },
     },
     async (req, reply) => reply.code(202).send(await sendReply(req, d, limiter, req.params.id, req.body)),
+  );
+  // A file from the business's library (W3b-1), attached with nothing uploaded again.
+  r.post(
+    "/api/v1/leads/:id/whatsapp/files/library",
+    {
+      config: { permission: "messages.send" },
+      schema: { params: id, body: z.object({ fileId: z.uuid() }).strict() },
+    },
+    async (req, reply) =>
+      reply.code(201).send(await attachLibraryFile(req, d, req.params.id, req.body.fileId)),
   );
   await r.register(async (files) => {
     // Scoped: only these routes take a raw body, at most a document's 25 MB (+1, so one byte over is refused in words).

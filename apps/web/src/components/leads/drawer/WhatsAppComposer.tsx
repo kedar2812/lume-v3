@@ -1,7 +1,11 @@
 "use client";
 import { bytesText } from "@lume/core/shared";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Popover } from "@/components/ui/Popover";
+import { FilePicker } from "@/components/whatsapp/FilePicker";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
+import type { LibraryFile } from "@/lib/files/client";
+import { fileTypeWord } from "@/lib/files/words";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaAttached, WaReply, WaThreadMessage } from "@/lib/whatsapp/types";
 import s from "./whatsapp.module.css";
@@ -10,14 +14,42 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 /** What a person may attach, as WhatsApp takes it (the server checks the bytes either way). */
 const ACCEPT =
   "image/jpeg,image/png,video/mp4,video/3gpp,audio/ogg,audio/mpeg,audio/mp4,audio/aac,audio/amr,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt";
-const TYPE_WORD: Record<string, string> = {
-  "application/pdf": "PDF",
-  "text/plain": "Text",
-  "image/jpeg": "Photo",
-  "image/png": "Photo",
-};
-const typeWord = (f: WaAttached) =>
-  TYPE_WORD[f.mime] ?? f.filename?.split(".").pop()?.toUpperCase() ?? (f.kind === "video" ? "Video" : "File");
+const typeWord = (f: WaAttached) => fileTypeWord({ ...f, name: f.filename });
+
+const Clip = () => (
+  <svg
+    aria-hidden="true"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M21 11.5 12.6 19.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" />
+  </svg>
+);
+
+/**
+ * Attach's menu (W3b-1 Task 4): this device, or the business's files. Mounted with the panel, so it opens on the menu
+ * every time.
+ */
+function AttachMenu({ onDevice, onPick }: { onDevice(): void; onPick(f: LibraryFile): void }) {
+  const [files, setFiles] = useState(false);
+  if (files) return <FilePicker onPick={onPick} />;
+  return (
+    <div role="menu" aria-label="Attach from" className={s.menu}>
+      <button type="button" role="menuitem" className={s.menuItem} onClick={onDevice}>
+        From this device
+      </button>
+      <button type="button" role="menuitem" className={s.menuItem} onClick={() => setFiles(true)}>
+        From your files
+      </button>
+    </div>
+  );
+}
 
 /** "until 4:12 pm", "until 10:20 am tomorrow", or the date for anything later. */
 function untilWords(iso: string, tz: string): string {
@@ -44,6 +76,7 @@ export function WhatsAppComposer({
   taskId,
   onSent,
   fallback,
+  library = false,
 }: {
   leadId: string;
   leadName: string;
@@ -53,6 +86,8 @@ export function WhatsAppComposer({
   taskId?: string;
   onSent(m: WaThreadMessage): void;
   fallback?: ReactNode;
+  /** This person may use the business's files (templates.use): Attach offers them beside this device. */
+  library?: boolean;
 }) {
   const who = first(leadName);
   const [text, setText] = useState("");
@@ -64,6 +99,7 @@ export function WhatsAppComposer({
   const key = useRef(crypto.randomUUID());
   const coarse = useRef(false);
   const box = useRef<HTMLTextAreaElement>(null);
+  const device = useRef<HTMLInputElement>(null);
   // Grows with the words, up to six lines, then scrolls (every browser, not only those with field-sizing).
   useLayoutEffect(() => {
     const el = box.current;
@@ -117,6 +153,30 @@ export function WhatsAppComposer({
     if (!r.ok) return setError(r.message);
     setFile({ ...r.data.media, filename: r.data.media.filename ?? f.name });
   };
+  const attachKept = async (f: LibraryFile) => {
+    setAttaching(f.name);
+    setError(null);
+    const r = await whatsappClient.attachFromLibrary(leadId, f.id);
+    setAttaching(null);
+    if (!r.ok) return setError(r.message);
+    setFile(r.data.media);
+  };
+  const deviceInput = (
+    <input
+      ref={device}
+      type="file"
+      accept={ACCEPT}
+      aria-label="Attach a photo or a file"
+      className={s.srOnly}
+      // Behind the menu's "From this device" when there is a menu: it opens the chooser, this takes the file.
+      tabIndex={library ? -1 : undefined}
+      disabled={!!attaching || sending}
+      onChange={(e) => {
+        void attach(e.target.files?.[0]);
+        e.target.value = "";
+      }}
+    />
+  );
   const label = file ? "Words with the file" : `Message to ${who}`;
 
   return (
@@ -178,32 +238,37 @@ export function WhatsAppComposer({
         </p>
       )}
       <div className={s.composerRow}>
-        <label className={s.attachButton} data-busy={attaching ? true : undefined}>
-          <input
-            type="file"
-            accept={ACCEPT}
-            aria-label="Attach a photo or a file"
-            className={s.srOnly}
-            disabled={!!attaching || sending}
-            onChange={(e) => {
-              void attach(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-          <svg
-            aria-hidden="true"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 11.5 12.6 19.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" />
-          </svg>
-        </label>
+        {library ? (
+          <>
+            {deviceInput}
+            <Popover
+              label="Attach"
+              side="above"
+              triggerLabel="Attach"
+              triggerClassName={s.attachButton}
+              trigger={<Clip />}
+              disabled={!!attaching || sending}
+            >
+              {(close) => (
+                <AttachMenu
+                  onDevice={() => {
+                    close();
+                    device.current?.click();
+                  }}
+                  onPick={(f) => {
+                    close();
+                    void attachKept(f);
+                  }}
+                />
+              )}
+            </Popover>
+          </>
+        ) : (
+          <label className={s.attachButton} data-busy={attaching ? true : undefined}>
+            {deviceInput}
+            <Clip />
+          </label>
+        )}
         <textarea
           ref={box}
           className={s.input}

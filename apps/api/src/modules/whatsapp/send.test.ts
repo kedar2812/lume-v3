@@ -38,6 +38,24 @@ const attach = async (u: U, lead: string, bytes: Buffer, name: string) =>
     headers: { "content-type": "application/octet-stream", "x-file-name": encodeURIComponent(name) },
     payload: bytes,
   });
+/** A file in the business's library (W3b-1), uploaded by the admin: its id. */
+const libraryFile = async (name: string) =>
+  (
+    await (
+      await as(admin)
+    ).inject({
+      method: "POST",
+      url: "/api/v1/files",
+      headers: { "content-type": "application/octet-stream", "x-file-name": encodeURIComponent(name) },
+      payload: PDF,
+    })
+  ).json().file.id as string;
+const fromLibrary = async (u: U, lead: string, fileId: string) =>
+  (await as(u)).inject({
+    method: "POST",
+    url: `/api/v1/leads/${lead}/whatsapp/files/library`,
+    payload: { fileId },
+  });
 const thread = async (u: U, lead: string) =>
   (await (await as(u)).inject({ method: "GET", url: `/api/v1/leads/${lead}/whatsapp` })).json();
 /** The lead writes on WhatsApp now (the harness's time), to a number. */
@@ -90,6 +108,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await h.ownerPool.query("DELETE FROM whatsapp_numbers");
+  await h.ownerPool.query("DELETE FROM message_files");
   await h.queryAll("UPDATE leads SET deleted_at = now() WHERE deleted_at IS NULL");
   h.whatsappQueued.length = 0;
   h.whatsappMediaQueued.length = 0;
@@ -321,6 +340,69 @@ describe("files", () => {
     } finally {
       h.files.setDisk({ total: 100 * 1024 ** 3, free: 60 * 1024 ** 3 });
     }
+  });
+
+  it("library: a file from the business's files is attached with nothing uploaded again, and goes as a document", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const file = await libraryFile("Brochure.pdf");
+    const a = await fromLibrary(rep, lead, file);
+    expect(a.statusCode).toBe(201);
+    expect(a.json().media).toEqual({
+      id: expect.any(String),
+      kind: "document",
+      mime: "application/pdf",
+      filename: "Brochure.pdf",
+      size: PDF.length,
+    });
+    const [m] = await h.queryAll<{ draft: boolean; uploaded_by: string; sha256: string; lead_id: string }>(
+      "SELECT draft, uploaded_by, sha256, lead_id FROM whatsapp_media WHERE id = $1",
+      [a.json().media.id],
+    );
+    const [kept] = await h.queryAll<{ sha256: string }>("SELECT sha256 FROM message_files WHERE id = $1", [
+      file,
+    ]);
+    expect(m).toEqual({ draft: true, uploaded_by: rep.id, sha256: kept!.sha256, lead_id: lead });
+    const [refs] = await h.queryAll<{ refs: number }>("SELECT refs FROM whatsapp_files WHERE sha256 = $1", [
+      kept!.sha256,
+    ]);
+    expect(refs).toEqual({ refs: 2 });
+    meta.sent.length = 0;
+    expect((await send(rep, lead, { mediaId: a.json().media.id, text: "Our brochure" })).statusCode).toBe(
+      202,
+    );
+    await h.runWhatsAppSend();
+    expect(meta.sent.map((s) => s.body.document)).toEqual([
+      { id: expect.any(String), caption: "Our brochure", filename: "Brochure.pdf" },
+    ]);
+  });
+
+  it("library: an archived or unknown file isn't there to attach", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const file = await libraryFile("Old brochure.pdf");
+    await (await as(admin)).inject({ method: "POST", url: `/api/v1/files/${file}/archive` });
+    for (const id of [file, randomUUID()]) {
+      const r = await fromLibrary(rep, lead, id);
+      expect(r.statusCode).toBe(404);
+      expect(r.json().error).toEqual({
+        code: "FILE_NOT_FOUND",
+        message: "That file isn't in your files any more.",
+      });
+    }
+  });
+
+  it("library: the same checks as any reply (the 24 hours, who may send, who may see the lead)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    const file = await libraryFile("Brochure.pdf");
+    expect((await fromLibrary(rep, lead, file)).json().error.code).toBe("WINDOW_CLOSED");
+    await writes();
+    expect((await fromLibrary(viewer, lead, file)).statusCode).toBe(403);
+    const other = await h.seedLead({ ownerId: admin.id, name: "Karan Mehta", phone: "+919876500011" });
+    expect((await fromLibrary(rep, other, file)).statusCode).toBe(404);
+    expect(
+      await h.queryAll("SELECT 1 FROM whatsapp_media WHERE lead_id = ANY($1::uuid[])", [[lead, other]]),
+    ).toEqual([]);
   });
 
   it("security: a file attached to one lead, or by someone else, can't be sent to another", async () => {

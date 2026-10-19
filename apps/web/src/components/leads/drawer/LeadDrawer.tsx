@@ -886,6 +886,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                             leadName={lead.name ?? "this lead"}
                             tz={tz}
                             reply={wa.reply}
+                            library={can(session.actor, "templates.use")}
                             onSent={waSent}
                             fallback={
                               lead.can.message ? (

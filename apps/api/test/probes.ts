@@ -746,6 +746,11 @@ export const PROBES: Record<string, Probe> = {
     access: "messages.send",
     path: (f) => `/api/v1/leads/${f.leadId}/whatsapp/files`,
   },
+  "POST /api/v1/leads/:id/whatsapp/files/library": {
+    access: "messages.send",
+    path: (f) => `/api/v1/leads/${f.leadId}/whatsapp/files/library`,
+    body: () => ({ fileId: uuid }),
+  },
   "GET /api/v1/whatsapp/media/:id": { access: "leads.view", path: () => `/api/v1/whatsapp/media/${uuid}` },
   "GET /api/v1/whatsapp/media/:id/info": {
     access: "leads.view",

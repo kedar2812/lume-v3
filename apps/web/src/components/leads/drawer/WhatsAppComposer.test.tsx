@@ -1,11 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { filesClient } from "@/lib/files/client";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaReply, WaThreadMessage } from "@/lib/whatsapp/types";
 import { WhatsAppComposer } from "./WhatsAppComposer";
 
-vi.mock("@/lib/whatsapp/client", () => ({ whatsappClient: { send: vi.fn(), attach: vi.fn() } }));
+vi.mock("@/lib/whatsapp/client", () => ({
+  whatsappClient: { send: vi.fn(), attach: vi.fn(), attachFromLibrary: vi.fn() },
+}));
+vi.mock("@/lib/files/client", () => ({ filesClient: { list: vi.fn() } }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 202, data });
 const TZ = "Asia/Kolkata";
 const open: NonNullable<WaReply> = {
@@ -145,6 +149,69 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
     await userEvent.click(await screen.findByRole("button", { name: "Remove site.jpg" }));
     expect(screen.queryByText("site.jpg")).toBeNull();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  });
+
+  it("with the business's files: Attach offers this device or your files, and a picked file is ready to send", async () => {
+    vi.mocked(filesClient.list).mockResolvedValue(
+      ok({
+        files: [
+          {
+            id: "f1",
+            name: "Brochure.pdf",
+            kind: "document",
+            mime: "application/pdf",
+            size: 1_258_291,
+            link: { on: false, url: null, opens: 0 },
+            createdAt: "2026-10-19T06:00:00.000Z",
+            archived: false,
+          },
+        ],
+      }),
+    );
+    vi.mocked(whatsappClient.attachFromLibrary).mockResolvedValue(
+      ok({
+        media: {
+          id: "m9",
+          kind: "document",
+          mime: "application/pdf",
+          filename: "Brochure.pdf",
+          size: 1_258_291,
+        },
+      }),
+    );
+    render(
+      <WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} library onSent={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Attach" }));
+    expect(screen.getByRole("menuitem", { name: "From this device" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: "From your files" }));
+    await userEvent.click(await screen.findByRole("option", { name: /Brochure\.pdf/ }));
+    expect(whatsappClient.attachFromLibrary).toHaveBeenCalledWith("l1", "f1");
+    expect(await screen.findByText("PDF · 1.2 MB")).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "Words with the file" }), "Our brochure{Enter}");
+    await waitFor(() =>
+      expect(whatsappClient.send).toHaveBeenCalledWith("l1", {
+        clientKey: expect.any(String),
+        mediaId: "m9",
+        text: "Our brochure",
+      }),
+    );
+  });
+
+  it("with the business's files, a file from this device still attaches as before", async () => {
+    vi.mocked(whatsappClient.attach).mockResolvedValue(
+      ok({ media: { id: "m3", kind: "image", mime: "image/jpeg", filename: null, size: 2048 } }),
+    );
+    render(
+      <WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} library onSent={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Attach" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "From this device" }));
+    await userEvent.upload(
+      screen.getByLabelText("Attach a photo or a file"),
+      new File(["x"], "site.jpg", { type: "image/jpeg" }),
+    );
+    expect(await screen.findByRole("button", { name: "Remove site.jpg" })).toBeInTheDocument();
   });
 
   it("after WhatsApp's 24 hours: the reason, and the usual way to open WhatsApp; no box", () => {

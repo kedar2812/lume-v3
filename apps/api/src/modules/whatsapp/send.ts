@@ -1,13 +1,14 @@
 import { canOnRecord, firstNameOf, moduleIncluded, newId } from "@lume/core";
 import { schema } from "@lume/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
-import { HttpError, badRequest } from "../../http/errors";
+import { HttpError, badRequest, notFound } from "../../http/errors";
 import { assertTaskOf, sendable } from "../leads/sending";
 import type { LeadRow } from "../leads/serialize";
 import { checkFile, keepBytes } from "./keep-bytes";
 import { relayOf } from "./service";
+import type { Sniffed } from "./sniff";
 import { messagesOf, type ThreadMessage } from "./thread";
 
 /** WhatsApp's window for a free reply after the lead's last message (spec 2026-10-18 §3.4). */
@@ -164,32 +165,49 @@ export async function attachFile(
   const { lead, number } = await mayReply(req, d, leadId);
   const type = checkFile(bytes, filename);
   const sha256 = await keepBytes(req, d, bytes);
+  return draft(req, lead.id, number.id, { ...type, name: filename, size: bytes.length, sha256 });
+}
+
+/**
+ * A file from the business's library (plan W3b-1 Task 4) attached in the composer: the same draft an upload makes,
+ * pointing at the bytes already kept, so nothing is read or written to disk again.
+ */
+export async function attachLibraryFile(req: FastifyRequest, d: AppDeps, leadId: string, fileId: string) {
+  const { lead, number } = await mayReply(req, d, leadId);
+  const F = schema.messageFiles;
+  const [f] = await req.db
+    .select({ kind: F.kind, mime: F.mime, name: F.name, size: F.size, sha256: F.sha256 })
+    .from(F)
+    .where(and(eq(F.id, fileId), isNull(F.archivedAt)));
+  if (!f) throw notFound("FILE_NOT_FOUND", "That file isn't in your files any more.");
+  return draft(req, lead.id, number.id, f);
+}
+
+/** A file kept on this server, as a draft of this lead by this person until it's sent. */
+async function draft(
+  req: FastifyRequest,
+  leadId: string,
+  numberId: string,
+  f: { kind: Sniffed["kind"]; mime: string; name: string | null; size: number; sha256: string },
+) {
   const id = newId();
-  const name = filename?.trim().slice(0, 200) || null;
+  const filename = f.kind === "document" ? f.name?.trim().slice(0, 200) || null : null;
   await req.db.insert(schema.whatsappMedia).values({
     id,
-    numberId: number.id,
+    numberId,
     metaId: `lume:${id}`,
-    leadId: lead.id,
-    kind: type.kind,
-    mime: type.mime,
-    filename: type.kind === "document" ? name : null,
+    leadId,
+    kind: f.kind,
+    mime: f.mime,
+    filename,
     voice: false,
-    size: bytes.length,
-    sha256,
+    size: f.size,
+    sha256: f.sha256,
     status: "ready",
     draft: true,
     uploadedBy: req.actor!.userId,
   });
-  return {
-    media: {
-      id,
-      kind: type.kind,
-      mime: type.mime,
-      filename: type.kind === "document" ? name : null,
-      size: bytes.length,
-    },
-  };
+  return { media: { id, kind: f.kind, mime: f.mime, filename, size: f.size } };
 }
 
 /**

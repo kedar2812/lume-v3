@@ -270,8 +270,8 @@ export async function sendMedia(req: FastifyRequest, reply: FastifyReply, d: App
   const m = await visibleMedia(req, id);
   if (m.status !== "ready") throw notFound("MEDIA_NOT_READY", "That file isn't here yet.");
   const file = await onDisk(d, m.sha256);
-  if (!file) throw notFound("MEDIA_MISSING", MEDIA_WORDS.missing);
-  return streamFile(req, reply, file, m, 86_400);
+  if (!file || !m.sha256) throw notFound("MEDIA_MISSING", MEDIA_WORDS.missing);
+  return streamFile(req, reply, file, { ...m, sha256: m.sha256 }, 86_400);
 }
 
 /**
