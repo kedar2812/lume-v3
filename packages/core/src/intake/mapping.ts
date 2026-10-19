@@ -1,5 +1,6 @@
 import { FIELD_TYPES, type FieldType } from "../leads/custom-fields";
 import { fold, type DateOrder } from "./values";
+import { INTAKE_LIMITS } from "./limits";
 
 export type Transform = {
   case?: "lower" | "title";
@@ -209,7 +210,7 @@ export function suggestMapping(headers: string[], fields: IntakeField[], memory?
 
 const issue = (column: number | null, code: string, message: string): Issue => ({ column, code, message });
 /** The Fields screen's own limit, which a field made by an import meets too. */
-const NEW_FIELD_LABEL_MAX = 60;
+const NEW_FIELD_LABEL_MAX = INTAKE_LIMITS.newFieldLabel;
 
 /** Spec §5.3–§5.4 and amendment 3. Empty means the import may start. */
 export function validateMapping(m: Mapping, r: Rules, ctx: MapContext): Issue[] {

@@ -1,3 +1,4 @@
+import { INTAKE_LIMITS } from "@lume/core/shared";
 import type { ColumnMap, IntakeField, Mapping, Transform } from "./types";
 
 // How a column's destination is written in its <select>. Field keys are [a-z0-9_]; the special choices
@@ -12,13 +13,32 @@ export function choiceOf(c: ColumnMap): string {
 }
 export const fieldChoice = (key: string) => (SPECIAL.has(key) ? `field:${key}` : key);
 
+/**
+ * A new field's name, from its column's header. A snake_case header (as Meta's lead ads export writes every form
+ * question, "what_type_of_space_are_you_designing?") reads as words with a capital; anything else is kept as the
+ * person wrote it. Too long for a field's name, it ends at the last whole word that fits.
+ */
+export function fieldLabelFrom(header: string): string {
+  let label = header.trim();
+  if (/_/.test(label) && !/\s/.test(label)) {
+    label = label.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+  }
+  const max = INTAKE_LIMITS.newFieldLabel;
+  if (label.length > max) {
+    const cut = label.slice(0, max + 1);
+    const lastSpace = cut.lastIndexOf(" ");
+    label = (lastSpace > 0 ? cut.slice(0, lastSpace) : label.slice(0, max)).trim();
+  }
+  return label || "New field";
+}
+
 /** The column map for a choice, keeping the transform where it still makes sense. */
 export function columnFor(column: number, choice: string, header: string, before?: ColumnMap): ColumnMap {
   const transform = before && before.to !== "ignore" ? before.transform : undefined;
   const keep = transform ? { transform } : {};
   if (choice === "ignore") return { column, to: "ignore" };
-  if (choice === "new_field")
-    return { column, to: "new_field", label: header.trim().slice(0, 60) || "New field", type: "text" };
+  if (choice === "new_field") return { column, to: "new_field", label: fieldLabelFrom(header), type: "text" };
   if (choice === "name_part:first") return { column, to: "name_part", part: "first" };
   if (choice === "name_part:last") return { column, to: "name_part", part: "last" };
   const field = choice.startsWith("field:") ? choice.slice(6) : choice;

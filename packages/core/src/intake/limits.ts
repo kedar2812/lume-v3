@@ -7,4 +7,6 @@ export const INTAKE_LIMITS = {
   headerSearch: 10,
   previewRows: 20,
   batch: 200,
+  /** A field made during an import: its name, in characters. */
+  newFieldLabel: 60,
 } as const;

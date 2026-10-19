@@ -31,6 +31,25 @@ describe("import mapping edits", () => {
     });
   });
 
+  it("names a new field readably after a snake_case header, as Meta's lead ads export writes them", () => {
+    const label = (h: string) => (columnFor(0, "new_field", h) as { label: string }).label;
+    expect(label("what_type_of_commercial_space_are_you_designing?")).toBe(
+      "What type of commercial space are you designing?",
+    );
+    expect(label("what_is_the_size_of_your_space_(sq.ft)?")).toBe("What is the size of your space (sq.ft)?");
+    expect(label("is_organic")).toBe("Is organic");
+    // Headers people wrote themselves stay as they are.
+    expect(label("Referred by")).toBe("Referred by");
+    expect(label("GST no.")).toBe("GST no.");
+  });
+
+  it("cuts a long header at a word, never mid-word, to fit a field's name", () => {
+    const long = "when_are_you_looking_to_start_the_project_and_what_is_your_preferred_completion_date?";
+    const got = (columnFor(0, "new_field", long) as { label: string }).label;
+    expect(got.length).toBeLessThanOrEqual(60);
+    expect(got).toBe("When are you looking to start the project and what is your");
+  });
+
   it("moves a value between added, mapped and empty without leaving a trace of the old choice", () => {
     let m = settleValue(base, 1, "tier", "Platinum", "add");
     expect(m.addOptions).toEqual({ tier: ["Platinum"] });
