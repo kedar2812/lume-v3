@@ -560,7 +560,11 @@
   letter-spacing: var(--ls-md);
 }
 .fieldRow dt {
+  min-width: 0;
   color: var(--text-2);
+  /* A name with no spaces (an imported form question, "what_type_of_space…") wraps inside its column instead of
+     running over the value beside it. */
+  overflow-wrap: anywhere;
 }
 .fieldRow dd {
   min-width: 0;

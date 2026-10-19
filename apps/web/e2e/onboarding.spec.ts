@@ -83,6 +83,12 @@ test.describe("an admin", () => {
     await enterCode(page);
     await page.getByRole("button", { name: "Verify" }).click();
     await expect(page.getByTestId("recovery-codes").getByRole("listitem")).toHaveCount(10);
+    // The codes alone, centred: a list bullet stayed at the cell's far edge, adrift from its code (2026-10-19).
+    const markers = await page
+      .getByTestId("recovery-codes")
+      .getByRole("listitem")
+      .evaluateAll((items) => items.map((li) => getComputedStyle(li).listStyleType));
+    expect(new Set(markers)).toEqual(new Set(["none"]));
     await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
     await page.getByRole("checkbox", { name: /saved/i }).check();
     await page.getByRole("button", { name: "Continue" }).click();

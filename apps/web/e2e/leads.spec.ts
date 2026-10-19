@@ -91,6 +91,68 @@ test.describe("the owner works leads", () => {
     }
   });
 
+  test("the drawer's panels show all of their content, none cut off at the side", async ({ page }) => {
+    // The call panel's form was 380px wide in a panel capped at 360px: its last choice and "Log call" were cut off
+    // (found on a client's demo, 2026-10-19). Every panel the drawer opens is checked the same way.
+    await page.goto("/leads?q=Karim");
+    await page.getByRole("button", { name: "Open Karim Aziz" }).click();
+    const drawer = page.getByRole("dialog", { name: "Karim Aziz" });
+    for (const [button, panel] of [
+      [/^Log a call/, "Log a call"],
+      [/^Follow-up/, "Follow up with Karim"],
+      [/^WhatsApp/, "WhatsApp Karim Aziz"],
+    ] as const) {
+      await drawer.getByRole("button", { name: button }).first().click();
+      const p = page.getByRole("dialog", { name: panel }).last();
+      await expect(p).toBeVisible();
+      const overflow = await p.evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(overflow, `${String(panel)} panel is wider inside than out`).toBeLessThanOrEqual(1);
+      await expect(p).toBeInViewport({ ratio: 1 });
+      await page.keyboard.press("Escape");
+      await expect(p).toBeHidden();
+    }
+  });
+
+  test("a long field name and value from an import wrap in their columns, never over each other", async ({
+    page,
+  }) => {
+    // A Meta lead ads import makes fields named after the form's questions, one unbroken word each; in the
+    // drawer the name ran across its value (found on a client's demo, 2026-10-19).
+    const label = "what_type_of_commercial_space_are_you_designing?";
+    // Meta's answers come without spaces too.
+    const LONG_VALUE = "within_the_next_three_months_once_the_lease_is_signed_and_the_budget_is_approved";
+    await page.goto("/leads"); // callApi runs in the page, on LUME's origin
+    const field = await callApi<{ field: { id: string; key: string } }>(page, "POST", "/api/v1/fields", {
+      key: "commercial_space_type",
+      label,
+      type: "text",
+    });
+    expect(field.status, JSON.stringify(field.data)).toBe(201);
+    const made = await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", {
+      name: "Long Label Lead",
+      custom: { [field.data.field.key]: LONG_VALUE },
+    });
+    expect(made.status, JSON.stringify(made.data)).toBe(201);
+    try {
+      await page.goto(`/leads?lead=${made.data.lead.id}`);
+      const drawer = page.getByRole("dialog", { name: "Long Label Lead" });
+      const name = drawer.locator("dt", { hasText: label });
+      const value = drawer.locator("dd", { hasText: LONG_VALUE.slice(0, 20) });
+      await expect(value).toBeVisible();
+      const [n, v] = [await name.boundingBox(), await value.boundingBox()];
+      // The name ends before its value starts, and nothing in the name spills out of its own box.
+      expect(n!.x + n!.width).toBeLessThanOrEqual(v!.x);
+      expect(await name.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+      // And the value stays inside the drawer.
+      const box = (await drawer.boundingBox())!;
+      expect(v!.x + v!.width).toBeLessThanOrEqual(box.x + box.width);
+      expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    } finally {
+      await callApi(page, "DELETE", `/api/v1/leads/${made.data.lead.id}`);
+      await callApi(page, "POST", `/api/v1/fields/${field.data.field.id}/archive`);
+    }
+  });
+
   test("@smoke reassign: the previous rep loses the lead at once", async ({ page, browser }) => {
     await page.goto("/leads?q=Priya");
     await page.getByRole("button", { name: "Open Priya Menon" }).click();

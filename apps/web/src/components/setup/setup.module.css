@@ -249,6 +249,9 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 14px;
+  margin: 0;
+  /* The codes alone: a list bullet would stay at the cell's edge while its code sits centred. */
+  list-style: none;
   padding: 14px 16px;
   border-radius: 14px;
   background: var(--sheet);

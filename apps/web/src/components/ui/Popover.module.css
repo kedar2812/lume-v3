@@ -27,6 +27,9 @@
 /* A small form (a follow-up): as tall as it needs, up to most of the window. */
 .panel[data-size="form"] {
   max-height: min(640px, calc(100vh - 96px));
+  /* Room for a form up to 380px wide plus the panel's padding (the call form's three choices and Log call were cut
+     off at the menu cap of 360px). On a phone it still keeps 16px either side. */
+  max-width: min(400px, calc(100vw - 32px));
 }
 .panel[data-align="end"] {
   left: auto;
