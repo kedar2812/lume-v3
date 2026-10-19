@@ -271,6 +271,20 @@ export async function sendMedia(req: FastifyRequest, reply: FastifyReply, d: App
   if (m.status !== "ready") throw notFound("MEDIA_NOT_READY", "That file isn't here yet.");
   const file = await onDisk(d, m.sha256);
   if (!file) throw notFound("MEDIA_MISSING", MEDIA_WORDS.missing);
+  return streamFile(req, reply, file, m, 86_400);
+}
+
+/**
+ * A stored file as an answer (a lead's media; a library file's link, W3b-1): one way, so a header that keeps a file
+ * from running as a page is never missing from either. `maxAge` is how long a browser may keep it.
+ */
+export function streamFile(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  file: { path: string; size: number },
+  m: { sha256: string; mime: string; kind: string; filename: string | null },
+  maxAge: number,
+) {
   const base = baseMime(m.mime);
   const inline = m.kind !== "document" && INLINE.has(base);
   const type = inline || DOWNLOAD.has(base) ? base : "application/octet-stream";
@@ -293,7 +307,7 @@ export async function sendMedia(req: FastifyRequest, reply: FastifyReply, d: App
     )
     .header("x-content-type-options", "nosniff")
     .header("content-security-policy", "default-src 'none'; sandbox")
-    .header("cache-control", "private, max-age=86400")
+    .header("cache-control", `private, max-age=${maxAge}`)
     .header("etag", etag)
     .header("accept-ranges", "bytes");
   if (req.headers["if-none-match"] === etag) return reply.code(304).send();

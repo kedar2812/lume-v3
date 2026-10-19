@@ -44,7 +44,7 @@
 	}
 
 	# WhatsApp: Meta's deliveries, passed on by the relay (spec 2026-10-18 §3.3), go straight to the API.
-	@api path /api/* /webhooks/* /whatsapp/in /healthz /readyz
+	@api path /api/* /webhooks/* /whatsapp/in /f/* /healthz /readyz
 	handle @api {
 		# The API never serves HTML; the web app sets its own nonce CSP.
 		header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"

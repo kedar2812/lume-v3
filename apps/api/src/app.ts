@@ -47,6 +47,7 @@ import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { aiRoutes } from "./modules/ai/routes";
 import type { FilesDeps } from "./modules/whatsapp/files";
+import { fileLinkRoutes } from "./modules/whatsapp/link";
 import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
 import { lockoutAlerts } from "./modules/auth/lockout";
@@ -264,6 +265,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(leadExportRoutes, deps);
         await scope.register(aiRoutes, deps);
         await scope.register(whatsappRoutes, deps);
+        await scope.register(fileLinkRoutes, deps);
         deps.extraRoutes?.(scope, deps);
       },
     });
