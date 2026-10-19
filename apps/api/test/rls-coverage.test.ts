@@ -12,6 +12,7 @@ const WITHOUT_RLS: Record<string, string> = {
   lost_reasons: "Business configuration",
   message_templates: "Business configuration",
   template_versions: "Business configuration",
+  message_files: "Business configuration",
   pipelines: "Business configuration",
   stages: "Business configuration",
   products: "Business configuration",

@@ -67,6 +67,26 @@ export const whatsappFiles = pgTable("whatsapp_files", {
   createdAt: tz("created_at").notNull().defaultNow(),
 });
 
+/**
+ * The business's file library (W3b-1, migration 0077): a brochure, price list or photo kept once in the shared store
+ * and sent from any lead; its share link sealed (to show again) and hashed (to find it).
+ */
+export const messageFiles = pgTable("message_files", {
+  id: uuid("id").primaryKey(),
+  sha256: text("sha256").notNull(),
+  name: text("name").notNull(),
+  mime: text("mime").notNull(),
+  kind: text("kind").$type<"image" | "video" | "audio" | "document">().notNull(),
+  size: bigint("size", { mode: "number" }).notNull(),
+  linkHash: text("link_hash"),
+  linkEnc: bytea("link_enc"),
+  linkOn: boolean("link_on").notNull().default(false),
+  opens: integer("opens").notNull().default(0),
+  createdBy: uuid("created_by"),
+  createdAt: tz("created_at").notNull().defaultNow(),
+  archivedAt: tz("archived_at"),
+});
+
 /** Files gone from the server: their off-site copies go 200 days later. */
 export const whatsappFilesGone = pgTable("whatsapp_files_gone", {
   sha256: text("sha256").primaryKey(),

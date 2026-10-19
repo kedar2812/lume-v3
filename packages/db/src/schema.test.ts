@@ -107,3 +107,46 @@ describe("Phase 0 schema and grants", () => {
     await expect(as("lume_worker", "CREATE TABLE sneaky (id int)")).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("W3b-1 file library", () => {
+  const sha = (c: string) => c.repeat(64);
+  const refsOf = async (s: string) =>
+    (await as<{ refs: number }>("lume_owner", "SELECT refs FROM whatsapp_files WHERE sha256 = $1", [s]))[0]!
+      .refs;
+  const file = (id: string, s: string, name: string) =>
+    as(
+      "lume_app",
+      "INSERT INTO message_files (id, sha256, name, mime, kind, size) VALUES ($1, $2, $3, 'application/pdf', 'document', 10)",
+      [id, s, name],
+    );
+
+  it("a library file holds its stored file: refs go up with the row and down when it's deleted", async () => {
+    await as("lume_app", "INSERT INTO whatsapp_files (sha256, size) VALUES ($1, 10)", [sha("a")]);
+    await file("00000000-0000-7000-8000-0000000000f1", sha("a"), "Brochure.pdf");
+    expect(await refsOf(sha("a"))).toBe(1);
+    // Archiving is not deleting: the file stays held, so a message that sent it still opens.
+    await as("lume_app", "UPDATE message_files SET archived_at = now() WHERE id = $1", [
+      "00000000-0000-7000-8000-0000000000f1",
+    ]);
+    expect(await refsOf(sha("a"))).toBe(1);
+    await as("lume_app", "DELETE FROM message_files WHERE id = $1", ["00000000-0000-7000-8000-0000000000f1"]);
+    expect(await refsOf(sha("a"))).toBe(0);
+  });
+
+  it("two live library files can't share a name (in any case), an archived one can", async () => {
+    await as("lume_app", "INSERT INTO whatsapp_files (sha256, size) VALUES ($1, 10)", [sha("b")]);
+    await file("00000000-0000-7000-8000-0000000000f2", sha("b"), "Price list.pdf");
+    await expect(file("00000000-0000-7000-8000-0000000000f3", sha("b"), "price LIST.pdf")).rejects.toThrow(
+      /message_files_live_name/,
+    );
+    await as("lume_app", "UPDATE message_files SET archived_at = now() WHERE id = $1", [
+      "00000000-0000-7000-8000-0000000000f2",
+    ]);
+    await file("00000000-0000-7000-8000-0000000000f3", sha("b"), "price LIST.pdf");
+  });
+
+  it("the worker can't read the library; the backup role can", async () => {
+    await expect(as("lume_worker", "SELECT id FROM message_files")).rejects.toThrow(/permission denied/);
+    expect((await as("lume_readonly_backup", "SELECT id FROM message_files")).length).toBeGreaterThan(0);
+  });
+});
