@@ -103,6 +103,13 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
     if (!r.ok) return setError(r.message);
     onView(r.data);
   };
+  // Replying from LUME (plan W3a; canvas board Switch): off by default, an admin's choice.
+  const setReply = async (v: boolean) => {
+    setError(null);
+    const r = await whatsappClient.setReplyFromLume(v);
+    if (!r.ok) return setError(r.message);
+    onView(r.data);
+  };
   const setOwner = async (n: WaNumber, ownerId: string) => {
     setError(null);
     const r = await whatsappClient.setOwner(n.id, ownerId === BUSINESS ? null : ownerId);
@@ -231,6 +238,26 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
             </Link>
           </div>
         </>
+      )}
+      {on && numbers && numbers.length > 0 && (
+        <div className={s.waReply}>
+          <div className={s.waReplyText}>
+            <span id="wa-reply" className={s.waReplyTitle}>
+              Reply from LUME
+            </span>
+            <span className={s.waReplyNote}>
+              People who can message a lead reply from its WhatsApp tab, with words, photos and documents.
+              Messages go from your connected number and show on the phone too. Only within 24 hours of the
+              lead’s last message, as WhatsApp allows.
+            </span>
+          </div>
+          <Switch
+            checked={!!wa.replyFromLume}
+            onChange={(v) => void setReply(v)}
+            label="Reply from LUME"
+            labelHidden
+          />
+        </div>
       )}
       {on && numbers && numbers.length > 0 && (
         <WhatsAppKeep months={wa.keepFilesMonths ?? null} onView={onView} />

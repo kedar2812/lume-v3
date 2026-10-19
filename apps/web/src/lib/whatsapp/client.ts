@@ -3,12 +3,14 @@ import { api } from "@/lib/api";
 import type { IntegrationsView } from "@/lib/sheets/types";
 import type {
   KeepMonths,
+  WaAttached,
   KeepPreview,
   WaInboxMessage,
   WaMediaInfo,
   WaNumbers,
   WaPerson,
   WaThread,
+  WaThreadMessage,
 } from "./types";
 
 const person = (numberId: string, peer: string) =>
@@ -19,6 +21,16 @@ export const whatsappClient = {
   setEnabled: (enabled: boolean) => api.put<IntegrationsView>("/api/v1/integrations/whatsapp", { enabled }),
   setKeepFiles: (keepFilesMonths: KeepMonths) =>
     api.put<IntegrationsView>("/api/v1/integrations/whatsapp", { keepFilesMonths }),
+  setReplyFromLume: (replyFromLume: boolean) =>
+    api.put<IntegrationsView>("/api/v1/integrations/whatsapp", { replyFromLume }),
+  /** A reply from LUME (plan W3a): `clientKey` makes a retried send the same message, never a second one. */
+  send: (leadId: string, body: { clientKey: string; text?: string; mediaId?: string; taskId?: string }) =>
+    api.post<{ message: WaThreadMessage }>(
+      `/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/messages`,
+      body,
+    ),
+  attach: (leadId: string, file: File) =>
+    api.upload<{ media: WaAttached }>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/files`, file),
   keepPreview: (months: Exclude<KeepMonths, null>) =>
     api.get<KeepPreview>(`/api/v1/whatsapp/files/keep-preview?months=${months}`),
   connect: () => api.post<{ url: string }>("/api/v1/whatsapp/connect"),

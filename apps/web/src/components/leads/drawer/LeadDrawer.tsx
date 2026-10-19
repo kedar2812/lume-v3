@@ -40,9 +40,10 @@ import { useLeadAi } from "./LeadAi";
 import { LogCall } from "./LogCall";
 import { ContactBox } from "./ContactBox";
 import { MeetingsTab } from "./MeetingsTab";
+import { WhatsAppComposer } from "./WhatsAppComposer";
 import { WhatsAppThread } from "./WhatsAppThread";
 import { whatsappClient } from "@/lib/whatsapp/client";
-import type { WaThread } from "@/lib/whatsapp/types";
+import type { WaThread, WaThreadMessage } from "@/lib/whatsapp/types";
 import { MessageButton } from "./MessageButton";
 import { NextMeeting } from "./NextMeeting";
 import { PetalBurst } from "./PetalBurst";
@@ -167,6 +168,27 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     loadWa();
   }, [loadWa]);
   const seesWa = !!wa && (wa.on || wa.messages.length > 0);
+  // A reply from LUME on its way (plan W3a): the thread looks again every 5 s until it's delivered, for 2 minutes.
+  const waPending = !!wa?.messages.some(
+    (m) => m.status === "queued" || m.status === "sending" || m.status === "sent",
+  );
+  const waSince = useRef(0);
+  useEffect(() => {
+    if (!waPending) return;
+    if (!waSince.current) waSince.current = Date.now();
+    if (Date.now() - waSince.current > 120_000) return;
+    const t = setTimeout(loadWa, 5_000);
+    return () => clearTimeout(t);
+  }, [waPending, wa, loadWa]);
+  const waSent = (m: WaThreadMessage) => {
+    waSince.current = Date.now();
+    setWa((w) => (w ? { ...w, messages: [...w.messages.filter((x) => x.id !== m.id), m] } : w));
+  };
+  const waRetry = async (m: WaThreadMessage) => {
+    const r = await whatsappClient.send(id, { clientKey: crypto.randomUUID(), text: m.text ?? "" });
+    if (!r.ok) return toast({ tone: "danger", title: "Didn't go", detail: r.message });
+    waSent(r.data.message);
+  };
   const TABS: { id: Tab; label: string }[] = [
     ...BASE_TABS,
     ...(seesWa ? [{ id: "whatsapp" as const, label: "WhatsApp" }] : []),
@@ -821,7 +843,32 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                     </>
                   )}
                   {tab === "whatsapp" && wa && (
-                    <WhatsAppThread leadName={lead.name ?? "this lead"} tz={tz} messages={wa.messages} />
+                    <WhatsAppThread
+                      leadName={lead.name ?? "this lead"}
+                      tz={tz}
+                      messages={wa.messages}
+                      onRetry={(m) => void waRetry(m)}
+                      composer={
+                        wa.reply ? (
+                          <WhatsAppComposer
+                            leadId={lead.id}
+                            leadName={lead.name ?? "this lead"}
+                            tz={tz}
+                            reply={wa.reply}
+                            onSent={waSent}
+                            fallback={
+                              lead.can.message ? (
+                                <MessageButton
+                                  lead={lead}
+                                  promptSlot={sentSlot}
+                                  onChange={() => void refresh()}
+                                />
+                              ) : null
+                            }
+                          />
+                        ) : undefined
+                      }
+                    />
                   )}
                   {tab === "meetings" && (
                     <MeetingsTab

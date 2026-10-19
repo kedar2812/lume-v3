@@ -17,6 +17,8 @@ export type IntegrationsView = {
     inPlan: boolean;
     /** How long WhatsApp's files are kept (2026-10-19): months, or null for forever. */
     keepFilesMonths?: 3 | 6 | 12 | 24 | null;
+    /** Replying from LUME (plan W3a): off until an admin switches it on. */
+    replyFromLume?: boolean;
   };
 };
 /** A file picked with Connect with Google, ready to be set up. */

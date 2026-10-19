@@ -544,6 +544,30 @@
   gap: 12px;
   flex-wrap: wrap;
 }
+/* "Reply from LUME" (plan W3a; canvas board Switch): the admin's switch, with what it does. */
+.waReply {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-top: 12px;
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.waReplyText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.waReplyTitle {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.waReplyNote {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
 /* "Keep WhatsApp files" (2026-10-19): the choice, and what it means, under the numbers. */
 .waKeep {
   display: flex;

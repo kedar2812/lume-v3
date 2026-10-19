@@ -111,7 +111,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(aiClient.status).mockResolvedValue(ok(aiOff));
   vi.mocked(aiClient.lead).mockResolvedValue(ok({ offerCatchUp: false, pending: null }));
-  vi.mocked(whatsappClient.thread).mockResolvedValue(ok({ on: false, messages: [] }));
+  vi.mocked(whatsappClient.thread).mockResolvedValue(ok({ on: false, reply: null, messages: [] }));
 });
 
 describe("LeadDrawer", () => {
@@ -661,6 +661,7 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
       vi.mocked(whatsappClient.thread).mockResolvedValue(
         ok({
           on: true,
+          reply: null,
           messages: [
             {
               id: "w1",
@@ -668,6 +669,10 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
               at: "2026-09-24T10:00:00Z",
               text: "Is Saturday ok?",
               media: null,
+              sentBy: null,
+              status: null,
+              problem: null,
+              outboxId: null,
             },
           ],
         }),

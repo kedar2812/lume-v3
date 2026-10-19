@@ -1,6 +1,6 @@
 "use client";
 import { bytesText } from "@lume/core/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
 import { mediaUrl, whatsappClient } from "@/lib/whatsapp/client";
 import type { WaMediaInfo, WaThreadMessage } from "@/lib/whatsapp/types";
@@ -97,6 +97,77 @@ function MediaPart({ media, from }: { media: NonNullable<WaThreadMessage["media"
   );
 }
 
+const STATUS_WORDS = {
+  queued: "Sending…",
+  sending: "Sending…",
+  sent: "Sent",
+  delivered: "Delivered",
+  read: "Read",
+};
+
+/**
+ * Where a reply sent from LUME has got to (plan W3a; canvas board Statuses): a tick for sent, two for delivered, blue
+ * for read, in words too; and why it didn't go, with Try again for words (a file needs attaching again).
+ */
+function SendStatus({
+  m,
+  onRetry,
+}: {
+  m: WaThreadMessage;
+  onRetry?: ((m: WaThreadMessage) => void) | undefined;
+}) {
+  if (!m.status) return null;
+  if (m.status === "failed")
+    return (
+      <span className={s.failed}>
+        <span>{m.problem ?? "This message didn't go."}</span>
+        {onRetry && !m.media && (
+          <button type="button" className={s.retry} onClick={() => onRetry(m)}>
+            Try again
+          </button>
+        )}
+      </span>
+    );
+  const two = m.status === "delivered" || m.status === "read";
+  const one = m.status === "sent";
+  return (
+    <span className={s.status} data-status={m.status}>
+      {two && (
+        <svg
+          aria-hidden="true"
+          width="16"
+          height="10"
+          viewBox="0 0 16 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 5.5 3.8 8.2 9.5 1.8" />
+          <path d="M6.5 8.2 12.5 1.8" />
+        </svg>
+      )}
+      {one && (
+        <svg
+          aria-hidden="true"
+          width="12"
+          height="10"
+          viewBox="0 0 12 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1.5 5.5 4.3 8.2 10.5 1.8" />
+        </svg>
+      )}
+      {STATUS_WORDS[m.status]}
+    </span>
+  );
+}
+
 /**
  * A lead's WhatsApp messages (spec 2026-10-18 §4.2; canvas board Thread): oldest first, grouped by day; the lead's on
  * one side, the business phone's on the other. Each message is one list item, heard as who, when, then what.
@@ -105,17 +176,26 @@ export function WhatsAppThread({
   leadName,
   tz,
   messages,
+  onRetry,
+  composer,
 }: {
   leadName: string;
   tz: string;
   messages: WaThreadMessage[];
+  /** A reply from LUME that didn't go, sent again as a new message (plan W3a). */
+  onRetry?: (m: WaThreadMessage) => void;
+  /** The reply box (plan W3a), when this person may reply from LUME; in place of the line about replying on the phone. */
+  composer?: ReactNode;
 }) {
   const who = first(leadName);
   if (!messages.length)
     return (
-      <p className={s.empty}>
-        No WhatsApp messages with {who} yet. When {who} writes to your number, it shows up here.
-      </p>
+      <>
+        <p className={s.empty}>
+          No WhatsApp messages with {who} yet. When {who} writes to your number, it shows up here.
+        </p>
+        {composer}
+      </>
     );
   const today = dayKey(new Date(), tz);
   const dayWords = (iso: string) => {
@@ -141,18 +221,24 @@ export function WhatsAppThread({
           ) : (
             <li key={r.m.id} className={s.msg} data-direction={r.m.direction}>
               <span className={s.meta}>
-                {r.m.direction === "in" ? who : "From the phone"}, {timeOf(new Date(r.m.at), tz)}
+                {r.m.direction === "in" ? who : (r.m.sentBy?.name ?? "From the phone")},{" "}
+                {timeOf(new Date(r.m.at), tz)}
                 <span className={s.srOnly}>: </span>
               </span>
               <div className={s.bubble}>
                 {r.m.media && <MediaPart media={r.m.media} from={who} />}
                 {r.m.text && <span className={s.text}>{r.m.text}</span>}
               </div>
+              <SendStatus m={r.m} onRetry={onRetry} />
             </li>
           ),
         )}
       </ol>
-      <p className={s.foot}>Replies arrive here by themselves. Reply on your phone; it shows up here too.</p>
+      {composer ?? (
+        <p className={s.foot}>
+          Replies arrive here by themselves. Reply on your phone; it shows up here too.
+        </p>
+      )}
     </div>
   );
 }

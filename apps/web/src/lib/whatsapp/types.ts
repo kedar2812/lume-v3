@@ -43,8 +43,29 @@ export type WaThreadMessage = {
     filename: string | null;
     voice: boolean;
   } | null;
+  /** Sent from LUME (plan W3a): who sent it, where it's got to, and why it failed. Null for the rest. */
+  sentBy: { id: string; name: string } | null;
+  status: WaSendStatus | null;
+  problem: string | null;
+  outboxId: string | null;
 };
-export type WaThread = { on: boolean; messages: WaThreadMessage[] };
+export type WaSendStatus = "queued" | "sending" | "sent" | "delivered" | "read" | "failed";
+/** Whether this person may reply from LUME now, from which number, until when; null: no reply box at all. */
+export type WaReply = {
+  allowed: boolean;
+  number: { id: string; display: string; ownerName: string | null } | null;
+  until: string | null;
+  reason: string | null;
+} | null;
+export type WaThread = { on: boolean; reply: WaReply; messages: WaThreadMessage[] };
+/** A file attached in the reply box, not sent yet. */
+export type WaAttached = {
+  id: string;
+  kind: "image" | "video" | "audio" | "document";
+  mime: string;
+  filename: string | null;
+  size: number;
+};
 /** "Keep WhatsApp files for" (2026-10-19): null keeps them forever. */
 export type KeepMonths = 3 | 6 | 12 | 24 | null;
 /** What a shorter "keep for" would remove: files, and about how many bytes it frees. */

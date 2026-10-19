@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaMediaInfo, WaThreadMessage } from "@/lib/whatsapp/types";
@@ -15,6 +16,10 @@ const msg = (o: Partial<WaThreadMessage> & { id: string }): WaThreadMessage => (
   at: "2026-10-21T06:00:00.000Z",
   text: null,
   media: null,
+  sentBy: null,
+  status: null,
+  problem: null,
+  outboxId: null,
   ...o,
 });
 const info = (o: Partial<WaMediaInfo>): WaMediaInfo => ({
@@ -217,6 +222,71 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
     expect(
       await screen.findByText("LUME couldn’t show this photo. Open it on the phone."),
     ).toBeInTheDocument();
+  });
+
+  it("a reply sent from LUME says who sent it and where it's got to, in words for screen readers too (W3a)", () => {
+    const out = (id: string, status: WaThreadMessage["status"]) =>
+      msg({
+        id,
+        direction: "out",
+        text: `m-${id}`,
+        sentBy: { id: "u1", name: "Priya Nair" },
+        status,
+        outboxId: `o${id}`,
+      });
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={[out("1", "queued"), out("2", "sent"), out("3", "delivered"), out("4", "read")]}
+      />,
+    );
+    const items = within(screen.getByRole("list", { name: "WhatsApp messages with Sneha" })).getAllByRole(
+      "listitem",
+    );
+    expect(items.slice(1).map((li) => li.textContent)).toEqual([
+      "Priya Nair, 11:30 am: m-1Sending…",
+      "Priya Nair, 11:30 am: m-2Sent",
+      "Priya Nair, 11:30 am: m-3Delivered",
+      "Priya Nair, 11:30 am: m-4Read",
+    ]);
+  });
+
+  it("a reply that didn't go says why; Try again for words, never for a file that needs attaching again", async () => {
+    const onRetry = vi.fn();
+    const failed = msg({
+      id: "1",
+      direction: "out",
+      text: "See you Saturday",
+      sentBy: { id: "u1", name: "Priya" },
+      status: "failed",
+      problem: "This number can't get WhatsApp messages.",
+      outboxId: "o1",
+    });
+    vi.mocked(whatsappClient.mediaInfo).mockResolvedValue(
+      ok(info({ kind: "document", mime: "application/pdf" })),
+    );
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        onRetry={onRetry}
+        messages={[
+          failed,
+          {
+            ...failed,
+            id: "2",
+            outboxId: "o2",
+            media: { id: "m1", kind: "document", mime: "application/pdf", filename: "a.pdf", voice: false },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getAllByText("This number can't get WhatsApp messages.")).toHaveLength(2);
+    const again = screen.getAllByRole("button", { name: "Try again" });
+    expect(again).toHaveLength(1);
+    await userEvent.click(again[0]!);
+    expect(onRetry).toHaveBeenCalledWith(failed);
   });
 
   it("nothing yet: says so, naming the lead (no guessed pronoun)", () => {
