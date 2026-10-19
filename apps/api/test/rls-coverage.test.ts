@@ -70,6 +70,8 @@ const WITHOUT_RLS: Record<string, string> = {
   // A file is only ever reached through whatsapp_media, whose row-level security decides who sees it.
   whatsapp_files: "Background work and its bookkeeping",
   whatsapp_files_gone: "Background work and its bookkeeping",
+  // Meta's id for a file uploaded for a number (W3a): a number, a hash, Meta's id; no lead data.
+  whatsapp_meta_uploads: "Background work and its bookkeeping",
   // Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes
   lead_firsts:
     "Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes",

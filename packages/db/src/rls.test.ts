@@ -903,6 +903,52 @@ describe("WhatsApp (spec 2026-10-18 §4.1, §6.3; plan W1 Task 3)", () => {
     });
   });
 
+  it("replies sent from LUME are seen with their lead, never by the worker; one key twice is one message (W3a)", async () => {
+    const out = (lead: string, key: string, user: string = U.rep) =>
+      `INSERT INTO whatsapp_outbox (id, lead_id, number_id, user_id, client_key, text, status)
+       VALUES (gen_random_uuid(), '${lead}', '${N.rep}', '${user}', '${key}', 'Hello', 'queued')`;
+    const K1 = "0190e0c0-0000-7000-8000-0000000000f1";
+    const K2 = "0190e0c0-0000-7000-8000-0000000000f2";
+    await as("lume_owner", { scope: "all" }, async (c) => {
+      await c.query(out(L.rep, K1));
+      await c.query(out(L.other, K2, U.other));
+    });
+    const seen = (s: Scope) =>
+      as("lume_app", s, async (c) =>
+        (await c.query<{ lead_id: string }>("SELECT lead_id FROM whatsapp_outbox")).rows.map(
+          (r) => r.lead_id,
+        ),
+      );
+    expect(await seen({ scope: "own", user: U.rep })).toEqual([L.rep]);
+    expect(await seen({ scope: "all" })).toHaveLength(2);
+    expect(await seen({ scope: null })).toEqual([]);
+    await expect(as("lume_owner", { scope: "all" }, (c) => c.query(out(L.rep, K1)))).rejects.toThrow(
+      /unique/,
+    );
+    await expect(
+      as("lume_worker", { scope: null }, (c) => c.query("SELECT text FROM whatsapp_outbox")),
+    ).rejects.toThrow(/permission/);
+    // A file attached and not sent yet is a draft, and says who attached it.
+    await as("lume_owner", { scope: "all" }, (c) =>
+      c.query("UPDATE whatsapp_media SET draft = true, uploaded_by = $1 WHERE lead_id = $2", [U.rep, L.rep]),
+    );
+    // The Meta upload cache: per number and file.
+    const F = "9".repeat(64);
+    await as("lume_owner", { scope: "all" }, async (c) => {
+      await c.query("INSERT INTO whatsapp_files (sha256, size) VALUES ($1, 1) ON CONFLICT DO NOTHING", [F]);
+      await c.query(
+        "INSERT INTO whatsapp_meta_uploads (number_id, sha256, meta_media_id) VALUES ($1, $2, 'M1')",
+        [N.rep, F],
+      );
+      await expect(
+        c.query(
+          "INSERT INTO whatsapp_meta_uploads (number_id, sha256, meta_media_id) VALUES ($1, $2, 'M2')",
+          [N.rep, F],
+        ),
+      ).rejects.toThrow(/duplicate key/);
+    });
+  });
+
   it("a number's token is never readable by the worker, and the same message twice is one event", async () => {
     await expect(
       as("lume_worker", { scope: null }, (c) => c.query("SELECT token_enc FROM whatsapp_numbers")),

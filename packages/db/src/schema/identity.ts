@@ -68,7 +68,7 @@ export const settings = pgTable("settings", {
       googleCalendar?: { enabled: boolean };
       /** LUME AI (spec 2026-10-18 §2.2): off unless an admin switches it on. */
       ai?: { enabled: boolean };
-      whatsapp?: { enabled?: boolean; keepFilesMonths?: 3 | 6 | 12 | 24 | null };
+      whatsapp?: { enabled?: boolean; keepFilesMonths?: 3 | 6 | 12 | 24 | null; replyFromLume?: boolean };
     }>()
     .notNull()
     .default(sql`'{}'::jsonb`),

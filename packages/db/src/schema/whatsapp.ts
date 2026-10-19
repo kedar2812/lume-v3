@@ -92,5 +92,39 @@ export const whatsappMedia = pgTable("whatsapp_media", {
   tries: integer("tries").notNull().default(0),
   /** Not tried again before this (the disk was full, or the folder not writable). */
   retryAt: tz("retry_at"),
+  /** Attached in the composer and not sent yet (W3a); removed after a day if it never goes. */
+  draft: boolean("draft").notNull().default(false),
+  uploadedBy: uuid("uploaded_by"),
   createdAt: tz("created_at").notNull().defaultNow(),
 });
+
+/** A reply sent from LUME (plan W3a), from Send until read, or why it failed. Seen exactly as its lead is. */
+export const whatsappOutbox = pgTable("whatsapp_outbox", {
+  id: uuid("id").primaryKey(),
+  leadId: uuid("lead_id").notNull(),
+  numberId: uuid("number_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  activityId: uuid("activity_id"),
+  clientKey: uuid("client_key").notNull(),
+  text: text("text"),
+  mediaId: uuid("media_id"),
+  taskId: uuid("task_id"),
+  status: text("status").$type<"queued" | "sending" | "sent" | "delivered" | "read" | "failed">().notNull(),
+  wamid: text("wamid"),
+  problem: text("problem"),
+  tries: integer("tries").notNull().default(0),
+  createdAt: tz("created_at").notNull().defaultNow(),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
+});
+
+/** A file uploaded to Meta for a number: its Meta id, reused for 25 days (Meta's last 30). */
+export const whatsappMetaUploads = pgTable(
+  "whatsapp_meta_uploads",
+  {
+    numberId: uuid("number_id").notNull(),
+    sha256: text("sha256").notNull(),
+    metaMediaId: text("meta_media_id").notNull(),
+    uploadedAt: tz("uploaded_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.numberId, t.sha256] })],
+);
