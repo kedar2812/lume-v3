@@ -1,7 +1,9 @@
 "use client";
 import { bytesText } from "@lume/core/shared";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
+import { SPRINGS, toMotion } from "@/lib/motion";
 import { mediaUrl, whatsappClient } from "@/lib/whatsapp/client";
 import type { WaMediaInfo, WaThreadMessage } from "@/lib/whatsapp/types";
 import s from "./whatsapp.module.css";
@@ -188,6 +190,11 @@ export function WhatsAppThread({
   composer?: ReactNode;
 }) {
   const who = first(leadName);
+  const reduce = useReducedMotion();
+  // A message that arrives, or one just sent, rises in from the reply box; the rest stay still (initial={false}).
+  const rise = reduce
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
+    : { initial: { opacity: 0, y: 12, scale: 0.98 }, animate: { opacity: 1, y: 0, scale: 1 } };
   if (!messages.length)
     return (
       <>
@@ -213,26 +220,35 @@ export function WhatsAppThread({
   return (
     <div className={s.thread}>
       <ol className={s.list} aria-label={`WhatsApp messages with ${who}`}>
-        {rows.map((r) =>
-          "day" in r ? (
-            <li key={`d-${r.day}`} className={s.day}>
-              {r.day}
-            </li>
-          ) : (
-            <li key={r.m.id} className={s.msg} data-direction={r.m.direction}>
-              <span className={s.meta}>
-                {r.m.direction === "in" ? who : (r.m.sentBy?.name ?? "From the phone")},{" "}
-                {timeOf(new Date(r.m.at), tz)}
-                <span className={s.srOnly}>: </span>
-              </span>
-              <div className={s.bubble}>
-                {r.m.media && <MediaPart media={r.m.media} from={who} />}
-                {r.m.text && <span className={s.text}>{r.m.text}</span>}
-              </div>
-              <SendStatus m={r.m} onRetry={onRetry} />
-            </li>
-          ),
-        )}
+        <AnimatePresence initial={false}>
+          {rows.map((r) =>
+            "day" in r ? (
+              <li key={`d-${r.day}`} className={s.day}>
+                {r.day}
+              </li>
+            ) : (
+              <motion.li
+                key={r.m.id}
+                className={s.msg}
+                data-direction={r.m.direction}
+                {...rise}
+                transition={toMotion(SPRINGS.default)}
+                style={{ transformOrigin: r.m.direction === "out" ? "100% 100%" : "0% 100%" }}
+              >
+                <span className={s.meta}>
+                  {r.m.direction === "in" ? who : (r.m.sentBy?.name ?? "From the phone")},{" "}
+                  {timeOf(new Date(r.m.at), tz)}
+                  <span className={s.srOnly}>: </span>
+                </span>
+                <div className={s.bubble}>
+                  {r.m.media && <MediaPart media={r.m.media} from={who} />}
+                  {r.m.text && <span className={s.text}>{r.m.text}</span>}
+                </div>
+                <SendStatus m={r.m} onRetry={onRetry} />
+              </motion.li>
+            ),
+          )}
+        </AnimatePresence>
       </ol>
       {composer ?? (
         <p className={s.foot}>
