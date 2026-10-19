@@ -5,6 +5,8 @@ import type { AppDeps } from "../../app";
 import { ignorePeer, inboxPerson, inboxView, makeLead } from "./inbox";
 import { KEEP_MONTHS, keepPreview } from "./keep";
 import { mediaInfo, sendMedia } from "./media";
+import { attachFile, sendLimiter, sendReply } from "./send";
+import { LIMITS } from "./sniff";
 import { leadThread } from "./thread";
 import {
   connectComplete,
@@ -26,9 +28,13 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
       ...manage,
       schema: {
         body: z
-          .object({ enabled: z.boolean().optional(), keepFilesMonths: KEEP_MONTHS.optional() })
+          .object({
+            enabled: z.boolean().optional(),
+            keepFilesMonths: KEEP_MONTHS.optional(),
+            replyFromLume: z.boolean().optional(),
+          })
           .strict()
-          .refine((b) => b.enabled !== undefined || b.keepFilesMonths !== undefined, "Nothing to change."),
+          .refine((b) => Object.values(b).some((v) => v !== undefined), "Nothing to change."),
       },
     },
     (req) => setWhatsAppSettings(req, d, req.body),
@@ -65,8 +71,56 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
   r.get(
     "/api/v1/leads/:id/whatsapp",
     { config: { permission: "leads.view" }, schema: { params: id } },
-    (req) => leadThread(req, req.params.id),
+    (req) => leadThread(req, d, req.params.id),
   );
+  // Replying from LUME (plan W3a; spec §3.4): a message, and a file attached for one.
+  const limiter = sendLimiter({ now: d.clock });
+  r.post(
+    "/api/v1/leads/:id/whatsapp/messages",
+    {
+      config: { permission: "messages.send" },
+      schema: {
+        params: id,
+        body: z
+          .object({
+            clientKey: z.uuid(),
+            // Checked in words by the service (4,096 with no file, 1,024 with one); this is only a ceiling.
+            text: z.string().max(8192).optional(),
+            mediaId: z.uuid().optional(),
+            taskId: z.uuid().optional(),
+          })
+          .strict(),
+      },
+    },
+    async (req, reply) => reply.code(202).send(await sendReply(req, d, limiter, req.params.id, req.body)),
+  );
+  await r.register(async (files) => {
+    // Scoped: only this route takes a raw body, at most a document's 25 MB (+1, so one byte over is refused in words).
+    files.addContentTypeParser(
+      "*",
+      { parseAs: "buffer", bodyLimit: LIMITS.document + 1 },
+      (_req, body, done) => done(null, body),
+    );
+    files.withTypeProvider<ZodTypeProvider>().post(
+      "/api/v1/leads/:id/whatsapp/files",
+      {
+        config: { permission: "messages.send", idempotent: false },
+        bodyLimit: LIMITS.document + 1,
+        schema: { params: id },
+      },
+      async (req, reply) => {
+        const raw = req.headers["x-file-name"];
+        let name: string | null = null;
+        try {
+          name = typeof raw === "string" ? decodeURIComponent(raw).replace(/[\\/\r\n"]/g, "") : null;
+        } catch {
+          name = null;
+        }
+        const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+        return reply.code(201).send(await attachFile(req, d, req.params.id, body, name));
+      },
+    );
+  });
   // A file on a lead, or waiting in Not a lead yet: row-level security decides who sees it (§4.1).
   r.get(
     "/api/v1/whatsapp/media/:id",

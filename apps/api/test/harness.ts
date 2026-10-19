@@ -158,6 +158,8 @@ export type Harness = {
   whatsappQueued: number[];
   /** WhatsApp media queued for fetching (Task 7). */
   whatsappMediaQueued: string[];
+  /** Replies from LUME queued for sending (W3a). */
+  whatsappSendQueued: string[];
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
   runWhatsApp(): Promise<void>;
   /** Fetch the queued WhatsApp media (Task 7). */
@@ -259,6 +261,7 @@ export async function createHarness(
   const webhookQueue: number[] = [];
   const whatsappQueued: number[] = [];
   const whatsappMediaQueued: string[] = [];
+  const whatsappSendQueued: string[] = [];
   const calendarQueue: string[] = [];
   const reminderQueue: { id: number; fireAt: Date }[] = [];
   let reminderQueueDown = false;
@@ -317,6 +320,7 @@ export async function createHarness(
     whatsapp: {
       enqueue: async (id) => void whatsappQueued.push(id),
       enqueueMedia: async (id) => void whatsappMediaQueued.push(id),
+      enqueueSend: async (id) => void whatsappSendQueued.push(id),
     },
     files,
   };
@@ -514,6 +518,7 @@ export async function createHarness(
     webhookQueue,
     whatsappQueued,
     whatsappMediaQueued,
+    whatsappSendQueued,
     files,
     calendarQueue,
     reminderQueue,

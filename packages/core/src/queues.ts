@@ -15,5 +15,6 @@ export const QUEUE_NAMES = [
   "notifications.retention",
   "whatsapp.process",
   "whatsapp.media",
+  "whatsapp.send",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

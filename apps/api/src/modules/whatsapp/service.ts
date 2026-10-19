@@ -52,15 +52,20 @@ async function requireOn(req: FastifyRequest, d: AppDeps) {
 export async function setWhatsAppSettings(
   req: FastifyRequest,
   d: AppDeps,
-  body: { enabled?: boolean | undefined; keepFilesMonths?: KeepMonths | undefined },
+  body: {
+    enabled?: boolean | undefined;
+    keepFilesMonths?: KeepMonths | undefined;
+    replyFromLume?: boolean | undefined;
+  },
 ) {
   if (body.enabled) {
     assertModule(req, "whatsapp");
     if (!relayOf(d) || !d.meta) throw notConfigured();
   }
-  const patch: { enabled?: boolean; keepFilesMonths?: KeepMonths } = {};
+  const patch: { enabled?: boolean; keepFilesMonths?: KeepMonths; replyFromLume?: boolean } = {};
   if (body.enabled !== undefined) patch.enabled = body.enabled;
   if (body.keepFilesMonths !== undefined) patch.keepFilesMonths = body.keepFilesMonths;
+  if (body.replyFromLume !== undefined) patch.replyFromLume = body.replyFromLume;
   const [before] = await req.db
     .select({ i: schema.settings.integrations })
     .from(schema.settings)
@@ -82,6 +87,16 @@ export async function setWhatsAppSettings(
       diff: {
         module: "whatsapp",
         keepFilesMonths: { from: before?.i.whatsapp?.keepFilesMonths ?? null, to: body.keepFilesMonths },
+      },
+    });
+  // Replying from LUME (plan W3a): off by default, an admin's choice, in the audit log.
+  if (body.replyFromLume !== undefined)
+    await audit(req, {
+      action: "integration.updated",
+      entityType: "integration",
+      diff: {
+        module: "whatsapp",
+        replyFromLume: { from: !!before?.i.whatsapp?.replyFromLume, to: body.replyFromLume },
       },
     });
   return integrationsView(req, d);

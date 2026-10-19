@@ -103,6 +103,8 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
       inPlan: moduleIncluded(req.server.licence.view().plan, "whatsapp"),
       // How long WhatsApp's files are kept (2026-10-19): null, forever.
       keepFilesMonths: s?.i.whatsapp?.keepFilesMonths ?? null,
+      // Replying from LUME (plan W3a): off until an admin switches it on.
+      replyFromLume: !!s?.i.whatsapp?.replyFromLume,
     },
     ai: {
       enabled: !!s?.i.ai?.enabled,

@@ -131,6 +131,7 @@ describe("the switch", () => {
       available: true,
       inPlan: true,
       keepFilesMonths: null,
+      replyFromLume: false,
     });
     const r = await switchTo(true);
     expect(r.statusCode).toBe(200);

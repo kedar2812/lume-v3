@@ -80,6 +80,7 @@ const tasks: NonNullable<AppDeps["tasks"]> = {
 const whatsapp: NonNullable<AppDeps["whatsapp"]> = {
   enqueue: async () => undefined,
   enqueueMedia: async () => undefined,
+  enqueueSend: async () => undefined,
 };
 
 const mailer = createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`);
@@ -176,6 +177,7 @@ webhooks.enqueue = webhookQueue.enqueue;
 const whatsappQueue = await startWhatsAppQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
 whatsapp.enqueue = whatsappQueue.enqueue;
 whatsapp.enqueueMedia = whatsappQueue.enqueueMedia;
+whatsapp.enqueueSend = whatsappQueue.enqueueSend;
 const taskQueue = await startTaskQueue({
   connectionString: cfg.DATABASE_URL_APP,
   app,

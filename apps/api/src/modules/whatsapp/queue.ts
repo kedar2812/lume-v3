@@ -81,6 +81,10 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
   const enqueueMedia = async (id: string) => {
     await boss.send("whatsapp.media", { id }, { retryLimit: 3, retryDelay: 120, singletonKey: id });
   };
+  // Replies from LUME (plan W3a): sent by Task 4's workers; each message once (singleton), tried again with backoff.
+  const enqueueSend = async (id: string) => {
+    await boss.send("whatsapp.send", { id }, { retryLimit: 5, retryBackoff: true, singletonKey: id });
+  };
   const pool = o.d.jobPool ?? o.d.pool;
   const sweep = async () => {
     try {
@@ -116,6 +120,7 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
   return {
     enqueue,
     enqueueMedia,
+    enqueueSend,
     stop: async () => {
       clearInterval(timer);
       clearInterval(hourly);

@@ -118,7 +118,12 @@ export type AppDeps = {
    */
   files?: FilesDeps | null;
   /** WhatsApp's queues (plan W1 Tasks 5–7): an event to make into lead activity, a media item to fetch. */
-  whatsapp?: { enqueue(eventId: number): Promise<void>; enqueueMedia(mediaId: string): Promise<void> };
+  whatsapp?: {
+    enqueue(eventId: number): Promise<void>;
+    enqueueMedia(mediaId: string): Promise<void>;
+    /** A reply from LUME to send (plan W3a). */
+    enqueueSend(outboxId: string): Promise<void>;
+  };
   /** Tests and e2e only: where Calendly's API is (the fake, 5B). */
   calendlyEndpoint?: string;
   /** Tests only: how the Calendly client waits between retries (no real 1-2-4 s). */

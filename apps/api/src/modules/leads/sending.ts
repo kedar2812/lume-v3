@@ -25,7 +25,7 @@ export type MoveResult = {
 };
 
 /** The lead, if the caller may message it (report §11.2 step 2). */
-async function sendable(req: FastifyRequest, id: string): Promise<LeadRow> {
+export async function sendable(req: FastifyRequest, id: string): Promise<LeadRow> {
   const lead = await visibleLead(req, id);
   if (!canOnRecord(req.actor!, "messages.send", lead.ownerId)) throw forbidden();
   return lead;

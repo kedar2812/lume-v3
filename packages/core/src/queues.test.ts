@@ -19,6 +19,7 @@ describe("QUEUE_NAMES", () => {
       "notifications.retention",
       "whatsapp.process",
       "whatsapp.media",
+      "whatsapp.send",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });
