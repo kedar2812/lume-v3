@@ -237,7 +237,7 @@ business. Copy speaks as LUME, with no em dashes.
 ## 8. Depends on
 
 - **W3b, templates beyond 24 hours** (approved templates, with media, chosen and filled per lead): required for first
-  messages and follow-ups. Not built yet.
+  messages and follow-ups. Built 2026-10-20 (W3b-1 file library, W3b-2 approved templates; not deployed).
 - **WhatsApp connected through Meta** for the business (W1); the owner's Meta business verification is still pending.
 - **LUME AI's provider and model** (2026-10-18 design §2.1 and §6): the paid eval and the model choice wait on the
   owner's spend approval.
@@ -261,6 +261,9 @@ business. Copy speaks as LUME, with no em dashes.
 2. **Out of allowance:** the run pauses until the admin asks the owner for a top-up (§4).
 3. **"Are you a bot?":** a business setting: say so honestly, or hand over; never deny (§3).
 4. **Replies outside working hours:** a business setting (§3).
+5. **Design approved (2026-10-20).** Autopilot works only where WhatsApp is connected to LUME. **Send files** sends the
+   actual file from the business's Media library (a brochure, a price list, photos of past work), as WhatsApp media,
+   never a link; it's one of the permissions (Go ahead, Ask me, Never) like the rest.
 
 ## 11. My calls (settled in writing this; the owner can overrule)
 
