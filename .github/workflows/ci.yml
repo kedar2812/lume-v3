@@ -77,14 +77,27 @@ jobs:
             apps/licence/playwright-report
             apps/licence/test-results
 
+  render:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: The render service against the real tools, in the image they ship in
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/render.Dockerfile
+          target: test
+          push: false
+          cache-from: type=gha,scope=render
   images:
-    needs: [check, e2e]
+    needs: [check, e2e, render]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions: { contents: read, packages: write }
     strategy:
       matrix:
-        image: [api, worker, web, caddy]
+        image: [api, worker, web, caddy, render]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

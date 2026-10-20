@@ -30,6 +30,10 @@ services:
     build: { context: .., dockerfile: infra/docker/worker.Dockerfile }
     mem_limit: 512m
     cpus: 0.3
+  render:
+    build: { context: .., dockerfile: infra/docker/render.Dockerfile }
+    mem_limit: 768m
+    cpus: 0.5
   web:
     build: { context: .., dockerfile: infra/docker/web.Dockerfile }
     environment:

@@ -12,6 +12,9 @@ networks:
   backend:
     ipam:
       config: [{ subnet: 172.30.0.0/24 }]
+  # The render service's (plan 2026-10-20-media-tab): the API and render only, and no route out of the server.
+  render:
+    internal: true
 
 volumes:
   pgdata: {}
@@ -107,9 +110,12 @@ services:
       LUME_LICENSE_KEY: ${LUME_LICENSE_KEY:-}
       # LUME's own demo only: "true" waives two-step sign-in, honoured solely at demo.lumecrm.in (api/src/demo/mode.ts).
       LUME_DEMO_MODE: ${LUME_DEMO_MODE:-}
+      # Thumbnails of the business's files, and Word, Excel and PowerPoint shown as pages (docs/runbooks/media.md).
+      # Set it empty to run without: Media then shows each file by its kind.
+      LUME_RENDER_URL: ${LUME_RENDER_URL-http://render:3020}
     volumes:
       - files:/var/lib/lume/files
-    networks: [frontend, backend]
+    networks: [frontend, backend, render]
     mem_limit: 768m
     depends_on:
       db: { condition: service_healthy }
@@ -138,6 +144,18 @@ services:
     mem_limit: 768m
     depends_on:
       db: { condition: service_healthy }
+
+  # LibreOffice, poppler, ffmpeg and vips behind a small HTTP service: bytes in, a thumbnail or a PDF out. It reaches
+  # nothing and holds nothing; each job runs in its own folder on the tmpfs under a time limit (apps/render).
+  render:
+    <<: *base
+    image: ${LUME_IMAGE_PREFIX:-lume}/render:${LUME_TAG:-dev}
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs: ["/tmp:size=768m"]
+    networks: [render]
+    mem_limit: 1g
+    pids_limit: 128
 
   web:
     <<: *base

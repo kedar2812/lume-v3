@@ -77,6 +77,17 @@ describe("loadConfig", () => {
     );
   });
 
+  it("the render service is optional, an http address when set (plan 2026-10-20-media-tab)", () => {
+    expect(loadConfig(apiSchema, apiEnv).LUME_RENDER_URL).toBeUndefined();
+    expect(loadConfig(apiSchema, { ...apiEnv, LUME_RENDER_URL: "" }).LUME_RENDER_URL).toBeUndefined();
+    expect(loadConfig(apiSchema, { ...apiEnv, LUME_RENDER_URL: "http://render:3020" }).LUME_RENDER_URL).toBe(
+      "http://render:3020",
+    );
+    expect(
+      issuesOf(() => loadConfig(apiSchema, { ...apiEnv, LUME_RENDER_URL: "file:///etc" })).join(),
+    ).toMatch(/LUME_RENDER_URL/);
+  });
+
   it("Connect with Google needs both the relay's address and this instance's token", () => {
     expect(loadConfig(apiSchema, apiEnv).GOOGLE_OAUTH_RELAY_URL).toBeUndefined();
     const ok = loadConfig(apiSchema, {

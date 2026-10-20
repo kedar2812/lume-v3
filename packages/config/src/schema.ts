@@ -111,6 +111,11 @@ export const apiSchema = base
     /** Where WhatsApp's files are kept (2026-10-19): the `files` volume. The worker reads it for the off-site copy. */
     LUME_FILES_DIR: z.string().startsWith("/").default("/var/lib/lume/files"),
     WHATSAPP_RELAY_TOKEN: optional(z.string().min(32).max(200)),
+    /**
+     * LUME's render service (plan 2026-10-20-media-tab): thumbnails of the business's files, and Office files as PDFs.
+     * Unset: Media shows each file by its kind, and Word and PowerPoint can't be shown as pages.
+     */
+    LUME_RENDER_URL: optional(z.url({ protocol: /^https?$/ })),
     META_GRAPH_VERSION: optional(z.string().regex(/^v\d+\.\d+$/)),
     LUME_AI_MODEL: optional(z.string().min(1).max(100)),
     LUME_AI_KEY: optional(z.string().min(20).max(400)),
