@@ -9,6 +9,7 @@ import { MediaGuide } from "./MediaGuide";
 import { MediaTile } from "./MediaTile";
 import { UploadTray } from "./UploadTray";
 import { useUploads, type Upload } from "./useUploads";
+import { Viewer } from "./viewer/Viewer";
 import s from "./media.module.css";
 
 /** What WhatsApp takes (the server reads the bytes either way). */
@@ -94,7 +95,16 @@ export function MediaScreen({
   }, [files, filter, query]);
   const going = uploads.filter((u) => u.state === "waiting" || u.state === "uploading");
 
-  const open = (id: string) => onOpen?.(id);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = (id: string) => (onOpen ? onOpen(id) : setOpenId(id));
+  const closeViewer = useCallback((id: string) => {
+    setOpenId(null);
+    // Back to the tile of the file it closed on, once the viewer has gone.
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-viewer-origin="${CSS.escape(id)}"]`)?.focus(),
+    );
+  }, []);
+  const archived = useCallback((id: string) => setFiles((xs) => xs.filter((x) => x.id !== id)), []);
   const putAway = () => {
     setGuide(false);
     void filesClient.putAwayGuide();
@@ -280,6 +290,17 @@ export function MediaScreen({
       </AnimatePresence>
 
       <UploadTray uploads={uploads} onDismiss={dismiss} />
+
+      {openId && (
+        <Viewer
+          files={shown}
+          openId={openId}
+          canManage={canManage}
+          onClose={closeViewer}
+          onChange={put}
+          onArchived={archived}
+        />
+      )}
     </section>
   );
 }

@@ -40,4 +40,10 @@ describe("proxy", () => {
     expect(a).toContain("frame-ancestors 'none'");
     expect(a).not.toBe(b);
   });
+
+  it("lets Media's PDF reader start its worker from LUME itself, and nowhere else (plan 2026-10-20-media-tab)", () => {
+    const csp = visit("/media", true).headers.get("content-security-policy")!;
+    expect(csp).toContain("worker-src 'self' blob:");
+    expect(csp).toContain("media-src 'self'");
+  });
 });

@@ -15,9 +15,11 @@
     "lucide-react": "^1.47.0",
     "motion": "^12.43.0",
     "next": "^16.3.8",
+    "pdfjs-dist": "6.4.299",
     "radix-ui": "^1.6.7",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

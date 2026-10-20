@@ -10,3 +10,7 @@ onlyBuiltDependencies:
 # uses its v4(), which 11 keeps.
 overrides:
   "uuid@<11.1.1": "^11.1.1"
+
+# pdf.js's canvas for Node: LUME reads PDFs in the browser only (Media's viewer), so no native binary is installed.
+ignoredOptionalDependencies:
+  - "@napi-rs/canvas"

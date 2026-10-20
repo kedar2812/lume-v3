@@ -32,6 +32,10 @@ export function proxy(request: NextRequest) {
     "img-src 'self' data: blob:",
     "font-src 'self'",
     "connect-src 'self'",
+    // Media's viewer (plan 2026-10-20-media-tab): pdf.js reads PDFs in a worker LUME serves itself; videos and
+    // voice notes play from LUME's own API.
+    "worker-src 'self' blob:",
+    "media-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
