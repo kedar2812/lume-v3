@@ -151,6 +151,61 @@ describe("W3b-1 file library", () => {
   });
 });
 
+describe("Media previews (plan 2026-10-20-media-tab, Task 3)", () => {
+  const sha = (c: string) => c.repeat(64);
+  const refsOf = async (s: string) =>
+    (await as<{ refs: number }>("lume_owner", "SELECT refs FROM whatsapp_files WHERE sha256 = $1", [s]))[0]!
+      .refs;
+  const stored = (s: string) =>
+    as("lume_app", "INSERT INTO whatsapp_files (sha256, size) VALUES ($1, 10)", [s]);
+
+  it("a thumbnail and a PDF hold their stored files, and let go when replaced or the preview goes", async () => {
+    for (const c of ["1", "2", "3", "4"]) await stored(sha(c));
+    await as("lume_app", "INSERT INTO file_previews (sha256) VALUES ($1)", [sha("1")]);
+    await as(
+      "lume_app",
+      "UPDATE file_previews SET state = 'ready', thumb_sha256 = $2, pdf_sha256 = $3, pages = 2 WHERE sha256 = $1",
+      [sha("1"), sha("2"), sha("3")],
+    );
+    expect([await refsOf(sha("2")), await refsOf(sha("3"))]).toEqual([1, 1]);
+    await as("lume_app", "UPDATE file_previews SET thumb_sha256 = $2 WHERE sha256 = $1", [
+      sha("1"),
+      sha("4"),
+    ]);
+    expect([await refsOf(sha("2")), await refsOf(sha("4"))]).toEqual([0, 1]);
+    await as("lume_app", "DELETE FROM file_previews WHERE sha256 = $1", [sha("1")]);
+    expect([await refsOf(sha("3")), await refsOf(sha("4"))]).toEqual([0, 0]);
+  });
+
+  it("a preview goes with the file it's of, and lets go of its thumbnail", async () => {
+    for (const c of ["5", "6"]) await stored(sha(c));
+    await as("lume_app", "INSERT INTO file_previews (sha256, state, thumb_sha256) VALUES ($1, 'ready', $2)", [
+      sha("5"),
+      sha("6"),
+    ]);
+    expect(await refsOf(sha("6"))).toBe(1);
+    // The hourly sweep removes a file nothing holds; its preview goes with it.
+    await as("lume_owner", "DELETE FROM whatsapp_files WHERE sha256 = $1", [sha("5")]);
+    expect(await as("lume_app", "SELECT 1 FROM file_previews WHERE sha256 = $1", [sha("5")])).toHaveLength(0);
+    expect(await refsOf(sha("6"))).toBe(0);
+  });
+
+  it("ready has a thumbnail; states are the four", async () => {
+    await stored(sha("7"));
+    await expect(
+      as("lume_app", "INSERT INTO file_previews (sha256, state) VALUES ($1, 'ready')", [sha("7")]),
+    ).rejects.toThrow(/file_previews_ready_check/);
+    await expect(
+      as("lume_app", "INSERT INTO file_previews (sha256, state) VALUES ($1, 'done')", [sha("7")]),
+    ).rejects.toThrow(/file_previews_state_check/);
+  });
+
+  it("the worker can't read previews; the backup role can", async () => {
+    await expect(as("lume_worker", "SELECT sha256 FROM file_previews")).rejects.toThrow(/permission denied/);
+    expect(await as("lume_readonly_backup", "SELECT sha256 FROM file_previews")).toBeInstanceOf(Array);
+  });
+});
+
 describe("W3b-2 template submissions", () => {
   const T = "00000000-0000-7000-8000-0000000000b1";
   const V = "00000000-0000-7000-8000-0000000000b2";

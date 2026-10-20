@@ -47,6 +47,7 @@ import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { aiRoutes } from "./modules/ai/routes";
 import type { FilesDeps } from "./modules/whatsapp/files";
+import { mediaRoutes } from "./modules/media/routes";
 import { fileLinkRoutes } from "./modules/whatsapp/link";
 import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
@@ -118,6 +119,13 @@ export type AppDeps = {
    * wait with "LUME can't save files on this server yet".
    */
   files?: FilesDeps | null;
+  /**
+   * LUME's render service (plan 2026-10-20-media-tab): thumbnails of the business's files, and Word, Excel and
+   * PowerPoint as PDFs. Null: Media shows each file by its kind.
+   */
+  render?: { url: string } | null;
+  /** Media's queue: a file's preview to make, by its bytes' hash. */
+  media?: { enqueuePreview(sha256: string): Promise<void> };
   /** WhatsApp's queues (plan W1 Tasks 5–7): an event to make into lead activity, a media item to fetch. */
   whatsapp?: {
     enqueue(eventId: number): Promise<void>;
@@ -266,6 +274,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(aiRoutes, deps);
         await scope.register(whatsappRoutes, deps);
         await scope.register(fileLinkRoutes, deps);
+        await scope.register(mediaRoutes, deps);
         deps.extraRoutes?.(scope, deps);
       },
     });

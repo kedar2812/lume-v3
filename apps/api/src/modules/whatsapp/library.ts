@@ -6,6 +6,7 @@ import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { HttpError, forbidden, notFound } from "../../http/errors";
+import { hasPreview, viewAsOf, type PreviewState, type ViewAs } from "../media/preview";
 import { checkFile, keepBytes } from "./keep-bytes";
 import type { Sniffed } from "./sniff";
 
@@ -17,6 +18,7 @@ import type { Sniffed } from "./sniff";
  */
 
 const F = schema.messageFiles;
+const P = schema.filePreviews;
 export type LibraryFile = {
   id: string;
   name: string;
@@ -26,14 +28,25 @@ export type LibraryFile = {
   link: { on: boolean; url: string | null; opens: number };
   createdAt: string;
   archived: boolean;
+  /** How LUME's viewer shows it, and what it shows before it's opened (Media, plan 2026-10-20-media-tab). */
+  viewAs: ViewAs;
+  preview: PreviewState;
+  /** The thumbnail, its address changing with its content so a browser never shows an old one. */
+  thumbUrl: string | null;
+  pages: number | null;
+  durationMs: number | null;
+  width: number | null;
+  height: number | null;
 };
 type Row = typeof F.$inferSelect;
+type Preview = typeof P.$inferSelect;
 
 const linkContext = (id: string) => `message-file-link:${id}`;
 export const hashOfToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
-function viewOf(d: AppDeps, row: Row): LibraryFile {
+function viewOf(d: AppDeps, row: Row, p: Preview | null): LibraryFile {
   const token = row.linkOn && row.linkEnc ? d.keyring.decrypt(row.linkEnc, linkContext(row.id)) : null;
+  const ready = p?.state === "ready" && p.thumbSha256 ? p.thumbSha256 : null;
   return {
     id: row.id,
     name: row.name,
@@ -43,8 +56,23 @@ function viewOf(d: AppDeps, row: Row): LibraryFile {
     link: { on: row.linkOn, url: token ? `${d.config.publicUrl}/f/${token}` : null, opens: row.opens },
     createdAt: row.createdAt.toISOString(),
     archived: row.archivedAt !== null,
+    viewAs: viewAsOf(row.kind, row.mime),
+    preview: p?.state ?? "pending",
+    thumbUrl: ready ? `/api/v1/files/${row.id}/thumb?v=${ready.slice(0, 12)}` : null,
+    pages: p?.pages ?? null,
+    durationMs: p?.durationMs ?? null,
+    width: p?.width ?? null,
+    height: p?.height ?? null,
   };
 }
+
+/** The preview of these bytes, if they have one yet. */
+async function previewOf(req: FastifyRequest, sha256: string): Promise<Preview | null> {
+  const [p] = await req.db.select().from(P).where(eq(P.sha256, sha256));
+  return p ?? null;
+}
+const shown = async (req: FastifyRequest, d: AppDeps, row: Row) =>
+  viewOf(d, row, await previewOf(req, row.sha256));
 
 const nameTaken = (name: string) =>
   new HttpError(409, "NAME_TAKEN", `A file called “${name}” is already in your files.`);
@@ -100,11 +128,12 @@ export async function listFiles(
 ): Promise<{ files: LibraryFile[] }> {
   if (archived && !can(req.actor!, "templates.manage")) throw forbidden();
   const rows = await req.db
-    .select()
+    .select({ f: F, p: P })
     .from(F)
+    .leftJoin(P, eq(P.sha256, F.sha256))
     .where(archived ? isNotNull(F.archivedAt) : isNull(F.archivedAt))
     .orderBy(asc(sql`lower(${F.name})`), asc(F.id));
-  return { files: rows.map((r) => viewOf(d, r)) };
+  return { files: rows.map((r) => viewOf(d, r.f, r.p)) };
 }
 
 export async function uploadFile(
@@ -133,7 +162,15 @@ export async function uploadFile(
       .returning(),
   );
   await audit(req, { action: "file.uploaded", entityType: "message_file", entityId: id, diff: { name } });
-  return { file: viewOf(d, row!) };
+  // Its preview (Media): made after the file is saved, never waited for. Bytes already in the library keep theirs.
+  const makes = !!d.render && hasPreview(viewAsOf(type.kind, type.mime));
+  await req.db
+    .insert(P)
+    .values({ sha256, state: makes ? "pending" : "none", updatedAt: d.clock() })
+    .onConflictDoNothing();
+  const preview = await previewOf(req, sha256);
+  if (preview?.state === "pending") req.afterCommit(() => void d.media?.enqueuePreview(sha256));
+  return { file: viewOf(d, row!, preview) };
 }
 
 export async function renameFile(
@@ -153,7 +190,7 @@ export async function renameFile(
     entityId: id,
     diff: { name: [before.name, name] },
   });
-  return { file: viewOf(d, row!) };
+  return { file: await shown(req, d, row!) };
 }
 
 /** Archived: out of every list and picker, its link answering nothing; the stored file stays for what sent it. */
@@ -177,7 +214,7 @@ export async function archiveFile(
     entityType: "message_file",
     entityId: id,
   });
-  return { file: viewOf(d, row!) };
+  return { file: await shown(req, d, row!) };
 }
 
 export async function setFileLink(
@@ -203,5 +240,29 @@ export async function setFileLink(
       entityType: "message_file",
       entityId: id,
     });
-  return { file: viewOf(d, row!) };
+  return { file: await shown(req, d, row!) };
+}
+
+/**
+ * Try a failed preview again (Media's viewer, admins): back to waiting with its tries reset, and queued. Without a
+ * render service there's nothing to try with, and LUME says so.
+ */
+export async function retryPreview(
+  req: FastifyRequest,
+  d: AppDeps,
+  id: string,
+): Promise<{ file: LibraryFile }> {
+  const row = await rowOf(req, id);
+  if (!d.render)
+    throw new HttpError(
+      409,
+      "NO_RENDER",
+      "This server can't make previews. Ask whoever runs it to add LUME's render service.",
+    );
+  await req.db
+    .insert(P)
+    .values({ sha256: row.sha256, updatedAt: d.clock() })
+    .onConflictDoUpdate({ target: P.sha256, set: { state: "pending", tries: 0, updatedAt: d.clock() } });
+  req.afterCommit(() => void d.media?.enqueuePreview(row.sha256));
+  return { file: await shown(req, d, row) };
 }

@@ -12,6 +12,7 @@ import { calendarClientFor } from "./modules/calendar/google";
 import { startCalendarQueue } from "./modules/calendar/queue";
 import { startWebhookQueue } from "./modules/webhooks/queue";
 import { diskOf, fileStore } from "./modules/whatsapp/files";
+import { startMediaQueue } from "./modules/media/queue";
 import { startWhatsAppQueue } from "./modules/whatsapp/queue";
 import { startTaskQueue } from "./modules/tasks/queue";
 import { processSetupTokens } from "./auth/setup-token";
@@ -82,6 +83,8 @@ const whatsapp: NonNullable<AppDeps["whatsapp"]> = {
   enqueueMedia: async () => undefined,
   enqueueSend: async () => undefined,
 };
+// Media's previews (plan 2026-10-20-media-tab): filled once its queue is up; the sweep queues anything added meanwhile.
+const media: NonNullable<AppDeps["media"]> = { enqueuePreview: async () => undefined };
 
 const mailer = createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`);
 
@@ -115,6 +118,8 @@ const deps: AppDeps = {
         }
       : null,
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
+  render: cfg.LUME_RENDER_URL ? { url: cfg.LUME_RENDER_URL.replace(/\/$/, "") } : null,
+  media,
   mailer,
   config: { publicUrl, cookieSecure: true, version: appVersion(cfg) },
   rates:
@@ -179,6 +184,9 @@ const whatsappQueue = await startWhatsAppQueue({ connectionString: cfg.DATABASE_
 whatsapp.enqueue = whatsappQueue.enqueue;
 whatsapp.enqueueMedia = whatsappQueue.enqueueMedia;
 whatsapp.enqueueSend = whatsappQueue.enqueueSend;
+const mediaQueue = await startMediaQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
+media.enqueuePreview = mediaQueue.enqueuePreview;
+void mediaQueue.sweep();
 const taskQueue = await startTaskQueue({
   connectionString: cfg.DATABASE_URL_APP,
   app,
@@ -201,6 +209,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     await taskQueue.stop();
     await webhookQueue.stop();
     await whatsappQueue.stop();
+    await mediaQueue.stop();
     await sheetQueue?.stop();
     await calendarQueue?.stop();
     await queue.stop();

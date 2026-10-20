@@ -99,6 +99,23 @@ export const messageFiles = pgTable("message_files", {
   archivedAt: tz("archived_at"),
 });
 
+/**
+ * What LUME shows of a file before it's opened (Media, migration 0080): a thumbnail of its content, an Office file's
+ * PDF, and what's known of it. Keyed by the bytes, so the same file under two names is rendered once.
+ */
+export const filePreviews = pgTable("file_previews", {
+  sha256: text("sha256").primaryKey(),
+  state: text("state").$type<"pending" | "ready" | "none" | "failed">().notNull().default("pending"),
+  thumbSha256: text("thumb_sha256"),
+  pdfSha256: text("pdf_sha256"),
+  pages: integer("pages"),
+  durationMs: integer("duration_ms"),
+  width: integer("width"),
+  height: integer("height"),
+  tries: integer("tries").notNull().default(0),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
+});
+
 /** Files gone from the server: their off-site copies go 200 days later. */
 export const whatsappFilesGone = pgTable("whatsapp_files_gone", {
   sha256: text("sha256").primaryKey(),

@@ -162,6 +162,11 @@ export const PROBES: Record<string, Probe> = {
   "POST /api/v1/files/:id/archive": { access: "templates.manage" },
   "POST /api/v1/files/:id/restore": { access: "templates.manage" },
   "PUT /api/v1/files/:id/link": { access: "templates.manage", body: () => ({ on: true }) },
+  // Media (plan 2026-10-20-media-tab): a file, its thumbnail and its PDF read in LUME; a preview tried again.
+  "GET /api/v1/files/:id/content": { access: "templates.use" },
+  "GET /api/v1/files/:id/thumb": { access: "templates.use" },
+  "GET /api/v1/files/:id/pdf": { access: "templates.use" },
+  "POST /api/v1/files/:id/preview": { access: "templates.manage" },
   // 4B: saved views are anyone's who sees leads; sharing is checked inside (views.manage).
   "GET /api/v1/views": { access: "leads.view" },
   "GET /api/v1/views/counts": { access: "leads.view" },

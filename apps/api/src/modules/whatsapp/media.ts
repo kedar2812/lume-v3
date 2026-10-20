@@ -284,6 +284,8 @@ export function streamFile(
   file: { path: string; size: number },
   m: { sha256: string; mime: string; kind: string; filename: string | null },
   maxAge: number,
+  /** Never changes at this address (a thumbnail named by its content): the browser needn't ask again. */
+  immutable = false,
 ) {
   const base = baseMime(m.mime);
   const inline = m.kind !== "document" && INLINE.has(base);
@@ -307,7 +309,7 @@ export function streamFile(
     )
     .header("x-content-type-options", "nosniff")
     .header("content-security-policy", "default-src 'none'; sandbox")
-    .header("cache-control", `private, max-age=${maxAge}`)
+    .header("cache-control", `private, max-age=${maxAge}${immutable ? ", immutable" : ""}`)
     .header("etag", etag)
     .header("accept-ranges", "bytes");
   if (req.headers["if-none-match"] === etag) return reply.code(304).send();

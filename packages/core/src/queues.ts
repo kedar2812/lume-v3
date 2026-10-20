@@ -16,5 +16,6 @@ export const QUEUE_NAMES = [
   "whatsapp.process",
   "whatsapp.media",
   "whatsapp.send",
+  "media.preview",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

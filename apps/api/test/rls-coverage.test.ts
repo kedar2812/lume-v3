@@ -13,6 +13,7 @@ const WITHOUT_RLS: Record<string, string> = {
   message_templates: "Business configuration",
   template_versions: "Business configuration",
   message_files: "Business configuration",
+  file_previews: "Business configuration",
   whatsapp_template_submissions: "Business configuration",
   pipelines: "Business configuration",
   stages: "Business configuration",

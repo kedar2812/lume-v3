@@ -49,6 +49,8 @@ import { createLimiter } from "../src/modules/webhooks/limits";
 import { processEvent } from "../src/modules/webhooks/process";
 import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
 import { fetchMedia } from "../src/modules/whatsapp/media";
+import { makePreview } from "../src/modules/media/preview";
+import { startRenderFake, type RenderFake } from "./render-fake";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
@@ -169,6 +171,13 @@ export type Harness = {
   runWhatsAppMedia(): Promise<void>;
   /** WhatsApp's files (2026-10-19): a folder of this harness's own, and a disk whose fullness a test sets. */
   files: FilesDeps & { dir: string; setDisk(d: Disk | null): void };
+  /** The render service's stand-in (with `render: true`), and the previews queued for it (Media). */
+  render: RenderFake | null;
+  previewQueued: string[];
+  /** Make the queued previews once each, as the queue would; one that asks to try again is queued again. */
+  runPreviews(): Promise<void>;
+  /** What the app was built with, for calling a module's background work directly. */
+  deps: AppDeps;
   /** Calendar connections whose sync was asked for (5A), in order. */
   calendarQueue: string[];
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
@@ -204,6 +213,8 @@ export async function createHarness(
     aiTimeoutMs?: number;
     /** WhatsApp (spec 2026-10-18 §3): where the fake Meta Graph API listens. */
     meta?: AppDeps["meta"];
+    /** Media (plan 2026-10-20-media-tab): a stand-in render service on a local port. */
+    render?: boolean;
   } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
@@ -265,6 +276,8 @@ export async function createHarness(
   const whatsappQueued: number[] = [];
   const whatsappMediaQueued: string[] = [];
   const whatsappSendQueued: string[] = [];
+  const previewQueued: string[] = [];
+  const render = opts.render ? await startRenderFake() : null;
   const calendarQueue: string[] = [];
   const reminderQueue: { id: number; fireAt: Date }[] = [];
   let reminderQueueDown = false;
@@ -326,6 +339,8 @@ export async function createHarness(
       enqueueSend: async (id) => void whatsappSendQueued.push(id),
     },
     files,
+    render: render ? { url: render.url } : null,
+    media: { enqueuePreview: async (sha) => void previewQueued.push(sha) },
   };
   const app = await buildApp(deps);
 
@@ -537,6 +552,13 @@ export async function createHarness(
       for (const id of now)
         await sendOutbox({ app, d: deps }, id).catch(() => void whatsappSendQueued.push(id));
     },
+    render,
+    previewQueued,
+    deps,
+    async runPreviews() {
+      const now = previewQueued.splice(0);
+      for (const sha of now) if ((await makePreview(deps, sha)) === "retry") previewQueued.push(sha);
+    },
     async runWhatsAppMedia() {
       for (let id = whatsappMediaQueued.shift(); id; id = whatsappMediaQueued.shift())
         await fetchMedia({ app, d: deps }, id).catch(() => undefined);
@@ -556,6 +578,7 @@ export async function createHarness(
     async close() {
       await app.close();
       await fake?.close();
+      await render?.close();
       await pool.end();
       await ownerPool.end();
       await tdb.drop();
