@@ -171,8 +171,12 @@ export function Integrations({ tz }: { tz?: string } = {}) {
       <WebhooksCard webhooks={view.webhooks} onView={setView} />
       {view.googleCalendar && <GoogleCalendarCard googleCalendar={view.googleCalendar} onView={setView} />}
       {calendly && <CalendlyCard initial={calendly} />}
-      {view.whatsapp && <WhatsAppCard wa={view.whatsapp} onView={setView} />}
-      {view.ai && (
+      {/* WhatsApp and LUME AI only where this server is set up for them, or where they were switched on before
+          (owner, 2026-10-20): a business never sees a card for something its server can't run. */}
+      {view.whatsapp && (view.whatsapp.available || view.whatsapp.enabled) && (
+        <WhatsAppCard wa={view.whatsapp} onView={setView} />
+      )}
+      {view.ai && (view.ai.available || view.ai.enabled) && (
         <AiCard ai={view.ai} tz={tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone} onView={setView} />
       )}
       <AddSheetSheet

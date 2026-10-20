@@ -219,3 +219,42 @@ describe("a module not in this LUME's plan (spec 2026-10-17 control §2.2)", () 
     expect(screen.queryByText("Not in this LUME’s plan")).not.toBeInTheDocument();
   });
 });
+
+describe("WhatsApp and LUME AI where the server isn't set up for them (owner, 2026-10-20)", () => {
+  const wa = (o: { enabled: boolean; available: boolean }) => ({
+    ...o,
+    inPlan: true,
+    keepFilesMonths: null,
+    replyFromLume: false,
+  });
+  const ai = (o: { enabled: boolean; available: boolean }) => ({ ...o, inPlan: true });
+
+  it("not set up on this server and never switched on: no card for them at all", async () => {
+    vi.mocked(sheetsClient.integrations).mockResolvedValue(
+      ok({
+        ...on,
+        whatsapp: wa({ enabled: false, available: false }),
+        ai: ai({ enabled: false, available: false }),
+      }) as never,
+    );
+    vi.mocked(sheetsClient.list).mockResolvedValue(ok({ sources: [] }) as never);
+    render(<Integrations />);
+    await screen.findByRole("switch", { name: "Google Sheets" });
+    expect(screen.queryByRole("article", { name: /WhatsApp/ })).toBeNull();
+    expect(screen.queryByRole("article", { name: /LUME AI/ })).toBeNull();
+  });
+
+  it("set up here, or switched on before the server lost it: the card is there", async () => {
+    vi.mocked(sheetsClient.integrations).mockResolvedValue(
+      ok({
+        ...on,
+        whatsapp: wa({ enabled: true, available: false }),
+        ai: ai({ enabled: false, available: true }),
+      }) as never,
+    );
+    vi.mocked(sheetsClient.list).mockResolvedValue(ok({ sources: [] }) as never);
+    render(<Integrations />);
+    expect(await screen.findByRole("article", { name: /WhatsApp/ })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /LUME AI/ })).toBeInTheDocument();
+  });
+});
