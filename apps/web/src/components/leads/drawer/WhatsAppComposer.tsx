@@ -2,7 +2,7 @@
 import { bytesText } from "@lume/core/shared";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Popover } from "@/components/ui/Popover";
-import { FilePicker } from "@/components/whatsapp/FilePicker";
+import { MediaPicker } from "@/components/media/MediaPicker";
 import { TemplatePick } from "@/components/whatsapp/TemplatePick";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
 import type { LibraryFile } from "@/lib/files/client";
@@ -34,23 +34,26 @@ const Clip = () => (
 );
 
 /**
- * Attach's menu (W3b-1 Task 4): this device, or the business's files. Mounted with the panel, so it opens on the menu
- * every time.
+ * Attach's menu (W3b-1 Task 4; Media, 2026-10-20): this device, or Media, where several can be ticked at once.
+ * Mounted with the panel, so it opens on the menu every time.
  */
-function AttachMenu({ onDevice, onPick }: { onDevice(): void; onPick(f: LibraryFile): void }) {
-  const [files, setFiles] = useState(false);
-  if (files) return <FilePicker onPick={onPick} />;
+function AttachMenu({ onDevice, onPick }: { onDevice(): void; onPick(f: LibraryFile[]): void }) {
+  const [media, setMedia] = useState(false);
+  if (media) return <MediaPicker multiple onPick={onPick} />;
   return (
     <div role="menu" aria-label="Attach from" className={s.menu}>
       <button type="button" role="menuitem" className={s.menuItem} onClick={onDevice}>
         From this device
       </button>
-      <button type="button" role="menuitem" className={s.menuItem} onClick={() => setFiles(true)}>
-        From your files
+      <button type="button" role="menuitem" className={s.menuItem} onClick={() => setMedia(true)}>
+        From Media
       </button>
     </div>
   );
 }
+
+/** A file ready to go, with the key its message keeps until LUME has it (a retry is the same message). */
+type Ready = { media: WaAttached; key: string };
 
 /** "until 4:12 pm", "until 10:20 am tomorrow", or the date for anything later. */
 function untilWords(iso: string, tz: string): string {
@@ -66,8 +69,9 @@ function untilWords(iso: string, tz: string): string {
  * The reply box on a lead's WhatsApp tab (plan W3a; spec 2026-10-18 §3.4; canvas boards Main, Attached, Closed). Says
  * until when a reply may go and from which number; Enter sends on a computer (Shift+Enter for a new line), the Send
  * button on a phone. One message, however many taps: each message has its own key, kept until LUME has it, so a send
- * tried again after a dropped connection is the same message. After WhatsApp's 24 hours, the reason and the usual way
- * to open WhatsApp (`fallback`) instead of a box.
+ * tried again after a dropped connection is the same message. Several files go as several messages, in order, the
+ * words with the first; one WhatsApp doesn't take stays to try again while the others go. After WhatsApp's 24 hours,
+ * the reason and the usual way to open WhatsApp (`fallback`) instead of a box.
  */
 export function WhatsAppComposer({
   leadId,
@@ -92,7 +96,7 @@ export function WhatsAppComposer({
 }) {
   const who = first(leadName);
   const [text, setText] = useState("");
-  const [file, setFile] = useState<WaAttached | null>(null);
+  const [files, setFiles] = useState<Ready[]>([]);
   const [attaching, setAttaching] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
@@ -107,7 +111,7 @@ export function WhatsAppComposer({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
-  }, [text, file]);
+  }, [text, files.length]);
   useEffect(() => {
     coarse.current =
       typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
@@ -125,49 +129,69 @@ export function WhatsAppComposer({
 
   const n = reply.number!;
   const from = n.ownerName ? `${n.ownerName}'s number, ${n.display}` : n.display;
-  const canSend = !sending && !attaching && (!!file || text.trim().length > 0);
+  const canSend = !sending && !attaching && (files.length > 0 || text.trim().length > 0);
+  const ready = (media: WaAttached) => setFiles((fs) => [...fs, { media, key: crypto.randomUUID() }]);
 
   const send = async () => {
     if (busy.current || !canSend) return;
     busy.current = true;
     setSending(true);
     setError(null);
-    const r = await whatsappClient.send(leadId, {
-      clientKey: key.current,
-      ...(text ? { text } : {}),
-      ...(file ? { mediaId: file.id } : {}),
-      ...(taskId ? { taskId } : {}),
-    });
+    // The words go with the first file (its caption), or alone; each file is its own message, in order.
+    const queue: (Ready | null)[] = files.length ? files : [null];
+    const kept: Ready[] = [];
+    let wordsGone = !text;
+    let problem: string | null = null;
+    for (const [i, item] of queue.entries()) {
+      const r = await whatsappClient.send(leadId, {
+        clientKey: item?.key ?? key.current,
+        ...(i === 0 && text ? { text } : {}),
+        ...(item ? { mediaId: item.media.id } : {}),
+        ...(i === 0 && taskId ? { taskId } : {}),
+      });
+      if (r.ok) {
+        if (i === 0) wordsGone = true;
+        onSent(r.data.message);
+      } else {
+        // Not taken: it stays, with its key, so trying again is the same message.
+        problem ??= r.message;
+        if (item) kept.push(item);
+      }
+    }
     busy.current = false;
     setSending(false);
-    // Not taken: the words and the file stay, and so does the key, so trying again is the same message.
-    if (!r.ok) return setError(r.message);
-    key.current = crypto.randomUUID();
-    setText("");
-    setFile(null);
-    onSent(r.data.message);
+    setFiles(kept);
+    if (wordsGone) {
+      setText("");
+      key.current = crypto.randomUUID();
+    }
+    if (problem) setError(problem);
   };
-  const attach = async (f: File | undefined) => {
-    if (!f) return;
-    setAttaching(f.name);
+  const attach = async (chosen: File[]) => {
     setError(null);
-    const r = await whatsappClient.attach(leadId, f);
+    for (const f of chosen) {
+      setAttaching(f.name);
+      const r = await whatsappClient.attach(leadId, f);
+      if (r.ok) ready({ ...r.data.media, filename: r.data.media.filename ?? f.name });
+      else setError(r.message);
+    }
     setAttaching(null);
-    if (!r.ok) return setError(r.message);
-    setFile({ ...r.data.media, filename: r.data.media.filename ?? f.name });
   };
-  const attachKept = async (f: LibraryFile) => {
-    setAttaching(f.name);
+  const attachKept = async (chosen: LibraryFile[]) => {
     setError(null);
-    const r = await whatsappClient.attachFromLibrary(leadId, f.id);
+    for (const f of chosen) {
+      setAttaching(f.name);
+      const r = await whatsappClient.attachFromLibrary(leadId, f.id);
+      if (r.ok) ready(r.data.media);
+      else setError(r.message);
+    }
     setAttaching(null);
-    if (!r.ok) return setError(r.message);
-    setFile(r.data.media);
   };
   const deviceInput = (
     <input
       ref={device}
       type="file"
+      multiple
       accept={ACCEPT}
       aria-label="Attach a photo or a file"
       className={s.srOnly}
@@ -177,12 +201,13 @@ export function WhatsAppComposer({
       aria-hidden={library || undefined}
       disabled={!!attaching || sending}
       onChange={(e) => {
-        void attach(e.target.files?.[0]);
+        void attach(Array.from(e.target.files ?? []));
         e.target.value = "";
       }}
     />
   );
-  const label = file ? "Words with the file" : `Message to ${who}`;
+  const label =
+    files.length > 1 ? "Words with the files" : files.length ? "Words with the file" : `Message to ${who}`;
 
   return (
     <form
@@ -205,8 +230,8 @@ export function WhatsAppComposer({
           <span className={s.attachedBar} aria-hidden />
         </div>
       )}
-      {file && (
-        <div className={s.attached}>
+      {files.map(({ media: file, key: k }) => (
+        <div key={k} className={s.attached}>
           <span className={s.attachedType} aria-hidden>
             {typeWord(file)}
           </span>
@@ -220,7 +245,7 @@ export function WhatsAppComposer({
             type="button"
             className={s.iconButton}
             aria-label={`Remove ${file.filename ?? "the photo"}`}
-            onClick={() => setFile(null)}
+            onClick={() => setFiles((fs) => fs.filter((x) => x.key !== k))}
           >
             <svg
               aria-hidden="true"
@@ -236,7 +261,7 @@ export function WhatsAppComposer({
             </svg>
           </button>
         </div>
-      )}
+      ))}
       {error && (
         <p role="alert" className={s.composerError}>
           {error}
@@ -278,10 +303,10 @@ export function WhatsAppComposer({
           ref={box}
           className={s.input}
           aria-label={label}
-          placeholder={file ? "Add words with the file…" : `Write to ${who}…`}
+          placeholder={files.length ? "Add words with the file…" : `Write to ${who}…`}
           rows={1}
           value={text}
-          maxLength={file ? 1024 : 4096}
+          maxLength={files.length ? 1024 : 4096}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             // A computer: Enter sends, Shift+Enter is a new line. A phone keeps Enter for new lines.
