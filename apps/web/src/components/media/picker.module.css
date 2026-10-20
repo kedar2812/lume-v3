@@ -1,11 +1,12 @@
 /* Choosing from Media (canvas Composer): a grid of the business's files by their content. */
 
 .picker {
-  width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
+  width: min(388px, calc(100vw - 56px));
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
+  padding: 6px;
 }
 .picker[data-wide] {
   width: 100%;
@@ -49,6 +50,10 @@
   flex: none;
   width: 15px;
   height: 15px;
+}
+/* The box shows the focus; the field inside it doesn't add a second ring. */
+.search input:focus-visible {
+  box-shadow: none;
 }
 .search input {
   flex: 1;

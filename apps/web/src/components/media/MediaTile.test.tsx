@@ -74,6 +74,22 @@ describe("a tile", () => {
     expect(t).not.toHaveTextContent("Preview on its way");
   });
 
+  it("a thumbnail the browser already had (loaded before the page came alive) still shows", () => {
+    const complete = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "complete");
+    const natural = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "naturalWidth");
+    Object.defineProperty(HTMLImageElement.prototype, "complete", { configurable: true, get: () => true });
+    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", { configurable: true, get: () => 960 });
+    try {
+      render(<MediaTile file={{ ...base, preview: "ready", thumbUrl: "/t1" }} onOpen={vi.fn()} />);
+      expect(screen.getByRole("button", { name: /^Proposal\.docx/ }).querySelector("img")).toHaveAttribute(
+        "data-loaded",
+      );
+    } finally {
+      if (complete) Object.defineProperty(HTMLImageElement.prototype, "complete", complete);
+      if (natural) Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", natural);
+    }
+  });
+
   it("a video says its length on its picture, and opens on a tap", async () => {
     const onOpen = vi.fn();
     const clip = {

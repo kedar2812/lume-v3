@@ -2,13 +2,16 @@ import type { LibraryFile } from "@/lib/files/client";
 import { extensionWord, mediaWord } from "@/lib/files/words";
 import s from "./media.module.css";
 
-/** Each kind's own ink on its paper, so a Word file and a PDF tell apart at a glance before their thumbnails arrive. */
+/**
+ * Each kind's own ink on its paper, so a Word file and a PDF tell apart at a glance before their thumbnails arrive.
+ * Fixed, not the theme's: the paper is white in Obsidian too, and the inks must read on it.
+ */
 const INK: Record<string, string> = {
-  PDF: "var(--danger-ink)",
-  Word: "var(--accent-ink)",
-  PowerPoint: "var(--warn-ink)",
-  Excel: "var(--ok-ink)",
-  Text: "var(--text-2)",
+  PDF: "#c3272d",
+  Word: "#1e47d9",
+  PowerPoint: "#8a5a00",
+  Excel: "#0c7845",
+  Text: "#5a606d",
 };
 
 /**
@@ -56,7 +59,7 @@ export function FileArt({
       className={s.paper}
       data-size={size}
       aria-hidden
-      style={{ ["--ink" as string]: INK[word] ?? "var(--text-2)" }}
+      style={{ ["--ink" as string]: INK[word] ?? "#5a606d" }}
     >
       <b>{extensionWord(file.name)}</b>
       <i />

@@ -29,6 +29,14 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
   const [zoom, setZoom] = useState<number | "fit">("fit");
   const [visible, setVisible] = useState<Set<number>>(() => new Set([1]));
   const [finding, setFinding] = useState(false);
+  const findButton = useRef<HTMLButtonElement>(null);
+  /** Find put away: its words cleared, and the focus back on its button (never dropped on the page). */
+  const closeFind = () => {
+    setFinding(false);
+    setQuery("");
+    setMatches(null);
+    findButton.current?.focus();
+  };
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [at, setAt] = useState(0);
@@ -223,9 +231,12 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
         <button
           type="button"
           className={v.tb}
+          // The word goes on a phone; the name stays.
+          aria-label="Find in it"
+          ref={findButton}
           aria-pressed={finding}
           data-on={finding || undefined}
-          onClick={() => setFinding((f) => !f)}
+          onClick={() => (finding ? closeFind() : setFinding(true))}
         >
           <Search size={15} aria-hidden />
           <span className={v.tbWord}>Find in it</span>
@@ -259,9 +270,7 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
                 } else if (e.key === "Escape") {
                   e.preventDefault();
                   e.stopPropagation();
-                  setFinding(false);
-                  setQuery("");
-                  setMatches(null);
+                  closeFind();
                 }
                 // Typing never moves to another file.
                 e.stopPropagation();
@@ -293,9 +302,7 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
               className={v.tb}
               aria-label="Close Find"
               onClick={() => {
-                setFinding(false);
-                setQuery("");
-                setMatches(null);
+                closeFind();
               }}
             >
               <X size={15} aria-hidden />
@@ -324,6 +331,8 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
           className={v.pages}
           aria-label={`Pages of ${name}`}
           aria-busy={!doc || undefined}
+          // The pages scroll: the keyboard reaches them to scroll too.
+          tabIndex={0}
         >
           {!doc ? (
             <div

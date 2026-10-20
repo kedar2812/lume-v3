@@ -227,12 +227,21 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
       ok({
         media:
           id === "f1"
-            ? { id: "m1", kind: "document", mime: "application/pdf", filename: "Brochure.pdf", size: 1_258_291 }
-            : { id: "m2", kind: "image", mime: "image/jpeg", filename: "Kitchen.jpg", size: 1_258_291 },
+            ? {
+                id: "m1",
+                kind: "document",
+                mime: "application/pdf",
+                filename: "Brochure.pdf",
+                size: 1_258_291,
+              }
+            : // WhatsApp keeps no name for a photo: LUME shows Media's.
+              { id: "m2", kind: "image", mime: "image/jpeg", filename: null, size: 1_258_291 },
       }),
     );
     const onSent = vi.fn();
-    render(<WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} library onSent={onSent} />);
+    render(
+      <WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} library onSent={onSent} />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Attach" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "From Media" }));
     await userEvent.click(await screen.findByRole("option", { name: /Brochure\.pdf/ }));
@@ -252,7 +261,15 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
 
   it("one of several that isn't taken says so and stays to try again; the others go", async () => {
     vi.mocked(whatsappClient.attach).mockImplementation(async (_lead, f: File) =>
-      ok({ media: { id: f.name === "a.jpg" ? "ma" : "mb", kind: "image", mime: "image/jpeg", filename: f.name, size: 2048 } }),
+      ok({
+        media: {
+          id: f.name === "a.jpg" ? "ma" : "mb",
+          kind: "image",
+          mime: "image/jpeg",
+          filename: f.name,
+          size: 2048,
+        },
+      }),
     );
     vi.mocked(whatsappClient.send).mockImplementation(async (_lead, body) =>
       body.mediaId === "ma"

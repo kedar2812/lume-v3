@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LibraryFile } from "@/lib/files/client";
 import { lengthText, mediaMeta } from "@/lib/files/words";
 import { FileArt } from "./FileArt";
@@ -16,6 +16,11 @@ export function MediaTile({ file: f, onOpen }: { file: LibraryFile; onOpen(id: s
   const [loaded, setLoaded] = useState<string | null>(null);
   const meta = mediaMeta(f);
   const thumb = f.preview === "ready" ? f.thumbUrl : null;
+  const img = useRef<HTMLImageElement>(null);
+  // A thumbnail the browser had already (it loaded before the page came alive, so its load went unheard).
+  useEffect(() => {
+    if (thumb && img.current?.complete && img.current.naturalWidth > 0) setLoaded(thumb);
+  }, [thumb]);
   return (
     <button
       type="button"
@@ -28,6 +33,7 @@ export function MediaTile({ file: f, onOpen }: { file: LibraryFile; onOpen(id: s
         {thumb ? (
           <img
             key={thumb}
+            ref={img}
             src={thumb}
             alt=""
             loading="lazy"

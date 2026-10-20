@@ -112,6 +112,13 @@ export default defineConfig({
       timeout: 60_000,
       env: { E2E_EDGE_PORT: String(EDGE) },
     },
+    // Media's previews (plan 2026-10-20-media-tab): a stand-in render service before the API, which reads its address.
+    {
+      command: "node e2e/render-fake.mjs",
+      url: "http://127.0.0.1:3116/healthz",
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
     {
       command: "node e2e/smtp-sink.mjs",
       url: "http://127.0.0.1:3111/messages",

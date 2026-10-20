@@ -1,6 +1,6 @@
 "use client";
 import { Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Sheet } from "./sheet";
 import { loadSheets } from "./sheet-load";
 import { Toolbar } from "./Toolbar";
@@ -17,6 +17,13 @@ export function SheetView({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState(0);
   const [finding, setFinding] = useState(false);
+  const findButton = useRef<HTMLButtonElement>(null);
+  /** Find put away: its words cleared, and the focus back on its button (never dropped on the page). */
+  const closeFind = () => {
+    setFinding(false);
+    setQuery("");
+    findButton.current?.focus();
+  };
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -53,9 +60,12 @@ export function SheetView({ src, name }: { src: string; name: string }) {
         <button
           type="button"
           className={v.tb}
+          // The word goes on a phone; the name stays.
+          aria-label="Find in it"
+          ref={findButton}
           aria-pressed={finding}
           data-on={finding || undefined}
-          onClick={() => setFinding((f) => !f)}
+          onClick={() => (finding ? closeFind() : setFinding(true))}
         >
           <Search size={15} aria-hidden />
           <span className={v.tbWord}>Find in it</span>
@@ -74,8 +84,7 @@ export function SheetView({ src, name }: { src: string; name: string }) {
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.preventDefault();
-                setFinding(false);
-                setQuery("");
+                closeFind();
               }
               e.stopPropagation();
             }}
@@ -92,8 +101,7 @@ export function SheetView({ src, name }: { src: string; name: string }) {
             className={v.tb}
             aria-label="Close Find"
             onClick={() => {
-              setFinding(false);
-              setQuery("");
+              closeFind();
             }}
           >
             <X size={15} aria-hidden />
@@ -101,7 +109,7 @@ export function SheetView({ src, name }: { src: string; name: string }) {
         </div>
       )}
       <div className={v.sheet}>
-        <div className={v.sheetScroll}>
+        <div className={v.sheetScroll} tabIndex={0} aria-label={sheet ? `${sheet.name}, scrolls` : name}>
           {sheet && sheet.header.length ? (
             <table aria-label={sheet.name}>
               <thead>

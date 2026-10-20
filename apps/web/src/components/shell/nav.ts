@@ -1,12 +1,5 @@
 export type IconName =
-  | "today"
-  | "leads"
-  | "pipeline"
-  | "calendar"
-  | "templates"
-  | "media"
-  | "analytics"
-  | "settings";
+  "today" | "leads" | "pipeline" | "calendar" | "templates" | "media" | "analytics" | "settings";
 export type NavItem = {
   id: IconName;
   label: string;

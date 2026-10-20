@@ -6,6 +6,7 @@ import { contentUrl, type LibraryFile } from "@/lib/files/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { Toolbar } from "./Toolbar";
 import v from "./viewer.module.css";
+import { capturePointer } from "@/lib/pointer";
 
 const MIN = 1;
 const MAX = 6;
@@ -26,6 +27,10 @@ export function ImageView({ file: f, onZoomed }: { file: LibraryFile; onZoomed(z
   const y = useMotionValue(0);
   const [label, setLabel] = useState("Fit");
   const [loaded, setLoaded] = useState(false);
+  // A photo the browser had already: its load can come before anyone listens.
+  useEffect(() => {
+    if (img.current?.complete && img.current.naturalWidth > 0) setLoaded(true);
+  }, []);
   const zoomedRef = useRef(false);
   const report = useRef(onZoomed);
   report.current = onZoomed;
@@ -159,7 +164,7 @@ export function ImageView({ file: f, onZoomed }: { file: LibraryFile; onZoomed(z
             pinch.current = { d: dist(), s: scale.get() };
             pan.current = null;
           } else if (scale.get() > 1.001) {
-            e.currentTarget.setPointerCapture?.(e.pointerId);
+            capturePointer(e.currentTarget, e.pointerId);
             pan.current = { x: e.clientX, y: e.clientY, px: x.get(), py: y.get() };
           }
         }}

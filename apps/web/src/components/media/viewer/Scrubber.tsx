@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { lengthText } from "@/lib/files/words";
 import v from "./viewer.module.css";
+import { capturePointer } from "@/lib/pointer";
 
 /** A video's or a sound's state, read from its element as it plays. */
 export function useMediaElement(known: number | null) {
@@ -103,7 +104,7 @@ export function Scrubber({
       onKeyDown={keys}
       onPointerDown={(e) => {
         e.stopPropagation();
-        e.currentTarget.setPointerCapture?.(e.pointerId);
+        capturePointer(e.currentTarget, e.pointerId);
         setDrag(at(e));
       }}
       onPointerMove={(e) => drag !== null && setDrag(at(e))}

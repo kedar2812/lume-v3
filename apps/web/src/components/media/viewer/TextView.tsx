@@ -27,7 +27,7 @@ export function TextView({ file: f }: { file: LibraryFile }) {
   if (failed)
     return <p className={v.say}>LUME couldn&apos;t open this file just now. Close it and try again.</p>;
   return (
-    <article className={v.text} aria-busy={text === null || undefined}>
+    <article className={v.text} aria-busy={text === null || undefined} aria-label={f.name} tabIndex={0}>
       {text === null ? <span className={v.textLoading} aria-hidden /> : <pre>{text}</pre>}
       {text !== null && f.size > MOST && <p className={v.cut}>LUME shows the first megabyte of this file.</p>}
     </article>

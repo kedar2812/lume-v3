@@ -42,9 +42,9 @@ describe("the release marker (L-C Task 1)", () => {
 
 describe("the release workflow", () => {
   const wf = () => read(".github/workflows/release.yml");
-  it("runs on a vX.Y.Z tag and builds the four images as releases", () => {
+  it("runs on a vX.Y.Z tag and builds the five images (render too) as releases", () => {
     expect(wf()).toMatch(/tags:\s*\[\s*"v\*\.\*\.\*"\s*\]/);
-    expect(wf()).toMatch(/image: \[api, web, worker, caddy\]/);
+    expect(wf()).toMatch(/image: \[api, web, worker, caddy, render\]/);
     expect(wf()).toContain("file: infra/docker/${{ matrix.image }}.Dockerfile");
     expect(wf()).toMatch(/LUME_RELEASE=1/);
     expect(wf()).toMatch(/LUME_VERSION=\$\{\{ steps\.v\.outputs\.version \}\}/);

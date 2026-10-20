@@ -2,6 +2,7 @@
 import { animate, useMotionValue, type MotionValue } from "motion/react";
 import { useRef, type PointerEvent } from "react";
 import { SPRINGS, project, releaseVelocity, rubberband, toMotion } from "@/lib/motion";
+import { capturePointer } from "@/lib/pointer";
 
 export type SwipeDirection = "next" | "previous";
 
@@ -24,6 +25,19 @@ export function swipeOutcome(o: {
 
 /** How far a finger moves before it's a swipe and not a tap (apple-design §10). */
 const SLOP = 10;
+
+/**
+ * Whether something between the finger and the stage scrolls sideways (a wide spreadsheet, a zoomed-in PDF): there,
+ * a sideways drag is that scroll, not a swipe to another file.
+ */
+export function scrollsSideways(from: EventTarget | null, stage: Element): boolean {
+  for (let el = from instanceof Element ? from : null; el && el !== stage; el = el.parentElement) {
+    if (el.scrollWidth <= el.clientWidth + 1) continue;
+    const x = getComputedStyle(el).overflowX;
+    if (x === "auto" || x === "scroll") return true;
+  }
+  return false;
+}
 
 /**
  * Swiping between files: the stage follows the finger 1:1 from where it was grabbed, resists past the first and last
@@ -85,7 +99,8 @@ export function useSwipe(o: {
         if (
           !opts.current.enabled ||
           pointers.current.size > 1 ||
-          (e.pointerType === "mouse" && e.button !== 0)
+          (e.pointerType === "mouse" && e.button !== 0) ||
+          scrollsSideways(e.target, e.currentTarget)
         ) {
           // A second finger is a pinch: whatever the first one started goes back.
           if (g.current?.locked) void settle(0, 0);
@@ -113,7 +128,7 @@ export function useSwipe(o: {
           // Picked up from here: no jump by the slop the finger travelled before it counted.
           s.x0 += Math.sign(dx) * SLOP;
           dx = e.clientX - s.x0;
-          e.currentTarget.setPointerCapture?.(e.pointerId);
+          capturePointer(e.currentTarget, e.pointerId);
         }
         s.samples.push([e.timeStamp, e.clientX]);
         if (s.samples.length > 8) s.samples.shift();

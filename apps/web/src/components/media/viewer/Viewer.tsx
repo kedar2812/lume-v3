@@ -173,15 +173,26 @@ export function Viewer({
   };
   const swipe = useSwipe({ enabled: !zoomed && !renaming, canGo, onSwipe: move });
 
-  const keys = (e: KeyboardEvent<HTMLDivElement>) => {
-    const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (e.key === "ArrowRight") return void (e.preventDefault(), move("next"));
-      if (e.key === "ArrowLeft") return void (e.preventDefault(), move("previous"));
-      if (e.key === "i" || e.key === "I") return void (e.preventDefault(), setInfo((o) => !o));
-    }
-    modal.onKeyDown(e);
+  // The viewer's keys, from anywhere on the page while it's open: a control that held the focus can go away (Find
+  // closing, a file archived) and drop it on the page, and the keys must keep working. Inside the viewer, a control
+  // that uses the arrows itself (a slider, a search box) keeps them: its own handler stops them reaching here.
+  const keyActions = useRef<(e: globalThis.KeyboardEvent) => void>(() => undefined);
+  keyActions.current = (e) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) return;
+    if (e.key === "ArrowRight") return void (e.preventDefault(), move("next"));
+    if (e.key === "ArrowLeft") return void (e.preventDefault(), move("previous"));
+    if (e.key === "i" || e.key === "I") return void (e.preventDefault(), setInfo((o) => !o));
+    // Focus outside the viewer (dropped on the page): Escape still closes it.
+    if (e.key === "Escape" && !root.current?.contains(t)) return void (e.preventDefault(), void close());
   };
+  useEffect(() => {
+    const on = (e: globalThis.KeyboardEvent) => keyActions.current(e);
+    document.addEventListener("keydown", on);
+    return () => document.removeEventListener("keydown", on);
+  }, []);
+  const keys = (e: KeyboardEvent<HTMLDivElement>) => modal.onKeyDown(e);
 
   const archive = async () => {
     if (!f) return;
@@ -257,6 +268,8 @@ export function Viewer({
           <button
             type="button"
             className={v.tb}
+            // The word goes on a phone; the name stays.
+            aria-label="Info"
             data-on={info || undefined}
             aria-pressed={info}
             onClick={() => setInfo((o) => !o)}

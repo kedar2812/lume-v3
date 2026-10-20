@@ -73,6 +73,11 @@ test.describe("Notifications (3B)", () => {
     await hours.fill("1");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.locator("main").getByRole("status")).toHaveText("Saved");
+    // The owner's own overdue follow-up reaches the bell on the clock's next tick: wait for it, so the screenshot
+    // never races it (with the dot, as approved).
+    await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible({
+      timeout: 20_000,
+    });
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await reviewCopy(page.locator("main"), `settings-follow-ups-${theme}.png`);

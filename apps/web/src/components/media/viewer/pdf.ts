@@ -16,7 +16,7 @@ export type PdfPage = {
   getTextContent(): Promise<{ items: (PdfTextItem | { type: string })[] }>;
   cleanup(): void;
 };
-export type PdfDoc = { numPages: number; getPage(n: number): Promise<PdfPage>; destroy(): unknown };
+export type PdfDoc = { numPages: number; getPage(n: number): Promise<PdfPage>; destroy(): Promise<void> };
 
 let lib: Promise<typeof import("pdfjs-dist")> | null = null;
 
@@ -41,5 +41,11 @@ export async function loadPdf(src: string): Promise<PdfDoc> {
     disableAutoFetch: true,
     disableStream: false,
   });
-  return (await task.promise) as unknown as PdfDoc;
+  const doc = await task.promise;
+  // pdf.js 6: letting a document go is its loading task's job (it ends the worker's requests too).
+  return {
+    numPages: doc.numPages,
+    getPage: (n) => doc.getPage(n) as unknown as Promise<PdfPage>,
+    destroy: () => task.destroy(),
+  };
 }

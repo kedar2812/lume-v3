@@ -182,7 +182,8 @@ export function WhatsAppComposer({
     for (const f of chosen) {
       setAttaching(f.name);
       const r = await whatsappClient.attachFromLibrary(leadId, f.id);
-      if (r.ok) ready(r.data.media);
+      // WhatsApp keeps no name for a photo: it's shown by Media's.
+      if (r.ok) ready({ ...r.data.media, filename: r.data.media.filename ?? f.name });
       else setError(r.message);
     }
     setAttaching(null);
@@ -274,6 +275,8 @@ export function WhatsAppComposer({
             <Popover
               label="Attach"
               side="above"
+              // Media's picker is a grid of three: the wider panel holds it.
+              size="form"
               triggerLabel="Attach"
               triggerClassName={s.attachButton}
               trigger={<Clip />}
@@ -303,7 +306,13 @@ export function WhatsAppComposer({
           ref={box}
           className={s.input}
           aria-label={label}
-          placeholder={files.length ? "Add words with the file…" : `Write to ${who}…`}
+          placeholder={
+            files.length > 1
+              ? "Add words, sent with the first file…"
+              : files.length
+                ? "Add words with the file…"
+                : `Write to ${who}…`
+          }
           rows={1}
           value={text}
           maxLength={files.length ? 1024 : 4096}

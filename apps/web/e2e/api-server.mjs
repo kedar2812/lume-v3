@@ -46,6 +46,8 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     // The fake Meta's app (W3b-2): a template's file at the top goes up through it.
     LUME_META_APP_ID: "1234567890",
     LUME_FILES_DIR: filesDir,
+    // Media's previews through the stand-in render service (e2e/render-fake.mjs).
+    LUME_RENDER_URL: `http://127.0.0.1:${process.env.E2E_RENDER_PORT ?? 3116}`,
     LUME_FX_FIXED: "AED:USD=0.27",
     // Google Sheets against the fake Google (e2e/google-fake.ts), never the real one.
     GOOGLE_SERVICE_ACCOUNT_JSON: readFileSync(path.join(here, ".artifacts/google-key.b64"), "utf8"),

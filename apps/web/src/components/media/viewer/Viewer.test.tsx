@@ -116,6 +116,17 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     expect(viewer()).toHaveAccessibleName("Site visit.mp4");
   });
 
+  it("the arrows keep working when focus has fallen out of the viewer (a control that held it went away)", async () => {
+    render(<MediaScreen initial={ALL} canManage guideSeen />);
+    await openTile("Living room.jpg");
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    await userEvent.keyboard("{ArrowRight}");
+    await waitFor(() => expect(viewer()).toHaveAccessibleName("Kitchen.png"));
+    await userEvent.keyboard("i");
+    expect(within(viewer()).getByRole("complementary", { name: "Info" })).toBeInTheDocument();
+  });
+
   it("the buttons and the strip move between files too", async () => {
     render(<MediaScreen initial={ALL} canManage guideSeen />);
     await openTile("Living room.jpg");
@@ -134,6 +145,8 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
   it("Info shows where it goes, Share by link, rename and archive to an admin", async () => {
     render(<MediaScreen initial={ALL} canManage guideSeen />);
     await openTile("Living room.jpg");
+    // Its name holds when a phone shows only its icon.
+    expect(within(viewer()).getByRole("button", { name: "Info" })).toHaveAttribute("aria-label", "Info");
     await userEvent.click(within(viewer()).getByRole("button", { name: "Info" }));
     const info = within(viewer()).getByRole("complementary", { name: "Info" });
     expect(within(info).getByText(/Sends as the real file from any lead's WhatsApp tab/)).toBeInTheDocument();

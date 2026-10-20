@@ -178,8 +178,14 @@ async function sendWithProgress<T>(
     return sendWithProgress<T>(path, file, onProgress, false);
   }
   if (res.status === 413 && !err?.code)
-    return { ok: false, status: 413, code: "FILE_TOO_BIG", message: "This file is too big for LUME to keep." };
-  if (res.status === 429 && !err?.code) return { ok: false, status: 429, code: "RATE_LIMITED", message: BUSY };
+    return {
+      ok: false,
+      status: 413,
+      code: "FILE_TOO_BIG",
+      message: "This file is too big for LUME to keep.",
+    };
+  if (res.status === 429 && !err?.code)
+    return { ok: false, status: 429, code: "RATE_LIMITED", message: BUSY };
   return {
     ok: false,
     status: res.status,

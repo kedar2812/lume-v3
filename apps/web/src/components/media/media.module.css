@@ -276,6 +276,10 @@
   width: 15px;
   height: 15px;
 }
+/* The box shows the focus; the field inside it doesn't add a second ring. */
+.search input:focus-visible {
+  box-shadow: none;
+}
 .search input {
   flex: 1;
   min-width: 0;
@@ -327,7 +331,6 @@
   transition:
     box-shadow 220ms ease-out,
     transform 160ms ease-out;
-  -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) {
   .tile:not([data-uploading]):hover {
@@ -832,7 +835,8 @@
 .stackPage b {
   font-size: 9px;
   font-weight: 700;
-  color: var(--danger-ink);
+  /* The paper is white in both themes: its ink is fixed. */
+  color: #c3272d;
 }
 .stackPage i {
   height: 5px;

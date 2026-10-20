@@ -88,6 +88,8 @@ describe("a PDF in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
     withToolbar(<PdfView src="/x" pages={3} name="Brochure.pdf" />);
     const region = await screen.findByRole("region", { name: "Pages of Brochure.pdf" });
     await within(region).findAllByRole("img", { hidden: true });
+    // The pages scroll: the keyboard can reach them to scroll too (arrows, Page Down, Space).
+    expect(region).toHaveAttribute("tabindex", "0");
     const bar = screen.getByTestId("toolbar");
     expect(bar).toHaveTextContent("Page 1 of 3");
     expect(within(bar).getByRole("button", { name: "Previous page" })).toBeDisabled();
@@ -101,7 +103,10 @@ describe("a PDF in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
     );
     withToolbar(<PdfView src="/x" pages={4} name="Brochure.pdf" />);
     await screen.findByRole("region", { name: "Pages of Brochure.pdf" });
-    await userEvent.click(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" }));
+    const find = within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" });
+    // Its name holds when a phone shows only its icon.
+    expect(find).toHaveAttribute("aria-label", "Find in it");
+    await userEvent.click(find);
     await userEvent.type(screen.getByRole("searchbox", { name: "Find in Brochure.pdf" }), "price");
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 of 3"));
     await userEvent.keyboard("{Enter}");
@@ -109,6 +114,9 @@ describe("a PDF in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
     await userEvent.clear(screen.getByRole("searchbox", { name: "Find in Brochure.pdf" }));
     await userEvent.type(screen.getByRole("searchbox", { name: "Find in Brochure.pdf" }), "zebra");
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Not in this file"));
+    // Escape puts it away, and the focus goes back to its button, never dropped on the page.
+    await userEvent.keyboard("{Escape}");
+    expect(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" })).toHaveFocus();
   });
 
   it("a PDF LUME can't read says so in plain words", async () => {
