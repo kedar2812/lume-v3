@@ -92,7 +92,7 @@ describe("NewLeadSheet", () => {
     await userEvent.type(screen.getByRole("combobox", { name: "Search countries" }), "india{Enter}");
     await userEvent.click(screen.getByRole("button", { name: "Create lead" }));
     expect(leadsClient.create).toHaveBeenLastCalledWith(
-      expect.objectContaining({ phone: "+91 050 123 4567" }),
+      expect.objectContaining({ phone: "+91 0501234567" }), // numbers only in the box (owner, 2026-10-20)
     );
   });
 

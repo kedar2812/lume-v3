@@ -7,7 +7,7 @@ import {
   type InputHTMLAttributes,
   type KeyboardEvent,
 } from "react";
-import { dialCountries, joinPhone, splitPhone } from "@lume/core/shared";
+import { dialCountries, joinPhone, phoneChars, splitPhone } from "@lume/core/shared";
 import { Flag, SearchList, fold, type ListItem } from "./SearchList";
 import s from "./Picker.module.css";
 
@@ -152,18 +152,20 @@ export function PhoneInput({
     onChange(next);
   };
 
+  // Numbers only (a cleaning rule, owner 2026-10-20): whatever else is typed or pasted never reaches the box. A leading
+  // "+" stays while an international number is typed, until its country is known.
   const type = (raw: string) => {
-    const intl = raw.trim().replace(/^00/, "+");
-    if (intl.startsWith("+")) {
-      const found = splitPhone(intl, null);
+    const clean = phoneChars(raw).replace(/^00/, "+");
+    if (clean.startsWith("+")) {
+      const found = splitPhone(clean, null);
       if (found.country && /\d/.test(found.national)) {
         setCountry(found.country);
         setNational(found.national);
         return emit(found.country, found.national);
       }
     }
-    setNational(raw);
-    emit(country, raw);
+    setNational(clean);
+    emit(country, clean);
   };
 
   const search = (q: string): ListItem[] =>
@@ -207,7 +209,7 @@ export function PhoneInput({
         onChange={(e) => type(e.target.value)}
         onPaste={(e: ClipboardEvent<HTMLInputElement>) => {
           const text = e.clipboardData.getData("text");
-          if (!/^\s*(\+|00)/.test(text)) return;
+          if (!/^(\+|00)/.test(phoneChars(text))) return;
           e.preventDefault();
           type(text);
         }}

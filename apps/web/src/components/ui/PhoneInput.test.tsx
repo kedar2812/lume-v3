@@ -39,7 +39,26 @@ describe("PhoneInput", () => {
     expect(country().querySelector("img")).toHaveAttribute("src", "/flags/AE.svg"); // decorative: the label names it
     await userEvent.type(screen.getByLabelText("Phone"), "050 123 4567");
     expect(value()).toBe("+971501234567"); // the typed trunk zero is dropped
-    expect(screen.getByLabelText("Phone")).toHaveValue("050 123 4567"); // what they typed stays
+    expect(screen.getByLabelText("Phone")).toHaveValue("0501234567"); // numbers only (owner, 2026-10-20)
+  });
+
+  it("takes numbers only: letters, spaces and symbols, typed or pasted, never appear", async () => {
+    render(<Harness />);
+    await userEvent.type(screen.getByLabelText("Phone"), "05a0-12b3 45(6)7");
+    expect(screen.getByLabelText("Phone")).toHaveValue("0501234567");
+    expect(value()).toBe("+971501234567");
+    await userEvent.clear(screen.getByLabelText("Phone"));
+    await userEvent.paste("p:+91 98200 12345 (mobile)");
+    expect(country()).toHaveAccessibleName("Country code: India +91");
+    expect(screen.getByLabelText("Phone")).toHaveValue("9820012345");
+    expect(value()).toBe("+919820012345");
+  });
+
+  it("still lets an international number be typed from its +", async () => {
+    render(<Harness />);
+    await userEvent.type(screen.getByLabelText("Phone"), "+44 7946 000000");
+    expect(country()).toHaveAccessibleName("Country code: United Kingdom +44");
+    expect(value()).toBe("+447946000000");
   });
 
   it("finds a country by name or by code, and picking it goes back to the number", async () => {

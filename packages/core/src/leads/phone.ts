@@ -22,6 +22,15 @@ const valid = (raw: string, p: PhoneNumber): NormalizedPhone => ({
 });
 
 /**
+ * A phone as LUME reads it (a cleaning rule, owner 2026-10-20): its digits only, with a "+" kept when it comes before
+ * them, since it says the country code follows. Every other character, wherever it is, is dropped.
+ */
+export function phoneChars(input: string): string {
+  const kept = input.replace(/[^\d+]/g, "");
+  return (kept.startsWith("+") ? "+" : "") + kept.replace(/\+/g, "");
+}
+
+/**
  * Report §8.4. Keep the raw value; accept a number only when libphonenumber says it is valid.
  * A number without an international prefix is parsed with the default country if there is one, and
  * otherwise (or when that fails) is marked `needs_country`. Nothing is ever guessed silently.
@@ -32,8 +41,9 @@ export function normalizePhone(
 ): NormalizedPhone {
   const raw = input?.trim() ?? "";
   if (!raw) return { raw: null, e164: null, countryIso: null, status: "missing" };
-  // A label in front of the number: Meta's lead ads export "p:+91…", a pasted link "tel:+971…".
-  let s = raw.replace(/^(?:p|tel)\s*:\s*/i, "").replace(/[\s\-.()\xA0]/g, "");
+  // Numbers only: a label in front ("p:+91…" from Meta's lead ads, "tel:" from a pasted link), a note after it, spaces
+  // and dashes all go before it's read.
+  let s = phoneChars(raw);
   if (s.startsWith("00")) s = `+${s.slice(2)}`;
   if (!/^\+?\d+$/.test(s)) return { raw, e164: null, countryIso: null, status: "invalid" };
   if (s.startsWith("+")) {

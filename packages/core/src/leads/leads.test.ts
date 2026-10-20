@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildCustomFieldSchemas, normalizeInstagram, type FieldDef } from "./custom-fields";
 import { fieldAccessOf, mergeFieldAccess } from "./field-access";
 import { maskEmail, maskInstagram, maskPhone } from "./mask";
-import { formatPhone, normalizePhone } from "./phone";
+import { formatPhone, normalizePhone, phoneChars } from "./phone";
 import { CORE_FIELDS, CORE_FIELD_KEYS, PRESETS } from "./presets";
 
 describe("phone normalisation (report §8.4: never guess silently)", () => {
@@ -31,6 +31,26 @@ describe("phone normalisation (report §8.4: never guess silently)", () => {
   ] as const)("reads past a label in front of the number: %s (default %s)", (input, country, expected) => {
     expect(normalizePhone(input, country)).toMatchObject(expected);
     expect(normalizePhone(input, country).raw).toBe(input);
+  });
+
+  // A cleaning rule (owner, 2026-10-20): a phone is numbers only. Whatever else came with it (a label, a note, a stray
+  // letter) is dropped before it's read; a leading "+" stays, since it says the country code follows.
+  it.each([
+    ["ph: +91 98765 43210 (mobile)", null, { e164: "+919876543210", countryIso: "IN", status: "valid" }],
+    ["98765abc43210", "IN", { e164: "+919876543210", countryIso: "IN", status: "valid" }],
+    ["Mobile - 050 123 4567", "AE", { e164: "+971501234567", countryIso: "AE", status: "valid" }],
+    ["+971 50 123 4567 / office", null, { e164: "+971501234567", countryIso: "AE", status: "valid" }],
+    ["WhatsApp: 00971501234567", null, { e164: "+971501234567", countryIso: "AE", status: "valid" }],
+    ["N/A", "IN", { e164: null, countryIso: null, status: "invalid" }],
+  ] as const)("numbers only: %s (default %s)", (input, country, expected) => {
+    expect(normalizePhone(input, country)).toMatchObject(expected);
+  });
+
+  it("phoneChars keeps the digits, and a + only in front", () => {
+    expect(phoneChars("p:+91 98765-43210")).toBe("+919876543210");
+    expect(phoneChars("98765abc43210")).toBe("9876543210");
+    expect(phoneChars("12+34")).toBe("1234");
+    expect(phoneChars("call me")).toBe("");
   });
 
   it("keeps the raw value exactly as received", () => {
