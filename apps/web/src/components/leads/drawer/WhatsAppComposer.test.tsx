@@ -5,6 +5,7 @@ import { filesClient } from "@/lib/files/client";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaReply, WaThreadMessage } from "@/lib/whatsapp/types";
 import { WhatsAppComposer } from "./WhatsAppComposer";
+import { NO_PREVIEW } from "@/lib/files/testing";
 
 vi.mock("@/lib/whatsapp/client", () => ({
   whatsappClient: {
@@ -171,6 +172,7 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
             link: { on: false, url: null, opens: 0 },
             createdAt: "2026-10-19T06:00:00.000Z",
             archived: false,
+            ...NO_PREVIEW,
           },
         ],
       }),

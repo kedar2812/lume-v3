@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, Columns3, Mail, Settings, Sun, Users } from "lucide-react";
+import { BarChart3, CalendarDays, Columns3, Image, Mail, Settings, Sun, Users } from "lucide-react";
 import type { IconName } from "./nav";
 
 const MAP = {
@@ -7,6 +7,7 @@ const MAP = {
   pipeline: Columns3,
   calendar: CalendarDays,
   templates: Mail,
+  media: Image,
   analytics: BarChart3,
   settings: Settings,
 };

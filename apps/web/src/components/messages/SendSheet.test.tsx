@@ -6,6 +6,7 @@ import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { leadsClient } from "@/lib/leads/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
 import { SendSheet } from "./SendSheet";
+import { NO_PREVIEW } from "@/lib/files/testing";
 
 vi.mock("@/lib/templates/client", () => ({ templatesClient: { list: vi.fn(), context: vi.fn() } }));
 vi.mock("@/lib/files/client", () => ({ filesClient: { list: vi.fn() } }));
@@ -359,6 +360,7 @@ describe("a file's link in the message (plan W3b-1 Task 6)", () => {
     link: { on: false, url: null, opens: 0 },
     createdAt: "2026-10-19T06:00:00.000Z",
     archived: false,
+    ...NO_PREVIEW,
     ...o,
   });
 

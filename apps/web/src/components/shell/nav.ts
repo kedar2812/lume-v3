@@ -1,4 +1,12 @@
-export type IconName = "today" | "leads" | "pipeline" | "calendar" | "templates" | "analytics" | "settings";
+export type IconName =
+  | "today"
+  | "leads"
+  | "pipeline"
+  | "calendar"
+  | "templates"
+  | "media"
+  | "analytics"
+  | "settings";
 export type NavItem = {
   id: IconName;
   label: string;
@@ -35,6 +43,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "templates",
     permission: "templates.use",
     phase: 4,
+  },
+  {
+    // The business's files (plan 2026-10-20-media-tab): everyone who sends templates sends these too.
+    id: "media",
+    label: "Media",
+    href: "/media",
+    icon: "media",
+    permission: "templates.use",
+    phase: 10,
   },
   {
     id: "analytics",

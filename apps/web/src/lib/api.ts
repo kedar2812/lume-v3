@@ -133,4 +133,57 @@ export const api = {
   /** A file as the request body, its name in a header (the import upload). */
   upload: <T>(path: string, file: File) =>
     send<T>("POST", path, file, true, { "x-file-name": encodeURIComponent(file.name) }),
+  /**
+   * The same, telling `onProgress` how much has gone up (0 to 1) as it goes: fetch can't, so this one is an
+   * XMLHttpRequest with the same CSRF header, Idempotency-Key and words for every refusal.
+   */
+  uploadWithProgress: <T>(path: string, file: File, onProgress: (share: number) => void) =>
+    sendWithProgress<T>(path, file, onProgress, true),
 };
+
+async function sendWithProgress<T>(
+  path: string,
+  file: File,
+  onProgress: (share: number) => void,
+  retry: boolean,
+): Promise<ApiResult<T>> {
+  const token = await csrfToken();
+  const res = await new Promise<{ status: number; text: string } | null>((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("content-type", "application/octet-stream");
+    xhr.setRequestHeader("idempotency-key", crypto.randomUUID());
+    xhr.setRequestHeader("x-file-name", encodeURIComponent(file.name));
+    if (token) xhr.setRequestHeader("x-csrf-token", token);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) onProgress(Math.min(1, e.loaded / e.total));
+    };
+    xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+    xhr.onerror = () => resolve(null);
+    xhr.onabort = () => resolve(null);
+    xhr.send(file);
+  });
+  if (!res) return { ok: false, status: 0, code: "OFFLINE", message: OFFLINE };
+  let payload: unknown = null;
+  try {
+    payload = res.text ? JSON.parse(res.text) : null;
+  } catch {
+    // An error page from the edge rather than the API.
+  }
+  if (res.status >= 200 && res.status < 300) return { ok: true, status: res.status, data: payload as T };
+  const err = (payload as { error?: { code?: string; message?: string } } | null)?.error;
+  if (res.status === 403 && err?.code === "CSRF" && retry) {
+    await csrfToken(true);
+    return sendWithProgress<T>(path, file, onProgress, false);
+  }
+  if (res.status === 413 && !err?.code)
+    return { ok: false, status: 413, code: "FILE_TOO_BIG", message: "This file is too big for LUME to keep." };
+  if (res.status === 429 && !err?.code) return { ok: false, status: 429, code: "RATE_LIMITED", message: BUSY };
+  return {
+    ok: false,
+    status: res.status,
+    code: err?.code ?? "UNKNOWN",
+    message: err?.message ?? "Something went wrong. Try again.",
+  };
+}

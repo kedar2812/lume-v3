@@ -178,6 +178,16 @@ describe("tour steps (spec §5)", () => {
     expect(boldParts("<b>nope</b>")).toEqual([{ text: "<b>nope</b>", bold: false }]);
   });
 
+  it("guides someone has put away stay away, on every device (Media's guide, 2026-10-20)", () => {
+    expect(mergePreferences({}, {}).hints).toBeUndefined();
+    const once = mergePreferences({}, { hints: { mediaGuide: true } });
+    expect(once.hints).toEqual({ mediaGuide: true });
+    // Kept through a later change to something else, and through an older row with no hints.
+    expect(mergePreferences(once, { workStart: "10:00" }).hints).toEqual({ mediaGuide: true });
+    expect(mergePreferences({ ...once, workStart: "nope" }, {}).hints).toEqual({ mediaGuide: true });
+    expect(preferencesPatchSchema.safeParse({ hints: { somethingElse: true } }).success).toBe(false);
+  });
+
   it("a stored group with only some of its switches keeps them (8B: switching the weekly email off)", () => {
     const merged = mergePreferences({ alerts: { weeklyAnalytics: false } }, {});
     expect(merged.alerts).toEqual({

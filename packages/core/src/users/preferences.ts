@@ -17,6 +17,8 @@ export type Preferences = {
     /** A lead replies on WhatsApp (spec 2026-10-18 §4.2). Absent: on. */
     replies?: boolean;
   };
+  /** Guides this person has put away, so they stay away on every device (Media's, 2026-10-20). Absent: none yet. */
+  hints?: { mediaGuide?: boolean };
 };
 
 export const PREFERENCES_DEFAULTS: Preferences = {
@@ -42,6 +44,7 @@ const full = z.strictObject({
     weeklyAnalytics: z.boolean().optional(),
     replies: z.boolean().optional(),
   }),
+  hints: z.strictObject({ mediaGuide: z.boolean().optional() }).optional(),
 });
 
 /** A patch may set any subset, one level deep inside `sounds` and `alerts`. */
@@ -52,6 +55,7 @@ export const preferencesPatchSchema = z.strictObject({
   digestTime: time.optional(),
   sounds: full.shape.sounds.partial().optional(),
   alerts: full.shape.alerts.partial().optional(),
+  hints: full.shape.hints,
 });
 export type PreferencesPatch = z.infer<typeof preferencesPatchSchema>;
 
@@ -75,6 +79,7 @@ export function mergePreferences(stored: unknown, patch: unknown): Preferences {
     digestTime: p.digestTime ?? current.digestTime,
     sounds: { ...current.sounds, ...(p.sounds ?? {}) },
     alerts: { ...current.alerts, ...(p.alerts ?? {}) },
+    ...(current.hints || p.hints ? { hints: { ...current.hints, ...p.hints } } : {}),
   };
 }
 
@@ -83,7 +88,7 @@ function repair(stored: unknown): Partial<Preferences> {
   if (typeof stored !== "object" || stored === null) return {};
   const out: Partial<Preferences> = {};
   const src = stored as Record<string, unknown>;
-  for (const key of ["workingDays", "workStart", "workEnd", "digestTime", "sounds", "alerts"] as const) {
+  for (const key of ["workingDays", "workStart", "workEnd", "digestTime", "sounds", "alerts", "hints"] as const) {
     const field = full.shape[key];
     const r = field.safeParse(src[key]);
     if (r.success) Object.assign(out, { [key]: r.data });

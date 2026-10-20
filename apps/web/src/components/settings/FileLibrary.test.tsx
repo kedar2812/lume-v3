@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { FileLibrary } from "./FileLibrary";
+import { NO_PREVIEW } from "@/lib/files/testing";
 
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
@@ -26,6 +27,7 @@ const file = (o: Partial<LibraryFile> & Pick<LibraryFile, "id" | "name">): Libra
   link: { on: false, url: null, opens: 0 },
   createdAt: "2026-10-19T06:00:00.000Z",
   archived: false,
+  ...NO_PREVIEW,
   ...o,
 });
 const BROCHURE = file({ id: "f1", name: "Brochure.pdf" });

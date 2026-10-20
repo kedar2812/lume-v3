@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { filesClient } from "@/lib/files/client";
 import { templatesClient, type WhatsAppSubmission } from "@/lib/templates/client";
 import { WhatsAppApproval } from "./WhatsAppApproval";
+import { NO_PREVIEW } from "@/lib/files/testing";
 
 vi.mock("@/lib/templates/client", () => ({
   templatesClient: { whatsapp: vi.fn(), submitToWhatsApp: vi.fn() },
@@ -47,6 +48,7 @@ beforeEach(() => {
           link: { on: false, url: null, opens: 0 },
           createdAt: "2026-10-19T06:00:00.000Z",
           archived: false,
+          ...NO_PREVIEW,
         },
       ],
     }),

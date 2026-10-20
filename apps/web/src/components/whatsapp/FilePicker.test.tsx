@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { FilePicker } from "./FilePicker";
+import { NO_PREVIEW } from "@/lib/files/testing";
 
 vi.mock("@/lib/files/client", () => ({ filesClient: { list: vi.fn() } }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
@@ -13,6 +14,7 @@ const file = (o: Partial<LibraryFile> & Pick<LibraryFile, "id" | "name">): Libra
   link: { on: false, url: null, opens: 0 },
   createdAt: "2026-10-19T06:00:00.000Z",
   archived: false,
+  ...NO_PREVIEW,
   ...o,
 });
 const FILES = [

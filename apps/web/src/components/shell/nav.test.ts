@@ -9,6 +9,7 @@ describe("navigation", () => {
       "Pipeline",
       "Calendar",
       "Templates",
+      "Media",
       "Analytics",
       "Settings",
     ]);
@@ -23,6 +24,16 @@ describe("navigation", () => {
       "calendar",
       "settings", // everyone has personal settings (spec §7)
     ]);
+  });
+
+  it("Media is there for whoever may use templates (plan 2026-10-20-media-tab)", () => {
+    expect(visibleNav(NAV_ITEMS, (p) => p === "templates.use").map((i) => i.id)).toEqual([
+      "today",
+      "templates",
+      "media",
+      "settings",
+    ]);
+    expect(activeNav(NAV_ITEMS, "/media")?.id).toBe("media");
   });
 
   it("matches nested paths to their section", () => {
