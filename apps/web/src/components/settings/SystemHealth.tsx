@@ -217,7 +217,8 @@ function Storage({ storage }: { storage: Health["storage"] }) {
         {free !== null && total ? `${bytesText(free)} of ${bytesText(total)}` : "not known"}
       </Line>
       <Line label="Database">{database !== null ? bytesText(database) : "not known"}</Line>
-      <Line label="WhatsApp files">{bytesText(whatsappFiles)}</Line>
+      {/* Only where WhatsApp keeps files here: a server that doesn't use it says nothing of it. */}
+      {whatsappFiles > 0 && <Line label="WhatsApp files">{bytesText(whatsappFiles)}</Line>}
     </Card>
   );
 }

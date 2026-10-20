@@ -73,7 +73,8 @@ describe("System health (3C Task 7)", () => {
     expect(within(card).queryByRole("meter")).toBeNull();
     expect(card).toHaveTextContent("Free not known");
     expect(card).toHaveTextContent("Database not known");
-    expect(card).toHaveTextContent("WhatsApp files 0 KB");
+    // No WhatsApp files on this server (WhatsApp not used here): no line for them (owner, 2026-10-20).
+    expect(card).not.toHaveTextContent("WhatsApp");
   });
 
   it("what needs a look, in words", () => {
