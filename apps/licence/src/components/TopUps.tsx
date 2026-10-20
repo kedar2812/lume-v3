@@ -7,7 +7,20 @@ export type TopUpsView = {
   added: { month: string; calls: number; note: string; addedAt: string }[];
 };
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 /** "October 2026" */
 export const monthWords = (m: string) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
 const thisMonth = () => new Date().toISOString().slice(0, 7);
@@ -63,9 +76,7 @@ export function TopUps({
             {r.askedBy} asked for {monthWords(r.month)}
           </b>
           {r.note && <span>{r.note}</span>}
-          <span className="note">
-            {r.askedByEmail} · their LUME AI waits until it’s added
-          </span>
+          <span className="note">{r.askedByEmail} · their LUME AI waits until it’s added</span>
         </div>
       ))}
       <div className="pl-row" style={{ alignItems: "flex-end" }}>

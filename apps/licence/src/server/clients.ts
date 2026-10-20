@@ -1130,13 +1130,10 @@ export async function addTopUp(ctx: Ctx, id: string, body: { month: string; call
   const c = await ctx.db.connect();
   try {
     await c.query("BEGIN");
-    await c.query("INSERT INTO ai_topups (client_id, month, calls, note, added_at) VALUES ($1, $2, $3, $4, $5)", [
-      id,
-      p.data.month,
-      p.data.calls,
-      p.data.note ?? "",
-      now,
-    ]);
+    await c.query(
+      "INSERT INTO ai_topups (client_id, month, calls, note, added_at) VALUES ($1, $2, $3, $4, $5)",
+      [id, p.data.month, p.data.calls, p.data.note ?? "", now],
+    );
     await c.query(
       "UPDATE topup_requests SET done_at = $3 WHERE client_id = $1 AND month = $2 AND done_at IS NULL",
       [id, p.data.month, now],

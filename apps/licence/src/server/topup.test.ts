@@ -22,7 +22,10 @@ async function bound(name: string) {
   const s = await seedClient(db.pool, { type: "subscription", paidUntil: "2026-12-31", name });
   return { ...s, installId: await bindInstall(db.pool, s.clientId) };
 }
-const ask = (s: { instanceId: string; licenseKey: string; installId: string }, over: Record<string, unknown> = {}) =>
+const ask = (
+  s: { instanceId: string; licenseKey: string; installId: string },
+  over: Record<string, unknown> = {},
+) =>
   handleTopUp(
     new Request("https://licence.test/v1/topup", {
       method: "POST",
@@ -49,7 +52,8 @@ describe("POST /v1/topup", () => {
     const r = await ask(s);
     expect(r.status).toBe(201);
     expect(await r.json()).toEqual({ asked: true });
-    const row = (await db.pool.query("SELECT * FROM topup_requests WHERE client_id = $1", [s.clientId])).rows[0];
+    const row = (await db.pool.query("SELECT * FROM topup_requests WHERE client_id = $1", [s.clientId]))
+      .rows[0];
     expect(row).toMatchObject({ month: "2026-10", asked_by_name: "Priya Shah", done_at: null });
     const ev = await db.pool.query("SELECT kind FROM events WHERE client_id = $1", [s.clientId]);
     expect(ev.rows.map((e) => e.kind)).toContain("topup_requested");
@@ -61,7 +65,9 @@ describe("POST /v1/topup", () => {
     const again = await ask(s);
     expect(again.status).toBe(200);
     expect(await again.json()).toEqual({ asked: true, already: true });
-    const n = await db.pool.query("SELECT count(*)::int AS n FROM topup_requests WHERE client_id = $1", [s.clientId]);
+    const n = await db.pool.query("SELECT count(*)::int AS n FROM topup_requests WHERE client_id = $1", [
+      s.clientId,
+    ]);
     expect(n.rows[0].n).toBe(1);
   });
 
@@ -69,7 +75,9 @@ describe("POST /v1/topup", () => {
     const s = await bound("Northgate Realty");
     const r = await ask({ ...s, licenseKey: "LUME-WRNG-WRNG-WRNG-WRNG" });
     expect(r.status).toBe(401);
-    const n = await db.pool.query("SELECT count(*)::int AS n FROM topup_requests WHERE client_id = $1", [s.clientId]);
+    const n = await db.pool.query("SELECT count(*)::int AS n FROM topup_requests WHERE client_id = $1", [
+      s.clientId,
+    ]);
     expect(n.rows[0].n).toBe(0);
   });
 
@@ -87,15 +95,19 @@ describe("the owner sees it, and adds a top-up", () => {
     expect(alerts.map((a) => a.title)).toContain("Cedar Fitness asked for a LUME AI top-up");
     const before = await getClient(ctx, s.clientId);
     expect(before.topUps.requests).toEqual([
-      expect.objectContaining({ month: "2026-10", askedBy: "Priya Shah", note: "We're running Autopilot on a big campaign." }),
+      expect.objectContaining({
+        month: "2026-10",
+        askedBy: "Priya Shah",
+        note: "We're running Autopilot on a big campaign.",
+      }),
     ]);
 
     const after = await addTopUp(ctx, s.clientId, { month: "2026-10", calls: 1500, note: "Campaign week" });
     expect(after.topUps.requests).toEqual([]);
     expect(after.topUps.added).toEqual([expect.objectContaining({ month: "2026-10", calls: 1500 })]);
-    expect((await listAlerts(ctx)).alerts.filter((a) => a.clientId === s.clientId).map((a) => a.title)).not.toContain(
-      "Cedar Fitness asked for a LUME AI top-up",
-    );
+    expect(
+      (await listAlerts(ctx)).alerts.filter((a) => a.clientId === s.clientId).map((a) => a.title),
+    ).not.toContain("Cedar Fitness asked for a LUME AI top-up");
   });
 
   it("a top-up is a whole number between 1 and 10,000,000, in words", async () => {

@@ -112,11 +112,14 @@ describe("the plan, signed", () => {
     await addTopUp(ctx, c.clientId, { month: "2026-10", calls: 500 });
     await addTopUp(ctx, c.clientId, { month: "2026-10", calls: 250 });
     await addTopUp(ctx, c.clientId, { month: "2026-04", calls: 900 });
-    const v3 = (await payloadOf(await post(c, ["announcements", "plan", "plan2", "plan3"]), c.instanceId))!.plan!;
+    const v3 = (await payloadOf(await post(c, ["announcements", "plan", "plan2", "plan3"]), c.instanceId))!
+      .plan!;
     expect(v3).not.toHaveProperty("aiCallsMonthly");
     expect(v3).not.toHaveProperty("aiTopUps");
-    const v4 = (await payloadOf(await post(c, ["announcements", "plan", "plan2", "plan3", "plan4"]), c.instanceId))!
-      .plan!;
+    const v4 = (await payloadOf(
+      await post(c, ["announcements", "plan", "plan2", "plan3", "plan4"]),
+      c.instanceId,
+    ))!.plan!;
     expect(v4.aiCallsMonthly).toBe(3000);
     // The month before, this one and the next (the client's clock may be a day either side of the server's): one
     // entry a month, its top-ups added up; April's long gone.
@@ -128,9 +131,9 @@ describe("the plan, signed", () => {
     const r = await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiCallsMonthly: 5000 });
     expect(r.plan).toMatchObject({ aiCallsMonthly: 5000 });
     expect(r.history[0]).toMatchObject({ kind: "plan", detail: { aiCallsMonthly: 5000 } });
-    await expect(patchPlan(ctx, c.clientId, { places: null, modules: {}, aiCallsMonthly: 0 })).rejects.toThrow(
-      "LUME AI a month: at least 1, or no limit.",
-    );
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: {}, aiCallsMonthly: 0 }),
+    ).rejects.toThrow("LUME AI a month: at least 1, or no limit.");
   });
 
   it("is no limit and everything included until it's set", async () => {

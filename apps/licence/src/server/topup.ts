@@ -69,11 +69,10 @@ export async function handleTopUp(req: Request, ctx: Ctx): Promise<Response> {
       [who.clientId, b.month, now, b.askedBy.name, b.askedBy.email, b.note.trim()],
     );
     if (kept.rowCount)
-      await c.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'topup_requested', $3)", [
-        who.clientId,
-        now,
-        JSON.stringify({ month: b.month, by: b.askedBy.name }),
-      ]);
+      await c.query(
+        "INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'topup_requested', $3)",
+        [who.clientId, now, JSON.stringify({ month: b.month, by: b.askedBy.name })],
+      );
     await c.query("COMMIT");
     return kept.rowCount ? json(201, { asked: true }) : json(200, { asked: true, already: true });
   } catch (e) {

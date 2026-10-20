@@ -164,7 +164,20 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
   }
   // A LUME AI top-up asked for (Autopilot spec 2026-10-19 §4): their runs wait until it's added.
   const topUp: Alert[] = [];
-  const MONTH_WORDS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const MONTH_WORDS = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
   for (const c of live)
     for (const month of c.topUpMonths ?? [])
       topUp.push({

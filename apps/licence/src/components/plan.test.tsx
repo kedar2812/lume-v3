@@ -108,14 +108,18 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
   });
 
   it("W3b-2: on a LUME that can't keep the WhatsApp limit yet, says so", () => {
-    card({ usage: { people: 3, modulesOn: [], knows: true, knowsAi: true, knowsPaid: false, knowsMonthly: true } });
+    card({
+      usage: { people: 3, modulesOn: [], knows: true, knowsAi: true, knowsPaid: false, knowsMonthly: true },
+    });
     expect(
       screen.getByText("Their LUME (1.5.0) can’t keep this limit yet; it will once it’s updated."),
     ).toBeInTheDocument();
   });
 
   it("on a LUME that can keep a plan but not LUME AI's limits yet, says so", () => {
-    card({ usage: { people: 3, modulesOn: [], knows: true, knowsAi: false, knowsPaid: false, knowsMonthly: true } });
+    card({
+      usage: { people: 3, modulesOn: [], knows: true, knowsAi: false, knowsPaid: false, knowsMonthly: true },
+    });
     expect(
       screen.getByText(
         "Their LUME (1.5.0) can’t keep LUME AI and WhatsApp settings yet; it will once it’s updated.",
@@ -185,7 +189,10 @@ describe("Autopilot A1: LUME AI a month, and top-ups", () => {
     card();
     await user.type(screen.getByRole("spinbutton", { name: "LUME AI calls a month" }), "5000");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(api.patch).toHaveBeenCalledWith("/api/clients/c1/plan", expect.objectContaining({ aiCallsMonthly: 5000 }));
+    expect(api.patch).toHaveBeenCalledWith(
+      "/api/clients/c1/plan",
+      expect.objectContaining({ aiCallsMonthly: 5000 }),
+    );
   });
 
   it("an older LUME keeps the weekly reads until it's updated, and says so", () => {
@@ -201,7 +208,9 @@ describe("Autopilot A1: LUME AI a month, and top-ups", () => {
     expect(line("topup_requested", { month: "2026-10", by: "Priya Shah" })).toBe(
       "Priya Shah asked for a LUME AI top-up for October 2026",
     );
-    expect(line("ai_topup", { month: "2026-10", calls: 1500 })).toBe("LUME AI top-up: 1,500 calls for October 2026");
+    expect(line("ai_topup", { month: "2026-10", calls: 1500 })).toBe(
+      "LUME AI top-up: 1,500 calls for October 2026",
+    );
   });
 });
 
