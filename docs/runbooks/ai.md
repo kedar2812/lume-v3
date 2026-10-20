@@ -100,3 +100,14 @@ Notes, calls and follow-ups keep working the whole time: LUME AI only ever sugge
 - `GET /api/v1/ai` (signed in): `on`, this hour's and this week's reads and limits, and a pause if one is in force.
 - Every read is one row in `ai_reads` (task, model, tokens, how long it took, whether it was applied or dismissed); no
   note text is kept there.
+
+## The month, the ring and top-ups (Autopilot A1, 2026-10-20)
+
+- From a licence server that signs **LUME AI a month** (`plan4`), every AI call counts against one monthly allowance
+  on the business's clock (from the 1st, 00:00), plus any top-ups for that month; the week no longer applies, the hour
+  still does. Admins hear once at 75% and 90% of the month and once at the limit. An older licence keeps the week.
+- **Spend:** set `LUME_AI_PRICE_IN` and `LUME_AI_PRICE_OUT` (USD per million tokens, the chosen model's published
+  prices) and `LUME_AI_MONTHLY_CAP` (the hard cap set in the provider's console) in the client's `.env`. The ring then
+  shows the month's spend against the cap. Unset, it shows no money at all; nothing is guessed.
+- **Top-ups:** an admin presses Ask for a top-up (the ring's panel); the request reaches the licence dashboard as an
+  alert. Add a top-up there; it reaches their LUME at its next check-in and AI carries on by itself.

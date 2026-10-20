@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiLimitState, aiWindows, backWords } from "./limits";
+import { aiLimitState, aiPace, aiSpend, aiWindows, backWords } from "./limits";
 
 /** LUME AI's limits (spec 2026-10-18 §2.2): a rolling hour, and a week from Monday 00:00 on the business's clock. */
 const TZ = "Asia/Kolkata";
@@ -110,5 +110,28 @@ describe("the month", () => {
     expect(
       backWords({ by: "month", until: "2026-10-31T18:30:00.000Z" }, at("2026-10-21T10:00:00Z"), TZ),
     ).toBe("on November 1");
+  });
+});
+
+describe("the pace and the spend (Autopilot A1 Task 3)", () => {
+  it("days left at this pace: 600 of 3,000 used in the first 10 days is about 40 more", () => {
+    const monthStart = at("2026-09-30T18:30:00Z");
+    expect(aiPace({ used: 600, limit: 3000 }, at("2026-10-10T18:30:00Z"), monthStart)).toEqual({
+      daysLeft: 40,
+    });
+    expect(aiPace({ used: 0, limit: 3000 }, at("2026-10-10T18:30:00Z"), monthStart)).toEqual({
+      daysLeft: null,
+    });
+    expect(aiPace({ used: 50, limit: null }, at("2026-10-10T18:30:00Z"), monthStart)).toEqual({
+      daysLeft: null,
+    });
+  });
+  it("spend: tokens at the owner's prices, to the cent", () => {
+    expect(aiSpend({ inputTokens: 1_000_000, outputTokens: 200_000 }, { in: 3, out: 15, cap: 50 })).toEqual({
+      used: 6,
+      cap: 50,
+      currency: "USD",
+    });
+    expect(aiSpend({ inputTokens: 1, outputTokens: 1 }, null)).toBeNull();
   });
 });

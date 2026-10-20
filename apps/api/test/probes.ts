@@ -163,6 +163,8 @@ export const PROBES: Record<string, Probe> = {
   "POST /api/v1/files/:id/restore": { access: "templates.manage" },
   "PUT /api/v1/files/:id/link": { access: "templates.manage", body: () => ({ on: true }) },
   // Media (plan 2026-10-20-media-tab): a file, its thumbnail and its PDF read in LUME; a preview tried again.
+  // Autopilot A1: ask the owner for a LUME AI top-up (admins).
+  "POST /api/v1/ai/topup": { access: "settings.manage", body: () => ({}) },
   "GET /api/v1/files/:id/content": { access: "templates.use" },
   "GET /api/v1/files/:id/thumb": { access: "templates.use" },
   "GET /api/v1/files/:id/pdf": { access: "templates.use" },

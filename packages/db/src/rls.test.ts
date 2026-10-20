@@ -683,7 +683,7 @@ describe("LUME AI's reads (spec 2026-10-18 §2.3)", () => {
       async (c) =>
         (
           await c.query<{ hour_n: number; hour_oldest: Date | null; week_n: number }>(
-            "SELECT * FROM lume_ai_usage(now() - interval '1 hour', now() - interval '7 days')",
+            "SELECT * FROM lume_ai_usage(now() - interval '1 hour', now() - interval '7 days', now() - interval '31 days')",
           )
         ).rows[0]!,
     );
@@ -704,7 +704,9 @@ describe("LUME AI's reads (spec 2026-10-18 §2.3)", () => {
 describe("LUME AI's use count leaves the request's own scope as it was", () => {
   it("a rep's next query in the same transaction still sees only their leads", async () => {
     const seen = await as("lume_app", { scope: "own" }, async (c) => {
-      await c.query("SELECT * FROM lume_ai_usage(now() - interval '1 hour', now() - interval '7 days')");
+      await c.query(
+        "SELECT * FROM lume_ai_usage(now() - interval '1 hour', now() - interval '7 days', now() - interval '31 days')",
+      );
       return (await c.query<{ id: string }>("SELECT id FROM leads")).rows.map((r) => r.id);
     });
     expect(seen).toEqual([L.rep]);
@@ -712,15 +714,32 @@ describe("LUME AI's use count leaves the request's own scope as it was", () => {
 });
 
 describe("LUME AI's slots: reserved under one lock, then finished (spec 2026-10-18 §2.2)", () => {
-  const reserve = (c: pg.Client, now: string, hourLimit: number | null, weekLimit: number | null) =>
+  const reserve = (
+    c: pg.Client,
+    now: string,
+    hourLimit: number | null,
+    weekLimit: number | null,
+    monthLimit: number | null = null,
+  ) =>
     c
       .query<{ id: string | null; refused: string | null; hour_oldest: Date | null }>(
-        `SELECT * FROM lume_ai_reserve($1, $2, 'next_step', NULL, 'fake', 'fake-1', $3::timestamptz, $4, $5,
-                                       $3::timestamptz - interval '1 hour', $3::timestamptz - interval '7 days')`,
-        [L.rep, U.rep, now, hourLimit, weekLimit],
+        `SELECT * FROM lume_ai_reserve($1, $2, 'next_step', NULL, 'fake', 'fake-1', $3::timestamptz, $4, $5, $6,
+                                       $3::timestamptz - interval '1 hour', $3::timestamptz - interval '7 days',
+                                       $3::timestamptz - interval '31 days')`,
+        [L.rep, U.rep, now, hourLimit, weekLimit, monthLimit],
       )
       .then((r) => r.rows[0]!);
   const NOW = "2030-01-07T10:00:00Z"; // well after every other read in this file
+
+  it("Autopilot A1: the month is refused first, ahead of the hour", async () => {
+    // Before the other slot tests' windows (they count everything after theirs), after every other read here.
+    const at = "2029-06-07T10:00:00Z";
+    expect((await as("lume_app", { scope: "own" }, (c) => reserve(c, at, 1, null, 1))).id).not.toBeNull();
+    expect(await as("lume_app", { scope: "own" }, (c) => reserve(c, at, 1, null, 1))).toMatchObject({
+      id: null,
+      refused: "month",
+    });
+  });
 
   it("reserves a slot while there's room, and refuses the one past the hourly limit with when it frees up", async () => {
     const first = await as("lume_app", { scope: "own" }, (c) => reserve(c, NOW, 1, null));

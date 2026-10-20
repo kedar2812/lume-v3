@@ -77,6 +77,25 @@ describe("loadConfig", () => {
     );
   });
 
+  it("LUME AI's prices and monthly cap are optional, both prices together (Autopilot A1)", () => {
+    const c = loadConfig(apiSchema, {
+      ...apiEnv,
+      LUME_AI_PRICE_IN: "3",
+      LUME_AI_PRICE_OUT: "15",
+      LUME_AI_MONTHLY_CAP: "50",
+    });
+    expect([c.LUME_AI_PRICE_IN, c.LUME_AI_PRICE_OUT, c.LUME_AI_MONTHLY_CAP]).toEqual([3, 15, 50]);
+    expect(loadConfig(apiSchema, { ...apiEnv, LUME_AI_PRICE_IN: "" }).LUME_AI_PRICE_IN).toBeUndefined();
+    expect(issuesOf(() => loadConfig(apiSchema, { ...apiEnv, LUME_AI_PRICE_IN: "3" })).join()).toMatch(
+      /LUME_AI_PRICE_OUT/,
+    );
+    expect(
+      issuesOf(() =>
+        loadConfig(apiSchema, { ...apiEnv, LUME_AI_PRICE_IN: "-1", LUME_AI_PRICE_OUT: "2" }),
+      ).join(),
+    ).toMatch(/LUME_AI_PRICE_IN/);
+  });
+
   it("the render service is optional, an http address when set (plan 2026-10-20-media-tab)", () => {
     expect(loadConfig(apiSchema, apiEnv).LUME_RENDER_URL).toBeUndefined();
     expect(loadConfig(apiSchema, { ...apiEnv, LUME_RENDER_URL: "" }).LUME_RENDER_URL).toBeUndefined();

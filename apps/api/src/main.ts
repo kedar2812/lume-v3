@@ -120,6 +120,10 @@ const deps: AppDeps = {
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   render: cfg.LUME_RENDER_URL ? { url: cfg.LUME_RENDER_URL.replace(/\/$/, "") } : null,
   media,
+  aiPricing:
+    cfg.LUME_AI_PRICE_IN !== undefined && cfg.LUME_AI_PRICE_OUT !== undefined
+      ? { in: cfg.LUME_AI_PRICE_IN, out: cfg.LUME_AI_PRICE_OUT, cap: cfg.LUME_AI_MONTHLY_CAP ?? null }
+      : null,
   mailer,
   config: { publicUrl, cookieSecure: true, version: appVersion(cfg) },
   rates:

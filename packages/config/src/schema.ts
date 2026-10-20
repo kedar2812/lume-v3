@@ -119,6 +119,14 @@ export const apiSchema = base
     META_GRAPH_VERSION: optional(z.string().regex(/^v\d+\.\d+$/)),
     LUME_AI_MODEL: optional(z.string().min(1).max(100)),
     LUME_AI_KEY: optional(z.string().min(20).max(400)),
+    /**
+     * What LUME AI's tokens cost, in USD per million (input and output), and the hard monthly cap set at the provider
+     * (Autopilot spec 2026-10-19 §4): the ring shows the month's spend against it. Unset: no spend is shown, never a
+     * guess.
+     */
+    LUME_AI_PRICE_IN: optional(z.coerce.number().positive().max(1000)),
+    LUME_AI_PRICE_OUT: optional(z.coerce.number().positive().max(1000)),
+    LUME_AI_MONTHLY_CAP: optional(z.coerce.number().positive().max(1_000_000)),
   })
   .superRefine((c, ctx) => {
     if (c.LUME_AI_PROVIDER === "anthropic" || c.LUME_AI_PROVIDER === "google")
@@ -135,6 +143,12 @@ export const apiSchema = base
         code: "custom",
         path: ["GOOGLE_OAUTH_RELAY_URL"],
         message: "GOOGLE_OAUTH_RELAY_URL must be https",
+      });
+    if ((c.LUME_AI_PRICE_IN === undefined) !== (c.LUME_AI_PRICE_OUT === undefined))
+      ctx.addIssue({
+        code: "custom",
+        path: [c.LUME_AI_PRICE_IN === undefined ? "LUME_AI_PRICE_IN" : "LUME_AI_PRICE_OUT"],
+        message: "set both LUME_AI_PRICE_IN and LUME_AI_PRICE_OUT, or neither",
       });
     if (!!c.GOOGLE_OAUTH_RELAY_URL !== !!c.GOOGLE_OAUTH_RELAY_TOKEN)
       ctx.addIssue({

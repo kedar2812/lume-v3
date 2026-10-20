@@ -1,6 +1,7 @@
 import { exportRoutes } from "./export/routes";
 import { licenceGuard } from "./licence/enforce";
 import cookie from "@fastify/cookie";
+import type { AiPricing } from "@lume/core";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import type pg from "pg";
@@ -124,6 +125,8 @@ export type AppDeps = {
    * PowerPoint as PDFs. Null: Media shows each file by its kind.
    */
   render?: { url: string } | null;
+  /** What LUME AI's tokens cost and the provider's monthly cap, as the owner set them (USD); null: no spend is shown. */
+  aiPricing?: AiPricing | null;
   /** Media's queue: a file's preview to make, by its bytes' hash. */
   media?: { enqueuePreview(sha256: string): Promise<void> };
   /** WhatsApp's queues (plan W1 Tasks 5–7): an event to make into lead activity, a media item to fetch. */

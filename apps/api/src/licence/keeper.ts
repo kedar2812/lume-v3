@@ -5,6 +5,7 @@ import {
   canonicalKey,
   checkBody,
   feedbackBody,
+  topUpBody,
   licenceState,
   verifyLicence,
   type FeedbackReport,
@@ -359,6 +360,47 @@ export class LicenceKeeper {
    * Forward one report to the licence server (spec 2026-10-16 §1.4) under this install's credentials, as a check-in
    * goes. Nothing is kept here. Never throws.
    */
+  /**
+   * Ask the owner for a LUME AI top-up for a month (Autopilot spec 2026-10-19 §4), under this install's credentials as
+   * feedback goes. The licence server keeps one open request a month and says when this one was already asked.
+   * Never throws.
+   */
+  async requestTopUp(o: {
+    month: string;
+    askedBy: { name: string; email: string };
+    note?: string;
+  }): Promise<{ ok: true; already: boolean } | { ok: false; reason: "no_key" | "unreachable" | "limited" }> {
+    if (!this.row) await this.refresh().catch(() => undefined);
+    const creds = this.creds();
+    if (this.dev || !creds || !this.row) return { ok: false, reason: "no_key" };
+    try {
+      const r = await (this.opts.fetch ?? fetch)(`${this.opts.url}/v1/topup`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          topUpBody({
+            instanceId: creds.instanceId,
+            licenseKey: creds.licenseKey,
+            installId: this.row.install_id,
+            appVersion: this.opts.version,
+            month: o.month,
+            askedBy: o.askedBy,
+            ...(o.note ? { note: o.note } : {}),
+          }),
+        ),
+        signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+      });
+      if (r.status === 201) return { ok: true, already: false };
+      if (r.status === 200) return { ok: true, already: true };
+      if (r.status === 429) return { ok: false, reason: "limited" };
+      this.log({ status: r.status }, "top-up: the licence server refused it");
+      return { ok: false, reason: "unreachable" };
+    } catch (e) {
+      this.log({ error: (e as Error).message }, "top-up: the licence server is unreachable");
+      return { ok: false, reason: "unreachable" };
+    }
+  }
+
   async sendFeedback(o: {
     browser: string;
     reporter: { name: string; email: string; role: string };

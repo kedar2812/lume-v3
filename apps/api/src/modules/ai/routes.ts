@@ -4,12 +4,21 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { catchUp, leadAi } from "./catch-up";
 import { applyRead, dismissRead, suggestNextStep } from "./next-step";
-import { aiStatus, setAiEnabled } from "./service";
+import { aiStatus, requestTopUp, setAiEnabled } from "./service";
 
 /** LUME AI (spec 2026-10-18 §2.2): its status for anyone signed in, and its switch for admins. */
 export async function aiRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/ai", { config: { permission: "auth.self" } }, (req) => aiStatus(req, d));
+  // Ask the owner for more LUME AI this month (Autopilot spec 2026-10-19 §4): admins.
+  r.post(
+    "/api/v1/ai/topup",
+    {
+      config: { permission: "settings.manage" },
+      schema: { body: z.object({ note: z.string().trim().max(500).optional() }).strict() },
+    },
+    (req) => requestTopUp(req, d, req.body.note),
+  );
   r.put(
     "/api/v1/integrations/ai",
     {

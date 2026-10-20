@@ -31,6 +31,7 @@ let repUser: { id: string; email: string; password: string };
 let lead: string;
 let plan: PlanClaim | undefined;
 let provider: AiProvider = fakeProvider();
+let topUpCalls: { month: string; askedBy: { name: string; email: string } }[] = [];
 
 const token = () =>
   signLicence(
@@ -92,7 +93,19 @@ beforeAll(async () => {
       url: "https://licence.test",
       keys: { t1: rawPublicKey(server.publicKey) },
       version: "1.7.0",
-      fetch: (async () => new Response(JSON.stringify({ token: token() }), { status: 200 })) as typeof fetch,
+      fetch: (async (url: string | URL, init?: RequestInit) => {
+        // Autopilot A1: a top-up request goes to the licence server; one open request a month.
+        if (String(url).endsWith("/v1/topup")) {
+          topUpCalls.push(JSON.parse(String(init?.body)));
+          return new Response(
+            JSON.stringify(topUpCalls.length > 1 ? { asked: true, already: true } : { asked: true }),
+            {
+              status: topUpCalls.length > 1 ? 200 : 201,
+            },
+          );
+        }
+        return new Response(JSON.stringify({ token: token() }), { status: 200 });
+      }) as typeof fetch,
     },
     ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" },
     aiTimeoutMs: 200,
@@ -120,6 +133,7 @@ beforeAll(async () => {
 afterAll(() => h.close());
 beforeEach(async () => {
   provider = fakeProvider();
+  topUpCalls = [];
   // No read is ever deleted (no delete policy, by design): the owner empties the table between tests.
   await h.ownerPool.query("TRUNCATE ai_reads, ai_limit_notices");
   noticesFrom = await asBackup(async (r) =>
@@ -253,7 +267,88 @@ describe("the limits", () => {
       on: true,
       hour: { used: 1, limit: 100, resetsAt: "2026-10-21T11:00:00.000Z" },
       week: { used: 1, limit: 750, resetsAt: "2026-10-25T18:30:00.000Z" },
+      // A licence without the month (plan3 or older): no monthly limit, no spend set, no top-ups to ask for (a rep).
+      month: { used: 1, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
       paused: null,
+      spend: null,
+      pace: { daysLeft: null },
+      topUp: null,
+    });
+  });
+});
+
+/** Autopilot A1 Task 3 (spec 2026-10-19 §4): one monthly allowance, its notices, spend, and asking for a top-up. */
+describe("the month", () => {
+  const monthly = (aiCallsMonthly: number | null, aiTopUps: { month: string; calls: number }[] = []) =>
+    withPlan({ places: null, modules: all, aiReadsHourly: null, aiReadsWeekly: 3, aiCallsMonthly, aiTopUps });
+  beforeEach(async () => {
+    await switchOn();
+  });
+
+  it("with a monthly plan, reads count against the month and the week is ignored", async () => {
+    await monthly(5);
+    for (let i = 0; i < 5; i++) expect((await read()).json()).toHaveProperty("output");
+    expect((await read()).json()).toEqual({
+      unavailable: "limit",
+      by: "month",
+      until: "2026-10-31T18:30:00.000Z", // November 1, 00:00 in Kolkata
+    });
+  });
+
+  it("admins hear once at 75% and 90% of the month, and once at the limit", async () => {
+    await monthly(10);
+    for (let i = 0; i < 10; i++) await read();
+    await read();
+    await read();
+    const notes = await alerts("LUME AI%");
+    expect([...new Set(notes.map((n) => n.title))]).toEqual([
+      "LUME AI has used 75% of this month's allowance",
+      "LUME AI has used 90% of this month's allowance",
+      "LUME AI has reached this month's allowance",
+    ]);
+    expect(notes.find((n) => n.title.includes("75%"))!.body).toBe(
+      "8 of 10 used this month. It starts again on November 1.",
+    );
+    expect(notes.find((n) => n.title.includes("reached"))!.body).toBe(
+      "It's back on November 1, or sooner with a top-up: ask for one from LUME AI's ring.",
+    );
+  });
+
+  it("a top-up ends the pause", async () => {
+    await monthly(1);
+    expect((await read()).json()).toHaveProperty("output");
+    expect((await read()).json()).toMatchObject({ unavailable: "limit", by: "month" });
+    await monthly(1, [{ month: "2026-10", calls: 1 }]);
+    expect((await read()).json()).toHaveProperty("output");
+  });
+
+  it("GET /ai says the month's use, the pace, and for an admin whether a top-up's been asked", async () => {
+    await monthly(3000);
+    await read();
+    const forRep = (await (await rep()).inject({ method: "GET", url: "/api/v1/ai" })).json();
+    expect(forRep).toMatchObject({
+      on: true,
+      month: { used: 1, limit: 3000, resetsAt: "2026-10-31T18:30:00.000Z" },
+      spend: null,
+      topUp: null,
+    });
+    expect(forRep.pace.daysLeft).toBeGreaterThan(30);
+    const forAdmin = (await (await owner()).inject({ method: "GET", url: "/api/v1/ai" })).json();
+    expect(forAdmin.topUp).toEqual({ asked: false });
+  });
+
+  it("one request a month: the second press says already; only an admin may ask", async () => {
+    await monthly(1);
+    expect(
+      (await (await rep()).inject({ method: "POST", url: "/api/v1/ai/topup", payload: {} })).statusCode,
+    ).toBe(403);
+    const first = await (await owner()).inject({ method: "POST", url: "/api/v1/ai/topup", payload: {} });
+    expect(first.json()).toEqual({ asked: true });
+    expect(topUpCalls[0]).toMatchObject({ month: "2026-10" });
+    const again = await (await owner()).inject({ method: "POST", url: "/api/v1/ai/topup", payload: {} });
+    expect(again.json()).toEqual({ asked: true, already: true });
+    expect((await (await owner()).inject({ method: "GET", url: "/api/v1/ai" })).json().topUp).toEqual({
+      asked: true,
     });
   });
 });

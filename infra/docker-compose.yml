@@ -103,6 +103,10 @@ services:
       LUME_AI_PROVIDER: ${LUME_AI_PROVIDER:-}
       LUME_AI_MODEL: ${LUME_AI_MODEL:-}
       LUME_AI_KEY: ${LUME_AI_KEY:-}
+      # LUME AI's prices (USD per million tokens) and the provider's monthly cap, for the spend the ring shows.
+      LUME_AI_PRICE_IN: ${LUME_AI_PRICE_IN:-}
+      LUME_AI_PRICE_OUT: ${LUME_AI_PRICE_OUT:-}
+      LUME_AI_MONTHLY_CAP: ${LUME_AI_MONTHLY_CAP:-}
       MAIL_FROM: ${MAIL_FROM:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # This installation's licence (licensing L-A): from New licence on license.lumecrm.in.

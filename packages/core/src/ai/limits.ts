@@ -89,3 +89,37 @@ export function backWords(p: AiPause, now: Date, tz: string): string {
   const b = localDay(until, tz);
   return a.y === b.y && a.m === b.m && a.d === b.d ? `at ${time}` : `tomorrow at ${time}`;
 }
+
+/** The month "YYYY-MM" on the business's clock: the key a top-up is added under. */
+export function aiMonthKey(now: Date, tz: string): string {
+  const { y, m } = localDay(now, tz);
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * About how many days the month's allowance lasts at the pace so far (Autopilot spec 2026-10-19 §4, the ring): what's
+ * left over the average a day since the 1st. Null with no limit or nothing used yet.
+ */
+export function aiPace(
+  month: { used: number; limit: number | null },
+  now: Date,
+  monthStart: Date,
+): { daysLeft: number | null } {
+  if (month.limit === null || month.used <= 0) return { daysLeft: null };
+  const days = Math.max(1 / 24, (now.getTime() - monthStart.getTime()) / 86_400_000);
+  const perDay = month.used / days;
+  return { daysLeft: Math.max(0, Math.floor((month.limit - month.used) / perDay)) };
+}
+
+/** What the owner set LUME AI's tokens to cost, in USD per million, and the provider's monthly cap (§4). */
+export type AiPricing = { in: number; out: number; cap: number | null };
+
+/** The month's spend at the owner's prices, to the cent; null when no prices are set (nothing is guessed). */
+export function aiSpend(
+  tokens: { inputTokens: number; outputTokens: number },
+  pricing: AiPricing | null,
+): { used: number; cap: number | null; currency: "USD" } | null {
+  if (!pricing) return null;
+  const used = (tokens.inputTokens * pricing.in + tokens.outputTokens * pricing.out) / 1_000_000;
+  return { used: Math.round(used * 100) / 100, cap: pricing.cap, currency: "USD" };
+}
