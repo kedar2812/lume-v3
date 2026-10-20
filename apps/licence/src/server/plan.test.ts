@@ -1,7 +1,7 @@
 import { checkBody, rawPublicKey, verifyLicence } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { handleCheck } from "./check";
-import { getClient, patchPlan, Refusal } from "./clients";
+import { addTopUp, getClient, patchPlan, Refusal } from "./clients";
 import type { Ctx } from "./context";
 import { licenceDb, seedClient, TEST_PAIR, testCtx, type LicenceTestDb } from "./testing";
 
@@ -106,6 +106,33 @@ describe("the plan, signed", () => {
       .plan!;
     expect(v3.paidSendsMonthly).toBe(1000);
   });
+  it("Autopilot A1: signs LUME AI a month and the top-ups around this month only for a LUME that accepts plan4", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiCallsMonthly: 3000 });
+    await addTopUp(ctx, c.clientId, { month: "2026-10", calls: 500 });
+    await addTopUp(ctx, c.clientId, { month: "2026-10", calls: 250 });
+    await addTopUp(ctx, c.clientId, { month: "2026-04", calls: 900 });
+    const v3 = (await payloadOf(await post(c, ["announcements", "plan", "plan2", "plan3"]), c.instanceId))!.plan!;
+    expect(v3).not.toHaveProperty("aiCallsMonthly");
+    expect(v3).not.toHaveProperty("aiTopUps");
+    const v4 = (await payloadOf(await post(c, ["announcements", "plan", "plan2", "plan3", "plan4"]), c.instanceId))!
+      .plan!;
+    expect(v4.aiCallsMonthly).toBe(3000);
+    // The month before, this one and the next (the client's clock may be a day either side of the server's): one
+    // entry a month, its top-ups added up; April's long gone.
+    expect(v4.aiTopUps).toEqual([{ month: "2026-10", calls: 750 }]);
+  });
+
+  it("Autopilot A1: keeps LUME AI a month and says it in the history", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    const r = await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiCallsMonthly: 5000 });
+    expect(r.plan).toMatchObject({ aiCallsMonthly: 5000 });
+    expect(r.history[0]).toMatchObject({ kind: "plan", detail: { aiCallsMonthly: 5000 } });
+    await expect(patchPlan(ctx, c.clientId, { places: null, modules: {}, aiCallsMonthly: 0 })).rejects.toThrow(
+      "LUME AI a month: at least 1, or no limit.",
+    );
+  });
+
   it("is no limit and everything included until it's set", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
     expect((await payloadOf(await post(c, ["plan"]), c.instanceId))!.plan).toEqual({
@@ -136,6 +163,9 @@ describe("PATCH /api/clients/:id/plan", () => {
       aiReadsHourly: null,
       aiReadsWeekly: null,
       paidSendsMonthly: null,
+      // Autopilot A1: LUME AI a month and its top-ups are on the client's page whether or not their LUME knows them.
+      aiCallsMonthly: null,
+      aiTopUps: [],
     });
     expect(r.usage).toEqual({
       people: 4,
@@ -143,6 +173,7 @@ describe("PATCH /api/clients/:id/plan", () => {
       knows: true,
       knowsAi: false,
       knowsPaid: false,
+      knowsMonthly: false,
     });
     expect(r.history[0]).toMatchObject({
       kind: "plan",

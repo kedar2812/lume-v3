@@ -253,3 +253,14 @@ banner, 7 days on it's read-only (never locked; everyone can still export everyt
 - A check by hand (from the host) answers 401 for an unknown key: that's right, and says nothing more.
 - Exchange rates refresh once a day from open.er-api.com; if it's down the last rates stand and Analytics says
   how old they are.
+
+## LUME AI a month, and top-ups (Autopilot A1, 2026-10-20)
+
+- **LUME AI calls a month** on a client's Plan limits replaces the weekly reads for a LUME that accepts `plan4` (its
+  release says so); an older LUME keeps the weekly reads, and the card says so. The hour still holds.
+- When a client's admin presses **Ask for a top-up** in their LUME, the request arrives here (`POST /v1/topup`, from
+  the install their key is bound to, one open request per month), shows as an alert ("… asked for a LUME AI top-up"),
+  and in their history. Their LUME AI waits, paused, until you add one.
+- **Add a top-up** on their page (month, calls, an optional note only you see) closes that month's request. Their LUME
+  picks it up at its next check-in (within 6 hours, or at once with Check now there) and paused runs carry on.
+- Migration `0010_ai_monthly.sql` ships with this release: deploy the licence app to apply it.

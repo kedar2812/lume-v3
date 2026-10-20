@@ -25,6 +25,8 @@ export type Ctx = {
     feedbackIp: Limiter;
     /** Every POST /v1/feedback from one address, refused or not: 12 MB bodies aren't read without end. */
     feedbackTries: Limiter;
+    /** LUME AI top-up requests per install a day (Autopilot spec 2026-10-19 §4): one a month is kept anyway. */
+    topUpInstall: Limiter;
   };
   /** ENQUIRY_TOKEN: the website's key to POST /v1/enquiries; null until set up (the intake then answers 503). */
   enquiryToken: string | null;
@@ -84,6 +86,7 @@ export function context(): Ctx {
       feedbackInstall: new Limiter(30, HOUR),
       feedbackIp: new Limiter(60, HOUR),
       feedbackTries: new Limiter(120, HOUR),
+      topUpInstall: new Limiter(10, 24 * HOUR),
     },
     enquiryToken: secretFrom(env, "ENQUIRY_TOKEN"),
     master: masterKeyFromBase64(masterKey),

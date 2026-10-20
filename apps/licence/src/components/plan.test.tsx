@@ -25,8 +25,23 @@ const card = (o: Partial<Parameters<typeof PlanLimits>[0]> = {}) =>
       clientId="c1"
       clientName="Kestrel Logistics"
       version="1.5.0"
-      plan={{ places: null, modules: all, aiReadsHourly: null, aiReadsWeekly: null, paidSendsMonthly: null }}
-      usage={{ people: 4, modulesOn: ["webhooks", "calendly"], knows: true, knowsAi: true, knowsPaid: true }}
+      plan={{
+        places: null,
+        modules: all,
+        aiReadsHourly: null,
+        aiReadsWeekly: null,
+        paidSendsMonthly: null,
+        aiCallsMonthly: null,
+        aiTopUps: [],
+      }}
+      usage={{
+        people: 4,
+        modulesOn: ["webhooks", "calendly"],
+        knows: true,
+        knowsAi: true,
+        knowsPaid: true,
+        knowsMonthly: true,
+      }}
       onSaved={vi.fn()}
       {...o}
     />,
@@ -67,6 +82,7 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
         aiReadsHourly: 100,
         aiReadsWeekly: 750,
         paidSendsMonthly: null,
+        aiCallsMonthly: null,
       }),
     );
   });
@@ -86,19 +102,20 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
         aiReadsHourly: null,
         aiReadsWeekly: null,
         paidSendsMonthly: 1000,
+        aiCallsMonthly: null,
       }),
     );
   });
 
   it("W3b-2: on a LUME that can't keep the WhatsApp limit yet, says so", () => {
-    card({ usage: { people: 3, modulesOn: [], knows: true, knowsAi: true, knowsPaid: false } });
+    card({ usage: { people: 3, modulesOn: [], knows: true, knowsAi: true, knowsPaid: false, knowsMonthly: true } });
     expect(
       screen.getByText("Their LUME (1.5.0) can’t keep this limit yet; it will once it’s updated."),
     ).toBeInTheDocument();
   });
 
   it("on a LUME that can keep a plan but not LUME AI's limits yet, says so", () => {
-    card({ usage: { people: 3, modulesOn: [], knows: true, knowsAi: false, knowsPaid: false } });
+    card({ usage: { people: 3, modulesOn: [], knows: true, knowsAi: false, knowsPaid: false, knowsMonthly: true } });
     expect(
       screen.getByText(
         "Their LUME (1.5.0) can’t keep LUME AI and WhatsApp settings yet; it will once it’s updated.",
@@ -141,6 +158,7 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
       aiReadsHourly: null,
       aiReadsWeekly: null,
       paidSendsMonthly: null,
+      aiCallsMonthly: null,
     });
     expect(
       screen.getByText("Saved. Their LUME keeps it from its next check-in, within 6 hours."),
@@ -149,7 +167,7 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
 
   it("on an older LUME says it can't keep one yet, and still saves", () => {
     card({
-      usage: { people: 3, modulesOn: [], knows: false, knowsAi: false, knowsPaid: false },
+      usage: { people: 3, modulesOn: [], knows: false, knowsAi: false, knowsPaid: false, knowsMonthly: true },
       version: "1.4.2",
     });
     expect(
@@ -157,6 +175,33 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
         "Their LUME (1.4.2) can’t keep a plan yet; it will once it’s updated. What you set here waits for it.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Autopilot A1: LUME AI a month, and top-ups", () => {
+  it("LUME AI a month is saved like the other limits", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.patch).mockResolvedValue({ ok: true, data: { plan: {}, usage: {} } } as never);
+    card();
+    await user.type(screen.getByRole("spinbutton", { name: "LUME AI calls a month" }), "5000");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(api.patch).toHaveBeenCalledWith("/api/clients/c1/plan", expect.objectContaining({ aiCallsMonthly: 5000 }));
+  });
+
+  it("an older LUME keeps the weekly reads until it's updated, and says so", () => {
+    card({
+      usage: { people: 3, modulesOn: [], knows: true, knowsAi: true, knowsPaid: true, knowsMonthly: false },
+    });
+    expect(screen.getByText(/keeps the weekly reads until it.s updated/)).toBeInTheDocument();
+  });
+
+  it("the history says a top-up asked for and one added", () => {
+    const line = (kind: string, detail: Record<string, unknown>) =>
+      said({ kind, detail } as unknown as Parameters<typeof said>[0]).text;
+    expect(line("topup_requested", { month: "2026-10", by: "Priya Shah" })).toBe(
+      "Priya Shah asked for a LUME AI top-up for October 2026",
+    );
+    expect(line("ai_topup", { month: "2026-10", calls: 1500 })).toBe("LUME AI top-up: 1,500 calls for October 2026");
   });
 });
 
@@ -175,6 +220,9 @@ describe("a plan change in the client's history", () => {
     );
     expect(plan({ places: null, left: [], paidSendsMonthly: 1000 })).toBe(
       "Plan: no limit on places; every module included; 1,000 paid WhatsApp messages a month",
+    );
+    expect(plan({ places: null, left: [], aiCallsMonthly: 5000 })).toBe(
+      "Plan: no limit on places; every module included; LUME AI 5,000 calls a month",
     );
   });
 });

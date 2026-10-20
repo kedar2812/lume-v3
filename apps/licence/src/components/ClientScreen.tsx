@@ -15,6 +15,7 @@ import { amountOf, SOURCE_WORDS, symbolOf, vsList } from "./NewLicence";
 import { FeedbackPill, KindDot, received } from "./FeedbackScreen";
 import { HealthCard, type ClientHealth } from "./HealthCard";
 import { PlanLimits, type Plan, type Usage } from "./PlanLimits";
+import { monthWords, TopUps, type TopUpsView } from "./TopUps";
 import { KeyCard } from "./KeyCard";
 import { Head } from "./Shell";
 
@@ -22,6 +23,7 @@ type Detail = Partial<ClientHealth> & {
   /** Control each client (spec 2026-10-17 control §3.3); absent from a server older than it. */
   plan?: Plan;
   usage?: Usage;
+  topUps?: TopUpsView;
   client: ClientView;
   installation: {
     version: string;
@@ -177,8 +179,20 @@ export function said(e: Detail["history"][number]): { text: string; color: strin
           : "";
       const paid = n(d.paidSendsMonthly);
       const wa = paid ? `; ${paid} paid WhatsApp messages a month` : "";
-      return { text: `Plan: ${places}${out}${ai}${wa}`, color: "#2a5bff" };
+      const month = n(d.aiCallsMonthly);
+      const aiMonth = month ? `; LUME AI ${month} calls a month` : "";
+      return { text: `Plan: ${places}${out}${ai}${aiMonth}${wa}`, color: "#2a5bff" };
     }
+    case "topup_requested":
+      return {
+        text: `${String(d.by ?? "Their admin")} asked for a LUME AI top-up for ${monthWords(String(d.month))}`,
+        color: "#2a5bff",
+      };
+    case "ai_topup":
+      return {
+        text: `LUME AI top-up: ${Number(d.calls).toLocaleString("en-IN")} calls for ${monthWords(String(d.month))}`,
+        color: "#18a566",
+      };
     case "announcement":
       return {
         text: `${d.action === "withdrawn" ? "Announcement withdrawn" : "Announcement"}: ${String(d.title ?? "")}`,
@@ -698,6 +712,16 @@ export function ClientScreen({ id }: { id: string }) {
               version={d.installation?.version ?? null}
               plan={d.plan}
               usage={d.usage}
+              onSaved={(x) => setD(x as Detail)}
+            />
+          )}
+
+          {d.topUps && (
+            <TopUps
+              key={`topups-${c.id}`}
+              clientId={c.id}
+              monthly={d.plan?.aiCallsMonthly ?? null}
+              topUps={d.topUps}
               onSaved={(x) => setD(x as Detail)}
             />
           )}

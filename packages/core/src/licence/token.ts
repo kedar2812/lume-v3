@@ -132,3 +132,27 @@ export function feedbackBody(o: {
     images: o.report.images.map((i) => ({ type: i.type, data: i.data })),
   };
 }
+
+/**
+ * What an install sends to ask its owner for a LUME AI top-up (Autopilot spec 2026-10-19 §4): its credentials, the
+ * month on the business's clock ("YYYY-MM"), and who asked — only this.
+ */
+export function topUpBody(o: {
+  instanceId: string;
+  licenseKey: string;
+  installId: string;
+  appVersion: string;
+  month: string;
+  askedBy: { name: string; email: string };
+  note?: string;
+}) {
+  return {
+    instanceId: o.instanceId,
+    licenseKey: o.licenseKey,
+    installId: o.installId,
+    appVersion: o.appVersion,
+    month: o.month,
+    askedBy: { name: o.askedBy.name, email: o.askedBy.email },
+    note: o.note ?? "",
+  };
+}

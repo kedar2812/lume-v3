@@ -29,6 +29,8 @@ export type AlertClient = {
   problems?: Problem[];
   /** When the current run of each kind of problem began: a problem that clears and comes back is a new alert. */
   problemsSince?: { red: string | null; amber: string | null };
+  /** Months ("YYYY-MM") its admins asked for a LUME AI top-up that isn't added yet (Autopilot spec 2026-10-19 §4). */
+  topUpMonths?: string[];
 };
 export type Alert = {
   /** Stable per condition ("late:<client>"): a hidden alert stays hidden while its fingerprint holds. */
@@ -160,6 +162,20 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
         });
     }
   }
+  // A LUME AI top-up asked for (Autopilot spec 2026-10-19 §4): their runs wait until it's added.
+  const topUp: Alert[] = [];
+  const MONTH_WORDS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  for (const c of live)
+    for (const month of c.topUpMonths ?? [])
+      topUp.push({
+        id: `topup:${c.id}:${month}`,
+        fingerprint: month,
+        tone: "blue",
+        title: `${c.name} asked for a LUME AI top-up`,
+        body: `For ${MONTH_WORDS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}. Their LUME AI waits until it's added on their page.`,
+        clientId: c.id,
+        clientName: c.name,
+      });
   for (const c of clients.filter((x) => !x.decommissioned)) {
     if (c.refusedAt && o.now.getTime() - Date.parse(c.refusedAt) < 7 * DAY)
       tried.push({
@@ -186,7 +202,7 @@ export function alertsFor(clients: AlertClient[], o: { now: Date; latestVersion:
         });
     }
   }
-  const alerts = [...late, ...tried, ...disk, ...quiet, ...look, ...due, ...trial, ...idle];
+  const alerts = [...late, ...tried, ...disk, ...quiet, ...look, ...topUp, ...due, ...trial, ...idle];
   const latest = o.latestVersion;
   if (latest) {
     const behind = live.filter((c) => c.version && compareVersions(c.version, latest) < 0);

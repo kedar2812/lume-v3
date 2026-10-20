@@ -13,7 +13,7 @@ import type { Ctx } from "./context";
 import { ROTATE_OVERLAP_MS } from "./check";
 import { clientFeedback, fixedByVersion } from "./feedback-admin";
 import { clientHealth, healthForAlerts } from "./fleet";
-import { planOf } from "./plan";
+import { planOf, topUpsAround } from "./plan";
 import { currentRates } from "./fx";
 
 export class Refusal extends Error {
@@ -288,7 +288,7 @@ export async function getClient(ctx: Ctx, id: string) {
     plan: planOf(
       (
         await ctx.db.query<PlanRow>(
-          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly FROM licences WHERE client_id = $1",
+          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly FROM licences WHERE client_id = $1",
           [id],
         )
       ).rows[0] ?? {
@@ -297,9 +297,12 @@ export async function getClient(ctx: Ctx, id: string) {
         ai_reads_hourly: null,
         ai_reads_weekly: null,
         paid_sends_monthly: null,
+        ai_calls_monthly: null,
       },
-      { v2: true, v3: true },
+      { v2: true, v3: true, v4: true, topUps: await topUpsAround(ctx.db, id, now) },
     ),
+    // LUME AI top-ups (Autopilot spec 2026-10-19 §4): what the client's admins asked for, and what was added.
+    topUps: await clientTopUps(ctx.db, id),
     usage: {
       people: l?.active_users ?? 0,
       modulesOn: l?.health?.modulesOn ?? [],
@@ -308,6 +311,8 @@ export async function getClient(ctx: Ctx, id: string) {
       knowsAi: !!l?.accepts?.includes("plan2"),
       // Paid WhatsApp messages a month (W3b-2) reach only a LUME that accepts plan3.
       knowsPaid: !!l?.accepts?.includes("plan3"),
+      // LUME AI a month (Autopilot A1) reaches only a LUME that accepts plan4; an older one keeps the weekly reads.
+      knowsMonthly: !!l?.accepts?.includes("plan4"),
     },
   };
 }
@@ -318,6 +323,7 @@ type PlanRow = {
   ai_reads_hourly: number | null;
   ai_reads_weekly: number | null;
   paid_sends_monthly: number | null;
+  ai_calls_monthly: number | null;
 };
 
 const aiLimit = (most: number, words: string) =>
@@ -337,6 +343,7 @@ export const planSchema = z
     aiReadsHourly: aiLimit(100_000, "AI reads an hour"),
     aiReadsWeekly: aiLimit(1_000_000, "AI reads a week"),
     paidSendsMonthly: aiLimit(10_000_000, "Paid WhatsApp messages a month"),
+    aiCallsMonthly: aiLimit(10_000_000, "LUME AI a month"),
   })
   .strict();
 
@@ -350,6 +357,7 @@ export async function patchPlan(
     aiReadsHourly?: number | null;
     aiReadsWeekly?: number | null;
     paidSendsMonthly?: number | null;
+    aiCallsMonthly?: number | null;
   },
 ) {
   const p = planSchema.safeParse(body);
@@ -359,9 +367,10 @@ export async function patchPlan(
   const hourly = p.data.aiReadsHourly ?? null;
   const weekly = p.data.aiReadsWeekly ?? null;
   const paid = p.data.paidSendsMonthly ?? null;
+  const monthly = p.data.aiCallsMonthly ?? null;
   const before = (
     await ctx.db.query<PlanRow>(
-      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly FROM licences WHERE client_id = $1",
+      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly FROM licences WHERE client_id = $1",
       [id],
     )
   ).rows[0]!;
@@ -371,11 +380,13 @@ export async function patchPlan(
     was.join() === left.join() &&
     before.ai_reads_hourly === hourly &&
     before.ai_reads_weekly === weekly &&
-    before.paid_sends_monthly === paid
+    before.paid_sends_monthly === paid &&
+    before.ai_calls_monthly === monthly
   )
     return getClient(ctx, id);
   await ctx.db.query(
-    `UPDATE licences SET places = $2, modules = $3, ai_reads_hourly = $4, ai_reads_weekly = $5, paid_sends_monthly = $6
+    `UPDATE licences SET places = $2, modules = $3, ai_reads_hourly = $4, ai_reads_weekly = $5, paid_sends_monthly = $6,
+            ai_calls_monthly = $7
       WHERE client_id = $1`,
     [
       id,
@@ -384,6 +395,7 @@ export async function patchPlan(
       hourly,
       weekly,
       paid,
+      monthly,
     ],
   );
   await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'plan', $3)", [
@@ -395,6 +407,7 @@ export async function patchPlan(
       aiReadsHourly: hourly,
       aiReadsWeekly: weekly,
       paidSendsMonthly: paid,
+      aiCallsMonthly: monthly,
     }),
   ]);
   return getClient(ctx, id);
@@ -982,6 +995,14 @@ async function currentAlerts(ctx: Ctx) {
     ).rows.map((r) => [r.client_id, r]),
   );
   const health = await healthForAlerts(ctx.db, ctx.now());
+  // LUME AI top-ups asked for and not yet added (Autopilot spec 2026-10-19 §4).
+  const topUps = new Map<string, string[]>();
+  for (const r of (
+    await ctx.db.query<{ client_id: string; month: string }>(
+      "SELECT client_id, month FROM topup_requests WHERE done_at IS NULL ORDER BY month",
+    )
+  ).rows)
+    topUps.set(r.client_id, [...(topUps.get(r.client_id) ?? []), r.month]);
   const ac: AlertClient[] = clients.map((c) => ({
     id: c.id,
     name: c.name,
@@ -1001,6 +1022,7 @@ async function currentAlerts(ctx: Ctx) {
     refusedIp: refused.get(c.id)?.ip ?? null,
     problems: health.get(c.id)?.problems ?? [],
     problemsSince: health.get(c.id)?.since,
+    topUpMonths: topUps.get(c.id) ?? [],
   }));
   return alertsFor(ac, { now: ctx.now(), latestVersion: await latestVersion(ctx.db) });
 }
@@ -1049,4 +1071,87 @@ export async function releases(ctx: Ctx) {
     // How many reports each version fixed (spec 2026-10-16 §3.4).
     fixed: await fixedByVersion(ctx.db),
   };
+}
+
+/* ---------- LUME AI top-ups (Autopilot spec 2026-10-19 §4) ---------- */
+
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+const topUpSchema = z
+  .object({
+    month: z.string().regex(MONTH, "That's not a month (YYYY-MM)."),
+    calls: z
+      .number()
+      .int("A top-up is a whole number of AI calls.")
+      .min(1, "At least 1 AI call.")
+      .max(10_000_000, "10,000,000 AI calls at most."),
+    note: z.string().trim().max(300, "A note is 300 characters at most.").optional(),
+  })
+  .strict();
+
+/** A client's open top-up requests (oldest first) and the top-ups added (newest first). */
+async function clientTopUps(db: pg.Pool, id: string) {
+  const [requests, added] = await Promise.all([
+    db.query<{ month: string; asked_at: Date; asked_by_name: string; asked_by_email: string; note: string }>(
+      `SELECT month, asked_at, asked_by_name, asked_by_email, note FROM topup_requests
+        WHERE client_id = $1 AND done_at IS NULL ORDER BY asked_at`,
+      [id],
+    ),
+    db.query<{ month: string; calls: number; note: string; added_at: Date }>(
+      "SELECT month, calls, note, added_at FROM ai_topups WHERE client_id = $1 ORDER BY added_at DESC LIMIT 24",
+      [id],
+    ),
+  ]);
+  return {
+    requests: requests.rows.map((r) => ({
+      month: r.month,
+      askedAt: r.asked_at.toISOString(),
+      askedBy: r.asked_by_name,
+      askedByEmail: r.asked_by_email,
+      note: r.note,
+    })),
+    added: added.rows.map((r) => ({
+      month: r.month,
+      calls: r.calls,
+      note: r.note,
+      addedAt: r.added_at.toISOString(),
+    })),
+  };
+}
+
+/**
+ * Add a LUME AI top-up for a month (§4): it reaches the client's LUME at its next check-in, a paused run carries on by
+ * itself, and that month's request closes.
+ */
+export async function addTopUp(ctx: Ctx, id: string, body: { month: string; calls: number; note?: string }) {
+  const p = topUpSchema.safeParse(body);
+  if (!p.success) throw new Refusal(400, p.error.issues[0]?.message ?? "That top-up doesn't look right.");
+  await row(ctx.db, id);
+  const now = ctx.now();
+  const c = await ctx.db.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("INSERT INTO ai_topups (client_id, month, calls, note, added_at) VALUES ($1, $2, $3, $4, $5)", [
+      id,
+      p.data.month,
+      p.data.calls,
+      p.data.note ?? "",
+      now,
+    ]);
+    await c.query(
+      "UPDATE topup_requests SET done_at = $3 WHERE client_id = $1 AND month = $2 AND done_at IS NULL",
+      [id, p.data.month, now],
+    );
+    await c.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'ai_topup', $3)", [
+      id,
+      now,
+      JSON.stringify({ month: p.data.month, calls: p.data.calls }),
+    ]);
+    await c.query("COMMIT");
+  } catch (e) {
+    await c.query("ROLLBACK").catch(() => undefined);
+    throw e;
+  } finally {
+    c.release();
+  }
+  return getClient(ctx, id);
 }

@@ -31,6 +31,7 @@ import {
   newClientSchema,
   patchClientSchema,
   patchPlan,
+  addTopUp,
   patchSettings,
   planSchema,
   priceSchema,
@@ -191,6 +192,10 @@ route("PATCH", "/api/clients/:id", ({ ctx, params, body }) =>
 // Control each client (spec 2026-10-17 control §3.2).
 route("PATCH", "/api/clients/:id/plan", ({ ctx, params, body }) =>
   patchPlan(ctx, params.id!, parse(planSchema, body) as Parameters<typeof patchPlan>[2]),
+);
+// LUME AI top-ups (Autopilot spec 2026-10-19 §4): added for a month, closing that month's request.
+route("POST", "/api/clients/:id/topup", ({ ctx, params, body }) =>
+  addTopUp(ctx, params.id!, body as Parameters<typeof addTopUp>[2]),
 );
 route("POST", "/api/clients/:id/price", ({ ctx, params, body }) =>
   changePrice(ctx, params.id!, parse(priceSchema, body)),
