@@ -87,7 +87,10 @@ export function MediaScreen({
     };
   }, []);
 
-  const counts = useMemo(() => Object.fromEntries(FILTERS.map((c) => [c.id, files.filter(c.has).length])), [files]);
+  const counts = useMemo(
+    () => Object.fromEntries(FILTERS.map((c) => [c.id, files.filter(c.has).length])),
+    [files],
+  );
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const has = FILTERS.find((c) => c.id === filter)!.has;
@@ -163,11 +166,21 @@ export function MediaScreen({
           <header className={s.head}>
             <div className={s.title}>
               <h1>Media</h1>
-              <p>Brochures, price lists, photos and videos. Add them once, then send them from any lead&apos;s WhatsApp.</p>
+              <p>
+                Brochures, price lists, photos and videos. Add them once, then send them from any lead&apos;s
+                WhatsApp.
+              </p>
             </div>
             {canManage && (
               <button type="button" className={`${s.primary} ${s.addTop}`} onClick={choose}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
                   <path d="M12 5v14M5 12h14" />
                 </svg>
                 Add media
@@ -204,7 +217,14 @@ export function MediaScreen({
               ))}
             </div>
             <label className={s.search}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden
+              >
                 <circle cx="11" cy="11" r="7" />
                 <path d="m20 20-3.5-3.5" />
               </svg>
@@ -258,7 +278,14 @@ export function MediaScreen({
           {canManage && (
             <div className={s.phoneAdd}>
               <button type="button" className={s.primary} onClick={choose}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
                   <path d="M12 5v14M5 12h14" />
                 </svg>
                 Add from this phone
@@ -279,7 +306,14 @@ export function MediaScreen({
             transition={toMotion(SPRINGS.default)}
           >
             <span className={s.dropIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M12 15V4m0 0-4 4m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
               </svg>
             </span>

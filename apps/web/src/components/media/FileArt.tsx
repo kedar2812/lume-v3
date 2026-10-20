@@ -15,12 +15,25 @@ const INK: Record<string, string> = {
  * A file shown by its kind when there's no picture of it: a sheet of paper with its extension for documents, the
  * kind's glyph for photos, videos and sound. Never a broken image.
  */
-export function FileArt({ file, size = "tile" }: { file: Pick<LibraryFile, "viewAs" | "mime" | "name">; size?: "tile" | "small" }) {
+export function FileArt({
+  file,
+  size = "tile",
+}: {
+  file: Pick<LibraryFile, "viewAs" | "mime" | "name">;
+  size?: "tile" | "small";
+}) {
   const word = mediaWord(file);
   if (file.viewAs === "image" || file.viewAs === "video" || file.viewAs === "audio")
     return (
       <span className={s.glyph} data-size={size} aria-hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           {file.viewAs === "image" && (
             <>
               <rect x="3" y="3" width="18" height="18" rx="4" />
@@ -39,7 +52,12 @@ export function FileArt({ file, size = "tile" }: { file: Pick<LibraryFile, "view
       </span>
     );
   return (
-    <span className={s.paper} data-size={size} aria-hidden style={{ ["--ink" as string]: INK[word] ?? "var(--text-2)" }}>
+    <span
+      className={s.paper}
+      data-size={size}
+      aria-hidden
+      style={{ ["--ink" as string]: INK[word] ?? "var(--text-2)" }}
+    >
       <b>{extensionWord(file.name)}</b>
       <i />
       <i />

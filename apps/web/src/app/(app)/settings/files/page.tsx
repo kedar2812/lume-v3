@@ -1,17 +1,6 @@
-import { FileLibrary } from "@/components/settings/FileLibrary";
-import { SettingsPage } from "@/components/settings/SettingsPage";
-import { requirePermission } from "@/server/session";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Files · Settings · LUME" };
-
-export default async function Page() {
-  await requirePermission("templates.manage");
-  return (
-    <SettingsPage
-      title="Files"
-      description="Brochures, price lists and photos, kept once and sent from any lead."
-    >
-      <FileLibrary />
-    </SettingsPage>
-  );
+/** Settings → Files moved to Media, in the sidebar (2026-10-20): an old link or bookmark lands there. */
+export default function Page() {
+  redirect("/media");
 }

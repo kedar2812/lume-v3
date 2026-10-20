@@ -60,6 +60,13 @@ describe("areasFor", () => {
     expect(areasFor(pipelinesOnly.actor).map((a) => a.id)).toContain("lists");
   });
 
+  it("Media is a sidebar page; Settings keeps a card that opens it, for whoever manages the files (2026-10-20)", () => {
+    const admin = fakeSession({ permissions: [{ key: "templates.manage", scope: null }] });
+    const media = areasFor(admin.actor).find((a) => a.id === "media");
+    expect(media).toMatchObject({ title: "Media", href: "/media" });
+    expect(areasFor(admin.actor).map((a) => a.id)).not.toContain("files");
+  });
+
   it("6A: Security, after Teams and before the Audit log, only for people who manage security", () => {
     const sec = fakeSession({
       permissions: [

@@ -41,13 +41,16 @@ export function useMediaElement(known: number | null) {
     if (el.paused) void el.play()?.catch?.(() => undefined);
     else el.pause();
   }, []);
-  const seek = useCallback((to: number) => {
-    const el = ref.current;
-    if (!el) return;
-    const d = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : duration;
-    el.currentTime = Math.max(0, Math.min(d || 0, to));
-    setTime(el.currentTime);
-  }, [duration]);
+  const seek = useCallback(
+    (to: number) => {
+      const el = ref.current;
+      if (!el) return;
+      const d = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : duration;
+      el.currentTime = Math.max(0, Math.min(d || 0, to));
+      setTime(el.currentTime);
+    },
+    [duration],
+  );
   const mute = useCallback(() => {
     const el = ref.current;
     if (el) el.muted = !el.muted;

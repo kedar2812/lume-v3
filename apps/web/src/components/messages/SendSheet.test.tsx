@@ -378,13 +378,13 @@ describe("a file's link in the message (plan W3b-1 Task 6)", () => {
     await userEvent.click(within(dialog).getByRole("option", { name: /Write your own/ }));
     await userEvent.type(message(), "Hi Aisha, here's our brochure.");
     await userEvent.click(await within(dialog).findByRole("button", { name: "Add a file" }));
-    const files = within(dialog).getByRole("listbox", { name: "Your files" });
+    const files = within(dialog).getByRole("listbox", { name: "Media" });
     expect(within(files).queryByRole("option", { name: /Internal notes/ })).toBeNull();
     await userEvent.click(within(files).getByRole("option", { name: /Brochure\.pdf/ }));
     expect(message().value).toBe(`Hi Aisha, here's our brochure.\n\nBrochure.pdf: ${LINK}`);
     await userEvent.click(within(dialog).getByRole("button", { name: "Add a file" }));
     await userEvent.click(
-      within(within(dialog).getByRole("listbox", { name: "Your files" })).getByRole("option", {
+      within(within(dialog).getByRole("listbox", { name: "Media" })).getByRole("option", {
         name: /Brochure\.pdf/,
       }),
     );

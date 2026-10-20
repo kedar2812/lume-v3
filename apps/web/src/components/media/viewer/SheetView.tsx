@@ -40,13 +40,23 @@ export function SheetView({ src, name }: { src: string; name: string }) {
   }, [sheet, query]);
 
   if (failed)
-    return <p className={v.say}>LUME couldn&apos;t read this spreadsheet. It may be damaged or locked with a password.</p>;
+    return (
+      <p className={v.say}>
+        LUME couldn&apos;t read this spreadsheet. It may be damaged or locked with a password.
+      </p>
+    );
   if (!sheets) return <div className={v.sheetSkeleton} aria-busy="true" aria-label={`Reading ${name}`} />;
 
   return (
     <div className={v.sheetBox}>
       <Toolbar>
-        <button type="button" className={v.tb} aria-pressed={finding} data-on={finding || undefined} onClick={() => setFinding((f) => !f)}>
+        <button
+          type="button"
+          className={v.tb}
+          aria-pressed={finding}
+          data-on={finding || undefined}
+          onClick={() => setFinding((f) => !f)}
+        >
           <Search size={15} aria-hidden />
           <span className={v.tbWord}>Find in it</span>
         </button>
@@ -71,7 +81,11 @@ export function SheetView({ src, name }: { src: string; name: string }) {
             }}
           />
           <span role="status" className={v.findStatus}>
-            {query.trim() ? (rows.length ? `${n(rows.length)} ${rows.length === 1 ? "row" : "rows"}` : "Not in this sheet") : ""}
+            {query.trim()
+              ? rows.length
+                ? `${n(rows.length)} ${rows.length === 1 ? "row" : "rows"}`
+                : "Not in this sheet"
+              : ""}
           </span>
           <button
             type="button"

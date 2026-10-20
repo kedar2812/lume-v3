@@ -65,7 +65,11 @@ export function ImageView({ file: f, onZoomed }: { file: LibraryFile; onZoomed(z
   const go = (next: number, cx?: number, cy?: number, instant = false) => {
     const s = clampScale(next);
     const box = stage.current?.getBoundingClientRect();
-    const t = target(s, cx ?? (box ? box.left + box.width / 2 : 0), cy ?? (box ? box.top + box.height / 2 : 0));
+    const t = target(
+      s,
+      cx ?? (box ? box.left + box.width / 2 : 0),
+      cy ?? (box ? box.top + box.height / 2 : 0),
+    );
     if (instant || reduce) {
       scale.set(s);
       x.set(t.x);
@@ -116,13 +120,30 @@ export function ImageView({ file: f, onZoomed }: { file: LibraryFile; onZoomed(z
     <>
       <Toolbar>
         <div className={v.group} role="group" aria-label="Zoom">
-          <button type="button" className={v.tb} aria-label="Zoom out" onClick={() => go(scale.get() / STEP)} disabled={label === "Fit"}>
+          <button
+            type="button"
+            className={v.tb}
+            aria-label="Zoom out"
+            onClick={() => go(scale.get() / STEP)}
+            disabled={label === "Fit"}
+          >
             <Minus size={16} aria-hidden />
           </button>
-          <button type="button" className={v.zoomLabel} onClick={() => go(1)} aria-label={label === "Fit" ? "Fitted" : `${label}, fit to the window`}>
+          <button
+            type="button"
+            className={v.zoomLabel}
+            onClick={() => go(1)}
+            aria-label={label === "Fit" ? "Fitted" : `${label}, fit to the window`}
+          >
             {label}
           </button>
-          <button type="button" className={v.tb} aria-label="Zoom in" onClick={() => go(scale.get() * STEP)} disabled={label === `${MAX * 100}%`}>
+          <button
+            type="button"
+            className={v.tb}
+            aria-label="Zoom in"
+            onClick={() => go(scale.get() * STEP)}
+            disabled={label === `${MAX * 100}%`}
+          >
             <Plus size={16} aria-hidden />
           </button>
         </div>
@@ -149,7 +170,11 @@ export function ImageView({ file: f, onZoomed }: { file: LibraryFile; onZoomed(z
             const m = mid();
             go(pinch.current.s * (dist() / (pinch.current.d || 1)), m.x, m.y, true);
           } else if (pan.current) {
-            const t = clampPan(scale.get(), pan.current.px + e.clientX - pan.current.x, pan.current.py + e.clientY - pan.current.y);
+            const t = clampPan(
+              scale.get(),
+              pan.current.px + e.clientX - pan.current.x,
+              pan.current.py + e.clientY - pan.current.y,
+            );
             x.set(t.x);
             y.set(t.y);
           }
@@ -177,7 +202,9 @@ export function ImageView({ file: f, onZoomed }: { file: LibraryFile; onZoomed(z
           onLoad={() => setLoaded(true)}
           style={{ scale, x, y }}
         />
-        {!loaded && f.thumbUrl && <img src={f.thumbUrl} alt="" aria-hidden className={`${v.image} ${v.standIn}`} />}
+        {!loaded && f.thumbUrl && (
+          <img src={f.thumbUrl} alt="" aria-hidden className={`${v.image} ${v.standIn}`} />
+        )}
       </div>
     </>
   );

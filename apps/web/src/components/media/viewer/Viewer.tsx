@@ -132,9 +132,14 @@ export function Viewer({
     const el = zoom.current;
     const r = originRect(openId);
     const t = r && el && !reduce ? towards(el, r) : null;
-    if (root.current) void animate(root.current, { opacity: [0, 1] }, { duration: reduce ? 0.16 : 0.22, ease: "easeOut" });
+    if (root.current)
+      void animate(root.current, { opacity: [0, 1] }, { duration: reduce ? 0.16 : 0.22, ease: "easeOut" });
     if (t && el)
-      void animate(el, { x: [t.x, 0], y: [t.y, 0], scale: [t.scale, 1], opacity: [0.5, 1] }, toMotion(SPRINGS.default));
+      void animate(
+        el,
+        { x: [t.x, 0], y: [t.y, 0], scale: [t.scale, 1], opacity: [0.5, 1] },
+        toMotion(SPRINGS.default),
+      );
     // Only when it opens: moving between files has its own motion.
   }, []);
 
@@ -230,7 +235,12 @@ export function Viewer({
         onKeyDown={keys}
       >
         <header className={v.head}>
-          <button type="button" className={v.back} aria-label="Back to Media (Esc)" onClick={() => void close()}>
+          <button
+            type="button"
+            className={v.back}
+            aria-label="Back to Media (Esc)"
+            onClick={() => void close()}
+          >
             <ChevronLeft size={18} aria-hidden />
             <span>Media</span>
           </button>
@@ -476,7 +486,12 @@ function StripItem({ file: f, current, onPick }: { file: LibraryFile; current: b
   const ref = useRef<HTMLButtonElement>(null);
   const reduce = !!useReducedMotion();
   useEffect(() => {
-    if (current) ref.current?.scrollIntoView?.({ inline: "center", block: "nearest", behavior: reduce ? "auto" : "smooth" });
+    if (current)
+      ref.current?.scrollIntoView?.({
+        inline: "center",
+        block: "nearest",
+        behavior: reduce ? "auto" : "smooth",
+      });
   }, [current, reduce]);
   return (
     <button
@@ -497,7 +512,15 @@ function StripItem({ file: f, current, onPick }: { file: LibraryFile; current: b
 }
 
 /** Info on a phone (canvas PhoneSheet): a sheet from the bottom, dragged down or tapped away to close. */
-function PhoneSheet({ children, onClose, reduce }: { children: ReactNode; onClose(): void; reduce: boolean }) {
+function PhoneSheet({
+  children,
+  onClose,
+  reduce,
+}: {
+  children: ReactNode;
+  onClose(): void;
+  reduce: boolean;
+}) {
   return (
     <>
       <motion.div

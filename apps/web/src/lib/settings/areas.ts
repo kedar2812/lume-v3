@@ -85,10 +85,11 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
-    id: "files",
-    title: "Files",
-    blurb: "Brochures, price lists and photos to send from any lead",
-    href: "/settings/files",
+    // The business's files live in Media, in the sidebar (2026-10-20); this card is for whoever looks for them here.
+    id: "media",
+    title: "Media",
+    blurb: "Brochures, price lists, photos and videos, in the sidebar",
+    href: "/media",
     anyOf: ["templates.manage"],
     group: "workspace",
   },

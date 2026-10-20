@@ -82,7 +82,11 @@ export function useSwipe(o: {
     bind: {
       onPointerDown(e) {
         pointers.current.add(e.pointerId);
-        if (!opts.current.enabled || pointers.current.size > 1 || (e.pointerType === "mouse" && e.button !== 0)) {
+        if (
+          !opts.current.enabled ||
+          pointers.current.size > 1 ||
+          (e.pointerType === "mouse" && e.button !== 0)
+        ) {
           // A second finger is a pinch: whatever the first one started goes back.
           if (g.current?.locked) void settle(0, 0);
           g.current = null;

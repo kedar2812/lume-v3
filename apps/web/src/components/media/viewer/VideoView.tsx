@@ -63,14 +63,24 @@ export function VideoView({ file: f }: { file: LibraryFile }) {
               <Pause {...PLAY_PROPS} />
             </button>
           )}
-          <button type="button" className={v.ctl} aria-label="Back 10 seconds" onClick={() => m.seek(m.time - 10)}>
+          <button
+            type="button"
+            className={v.ctl}
+            aria-label="Back 10 seconds"
+            onClick={() => m.seek(m.time - 10)}
+          >
             <RotateCcw {...LINE_PROPS} />
           </button>
           <span className={v.time}>
             {lengthText(m.time * 1000)} / {lengthText(m.duration * 1000)}
           </span>
           <span className={v.grow} />
-          <button type="button" className={v.ctl} aria-label={m.muted ? "Sound on" : "Sound off"} onClick={m.mute}>
+          <button
+            type="button"
+            className={v.ctl}
+            aria-label={m.muted ? "Sound on" : "Sound off"}
+            onClick={m.mute}
+          >
             {m.muted ? <VolumeX {...LINE_PROPS} /> : <Volume2 {...LINE_PROPS} />}
           </button>
           <button
@@ -96,7 +106,12 @@ export function AudioView({ file: f }: { file: LibraryFile }) {
   return (
     <div className={v.audio}>
       <audio ref={m.ref} src={contentUrl(f.id)} preload="metadata" />
-      <button type="button" className={v.audioPlay} aria-label={m.playing ? "Pause" : "Play"} onClick={m.toggle}>
+      <button
+        type="button"
+        className={v.audioPlay}
+        aria-label={m.playing ? "Pause" : "Play"}
+        onClick={m.toggle}
+      >
         {m.playing ? <Pause {...PLAY_PROPS} /> : <Play {...PLAY_PROPS} />}
       </button>
       <div className={v.bars} data-playing={m.playing || undefined} aria-hidden>

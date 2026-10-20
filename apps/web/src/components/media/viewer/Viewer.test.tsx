@@ -23,7 +23,9 @@ vi.mock("@/lib/files/client", async (orig) => ({
 }));
 // The PDF and sheet views load their libraries; these tests are about the viewer around them.
 vi.mock("./PdfView", () => ({ PdfView: ({ src }: { src: string }) => <div data-testid="pdf">{src}</div> }));
-vi.mock("./SheetView", () => ({ SheetView: ({ src }: { src: string }) => <div data-testid="sheet">{src}</div> }));
+vi.mock("./SheetView", () => ({
+  SheetView: ({ src }: { src: string }) => <div data-testid="sheet">{src}</div>,
+}));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 
 const file = (o: Partial<LibraryFile> & Pick<LibraryFile, "id" | "name">): LibraryFile => ({
@@ -44,7 +46,12 @@ const file = (o: Partial<LibraryFile> & Pick<LibraryFile, "id" | "name">): Libra
 });
 // Newest first on the page: Living room, Kitchen, Visit.
 const LIVING = file({ id: "f1", name: "Living room.jpg", createdAt: "2026-10-19T09:00:00.000Z" });
-const KITCHEN = file({ id: "f2", name: "Kitchen.png", mime: "image/png", createdAt: "2026-10-19T08:00:00.000Z" });
+const KITCHEN = file({
+  id: "f2",
+  name: "Kitchen.png",
+  mime: "image/png",
+  createdAt: "2026-10-19T08:00:00.000Z",
+});
 const VISIT = file({
   id: "f3",
   name: "Site visit.mp4",
@@ -60,10 +67,17 @@ const ALL = [LIVING, KITCHEN, VISIT];
 
 const viewer = () => screen.getByRole("dialog");
 const openTile = async (name: string) =>
-  userEvent.click(within(screen.getByRole("list", { name: "Your media" })).getByRole("button", { name: new RegExp(`^${name}`) }));
+  userEvent.click(
+    within(screen.getByRole("list", { name: "Your media" })).getByRole("button", {
+      name: new RegExp(`^${name}`),
+    }),
+  );
 
 beforeAll(() => {
-  Object.defineProperty(HTMLMediaElement.prototype, "play", { configurable: true, value: vi.fn().mockResolvedValue(undefined) });
+  Object.defineProperty(HTMLMediaElement.prototype, "play", {
+    configurable: true,
+    value: vi.fn().mockResolvedValue(undefined),
+  });
   Object.defineProperty(HTMLMediaElement.prototype, "pause", { configurable: true, value: vi.fn() });
 });
 beforeEach(() => {
@@ -77,7 +91,10 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     await openTile("Kitchen.png");
     expect(viewer()).toHaveAccessibleName("Kitchen.png");
     expect(viewer()).toHaveAttribute("aria-modal", "true");
-    expect(within(viewer()).getByRole("img", { name: "Kitchen.png" })).toHaveAttribute("src", "/api/v1/files/f2/content");
+    expect(within(viewer()).getByRole("img", { name: "Kitchen.png" })).toHaveAttribute(
+      "src",
+      "/api/v1/files/f2/content",
+    );
     expect(within(viewer()).getByText("Photo · 4032 × 3024 · 1.9 MB")).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -108,7 +125,10 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     const strip = within(viewer()).getByRole("navigation", { name: "Other media" });
     await userEvent.click(within(strip).getByRole("button", { name: "Site visit.mp4" }));
     await waitFor(() => expect(viewer()).toHaveAccessibleName("Site visit.mp4"));
-    expect(within(strip).getByRole("button", { name: "Site visit.mp4" })).toHaveAttribute("aria-current", "true");
+    expect(within(strip).getByRole("button", { name: "Site visit.mp4" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
   });
 
   it("Info shows where it goes, Share by link, rename and archive to an admin", async () => {
@@ -133,7 +153,9 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     const info = within(viewer()).getByRole("complementary", { name: "Info" });
     expect(within(info).getByText(/Sends as the real file/)).toBeInTheDocument();
     expect(within(info).queryByRole("switch")).toBeNull();
-    expect(within(info).getByRole("button", { name: "Copy the link to Living room.jpg" })).toBeInTheDocument();
+    expect(
+      within(info).getByRole("button", { name: "Copy the link to Living room.jpg" }),
+    ).toBeInTheDocument();
     expect(within(info).queryByRole("button", { name: "Rename" })).toBeNull();
     expect(within(info).queryByRole("button", { name: "Archive" })).toBeNull();
   });
@@ -152,7 +174,9 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
   });
 
   it("rename in place: Enter saves, Escape keeps the name it had", async () => {
-    vi.mocked(filesClient.rename).mockResolvedValue(ok({ file: { ...LIVING, name: "Living room, finished.jpg" } }));
+    vi.mocked(filesClient.rename).mockResolvedValue(
+      ok({ file: { ...LIVING, name: "Living room, finished.jpg" } }),
+    );
     render(<MediaScreen initial={ALL} canManage guideSeen />);
     await openTile("Living room.jpg");
     await userEvent.click(within(viewer()).getByRole("button", { name: "Info" }));
@@ -177,7 +201,10 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     await userEvent.click(within(viewer()).getByRole("button", { name: "Archive" }));
     await waitFor(() => expect(viewer()).toHaveAccessibleName("Kitchen.png"));
     expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Living room.jpg archived", action: expect.objectContaining({ label: "Undo" }) }),
+      expect.objectContaining({
+        title: "Living room.jpg archived",
+        action: expect.objectContaining({ label: "Undo" }),
+      }),
     );
   });
 
@@ -230,9 +257,13 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     expect(within(viewer()).getByTestId("pdf")).toHaveTextContent("/api/v1/files/w-ready/pdf");
     await userEvent.keyboard("{ArrowLeft}");
     await waitFor(() => expect(viewer()).toHaveAccessibleName("Proposal pending.docx"));
-    expect(within(viewer()).getByText("LUME is making this file's pages. They'll be here in a moment.")).toBeInTheDocument();
+    expect(
+      within(viewer()).getByText("LUME is making this file's pages. They'll be here in a moment."),
+    ).toBeInTheDocument();
     await userEvent.keyboard("{ArrowLeft}");
     await waitFor(() => expect(viewer()).toHaveAccessibleName("Proposal none.docx"));
-    expect(within(viewer()).getByText(/This server can't show Word and PowerPoint files yet/)).toBeInTheDocument();
+    expect(
+      within(viewer()).getByText(/This server can't show Word and PowerPoint files yet/),
+    ).toBeInTheDocument();
   });
 });

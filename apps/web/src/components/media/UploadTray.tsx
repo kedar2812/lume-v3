@@ -21,7 +21,14 @@ function Mark({ u }: { u: Upload }) {
   if (u.state === "added")
     return (
       <span className={s.mark} data-state="added" aria-hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path className={s.tick} d="m6 12.5 4 4 8-9" />
         </svg>
       </span>
@@ -103,7 +110,14 @@ export function UploadTray({ uploads, onDismiss }: { uploads: Upload[]; onDismis
                       aria-label={`Dismiss ${u.name}`}
                       onClick={() => onDismiss(u.key)}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        aria-hidden
+                      >
                         <path d="M7 7l10 10M17 7 7 17" />
                       </svg>
                     </button>

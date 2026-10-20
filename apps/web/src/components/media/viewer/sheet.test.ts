@@ -5,7 +5,8 @@ import { readSheets } from "./sheet";
 /** A workbook made here by SheetJS itself, as Excel would save it. */
 function workbook(sheets: Record<string, (string | number)[][]>): ArrayBuffer {
   const wb = XLSX.utils.book_new();
-  for (const [name, rows] of Object.entries(sheets)) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+  for (const [name, rows] of Object.entries(sheets))
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
   return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
 }
 
@@ -46,6 +47,8 @@ describe("reading a spreadsheet for LUME's viewer (plan 2026-10-20-media-tab, Ta
   });
 
   it("what isn't a spreadsheet is refused, not guessed at", () => {
-    expect(() => readSheets(new TextEncoder().encode("<html><script>alert(1)</script></html>").buffer)).toThrow();
+    expect(() =>
+      readSheets(new TextEncoder().encode("<html><script>alert(1)</script></html>").buffer),
+    ).toThrow();
   });
 });

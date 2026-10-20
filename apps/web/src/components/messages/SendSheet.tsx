@@ -12,7 +12,7 @@ import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
 import { ordered } from "@/lib/templates/order";
 import { TokenLine } from "@/components/templates/TokenLine";
-import { FilePicker } from "@/components/whatsapp/FilePicker";
+import { MediaPicker } from "@/components/media/MediaPicker";
 import { SentPrompt, type Outcome } from "./SentPrompt";
 import s from "./messages.module.css";
 import { missingIn } from "@/lib/messages/missing";
@@ -411,7 +411,7 @@ function SheetBody({
           </button>
           {addingFile && (
             <div className={s.filePicker}>
-              <FilePicker files={shared} onPick={addFile} />
+              <MediaPicker wide files={shared} onPick={([f]) => f && addFile(f)} />
             </div>
           )}
         </div>

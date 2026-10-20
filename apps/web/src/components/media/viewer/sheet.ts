@@ -39,13 +39,28 @@ export function readSheets(buf: ArrayBuffer, maxRows = MAX_ROWS): Sheet[] {
   return wb.SheetNames.map((name) => {
     const ws = wb.Sheets[name]!;
     const full = (ws["!fullref"] as string | undefined) ?? ws["!ref"];
-    const total = full ? Math.max(0, XLSX.utils.decode_range(full).e.r - XLSX.utils.decode_range(full).s.r) : 0;
-    const shown = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: "", blankrows: false });
-    const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: null, blankrows: false });
+    const total = full
+      ? Math.max(0, XLSX.utils.decode_range(full).e.r - XLSX.utils.decode_range(full).s.r)
+      : 0;
+    const shown = XLSX.utils.sheet_to_json<string[]>(ws, {
+      header: 1,
+      raw: false,
+      defval: "",
+      blankrows: false,
+    });
+    const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+      header: 1,
+      raw: true,
+      defval: null,
+      blankrows: false,
+    });
     const width = Math.min(MAX_COLUMNS, Math.max(0, ...shown.map((r) => r.length)));
     const pad = (r: string[]) => Array.from({ length: width }, (_, i) => String(r[i] ?? ""));
     const numeric = Array.from({ length: width }, (_, c) => {
-      const cells = raw.slice(1).map((r) => r[c]).filter((x) => x !== null && x !== "");
+      const cells = raw
+        .slice(1)
+        .map((r) => r[c])
+        .filter((x) => x !== null && x !== "");
       return cells.length > 0 && cells.filter((x) => typeof x === "number").length / cells.length >= 0.8;
     });
     return {

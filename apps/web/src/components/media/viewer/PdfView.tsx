@@ -157,7 +157,9 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
   };
 
   if (failed)
-    return <p className={v.say}>LUME couldn&apos;t read this PDF. It may be damaged or locked with a password.</p>;
+    return (
+      <p className={v.say}>LUME couldn&apos;t read this PDF. It may be damaged or locked with a password.</p>
+    );
 
   const status = !query.trim()
     ? ""
@@ -173,28 +175,58 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
     <div className={v.pdf}>
       <Toolbar>
         <div className={v.group} role="group" aria-label="Pages">
-          <button type="button" className={v.tb} aria-label="Previous page" disabled={current <= 1} onClick={() => goTo(current - 1)}>
+          <button
+            type="button"
+            className={v.tb}
+            aria-label="Previous page"
+            disabled={current <= 1}
+            onClick={() => goTo(current - 1)}
+          >
             <ChevronUp size={16} aria-hidden />
           </button>
           <span className={v.pageOf}>
             Page {current} of {count || "…"}
           </span>
-          <button type="button" className={v.tb} aria-label="Next page" disabled={current >= count} onClick={() => goTo(current + 1)}>
+          <button
+            type="button"
+            className={v.tb}
+            aria-label="Next page"
+            disabled={current >= count}
+            onClick={() => goTo(current + 1)}
+          >
             <ChevronDown size={16} aria-hidden />
           </button>
         </div>
         <div className={v.group} role="group" aria-label="Zoom">
-          <button type="button" className={v.tb} aria-label="Zoom out" onClick={() => zoomBy(-1)} disabled={scale <= ZOOMS[0]! + 0.01}>
+          <button
+            type="button"
+            className={v.tb}
+            aria-label="Zoom out"
+            onClick={() => zoomBy(-1)}
+            disabled={scale <= ZOOMS[0]! + 0.01}
+          >
             <Minus size={16} aria-hidden />
           </button>
           <button type="button" className={v.zoomLabel} onClick={() => setZoom("fit")}>
             {zoom === "fit" ? "Fit" : `${Math.round(scale * 100)}%`}
           </button>
-          <button type="button" className={v.tb} aria-label="Zoom in" onClick={() => zoomBy(1)} disabled={scale >= ZOOMS.at(-1)! - 0.01}>
+          <button
+            type="button"
+            className={v.tb}
+            aria-label="Zoom in"
+            onClick={() => zoomBy(1)}
+            disabled={scale >= ZOOMS.at(-1)! - 0.01}
+          >
             <Plus size={16} aria-hidden />
           </button>
         </div>
-        <button type="button" className={v.tb} aria-pressed={finding} data-on={finding || undefined} onClick={() => setFinding((f) => !f)}>
+        <button
+          type="button"
+          className={v.tb}
+          aria-pressed={finding}
+          data-on={finding || undefined}
+          onClick={() => setFinding((f) => !f)}
+        >
           <Search size={15} aria-hidden />
           <span className={v.tbWord}>Find in it</span>
         </button>
@@ -238,10 +270,22 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
             <span role="status" className={v.findStatus}>
               {status}
             </span>
-            <button type="button" className={v.tb} aria-label="Previous match" disabled={!matches?.length} onClick={() => step(-1)}>
+            <button
+              type="button"
+              className={v.tb}
+              aria-label="Previous match"
+              disabled={!matches?.length}
+              onClick={() => step(-1)}
+            >
               <ChevronUp size={15} aria-hidden />
             </button>
-            <button type="button" className={v.tb} aria-label="Next match" disabled={!matches?.length} onClick={() => step(1)}>
+            <button
+              type="button"
+              className={v.tb}
+              aria-label="Next match"
+              disabled={!matches?.length}
+              onClick={() => step(1)}
+            >
               <ChevronDown size={15} aria-hidden />
             </button>
             <button
@@ -264,13 +308,28 @@ export function PdfView({ src, pages: known, name }: { src: string; pages: numbe
         {doc && count > 1 && (
           <nav className={v.pageStrip} aria-label={`Pages of ${name}, small`}>
             {Array.from({ length: count }, (_, i) => (
-              <PageThumb key={i} doc={doc} n={i + 1} ratio={base.h / base.w} current={i + 1 === current} onPick={() => goTo(i + 1)} />
+              <PageThumb
+                key={i}
+                doc={doc}
+                n={i + 1}
+                ratio={base.h / base.w}
+                current={i + 1 === current}
+                onPick={() => goTo(i + 1)}
+              />
             ))}
           </nav>
         )}
-        <section ref={scroller} className={v.pages} aria-label={`Pages of ${name}`} aria-busy={!doc || undefined}>
+        <section
+          ref={scroller}
+          className={v.pages}
+          aria-label={`Pages of ${name}`}
+          aria-busy={!doc || undefined}
+        >
           {!doc ? (
-            <div className={v.pageSkeleton} style={{ width: Math.min(FIT_MAX, width - PAD), aspectRatio: "612 / 792" }} />
+            <div
+              className={v.pageSkeleton}
+              style={{ width: Math.min(FIT_MAX, width - PAD), aspectRatio: "612 / 792" }}
+            />
           ) : (
             Array.from({ length: count }, (_, i) => {
               const n = i + 1;
@@ -413,7 +472,12 @@ function Highlight({
       const h = it.height || Math.abs(dh);
       const per = it.str.length ? it.width / it.str.length : 0;
       const x1 = x + per * match.start;
-      const [ax, ay, bx, by] = vp.convertToViewportRectangle([x1, y - h * 0.2, x1 + per * match.length, y + h * 0.9]);
+      const [ax, ay, bx, by] = vp.convertToViewportRectangle([
+        x1,
+        y - h * 0.2,
+        x1 + per * match.length,
+        y + h * 0.9,
+      ]);
       setRect({
         left: Math.min(ax!, bx!),
         top: Math.min(ay!, by!),

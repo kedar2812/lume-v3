@@ -121,8 +121,16 @@ describe("Media (plan 2026-10-20-media-tab, Task 6)", () => {
 
   it("a tile whose preview is on its way says so, and shows the thumbnail once it's made", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    const waiting = file({ id: "f9", name: "Proposal.docx", viewAs: "office", preview: "pending", thumbUrl: null });
-    vi.mocked(filesClient.list).mockResolvedValue(ok({ files: [{ ...waiting, preview: "ready", thumbUrl: "/t9" }] }));
+    const waiting = file({
+      id: "f9",
+      name: "Proposal.docx",
+      viewAs: "office",
+      preview: "pending",
+      thumbUrl: null,
+    });
+    vi.mocked(filesClient.list).mockResolvedValue(
+      ok({ files: [{ ...waiting, preview: "ready", thumbUrl: "/t9" }] }),
+    );
     render(<MediaScreen initial={[waiting]} canManage guideSeen />);
     expect(tile("Proposal.docx")).toHaveTextContent("Preview on its way");
     expect(tile("Proposal.docx")).toHaveTextContent("Word");
@@ -141,18 +149,19 @@ describe("Media (plan 2026-10-20-media-tab, Task 6)", () => {
   it("chips show Photos, Videos and Documents with their counts", async () => {
     render(<MediaScreen initial={ALL} canManage guideSeen />);
     const show = screen.getByRole("radiogroup", { name: "Show" });
-    expect(within(show).getAllByRole("radio").map((r) => r.textContent)).toEqual([
-      "All3",
-      "Photos1",
-      "Videos1",
-      "Documents1",
-    ]);
+    expect(
+      within(show)
+        .getAllByRole("radio")
+        .map((r) => r.textContent),
+    ).toEqual(["All3", "Photos1", "Videos1", "Documents1"]);
     await userEvent.click(within(show).getByRole("radio", { name: /Photos/ }));
     // The others leave with their exit animation.
     await waitFor(() =>
-      expect(within(grid()).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
-        expect.stringMatching(/^Living room\.jpg/),
-      ]),
+      expect(
+        within(grid())
+          .getAllByRole("button")
+          .map((b) => b.getAttribute("aria-label")),
+      ).toEqual([expect.stringMatching(/^Living room\.jpg/)]),
     );
   });
 
@@ -169,7 +178,8 @@ describe("Media (plan 2026-10-20-media-tab, Task 6)", () => {
     vi.mocked(filesClient.uploadWithProgress).mockImplementation((f: File, onProgress) => {
       onProgress(0.5);
       return new Promise((resolve) => {
-        finish = () => resolve(ok({ file: file({ id: "new", name: f.name, preview: "pending", thumbUrl: null }) }));
+        finish = () =>
+          resolve(ok({ file: file({ id: "new", name: f.name, preview: "pending", thumbUrl: null }) }));
       });
     });
     render(<MediaScreen initial={ALL} canManage guideSeen />);
@@ -178,13 +188,20 @@ describe("Media (plan 2026-10-20-media-tab, Task 6)", () => {
     expect(ring).toHaveAttribute("aria-valuenow", "50");
     await act(async () => finish!());
     await waitFor(() => expect(tile("Price list.pdf")).toBeInTheDocument());
-    await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Uploading Price list.pdf" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("progressbar", { name: "Uploading Price list.pdf" })).toBeNull(),
+    );
   });
 
   it("a file LUME refuses says why, and the others still go in", async () => {
     vi.mocked(filesClient.uploadWithProgress).mockImplementation(async (f: File) =>
       f.name === "Plan.dwg"
-        ? ({ ok: false, status: 415, code: "FILE_TYPE", message: "LUME can send photos, videos and documents." } as never)
+        ? ({
+            ok: false,
+            status: 415,
+            code: "FILE_TYPE",
+            message: "LUME can send photos, videos and documents.",
+          } as never)
         : ok({ file: file({ id: "ok1", name: f.name }) }),
     );
     render(<MediaScreen initial={ALL} canManage guideSeen />);
@@ -208,7 +225,9 @@ describe("Media (plan 2026-10-20-media-tab, Task 6)", () => {
 
   it("nothing yet: the empty state says what goes here and how, with three icon steps", () => {
     render(<MediaScreen initial={[]} canManage guideSeen={false} />);
-    expect(screen.getByRole("heading", { name: "Your brochures, photos and videos, in one place" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Your brochures, photos and videos, in one place" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add your first file" })).toBeInTheDocument();
     const steps = within(screen.getByRole("list", { name: "How it works" })).getAllByRole("listitem");
     expect(steps).toHaveLength(3);

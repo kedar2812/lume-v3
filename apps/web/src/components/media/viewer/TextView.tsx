@@ -24,7 +24,8 @@ export function TextView({ file: f }: { file: LibraryFile }) {
       });
     return () => ctl.abort();
   }, [f.id, f.size]);
-  if (failed) return <p className={v.say}>LUME couldn&apos;t open this file just now. Close it and try again.</p>;
+  if (failed)
+    return <p className={v.say}>LUME couldn&apos;t open this file just now. Close it and try again.</p>;
   return (
     <article className={v.text} aria-busy={text === null || undefined}>
       {text === null ? <span className={v.textLoading} aria-hidden /> : <pre>{text}</pre>}

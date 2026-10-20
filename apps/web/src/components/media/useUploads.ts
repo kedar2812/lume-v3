@@ -36,7 +36,8 @@ export function useUploads(onAdded: (f: LibraryFile) => void) {
   }, []);
 
   const patch = useCallback(
-    (key: string, p: Partial<Upload>) => setUploads((us) => us.map((u) => (u.key === key ? { ...u, ...p } : u))),
+    (key: string, p: Partial<Upload>) =>
+      setUploads((us) => us.map((u) => (u.key === key ? { ...u, ...p } : u))),
     [],
   );
 

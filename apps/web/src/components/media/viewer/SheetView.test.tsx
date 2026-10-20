@@ -11,12 +11,28 @@ beforeEach(() => vi.clearAllMocks());
 describe("a spreadsheet in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
   it("shows the first sheet as a table, and the tabs switch sheets", async () => {
     vi.mocked(loadSheets).mockResolvedValue([
-      { name: "Homes", header: ["Package", "Price"], rows: [["Design consult", "2,500"]], numeric: [false, true], total: 1 },
-      { name: "Offices", header: ["Package", "Per sq ft"], rows: [["Fit-out", "1,150"]], numeric: [false, true], total: 1 },
+      {
+        name: "Homes",
+        header: ["Package", "Price"],
+        rows: [["Design consult", "2,500"]],
+        numeric: [false, true],
+        total: 1,
+      },
+      {
+        name: "Offices",
+        header: ["Package", "Per sq ft"],
+        rows: [["Fit-out", "1,150"]],
+        numeric: [false, true],
+        total: 1,
+      },
     ]);
     render(<SheetView src="/x" name="Prices.xlsx" />);
     const table = await screen.findByRole("table", { name: "Homes" });
-    expect(within(table).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Package", "Price"]);
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((c) => c.textContent),
+    ).toEqual(["Package", "Price"]);
     expect(within(table).getByRole("cell", { name: "2,500" })).toHaveAttribute("data-num");
     const tabs = screen.getByRole("tablist", { name: "Sheets" });
     expect(within(tabs).getByRole("tab", { name: "Homes" })).toHaveAttribute("aria-selected", "true");
@@ -41,6 +57,10 @@ describe("a spreadsheet in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", (
   it("one LUME can't read says so in plain words", async () => {
     vi.mocked(loadSheets).mockRejectedValue(new Error("Unsupported file"));
     render(<SheetView src="/x" name="Prices.xls" />);
-    expect(await screen.findByText("LUME couldn't read this spreadsheet. It may be damaged or locked with a password.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "LUME couldn't read this spreadsheet. It may be damaged or locked with a password.",
+      ),
+    ).toBeInTheDocument();
   });
 });

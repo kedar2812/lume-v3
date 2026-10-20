@@ -70,8 +70,8 @@ export function InfoPanel({
         <div className={v.where}>
           <img src="/brand/whatsapp-app.png" alt="" width={24} height={24} />
           <span>
-            Sends as the real file from any lead&apos;s WhatsApp tab: Attach, then From Media. It can go at the top of
-            a WhatsApp template too.
+            Sends as the real file from any lead&apos;s WhatsApp tab: Attach, then From Media. It can go at
+            the top of a WhatsApp template too.
           </span>
         </div>
       </section>
@@ -84,7 +84,13 @@ export function InfoPanel({
               <span>For someone not on WhatsApp. Switch it off and the link stops working at once.</span>
             </span>
             {canManage && (
-              <Switch checked={f.link.on} label={`Share ${f.name} by link`} labelHidden disabled={busy} onChange={(on) => void setLink(on)} />
+              <Switch
+                checked={f.link.on}
+                label={`Share ${f.name} by link`}
+                labelHidden
+                disabled={busy}
+                onChange={(on) => void setLink(on)}
+              />
             )}
           </div>
           {f.link.on && f.link.url ? (
@@ -117,7 +123,9 @@ export function InfoPanel({
         </div>
         {f.pages !== null && (
           <div className={v.row}>
-            <span>{f.mime.includes("presentation") || f.mime.includes("powerpoint") ? "Slides" : "Pages"}</span>
+            <span>
+              {f.mime.includes("presentation") || f.mime.includes("powerpoint") ? "Slides" : "Pages"}
+            </span>
             <span>{f.pages}</span>
           </div>
         )}

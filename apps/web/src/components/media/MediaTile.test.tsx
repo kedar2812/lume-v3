@@ -31,7 +31,10 @@ describe("what a file is, in words", () => {
     [{ viewAs: "pdf", mime: "application/pdf" }, "PDF"],
     [{ viewAs: "office", mime: "application/msword" }, "Word"],
     [{ viewAs: "office", mime: "application/vnd.ms-powerpoint" }, "PowerPoint"],
-    [{ viewAs: "office", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }, "PowerPoint"],
+    [
+      { viewAs: "office", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+      "PowerPoint",
+    ],
     [{ viewAs: "sheet", mime: "application/vnd.ms-excel" }, "Excel"],
     [{ viewAs: "text", mime: "text/plain" }, "Text"],
   ] as const)("%o is a %s", (f, word) => {
@@ -48,9 +51,9 @@ describe("what a file is, in words", () => {
     expect(mediaMeta({ ...base, viewAs: "pdf", mime: "application/pdf", pages: 1, size: 419_840 })).toBe(
       "PDF · 1 page · 410 KB",
     );
-    expect(mediaMeta({ ...base, viewAs: "video", mime: "video/mp4", durationMs: 42_000, size: 9_856_614 })).toBe(
-      "Video · 0:42 · 9.4 MB",
-    );
+    expect(
+      mediaMeta({ ...base, viewAs: "video", mime: "video/mp4", durationMs: 42_000, size: 9_856_614 }),
+    ).toBe("Video · 0:42 · 9.4 MB");
     expect(
       mediaMeta({
         ...base,
@@ -73,7 +76,17 @@ describe("a tile", () => {
 
   it("a video says its length on its picture, and opens on a tap", async () => {
     const onOpen = vi.fn();
-    const clip = { ...base, id: "v1", name: "Visit.mp4", kind: "video" as const, mime: "video/mp4", viewAs: "video" as const, preview: "ready" as const, thumbUrl: "/t", durationMs: 65_000 };
+    const clip = {
+      ...base,
+      id: "v1",
+      name: "Visit.mp4",
+      kind: "video" as const,
+      mime: "video/mp4",
+      viewAs: "video" as const,
+      preview: "ready" as const,
+      thumbUrl: "/t",
+      durationMs: 65_000,
+    };
     render(<MediaTile file={clip} onOpen={onOpen} />);
     const t = screen.getByRole("button", { name: /^Visit\.mp4/ });
     expect(t).toHaveAccessibleName("Visit.mp4, Video · 1:05 · 86 KB");

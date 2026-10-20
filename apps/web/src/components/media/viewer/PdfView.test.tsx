@@ -78,9 +78,7 @@ describe("a PDF in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
     await waitFor(() => expect(document.querySelectorAll("[data-page] canvas").length).toBeGreaterThan(0));
     expect(document.querySelectorAll("[data-page] canvas").length).toBeLessThanOrEqual(3);
     show([200]);
-    await waitFor(() =>
-      expect(document.querySelector('[data-page="200"] canvas')).not.toBeNull(),
-    );
+    await waitFor(() => expect(document.querySelector('[data-page="200"] canvas')).not.toBeNull());
     expect(document.querySelector('[data-page="1"] canvas')).toBeNull();
     expect(document.querySelectorAll("[data-page] canvas").length).toBeLessThanOrEqual(3);
   });
@@ -98,7 +96,9 @@ describe("a PDF in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
   });
 
   it("Find in it highlights each match and says which one of how many", async () => {
-    vi.mocked(loadPdf).mockResolvedValue(doc(["Our prices", "No match here", "Prices for offices", "price list"]));
+    vi.mocked(loadPdf).mockResolvedValue(
+      doc(["Our prices", "No match here", "Prices for offices", "price list"]),
+    );
     withToolbar(<PdfView src="/x" pages={4} name="Brochure.pdf" />);
     await screen.findByRole("region", { name: "Pages of Brochure.pdf" });
     await userEvent.click(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" }));
@@ -114,7 +114,8 @@ describe("a PDF in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
   it("a PDF LUME can't read says so in plain words", async () => {
     vi.mocked(loadPdf).mockRejectedValue(new Error("Invalid PDF structure"));
     withToolbar(<PdfView src="/x" pages={null} name="Broken.pdf" />);
-    expect(await screen.findByText("LUME couldn't read this PDF. It may be damaged or locked with a password.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("LUME couldn't read this PDF. It may be damaged or locked with a password."),
+    ).toBeInTheDocument();
   });
-
 });

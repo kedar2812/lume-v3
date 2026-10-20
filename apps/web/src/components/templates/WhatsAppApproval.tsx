@@ -3,7 +3,7 @@ import { costOf, metaCategoryOf, templateProblems, type TemplateCategory } from 
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
-import { FilePicker } from "@/components/whatsapp/FilePicker";
+import { MediaPicker } from "@/components/media/MediaPicker";
 import type { LibraryFile } from "@/lib/files/client";
 import { templatesClient, type WhatsAppSubmission } from "@/lib/templates/client";
 import { aboutCost } from "@/lib/whatsapp/cost";
@@ -212,10 +212,11 @@ export function WhatsAppApproval({
             )}
             {picking && !header && (
               <div className={s.picker}>
-                <FilePicker
+                <MediaPicker
+                  wide
                   kinds={["image", "video", "document"]}
-                  onPick={(f) => {
-                    setHeader(f);
+                  onPick={([f]) => {
+                    if (f) setHeader(f);
                     setPicking(false);
                   }}
                 />

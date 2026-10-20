@@ -9,11 +9,10 @@ export type PdfViewport = {
 export type PdfTextItem = { str: string; transform: number[]; width: number; height: number };
 export type PdfPage = {
   getViewport(o: { scale: number }): PdfViewport;
-  render(o: {
-    canvas?: HTMLCanvasElement;
-    canvasContext: CanvasRenderingContext2D;
-    viewport: PdfViewport;
-  }): { promise: Promise<void>; cancel(): void };
+  render(o: { canvas?: HTMLCanvasElement; canvasContext: CanvasRenderingContext2D; viewport: PdfViewport }): {
+    promise: Promise<void>;
+    cancel(): void;
+  };
   getTextContent(): Promise<{ items: (PdfTextItem | { type: string })[] }>;
   cleanup(): void;
 };
@@ -27,7 +26,10 @@ let lib: Promise<typeof import("pdfjs-dist")> | null = null;
  */
 export async function loadPdf(src: string): Promise<PdfDoc> {
   lib ??= import("pdfjs-dist").then((m) => {
-    m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+    m.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url,
+    ).toString();
     return m;
   });
   const pdfjs = await lib;
