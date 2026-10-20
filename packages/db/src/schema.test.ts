@@ -223,11 +223,11 @@ describe("W3b-2 template submissions", () => {
 
 describe("W3b-2 paid messages this month", () => {
   it("anyone in LUME can count them, every lead's, and learns nothing else", async () => {
-    const [{ n }] = await as<{ n: number }>(
+    const [row] = await as<{ n: number }>(
       "lume_app",
       "SELECT lume_whatsapp_paid_count(now() - interval '1 day', now() + interval '1 day') AS n",
     );
-    expect(n).toBe(0);
+    expect(row!.n).toBe(0);
     await expect(as("lume_worker", "SELECT lume_whatsapp_paid_count(now(), now())")).rejects.toThrow(
       /permission denied/,
     );

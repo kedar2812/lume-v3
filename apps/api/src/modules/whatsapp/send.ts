@@ -25,6 +25,16 @@ const windowClosed = (lead: LeadRow) => {
   );
 };
 
+/** A lead who has never written: said as it is (an approved template can still go, W3b-2). */
+const neverWrote = (lead: LeadRow) => {
+  const first = firstNameOf(lead.name ?? "") || "This lead";
+  const them = firstNameOf(lead.name ?? "") || "them";
+  return conflict(
+    "WINDOW_CLOSED",
+    `${first} hasn't written to you on WhatsApp yet. Send it from the phone, or wait for ${them} to write.`,
+  );
+};
+
 /**
  * A person's sends in a minute and an hour (plan W3a outcome 25): in memory, because one API process serves a
  * client's LUME. At most 10,000 people remembered, the least recent going first.
@@ -103,7 +113,8 @@ const notReady = (n: ReplyNumber) =>
 /** Everything that decides whether this person may reply to this lead now, and from which number. */
 async function replyRoute(req: FastifyRequest, d: AppDeps, lead: LeadRow) {
   const last = await lastInbound(req, lead.id);
-  if (!last?.number) throw windowClosed(lead);
+  if (!last) throw neverWrote(lead);
+  if (!last.number) throw windowClosed(lead);
   const until = new Date(last.at.getTime() + WINDOW_MS);
   if (until <= d.clock()) throw windowClosed(lead);
   if (last.number.status !== "active") throw notReady(last.number);

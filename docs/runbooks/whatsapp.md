@@ -154,6 +154,33 @@ Nothing extra: WhatsApp uses the same relay connection as Connect with Google (`
   same address back, so to share the file again under a new address: archive it, then add it again (a new upload is a
   new address).
 
+## Approved templates and sending beyond 24 hours (W3b-2, 2026-10-20)
+
+- **What it is.** In a saved template, **WhatsApp approval** sends its words to WhatsApp for review, once for each
+  WhatsApp business account with a connected number. Once approved, the reply box offers it for a lead outside the 24
+  hours, or one who never wrote, in the lead's words, with what's missing and about what WhatsApp charges. It shows
+  only where WhatsApp is set up and switched on.
+- **Server setting.** `LUME_META_APP_ID` (LUME's Meta app id, not a secret) in the client's inputs, passed to the api.
+  Only a template with a file at the top needs it; without it, LUME says so and text templates still go.
+- **WhatsApp's answer.** It comes by webhook through the relay (nothing extra on the relay). If one is lost, LUME asks
+  WhatsApp every 15 minutes about anything pending for over 10. Approval usually takes minutes to a day. The person
+  who submitted it and the admins hear the answer once, in the bell.
+- **Editing an approved template** makes a new version: the approved one keeps sending as approved until the new words
+  are submitted and approved. A turned-down version can't go again as it is: change the words, save, submit again.
+- **What it costs.** WhatsApp bills the client's own Meta account for every template, inside the 24 hours too (since
+  2026-10-01). LUME shows "about" the rate from its rate card (`packages/core/src/whatsapp/rates.ts`, India marketing
+  ₹0.86 + GST, read 2026-10-18). To add a market or category: read Meta's current rate card, add the rate with the day
+  you read it, and ship. A rate LUME doesn't have shows no amount, never a guess.
+- **The monthly limit.** Paid WhatsApp messages a month: the lower of the plan's (licence dashboard, Plan limits; needs
+  the licence server and a LUME that accepts `plan3`) and the admin's own (Settings → Messages). Counted on the
+  business's clock, every lead's. At 80% the admins hear it once that month; at the limit nothing more goes and LUME
+  says so with the numbers.
+- **A lead who turned off marketing (Meta's 131050).** The send fails with "This person turned off marketing messages
+  from you on WhatsApp.", the lead is marked, and no marketing template is offered for them again (reminders still
+  are). Nothing to fix: it's the lead's choice.
+- **A template WhatsApp no longer has as approved (132000, 132001).** The send fails in words and the template shows
+  "Didn't reach WhatsApp": submit it again.
+
 ## When something's wrong
 
 | What the card says | What to do |

@@ -170,12 +170,13 @@ describe("who may reply, and when", () => {
 
   it("only within WhatsApp's 24 hours of the lead's last message, checked when Send is tapped", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    // Never wrote: said as it is, not as "over 24 hours" (W3b-2: a template is offered beside it).
     const never = await send(rep, lead, { text: "Hi" });
     expect(never.statusCode).toBe(409);
     expect(never.json().error).toEqual({
       code: "WINDOW_CLOSED",
       message:
-        "It's been over 24 hours since Sneha's last WhatsApp message. Send it from the phone, or wait for Sneha to write again.",
+        "Sneha hasn't written to you on WhatsApp yet. Send it from the phone, or wait for Sneha to write.",
     });
     expect((await thread(rep, lead)).reply).toMatchObject({ allowed: false, until: null });
     const wrote = h.clock.now.getTime();

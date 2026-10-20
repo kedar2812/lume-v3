@@ -362,6 +362,117 @@ test.describe.serial("WhatsApp", () => {
     await expect(card.getByRole("switch", { name: "Reply from LUME" })).not.toBeChecked();
   });
 
+  test("approved templates: an admin submits one with a PDF at the top, WhatsApp approves it, and it reaches a lead who never wrote (W3b-2)", async ({
+    page,
+  }) => {
+    const hookTo = `${RELAY}/wa/in/${INSTANCE}`;
+    const decide = async (o: { status: string; reason?: string }) => {
+      const r = await page.request.post(`${META}/__fake/template`, { data: { ...o, to: hookTo } });
+      expect(((await r.json()) as { delivered: number }).delivered).toBe(200);
+    };
+    await openApp(page, "/templates");
+    const made = await callApi<{ id: string }>(page, "POST", "/api/v1/templates", {
+      name: "Price list",
+      category: "first_touch",
+      body: "Hi {{lead.first_name}}, here is our price list, as promised. Have a look!",
+    });
+    expect(made.status).toBe(201);
+
+    // In the template: WhatsApp approval, with the library's PDF at the top.
+    await openApp(page, "/templates");
+    await page.getByRole("list", { name: "First touch" }).getByText("Price list", { exact: true }).click();
+    const editor = page.getByRole("dialog", { name: "Price list" });
+    const panel = editor.getByRole("region", { name: "WhatsApp approval" });
+    await expect(panel).toContainText("To send it to someone outside WhatsApp's 24 hours");
+    await panel.getByRole("button", { name: "Add a file at the top" }).click();
+    await panel.getByRole("option", { name: /Price list\.pdf/ }).click();
+    await panel.getByRole("button", { name: "Submit to WhatsApp" }).click();
+    await expect(panel.getByText("With WhatsApp for review")).toBeVisible();
+
+    // WhatsApp approves it, by its webhook through the relay.
+    await decide({ status: "APPROVED" });
+    await openApp(page, "/templates");
+    await page.getByRole("list", { name: "First touch" }).getByText("Price list", { exact: true }).click();
+    await expect(panel.getByText("Approved", { exact: true })).toBeVisible();
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(editor, `template-approval-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+
+    // From the reply box, to a lead who never wrote.
+    await openApp(page, "/settings/integrations");
+    const card = page.getByRole("article", { name: /^WhatsApp/ });
+    await card.getByRole("switch", { name: "Reply from LUME" }).click();
+    await expect(card.getByRole("switch", { name: "Reply from LUME" })).toBeChecked();
+    const id = await lead(page, "Kavya Nair", "+919876512377");
+    await openApp(page, `/leads?lead=${id}`);
+    const drawer = page.getByRole("dialog", { name: "Kavya Nair" });
+    await drawer.getByRole("tab", { name: "WhatsApp" }).click();
+    const pick = drawer.getByRole("region", { name: "Send an approved template" });
+    const option = pick.getByRole("radio", { name: /Price list/ });
+    await expect(option).toContainText("Hi Kavya, here is our price list, as promised. Have a look!");
+    await expect(option).toContainText("WhatsApp charges about ₹0.86 + GST for this.");
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(drawer, `template-pick-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await option.click();
+    await pick.getByRole("button", { name: "Send template" }).click();
+    const list = drawer.getByRole("list", { name: "WhatsApp messages with Kavya" });
+    await expect(list).toContainText("Hi Kavya, here is our price list");
+
+    type Sent = {
+      sent: {
+        to: string;
+        type: string;
+        wamid: string;
+        template?: { values: string[]; header: string | null };
+      }[];
+    };
+    const toMeta = async () =>
+      ((await (await page.request.get(`${META}/__fake/sent`)).json()) as Sent).sent.filter(
+        (m) => m.to === "919876512377",
+      );
+    await expect
+      .poll(async () => (await toMeta()).map((m) => [m.type, m.template?.values, m.template?.header]), {
+        timeout: 20_000,
+      })
+      .toEqual([["template", ["Kavya"], "document"]]);
+    const [mine] = await toMeta();
+    for (const status of ["delivered", "read"])
+      await meta(page.request, statuses({ id: mine!.wamid, status, at: new Date().toISOString() }));
+    await expect(list.getByText("Read", { exact: true })).toBeVisible({ timeout: 20_000 });
+
+    // Another one WhatsApp turns down: its reason, in LUME's words.
+    const other = await callApi<{ id: string }>(page, "POST", "/api/v1/templates", {
+      name: "Come back",
+      category: "re_engagement",
+      body: "Hello again from the studio. Shall we pick up where we left off this week?",
+    });
+    expect(other.status).toBe(201);
+    expect(
+      (await callApi(page, "POST", `/api/v1/templates/${other.data.id}/whatsapp`, { language: "en" })).status,
+    ).toBe(202);
+    await decide({ status: "REJECTED", reason: "INCORRECT_CATEGORY" });
+    await openApp(page, "/templates");
+    await page.getByRole("list", { name: "Re-engagement" }).getByText("Come back", { exact: true }).click();
+    await expect(
+      page
+        .getByRole("dialog", { name: "Come back" })
+        .getByText("Turned down: WhatsApp thinks it belongs in another category."),
+    ).toBeVisible();
+
+    await openApp(page, "/settings/integrations");
+    await card.getByRole("switch", { name: "Reply from LUME" }).click();
+    await expect(card.getByRole("switch", { name: "Reply from LUME" })).not.toBeChecked();
+  });
+
   test("System health shows the disk, the database and WhatsApp's files — both themes", async ({ page }) => {
     await openApp(page, "/settings/health");
     const storage = page.getByRole("region", { name: "Storage" });

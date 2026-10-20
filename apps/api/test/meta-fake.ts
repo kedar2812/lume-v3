@@ -54,6 +54,20 @@ export type MetaFake = {
 
 const oauthError = (code: number, message: string) => ({ error: { message, type: "OAuthException", code } });
 
+type SentTemplate = {
+  name: string;
+  components?: { type: string; parameters?: { type: string; text?: string }[] }[];
+};
+const templateSummary = (t: unknown) => {
+  const x = t as SentTemplate;
+  const part = (type: string) => x.components?.find((c) => c.type === type)?.parameters ?? [];
+  return {
+    name: x.name,
+    values: part("body").map((p) => p.text),
+    header: part("header")[0]?.type ?? null,
+  };
+};
+
 export type FakeTemplate = {
   id: string;
   wabaId: string;
@@ -168,18 +182,21 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
             wamid: `wamid.OUT${i + 1}`,
             // A document's name as WhatsApp shows it (W3b-1: a library file keeps its name on the way out).
             ...(m.body.document ? { filename: (m.body.document as { filename?: string }).filename } : {}),
+            // A template (W3b-2): its name, its values in order, and the kind of file at the top.
+            ...(m.body.template ? { template: templateSummary(m.body.template) } : {}),
           })),
         });
       // WhatsApp decides on a template (W3b-2): e2e delivers the webhook to the relay, as Meta would.
       if (u.pathname === "/__fake/template" && req.method === "POST") {
         const b = body as {
-          name: string;
+          /** Left out: the template made last (e2e can't see the name LUME gave it). */
+          name?: string;
           status: string;
           reason?: string;
           category?: "MARKETING" | "UTILITY";
           to?: string;
         };
-        const hook = templateUpdate(b.name, b);
+        const hook = templateUpdate(b.name ?? [...state.templates.keys()].at(-1)!, b);
         if (!b.to) return send(res, 200, hook);
         void deliver(b.to, hook).then(
           (r) => send(res, 200, { delivered: r.status }),
