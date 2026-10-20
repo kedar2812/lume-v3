@@ -170,6 +170,32 @@ describe("an approved template to any lead", () => {
     expect(await outbox(lead)).toEqual([]);
   });
 
+  it("Review Focus 1: edited after approval, the approved words keep going; the edit never goes unapproved", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    const s = await approved("Hello there, this is the studio. Shall we talk this week?");
+    const [{ template_id }] = (
+      await h.ownerPool.query<{ template_id: string }>(
+        `SELECT v.template_id FROM whatsapp_template_submissions s
+         JOIN template_versions v ON v.id = s.template_version_id WHERE s.id = $1`,
+        [s],
+      )
+    ).rows as [{ template_id: string }];
+    const edit = await (
+      await as(admin)
+    ).inject({
+      method: "PATCH",
+      url: `/api/v1/templates/${template_id}`,
+      payload: { body: "Hello there, a NEW unapproved line. Shall we talk?" },
+    });
+    expect(edit.statusCode).toBe(200);
+    const st = await state(rep, lead);
+    expect(
+      st.options.map((o: { submissionId: string; preview: string }) => [o.submissionId, o.preview]),
+    ).toEqual([[s, "Hello there, this is the studio. Shall we talk this week?"]]);
+    expect((await sendTemplate(rep, lead, s)).statusCode).toBe(202);
+    expect((await outbox(lead))[0]!.text).toBe("Hello there, this is the studio. Shall we talk this week?");
+  });
+
   it("the same key twice is one message", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     const s = await approved("Hello there, this is the studio. Shall we talk this week?");

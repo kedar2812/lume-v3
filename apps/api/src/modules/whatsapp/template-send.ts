@@ -11,7 +11,7 @@ import {
   type TemplateCost,
 } from "@lume/core";
 import { schema } from "@lume/db";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { HttpError, badRequest } from "../../http/errors";
@@ -88,18 +88,26 @@ async function approvedFor(req: FastifyRequest, waba: string, lead: LeadRow) {
       language: S.language,
       body: V.body,
       allowed: T.allowedRoleIds,
+      templateId: T.id,
     })
     .from(S)
     .innerJoin(V, eq(V.id, S.templateVersionId))
-    .innerJoin(T, eq(T.currentVersionId, S.templateVersionId))
+    .innerJoin(T, eq(T.id, V.templateId))
     .where(and(eq(S.wabaId, waba), eq(S.status, "approved"), isNull(T.archivedAt)))
-    .orderBy(asc(T.position), asc(T.name));
+    .orderBy(asc(T.position), asc(T.name), desc(V.createdAt));
   const a = req.actor!;
-  return rows.filter(
-    (r) =>
+  // The newest approved words of each template and language: an edit waits for its own approval while the approved
+  // words keep going (W3b-2 Review Focus 1), and the edit itself never goes unapproved.
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    const key = `${r.templateId}:${r.language}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return (
       (r.allowed.length === 0 || a.isOwner || r.allowed.some((x) => a.roleIds.includes(x))) &&
-      !(lead.whatsappMarketingOffAt && r.category === "MARKETING"),
-  );
+      !(lead.whatsappMarketingOffAt && r.category === "MARKETING")
+    );
+  });
 }
 
 /** The labels people pick variables by ("Meeting date"), for what's missing. */
