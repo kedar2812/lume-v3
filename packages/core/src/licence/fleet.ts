@@ -111,11 +111,40 @@ export const planClaimSchema = z
      * business's clock. Absent or null: none. Only for a LUME that accepts plan3.
      */
     paidSendsMonthly: z.number().int().min(1).max(10_000_000).nullable().optional(),
+    /**
+     * LUME AI a month (Autopilot spec 2026-10-19 §4; owner: monthly, and generous): every AI call, on the business's
+     * clock, replacing the weekly reads. Null: none. Absent: an older licence server's answer, and the week stays.
+     * Only for a LUME that accepts plan4.
+     */
+    aiCallsMonthly: z.number().int().min(1).max(10_000_000).nullable().optional(),
+    /** Top-ups the owner added (§4: on an admin's request), by month "YYYY-MM". */
+    aiTopUps: z
+      .array(
+        z
+          .object({
+            month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+            calls: z.number().int().min(1).max(10_000_000),
+          })
+          .strict(),
+      )
+      .max(12)
+      .optional(),
   })
   .strict();
 export type PlanClaim = z.infer<typeof planClaimSchema>;
+/** Whether this LUME's licence counts LUME AI by the month (a plan4 answer), rather than the week. */
+export const usesMonthly = (plan: PlanClaim | null | undefined): boolean =>
+  plan?.aiCallsMonthly !== undefined;
+/** LUME AI's allowance for a month ("YYYY-MM"): the plan's, plus that month's top-ups. Null: no limit. */
+export function aiAllowance(plan: PlanClaim | null | undefined, month: string): number | null {
+  if (plan?.aiCallsMonthly === undefined || plan.aiCallsMonthly === null) return null;
+  return (
+    plan.aiCallsMonthly +
+    (plan.aiTopUps ?? []).filter((t) => t.month === month).reduce((a, t) => a + t.calls, 0)
+  );
+}
 /** Whether a plan includes a module: everything does with no plan, and a module the plan doesn't name is in it. */
 export const moduleIncluded = (plan: PlanClaim | null | undefined, key: PlanModule): boolean =>
   plan?.modules[key] !== false;
 /** What a LUME from this release can keep, sent with its check-in: the licence server signs those claims only then. */
-export const ACCEPTS = ["announcements", "plan", "plan2", "plan3"] as const;
+export const ACCEPTS = ["announcements", "plan", "plan2", "plan3", "plan4"] as const;

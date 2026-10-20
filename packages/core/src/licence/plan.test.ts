@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { ACCEPTS, fleetHealthSchema, moduleIncluded, PLAN_MODULES } from "./fleet";
+import { ACCEPTS, aiAllowance, fleetHealthSchema, moduleIncluded, PLAN_MODULES, usesMonthly } from "./fleet";
 import { licenceState, type LicencePayload } from "./state";
 import { rawPublicKey, signLicence, verifyLicence } from "./token";
 
@@ -41,7 +41,7 @@ describe("the plan in the signed answer", () => {
       "ai",
       "whatsapp",
     ]);
-    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3"]);
+    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3", "plan4"]);
   });
   it("W3b-2: a monthly limit on paid WhatsApp messages, within bounds", () => {
     const sign = (p: unknown) =>
@@ -50,6 +50,34 @@ describe("the plan in the signed answer", () => {
     expect(sign({ ...plan, paidSendsMonthly: null })).not.toBeNull();
     expect(sign({ ...plan, paidSendsMonthly: 0 })).toBeNull();
     expect(sign({ ...plan, paidSendsMonthly: 10_000_001 })).toBeNull();
+  });
+  it("Autopilot A1: LUME AI a month, with this month's top-ups, within bounds", () => {
+    const sign = (p: unknown) =>
+      verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
+    const ok = sign({
+      ...plan,
+      aiCallsMonthly: 3000,
+      aiTopUps: [
+        { month: "2026-10", calls: 500 },
+        { month: "2026-09", calls: 900 },
+      ],
+    })!.plan!;
+    expect(aiAllowance(ok, "2026-10")).toBe(3500);
+    expect(aiAllowance(ok, "2026-11")).toBe(3000);
+    expect(usesMonthly(ok)).toBe(true);
+    expect(sign({ ...plan, aiCallsMonthly: 0 })).toBeNull();
+    expect(sign({ ...plan, aiCallsMonthly: 10_000_001 })).toBeNull();
+    expect(sign({ ...plan, aiCallsMonthly: 3000, aiTopUps: [{ month: "October", calls: 5 }] })).toBeNull();
+    const many = Array.from({ length: 13 }, (_, i) => ({
+      month: `2026-${String((i % 12) + 1).padStart(2, "0")}`,
+      calls: 1,
+    }));
+    expect(sign({ ...plan, aiCallsMonthly: 3000, aiTopUps: many })).toBeNull();
+  });
+  it("a plan from an older licence server has no monthly allowance (it keeps the weekly)", () => {
+    expect(usesMonthly({ ...plan, aiReadsWeekly: 750 } as never)).toBe(false);
+    expect(aiAllowance({ ...plan, aiCallsMonthly: null } as never, "2026-10")).toBeNull();
+    expect(usesMonthly(null)).toBe(false);
   });
   it("refuses a module it doesn't know, or places out of bounds", () => {
     const bad = (p: unknown) =>

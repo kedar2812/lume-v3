@@ -41,6 +41,8 @@ describe("the state", () => {
     expect(s).toEqual({
       hour: { used: 1, limit: 2, resetsAt: "2026-10-21T10:20:00.000Z" },
       week: { used: 4, limit: 10, resetsAt: "2026-10-25T18:30:00.000Z" },
+      // No monthly allowance from this licence: the month counts nothing and limits nothing.
+      month: { used: 0, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
       paused: null,
     });
   });
@@ -68,5 +70,45 @@ describe("when LUME AI is back, in words", () => {
   });
   it("the week: the day", () => {
     expect(backWords({ by: "week", until: "2026-10-25T18:30:00.000Z" }, now, TZ)).toBe("Monday");
+  });
+});
+
+/** Autopilot A1 Task 1 (spec 2026-10-19 §4; owner 2026-10-19: monthly, and generous). */
+describe("the month", () => {
+  it("monthly: used against the month's allowance, resets on the 1st", () => {
+    const now = at("2026-10-21T10:00:00Z");
+    const w = aiWindows(now, TZ);
+    expect(w.monthStart.toISOString()).toBe("2026-09-30T18:30:00.000Z"); // Oct 1 00:00 IST
+    expect(w.nextMonthStart.toISOString()).toBe("2026-10-31T18:30:00.000Z"); // Nov 1 00:00 IST
+    const s = aiLimitState(
+      { hourN: 0, hourOldest: null, weekN: 0, monthN: 2400 },
+      { hourly: 100, weekly: null, monthly: 3000 },
+      now,
+      TZ,
+    );
+    expect(s.month).toEqual({ used: 2400, limit: 3000, resetsAt: "2026-10-31T18:30:00.000Z" });
+    expect(s.paused).toBeNull();
+  });
+
+  it("turns at local midnight: in Dubai, 01:30 on November 1 is November though it's still October in UTC", () => {
+    const w = aiWindows(at("2026-10-31T21:30:00Z"), "Asia/Dubai");
+    expect(w.monthStart.toISOString()).toBe("2026-10-31T20:00:00.000Z");
+  });
+
+  it("the month pauses before the hour: both over, it's the month", () => {
+    const now = at("2026-10-21T10:00:00Z");
+    const s = aiLimitState(
+      { hourN: 100, hourOldest: at("2026-10-21T09:30:00Z"), weekN: 0, monthN: 3000 },
+      { hourly: 100, weekly: null, monthly: 3000 },
+      now,
+      TZ,
+    );
+    expect(s.paused).toEqual({ by: "month", until: "2026-10-31T18:30:00.000Z" });
+  });
+
+  it("backWords says the day the month comes back", () => {
+    expect(
+      backWords({ by: "month", until: "2026-10-31T18:30:00.000Z" }, at("2026-10-21T10:00:00Z"), TZ),
+    ).toBe("on November 1");
   });
 });
