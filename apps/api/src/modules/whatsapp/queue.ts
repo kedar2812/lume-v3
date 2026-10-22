@@ -1,6 +1,7 @@
 import PgBoss from "pg-boss";
 import type pg from "pg";
 import { sweepWhatsApp } from "./inbox";
+import { sweepNumberHealth } from "./health";
 import { scanWhatsAppFiles, sweepWhatsAppFiles } from "./keep";
 import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
@@ -136,6 +137,10 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
   const files = o.d.files;
   const hourlyWork = async () => {
     await sweepWhatsApp(pool).catch((err: unknown) => o.app.log.error({ err }, "whatsapp retention failed"));
+    // Each number's quality and tier from Meta (Autopilot A2): a day old, read again.
+    await sweepNumberHealth(pool, o.d).catch((err: unknown) =>
+      o.app.log.error({ err }, "whatsapp number health sweep failed"),
+    );
     if (!files) return;
     const r = await sweepWhatsAppFiles({ pool, store: files.store, log: o.app.log }).catch((err: unknown) => {
       o.app.log.error({ err }, "whatsapp files sweep failed");

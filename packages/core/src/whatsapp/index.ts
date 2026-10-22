@@ -1,8 +1,12 @@
 export {
+  qualityOf,
+  readNumberEvents,
   readStatuses,
   readTemplateEvents,
   readWebhook,
+  tierLimitOf,
   type WaEvent,
+  type WaNumberEvent,
   type WaMedia,
   type WaStatus,
   type WaTemplateEvent,

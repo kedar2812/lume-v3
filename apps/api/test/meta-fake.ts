@@ -32,6 +32,8 @@ export type MetaFake = {
   expired: Set<string>;
   /** The next sends answer with these Meta error codes, one each, in order. */
   failNext: number[];
+  /** A number's quality rating and messaging tier (Autopilot A2), by its phone number id, as Graph answers them. */
+  health: Map<string, { quality: string; tier: string }>;
   /** Templates (W3b-2), by name: what WhatsApp holds for each and how many variables its body has. */
   templates: Map<string, FakeTemplate>;
   /** How many templates a page of the list holds, and a `paging.next` to answer with instead of the fake's own. */
@@ -98,6 +100,7 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     sent: [] as { numberId: string; body: Record<string, unknown> }[],
     expired: new Set<string>(),
     failNext: [] as number[],
+    health: new Map<string, { quality: string; tier: string }>(),
     templates: new Map<string, FakeTemplate>(),
     templatePageSize: 100,
     templateNextUrl: null as string | null,
@@ -241,6 +244,12 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         return send(res, 401, oauthError(190, "Error validating access token"));
 
       const [id, edge] = parts;
+      // A number's quality and tier (Autopilot A2): GET /{phone-number-id}?fields=quality_rating,messaging_limit_tier.
+      if (!edge && req.method === "GET" && (u.searchParams.get("fields") ?? "").includes("quality_rating")) {
+        const hl = state.health.get(id!);
+        if (!hl) return send(res, 404, oauthError(100, "Unknown number"));
+        return send(res, 200, { id, quality_rating: hl.quality, messaging_limit_tier: hl.tier });
+      }
       // A template's header file (W3b-2), Meta's resumable upload: a session for the app, then the bytes.
       if (edge === "uploads" && req.method === "POST") {
         if (id !== state.appId) return send(res, 400, oauthError(100, "Invalid app id"));

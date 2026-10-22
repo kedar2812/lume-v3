@@ -19,6 +19,11 @@ export const whatsappNumbers = pgTable("whatsapp_numbers", {
   phoneNumberId: text("phone_number_id").notNull(),
   wabaId: text("waba_id").notNull(),
   displayPhone: text("display_phone").notNull(),
+  /** Meta's quality rating (Autopilot A2): null until read. A drop to yellow or red pauses LUME AI's runs on it. */
+  quality: text("quality").$type<"green" | "yellow" | "red">(),
+  /** Meta's messaging tier ("TIER_1K"): how many people a day; null until read. */
+  messagingTier: text("messaging_tier"),
+  healthAt: tz("health_at"),
   verifiedName: text("verified_name"),
   /** Whose number it is; null: the business's. */
   ownerUserId: uuid("owner_user_id"),

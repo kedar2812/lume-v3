@@ -1,11 +1,19 @@
 import { createHash } from "node:crypto";
-import { moduleIncluded, readStatuses, readTemplateEvents, readWebhook, relayCheck } from "@lume/core";
+import {
+  moduleIncluded,
+  readNumberEvents,
+  readStatuses,
+  readTemplateEvents,
+  readWebhook,
+  relayCheck,
+} from "@lume/core";
 import { schema } from "@lume/db";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance } from "fastify";
 import type { AppDeps } from "../../app";
 import { isLocked } from "../../licence/enforce";
+import { applyNumberEvents } from "./health";
 import { applyStatuses } from "./sender";
 import { relayOf } from "./service";
 import { applyTemplateEvents } from "./submit";
@@ -64,6 +72,8 @@ export async function whatsappReceiveRoutes(app: FastifyInstance, d: AppDeps) {
       await applyStatuses(d.pool, readStatuses(body));
       // WhatsApp's word on the business's templates (W3b-2): applied now, a repeat changing nothing.
       await applyTemplateEvents(d.pool, readTemplateEvents(body));
+      // A number's quality and tier (Autopilot A2): a flag pauses LUME AI's runs on it.
+      await applyNumberEvents(d.pool, readNumberEvents(body), d.clock());
       const events = readWebhook(body);
       if (!events.length) return ok();
       const known = new Set(

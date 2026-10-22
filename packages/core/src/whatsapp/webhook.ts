@@ -222,3 +222,71 @@ export function readTemplateEvents(raw: unknown): WaTemplateEvent[] {
     }
   return out;
 }
+
+/** A delivery for a business account: each entry carries the account's id. */
+const accountBody = z.object({
+  entry: z.array(z.object({ id: z.union([z.string(), z.number()]), changes: z.array(z.unknown()) })),
+});
+
+export type WaNumberEvent = {
+  /** The business account the number belongs to (these come for the account, not a number id). */
+  wabaId: string;
+  /** The number's digits, as Meta gives them: matched to a connected number by its digits. */
+  digits: string;
+  /** FLAGGED (quality dropped), UNFLAGGED, UPGRADE or DOWNGRADE (the tier changed). */
+  event: string;
+  /** Meta's tier now ("TIER_1K"), when it said. */
+  tier: string | null;
+};
+
+/**
+ * WhatsApp's word on a number's quality and tier (Autopilot A2; spec 2026-10-19 §6): a flag pauses LUME AI's runs on it,
+ * a tier change sets how many it may send a day. Malformed: left out.
+ */
+export function readNumberEvents(raw: unknown): WaNumberEvent[] {
+  const b = accountBody.safeParse(raw);
+  if (!b.success) return [];
+  const out: WaNumberEvent[] = [];
+  for (const entry of b.data.entry)
+    for (const c of entry.changes) {
+      const ch = z
+        .object({
+          field: z.literal("phone_number_quality_update"),
+          value: z.object({
+            display_phone_number: z.union([z.string(), z.number()]),
+            event: z.string(),
+            current_limit: z.string().nullish(),
+          }),
+        })
+        .safeParse(c);
+      if (!ch.success) continue;
+      const digits = String(ch.data.value.display_phone_number).replace(/\D/g, "");
+      if (!digits) continue;
+      out.push({
+        wabaId: String(entry.id),
+        digits,
+        event: ch.data.value.event,
+        tier: ch.data.value.current_limit ?? null,
+      });
+    }
+  return out;
+}
+
+const TIERS: Record<string, number | "unlimited"> = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1000,
+  TIER_2K: 2000,
+  TIER_10K: 10000,
+  TIER_100K: 100000,
+  TIER_UNLIMITED: "unlimited",
+};
+/** Meta's tier as people a day LUME may start conversations with; null when it's unknown (treated as a new number). */
+export function tierLimitOf(tier: string | null): number | "unlimited" | null {
+  return tier ? (TIERS[tier] ?? null) : null;
+}
+/** Meta's quality rating as LUME keeps it; UNKNOWN (a new number) is null. */
+export function qualityOf(rating: string | null | undefined): "green" | "yellow" | "red" | null {
+  const r = rating?.toUpperCase();
+  return r === "GREEN" ? "green" : r === "YELLOW" ? "yellow" : r === "RED" ? "red" : null;
+}

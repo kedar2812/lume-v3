@@ -1,3 +1,4 @@
+import { qualityOf } from "@lume/core";
 import type { AppDeps } from "../../app";
 
 /** The most a photo, voice note or file may be (spec 2026-10-18 §4.1). */
@@ -74,6 +75,20 @@ export function metaClient(meta: NonNullable<AppDeps["meta"]>, token: string) {
     return r;
   };
   return {
+    /** The number's quality rating and messaging tier (Autopilot A2; spec 2026-10-19 §6), as Meta rates them now. */
+    async numberHealth(
+      phoneNumberId: string,
+    ): Promise<{ quality: "green" | "yellow" | "red" | null; tier: string | null }> {
+      const r = await call(
+        graph(`${encodeURIComponent(phoneNumberId)}?fields=quality_rating,messaging_limit_tier`),
+      );
+      const d = (await r.json()) as { quality_rating?: string; messaging_limit_tier?: string };
+      const tier =
+        d.messaging_limit_tier && /^TIER_[A-Z0-9]+$/.test(d.messaging_limit_tier)
+          ? d.messaging_limit_tier
+          : null;
+      return { quality: qualityOf(d.quality_rating), tier };
+    },
     /** Where a media item can be fetched from (a short-lived link), and what it is. */
     async media(id: string): Promise<{ url: string; mime: string; size: number | null }> {
       const r = await call(graph(encodeURIComponent(id)));

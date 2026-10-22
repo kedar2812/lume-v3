@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { echo, envelope, history, inbound, PHONE_NUMBER_ID, statuses } from "./fixtures";
-import { readStatuses, readTemplateEvents, readWebhook } from "./webhook";
+import {
+  qualityOf,
+  readNumberEvents,
+  readStatuses,
+  readTemplateEvents,
+  readWebhook,
+  tierLimitOf,
+} from "./webhook";
 
 /** Meta's deliveries as LUME reads them (spec 2026-10-18 §4.1; plan W1 Task 1). */
 describe("reading Meta's WhatsApp webhooks", () => {
@@ -204,5 +211,42 @@ describe("WhatsApp's word on a template (W3b-2 Task 4)", () => {
         hook([{ field: "template_category_update", value: { ...ids, new_category: "AUTHENTICATION" } }]),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("the number's quality and Meta's tier (Autopilot A2, Task 4)", () => {
+  const update = (value: Record<string, unknown>) => ({
+    object: "whatsapp_business_account",
+    entry: [{ id: "WABA1", time: 1, changes: [{ field: "phone_number_quality_update", value }] }],
+  });
+  it("a quality update: the account, the number's digits, what happened and the tier now", () => {
+    expect(
+      readNumberEvents(
+        update({ display_phone_number: "+91 90000 00001", event: "FLAGGED", current_limit: "TIER_250" }),
+      ),
+    ).toEqual([{ wabaId: "WABA1", digits: "919000000001", event: "FLAGGED", tier: "TIER_250" }]);
+    expect(readNumberEvents(update({ display_phone_number: "919000000001", event: "UPGRADE" }))).toEqual([
+      { wabaId: "WABA1", digits: "919000000001", event: "UPGRADE", tier: null },
+    ]);
+    // Anything else, or malformed: left out.
+    expect(readNumberEvents(update({ event: "FLAGGED" }))).toEqual([]);
+    expect(readNumberEvents(inbound())).toEqual([]);
+  });
+  it("Meta's tier names as messages a day, and its quality colours", () => {
+    expect(tierLimitOf("TIER_50")).toBe(50);
+    expect(tierLimitOf("TIER_250")).toBe(250);
+    expect(tierLimitOf("TIER_1K")).toBe(1000);
+    expect(tierLimitOf("TIER_2K")).toBe(2000);
+    expect(tierLimitOf("TIER_10K")).toBe(10000);
+    expect(tierLimitOf("TIER_100K")).toBe(100000);
+    expect(tierLimitOf("TIER_UNLIMITED")).toBe("unlimited");
+    expect(tierLimitOf(null)).toBeNull();
+    expect(tierLimitOf("TIER_SOMETHING_NEW")).toBeNull();
+    expect([qualityOf("GREEN"), qualityOf("YELLOW"), qualityOf("RED"), qualityOf("UNKNOWN")]).toEqual([
+      "green",
+      "yellow",
+      "red",
+      null,
+    ]);
   });
 });
