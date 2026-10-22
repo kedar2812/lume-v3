@@ -88,7 +88,15 @@ function repair(stored: unknown): Partial<Preferences> {
   if (typeof stored !== "object" || stored === null) return {};
   const out: Partial<Preferences> = {};
   const src = stored as Record<string, unknown>;
-  for (const key of ["workingDays", "workStart", "workEnd", "digestTime", "sounds", "alerts", "hints"] as const) {
+  for (const key of [
+    "workingDays",
+    "workStart",
+    "workEnd",
+    "digestTime",
+    "sounds",
+    "alerts",
+    "hints",
+  ] as const) {
     const field = full.shape[key];
     const r = field.safeParse(src[key]);
     if (r.success) Object.assign(out, { [key]: r.data });
