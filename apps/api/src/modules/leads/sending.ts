@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { canOnRecord, render, type RenderContext } from "@lume/core";
+import { canOnRecord, firstNameOf, render, type RenderContext } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { HttpError, forbidden, notFound } from "../../http/errors";
@@ -25,9 +25,14 @@ export type MoveResult = {
 };
 
 /** The lead, if the caller may message it (report §11.2 step 2). */
+/** Why nothing may go to a lead in do not contact (Autopilot A2), in their name. */
+export const dncWords = (name: string | null) =>
+  `${firstNameOf(name ?? "") || "This lead"} asked not to be messaged. An admin can lift this on the lead.`;
+
 export async function sendable(req: FastifyRequest, id: string): Promise<LeadRow> {
   const lead = await visibleLead(req, id);
   if (!canOnRecord(req.actor!, "messages.send", lead.ownerId)) throw forbidden();
+  if (lead.dncAt) throw new HttpError(409, "DO_NOT_CONTACT", dncWords(lead.name));
   return lead;
 }
 

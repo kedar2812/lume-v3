@@ -1,12 +1,11 @@
 import { eq } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { schema } from "@lume/db";
-import { canOnRecord } from "@lume/core";
 import { audit } from "../../audit/audit";
-import { HttpError, forbidden } from "../../http/errors";
+import { HttpError } from "../../http/errors";
 import { clickToSend } from "../../messaging/channel";
-import { assertTaskOf, assertVersion } from "./sending";
-import { recordActivity, visibleLead } from "./service";
+import { assertTaskOf, assertVersion, sendable } from "./sending";
+import { recordActivity } from "./service";
 
 /**
  * Report §11.2 step 2: the link is built here and handed to the page, which opens it at once. It is
@@ -18,8 +17,8 @@ export async function prepareMessage(
   text: string,
   from: { templateVersionId?: string; taskId?: string; queueId?: string } = {},
 ) {
-  const lead = await visibleLead(req, id);
-  if (!canOnRecord(req.actor!, "messages.send", lead.ownerId)) throw forbidden();
+  // Who may message this lead, and never one in do not contact (Autopilot A2): the same gate every send passes.
+  const lead = await sendable(req, id);
   if (lead.phoneStatus === "needs_country")
     throw new HttpError(
       422,

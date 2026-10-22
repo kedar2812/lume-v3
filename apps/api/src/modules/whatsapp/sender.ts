@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import type pg from "pg";
 import { loadActor } from "../../rbac/actor";
 import { jobServer, withJobRequest } from "../imports/job-request";
-import { countSend } from "../leads/sending";
+import { countSend, dncWords } from "../leads/sending";
 import { recordActivity, visibleLead } from "../leads/service";
 import { HttpError } from "../../http/errors";
 import { MetaError, metaClient } from "./meta";
@@ -40,6 +40,9 @@ type Row = {
   status: string;
   /** "sending" untouched for 2 minutes, by the database's clock. */
   stuck: boolean;
+  lead_name: string | null;
+  lead_dnc: boolean;
+  allow_after_dnc: boolean;
   tries: number;
   text: string | null;
   task_id: string | null;
@@ -90,7 +93,8 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
       (
         await c.query<Row>(
           `SELECT o.status, o.updated_at < now() - make_interval(secs => $2) AS stuck, o.tries, o.text, o.task_id, o.user_id, u.name AS user_name, o.lead_id,
-                  l.deleted_at IS NOT NULL AS lead_deleted, l.phone_e164 AS lead_phone,
+                  l.deleted_at IS NOT NULL AS lead_deleted, l.phone_e164 AS lead_phone, l.name AS lead_name,
+                  l.dnc_at IS NOT NULL AS lead_dnc, o.allow_after_dnc,
                   n.id AS number_id, n.phone_number_id, n.status AS number_status, n.display_phone, n.token_enc,
                   m.kind AS media_kind, m.mime AS media_mime, m.filename AS media_filename, m.sha256 AS media_sha,
                   s.id AS sub_id, s.meta_name AS sub_name, s.language AS sub_language, o.params,
@@ -124,6 +128,8 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
   }
   if (row.status !== "queued") return;
   if (row.lead_deleted) return void (await fail("This lead isn't here any more."));
+  // Do not contact, set after this was queued: it never goes (only LUME AI's one apology for a stop may).
+  if (row.lead_dnc && !row.allow_after_dnc) return void (await fail(dncWords(row.lead_name)));
   if (row.number_status !== "active" || !row.token_enc)
     return void (await fail(`Connect ${row.display_phone} again to reply from LUME.`));
   if (!row.lead_phone) return void (await fail("This lead has no WhatsApp number."));

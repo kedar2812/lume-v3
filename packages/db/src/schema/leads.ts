@@ -51,6 +51,10 @@ export const leads = pgTable("leads", {
   lastReplyAt: tz("last_reply_at"),
   /** The lead turned off marketing messages from the business on WhatsApp (W3b-2; Meta's refusal 131050). */
   whatsappMarketingOffAt: tz("whatsapp_marketing_off_at"),
+  /** Do not contact (Autopilot A2): held by every send until an admin lifts it; by null = LUME AI. */
+  dncAt: tz("dnc_at"),
+  dncBy: uuid("dnc_by"),
+  dncReason: text("dnc_reason"),
   stageEnteredAt: tz("stage_entered_at").notNull().defaultNow(),
   version: integer("version").notNull().default(1),
   createdBy: uuid("created_by"),

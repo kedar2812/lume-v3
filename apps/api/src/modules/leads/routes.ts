@@ -7,6 +7,7 @@ import { findDuplicates } from "./duplicates";
 import { arrivalsWhere, countLeads, listLeads } from "./query";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { schema } from "@lume/db";
+import { liftDoNotContact, setDoNotContact } from "./dnc";
 import { prepareMessage } from "./messages";
 import { confirmSend, logReply, messageContext, renderFor } from "./sending";
 import type { AppDeps } from "../../app";
@@ -292,6 +293,20 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
       if ("suspended" in r) return reply.code(403).send(SUSPENDED_BODY);
       return r;
     },
+  );
+  // Do not contact (Autopilot A2): anyone who may edit the lead sets it; only an admin lifts it.
+  r.post(
+    "/api/v1/leads/:id/do-not-contact",
+    {
+      config: { permission: "leads.edit" },
+      schema: { params, body: z.object({ reason: z.string().trim().min(1).max(200) }).strict() },
+    },
+    (req) => setDoNotContact(req, req.params.id, { reason: req.body.reason }),
+  );
+  r.delete(
+    "/api/v1/leads/:id/do-not-contact",
+    { config: { permission: "settings.manage" }, schema: { params } },
+    (req) => liftDoNotContact(req, req.params.id),
   );
   r.post(
     "/api/v1/leads/:id/messages/prepare",

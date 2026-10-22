@@ -84,6 +84,8 @@ export function serializeLead(row: LeadRow, ctx: SerializeCtx): LeadView {
   const view: LeadView = {
     id: row.id,
     version: row.version,
+    // Do not contact (Autopilot A2): who (null: LUME AI, for a lead who said stop), when and why.
+    doNotContact: row.dncAt ? { at: row.dncAt.toISOString(), by: row.dncBy, reason: row.dncReason } : null,
     pipelineId: row.pipelineId,
     stageId: row.stageId,
     ownerId: row.ownerId,

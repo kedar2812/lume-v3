@@ -169,6 +169,8 @@ export const whatsappOutbox = pgTable("whatsapp_outbox", {
   cost: numeric("cost", { precision: 10, scale: 4 }),
   costCurrency: char("cost_currency", { length: 3 }),
   paid: boolean("paid").notNull().default(false),
+  /** The one message a stop allows (LUME AI's apology, Autopilot A2): it goes after do not contact. */
+  allowAfterDnc: boolean("allow_after_dnc").notNull().default(false),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });

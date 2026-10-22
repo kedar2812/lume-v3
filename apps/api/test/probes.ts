@@ -501,6 +501,15 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/roles/assignable": { access: "users.manage" },
   "GET /api/v1/people": { access: "leads.view" },
   "GET /api/v1/leads/counts": { access: "leads.view", query: `pipelineId=${uuid}` },
+  "POST /api/v1/leads/:id/do-not-contact": {
+    access: "leads.edit",
+    path: (f) => `/api/v1/leads/${f.leadId}/do-not-contact`,
+    body: () => ({ reason: "Asked on a call" }),
+  },
+  "DELETE /api/v1/leads/:id/do-not-contact": {
+    access: "settings.manage",
+    path: (f) => `/api/v1/leads/${f.leadId}/do-not-contact`,
+  },
   "POST /api/v1/leads/:id/messages/prepare": {
     access: "messages.send",
     path: (f) => `/api/v1/leads/${f.leadId}/messages/prepare`,
