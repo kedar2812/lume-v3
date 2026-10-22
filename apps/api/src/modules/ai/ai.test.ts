@@ -314,6 +314,18 @@ describe("the month", () => {
     );
   });
 
+  it("after a top-up, admins hear again at 75%, 90% and the limit of the new allowance, once each", async () => {
+    await monthly(4);
+    for (let i = 0; i < 5; i++) await read(); // 3 → 75%, 4 → 90%, the 5th is refused → limit
+    await monthly(4, [{ month: "2026-10", calls: 4 }]); // 8 now: 6 is 75%, 8 is 90%, the 9th the limit
+    for (let i = 0; i < 6; i++) await read();
+    const titles = (await alerts("LUME AI%")).map((n) => n.title);
+    const times = (t: string) => titles.filter((x) => x === t).length;
+    expect(times("LUME AI has used 75% of this month's allowance")).toBe(2);
+    expect(times("LUME AI has used 90% of this month's allowance")).toBe(2);
+    expect(times("LUME AI has reached this month's allowance")).toBe(2);
+  });
+
   it("a top-up ends the pause", async () => {
     await monthly(1);
     expect((await read()).json()).toHaveProperty("output");

@@ -211,16 +211,22 @@ export async function setAiEnabled(req: FastifyRequest, d: AppDeps, enabled: boo
   return integrationsView(req, d);
 }
 
-/** One notice per window to every admin; false when this one had already gone. */
+/**
+ * One notice per window to every admin. The month's are once per allowance: after a top-up raises it, admins hear again
+ * at 75%, 90% and the limit of the new one (a busy month can run through a top-up too).
+ */
 async function noticeOnce(
   pool: pg.Pool,
   kind: "week_75" | "week_90" | "week_limit" | "hour_limit" | "month_75" | "month_90" | "month_limit",
   windowStart: Date,
   n: { title: string; body: string },
+  allowance: number | null = null,
 ): Promise<void> {
   const first = await pool.query(
-    "INSERT INTO ai_limit_notices (kind, window_start) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-    [kind, windowStart],
+    `INSERT INTO ai_limit_notices (kind, window_start, allowance) VALUES ($1, $2, $3)
+     ON CONFLICT (kind, window_start) DO UPDATE SET allowance = EXCLUDED.allowance, sent_at = now()
+       WHERE ai_limit_notices.allowance < EXCLUDED.allowance`,
+    [kind, windowStart, allowance],
   );
   if (!first.rowCount) return;
   for (const id of await adminIds(pool)) await notify(pool, id, { kind: "system_alert", ...n });
@@ -297,9 +303,13 @@ export async function runRead<T>(
             title: `LUME AI has reached this ${pause.by}'s limit`,
             body: `It's back ${backWords(pause, now, a.tz)}.`,
           };
-    await noticeOnce(side, notice.kind, notice.window, { title: notice.title, body: notice.body }).catch(
-      (err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's limit"),
-    );
+    await noticeOnce(
+      side,
+      notice.kind,
+      notice.window,
+      { title: notice.title, body: notice.body },
+      pause.by === "month" ? (limits.monthly ?? null) : null,
+    ).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's limit"));
     return { unavailable: "limit", by: pause.by, until: pause.until };
   }
   const finish = (status: "ok" | "failed", result: unknown, input = 0, output = 0) =>
@@ -334,10 +344,16 @@ export async function runRead<T>(
       [0.9, "month_90"],
     ] as const)
       if (used >= Math.ceil(limits.monthly * share)) {
-        await noticeOnce(side, kind, w.monthStart, {
-          title: `LUME AI has used ${share * 100}% of this month's allowance`,
-          body: `${used} of ${limits.monthly} used this month. It starts again ${back}.`,
-        }).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's use"));
+        await noticeOnce(
+          side,
+          kind,
+          w.monthStart,
+          {
+            title: `LUME AI has used ${share * 100}% of this month's allowance`,
+            body: `${used} of ${limits.monthly} used this month. It starts again ${back}.`,
+          },
+          limits.monthly,
+        ).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's use"));
       }
   }
   if (limits.weekly !== null) {
