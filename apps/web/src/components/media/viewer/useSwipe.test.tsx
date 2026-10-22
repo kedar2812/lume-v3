@@ -91,7 +91,22 @@ describe("the swipe itself", () => {
   it("events that arrive all at once (a burst, a slow device catching up) still swipe, and soon", async () => {
     const onSwipe = vi.fn();
     render(<Stage onSwipe={onSwipe} />);
-    drag(screen.getByTestId("stage"), [330, 300, 250, 190, 120, 120], 0);
+    // A burst carries no speed (lib/motion releaseVelocity), so it goes on distance alone: past half a phone-wide
+    // stage. jsdom lays nothing out, so the stage says its width (it had read the window's 1,024 px, and passed only
+    // on the burst's absurd -180,000 px/s, which also made it slow to settle and flaky under load).
+    const stage = screen.getByTestId("stage");
+    stage.getBoundingClientRect = () => ({
+      width: 390,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    drag(stage, [330, 300, 250, 190, 110, 110], 0);
     await waitFor(() => expect(onSwipe).toHaveBeenCalledWith("next"), { timeout: 900 });
   });
 

@@ -62,8 +62,17 @@ export function releaseVelocity(samples: [number, number][]): number {
   if (samples.length < 2) return 0;
   const [t0, y0] = samples[0]!;
   const [t1, y1] = samples[samples.length - 1]!;
-  return ((y1 - y0) / Math.max(1, t1 - t0)) * 1000;
+  // Moves that arrived all at once (a burst, a slow device catching up) say where the finger went, not how fast:
+  // dividing by their few milliseconds made speeds like 180,000 px/s and a stage that flew far past its edge.
+  if (t1 - t0 < MIN_SAMPLE_SPAN_MS) return 0;
+  const v = ((y1 - y0) / (t1 - t0)) * 1000;
+  return Math.max(-MAX_RELEASE_VELOCITY, Math.min(MAX_RELEASE_VELOCITY, v));
 }
+
+/** Under half a frame between the first and last move: no speed worth throwing with. */
+const MIN_SAMPLE_SPAN_MS = 8;
+/** A fast human flick (iOS's own fling tops out about here); anything faster is a measuring artefact. */
+export const MAX_RELEASE_VELOCITY = 8000;
 
 /** How far down a bottom sheet must be headed, once let go, to close (Phase 5 canvas, Phone). */
 export const SHEET_DISMISS_PX = 220;

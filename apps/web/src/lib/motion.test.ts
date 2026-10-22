@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SPRINGS,
   project,
+  MAX_RELEASE_VELOCITY,
   releaseVelocity,
   rubberband,
   sheetDismisses,
@@ -84,6 +85,33 @@ describe("a bottom sheet let go (5D Task 12)", () => {
     ).toBeCloseTo(600, 6);
     expect(releaseVelocity([[0, 100]])).toBe(0);
     expect(releaseVelocity([])).toBe(0);
+  });
+
+  it("moves that arrive all at once (a burst, a slow device catching up) carry no speed to read", () => {
+    // Same timestamp: dividing by a floored 1 ms made this -180,000 px/s, and the stage flew far past the edge.
+    expect(
+      releaseVelocity([
+        [500, 300],
+        [500, 250],
+        [500, 120],
+      ]),
+    ).toBe(0);
+    // Under half a frame apart: still no speed worth throwing with.
+    expect(
+      releaseVelocity([
+        [500, 300],
+        [505, 120],
+      ]),
+    ).toBe(0);
+  });
+
+  it("a real flick is never faster than a finger can throw", () => {
+    const v = releaseVelocity([
+      [0, 400],
+      [8, 0],
+    ]);
+    expect(v).toBe(-MAX_RELEASE_VELOCITY);
+    expect(MAX_RELEASE_VELOCITY).toBe(8000);
   });
 
   it("closes when where it would come to rest is past 220 px", () => {
