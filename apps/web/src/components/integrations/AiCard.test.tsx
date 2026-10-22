@@ -14,7 +14,11 @@ const status = (over: Partial<AiStatus> = {}): AiStatus => ({
   on: true,
   hour: { used: 12, limit: 100, resetsAt: "2026-10-21T10:10:00.000Z" }, // 3:40 pm in Kolkata
   week: { used: 640, limit: 750, resetsAt: "2026-10-25T18:30:00.000Z" }, // Monday 12 am in Kolkata
+  month: { used: 640, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
   paused: null,
+  spend: null,
+  pace: { daysLeft: null },
+  topUp: null,
   ...over,
 });
 const view = (ai: { enabled: boolean; available: boolean; inPlan: boolean }) => ({
@@ -61,6 +65,22 @@ describe("the LUME AI card (spec 2026-10-18 §2.2)", () => {
     expect(screen.getByText("640 of 750 · resets Monday 12 am")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "12 of 100 reads this hour" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "640 of 750 reads this week" })).toBeInTheDocument();
+  });
+
+  it("a monthly allowance (Autopilot A1): this hour's and this month's use; a week with no limit of its own isn't shown", async () => {
+    vi.mocked(aiClient.status).mockResolvedValue(
+      ok(
+        status({
+          week: { used: 640, limit: null, resetsAt: "2026-10-25T18:30:00.000Z" },
+          month: { used: 1920, limit: 3000, resetsAt: "2026-10-31T18:30:00.000Z" },
+        }),
+      ),
+    );
+    render(<AiCard ai={{ enabled: true, available: true, inPlan: true }} tz={TZ} onView={vi.fn()} />);
+    expect(await screen.findByText("1,920 of 3,000 · resets November 1")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "1,920 of 3,000 reads this month" })).toBeInTheDocument();
+    expect(screen.getByText("12 of 100 · resets 3:40 pm")).toBeInTheDocument();
+    expect(screen.queryByText("This week")).not.toBeInTheDocument();
   });
 
   it("no limit: the count alone, no bar", async () => {

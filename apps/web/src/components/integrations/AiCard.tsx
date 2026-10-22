@@ -12,14 +12,19 @@ import s from "./integrations.module.css";
 
 type AiView = NonNullable<IntegrationsView["ai"]>;
 
+const n = (x: number) => x.toLocaleString("en-US");
+/** The month resets on its 1st: "November 1" (a weekday and midnight would say less). */
+const monthDay = (iso: string, tz: string) =>
+  new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long", day: "numeric" }).format(new Date(iso));
+
 /** One limit as a line of words and a bar; words alone when there's no limit (spec 2026-10-18 §2.2). */
-function Meter({ label, per, l, tz }: { label: string; per: string; l: AiLimit; tz: string }) {
+function Meter({ label, per, l, resets }: { label: string; per: string; l: AiLimit; resets: string }) {
   if (l.limit === null)
     return (
       <div className={s.meter}>
         <div className={s.meterHead}>
           <span className={s.meterLabel}>{label}</span>
-          <span>{l.used} · no limit</span>
+          <span>{n(l.used)} · no limit</span>
         </div>
       </div>
     );
@@ -29,10 +34,10 @@ function Meter({ label, per, l, tz }: { label: string; per: string; l: AiLimit; 
       <div className={s.meterHead}>
         <span className={s.meterLabel}>{label}</span>
         <span>
-          {l.used} of {l.limit} · resets {resetWords(l.resetsAt, tz)}
+          {n(l.used)} of {n(l.limit)} · resets {resets}
         </span>
       </div>
-      <div role="img" aria-label={`${l.used} of ${l.limit} reads ${per}`} className={s.meterTrack}>
+      <div role="img" aria-label={`${n(l.used)} of ${n(l.limit)} reads ${per}`} className={s.meterTrack}>
         <div
           className={s.meterFill}
           data-high={share >= 0.75 || undefined}
@@ -43,7 +48,7 @@ function Meter({ label, per, l, tz }: { label: string; per: string; l: AiLimit; 
   );
 }
 
-/** Settings → Integrations → LUME AI (spec 2026-10-18 §2.2): the switch, what's sent where, and this hour's and week's use. */
+/** Settings → Integrations → LUME AI (spec 2026-10-18 §2.2): the switch, what's sent where, and this hour's and this month's (or week's) use. */
 export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: IntegrationsView): void }) {
   const out = !inPlan(usePlan(), "ai") || !ai.inPlan;
   const usable = ai.available && !out;
@@ -110,8 +115,28 @@ export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: I
               {pausedWords(status.paused, tz)} Notes and calls still save as usual.
             </p>
           )}
-          <Meter label="This hour" per="this hour" l={status.hour} tz={tz} />
-          <Meter label="This week" per="this week" l={status.week} tz={tz} />
+          <Meter
+            label="This hour"
+            per="this hour"
+            l={status.hour}
+            resets={resetWords(status.hour.resetsAt, tz)}
+          />
+          {/* A licence with a monthly allowance (Autopilot A1) measures the month; an older one, the week. */}
+          {status.month.limit !== null ? (
+            <Meter
+              label="This month"
+              per="this month"
+              l={status.month}
+              resets={monthDay(status.month.resetsAt, tz)}
+            />
+          ) : (
+            <Meter
+              label="This week"
+              per="this week"
+              l={status.week}
+              resets={resetWords(status.week.resetsAt, tz)}
+            />
+          )}
         </div>
       )}
     </article>

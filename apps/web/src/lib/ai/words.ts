@@ -15,8 +15,13 @@ export function resetWords(iso: string, tz: string, now: Date = new Date()): str
       : `${weekday(d, tz)} ${timeOf(d, tz)}`;
 }
 
-/** "LUME AI has reached this hour's limit. It's back at 3:40 pm." — and the week's, back on its day. */
+/**
+ * "LUME AI has reached this hour's limit. It's back at 3:40 pm." — the week's, back on its day; the month's allowance
+ * (Autopilot A1), back on the 1st at the latest (a top-up brings it back sooner).
+ */
 export function pausedWords(p: AiPause, tz: string, now: Date = new Date()): string {
+  if (p.by === "month")
+    return `LUME AI has reached this month's allowance. It's back on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long", day: "numeric" }).format(new Date(p.until))}.`;
   if (p.by === "week")
     return `LUME AI has reached this week's limit. It's back ${weekday(new Date(p.until), tz)}.`;
   const when = resetWords(p.until, tz, now);

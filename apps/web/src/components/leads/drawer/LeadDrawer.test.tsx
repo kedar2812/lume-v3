@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiClient } from "@/lib/ai/client";
+import type { AiStatus } from "@/lib/ai/types";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import { leadsClient } from "@/lib/leads/client";
 import { testCatalog, testLead } from "@/lib/leads/test-catalog";
@@ -34,11 +35,15 @@ vi.mock("@/lib/templates/client", () => ({
     context: vi.fn(async () => ({ ok: false, status: 403, code: "FORBIDDEN", message: "No" })),
   },
 }));
-const aiOff = {
+const aiOff: AiStatus = {
   on: false,
   hour: { used: 0, limit: null, resetsAt: "" },
   week: { used: 0, limit: null, resetsAt: "" },
+  month: { used: 0, limit: null, resetsAt: "" },
   paused: null,
+  spend: null,
+  pace: { daysLeft: null },
+  topUp: null,
 };
 vi.mock("@/lib/whatsapp/client", () => ({
   whatsappClient: { thread: vi.fn(), mediaInfo: vi.fn() },

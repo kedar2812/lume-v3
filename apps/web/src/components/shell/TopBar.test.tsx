@@ -7,6 +7,8 @@ import { TopBar } from "./TopBar";
 let path = "/leads";
 vi.mock("next/navigation", () => ({ usePathname: () => path, useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/theme/ThemeToggle", () => ({ ThemeToggle: () => null }));
+// The ring has its own tests (components/ai); here, only where it sits.
+vi.mock("@/components/ai/AiRing", () => ({ AiRing: () => <span data-testid="ai-ring" /> }));
 vi.mock("@/components/notifications/NotificationCentre", () => ({
   NotificationCentre: ({ open, onClose }: { open: boolean; onClose(): void }) =>
     open ? (
@@ -41,6 +43,13 @@ describe("the bell", () => {
     await vi.waitFor(() => expect(document.title).toBe("(2) Leads · LUME"));
     await userEvent.click(bell);
     expect(screen.getByRole("dialog", { name: "Notifications" })).toBeInTheDocument();
+  });
+
+  it("LUME AI's ring sits just before the bell (Autopilot A1)", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
+    render(<TopBar theme="system" onSearch={vi.fn()} />);
+    const bell = await screen.findByRole("button", { name: "Notifications" });
+    expect(screen.getByTestId("ai-ring").nextElementSibling).toBe(bell);
   });
 
   it("unread ones wait: the dot says so (the bell rings, or the dot breathes with Reduce Motion); Search can open the centre", async () => {

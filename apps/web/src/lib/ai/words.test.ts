@@ -23,6 +23,12 @@ describe("LUME AI's words for time", () => {
       "LUME AI has reached this week's limit. It's back Monday.",
     );
   });
+
+  it("the month's allowance (Autopilot A1) says so, and the day it's back at the latest", () => {
+    expect(pausedWords({ by: "month", until: "2026-10-31T18:30:00.000Z" }, TZ, now)).toBe(
+      "LUME AI has reached this month's allowance. It's back on November 1.",
+    );
+  });
 });
 
 describe("LUME AI's words for a suggestion", () => {

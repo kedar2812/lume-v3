@@ -4,6 +4,7 @@ import { motion, useAnimationControls, useReducedMotion } from "motion/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { AiRing } from "@/components/ai/AiRing";
 import { NotificationCentre } from "@/components/notifications/NotificationCentre";
 import { ResumeRun } from "@/components/queue/ResumeRun";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -145,6 +146,8 @@ export function TopBar({
       <span className={s.themeSlot}>
         <ThemeToggle initial={theme} />
       </span>
+      {/* LUME AI's ring (Autopilot A1): only while LUME AI is on for this person. */}
+      <AiRing />
       <IconButton
         ref={bell}
         label={unread ? `Notifications, ${unread} unread` : "Notifications"}

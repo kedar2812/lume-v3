@@ -9,6 +9,9 @@ const read = (id: string) => `/api/v1/ai/reads/${encodeURIComponent(id)}`;
 /** LUME AI (spec 2026-10-18): its status and switch, a next step from a note, and a lead's catch-up. */
 export const aiClient = {
   status: () => api.get<AiStatus>("/api/v1/ai"),
+  /** Ask the owner for more LUME AI this month (admins; Autopilot spec 2026-10-19 §4). */
+  askTopUp: (note?: string) =>
+    api.post<{ asked: true; already?: true }>("/api/v1/ai/topup", note ? { note } : {}),
   setEnabled: (enabled: boolean) => api.put<IntegrationsView>("/api/v1/integrations/ai", { enabled }),
   lead: (leadId: string) => api.get<LeadAi>(lead(leadId)),
   nextStep: (leadId: string, activityId: string) =>
