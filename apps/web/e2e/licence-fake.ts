@@ -116,7 +116,12 @@ const server = createServer((req, res) => {
       return send(res, 201, { id: `e2e-${feedbackCount}` });
     }
     if (req.method === "POST" && req.url === "/v1/topup") {
-      const b = JSON.parse(await body(req)) as { instanceId?: string; licenseKey?: string; month: string; askedBy: unknown };
+      const b = JSON.parse(await body(req)) as {
+        instanceId?: string;
+        licenseKey?: string;
+        month: string;
+        askedBy: unknown;
+      };
       if (b.instanceId !== E2E_INSTANCE || b.licenseKey !== E2E_KEY)
         return send(res, 401, { error: { code: "UNAUTHORIZED" } });
       const already = topUps.some((x) => x.month === b.month);

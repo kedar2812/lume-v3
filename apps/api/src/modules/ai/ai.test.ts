@@ -357,7 +357,8 @@ describe("the month", () => {
   it("once the top-up arrives it's no longer asked: a busy month can ask again", async () => {
     await monthly(1);
     await (await owner()).inject({ method: "POST", url: "/api/v1/ai/topup", payload: {} });
-    const status = async () => (await (await owner()).inject({ method: "GET", url: "/api/v1/ai" })).json().topUp;
+    const status = async () =>
+      (await (await owner()).inject({ method: "GET", url: "/api/v1/ai" })).json().topUp;
     expect(await status()).toEqual({ asked: true });
     await monthly(1, [{ month: "2026-10", calls: 1 }]);
     expect(await status()).toEqual({ asked: false });

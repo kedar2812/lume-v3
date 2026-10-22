@@ -8,7 +8,14 @@ import { settle } from "./settle";
  * the licence fake, and Settings → LUME AI saved and read back. Against the fake AI provider; never a real model.
  */
 const FAKE = "http://127.0.0.1:3113/__fake";
-const all = { googleSheets: true, webhooks: true, googleCalendar: true, calendly: true, ai: true, whatsapp: true };
+const all = {
+  googleSheets: true,
+  webhooks: true,
+  googleCalendar: true,
+  calendly: true,
+  ai: true,
+  whatsapp: true,
+};
 
 async function axe(page: Page) {
   await settle(page);
@@ -73,7 +80,8 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     await openApp(page, "/today");
     await switchAi(page, false);
     await licenceSays(page, {});
-    if (leads.length) await callApi(page, "POST", "/api/v1/leads/bulk", { ids: leads, action: { type: "delete" } });
+    if (leads.length)
+      await callApi(page, "POST", "/api/v1/leads/bulk", { ids: leads, action: { type: "delete" } });
     for (const id of files) await callApi(page, "POST", `/api/v1/files/${id}/archive`);
     await ctx.close();
   });
@@ -84,9 +92,12 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     await openApp(page, "/today");
     const used = (await callApi<{ month: { used: number } }>(page, "GET", "/api/v1/ai")).data.month.used;
     // A small allowance: five calls left this month.
-    await licenceSays(page, { plan: { places: null, modules: all, aiReadsHourly: null, aiCallsMonthly: used + 5 } });
-    const lead = (await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", { name: "Meera Iyer" })).data
-      .lead.id;
+    await licenceSays(page, {
+      plan: { places: null, modules: all, aiReadsHourly: null, aiCallsMonthly: used + 5 },
+    });
+    const lead = (
+      await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", { name: "Meera Iyer" })
+    ).data.lead.id;
     leads.push(lead);
     for (let i = 0; i < 4; i++) {
       const r = await callApi(page, "POST", `/api/v1/leads/${lead}/ai/catch-up`);
@@ -99,7 +110,9 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     await expect(ring(page).locator('[data-tone="amber"]')).toHaveCount(1);
     await ring(page).click();
     const panel = page.getByRole("dialog", { name: "LUME AI this month" });
-    await expect(panel).toContainText(`${(used + 4).toLocaleString("en-US")} of ${(used + 5).toLocaleString("en-US")} this month`);
+    await expect(panel).toContainText(
+      `${(used + 4).toLocaleString("en-US")} of ${(used + 5).toLocaleString("en-US")} this month`,
+    );
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       expect(await axe(page)).toEqual([]);
@@ -113,12 +126,20 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     // Asked again (another admin, or the API twice): still one request reaches the owner.
     await callApi(page, "POST", "/api/v1/ai/topup", {});
     const month = await monthKey(page);
-    const asked = (await (await page.request.get(`${FAKE}/topups`)).json()) as { topUps: { month: string }[] };
+    const asked = (await (await page.request.get(`${FAKE}/topups`)).json()) as {
+      topUps: { month: string }[];
+    };
     expect(asked.topUps.filter((t) => t.month === month)).toHaveLength(1);
 
     // The owner adds 20 for this month: the ring falls back at the next check-in.
     await licenceSays(page, {
-      plan: { places: null, modules: all, aiReadsHourly: null, aiCallsMonthly: used + 5, aiTopUps: [{ month, calls: 20 }] },
+      plan: {
+        places: null,
+        modules: all,
+        aiReadsHourly: null,
+        aiCallsMonthly: used + 5,
+        aiTopUps: [{ month, calls: 20 }],
+      },
     });
     await openApp(page, "/today");
     const after = Math.round(((used + 4) / (used + 25)) * 100);
@@ -155,7 +176,9 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     await media.getByRole("option", { name: /^Brochure\.txt/ }).click();
     await media.getByRole("option", { name: /^Rates 2026\.txt/ }).click();
     await page.getByRole("button", { name: "Attach 2 files" }).click();
-    await expect(knows.getByRole("list", { name: "Files LUME AI may send" }).getByRole("listitem")).toHaveCount(2);
+    await expect(
+      knows.getByRole("list", { name: "Files LUME AI may send" }).getByRole("listitem"),
+    ).toHaveCount(2);
     await knows.getByRole("button", { name: "Save what LUME AI knows" }).click();
     await expect(knows.getByRole("status")).toHaveText("Saved");
 
@@ -166,7 +189,10 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
       .getByRole("radio", { name: "Ask me" })
       .click();
     for (const p of ["Careful", "Balanced", "Hands-off"])
-      await expect(standing.getByRole("button", { name: new RegExp(`^${p}`) })).toHaveAttribute("aria-pressed", "false");
+      await expect(standing.getByRole("button", { name: new RegExp(`^${p}`) })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
     await standing.getByRole("button", { name: "Save standing choices" }).click();
     await expect(standing.getByRole("status")).toHaveText("Saved");
 
@@ -178,12 +204,15 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
       "/api/v1/ai/profile",
     );
     const currency = saved.data.currency;
-    const shown = (v: number) => v.toLocaleString(currency === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 2 });
+    const shown = (v: number) =>
+      v.toLocaleString(currency === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 2 });
     await expect(page.getByRole("textbox", { name: "Price for Modular kitchen" })).toHaveValue(shown(380000));
     await expect(page.getByRole("textbox", { name: "Price for Design visit" })).toHaveValue(shown(1150.5));
     await expect(page.getByRole("textbox", { name: "Price for Wardrobe" })).toHaveValue(shown(95000));
     expect(saved.data.profile.knows.prices.map((p) => p.price)).toEqual([380000, 1150.5, 95000]);
-    await expect(page.getByRole("textbox", { name: "Question 1" })).toHaveValue("Do you visit before quoting?");
+    await expect(page.getByRole("textbox", { name: "Question 1" })).toHaveValue(
+      "Do you visit before quoting?",
+    );
     const chosen = page.getByRole("list", { name: "Files LUME AI may send" });
     await expect(chosen.getByRole("listitem", { name: "Brochure.txt" })).toBeVisible();
     await expect(chosen.getByRole("listitem", { name: "Rates 2026.txt" })).toBeVisible();
@@ -217,10 +246,15 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     await reviewCopy(sheet, "leave-sheet.png");
     await sheet.getByRole("button", { name: "Keep editing" }).click();
     await expect(page).toHaveURL(/\/settings\/ai$/);
-    await expect(page.getByRole("textbox", { name: "About your business" })).toHaveValue("We design homes and offices.");
+    await expect(page.getByRole("textbox", { name: "About your business" })).toHaveValue(
+      "We design homes and offices.",
+    );
 
     await page.getByRole("link", { name: "Leads", exact: true }).first().click();
-    await page.getByRole("dialog", { name: "Leave without saving?" }).getByRole("button", { name: "Leave without saving" }).click();
+    await page
+      .getByRole("dialog", { name: "Leave without saving?" })
+      .getByRole("button", { name: "Leave without saving" })
+      .click();
     await expect(page).toHaveURL(/\/leads/);
   });
 
