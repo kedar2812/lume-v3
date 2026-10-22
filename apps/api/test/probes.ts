@@ -166,6 +166,31 @@ export const PROBES: Record<string, Probe> = {
   // Autopilot A1: ask the owner for a LUME AI top-up (admins).
   "POST /api/v1/ai/topup": { access: "settings.manage", body: () => ({}) },
   "GET /api/v1/ai/profile": { access: "settings.manage" },
+  // Autopilot (A2): starting LUME AI on leads, and reading runs.
+  "POST /api/v1/autopilot/estimate": {
+    access: "messages.send_queue",
+    body: () => ({
+      leadIds: [uuid],
+      goal: { kind: "reply" },
+      speakerId: null,
+      permissions: {},
+      followUpDays: [2, 5],
+      dailyCap: null,
+    }),
+  },
+  "POST /api/v1/autopilot/runs": {
+    access: "messages.send_queue",
+    body: () => ({
+      leadIds: [uuid],
+      goal: { kind: "reply" },
+      speakerId: null,
+      permissions: {},
+      followUpDays: [2, 5],
+      dailyCap: null,
+    }),
+  },
+  "GET /api/v1/autopilot/runs": { access: "leads.view" },
+  "GET /api/v1/autopilot/runs/:id": { access: "leads.view", path: () => `/api/v1/autopilot/runs/${uuid}` },
   "PATCH /api/v1/ai/profile": { access: "settings.manage", body: () => ({ voice: { tone: "warm" } }) },
   "GET /api/v1/files/:id/content": { access: "templates.use" },
   "GET /api/v1/files/:id/thumb": { access: "templates.use" },

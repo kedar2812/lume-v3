@@ -64,7 +64,7 @@ export function sendLimiter(o: { now: () => Date; perMinute?: number; perHour?: 
 export type SendLimiter = ReturnType<typeof sendLimiter>;
 
 /** Whether replying from LUME is on here: WhatsApp on, the admin's switch on, set up, and in the plan. */
-async function replyOn(req: FastifyRequest, d: AppDeps): Promise<boolean> {
+export async function replyOn(req: FastifyRequest, d: AppDeps): Promise<boolean> {
   if (!relayOf(d) || !d.meta || !moduleIncluded(req.server.licence.view().plan, "whatsapp")) return false;
   const [s] = await req.db
     .select({ i: schema.settings.integrations })

@@ -8,6 +8,7 @@ export type {
   FieldOptionRow,
   LoginHours,
   MeetingStatus,
+  RunGoal,
   SecuritySettings,
   SourceRowResult,
   SyncProgress,

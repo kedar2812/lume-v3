@@ -13,3 +13,4 @@ export * from "./bulk";
 export * from "./analytics";
 export * from "./ai";
 export * from "./whatsapp";
+export * from "./autopilot";

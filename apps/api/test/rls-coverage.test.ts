@@ -30,6 +30,9 @@ const WITHOUT_RLS: Record<string, string> = {
   lead_sources: "Business configuration",
   goals: "Business configuration",
   ai_profile: "Business configuration",
+  // Autopilot runs (A2): no lead data (a goal, choices, a status); each route checks who may see or change one. Its
+  // leads, asks and events are row-level secured by the lead.
+  autopilot_runs: "Business configuration",
   licence_state: "Business configuration",
   // People and accounts: no lead data; each route returns only what the caller's role allows
   users: "People and accounts",

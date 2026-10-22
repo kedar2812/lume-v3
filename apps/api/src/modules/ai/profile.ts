@@ -27,7 +27,7 @@ export type AiProfileView = {
 
 const refuse = (message: string) => new HttpError(400, "INVALID_PROFILE", message);
 
-async function openStages(req: FastifyRequest) {
+export async function openStages(req: FastifyRequest) {
   return req.db
     .select({
       id: schema.stages.id,
@@ -57,7 +57,7 @@ function firstProfile(stages: Stage[]): AiProfile {
   return mergeAiProfile(null, { standing: { goalStages: goals } });
 }
 
-async function speakers(req: FastifyRequest): Promise<{ id: string; name: string }[]> {
+export async function speakers(req: FastifyRequest): Promise<{ id: string; name: string }[]> {
   const { rows } = await req.db.execute<{ id: string; name: string }>(sql`
     SELECT u.id, u.name FROM users u
      WHERE u.status = 'active' AND (u.is_owner OR EXISTS (

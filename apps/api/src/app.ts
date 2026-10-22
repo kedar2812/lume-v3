@@ -47,6 +47,7 @@ import { analyticsRoutes } from "./modules/analytics/routes";
 import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { aiRoutes } from "./modules/ai/routes";
+import { autopilotRoutes } from "./modules/autopilot/routes";
 import type { FilesDeps } from "./modules/whatsapp/files";
 import { mediaRoutes } from "./modules/media/routes";
 import { fileLinkRoutes } from "./modules/whatsapp/link";
@@ -275,6 +276,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(securityRoutes, deps);
         await scope.register(leadExportRoutes, deps);
         await scope.register(aiRoutes, deps);
+        await scope.register(autopilotRoutes, deps);
         await scope.register(whatsappRoutes, deps);
         await scope.register(fileLinkRoutes, deps);
         await scope.register(mediaRoutes, deps);
