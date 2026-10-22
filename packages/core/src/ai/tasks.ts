@@ -5,7 +5,9 @@ import { wallTime } from "../tasks/time";
  * LUME AI's tasks (spec 2026-10-18 §2.1, §5.2–5.4): what each one is given, what it must answer, and the rules
  * that hold whichever provider reads it. Pure: no provider, no database.
  */
-export type AiTask = "next_step" | "catch_up";
+/** The read-a-note tasks (2026-10-18), and Autopilot's (2026-10-19): each counts against the month. */
+export type AiTask = "next_step" | "catch_up" | "autopilot_first" | "autopilot_reply";
+type NoteTask = "next_step" | "catch_up";
 
 /**
  * What LUME AI may know about a lead: only facts from its record and the business's own settings. There is no
@@ -58,7 +60,7 @@ const RULES = `Use only the facts given below about this lead and this business.
 names, numbers or urgency that the facts don't contain. If you are unsure of something, leave it out (null) rather \
 than guess. Write plain, short English, whatever language the notes are in.`;
 
-const INSTRUCTIONS: Record<AiTask, string> = {
+const INSTRUCTIONS: Record<NoteTask, string> = {
   next_step: `You help a salesperson decide the next step on a lead after a call or a note. ${RULES}
 Answer with:
 - summary: one line on what the note means for the sale.
@@ -73,7 +75,7 @@ Answer with exactly three lines: who the lead is and what they want; where the s
 or is due next. Each line at most 160 characters.`,
 };
 
-export function instructionsFor(task: AiTask): string {
+export function instructionsFor(task: NoteTask): string {
   return INSTRUCTIONS[task];
 }
 

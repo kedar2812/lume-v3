@@ -309,3 +309,15 @@ describe("What LUME AI knows (Autopilot A1, Task 5)", () => {
     );
   });
 });
+
+describe("Autopilot's reads (A2, Task 2)", () => {
+  it("a run's reads are kept as LUME AI's reads are; nothing else is", async () => {
+    const r = await as<{ check: string }>(
+      "lume_owner",
+      "SELECT pg_get_constraintdef(oid) AS check FROM pg_constraint WHERE conname = 'ai_reads_task_check'",
+    );
+    expect(r[0]?.check).toContain("autopilot_first");
+    expect(r[0]?.check).toContain("autopilot_reply");
+    expect(r[0]?.check).not.toContain("autopilot_anything");
+  });
+});

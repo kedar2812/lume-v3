@@ -1,6 +1,12 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { catchUpOutput, nextStepOutput, type LeadFacts } from "@lume/core";
+import {
+  autopilotFirstOutput,
+  autopilotReplyOutput,
+  catchUpOutput,
+  nextStepOutput,
+  type LeadFacts,
+} from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { anthropicProvider } from "./anthropic";
 import { fakeProvider } from "./fake";
@@ -176,6 +182,43 @@ describe("the fake (tests and e2e)", () => {
     expect((r.output as { lines: string[] }).lines).toHaveLength(3);
     const given = fakeProvider({ next_step: { ...answer, stageId: null } });
     expect((await given.read(ask())).output).toMatchObject({ stageId: null });
+  });
+
+  it("Autopilot (A2): the first template offered, a plain reply, or what a test scripted, in order", async () => {
+    const T = "0192c000-0000-7000-8000-000000000007";
+    const p = fakeProvider();
+    const first = await p.read({
+      ...ask(),
+      schema: autopilotFirstOutput,
+      input: JSON.stringify({
+        task: "autopilot_first",
+        templates: [{ id: T, name: "First hello", body: "Hi" }],
+      }),
+    });
+    expect(first.output).toEqual({ templateId: T, why: "The first approved template offered." });
+    const plain = await p.read({ ...ask(), schema: autopilotReplyOutput, input: "{}" });
+    expect(plain.output).toMatchObject({ kind: "reply", message: "Thanks for your message! Happy to help." });
+
+    p.script("autopilot_reply", [
+      {
+        kind: "stop",
+        message: null,
+        reason: "Said stop",
+        evidence: "stop",
+        fileIds: [],
+        stageId: null,
+        fields: {},
+        followUp: null,
+        lostReasonId: null,
+      },
+    ]);
+    expect((await p.read({ ...ask(), schema: autopilotReplyOutput, input: "{}" })).output).toMatchObject({
+      kind: "stop",
+    });
+    // A script is used up in order; then the plain answer again.
+    expect((await p.read({ ...ask(), schema: autopilotReplyOutput, input: "{}" })).output).toMatchObject({
+      kind: "reply",
+    });
   });
 });
 
