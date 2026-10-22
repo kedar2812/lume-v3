@@ -41,11 +41,15 @@ async function photo(lead: string, metaId: string, bytes: Buffer, from = "919876
   expect(m?.sha256, `${metaId} was kept`).toBeTruthy();
   return { id: m!.id, sha256: m!.sha256 };
 }
-/** Make a media item (and its file's last use) this many months old. */
-async function age(mediaId: string, months: number) {
+/**
+ * Make a media item this many months old: by the real time for the sweep (which reads the time itself), or `from` a
+ * given moment for what reads LUME's clock (the preview reads the harness's, fixed behind the real date: measured from
+ * the real date, "7 months" stopped being older than 6 by that clock, and CI went red on 2026-10-21).
+ */
+async function age(mediaId: string, months: number, from?: Date) {
   await h.queryAll(
-    "UPDATE whatsapp_media SET created_at = now() - make_interval(months => $2, days => 1) WHERE id = $1",
-    [mediaId, months],
+    "UPDATE whatsapp_media SET created_at = coalesce($3::timestamptz, now()) - make_interval(months => $2, days => 1) WHERE id = $1",
+    [mediaId, months, from ?? null],
   );
 }
 const untouchedFor = (hours: number) =>
@@ -196,7 +200,7 @@ describe("keep files for N months", () => {
     const c = await photo(lead, "P3", shared);
     await photo(lead, "P4", shared); // a recent copy keeps the shared file
     await photo(lead, "P5", Buffer.alloc(200, 4)); // recent: stays
-    for (const m of [a, b, c]) await age(m.id, 7);
+    for (const m of [a, b, c]) await age(m.id, 7, h.clock.now);
     const r = await (
       await h.signIn(admin)
     ).inject({
