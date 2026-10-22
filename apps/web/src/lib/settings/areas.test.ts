@@ -31,6 +31,7 @@ describe("areasFor", () => {
       "sources",
       "messages",
       "health",
+      "ai",
       "people",
       "roles",
       "teams",
@@ -38,6 +39,21 @@ describe("areasFor", () => {
       "account",
       "about",
     ]);
+  });
+
+  it("LUME AI (Autopilot A1): for whoever manages settings, straight after Integrations; never for a rep", () => {
+    const admin = fakeSession({
+      permissions: [
+        { key: "settings.manage", scope: null },
+        { key: "integrations.manage", scope: null },
+      ],
+    });
+    const ids = areasFor(admin.actor).map((a) => a.id);
+    expect(ids.indexOf("ai")).toBe(ids.indexOf("integrations") + 1);
+    const ai = areasFor(admin.actor).find((a) => a.id === "ai")!;
+    expect([ai.title, ai.href]).toEqual(["LUME AI", "/settings/ai"]);
+    const rep = fakeSession({ permissions: [{ key: "leads.view", scope: "own" }] });
+    expect(areasFor(rep.actor).map((a) => a.id)).not.toContain("ai");
   });
 
   it("shows Calendar to whoever may connect their own, among their own settings", () => {

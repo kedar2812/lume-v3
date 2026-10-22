@@ -118,6 +118,14 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    id: "ai",
+    title: "LUME AI",
+    blurb: "What LUME AI knows about your business, its voice and your standing choices",
+    href: "/settings/ai",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
     id: "people",
     title: "People",
     blurb: "Invite, disable, and hand leads over",

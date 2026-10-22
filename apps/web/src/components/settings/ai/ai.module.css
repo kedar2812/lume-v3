@@ -1,0 +1,557 @@
+/* Settings → LUME AI (Autopilot A1, Task 6). Porcelain and Obsidian tokens only; the mark on plain ground. */
+.page {
+  max-width: 760px;
+}
+.intro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  color: var(--text-2);
+}
+.panelLede {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.autopilot {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-xs);
+}
+
+/* ── LUME AI off ── */
+.off {
+  display: flex;
+  gap: 14px;
+  max-width: 640px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.off p {
+  margin: 0 0 10px;
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.5;
+}
+.offLink {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+.offLink:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── shared controls ── */
+.input,
+.textarea {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  transition: box-shadow 140ms ease-out;
+}
+.textarea {
+  height: auto;
+  padding: 8px 10px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.input:focus,
+.textarea:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.input[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+.remove {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background 120ms ease-out,
+    color 120ms ease-out,
+    transform 100ms ease-out;
+}
+.remove svg {
+  width: 15px;
+  height: 15px;
+}
+.remove:hover {
+  background: var(--hover);
+  color: var(--danger-ink);
+}
+.remove:active {
+  transform: scale(0.92);
+}
+.remove:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-sm);
+}
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.block {
+  display: grid;
+  gap: 10px;
+  padding: 16px 0;
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.block:first-child {
+  padding-top: 0;
+  box-shadow: none;
+}
+.blockTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-md);
+}
+.blockLede,
+.empty {
+  margin: -4px 0 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.empty {
+  margin: 0;
+}
+
+/* ── What LUME AI knows ── */
+.knows {
+  display: grid;
+  gap: 4px;
+}
+.faq {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 6px;
+}
+.faq .textarea {
+  grid-column: 1;
+}
+.faq .remove {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 6px;
+  align-items: center;
+}
+.prices {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.priceRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 0.9fr) 30px;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--canvas);
+}
+.notes {
+  grid-column: 1 / 4;
+}
+.rowProblem {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--danger-ink);
+}
+.files {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.file {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 30px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--canvas);
+}
+.file[data-archived] .thumb {
+  opacity: 0.5;
+}
+.thumb {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--sunk);
+  color: var(--text-3);
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.thumb svg {
+  width: 20px;
+  height: 20px;
+}
+.fileText {
+  display: grid;
+  min-width: 0;
+}
+.fileText b {
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fileText span {
+  font-size: var(--fs-xs);
+  color: var(--warn-ink);
+}
+.choose {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: transform 100ms ease-out;
+}
+.choose:active {
+  transform: scale(0.97);
+}
+.choose:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Voice ── */
+.voice {
+  display: grid;
+  gap: 14px;
+}
+.choice {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+.sample {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--canvas);
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+.sample figcaption {
+  margin-bottom: 4px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.sample p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+/* ── Standing choices ── */
+.standing {
+  display: grid;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition:
+    background 160ms ease-out,
+    box-shadow 160ms ease-out,
+    transform 100ms ease-out;
+}
+.chip small {
+  color: var(--text-3);
+}
+.chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
+}
+.chip:active {
+  transform: scale(0.97);
+}
+.chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.chip:focus-visible,
+.preset:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.preset {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 200ms ease-out,
+    box-shadow 200ms ease-out,
+    transform 120ms ease-out;
+}
+.preset b {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.preset span {
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  color: var(--text-2);
+}
+.preset[aria-pressed="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.preset[aria-pressed="true"] b {
+  color: var(--accent-ink);
+}
+.preset:active {
+  transform: scale(0.98);
+}
+.permGroup {
+  display: grid;
+}
+.groupName {
+  margin: 10px 0 2px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.perm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  box-shadow: inset 0 -0.5px 0 var(--line);
+}
+.permWords {
+  display: grid;
+  min-width: 0;
+}
+.permWords b {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+.permWords span {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.always {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  list-style: none;
+}
+.days {
+  display: grid;
+}
+.day {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.day button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.day button svg {
+  width: 13px;
+  height: 13px;
+}
+.day button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.day button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.day button:focus-visible,
+.addDay:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.addDay {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.capRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+}
+.capNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.capInput {
+  width: 96px;
+  font-variant-numeric: tabular-nums;
+}
+.standing .choice + .choice {
+  margin-top: 12px;
+}
+
+/* ── Usage ── */
+.usage {
+  max-width: 320px;
+  padding-bottom: 12px;
+}
+
+/* A phone: the three-way controls full width under each action (spec §2.3); one column everywhere. */
+@media (max-width: 560px) {
+  .pair,
+  .presets {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .perm {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .perm > [role="radiogroup"] {
+    width: 100%;
+  }
+  .perm > [role="radiogroup"] > button {
+    flex: 1;
+  }
+  .priceRow {
+    grid-template-columns: minmax(0, 1fr) 30px;
+  }
+  .priceRow > :nth-child(2),
+  .priceRow > :nth-child(3),
+  .notes {
+    grid-column: 1;
+  }
+  .priceRow > .remove {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

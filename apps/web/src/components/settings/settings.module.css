@@ -1922,3 +1922,22 @@
 .panelBody input.short {
   max-width: 120px;
 }
+
+/* ── Leave without saving? (owner ruling 2026-10-18) ── */
+.leaveTitle {
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-lg);
+  font-weight: var(--fw-semibold);
+}
+.leaveLede {
+  margin: 6px 0 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.leaveActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
