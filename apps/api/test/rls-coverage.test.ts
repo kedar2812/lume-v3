@@ -29,6 +29,7 @@ const WITHOUT_RLS: Record<string, string> = {
   settings: "Business configuration",
   lead_sources: "Business configuration",
   goals: "Business configuration",
+  ai_profile: "Business configuration",
   licence_state: "Business configuration",
   // People and accounts: no lead data; each route returns only what the caller's role allows
   users: "People and accounts",

@@ -288,3 +288,24 @@ describe("W3b-2 paid messages this month", () => {
     );
   });
 });
+
+describe("What LUME AI knows (Autopilot A1, Task 5)", () => {
+  it("one profile per business: the app writes it, the worker reads it", async () => {
+    await as("lume_app", 'INSERT INTO ai_profile (id, profile) VALUES (1, \'{"voice":{"tone":"warm"}}\')');
+    await expect(as("lume_app", "INSERT INTO ai_profile (id, profile) VALUES (2, '{}')")).rejects.toThrow(
+      /ai_profile_id_check/,
+    );
+    await as("lume_app", 'UPDATE ai_profile SET profile = \'{"voice":{"tone":"formal"}}\' WHERE id = 1');
+    const [row] = await as<{ tone: string }>(
+      "lume_worker",
+      "SELECT profile -> 'voice' ->> 'tone' AS tone FROM ai_profile",
+    );
+    expect(row?.tone).toBe("formal");
+    await expect(as("lume_worker", "UPDATE ai_profile SET profile = '{}'")).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(as("lume_app", "UPDATE ai_profile SET profile = '[]'")).rejects.toThrow(
+      /ai_profile_profile_check/,
+    );
+  });
+});

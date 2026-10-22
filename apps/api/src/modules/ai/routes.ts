@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { catchUp, leadAi } from "./catch-up";
 import { applyRead, dismissRead, suggestNextStep } from "./next-step";
+import { getAiProfile, patchAiProfile } from "./profile";
 import { aiStatus, requestTopUp, setAiEnabled } from "./service";
 
 /** LUME AI (spec 2026-10-18 §2.2): its status for anyone signed in, and its switch for admins. */
@@ -18,6 +19,14 @@ export async function aiRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
       schema: { body: z.object({ note: z.string().trim().max(500).optional() }).strict() },
     },
     (req) => requestTopUp(req, d, req.body.note),
+  );
+  // Settings → LUME AI (Autopilot spec 2026-10-19 §5): what it knows, its voice, the standing choices; admins. The body
+  // is checked by the core schema in the service, so a refusal says what's wrong in words.
+  r.get("/api/v1/ai/profile", { config: { permission: "settings.manage" } }, (req) => getAiProfile(req));
+  r.patch(
+    "/api/v1/ai/profile",
+    { config: { permission: "settings.manage" }, schema: { body: z.record(z.string(), z.unknown()) } },
+    (req) => patchAiProfile(req, req.body),
   );
   r.put(
     "/api/v1/integrations/ai",

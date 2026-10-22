@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
 import type { AiTask } from "@lume/core/shared";
 import { tz } from "./types";
 
@@ -32,3 +32,11 @@ export const aiLimitNotices = pgTable(
   },
   (t) => [primaryKey({ columns: [t.kind, t.windowStart] })],
 );
+
+/** Settings → LUME AI (Autopilot spec 2026-10-19 §5): one document per business, read through mergeAiProfile. */
+export const aiProfile = pgTable("ai_profile", {
+  id: smallint("id").primaryKey(),
+  profile: jsonb("profile").$type<Record<string, unknown>>().notNull(),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
+  updatedBy: uuid("updated_by"),
+});
