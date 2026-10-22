@@ -59,6 +59,27 @@ async function upload(page: Page, name: string, text: string): Promise<string> {
   );
 }
 const ring = (page: Page) => page.getByRole("button", { name: /^LUME AI: / });
+/**
+ * Clear the LUME AI notices this spec caused (its 80% month sends admins a real one), and only those: later specs'
+ * bells and their screenshots must not carry them (the notification centre's did, 2026-10-23). "Clear read" clears
+ * every read notification, so any other it took is put back.
+ */
+async function clearOurNotices(page: Page) {
+  const list = await callApi<{ items: { id: number; title: string }[] }>(
+    page,
+    "GET",
+    "/api/v1/notifications",
+  );
+  // Someone LUME won't serve yet (the invited admin before their welcome and agreement, which onboarding.spec does
+  // later) has nothing on a screen before then: leave theirs.
+  if (list.status !== 200) return;
+  const ours = list.data.items.filter((n) => n.title.startsWith("LUME AI has")).map((n) => n.id);
+  if (!ours.length) return;
+  await callApi(page, "POST", "/api/v1/notifications/read", { ids: ours });
+  const cleared = await callApi<{ cleared: number[] }>(page, "POST", "/api/v1/notifications/clear-read");
+  const others = cleared.data.cleared.filter((id) => !ours.includes(id));
+  if (others.length) await callApi(page, "POST", "/api/v1/notifications/clear-read/undo", { ids: others });
+}
 const leads: string[] = [];
 const files: string[] = [];
 
@@ -83,7 +104,15 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     if (leads.length)
       await callApi(page, "POST", "/api/v1/leads/bulk", { ids: leads, action: { type: "delete" } });
     for (const id of files) await callApi(page, "POST", `/api/v1/files/${id}/archive`);
+    await clearOurNotices(page);
     await ctx.close();
+    // The month's notices go to every admin. The admin may not have finished their welcome yet (onboarding.spec runs
+    // later), so not the app's shell: any address on the app's origin will do for its API.
+    const admin = await browser.newContext({ storageState: stateFile("admin") });
+    const adminPage = await admin.newPage();
+    await adminPage.goto("/api/v1/auth/csrf");
+    await clearOurNotices(adminPage);
+    await admin.close();
   });
 
   test("the ring fills with the month, turns amber at 80%, asks for a top-up once, and falls back when it's added", async ({
