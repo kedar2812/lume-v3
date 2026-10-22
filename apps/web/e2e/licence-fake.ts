@@ -50,6 +50,8 @@ let lastCheck: unknown = null;
 let lastFeedback: unknown = null;
 let feedbackCount = 0;
 let feedbackSays: { status?: number; code?: string; index?: number; retryAfter?: number } = {};
+// LUME AI top-ups (Autopilot A1): every request taken, as the licence server keeps one open request a month.
+let topUps: { month: string; askedBy: unknown }[] = [];
 
 const body = (req: import("node:http").IncomingMessage) =>
   new Promise<string>((done) => {
@@ -113,6 +115,19 @@ const server = createServer((req, res) => {
       feedbackCount++;
       return send(res, 201, { id: `e2e-${feedbackCount}` });
     }
+    if (req.method === "POST" && req.url === "/v1/topup") {
+      const b = JSON.parse(await body(req)) as { instanceId?: string; licenseKey?: string; month: string; askedBy: unknown };
+      if (b.instanceId !== E2E_INSTANCE || b.licenseKey !== E2E_KEY)
+        return send(res, 401, { error: { code: "UNAUTHORIZED" } });
+      const already = topUps.some((x) => x.month === b.month);
+      topUps.push({ month: b.month, askedBy: b.askedBy });
+      return send(res, already ? 200 : 201, { asked: true });
+    }
+    if (req.url === "/__fake/topups" && req.method === "DELETE") {
+      topUps = [];
+      return send(res, 200, {});
+    }
+    if (req.url === "/__fake/topups") return send(res, 200, { topUps });
     if (req.url === "/__fake/feedback" && req.method === "POST") {
       feedbackSays = JSON.parse(await body(req)) as typeof feedbackSays;
       return send(res, 200, { feedbackSays });

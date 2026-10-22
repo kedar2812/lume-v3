@@ -350,5 +350,20 @@ describe("the month", () => {
     expect((await (await owner()).inject({ method: "GET", url: "/api/v1/ai" })).json().topUp).toEqual({
       asked: true,
     });
+    // Pressed again while it stands: LUME answers itself, nothing more goes to the owner.
+    expect(topUpCalls).toHaveLength(1);
+  });
+
+  it("once the top-up arrives it's no longer asked: a busy month can ask again", async () => {
+    await monthly(1);
+    await (await owner()).inject({ method: "POST", url: "/api/v1/ai/topup", payload: {} });
+    const status = async () => (await (await owner()).inject({ method: "GET", url: "/api/v1/ai" })).json().topUp;
+    expect(await status()).toEqual({ asked: true });
+    await monthly(1, [{ month: "2026-10", calls: 1 }]);
+    expect(await status()).toEqual({ asked: false });
+    const second = await (await owner()).inject({ method: "POST", url: "/api/v1/ai/topup", payload: {} });
+    expect(second.statusCode).toBe(200);
+    expect(topUpCalls).toHaveLength(2);
+    expect(await status()).toEqual({ asked: true });
   });
 });

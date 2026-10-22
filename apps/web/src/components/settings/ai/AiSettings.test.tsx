@@ -126,3 +126,15 @@ describe("Settings → LUME AI", () => {
     expect(screen.getByRole("dialog", { name: "Leave without saving?" })).toBeInTheDocument();
   });
 });
+
+describe("the mark on Settings → LUME AI", () => {
+  it("is drawn (The Loop), never an image of a file the app doesn't serve, on and off", () => {
+    const { container, unmount } = render(<AiSettings initial={view()} status={status} />);
+    expect(container.querySelector('img[src*="lume-ai-mark"]')).toBeNull();
+    expect(container.querySelector('path[d^="M16 84"]')).not.toBeNull();
+    unmount();
+    const off = render(<AiSettings initial={view()} status={{ ...status, on: false }} />);
+    expect(off.container.querySelector('img[src*="lume-ai-mark"]')).toBeNull();
+    expect(off.container.querySelector('path[d^="M16 84"]')).not.toBeNull();
+  });
+});

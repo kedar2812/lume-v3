@@ -108,13 +108,19 @@ async function stateNow(
   };
 }
 
-/** Whether a top-up has been asked for this month (kept in ai_limit_notices as `topup_asked`). */
-async function topUpAsked(pool: pg.Pool, monthStart: Date): Promise<boolean> {
-  const r = await pool.query(
-    "SELECT 1 FROM ai_limit_notices WHERE kind = 'topup_asked' AND window_start = $1",
+/**
+ * Whether a top-up asked for this month still stands (kept in ai_limit_notices as `topup_asked`, with the month's
+ * allowance when it was asked): until the licence brings a larger allowance, the owner's top-up. A request from before
+ * the allowance was kept stands all month, as it used to.
+ */
+async function topUpAsked(pool: pg.Pool, monthStart: Date, allowance: number | null): Promise<boolean> {
+  const r = await pool.query<{ allowance: number | null }>(
+    "SELECT allowance FROM ai_limit_notices WHERE kind = 'topup_asked' AND window_start = $1",
     [monthStart],
   );
-  return (r.rowCount ?? 0) > 0;
+  const row = r.rows[0];
+  if (!row) return false;
+  return row.allowance === null || allowance === null || allowance <= row.allowance;
 }
 
 /**
@@ -131,14 +137,14 @@ export async function aiStatus(req: FastifyRequest, d: AppDeps): Promise<AiStatu
     spend: aiSpend(tokens, d.aiPricing ?? null),
     pace: aiPace(state.month, d.clock(), w.monthStart),
     topUp: can(req.actor!, "settings.manage")
-      ? { asked: await topUpAsked(d.jobPool ?? d.pool, w.monthStart) }
+      ? { asked: await topUpAsked(d.jobPool ?? d.pool, w.monthStart, state.month.limit) }
       : null,
   };
 }
 
 /**
  * `POST /api/v1/ai/topup` (admins; Autopilot spec 2026-10-19 §4): ask the owner for more LUME AI this month, through the
- * licence server. One request a month reaches the owner; asking again says it's already asked.
+ * licence server. One request reaches the owner until the top-up arrives; asking again meanwhile says it's already asked.
  */
 export async function requestTopUp(
   req: FastifyRequest,
@@ -148,6 +154,10 @@ export async function requestTopUp(
   const tz = (await settingsOf(req)).tz;
   const now = d.clock();
   const w = aiWindows(now, tz);
+  const allowance = limitsOf(req, aiMonthKey(now, tz)).monthly;
+  const pool = d.jobPool ?? d.pool;
+  // Still asked (pressed again, or by another admin): LUME answers itself; nothing more goes to the owner.
+  if (await topUpAsked(pool, w.monthStart, allowance)) return { asked: true, already: true };
   const me = (
     await req.db
       .select({ name: schema.users.name, email: schema.users.email })
@@ -174,9 +184,11 @@ export async function requestTopUp(
       "LUME couldn't reach its licence server just now. Try again in a minute.",
     );
   }
-  await (d.jobPool ?? d.pool).query(
-    "INSERT INTO ai_limit_notices (kind, window_start) VALUES ('topup_asked', $1) ON CONFLICT DO NOTHING",
-    [w.monthStart],
+  // Asked at this allowance: it stands until a larger one arrives (a new ask after a top-up replaces the last).
+  await pool.query(
+    `INSERT INTO ai_limit_notices (kind, window_start, allowance) VALUES ('topup_asked', $1, $2)
+     ON CONFLICT (kind, window_start) DO UPDATE SET allowance = EXCLUDED.allowance, sent_at = now()`,
+    [w.monthStart, allowance],
   );
   await audit(req, { action: "ai.topup_asked", entityType: "integration", diff: { module: "ai" } });
   return r.already ? { asked: true, already: true } : { asked: true };

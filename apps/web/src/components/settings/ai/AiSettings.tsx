@@ -2,6 +2,7 @@
 import { profileProblem, type AiProfile, type AiProfilePatch } from "@lume/core/shared";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { AiGlyph } from "@/components/ai/AiGlyph";
 import { AiRingPanel } from "@/components/ai/AiRingPanel";
 import { useZone } from "@/components/ZoneProvider";
 import { Button } from "@/components/ui/Button";
@@ -114,7 +115,7 @@ export function AiSettings({
   if (!status?.on)
     return (
       <div className={s.off}>
-        <img src="/lume-ai-mark.svg" alt="" width={28} height={28} />
+        <AiGlyph size={28} />
         <div>
           <p>
             LUME AI is off for this business. Once it&apos;s on, you teach it your business here: what you
@@ -161,7 +162,7 @@ export function AiSettings({
   return (
     <div className={`${sp.stack} ${s.page}`}>
       <p className={s.intro}>
-        <img src="/lume-ai-mark.svg" alt="" width={20} height={20} />
+        <AiGlyph size={20} />
         Teach LUME AI your business once. Autopilot uses what&apos;s here.
       </p>
       <Panel

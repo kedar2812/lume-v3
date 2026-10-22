@@ -160,3 +160,18 @@ describe("LUME AI's ring (Autopilot spec 2026-10-19 §4)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("LUME AI's mark in the ring (seen broken in the e2e screenshots: an <img> of a file the app doesn't serve)", () => {
+  const LOOP = 'path[d^="M16 84"]';
+  it("the ring and its panel draw The Loop, and load no image", async () => {
+    vi.mocked(aiClient.status).mockResolvedValue(ok(status()));
+    render(<AiRing />);
+    const button = await screen.findByRole("button", { name: /^LUME AI/ });
+    expect(button.querySelector("img")).toBeNull();
+    expect(button.querySelector(LOOP)).not.toBeNull();
+    await userEvent.click(button);
+    const panel = screen.getByRole("dialog", { name: "LUME AI this month" });
+    expect(panel.querySelector("img")).toBeNull();
+    expect(panel.querySelector(LOOP)).not.toBeNull();
+  });
+});

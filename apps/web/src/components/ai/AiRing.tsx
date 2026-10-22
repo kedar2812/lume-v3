@@ -5,6 +5,7 @@ import { Popover } from "@/components/ui/Popover";
 import { aiClient } from "@/lib/ai/client";
 import type { AiStatus } from "@/lib/ai/types";
 import { useStream } from "@/lib/notifications/stream";
+import { AiGlyph } from "./AiGlyph";
 import { AiRingPanel, amberAt, measured, shareOf } from "./AiRingPanel";
 import s from "./ring.module.css";
 
@@ -60,7 +61,7 @@ export function AiRing() {
       align="end"
       trigger={
         <span className={s.face} data-tone={amberAt(st) ? "amber" : undefined}>
-          <svg viewBox="0 0 20 20" aria-hidden>
+          <svg viewBox="0 0 20 20" className={s.ringSvg} aria-hidden>
             <circle cx="10" cy="10" r={R} className={s.track} />
             <circle
               cx="10"
@@ -72,7 +73,7 @@ export function AiRing() {
               transform="rotate(-90 10 10)"
             />
           </svg>
-          <img src="/lume-ai-mark.svg" alt="" className={s.mark} />
+          <AiGlyph size={9} className={s.mark} />
         </span>
       }
     >

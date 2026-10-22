@@ -29,6 +29,8 @@ export const aiLimitNotices = pgTable(
     kind: text("kind").$type<"week_75" | "week_90" | "week_limit" | "hour_limit">().notNull(),
     windowStart: tz("window_start").notNull(),
     sentAt: tz("sent_at").notNull().defaultNow(),
+    /** For a top-up asked for: the month's allowance then (it stands until a larger one arrives). */
+    allowance: integer("allowance"),
   },
   (t) => [primaryKey({ columns: [t.kind, t.windowStart] })],
 );

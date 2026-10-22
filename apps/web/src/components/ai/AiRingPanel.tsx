@@ -4,6 +4,7 @@ import { useState } from "react";
 import { aiClient } from "@/lib/ai/client";
 import type { AiLimit, AiStatus } from "@/lib/ai/types";
 import { pausedWords } from "@/lib/ai/words";
+import { AiGlyph } from "./AiGlyph";
 import s from "./ring.module.css";
 
 const n = (x: number) => x.toLocaleString("en-US");
@@ -67,7 +68,7 @@ export function AiRingPanel({
   return (
     <div className={s.body}>
       <div className={s.head}>
-        <img src="/lume-ai-mark.svg" alt="" width={20} height={20} />
+        <AiGlyph size={20} />
         <b>LUME AI this month</b>
       </div>
       {limit.limit !== null && (

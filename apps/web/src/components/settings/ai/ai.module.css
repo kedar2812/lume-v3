@@ -120,12 +120,14 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+/* As a Field's label (ui/Field.module.css), so every label on the page reads the same. */
 .label {
   display: block;
   margin-bottom: 6px;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-sm);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
 }
 .pair {
   display: grid;
@@ -138,6 +140,10 @@
   gap: 10px;
   padding: 16px 0;
   box-shadow: inset 0 0.5px 0 var(--line);
+}
+/* An add button keeps its own width, as "Add a price" does. */
+.block > button {
+  justify-self: start;
 }
 .block:first-child {
   padding-top: 0;
