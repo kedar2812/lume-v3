@@ -61,7 +61,10 @@ export function nextMove(
 ): Move {
   if (l.state === "writing" || !ACTIVE_STATES.includes(l.state)) return { kind: "wait", until: null };
   if (!l.firstSentAt) return { kind: "first" };
-  const unanswered = !!l.lastInboundAt && (!l.lastSentAt || l.lastInboundAt > l.lastSentAt);
+  // "Replied" is what LUME says when the lead wrote (their stamp is whole seconds: it can read as before a send in the
+  // same second); otherwise a message later than the last send.
+  const unanswered =
+    !!l.lastInboundAt && (l.state === "replied" || !l.lastSentAt || l.lastInboundAt > l.lastSentAt);
   if (unanswered && windowOpen(l.lastInboundAt, o.now)) return { kind: "reply" };
   if (l.followUpsSent >= o.followUpDays.length) return { kind: "done" };
   const anchor = l.lastInboundAt && l.lastInboundAt > l.firstSentAt ? l.lastInboundAt : l.firstSentAt;

@@ -59,6 +59,11 @@ describe("the next move for a lead", () => {
     });
   });
 
+  it("a lead marked replied is answered even when their message carries the same second as the send (Meta's stamps are whole seconds)", () => {
+    const quick = lead({ state: "replied", firstSentAt: T0, lastSentAt: at(400), lastInboundAt: T0 });
+    expect(nextMove(quick, { now: at(5_000), followUpDays: days })).toEqual({ kind: "reply" });
+  });
+
   it("a lead with a person, stopped, ready or waiting on them is left alone", () => {
     for (const state of ["with_you", "stopped", "ready", "needs_you", "skipped"] as const)
       expect(nextMove(lead({ state }), { now: T0, followUpDays: days })).toEqual({

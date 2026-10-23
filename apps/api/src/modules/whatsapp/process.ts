@@ -8,6 +8,7 @@ import { jobServer, withJobRequest } from "../imports/job-request";
 import { visibleLead } from "../leads/service";
 import { leadWrote, personSent } from "../autopilot/lead-events";
 import { sendStopApology } from "../autopilot/engine";
+import { tellPeople } from "../autopilot/ready";
 import { confirmSend, replyArrived } from "../leads/sending";
 import { readAs } from "../notifications/hub";
 import { notify } from "../notifications/notify";
@@ -247,6 +248,8 @@ export async function processWhatsAppEvent(
   if (out.autopilot) {
     const a = out.autopilot;
     if (a.stopped && a.running) await sendStopApology(o, a.runId, a.leadId);
+    else if (a.ready)
+      await tellPeople(pool, { runId: a.runId, leadId: a.leadId, kind: "ready", headline: "Replied" });
     else if (!a.stopped) await d.autopilot?.kick(a.runId).catch(() => undefined);
   }
 

@@ -3,6 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { controlRun, handBack, takeOver } from "./control";
+import { approveAsk, carryOn, declineAsk } from "./ready";
 import { getRun, listRuns } from "./read";
 import { estimateRun, runBody, startRun } from "./start";
 
@@ -47,5 +48,23 @@ export async function autopilotRoutes(app: FastifyInstance, d: AppDeps): Promise
     "/api/v1/autopilot/runs/:id/leads/:leadId/hand-back",
     { config: { permission: "leads.view" }, schema: { params: lead } },
     (req) => handBack(req, d, req.params.id, req.params.leadId),
+  );
+  // Ask me (spec §1.3, §2.1): one tap to send it, or to hand the lead over; and "Let LUME AI carry on" from Ready for
+  // you. The person who started the run, or an admin (checked in the service).
+  const ask = z.object({ id: z.uuid() });
+  r.post(
+    "/api/v1/autopilot/asks/:id/approve",
+    { config: { permission: "leads.view" }, schema: { params: ask } },
+    (req) => approveAsk(req, d, req.params.id),
+  );
+  r.post(
+    "/api/v1/autopilot/asks/:id/decline",
+    { config: { permission: "leads.view" }, schema: { params: ask } },
+    (req) => declineAsk(req, d, req.params.id),
+  );
+  r.post(
+    "/api/v1/autopilot/runs/:id/leads/:leadId/carry-on",
+    { config: { permission: "leads.view" }, schema: { params: lead } },
+    (req) => carryOn(req, d, req.params.id, req.params.leadId),
   );
 }

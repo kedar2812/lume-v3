@@ -207,6 +207,18 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.view",
     path: () => `/api/v1/autopilot/runs/${uuid}/leads/${uuid}/take-over`,
   },
+  "POST /api/v1/autopilot/asks/:id/approve": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/asks/${uuid}/approve`,
+  },
+  "POST /api/v1/autopilot/asks/:id/decline": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/asks/${uuid}/decline`,
+  },
+  "POST /api/v1/autopilot/runs/:id/leads/:leadId/carry-on": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/runs/${uuid}/leads/${uuid}/carry-on`,
+  },
   "POST /api/v1/autopilot/runs/:id/leads/:leadId/hand-back": {
     access: "leads.view",
     path: () => `/api/v1/autopilot/runs/${uuid}/leads/${uuid}/hand-back`,

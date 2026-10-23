@@ -46,6 +46,7 @@ import { createTask } from "../tasks/service";
 import { attachLibraryFile, sendReply } from "../whatsapp/send";
 import { allScope } from "../whatsapp/sender";
 import { approvedFor, labelsOf, sendTemplate } from "../whatsapp/template-send";
+import { tellPeople } from "./ready";
 
 export type EngineDeps = { app: FastifyInstance; d: AppDeps };
 type Run = typeof schema.autopilotRuns.$inferSelect;
@@ -454,11 +455,37 @@ async function aiCtx(
   };
 }
 
+/**
+ * A lead now in the run's goal stage (§1.1: reached when it moves into it, by LUME AI or anyone): converted, to Ready for
+ * you with their own last words. True when it was.
+ */
+async function reachedGoal(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): Promise<boolean> {
+  const goal = run.goal as RunGoal;
+  if (goal.kind !== "stage") return false;
+  const lead = await leadNow(req, l.leadId);
+  if (!lead || lead.stageId !== goal.stageId) return false;
+  const stage = (await openStages(req)).find((x) => x.id === goal.stageId)?.name ?? "the goal";
+  const A = schema.activities;
+  const [last] = await req.db
+    .select({ payload: A.payload })
+    .from(A)
+    .where(and(eq(A.leadId, lead.id), eq(A.type, "whatsapp_received")))
+    .orderBy(sql`${A.occurredAt} DESC`)
+    .limit(1);
+  const quote = (last?.payload as { text?: string | null } | undefined)?.text ?? null;
+  const headline = `Reached ${stage}`;
+  await leave(req, l, "ready", headline, { headline, quote });
+  const pool = poolOf(o.d);
+  req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "ready", headline }));
+  return true;
+}
+
 /** Write a reply inside the 24 hours (§3), guarded (Task 2), as the speaker. */
 async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead) {
   const lead = await leadNow(req, l.leadId);
   if (!lead) return leave(req, l, "skipped", "LUME AI can't reach this lead any more.");
   if (lead.dncAt) return leave(req, l, "stopped", "Asked not to be messaged.");
+  if (await reachedGoal(o, req, run, l)) return 1;
   const c = await aiCtx(req, run, lead, []);
   const r = await runRead(req, o.d, {
     task: "autopilot_reply",
@@ -503,13 +530,22 @@ async function actOn(
     await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", byAi: { runId: run.id } });
     return leave(req, l, "stopped", "Said stop. LUME AI marked them do not contact.");
   }
-  if (g.kind === "handover")
+  const pool = poolOf(o.d);
+  if (g.kind === "handover") {
+    const headline = g.reason;
+    req.afterCommit(
+      () => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "needs_you", headline }),
+    );
     return leave(req, l, "needs_you", g.reason, { headline: g.reason, quote: g.evidence });
-  if (g.kind === "converted")
+  }
+  if (g.kind === "converted") {
+    const headline = g.reason;
+    req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "ready", headline }));
     return leave(req, l, "ready", g.reason, {
       headline: g.reason,
       quote: g.evidence ?? (theirWords || null),
     });
+  }
   if (g.kind === "ask") {
     await req.db.insert(schema.autopilotAsks).values({
       id: newId(),
@@ -518,6 +554,8 @@ async function actOn(
       action: g.action,
       payload: { message: g.message, fileIds: g.fileIds, updates: g.updates },
     });
+    const action = g.action;
+    req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "ask", action }));
     return leave(req, l, "needs_you", "LUME AI is waiting for you to approve its next step.", {
       headline: "Waiting for you",
       quote: theirWords || null,
@@ -636,6 +674,8 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
     .where(keyOf(l));
   if (p.kind === "reply" && p.updates) await applyUpdates(o, req, l.leadId, p.updates);
   await sayIn(req, run.id, l.leadId, "sent");
+  // The lead's move into the goal stage (by this reply's update, or anyone's): converted.
+  await reachedGoal(o, req, run, { ...now, state: p.kind === "template" ? "sent" : "talking" });
   return 1;
 }
 

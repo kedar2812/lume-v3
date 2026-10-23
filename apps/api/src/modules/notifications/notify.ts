@@ -19,7 +19,10 @@ export type NotifyKind =
   | "bulk_done"
   | "lead_replied"
   | "template_decided"
-  | "whatsapp_usage";
+  | "whatsapp_usage"
+  // Autopilot (A2): something LUME AI waits on a tap for; a lead ready for a person (converted, or needing one).
+  | "autopilot_ask"
+  | "autopilot_ready";
 export type NewNotification = {
   kind: NotifyKind;
   /** A lead's name at most: never a phone number or email (Phase 3 spec §4). */

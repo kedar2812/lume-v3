@@ -10,6 +10,8 @@ import { runView } from "./read";
 
 const R = schema.autopilotRuns;
 const L = schema.autopilotLeads;
+/** Meta stamps a message to the whole second: one written in the second of a send can read as just before it. */
+const SAME_SECOND = 1000;
 
 async function runOf(req: FastifyRequest, id: string) {
   const [run] = await req.db.select().from(R).where(eq(R.id, id));
@@ -72,7 +74,7 @@ export async function handBack(req: FastifyRequest, d: AppDeps, runId: string, l
   const now = d.clock();
   const waiting =
     !!row.lastInboundAt &&
-    (!row.lastSentAt || row.lastInboundAt > row.lastSentAt) &&
+    (!row.lastSentAt || row.lastInboundAt.getTime() + SAME_SECOND > row.lastSentAt.getTime()) &&
     windowOpen(row.lastInboundAt, now);
   const state = waiting ? "replied" : row.firstSentAt ? "sent" : "up_next";
   await req.db

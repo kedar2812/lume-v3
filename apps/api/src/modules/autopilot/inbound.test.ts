@@ -32,7 +32,7 @@ const post = async (u: U, url: string, payload: unknown = {}) =>
 const start = async (leadIds: string[], u: U = admin) => {
   const r = await post(u, "/api/v1/autopilot/runs", {
     leadIds,
-    goal: { kind: "reply" },
+    goal: { kind: "brief", text: "Answer their questions and book a visit." },
     speakerId: null,
     permissions: AUTOPILOT_PRESETS.hands_off,
     followUpDays: [2, 5],
@@ -166,7 +166,7 @@ describe("replies, stop, taking over", () => {
       expect(reply.json().error?.code).toBe("DO_NOT_CONTACT");
       const again = await post(admin, "/api/v1/autopilot/runs", {
         leadIds: [lead],
-        goal: { kind: "reply" },
+        goal: { kind: "brief", text: "Answer their questions and book a visit." },
         speakerId: null,
         permissions: AUTOPILOT_PRESETS.hands_off,
         followUpDays: [2],
