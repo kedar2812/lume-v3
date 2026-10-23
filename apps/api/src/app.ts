@@ -137,6 +137,8 @@ export type AppDeps = {
     /** A reply from LUME to send (plan W3a). */
     enqueueSend(outboxId: string): Promise<void>;
   };
+  /** Autopilot's queue (A2): a run with something to do now. */
+  autopilot?: { kick(runId: string): Promise<void> };
   /** Tests and e2e only: where Calendly's API is (the fake, 5B). */
   calendlyEndpoint?: string;
   /** Tests only: how the Calendly client waits between retries (no real 1-2-4 s). */

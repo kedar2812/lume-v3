@@ -17,5 +17,7 @@ export const QUEUE_NAMES = [
   "whatsapp.media",
   "whatsapp.send",
   "media.preview",
+  // Autopilot (A2): a run with something to do now (written, revealed, sent; paced).
+  "autopilot.step",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

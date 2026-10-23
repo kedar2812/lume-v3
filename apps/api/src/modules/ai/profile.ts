@@ -68,7 +68,7 @@ export async function speakers(req: FastifyRequest): Promise<{ id: string; name:
   return rows;
 }
 
-async function filesOf(req: FastifyRequest, ids: string[]) {
+export async function filesOf(req: FastifyRequest, ids: string[]) {
   if (!ids.length) return [];
   const rows = await req.db
     .select({

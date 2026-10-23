@@ -176,7 +176,7 @@ export async function createTask(
   leadId: string,
   body: TaskInput,
   /** Where it came from, kept on its activity (LUME AI's suggestion: spec 2026-10-18 §2.3). */
-  o: { via?: "ai_suggestion" } = {},
+  o: { via?: "ai_suggestion" | "ai_autopilot" } = {},
 ) {
   const lead = await visibleLead(req, leadId);
   const actor = req.actor!;

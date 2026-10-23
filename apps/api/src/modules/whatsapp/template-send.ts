@@ -77,7 +77,7 @@ async function numberFor(req: FastifyRequest, lead: LeadRow) {
 }
 
 /** Approved, current templates on this account this person may use, for this lead. */
-async function approvedFor(req: FastifyRequest, waba: string, lead: LeadRow) {
+export async function approvedFor(req: FastifyRequest, waba: string, lead: LeadRow) {
   const rows = await req.db
     .select({
       id: S.id,
@@ -111,7 +111,7 @@ async function approvedFor(req: FastifyRequest, waba: string, lead: LeadRow) {
 }
 
 /** The labels people pick variables by ("Meeting date"), for what's missing. */
-const labelsOf = (fields: { key: string; type: never; label?: string }[]) =>
+export const labelsOf = (fields: { key: string; type: never; label?: string }[]) =>
   new Map(VARIABLES(fields).map((v) => [v.token, v.label]));
 
 /**
@@ -150,6 +150,8 @@ export async function sendTemplate(
   limiter: SendLimiter,
   leadId: string,
   body: { submissionId: string; clientKey: string },
+  /** LUME AI's, in a run (Autopilot A2): the same checks, marked as LUME AI's, paced by the run, not this limiter. */
+  auto?: { runId: string },
 ): Promise<{ message: ThreadMessage }> {
   const me = req.actor!.userId;
   const again = async () => {
@@ -218,7 +220,7 @@ export async function sendTemplate(
     if (used >= limit) throw paidLimitError(used, limit);
   }
 
-  const verdict = limiter.take(me);
+  const verdict = auto ? { ok: true as const } : limiter.take(me);
   if (!verdict.ok)
     throw new HttpError(429, "TOO_MANY", "That's a lot of messages at once. Wait a minute and send again.", {
       retryAfterSec: verdict.retryAfterSec,
@@ -247,6 +249,7 @@ export async function sendTemplate(
       status: "queued",
       // On LUME's clock, as the month's count reads it.
       createdAt: d.clock(),
+      autopilotRunId: auto?.runId ?? null,
     });
     await req.db.execute(sql`RELEASE SAVEPOINT lume_template`);
   } catch (e) {
@@ -262,7 +265,13 @@ export async function sendTemplate(
     userId: me,
     type: "whatsapp_sent",
     occurredAt: d.clock(),
-    payload: { text, numberId: number.id, outboxId, via: "lume", template: { name: option.name } },
+    payload: {
+      text,
+      numberId: number.id,
+      outboxId,
+      ...(auto ? { via: "ai_autopilot", runId: auto.runId } : { via: "lume" }),
+      template: { name: option.name },
+    },
   });
   req.afterCommit(() => {
     void d.whatsapp?.enqueueSend(outboxId);

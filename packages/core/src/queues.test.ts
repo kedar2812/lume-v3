@@ -21,6 +21,7 @@ describe("QUEUE_NAMES", () => {
       "whatsapp.media",
       "whatsapp.send",
       "media.preview",
+      "autopilot.step",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });

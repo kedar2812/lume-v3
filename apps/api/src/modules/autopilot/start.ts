@@ -282,5 +282,6 @@ export async function startRun(
     });
     remembered = true;
   }
+  req.afterCommit(() => void d.autopilot?.kick(runId));
   return { run: runView(row!), skipped, remembered };
 }

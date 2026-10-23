@@ -40,29 +40,47 @@ async function shape(req: FastifyRequest, rows: Row[]): Promise<ThreadMessage[]>
         .where(inArray(O.id, ids))
     : [];
   const byId = new Map(sent.map((s) => [s.id, s]));
-  return rows.map((r, i) => {
+  return rows.flatMap((r, i) => {
     const p = payloads[i]!;
     const o = p.outboxId ? byId.get(p.outboxId) : undefined;
-    return {
-      id: r.id,
-      direction: r.type === "whatsapp_received" ? "in" : "out",
-      at: r.at.toISOString(),
-      text: p.text ?? null,
-      media: p.media?.id
-        ? {
-            id: p.media.id,
-            kind: p.media.kind ?? "document",
-            mime: p.media.mime ?? "application/octet-stream",
-            filename: p.media.filename ?? null,
-            voice: p.media.voice ?? false,
-          }
-        : null,
-      sentBy: o ? { id: o.userId, name: o.name ?? "Someone" } : null,
-      status: o?.status ?? null,
-      problem: o?.problem ?? null,
-      outboxId: o?.id ?? null,
-    };
+    // LUME AI's, cancelled by a Pause before it went (Autopilot A2): never sent, so never shown as a message.
+    if (!o || o.status !== "cancelled") return [shown(r, p, o)];
+    return [];
   });
+}
+
+function shown(
+  r: Row,
+  p: { text?: string | null; outboxId?: string; media?: Partial<Media> },
+  o:
+    | {
+        id: string;
+        status: ThreadMessage["status"] | "cancelled";
+        problem: string | null;
+        userId: string;
+        name: string | null;
+      }
+    | undefined,
+): ThreadMessage {
+  return {
+    id: r.id,
+    direction: r.type === "whatsapp_received" ? "in" : "out",
+    at: r.at.toISOString(),
+    text: p.text ?? null,
+    media: p.media?.id
+      ? {
+          id: p.media.id,
+          kind: p.media.kind ?? "document",
+          mime: p.media.mime ?? "application/octet-stream",
+          filename: p.media.filename ?? null,
+          voice: p.media.voice ?? false,
+        }
+      : null,
+    sentBy: o ? { id: o.userId, name: o.name ?? "Someone" } : null,
+    status: o && o.status !== "cancelled" ? o.status : null,
+    problem: o?.problem ?? null,
+    outboxId: o?.id ?? null,
+  };
 }
 
 /** These thread entries (activity ids), as the thread shows them. */

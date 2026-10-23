@@ -35,7 +35,7 @@ export async function moveStage(
   lead: LeadRow,
   input: { stageId: string; lostReasonId?: string; lostNote?: string },
   /** Where the move came from, kept on its activity (LUME AI's suggestion: spec 2026-10-18 §2.3). */
-  o: { via?: "ai_suggestion" } = {},
+  o: { via?: "ai_suggestion" | "ai_autopilot" } = {},
 ): Promise<LeadRow> {
   const actor = req.actor!;
   if (!canOnRecord(actor, "leads.change_stage", lead.ownerId)) throw forbidden();

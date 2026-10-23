@@ -2,6 +2,7 @@ import type { WaNumberEvent } from "@lume/core";
 import type pg from "pg";
 import type { AppDeps } from "../../app";
 import { adminIds, notify } from "../notifications/notify";
+import { pauseRunsOnNumber } from "../autopilot/engine";
 import { metaClient } from "./meta";
 import { tokenContext } from "./service";
 
@@ -38,13 +39,15 @@ export async function onNumberHealth(
     [numberId, h.quality !== undefined, h.quality ?? null, h.tier !== undefined, h.tier ?? null, at],
   );
   const now = h.quality === undefined ? before.quality : h.quality;
-  if (now && now !== "green" && rank(now) > rank(before.quality))
+  if (now && now !== "green" && rank(now) > rank(before.quality)) {
+    await pauseRunsOnNumber(pool, numberId, "quality");
     for (const id of await adminIds(pool))
       await notify(pool, id, {
         kind: "system_alert",
         title: `WhatsApp rated ${before.display_phone} ${now}`,
         body: "LUME paused LUME AI's runs on it to protect the number. Its quality recovers as people reply and fewer block it.",
       });
+  }
 }
 
 /** Every connected number not read for `staleMs`, read from Meta now; one that can't be read is left for next time. */
@@ -52,13 +55,16 @@ export async function sweepNumberHealth(
   pool: pg.Pool,
   d: Pick<AppDeps, "meta" | "keyring" | "clock">,
   staleMs = HEALTH_STALE_MS,
+  /** Only these numbers (the ones LUME AI's running runs use, read hourly); all connected ones when unset. */
+  numberIds?: string[],
 ): Promise<void> {
   if (!d.meta) return;
   const now = d.clock();
   const { rows } = await pool.query<{ id: string; phone_number_id: string; token_enc: Buffer }>(
     `SELECT id, phone_number_id, token_enc FROM whatsapp_numbers
-      WHERE status = 'active' AND token_enc IS NOT NULL AND (health_at IS NULL OR health_at < $1)`,
-    [new Date(now.getTime() - staleMs)],
+      WHERE status = 'active' AND token_enc IS NOT NULL AND (health_at IS NULL OR health_at < $1)
+        AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))`,
+    [new Date(now.getTime() - staleMs), numberIds ?? null],
   );
   for (const n of rows) {
     const client = metaClient(d.meta, d.keyring.decrypt(n.token_enc, tokenContext(n.id)));

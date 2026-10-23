@@ -6,8 +6,9 @@ import { shiftToWorkingHours, type WorkingHours } from "../tasks/time";
  */
 
 export type RunStatus = "running" | "paused" | "ended";
-/** Why a run is paused: the person, the month's LUME AI, the number's quality, the speaker gone, the number gone. */
-export type PauseReason = "person" | "month" | "quality" | "speaker" | "number";
+/** Why a run is paused: the person, the month's LUME AI, the number's quality, the speaker gone, the number gone, the
+ * month's paid WhatsApp messages. */
+export type PauseReason = "person" | "month" | "quality" | "speaker" | "number" | "paid";
 export type LeadState =
   | "up_next"
   | "writing"

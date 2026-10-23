@@ -163,7 +163,11 @@ export const whatsappOutbox = pgTable("whatsapp_outbox", {
   text: text("text"),
   mediaId: uuid("media_id"),
   taskId: uuid("task_id"),
-  status: text("status").$type<"queued" | "sending" | "sent" | "delivered" | "read" | "failed">().notNull(),
+  status: text("status")
+    .$type<"queued" | "sending" | "sent" | "delivered" | "read" | "failed" | "cancelled">()
+    .notNull(),
+  /** LUME AI's (Autopilot A2): its run; cancelled, never sent, when the run paused or ended before it went. */
+  autopilotRunId: uuid("autopilot_run_id"),
   wamid: text("wamid"),
   problem: text("problem"),
   tries: integer("tries").notNull().default(0),

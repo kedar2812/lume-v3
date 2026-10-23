@@ -20,7 +20,7 @@ export const SEND_TRIES = 5;
 const MAYBE_SENT = "LUME couldn't tell whether this went. Check the phone before sending it again.";
 
 /** A transaction that sees every lead: background work only. */
-async function allScope<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+export async function allScope<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
@@ -43,6 +43,10 @@ type Row = {
   lead_name: string | null;
   lead_dnc: boolean;
   allow_after_dnc: boolean;
+  autopilot_run_id: string | null;
+  run_status: string | null;
+  run_lead_state: string | null;
+  run_lead_active: boolean | null;
   tries: number;
   text: string | null;
   task_id: string | null;
@@ -95,6 +99,7 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
           `SELECT o.status, o.updated_at < now() - make_interval(secs => $2) AS stuck, o.tries, o.text, o.task_id, o.user_id, u.name AS user_name, o.lead_id,
                   l.deleted_at IS NOT NULL AS lead_deleted, l.phone_e164 AS lead_phone, l.name AS lead_name,
                   l.dnc_at IS NOT NULL AS lead_dnc, o.allow_after_dnc,
+                  o.autopilot_run_id, ar.status AS run_status, al.state AS run_lead_state, al.active AS run_lead_active,
                   n.id AS number_id, n.phone_number_id, n.status AS number_status, n.display_phone, n.token_enc,
                   m.kind AS media_kind, m.mime AS media_mime, m.filename AS media_filename, m.sha256 AS media_sha,
                   s.id AS sub_id, s.meta_name AS sub_name, s.language AS sub_language, o.params,
@@ -103,6 +108,8 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
              JOIN leads l ON l.id = o.lead_id
              JOIN whatsapp_numbers n ON n.id = o.number_id
              LEFT JOIN users u ON u.id = o.user_id
+             LEFT JOIN autopilot_runs ar ON ar.id = o.autopilot_run_id
+             LEFT JOIN autopilot_leads al ON al.run_id = o.autopilot_run_id AND al.lead_id = o.lead_id
              LEFT JOIN whatsapp_media m ON m.id = o.media_id
              LEFT JOIN whatsapp_template_submissions s ON s.id = o.submission_id
              LEFT JOIN message_files hf ON hf.id = s.header_file_id
@@ -130,6 +137,16 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
   if (row.lead_deleted) return void (await fail("This lead isn't here any more."));
   // Do not contact, set after this was queued: it never goes (only LUME AI's one apology for a stop may).
   if (row.lead_dnc && !row.allow_after_dnc) return void (await fail(dncWords(row.lead_name)));
+  // LUME AI's (Autopilot A2): paused, ended, or the lead taken over since it was queued: never sent (§2.1).
+  if (
+    row.autopilot_run_id &&
+    !row.allow_after_dnc &&
+    (row.run_status !== "running" ||
+      !row.run_lead_active ||
+      row.run_lead_state === "with_you" ||
+      row.run_lead_state === "stopped")
+  )
+    return void (await set("cancelled", { problem: "LUME AI's run was paused before this went." }));
   if (row.number_status !== "active" || !row.token_enc)
     return void (await fail(`Connect ${row.display_phone} again to reply from LUME.`));
   if (!row.lead_phone) return void (await fail("This lead has no WhatsApp number."));

@@ -38,6 +38,7 @@ import {
 } from "../src/modules/sheets/google";
 import { runSync } from "../src/modules/sheets/sync";
 import { fileStore, type Disk, type FilesDeps } from "../src/modules/whatsapp/files";
+import { dueRuns, stepRun } from "../src/modules/autopilot/engine";
 import { sendOutbox } from "../src/modules/whatsapp/sender";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
@@ -165,6 +166,8 @@ export type Harness = {
   whatsappSendQueued: string[];
   /** Send the queued replies once each, as the queue would; one that throws is queued again (pg-boss's retry). */
   runWhatsAppSend(): Promise<void>;
+  /** Autopilot (A2): every run with something due, stepped until nothing more is due at the harness's time. */
+  runAutopilot(): Promise<void>;
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
   runWhatsApp(): Promise<void>;
   /** Fetch the queued WhatsApp media (Task 7). */
@@ -276,6 +279,7 @@ export async function createHarness(
   const whatsappQueued: number[] = [];
   const whatsappMediaQueued: string[] = [];
   const whatsappSendQueued: string[] = [];
+  const autopilotQueued: string[] = [];
   const previewQueued: string[] = [];
   const render = opts.render ? await startRenderFake() : null;
   const calendarQueue: string[] = [];
@@ -338,6 +342,7 @@ export async function createHarness(
       enqueueMedia: async (id) => void whatsappMediaQueued.push(id),
       enqueueSend: async (id) => void whatsappSendQueued.push(id),
     },
+    autopilot: { kick: async (id) => void autopilotQueued.push(id) },
     files,
     render: render ? { url: render.url } : null,
     media: { enqueuePreview: async (sha) => void previewQueued.push(sha) },
@@ -546,6 +551,14 @@ export async function createHarness(
     async runWhatsApp() {
       for (let id = whatsappQueued.shift(); id; id = whatsappQueued.shift())
         await processWhatsAppEvent({ app, d: deps }, id);
+    },
+    async runAutopilot() {
+      for (let pass = 0; pass < 50; pass++) {
+        const ids = new Set([...autopilotQueued.splice(0), ...(await dueRuns(ownerPool, clock.now))]);
+        let acted = 0;
+        for (const id of ids) acted += await stepRun({ app, d: deps }, id);
+        if (!acted) return;
+      }
     },
     async runWhatsAppSend() {
       const now = whatsappSendQueued.splice(0);

@@ -237,6 +237,8 @@ export async function sendReply(
     mediaId?: string | undefined;
     taskId?: string | undefined;
   },
+  /** LUME AI's, in a run (Autopilot A2): the same checks, marked as LUME AI's, paced by the run, not this limiter. */
+  auto?: { runId: string },
 ): Promise<{ message: ThreadMessage }> {
   const O = schema.whatsappOutbox;
   const me = req.actor!.userId;
@@ -285,7 +287,7 @@ export async function sendReply(
     throw badRequest("TOO_LONG", "WhatsApp messages can be up to 4,096 characters.");
   if (body.taskId) await assertTaskOf(req, lead.id, body.taskId);
 
-  const verdict = limiter.take(me);
+  const verdict = auto ? { ok: true as const } : limiter.take(me);
   if (!verdict.ok)
     throw new HttpError(429, "TOO_MANY", "That's a lot of messages at once. Wait a minute and send again.", {
       retryAfterSec: verdict.retryAfterSec,
@@ -307,6 +309,7 @@ export async function sendReply(
       mediaId: media?.id ?? null,
       taskId: body.taskId ?? null,
       status: "queued",
+      autopilotRunId: auto?.runId ?? null,
     });
     await req.db.execute(sql`RELEASE SAVEPOINT lume_reply`);
   } catch (e) {
@@ -326,7 +329,7 @@ export async function sendReply(
       text: text || null,
       numberId: number.id,
       outboxId,
-      via: "lume",
+      ...(auto ? { via: "ai_autopilot", runId: auto.runId } : { via: "lume" }),
       ...(media ? { media: { ...media, voice: false } } : {}),
     },
   });

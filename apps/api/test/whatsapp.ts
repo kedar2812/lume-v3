@@ -46,3 +46,40 @@ export async function seedNumber(
   );
   return id;
 }
+
+/**
+ * A LUME template submitted to WhatsApp and approved by its webhook, as an admin makes one (W3b-2): its submission's id.
+ * For tests that need an approved template to send (Autopilot A2).
+ */
+export async function approvedTemplate(
+  h: Harness,
+  meta: { templateUpdate(name: string, o: { status: string }): Record<string, unknown> },
+  admin: { id: string; email: string; password: string },
+  body: string,
+  category = "first_touch",
+): Promise<string> {
+  const as = await h.signIn(admin);
+  const t = (
+    await as.inject({
+      method: "POST",
+      url: "/api/v1/templates",
+      payload: { name: `T ${newId().slice(-8)}`, category, body },
+    })
+  ).json() as { id: string };
+  const s = await (
+    await h.signIn(admin)
+  ).inject({
+    method: "POST",
+    url: `/api/v1/templates/${t.id}/whatsapp`,
+    payload: { language: "en" },
+  });
+  if (s.statusCode !== 202) throw new Error(`template not submitted: ${s.body}`);
+  const id = s.json().submissions[0].id as string;
+  const [row] = await h.queryAll<{ meta_name: string }>(
+    "SELECT meta_name FROM whatsapp_template_submissions WHERE id = $1",
+    [id],
+  );
+  const r = await deliver(h, meta.templateUpdate(row!.meta_name, { status: "APPROVED" }));
+  if (r.statusCode !== 200) throw new Error("template not approved");
+  return id;
+}
