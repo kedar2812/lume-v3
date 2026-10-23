@@ -29,10 +29,15 @@ export type MoveResult = {
 export const dncWords = (name: string | null) =>
   `${firstNameOf(name ?? "") || "This lead"} asked not to be messaged. An admin can lift this on the lead.`;
 
-export async function sendable(req: FastifyRequest, id: string): Promise<LeadRow> {
+export async function sendable(
+  req: FastifyRequest,
+  id: string,
+  /** Only LUME AI's one apology for a stop (Autopilot A2) goes to a lead in do not contact. */
+  o: { ignoreDnc?: boolean } = {},
+): Promise<LeadRow> {
   const lead = await visibleLead(req, id);
   if (!canOnRecord(req.actor!, "messages.send", lead.ownerId)) throw forbidden();
-  if (lead.dncAt) throw new HttpError(409, "DO_NOT_CONTACT", dncWords(lead.name));
+  if (lead.dncAt && !o.ignoreDnc) throw new HttpError(409, "DO_NOT_CONTACT", dncWords(lead.name));
   return lead;
 }
 

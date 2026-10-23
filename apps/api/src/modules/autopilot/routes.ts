@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
+import { controlRun, handBack, takeOver } from "./control";
 import { getRun, listRuns } from "./read";
 import { estimateRun, runBody, startRun } from "./start";
 
@@ -27,5 +28,24 @@ export async function autopilotRoutes(app: FastifyInstance, d: AppDeps): Promise
     "/api/v1/autopilot/runs/:id",
     { config: { permission: "leads.view" }, schema: { params: id } },
     (req) => getRun(req, req.params.id),
+  );
+  // Pause, resume, end (spec §2.1–§2.2): the person who started the run, or an admin; take over and hand back: also
+  // anyone who may message that lead. Every one is checked in the service.
+  for (const what of ["pause", "resume", "end"] as const)
+    r.post(
+      `/api/v1/autopilot/runs/:id/${what}`,
+      { config: { permission: "leads.view" }, schema: { params: id } },
+      (req) => controlRun(req, d, req.params.id, what),
+    );
+  const lead = z.object({ id: z.uuid(), leadId: z.uuid() });
+  r.post(
+    "/api/v1/autopilot/runs/:id/leads/:leadId/take-over",
+    { config: { permission: "leads.view" }, schema: { params: lead } },
+    (req) => takeOver(req, req.params.id, req.params.leadId),
+  );
+  r.post(
+    "/api/v1/autopilot/runs/:id/leads/:leadId/hand-back",
+    { config: { permission: "leads.view" }, schema: { params: lead } },
+    (req) => handBack(req, d, req.params.id, req.params.leadId),
   );
 }

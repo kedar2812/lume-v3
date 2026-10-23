@@ -10,6 +10,7 @@ import { checkFile, keepBytes } from "./keep-bytes";
 import { relayOf } from "./service";
 import type { Sniffed } from "./sniff";
 import { messagesOf, type ThreadMessage } from "./thread";
+import { personSent } from "../autopilot/lead-events";
 
 /** WhatsApp's window for a free reply after the lead's last message (spec 2026-10-18 §3.4). */
 const WINDOW_MS = 24 * 3_600_000;
@@ -152,13 +153,13 @@ export async function replyState(req: FastifyRequest, d: AppDeps, lead: LeadRow)
   }
 }
 
-async function mayReply(req: FastifyRequest, d: AppDeps, leadId: string) {
+async function mayReply(req: FastifyRequest, d: AppDeps, leadId: string, o: { ignoreDnc?: boolean } = {}) {
   if (!(await replyOn(req, d)))
     throw conflict(
       "REPLY_OFF",
       "Replying from LUME is off. An admin can switch it on in Settings → Integrations → WhatsApp.",
     );
-  const lead = await sendable(req, leadId);
+  const lead = await sendable(req, leadId, o);
   return { lead, ...(await replyRoute(req, d, lead)) };
 }
 
@@ -238,7 +239,7 @@ export async function sendReply(
     taskId?: string | undefined;
   },
   /** LUME AI's, in a run (Autopilot A2): the same checks, marked as LUME AI's, paced by the run, not this limiter. */
-  auto?: { runId: string },
+  auto?: { runId: string; afterStop?: boolean },
 ): Promise<{ message: ThreadMessage }> {
   const O = schema.whatsappOutbox;
   const me = req.actor!.userId;
@@ -256,7 +257,7 @@ export async function sendReply(
   const prior = await again();
   if (prior) return prior;
 
-  const { lead, number } = await mayReply(req, d, leadId);
+  const { lead, number } = await mayReply(req, d, leadId, { ignoreDnc: !!auto?.afterStop });
   const text = body.text ?? "";
   if (!text.trim() && !body.mediaId) throw badRequest("EMPTY", "Write a message, or attach a file.");
   let media: { id: string; kind: string; mime: string; filename: string | null } | null = null;
@@ -310,6 +311,7 @@ export async function sendReply(
       taskId: body.taskId ?? null,
       status: "queued",
       autopilotRunId: auto?.runId ?? null,
+      allowAfterDnc: !!auto?.afterStop,
     });
     await req.db.execute(sql`RELEASE SAVEPOINT lume_reply`);
   } catch (e) {
@@ -338,6 +340,8 @@ export async function sendReply(
       .update(schema.whatsappMedia)
       .set({ draft: false })
       .where(eq(schema.whatsappMedia.id, media.id));
+  // A person messaging a lead in a LUME AI run takes it (Autopilot A2, §3).
+  if (!auto) await personSent(req, lead.id);
   req.afterCommit(() => void d.whatsapp?.enqueueSend(outboxId));
   const [message] = await messagesOf(req, [activityId]);
   return { message: message! };

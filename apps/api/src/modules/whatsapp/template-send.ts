@@ -22,6 +22,7 @@ import { notePaidUse, paidLimit, paidLimitError, paidUseIn } from "./paid";
 import type { SendLimiter } from "./send";
 import { relayOf } from "./service";
 import { messagesOf, type ThreadMessage } from "./thread";
+import { personSent } from "../autopilot/lead-events";
 
 const S = schema.whatsappTemplateSubmissions;
 const T = schema.messageTemplates;
@@ -273,6 +274,8 @@ export async function sendTemplate(
       template: { name: option.name },
     },
   });
+  // A person messaging a lead in a LUME AI run takes it (Autopilot A2, §3).
+  if (!auto) await personSent(req, lead.id);
   req.afterCommit(() => {
     void d.whatsapp?.enqueueSend(outboxId);
     if (limit !== null)

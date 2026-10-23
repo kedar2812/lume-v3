@@ -696,3 +696,39 @@ function camel<T>(row: Record<string, unknown>): T {
     Object.entries(row).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()), v]),
   ) as T;
 }
+
+/** The one message a stop allows (§3): short, never debated, in the business's sign-off when it has one. */
+export const STOP_APOLOGY = "Sorry for the messages. You won't hear from us again.";
+
+/**
+ * After a lead in a running run said stop (do not contact is already set): one apology, as the speaker, inside the 24
+ * hours they just opened. Only while the run is running; a paused run sends nothing, not even this.
+ */
+export async function sendStopApology(o: EngineDeps, runId: string, leadId: string): Promise<void> {
+  const pool = poolOf(o.d);
+  const run = (
+    await pool.query<{ status: string; speaker_id: string }>(
+      "SELECT status, speaker_id FROM autopilot_runs WHERE id = $1",
+      [runId],
+    )
+  ).rows[0];
+  if (run?.status !== "running") return;
+  const actor = await loadActor(pool, run.speaker_id);
+  if (!actor) return;
+  await withJobRequest(
+    { app: jobServer(o.app), pool, actor, requestId: `autopilot-stop:${runId}:${leadId}`, allLeads: false },
+    async (req) => {
+      const [p] = await req.db.select({ p: schema.aiProfile.profile }).from(schema.aiProfile);
+      const signOff = mergeAiProfile(p?.p ?? null, {}).voice.signOff.trim();
+      const text = signOff ? `${STOP_APOLOGY}\n${signOff}` : STOP_APOLOGY;
+      await sendReply(
+        req,
+        o.d,
+        UNLIMITED,
+        leadId,
+        { clientKey: messageKey(runId, leadId, "stop"), text },
+        { runId, afterStop: true },
+      ).catch((err: unknown) => req.log.warn({ err }, "LUME AI couldn't send its apology for a stop"));
+    },
+  );
+}

@@ -191,6 +191,26 @@ export const PROBES: Record<string, Probe> = {
   },
   "GET /api/v1/autopilot/runs": { access: "leads.view" },
   "GET /api/v1/autopilot/runs/:id": { access: "leads.view", path: () => `/api/v1/autopilot/runs/${uuid}` },
+  "POST /api/v1/autopilot/runs/:id/pause": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/runs/${uuid}/pause`,
+  },
+  "POST /api/v1/autopilot/runs/:id/resume": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/runs/${uuid}/resume`,
+  },
+  "POST /api/v1/autopilot/runs/:id/end": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/runs/${uuid}/end`,
+  },
+  "POST /api/v1/autopilot/runs/:id/leads/:leadId/take-over": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/runs/${uuid}/leads/${uuid}/take-over`,
+  },
+  "POST /api/v1/autopilot/runs/:id/leads/:leadId/hand-back": {
+    access: "leads.view",
+    path: () => `/api/v1/autopilot/runs/${uuid}/leads/${uuid}/hand-back`,
+  },
   "PATCH /api/v1/ai/profile": { access: "settings.manage", body: () => ({ voice: { tone: "warm" } }) },
   "GET /api/v1/files/:id/content": { access: "templates.use" },
   "GET /api/v1/files/:id/thumb": { access: "templates.use" },

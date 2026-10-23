@@ -6,6 +6,8 @@ import type { AppDeps } from "../../app";
 import { loadActor } from "../../rbac/actor";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { visibleLead } from "../leads/service";
+import { leadWrote, personSent } from "../autopilot/lead-events";
+import { sendStopApology } from "../autopilot/engine";
 import { confirmSend, replyArrived } from "../leads/sending";
 import { readAs } from "../notifications/hub";
 import { notify } from "../notifications/notify";
@@ -135,6 +137,7 @@ export async function processWhatsAppEvent(
       const media: string[] = [];
       let notice: { ownerId: string; leadId: string; title: string } | null = null;
       let answer: { leadId: string; opener: string } | null = null;
+      let autopilot: (NonNullable<Awaited<ReturnType<typeof leadWrote>>> & { leadId: string }) | null = null;
       const leadId = await matchLead(req, ev.peer, row.owner_user_id);
       if (leadId) {
         const dup = await req.db.execute(sql`
@@ -179,6 +182,13 @@ export async function processWhatsAppEvent(
                              last_activity_at = GREATEST(coalesce(last_activity_at, ${at}), ${at})
              WHERE id = ${leadId}`);
           const lead = await visibleLead(req, leadId);
+          // A lead in a LUME AI run (Autopilot A2, §3): their words first (stop is kept at once); a phone send by a
+          // person takes the lead.
+          if (ev.kind === "received") {
+            const wrote = await leadWrote(req, leadId, at, ev.text ?? "");
+            if (wrote) autopilot = { ...wrote, leadId };
+          }
+          if (ev.kind === "sent") await personSent(req, leadId);
           if (ev.kind === "received") {
             // As tapping "They replied" does: the stage's reply move, and repeats waiting on a reply stop.
             await replyArrived(req, lead);
@@ -229,10 +239,16 @@ export async function processWhatsAppEvent(
       await req.db.execute(
         sql`UPDATE whatsapp_events SET status = 'done', event_enc = NULL, processed_at = now() WHERE id = ${eventId}`,
       );
-      return { media, notice, answer };
+      return { media, notice, answer, autopilot };
     },
   );
   if (!out) return "gone";
+  // A run's lead wrote: LUME AI answers (woken now), or, for a stop in a running run, says sorry once.
+  if (out.autopilot) {
+    const a = out.autopilot;
+    if (a.stopped && a.running) await sendStopApology(o, a.runId, a.leadId);
+    else if (!a.stopped) await d.autopilot?.kick(a.runId).catch(() => undefined);
+  }
 
   for (const id of out.media)
     await d.whatsapp
