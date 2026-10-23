@@ -176,7 +176,13 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
           sayLeads();
         }, wait);
       });
+      // LUME AI's runs (Autopilot A2): each change as its run, lead and kind (no id, no words); the screen reads the
+      // rest under its own access.
+      const offAutopilot = hub.onAutopilot((e) => {
+        if (seesLeads) write(`event: autopilot\ndata: ${JSON.stringify(e)}\n\n`);
+      });
       req.raw.on("close", () => {
+        offAutopilot();
         offRevoked();
         clearInterval(beat);
         clearTimeout(trailing);

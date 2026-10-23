@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { subscribe, subscribeLeads, useLeadsChanged, useStream } from "./stream";
+import { subscribe, subscribeLeads, useAutopilot, useLeadsChanged, useStream } from "./stream";
 
 class FakeSource {
   static made: FakeSource[] = [];
@@ -10,12 +10,17 @@ class FakeSource {
   onerror: (() => void) | null = null;
   handlers: ((e: MessageEvent<string>) => void)[] = [];
   named: Record<string, (() => void)[]> = {};
+  /** Named events that carry data (Autopilot's), handed their own text. */
+  raw: Record<string, ((e: MessageEvent<string>) => void)[]> = {};
   constructor(public url: string) {
     FakeSource.made.push(this);
   }
   addEventListener(name: string, h: (e: MessageEvent<string>) => void) {
     if (name === "notification") this.handlers.push(h);
-    else (this.named[name] ??= []).push(() => h({ data: "{}" } as MessageEvent<string>));
+    else {
+      (this.named[name] ??= []).push(() => h({ data: "{}" } as MessageEvent<string>));
+      (this.raw[name] ??= []).push(h);
+    }
   }
   /** Leads changed somewhere (4B): an event with no id and no data worth reading. */
   emitLeads() {
@@ -23,6 +28,10 @@ class FakeSource {
   }
   close() {
     this.closed = true;
+  }
+  /** A named event with its own text (Autopilot A2: `autopilot`, its run, lead and kind). */
+  emitText(name: string, text: string) {
+    for (const h of this.raw[name] ?? []) h({ data: text } as MessageEvent<string>);
   }
   emit(data: { id: number } & Record<string, unknown>) {
     for (const h of this.handlers)
@@ -137,5 +146,21 @@ describe("leads changed (4B Task 4)", () => {
     src.opened(); // the browser reconnected on its own
     expect(heard).toHaveBeenCalledTimes(1);
     off();
+  });
+});
+
+describe("Autopilot on the stream (A2 Task 9)", () => {
+  it("useAutopilot hears each change, its run, lead and kind, on the tab's one stream; anything malformed is dropped", () => {
+    const on = vi.fn();
+    const note = vi.fn();
+    renderHook(() => useAutopilot(on));
+    renderHook(() => useStream(note));
+    expect(FakeSource.made).toHaveLength(1);
+    FakeSource.made[0]!.emitText("autopilot", JSON.stringify({ run: "r1", lead: "l1", kind: "draft" }));
+    expect(on).toHaveBeenCalledWith({ run: "r1", lead: "l1", kind: "draft" });
+    FakeSource.made[0]!.emitText("autopilot", "not json");
+    FakeSource.made[0]!.emitText("autopilot", JSON.stringify({ kind: "draft" }));
+    expect(on).toHaveBeenCalledTimes(1);
+    expect(note).not.toHaveBeenCalled();
   });
 });

@@ -123,10 +123,28 @@ export const missedSince = (pool: pg.Pool, userId: string, afterId: number) =>
  * person and a notification; it's read as that person and sent to their open streams only. The listening
  * connection comes back on its own after an error, as the RBAC listener's does.
  */
+/** A change in a LUME AI run, as the stream says it (Autopilot A2). */
+export type AutopilotEvent = { run: string; lead: string | null; kind: string };
+const ID = /^[0-9a-f-]{36}$/;
+/** Only the three things it may carry, each the right shape: anything else is dropped. */
+function autopilotEventOf(payload: string): AutopilotEvent | null {
+  try {
+    const e = JSON.parse(payload) as { run?: unknown; lead?: unknown; kind?: unknown };
+    if (typeof e.run !== "string" || !ID.test(e.run)) return null;
+    if (typeof e.kind !== "string" || !/^[a-z_]{2,40}$/.test(e.kind)) return null;
+    const lead = typeof e.lead === "string" && ID.test(e.lead) ? e.lead : null;
+    return { run: e.run, lead, kind: e.kind };
+  } catch {
+    return null;
+  }
+}
+
 export async function startHub(pool: pg.Pool) {
   const subscribers = new Map<string, Set<(n: NotificationView) => void>>();
   /** Told whenever leads change (4B): no payload, so nothing about whose or which. */
   const leadListeners = new Set<() => void>();
+  /** Told of each change in a LUME AI run (Autopilot A2): its run, lead and kind, never words. */
+  const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
   /** Told when the listener comes back after losing its connection: whatever arrived meanwhile wasn't heard. */
   const resyncs = new Set<() => void>();
   let failures = 0;
@@ -174,6 +192,10 @@ export async function startHub(pool: pg.Pool) {
     c.on("notification", (m) => {
       if (m.channel === "lume_notifications") void deliver(m.payload ?? "").catch(() => undefined);
       else if (m.channel === "lume_leads") for (const l of leadListeners) l();
+      else if (m.channel === "lume_autopilot") {
+        const e = autopilotEventOf(m.payload ?? "");
+        if (e) for (const l of autopilotListeners) l(e);
+      }
     });
     c.on("error", () => {
       if (client === c) client = null;
@@ -182,6 +204,7 @@ export async function startHub(pool: pg.Pool) {
     });
     await c.query("LISTEN lume_notifications");
     await c.query("LISTEN lume_leads");
+    await c.query("LISTEN lume_autopilot");
     client = c;
   };
   await connect();
@@ -198,6 +221,11 @@ export async function startHub(pool: pg.Pool) {
         if (resync) resyncs.delete(resync);
       };
     },
+    /** A change in a LUME AI run (Autopilot A2): ids and kind only. */
+    onAutopilot(listener: (e: AutopilotEvent) => void): () => void {
+      autopilotListeners.add(listener);
+      return () => void autopilotListeners.delete(listener);
+    },
     /** Leads changed somewhere (4B): each stream decides how often to say so. */
     onLeads(listener: () => void): () => void {
       leadListeners.add(listener);
@@ -211,6 +239,7 @@ export async function startHub(pool: pg.Pool) {
       if (c) {
         await c.query("UNLISTEN lume_notifications").catch(() => undefined);
         await c.query("UNLISTEN lume_leads").catch(() => undefined);
+        await c.query("UNLISTEN lume_autopilot").catch(() => undefined);
         c.release();
       }
     },

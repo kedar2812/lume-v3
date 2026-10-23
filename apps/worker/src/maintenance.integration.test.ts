@@ -186,11 +186,60 @@ describe("maintenance jobs (as lume_worker)", () => {
     );
     const jobs = makeMaintenanceJobs(pool);
     // 3C: LUME's own ops events go after 30 days, in the same nightly job.
-    expect(await jobs.purgeNotifications()).toEqual({ deleted: 1, opsEvents: 1 });
+    expect(await jobs.purgeNotifications()).toEqual({ deleted: 1, opsEvents: 1, autopilotEvents: 0 });
     const left = (await owner.query("SELECT title FROM notifications ORDER BY title")).rows.map(
       (r) => r.title,
     );
     expect(left).toEqual(["new read", "old unread"]);
     await owner.end();
+  });
+
+  it("Autopilot's events go after 90 days, a lead's too (row-level secured by the lead, still reached here)", async () => {
+    const owner = new pg.Client({ connectionString: db.url("lume_owner") });
+    await owner.connect();
+    try {
+      const u = "00000000-0000-7000-8000-0000000000a1";
+      const pipe = "00000000-0000-7000-8000-0000000000a2";
+      const stage = "00000000-0000-7000-8000-0000000000a3";
+      const lead = "00000000-0000-7000-8000-0000000000a4";
+      const num = "00000000-0000-7000-8000-0000000000a5";
+      const run = "00000000-0000-7000-8000-0000000000a6";
+      await owner.query("SELECT set_config('lume.lead_scope', 'all', false)");
+      await owner.query(
+        "INSERT INTO users (id, email, name, status) VALUES ($1, 'ap@x.test', 'A', 'active')",
+        [u],
+      );
+      await owner.query("INSERT INTO pipelines (id, name, is_default) VALUES ($1, 'P', false)", [pipe]);
+      await owner.query(
+        "INSERT INTO stages (id, pipeline_id, name, kind, position) VALUES ($1, $2, 'New', 'open', 0)",
+        [stage, pipe],
+      );
+      await owner.query("INSERT INTO leads (id, pipeline_id, stage_id, name) VALUES ($1, $2, $3, 'Lead')", [
+        lead,
+        pipe,
+        stage,
+      ]);
+      await owner.query(
+        `INSERT INTO whatsapp_numbers (id, phone_number_id, waba_id, display_phone, run_as, status)
+       VALUES ($1, 'PN-A', 'W-A', '+1 555', $2, 'disconnected')`,
+        [num, u],
+      );
+      await owner.query(
+        `INSERT INTO autopilot_runs (id, name, started_by, speaker_id, number_id, goal, permissions, follow_up_days, outside_hours)
+       VALUES ($1, 'Run', $2, $2, $3, '{"kind":"reply"}', '{}', '{2}', 'wait')`,
+        [run, u, num],
+      );
+      await owner.query(
+        `INSERT INTO autopilot_events (run_id, lead_id, kind, at) VALUES
+        ($1, $2, 'sent', now() - interval '91 days'), ($1, NULL, 'paused', now() - interval '91 days'),
+        ($1, $2, 'sent', now() - interval '2 days')`,
+        [run, lead],
+      );
+      const jobs = makeMaintenanceJobs(pool);
+      expect((await jobs.purgeNotifications()).autopilotEvents).toBe(2);
+      expect((await owner.query("SELECT count(*)::int AS n FROM autopilot_events")).rows[0].n).toBe(1);
+    } finally {
+      await owner.end();
+    }
   });
 });

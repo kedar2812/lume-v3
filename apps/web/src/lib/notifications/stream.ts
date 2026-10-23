@@ -6,7 +6,10 @@ type Listener = (n: NotificationView) => void;
 const listeners = new Set<Listener>();
 /** Told when leads changed somewhere (4B): no data, each asks for what it needs under its own access. */
 const leadListeners = new Set<() => void>();
-const anyone = () => listeners.size + leadListeners.size > 0;
+/** A change in a LUME AI run (Autopilot A2): its run, lead and kind; the screen reads the rest under its own access. */
+export type AutopilotEvent = { run: string; lead: string | null; kind: string };
+const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
+const anyone = () => listeners.size + leadListeners.size + autopilotListeners.size > 0;
 let source: EventSource | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let failures = 0;
@@ -30,6 +33,22 @@ function open() {
   s.addEventListener("leads", () => {
     failures = 0;
     for (const l of leadListeners) l();
+  });
+  s.addEventListener("autopilot", (e) => {
+    let ev: Partial<AutopilotEvent>;
+    try {
+      ev = JSON.parse((e as MessageEvent<string>).data) as Partial<AutopilotEvent>;
+    } catch {
+      return;
+    }
+    if (typeof ev.run !== "string" || typeof ev.kind !== "string") return;
+    failures = 0;
+    const said: AutopilotEvent = {
+      run: ev.run,
+      lead: typeof ev.lead === "string" ? ev.lead : null,
+      kind: ev.kind,
+    };
+    for (const l of autopilotListeners) l(said);
   });
   s.addEventListener("notification", (e) => {
     let n: NotificationView;
@@ -118,4 +137,21 @@ export function useStream(on: Listener): void {
   const latest = useRef(on);
   latest.current = on;
   useEffect(() => subscribe((n) => latest.current(n)), []);
+}
+
+/** LUME AI's runs changing (Autopilot A2), on the tab's one stream. */
+export function subscribeAutopilot(listener: (e: AutopilotEvent) => void): () => void {
+  autopilotListeners.add(listener);
+  if (!source) open();
+  return () => {
+    autopilotListeners.delete(listener);
+    closeIfUnused();
+  };
+}
+
+/** Calls `on` for each change in a LUME AI run while the component is mounted (the Autopilot page, A3). */
+export function useAutopilot(on: (e: AutopilotEvent) => void): void {
+  const latest = useRef(on);
+  latest.current = on;
+  useEffect(() => subscribeAutopilot((e) => latest.current(e)), []);
 }

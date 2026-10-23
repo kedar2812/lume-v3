@@ -1,7 +1,9 @@
 import type { AddressInfo } from "node:net";
 import type pg from "pg";
+import { newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
+import { seedNumber } from "../../../test/whatsapp";
 
 let h: Harness;
 let base: string;
@@ -351,5 +353,61 @@ describe("leads changed on the live stream (4B Task 4)", () => {
       after: () => h.seedLead({ ownerId: someoneId, name: "Not for them" }),
     });
     expect(got.filter((b) => b.event === "leads")).toEqual([]);
+  });
+});
+
+describe("Autopilot on the live stream (A2 Task 9)", () => {
+  /** Open the stream for `ms` and collect every `autopilot` event's data. */
+  async function autopilotEvents(c: AuthedClient, o: { ms: number; after: () => Promise<unknown> }) {
+    const ac = new AbortController();
+    const res = await fetch(`${base}/api/v1/stream`, { headers: { cookie: cookie(c) }, signal: ac.signal });
+    const out: { id: string | null; data: Record<string, unknown> }[] = [];
+    const reader = res.body!.getReader();
+    const text = new TextDecoder();
+    let buf = "";
+    const timer = setTimeout(() => ac.abort(), o.ms);
+    setTimeout(() => void o.after(), 100);
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += text.decode(value);
+        for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
+          const block = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          if (/^event: autopilot$/m.test(block))
+            out.push({
+              id: /^id: (\S+)$/m.exec(block)?.[1] ?? null,
+              data: JSON.parse(/^data: (.*)$/m.exec(block)![1]!),
+            });
+        }
+      }
+    } catch {
+      // the time ran out
+    } finally {
+      clearTimeout(timer);
+      ac.abort();
+    }
+    return out;
+  }
+
+  it("each change in a run reaches open streams once, as its kind and ids only: never a lead's words", async () => {
+    const number = await seedNumber(h, { runAs: meId });
+    const lead = await h.seedLead({ ownerId: meId, name: "Sneha Reddy" });
+    const run = newId();
+    await h.ownerPool.query(
+      `INSERT INTO autopilot_runs (id, name, started_by, speaker_id, number_id, goal, permissions, follow_up_days, outside_hours)
+       VALUES ($1, 'Run', $2, $2, $3, '{"kind":"reply"}', '{}', '{2}', 'wait')`,
+      [run, meId, number],
+    );
+    const got = await autopilotEvents(me, {
+      ms: 1500,
+      after: () =>
+        h.queryAll(
+          "INSERT INTO autopilot_events (run_id, lead_id, kind, data) VALUES ($1, $2, 'draft', $3)",
+          [run, lead, JSON.stringify({ text: "Hi Sneha, a private word" })],
+        ),
+    });
+    expect(got).toEqual([{ id: null, data: { run, lead, kind: "draft" } }]);
   });
 });
