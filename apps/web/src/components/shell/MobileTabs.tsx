@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useAiOn } from "@/lib/ai/use-ai-on";
 import { NavIcon } from "./icons";
 import { NAV_ITEMS, activeNav, visibleNav, type NavItem } from "./nav";
 import s from "./shell.module.css";
@@ -22,7 +23,7 @@ export function MobileTabs({
   onFeedback?: () => void;
 }) {
   const pathname = usePathname();
-  const items = visibleNav(NAV_ITEMS, can);
+  const items = visibleNav(NAV_ITEMS, can, { ai: useAiOn() });
   const current = activeNav(items, pathname);
   const tabs = items.filter((i) => (PRIMARY as readonly string[]).includes(i.id));
   const more = items.filter((i) => !(PRIMARY as readonly string[]).includes(i.id));

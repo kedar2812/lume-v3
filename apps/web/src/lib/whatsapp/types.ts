@@ -48,6 +48,8 @@ export type WaThreadMessage = {
   status: WaSendStatus | null;
   problem: string | null;
   outboxId: string | null;
+  /** Written and sent by LUME AI for `sentBy`, in this run (Autopilot); null for the rest. */
+  lumeAi: { runId: string } | null;
 };
 export type WaSendStatus = "queued" | "sending" | "sent" | "delivered" | "read" | "failed";
 /** Whether this person may reply from LUME now, from which number, until when; null: no reply box at all. */

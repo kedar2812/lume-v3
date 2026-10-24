@@ -41,6 +41,7 @@ const sent: WaThreadMessage = {
   status: "queued",
   problem: null,
   outboxId: "o1",
+  lumeAi: null,
 };
 
 beforeEach(() => {

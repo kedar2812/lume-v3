@@ -1,0 +1,192 @@
+/* Ready for you, and Ask me (Autopilot spec 2026-10-19 §2, §2.1). */
+.col {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  max-height: calc(100dvh - 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  padding: 14px;
+  border-radius: var(--r-card);
+  background: var(--sunk);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.group {
+  display: grid;
+  gap: 10px;
+}
+.groupName {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.groupName span {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line),
+    var(--shadow-lift);
+}
+.card[data-tone="ok"] {
+  box-shadow:
+    inset 3px 0 0 var(--ok),
+    0 0 0 0.5px var(--line),
+    var(--shadow-lift);
+}
+.card[data-tone="warn"] {
+  box-shadow:
+    inset 3px 0 0 var(--warn),
+    0 0 0 0.5px var(--line),
+    var(--shadow-lift);
+}
+/* A card that just arrived: a short ring of its colour, once. */
+.card[data-new][data-tone="ok"] {
+  animation: ringOk 1.4s ease-out 1;
+}
+.card[data-new][data-tone="warn"] {
+  animation: ringWarn 1.4s ease-out 1;
+}
+@keyframes ringOk {
+  0% {
+    outline: 0 solid transparent;
+  }
+  20% {
+    outline: 4px solid color-mix(in srgb, var(--ok) 45%, transparent);
+    outline-offset: 0;
+  }
+  100% {
+    outline: 4px solid transparent;
+    outline-offset: 8px;
+  }
+}
+@keyframes ringWarn {
+  0% {
+    outline: 0 solid transparent;
+  }
+  20% {
+    outline: 4px solid color-mix(in srgb, var(--warn) 45%, transparent);
+    outline-offset: 0;
+  }
+  100% {
+    outline: 4px solid transparent;
+    outline-offset: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card[data-new][data-tone="ok"],
+  .card[data-new][data-tone="warn"] {
+    animation: none;
+  }
+}
+.name {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.deal {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-md);
+  line-height: 1.3;
+}
+.quote,
+.askMessage {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--sunk);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.quote::before {
+  content: "“";
+}
+.quote::after {
+  content: "”";
+}
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.asks {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--r-card);
+  background: var(--warn-soft);
+  outline: none;
+}
+.asks:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.asksTitle {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--warn-ink);
+}
+.asks ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ask {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--raised);
+}
+.askHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  font-size: var(--fs-sm);
+}
+.askHead span {
+  color: var(--text-2);
+}
+.askFiles {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}

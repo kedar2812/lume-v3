@@ -1,0 +1,370 @@
+/* Let LUME AI handle these (Autopilot spec 2026-10-19 §1): the start sheet and its goal picker. */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 18px;
+}
+.title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-lg);
+  line-height: 1.2;
+}
+
+.form {
+  display: grid;
+  gap: 26px;
+}
+.section {
+  display: grid;
+  gap: 10px;
+}
+.sectionTitle {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.loading {
+  display: grid;
+  gap: 12px;
+}
+
+.notReady {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.45;
+}
+.fixLink {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-ctl);
+  background: var(--accent);
+  color: #fff;
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+.fixLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── the goal ── */
+.goal {
+  display: grid;
+  gap: 8px;
+}
+.goalChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.goalChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition:
+    background 180ms ease-out,
+    box-shadow 180ms ease-out,
+    color 180ms ease-out,
+    transform 120ms ease-out;
+}
+.goalChip:active {
+  transform: scale(0.97);
+}
+.goalChip[aria-checked="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--accent-ink);
+}
+.goalChip:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    var(--focus-ring);
+}
+.hint {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.link {
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: var(--focus-ring);
+}
+
+.write {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+.label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.textarea {
+  width: 100%;
+  min-height: 104px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  resize: vertical;
+}
+.textarea:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    var(--focus-ring);
+}
+.writeFoot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.count {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.writeActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.quiet,
+.confirm {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition:
+    background 160ms ease-out,
+    opacity 160ms ease-out,
+    transform 120ms ease-out;
+}
+.quiet {
+  background: transparent;
+  color: var(--accent-ink);
+}
+.quiet:hover {
+  background: var(--hover);
+}
+.confirm {
+  background: var(--accent);
+  color: #fff;
+}
+.confirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.quiet:active,
+.confirm:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.quiet:focus-visible,
+.confirm:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.locked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--r-card);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.25);
+}
+.lock {
+  margin-top: 1px;
+  color: var(--accent);
+}
+.lockedWords {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.lockedWords b {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+}
+.lockedWords p {
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* ── who and when ── */
+.when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.whenIcon {
+  color: var(--text-3);
+}
+.capRow,
+.remember {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.capNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.capInput {
+  width: 84px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.capInput:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    var(--focus-ring);
+}
+.remember {
+  margin-top: 14px;
+}
+
+/* ── the footer: what Start will do, and Start ── */
+.footer {
+  display: grid;
+  gap: 10px;
+}
+.estimate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-height: 20px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.estimateWait {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+}
+.skippedToggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.skippedToggle:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: var(--focus-ring);
+}
+.skipped {
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.problem {
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.start {
+  width: 100%;
+}
+.drawing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.why {
+  text-align: center;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

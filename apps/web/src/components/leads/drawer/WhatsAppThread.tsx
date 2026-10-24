@@ -236,8 +236,12 @@ export function WhatsAppThread({
                 style={{ transformOrigin: r.m.direction === "out" ? "100% 100%" : "0% 100%" }}
               >
                 <span className={s.meta}>
-                  {r.m.direction === "in" ? who : (r.m.sentBy?.name ?? "From the phone")},{" "}
-                  {timeOf(new Date(r.m.at), tz)}
+                  {r.m.direction === "in"
+                    ? who
+                    : r.m.lumeAi && r.m.sentBy
+                      ? `LUME AI for ${r.m.sentBy.name}`
+                      : (r.m.sentBy?.name ?? "From the phone")}
+                  , {timeOf(new Date(r.m.at), tz)}
                   <span className={s.srOnly}>: </span>
                 </span>
                 <div className={s.bubble}>

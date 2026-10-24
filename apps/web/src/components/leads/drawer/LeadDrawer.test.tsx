@@ -733,6 +733,7 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
               status: null,
               problem: null,
               outboxId: null,
+              lumeAi: null,
             },
           ],
         }),

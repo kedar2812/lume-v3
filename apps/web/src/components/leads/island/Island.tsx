@@ -1,10 +1,16 @@
 "use client";
+import { AnimatePresence } from "motion/react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { can, scopeOf } from "@lume/core/shared";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { CountryPicker } from "@/components/ui/CountryPicker";
+import { AiGlyph } from "@/components/ai/AiGlyph";
+import { StartSheet } from "@/components/autopilot/StartSheet";
 import { StartRun } from "@/components/queue/StartRun";
+import { useAiOn } from "@/lib/ai/use-ai-on";
+import type { StartResult } from "@/lib/autopilot/types";
 import {
   bulkRunsClient,
   isLive,
@@ -25,6 +31,11 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 /** A part of the island that isn't showing is out of reach too: hidden from screen readers, and inert. */
 const away = (on: boolean) => (on ? {} : { "aria-hidden": true as const, inert: true });
 const leadsWord = (n: number) => `${fmt(n)} ${n === 1 ? "lead" : "leads"}`;
+/** "All that match", as a run takes it. */
+const filterOf = (b: SelectionBody) =>
+  "filters" in b
+    ? { filters: b.filters, except: b.except, expected: b.expected }
+    : { filters: {}, except: [], expected: 0 };
 
 const Ico = {
   stage: (
@@ -212,6 +223,10 @@ export function Island({
   const [error, setError] = useState<string | null>(null);
   const [why, setWhy] = useState(false);
   const [tucked, setTucked] = useState(false);
+  // Let LUME AI handle these (Autopilot spec 2026-10-19 §1): for whoever may message many leads, while it's on for them.
+  const router = useRouter();
+  const aiOn = useAiOn();
+  const [autopilot, setAutopilot] = useState(false);
   const run = useBulkRun(started);
   const live = isLive(run);
   const told = useRef<string | null>(null);
@@ -325,6 +340,22 @@ export function Island({
     const r = await bulkRunsClient.cancel(run.id);
     if (!r.ok) toast({ tone: "warn", title: "LUME couldn’t stop it", detail: r.message });
   };
+  const tellStarted = (r: StartResult) =>
+    toast(
+      r.leads > 0
+        ? {
+            tone: "accent",
+            title: `LUME AI is on 1 of ${fmt(r.leads)}`,
+            detail: "It works through them in your working hours. You can pause it any time.",
+            action: { label: "Watch it live", onClick: () => router.push(`/autopilot?run=${r.run.id}`) },
+            durationMs: 9000,
+          }
+        : {
+            tone: "warn",
+            title: "LUME AI couldn't take any of these",
+            detail: r.skipped[0]?.why ?? "None of them can be messaged now.",
+          },
+    );
   const close = () => {
     setStarted(null);
     setWhy(false);
@@ -345,7 +376,8 @@ export function Island({
     tags: Math.min(420, 110 + catalog.tags.length * 42 + (pick ? 60 : 0)),
     more: more === "list" ? 130 : more === "delete" ? 176 : 250,
   };
-  let w = 700,
+  const mayAutopilot = aiOn && can(actor, "messages.send_queue");
+  let w = 700 + (mayAutopilot ? 210 : 0),
     h = 56,
     r = 28;
   if (menu && !run) {
@@ -805,6 +837,12 @@ export function Island({
           {can(actor, "messages.send_queue") && !allMatching && leadIds.length > 0 && (
             <StartRun source={{ leadIds }} label="Message" triggerClassName={s.ia} side="auto" />
           )}
+          {mayAutopilot && (
+            <button type="button" className={`${s.ia} ${s.aiAction}`} onClick={() => setAutopilot(true)}>
+              <AiGlyph size={16} />
+              Let LUME AI handle these
+            </button>
+          )}
           {bulk && (can(actor, "leads.delete") || (phoneFixable && can(actor, "leads.edit"))) && (
             <button
               ref={(el) => {
@@ -937,6 +975,20 @@ export function Island({
       <p className={s.sr} aria-live="polite" aria-atomic="true">
         {said}
       </p>
+      <AnimatePresence>
+        {autopilot && (
+          <StartSheet
+            target={allMatching ? { selection: filterOf(selection()) } : { leadIds }}
+            count={n}
+            onClose={() => setAutopilot(false)}
+            onStarted={(r) => {
+              setAutopilot(false);
+              tellStarted(r);
+              close();
+            }}
+          />
+        )}
+      </AnimatePresence>
       {tucked &&
         run &&
         slot &&

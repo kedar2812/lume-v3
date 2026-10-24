@@ -140,6 +140,18 @@
   height: 56px;
   padding: 0 8px 0 18px;
 }
+/* Narrower than its actions (a phone, a small window): the row scrolls sideways rather than cutting one off. */
+.row {
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.row::-webkit-scrollbar {
+  display: none;
+}
+.aiAction svg {
+  opacity: 1;
+}
 .big {
   height: 64px;
   padding: 0 10px 0 14px;

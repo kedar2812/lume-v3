@@ -1,0 +1,725 @@
+/* Autopilot (spec 2026-10-19 §2): the run bar, the leads, the live conversation and Ready for you. */
+
+.screen {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+}
+
+/* ── the run bar ── */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+  padding: 14px 16px;
+  border-radius: var(--r-sheet);
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line),
+    var(--shadow-lift);
+}
+.barMark {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  border-radius: 14px;
+  background: var(--mark-ground);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.barWords {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.barName {
+  overflow: hidden;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-lg);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.barStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.barStatus b {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.barMark[data-working] + .barWords .barStatus b {
+  color: var(--accent-ink);
+}
+
+.counts {
+  display: flex;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.counts li {
+  display: grid;
+  justify-items: start;
+  gap: 1px;
+}
+.counts li > span:first-child {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-xl);
+  font-variant-numeric: tabular-nums;
+}
+.counts li > span:last-child {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.barActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.asksPill {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: transform 120ms ease-out;
+}
+.asksPill:active {
+  transform: scale(0.97);
+}
+.asksPill:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.confirm {
+  display: grid;
+  gap: 10px;
+}
+.confirm h2 {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-lg);
+}
+.confirm p {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.switcher select {
+  height: 32px;
+  max-width: min(420px, 70vw);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+}
+.switcher select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── the columns ── */
+.cols {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(260px, 340px);
+  gap: 14px;
+  align-items: start;
+  min-height: 0;
+}
+.cols:not(:has(> :nth-child(3))) {
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+}
+.loadingBar {
+  display: grid;
+  gap: 14px;
+}
+
+/* the leads */
+.leadsCol {
+  display: grid;
+  gap: 8px;
+  max-height: calc(100dvh - 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+.leads {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.leadRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 160ms ease-out,
+    transform 120ms ease-out;
+}
+.leadRow:hover {
+  background: var(--hover);
+}
+.leadRow:active {
+  transform: scale(0.985);
+}
+.leadRow[aria-pressed="true"] {
+  background: var(--sunk);
+}
+.leadRow:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The blue rail: the lead LUME AI is on (§2). */
+.leadRow[data-current]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--sunk);
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+}
+.leadName {
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stateChip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--sunk);
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.stateChip[data-state="writing"],
+.stateChip[data-state="replied"],
+.stateChip[data-state="talking"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.stateChip[data-state="ready"] {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.stateChip[data-state="needs_you"] {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.stateChip[data-state="stopped"] {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+.stateChip[data-state="with_you"] {
+  background: var(--meet-soft);
+  color: var(--meet-ink);
+}
+.skippedBox {
+  display: grid;
+  gap: 6px;
+  padding: 4px 10px 8px;
+  border-top: 0.5px solid var(--line);
+}
+.skippedToggle {
+  justify-self: start;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.skippedToggle:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: var(--focus-ring);
+}
+.skippedList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.skippedList li {
+  display: grid;
+  font-size: var(--fs-xs);
+}
+.skippedList b {
+  font-weight: var(--fw-medium);
+}
+.skippedList span {
+  color: var(--text-3);
+}
+
+/* the live conversation */
+.convoWrap {
+  position: relative;
+  min-width: 0;
+}
+.convo {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 420px;
+  max-height: calc(100dvh - 220px);
+  padding: 14px 16px 16px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+.convoHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.convoHead > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.convoHead h2 {
+  overflow: hidden;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thought {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--sunk);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.thought svg {
+  flex: none;
+  margin-top: 1px;
+}
+.reasonLine {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.thread {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.threadLoading {
+  display: grid;
+  gap: 10px;
+  padding: 8px 0;
+}
+.threadLoading > :nth-child(2) {
+  justify-self: end;
+}
+.problem {
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.nobody {
+  padding: 24px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* LUME AI typing */
+.typing {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.typingHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+}
+.templateChip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--sunk);
+  color: var(--text-2);
+  font-weight: var(--fw-medium);
+}
+.typingBox {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--accent-rgb), 0.35),
+    0 0 0 4px rgba(var(--accent-rgb), 0.08);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+  transition: box-shadow 200ms ease-out;
+}
+button.typingBox:hover {
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 4px rgba(var(--accent-rgb), 0.12);
+}
+button.typingBox:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    var(--focus-ring);
+}
+.typing[data-frozen] .typingBox {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  opacity: 0.75;
+}
+.typed mark {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.18em;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: caret 1s steps(1) infinite;
+}
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+  }
+}
+.typingHint {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.01em;
+  color: var(--text-3);
+}
+
+.mine {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.handBack {
+  justify-self: start;
+}
+.watching {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* the Paused veil (§2.1) */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--canvas) 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .veil {
+    background: color-mix(in srgb, var(--canvas) 85%, transparent);
+    backdrop-filter: none;
+  }
+}
+.veilCard {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background: var(--hud);
+  color: var(--hud-text);
+  box-shadow: var(--shadow-pop);
+  text-align: center;
+}
+.veilCard b {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.veilCard span {
+  font-size: var(--fs-sm);
+  opacity: 0.85;
+}
+.veilCard .veilHint {
+  font-size: var(--fs-xs);
+  opacity: 0.6;
+}
+
+/* the empty page: what Autopilot does */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  max-width: 520px;
+  margin: 8vh auto 0;
+  padding: 0 16px;
+  text-align: center;
+}
+.empty h1 {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-2xl);
+}
+.emptyLede {
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.emptySteps {
+  display: grid;
+  gap: 10px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.emptySteps li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.emptyCta {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  margin-top: 6px;
+  padding: 0 18px;
+  border-radius: var(--r-ctl);
+  background: var(--accent);
+  color: #fff;
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  transition: transform 120ms ease-out;
+}
+.emptyCta:active {
+  transform: scale(0.97);
+}
+.emptyCta:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* A narrower window: the leads go above the conversation. */
+@media (max-width: 1080px) {
+  .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cols:not(:has(> :nth-child(3))) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .leadsCol {
+    max-height: 240px;
+  }
+  .barActions {
+    margin-left: 0;
+  }
+}
+
+/* ── a phone (§2.3): one lead at a time, Live or Ready, Pause always in reach ── */
+.phone {
+  display: grid;
+  gap: 12px;
+}
+.phone > [role="radiogroup"] {
+  width: 100%;
+}
+.phone > [role="radiogroup"] > button {
+  flex: 1;
+}
+.allLeads {
+  border-radius: var(--r-card);
+  background: var(--raised);
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+.allLeads summary {
+  padding: 12px 14px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+.allLeads summary:focus-visible {
+  outline: none;
+  border-radius: var(--r-card);
+  box-shadow: var(--focus-ring);
+}
+.allLeads .leadsCol {
+  max-height: none;
+  box-shadow: none;
+}
+@media (max-width: 699px) {
+  .bar {
+    gap: 10px 12px;
+    padding: 12px;
+  }
+  .barMark {
+    width: 40px;
+    height: 40px;
+  }
+  .barName {
+    font-size: var(--fs-md);
+  }
+  .counts {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .barActions {
+    order: 4;
+    width: 100%;
+  }
+  .barActions > button {
+    flex: 1;
+    min-height: 40px;
+  }
+  .convo {
+    min-height: 0;
+    max-height: none;
+    padding: 12px;
+  }
+  .veil {
+    align-items: start;
+    padding-top: 40px;
+  }
+}

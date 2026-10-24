@@ -22,7 +22,34 @@ vi.mock("@/lib/views/client", async (orig) => ({
   },
 }));
 
+let aiOn = false;
+let running = 0;
+vi.mock("@/lib/ai/use-ai-on", () => ({ useAiOn: () => aiOn }));
+vi.mock("@/lib/autopilot/use-run", () => ({ useLiveRuns: (on: boolean) => (on ? running : 0) }));
+
 describe("Sidebar", () => {
+  it("Autopilot, while LUME AI is on; Live while a run is going (Autopilot A3)", () => {
+    aiOn = false;
+    const { unmount } = render(
+      <Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />,
+    );
+    expect(screen.queryByRole("link", { name: /Autopilot/ })).toBeNull();
+    unmount();
+    aiOn = true;
+    running = 0;
+    const quiet = render(
+      <Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />,
+    );
+    expect(screen.getByRole("link", { name: "Autopilot" })).toHaveAttribute("href", "/autopilot");
+    quiet.unmount();
+    running = 2;
+    render(<Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />);
+    expect(screen.getByRole("link", { name: "Autopilot, live" })).toBeInTheDocument();
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    aiOn = false;
+    running = 0;
+  });
+
   it("puts LUME on top and the client's name below", () => {
     render(
       <Sidebar businessName="Brightpath Studio" user={{ name: "Leila", role: "Admin" }} can={() => true} />,

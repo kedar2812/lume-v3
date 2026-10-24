@@ -6,6 +6,7 @@ describe("navigation", () => {
     expect(NAV_ITEMS.map((i) => i.label)).toEqual([
       "Today",
       "Leads",
+      "Autopilot",
       "Pipeline",
       "Calendar",
       "Templates",
@@ -45,5 +46,20 @@ describe("navigation", () => {
     expect(navDirection(NAV_ITEMS, "/today", "/analytics")).toBe(1);
     expect(navDirection(NAV_ITEMS, "/analytics", "/leads")).toBe(-1);
     expect(navDirection(NAV_ITEMS, "/leads", "/leads/9")).toBe(0);
+  });
+
+  it("Autopilot shows for whoever may view leads, only while LUME AI is on for them (A3)", () => {
+    const can = (p: string) => p === "leads.view";
+    expect(visibleNav(NAV_ITEMS, can).map((i) => i.id)).not.toContain("autopilot");
+    expect(visibleNav(NAV_ITEMS, can, { ai: false }).map((i) => i.id)).not.toContain("autopilot");
+    expect(visibleNav(NAV_ITEMS, can, { ai: true }).map((i) => i.id)).toEqual([
+      "today",
+      "leads",
+      "autopilot",
+      "pipeline",
+      "settings",
+    ]);
+    expect(visibleNav(NAV_ITEMS, () => false, { ai: true }).map((i) => i.id)).not.toContain("autopilot");
+    expect(activeNav(NAV_ITEMS, "/autopilot")?.id).toBe("autopilot");
   });
 });

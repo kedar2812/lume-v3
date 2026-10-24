@@ -1,11 +1,21 @@
 export type IconName =
-  "today" | "leads" | "pipeline" | "calendar" | "templates" | "media" | "analytics" | "settings";
+  | "today"
+  | "leads"
+  | "autopilot"
+  | "pipeline"
+  | "calendar"
+  | "templates"
+  | "media"
+  | "analytics"
+  | "settings";
 export type NavItem = {
   id: IconName;
   label: string;
   href: string;
   icon: IconName;
   permission?: string;
+  /** Shown only while this is on for the person: LUME AI (Autopilot A3). */
+  needs?: "ai";
   phase: number;
 };
 
@@ -13,6 +23,16 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { id: "today", label: "Today", href: "/today", icon: "today", phase: 3 },
   { id: "leads", label: "Leads", href: "/leads", icon: "leads", permission: "leads.view", phase: 1 },
+  {
+    // LUME AI working leads live (Autopilot spec 2026-10-19 §2): whoever may view leads, while LUME AI is on for them.
+    id: "autopilot",
+    label: "Autopilot",
+    href: "/autopilot",
+    icon: "autopilot",
+    permission: "leads.view",
+    needs: "ai",
+    phase: 11,
+  },
   {
     id: "pipeline",
     label: "Pipeline",
@@ -64,8 +84,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export const visibleNav = (items: NavItem[], can: (p: string) => boolean) =>
-  items.filter((i) => !i.permission || can(i.permission));
+export const visibleNav = (items: NavItem[], can: (p: string) => boolean, on: { ai?: boolean } = {}) =>
+  items.filter((i) => (!i.permission || can(i.permission)) && (i.needs !== "ai" || on.ai === true));
 
 export const activeNav = (items: NavItem[], pathname: string) =>
   items.find((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));

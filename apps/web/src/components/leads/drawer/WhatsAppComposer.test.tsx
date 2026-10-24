@@ -35,6 +35,7 @@ const sent = (text: string): WaThreadMessage => ({
   status: "queued",
   problem: null,
   outboxId: "o1",
+  lumeAi: null,
 });
 const box = () => screen.getByRole("textbox", { name: "Message to Sneha" });
 
@@ -362,5 +363,24 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Message" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+});
+
+describe("taking over from LUME AI (Autopilot A3, spec 2026-10-19 §2.1)", () => {
+  it("starts with LUME AI's half-typed words, the cursor at their end, to edit or clear", () => {
+    render(
+      <WhatsAppComposer
+        leadId="l1"
+        leadName="Sneha Reddy"
+        tz={TZ}
+        reply={open}
+        onSent={vi.fn()}
+        initialText="Yes, we can visit on"
+        autoFocus
+      />,
+    );
+    expect(box()).toHaveValue("Yes, we can visit on");
+    expect(box()).toHaveFocus();
+    expect((box() as HTMLTextAreaElement).selectionStart).toBe("Yes, we can visit on".length);
   });
 });

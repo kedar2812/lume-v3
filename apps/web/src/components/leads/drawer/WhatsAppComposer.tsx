@@ -82,6 +82,8 @@ export function WhatsAppComposer({
   onSent,
   fallback,
   library = false,
+  initialText = "",
+  autoFocus = false,
 }: {
   leadId: string;
   leadName: string;
@@ -93,9 +95,13 @@ export function WhatsAppComposer({
   fallback?: ReactNode;
   /** This person may use the business's files (templates.use): Attach offers them beside this device. */
   library?: boolean;
+  /** Words to start from: LUME AI's half-typed message when a person takes the lead over (Autopilot §2.1). */
+  initialText?: string;
+  /** Put the cursor in the box at once, at the end of its words. */
+  autoFocus?: boolean;
 }) {
   const who = first(leadName);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [files, setFiles] = useState<Ready[]>([]);
   const [attaching, setAttaching] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +118,14 @@ export function WhatsAppComposer({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [text, files.length]);
+  // Only as it first appears.
+  const focusFirst = useRef(autoFocus);
+  useEffect(() => {
+    const el = box.current;
+    if (!focusFirst.current || !el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
   useEffect(() => {
     coarse.current =
       typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;

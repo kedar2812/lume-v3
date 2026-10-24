@@ -20,6 +20,7 @@ const msg = (o: Partial<WaThreadMessage> & { id: string }): WaThreadMessage => (
   status: null,
   problem: null,
   outboxId: null,
+  lumeAi: null,
   ...o,
 });
 const info = (o: Partial<WaMediaInfo>): WaMediaInfo => ({
@@ -296,5 +297,31 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
         "No WhatsApp messages with Sneha yet. When Sneha writes to your number, it shows up here.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("LUME AI's messages (Autopilot A3, spec 2026-10-19 §3)", () => {
+  it("say they were written by LUME AI for the person they speak as", () => {
+    render(
+      <WhatsAppThread
+        leadName="Meera Iyer"
+        tz={TZ}
+        messages={[
+          msg({
+            id: "m1",
+            direction: "out",
+            text: "Hi Meera, thanks for your enquiry.",
+            sentBy: { id: "u1", name: "Priya Nair" },
+            status: "delivered",
+            outboxId: "o1",
+            lumeAi: { runId: "r1" },
+          }),
+          msg({ id: "m2", direction: "out", text: "By hand", sentBy: { id: "u1", name: "Priya Nair" } }),
+        ]}
+      />,
+    );
+    const items = screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("Priya"));
+    expect(items[0]).toHaveTextContent("LUME AI for Priya Nair");
+    expect(items[1]).not.toHaveTextContent("LUME AI");
   });
 });

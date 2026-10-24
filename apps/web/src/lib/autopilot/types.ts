@@ -65,7 +65,8 @@ export type RunView = {
   updatedAt: string;
   endedAt: string | null;
 };
-export type StartResult = { run: RunView; skipped: Skipped[]; remembered: boolean };
+/** `leads`: how many the run took (some may have been skipped, or taken by another run, since the estimate). */
+export type StartResult = { run: RunView; skipped: Skipped[]; remembered: boolean; leads: number };
 
 export type Counts = Record<LeadState, number>;
 export type RunLead = {
@@ -75,6 +76,8 @@ export type RunLead = {
   reason: string | null;
   card: { headline: string; quote: string | null } | null;
   thought: string | null;
+  /** When the lead last wrote; null if they haven't. */
+  repliedAt: string | null;
   /** Only while LUME AI is writing to this lead: the words and the window the screen reveals them in. */
   draft: {
     text: string;
@@ -82,6 +85,8 @@ export type RunLead = {
     templateName: string | null;
     startedAt: string;
     revealedBy: string;
+    /** Where a template's filled values sit in `text`, `[start, end)`; none for a reply. */
+    marks: [number, number][];
   } | null;
   nextAt: string | null;
   lastSentAt: string | null;
@@ -96,7 +101,7 @@ export type RunAsk = {
 };
 /** `GET /api/v1/autopilot/runs/:id`. */
 export type RunDetail = {
-  run: RunView & { canControl: boolean };
+  run: RunView & { canControl: boolean; speakerName: string };
   counts: Counts;
   leads: RunLead[];
   asks: RunAsk[];

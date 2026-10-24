@@ -15,6 +15,26 @@ vi.mock("@/lib/leads/bulk-runs", async (orig) => {
   };
 });
 const toast = vi.fn();
+let aiOn = false;
+vi.mock("@/lib/ai/use-ai-on", () => ({ useAiOn: () => aiOn }));
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+const onClear = vi.fn();
+// The start sheet itself is tested on its own (StartSheet.test.tsx): here, what the island hands it and does after.
+const sheet = vi.fn();
+vi.mock("@/components/autopilot/StartSheet", () => ({
+  StartSheet: (p: { onStarted(r: unknown): void }) => {
+    sheet(p);
+    return (
+      <button
+        type="button"
+        onClick={() => p.onStarted({ run: { id: "run1" }, skipped: [], remembered: false, leads: 2 })}
+      >
+        Pretend Start
+      </button>
+    );
+  },
+}));
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 const admin = fakeSession({
   permissions: [
@@ -263,5 +283,75 @@ describe("the bulk island (7C)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("Let LUME AI handle these (Autopilot A3, spec 2026-10-19 §1)", () => {
+  const sender = fakeSession({
+    permissions: [
+      { key: "leads.view", scope: "all" },
+      { key: "messages.send", scope: "all" },
+      { key: "messages.send_queue", scope: null },
+    ],
+  });
+  const withAi = (o: { session?: typeof sender; all?: boolean; count?: number } = {}) =>
+    render(
+      <CatalogProvider catalog={catalog}>
+        <Island
+          session={o.session ?? sender}
+          count={o.count ?? 2}
+          allMatching={!!o.all}
+          selection={() =>
+            o.all ? { filters: { q: "mar" }, except: ["x"], expected: o.count ?? 40 } : { ids: ["a", "b"] }
+          }
+          leadIds={o.all ? [] : ["a", "b"]}
+          phoneFixable={false}
+          onFinished={vi.fn()}
+          onClear={onClear}
+        />
+      </CatalogProvider>,
+    );
+
+  it("shown only to someone who may message many leads, while LUME AI is on for them", () => {
+    aiOn = false;
+    const { unmount } = withAi();
+    expect(screen.queryByRole("button", { name: "Let LUME AI handle these" })).toBeNull();
+    unmount();
+    aiOn = true;
+    const again = withAi({ session: admin });
+    expect(screen.queryByRole("button", { name: "Let LUME AI handle these" })).toBeNull();
+    again.unmount();
+    withAi();
+    expect(screen.getByRole("button", { name: "Let LUME AI handle these" })).toBeInTheDocument();
+  });
+
+  it("opens the start sheet with the picked leads, or all that match as a filter", async () => {
+    aiOn = true;
+    const { unmount } = withAi();
+    await userEvent.click(screen.getByRole("button", { name: "Let LUME AI handle these" }));
+    expect(sheet).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target: { leadIds: ["a", "b"] }, count: 2 }),
+    );
+    unmount();
+    withAi({ all: true, count: 40 });
+    await userEvent.click(screen.getByRole("button", { name: "Let LUME AI handle these" }));
+    expect(sheet).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target: { selection: { filters: { q: "mar" }, except: ["x"], expected: 40 } },
+        count: 40,
+      }),
+    );
+  });
+
+  it("once started: the selection clears, and LUME says it's on, with Watch it live", async () => {
+    aiOn = true;
+    withAi();
+    await userEvent.click(screen.getByRole("button", { name: "Let LUME AI handle these" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pretend Start" }));
+    expect(onClear).toHaveBeenCalled();
+    const t = toast.mock.calls.at(-1)![0];
+    expect(t).toMatchObject({ title: "LUME AI is on 1 of 2", action: { label: "Watch it live" } });
+    t.action.onClick();
+    expect(push).toHaveBeenCalledWith("/autopilot?run=run1");
   });
 });

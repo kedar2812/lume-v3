@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 import { SidebarViews } from "@/components/views/SidebarViews";
+import { useAiOn } from "@/lib/ai/use-ai-on";
+import { useLiveRuns } from "@/lib/autopilot/use-run";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { NavIcon } from "./icons";
 import { NAV_ITEMS, activeNav, visibleNav } from "./nav";
@@ -21,8 +23,11 @@ type Props = {
 
 export function Sidebar({ businessName, user, can, onFeedback }: Props) {
   const pathname = usePathname();
-  const items = visibleNav(NAV_ITEMS, can);
+  const ai = useAiOn();
+  const items = visibleNav(NAV_ITEMS, can, { ai });
   const current = activeNav(items, pathname);
+  // Autopilot's Live pill: a run this person can see is going (§2).
+  const live = useLiveRuns(ai && can("leads.view")) > 0;
   const { go } = usePageNav();
   const reduce = useReducedMotion();
   return (
@@ -37,11 +42,13 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
       <nav className={s.nav} aria-label="Main">
         {items.map((i) => {
           const on = i.id === current?.id;
+          const isLive = i.id === "autopilot" && live;
           return (
             <Link
               key={i.id}
               href={i.href}
               className={s.link}
+              aria-label={isLive ? `${i.label}, live` : undefined}
               data-tour={`nav-${i.id}`}
               aria-current={on ? "page" : undefined}
               onClick={(e) => {
@@ -60,6 +67,12 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
               )}
               <NavIcon name={i.icon} />
               <span className={s.label}>{i.label}</span>
+              {isLive && (
+                <span className={s.live} aria-hidden>
+                  <i />
+                  Live
+                </span>
+              )}
             </Link>
           );
         })}
