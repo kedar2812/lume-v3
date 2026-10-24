@@ -163,4 +163,12 @@ describe("Autopilot on the stream (A2 Task 9)", () => {
     expect(on).toHaveBeenCalledTimes(1);
     expect(note).not.toHaveBeenCalled();
   });
+  it("back after a drop, Autopilot's listeners hear that anything may have changed (run '*')", () => {
+    const on = vi.fn();
+    renderHook(() => useAutopilot(on));
+    // The first open may be this tab's first connection or not (the stream outlives a test); the second is a return.
+    FakeSource.made[0]!.opened();
+    FakeSource.made[0]!.opened();
+    expect(on).toHaveBeenCalledWith({ run: "*", lead: null, kind: "reconnected" });
+  });
 });

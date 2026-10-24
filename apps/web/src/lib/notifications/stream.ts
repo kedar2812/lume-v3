@@ -6,7 +6,10 @@ type Listener = (n: NotificationView) => void;
 const listeners = new Set<Listener>();
 /** Told when leads changed somewhere (4B): no data, each asks for what it needs under its own access. */
 const leadListeners = new Set<() => void>();
-/** A change in a LUME AI run (Autopilot A2): its run, lead and kind; the screen reads the rest under its own access. */
+/**
+ * A change in a LUME AI run (Autopilot A2): its run, lead and kind; the screen reads the rest under its own access. Run
+ * "*" (kind "reconnected"): the stream was away, so any run may have changed.
+ */
 export type AutopilotEvent = { run: string; lead: string | null; kind: string };
 const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
 const anyone = () => listeners.size + leadListeners.size + autopilotListeners.size > 0;
@@ -26,7 +29,11 @@ function open() {
   source = s;
   // Back after a drop (the browser's own retry, or LUME's): what changed meanwhile was never said.
   s.addEventListener("open", () => {
-    if (connectedBefore) for (const l of leadListeners) l();
+    if (connectedBefore) {
+      for (const l of leadListeners) l();
+      // A run may have moved on meanwhile too: "*" is every run.
+      for (const l of autopilotListeners) l({ run: "*", lead: null, kind: "reconnected" });
+    }
     connectedBefore = true;
     failures = 0;
   });
