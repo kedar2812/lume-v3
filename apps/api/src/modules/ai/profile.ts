@@ -108,6 +108,11 @@ async function viewOf(req: FastifyRequest, profile: AiProfile, stages: Stage[]):
   };
 }
 
+/** The business's LUME AI profile as saved (or the first one, from its pipeline), for anyone the caller lets read it. */
+export async function readAiProfile(req: FastifyRequest): Promise<AiProfile> {
+  return storedProfile(req, await openStages(req), false);
+}
+
 /** `GET /api/v1/ai/profile` (admins). */
 export async function getAiProfile(req: FastifyRequest): Promise<AiProfileView> {
   const stages = await openStages(req);

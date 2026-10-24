@@ -87,7 +87,7 @@ const nothing = () => new HttpError(422, "NOTHING_SELECTED", "No leads are selec
  * The selection, as ids, read as the person: picked ids as given (each is checked when its turn comes), or every
  * lead the filter shows them, minus the ones they unticked. Snapshotted into the run, so it can't drift.
  */
-async function resolveSelection(req: FastifyRequest, sel: Selection) {
+export async function resolveSelection(req: FastifyRequest, sel: Selection) {
   if ("ids" in sel) {
     const ids = [...new Set(sel.ids)];
     if (!ids.length) throw nothing();

@@ -10,7 +10,7 @@ import {
   type AutopilotAction,
 } from "@lume/core";
 import { schema, type RunGoal } from "@lume/db";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
@@ -21,16 +21,44 @@ import { loadActor } from "../../rbac/actor";
 import { aiStatus } from "../ai/service";
 import { openStages, patchAiProfile, speakers } from "../ai/profile";
 import { visibleLead } from "../leads/service";
-import { replyOn } from "../whatsapp/send";
+import { resolveSelection } from "../leads/bulk-runs";
 import { runView, type RunView } from "./read";
+import { availability, readiness, usable } from "./setup";
 
-const N = schema.whatsappNumbers;
+/** The most leads one run takes (§1; the start sheet says so for a larger filter). */
+const RUN_MAX = 500;
 const conflict = (code: string, message: string) => new HttpError(409, code, message);
+
+/** The leads asked for: the ids given, or every lead the filter shows this person (as bulk actions resolve it). */
+async function leadIdsOf(req: FastifyRequest, b: RunBody): Promise<string[]> {
+  const ids = b.leadIds
+    ? b.leadIds
+    : (
+        await resolveSelection(req, {
+          filters: b.selection!.filters,
+          except: b.selection!.except,
+          expected: b.selection!.expected,
+        })
+      ).ids;
+  const unique = [...new Set(ids)];
+  if (unique.length > RUN_MAX)
+    throw badRequest("TOO_MANY", "A run takes up to 500 leads. Narrow the filter.");
+  return unique;
+}
 
 /** What starting a run (or its estimate) takes (§1.1–§1.4): the sheet sends the business's standing choices, as edited. */
 export const runBody = z
   .object({
-    leadIds: z.array(z.uuid()).min(1).max(500),
+    leadIds: z.array(z.uuid()).min(1).max(RUN_MAX).optional(),
+    /** "All that match" on Leads (A3): the filters as the person sees them, resolved on the server as bulk actions are. */
+    selection: z
+      .object({
+        filters: z.record(z.string(), z.string()),
+        except: z.array(z.uuid()).max(RUN_MAX),
+        expected: z.number().int().min(0),
+      })
+      .strict()
+      .optional(),
     goal: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("stage"), stageId: z.uuid() }).strict(),
       z.object({ kind: z.literal("reply") }).strict(),
@@ -43,7 +71,10 @@ export const runBody = z
     name: z.string().trim().min(1).max(120).optional(),
     remember: z.boolean().default(false),
   })
-  .strict();
+  .strict()
+  .refine((b) => (b.leadIds === undefined) !== (b.selection === undefined), {
+    message: "Choose leads by their ids or by a filter, not both.",
+  });
 export type RunBody = z.infer<typeof runBody>;
 
 type Checked = {
@@ -52,10 +83,14 @@ type Checked = {
   goal: RunGoal;
   goalName: string;
   permissions: Record<AutopilotAction, Allow>;
+  /** As the person chose them, before anything the business can't use was set to Never. */
+  chosen: Record<AutopilotAction, Allow>;
   eligible: { id: string; country: string | null }[];
   skipped: { leadId: string; why: string }[];
   monthLeft: number | null;
   monthLimit: number | null;
+  /** How many leads were asked for. */
+  total: number;
 };
 
 /**
@@ -65,46 +100,25 @@ type Checked = {
  */
 async function check(req: FastifyRequest, d: AppDeps, b: RunBody): Promise<Checked> {
   if (!can(req.actor!, "messages.send")) throw forbidden();
-  const ai = await aiStatus(req, d);
-  if (!ai.on)
-    throw conflict("AI_OFF", "LUME AI is off. An admin can switch it on in Settings → Integrations.");
-  if (ai.month.limit !== null && ai.month.used >= ai.month.limit)
-    throw conflict(
-      "AI_MONTH",
-      "LUME AI has used this month's allowance. Ask for a top-up from LUME AI's ring.",
-    );
-  if (!(await replyOn(req, d)))
-    throw conflict(
-      "REPLY_OFF",
-      "Replying from LUME is off. An admin can switch it on in Settings → Integrations → WhatsApp.",
-    );
-
   const problem = profileProblem({
     standing: { permissions: b.permissions, followUpDays: b.followUpDays, dailyCap: b.dailyCap },
   });
   if (problem) throw badRequest("BAD_CHOICES", problem);
-  const permissions = Object.fromEntries(
+  // A row the sheet didn't send asks (safe); an action the business can't use runs as Never (A3, §1.3), though the
+  // choice itself is what "Use these every time" keeps, ready for when it's set up.
+  const chosen = Object.fromEntries(
     AUTOPILOT_ACTIONS.map((a) => [a, (b.permissions[a] as Allow | undefined) ?? "ask"]),
   ) as Record<AutopilotAction, Allow>;
+  const permissions = usable(chosen, await availability(req));
 
   const speakerId = b.speakerId ?? req.actor!.userId;
   const speaker = (await speakers(req)).find((p) => p.id === speakerId);
   if (!speaker) throw badRequest("SPEAKER", "LUME AI can only speak as someone who may send messages.");
 
-  // The speaker's own number, else the business's, else the first connected (as a template goes, W3b-2).
-  const numbers = await req.db
-    .select({ id: N.id, display: N.displayPhone, owner: N.ownerUserId, quality: N.quality })
-    .from(N)
-    .where(eq(N.status, "active"))
-    .orderBy(asc(N.id));
-  const number =
-    numbers.find((n) => n.owner === speakerId) ?? numbers.find((n) => n.owner === null) ?? numbers[0];
-  if (!number) throw conflict("NO_NUMBER", "Connect a WhatsApp number first.");
-  if (number.quality === "yellow" || number.quality === "red")
-    throw conflict(
-      "NUMBER_QUALITY",
-      `WhatsApp rated ${number.display} ${number.quality}. LUME AI waits until it recovers, to protect the number.`,
-    );
+  const ready = await readiness(req, d, speakerId);
+  if (!ready.ok) throw conflict(ready.code, ready.message);
+  const number = ready.number;
+  const ai = await aiStatus(req, d);
 
   let goal: RunGoal = b.goal;
   let goalName = b.goal.kind === "reply" ? "Get a reply" : "Your goal";
@@ -119,7 +133,8 @@ async function check(req: FastifyRequest, d: AppDeps, b: RunBody): Promise<Check
   const speakerActor = speakerId === req.actor!.userId ? req.actor! : await loadActor(d.pool, speakerId);
   const eligible: Checked["eligible"] = [];
   const skipped: Checked["skipped"] = [];
-  for (const id of [...new Set(b.leadIds)]) {
+  const ids = await leadIdsOf(req, b);
+  for (const id of ids) {
     const lead = await visibleLead(req, id).catch((e: unknown) => {
       if (e instanceof HttpError) return null;
       throw e;
@@ -147,10 +162,12 @@ async function check(req: FastifyRequest, d: AppDeps, b: RunBody): Promise<Check
     goal,
     goalName,
     permissions,
+    chosen,
     eligible,
     skipped,
     monthLeft: ai.month.limit === null ? null : ai.month.limit - ai.month.used,
     monthLimit: ai.month.limit,
+    total: ids.length,
   };
 }
 
@@ -216,7 +233,7 @@ export async function startRun(
     .insert(schema.autopilotRuns)
     .values({
       id: runId,
-      name: b.name ?? `${c.goalName} · ${b.leadIds.length} ${b.leadIds.length === 1 ? "lead" : "leads"}`,
+      name: b.name ?? `${c.goalName} · ${c.total} ${c.total === 1 ? "lead" : "leads"}`,
       startedBy: req.actor!.userId,
       speakerId: c.speaker.id,
       numberId: c.number.id,
@@ -274,7 +291,7 @@ export async function startRun(
   if (b.remember && can(req.actor!, "settings.manage")) {
     await patchAiProfile(req, {
       standing: {
-        permissions: c.permissions,
+        permissions: c.chosen,
         followUpDays: b.followUpDays,
         dailyCap: b.dailyCap,
         ...(b.speakerId ? { speaker: b.speakerId } : {}),

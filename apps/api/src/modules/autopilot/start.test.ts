@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "../../../test/harness";
 import { ALL_MODULES, testLicence } from "../../../test/licence-plan";
 import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
-import { RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
+import { approvedTemplate, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 import { fakeProvider } from "../../ai/fake";
 
 /** Starting LUME AI on leads (Autopilot A2, Task 5; spec 2026-10-19 §1.1–§1.4, §3 "one run per lead"). */
@@ -90,6 +90,8 @@ beforeEach(async () => {
     url: "/api/v1/integrations/whatsapp",
     payload: { replyFromLume: true },
   });
+  // A run starts conversations with an approved template (A3: no template, no run).
+  await approvedTemplate(h, meta, admin, "Hi {{lead.first_name}}, thanks for your enquiry. Can we help?");
 });
 
 describe("estimate and start", () => {
@@ -127,7 +129,8 @@ describe("estimate and start", () => {
       speakerId: rep.id,
       numberId,
       goal: { kind: "stage", stageId: goal },
-      permissions: perms,
+      // Booking needs a calendar LUME can book into (A3): Never, whatever was chosen.
+      permissions: { ...perms, book_meetings: "never" },
       followUpDays: [2, 5],
       dailyCap: 40,
     });

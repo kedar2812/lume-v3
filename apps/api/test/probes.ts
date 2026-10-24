@@ -167,6 +167,7 @@ export const PROBES: Record<string, Probe> = {
   "POST /api/v1/ai/topup": { access: "settings.manage", body: () => ({}) },
   "GET /api/v1/ai/profile": { access: "settings.manage" },
   // Autopilot (A2): starting LUME AI on leads, and reading runs.
+  "GET /api/v1/autopilot/setup": { access: "messages.send_queue" },
   "POST /api/v1/autopilot/estimate": {
     access: "messages.send_queue",
     body: () => ({

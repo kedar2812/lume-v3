@@ -5,6 +5,7 @@ import type { AppDeps } from "../../app";
 import { controlRun, handBack, takeOver } from "./control";
 import { approveAsk, carryOn, declineAsk } from "./ready";
 import { getRun, listRuns } from "./read";
+import { autopilotSetup } from "./setup";
 import { estimateRun, runBody, startRun } from "./start";
 
 /**
@@ -14,6 +15,10 @@ import { estimateRun, runBody, startRun } from "./start";
 export async function autopilotRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   const id = z.object({ id: z.uuid() });
+  // What the start sheet opens with (A3): readiness, the business's goals, people, choices and what it can use.
+  r.get("/api/v1/autopilot/setup", { config: { permission: "messages.send_queue" } }, (req) =>
+    autopilotSetup(req, d),
+  );
   r.post(
     "/api/v1/autopilot/estimate",
     { config: { permission: "messages.send_queue" }, schema: { body: runBody } },
