@@ -12,6 +12,10 @@ type Props<T extends string> = {
   options: readonly Option<T>[];
   onChange: (v: T) => void;
   size?: "sm" | "md";
+  /** Shown but not changeable (an option the business hasn't set up yet). */
+  disabled?: boolean;
+  /** The id of the words that explain it (why it's off). */
+  describedBy?: string;
 };
 
 /** A radio group whose selection thumb slides with a spring (shared layout, no measuring). */
@@ -21,6 +25,8 @@ export function SegmentedControl<T extends string>({
   options,
   onChange,
   size = "md",
+  disabled = false,
+  describedBy,
 }: Props<T>) {
   const layoutId = useId();
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -30,6 +36,7 @@ export function SegmentedControl<T extends string>({
   );
 
   function onKey(e: KeyboardEvent) {
+    if (disabled) return;
     const step =
       e.key === "ArrowRight" || e.key === "ArrowDown"
         ? 1
@@ -47,6 +54,8 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
+      aria-disabled={disabled || undefined}
+      aria-describedby={describedBy}
       className={[s.group, size === "sm" && s.sm].filter(Boolean).join(" ")}
       onKeyDown={onKey}
     >
@@ -62,8 +71,9 @@ export function SegmentedControl<T extends string>({
             role="radio"
             aria-checked={on}
             tabIndex={on ? 0 : -1}
+            disabled={disabled}
             className={s.item}
-            onClick={() => !on && onChange(o.value)}
+            onClick={() => !on && !disabled && onChange(o.value)}
           >
             {on && (
               <motion.span layoutId={layoutId} className={s.thumb} transition={toMotion(SPRINGS.default)} />

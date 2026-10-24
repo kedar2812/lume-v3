@@ -1,13 +1,7 @@
 "use client";
-import {
-  AUTOPILOT_PRESETS,
-  presetOf,
-  type AiProfile,
-  type Allow,
-  type AutopilotAction,
-  type AutopilotPreset,
-} from "@lume/core/shared";
+import type { AiProfile } from "@lume/core/shared";
 import { useState } from "react";
+import { PermissionRows } from "@/components/autopilot/PermissionRows";
 import { Field } from "@/components/ui/Field";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
@@ -15,64 +9,6 @@ import s from "./ai.module.css";
 
 type Standing = AiProfile["standing"];
 type Stage = { id: string; name: string; pipeline: string };
-
-const PRESET_WORDS: { key: AutopilotPreset; label: string; sub: string }[] = [
-  { key: "careful", label: "Careful", sub: "Asks before anything that changes a lead" },
-  { key: "balanced", label: "Balanced", sub: "Talks and books, asks about the rest" },
-  { key: "hands_off", label: "Hands-off", sub: "Does all of it; you step in when you want" },
-];
-const ALLOW: readonly { value: Allow; label: string }[] = [
-  { value: "go", label: "Go ahead" },
-  { value: "ask", label: "Ask me" },
-  { value: "never", label: "Never" },
-];
-const dayList = (ds: number[]) =>
-  ds.length === 1
-    ? `Day ${ds[0]}, then stops`
-    : `Day ${ds.slice(0, -1).join(", day ")} and day ${ds.at(-1)}, then stops`;
-const path = (stages: Stage[]) => {
-  const names = stages.map((x) => x.name);
-  return names.length > 4 ? `${names.slice(0, 3).join(" → ")} → …` : names.join(" → ");
-};
-
-/** The rows of §1.3, grouped as the owner approved them, each named from the business's own setup where it can be. */
-function groups(
-  v: Standing,
-  stages: Stage[],
-): { name: string; rows: { key: AutopilotAction; title: string; sub: string }[] }[] {
-  return [
-    {
-      name: "Messages",
-      rows: [
-        { key: "first_messages", title: "Send first messages", sub: "With your approved WhatsApp templates" },
-        { key: "follow_ups", title: "Follow up when there's no reply", sub: dayList(v.followUpDays) },
-        {
-          key: "replies",
-          title: "Reply and keep the conversation going",
-          sub: "In your voice, from what LUME AI knows",
-        },
-        { key: "send_files", title: "Send files", sub: "The files you chose above, from Media" },
-      ],
-    },
-    {
-      name: "Pipeline",
-      rows: [
-        { key: "book_meetings", title: "Book meetings", sub: "On free slots in your calendar" },
-        { key: "move_stages", title: "Move leads along your pipeline", sub: path(stages) || "Your stages" },
-        { key: "set_follow_ups", title: "Set follow-up reminders", sub: "For the speaker or the lead's rep" },
-        { key: "fill_fields", title: "Fill in lead details", sub: "Your lead fields" },
-      ],
-    },
-    {
-      name: "Careful",
-      rows: [
-        { key: "answer_prices", title: "Answer price questions", sub: "Only from your price list" },
-        { key: "mark_lost", title: "Mark a lead lost", sub: "With one of your lost reasons" },
-        { key: "hand_to_rep", title: "Hand a lead to a rep", sub: "By your assignment rules" },
-      ],
-    },
-  ];
-}
 
 /**
  * Settings → LUME AI, Standing choices (Autopilot spec 2026-10-19 §1.1–1.3, §3): what a new run starts with. Presets set
@@ -91,7 +27,6 @@ export function StandingSection({
   onChange(v: Standing): void;
 }) {
   const set = (patch: Partial<Standing>) => onChange({ ...v, ...patch });
-  const pressed = presetOf(v.permissions);
   const [capText, setCapText] = useState(v.dailyCap === null ? "" : String(v.dailyCap));
   const manyPipelines = new Set(stages.map((x) => x.pipeline)).size > 1;
 
@@ -124,49 +59,12 @@ export function StandingSection({
 
       <div className={s.block}>
         <h3 className={s.blockTitle}>What can LUME AI do for you?</h3>
-        <div className={s.presets}>
-          {PRESET_WORDS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              className={s.preset}
-              aria-pressed={pressed === p.key}
-              onClick={() => set({ permissions: { ...AUTOPILOT_PRESETS[p.key] } })}
-            >
-              <b>{p.label}</b>
-              <span>{p.sub}</span>
-            </button>
-          ))}
-        </div>
-        {groups(v, stages).map((g) => (
-          <div key={g.name} role="group" aria-label={g.name} className={s.permGroup}>
-            <p className={s.groupName} aria-hidden>
-              {g.name}
-            </p>
-            {g.rows.map((r) => (
-              <div key={r.key} className={s.perm}>
-                <div className={s.permWords}>
-                  <b>{r.title}</b>
-                  <span>{r.sub}</span>
-                </div>
-                <SegmentedControl
-                  size="sm"
-                  label={r.title}
-                  value={v.permissions[r.key]}
-                  options={ALLOW}
-                  onChange={(a) => set({ permissions: { ...v.permissions, [r.key]: a } })}
-                />
-              </div>
-            ))}
-          </div>
-        ))}
-        <ul className={s.always}>
-          <li>
-            <b>Always on.</b> &ldquo;Stop&rdquo; means stop: LUME AI says sorry once and marks them do not
-            contact.
-          </li>
-          <li>It never invents a price, discount or promise you didn&apos;t give it.</li>
-        </ul>
+        <PermissionRows
+          value={v.permissions}
+          onChange={(permissions) => set({ permissions })}
+          followUpDays={v.followUpDays}
+          stages={stages}
+        />
       </div>
 
       <div className={s.block}>

@@ -20,6 +20,12 @@
 .item[aria-checked="true"] {
   color: var(--text);
 }
+.item:disabled {
+  cursor: not-allowed;
+}
+.group[aria-disabled="true"] {
+  opacity: 0.55;
+}
 .sm .item {
   height: 24px;
   padding: 0 9px;
