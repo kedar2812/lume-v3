@@ -47,6 +47,7 @@ async function leadsOf(req: FastifyRequest, runIds: string[]) {
       reason: L.reason,
       card: L.card,
       thought: L.thought,
+      lastInboundAt: L.lastInboundAt,
       draft: L.draft,
       draftPayload: L.draftPayload,
       nextAt: L.nextAt,
@@ -80,6 +81,15 @@ export async function listRuns(req: FastifyRequest) {
     /** Runs going now that this person can see (the Autopilot nav's Live pill). */
     running: runs.filter((r) => r.status === "running").length,
   };
+}
+
+/** Who the run speaks as, by name ("LUME AI is writing as Priya Nair"). */
+async function speakerName(req: FastifyRequest, id: string): Promise<string> {
+  const [u] = await req.db
+    .select({ name: schema.users.name })
+    .from(schema.users)
+    .where(eq(schema.users.id, id));
+  return u?.name ?? "someone on your team";
 }
 
 /** `GET /api/v1/autopilot/runs/:id`: the run, its counts, the leads this person sees in it, and what waits for a tap. */
@@ -118,7 +128,11 @@ export async function getRun(req: FastifyRequest, id: string) {
   );
   return {
     // Pause, Resume and End: the person who started it, or an admin (spec §2.2); the server checks again.
-    run: { ...runView(run), canControl: mayControl(req, run) },
+    run: {
+      ...runView(run),
+      canControl: mayControl(req, run),
+      speakerName: await speakerName(req, run.speakerId),
+    },
     counts: countsOf(leads),
     leads: leads.map((l) => ({
       leadId: l.leadId,
@@ -127,6 +141,7 @@ export async function getRun(req: FastifyRequest, id: string) {
       reason: l.reason,
       card: l.card,
       thought: l.thought,
+      repliedAt: l.lastInboundAt?.toISOString() ?? null,
       // Only while it's being written: the words, what kind, and the window the screen reveals them in.
       draft:
         l.state === "writing" && l.draft
@@ -137,6 +152,7 @@ export async function getRun(req: FastifyRequest, id: string) {
                 names.get((l.draftPayload as { submissionId?: string } | null)?.submissionId ?? "") ?? null,
               startedAt: l.updatedAt.toISOString(),
               revealedBy: (l.nextAt ?? l.updatedAt).toISOString(),
+              marks: (l.draftPayload as { marks?: [number, number][] } | null)?.marks ?? [],
             }
           : null,
       nextAt: l.nextAt?.toISOString() ?? null,

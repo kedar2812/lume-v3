@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TEMPLATE_CATEGORIES, VARIABLES, render, waFormat, type RenderContext } from "./render";
+import { TEMPLATE_CATEGORIES, VARIABLES, render, renderMarked, waFormat, type RenderContext } from "./render";
 
 const people = [
   { id: "u-riya", name: "Riya Sharma" },
@@ -201,5 +201,21 @@ describe("render (4A Task 1)", () => {
       text: "Hi {{lead.first_name}},",
       missing: ["lead.first_name"],
     });
+  });
+});
+
+describe("renderMarked (Autopilot A3: the live view highlights a template's filled variables)", () => {
+  it("the same text as render, with where each filled value sits", () => {
+    const body = "Hi {{lead.first_name}}, it's {{ owner.first_name }} from {{business.name}}.";
+    const r = renderMarked(body, ctx("Asia/Dubai"));
+    expect(r.text).toBe(render(body, ctx("Asia/Dubai")).text);
+    expect(r.marks.map(([a, b]) => r.text.slice(a, b))).toEqual(["Aisha", "Riya", "Brightpath Studio"]);
+  });
+
+  it("a token with no value stays as written and isn't marked; an empty body has none", () => {
+    const r = renderMarked("Hello {{lead.custom.nothing_here}} and {{lead.first_name}}", ctx("Asia/Dubai"));
+    expect(r.text).toBe("Hello {{lead.custom.nothing_here}} and Aisha");
+    expect(r.marks.map(([a, b]) => r.text.slice(a, b))).toEqual(["Aisha"]);
+    expect(renderMarked("", ctx("Asia/Dubai"))).toEqual({ text: "", marks: [] });
   });
 });

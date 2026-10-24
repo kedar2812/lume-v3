@@ -15,6 +15,7 @@ let h: Harness;
 let meta: MetaFake;
 type U = { id: string; email: string; password: string };
 let admin: U;
+let adminName: string;
 let rep: U;
 let other: U;
 const licence = testLicence({ instanceId: "LUME-TEST-AUTOPILOT-READ", now: () => h.clock.now });
@@ -90,12 +91,14 @@ type LeadView = {
   leadId: string;
   state: string;
   thought: string | null;
+  repliedAt: string | null;
   draft: {
     text: string;
     kind: string;
     templateName: string | null;
     startedAt: string;
     revealedBy: string;
+    marks: [number, number][];
   } | null;
 };
 const leadIn = async (u: U, run: string, leadId: string) =>
@@ -111,6 +114,8 @@ beforeAll(async () => {
     ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" },
   });
   admin = await h.seedUser({ owner: true, grants: ALL_GRANTS, totp: true });
+  adminName = (await h.queryAll<{ name: string }>("SELECT name FROM users WHERE id = $1", [admin.id]))[0]!
+    .name;
   const repGrants: Grant[] = [
     { key: "leads.view", scope: "own" },
     { key: "messages.send", scope: "own" },
@@ -160,6 +165,10 @@ describe("the live view's fields", () => {
       thought: "Only one approved template fits Meera, so LUME AI uses it.",
     });
     expect(new Date(writing!.draft!.revealedBy).getTime()).toBeGreaterThan(h.clock.now.getTime());
+    expect(writing!.repliedAt).toBeNull();
+    // Where the template's filled values sit, for the screen to highlight as it types.
+    const d = writing!.draft!;
+    expect(d.marks.map(([a, b]) => d.text.slice(a, b))).toEqual(["Meera"]);
     await tick(10 * S);
     expect(await leadIn(admin, run, meera)).toMatchObject({ state: "sent", draft: null, thought: null });
   });
@@ -198,8 +207,10 @@ describe("the live view's fields", () => {
     await tick();
     expect(await leadIn(admin, run, meera)).toMatchObject({
       state: "writing",
-      draft: { text: "Yes, we design kitchens.", kind: "reply", templateName: null },
+      draft: { text: "Yes, we design kitchens.", kind: "reply", templateName: null, marks: [] },
       thought: "She asked what we do; the service list says kitchens.",
+      // When she last wrote: the run bar counts who replied from it.
+      repliedAt: expect.any(String),
     });
   });
 
@@ -213,6 +224,8 @@ describe("the live view's fields", () => {
     expect(JSON.stringify(byRep)).not.toContain("Rohan");
     expect(byRep.run.canControl).toBe(false);
     expect((await get(admin, `/api/v1/autopilot/runs/${run}`)).run.canControl).toBe(true);
+    // Who it speaks as, by name: the person who started it here.
+    expect((await get(admin, `/api/v1/autopilot/runs/${run}`)).run.speakerName).toBe(adminName);
     const own = await start([await lead("Sneha Reddy", rep)], rep);
     expect((await get(rep, `/api/v1/autopilot/runs/${own}`)).run.canControl).toBe(true);
   });

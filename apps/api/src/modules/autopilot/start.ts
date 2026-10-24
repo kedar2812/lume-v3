@@ -223,7 +223,13 @@ export async function startRun(
   req: FastifyRequest,
   d: AppDeps,
   b: RunBody,
-): Promise<{ run: RunView; skipped: { leadId: string; why: string }[]; remembered: boolean }> {
+): Promise<{
+  run: RunView;
+  skipped: { leadId: string; why: string }[];
+  remembered: boolean;
+  /** How many leads it took (the island says "LUME AI is on 1 of N"). */
+  leads: number;
+}> {
   const c = await check(req, d, b);
   const now = d.clock();
   const profile = (await req.db.select({ p: schema.aiProfile.profile }).from(schema.aiProfile))[0]?.p as
@@ -300,5 +306,5 @@ export async function startRun(
     remembered = true;
   }
   req.afterCommit(() => void d.autopilot?.kick(runId));
-  return { run: runView(row!), skipped, remembered };
+  return { run: runView(row!), skipped, remembered, leads: got.size };
 }

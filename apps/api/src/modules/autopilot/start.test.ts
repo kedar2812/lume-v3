@@ -123,6 +123,8 @@ describe("estimate and start", () => {
     expect(r.statusCode).toBe(201);
     const { run, skipped } = r.json();
     expect(skipped).toEqual([]);
+    // How many it took, for the island's "LUME AI is on 1 of 2" (A3).
+    expect(r.json().leads).toBe(2);
     expect(run).toMatchObject({
       status: "running",
       startedBy: rep.id,

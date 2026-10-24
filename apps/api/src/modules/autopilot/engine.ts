@@ -16,7 +16,7 @@ import {
   nextMove,
   nextSendAt,
   paramsFor,
-  render,
+  renderMarked,
   revealMs,
   shiftToWorkingHours,
   tierLimitOf,
@@ -373,13 +373,14 @@ async function writeTemplate(o: EngineDeps, req: FastifyRequest, run: Run, l: Le
     chosen = fits.find((t) => t.id === id) ?? chosen;
     thought = r.output.why.trim().slice(0, 200) || `LUME AI chose ${chosen.name}.`;
   }
-  const draft = render(chosen.body, ctx).text;
+  // Where its filled values sit, so the screen can highlight them as it types (A3).
+  const { text: draft, marks } = renderMarked(chosen.body, ctx);
   await req.db
     .update(schema.autopilotLeads)
     .set({
       state: "writing",
       draft,
-      draftPayload: { kind: "template", submissionId: chosen.id, n },
+      draftPayload: { kind: "template", submissionId: chosen.id, n, marks },
       thought,
       nextAt: new Date(o.d.clock().getTime() + revealMs(draft)),
       fails: 0,

@@ -157,6 +157,27 @@ export function render(body: string, ctx: RenderContext): { text: string; missin
   return { text, missing };
 }
 
+/**
+ * As `render`, and where each filled value sits in the text (`[start, end)`, in order): Autopilot's live view highlights
+ * a template's variables as LUME AI types it (spec 2026-10-19 §2). A token with no value stays as written, unmarked.
+ */
+export function renderMarked(body: string, ctx: RenderContext): { text: string; marks: [number, number][] } {
+  const marks: [number, number][] = [];
+  let text = "";
+  let last = 0;
+  for (const m of body.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)) {
+    text += body.slice(last, m.index);
+    const v = valueOf(m[1]!, ctx);
+    if (v === null) text += m[0];
+    else {
+      marks.push([text.length, text.length + v.length]);
+      text += v;
+    }
+    last = m.index + m[0].length;
+  }
+  return { text: text + body.slice(last), marks };
+}
+
 export type Variable = { token: string; label: string; needs?: "calendar" };
 
 const EXAMPLES: Record<string, string> = {
