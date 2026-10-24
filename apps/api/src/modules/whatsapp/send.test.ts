@@ -239,7 +239,7 @@ describe("sending", () => {
     expect(await outbox(lead)).toHaveLength(1);
     expect(h.whatsappSendQueued).toHaveLength(1);
     const last = (await thread(rep, lead)).messages.at(-1);
-    expect(last).toMatchObject({ direction: "out", status: "queued", sentBy: { id: rep.id } });
+    expect(last).toMatchObject({ direction: "out", status: "queued", sentBy: { id: rep.id }, lumeAi: null });
     // Nothing counts as sent until Meta takes it (Task 4).
     expect((await h.queryAll("SELECT last_message_at FROM leads WHERE id = $1", [lead]))[0]).toEqual({
       last_message_at: null,

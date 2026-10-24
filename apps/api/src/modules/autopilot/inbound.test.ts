@@ -6,6 +6,7 @@ import { ALL_MODULES, testLicence } from "../../../test/licence-plan";
 import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { approvedTemplate, deliver, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 import { fakeProvider } from "../../ai/fake";
+import { dueRuns, stepRun } from "./engine";
 
 /**
  * Replies, stop, and taking a lead over (Autopilot A2, Task 7; spec 2026-10-19 §2.1, §3): a lead who writes is answered
@@ -181,6 +182,34 @@ describe("replies, stop, taking over", () => {
     }
   });
 
+  it("a stop only LUME AI recognises (words LUME's list doesn't have): the same one apology", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    const run = await start([lead]);
+    await firstMessage(run, lead);
+    await writes("Mujhe isme koi interest nahi hai");
+    expect((await stateOf(run, lead)).state).toBe("replied");
+    provider.script("autopilot_reply", [
+      {
+        kind: "stop",
+        message: "",
+        reason: "Not interested.",
+        evidence: "Mujhe isme koi interest nahi hai",
+        fileIds: [],
+        stageId: null,
+        fields: {},
+        followUp: null,
+        lostReasonId: null,
+      },
+    ]);
+    await tick();
+    expect(await stateOf(run, lead)).toMatchObject({ state: "stopped", active: false });
+    await h.runWhatsAppSend();
+    expect(textsSent()).toEqual(["Sorry for the messages. You won't hear from us again."]);
+    await tick(MIN);
+    await h.runWhatsAppSend();
+    expect(textsSent()).toHaveLength(1);
+  });
+
   it("a stop while the run is paused is still kept; nothing is sent", async () => {
     const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
     const run = await start([lead]);
@@ -253,6 +282,9 @@ describe("replies, stop, taking over", () => {
     const took = await post(admin, `/api/v1/autopilot/runs/${run}/leads/${lead}/take-over`);
     expect(took.statusCode).toBe(200);
     expect(took.json()).toMatchObject({ state: "with_you", draft });
+    // Nothing is due while the lead is theirs: the run isn't woken, and a step does nothing (never a busy loop).
+    expect(await dueRuns(h.ownerPool, h.clock.now)).not.toContain(run);
+    expect(await stepRun({ app: h.app, d: h.deps }, run)).toBe(0);
     await tick(MIN);
     await h.runWhatsAppSend();
     expect(meta.sent).toHaveLength(0);

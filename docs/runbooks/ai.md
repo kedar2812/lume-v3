@@ -111,3 +111,8 @@ Notes, calls and follow-ups keep working the whole time: LUME AI only ever sugge
   shows the month's spend against the cap. Unset, it shows no money at all; nothing is guessed.
 - **Top-ups:** an admin presses Ask for a top-up (the ring's panel); the request reaches the licence dashboard as an
   alert. Add a top-up there; it reaches their LUME at its next check-in and AI carries on by itself.
+
+## Autopilot (A2, 2026-10-23)
+
+LUME AI talking to leads on WhatsApp by itself, in runs: `docs/runbooks/autopilot.md`. Every message it writes is one
+LUME AI call against the same month and hour.

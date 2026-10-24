@@ -8,6 +8,7 @@ import { countSend, dncWords } from "../leads/sending";
 import { recordActivity, visibleLead } from "../leads/service";
 import { HttpError } from "../../http/errors";
 import { MetaError, metaClient } from "./meta";
+import { unsent } from "../autopilot/unsent";
 import type { WhatsAppJobDeps } from "./process";
 import { tokenContext } from "./service";
 
@@ -119,15 +120,21 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
       ).rows[0],
   );
   if (!row) return;
-  const set = (status: string, f: { problem?: string | null; wamid?: string; tries?: number } = {}) =>
-    allScope(pool, (c) =>
-      c.query(
+  /** Its new status, and anything that must change with it (`also`), in one transaction. */
+  const set = (
+    status: string,
+    f: { problem?: string | null; wamid?: string; tries?: number } = {},
+    also?: (c: pg.PoolClient) => Promise<void>,
+  ) =>
+    allScope(pool, async (c) => {
+      await c.query(
         `UPDATE whatsapp_outbox SET status = $2, problem = $3, wamid = coalesce($4, wamid),
                 tries = coalesce($5, tries), updated_at = now()
           WHERE id = $1`,
         [id, status, f.problem ?? null, f.wamid ?? null, f.tries ?? null],
-      ),
-    );
+      );
+      await also?.(c);
+    });
   const fail = (problem: string) => set("failed", { problem });
   if (row.status === "sending") {
     if (row.stuck) await fail(MAYBE_SENT);
@@ -146,7 +153,17 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
       row.run_lead_state === "with_you" ||
       row.run_lead_state === "stopped")
   )
-    return void (await set("cancelled", { problem: "LUME AI's run was paused before this went." }));
+    // Held by a Pause, it never went: Resume writes it again (an ended run, or a lead taken over, is left as it is).
+    return void (await set("cancelled", { problem: "LUME AI's run was paused before this went." }, (c) =>
+      row.run_status === "paused" && row.run_lead_active
+        ? unsent(c, {
+            runId: row.autopilot_run_id!,
+            leadId: row.lead_id,
+            template: !!row.sub_id,
+            at: o.d.clock(),
+          })
+        : Promise.resolve(),
+    ));
   if (row.number_status !== "active" || !row.token_enc)
     return void (await fail(`Connect ${row.display_phone} again to reply from LUME.`));
   if (!row.lead_phone) return void (await fail("This lead has no WhatsApp number."));

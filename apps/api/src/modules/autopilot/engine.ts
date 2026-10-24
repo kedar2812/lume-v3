@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  ACTIVE_STATES,
   autopilotFirstOutput,
   autopilotInput,
   autopilotInstructions,
@@ -121,9 +122,10 @@ export async function dueRuns(pool: pg.Pool, now: Date): Promise<string[]> {
     const { rows } = await c.query<{ id: string }>(
       `SELECT DISTINCT r.id FROM autopilot_runs r
          JOIN autopilot_leads l ON l.run_id = r.id AND l.active
-        WHERE (r.status = 'running' AND (l.next_at IS NULL OR l.next_at <= $1))
+        WHERE (r.status = 'running' AND l.state = ANY($2) AND (l.next_at IS NULL OR l.next_at <= $1))
            OR (r.status = 'paused' AND r.pause_reason = 'month')`,
-      [now],
+      // Only leads LUME AI is working on: one that's with a person, or ready for them, waits for that person.
+      [now, ACTIVE_STATES],
     );
     return rows.map((r) => r.id);
   });
@@ -221,14 +223,17 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
         return sendStep(o, req, run, writing);
       }
       const due = leads
-        .filter((l) => !l.nextAt || l.nextAt <= now)
+        .filter((l) => ACTIVE_STATES.includes(l.state) && (!l.nextAt || l.nextAt <= now))
         .sort((a, b) => (a.nextAt?.getTime() ?? 0) - (b.nextAt?.getTime() ?? 0));
       let acted = 0;
       for (const l of due) {
         const move = nextMove(l, { now, followUpDays: run.followUpDays });
         if (move.kind === "wait") {
-          await req.db.update(L).set({ nextAt: move.until, updatedAt: now }).where(keyOf(l));
-          acted++;
+          // Woken when it's due; a wait that changes nothing isn't work (the job would step again at once).
+          if ((l.nextAt?.getTime() ?? null) !== (move.until?.getTime() ?? null)) {
+            await req.db.update(L).set({ nextAt: move.until, updatedAt: now }).where(keyOf(l));
+            acted++;
+          }
           continue;
         }
         if (move.kind === "done") {
@@ -528,6 +533,8 @@ async function actOn(
 ) {
   if (g.kind === "stop") {
     await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", byAi: { runId: run.id } });
+    // The one apology a stop allows (§3), with do not contact: the same as a stop LUME's own list catches.
+    await queueApology(o, req, run.id, lead.id);
     return leave(req, l, "stopped", "Said stop. LUME AI marked them do not contact.");
   }
   const pool = poolOf(o.d);
@@ -631,7 +638,10 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       lostReasonId: string | null;
     };
   };
-  const key = (part: string) => messageKey(run.id, l.leadId, `${now.lastSentAt?.getTime() ?? 0}:${part}`);
+  // One key per message as written: a retried step never sends it twice, and one written again after a Pause held it
+  // (unsent.ts) is a new message, not the held one.
+  const key = (part: string) =>
+    messageKey(run.id, l.leadId, `${now.lastSentAt?.getTime() ?? 0}:${now.updatedAt.getTime()}:${part}`);
   const auto = { runId: run.id };
   try {
     await req.db.execute(sql`SAVEPOINT autopilot_send`);
@@ -757,18 +767,34 @@ export async function sendStopApology(o: EngineDeps, runId: string, leadId: stri
   if (!actor) return;
   await withJobRequest(
     { app: jobServer(o.app), pool, actor, requestId: `autopilot-stop:${runId}:${leadId}`, allLeads: false },
-    async (req) => {
-      const [p] = await req.db.select({ p: schema.aiProfile.profile }).from(schema.aiProfile);
-      const signOff = mergeAiProfile(p?.p ?? null, {}).voice.signOff.trim();
-      const text = signOff ? `${STOP_APOLOGY}\n${signOff}` : STOP_APOLOGY;
-      await sendReply(
-        req,
-        o.d,
-        UNLIMITED,
-        leadId,
-        { clientKey: messageKey(runId, leadId, "stop"), text },
-        { runId, afterStop: true },
-      ).catch((err: unknown) => req.log.warn({ err }, "LUME AI couldn't send its apology for a stop"));
-    },
+    (req) => queueApology(o, req, runId, leadId),
   );
+}
+
+/** Queue the apology, as the speaker: one per lead and run, whichever way the stop was heard (one key). */
+async function queueApology(
+  o: EngineDeps,
+  req: FastifyRequest,
+  runId: string,
+  leadId: string,
+): Promise<void> {
+  const [p] = await req.db.select({ p: schema.aiProfile.profile }).from(schema.aiProfile);
+  const signOff = mergeAiProfile(p?.p ?? null, {}).voice.signOff.trim();
+  const text = signOff ? `${STOP_APOLOGY}\n${signOff}` : STOP_APOLOGY;
+  await req.db.execute(sql`SAVEPOINT autopilot_apology`);
+  try {
+    await sendReply(
+      req,
+      o.d,
+      UNLIMITED,
+      leadId,
+      { clientKey: messageKey(runId, leadId, "stop"), text },
+      { runId, afterStop: true },
+    );
+    await req.db.execute(sql`RELEASE SAVEPOINT autopilot_apology`);
+  } catch (err) {
+    // Never at the cost of the stop itself: do not contact stands without it.
+    await req.db.execute(sql`ROLLBACK TO SAVEPOINT autopilot_apology`);
+    req.log.warn({ err }, "LUME AI couldn't send its apology for a stop");
+  }
 }

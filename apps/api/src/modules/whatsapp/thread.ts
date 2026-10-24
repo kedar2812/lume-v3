@@ -11,6 +11,13 @@ const O = schema.whatsappOutbox;
 const THREAD_MAX = 500;
 type Media = { id: string; kind: string; mime: string; filename: string | null; voice: boolean };
 type Row = { id: string; type: string; at: Date; payload: unknown };
+type Payload = {
+  text?: string | null;
+  outboxId?: string;
+  media?: Partial<Media>;
+  via?: string;
+  runId?: string;
+};
 
 /** One message on a lead's thread: the lead's, one sent from the phone, or one sent from LUME (with its status). */
 export type ThreadMessage = {
@@ -24,13 +31,13 @@ export type ThreadMessage = {
   status: "queued" | "sending" | "sent" | "delivered" | "read" | "failed" | null;
   problem: string | null;
   outboxId: string | null;
+  /** Written and sent by LUME AI for `sentBy`, in this run (Autopilot A2, spec 2026-10-19 §3); null for the rest. */
+  lumeAi: { runId: string } | null;
 };
 
 /** The messages as the thread shows them: LUME's own sends joined to their status in one query (outcome 26). */
 async function shape(req: FastifyRequest, rows: Row[]): Promise<ThreadMessage[]> {
-  const payloads = rows.map(
-    (r) => (r.payload ?? {}) as { text?: string | null; outboxId?: string; media?: Partial<Media> },
-  );
+  const payloads = rows.map((r) => (r.payload ?? {}) as Payload);
   const ids = payloads.map((p) => p.outboxId).filter((x): x is string => !!x);
   const sent = ids.length
     ? await req.db
@@ -51,7 +58,7 @@ async function shape(req: FastifyRequest, rows: Row[]): Promise<ThreadMessage[]>
 
 function shown(
   r: Row,
-  p: { text?: string | null; outboxId?: string; media?: Partial<Media> },
+  p: Payload,
   o:
     | {
         id: string;
@@ -80,6 +87,7 @@ function shown(
     status: o && o.status !== "cancelled" ? o.status : null,
     problem: o?.problem ?? null,
     outboxId: o?.id ?? null,
+    lumeAi: p.via === "ai_autopilot" && p.runId ? { runId: p.runId } : null,
   };
 }
 

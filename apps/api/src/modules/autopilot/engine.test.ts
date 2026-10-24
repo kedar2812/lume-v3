@@ -164,6 +164,17 @@ describe("the engine", () => {
     expect(acts).toHaveLength(3);
     expect(acts.every((a) => a.user_id === admin.id && a.via === "ai_autopilot" && a.run === run)).toBe(true);
     expect((await leadsOf(run)).every((l) => l.state === "sent")).toBe(true);
+    // And the thread says so: LUME AI, in this run, for the speaker.
+    const thread = (
+      await (await as(admin)).inject({ method: "GET", url: `/api/v1/leads/${leads[0]}/whatsapp` })
+    ).json();
+    expect(thread.messages).toEqual([
+      expect.objectContaining({
+        direction: "out",
+        sentBy: expect.objectContaining({ id: admin.id }),
+        lumeAi: { runId: run },
+      }),
+    ]);
   });
 
   it("outside working hours nothing is written; it starts at the next working day's start", async () => {
@@ -217,6 +228,38 @@ describe("the engine", () => {
       await (await as(admin)).inject({ method: "GET", url: `/api/v1/leads/${one}/whatsapp` })
     ).json();
     expect(thread.messages).toEqual([]);
+    // It never went, so it isn't counted as gone: Resume writes the first message again, and it goes.
+    expect((await stateOf(run, one)).state).toBe("up_next");
+    await resumeRun(h.ownerPool, run);
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    expect((await stateOf(run, one)).state).toBe("sent");
+  });
+
+  it("a follow-up held by Pause is due again on Resume, not counted as sent", async () => {
+    const one = await lead("Meera Iyer");
+    const run = await start([one]);
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    h.clock.advance(2 * DAY + MIN);
+    await tick();
+    await tick(10 * S);
+    await pauseRun(h.ownerPool, run, "person");
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    const row = await h.queryAll<{ state: string; follow_ups_sent: number }>(
+      "SELECT state, follow_ups_sent FROM autopilot_leads WHERE run_id = $1",
+      [run],
+    );
+    expect(row[0]).toEqual({ state: "sent", follow_ups_sent: 0 });
+    await resumeRun(h.ownerPool, run);
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(2);
   });
 
   it("pause during writing: the draft stays and nothing is sent; resume sends that same draft", async () => {
