@@ -30,6 +30,8 @@ export const whatsappNumbers = pgTable("whatsapp_numbers", {
   /** Who connected it: its jobs run as them. */
   runAs: uuid("run_as").notNull(),
   tokenEnc: bytea("token_enc"),
+  /** When the token was given or last refreshed (Meta's last 60 days); null: since connectedAt. */
+  tokenAt: tz("token_at"),
   status: text("status").$type<"active" | "needs_attention" | "disconnected">().notNull(),
   problem: text("problem"),
   historyShared: boolean("history_shared").notNull().default(false),

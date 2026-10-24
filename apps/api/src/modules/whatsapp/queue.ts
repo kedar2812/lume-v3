@@ -7,6 +7,8 @@ import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
 import { sendOutbox } from "./sender";
 import { sweepTemplates } from "./submit";
+import { relayOf } from "./service";
+import { relayTokenRefresh, sweepWhatsAppTokens } from "./token-refresh";
 
 const SWEEP_MS = 60_000;
 const MEDIA_WORKERS = 4;
@@ -141,6 +143,12 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     await sweepNumberHealth(pool, o.d).catch((err: unknown) =>
       o.app.log.error({ err }, "whatsapp number health sweep failed"),
     );
+    // Each number's token, refreshed through the relay at 30 days (Meta's last 60).
+    const relay = relayOf(o.d);
+    if (relay)
+      await sweepWhatsAppTokens(pool, o.d, relayTokenRefresh(relay)).catch((err: unknown) =>
+        o.app.log.error({ err }, "whatsapp token refresh failed"),
+      );
     if (!files) return;
     const r = await sweepWhatsAppFiles({ pool, store: files.store, log: o.app.log }).catch((err: unknown) => {
       o.app.log.error({ err }, "whatsapp files sweep failed");

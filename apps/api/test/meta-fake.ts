@@ -236,6 +236,18 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
           u.searchParams.get("client_secret") !== state.appSecret
         )
           return send(res, 400, oauthError(1, "Invalid client"));
+        // Refreshing a 60-day system-user token (Meta's "Install Apps, Generate, Refresh, and Revoke Tokens"): a new
+        // token, valid 60 days from now, which Meta accepts from then on.
+        if (u.searchParams.get("grant_type") === "fb_exchange_token") {
+          const old = u.searchParams.get("fb_exchange_token") ?? "";
+          if (u.searchParams.get("set_token_expires_in_60_days") !== "true")
+            return send(res, 400, oauthError(100, "set_token_expires_in_60_days is required"));
+          if (!tokens().has(old) || state.revoked.has(old))
+            return send(res, 400, oauthError(190, "Error validating access token"));
+          const fresh = `${old.replace(/\.r\d+$/, "")}.r${state.codes.size + 1}`;
+          state.codes.set(`refresh:${fresh}`, fresh);
+          return send(res, 200, { access_token: fresh, token_type: "bearer", expires_in: 60 * 86_400 });
+        }
         if (!token) return send(res, 400, oauthError(100, "Invalid verification code format."));
         return send(res, 200, { access_token: token, token_type: "bearer" });
       }

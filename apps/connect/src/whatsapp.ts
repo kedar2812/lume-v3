@@ -166,6 +166,52 @@ export function whatsappRoutes(c: WhatsAppContext) {
       return true;
     }
 
+    // A number's token, refreshed for its LUME (2026-10-24): Meta's Embedded Signup tokens last 60 days, and only the
+    // relay holds the app secret Meta's refresh needs. The token passes through; nothing is kept.
+    if (u.pathname === "/wa/refresh" && req.method === "POST") {
+      const answer = (status: number, body: unknown) => {
+        res.writeHead(status, { "content-type": "application/json", ...HARDENED });
+        res.end(JSON.stringify(body));
+      };
+      const bearer = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+      if (!bearer || ![...c.byId.values()].some((x) => x.token === bearer)) {
+        answer(401, { error: "unknown_instance" });
+        return true;
+      }
+      let token = "";
+      try {
+        const b = JSON.parse((await c.formBody(req)) || "{}") as { token?: unknown };
+        token = typeof b.token === "string" ? b.token : "";
+      } catch {
+        token = "";
+      }
+      if (!token) {
+        answer(400, { error: "bad_request" });
+        return true;
+      }
+      const r = await fetch(
+        `${graph("oauth/access_token")}?${new URLSearchParams({
+          grant_type: "fb_exchange_token",
+          client_id: c.meta.appId,
+          client_secret: c.meta.appSecret,
+          fb_exchange_token: token,
+          set_token_expires_in_60_days: "true",
+        })}`,
+        { signal: AbortSignal.timeout(15_000) },
+      ).catch(() => null);
+      const data = ((await r?.json().catch(() => ({}))) ?? {}) as {
+        access_token?: string;
+        expires_in?: number;
+        error?: { code?: number };
+      };
+      if (r?.ok && data.access_token)
+        answer(200, { token: data.access_token, expiresIn: data.expires_in ?? null });
+      // Meta says an expired or revoked token with code 190: the number has to be connected again.
+      else if (data.error?.code === 190) answer(400, { error: "revoked" });
+      else answer(502, { error: "meta_unavailable" });
+      return true;
+    }
+
     const m = /^\/wa\/in\/([0-9a-f]{16})$/.exec(u.pathname);
     if (m && req.method === "GET") {
       const ok =

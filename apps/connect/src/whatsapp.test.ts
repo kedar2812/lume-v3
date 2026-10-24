@@ -236,3 +236,51 @@ describe("Meta's deliveries", () => {
     expect((await fetch(`${bareBase}/healthz`)).status).toBe(200);
   });
 });
+
+/** Meta's WhatsApp tokens last 60 days (LUME's Embedded Signup configuration): the relay refreshes them, as it holds the app secret. */
+describe("refreshing a number's token", () => {
+  const refresh = (token: string, bearer = TOKEN) =>
+    fetch(`${base}/wa/refresh`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+
+  it("asks Meta for a fresh 60-day token with the app secret, and hands it back", async () => {
+    const r = await refresh("EAAG-business-token");
+    expect(r.status).toBe(200);
+    const b = (await r.json()) as { token: string; expiresIn: number };
+    expect(b.token).toMatch(/^EAAG-business-token\.r\d+$/);
+    expect(b.expiresIn).toBe(60 * 86_400);
+    // The fake answers only fb_exchange_token with LUME's app id and secret and the 60-day flag, as Meta's docs say.
+    expect(meta.calls.some((c) => c.path === `/${meta.version}/oauth/access_token`)).toBe(true);
+    // The new token works with Meta from now on.
+    expect([...meta.codes.values()]).toContain(b.token);
+    expect(JSON.stringify(b)).not.toContain(meta.appSecret);
+  });
+
+  it("a token Meta no longer accepts: 400 revoked", async () => {
+    meta.revoked.add("EAAG-business-token");
+    try {
+      const r = await refresh("EAAG-business-token");
+      expect(r.status).toBe(400);
+      expect(await r.json()).toEqual({ error: "revoked" });
+    } finally {
+      meta.revoked.delete("EAAG-business-token");
+    }
+  });
+
+  it("only a known LUME may ask, with a token; a relay without Meta's settings has no such route", async () => {
+    expect((await refresh("EAAG-business-token", "x".repeat(40))).status).toBe(401);
+    expect((await refresh("")).status).toBe(400);
+    expect(
+      (
+        await fetch(`${bareBase}/wa/refresh`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${TOKEN}` },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(404);
+  });
+});

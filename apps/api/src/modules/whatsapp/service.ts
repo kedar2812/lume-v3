@@ -197,6 +197,7 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
     verifiedName: w.name,
     runAs: uid,
     tokenEnc: d.keyring.encrypt(w.token, tokenContext(id)),
+    tokenAt: new Date(),
     status: "active" as const,
     problem: null,
     historyShared: w.history,
