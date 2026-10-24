@@ -7,6 +7,7 @@ import {
   autopilotReplyOutput,
   can,
   dailyBudget,
+  firstNameOf,
   followUpMoment,
   guardFirst,
   guardReply,
@@ -315,6 +316,7 @@ async function leave(
       active: state === "skipped" || state === "stopped" ? false : l.active,
       draft: null,
       draftPayload: null,
+      thought: null,
       nextAt: null,
       updatedAt: new Date(),
     })
@@ -347,6 +349,7 @@ async function writeTemplate(o: EngineDeps, req: FastifyRequest, run: Run, l: Le
     );
   }
   let chosen = fits[0]!;
+  let thought = `Only one approved template fits ${firstNameOf(lead.name ?? "") || "this lead"}, so LUME AI uses it.`;
   if (fits.length > 1) {
     const c = await aiCtx(
       req,
@@ -368,6 +371,7 @@ async function writeTemplate(o: EngineDeps, req: FastifyRequest, run: Run, l: Le
       fits.map((t) => t.id),
     );
     chosen = fits.find((t) => t.id === id) ?? chosen;
+    thought = r.output.why.trim().slice(0, 200) || `LUME AI chose ${chosen.name}.`;
   }
   const draft = render(chosen.body, ctx).text;
   await req.db
@@ -376,6 +380,7 @@ async function writeTemplate(o: EngineDeps, req: FastifyRequest, run: Run, l: Le
       state: "writing",
       draft,
       draftPayload: { kind: "template", submissionId: chosen.id, n },
+      thought,
       nextAt: new Date(o.d.clock().getTime() + revealMs(draft)),
       fails: 0,
       updatedAt: o.d.clock(),
@@ -518,7 +523,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     lostReasonIds: reasons.map((x) => x.id),
     fieldKeys,
   });
-  return actOn(o, req, run, l, lead, g, c.lastLeadMessage);
+  return actOn(o, req, run, l, lead, g, c.lastLeadMessage, r.output.reason);
 }
 
 /** What a guarded answer does to the lead (§2–§3). Stop, ask and Ready for you are finished in Tasks 7–8. */
@@ -530,6 +535,8 @@ async function actOn(
   lead: LeadRow,
   g: GuardedReply,
   theirWords: string,
+  /** LUME AI's own reason, the live view's thought line. */
+  reason: string,
 ) {
   if (g.kind === "stop") {
     await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", byAi: { runId: run.id } });
@@ -574,6 +581,7 @@ async function actOn(
       state: "writing",
       draft: g.message,
       draftPayload: { kind: "reply", fileIds: g.fileIds, updates: g.updates },
+      thought: reason.trim().slice(0, 200) || null,
       nextAt: new Date(o.d.clock().getTime() + revealMs(g.message)),
       fails: 0,
       updatedAt: o.d.clock(),
@@ -678,6 +686,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       followUpsSent: p.kind === "template" ? (p.n ?? 0) : 0,
       draft: null,
       draftPayload: null,
+      thought: null,
       nextAt: null,
       updatedAt: at,
     })

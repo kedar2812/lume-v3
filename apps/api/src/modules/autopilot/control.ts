@@ -1,4 +1,4 @@
-import { can, canOnRecord, windowOpen } from "@lume/core";
+import { canOnRecord, windowOpen } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, eq } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -6,7 +6,7 @@ import type { AppDeps } from "../../app";
 import { forbidden, notFound } from "../../http/errors";
 import { visibleLead } from "../leads/service";
 import { endRun, pauseRun, resumeRun } from "./engine";
-import { runView } from "./read";
+import { mayControl, runView } from "./read";
 
 const R = schema.autopilotRuns;
 const L = schema.autopilotLeads;
@@ -19,8 +19,6 @@ async function runOf(req: FastifyRequest, id: string) {
   return run;
 }
 /** Pausing, resuming, ending a run (spec §2.2): the person who started it, or an admin. From any device. */
-const mayControl = (req: FastifyRequest, run: { startedBy: string }) =>
-  run.startedBy === req.actor!.userId || can(req.actor!, "settings.manage");
 
 export async function controlRun(
   req: FastifyRequest,

@@ -42,6 +42,8 @@ export const autopilotLeads = pgTable(
     followUpsSent: integer("follow_ups_sent").notNull().default(0),
     draft: text("draft"),
     draftPayload: jsonb("draft_payload").$type<Record<string, unknown> | null>(),
+    /** LUME AI's one line on what it's doing for this lead, while it works it (A3). */
+    thought: text("thought"),
     fails: integer("fails").notNull().default(0),
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },

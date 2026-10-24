@@ -1,4 +1,4 @@
-import type { LeadState } from "@lume/core";
+import { can, type LeadState } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -16,6 +16,10 @@ export const runView = (r: RunRow): RunView => ({
   updatedAt: r.updatedAt.toISOString(),
   endedAt: r.endedAt?.toISOString() ?? null,
 });
+
+/** Pause, resume and end (spec §2.2): the person who started the run, or an admin. */
+export const mayControl = (req: FastifyRequest, run: { startedBy: string }) =>
+  run.startedBy === req.actor!.userId || can(req.actor!, "settings.manage");
 
 const STATES: LeadState[] = [
   "up_next",
@@ -42,6 +46,9 @@ async function leadsOf(req: FastifyRequest, runIds: string[]) {
       state: L.state,
       reason: L.reason,
       card: L.card,
+      thought: L.thought,
+      draft: L.draft,
+      draftPayload: L.draftPayload,
       nextAt: L.nextAt,
       lastSentAt: L.lastSentAt,
       updatedAt: L.updatedAt,
@@ -70,6 +77,8 @@ export async function listRuns(req: FastifyRequest) {
   );
   return {
     runs: runs.map((r) => ({ ...runView(r), counts: countsOf(leads.filter((l) => l.runId === r.id)) })),
+    /** Runs going now that this person can see (the Autopilot nav's Live pill). */
+    running: runs.filter((r) => r.status === "running").length,
   };
 }
 
@@ -83,8 +92,33 @@ export async function getRun(req: FastifyRequest, id: string) {
     .select({ id: A.id, leadId: A.leadId, action: A.action, payload: A.payload, createdAt: A.createdAt })
     .from(A)
     .where(and(eq(A.runId, id), eq(A.status, "waiting")));
+  // The template behind each first message or follow-up being written, by name ("Approved template · First hello").
+  const subs = leads
+    .map((l) =>
+      l.state === "writing" ? (l.draftPayload as { submissionId?: string } | null)?.submissionId : null,
+    )
+    .filter((x): x is string => !!x);
+  const names = new Map(
+    subs.length
+      ? (
+          await req.db
+            .select({ id: schema.whatsappTemplateSubmissions.id, name: schema.messageTemplates.name })
+            .from(schema.whatsappTemplateSubmissions)
+            .innerJoin(
+              schema.templateVersions,
+              eq(schema.templateVersions.id, schema.whatsappTemplateSubmissions.templateVersionId),
+            )
+            .innerJoin(
+              schema.messageTemplates,
+              eq(schema.messageTemplates.id, schema.templateVersions.templateId),
+            )
+            .where(inArray(schema.whatsappTemplateSubmissions.id, subs))
+        ).map((x) => [x.id, x.name] as const)
+      : [],
+  );
   return {
-    run: runView(run),
+    // Pause, Resume and End: the person who started it, or an admin (spec §2.2); the server checks again.
+    run: { ...runView(run), canControl: mayControl(req, run) },
     counts: countsOf(leads),
     leads: leads.map((l) => ({
       leadId: l.leadId,
@@ -92,6 +126,19 @@ export async function getRun(req: FastifyRequest, id: string) {
       state: l.state,
       reason: l.reason,
       card: l.card,
+      thought: l.thought,
+      // Only while it's being written: the words, what kind, and the window the screen reveals them in.
+      draft:
+        l.state === "writing" && l.draft
+          ? {
+              text: l.draft,
+              kind: (l.draftPayload as { kind?: string } | null)?.kind === "template" ? "template" : "reply",
+              templateName:
+                names.get((l.draftPayload as { submissionId?: string } | null)?.submissionId ?? "") ?? null,
+              startedAt: l.updatedAt.toISOString(),
+              revealedBy: (l.nextAt ?? l.updatedAt).toISOString(),
+            }
+          : null,
       nextAt: l.nextAt?.toISOString() ?? null,
       lastSentAt: l.lastSentAt?.toISOString() ?? null,
       updatedAt: l.updatedAt.toISOString(),
