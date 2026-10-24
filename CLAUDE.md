@@ -13,3 +13,5 @@ LUME is a **general-purpose lead management product licensed to many clients**. 
 When unsure whether something is "for Nupuur" or "for LUME", assume it is for LUME and make it configurable.
 
 See `docs/LUME_LICENSING_DEPLOYMENT_SPEC.md` for licensing, deployment, updates, and offboarding.
+
+Every change follows `docs/QUALITY_PROCESS.md`: the edge-case sheet before code, test first, a mutation check on every guard, the full gate on the build box, review, then push.
