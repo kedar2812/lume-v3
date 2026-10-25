@@ -573,7 +573,7 @@ button.typingBox:focus-visible {
   padding: 0 16px;
   text-align: center;
 }
-.empty h1 {
+.empty h2 {
   font-size: var(--fs-2xl);
   font-weight: var(--fw-bold);
   letter-spacing: var(--ls-2xl);

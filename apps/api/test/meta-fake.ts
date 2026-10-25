@@ -183,6 +183,8 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
             to: m.body.to,
             type: m.body.type,
             wamid: `wamid.OUT${i + 1}`,
+            // A text's words (Autopilot A3: what LUME AI sent, or that it never did).
+            ...(m.body.text ? { text: (m.body.text as { body?: string }).body } : {}),
             // A document's name as WhatsApp shows it (W3b-1: a library file keeps its name on the way out).
             ...(m.body.document ? { filename: (m.body.document as { filename?: string }).filename } : {}),
             // A template (W3b-2): its name, its values in order, and the kind of file at the top.

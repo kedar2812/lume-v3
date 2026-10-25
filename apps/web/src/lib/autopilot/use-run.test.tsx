@@ -108,8 +108,21 @@ describe("useLiveRuns (the Autopilot nav's Live pill)", () => {
     const { result } = renderHook(() => useLiveRuns(true));
     await waitFor(() => expect(result.current).toBe(1));
     vi.mocked(autopilotClient.runs).mockResolvedValueOnce(ok({ runs: [], running: 0 }));
-    act(() => hear!({ run: "r9", lead: null, kind: "run_ended" }));
+    act(() => hear!({ run: "r9", lead: null, kind: "ended" }));
     await waitFor(() => expect(result.current).toBe(0));
+  });
+
+  it("a message typed or sent to a lead changes no run's status: the list isn't read for it", async () => {
+    vi.mocked(autopilotClient.runs).mockResolvedValue(ok({ runs: [], running: 1 }));
+    const { result } = renderHook(() => useLiveRuns(true));
+    await waitFor(() => expect(result.current).toBe(1));
+    act(() => {
+      for (const kind of ["draft", "sent", "ready"]) hear!({ run: "r9", lead: "l1", kind });
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(autopilotClient.runs).toHaveBeenCalledTimes(1);
+    act(() => hear!({ run: "*", lead: null, kind: "reconnected" }));
+    await waitFor(() => expect(autopilotClient.runs).toHaveBeenCalledTimes(2));
   });
 
   it("not asked at all for someone who can't see runs", () => {

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RunLead } from "@/lib/autopilot/types";
 import { useAutopilot } from "@/lib/notifications/stream";
+import { useStickToBottom } from "@/lib/ui/use-stick-to-bottom";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaThread } from "@/lib/whatsapp/types";
 import { STATE_WORDS } from "./LeadList";
@@ -71,6 +72,10 @@ export function LiveConversation({
   useAutopilot((e) => {
     if (e.lead === shown.current || e.run === "*") read();
   });
+
+  // The newest message stays in view as messages arrive and LUME AI types, unless someone scrolled up to read.
+  const scroller = useRef<HTMLDivElement>(null);
+  useStickToBottom(scroller, `${thread?.messages.length ?? 0}:${lead.state}`);
 
   const mayMessage = !!thread?.reply;
   const working = WORKING.includes(lead.state);
@@ -141,7 +146,7 @@ export function LiveConversation({
         lead.state === "stopped" ||
         lead.state === "skipped") &&
         lead.reason && <p className={s.reasonLine}>{lead.reason}</p>}
-      <div className={s.thread}>
+      <div className={s.thread} ref={scroller}>
         {thread ? (
           <WhatsAppThread
             leadName={lead.name}

@@ -101,8 +101,9 @@ export function useLiveRuns(enabled: boolean): number {
   useEffect(() => {
     if (enabled) read();
   }, [enabled, read]);
-  useAutopilot(() => {
-    if (enabled) read();
+  // Only a run's own changes (started, paused, resumed, ended: no lead) move the count; a lead's don't.
+  useAutopilot((e) => {
+    if (enabled && e.lead === null) read();
   });
   return enabled ? running : 0;
 }

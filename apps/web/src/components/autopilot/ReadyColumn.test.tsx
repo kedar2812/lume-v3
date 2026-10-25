@@ -87,6 +87,14 @@ describe("ReadyColumn", () => {
     expect(screen.getByRole("article", { name: "Rohan Gupta" })).toHaveAttribute("data-new");
   });
 
+  it("a lead that leaves (carried on) and comes back later is news again", () => {
+    const p = props({ leads: [rohan] });
+    const { rerender } = render(<ReadyColumn {...p} />);
+    rerender(<ReadyColumn {...p} leads={[]} />);
+    rerender(<ReadyColumn {...p} leads={[rohan]} />);
+    expect(toast).toHaveBeenCalledTimes(1);
+  });
+
   it("Ask me: what LUME AI wants to do, in words; one tap does it, once", async () => {
     let finish!: () => void;
     const p = props({

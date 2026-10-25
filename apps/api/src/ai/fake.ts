@@ -75,7 +75,37 @@ function autopilotFor(task: "autopilot_first" | "autopilot_reply", input: string
     followUp: null,
     lostReasonId: null,
   };
+  // What the lead last wrote decides it, so an end-to-end run can reach every place a real one does (Autopilot A3):
+  // a yes is the goal reached, a price question goes to a person, anything else gets the plain reply.
+  const said = lastLeadWords(input);
+  if (/\bworks for me\b/i.test(said))
+    return { ...plain, kind: "converted", message: null, reason: "Agreed to meet.", evidence: said };
+  if (/\b(price|cost|charge)/i.test(said))
+    return {
+      ...plain,
+      kind: "handover",
+      message: null,
+      reason: "Asked about price. LUME AI hands price questions to you.",
+      evidence: said,
+    };
+  // A longer answer, about six seconds of typing on screen: long enough to pause, or take over, mid-way.
+  if (/\bphotos?\b/i.test(said))
+    return {
+      ...plain,
+      message:
+        "Here are a few photos of our recent work, from a small studio flat to a large family home. Each one shows the before and after, and what was included. Tell me which feels closest to your space and I can share more like it.",
+    };
   return plain;
+}
+
+/** The lead's latest words in a read's input, or "". */
+function lastLeadWords(input: string): string {
+  try {
+    const thread = (JSON.parse(input) as { thread?: { from: string; text: string }[] }).thread ?? [];
+    return thread.filter((m) => m.from === "lead").at(-1)?.text ?? "";
+  } catch {
+    return "";
+  }
 }
 
 /**

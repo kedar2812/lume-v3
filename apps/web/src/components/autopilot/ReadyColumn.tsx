@@ -143,8 +143,9 @@ export function ReadyColumn({
       return;
     }
     const arrived = now.filter((l) => !seen.current!.has(l.leadId));
+    // Who's here now: one that leaves (carried on) and comes back later is news again.
+    seen.current = new Set(now.map((l) => l.leadId));
     for (const l of arrived) {
-      seen.current.add(l.leadId);
       say({
         tone: l.state === "ready" ? "ok" : "warn",
         title: arrival(l),

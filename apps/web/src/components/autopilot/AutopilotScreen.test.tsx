@@ -94,7 +94,7 @@ beforeEach(() => {
 describe("AutopilotScreen", () => {
   it("no runs yet: what Autopilot does, in three lines, and where to start", () => {
     render(<AutopilotScreen initial={{ runs: [], running: 0 }} askedRun={null} canStart />);
-    expect(screen.getByRole("heading", { name: "Autopilot" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Let LUME AI work your leads" })).toBeInTheDocument();
     expect(screen.getByText(/Select leads on Leads/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Choose leads" })).toHaveAttribute("href", "/leads");
   });
@@ -127,6 +127,23 @@ describe("AutopilotScreen", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Paused"));
     await userEvent.keyboard("{Escape}");
     expect(autopilotClient.resume).toHaveBeenCalledWith("r1");
+  });
+
+  it("a Pause that didn't reach LUME doesn't leave the typing frozen, and says so", async () => {
+    vi.mocked(autopilotClient.pause).mockResolvedValue({
+      ok: false,
+      status: 0,
+      code: "OFFLINE",
+      message: "LUME can’t reach the server right now.",
+    });
+    render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
+    await screen.findByText("LUME AI is writing as Priya Nair");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "LUME couldn't pause it" })),
+    );
+    // Still running, so still typing: not a frozen box.
+    await waitFor(() => expect(document.querySelector("[data-frozen]")).toBeNull());
   });
 
   it("someone who can't control the run: Esc does nothing", async () => {

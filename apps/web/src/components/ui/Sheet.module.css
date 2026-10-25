@@ -1,8 +1,9 @@
 /* A sheet (Autopilot A3): a right-side panel on a computer, a bottom sheet on a phone; both over the full scrim. */
+/* On the layer every LUME popup uses (ui/Scrim): above the page, the island and the bars; below the toasts. */
 .scrim {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 80;
   background: var(--scrim);
   backdrop-filter: var(--scrim-blur);
 }
@@ -17,7 +18,7 @@
   top: 8px;
   right: 8px;
   bottom: 8px;
-  z-index: 41;
+  z-index: 81;
   width: min(560px, calc(100vw - 16px));
   display: flex;
   flex-direction: column;

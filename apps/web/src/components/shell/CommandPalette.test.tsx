@@ -11,6 +11,8 @@ vi.mock("./PageTransition", () => ({ usePageNav: () => ({ go }) }));
 vi.mock("@/lib/leads/client", () => ({ leadsClient: { list: vi.fn() } }));
 vi.mock("@/lib/views/client", () => ({ viewsClient: { list: vi.fn() } }));
 vi.mock("@/lib/templates/client", () => ({ templatesClient: { list: vi.fn() } }));
+let aiOn = false;
+vi.mock("@/lib/ai/use-ai-on", () => ({ useAiOn: () => aiOn }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const lead = (id: string, name: string, phone: string) =>
   ({ id, name, phone: { display: phone, masked: false }, tagIds: [], custom: {} }) as never;
@@ -46,6 +48,17 @@ describe("Search LUME (Ctrl K)", () => {
       id: "l1",
       name: "Kedar Mehta",
     });
+  });
+
+  it("Autopilot is a page to go to while LUME AI is on, as in the sidebar (A3)", async () => {
+    aiOn = false;
+    const { unmount } = render(<CommandPalette open onOpenChange={vi.fn()} can={() => true} />);
+    expect(await screen.findByRole("group", { name: "Go to" })).not.toHaveTextContent("Autopilot");
+    unmount();
+    aiOn = true;
+    render(<CommandPalette open onOpenChange={vi.fn()} can={() => true} />);
+    expect(await screen.findByRole("group", { name: "Go to" })).toHaveTextContent("Autopilot");
+    aiOn = false;
   });
 
   it("empty, it offers the leads opened lately, things to do, and the pages", async () => {

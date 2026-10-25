@@ -72,7 +72,9 @@ export function AutopilotScreen({
 
   // The runs list follows the stream too (a new run, one ended), once things settle.
   const listTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useAutopilot(() => {
+  useAutopilot((e) => {
+    // A run started, paused, resumed or ended (no lead); a lead's own changes leave the list as it is.
+    if (e.lead !== null) return;
     clearTimeout(listTimer.current);
     listTimer.current = setTimeout(() => {
       void autopilotClient.runs().then((r) => r.ok && setRuns(r.data.runs));
@@ -119,8 +121,11 @@ export function AutopilotScreen({
   );
   const pause = useCallback(() => {
     if (!runId) return;
+    // Frozen at once, so nothing more seems to be typed; if the Pause didn't reach LUME, the run still goes: unfrozen.
     setFrozenAt(new Date());
-    void act(() => autopilotClient.pause(runId), "LUME couldn't pause it");
+    void act(() => autopilotClient.pause(runId), "LUME couldn't pause it").then((ok) => {
+      if (!ok) setFrozenAt(null);
+    });
   }, [act, runId]);
   const resume = useCallback(() => {
     if (!runId) return;
@@ -225,7 +230,7 @@ export function AutopilotScreen({
     return (
       <div className={s.empty}>
         <AiGlyph size={44} />
-        <h1>Autopilot</h1>
+        <h2>Let LUME AI work your leads</h2>
         <p className={s.emptyLede}>
           LUME AI messages your leads on WhatsApp for you, live, and you can step in any time.
         </p>

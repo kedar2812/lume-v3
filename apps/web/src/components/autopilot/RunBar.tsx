@@ -49,7 +49,7 @@ export function RunBar({
         <AiGlyph size={30} draw={status.working ? "pen" : undefined} />
       </div>
       <div className={s.barWords}>
-        <h1 className={s.barName}>{run.name}</h1>
+        <h2 className={s.barName}>{run.name}</h2>
         <p className={s.barStatus} aria-live="polite">
           <b>{status.title}</b>
           {status.line && <span>{status.line}</span>}
