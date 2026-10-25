@@ -4,11 +4,15 @@ export type Sniffed = { mime: string; kind: "image" | "video" | "audio" | "docum
 const MB = 1024 * 1024;
 /** WhatsApp's limits (spec 2026-10-18 §4.3), documents at LUME's own 25 MB (the most it keeps of any file). */
 export const LIMITS: Record<Sniffed["kind"], number> = {
-  image: 5 * MB,
+  // Photos are kept up to 20 MB (owner, 2026-10-25); one over WhatsApp's 5 MB goes out as a copy that fits.
+  image: 20 * MB,
   video: 16 * MB,
   audio: 16 * MB,
   document: 25 * MB,
 };
+
+/** The biggest photo WhatsApp takes as a photo (spec 2026-10-18 §4.3). */
+export const WHATSAPP_PHOTO_MAX = 5 * MB;
 
 const starts = (bytes: Buffer, sig: number[] | string, at = 0) => {
   const s = typeof sig === "string" ? Buffer.from(sig, "latin1") : Buffer.from(sig);

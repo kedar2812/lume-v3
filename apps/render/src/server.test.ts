@@ -7,6 +7,7 @@ import { renderServer, type Engine } from "./server";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
 const WEBP = Buffer.from("RIFF\x10\x00\x00\x00WEBPVP8 ", "latin1");
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16]);
 const DOCX = Buffer.concat([Buffer.from("PK\x03\x04", "latin1"), Buffer.alloc(40)]);
 
 let server: Server | null = null;
@@ -16,6 +17,7 @@ async function start(engine: Partial<Engine>, limits: Partial<Limits> = {}) {
   const full: Engine = {
     thumb: async () => ({ webp: WEBP }),
     pdf: async () => Buffer.from("%PDF-1.7\n"),
+    photo: async () => JPEG,
     ...engine,
   };
   server = renderServer(full, { ...LIMITS, ...limits }, () => {});
@@ -38,6 +40,17 @@ describe("LUME's render service", () => {
     expect(r.headers.get("x-height")).toBe("792");
     expect(r.headers.get("x-duration-ms")).toBeNull();
     expect(Buffer.from(await r.arrayBuffer())).toEqual(WEBP);
+  });
+
+  it("a photo comes back as a JPEG that fits WhatsApp; only photos are taken", async () => {
+    let asked: string | null = null;
+    const post = await start({ photo: async (_b, mime) => ((asked = mime), JPEG) });
+    const r = await post("/v1/photo", PNG, "image/png");
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("image/jpeg");
+    expect(Buffer.from(await r.arrayBuffer())).toEqual(JPEG);
+    expect(asked).toBe("image/png");
+    expect((await post("/v1/photo", Buffer.from("%PDF-1.7\n"), "application/pdf")).status).toBe(415);
   });
 
   it("an Office file comes back as a PDF", async () => {

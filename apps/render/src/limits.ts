@@ -12,6 +12,9 @@ export type Limits = {
   longest: number;
   /** Jobs running or waiting; one more is told to come back later (503). */
   queue: number;
+  /** A photo for WhatsApp: the most it may be, and its longest side at most (owner, 2026-10-25). */
+  photoBytes: number;
+  photoLongest: number;
 };
 
 const MB = 1024 * 1024;
@@ -22,4 +25,6 @@ export const LIMITS: Limits = {
   pdfBytes: 64 * MB,
   longest: 960,
   queue: 8,
+  photoBytes: 5 * MB,
+  photoLongest: 2560,
 };

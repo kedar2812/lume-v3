@@ -26,7 +26,7 @@ export type MetaFake = {
   revoked: Set<string>;
   failHistorySync: boolean;
   /** Replies from LUME (W3a): files uploaded for a number, and messages sent, in order. */
-  uploads: { id: string; numberId: string; size: number }[];
+  uploads: { id: string; numberId: string; size: number; type: string | null }[];
   sent: { numberId: string; body: Record<string, unknown> }[];
   /** Media ids Meta no longer has (expired): a send with one fails as Meta's does. */
   expired: Set<string>;
@@ -96,7 +96,7 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     mediaUrls: new Map<string, string>(),
     revoked: new Set<string>(),
     failHistorySync: false,
-    uploads: [] as { id: string; numberId: string; size: number }[],
+    uploads: [] as { id: string; numberId: string; size: number; type: string | null }[],
     sent: [] as { numberId: string; body: Record<string, unknown> }[],
     expired: new Set<string>(),
     failNext: [] as number[],
@@ -340,7 +340,9 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
       }
       // Replies from LUME (W3a): a file uploaded for a number, then a message that names it.
       if (edge === "media" && req.method === "POST") {
-        const up = { id: `UP${state.uploads.length + 1}`, numberId: id!, size: bytes.length };
+        // The type LUME gave it (the form's "type" field), so a test can tell a photo from a document.
+        const type = /name="type"\r\n\r\n([^\r]+)/.exec(bytes.toString("latin1"))?.[1] ?? null;
+        const up = { id: `UP${state.uploads.length + 1}`, numberId: id!, size: bytes.length, type };
         state.uploads.push(up);
         return send(res, 200, { id: up.id });
       }

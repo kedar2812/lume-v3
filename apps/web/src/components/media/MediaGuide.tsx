@@ -57,7 +57,7 @@ export function mediaSteps(canManage: boolean): Step[] {
           tone: "accent",
           icon: <AddIcon />,
           title: "Add a file",
-          body: "Drag it anywhere on this page, or use Add media. Photos up to 5 MB, videos 16 MB, PDFs 25 MB.",
+          body: "Drag it anywhere on this page, or use Add media. Photos up to 20 MB, videos 16 MB, PDFs 25 MB.",
         }
       : {
           tone: "accent",

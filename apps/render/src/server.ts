@@ -1,6 +1,15 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { LIMITS, type Limits } from "./limits";
-import { PDF_TYPES, THUMB_TYPES, looksLike, pdfOf, thumbOf, type Thumb } from "./render";
+import {
+  PDF_TYPES,
+  PHOTO_TYPES,
+  THUMB_TYPES,
+  looksLike,
+  pdfOf,
+  photoOf,
+  thumbOf,
+  type Thumb,
+} from "./render";
 import { RenderError } from "./run";
 
 /*
@@ -9,14 +18,16 @@ import { RenderError } from "./run";
  *
  *   POST /v1/thumb  a photo, video or PDF  → image/webp, with x-pages, x-duration-ms, x-width, x-height when known
  *   POST /v1/pdf    an Office or text file → application/pdf
+ *   POST /v1/photo  a photo                → image/jpeg that fits WhatsApp's 5 MB
  *   GET  /healthz                          → 200
  */
 
 export type Engine = {
   thumb(bytes: Buffer, mime: string, l: Limits): Promise<Thumb>;
   pdf(bytes: Buffer, mime: string, l: Limits): Promise<Buffer>;
+  photo(bytes: Buffer, mime: string, l: Limits): Promise<Buffer>;
 };
-const REAL: Engine = { thumb: thumbOf, pdf: pdfOf };
+const REAL: Engine = { thumb: thumbOf, pdf: pdfOf, photo: photoOf };
 
 /**
  * The body, or 413 when it's bigger than the limit. Past the limit nothing more is kept, but the rest is read to its
@@ -76,10 +87,16 @@ export function renderServer(
       if (req.method === "GET" && route === "/healthz") return send(res, (status = 200), '{"ok":true}');
       const isThumb = req.method === "POST" && route === "/v1/thumb";
       const isPdf = req.method === "POST" && route === "/v1/pdf";
-      if (!isThumb && !isPdf) throw new RenderError("Not here", 404);
-      if (!(isThumb ? THUMB_TYPES : PDF_TYPES)[mime]) throw new RenderError(`Not a type for ${route}`, 415);
+      const isPhoto = req.method === "POST" && route === "/v1/photo";
+      if (!isThumb && !isPdf && !isPhoto) throw new RenderError("Not here", 404);
+      if (!(isThumb ? THUMB_TYPES : isPdf ? PDF_TYPES : PHOTO_TYPES)[mime])
+        throw new RenderError(`Not a type for ${route}`, 415);
       const bytes = await bodyOf(req, limits.bytes);
       if (!looksLike(bytes, mime)) throw new RenderError(`These bytes aren't ${mime}`, 415);
+      if (isPhoto) {
+        const photo = await inTurn(() => engine.photo(bytes, mime, limits));
+        return send(res, (status = 200), photo, { "content-type": "image/jpeg" });
+      }
       if (isPdf) {
         const pdf = await inTurn(() => engine.pdf(bytes, mime, limits));
         return send(res, (status = 200), pdf, { "content-type": "application/pdf" });

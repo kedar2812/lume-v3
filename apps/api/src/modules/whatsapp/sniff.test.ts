@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LIMITS, sniffType } from "./sniff";
+import { LIMITS, sniffType, WHATSAPP_PHOTO_MAX } from "./sniff";
 
 /** What a file really is, from its first bytes, never its name or the browser's word for it (plan W3a outcome 12). */
 const b = (...parts: (number[] | string)[]) =>
@@ -71,9 +71,10 @@ describe("sniffType", () => {
       expect([name, sniffType(bytes, name)]).toEqual([name, null]);
   });
 
-  it("each kind has WhatsApp's limit", () => {
+  it("each kind has its limit: WhatsApp's, but photos kept up to 20 MB (sent on as a copy that fits its 5 MB)", () => {
+    expect(WHATSAPP_PHOTO_MAX).toBe(5 * 1024 * 1024);
     expect(LIMITS).toEqual({
-      image: 5 * 1024 * 1024,
+      image: 20 * 1024 * 1024,
       video: 16 * 1024 * 1024,
       audio: 16 * 1024 * 1024,
       document: 25 * 1024 * 1024,

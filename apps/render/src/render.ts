@@ -222,6 +222,39 @@ export async function thumbOf(bytes: Buffer, mime: string, l: Limits): Promise<T
   });
 }
 
+/** What a photo for WhatsApp is made from. */
+export const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png" };
+
+/**
+ * A photo too big for WhatsApp (5 MB) as a JPEG that fits (owner, 2026-10-25): turned the way it was taken, its
+ * longest side at most 2560, then smaller and plainer until it fits.
+ */
+export async function photoOf(bytes: Buffer, mime: string, l: Limits): Promise<Buffer> {
+  const ext = PHOTO_TYPES[mime];
+  if (!ext || !looksLike(bytes, mime)) throw new RenderError("LUME can't make a photo of this", 415);
+  return withJob(async (dir, env) => {
+    const input = path.join(dir, `in.${ext}`);
+    await writeFile(input, bytes);
+    const out = path.join(dir, "photo.jpg");
+    for (const [scale, q] of [
+      [1, 85],
+      [0.75, 80],
+      [0.6, 75],
+      [0.45, 70],
+    ] as const) {
+      const side = Math.round(l.photoLongest * scale);
+      await run("vipsthumbnail", [input, "-s", `${side}x${side}>`, "-o", `${out}[Q=${q},strip]`], {
+        cwd: dir,
+        seconds: l.seconds,
+        env,
+      });
+      const made = await readFile(out);
+      if (made.length <= l.photoBytes) return made;
+    }
+    throw new RenderError("This photo won't fit WhatsApp's 5 MB");
+  });
+}
+
 /** An Office file or a text file as a PDF, by LibreOffice in a profile of its own (profile.ts). */
 export async function pdfOf(bytes: Buffer, mime: string, l: Limits): Promise<Buffer> {
   const ext = PDF_TYPES[mime];

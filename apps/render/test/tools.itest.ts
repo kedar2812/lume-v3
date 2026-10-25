@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { LIMITS } from "../src/limits";
-import { pdfOf, thumbOf, OFFICE } from "../src/render";
+import { pdfOf, photoOf, thumbOf, OFFICE } from "../src/render";
 import { RenderError, run } from "../src/run";
 import { fodp, fods, fodt, withOrientation } from "./fixtures";
 
@@ -27,14 +27,14 @@ const soffice = (name: string, to: string) =>
     path.join(dir, name),
   ]);
 
-/** Width and height of a WebP, read by vips (so the test trusts no code of ours to say it). */
+/** Width and height of a WebP or a JPEG, read by vips (so the test trusts no code of ours to say it). */
 async function sizeOf(webp: Buffer): Promise<{ format: string; width: number; height: number }> {
   const p = path.join(dir, `probe-${Math.random().toString(36).slice(2)}.webp`);
   await writeFile(p, webp);
   const out = (await tool("vipsheader", ["-a", p])).toString();
   const field = (k: string) => out.match(new RegExp(`^${k}: (.+)$`, "m"))?.[1] ?? "";
   return {
-    format: webp.subarray(8, 12).toString("latin1"),
+    format: webp[0] === 0xff && webp[1] === 0xd8 ? "JPEG" : webp.subarray(8, 12).toString("latin1"),
     width: Number(field("width")),
     height: Number(field("height")),
   };
@@ -75,6 +75,19 @@ beforeAll(async () => {
     "yuv420p",
     "clip.mp4",
   ]);
+  // A photo over WhatsApp's 5 MB: noise doesn't compress.
+  await tool("ffmpeg", [
+    "-v",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    "nullsrc=s=4000x3000,geq=random(1)*255:128:128",
+    "-frames:v",
+    "1",
+    "noisy.png",
+  ]);
+  f.noisy = await readFile(path.join(dir, "noisy.png"));
   f.png = await readFile(path.join(dir, "wide.png"));
   // A phone photo taken upright: stored 2000×1000, its EXIF saying "turn me 90°".
   f.jpg = withOrientation(await readFile(path.join(dir, "wide.jpg")), 6);
@@ -98,6 +111,19 @@ beforeAll(async () => {
   f.pptx = await readFile(path.join(dir, "deck.pptx"));
 }, 300_000);
 afterAll(() => rm(dir, { recursive: true, force: true }));
+
+describe("a photo for WhatsApp, by the real tools (owner, 2026-10-25)", () => {
+  it("a photo too big for WhatsApp: a JPEG of 5 MB at most, 2560 at most on its longest side, standing as taken", async () => {
+    const big = await photoOf(f.noisy!, "image/png", LIMITS);
+    expect(f.noisy!.length).toBeGreaterThan(5 * 1024 * 1024);
+    expect(big.length).toBeLessThanOrEqual(5 * 1024 * 1024);
+    const s = await sizeOf(big);
+    expect(s.format).toBe("JPEG");
+    expect(Math.max(s.width, s.height)).toBeLessThanOrEqual(2560);
+    const upright = await photoOf(f.jpg!, "image/jpeg", LIMITS);
+    expect(await sizeOf(upright)).toEqual({ format: "JPEG", width: 1000, height: 2000 });
+  });
+});
 
 describe("thumbnails, by the real tools", () => {
   it("a PNG: a WebP no bigger than 960 on its longest side, and its own size", async () => {

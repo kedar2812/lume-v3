@@ -7,7 +7,9 @@ import { jobServer, withJobRequest } from "../imports/job-request";
 import { countSend, dncWords } from "../leads/sending";
 import { recordActivity, visibleLead } from "../leads/service";
 import { HttpError } from "../../http/errors";
+import { photoForWhatsApp } from "../media/photo";
 import { MetaError, metaClient } from "./meta";
+import { WHATSAPP_PHOTO_MAX } from "./sniff";
 import { unsent } from "../autopilot/unsent";
 import type { WhatsAppJobDeps } from "./process";
 import { tokenContext } from "./service";
@@ -330,13 +332,14 @@ async function bodyOf(
   }
   if (!row.media_kind) return { body: outboundBody(to, { text: row.text ?? "" }), reused: false };
   if (!row.media_sha) throw new MissingFile();
-  const kind = row.media_kind;
   const up = await uploaded(o, row, meta, fresh, {
-    kind,
+    kind: row.media_kind,
     sha: row.media_sha,
     mime: row.media_mime,
     filename: row.media_filename,
   });
+  // A photo too big for WhatsApp with no copy to be had goes whole, as a document (owner, 2026-10-25).
+  const kind = up.asDocument ? "document" : row.media_kind;
   const file = {
     kind,
     ...(row.text ? { caption: row.text } : {}),
@@ -352,7 +355,7 @@ async function uploaded(
   meta: ReturnType<typeof metaClient>,
   fresh: boolean,
   f: { kind: string; sha: string; mime: string | null; filename: string | null },
-): Promise<{ mediaId: string; reused: boolean }> {
+): Promise<{ mediaId: string; reused: boolean; asDocument?: true }> {
   if (!o.d.files) throw new MissingFile();
   const pool = o.d.jobPool ?? o.d.pool;
   if (!fresh) {
@@ -366,10 +369,23 @@ async function uploaded(
   const bytes = await readFile(o.d.files.store.path(f.sha)).catch(() => {
     throw new MissingFile();
   });
+  // A photo over WhatsApp's 5 MB (LUME keeps them up to 20): a copy that fits, made by the render service; with
+  // none, the photo goes whole as a document, uploaded each time (its id is never kept as a photo's).
+  const big = f.kind === "image" && bytes.length > WHATSAPP_PHOTO_MAX;
+  const copy = big ? await photoForWhatsApp(o.d, bytes, f.mime ?? "image/jpeg") : null;
+  if (big && !copy) {
+    const id = await meta.uploadMedia(
+      row.phone_number_id,
+      bytes,
+      f.mime ?? "application/octet-stream",
+      f.filename ?? `Photo.${(f.mime ?? "image/jpeg").split("/")[1]}`,
+    );
+    return { mediaId: id, reused: false, asDocument: true };
+  }
   const mediaId = await meta.uploadMedia(
     row.phone_number_id,
-    bytes,
-    f.mime ?? "application/octet-stream",
+    copy ?? bytes,
+    copy ? "image/jpeg" : (f.mime ?? "application/octet-stream"),
     f.filename ?? `file.${f.kind}`,
   );
   await pool.query(

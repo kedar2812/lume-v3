@@ -145,7 +145,7 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
         ok: false,
         status: 413,
         code: "FILE_TOO_BIG",
-        message: "Photos can be up to 5 MB.",
+        message: "Photos can be up to 20 MB.",
       } as never)
       .mockResolvedValueOnce(
         ok({ media: { id: "m2", kind: "image", mime: "image/jpeg", filename: null, size: 2048 } }),
@@ -153,7 +153,7 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
     render(<WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} onSent={vi.fn()} />);
     const input = screen.getByLabelText("Attach a photo or a file");
     await userEvent.upload(input, new File(["x"], "big.jpg", { type: "image/jpeg" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Photos can be up to 5 MB.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Photos can be up to 20 MB.");
     await userEvent.upload(input, new File(["x"], "site.jpg", { type: "image/jpeg" }));
     await userEvent.click(await screen.findByRole("button", { name: "Remove site.jpg" }));
     expect(screen.queryByText("site.jpg")).toBeNull();

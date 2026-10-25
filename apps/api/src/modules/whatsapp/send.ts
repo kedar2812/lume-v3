@@ -203,7 +203,8 @@ async function draft(
   f: { kind: Sniffed["kind"]; mime: string; name: string | null; size: number; sha256: string },
 ) {
   const id = newId();
-  const filename = f.kind === "document" ? f.name?.trim().slice(0, 200) || null : null;
+  // A photo keeps its name too: one too big for WhatsApp as a photo may go as a document, under it.
+  const filename = f.kind === "document" || f.kind === "image" ? f.name?.trim().slice(0, 200) || null : null;
   await req.db.insert(schema.whatsappMedia).values({
     id,
     numberId,

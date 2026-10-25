@@ -17,10 +17,17 @@ export type RenderFake = {
   slowMs: number;
   /** What a thumbnail answers instead of a WebP (a service gone wrong). */
   thumbBody: Buffer | null;
+  /** What a photo for WhatsApp answers instead of a small JPEG (a service gone wrong). */
+  photoBody: Buffer | null;
   close(): Promise<void>;
 };
 
 /** A real 1×1 WebP (lossless). */
+/** A real 1×1 JPEG. */
+export const FAKE_JPEG = Buffer.from(
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+  "base64",
+);
 export const FAKE_WEBP = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
 
 /** A real PDF with one page per line of text, its cross-reference table counted, so pdf.js and poppler both read it. */
@@ -59,6 +66,7 @@ export async function startRenderFake(o: { port?: number } = {}): Promise<Render
     down: false,
     slowMs: 0,
     thumbBody: null,
+    photoBody: null,
     close: () => new Promise((r) => server.close(() => r())),
   };
   const server = http.createServer((req, res) => {
@@ -79,6 +87,11 @@ export async function startRenderFake(o: { port?: number } = {}): Promise<Render
       if (path === "/v1/pdf") {
         res.writeHead(200, { "content-type": "application/pdf" });
         return res.end(FAKE_PDF);
+      }
+      // A photo made to fit WhatsApp's 5 MB: a small real JPEG.
+      if (path === "/v1/photo") {
+        res.writeHead(200, { "content-type": "image/jpeg" });
+        return res.end(fake.photoBody ?? FAKE_JPEG);
       }
       if (path === "/v1/thumb") {
         const known: Record<string, string> =

@@ -324,10 +324,11 @@ describe("files", () => {
   it("over WhatsApp's size for its kind, refused with the limit in words", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     await writes();
-    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(5 * 1024 * 1024)]);
+    // Photos are kept up to 20 MB (owner, 2026-10-25); WhatsApp gets a copy that fits its 5 MB (photo-copy.test).
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(20 * 1024 * 1024)]);
     const r = await attach(rep, lead, jpeg, "big.jpg");
     expect(r.statusCode).toBe(413);
-    expect(r.json().error.message).toBe("Photos can be up to 5 MB.");
+    expect(r.json().error.message).toBe("Photos can be up to 20 MB.");
   });
 
   it("a nearly full disk takes no new file, and says so", async () => {
