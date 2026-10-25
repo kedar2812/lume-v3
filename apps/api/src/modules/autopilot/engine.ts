@@ -7,6 +7,8 @@ import {
   autopilotReplyOutput,
   can,
   dailyBudget,
+  FILLABLE_TYPES,
+  fieldValueFrom,
   firstNameOf,
   followUpMoment,
   guardFirst,
@@ -23,24 +25,26 @@ import {
   valueOf,
   type AiProfile,
   type AutopilotCtx,
+  type FillableType,
   type GuardedReply,
   type LeadState,
   type PauseReason,
 } from "@lume/core";
 import { schema, type RunGoal } from "@lume/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
 import type { AppDeps } from "../../app";
 import { HttpError } from "../../http/errors";
+import { loadFieldRegistry } from "../../leads/fields";
 import { loadActor } from "../../rbac/actor";
 import { openStages, filesOf } from "../ai/profile";
 import { aiStatus, runRead } from "../ai/service";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { setDoNotContact } from "../leads/dnc";
 import { contextFor } from "../leads/sending";
-import type { LeadRow } from "../leads/serialize";
-import { visibleLead } from "../leads/service";
+import { isFieldEditable, type LeadRow } from "../leads/serialize";
+import { updateLead, visibleLead } from "../leads/service";
 import { moveStage } from "../leads/write";
 import { adminIds, notify } from "../notifications/notify";
 import { workingHoursFrom } from "../settings/follow-ups";
@@ -451,6 +455,28 @@ async function aiCtx(
       ? ((await openStages(req)).find((x) => x.id === goal.stageId)?.name ?? "the goal stage")
       : "";
   const files = (await filesOf(req, profile.knows.files)).filter((f) => !f.archived);
+  // What a reply may change (§1.3), by id and key: the lead's own pipeline, the live lost reasons, its empty fields.
+  const St = schema.stages;
+  const pipelineStages = await req.db
+    .select({ id: St.id, name: St.name, kind: St.kind })
+    .from(St)
+    .where(and(eq(St.pipelineId, lead.pipelineId), isNull(St.archivedAt), inArray(St.kind, ["open", "lost"])))
+    .orderBy(asc(St.position));
+  const lostReasons = await req.db
+    .select({ id: schema.lostReasons.id, label: schema.lostReasons.label })
+    .from(schema.lostReasons)
+    .where(isNull(schema.lostReasons.archivedAt))
+    .orderBy(asc(schema.lostReasons.position));
+  const registry = await loadFieldRegistry(req);
+  const custom = (lead.custom as Record<string, unknown> | null) ?? {};
+  const fillable = registry.defs
+    .filter((f) => fillableBy(req, registry, f.key) && isEmpty(custom[f.key]))
+    .map((f) => ({
+      key: f.key,
+      label: f.label,
+      type: f.type as FillableType,
+      options: f.options.filter((x) => !x.archived).map((x) => x.label),
+    }));
   return {
     business: s?.name ?? "",
     speaker: speaker?.name ?? "",
@@ -462,6 +488,9 @@ async function aiCtx(
     thread,
     templates,
     files: files.map((f) => ({ id: f.id, name: f.name })),
+    stages: pipelineStages.map((x) => ({ id: x.id, name: x.name, kind: x.kind as "open" | "lost" })),
+    lostReasons,
+    fillable,
     now: new Date().toISOString(),
     timezone: s?.tz ?? "UTC",
     leadWords: theirs
@@ -705,6 +734,25 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   return 1;
 }
 
+/** A field nobody has filled in yet. */
+const isEmpty = (v: unknown) =>
+  v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
+/** A field LUME AI may fill for this speaker (§1.3): the business's own, live, of a fillable type, theirs to edit. */
+function fillableBy(
+  req: FastifyRequest,
+  registry: Awaited<ReturnType<typeof loadFieldRegistry>>,
+  key: string,
+) {
+  const f = registry.byKey.get(key);
+  return (
+    !!f &&
+    !f.isCore &&
+    !f.archived &&
+    (FILLABLE_TYPES as readonly string[]).includes(f.type) &&
+    isFieldEditable({ actor: req.actor!, fields: registry }, key)
+  );
+}
+
 /** What LUME AI may change on the lead with a reply (the guards allowed it): each on its own, one failing never the rest. */
 async function applyUpdates(
   o: EngineDeps,
@@ -738,6 +786,22 @@ async function applyUpdates(
         { via: "ai_autopilot" },
       );
     });
+  }
+  // Details from what the lead said: only fields still empty, in each field's own type; words that don't fit are left.
+  const filling = Object.entries(u.fields);
+  if (filling.length) {
+    const registry = await loadFieldRegistry(req);
+    for (const [i, [key, text]] of filling.entries()) {
+      const def = registry.byKey.get(key);
+      if (!def || !fillableBy(req, registry, key)) continue;
+      await attempt(`field_${i}`, async () => {
+        const lead = await visibleLead(req, leadId);
+        if (!isEmpty((lead.custom as Record<string, unknown> | null)?.[key])) return;
+        const value = fieldValueFrom({ type: def.type as FillableType, options: def.options }, text);
+        if (value === undefined) return;
+        await updateLead(req, leadId, lead.version, { custom: { [key]: value } });
+      });
+    }
   }
   if (u.followUp) {
     const f = u.followUp;

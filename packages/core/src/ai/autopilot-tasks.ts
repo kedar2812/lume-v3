@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isStop, unbackedAmounts } from "./autopilot";
+import type { FillableType } from "./fill-fields";
 import type { AiProfile, AutopilotAction } from "./profile";
 
 /**
@@ -38,6 +39,12 @@ export type AutopilotCtx = {
   templates: { id: string; name: string; body: string }[];
   /** The files chosen in Settings → LUME AI that can still be sent. */
   files: { id: string; name: string }[];
+  /** The lead's own pipeline: its open stages and its lost one (won is reached by converting, never set). */
+  stages: { id: string; name: string; kind: "open" | "lost" }[];
+  /** The business's live lost reasons, for a lead marked lost. */
+  lostReasons: { id: string; label: string }[];
+  /** The lead's empty fields LUME AI may fill, by key; a choice by its options' labels. */
+  fillable: { key: string; label: string; type: FillableType; options: string[] }[];
   now: string;
   timezone: string;
 };
@@ -117,8 +124,10 @@ aren't sure of, answer with kind handover, the reason in one line, and the lead'
     task === "autopilot_first"
       ? "Choose the one approved template that best fits this lead and the goal. Answer with its templateId and why."
       : `Write the next WhatsApp message to the lead toward the goal (${goalWords(c.goal)}). Answer with kind reply and \
-the message, or another kind as the rules say. You may attach up to three of the files given by id, set stageId to \
-one of the stages given, fill fields by key, suggest a follow-up, or a lostReasonId when the lead has said no.`;
+the message, or another kind as the rules say. You may attach up to three of the files given by id; set stageId to one \
+of the stages given by id when the conversation has moved the lead there; when the lead has said no, the lost stage with \
+a lostReasonId from the lost reasons given; fill only the empty fields given, by key, from what the lead said (a choice \
+by one of its options, a number as digits, a date as YYYY-MM-DD); and suggest a follow-up.`;
   return `You are LUME AI, messaging a business's lead on WhatsApp. The goal: ${goalWords(c.goal)}.
 ${voice}
 
@@ -137,7 +146,9 @@ export function autopilotInput(task: AutopilotTask, c: AutopilotCtx): string {
     timezone: c.timezone,
     lead: c.lead,
     thread: c.thread.slice(-30),
-    ...(task === "autopilot_first" ? { templates: c.templates } : { files: c.files }),
+    ...(task === "autopilot_first"
+      ? { templates: c.templates }
+      : { files: c.files, stages: c.stages, lostReasons: c.lostReasons, fillable: c.fillable }),
   });
 }
 

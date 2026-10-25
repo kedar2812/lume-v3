@@ -48,6 +48,16 @@ const ctx = (o: Partial<AutopilotCtx> = {}): AutopilotCtx => ({
   thread: [{ from: "lead", at: "2026-10-22T10:00:00Z", text: "Hi, what does a kitchen cost?" }],
   templates: [{ id: TEMPLATE, name: "First hello", body: "Hi {{first_name}}, thanks for your enquiry." }],
   files: [{ id: FILE, name: "Brochure.pdf" }],
+  stages: [
+    { id: STAGE_OPEN, name: "Contacted", kind: "open" },
+    { id: STAGE_GOAL, name: "Site visit booked", kind: "open" },
+    { id: STAGE_LOST, name: "Lost", kind: "lost" },
+  ],
+  lostReasons: [{ id: REASON, label: "Too expensive" }],
+  fillable: [
+    { key: "property_type", label: "Property type", type: "select", options: ["Apartment", "Villa"] },
+    { key: "move_in", label: "Move-in date", type: "date", options: [] },
+  ],
   now: "2026-10-22T10:05:00Z",
   timezone: "Asia/Kolkata",
   ...o,
@@ -107,6 +117,33 @@ describe("what LUME AI is asked", () => {
     expect(input.templates[0].id).toBe(TEMPLATE);
     expect(input.lead.firstName).toBe("Meera");
     expect(JSON.stringify(input)).not.toMatch(/@|\+\d{6,}/);
+  });
+});
+
+describe("what a reply may change", () => {
+  it("the reply's input names the stages, the lost reasons and the empty fields it may fill, by id and key", () => {
+    const input = JSON.parse(autopilotInput("autopilot_reply", ctx()));
+    expect(input.stages).toEqual([
+      { id: STAGE_OPEN, name: "Contacted", kind: "open" },
+      { id: STAGE_GOAL, name: "Site visit booked", kind: "open" },
+      { id: STAGE_LOST, name: "Lost", kind: "lost" },
+    ]);
+    expect(input.lostReasons).toEqual([{ id: REASON, label: "Too expensive" }]);
+    expect(input.fillable).toEqual([
+      { key: "property_type", label: "Property type", type: "select", options: ["Apartment", "Villa"] },
+      { key: "move_in", label: "Move-in date", type: "date", options: [] },
+    ]);
+    // A first message only chooses a template: nothing to change.
+    const first = JSON.parse(autopilotInput("autopilot_first", ctx()));
+    expect(first.stages).toBeUndefined();
+    expect(first.fillable).toBeUndefined();
+  });
+
+  it("the instructions say how: stages and reasons by id, fields by key, a choice by one of its options", () => {
+    const say = autopilotInstructions("autopilot_reply", ctx());
+    expect(say).toContain("set stageId to one of the stages given by id");
+    expect(say).toContain("a lostReasonId from the lost reasons given");
+    expect(say).toContain("fill only the empty fields given, by key");
   });
 });
 
