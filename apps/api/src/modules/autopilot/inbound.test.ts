@@ -150,7 +150,8 @@ describe("replies, stop, taking over", () => {
 
   it("stop in other words: do not contact, one apology, and nobody can message them after", async () => {
     for (const words of ["please don't message me again", "band karo"]) {
-      meta.sent.length = 0;
+      // The fake numbers its message ids by how many it has taken: kept, so each round's ids are new ones.
+      const before = textsSent().length;
       await h.queryAll("UPDATE leads SET deleted_at = now() WHERE deleted_at IS NULL");
       const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
       const run = await start([lead]);
@@ -158,7 +159,7 @@ describe("replies, stop, taking over", () => {
       await writes(words);
       expect(await stateOf(run, lead)).toMatchObject({ state: "stopped", active: false });
       await h.runWhatsAppSend();
-      expect(textsSent()).toEqual(["Sorry for the messages. You won't hear from us again."]);
+      expect(textsSent().slice(before)).toEqual(["Sorry for the messages. You won't hear from us again."]);
       // No one in LUME, no later run.
       const reply = await post(admin, `/api/v1/leads/${lead}/whatsapp/messages`, {
         clientKey: newId(),

@@ -90,6 +90,32 @@ type Row = {
  *   done, the stage's move.
  */
 export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> {
+  try {
+    await sendOne(o, id);
+  } finally {
+    await wakeNext(o, id);
+  }
+}
+
+/**
+ * A lead's messages go in the order they were sent: once one is done with (sent, failed or cancelled), the oldest still
+ * waiting for the same lead is queued, since its sender stepped back while this one was on its way.
+ */
+async function wakeNext(o: WhatsAppJobDeps, id: string): Promise<void> {
+  const pool = o.d.jobPool ?? o.d.pool;
+  const next = await allScope(pool, async (c) => {
+    const { rows } = await c.query<{ id: string }>(
+      `SELECT n.id FROM whatsapp_outbox o JOIN whatsapp_outbox n ON n.lead_id = o.lead_id AND n.status = 'queued' AND n.id <> o.id
+        WHERE o.id = $1 AND o.status NOT IN ('queued', 'sending')
+        ORDER BY n.created_at, n.id LIMIT 1`,
+      [id],
+    );
+    return rows[0]?.id ?? null;
+  });
+  if (next) await o.d.whatsapp?.enqueueSend(next);
+}
+
+async function sendOne(o: WhatsAppJobDeps, id: string): Promise<void> {
   const { d } = o;
   const pool = d.jobPool ?? d.pool;
   const row = await allScope(
@@ -187,7 +213,18 @@ export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> 
   if (!allowed) return void (await fail(lost));
 
   const tries = row.tries + 1;
-  await set("sending", { tries });
+  // Taken only when nothing sent to this lead before it is still on its way; otherwise that one wakes it when it's done.
+  const claimed = await allScope(pool, (c) =>
+    c.query(
+      `UPDATE whatsapp_outbox o SET status = 'sending', tries = $2, problem = NULL, updated_at = now()
+        WHERE o.id = $1 AND o.status = 'queued' AND NOT EXISTS (
+          SELECT 1 FROM whatsapp_outbox e
+           WHERE e.lead_id = o.lead_id AND e.id <> o.id AND e.status IN ('queued', 'sending')
+             AND (e.created_at, e.id) < (o.created_at, o.id))`,
+      [id, tries],
+    ),
+  );
+  if (!claimed.rowCount) return;
   const meta = metaClient(d.meta, d.keyring.decrypt(row.token_enc, tokenContext(row.number_id)));
   let wamid: string;
   try {

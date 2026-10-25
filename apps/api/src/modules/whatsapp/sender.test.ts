@@ -7,6 +7,7 @@ import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { deliver, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 import { sweepWhatsAppFiles } from "./keep";
 import { staleOutbox } from "./queue";
+import { sendOutbox } from "./sender";
 
 /** Sending a reply from LUME (plan W3a Task 4): the queue, Meta's answers and statuses, and what a send means. */
 let h: Harness;
@@ -147,6 +148,58 @@ describe("sending", () => {
     expect(
       await h.queryAll("SELECT 1 FROM activities WHERE lead_id = $1 AND type = 'whatsapp_sent'", [lead]),
     ).toHaveLength(1);
+  });
+
+  it("a lead's messages reach WhatsApp in the order they were sent, whichever sender gets to them first", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    // The fake numbers its message ids by how many it has taken: never emptied here, so every id is a new one.
+    let from = 0;
+    const texts = () => meta.sent.slice(from).map((m) => (m.body as { text?: { body: string } }).text?.body);
+    const job = (id: string) => sendOutbox({ app: h.app, d: h.deps }, id);
+    const first = await reply(lead, { text: "Our prices" });
+    const second = await reply(lead, { text: "And our showroom" });
+    h.whatsappSendQueued.length = 0;
+    // The second's sender is first to it: it waits for the first, and the first wakes it once it's gone.
+    await job(second.outboxId);
+    expect(meta.sent).toEqual([]);
+    expect(await outbox(second.outboxId)).toMatchObject({ status: "queued", tries: 0 });
+    await job(first.outboxId);
+    expect(h.whatsappSendQueued).toEqual([second.outboxId]);
+    await h.runWhatsAppSend();
+    expect(texts()).toEqual(["Our prices", "And our showroom"]);
+
+    // Both at once, on two senders.
+    from = meta.sent.length;
+    const third = await reply(lead, { text: "Three" });
+    const fourth = await reply(lead, { text: "Four" });
+    h.whatsappSendQueued.length = 0;
+    await Promise.all([job(fourth.outboxId), job(third.outboxId)]);
+    await h.runWhatsAppSend();
+    expect(texts()).toEqual(["Three", "Four"]);
+
+    // One WhatsApp refused doesn't hold the next: it fails with words, and the next goes.
+    from = meta.sent.length;
+    meta.failNext.push(131026);
+    const refused = await reply(lead, { text: "Refused" });
+    const after = await reply(lead, { text: "After it" });
+    h.whatsappSendQueued.length = 0;
+    await job(after.outboxId);
+    await job(refused.outboxId);
+    expect(await outbox(refused.outboxId)).toMatchObject({ status: "failed" });
+    await h.runWhatsAppSend();
+    expect(texts()).toEqual(["After it"]);
+    // Another lead's messages never wait for this one's.
+    const other = await h.seedLead({ ownerId: rep.id, name: "Rohan Gupta", phone: "+919876543211" });
+    await writes("+919876543211");
+    const busy = await reply(lead, { text: "Waiting on Meta" });
+    meta.failNext.push(130429);
+    h.whatsappSendQueued.length = 0;
+    await job(busy.outboxId).catch(() => undefined);
+    const free = await reply(other, { text: "Hello Rohan" });
+    h.whatsappSendQueued.length = 0;
+    await job(free.outboxId);
+    expect(await outbox(free.outboxId)).toMatchObject({ status: "sent" });
   });
 
   it("a file goes once to Meta for each number: a second lead gets the same brochure without another upload", async () => {
