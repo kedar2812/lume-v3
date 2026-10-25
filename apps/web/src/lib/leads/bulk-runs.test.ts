@@ -121,4 +121,17 @@ describe("bulk runs client (7C)", () => {
       "40 leads put back",
     );
   });
+
+  it("the Who replied board's two: do not contact, and a follow-up (W2)", () => {
+    const names = { person: () => "Riya Shah", stage: () => "Contacted", tag: () => "VIP" };
+    const dnc = { type: "do_not_contact" as const, reason: "Wrong number" };
+    const fu = { type: "follow_up" as const, at: "2026-11-01T05:30:00.000Z", title: "Call about the price" };
+    expect(runLine(run({ status: "running", action: dnc }), names)).toBe("Marking do not contact");
+    expect(runLine(run({ status: "done", done: 3, action: dnc }), names)).toBe(
+      "3 leads marked do not contact",
+    );
+    expect(runLine(run({ status: "running", action: fu }), names)).toBe("Setting follow-ups");
+    expect(runLine(run({ status: "done", done: 1, action: fu }), names)).toBe("A follow-up set on 1 lead");
+    expect(reasonWords("ALREADY_DNC", 2)).toBe("2 were do not contact already");
+  });
 });

@@ -1,0 +1,79 @@
+/* What a WhatsApp reply means, under it on the thread (W2). */
+.meaning {
+  display: grid;
+  gap: 6px;
+  max-width: 88%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--sunk);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.chip {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  background: var(--line-2);
+  color: var(--text);
+}
+.chip[data-tone="ok"] {
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.chip[data-tone="ask"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.chip[data-tone="no"] {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.summary {
+  min-width: 0;
+  color: var(--text);
+}
+.step {
+  display: grid;
+  gap: 4px;
+}
+.from {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.parts {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.line {
+  margin: 0;
+}
+.failed {
+  margin: 4px 0 0;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.problem {
+  margin: 0;
+  color: var(--danger-ink);
+}

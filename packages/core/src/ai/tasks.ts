@@ -6,7 +6,7 @@ import { wallTime } from "../tasks/time";
  * that hold whichever provider reads it. Pure: no provider, no database.
  */
 /** The read-a-note tasks (2026-10-18), and Autopilot's (2026-10-19): each counts against the month. */
-export type AiTask = "next_step" | "catch_up" | "autopilot_first" | "autopilot_reply";
+export type AiTask = "next_step" | "catch_up" | "autopilot_first" | "autopilot_reply" | "reply_meaning";
 type NoteTask = "next_step" | "catch_up";
 
 /**

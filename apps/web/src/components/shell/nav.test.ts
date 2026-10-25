@@ -6,6 +6,7 @@ describe("navigation", () => {
     expect(NAV_ITEMS.map((i) => i.label)).toEqual([
       "Today",
       "Leads",
+      "Who replied",
       "Autopilot",
       "Pipeline",
       "Calendar",
@@ -21,6 +22,7 @@ describe("navigation", () => {
     expect(visibleNav(NAV_ITEMS, can).map((i) => i.id)).toEqual([
       "today",
       "leads",
+      "replies",
       "pipeline",
       "calendar",
       "settings", // everyone has personal settings (spec §7)
@@ -55,11 +57,24 @@ describe("navigation", () => {
     expect(visibleNav(NAV_ITEMS, can, { ai: true }).map((i) => i.id)).toEqual([
       "today",
       "leads",
+      "replies",
       "autopilot",
       "pipeline",
       "settings",
     ]);
     expect(visibleNav(NAV_ITEMS, () => false, { ai: true }).map((i) => i.id)).not.toContain("autopilot");
     expect(activeNav(NAV_ITEMS, "/autopilot")?.id).toBe("autopilot");
+  });
+
+  it("Who replied (W2) sits after Leads, for whoever may view leads (owner, 2026-10-25)", () => {
+    const can = (p: string) => p === "leads.view";
+    const ids = visibleNav(NAV_ITEMS, can).map((i) => i.id);
+    expect(ids.slice(0, 3)).toEqual(["today", "leads", "replies"]);
+    expect(visibleNav(NAV_ITEMS, () => false).map((i) => i.id)).not.toContain("replies");
+    expect(NAV_ITEMS.find((i) => i.id === "replies")).toMatchObject({
+      label: "Who replied",
+      href: "/replies",
+    });
+    expect(activeNav(NAV_ITEMS, "/replies")?.id).toBe("replies");
   });
 });

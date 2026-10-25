@@ -64,7 +64,7 @@ const limitsOf = (req: FastifyRequest, month: string) => {
 };
 
 /** Switched on, set up on this server, and in this LUME's plan. */
-async function available(
+export async function available(
   req: FastifyRequest,
   d: AppDeps,
 ): Promise<{ ok: boolean; why: "off" | "not_configured"; tz: string }> {

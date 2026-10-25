@@ -17,12 +17,14 @@ export type DoNotContact = { at: string; by: string | null; reason: string | nul
 export async function setDoNotContact(
   req: FastifyRequest,
   leadId: string,
-  o: { reason: string; byAi?: { runId: string } },
+  /** `byAi`: LUME AI in a run heard it; `fromLead`: the lead said stop on WhatsApp. Neither is a person's doing. */
+  o: { reason: string; byAi?: { runId: string }; fromLead?: true },
 ): Promise<{ doNotContact: DoNotContact }> {
   const lead = await visibleLead(req, leadId);
-  if (!o.byAi && !canOnRecord(req.actor!, "leads.edit", lead.ownerId)) throw forbidden();
+  const person = !o.byAi && !o.fromLead;
+  if (person && !canOnRecord(req.actor!, "leads.edit", lead.ownerId)) throw forbidden();
   const at = lead.dncAt ?? new Date();
-  const by = o.byAi ? null : req.actor!.userId;
+  const by = person ? req.actor!.userId : null;
   if (!lead.dncAt) {
     await req.db
       .update(schema.leads)
@@ -31,6 +33,7 @@ export async function setDoNotContact(
     await recordActivity(req, leadId, "dnc_set", {
       reason: o.reason,
       ...(o.byAi ? { via: "ai_autopilot", runId: o.byAi.runId } : {}),
+      ...(o.fromLead ? { via: "whatsapp" } : {}),
     });
     await audit(req, { action: "lead.dnc_set", entityType: "lead", entityId: leadId });
   }

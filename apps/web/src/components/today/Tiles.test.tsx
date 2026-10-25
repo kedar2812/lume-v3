@@ -61,6 +61,7 @@ const base: TilesData = {
     previous: 0.31,
     series: [0.3, 0.32, 0.31, 0.35, 0.33, 0.36, 0.34],
     best: { name: "Pricing follow-up", rate: 0.52, sends: 40 },
+    sinceSend: null,
   },
 };
 const tile = (name: RegExp) => screen.getByRole("link", { name });
@@ -173,6 +174,19 @@ describe("Today's tiles", () => {
     expect(t).toHaveTextContent("+3.0 pts");
     expect(t).toHaveTextContent("vs the 7 days before");
     expect(t).toHaveTextContent("Best template: Pricing follow-up · 52%");
+  });
+  it("Replies since your send (W2): how many wrote back, and it opens Who replied from that moment", () => {
+    const at = "2026-10-21T03:00:00.000Z";
+    render(
+      <Tiles
+        tiles={{ ...base, replies: { ...base.replies!, sinceSend: { at, count: 38 } } }}
+        currency="INR"
+        own={false}
+      />,
+    );
+    const t = tile(/^Replies: 38 leads replied since your send/);
+    expect(t).toHaveAttribute("href", `/replies?since=${encodeURIComponent(at)}`);
+    expect(t).toHaveTextContent("38 replied since your send");
   });
   it("a tile the viewer may not see isn't there at all", () => {
     render(<Tiles tiles={{ calendar: base.calendar }} currency="INR" own />);

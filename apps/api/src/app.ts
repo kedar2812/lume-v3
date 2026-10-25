@@ -136,6 +136,8 @@ export type AppDeps = {
     enqueueMedia(mediaId: string): Promise<void>;
     /** A reply from LUME to send (plan W3a). */
     enqueueSend(outboxId: string): Promise<void>;
+    /** A lead's WhatsApp reply for LUME AI to read the meaning of (W2), by its activity. */
+    enqueueMeaning?(activityId: string): Promise<void>;
   };
   /** Autopilot's queue (A2): a run with something to do now. */
   autopilot?: { kick(runId: string): Promise<void> };

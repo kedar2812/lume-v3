@@ -1,4 +1,14 @@
-import { BarChart3, CalendarDays, Columns3, Image, Mail, Settings, Sun, Users } from "lucide-react";
+import {
+  BarChart3,
+  CalendarDays,
+  Columns3,
+  Image,
+  Mail,
+  MessageCircle,
+  Settings,
+  Sun,
+  Users,
+} from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import type { IconName } from "./nav";
 
@@ -20,6 +30,7 @@ function Loop({ size = 24, strokeWidth = 2, ...rest }: LucideProps) {
 const MAP = {
   today: Sun,
   leads: Users,
+  replies: MessageCircle,
   autopilot: Loop,
   pipeline: Columns3,
   calendar: CalendarDays,

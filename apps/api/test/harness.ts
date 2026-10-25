@@ -39,6 +39,7 @@ import {
 import { runSync } from "../src/modules/sheets/sync";
 import { fileStore, type Disk, type FilesDeps } from "../src/modules/whatsapp/files";
 import { dueRuns, stepRun } from "../src/modules/autopilot/engine";
+import { readReplyMeaning } from "../src/modules/whatsapp/meaning";
 import { sendOutbox } from "../src/modules/whatsapp/sender";
 import type { SetupTokens } from "../src/auth/setup-token";
 import type { Mailer, OutgoingMail } from "../src/mail/mailer";
@@ -166,6 +167,10 @@ export type Harness = {
   whatsappSendQueued: string[];
   /** Send the queued replies once each, as the queue would; one that throws is queued again (pg-boss's retry). */
   runWhatsAppSend(): Promise<void>;
+  /** Leads' replies queued for LUME AI to read the meaning of (W2), by activity. */
+  whatsappMeaningQueued: string[];
+  /** Read each queued reply's meaning once, as the queue would. */
+  runWhatsAppMeaning(): Promise<void>;
   /** Autopilot (A2): every run with something due, stepped until nothing more is due at the harness's time. */
   runAutopilot(): Promise<void>;
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
@@ -279,6 +284,7 @@ export async function createHarness(
   const whatsappQueued: number[] = [];
   const whatsappMediaQueued: string[] = [];
   const whatsappSendQueued: string[] = [];
+  const whatsappMeaningQueued: string[] = [];
   const autopilotQueued: string[] = [];
   const previewQueued: string[] = [];
   const render = opts.render ? await startRenderFake() : null;
@@ -341,6 +347,7 @@ export async function createHarness(
       enqueue: async (id) => void whatsappQueued.push(id),
       enqueueMedia: async (id) => void whatsappMediaQueued.push(id),
       enqueueSend: async (id) => void whatsappSendQueued.push(id),
+      enqueueMeaning: async (id) => void whatsappMeaningQueued.push(id),
     },
     autopilot: { kick: async (id) => void autopilotQueued.push(id) },
     files,
@@ -542,6 +549,7 @@ export async function createHarness(
     whatsappQueued,
     whatsappMediaQueued,
     whatsappSendQueued,
+    whatsappMeaningQueued,
     files,
     calendarQueue,
     reminderQueue,
@@ -559,6 +567,9 @@ export async function createHarness(
         for (const id of ids) acted += await stepRun({ app, d: deps }, id);
         if (!acted) return;
       }
+    },
+    async runWhatsAppMeaning() {
+      for (const id of whatsappMeaningQueued.splice(0)) await readReplyMeaning({ app, d: deps }, id);
     },
     async runWhatsAppSend() {
       const now = whatsappSendQueued.splice(0);

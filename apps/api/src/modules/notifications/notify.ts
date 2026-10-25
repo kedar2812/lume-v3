@@ -18,6 +18,8 @@ export type NotifyKind =
   | "security_alert"
   | "bulk_done"
   | "lead_replied"
+  // A lead said stop on WhatsApp and is do not contact now (W2).
+  | "lead_stopped"
   | "template_decided"
   | "whatsapp_usage"
   // Autopilot (A2): something LUME AI waits on a tap for; a lead ready for a person (converted, or needing one).
@@ -40,6 +42,7 @@ const SWITCH: Partial<Record<NotifyKind, keyof Preferences["alerts"]>> = {
   follow_up_assigned: "assigned",
   lead_assigned: "assigned",
   lead_replied: "replies",
+  lead_stopped: "replies",
 };
 /**
  * Whether this person wants this kind. Escalations to managers, and a manager's "Remind them", always go:

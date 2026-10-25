@@ -1,6 +1,7 @@
 export type IconName =
   | "today"
   | "leads"
+  | "replies"
   | "autopilot"
   | "pipeline"
   | "calendar"
@@ -23,6 +24,15 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { id: "today", label: "Today", href: "/today", icon: "today", phase: 3 },
   { id: "leads", label: "Leads", href: "/leads", icon: "leads", permission: "leads.view", phase: 1 },
+  // WhatsApp replies grouped by what they mean (W2; owner, 2026-10-25: in the sidebar), for whoever may view leads.
+  {
+    id: "replies",
+    label: "Who replied",
+    href: "/replies",
+    icon: "replies",
+    permission: "leads.view",
+    phase: 12,
+  },
   {
     // LUME AI working leads live (Autopilot spec 2026-10-19 §2): whoever may view leads, while LUME AI is on for them.
     id: "autopilot",

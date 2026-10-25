@@ -11,9 +11,21 @@ import {
   inputFor,
   instructionsFor,
   nextStepOutput,
+  replyMeaningInput,
+  replyMeaningInstructions,
+  replyMeaningOutput,
   type AutopilotFirst,
   type AutopilotReply,
+  type ReplyMeaning,
 } from "../../packages/core/src/index";
+import {
+  MEANING_MARKS,
+  meaningCtx,
+  scoreMeaning,
+  summarizeMeaning,
+  type MeaningCase,
+  type MeaningScore,
+} from "./reply-meaning";
 import {
   AUTOPILOT_MARKS,
   ctxFor,
@@ -38,14 +50,14 @@ import {
 } from "./score";
 
 const USAGE = `usage: node scripts/ai-eval.mjs --provider anthropic|google|fake --model <id> [--yes]
-       [--only next-step|catch-up|autopilot] [--limit <n>] [--price-in <usd per 1M>] [--price-out <usd per 1M>] [--out <file>]
+       [--only next-step|catch-up|autopilot|reply-meaning] [--limit <n>] [--price-in <usd per 1M>] [--price-out <usd per 1M>] [--out <file>]
 A real provider spends money on every run: it needs --yes, and the key in LUME_AI_KEY.`;
 
 type Args = {
   provider: "anthropic" | "google" | "fake";
   model: string;
   yes: boolean;
-  only: "next-step" | "catch-up" | "autopilot" | null;
+  only: "next-step" | "catch-up" | "autopilot" | "reply-meaning" | null;
   limit: number;
   priceIn: number | null;
   priceOut: number | null;
@@ -62,7 +74,14 @@ function parse(argv: string[]): Args | string {
   const model = get("model") ?? (provider === "fake" ? "fake-1" : undefined);
   if (!model) return USAGE;
   const only = get("only") ?? null;
-  if (only !== null && only !== "next-step" && only !== "catch-up" && only !== "autopilot") return USAGE;
+  if (
+    only !== null &&
+    only !== "next-step" &&
+    only !== "catch-up" &&
+    only !== "autopilot" &&
+    only !== "reply-meaning"
+  )
+    return USAGE;
   const num = (v: string | undefined) => (v === undefined ? null : Number(v));
   return {
     provider,
@@ -126,7 +145,8 @@ export async function run(argv: string[], root: string): Promise<number> {
   };
 
   let pass = true;
-  const runs = (part: "next-step" | "catch-up" | "autopilot") => a.only === null || a.only === part;
+  const runs = (part: "next-step" | "catch-up" | "autopilot" | "reply-meaning") =>
+    a.only === null || a.only === part;
   if (runs("next-step")) {
     const cases = lines<NextStepCase>(path.join(dir, "next-step.jsonl")).slice(0, a.limit);
     const scores: NextStepScore[] = [];
@@ -271,6 +291,54 @@ Autopilot: ${cases.length} cases (read every message by hand for tone and words)
         ` first template ${pct(sum.first)} (mark ${pct(AUTOPILOT_MARKS.first)}); no answer ${failed.length}`,
     );
     console.log(`  ${sum.pass ? "PASSES" : "DOES NOT PASS"} the Autopilot marks`);
+  }
+
+  if (runs("reply-meaning")) {
+    const cases = lines<MeaningCase>(path.join(dir, "reply-meaning.jsonl")).slice(0, a.limit);
+    const scores: MeaningScore[] = [];
+    const failed: { id: string; error: string }[] = [];
+    console.log(`
+Reply meaning: ${cases.length} WhatsApp replies`);
+    for (const c of cases) {
+      const x = meaningCtx(c, businesses);
+      try {
+        const r = await provider.read({
+          instructions: replyMeaningInstructions,
+          input: replyMeaningInput(x.facts, x.thread, c.reply),
+          schema: replyMeaningOutput as never,
+          maxOutputTokens: 1000,
+          signal: AbortSignal.timeout(30_000),
+        });
+        tokens.input += r.inputTokens;
+        tokens.output += r.outputTokens;
+        const s = scoreMeaning(c, r.output as ReplyMeaning, x);
+        scores.push(s);
+        const miss = (["group", "stage", "followUp"] as const).filter((k) => !s[k]);
+        console.log(
+          `  ${c.id}  ${s.cleaned.meaning}${miss.length ? `  missed ${miss.join(", ")}` : ""}${s.stopMissed ? "  A STOP WAS MISSED" : ""}  ${s.cleaned.summary}`,
+        );
+      } catch (e) {
+        failed.push({ id: c.id, error: e instanceof Error ? e.message : String(e) });
+        console.log(`  ${c.id}  no answer: ${failed.at(-1)!.error}`);
+        scores.push({
+          id: c.id,
+          group: false,
+          stopMissed: !!c.expect.stop,
+          stage: false,
+          followUp: false,
+          invented: 0,
+          inventedAfter: 0,
+          cleaned: null as never,
+        });
+      }
+    }
+    const sum = summarizeMeaning(scores);
+    pass = pass && sum.pass;
+    report.replyMeaning = { ...sum, marks: MEANING_MARKS, failed, scores };
+    console.log(
+      `  group ${Math.round(sum.group * 100)}% (mark ${MEANING_MARKS.group * 100}%), stops missed ${sum.stopsMissed}, made-up ids after the cleaner ${sum.inventedAfter}; no answer ${failed.length}`,
+    );
+    console.log(`  ${sum.pass ? "PASSES" : "DOES NOT PASS"} the reply-meaning marks`);
   }
 
   const cost =

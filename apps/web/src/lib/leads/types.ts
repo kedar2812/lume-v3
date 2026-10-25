@@ -127,5 +127,8 @@ export type BulkAction =
   | { type: "assign"; ownerId: string | null }
   | { type: "tags"; add?: string[]; remove?: string[] }
   | { type: "delete" }
-  | { type: "set_phone_country"; country: string };
+  | { type: "set_phone_country"; country: string }
+  // The Who replied board (W2).
+  | { type: "do_not_contact"; reason: string }
+  | { type: "follow_up"; at: string; title: string };
 export type BulkResult = { updated: string[]; skipped: { id: string; code: string }[] };

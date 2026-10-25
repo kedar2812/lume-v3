@@ -541,13 +541,20 @@ function RepliesTile({ t, own, i }: { t: NonNullable<TilesData["replies"]>; own:
     path = { area: areaUnder(pts, 56), line: smooth(pts) };
   }
   const label = own ? "Your replies" : "Replies";
+  // Since your send (W2): who wrote back, opening Who replied from that moment; else the rate, opening Analytics.
+  const since = t.sinceSend && t.sinceSend.count > 0 ? t.sinceSend : null;
+  const leadsWord = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "lead" : "leads"}`;
   return (
     <Tile
-      href="/analytics?m=quality"
+      href={since ? `/replies?since=${encodeURIComponent(since.at)}` : "/analytics?m=quality"}
       icon={I.replies}
       label={label}
       i={i}
-      aria={`${label}: ${t.rate === null ? "no rate yet" : pct(t.rate)} of contacted leads replied in the last 7 days`}
+      aria={
+        since
+          ? `${label}: ${leadsWord(since.count)} replied since your send`
+          : `${label}: ${t.rate === null ? "no rate yet" : pct(t.rate)} of contacted leads replied in the last 7 days`
+      }
     >
       <Big value={t.rate === null ? "—" : pct(t.rate)} unit="replied · last 7 days">
         {tr ? (
@@ -566,7 +573,11 @@ function RepliesTile({ t, own, i }: { t: NonNullable<TilesData["replies"]>; own:
         )}
       </div>
       <div className={s.foot} data-live-count>
-        {t.best ? (
+        {since ? (
+          <>
+            <b>{since.count.toLocaleString("en-US")}</b> replied since your send
+          </>
+        ) : t.best ? (
           <>
             Best template: <b>{t.best.name}</b> · {pct(t.best.rate)}
           </>

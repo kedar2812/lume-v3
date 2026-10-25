@@ -879,6 +879,10 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       tz={tz}
                       messages={wa.messages}
                       onRetry={(m) => void waRetry(m)}
+                      onMeaning={() => {
+                        loadWa();
+                        void refresh();
+                      }}
                       composer={
                         wa.reply ? (
                           <WhatsAppComposer

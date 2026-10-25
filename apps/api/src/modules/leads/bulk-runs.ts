@@ -3,6 +3,7 @@ import type { FastifyRequest } from "fastify";
 import type pg from "pg";
 import { can, newId } from "@lume/core";
 import { schema } from "@lume/db";
+import type { AppDeps } from "../../app";
 import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
 import type { NewNotification } from "../notifications/notify";
@@ -57,7 +58,10 @@ export function runView(r: RunRow, now: Date) {
 }
 
 /** What can be refused before any lead is touched: the action itself. Per-lead refusals are skips. */
-async function checkAction(req: FastifyRequest, action: BulkAction) {
+async function checkAction(req: FastifyRequest, action: BulkAction, now: Date) {
+  // A follow-up for a moment already past would be overdue the moment it's made.
+  if (action.type === "follow_up" && Date.parse(action.at) <= now.getTime())
+    throw badRequest("FOLLOW_UP_PAST", "That time has passed. Pick a later one.");
   if (action.type === "assign" && action.ownerId) {
     const [u] = await req.db
       .select({ id: schema.users.id })
@@ -133,9 +137,15 @@ export async function resolveSelection(req: FastifyRequest, sel: Selection) {
 /** Make a run: inline (≤ 500 leads, answered at once) or queued (answered 202, run in chunks). */
 export async function createRun(
   req: FastifyRequest,
-  o: { selection: Selection; action: BulkAction; enqueue?: (id: string) => Promise<void>; now: Date },
+  o: {
+    selection: Selection;
+    action: BulkAction;
+    enqueue?: (id: string) => Promise<void>;
+    now: Date;
+    tasks?: AppDeps["tasks"];
+  },
 ): Promise<{ status: 200 | 202; run: ReturnType<typeof runView> }> {
-  await checkAction(req, o.action);
+  await checkAction(req, o.action, o.now);
   const { ids, words } = await resolveSelection(req, o.selection);
   const id = newId();
   await req.db.insert(R).values({
@@ -157,7 +167,7 @@ async function startRun(
   req: FastifyRequest,
   id: string,
   total: number,
-  o: { enqueue?: (id: string) => Promise<void>; now: Date },
+  o: { enqueue?: (id: string) => Promise<void>; now: Date; tasks?: AppDeps["tasks"] },
 ): Promise<{ status: 200 | 202; run: ReturnType<typeof runView> }> {
   if (total > limits.inline) {
     req.afterCommit(() => void o.enqueue?.(id));
@@ -174,7 +184,7 @@ async function startRun(
     .from(I)
     .where(eq(I.runId, id))
     .orderBy(asc(I.position));
-  await applyItems(req, run!, items);
+  await applyItems(req, run!, items, undefined, 0, { tasks: o.tasks });
   const done = await finishRun(req, id, "done", o.now);
   // The new owner hears once, after the commit; the maker has their answer right here.
   const notices: [string, NewNotification][] = [];

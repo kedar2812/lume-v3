@@ -1,3 +1,4 @@
+import type { NextStep, ReplyMeaningGroup } from "@lume/core/shared";
 /** WhatsApp as the API says it (spec 2026-10-18 §3–4; plan W1 Tasks 4 and 7). */
 export type WaNumber = {
   id: string;
@@ -50,6 +51,20 @@ export type WaThreadMessage = {
   outboxId: string | null;
   /** Written and sent by LUME AI for `sentBy`, in this run (Autopilot); null for the rest. */
   lumeAi: { runId: string } | null;
+  /** A lead's reply as LUME AI read it (W2): its group, line and suggestion; failed; or not read (null / absent). */
+  meaning?: WaMeaning | { failed: true } | null;
+};
+export type WaMeaning = {
+  readId: string;
+  group: ReplyMeaningGroup;
+  summary: string;
+  stop: boolean;
+  suggestion: NextStep;
+  /** The suggested follow-up as a moment. */
+  dueAt: string | null;
+  stageName: string | null;
+  lostReason: string | null;
+  outcome: "applied" | "dismissed" | null;
 };
 export type WaSendStatus = "queued" | "sending" | "sent" | "delivered" | "read" | "failed";
 /** Whether this person may reply from LUME now, from which number, until when; null: no reply box at all. */

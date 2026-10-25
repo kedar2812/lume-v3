@@ -83,6 +83,7 @@ const whatsapp: NonNullable<AppDeps["whatsapp"]> = {
   enqueue: async () => undefined,
   enqueueMedia: async () => undefined,
   enqueueSend: async () => undefined,
+  enqueueMeaning: async () => undefined,
 };
 // Autopilot (A2): filled once its queue is up; the minute sweep catches any run started meanwhile.
 const autopilot: NonNullable<AppDeps["autopilot"]> = { kick: async () => undefined };
@@ -192,6 +193,7 @@ const whatsappQueue = await startWhatsAppQueue({ connectionString: cfg.DATABASE_
 whatsapp.enqueue = whatsappQueue.enqueue;
 whatsapp.enqueueMedia = whatsappQueue.enqueueMedia;
 whatsapp.enqueueSend = whatsappQueue.enqueueSend;
+whatsapp.enqueueMeaning = whatsappQueue.enqueueMeaning;
 const autopilotQueue = await startAutopilotQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
 autopilot.kick = autopilotQueue.kick;
 const mediaQueue = await startMediaQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });

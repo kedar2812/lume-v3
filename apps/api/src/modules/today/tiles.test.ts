@@ -47,7 +47,13 @@ type Tiles = {
   calendar: { week: number[]; today: number; held: number; todayIndex: number; connected: boolean };
   team?: { overdue: number; people: { name: string; n: number }[]; onTime: number | null };
   streak?: { days: number; best: number; dueToday: number; doneToday: number; last7: string[] };
-  replies?: { rate: number | null; previous: number | null; series: (number | null)[]; best: unknown };
+  replies?: {
+    rate: number | null;
+    previous: number | null;
+    series: (number | null)[];
+    best: unknown;
+    sinceSend: { at: string; count: number } | null;
+  };
 };
 const tiles = async (u: SeededUser): Promise<Tiles> =>
   (await (await h.signIn(u)).inject({ method: "GET", url: "/api/v1/today/tiles" })).json();
@@ -294,6 +300,39 @@ describe("Replies", () => {
     expect(t.rate).toBe(k.value);
     expect(t.series).toEqual(k.series);
     expect(t.best).toBeNull(); // no template sent ten times
+  });
+});
+
+describe("Replies since your send (W2)", () => {
+  it("how many leads wrote on WhatsApp since the person's newest send, and when that was; none before a send", async () => {
+    expect((await tiles(owner)).replies!.sinceSend).toBeNull();
+    const sentAt = new Date(NOW.getTime() - 3 * 3_600_000);
+    // A send-queue run of theirs (its rows are the person's own: written as them).
+    const db = await h.ownerPool.connect();
+    try {
+      await db.query("BEGIN");
+      await db.query("SELECT set_config('lume.user_id', $1, true)", [owner.id]);
+      await db.query(
+        "INSERT INTO send_queues (id, user_id, source, source_name, status, created_at) VALUES (gen_random_uuid(), $1, 'selection', 'Picked leads', 'finished', $2)",
+        [owner.id, sentAt],
+      );
+      await db.query("COMMIT");
+    } finally {
+      db.release();
+    }
+    const a = await h.seedLead({ ownerId: owner.id, name: "Wrote twice" });
+    const b = await h.seedLead({ ownerId: owner.id, name: "Wrote once" });
+    const c = await h.seedLead({ ownerId: owner.id, name: "Wrote before" });
+    const wrote = (lead: string, at: Date) =>
+      h.queryAll(
+        "INSERT INTO activities (id, lead_id, type, occurred_at, payload) VALUES (gen_random_uuid(), $1, 'whatsapp_received', $2, '{}'::jsonb)",
+        [lead, at],
+      );
+    await wrote(a, new Date(sentAt.getTime() + 60_000));
+    await wrote(a, new Date(sentAt.getTime() + 120_000));
+    await wrote(b, new Date(sentAt.getTime() + 600_000));
+    await wrote(c, new Date(sentAt.getTime() - 600_000));
+    expect((await tiles(owner)).replies!.sinceSend).toEqual({ at: sentAt.toISOString(), count: 2 });
   });
 });
 

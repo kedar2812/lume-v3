@@ -58,5 +58,7 @@ export type Tiles = {
     previous: number | null;
     series: (number | null)[];
     best: { name: string; rate: number; sends: number } | null;
+    /** W2: how many leads wrote on WhatsApp since the person's newest send (null before any). */
+    sinceSend: { at: string; count: number } | null;
   };
 };

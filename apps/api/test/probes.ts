@@ -851,6 +851,7 @@ export const PROBES: Record<string, Probe> = {
     path: () => `/api/v1/whatsapp/media/${uuid}/info`,
   },
   "GET /api/v1/whatsapp/inbox": { access: "auth.self" },
+  "GET /api/v1/whatsapp/replies": { access: "leads.view" },
   "GET /api/v1/whatsapp/inbox/:numberId/:peer": {
     access: "auth.self",
     path: () => `/api/v1/whatsapp/inbox/${uuid}/%2B919000000777`,

@@ -6,6 +6,7 @@ import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { mediaUrl, whatsappClient } from "@/lib/whatsapp/client";
 import type { WaMediaInfo, WaThreadMessage } from "@/lib/whatsapp/types";
+import { ReplyMeaning } from "./ReplyMeaning";
 import s from "./whatsapp.module.css";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -179,6 +180,7 @@ export function WhatsAppThread({
   tz,
   messages,
   onRetry,
+  onMeaning,
   composer,
 }: {
   leadName: string;
@@ -186,6 +188,8 @@ export function WhatsAppThread({
   messages: WaThreadMessage[];
   /** A reply from LUME that didn't go, sent again as a new message (plan W3a). */
   onRetry?: (m: WaThreadMessage) => void;
+  /** A reply's suggested next step was applied (W2): the thread and the lead are read again. */
+  onMeaning?: () => void;
   /** The reply box (plan W3a), when this person may reply from LUME; in place of the line about replying on the phone. */
   composer?: ReactNode;
 }) {
@@ -249,6 +253,9 @@ export function WhatsAppThread({
                   {r.m.text && <span className={s.text}>{r.m.text}</span>}
                 </div>
                 <SendStatus m={r.m} onRetry={onRetry} />
+                {r.m.direction === "in" && r.m.meaning && (
+                  <ReplyMeaning meaning={r.m.meaning} from={who} tz={tz} onDone={() => onMeaning?.()} />
+                )}
               </motion.li>
             ),
           )}

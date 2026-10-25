@@ -1,8 +1,11 @@
+import { followUpMoment, type NextStep, type ReplyMeaningGroup } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
+import { businessZone } from "../ai/next-step";
 import { visibleLead } from "../leads/service";
+import type { KeptMeaning } from "./meaning";
 import { replyState } from "./send";
 import { whatsappOn } from "./service";
 
@@ -33,6 +36,23 @@ export type ThreadMessage = {
   outboxId: string | null;
   /** Written and sent by LUME AI for `sentBy`, in this run (Autopilot A2, spec 2026-10-19 §3); null for the rest. */
   lumeAi: { runId: string } | null;
+  /**
+   * A lead's reply as LUME AI read it (W2, spec 2026-10-18 §5.1): its group, its line and the next step one tap applies
+   * (`dueAt`: the follow-up as a moment); `{ failed: true }` when the read didn't work; null when it wasn't read.
+   */
+  meaning: ThreadMeaning | { failed: true } | null;
+};
+export type ThreadMeaning = {
+  readId: string;
+  group: ReplyMeaningGroup;
+  summary: string;
+  stop: boolean;
+  suggestion: NextStep;
+  dueAt: string | null;
+  /** The suggested stage and lost reason by their names, as the business calls them now (null: none, or gone). */
+  stageName: string | null;
+  lostReason: string | null;
+  outcome: "applied" | "dismissed" | null;
 };
 
 /** The messages as the thread shows them: LUME's own sends joined to their status in one query (outcome 26). */
@@ -47,13 +67,73 @@ async function shape(req: FastifyRequest, rows: Row[]): Promise<ThreadMessage[]>
         .where(inArray(O.id, ids))
     : [];
   const byId = new Map(sent.map((s) => [s.id, s]));
+  const meanings = await meaningsOf(
+    req,
+    rows.filter((r) => r.type === "whatsapp_received").map((r) => r.id),
+  );
   return rows.flatMap((r, i) => {
     const p = payloads[i]!;
     const o = p.outboxId ? byId.get(p.outboxId) : undefined;
     // LUME AI's, cancelled by a Pause before it went (Autopilot A2): never sent, so never shown as a message.
-    if (!o || o.status !== "cancelled") return [shown(r, p, o)];
+    if (!o || o.status !== "cancelled") return [{ ...shown(r, p, o), meaning: meanings.get(r.id) ?? null }];
     return [];
   });
+}
+
+/** Each reply's read (W2), by its activity: the newest one, as the thread shows it. */
+async function meaningsOf(req: FastifyRequest, ids: string[]) {
+  const out = new Map<string, ThreadMessage["meaning"]>();
+  if (!ids.length) return out;
+  const R = schema.aiReads;
+  const rows = await req.db
+    .select({ id: R.id, source: R.sourceActivityId, status: R.status, result: R.result, outcome: R.outcome })
+    .from(R)
+    .where(and(eq(R.task, "reply_meaning"), inArray(R.sourceActivityId, ids)));
+  if (!rows.length) return out;
+  const tz = await businessZone(req);
+  const kept = rows.flatMap((r) => (r.status === "ok" && r.result ? [r.result as KeptMeaning] : []));
+  const stageIds = kept.flatMap((k) => (k.suggestion.stageId ? [k.suggestion.stageId] : []));
+  const reasonIds = kept.flatMap((k) => (k.suggestion.lostReasonId ? [k.suggestion.lostReasonId] : []));
+  const stageNames = new Map(
+    stageIds.length
+      ? (
+          await req.db
+            .select({ id: schema.stages.id, name: schema.stages.name })
+            .from(schema.stages)
+            .where(inArray(schema.stages.id, stageIds))
+        ).map((x) => [x.id, x.name])
+      : [],
+  );
+  const reasons = new Map(
+    reasonIds.length
+      ? (
+          await req.db
+            .select({ id: schema.lostReasons.id, label: schema.lostReasons.label })
+            .from(schema.lostReasons)
+            .where(inArray(schema.lostReasons.id, reasonIds))
+        ).map((x) => [x.id, x.label])
+      : [],
+  );
+  for (const r of rows) {
+    if (!r.source) continue;
+    if (r.status !== "ok" || !r.result) {
+      if (r.status === "failed") out.set(r.source, { failed: true });
+      continue;
+    }
+    const k = r.result as KeptMeaning;
+    out.set(r.source, {
+      readId: r.id,
+      group: k.meaning,
+      summary: k.suggestion.summary,
+      stop: k.stop,
+      suggestion: k.suggestion,
+      dueAt: k.suggestion.followUp ? followUpMoment(k.suggestion.followUp, tz).toISOString() : null,
+      stageName: (k.suggestion.stageId && stageNames.get(k.suggestion.stageId)) || null,
+      lostReason: (k.suggestion.lostReasonId && reasons.get(k.suggestion.lostReasonId)) || null,
+      outcome: (r.outcome as "applied" | "dismissed" | null) ?? null,
+    });
+  }
+  return out;
 }
 
 function shown(
@@ -68,7 +148,7 @@ function shown(
         name: string | null;
       }
     | undefined,
-): ThreadMessage {
+): Omit<ThreadMessage, "meaning"> {
   return {
     id: r.id,
     direction: r.type === "whatsapp_received" ? "in" : "out",

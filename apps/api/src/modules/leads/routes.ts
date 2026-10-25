@@ -106,6 +106,13 @@ const bulkActionSchema = z.discriminatedUnion("type", [
       .regex(/^[A-Z]{2}$/)
       .refine((c) => dialCountries().some((d) => d.iso === c), "Unknown country"),
   }),
+  // The Who replied board (W2).
+  z.object({ type: z.literal("do_not_contact"), reason: z.string().trim().min(1).max(200) }),
+  z.object({
+    type: z.literal("follow_up"),
+    at: z.iso.datetime({ offset: true }),
+    title: z.string().trim().min(1).max(80),
+  }),
 ]);
 
 export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
@@ -409,6 +416,7 @@ export async function leadRoutes(app: FastifyInstance, d: AppDeps): Promise<void
         action: req.body.action,
         enqueue: d.bulk?.enqueue,
         now: d.clock(),
+        tasks: d.tasks,
       });
       return reply.code(status).send({ run });
     },

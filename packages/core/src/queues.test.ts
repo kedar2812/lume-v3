@@ -20,6 +20,7 @@ describe("QUEUE_NAMES", () => {
       "whatsapp.process",
       "whatsapp.media",
       "whatsapp.send",
+      "whatsapp.meaning",
       "media.preview",
       "autopilot.step",
     ]);

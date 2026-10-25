@@ -12,6 +12,7 @@ import { attachFile, attachLibraryFile, sendLimiter, sendReply } from "./send";
 import { LIMITS } from "./sniff";
 import { submissionsOf, submitTemplate } from "./submit";
 import { sendTemplate, templateState } from "./template-send";
+import { replyBoard } from "./replies";
 import { leadThread } from "./thread";
 import {
   connectComplete,
@@ -77,6 +78,19 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
     "/api/v1/leads/:id/whatsapp",
     { config: { permission: "leads.view" }, schema: { params: id } },
     (req) => leadThread(req, d, req.params.id),
+  );
+  // Who replied (W2, §4.2): each lead's latest reply since a moment, grouped by what it means (a week by default).
+  r.get(
+    "/api/v1/whatsapp/replies",
+    {
+      config: { permission: "leads.view" },
+      schema: { querystring: z.object({ since: z.iso.datetime({ offset: true }).optional() }) },
+    },
+    (req) =>
+      replyBoard(
+        req,
+        req.query.since ? new Date(req.query.since) : new Date(d.clock().getTime() - 7 * 86_400_000),
+      ),
   );
   // Replying from LUME (plan W3a; spec §3.4): a message, and a file attached for one.
   const limiter = sendLimiter({ now: d.clock });

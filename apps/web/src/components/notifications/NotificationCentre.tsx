@@ -543,7 +543,8 @@ function icon(e: Entry): ReactNode {
   if (e.type !== "task" && e.n.kind === "meeting_booked")
     return <img src="/brand/calendly.svg" alt="" width={16} height={16} />;
   // A reply on WhatsApp wears WhatsApp's own app icon, as everywhere in LUME.
-  if (e.type !== "task" && e.n.kind === "lead_replied") return <WhatsAppIcon size={16} />;
+  if (e.type !== "task" && (e.n.kind === "lead_replied" || e.n.kind === "lead_stopped"))
+    return <WhatsAppIcon size={16} />;
   const path =
     e.type === "task"
       ? "M8 3.5v4.5l3 2M14.5 8a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" // a clock: a follow-up

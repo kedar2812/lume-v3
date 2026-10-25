@@ -356,5 +356,32 @@ export async function repliesTile(req: FastifyRequest, now: Date) {
     previous: k.previous,
     series: k.series,
     best: best ? { name: best.name, rate: best.replyRate!, sends: best.sends } : null,
+    sinceSend: await sinceYourSend(req, now),
   };
+}
+
+/**
+ * Who replied since your send (W2, spec 2026-10-18 §4.2): the person's newest send in the last 30 days (a send-queue run
+ * they started, or a WhatsApp message they sent from LUME) and how many leads they can see wrote on WhatsApp since;
+ * null before any send. The tile opens Who replied from that moment.
+ */
+async function sinceYourSend(req: FastifyRequest, now: Date): Promise<{ at: string; count: number } | null> {
+  const me = req.actor!.userId;
+  const from = new Date(now.getTime() - 30 * 86_400_000);
+  const sent = (
+    await req.db.execute<{ at: Date | null }>(sql`
+      SELECT max(at) AS at FROM (
+        SELECT max(created_at) AS at FROM send_queues WHERE user_id = ${me} AND created_at >= ${from}
+        UNION ALL
+        SELECT max(created_at) FROM whatsapp_outbox WHERE user_id = ${me} AND created_at >= ${from}
+      ) sends`)
+  ).rows[0]?.at;
+  if (!sent) return null;
+  const at = new Date(sent);
+  const [n] = (
+    await req.db.execute<{ n: number }>(sql`
+      SELECT count(DISTINCT a.lead_id)::int AS n FROM activities a JOIN leads l ON l.id = a.lead_id AND l.deleted_at IS NULL
+       WHERE a.type = 'whatsapp_received' AND a.occurred_at >= ${at}`)
+  ).rows;
+  return { at: at.toISOString(), count: n?.n ?? 0 };
 }

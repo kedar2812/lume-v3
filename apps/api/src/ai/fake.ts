@@ -2,11 +2,14 @@ import {
   autopilotFirstOutput,
   autopilotReplyOutput,
   catchUpOutput,
+  isStop,
+  replyMeaningOutput,
   type AiTask,
   type AutopilotReply,
   type CatchUp,
   type LeadFacts,
   type NextStep,
+  type ReplyMeaning,
 } from "@lume/core";
 import type { AiProvider } from "./provider";
 
@@ -98,6 +101,35 @@ function autopilotFor(task: "autopilot_first" | "autopilot_reply", input: string
   return plain;
 }
 
+/** A reply's meaning by its words, for tests and e2e (W2): the board's groups from plain keywords. */
+function meaningFor(input: string): ReplyMeaning {
+  const reply = input.split("\n\nThe reply:\n")[1] ?? "";
+  const t = reply.toLowerCase();
+  const group: ReplyMeaning["meaning"] = isStop(reply)
+    ? "stop"
+    : /wrong number/.test(t)
+      ? "wrong_number"
+      : /not interested|no thanks/.test(t)
+        ? "not_interested"
+        : /price|cost|how much|kitna|kitni/.test(t)
+          ? "price"
+          : /visit|call|meet/.test(t)
+            ? "visit_or_call"
+            : /later|next month|after/.test(t)
+              ? "later"
+              : /yes|interested|sounds good|works/.test(t)
+                ? "interested"
+                : "not_sure";
+  return {
+    meaning: group,
+    summary: reply.trim().slice(0, 140) || "The lead replied.",
+    stop: group === "stop",
+    stageId: null,
+    followUp: null,
+    lostReasonId: null,
+  };
+}
+
 /** The lead's latest words in a read's input, or "". */
 function lastLeadWords(input: string): string {
   try {
@@ -134,10 +166,18 @@ export function fakeProvider(answers: Partial<Record<AiTask, unknown>> = {}): Fa
             ? "autopilot_first"
             : s === autopilotReplyOutput
               ? "autopilot_reply"
-              : "next_step";
+              : s === replyMeaningOutput
+                ? "reply_meaning"
+                : "next_step";
       const scripted = scripts.get(task)?.shift();
       if (scripted !== undefined)
         return { output: r.schema.parse(scripted), inputTokens: 100, outputTokens: 30 };
+      if (task === "reply_meaning")
+        return {
+          output: r.schema.parse(answers[task] ?? meaningFor(r.input)),
+          inputTokens: 100,
+          outputTokens: 30,
+        };
       if (task === "autopilot_first" || task === "autopilot_reply")
         return {
           output: r.schema.parse(answers[task] ?? autopilotFor(task, r.input)),

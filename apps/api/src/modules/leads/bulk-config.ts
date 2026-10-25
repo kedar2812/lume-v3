@@ -7,7 +7,10 @@ export type BulkAction =
   | { type: "assign"; ownerId: string | null }
   | { type: "tags"; add?: string[]; remove?: string[] }
   | { type: "delete" }
-  | { type: "set_phone_country"; country: string };
+  | { type: "set_phone_country"; country: string }
+  // The Who replied board (W2): many leads marked do not contact, or given a follow-up at one moment, at once.
+  | { type: "do_not_contact"; reason: string }
+  | { type: "follow_up"; at: string; title: string };
 
 /** The action an undo run carries: which kind of run it puts back (the before-values are on the items). */
 export type UndoAction = { type: "undo"; of: BulkAction["type"] };

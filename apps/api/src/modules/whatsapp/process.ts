@@ -1,14 +1,16 @@
-import { can, newId, type WaEvent } from "@lume/core";
+import { can, isStop, newId, type WaEvent } from "@lume/core";
 import { schema } from "@lume/db";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { loadActor } from "../../rbac/actor";
+import { available } from "../ai/service";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { visibleLead } from "../leads/service";
 import { leadWrote, personSent } from "../autopilot/lead-events";
 import { sendStopApology } from "../autopilot/engine";
 import { tellPeople } from "../autopilot/ready";
+import { setDoNotContact } from "../leads/dnc";
 import { confirmSend, replyArrived } from "../leads/sending";
 import { readAs } from "../notifications/hub";
 import { notify } from "../notifications/notify";
@@ -136,7 +138,15 @@ export async function processWhatsAppEvent(
       );
       if (lock.rows[0]?.status !== "queued") return null;
       const media: string[] = [];
-      let notice: { ownerId: string; leadId: string; title: string } | null = null;
+      let notice: {
+        ownerId: string;
+        leadId: string;
+        kind: "lead_replied" | "lead_stopped";
+        title: string;
+      } | null = null;
+      let stopped = false;
+      // A live reply LUME AI reads the meaning of (W2), once it's committed.
+      let meaning: string | null = null;
       let answer: { leadId: string; opener: string } | null = null;
       let autopilot: (NonNullable<Awaited<ReturnType<typeof leadWrote>>> & { leadId: string }) | null = null;
       const leadId = await matchLead(req, ev.peer, row.owner_user_id);
@@ -153,8 +163,9 @@ export async function processWhatsAppEvent(
           if (mediaId) media.push(mediaId);
           const received = ev.kind === "received" || ev.kind === "history_received";
           const at = new Date(ev.at);
+          const activityId = newId();
           await req.db.insert(schema.activities).values({
-            id: newId(),
+            id: activityId,
             leadId,
             userId: row.owner_user_id,
             type: received ? "whatsapp_received" : "whatsapp_sent",
@@ -188,17 +199,33 @@ export async function processWhatsAppEvent(
           if (ev.kind === "received") {
             const wrote = await leadWrote(req, leadId, at, ev.text ?? "");
             if (wrote) autopilot = { ...wrote, leadId };
+            // Stop means stop for every lead (W2, §5.1): at once, by nobody, undoable by a person. A run's lead took
+            // that path above, with LUME AI's one apology.
+            else if (!lead.dncAt && isStop(ev.text ?? "")) {
+              await setDoNotContact(req, leadId, { reason: "Said stop on WhatsApp", fromLead: true });
+              stopped = true;
+            }
+            // Its meaning, when there are words to read and LUME AI is on; a run's lead is LUME AI's already.
+            else if (ev.text?.trim() && (await available(req, d)).ok) meaning = activityId;
           }
           if (ev.kind === "sent") await personSent(req, leadId);
           if (ev.kind === "received") {
             // As tapping "They replied" does: the stage's reply move, and repeats waiting on a reply stop.
             await replyArrived(req, lead);
             if (lead.ownerId)
-              notice = {
-                ownerId: lead.ownerId,
-                leadId,
-                title: `${firstName(lead.name) ?? "A lead"} replied on WhatsApp`,
-              };
+              notice = stopped
+                ? {
+                    ownerId: lead.ownerId,
+                    leadId,
+                    kind: "lead_stopped",
+                    title: `${firstName(lead.name) ?? "A lead"} asked not to be messaged`,
+                  }
+                : {
+                    ownerId: lead.ownerId,
+                    leadId,
+                    kind: "lead_replied",
+                    title: `${firstName(lead.name) ?? "A lead"} replied on WhatsApp`,
+                  };
           }
           if (ev.kind === "sent") {
             // The newest "Sent?" on this lead opened in the last 24 hours: whoever opened it gets it answered.
@@ -240,7 +267,7 @@ export async function processWhatsAppEvent(
       await req.db.execute(
         sql`UPDATE whatsapp_events SET status = 'done', event_enc = NULL, processed_at = now() WHERE id = ${eventId}`,
       );
-      return { media, notice, answer, autopilot };
+      return { media, notice, answer, autopilot, meaning };
     },
   );
   if (!out) return "gone";
@@ -268,9 +295,10 @@ export async function processWhatsAppEvent(
         [n.ownerId, n.leadId],
       ),
     );
-    if (!recent.rows.length)
+    // A stop is always said (it happens once: the lead is do not contact after it).
+    if (n.kind === "lead_stopped" || !recent.rows.length)
       await notify(pool, n.ownerId, {
-        kind: "lead_replied",
+        kind: n.kind,
         title: n.title,
         body: gist(ev),
         leadId: n.leadId,
@@ -279,6 +307,10 @@ export async function processWhatsAppEvent(
       );
   }
   if (out.answer) await answerSent(o, out.answer.leadId, out.answer.opener);
+  if (out.meaning)
+    await d.whatsapp
+      ?.enqueueMeaning?.(out.meaning)
+      .catch((err: unknown) => o.app.log.error({ err }, "couldn't queue a reply for LUME AI to read"));
   return "done";
 }
 

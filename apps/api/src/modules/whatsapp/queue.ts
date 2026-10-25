@@ -5,6 +5,7 @@ import { sweepNumberHealth } from "./health";
 import { scanWhatsAppFiles, sweepWhatsAppFiles } from "./keep";
 import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
+import { readReplyMeaning } from "./meaning";
 import { sendOutbox } from "./sender";
 import { sweepTemplates } from "./submit";
 import { relayOf } from "./service";
@@ -77,7 +78,7 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     migrate: false,
     supervise: false,
     schedule: false,
-    max: 2 + MEDIA_WORKERS + SEND_WORKERS,
+    max: 4 + MEDIA_WORKERS + SEND_WORKERS,
   });
   boss.on("error", (err) => o.app.log.error({ err }, "whatsapp queue error"));
   await boss.start();
@@ -119,6 +120,18 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     );
   const enqueueSend = async (id: string) => {
     await boss.send("whatsapp.send", { id }, { retryLimit: 5, retryBackoff: true, singletonKey: id });
+  };
+  // What a reply means (W2): one read per reply, two at a time; the provider is the slow part.
+  for (let i = 0; i < 2; i++)
+    await boss.work<{ id: string }>(
+      "whatsapp.meaning",
+      { batchSize: 1, pollingIntervalSeconds: 1 },
+      async ([job]) => {
+        if (job) await readReplyMeaning(o, job.data.id);
+      },
+    );
+  const enqueueMeaning = async (id: string) => {
+    await boss.send("whatsapp.meaning", { id }, { retryLimit: 2, retryDelay: 60, singletonKey: id });
   };
   const pool = o.d.jobPool ?? o.d.pool;
   const sweep = async () => {
@@ -176,6 +189,7 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
     enqueue,
     enqueueMedia,
     enqueueSend,
+    enqueueMeaning,
     stop: async () => {
       clearInterval(timer);
       clearInterval(hourly);

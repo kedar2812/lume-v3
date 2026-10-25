@@ -11,6 +11,7 @@ import { serverHelpers } from "../../server-helpers";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { notify, type NewNotification } from "../notifications/notify";
 import { cancelLeadTasks } from "../tasks/lifecycle";
+import { cancelTask, createTask } from "../tasks/service";
 import {
   limits,
   type BulkAction,
@@ -76,6 +77,11 @@ function beforeOf(action: BulkAction, lead: LeadRow, tagIds: string[]): Record<s
         phoneCountryIso: lead.phoneCountryIso,
         phoneStatus: lead.phoneStatus,
       };
+    case "do_not_contact":
+      return { dncAt: lead.dncAt, dncBy: lead.dncBy, dncReason: lead.dncReason };
+    // The follow-up it makes is added once it's made (its id is what undo cancels).
+    case "follow_up":
+      return {};
   }
 }
 
@@ -249,6 +255,12 @@ function refusal(
       if (lead.phoneStatus === "valid") return "ALREADY_VALID";
       if (!lead.phoneRaw) return "NO_NUMBER";
       return country?.status === "valid" ? null : "STILL_INVALID";
+    case "do_not_contact":
+      if (!canOnRecord(actor, "leads.edit", lead.ownerId)) return "FORBIDDEN";
+      // Already marked, with its own who and why: left as it is.
+      return lead.dncAt ? "ALREADY_DNC" : null;
+    case "follow_up":
+      return canOnRecord(actor, "leads.edit", lead.ownerId) ? null : "FORBIDDEN";
     default:
       return null;
   }
@@ -264,13 +276,17 @@ async function activities(
     .values(rows.map((r) => ({ id: newId(), userId: req.actor!.userId, ...r })));
 }
 
-/** assign, tags, delete, set-phone-country: the chunk's leads are locked and read as the person, then changed together. */
+/**
+ * assign, tags, delete, set-phone-country, do not contact, follow-up: the chunk's leads are locked and read as the
+ * person, then changed together (a follow-up is made lead by lead, as one made by hand is).
+ */
 async function setBased(
   req: FastifyRequest,
   action: Exclude<BulkAction, { type: "stage" }>,
   items: Item[],
   hooks: RunHooks | undefined,
   n: number,
+  deps: Pick<AppDeps, "tasks">,
 ) {
   const ids = items.map((i) => i.leadId);
   // Read as the person (their row-level security): a lead missing here is deleted or not theirs to see.
@@ -418,6 +434,37 @@ async function setBased(
         );
         break;
       }
+      case "do_not_contact":
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(sql`
+          UPDATE leads SET dnc_at = now(), dnc_by = ${req.actor!.userId}, dnc_reason = ${action.reason},
+                 version = version + 1
+           WHERE id = ANY(${changing}::uuid[]) AND dnc_at IS NULL RETURNING id, version`)
+        ).rows;
+        await activities(
+          req,
+          change.map((l) => ({
+            leadId: l.id,
+            type: "dnc_set",
+            payload: { reason: action.reason, via: "bulk" },
+          })),
+        );
+        break;
+      case "follow_up": {
+        // The person's own follow-up on each lead, as one made by hand (reminders and all); undo cancels these ones.
+        // createTask reads only `tasks` for a follow-up the person makes for themselves.
+        const at = action.at;
+        for (const l of change) {
+          const t = await createTask(req, deps as AppDeps, l.id, { title: action.title, due: { at } });
+          out.get(l.id)!.before = { taskId: t.id };
+        }
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(
+            sql`SELECT id, version FROM leads WHERE id = ANY(${changing}::uuid[])`,
+          )
+        ).rows;
+        break;
+      }
     }
     for (const v of versions) out.get(v.id)!.after_version = Number(v.version);
   }
@@ -442,6 +489,8 @@ function mayRestore(
       tags: "leads.edit",
       delete: "leads.delete",
       set_phone_country: "leads.edit",
+      do_not_contact: "leads.edit",
+      follow_up: "leads.edit",
     } as const
   )[kind];
   if (!canOnRecord(actor, key, owner)) return "FORBIDDEN";
@@ -540,7 +589,8 @@ async function undoChunk(
       out.set(item.leadId, skip(item.leadId, "LEAD_NOT_FOUND"));
       continue;
     }
-    if (!o?.before || lead.version !== o.afterVersion) {
+    // A follow-up is undone on its own (cancelled while it's still open), whatever else changed on the lead since.
+    if (!o?.before || (kind !== "follow_up" && lead.version !== o.afterVersion)) {
       out.set(lead.id, skip(lead.id, "CHANGED_SINCE"));
       continue;
     }
@@ -685,6 +735,35 @@ async function undoChunk(
           UPDATE leads SET deleted_at = NULL, version = version + 1 WHERE id = ANY(${changing}::uuid[]) RETURNING id, version`)
         ).rows;
         break;
+      case "do_not_contact":
+        // Lifted only where this run set it (its leads had none before).
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(sql`
+          UPDATE leads SET dnc_at = NULL, dnc_by = NULL, dnc_reason = NULL, version = version + 1
+           WHERE id = ANY(${changing}::uuid[]) RETURNING id, version`)
+        ).rows;
+        await activities(
+          req,
+          back.map((b) => ({ leadId: b.lead.id, type: "dnc_lifted", payload: { undo: true } })),
+        );
+        break;
+      case "follow_up":
+        for (const b of back) {
+          const taskId = b.to.taskId as string | undefined;
+          if (!taskId) continue;
+          const [t] = await req.db
+            .select({ status: schema.tasks.status })
+            .from(schema.tasks)
+            .where(eq(schema.tasks.id, taskId));
+          // Done, snoozed into a new one or cancelled by hand since: left as the person left it.
+          if (t?.status === "open") await cancelTask(req, taskId);
+        }
+        versions = (
+          await req.db.execute<{ id: string; version: number }>(
+            sql`SELECT id, version FROM leads WHERE id = ANY(${changing}::uuid[])`,
+          )
+        ).rows;
+        break;
       case "set_phone_country":
         versions = (
           await req.db.execute<{ id: string; version: number }>(sql`
@@ -713,14 +792,22 @@ async function undoChunk(
 }
 
 /** Some of a run's items, in one transaction as the person; their results and the run's counts with them. */
-export async function applyItems(req: FastifyRequest, run: RunRow, items: Item[], hooks?: RunHooks, n = 0) {
+export async function applyItems(
+  req: FastifyRequest,
+  run: RunRow,
+  items: Item[],
+  hooks?: RunHooks,
+  n = 0,
+  /** The follow-up queue, for a follow-up's reminders (a queue that's down leaves them to the sweeper). */
+  deps: Pick<AppDeps, "tasks"> = {},
+) {
   const action = run.action as BulkAction | UndoAction;
   const results =
     action.type === "undo"
       ? await undoChunk(req, run, action, items, hooks, n)
       : action.type === "stage"
         ? await stageMany(req, action, items, hooks, n)
-        : await setBased(req, action, items, hooks, n);
+        : await setBased(req, action, items, hooks, n, deps);
   await req.db.execute(sql`
     UPDATE bulk_run_items i SET result = r.result, code = r.code, before = r.before, after_version = r.after_version
       FROM jsonb_to_recordset(${JSON.stringify(results)}::jsonb)
@@ -854,6 +941,8 @@ async function doneTitle(db: FastifyRequest["db"], row: RunRow, who: Map<string,
     what = `LUME moved ${n} ${leads} to ${st?.name ?? "a stage"}`;
   } else if (a.type === "tags") what = `LUME changed the tags on ${n} ${leads}`;
   else if (a.type === "delete") what = `LUME deleted ${n} ${leads}`;
+  else if (a.type === "do_not_contact") what = `LUME marked ${n} ${leads} do not contact`;
+  else if (a.type === "follow_up") what = `LUME set a follow-up on ${n} ${leads}`;
   else what = `LUME read ${n} ${row.done === 1 ? "number" : "numbers"} with the country ${a.country}`;
   const skipped = row.skipped - ((row.skippedBy as Record<string, number>).CANCELLED ?? 0);
   return `${what}.${skipped > 0 ? ` ${skipped.toLocaleString("en-US")} ${skipped === 1 ? "was" : "were"} skipped.` : ""}`;
@@ -932,7 +1021,7 @@ export async function processRun(o: RunDeps, runId: string, hooks?: RunHooks): P
             .orderBy(asc(I.position))
             .limit(limits.chunk);
           if (!items.length) return end("done");
-          await applyItems(req, claimed, items, hooks, n);
+          await applyItems(req, claimed, items, hooks, n, { tasks: o.tasks });
           return null;
         },
       );

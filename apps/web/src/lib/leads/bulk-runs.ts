@@ -75,6 +75,7 @@ export function reasonWords(code: string, count: number): string {
     LEAD_NOT_FOUND: `${c} ${w} deleted, or stopped being yours to see, before LUME reached ${it(count)}`,
     NOT_FOUND: `${c} ${w} deleted, or stopped being yours to see, before LUME reached ${it(count)}`,
     FORBIDDEN: `${c} ${count === 1 ? "isn’t" : "aren’t"} yours to change`,
+    ALREADY_DNC: `${c} ${w} do not contact already`,
     ASSIGN_OUT_OF_SCOPE: `${c} would have gone outside who you can assign to`,
     LOST_REASON_REQUIRED: `${c} needed a lost reason`,
     REQUIRED_FIELDS: `${c} ${count === 1 ? "needs" : "need"} a field that stage asks for. Fill it in, then move ${it(count)}`,
@@ -116,6 +117,9 @@ export function runLine(r: RunView, names: Names): string {
       : `Tags changed on ${leads(d)}`;
   }
   if (a.type === "delete") return running ? "Deleting" : `${leads(d)} deleted`;
+  if (a.type === "do_not_contact")
+    return running ? "Marking do not contact" : `${leads(d)} marked do not contact`;
+  if (a.type === "follow_up") return running ? "Setting follow-ups" : `A follow-up set on ${leads(d)}`;
   return running
     ? "Reading numbers with a country"
     : `${n(d)} ${d === 1 ? "number" : "numbers"} read with a country`;

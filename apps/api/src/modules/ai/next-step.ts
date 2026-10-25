@@ -8,7 +8,7 @@ import {
   type NextStep,
 } from "@lume/core";
 import { schema } from "@lume/db";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { forbidden, HttpError, notFound } from "../../http/errors";
@@ -74,7 +74,12 @@ async function openRead(req: FastifyRequest, id: string) {
     .select({ leadId: schema.aiReads.leadId, result: schema.aiReads.result, outcome: schema.aiReads.outcome })
     .from(schema.aiReads)
     .where(
-      and(eq(schema.aiReads.id, id), eq(schema.aiReads.task, "next_step"), eq(schema.aiReads.status, "ok")),
+      and(
+        eq(schema.aiReads.id, id),
+        // A note's next step, or a WhatsApp reply's (W2): both keep a suggestion in the same shape.
+        inArray(schema.aiReads.task, ["next_step", "reply_meaning"]),
+        eq(schema.aiReads.status, "ok"),
+      ),
     );
   if (!row) throw notFound("READ_NOT_FOUND", "That suggestion isn't here any more");
   const lead = await visibleLead(req, row.leadId);

@@ -16,6 +16,8 @@ export const QUEUE_NAMES = [
   "whatsapp.process",
   "whatsapp.media",
   "whatsapp.send",
+  // W2: what a lead's WhatsApp reply means, read once by LUME AI.
+  "whatsapp.meaning",
   "media.preview",
   // Autopilot (A2): a run with something to do now (written, revealed, sent; paced).
   "autopilot.step",
