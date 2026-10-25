@@ -6,7 +6,7 @@ import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { approvedTemplate, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 import { fakeProvider } from "../../ai/fake";
 import { onNumberHealth } from "../whatsapp/health";
-import { endRun, pauseRun, resumeRun } from "./engine";
+import { dueRuns, endRun, pauseRun, resumeRun } from "./engine";
 
 /**
  * The run engine (Autopilot A2, Task 6; spec 2026-10-19 §1–§3, §6): each message written, revealed, then sent as an
@@ -175,6 +175,26 @@ describe("the engine", () => {
         lumeAi: { runId: run },
       }),
     ]);
+  });
+
+  it("a message held back by pacing says when it goes, and the run is woken then, not at the next sweep", async () => {
+    const leads = await Promise.all(["Meera Iyer", "Rohan Gupta"].map((n) => lead(n)));
+    const run = await start(leads);
+    await tick();
+    await tick(10 * S);
+    const [first] = await outbox();
+    expect(first).toBeDefined();
+    const waiting = await h.queryAll<{ next_at: Date | null; state: string }>(
+      "SELECT next_at, state FROM autopilot_leads WHERE run_id = $1 AND state = 'up_next'",
+      [run],
+    );
+    expect(waiting).toHaveLength(1);
+    // Its own time: at least the gap after the first, in the future; nothing is due until then.
+    expect(waiting[0]!.next_at!.getTime()).toBeGreaterThanOrEqual(first!.created_at.getTime() + 20 * S);
+    expect(waiting[0]!.next_at!.getTime()).toBeGreaterThan(h.clock.now.getTime());
+    expect(await dueRuns(h.ownerPool, h.clock.now)).not.toContain(run);
+    h.clock.now = new Date(waiting[0]!.next_at!.getTime());
+    expect(await dueRuns(h.ownerPool, h.clock.now)).toContain(run);
   });
 
   it("outside working hours nothing is written; it starts at the next working day's start", async () => {

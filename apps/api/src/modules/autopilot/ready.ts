@@ -37,7 +37,8 @@ export async function tellPeople(
     o.kind === "ask"
       ? `LUME AI is waiting for you: ${AUTOPILOT_ACTION_TITLES[o.action]} for ${first}`
       : o.kind === "ready"
-        ? `${first}: ${o.headline}. Want to take over?`
+        ? // LUME AI's own reason may end in a full stop already: one, not two.
+          `${first}: ${o.headline.replace(/[.\s]+$/, "")}. Want to take over?`
         : `${first} needs you: ${o.headline}`;
   const to = [facts.started_by];
   if (o.kind !== "ask" && facts.hand === "go" && facts.owner_id && facts.owner_id !== facts.started_by)

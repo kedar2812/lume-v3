@@ -230,6 +230,24 @@ describe("Ask me, and Ready for you", () => {
     expect((await bell(rep)).map((n) => n.title)).toContain(title);
   });
 
+  it("LUME AI's reason ending in a full stop reads once in the notice, not twice", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    await start([lead], {
+      goal: { kind: "brief", text: "Get them to agree to a free site visit this week." },
+    });
+    await leadWrote("Okay, Saturday works");
+    provider.script("autopilot_reply", [
+      reply({
+        kind: "converted",
+        message: null,
+        reason: "Agreed to meet.",
+        evidence: "Okay, Saturday works",
+      }),
+    ]);
+    await tick();
+    expect((await bell(admin)).map((n) => n.title)).toContain("Sneha: Agreed to meet. Want to take over?");
+  });
+
   it("a written goal converts on LUME AI's judgement, with the lead's words as evidence", async () => {
     const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
     const run = await start([lead], {

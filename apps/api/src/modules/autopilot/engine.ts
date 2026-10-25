@@ -268,7 +268,13 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
         );
         const budgetLeft = dailyBudget({ tierLimit: tierLimitOf(number.tier), cap: run.dailyCap, sentToday });
         const at = nextSendAt({ now, wh, tz, budgetLeft, lastSentAt: lastSent });
-        if (at > now) return acted;
+        if (at > now) {
+          // Held back by pacing or hours: the lead says when it goes, so the run is woken then (and the screen can
+          // say so), not at the next sweep. Written only when it changes: a wait that changes nothing isn't work.
+          if (l.nextAt?.getTime() !== at.getTime())
+            await req.db.update(L).set({ nextAt: at, updatedAt: now }).where(keyOf(l));
+          return acted;
+        }
         return acted + (await writeTemplate(o, req, run, l, number.waba, move.kind === "first" ? 0 : move.n));
       }
       return acted;
