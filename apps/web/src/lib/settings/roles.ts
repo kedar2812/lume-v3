@@ -21,6 +21,8 @@ export type Role = {
   fieldAccess: { fieldId: string; access: FieldAccessLevel }[];
   /** How many people hold the role. */
   holders: number;
+  /** What else names it: invites not yet used, templates limited to it, views shared with it. */
+  uses: { invites: number; templates: number; views: number };
 };
 
 /** Roles: what each can do (grants with a scope) and which fields it sees. Each returns ApiResult. */

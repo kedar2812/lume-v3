@@ -46,7 +46,57 @@ async function getRole(req: FastifyRequest, id: string) {
     .select({ fieldId: schema.roleFieldAccess.fieldId, access: schema.roleFieldAccess.access })
     .from(schema.roleFieldAccess)
     .where(eq(schema.roleFieldAccess.roleId, id));
-  return { ...role, grants: grants.sort((a, b) => a.key.localeCompare(b.key)), fieldAccess, holders };
+  const uses = await usesOf(req, id);
+  return { ...role, grants: grants.sort((a, b) => a.key.localeCompare(b.key)), fieldAccess, holders, uses };
+}
+
+/**
+ * Shared views keep their own row-level security (0027): someone who manages roles but not views can't see others'.
+ * For these reads and the move below the request manages views, then goes back to what it was.
+ */
+async function asViewManager<T>(req: FastifyRequest, fn: () => Promise<T>): Promise<T> {
+  const before = (
+    await req.db.execute(sql`SELECT coalesce(current_setting('lume.manage_views', true), '') AS v`)
+  ).rows[0] as { v: string };
+  await req.db.execute(sql`SELECT set_config('lume.manage_views', 'on', true)`);
+  try {
+    return await fn();
+  } finally {
+    await req.db.execute(sql`SELECT set_config('lume.manage_views', ${before.v}, true)`);
+  }
+}
+
+/**
+ * What else names the role (review 2026-10-25): invites not yet used (one can still be resent), templates limited to
+ * it, views shared with it. Deleting it moves each of them to the replacement, like the people who hold it.
+ */
+async function usesOf(req: FastifyRequest, id: string) {
+  const r = await asViewManager(req, () =>
+    req.db.execute(sql`
+      SELECT (SELECT count(*)::int FROM user_invites
+               WHERE ${id}::uuid = ANY(role_ids) AND accepted_at IS NULL AND revoked_at IS NULL) AS invites,
+             (SELECT count(*)::int FROM message_templates WHERE ${id}::uuid = ANY(allowed_role_ids)) AS templates,
+             (SELECT count(*)::int FROM saved_views
+               WHERE ${id}::uuid = ANY(shared_role_ids) AND deleted_at IS NULL) AS views`),
+  );
+  return r.rows[0] as { invites: number; templates: number; views: number };
+}
+
+/** Every list that names the old role names the replacement instead, once. */
+async function moveUses(req: FastifyRequest, from: string, to: string) {
+  await req.db.execute(sql`
+    UPDATE user_invites SET role_ids = ARRAY(SELECT DISTINCT unnest(array_replace(role_ids, ${from}::uuid, ${to}::uuid)))
+     WHERE ${from}::uuid = ANY(role_ids) AND accepted_at IS NULL AND revoked_at IS NULL`);
+  await req.db.execute(sql`
+    UPDATE message_templates
+       SET allowed_role_ids = ARRAY(SELECT DISTINCT unnest(array_replace(allowed_role_ids, ${from}::uuid, ${to}::uuid)))
+     WHERE ${from}::uuid = ANY(allowed_role_ids)`);
+  await asViewManager(req, () =>
+    req.db.execute(sql`
+      UPDATE saved_views
+         SET shared_role_ids = ARRAY(SELECT DISTINCT unnest(array_replace(shared_role_ids, ${from}::uuid, ${to}::uuid)))
+       WHERE ${from}::uuid = ANY(shared_role_ids)`),
+  );
 }
 
 async function writeGrants(req: FastifyRequest, roleId: string, grants: ReturnType<typeof normaliseGrants>) {
@@ -160,15 +210,19 @@ export async function updateRole(req: FastifyRequest, id: string, input: Partial
 
 export async function deleteRole(req: FastifyRequest, id: string, replacementRoleId?: string) {
   const role = await getRole(req, id);
-  if (role.holders > 0) {
+  const used = role.uses.invites + role.uses.templates + role.uses.views;
+  if (role.holders > 0 || used > 0) {
     if (!replacementRoleId)
       throw badRequest(
         "REPLACEMENT_REQUIRED",
-        `${role.holders === 1 ? "1 person holds" : `${role.holders} people hold`} this role; choose a replacement`,
+        role.holders > 0
+          ? `${role.holders === 1 ? "1 person holds" : `${role.holders} people hold`} this role; choose a replacement`
+          : "Invites, templates or shared views use this role; choose a replacement",
       );
     if (replacementRoleId === id) throw badRequest("REPLACEMENT_REQUIRED", "Choose a different role");
     await getRole(req, replacementRoleId);
     await assertCanAssignRoles(req, [replacementRoleId]);
+    await moveUses(req, id, replacementRoleId);
     // Move holders (skip anyone who already has the replacement), then drop the old links.
     await req.db.execute(
       sql`INSERT INTO user_roles (user_id, role_id) SELECT user_id, ${replacementRoleId} FROM user_roles WHERE role_id = ${id} ON CONFLICT DO NOTHING`,
@@ -181,7 +235,7 @@ export async function deleteRole(req: FastifyRequest, id: string, replacementRol
     action: "role.deleted",
     entityType: "role",
     entityId: id,
-    diff: { replacementRoleId: replacementRoleId ?? null, holders: role.holders },
+    diff: { replacementRoleId: replacementRoleId ?? null, holders: role.holders, uses: role.uses },
   });
 }
 

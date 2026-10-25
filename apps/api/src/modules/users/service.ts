@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import { can } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
@@ -58,6 +59,14 @@ export async function updateUser(
     if (found.length !== new Set(patch.roleIds).size)
       throw badRequest("UNKNOWN_ROLE", "One of those roles doesn't exist");
     await assertCanAssignRoles(req, patch.roleIds);
+    // Sign-in hours and networks hold if any of a person's roles allows: adding a role without limits to your own
+    // would lift those Security set on yours (review 2026-10-25). Your own roles are the owner's, or Security's.
+    const actor = req.actor!;
+    if (id === actor.userId && !actor.isOwner && !can(actor, "security.manage"))
+      throw forbidden(
+        "OWN_ROLES",
+        "You can't change your own roles. The owner, or someone who manages security, can.",
+      );
     await req.db.delete(schema.userRoles).where(eq(schema.userRoles.userId, id));
     if (patch.roleIds.length)
       await req.db

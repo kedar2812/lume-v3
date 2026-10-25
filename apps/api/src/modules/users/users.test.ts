@@ -117,6 +117,57 @@ describe("users admin", () => {
     expect(invite.json().error.code).toBe("ESCALATION");
   });
 
+  it("someone who manages people can't change their own roles: adding a role without limits would lift the sign-in hours and networks Security set on theirs (review 2026-10-25)", async () => {
+    const managerUser = await h.seedUser({
+      grants: [
+        { key: "users.manage", scope: null },
+        { key: "leads.view", scope: "own" },
+      ],
+      totp: true,
+    });
+    const manager = await h.signIn(managerUser);
+    const own = (
+      await h.pool.query<{ role_id: string }>("SELECT role_id FROM user_roles WHERE user_id = $1", [
+        managerUser.id,
+      ])
+    ).rows.map((r) => r.role_id);
+    const open = (
+      await h.pool.query<{ id: string }>(
+        "INSERT INTO roles (id, name) VALUES (gen_random_uuid(), 'No limits') RETURNING id",
+      )
+    ).rows[0]!.id;
+    const r = await manager.inject({
+      method: "PATCH",
+      url: `/api/v1/users/${managerUser.id}`,
+      payload: { roleIds: [...own, open] },
+    });
+    expect(r.statusCode).toBe(403);
+    expect(r.json().error).toEqual({
+      code: "OWN_ROLES",
+      message: "You can't change your own roles. The owner, or someone who manages security, can.",
+    });
+    const after = (
+      await h.pool.query<{ role_id: string }>("SELECT role_id FROM user_roles WHERE user_id = $1", [
+        managerUser.id,
+      ])
+    ).rows.map((x) => x.role_id);
+    expect(after).toEqual(own);
+    // Someone who manages security may (they set the limits themselves); and anyone else's roles still change.
+    const adminUser = await h.seedUser({ grants: ALL_GRANTS, totp: true });
+    const admin2 = await h.signIn(adminUser);
+    const mine = (
+      await h.pool.query<{ role_id: string }>("SELECT role_id FROM user_roles WHERE user_id = $1", [
+        adminUser.id,
+      ])
+    ).rows.map((x) => x.role_id);
+    const ok = await admin2.inject({
+      method: "PATCH",
+      url: `/api/v1/users/${adminUser.id}`,
+      payload: { roleIds: [...mine, open] },
+    });
+    expect(ok.statusCode, ok.body).toBe(204);
+  });
+
   it("disabling someone can hand their leads to a colleague", async () => {
     const leaving = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
     const taking = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });

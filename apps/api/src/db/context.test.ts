@@ -1,3 +1,5 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ALL_GRANTS } from "@lume/core";
@@ -6,6 +8,8 @@ import { HttpError } from "../http/errors";
 
 let h: Harness;
 const committed: string[] = [];
+/** A handler held between its queries until the test lets it go (a client that leaves mid-request). */
+const slow = { started: false, finished: false, go: () => {}, release: null as Promise<void> | null };
 beforeAll(async () => {
   h = await createHarness({
     extraRoutes: (app) => {
@@ -34,6 +38,14 @@ beforeAll(async () => {
       app.post("/t/after-throw", { config: { public: true } }, async (req) => {
         req.afterCommit(() => committed.push("thrown"));
         throw new HttpError(409, "CONFLICT", "boom");
+      });
+      app.get("/t/slow-write", { config: { public: true } }, async (req) => {
+        await req.db.execute(sql`SELECT 1`);
+        slow.started = true;
+        await slow.release;
+        await req.db.execute(sql`INSERT INTO audit_log (action, entity_type) VALUES ('t.after-abort', 't')`);
+        slow.finished = true;
+        return { ok: true };
       });
       app.get("/t/nodb", { config: { public: true, db: false } }, async (req) => ({
         hasDb: Boolean(req.db),
@@ -89,6 +101,24 @@ describe("per-request transaction", () => {
     await h.app.inject({ method: "POST", url: "/t/after-ok", ...(await h.csrf()) });
     await h.app.inject({ method: "POST", url: "/t/after-throw", ...(await h.csrf()) });
     expect(committed).toEqual(["ok"]);
+  });
+
+  it("a client that leaves mid-request: the handler's later writes stay in its own transaction and roll back, and the connection still goes back (review 2026-10-25)", async () => {
+    // Released at abort, the connection went back to the pool while the handler still used it: its later writes
+    // committed one by one outside any transaction (or ran inside the next request's, as someone else).
+    slow.release = new Promise<void>((r) => (slow.go = r));
+    await h.app.listen({ port: 0, host: "127.0.0.1" });
+    const { port } = h.app.server.address() as AddressInfo;
+    const req = http.get({ host: "127.0.0.1", port, path: "/t/slow-write" });
+    req.on("error", () => undefined);
+    await expect.poll(() => slow.started, { timeout: 5000 }).toBe(true);
+    req.destroy();
+    await new Promise((r) => setTimeout(r, 200));
+    slow.go();
+    await expect.poll(() => slow.finished, { timeout: 5000 }).toBe(true);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await count("t.after-abort")).toBe(0);
+    await expect.poll(() => h.pool.totalCount - h.pool.idleCount, { timeout: 5000 }).toBe(2);
   });
 
   it("routes can opt out of a transaction", async () => {

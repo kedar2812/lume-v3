@@ -121,10 +121,10 @@ export function dbContext(app: FastifyInstance, opts: { pool: pg.Pool }): void {
     await finish(req);
     return out;
   });
-  // Safety nets: the connection always goes back, even if the socket dies mid-request.
+  // Safety net: the connection always goes back, even if the socket dies mid-request.
   app.addHook("onResponse", finish);
-  app.addHook("onRequestAbort", async (req) => {
-    markRequestFailed(req);
-    await finish(req);
-  });
+  // A client that leaves mid-request: the handler is still running, so its connection must stay its own until it's
+  // done (released now, the handler's later queries ran outside any transaction, or inside the next request's as
+  // someone else). Marked failed, it rolls back when the handler ends (onSend, or onResponse).
+  app.addHook("onRequestAbort", async (req) => markRequestFailed(req));
 }

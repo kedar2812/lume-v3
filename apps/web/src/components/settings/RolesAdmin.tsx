@@ -16,6 +16,17 @@ import { roving } from "@/lib/roving";
 type Tab = "can" | "fields";
 type Note = { text: string; problem?: boolean } | null;
 const people = (n: number) => (n === 0 ? "Nobody yet" : `${n} ${n === 1 ? "person" : "people"}`);
+const some = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`);
+/** "3 people, an open invite and 2 templates": everything that moves to the replacement. */
+function whatMoves(r: Role): string {
+  const parts = [
+    r.holders ? people(r.holders) : null,
+    r.uses.invites ? some(r.uses.invites, "open invite", "open invites") : null,
+    r.uses.templates ? some(r.uses.templates, "template", "templates") : null,
+    r.uses.views ? some(r.uses.views, "shared view", "shared views") : null,
+  ].filter((p): p is string => !!p);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "");
+}
 
 /**
  * Roles & access: the roles on the left, the one open on the right with what it can do and which fields
@@ -266,7 +277,10 @@ export function RolesAdmin({
   );
 }
 
-/** Deleting a role people hold asks which role they move to; an unheld role just asks to confirm. */
+/**
+ * Deleting a role that people hold, or that invites, templates or shared views name, asks which role they all move
+ * to (review 2026-10-25); a role nothing uses just asks to confirm.
+ */
 function DeleteRole({
   role,
   others,
@@ -279,13 +293,13 @@ function DeleteRole({
   onDelete: (replacementId: string | null) => void;
 }) {
   const [to, setTo] = useState("");
-  const held = role.holders > 0;
+  const held = role.holders + role.uses.invites + role.uses.templates + role.uses.views > 0;
   return (
     <Dialog label={`Delete ${role.name}?`} onClose={onCancel}>
       <h2 className={s.dialogTitle}>Delete {role.name}?</h2>
       {held ? (
         <div className={s.rateField}>
-          <label htmlFor="role-to">Move its {people(role.holders)} to</label>
+          <label htmlFor="role-to">Move its {whatMoves(role)} to</label>
           <select id="role-to" className={s.dialogSelect} value={to} onChange={(e) => setTo(e.target.value)}>
             <option value="">Choose a role</option>
             {others.map((r) => (
@@ -296,7 +310,7 @@ function DeleteRole({
           </select>
         </div>
       ) : (
-        <p className={s.dialogText}>Nobody holds it, so nothing else changes.</p>
+        <p className={s.dialogText}>Nothing uses it, so nothing else changes.</p>
       )}
       <div className={s.dialogActions}>
         <Button variant="ghost" onClick={onCancel}>

@@ -18,6 +18,7 @@ const sales = (): Role => ({
   grants: [],
   fieldAccess: [{ fieldId: "f-email", access: "view" }],
   holders: 3,
+  uses: { invites: 0, templates: 0, views: 0 },
 });
 
 beforeEach(() => {

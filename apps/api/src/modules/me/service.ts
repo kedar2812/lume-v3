@@ -63,8 +63,20 @@ export async function revokeMine(req: FastifyRequest, d: AppDeps, shortId: strin
   await audit(req, { action: "session.revoked", entityType: "user", entityId: req.actor!.userId });
 }
 
+/**
+ * Already on: a new authenticator only after turning it off, which asks for the password (review 2026-10-25). Without
+ * this, a stolen session alone could swap in its own authenticator, take the recovery codes and sign everyone else out.
+ */
+const alreadyOn = () =>
+  new HttpError(
+    409,
+    "TWO_FACTOR_ON",
+    "Two-step sign-in is already on. Turn it off first, then set it up again.",
+  );
+
 export async function beginEnrolment(req: FastifyRequest, d: AppDeps) {
   const [u] = await req.db.select().from(schema.users).where(eq(schema.users.id, req.actor!.userId));
+  if (u!.totpEnabled) throw alreadyOn();
   const secret = newTotpSecret();
   await req.db
     .update(schema.users)
@@ -84,6 +96,7 @@ export async function confirmEnrolment(req: FastifyRequest, reply: FastifyReply,
     .from(schema.users)
     .where(eq(schema.users.id, req.actor!.userId))
     .for("update");
+  if (u!.totpEnabled) throw alreadyOn();
   if (!u!.totpPendingEnc) throw badRequest("NO_ENROLMENT", "Start two-step setup first");
   const secret = d.keyring.decrypt(u!.totpPendingEnc, `totp-pending:${u!.id}`);
   const step = verifyTotp(secret, code, { nowMs: now.getTime() });

@@ -20,6 +20,7 @@ const role = (over: Partial<Role>): Role => ({
   grants: [{ key: "leads.view", scope: "own" }],
   fieldAccess: [],
   holders: 3,
+  uses: { invites: 0, templates: 0, views: 0 },
   ...over,
 });
 const roles = [role({ id: "r-admin", name: "Admin", color: "accent", holders: 1 }), role({})];
@@ -72,5 +73,39 @@ describe("RolesAdmin", () => {
     await userEvent.click(within(ask).getByRole("button", { name: "Delete role" }));
     expect(rolesClient.remove).toHaveBeenCalledWith("r-sales", "r-admin");
     expect(screen.queryByRole("button", { name: /Sales.*3 people/ })).not.toBeInTheDocument();
+  });
+
+  it("a role nobody holds but an invite, templates and a view still name: it asks where they move, and says what (review 2026-10-25)", async () => {
+    const desk = role({
+      id: "r-desk",
+      name: "Desk",
+      holders: 0,
+      uses: { invites: 1, templates: 2, views: 1 },
+    });
+    render(<RolesAdmin roles={[roles[0]!, desk]} catalog={catalog} fields={testCatalog().fields} />);
+    await userEvent.click(screen.getByRole("button", { name: /Desk/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete Desk" }));
+    const ask = screen.getByRole("dialog", { name: "Delete Desk?" });
+    const to = within(ask).getByLabelText("Move its open invite, 2 templates and shared view to");
+    expect(within(ask).getByRole("button", { name: "Delete role" })).toBeDisabled();
+    await userEvent.selectOptions(to, "r-admin");
+    await userEvent.click(within(ask).getByRole("button", { name: "Delete role" }));
+    expect(rolesClient.remove).toHaveBeenCalledWith("r-desk", "r-admin");
+  });
+
+  it("a role nothing uses is simply deleted", async () => {
+    const lone = role({
+      id: "r-lone",
+      name: "Lone",
+      holders: 0,
+      uses: { invites: 0, templates: 0, views: 0 },
+    });
+    render(<RolesAdmin roles={[roles[0]!, lone]} catalog={catalog} fields={testCatalog().fields} />);
+    await userEvent.click(screen.getByRole("button", { name: /Lone/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete Lone" }));
+    const ask = screen.getByRole("dialog", { name: "Delete Lone?" });
+    expect(ask).toHaveTextContent("Nothing uses it, so nothing else changes.");
+    await userEvent.click(within(ask).getByRole("button", { name: "Delete role" }));
+    expect(rolesClient.remove).toHaveBeenCalledWith("r-lone", undefined);
   });
 });

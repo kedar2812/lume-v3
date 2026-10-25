@@ -5,7 +5,8 @@ import { z } from "zod";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { bumpFieldDefs } from "../../leads/fields";
-import { badRequest, notFound } from "../../http/errors";
+import { checkLoginRestrictions } from "../../auth/restrictions";
+import { badRequest, conflict, notFound } from "../../http/errors";
 import type { AppDeps } from "../../app";
 import { openErApi } from "../../money/rates";
 import { quoteCurrency, switchCurrency } from "./service";
@@ -66,6 +67,24 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
           "Change the currency with Settings → Business, which converts every amount",
         );
       if (defaultCountry) await bumpFieldDefs(req); // compiled phone validators depend on it
+      // Working hours are the sign-in hours of every role set to "Business hours": new ones (or a new clock) may not
+      // sign out the person saving them, as Settings → Security refuses too (review 2026-10-25).
+      const actor = req.actor!;
+      if ((rest.workingHours || rest.timezone) && !actor.isOwner) {
+        const [now] = await req.db.select().from(schema.settings);
+        const verdict = checkLoginRestrictions({
+          roles: actor.restrictions,
+          ip: req.ip,
+          now: req.server.watch.clock(),
+          timezone: rest.timezone ?? now?.timezone ?? "UTC",
+          workingHours: rest.workingHours ?? workingHoursFrom(now?.workingHours),
+        });
+        if (verdict === "hours")
+          throw conflict(
+            "WOULD_LOCK_YOU_OUT",
+            "Saving this would sign you out: your sign-in hours follow these working hours.",
+          );
+      }
       const [s] = await req.db
         .update(schema.settings)
         .set({ ...rest, ...(defaultCountry ? { defaultCountryIso: defaultCountry } : {}) })

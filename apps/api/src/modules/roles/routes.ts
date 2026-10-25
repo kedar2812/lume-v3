@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { badRequest } from "../../http/errors";
 import { setFieldAccess } from "./field-access";
 import * as roles from "./service";
 
@@ -10,19 +11,26 @@ const grant = z.object({
   key: z.string().regex(/^[a-z_.]+$/),
   scope: z.enum(["own", "team", "all"]).nullish(),
 });
-const loginHours = z.object({
-  days: z.array(z.number().int().min(0).max(6)).min(1),
-  from: z.string().regex(/^\d\d:\d\d$/),
-  to: z.string().regex(/^\d\d:\d\d$/),
-});
 const role = z.object({
   name: z.string().trim().min(1).max(60),
   description: z.string().max(240).optional(),
   color: z.enum(["accent", "ok", "warn", "danger", "meet", "cyan", "neutral"]).optional(),
   grants: z.array(grant).max(100),
-  loginHours: loginHours.nullish(),
-  ipAllowlist: z.array(z.cidrv4().or(z.cidrv6())).max(50).nullish(),
+  // Named here only to be refused: see withoutAccess.
+  loginHours: z.unknown().optional(),
+  ipAllowlist: z.unknown().optional(),
 });
+
+/**
+ * A role's sign-in hours and networks are Security's (security.manage), set through Settings → Security with its checks:
+ * real times, hours that end after they start, and nobody locking themselves out (review 2026-10-25).
+ */
+function withoutAccess<T extends { loginHours?: unknown; ipAllowlist?: unknown }>(body: T) {
+  const { loginHours, ipAllowlist, ...rest } = body;
+  if (loginHours !== undefined || ipAllowlist !== undefined)
+    throw badRequest("ACCESS_IN_SECURITY", "Sign-in hours and networks are set in Settings → Security.");
+  return rest;
+}
 
 export async function roleRoutes(app: FastifyInstance): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
@@ -35,10 +43,10 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
     roles.readRole(req, req.params.id),
   );
   r.post("/api/v1/roles", { config: cfg, schema: { body: role } }, async (req, reply) =>
-    reply.code(201).send(await roles.createRole(req, req.body)),
+    reply.code(201).send(await roles.createRole(req, withoutAccess(req.body))),
   );
   r.patch("/api/v1/roles/:id", { config: cfg, schema: { params, body: role.partial() } }, (req) =>
-    roles.updateRole(req, req.params.id, req.body),
+    roles.updateRole(req, req.params.id, withoutAccess(req.body)),
   );
   r.delete(
     "/api/v1/roles/:id",

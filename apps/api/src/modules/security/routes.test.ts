@@ -147,6 +147,29 @@ describe("alerts and their review", () => {
     expect(d.last30).toHaveLength(30);
   });
 
+  it("detail counts the person's leads on its own connection, never a second from the pool it holds (review 2026-10-25)", async () => {
+    // A request that waits on the pool it holds deadlocks once every connection is held by one such request: ten
+    // alerts opened at once froze the whole API for the pool's wait.
+    const a = await burst(6);
+    // Connections held at once while the request runs, over those held before it (the listeners').
+    let held = h.pool.totalCount - h.pool.idleCount;
+    const base = held;
+    let peak = held;
+    const up = () => (peak = Math.max(peak, ++held));
+    const down = () => held--;
+    h.pool.on("acquire", up);
+    h.pool.on("release", down);
+    try {
+      const res = await get(admin, `/api/v1/security/alerts/${a.id}`);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().person.leadCount).toBe(6);
+      expect(peak - base).toBe(1);
+    } finally {
+      h.pool.off("acquire", up);
+      h.pool.off("release", down);
+    }
+  });
+
   it("the admin's notification names its alert, so Review opens it", async () => {
     const a = await burst(6);
     await vi.waitFor(async () => {
@@ -264,17 +287,7 @@ describe("access limits", () => {
     expect(r.statusCode, r.body).toBe(200);
     expect(r.json().role.ipAllowlist).toEqual(["192.168.1.0/24", "2001:db8::/32"]);
     await put(admin, `/api/v1/security/access/${role.id}`, { loginHours: null, ipAllowlist: null });
-    // Roles & access takes the same input the same way.
-    const made = await post(owner, "/api/v1/roles", {
-      name: "Night desk",
-      grants: [],
-      ipAllowlist: ["10.20.30.40/16"],
-    });
-    expect(made.statusCode, made.body).toBe(201);
-    const stored = await h.pool.query("SELECT ip_allowlist::text[] AS l FROM roles WHERE id = $1", [
-      made.json().role.id,
-    ]);
-    expect(stored.rows[0].l).toEqual(["10.20.0.0/16"]);
+    // Networks are set here only: Roles & access refuses them (review 2026-10-25, roles.test).
   });
 
   it("won't save limits that would sign you out right now (Review Focus 5)", async () => {

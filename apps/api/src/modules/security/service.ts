@@ -9,6 +9,7 @@ import {
   type WatermarkMode,
   type WorkingHours,
   initialsOf,
+  leadScope,
 } from "@lume/core";
 import type { LoginHours, SecuritySettings } from "@lume/db";
 import { audit } from "../../audit/audit";
@@ -240,23 +241,21 @@ export async function alertDetail(req: FastifyRequest, id: string) {
   };
 }
 
-/** How many leads someone holds: LUME's own count (every lead), naming none of them. */
+/**
+ * How many leads someone holds: LUME's own count (every lead), naming none of them. In the request's own transaction,
+ * its lead scope widened for this one count and then put back: a second connection from the pool the request already
+ * holds deadlocked once every connection was held by one of these (review 2026-10-25).
+ */
 async function leadsHeldBy(req: FastifyRequest, userId: string): Promise<number> {
-  const c = await req.server.watch.pool.connect();
+  await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
   try {
-    await c.query("BEGIN READ ONLY");
-    await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
-    const { rows: r } = await c.query<{ n: number }>(
-      "SELECT count(*)::int AS n FROM leads WHERE owner_id = $1 AND deleted_at IS NULL",
-      [userId],
+    const [r] = await rows<{ n: number }>(
+      req,
+      sql`SELECT count(*)::int AS n FROM leads WHERE owner_id = ${userId} AND deleted_at IS NULL`,
     );
-    await c.query("COMMIT");
-    return r[0]?.n ?? 0;
-  } catch (e) {
-    await c.query("ROLLBACK").catch(() => undefined);
-    throw e;
+    return r?.n ?? 0;
   } finally {
-    c.release();
+    await req.db.execute(sql`SELECT set_config('lume.lead_scope', ${leadScope(req.actor!) ?? ""}, true)`);
   }
 }
 

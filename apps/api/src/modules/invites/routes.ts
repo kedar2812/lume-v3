@@ -13,7 +13,8 @@ export async function inviteRoutes(app: FastifyInstance, d: AppDeps): Promise<vo
   r.post(
     "/api/v1/invites",
     {
-      config: { permission: "users.manage" },
+      // Its answer holds the invite's link, a credential: never kept for a replay (review 2026-10-25).
+      config: { permission: "users.manage", idempotent: false },
       schema: {
         body: z.object({ email: emailSchema, name: nameSchema, roleIds: z.array(z.uuid()).max(20) }),
       },

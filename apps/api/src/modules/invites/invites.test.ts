@@ -64,6 +64,20 @@ describe("invites (report §12.1: invite-only, single-use, 72 h)", () => {
     ).toBe(404);
   });
 
+  it("an invite's link is never kept for a replay, whatever Idempotency-Key came with it (review 2026-10-25)", async () => {
+    const u = await h.seedUser({ grants: [{ key: "users.manage", scope: null }], totp: true });
+    const admin = await h.signIn(u);
+    const res = await admin.inject({
+      method: "POST",
+      url: "/api/v1/invites",
+      headers: { "idempotency-key": `invite-replay-${u.id}` },
+      payload: { email: "replay@brightpath.test", name: "Ravi", roleIds: [] },
+    });
+    expect(res.statusCode).toBe(201);
+    const kept = await h.pool.query("SELECT route FROM idempotency_keys WHERE user_id = $1", [u.id]);
+    expect(kept.rows).toEqual([]);
+  });
+
   it("expired invites are gone", async () => {
     const admin = await h.signIn(
       await h.seedUser({ grants: [{ key: "users.manage", scope: null }], totp: true }),

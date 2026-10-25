@@ -11,6 +11,8 @@ import * as me from "./service";
 const self = { permission: "auth.self" as const };
 /** Reachable before a mandatory 2FA enrolment is done — enrolling is how the user gets unstuck. */
 const enrol = { permission: "auth.self" as const, allowDuringEnrolment: true };
+/** What answers with a secret (a new authenticator's, recovery codes) is never kept for a replay (review 2026-10-25). */
+const secretOut = { idempotent: false } as const;
 const password = z.object({ password: passwordInput });
 const stepIds = ONBOARDING_STEPS.map((s) => s.id) as [OnboardingStepId, ...OnboardingStepId[]];
 
@@ -70,17 +72,19 @@ export async function meRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
     },
   );
 
-  r.post("/api/v1/me/2fa/enrol", { config: enrol }, (req) => me.beginEnrolment(req, d));
+  r.post("/api/v1/me/2fa/enrol", { config: { ...enrol, ...secretOut } }, (req) => me.beginEnrolment(req, d));
   r.post(
     "/api/v1/me/2fa/confirm",
-    { config: enrol, schema: { body: z.object({ code: totpCodeSchema }) } },
+    { config: { ...enrol, ...secretOut }, schema: { body: z.object({ code: totpCodeSchema }) } },
     (req, reply) => me.confirmEnrolment(req, reply, d, req.body.code),
   );
   r.post("/api/v1/me/2fa/disable", { config: self, schema: { body: password } }, (req, reply) =>
     me.disableTwoFactor(req, reply, d, req.body.password),
   );
-  r.post("/api/v1/me/recovery-codes", { config: self, schema: { body: password } }, (req, reply) =>
-    me.regenerateRecoveryCodes(req, reply, d, req.body.password),
+  r.post(
+    "/api/v1/me/recovery-codes",
+    { config: { ...self, ...secretOut }, schema: { body: password } },
+    (req, reply) => me.regenerateRecoveryCodes(req, reply, d, req.body.password),
   );
 
   r.patch(

@@ -51,6 +51,50 @@ describe("/me", () => {
     expect(again.statusCode).toBe(200);
   });
 
+  it("two-step sign-in already on: no new authenticator without turning it off first, with the password (review 2026-10-25)", async () => {
+    // A stolen session alone could swap in its own authenticator, take the recovery codes and sign everyone else out.
+    const u = await h.seedUser({ grants: [], totp: true });
+    const c = await h.signIn(u);
+    const before = (await h.pool.query("SELECT totp_secret_enc FROM users WHERE id = $1", [u.id])).rows[0];
+    const enrol = await c.inject({ method: "POST", url: "/api/v1/me/2fa/enrol" });
+    expect(enrol.statusCode).toBe(409);
+    expect(enrol.json().error.code).toBe("TWO_FACTOR_ON");
+    const confirm = await c.inject({
+      method: "POST",
+      url: "/api/v1/me/2fa/confirm",
+      payload: { code: "123456" },
+    });
+    expect(confirm.statusCode).toBe(409);
+    const after = (await h.pool.query("SELECT totp_secret_enc FROM users WHERE id = $1", [u.id])).rows[0];
+    expect(after.totp_secret_enc).toEqual(before.totp_secret_enc);
+  });
+
+  it("a new secret, recovery codes: never kept for a replay, whatever Idempotency-Key came with them (review 2026-10-25)", async () => {
+    const u = await h.seedUser({ grants: [] });
+    const c = await h.signIn(u);
+    const key = (n: string) => ({ headers: { "idempotency-key": `secret-replay-${n}-${u.id}` } });
+    const { secret } = (await c.inject({ method: "POST", url: "/api/v1/me/2fa/enrol", ...key("a") })).json();
+    expect(secret).toBeTruthy();
+    const ok = await c.inject({
+      method: "POST",
+      url: "/api/v1/me/2fa/confirm",
+      payload: { code: totpCode(secret, h.clock.now.getTime()) },
+      ...key("b"),
+    });
+    expect(ok.statusCode).toBe(200);
+    const rotated = ok.cookies.find((x) => x.name === "__Host-lume_session")!.value;
+    const codes = await c.inject({
+      method: "POST",
+      url: "/api/v1/me/recovery-codes",
+      payload: { password: u.password },
+      cookies: { "__Host-lume_session": rotated },
+      ...key("c"),
+    });
+    expect(codes.statusCode).toBe(200);
+    const kept = await h.pool.query("SELECT route FROM idempotency_keys WHERE user_id = $1", [u.id]);
+    expect(kept.rows).toEqual([]);
+  });
+
   it("refuses to switch off 2FA when a role requires it", async () => {
     const u = await h.seedUser({ grants: [{ key: "roles.manage", scope: null }], totp: true });
     const c = await h.signIn(u);

@@ -18,7 +18,7 @@ import { startWhatsAppQueue } from "./modules/whatsapp/queue";
 import { startTaskQueue } from "./modules/tasks/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
-import { REDACT_PATHS } from "./logger";
+import { loggerOptions } from "./logger";
 import { createMailer } from "./mail/mailer";
 import { fixedRates, openErApi, openExchangeRates } from "./money/rates";
 import { sweepLeftExports } from "./export/service";
@@ -144,7 +144,7 @@ const deps: AppDeps = {
   }),
   isBreached: await loadBreachedChecker(cfg.BREACHED_LIST_FILE),
   argon2: ARGON2_PRODUCTION,
-  logger: { level: cfg.LOG_LEVEL, redact: { paths: REDACT_PATHS, censor: "[redacted]" } },
+  logger: loggerOptions(cfg.LOG_LEVEL),
   licence,
   whatsapp,
   autopilot,
