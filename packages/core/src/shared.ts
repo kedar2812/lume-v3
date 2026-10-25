@@ -34,6 +34,7 @@ export type { Delimiter, Encoding, FileWarning } from "./intake/read";
 export type { DateOrder } from "./intake/values";
 export type { ColumnMap, IntakeField, Issue, Mapping, OwnerRule, Rules, Transform } from "./intake/mapping";
 export type { ColumnAnalysis } from "./intake/map-row";
+export type { ColumnProfile } from "./intake/profile";
 export * from "./tasks/time";
 export * from "./tasks/rules";
 // Settings → Calendar's rules (5A): no I/O, safe for the browser.

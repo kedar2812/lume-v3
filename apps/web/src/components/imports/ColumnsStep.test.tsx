@@ -48,6 +48,38 @@ describe("ColumnsStep", () => {
     unmount();
   });
 
+  it("a new field starts as the kind of values the column holds, read from every row", async () => {
+    vi.mocked(importsClient.patch).mockResolvedValue(ok(testDraft()));
+    render(<ColumnsStep draft={testDraft()} onDraft={vi.fn()} onContinue={vi.fn()} blocked={false} />);
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Email goes to" }), "new_field");
+    expect(screen.getByRole("combobox", { name: "New field's type" })).toHaveValue("email");
+    const sent = vi.mocked(importsClient.patch).mock.calls.at(-1)![1] as {
+      mapping: { columns: { column: number; type?: string }[] };
+    };
+    expect(sent.mapping.columns.find((c) => c.column === 2)).toMatchObject({ type: "email" });
+  });
+
+  it("a column empty in every row says so, and can't become a new field", () => {
+    const draft = testDraft({
+      headers: ["Full name", "Mobile", "Email", "Column D"],
+      sample: [["Aisha Khan", "050 123 4567", "aisha@example.test", ""]],
+      profiles: [
+        { column: 0, filled: 1, kind: "text", suggest: "text" },
+        { column: 1, filled: 1, kind: "phone", suggest: "phone" },
+        { column: 2, filled: 1, kind: "email", suggest: "email" },
+        { column: 3, filled: 0, kind: "empty", suggest: "text" },
+      ],
+    });
+    render(<ColumnsStep draft={draft} onDraft={vi.fn()} onContinue={vi.fn()} blocked={false} />);
+    const row = screen.getByRole("row", { name: /Column D/ });
+    expect(within(row).getByText("Empty in every row")).toBeInTheDocument();
+    expect(
+      within(within(row).getByRole("combobox", { name: "Column D goes to" })).queryByRole("option", {
+        name: "New field…",
+      }),
+    ).toBeNull();
+  });
+
   it("lists unmatched values with their counts, and maps, adds or empties each", async () => {
     const draft = testDraft({
       mapping: {

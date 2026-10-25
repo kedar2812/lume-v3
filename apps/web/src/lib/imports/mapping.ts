@@ -33,12 +33,22 @@ export function fieldLabelFrom(header: string): string {
   return label || "New field";
 }
 
-/** The column map for a choice, keeping the transform where it still makes sense. */
-export function columnFor(column: number, choice: string, header: string, before?: ColumnMap): ColumnMap {
+/**
+ * The column map for a choice, keeping the transform where it still makes sense. A new field starts as the kind of
+ * values its column holds (`suggest`, from every row), else as text.
+ */
+export function columnFor(
+  column: number,
+  choice: string,
+  header: string,
+  before?: ColumnMap,
+  suggest?: IntakeField["type"],
+): ColumnMap {
   const transform = before && before.to !== "ignore" ? before.transform : undefined;
   const keep = transform ? { transform } : {};
   if (choice === "ignore") return { column, to: "ignore" };
-  if (choice === "new_field") return { column, to: "new_field", label: fieldLabelFrom(header), type: "text" };
+  if (choice === "new_field")
+    return { column, to: "new_field", label: fieldLabelFrom(header), type: suggest ?? "text" };
   if (choice === "name_part:first") return { column, to: "name_part", part: "first" };
   if (choice === "name_part:last") return { column, to: "name_part", part: "last" };
   const field = choice.startsWith("field:") ? choice.slice(6) : choice;

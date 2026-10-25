@@ -229,6 +229,8 @@ export function ColumnsStep({
                   .map((r) => r[column]?.trim() ?? "")
                   .filter(Boolean)
                   .slice(0, 3);
+                const profile = draft.profiles.find((p) => p.column === column);
+                const empty = profile?.kind === "empty";
                 return (
                   <tr key={column} data-ignored={c.to === "ignore" || undefined}>
                     <th scope="row">
@@ -241,7 +243,9 @@ export function ColumnsStep({
                             </span>
                           ))
                         ) : (
-                          <span className={s.sampleEmpty}>Empty in the first rows</span>
+                          <span className={s.sampleEmpty}>
+                            {empty ? "Empty in every row" : "Empty in the first rows"}
+                          </span>
                         )}
                       </span>
                     </th>
@@ -252,7 +256,12 @@ export function ColumnsStep({
                           aria-label={`${header} goes to`}
                           value={choiceOf(c)}
                           onChange={(e) =>
-                            change(withColumn(mapping, columnFor(column, e.target.value, header, c)))
+                            change(
+                              withColumn(
+                                mapping,
+                                columnFor(column, e.target.value, header, c, profile?.suggest),
+                              ),
+                            )
                           }
                         >
                           <option value="ignore">Ignore</option>
@@ -274,7 +283,7 @@ export function ColumnsStep({
                                 </optgroup>
                               ),
                           )}
-                          {draft.can.manageFields && <option value="new_field">New field…</option>}
+                          {draft.can.manageFields && !empty && <option value="new_field">New field…</option>}
                         </select>
                         {transformLine(c, header)}
                       </div>

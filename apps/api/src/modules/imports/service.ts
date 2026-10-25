@@ -6,6 +6,8 @@ import {
   INTAKE_LIMITS,
   MAPPABLE_TARGETS,
   analyzeColumns,
+  newFieldProblems,
+  profileColumns,
   can,
   mapRow,
   newId,
@@ -82,7 +84,13 @@ export async function draftView(req: FastifyRequest, d: AppDeps, imp: ImportRow)
   });
   const analysis = analyzeColumns(file.rows, mapping, ctx);
   const settings = resolveColumnSettings(analysis, mapping, ctx);
-  const problems: Issue[] = [...validateMapping(mapping, rules, ctx), ...settings.blocking];
+  // What each column holds, from every row: an empty one says so; a new field starts as the right type.
+  const profiles = profileColumns(file.rows, file.headers, { country: ctx.country });
+  const problems: Issue[] = [
+    ...validateMapping(mapping, rules, ctx),
+    ...newFieldProblems(mapping, profiles, file.rows),
+    ...settings.blocking,
+  ];
   const [prior] = await req.db
     .select({ at: I.finishedAt, by: schema.users.name })
     .from(I)
@@ -110,6 +118,7 @@ export async function draftView(req: FastifyRequest, d: AppDeps, imp: ImportRow)
     rules,
     targets: MAPPABLE_TARGETS(ctx.fields),
     analysis,
+    profiles,
     problems,
     alreadyImported: prior?.at ? { at: prior.at.toISOString(), by: prior.by } : null,
     choices: {

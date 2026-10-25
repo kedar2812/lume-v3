@@ -57,6 +57,11 @@ export function testDraft(over: Partial<DraftView> = {}): DraftView {
       { column: 1, unmatched: [] },
       { column: 2, unmatched: [] },
     ],
+    profiles: [
+      { column: 0, filled: 3, kind: "text", suggest: "text" },
+      { column: 1, filled: 2, kind: "phone", suggest: "phone" },
+      { column: 2, filled: 2, kind: "email", suggest: "email" },
+    ],
     problems: [],
     alreadyImported: null,
     choices: {

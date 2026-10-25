@@ -1,6 +1,7 @@
 import type {
   ColumnAnalysis,
   ColumnMap,
+  ColumnProfile,
   DateOrder,
   Delimiter,
   Encoding,
@@ -52,6 +53,8 @@ export type DraftView = {
   rules: Rules;
   targets: Target[];
   analysis: ColumnAnalysis[];
+  /** What each column holds, read from every row: an empty one says so; a new field starts as `suggest`. */
+  profiles: ColumnProfile[];
   /** Everything that stops Start, with the column it belongs to (null: the rules). */
   problems: Issue[];
   alreadyImported: { at: string; by: string | null } | null;

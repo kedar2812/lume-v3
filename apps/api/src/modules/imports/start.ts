@@ -3,7 +3,10 @@ import type { FastifyRequest } from "fastify";
 import {
   analyzeColumns,
   can,
+  choicesOf,
   fold,
+  newFieldProblems,
+  profileColumns,
   resolveColumnSettings,
   validateMapping,
   type ColumnMap,
@@ -72,7 +75,12 @@ export async function prepareStart(
     pending: draftMapping,
   });
   const settings = resolveColumnSettings(analyzeColumns(file.rows, draftMapping, ctx), draftMapping, ctx);
-  const problems = [...validateMapping(draftMapping, rules, ctx), ...settings.blocking];
+  const profiles = profileColumns(file.rows, file.headers, { country: ctx.country });
+  const problems = [
+    ...validateMapping(draftMapping, rules, ctx),
+    ...newFieldProblems(draftMapping, profiles, file.rows),
+    ...settings.blocking,
+  ];
   if (problems.length) throw badRequest("MAPPING_INVALID", problems[0]!.message, problems);
 
   // New fields, then new options, then missing tags — and the mapping now points at real ones.
@@ -85,7 +93,16 @@ export async function prepareStart(
     }
     const key = fieldKey(c.label, taken);
     taken.add(key);
-    await createField(req, { key, label: c.label.trim(), type: c.type });
+    // A new choice field holds the column's own values, so every row keeps its value.
+    const choice = c.type === "select" || c.type === "multi_select";
+    await createField(req, {
+      key,
+      label: c.label.trim(),
+      type: c.type,
+      ...(choice
+        ? { options: choicesOf(file.rows, c.column, c.type === "multi_select").map((label) => ({ label })) }
+        : {}),
+    });
     columns.push({
       column: c.column,
       to: "field",
