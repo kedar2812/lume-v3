@@ -676,25 +676,56 @@
   background: rgba(255, 150, 0, 0.6);
   box-shadow: 0 0 0 2px rgba(255, 150, 0, 0.55);
 }
+/* Find floats over the pages' top corner, under the Find button: a glass bar on the page, never a band that pushes
+   the pages down (owner, 2026-10-25). */
 .find {
-  flex: none;
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 10px auto;
-  width: min(520px, calc(100% - 32px));
-  height: 44px;
-  padding: 0 6px 0 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  width: min(440px, calc(100% - 32px));
+  min-height: 44px;
+  padding: 0 6px 0 14px;
+  border-radius: 14px;
+  background: rgba(38, 39, 44, 0.78);
+  backdrop-filter: blur(22px) saturate(160%);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 12px 32px rgba(0, 0, 0, 0.42),
+    0 2px 6px rgba(0, 0, 0, 0.24);
   color: var(--v-ink-2);
-  z-index: 2;
+  will-change: transform, opacity;
+}
+.find[data-unavailable] {
+  padding: 10px 6px 10px 14px;
 }
 .find:focus-within {
   box-shadow:
     inset 0 0 0 1.5px var(--accent),
-    0 0 0 3px rgba(var(--accent-rgb), 0.25);
+    0 0 0 3px rgba(var(--accent-rgb), 0.25),
+    0 12px 32px rgba(0, 0, 0, 0.42);
+}
+.findSay {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--v-ink);
+}
+@media (max-width: 699px) {
+  .find {
+    right: 12px;
+    width: calc(100% - 24px);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .find {
+    background: #26272c;
+    backdrop-filter: none;
+  }
 }
 .find input:focus-visible {
   box-shadow: none;

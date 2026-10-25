@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadPdf, type PdfDoc } from "./pdf";
+import { loadPdf, type PdfDoc, type PdfTextItem } from "./pdf";
 import { PdfView } from "./PdfView";
 import { ToolbarSlot } from "./Toolbar";
 
@@ -9,6 +9,10 @@ vi.mock("./pdf", () => ({ loadPdf: vi.fn() }));
 
 /** A document as pdf.js gives it, with each page's words. */
 function doc(pages: string[]): PdfDoc {
+  return docOf(pages.map((t) => [{ str: t, transform: [1, 0, 0, 12, 72, 700], width: 200, height: 12 }]));
+}
+/** The same, with each page's own pieces of text (none: a page that's a picture). */
+function docOf(pages: PdfTextItem[][]): PdfDoc {
   return {
     numPages: pages.length,
     getPage: async (n: number) => ({
@@ -18,9 +22,7 @@ function doc(pages: string[]): PdfDoc {
         convertToViewportRectangle: (r: number[]) => r.map((x) => x * scale),
       }),
       render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }),
-      getTextContent: async () => ({
-        items: [{ str: pages[n - 1]!, transform: [1, 0, 0, 12, 72, 700], width: 200, height: 12 }],
-      }),
+      getTextContent: async () => ({ items: pages[n - 1]! }),
       cleanup: vi.fn(),
     }),
     destroy: vi.fn(),
@@ -117,6 +119,53 @@ describe("a PDF in LUME's viewer (plan 2026-10-20-media-tab, Task 8)", () => {
     // Escape puts it away, and the focus goes back to its button, never dropped on the page.
     await userEvent.keyboard("{Escape}");
     expect(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" })).toHaveFocus();
+  });
+
+  it("a phrase the file keeps in pieces is still found (owner, 2026-10-25)", async () => {
+    const piece = (str: string, x: number): PdfTextItem => ({
+      str,
+      transform: [12, 0, 0, 12, x, 700],
+      width: str.length * 6,
+      height: 12,
+    });
+    vi.mocked(loadPdf).mockResolvedValue(
+      docOf([[piece("Modular", 72), piece("kitch", 118), piece("ens", 148)]]),
+    );
+    withToolbar(<PdfView src="/x" pages={1} name="Brochure.pdf" />);
+    await screen.findByRole("region", { name: "Pages of Brochure.pdf" });
+    await userEvent.click(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Find in Brochure.pdf" }), "modular kitchens");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 of 1"));
+  });
+
+  it("a file that's only pictures: Find says plainly it isn't available for this file", async () => {
+    vi.mocked(loadPdf).mockResolvedValue(docOf([[], []]));
+    withToolbar(<PdfView src="/x" pages={2} name="Scan.pdf" />);
+    await screen.findByRole("region", { name: "Pages of Scan.pdf" });
+    await userEvent.click(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" }));
+    expect(
+      await screen.findByText(
+        "Find isn't available for this file. Its pages are pictures, with no text LUME can read.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Close Find" }));
+    expect(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" })).toHaveFocus();
+  });
+
+  it("some pages are pictures: a search with no match says how many pages it couldn't read", async () => {
+    vi.mocked(loadPdf).mockResolvedValue(
+      docOf([[{ str: "Our prices", transform: [12, 0, 0, 12, 72, 700], width: 60, height: 12 }], []]),
+    );
+    withToolbar(<PdfView src="/x" pages={2} name="Mixed.pdf" />);
+    await screen.findByRole("region", { name: "Pages of Mixed.pdf" });
+    await userEvent.click(within(screen.getByTestId("toolbar")).getByRole("button", { name: "Find in it" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Find in Mixed.pdf" }), "warranty");
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Not found. 1 of 2 pages is a picture LUME can't read.",
+      ),
+    );
   });
 
   it("a PDF LUME can't read says so in plain words", async () => {

@@ -6,7 +6,14 @@ export type PdfViewport = {
   height: number;
   convertToViewportRectangle(rect: number[]): number[];
 };
-export type PdfTextItem = { str: string; transform: number[]; width: number; height: number };
+/** A piece of a page's text; `hasEOL`: a line ends after it (pdf.js). */
+export type PdfTextItem = {
+  str: string;
+  transform: number[];
+  width: number;
+  height: number;
+  hasEOL?: boolean;
+};
 export type PdfPage = {
   getViewport(o: { scale: number }): PdfViewport;
   render(o: { canvas?: HTMLCanvasElement; canvasContext: CanvasRenderingContext2D; viewport: PdfViewport }): {
