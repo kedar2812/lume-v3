@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { MediaScreen } from "./MediaScreen";
+import { uploads } from "@/lib/media/uploads";
+import { GlobalUploadTray } from "./UploadTray";
 
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
@@ -79,6 +81,8 @@ const dropFiles = (files: File[]) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Uploads are LUME's, kept between screens (and so between these tests): each test starts with an empty tray.
+  uploads.snapshot().uploads.forEach((u) => uploads.dismiss(u.key));
   vi.mocked(filesClient.list).mockResolvedValue(ok({ files: ALL }));
   vi.mocked(filesClient.putAwayGuide).mockResolvedValue(ok({}) as never);
 });
@@ -204,7 +208,13 @@ describe("Media (plan 2026-10-20-media-tab, Task 6)", () => {
           } as never)
         : ok({ file: file({ id: "ok1", name: f.name }) }),
     );
-    render(<MediaScreen initial={ALL} canManage guideSeen />);
+    // The tray is the shell's, shown on every screen.
+    render(
+      <>
+        <MediaScreen initial={ALL} canManage guideSeen />
+        <GlobalUploadTray />
+      </>,
+    );
     dropFiles([new File(["x"], "Plan.dwg"), new File(["%PDF"], "Menu.pdf", { type: "application/pdf" })]);
     const tray = await screen.findByRole("region", { name: "Adding files" });
     await within(tray).findByText("LUME can send photos, videos and documents.");

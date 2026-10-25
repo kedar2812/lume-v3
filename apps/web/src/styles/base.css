@@ -35,6 +35,15 @@ textarea {
 button {
   cursor: pointer;
 }
+/* A caret at the very start of an empty box drew half outside it, whole only once a space moved it in (owner,
+   2026-10-25): a box with no padding of its own keeps 2 px of room. :where() weighs nothing, so any padding a box sets
+   itself still wins. */
+:where(
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+  textarea
+) {
+  padding-inline: 2px;
+}
 /* A native list opens in the operating system's own colours unless told otherwise: on Windows it kept a white
    background under Obsidian's light text, so every option read pale on white. The list follows the theme. */
 select option,

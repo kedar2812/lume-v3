@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-import { expect, openApp, reviewCopy, stateFile, test } from "./fixtures";
+import { callApi, expect, openApp, reviewCopy, stateFile, test } from "./fixtures";
 import { settle } from "./settle";
 
 /**
@@ -318,5 +318,112 @@ test.describe("Media", () => {
     await reviewCopy(page, "phone-info-sheet.png");
     expect(await axe(page)).toEqual([]);
     await ctx.close();
+  });
+});
+
+test.describe("Media: adding many files (owner, 2026-10-25)", () => {
+  const batch = Array.from({ length: 40 }, (_, i) => `Batch ${String(i + 1).padStart(2, "0")}.png`);
+  const PNG = sharp({ create: { width: 8, height: 8, channels: 3, background: "#7f8f86" } })
+    .png()
+    .toBuffer();
+
+  test.afterAll(async ({ browser }) => {
+    // Leave Media as it was for the specs after this one.
+    const ctx = await browser.newContext({ storageState: stateFile("owner") });
+    const page = await ctx.newPage();
+    await openApp(page, "/media");
+    const { data } = await callApi<{ files: { id: string; name: string }[] }>(page, "GET", "/api/v1/files");
+    for (const f of data.files.filter((x) => batch.includes(x.name)))
+      await callApi(page, "POST", `/api/v1/files/${f.id}/archive`);
+    await ctx.close();
+  });
+
+  test("every find box leaves the caret room, so it shows whole before anything is typed", async ({
+    page,
+  }) => {
+    // The reset gives inputs no padding: a caret at the very start was half outside its box until a space moved it.
+    const room = (name: string | RegExp) =>
+      page
+        .getByRole("searchbox", { name })
+        .evaluate((el) => parseFloat(getComputedStyle(el).paddingInlineStart));
+    await openApp(page, "/media");
+    expect(await room("Search media")).toBeGreaterThanOrEqual(2);
+    await tile(page, "Brochure 2026.pdf").click();
+    const viewer = page.getByRole("dialog", { name: "Brochure 2026.pdf" });
+    await viewer.getByRole("button", { name: "Find in it" }).click();
+    expect(await room("Find in Brochure 2026.pdf")).toBeGreaterThanOrEqual(2);
+  });
+
+  test("forty files: every row whole, one bar for the batch, and they carry on while LUME is used elsewhere", async ({
+    page,
+  }) => {
+    await openApp(page, "/media");
+    // Held at first, so the tray is full while it's measured.
+    const held: (() => Promise<void>)[] = [];
+    let hold = true;
+    await page.route("**/api/v1/files", async (route) => {
+      if (route.request().method() !== "POST" || !hold) return route.continue();
+      held.push(() => route.continue());
+    });
+    const buffer = await PNG;
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles(batch.map((name) => ({ name, mimeType: "image/png", buffer })));
+    const tray = page.getByRole("region", { name: "Adding files" });
+    await expect(tray.getByRole("listitem")).toHaveCount(40);
+    const clipped = await tray
+      .getByRole("listitem")
+      .evaluateAll((rows) => rows.filter((r) => r.scrollHeight > r.clientHeight + 1).length);
+    expect(clipped).toBe(0);
+    await expect(tray.getByRole("progressbar", { name: "Adding files" })).toHaveAttribute(
+      "aria-valuenow",
+      /\d+/,
+    );
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(page, `tray-forty-${theme}.png`);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+
+    // Off to Leads: the files keep going up, the tray comes along, and Media's item says how far.
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Leads" }).click();
+    await expect(page).toHaveURL(/\/leads/);
+    await expect(page.getByRole("link", { name: /^Media, uploading \d+%$/ })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Adding files" })).toBeVisible();
+    await reviewCopy(page, "sidebar-media-ring.png");
+    hold = false;
+    for (const go of held.splice(0)) await go();
+    await expect(page.getByRole("link", { name: "Media, 40 files added" })).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByRole("link", { name: "Media, 40 files added" })).toHaveAttribute("data-blink", "");
+
+    // Back in Media, every one of them is there, without a reload.
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: /^Media/ })
+      .click();
+    await page.getByRole("searchbox", { name: "Search media" }).fill("Batch");
+    await expect(grid(page).getByRole("button", { name: /^Batch \d\d\.png/ })).toHaveCount(40);
+
+    // Deleted for good, after a question that offers Archive instead.
+    await tile(page, "Batch 40.png").click();
+    const viewer = page.getByRole("dialog", { name: "Batch 40.png" });
+    await viewer.getByRole("button", { name: "Info", exact: true }).click();
+    await viewer.getByRole("button", { name: "Delete" }).click();
+    const ask = page.getByRole("dialog", { name: "Delete Batch 40.png?" });
+    await expect(ask.getByRole("button", { name: "Archive instead" })).toBeVisible();
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(page, `delete-ask-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await ask.getByRole("button", { name: "Delete" }).click();
+    await expect(ask).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(grid(page).getByRole("button", { name: /^Batch \d\d\.png/ })).toHaveCount(39);
+    const { data } = await callApi<{ files: { name: string }[] }>(page, "GET", "/api/v1/files?archived=1");
+    expect(data.files.map((f) => f.name)).not.toContain("Batch 40.png");
   });
 });

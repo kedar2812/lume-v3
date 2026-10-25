@@ -161,6 +161,7 @@ export const PROBES: Record<string, Probe> = {
   "PATCH /api/v1/files/:id": { access: "templates.manage", body: () => ({ name: "Brochure.pdf" }) },
   "POST /api/v1/files/:id/archive": { access: "templates.manage" },
   "POST /api/v1/files/:id/restore": { access: "templates.manage" },
+  "DELETE /api/v1/files/:id": { access: "templates.manage" },
   "PUT /api/v1/files/:id/link": { access: "templates.manage", body: () => ({ on: true }) },
   // Media (plan 2026-10-20-media-tab): a file, its thumbnail and its PDF read in LUME; a preview tried again.
   // Autopilot A1: ask the owner for a LUME AI top-up (admins).

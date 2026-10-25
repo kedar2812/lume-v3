@@ -24,6 +24,8 @@ import { TopBar } from "./TopBar";
 import s from "./shell.module.css";
 import { zoneOf } from "@/lib/zone";
 import { guardNumberWheel } from "@/lib/ui/wheel";
+import { GlobalUploadTray } from "@/components/media/UploadTray";
+import { uploads } from "@/lib/media/uploads";
 
 type Props = {
   session: Session;
@@ -64,6 +66,17 @@ export function AppShell({ session, businessName, theme, mac = false, children }
 
   // A wheel over a focused number field scrolls the page, never changes the value.
   useEffect(() => guardNumberWheel(document), []);
+
+  // Files going up into Media can't survive a reload: closing or reloading the tab asks first.
+  useEffect(() => {
+    const ask = (e: BeforeUnloadEvent) => {
+      if (!uploads.busy()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, []);
 
   useEffect(() => {
     // Scrollbars fade in while scrolling (spec §4.4).
@@ -130,6 +143,8 @@ export function AppShell({ session, businessName, theme, mac = false, children }
             </div>
             <PaymentReminder businessName={businessName} />
             <PendingSent />
+            {/* Files going up into Media, on whichever screen is open (owner, 2026-10-25). */}
+            <GlobalUploadTray />
             {/* A security alert, live, for whoever reviews them (6A). */}
             {can("security.manage") && <AlertHud />}
             <CommandPalette open={palette} onOpenChange={setPalette} can={can} onFeedback={openFeedback} />

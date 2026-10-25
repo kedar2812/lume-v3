@@ -1227,3 +1227,32 @@
 .text:focus-visible {
   border-radius: 6px;
 }
+
+/* Delete's question (owner, 2026-10-25): Delete first in weight, Archive instead beside it. */
+.confirm {
+  display: grid;
+  gap: 10px;
+}
+.confirm h2 {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-lg);
+  overflow-wrap: anywhere;
+}
+.confirm p {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+/* Delete's question opens over the viewer (85), not under it, where dialogs (80) otherwise sit. The class twice
+   outweighs the dialog's own layer, whichever stylesheet loads first. */
+.askLayer.askLayer {
+  z-index: 90;
+}

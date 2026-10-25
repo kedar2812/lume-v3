@@ -7,8 +7,7 @@ import { SPRINGS, toMotion } from "@/lib/motion";
 import { MediaEmpty } from "./MediaEmpty";
 import { MediaGuide } from "./MediaGuide";
 import { MediaTile } from "./MediaTile";
-import { UploadTray } from "./UploadTray";
-import { useUploads, type Upload } from "./useUploads";
+import { uploads as store, useUploads, type Upload } from "@/lib/media/uploads";
 import { Viewer } from "./viewer/Viewer";
 import s from "./media.module.css";
 
@@ -60,7 +59,14 @@ export function MediaScreen({
     (f: LibraryFile) => setFiles((xs) => [f, ...xs.filter((x) => x.id !== f.id)].sort(newestFirst)),
     [],
   );
-  const { uploads, add, dismiss } = useUploads(put);
+  // Uploads are LUME's, not this screen's (owner, 2026-10-25): they carry on when Media is left. What landed while
+  // it was closed comes in now; what lands while it's open, as it lands.
+  const { uploads } = useUploads();
+  const add = store.add;
+  useEffect(() => {
+    store.take().forEach(put);
+    return store.onAdded(put);
+  }, [put]);
 
   // While a thumbnail is being made, look again every few seconds; stop when none is, or after five minutes.
   const waiting = files.some((f) => f.preview === "pending");
@@ -322,8 +328,6 @@ export function MediaScreen({
           </motion.div>
         )}
       </AnimatePresence>
-
-      <UploadTray uploads={uploads} onDismiss={dismiss} />
 
       {openId && (
         <Viewer

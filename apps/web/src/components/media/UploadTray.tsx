@@ -2,7 +2,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { bytesText } from "@lume/core/shared";
 import { SPRINGS, toMotion } from "@/lib/motion";
-import type { Upload } from "./useUploads";
+import { uploads as store, useUploadBatch, useUploads, type Batch, type Upload } from "@/lib/media/uploads";
 import s from "./media.module.css";
 
 const R = 9;
@@ -66,9 +66,18 @@ function status(u: Upload) {
  * Files on their way in (canvas Drop): each with its progress, Added with a tick, or LUME's reason it wasn't. It
  * leaves once everything is in; a refusal stays until it's dismissed, so it's read.
  */
-export function UploadTray({ uploads, onDismiss }: { uploads: Upload[]; onDismiss(key: string): void }) {
+export function UploadTray({
+  uploads,
+  batch,
+  onDismiss,
+}: {
+  uploads: Upload[];
+  batch: Batch | null;
+  onDismiss(key: string): void;
+}) {
   const reduce = !!useReducedMotion();
   const going = uploads.filter((u) => u.state !== "added" && u.state !== "refused").length;
+  const pct = batch ? Math.round(batch.share * 100) : 0;
   return (
     <AnimatePresence>
       {uploads.length > 0 && (
@@ -83,6 +92,25 @@ export function UploadTray({ uploads, onDismiss }: { uploads: Upload[]; onDismis
           <b className={s.trayTitle} aria-live="polite">
             {going ? `Adding ${going} ${going === 1 ? "file" : "files"}` : "Done"}
           </b>
+          {batch && (
+            <div className={s.batch}>
+              <div
+                className={s.batchBar}
+                role="progressbar"
+                aria-label="Adding files"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={batch.done ? 100 : pct}
+              >
+                <i style={{ transform: `scaleX(${batch.done ? 1 : batch.share})` }} />
+              </div>
+              <span className={s.batchSay}>
+                {batch.done
+                  ? `${batch.total} ${batch.total === 1 ? "file" : "files"} added`
+                  : `${batch.added} of ${batch.total} added · ${pct}%`}
+              </span>
+            </div>
+          )}
           <ul>
             <AnimatePresence initial={false}>
               {uploads.map((u) => (
@@ -130,4 +158,11 @@ export function UploadTray({ uploads, onDismiss }: { uploads: Upload[]; onDismis
       )}
     </AnimatePresence>
   );
+}
+
+/** The tray wherever LUME is (owner, 2026-10-25): files keep going up while other screens are used. */
+export function GlobalUploadTray() {
+  const { uploads } = useUploads();
+  const batch = useUploadBatch();
+  return <UploadTray uploads={uploads} batch={batch} onDismiss={store.dismiss} />;
 }

@@ -21,12 +21,14 @@ export function InfoPanel({
   onChange,
   onRename,
   onArchive,
+  onDelete,
 }: {
   file: LibraryFile;
   canManage: boolean;
   onChange(f: LibraryFile): void;
   onRename(): void;
   onArchive(): void;
+  onDelete(): void;
 }) {
   const tz = useZone();
   const { toast } = useToast();
@@ -164,8 +166,11 @@ export function InfoPanel({
           <button type="button" className={v.action} onClick={onRename}>
             Rename
           </button>
-          <button type="button" className={v.action} data-tone="danger" onClick={onArchive}>
+          <button type="button" className={v.action} onClick={onArchive}>
             Archive
+          </button>
+          <button type="button" className={v.action} data-tone="danger" onClick={onDelete}>
+            Delete
           </button>
         </div>
       )}

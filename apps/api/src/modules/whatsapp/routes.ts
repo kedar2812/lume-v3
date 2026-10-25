@@ -6,7 +6,7 @@ import { sendable } from "../leads/sending";
 import { ignorePeer, inboxPerson, inboxView, makeLead } from "./inbox";
 import { KEEP_MONTHS, keepPreview } from "./keep";
 import { fileNameOf } from "./keep-bytes";
-import { archiveFile, listFiles, renameFile, setFileLink, uploadFile } from "./library";
+import { archiveFile, deleteFile, listFiles, renameFile, setFileLink, uploadFile } from "./library";
 import { mediaInfo, sendMedia } from "./media";
 import { attachFile, attachLibraryFile, sendLimiter, sendReply } from "./send";
 import { LIMITS } from "./sniff";
@@ -207,6 +207,15 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
     "/api/v1/files/:id/archive",
     { config: { permission: "templates.manage" }, schema: { params: fileId } },
     (req) => archiveFile(req, d, req.params.id, true),
+  );
+  // Deleted for good (owner, 2026-10-25), from Media's confirm; archive is the gentler way and stays.
+  r.delete(
+    "/api/v1/files/:id",
+    { config: { permission: "templates.manage" }, schema: { params: fileId } },
+    async (req, reply) => {
+      await deleteFile(req, req.params.id);
+      return reply.code(204).send();
+    },
   );
   r.post(
     "/api/v1/files/:id/restore",

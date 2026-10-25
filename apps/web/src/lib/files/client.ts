@@ -42,6 +42,8 @@ export const filesClient = {
   rename: (id: string, name: string) => api.patch<{ file: LibraryFile }>(one(id), { name }),
   archive: (id: string) => api.post<{ file: LibraryFile }>(`${one(id)}/archive`),
   restore: (id: string) => api.post<{ file: LibraryFile }>(`${one(id)}/restore`),
+  /** Deleted for good (owner, 2026-10-25): messages that already sent it keep it. */
+  remove: (id: string) => api.del<null>(one(id)),
   setLink: (id: string, on: boolean) => api.put<{ file: LibraryFile }>(`${one(id)}/link`, { on }),
   /** A preview that failed, tried again (admins). */
   retryPreview: (id: string) => api.post<{ file: LibraryFile }>(`${one(id)}/preview`),

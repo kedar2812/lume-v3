@@ -468,3 +468,108 @@
     animation: none;
   }
 }
+
+/* Media's item while files go up (owner, 2026-10-25): a ring filling with the whole batch, its words on hover; then a
+   green tick, and the item blinks three times, softly. */
+.upRing {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+}
+.link .upRing svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  opacity: 1;
+  color: inherit;
+}
+.upTrack {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 2.2;
+}
+.upFill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 0.5s var(--spring-soft),
+    stroke 0.3s ease,
+    fill 0.3s ease;
+}
+.upRing[data-done] .upFill {
+  stroke: var(--ok);
+  fill: var(--ok);
+}
+.upTick {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 12;
+  stroke-dashoffset: 12;
+  animation: upTick 0.42s var(--spring) 0.2s forwards;
+}
+@keyframes upTick {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.upTip {
+  position: absolute;
+  right: -6px;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 6px 20px rgb(0 0 0 / 0.12);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.25s var(--spring);
+}
+.link:hover .upTip,
+.link:focus-visible .upTip {
+  opacity: 1;
+  transform: none;
+}
+.link[data-blink] {
+  animation: navBlink 0.7s ease-in-out 0.5s 3;
+}
+@keyframes navBlink {
+  0%,
+  100% {
+    background: transparent;
+  }
+  50% {
+    background: var(--ok-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .link[data-blink] {
+    animation: none;
+  }
+  .upTick {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .upFill,
+  .upTip {
+    transition: none;
+  }
+}

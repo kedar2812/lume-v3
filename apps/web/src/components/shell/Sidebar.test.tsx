@@ -26,6 +26,11 @@ let aiOn = false;
 let running = 0;
 vi.mock("@/lib/ai/use-ai-on", () => ({ useAiOn: () => aiOn }));
 vi.mock("@/lib/autopilot/use-run", () => ({ useLiveRuns: (on: boolean) => (on ? running : 0) }));
+let batch: { total: number; added: number; share: number; done: boolean } | null = null;
+vi.mock("@/lib/media/uploads", async (orig) => ({
+  ...(await orig<typeof import("@/lib/media/uploads")>()),
+  useUploadBatch: () => batch,
+}));
 
 describe("Sidebar", () => {
   it("Autopilot, while LUME AI is on; Live while a run is going (Autopilot A3)", () => {
@@ -48,6 +53,30 @@ describe("Sidebar", () => {
     expect(screen.getByText("Live")).toBeInTheDocument();
     aiOn = false;
     running = 0;
+  });
+
+  it("Media carries a ring while files go up, said with how far; a tick and three blinks once they're in", () => {
+    batch = { total: 40, added: 12, share: 0.344, done: false };
+    const going = render(
+      <Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />,
+    );
+    const link = screen.getByRole("link", { name: "Media, uploading 34%" });
+    expect(link).toHaveAttribute("href", "/media");
+    // Hovered, it says the whole batch's progress.
+    expect(within(link).getByText("Uploading 12 of 40 · 34%")).toBeInTheDocument();
+    // Only Media carries it.
+    expect(screen.getAllByText("Uploading 12 of 40 · 34%")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Leads" })).toBeInTheDocument();
+    expect(link).not.toHaveAttribute("data-blink");
+    going.unmount();
+    batch = { total: 40, added: 40, share: 1, done: true };
+    const done = render(<Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />);
+    const added = screen.getByRole("link", { name: "Media, 40 files added" });
+    expect(added).toHaveAttribute("data-blink");
+    done.unmount();
+    batch = null;
+    render(<Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />);
+    expect(screen.getByRole("link", { name: "Media" })).not.toHaveAttribute("data-blink");
   });
 
   it("puts LUME on top and the client's name below", () => {

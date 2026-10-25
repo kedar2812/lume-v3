@@ -217,6 +217,43 @@ export async function archiveFile(
   return { file: await shown(req, d, row!) };
 }
 
+/** A template WhatsApp has, or may yet have, that shows the file at its top: its sends need the file. */
+const LIVE_SUBMISSION = ["submitting", "pending", "approved", "paused", "disabled"];
+
+/**
+ * Deleted for good (owner, 2026-10-25): the library's row goes, and with it its link; LUME AI stops being able to
+ * send it. Messages that already sent the file keep it (they hold the bytes themselves); with nothing else holding
+ * them, the hourly sweep frees the space. A file a WhatsApp template shows at its top stays: archive it instead.
+ */
+export async function deleteFile(req: FastifyRequest, id: string): Promise<void> {
+  const before = await rowOf(req, id);
+  const used = await req.db.execute<{ status: string }>(sql`
+    SELECT status FROM whatsapp_template_submissions WHERE header_file_id = ${id}`);
+  if (used.rows.some((r) => LIVE_SUBMISSION.includes(r.status)))
+    throw new HttpError(
+      409,
+      "FILE_IN_TEMPLATE",
+      "A WhatsApp template shows this file at its top. Archive it instead.",
+    );
+  // A template WhatsApp turned down (or that never got there) keeps its record, without the file.
+  await req.db.execute(
+    sql`UPDATE whatsapp_template_submissions SET header_file_id = NULL WHERE header_file_id = ${id}`,
+  );
+  await req.db.execute(sql`
+    UPDATE ai_profile
+       SET profile = jsonb_set(profile, '{knows,files}',
+             coalesce((SELECT jsonb_agg(x) FROM jsonb_array_elements(profile -> 'knows' -> 'files') x
+                        WHERE x <> to_jsonb(${id}::text)), '[]'::jsonb))
+     WHERE profile -> 'knows' -> 'files' ? ${id}`);
+  await req.db.delete(F).where(eq(F.id, id));
+  await audit(req, {
+    action: "file.deleted",
+    entityType: "message_file",
+    entityId: id,
+    diff: { name: before.name },
+  });
+}
+
 export async function setFileLink(
   req: FastifyRequest,
   d: AppDeps,

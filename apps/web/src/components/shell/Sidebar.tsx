@@ -6,8 +6,10 @@ import { Suspense } from "react";
 import { SidebarViews } from "@/components/views/SidebarViews";
 import { useAiOn } from "@/lib/ai/use-ai-on";
 import { useLiveRuns } from "@/lib/autopilot/use-run";
+import { useUploadBatch } from "@/lib/media/uploads";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { NavIcon } from "./icons";
+import { MediaRing } from "./MediaRing";
 import { NAV_ITEMS, activeNav, visibleNav } from "./nav";
 import { usePageNav } from "./PageTransition";
 import { ProfileMenu } from "./ProfileMenu";
@@ -28,6 +30,8 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
   const current = activeNav(items, pathname);
   // Autopilot's Live pill: a run this person can see is going (§2).
   const live = useLiveRuns(ai && can("leads.view")) > 0;
+  // Files going up into Media, wherever this person is (owner, 2026-10-25).
+  const batch = useUploadBatch();
   const { go } = usePageNav();
   const reduce = useReducedMotion();
   return (
@@ -43,12 +47,21 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
         {items.map((i) => {
           const on = i.id === current?.id;
           const isLive = i.id === "autopilot" && live;
+          const up = i.id === "media" ? batch : null;
+          const named = isLive
+            ? `${i.label}, live`
+            : up
+              ? up.done
+                ? `${i.label}, ${up.total} ${up.total === 1 ? "file" : "files"} added`
+                : `${i.label}, uploading ${Math.round(up.share * 100)}%`
+              : undefined;
           return (
             <Link
               key={i.id}
               href={i.href}
               className={s.link}
-              aria-label={isLive ? `${i.label}, live` : undefined}
+              aria-label={named}
+              data-blink={up?.done ? "" : undefined}
               data-tour={`nav-${i.id}`}
               aria-current={on ? "page" : undefined}
               onClick={(e) => {
@@ -67,6 +80,7 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
               )}
               <NavIcon name={i.icon} />
               <span className={s.label}>{i.label}</span>
+              {up && <MediaRing batch={up} />}
               {isLive && (
                 <span className={s.live} aria-hidden>
                   <i />

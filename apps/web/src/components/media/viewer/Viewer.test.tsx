@@ -15,6 +15,7 @@ vi.mock("@/lib/files/client", async (orig) => ({
     uploadWithProgress: vi.fn(),
     rename: vi.fn(),
     archive: vi.fn(),
+    remove: vi.fn(),
     restore: vi.fn(),
     setLink: vi.fn(),
     retryPreview: vi.fn(),
@@ -221,6 +222,76 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     );
   });
 
+  it("Delete asks first, with Archive instead beside it; deleted, the file leaves for good (owner, 2026-10-25)", async () => {
+    vi.mocked(filesClient.remove).mockResolvedValue({ ok: true, status: 204, data: null } as never);
+    vi.mocked(filesClient.archive).mockResolvedValue(ok({ file: { ...LIVING, archived: true } }));
+    render(<MediaScreen initial={ALL} canManage guideSeen />);
+    await openTile("Living room.jpg");
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Info" }));
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Delete" }));
+    const ask = screen.getByRole("dialog", { name: "Delete Living room.jpg?" });
+    expect(ask).toHaveTextContent("It leaves Media for good. Messages that already sent it keep it.");
+    // Nothing happens until it's chosen: the viewer's own keys wait (no moving on behind the question), and
+    // Escape keeps the file.
+    expect(filesClient.remove).not.toHaveBeenCalled();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByRole("dialog", { name: "Delete Living room.jpg?" })).toBeInTheDocument();
+    expect(screen.getAllByRole("dialog").map((d) => d.getAttribute("aria-label"))).toContain(
+      "Living room.jpg",
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Delete Living room.jpg?" })).toBeNull());
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Living room.jpg");
+
+    // Archive instead: the gentler way, with its Undo.
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Archive instead" }));
+    expect(filesClient.archive).toHaveBeenCalledWith("f1");
+    expect(filesClient.remove).not.toHaveBeenCalled();
+    await waitFor(() => expect(viewer()).toHaveAccessibleName("Kitchen.png"));
+
+    // Delete: gone for good, no Undo.
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Info" }));
+    toast.mockClear();
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Delete" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Delete Kitchen.png?" })).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+    expect(filesClient.remove).toHaveBeenCalledWith("f2");
+    await waitFor(() => expect(viewer()).toHaveAccessibleName("Site visit.mp4"));
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Kitchen.png deleted" }));
+    expect(toast.mock.calls.at(-1)![0].action).toBeUndefined();
+  });
+
+  it("a file a template shows at its top: LUME says so, and the file stays", async () => {
+    vi.mocked(filesClient.remove).mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "FILE_IN_TEMPLATE",
+      message: "A WhatsApp template shows this file at its top. Archive it instead.",
+    } as never);
+    render(<MediaScreen initial={ALL} canManage guideSeen />);
+    await openTile("Living room.jpg");
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Info" }));
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Delete" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Delete Living room.jpg?" })).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tone: "danger",
+          detail: "A WhatsApp template shows this file at its top. Archive it instead.",
+        }),
+      ),
+    );
+    expect(viewer()).toHaveAccessibleName("Living room.jpg");
+  });
+
   it("a video plays inline with LUME's own controls", async () => {
     render(<MediaScreen initial={ALL} canManage guideSeen />);
     await openTile("Site visit.mp4");
@@ -238,15 +309,56 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
       expect(within(viewer()).getByRole("button", { name })).toBeInTheDocument();
   });
 
-  it("a photo zooms from the pointer with a pinch or Ctrl and the wheel; a double-click fits it again", async () => {
+  it("a photo zooms like Photos: a click zooms in where it's clicked and another fits it; a drag never zooms; a mouse's wheel and a pinch zoom; + − 0 (owner, 2026-10-25)", async () => {
     render(<MediaScreen initial={ALL} canManage guideSeen />);
     await openTile("Living room.jpg");
     const zoom = within(viewer()).getByRole("group", { name: "Zoom" });
     expect(zoom).toHaveTextContent("Fit");
     const stage = within(viewer()).getByRole("img", { name: "Living room.jpg" });
-    fireEvent.wheel(stage, { deltaY: -200, ctrlKey: true, clientX: 100, clientY: 100 });
+    const press = (type: string, x: number, y = 100) =>
+      fireEvent(
+        stage,
+        Object.defineProperties(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }), {
+          pointerId: { value: 1 },
+          pointerType: { value: "mouse" },
+          isPrimary: { value: true },
+        }),
+      );
+    // One click, not two: in where it's clicked; again, back to fit.
+    press("pointerdown", 100);
+    press("pointerup", 101);
+    await waitFor(() => expect(zoom).toHaveTextContent("250%"));
+    press("pointerdown", 100);
+    press("pointerup", 100);
+    await waitFor(() => expect(zoom).toHaveTextContent("Fit"));
+    // A drag that ends away from where it began is not a click.
+    press("pointerdown", 100);
+    press("pointermove", 140);
+    press("pointerup", 160);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(zoom).toHaveTextContent("Fit");
+    // A mouse's wheel (whole lines) zooms; a trackpad's pinch (Ctrl and the wheel) too.
+    fireEvent.wheel(stage, { deltaY: -3, deltaMode: 1, clientX: 100, clientY: 100 });
     await waitFor(() => expect(zoom).not.toHaveTextContent("Fit"));
-    fireEvent.doubleClick(stage, { clientX: 100, clientY: 100 });
+    await userEvent.keyboard("0");
+    await waitFor(() => expect(zoom).toHaveTextContent("Fit"));
+    // Straight after a pinch, 0: the pinch's settle, due a moment later, never undoes it. Its wait is a fake timer here,
+    // run out while the zoom back to fit is still on its way.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.wheel(stage, { deltaY: -200, ctrlKey: true, clientX: 100, clientY: 100 });
+      expect(zoom).not.toHaveTextContent("Fit");
+      fireEvent.keyDown(document, { key: "0" });
+      vi.advanceTimersByTime(500);
+    } finally {
+      vi.useRealTimers();
+    }
+    await waitFor(() => expect(zoom).toHaveTextContent("Fit"));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(zoom).toHaveTextContent("Fit");
+    await userEvent.keyboard("+");
+    await waitFor(() => expect(zoom).toHaveTextContent("150%"));
+    await userEvent.keyboard("-");
     await waitFor(() => expect(zoom).toHaveTextContent("Fit"));
     await userEvent.click(within(zoom).getByRole("button", { name: "Zoom in" }));
     await waitFor(() => expect(zoom).toHaveTextContent("150%"));

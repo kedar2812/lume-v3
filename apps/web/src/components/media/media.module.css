@@ -612,13 +612,49 @@
   box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
+/* A column whose rows keep their height: as a grid in a height-capped tray, forty rows were squeezed until their
+   text was cut top and bottom. */
 .tray ul {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  min-height: 0;
   margin: 0;
   padding: 0;
   list-style: none;
   overflow-y: auto;
+}
+.tray li {
+  flex: none;
+}
+.batch {
+  display: grid;
+  gap: 6px;
+  padding: 0 4px 2px;
+}
+.batchBar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+.batchBar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transform-origin: 0 50%;
+  transition: transform 0.5s var(--spring-soft);
+}
+.batchSay {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .batchBar i {
+    transition: none;
+  }
 }
 .trayTitle {
   padding: 2px 4px;

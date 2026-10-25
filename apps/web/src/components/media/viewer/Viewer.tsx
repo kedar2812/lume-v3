@@ -12,6 +12,8 @@ import {
 } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { BodyPortal } from "@/components/ui/BodyPortal";
+import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { useModalFocus } from "@/components/ui/useModalFocus";
 import { contentUrl, filesClient, pdfUrl, type LibraryFile } from "@/lib/files/client";
 import { bytesText } from "@lume/core/shared";
@@ -178,6 +180,8 @@ export function Viewer({
   // that uses the arrows itself (a slider, a search box) keeps them: its own handler stops them reaching here.
   const keyActions = useRef<(e: globalThis.KeyboardEvent) => void>(() => undefined);
   keyActions.current = (e) => {
+    // Delete's question is open: its keys are its own (Escape keeps the file, not closes the viewer).
+    if (asking) return;
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
     if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) return;
@@ -194,17 +198,37 @@ export function Viewer({
   }, []);
   const keys = (e: KeyboardEvent<HTMLDivElement>) => modal.onKeyDown(e);
 
-  const archive = async () => {
-    if (!f) return;
-    const r = await filesClient.archive(f.id);
-    if (!r.ok) return toast({ tone: "danger", title: `${f.name} couldn't be archived`, detail: r.message });
-    const gone = f;
+  /** The file has gone from Media: on to the next one (or the one before), or the viewer closes. */
+  const moveOn = (gone: LibraryFile) => {
     const next = files[index + 1] ?? files[index - 1] ?? null;
     if (next) {
       setDir(files[index + 1] ? 1 : -1);
       setId(next.id);
     }
     onArchived(gone.id);
+    return next;
+  };
+
+  // Delete for good (owner, 2026-10-25): asked first, with Archive instead as the gentler way.
+  const [asking, setAsking] = useState(false);
+  const remove = async () => {
+    if (!f) return;
+    setAsking(false);
+    const r = await filesClient.remove(f.id);
+    if (!r.ok) return toast({ tone: "danger", title: `${f.name} couldn't be deleted`, detail: r.message });
+    const gone = f;
+    const next = moveOn(gone);
+    toast({ tone: "ok", title: `${gone.name} deleted`, detail: "Messages that already sent it keep it." });
+    if (!next) onClose(gone.id);
+  };
+
+  const archive = async () => {
+    if (!f) return;
+    setAsking(false);
+    const r = await filesClient.archive(f.id);
+    if (!r.ok) return toast({ tone: "danger", title: `${f.name} couldn't be archived`, detail: r.message });
+    const gone = f;
+    const next = moveOn(gone);
     toast({
       tone: "ok",
       title: `${gone.name} archived`,
@@ -231,6 +255,7 @@ export function Viewer({
       onChange={onChange}
       onRename={() => setRenaming(true)}
       onArchive={() => void archive()}
+      onDelete={() => setAsking(true)}
     />
   );
 
@@ -356,6 +381,20 @@ export function Viewer({
           {edge}
         </div>
       </div>
+      {asking && (
+        <Dialog label={`Delete ${f.name}?`} onClose={() => setAsking(false)} layerClassName={v.askLayer}>
+          <div className={v.confirm}>
+            <h2>Delete {f.name}?</h2>
+            <p>It leaves Media for good. Messages that already sent it keep it.</p>
+            <div className={v.confirmActions}>
+              <Button onClick={() => void archive()}>Archive instead</Button>
+              <Button variant="danger" onClick={() => void remove()}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </BodyPortal>
   );
 }
