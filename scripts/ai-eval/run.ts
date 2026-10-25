@@ -2,7 +2,28 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { providerFromConfig } from "../../apps/api/src/ai/from-config";
 import type { AiProvider } from "../../apps/api/src/ai/provider";
-import { catchUpOutput, inputFor, instructionsFor, nextStepOutput } from "../../packages/core/src/index";
+import {
+  autopilotFirstOutput,
+  autopilotInput,
+  autopilotInstructions,
+  autopilotReplyOutput,
+  catchUpOutput,
+  inputFor,
+  instructionsFor,
+  nextStepOutput,
+  type AutopilotFirst,
+  type AutopilotReply,
+} from "../../packages/core/src/index";
+import {
+  AUTOPILOT_MARKS,
+  ctxFor,
+  scoreFirst,
+  scoreReply,
+  summarizeAutopilot,
+  type AutopilotCase,
+  type Profiles,
+  type ReplyScore,
+} from "./autopilot";
 import {
   factsFor,
   MARKS,
@@ -17,14 +38,14 @@ import {
 } from "./score";
 
 const USAGE = `usage: node scripts/ai-eval.mjs --provider anthropic|google|fake --model <id> [--yes]
-       [--only next-step|catch-up] [--limit <n>] [--price-in <usd per 1M>] [--price-out <usd per 1M>] [--out <file>]
+       [--only next-step|catch-up|autopilot] [--limit <n>] [--price-in <usd per 1M>] [--price-out <usd per 1M>] [--out <file>]
 A real provider spends money on every run: it needs --yes, and the key in LUME_AI_KEY.`;
 
 type Args = {
   provider: "anthropic" | "google" | "fake";
   model: string;
   yes: boolean;
-  only: "next-step" | "catch-up" | null;
+  only: "next-step" | "catch-up" | "autopilot" | null;
   limit: number;
   priceIn: number | null;
   priceOut: number | null;
@@ -41,7 +62,7 @@ function parse(argv: string[]): Args | string {
   const model = get("model") ?? (provider === "fake" ? "fake-1" : undefined);
   if (!model) return USAGE;
   const only = get("only") ?? null;
-  if (only !== null && only !== "next-step" && only !== "catch-up") return USAGE;
+  if (only !== null && only !== "next-step" && only !== "catch-up" && only !== "autopilot") return USAGE;
   const num = (v: string | undefined) => (v === undefined ? null : Number(v));
   return {
     provider,
@@ -105,7 +126,8 @@ export async function run(argv: string[], root: string): Promise<number> {
   };
 
   let pass = true;
-  if (a.only !== "catch-up") {
+  const runs = (part: "next-step" | "catch-up" | "autopilot") => a.only === null || a.only === part;
+  if (runs("next-step")) {
     const cases = lines<NextStepCase>(path.join(dir, "next-step.jsonl")).slice(0, a.limit);
     const scores: NextStepScore[] = [];
     const failed: { id: string; error: string }[] = [];
@@ -151,7 +173,7 @@ export async function run(argv: string[], root: string): Promise<number> {
     console.log(`  ${sum.pass ? "PASSES" : "DOES NOT PASS"} LUME's marks`);
   }
 
-  if (a.only !== "next-step") {
+  if (runs("catch-up")) {
     const cases = lines<CatchUpCase>(path.join(dir, "catch-up.jsonl")).slice(0, a.limit);
     const out: { id: string; lines?: string[]; ungrounded?: string[]; error?: string }[] = [];
     console.log(`\nCatch-up: ${cases.length} leads (check each line against its history by hand)`);
@@ -171,6 +193,84 @@ export async function run(argv: string[], root: string): Promise<number> {
       }
     }
     report.catchUp = out;
+  }
+
+  if (runs("autopilot")) {
+    const profiles = JSON.parse(readFileSync(path.join(dir, "autopilot-profiles.json"), "utf8")) as Profiles;
+    const cases = lines<AutopilotCase>(path.join(dir, "autopilot.jsonl")).slice(0, a.limit);
+    const replies: ReplyScore[] = [];
+    const firsts: boolean[] = [];
+    const failed: { id: string; error: string }[] = [];
+    console.log(`
+Autopilot: ${cases.length} cases (read every message by hand for tone and words)`);
+    for (const c of cases) {
+      const x = ctxFor(c, businesses, profiles);
+      const task = c.task === "first" ? "autopilot_first" : "autopilot_reply";
+      try {
+        const r = await provider.read({
+          instructions: autopilotInstructions(task, x.ctx),
+          input: autopilotInput(task, x.ctx),
+          schema: (task === "autopilot_first" ? autopilotFirstOutput : autopilotReplyOutput) as never,
+          // As a run asks it (engine.ts): a short answer for a template's choice, room for a reply.
+          maxOutputTokens: task === "autopilot_first" ? 300 : 1200,
+          signal: AbortSignal.timeout(30_000),
+        });
+        tokens.input += r.inputTokens;
+        tokens.output += r.outputTokens;
+        if (c.task === "first") {
+          const right = scoreFirst(c, r.output as AutopilotFirst, x);
+          firsts.push(right);
+          console.log(`  ${c.id}  ${right ? "right template" : "WRONG template"}`);
+          continue;
+        }
+        const s = scoreReply(c, r.output as AutopilotReply, x);
+        replies.push(s);
+        const miss = (["kind", "script", "files", "stage", "lostReason", "mentions"] as const).filter(
+          (k) => !s[k],
+        );
+        const worst = [
+          s.stopAnswered && "A STOP WAS ANSWERED",
+          s.riskMissed && "A RISK WAS ANSWERED",
+          s.held && "held by the guards",
+        ]
+          .filter(Boolean)
+          .join("; ");
+        console.log(
+          `  ${c.id}  ${(r.output as AutopilotReply).kind}${miss.length ? `  missed ${miss.join(", ")}` : ""}${worst ? `  ${worst}` : ""}`,
+        );
+        console.log(`      ${s.sent ?? `(no message: ${s.why})`}`);
+      } catch (e) {
+        // No answer is a miss on every mark: the lead would go to Needs you.
+        failed.push({ id: c.id, error: e instanceof Error ? e.message : String(e) });
+        console.log(`  ${c.id}  no answer: ${failed.at(-1)!.error}`);
+        if (c.task === "first") firsts.push(false);
+        else
+          replies.push({
+            id: c.id,
+            kind: false,
+            held: false,
+            stopAnswered: false,
+            riskMissed: false,
+            script: true,
+            files: false,
+            stage: false,
+            lostReason: false,
+            mentions: false,
+            sent: null,
+            why: failed.at(-1)!.error,
+          });
+      }
+    }
+    const sum = summarizeAutopilot(replies, firsts);
+    pass = pass && sum.pass;
+    report.autopilot = { ...sum, marks: AUTOPILOT_MARKS, failed, replies, firsts };
+    const pct = (v: number) => `${Math.round(v * 100)}%`;
+    console.log(
+      `  kind ${pct(sum.kind)} (mark ${pct(AUTOPILOT_MARKS.kind)}), held ${pct(sum.held)} (at most ${pct(AUTOPILOT_MARKS.held)}),` +
+        ` stops answered ${sum.stopsAnswered}, risks answered ${sum.risksMissed}, wrong script ${sum.wrongScript},` +
+        ` first template ${pct(sum.first)} (mark ${pct(AUTOPILOT_MARKS.first)}); no answer ${failed.length}`,
+    );
+    console.log(`  ${sum.pass ? "PASSES" : "DOES NOT PASS"} the Autopilot marks`);
   }
 
   const cost =

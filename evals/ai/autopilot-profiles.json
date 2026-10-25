@@ -1,0 +1,117 @@
+{
+  "interiors": {
+    "business": "Brightpath Studio",
+    "speaker": "Priya Nair",
+    "currency": "INR",
+    "about": "Brightpath Studio designs and builds home and office interiors in Hyderabad: modular kitchens, wardrobes and full homes. A designer visits the site free before any quote.",
+    "faqs": [
+      {
+        "q": "Do you visit before quoting?",
+        "a": "Yes, a designer visits the site free of charge, usually within 3 days."
+      },
+      {
+        "q": "How long does a full home take?",
+        "a": "Usually 45 to 60 days after the design is signed off."
+      },
+      { "q": "Do you work outside Hyderabad?", "a": "No, only in Hyderabad and Secunderabad." }
+    ],
+    "prices": [
+      { "item": "Modular kitchen", "price": 380000, "unit": "per kitchen, standard size" },
+      { "item": "Wardrobe", "price": 95000, "unit": "per wardrobe" },
+      { "item": "Design consultation", "price": 0, "unit": "free" }
+    ],
+    "neverSay": ["Never promise a finish date before the site visit", "Never offer a discount"],
+    "files": [
+      { "key": "brochure", "name": "Brightpath brochure.pdf" },
+      { "key": "kitchens", "name": "Kitchen portfolio.pdf" }
+    ],
+    "fields": [
+      {
+        "key": "property_type",
+        "label": "Property type",
+        "type": "select",
+        "options": ["Apartment", "Villa", "Office"]
+      },
+      { "key": "budget", "label": "Budget", "type": "currency", "options": [] },
+      { "key": "possession", "label": "Possession date", "type": "date", "options": [] }
+    ],
+    "signOff": "Priya, Brightpath",
+    "tone": "warm"
+  },
+  "coaching": {
+    "business": "Northstar Coaching",
+    "speaker": "Arjun Mehta",
+    "currency": "INR",
+    "about": "Northstar Coaching runs a 12-week online career coaching programme for working professionals, with a free 20-minute discovery call first.",
+    "faqs": [
+      { "q": "Is it online?", "a": "Yes, fully online: weekly live sessions on Zoom and recordings." },
+      { "q": "Is there a refund?", "a": "A full refund within the first 7 days." }
+    ],
+    "prices": [{ "item": "12-week programme", "price": 45000, "unit": "one time" }],
+    "neverSay": ["Never promise a job or a salary"],
+    "files": [{ "key": "syllabus", "name": "Programme syllabus.pdf" }],
+    "fields": [
+      { "key": "experience", "label": "Years of experience", "type": "number", "options": [] },
+      { "key": "goal", "label": "Career goal", "type": "text", "options": [] }
+    ],
+    "tone": "casual"
+  },
+  "clinic": {
+    "business": "Clearleaf Skin Clinic",
+    "speaker": "Dr. Kavya Rao's team",
+    "currency": "INR",
+    "about": "Clearleaf is a dermatology clinic in Pune. Consultations are with a dermatologist; treatment is only decided after a consultation.",
+    "faqs": [
+      { "q": "Where are you?", "a": "Baner Road, Pune, near the metro station." },
+      { "q": "Timings?", "a": "Monday to Saturday, 10 am to 7 pm." }
+    ],
+    "prices": [{ "item": "Consultation", "price": 800, "unit": "per visit" }],
+    "neverSay": ["Never give medical advice or say what treatment someone needs"],
+    "files": [],
+    "fields": [
+      {
+        "key": "concern",
+        "label": "Concern",
+        "type": "select",
+        "options": ["Acne", "Pigmentation", "Hair loss", "Other"]
+      }
+    ],
+    "tone": "formal"
+  },
+  "realestate": {
+    "business": "Greenfield Homes",
+    "speaker": "Rohit Kulkarni",
+    "currency": "INR",
+    "about": "Greenfield Homes sells 2 and 3 BHK flats in its Riverside project in Kharadi, Pune. Site visits run every day, 10 am to 6 pm.",
+    "faqs": [
+      { "q": "Possession?", "a": "December 2027, as registered with MahaRERA." },
+      { "q": "Loan tie-ups?", "a": "Yes, with three major banks; the team helps with the paperwork." }
+    ],
+    "prices": [
+      { "item": "2 BHK", "price": 8500000, "unit": "all inclusive" },
+      { "item": "3 BHK", "price": 11500000, "unit": "all inclusive" }
+    ],
+    "neverSay": ["Never promise returns on investment"],
+    "files": [{ "key": "floorplans", "name": "Riverside floor plans.pdf" }],
+    "fields": [{ "key": "bhk", "label": "Looking for", "type": "select", "options": ["2 BHK", "3 BHK"] }],
+    "tone": "warm"
+  },
+  "fitness": {
+    "business": "Pulse Fitness JLT",
+    "speaker": "Sara Haddad",
+    "currency": "AED",
+    "about": "Pulse Fitness is a gym and personal training studio in Jumeirah Lake Towers, Dubai. A free trial session comes first.",
+    "faqs": [
+      { "q": "Opening hours?", "a": "Every day, 6 am to 11 pm." },
+      { "q": "Ladies only sessions?", "a": "Yes, every morning from 9 to 11 am." }
+    ],
+    "prices": [
+      { "item": "Monthly membership", "price": 450, "unit": "per month" },
+      { "item": "Personal training, 10 sessions", "price": 2200, "unit": "per pack" }
+    ],
+    "neverSay": ["Never promise weight loss results"],
+    "files": [{ "key": "timetable", "name": "Class timetable.pdf" }],
+    "fields": [],
+    "tone": "warm"
+  }
+}

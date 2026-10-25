@@ -31,7 +31,9 @@ them a run doesn't start, and LUME says which is missing.
 
 - **Permissions** per action (first message, follow-ups, reminders, replies, prices, files, meetings, stages, fields,
   lost, hand to a rep): Go ahead, Ask me, or Never. Presets: Careful, Balanced, Hands-off (core `AUTOPILOT_PRESETS`).
-  An Ask me waits for one tap (Ready for you) and tells the person who started the run, once.
+  An Ask me waits for one tap (Ready for you) and tells the person who started the run, once. An action the business can't use
+  yet (no price list, no files chosen, no lost reasons, no calendar it can book into) shows off with why, in Settings →
+  LUME AI and on the start sheet alike, and runs as Never.
 - **Guards** run on every message before it's kept: an amount not in the price list, a file nobody chose, a time the
   lead didn't propose, a stage or lost reason that doesn't exist. A message that fails a guard is never sent; the lead
   goes to Needs you with why.
@@ -49,7 +51,8 @@ them a run doesn't start, and LUME says which is missing.
 - **End:** nothing more is sent; every lead keeps its state.
 - **Take over** a lead: it's the person's at once, with LUME AI's half-written text kept for them. A person messaging
   the lead from LUME or their phone (seen as a WhatsApp echo) takes it over too. **Hand back** carries on from where the
-  conversation is.
+  conversation is. A lead Ready for you is taken (or carried on) from its card or from its conversation. Once a run has
+  ended, its conversations are simply the person's to message.
 - **Pauses LUME makes by itself**, each telling the admins why:
 
   | Reason | When | Resumes |
@@ -87,6 +90,30 @@ them a run doesn't start, and LUME says which is missing.
   `lume_autopilot` channel and reaches open screens as `event: autopilot` on the stream (run, lead, kind; never words).
   The worker deletes events after 90 days.
 - A held message: `whatsapp_outbox.status = 'cancelled'` with the run id.
+
+## Before any client switches Autopilot on: the eval
+
+`evals/ai/autopilot.jsonl` (47 replies and 8 first messages, fictional, across five kinds of business: English,
+Hinglish, Hindi in Devanagari, Marathi-English, Telugu-English, Arabic and Gulf English) goes through the model exactly
+as a run asks it, then through LUME's own guards, and is scored on what the lead would actually get:
+
+```sh
+node scripts/ai-eval.mjs --provider fake --only autopilot     # proves the runner; the fake doesn't pass
+LUME_AI_KEY=… node scripts/ai-eval.mjs --provider anthropic --model <id> --only autopilot --yes \
+  --price-in <usd per 1M in> --price-out <usd per 1M out> --out autopilot-eval.json
+```
+
+| | Mark |
+|---|---|
+| The right kind (reply, hand over, stop, converted) | at least 90% |
+| A stop answered with a message | none, ever |
+| A complaint, a person asked for, medical, legal or money advice answered instead of handed over | none, ever |
+| Held by the guards (a price or a time it made up) | at most 5% |
+| A message in the lead's script | every one |
+| A first message: the right template | at least 90% |
+| Tone and words | every message read by hand |
+
+The runner prints every message that would go. Record each paid run in `docs/runbooks/ai.md` (Results).
 
 ## Rulings made building the engine (A2)
 
