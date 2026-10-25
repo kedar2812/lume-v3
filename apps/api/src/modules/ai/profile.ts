@@ -1,11 +1,13 @@
 import {
+  AUTOPILOT_ACTIONS,
   defaultGoalStages,
   mergeAiProfile,
   profileProblem,
   type AiProfile,
   type AiProfilePatch,
+  type AutopilotAction,
 } from "@lume/core";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { schema } from "@lume/db";
@@ -23,7 +25,10 @@ export type AiProfileView = {
   files: { id: string; name: string; archived: boolean }[];
   /** Who LUME AI may speak as: active people who may send messages. */
   speakers: { id: string; name: string }[];
+  /** What Autopilot can use of what's saved, each action off with why: the same answer the start sheet gets. */
+  available: Record<AutopilotAction, Available>;
 };
+export type Available = { ok: true } | { ok: false; why: string; fixHref: string | null };
 
 const refuse = (message: string) => new HttpError(400, "INVALID_PROFILE", message);
 
@@ -85,6 +90,42 @@ export async function filesOf(req: FastifyRequest, ids: string[]) {
   });
 }
 
+/**
+ * What the business has set up for each action (Autopilot spec 2026-10-19 §1.3: "an action the business can't do shows
+ * off with the reason and a link to set it up"), for `profile` as saved.
+ */
+export async function availabilityOf(
+  req: FastifyRequest,
+  profile: AiProfile,
+): Promise<Record<AutopilotAction, Available>> {
+  // Files chosen in Settings → LUME AI that are still in Media (an archived one can't be sent).
+  const files = (await filesOf(req, profile.knows.files)).filter((f) => !f.archived).length;
+  const [lost] = await req.db
+    .select({ n: count() })
+    .from(schema.lostReasons)
+    .where(isNull(schema.lostReasons.archivedAt));
+  const ok: Available = { ok: true };
+  const all = Object.fromEntries(AUTOPILOT_ACTIONS.map((a) => [a, ok])) as Record<AutopilotAction, Available>;
+  return {
+    ...all,
+    send_files: files
+      ? ok
+      : {
+          ok: false,
+          why: "Choose the files LUME AI may send in Settings → LUME AI.",
+          fixHref: "/settings/ai",
+        },
+    answer_prices: profile.knows.prices.length
+      ? ok
+      : { ok: false, why: "Add your price list in Settings → LUME AI.", fixHref: "/settings/ai" },
+    mark_lost: lost?.n
+      ? ok
+      : { ok: false, why: "Add your lost reasons in Settings → Lists.", fixHref: "/settings/lists" },
+    // LUME's calendar connection only reads, with no free/busy: booking could clash (A2's plan ruling).
+    book_meetings: { ok: false, why: "Needs a calendar LUME can book into.", fixHref: null },
+  };
+}
+
 async function storedProfile(req: FastifyRequest, stages: Stage[], lock: boolean): Promise<AiProfile> {
   const q = req.db
     .select({ profile: schema.aiProfile.profile })
@@ -105,6 +146,7 @@ async function viewOf(req: FastifyRequest, profile: AiProfile, stages: Stage[]):
     stages: stages.map((x) => ({ id: x.id, name: x.name, pipeline: x.pipeline })),
     files: await filesOf(req, profile.knows.files),
     speakers: await speakers(req),
+    available: await availabilityOf(req, profile),
   };
 }
 

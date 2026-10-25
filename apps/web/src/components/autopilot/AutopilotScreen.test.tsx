@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { autopilotClient } from "@/lib/autopilot/client";
@@ -60,7 +60,7 @@ const writing = lead({
   },
 });
 const detail = (
-  o: { status?: "running" | "paused"; canControl?: boolean; leads?: RunLead[] } = {},
+  o: { status?: "running" | "paused" | "ended"; canControl?: boolean; leads?: RunLead[] } = {},
 ): RunDetail =>
   ({
     run: {
@@ -79,7 +79,16 @@ const runs: RunsList = {
   runs: [{ id: "r1", name: "Site visit booked · 2 leads", status: "running" } as RunsList["runs"][number]],
   running: 1,
 };
-const thread = { on: true, reply: { allowed: true, number: null, until: null, reason: null }, messages: [] };
+const thread = {
+  on: true,
+  reply: {
+    allowed: true,
+    number: { id: "n1", display: "+91 90000 00001", ownerName: null },
+    until: null,
+    reason: null,
+  },
+  messages: [],
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -171,6 +180,37 @@ describe("AutopilotScreen", () => {
     expect(screen.getByRole("region", { name: "Conversation with Rohan Gupta" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Back to LUME AI's lead" }));
     expect(screen.getByRole("region", { name: "Conversation with Meera Iyer" })).toBeInTheDocument();
+  });
+
+  it("a lead ready for you, watched: carry on from the conversation itself", async () => {
+    const rohan = lead({
+      leadId: "b",
+      name: "Rohan Gupta",
+      state: "ready",
+      reason: "Reached Site visit booked",
+    });
+    vi.mocked(autopilotClient.run).mockResolvedValue(ok(detail({ leads: [writing, rohan] })));
+    vi.mocked(autopilotClient.carryOn).mockResolvedValue(ok({ leadId: "b", state: "sent" }) as never);
+    render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
+    await userEvent.click(await screen.findByRole("button", { name: /Rohan Gupta/ }));
+    const pane = screen.getByRole("region", { name: "Conversation with Rohan Gupta" });
+    await userEvent.click(await within(pane).findByRole("button", { name: "Let LUME AI carry on" }));
+    expect(autopilotClient.carryOn).toHaveBeenCalledWith("r1", "b");
+  });
+
+  it("an ended run: its ready leads can be taken, but LUME AI can't carry on", async () => {
+    const rohan = lead({
+      leadId: "b",
+      name: "Rohan Gupta",
+      state: "ready",
+      reason: "Reached Site visit booked",
+    });
+    vi.mocked(autopilotClient.run).mockResolvedValue(ok(detail({ status: "ended", leads: [rohan] })));
+    render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
+    const card = await screen.findByRole("article", { name: "Rohan Gupta" });
+    expect(within(card).getByRole("button", { name: "Take over" })).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
   });
 });
 

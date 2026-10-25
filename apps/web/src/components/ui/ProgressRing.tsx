@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+import s from "./ProgressRing.module.css";
+
 const C = 2 * Math.PI * 27;
 
 export function ProgressRing({
@@ -5,15 +8,18 @@ export function ProgressRing({
   size = 64,
   label,
   color = "var(--ok)",
+  children,
 }: {
   value: number;
   size?: number;
   label: string;
   /** The filled part's colour: green for a finish line, the accent for something on its way (an upload). */
   color?: string;
+  /** A reading in the middle (a percentage), for the eye: the bar's own name already says it. */
+  children?: ReactNode;
 }) {
   const v = Math.min(1, Math.max(0, value));
-  return (
+  const ring = (
     <svg
       width={size}
       height={size}
@@ -39,5 +45,14 @@ export function ProgressRing({
         style={{ transition: "stroke-dashoffset 0.9s var(--spring-soft)" }}
       />
     </svg>
+  );
+  if (children === undefined) return ring;
+  return (
+    <span className={s.holder} style={{ width: size, height: size }}>
+      {ring}
+      <span className={s.inside} aria-hidden="true">
+        {children}
+      </span>
+    </span>
   );
 }

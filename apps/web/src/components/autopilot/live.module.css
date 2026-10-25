@@ -521,6 +521,12 @@ button.typingBox:focus-visible {
   font-size: var(--fs-sm);
   color: var(--text-2);
 }
+.waitingActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
 
 /* the Paused veil (§2.1) */
 .veil {

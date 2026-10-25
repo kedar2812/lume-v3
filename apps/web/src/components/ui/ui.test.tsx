@@ -99,4 +99,16 @@ describe("Odometer / ProgressRing", () => {
       "100",
     );
   });
+
+  it("ProgressRing can hold a reading in its middle, for the eye only: the bar keeps its own name", () => {
+    render(
+      <ProgressRing value={0.5} label="5 of 10 messaged">
+        50%
+      </ProgressRing>,
+    );
+    const ring = screen.getByRole("progressbar", { name: "5 of 10 messaged" });
+    const inside = screen.getByText("50%");
+    expect(inside).toHaveAttribute("aria-hidden", "true");
+    expect(ring.parentElement).toContainElement(inside);
+  });
 });

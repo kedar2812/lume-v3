@@ -158,6 +158,8 @@ export function AutopilotScreen({
     setWatched(leadId);
     refresh();
   };
+  const carryOn = (run: string, leadId: string) =>
+    void act(() => autopilotClient.carryOn(run, leadId), "LUME AI couldn't carry on");
   const handBack = (leadId: string) =>
     void act(() => autopilotClient.handBack(runId!, leadId), "LUME couldn't hand it back").then(
       (ok) =>
@@ -191,6 +193,9 @@ export function AutopilotScreen({
           onBack={() => setWatched(null)}
           onTakeOver={() => void takeOver(shownLead.leadId)}
           onHandBack={() => handBack(shownLead.leadId)}
+          ended={d.run.status === "ended"}
+          canDecide={d.run.canControl && d.run.status !== "ended"}
+          onCarryOn={() => carryOn(d.run.id, shownLead.leadId)}
         />
       ) : (
         <p className={s.nobody}>No one in this run LUME AI can message.</p>
@@ -218,9 +223,9 @@ export function AutopilotScreen({
     <ReadyColumn
       leads={d.leads}
       asks={d.asks}
-      canDecide={d.run.canControl}
+      canDecide={d.run.canControl && d.run.status !== "ended"}
       onTakeOver={(id) => void takeOver(id)}
-      onCarryOn={(id) => void act(() => autopilotClient.carryOn(d.run.id, id), "LUME AI couldn't carry on")}
+      onCarryOn={(id) => carryOn(d.run.id, id)}
       onApprove={(id) => act(() => autopilotClient.approve(id), "LUME couldn't do that")}
       onDecline={(id) => act(() => autopilotClient.decline(id), "LUME couldn't hand it to you")}
     />

@@ -66,6 +66,9 @@ const props = (o: Partial<Parameters<typeof LiveConversation>[0]> = {}) => ({
   onBack: vi.fn(),
   onTakeOver: vi.fn(),
   onHandBack: vi.fn(),
+  ended: false,
+  canDecide: true,
+  onCarryOn: vi.fn(),
   ...o,
 });
 
@@ -123,5 +126,49 @@ describe("LiveConversation", () => {
     render(<LiveConversation {...props()} />);
     await screen.findByText("Do you do kitchens?");
     expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
+  });
+
+  it("a lead ready for you, or needing you: Take over, or let LUME AI carry on, right here", async () => {
+    const p = props({ lead: lead({ state: "ready", reason: "Reached Site visit booked" }) });
+    const { unmount } = render(<LiveConversation {...p} />);
+    expect(await screen.findByText("Meera is ready for you.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Take over Meera" }));
+    expect(p.onTakeOver).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole("button", { name: "Let LUME AI carry on" }));
+    expect(p.onCarryOn).toHaveBeenCalledOnce();
+    unmount();
+
+    const q = props({
+      lead: lead({ state: "needs_you", reason: "Asked about a discount." }),
+      canDecide: false,
+    });
+    render(<LiveConversation {...q} />);
+    expect(await screen.findByText("Meera needs you.")).toBeInTheDocument();
+    expect(screen.getByText("Asked about a discount.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Take over Meera" }));
+    expect(q.onTakeOver).toHaveBeenCalledOnce();
+    // Carrying on is the run's controllers' call; anyone who may message the lead may take it.
+    expect(screen.queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
+  });
+
+  it("ready for you, but this person can't message the lead: nothing to take", async () => {
+    vi.mocked(whatsappClient.thread).mockResolvedValue(ok(thread({ reply: null })));
+    render(<LiveConversation {...props({ lead: lead({ state: "ready" }) })} />);
+    await screen.findByText("Do you do kitchens?");
+    expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
+  });
+
+  it("a run that has ended: nobody's working the lead, so it's simply yours to message", async () => {
+    const p = props({
+      ended: true,
+      lead: lead({ state: "talking", thought: "Meera asked about kitchens." }),
+    });
+    render(<LiveConversation {...p} />);
+    expect(await screen.findByRole("textbox", { name: "Message to Meera" })).toBeInTheDocument();
+    expect(screen.queryByText("LUME AI is working this conversation for you.")).toBeNull();
+    expect(screen.queryByText("Meera asked about kitchens.")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hand back to LUME AI" })).toBeNull();
   });
 });

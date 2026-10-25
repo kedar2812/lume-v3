@@ -4,7 +4,7 @@ import { and, asc, count, eq, isNull } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { aiStatus } from "../ai/service";
-import { filesOf, openStages, readAiProfile, speakers } from "../ai/profile";
+import { availabilityOf, openStages, readAiProfile, speakers, type Available } from "../ai/profile";
 import { workingHoursFrom } from "../settings/follow-ups";
 import { replyOn } from "../whatsapp/send";
 
@@ -14,7 +14,6 @@ export type ReadyCode = "AI_OFF" | "AI_MONTH" | "REPLY_OFF" | "NO_NUMBER" | "NUM
 type Number = { id: string; display: string; quality: string | null; tier: string | null; waba: string };
 export type Readiness =
   { ok: true; number: Number } | { ok: false; code: ReadyCode; message: string; fixHref: string | null };
-type Available = { ok: true } | { ok: false; why: string; fixHref: string | null };
 
 const not = (code: ReadyCode, message: string, fixHref: string | null): Readiness => ({
   ok: false,
@@ -96,37 +95,11 @@ export async function readiness(req: FastifyRequest, d: AppDeps, speakerId: stri
 }
 
 /**
- * What the business has set up for each action (§1.3: "an action the business can't do shows off with the reason and a
- * link to set it up"). An action that isn't available runs as Never whatever was chosen.
+ * What the business has set up for each action (§1.3), from what's saved: `availabilityOf` in Settings → LUME AI's
+ * module, so Settings and the start sheet say the same. An action that isn't available runs as Never whatever was chosen.
  */
 export async function availability(req: FastifyRequest): Promise<Record<AutopilotAction, Available>> {
-  const profile = await readAiProfile(req);
-  // Files chosen in Settings → LUME AI that are still in Media (an archived one can't be sent).
-  const files = (await filesOf(req, profile.knows.files)).filter((f) => !f.archived).length;
-  const [lost] = await req.db
-    .select({ n: count() })
-    .from(schema.lostReasons)
-    .where(isNull(schema.lostReasons.archivedAt));
-  const ok: Available = { ok: true };
-  const all = Object.fromEntries(AUTOPILOT_ACTIONS.map((a) => [a, ok])) as Record<AutopilotAction, Available>;
-  return {
-    ...all,
-    send_files: files
-      ? ok
-      : {
-          ok: false,
-          why: "Choose the files LUME AI may send in Settings → LUME AI.",
-          fixHref: "/settings/ai",
-        },
-    answer_prices: profile.knows.prices.length
-      ? ok
-      : { ok: false, why: "Add your price list in Settings → LUME AI.", fixHref: "/settings/ai" },
-    mark_lost: lost?.n
-      ? ok
-      : { ok: false, why: "Add your lost reasons in Settings → Lists.", fixHref: "/settings/lists" },
-    // LUME's calendar connection only reads, with no free/busy: booking could clash (A2's plan ruling).
-    book_meetings: { ok: false, why: "Needs a calendar LUME can book into.", fixHref: null },
-  };
+  return availabilityOf(req, await readAiProfile(req));
 }
 
 /** The permissions a run keeps: as chosen, with anything the business can't use set to Never. */

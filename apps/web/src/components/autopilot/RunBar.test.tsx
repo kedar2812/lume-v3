@@ -18,19 +18,20 @@ const detail = (o: { status?: "running" | "paused" | "ended"; canControl?: boole
     asks: [],
   }) as unknown as RunDetail;
 const counts = { messaged: 10, replied: 4, ready: 1, stopped: 1, inRun: 50, done: 0.2 };
+const props = (o: Partial<Parameters<typeof RunBar>[0]> = {}) => ({
+  detail: detail(),
+  status: { title: "LUME AI is working", line: null, working: true },
+  counts,
+  asks: 0,
+  busy: false,
+  onPause: vi.fn(),
+  onResume: vi.fn(),
+  onEnd: vi.fn(),
+  onOpenAsks: vi.fn(),
+  ...o,
+});
 const bar = (o: Partial<Parameters<typeof RunBar>[0]> = {}) => {
-  const p = {
-    detail: detail(),
-    status: { title: "LUME AI is working", line: null, working: true },
-    counts,
-    asks: 0,
-    busy: false,
-    onPause: vi.fn(),
-    onResume: vi.fn(),
-    onEnd: vi.fn(),
-    onOpenAsks: vi.fn(),
-    ...o,
-  };
+  const p = props(o);
   render(<RunBar {...p} />);
   return p;
 };
@@ -45,6 +46,26 @@ describe("RunBar", () => {
     for (const name of ["Messaged: 10", "Replied: 4", "Ready for you: 1", "Stopped: 1"])
       expect(within(list).getByRole("img", { name })).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "10 of 50 messaged" })).toBeInTheDocument();
+  });
+
+  it("how far through it is, as a number in the ring: never 100% until every lead is messaged", () => {
+    const { unmount } = render(
+      <RunBar {...props({ counts: { ...counts, messaged: 29, inRun: 100, done: 0.29 } })} />,
+    );
+    expect(screen.getByRole("progressbar", { name: "29 of 100 messaged" }).parentElement).toHaveTextContent(
+      "29%",
+    );
+    unmount();
+    const r = render(
+      <RunBar {...props({ counts: { ...counts, messaged: 199, inRun: 200, done: 199 / 200 } })} />,
+    );
+    expect(screen.getByRole("progressbar").parentElement).toHaveTextContent("99%");
+    r.unmount();
+    const all = render(<RunBar {...props({ counts: { ...counts, messaged: 200, inRun: 200, done: 1 } })} />);
+    expect(screen.getByRole("progressbar").parentElement).toHaveTextContent("100%");
+    all.unmount();
+    render(<RunBar {...props({ counts: { ...counts, messaged: 0, inRun: 0, done: 0 } })} />);
+    expect(screen.getByRole("progressbar").parentElement).toHaveTextContent("0%");
   });
 
   it("Pause while it runs; Resume when paused; End asks first", async () => {

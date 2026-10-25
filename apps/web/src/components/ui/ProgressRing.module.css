@@ -1,0 +1,19 @@
+/* A ring with a reading in its middle (the run bar's percentage). */
+.holder {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+.holder > svg {
+  grid-area: 1 / 1;
+}
+.inside {
+  grid-area: 1 / 1;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text);
+}

@@ -1,4 +1,5 @@
-import type { AiProfile, NextStep } from "@lume/core/shared";
+import type { AiProfile, AutopilotAction, NextStep } from "@lume/core/shared";
+import type { Available } from "@/lib/autopilot/types";
 
 /** LUME AI as the API says it (spec 2026-10-18 §2.2, plan Task 5). */
 export type AiLimit = { used: number; limit: number | null; resetsAt: string };
@@ -43,4 +44,6 @@ export type AiProfileView = {
   stages: { id: string; name: string; pipeline: string }[];
   files: { id: string; name: string; archived: boolean }[];
   speakers: { id: string; name: string }[];
+  /** What Autopilot can use of what's saved, each action off with why (the start sheet's answer). */
+  available: Record<AutopilotAction, Available>;
 };

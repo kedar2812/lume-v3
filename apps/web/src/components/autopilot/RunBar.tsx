@@ -11,6 +11,8 @@ import type { runCounts, runStatus } from "@/lib/autopilot/words";
 import s from "./live.module.css";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
+/** Whole percent, rounded down from the counts themselves: 100% only once every lead is messaged. */
+const percent = (done: number, of: number) => (of ? Math.floor((done * 100) / of) : 0);
 
 /**
  * The run bar (spec 2026-10-19 §2): LUME AI's mark drawing like a pen while it works (resting when it isn't), the run's
@@ -71,11 +73,13 @@ export function RunBar({
         ))}
       </ul>
       <ProgressRing
-        size={38}
+        size={40}
         value={counts.done}
         color="var(--accent)"
         label={`${fmt(counts.messaged)} of ${fmt(counts.inRun)} messaged`}
-      />
+      >
+        {percent(counts.messaged, counts.inRun)}%
+      </ProgressRing>
       <div className={s.barActions}>
         {asks > 0 && (
           <button type="button" className={s.asksPill} onClick={onOpenAsks}>

@@ -1,4 +1,4 @@
-import { DEFAULT_AI_PROFILE } from "@lume/core/shared";
+import { AUTOPILOT_ACTIONS, DEFAULT_AI_PROFILE } from "@lume/core/shared";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +29,9 @@ const view = (o: Partial<AiProfileView> = {}): AiProfileView => ({
     { id: F2, name: "Old rates.pdf", archived: true },
   ],
   speakers: [{ id: "u1", name: "Priya Nair" }],
+  available: Object.fromEntries(
+    AUTOPILOT_ACTIONS.map((k) => [k, { ok: true }]),
+  ) as AiProfileView["available"],
   ...o,
 });
 const status: AiStatus = {
@@ -112,6 +115,42 @@ describe("Settings → LUME AI", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Hands-off/ }));
     await userEvent.click(screen.getByRole("button", { name: "Save standing choices" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("A goal is one of your open stages.");
+  });
+
+  it("a permission the business can't use yet shows off, with why, as the start sheet does; saving what it needs turns it on", async () => {
+    const noPrices = {
+      ...view().available,
+      answer_prices: {
+        ok: false,
+        why: "Add your price list in Settings → LUME AI.",
+        fixHref: "/settings/ai",
+      },
+      mark_lost: { ok: false, why: "Add your lost reasons in Settings → Lists.", fixHref: "/settings/lists" },
+    } as AiProfileView["available"];
+    render(<AiSettings initial={view({ available: noPrices })} status={status} />);
+    const standing = screen.getByRole("region", { name: "Standing choices" });
+    const prices = within(standing).getByRole("radiogroup", { name: "Answer price questions" });
+    expect(within(prices).getByRole("radio", { name: "Never" })).toHaveAttribute("aria-checked", "true");
+    expect(within(prices).getByRole("radio", { name: "Go ahead" })).toBeDisabled();
+    expect(within(standing).getByText(/Add your price list in Settings → LUME AI\./)).toBeInTheDocument();
+    // On this page already: the link goes to the section, not to the page it's on.
+    expect(within(standing).getByRole("link", { name: "Set up prices" })).toHaveAttribute(
+      "href",
+      "#ai-knows",
+    );
+    expect(within(standing).getByRole("link", { name: "Add lost reasons" })).toHaveAttribute(
+      "href",
+      "/settings/lists",
+    );
+
+    vi.mocked(aiClient.saveProfile).mockResolvedValue(
+      ok(view({ available: { ...noPrices, answer_prices: { ok: true } } })),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save what LUME AI knows" }));
+    await screen.findAllByText("Saved");
+    expect(within(prices).getByRole("radio", { name: "Go ahead" })).toBeEnabled();
+    expect(within(standing).getByText("Only from your price list")).toBeInTheDocument();
+    expect(within(standing).queryByText(/Add your price list/)).toBeNull();
   });
 
   it("leaving with unsaved changes asks first", async () => {

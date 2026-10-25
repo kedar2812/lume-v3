@@ -1,29 +1,39 @@
 "use client";
-import type { AiProfile } from "@lume/core/shared";
+import type { AiProfile, AutopilotAction } from "@lume/core/shared";
 import { useState } from "react";
 import { PermissionRows } from "@/components/autopilot/PermissionRows";
 import { Field } from "@/components/ui/Field";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
+import type { Available } from "@/lib/autopilot/types";
 import s from "./ai.module.css";
 
 type Standing = AiProfile["standing"];
 type Stage = { id: string; name: string; pipeline: string };
+/** This page's own sections: a fix that's set up here goes to its section, not to the page it's on. */
+const HERE = "/settings/ai";
+const hereFirst = (a: Record<AutopilotAction, Available>) =>
+  Object.fromEntries(
+    Object.entries(a).map(([k, v]) => [k, !v.ok && v.fixHref === HERE ? { ...v, fixHref: "#ai-knows" } : v]),
+  ) as Record<AutopilotAction, Available>;
 
 /**
  * Settings → LUME AI, Standing choices (Autopilot spec 2026-10-19 §1.1–1.3, §3): what a new run starts with. Presets set
- * every row at once; a row changed by hand leaves them unpressed. On a phone the three-way controls sit full width under
- * each action (§2.3).
+ * every row at once; a row changed by hand leaves them unpressed. An action the business can't use yet shows off with why,
+ * as the start sheet does (§1.3). On a phone the three-way controls sit full width under each action (§2.3).
  */
 export function StandingSection({
   value: v,
   stages,
   speakers,
+  available,
   onChange,
 }: {
   value: Standing;
   stages: Stage[];
   speakers: { id: string; name: string }[];
+  /** What Autopilot can use of what's saved; without it every row reads as usable. */
+  available?: Record<AutopilotAction, Available>;
   onChange(v: Standing): void;
 }) {
   const set = (patch: Partial<Standing>) => onChange({ ...v, ...patch });
@@ -64,6 +74,7 @@ export function StandingSection({
           onChange={(permissions) => set({ permissions })}
           followUpDays={v.followUpDays}
           stages={stages}
+          {...(available ? { available: hereFirst(available) } : {})}
         />
       </div>
 

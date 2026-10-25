@@ -179,6 +179,42 @@ describe("Settings → LUME AI on the server", () => {
     expect(again.json().error.message).toBe("That file is archived in Media. Restore it to choose it.");
   });
 
+  it("says what Autopilot can use from what's saved, as the start sheet does, and again after each save", async () => {
+    await h.ownerPool.query("UPDATE lost_reasons SET archived_at = now()");
+    try {
+      const first = (await get()).json().available;
+      expect(first.send_files).toEqual({
+        ok: false,
+        why: "Choose the files LUME AI may send in Settings → LUME AI.",
+        fixHref: "/settings/ai",
+      });
+      expect(first.answer_prices.ok).toBe(false);
+      expect(first.mark_lost).toEqual({
+        ok: false,
+        why: "Add your lost reasons in Settings → Lists.",
+        fixHref: "/settings/lists",
+      });
+      expect(first.book_meetings.ok).toBe(false);
+      expect(first.replies).toEqual({ ok: true });
+      // A save answers with what it changed: prices and a file now in, the rows they unlock on.
+      const brochure = await upload("Brochure.pdf");
+      const saved = await patch({
+        knows: {
+          prices: [{ id: crypto.randomUUID(), item: "Visit", price: 500, unit: "per visit", notes: "" }],
+          files: [brochure],
+        },
+      });
+      expect(saved.statusCode).toBe(200);
+      expect(saved.json().available.answer_prices).toEqual({ ok: true });
+      expect(saved.json().available.send_files).toEqual({ ok: true });
+      // A chosen file archived in Media since can't be sent: off again.
+      await (await as(admin)).inject({ method: "POST", url: `/api/v1/files/${brochure}/archive` });
+      expect((await get()).json().available.send_files.ok).toBe(false);
+    } finally {
+      await h.ownerPool.query("UPDATE lost_reasons SET archived_at = NULL");
+    }
+  });
+
   it("goal stages must be the business's open stages", async () => {
     const wonStage = await patch({ standing: { goalStages: [won] } });
     expect(wonStage.statusCode).toBe(400);

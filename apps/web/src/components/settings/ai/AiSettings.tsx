@@ -107,6 +107,8 @@ export function AiSettings({
     standing: initial.profile.standing,
   }));
   const [draft, setDraft] = useState(saved);
+  // What Autopilot can use, as saved: a save that adds prices or files turns their rows on.
+  const [available, setAvailable] = useState(initial.available);
   const [busy, setBusy] = useState<Section | null>(null);
   const [said, setSaid] = useState<Partial<Record<Section, { ok: boolean; text: string }>>>({});
   const dirtyOf = (k: Section) => JSON.stringify(draft[k]) !== JSON.stringify(saved[k]);
@@ -143,6 +145,7 @@ export function AiSettings({
     const next =
       k === "knows" ? knowsDraft(r.data.profile, r.data.files, r.data.currency) : r.data.profile[k];
     setSaved((x) => ({ ...x, [k]: next }));
+    setAvailable(r.data.available);
     setDraft((x) => ({ ...x, [k]: next }));
     setSaid((x) => ({ ...x, [k]: { ok: true, text: "Saved" } }));
   };
@@ -192,6 +195,7 @@ export function AiSettings({
           value={draft.standing}
           stages={initial.stages}
           speakers={initial.speakers}
+          available={available}
           onChange={(v) => edit("standing", v)}
         />
       </Panel>

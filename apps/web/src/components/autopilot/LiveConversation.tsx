@@ -17,12 +17,15 @@ import s from "./live.module.css";
 
 /** LUME AI is still working these: a person may take one over (§2.1). */
 const WORKING = ["up_next", "writing", "sent", "replied", "talking"];
+/** LUME AI stopped and handed these to a person (Ready for you): take it, or let it carry on. */
+const WAITING = ["ready", "needs_you"];
 
 /**
  * The live conversation (spec 2026-10-19 §2): the lead's WhatsApp thread, LUME AI's one-line thought in its own words,
  * and the composer where it types. Watching a lead other than LUME AI's offers the way back. A lead taken over is the
- * person's: their own reply box, starting from LUME AI's half-typed words, and Hand back. Someone who may not message
- * the lead watches only.
+ * person's: their own reply box, starting from LUME AI's half-typed words, and Hand back. A lead Ready for you is taken,
+ * or carried on, from here as from its card. Once the run has ended nobody's working the lead: it's simply the person's
+ * to message. Someone who may not message the lead watches only.
  */
 export function LiveConversation({
   lead,
@@ -34,6 +37,9 @@ export function LiveConversation({
   onBack,
   onTakeOver,
   onHandBack,
+  ended,
+  canDecide,
+  onCarryOn,
 }: {
   lead: RunLead;
   /** This is the lead LUME AI is on. */
@@ -47,6 +53,11 @@ export function LiveConversation({
   onBack(): void;
   onTakeOver(): void;
   onHandBack(): void;
+  /** The run has ended: LUME AI does nothing more in it. */
+  ended: boolean;
+  /** May let LUME AI carry on with a lead Ready for you (the run's controllers). */
+  canDecide: boolean;
+  onCarryOn(): void;
 }) {
   const who = firstNameOf(lead.name) || lead.name;
   const [thread, setThread] = useState<WaThread | null>(null);
@@ -78,10 +89,23 @@ export function LiveConversation({
   useStickToBottom(scroller, `${thread?.messages.length ?? 0}:${lead.state}`);
 
   const mayMessage = !!thread?.reply;
-  const working = WORKING.includes(lead.state);
+  const working = !ended && WORKING.includes(lead.state);
 
   let composer = null;
-  if (lead.state === "writing" && lead.draft)
+  if (ended && thread?.reply)
+    composer = (
+      <div className={s.mine}>
+        <WhatsAppComposer
+          key={lead.leadId}
+          leadId={lead.leadId}
+          leadName={lead.name}
+          tz={tz}
+          reply={thread.reply}
+          onSent={() => read()}
+        />
+      </div>
+    );
+  else if (lead.state === "writing" && lead.draft)
     composer = (
       <TypingComposer
         leadName={lead.name}
@@ -108,6 +132,22 @@ export function LiveConversation({
           <AiGlyph size={14} />
           Hand back to LUME AI
         </Button>
+      </div>
+    );
+  else if (WAITING.includes(lead.state) && mayMessage)
+    composer = (
+      <div className={s.watching}>
+        <p>{lead.state === "ready" ? `${who} is ready for you.` : `${who} needs you.`}</p>
+        <div className={s.waitingActions}>
+          {canDecide && (
+            <Button size="sm" variant="ghost" onClick={onCarryOn}>
+              Let LUME AI carry on
+            </Button>
+          )}
+          <Button size="sm" variant="primary" onClick={onTakeOver} aria-label={`Take over ${who}`}>
+            Take over
+          </Button>
+        </div>
       </div>
     );
   else if (working && mayMessage)
