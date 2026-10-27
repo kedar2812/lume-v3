@@ -7,7 +7,7 @@ describe("navigation", () => {
       "Today",
       "Leads",
       "Who replied",
-      "Autopilot",
+      "LUME AI",
       "Pipeline",
       "Calendar",
       "Templates",
@@ -23,6 +23,7 @@ describe("navigation", () => {
       "today",
       "leads",
       "replies",
+      "autopilot", // LUME AI, for whoever may view leads, on or off (owner, 2026-10-27)
       "pipeline",
       "calendar",
       "settings", // everyone has personal settings (spec §7)
@@ -50,10 +51,9 @@ describe("navigation", () => {
     expect(navDirection(NAV_ITEMS, "/leads", "/leads/9")).toBe(0);
   });
 
-  it("Autopilot shows for whoever may view leads, only while LUME AI is on for them (A3)", () => {
+  it("LUME AI shows for whoever may view leads, on or off: off, its page says how to switch it on (owner, 2026-10-27)", () => {
     const can = (p: string) => p === "leads.view";
-    expect(visibleNav(NAV_ITEMS, can).map((i) => i.id)).not.toContain("autopilot");
-    expect(visibleNav(NAV_ITEMS, can, { ai: false }).map((i) => i.id)).not.toContain("autopilot");
+    expect(visibleNav(NAV_ITEMS, can, { ai: false }).map((i) => i.id)).toContain("autopilot");
     expect(visibleNav(NAV_ITEMS, can, { ai: true }).map((i) => i.id)).toEqual([
       "today",
       "leads",

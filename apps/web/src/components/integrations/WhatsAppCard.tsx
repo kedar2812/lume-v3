@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePlan } from "@/components/licence/LicenceProvider";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { Switch } from "@/components/ui/Switch";
 import { shortDate } from "@/lib/dates";
 import type { IntegrationsView } from "@/lib/sheets/types";
@@ -17,6 +18,43 @@ import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 type WaView = NonNullable<IntegrationsView["whatsapp"]>;
 const BUSINESS = "";
 const TZ = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/** What connecting changes on the phone: each at a glance, an icon, what stops and what to do instead. */
+const PHONE_CHANGES = [
+  {
+    title: "Broadcast lists stop",
+    text: "They stop working in the WhatsApp Business app.",
+    tone: "warn",
+    icon: (
+      <>
+        <path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Z" />
+        <path d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10" />
+      </>
+    ),
+  },
+  {
+    title: "WhatsApp for Windows stops",
+    text: "Use WhatsApp Web on a computer instead.",
+    tone: "warn",
+    icon: (
+      <>
+        <rect x="3" y="4" width="18" height="12" rx="2" />
+        <path d="M8.5 20h7M12 16v4" />
+      </>
+    ),
+  },
+  {
+    title: "Open WhatsApp every 13 days",
+    text: "On the phone, or the connection pauses.",
+    tone: "accent",
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5V12l3 2" />
+      </>
+    ),
+  },
+] as const;
 
 /** Before anything happens (spec 2026-10-18 §3.2): what connecting changes on the phone, said plainly. */
 function ConnectSheet({ onClose }: { onClose(): void }) {
@@ -43,13 +81,23 @@ function ConnectSheet({ onClose }: { onClose(): void }) {
           You’ll log in to Facebook, pick your WhatsApp Business app number, and scan a code with the phone
           that runs it. Your chats stay on your phone too.
         </p>
-        <div className={s.waChanges} role="group" aria-labelledby="wa-changes">
+        <div className={s.waChanges}>
           <p id="wa-changes" className={s.waChangesHead}>
             What changes on the phone
           </p>
-          <p>Broadcast lists stop working in the app.</p>
-          <p>The WhatsApp app for Windows stops working. Use WhatsApp Web on a computer instead.</p>
-          <p>Open WhatsApp on the phone at least once every 13 days, or the connection pauses.</p>
+          <ul aria-labelledby="wa-changes" className={s.waChangeList}>
+            {PHONE_CHANGES.map((c) => (
+              <li key={c.title}>
+                <span className={s.waChangeIcon} data-tone={c.tone} aria-hidden>
+                  <svg viewBox="0 0 24 24">{c.icon}</svg>
+                </span>
+                <span className={s.waChangeText}>
+                  <b>{c.title}</b>
+                  <small>{c.text}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
         <p className={s.waSheetText}>
           Messages pass through LUME’s relay on their way to your LUME. They’re never stored there.
@@ -166,6 +214,13 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
           Works with your WhatsApp Business app number: keep using the app on your phone as you do now. LUME
           keeps chats with your leads only. Strangers wait in Not a lead yet for 14 days.
         </p>
+      )}
+      {on && numbers === null && (
+        // Switched on, the numbers on their way: the card keeps its height, it never collapses and jumps back.
+        <div className={s.waEmpty} role="status" aria-label="Looking for connected numbers" aria-busy="true">
+          <Skeleton width="40%" height={14} />
+          <Skeleton width={204} height={34} radius={10} />
+        </div>
       )}
       {on && numbers && numbers.length === 0 && (
         <div className={s.waEmpty}>

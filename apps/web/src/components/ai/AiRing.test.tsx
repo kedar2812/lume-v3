@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { aiClient } from "@/lib/ai/client";
 import type { AiStatus } from "@/lib/ai/types";
 import { AiRing } from "./AiRing";
@@ -26,7 +26,14 @@ const ring = () => screen.getByRole("button", { name: /^LUME AI/ });
 /** The ring's tone lives on its face (the trigger is the shared Popover's button). */
 const tone = () => ring().querySelector("[data-tone]")?.getAttribute("data-tone") ?? null;
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // The panel weighs the pace against the days to the month's reset on the real clock: each test sets its own day,
+  // 21 October, so the month resets in 10 days (a fixed reset date read against today broke on 27 October).
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-21T10:00:00Z"));
+});
+afterEach(() => vi.useRealTimers());
 
 describe("LUME AI's ring (Autopilot spec 2026-10-19 §4)", () => {
   it("hidden while LUME AI is off for this person", async () => {
@@ -61,6 +68,16 @@ describe("LUME AI's ring (Autopilot spec 2026-10-19 §4)", () => {
     expect(panel).toHaveTextContent("4 of 100 this hour");
     expect(panel).toHaveTextContent("Resets on November 1");
     expect(panel).not.toHaveTextContent("$");
+  });
+
+  it("enough for the month when the pace lasts past the reset", async () => {
+    vi.setSystemTime(new Date("2026-10-28T10:00:00Z")); // 3.4 days to the reset, 5 days of pace left
+    vi.mocked(aiClient.status).mockResolvedValue(ok(status()));
+    render(<AiRing />);
+    await userEvent.click(await screen.findByRole("button", { name: /^LUME AI/ }));
+    const panel = screen.getByRole("dialog", { name: "LUME AI this month" });
+    expect(panel).toHaveTextContent("Enough for the month at this pace");
+    expect(panel).not.toHaveTextContent("days left");
   });
 
   it("spend shows only when the server knows the prices", async () => {

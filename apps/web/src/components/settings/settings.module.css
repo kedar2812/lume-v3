@@ -215,13 +215,15 @@
     background 0.15s,
     color 0.15s;
 }
+/* Hover brightens the words only: a box under the pointer beside the current one read as two items selected
+   (owner, 2026-10-27). The current one is the raised box, in semibold. */
 .navLink:hover {
-  background: var(--hover);
   color: var(--text);
 }
 .navLink[aria-current="page"] {
   background: var(--raised);
   color: var(--text);
+  font-weight: var(--fw-semibold);
   box-shadow: 0 0 0 0.5px var(--line-2);
 }
 .navSelect {
@@ -251,8 +253,11 @@
 }
 
 /* ── page frame ── */
+/* Every Settings page is a container: a page's columns follow the room it really has (the window minus both
+   sidebars), not the window (layout sweep, 2026-10-27: at 1024 px two columns kept squeezing into ~500 px). */
 .page {
   min-width: 0;
+  container: settings / inline-size;
 }
 /* The way back, above the title: the section a page sits in, or All settings. */
 .up {

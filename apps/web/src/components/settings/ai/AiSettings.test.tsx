@@ -64,7 +64,8 @@ describe("Settings → LUME AI", () => {
     for (const h of ["What LUME AI knows", "Voice", "Standing choices", "Usage"])
       expect(screen.getByRole("heading", { name: h })).toBeInTheDocument();
     expect(screen.getByText("300 of 3,000 this month")).toBeInTheDocument();
-    expect(screen.getAllByText("Used by Autopilot").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Used in conversations").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Autopilot/)).toBeNull(); // one name: LUME AI (owner, 2026-10-27)
   });
 
   it("a file chosen from Media shows by its thumbnail; an archived one says so with Remove", async () => {

@@ -68,7 +68,7 @@ test.describe.serial("WhatsApp", () => {
     await card.getByRole("switch", { name: "WhatsApp" }).click();
     await card.getByRole("button", { name: "Connect a WhatsApp number" }).click();
     const sheet = page.getByRole("dialog", { name: "Connect a WhatsApp number" });
-    await expect(sheet).toContainText("Broadcast lists stop working in the app.");
+    await expect(sheet).toContainText("Broadcast lists stop");
     await sheet.getByRole("button", { name: "Continue with Facebook" }).click();
     // The relay's signup page (Facebook's popup can't run here): what it would post when the person finishes.
     await page.waitForURL(`${RELAY}/wa/start**`, { waitUntil: "domcontentloaded" });

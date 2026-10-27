@@ -1,6 +1,7 @@
 /* Settings → Calendar and Calendar rules (canvas Connect, Rules). Tokens only. */
 .wrap {
   --connect-inset: 0;
+  --connect-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -434,6 +435,12 @@
   box-shadow: var(--focus-ring);
 }
 @media (max-width: 1000px) {
+  .rulesGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The rules and the week they'd keep side by side only with room for both (the Settings container). */
+@container settings (max-width: 800px) {
   .rulesGrid {
     grid-template-columns: minmax(0, 1fr);
   }

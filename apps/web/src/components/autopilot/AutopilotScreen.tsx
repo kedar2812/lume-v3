@@ -46,11 +46,14 @@ export function AutopilotScreen({
   initial,
   askedRun,
   canStart,
+  off,
 }: {
   initial: RunsList;
   askedRun: string | null;
   /** May start runs (shown in the empty page). */
   canStart: boolean;
+  /** LUME AI is off for this person: the page says so, and an admin (integrations.manage) gets the switch. */
+  off?: { canSwitch: boolean };
 }) {
   const tz = useZone();
   const router = useRouter();
@@ -230,6 +233,27 @@ export function AutopilotScreen({
       onDecline={(id) => act(() => autopilotClient.decline(id), "LUME couldn't hand it to you")}
     />
   );
+
+  if (off && !runs.length)
+    return (
+      <div className={s.empty}>
+        <AiGlyph size={44} />
+        <h2>LUME AI is off</h2>
+        {off.canSwitch ? (
+          <>
+            <p className={s.emptyLede}>
+              Switch it on to let LUME AI follow up with your leads on WhatsApp. It only does what you allow,
+              and every message sits on the lead.
+            </p>
+            <Link href="/settings/integrations" className={s.emptyCta}>
+              Switch LUME AI on
+            </Link>
+          </>
+        ) : (
+          <p className={s.emptyLede}>An admin can switch it on in Settings → Integrations.</p>
+        )}
+      </div>
+    );
 
   if (!runs.length)
     return (

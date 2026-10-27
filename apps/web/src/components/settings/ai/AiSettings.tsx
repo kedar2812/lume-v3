@@ -78,7 +78,7 @@ function Panel({
         </h2>
         <p className={s.panelLede}>
           {lede}
-          {autopilot && <span className={s.autopilot}>Used by Autopilot</span>}
+          {autopilot && <span className={s.autopilot}>Used in conversations</span>}
         </p>
       </div>
       <div className={sp.panelBody}>{children}</div>
@@ -166,7 +166,7 @@ export function AiSettings({
     <div className={`${sp.stack} ${s.page}`}>
       <p className={s.intro}>
         <AiGlyph size={20} />
-        Teach LUME AI your business once. Autopilot uses what&apos;s here.
+        Teach LUME AI your business once. It uses what&apos;s here when it talks to your leads.
       </p>
       <Panel
         id="ai-knows"

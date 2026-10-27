@@ -102,10 +102,13 @@ export function ConnectCalendar({
   state,
   admin,
   compact = false,
+  offerCalendly = true,
 }: {
   state: "connect" | "off" | "unavailable" | "noPermission";
   /** Calendly is set up by an admin (integrations.manage). */
   admin: boolean;
+  /** The "Booking calls with Calendly?" line; off where the page offers Calendly its own way (Settings → Calendar). */
+  offerCalendly?: boolean;
   /** Above an agenda that already has meetings: one row, not the card. */
   compact?: boolean;
 }) {
@@ -208,7 +211,7 @@ export function ConnectCalendar({
         <GoogleButton busy={phase === "wait"} onClick={() => void go()} />
       )}
       <GoogleDataNote what="LUME asks Google to read events on calendars you own, read-only, and the list of your calendars so you can choose which ones." />
-      {admin && (
+      {admin && offerCalendly && (
         <div className={s.calendly}>
           <img src="/brand/calendly.svg" alt="" width={28} height={28} />
           <span>

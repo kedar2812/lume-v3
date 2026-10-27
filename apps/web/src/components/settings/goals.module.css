@@ -10,6 +10,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* The preview beside the goals only with room for both; otherwise it goes under them. */
+@container settings (max-width: 860px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .main {
   display: flex;
   flex-direction: column;
@@ -215,8 +221,15 @@
   font-weight: 600;
   color: var(--text);
 }
+/* A goal box gives way down to this, then the table scrolls inside its card (owner, 2026-10-27: it ran under the
+   preview on a laptop). The padding keeps a focused box's ring inside the scroller's edge. */
+.scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+  padding: 0 4px 4px;
+}
 .grid td {
-  width: 170px;
+  min-width: 120px;
   padding: 5px 0 5px 10px;
 }
 .grid .box {

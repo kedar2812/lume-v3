@@ -101,11 +101,39 @@ beforeEach(() => {
 
 /** Autopilot, the page (spec 2026-10-19 §2): watch LUME AI work, pause with Esc, take over by clicking its message. */
 describe("AutopilotScreen", () => {
-  it("no runs yet: what Autopilot does, in three lines, and where to start", () => {
+  it("no runs yet: what LUME AI does, in three lines, and where to start", () => {
     render(<AutopilotScreen initial={{ runs: [], running: 0 }} askedRun={null} canStart />);
     expect(screen.getByRole("heading", { name: "Let LUME AI work your leads" })).toBeInTheDocument();
     expect(screen.getByText(/Select leads on Leads/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Choose leads" })).toHaveAttribute("href", "/leads");
+  });
+
+  it("LUME AI off: the page says so, and an admin gets the way to switch it on (owner, 2026-10-27)", () => {
+    const { unmount } = render(
+      <AutopilotScreen
+        initial={{ runs: [], running: 0 }}
+        askedRun={null}
+        canStart
+        off={{ canSwitch: true }}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "LUME AI is off" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Switch LUME AI on" })).toHaveAttribute(
+      "href",
+      "/settings/integrations",
+    );
+    expect(screen.queryByRole("link", { name: "Choose leads" })).toBeNull();
+    unmount();
+    render(
+      <AutopilotScreen
+        initial={{ runs: [], running: 0 }}
+        askedRun={null}
+        canStart
+        off={{ canSwitch: false }}
+      />,
+    );
+    expect(screen.getByText("An admin can switch it on in Settings → Integrations.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Switch LUME AI on" })).toBeNull();
   });
 
   it("opens on the run going, and says what LUME AI is doing to whom", async () => {

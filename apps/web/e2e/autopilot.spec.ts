@@ -193,11 +193,11 @@ test.describe.serial("Autopilot", () => {
     await admin.close();
   });
 
-  test("a new person finds Autopilot in the sidebar, and what it does before any run", async ({ page }) => {
+  test("a new person finds LUME AI in the sidebar, and what it does before any run", async ({ page }) => {
     await openApp(page, "/today");
-    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Autopilot" }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "LUME AI" }).click();
     await page.waitForURL("**/autopilot");
-    await expect(page.getByRole("heading", { name: "Autopilot", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "LUME AI", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Let LUME AI work your leads" })).toBeVisible();
     await expect(
       page.getByText("Select leads on Leads, then choose Let LUME AI handle these."),

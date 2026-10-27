@@ -169,9 +169,7 @@ export function CurrencySwitch({
               <p className={s.rateLine}>
                 1 {current} = {tidy(confirm.quote.rate)} {confirm.to}
               </p>
-              <p className={s.dialogMeta}>
-                {confirm.quote.source}, {asOf(confirm.quote.asOf)}
-              </p>
+              <p className={s.dialogMeta}>Live rate, {asOf(confirm.quote.asOf)}</p>
               <p className={s.dialogText}>
                 {whatChanges(confirm.quote.affected)}
                 {Object.values(confirm.quote.affected).some(Boolean) && " at the rate below, once."}

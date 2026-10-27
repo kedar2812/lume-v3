@@ -1,5 +1,5 @@
 // Phase 1C-3 live acceptance: Settings on the running dev stack, through Caddy's TLS, as the owner and
-// a masked sales rep, with the currency switched at the live rate from open.er-api.com. Screenshots go
+// a masked sales rep, with the currency switched at the live rate. Screenshots go
 // to docs/runbooks/screenshots-1c3.
 //
 // Runs after acceptance-1c1.mjs and acceptance-1c2.mjs in the same throwaway container, using the
@@ -243,7 +243,11 @@ await owner.keyboard.press("Enter");
 const dialog = owner.getByRole("dialog", { name: "Change the currency to US Dollar?" });
 await dialog.getByText(/^1 AED = /).waitFor({ timeout: 15_000 });
 const source = await dialog.innerText();
-assert(/open\.er-api\.com/.test(source), "the quote comes from open.er-api.com, dated", source);
+assert(
+  /Live rate, /.test(source) && !/er-api/.test(source),
+  "the quote is the live rate, dated, its service never named",
+  source,
+);
 const rate = Number(await dialog.getByLabel("1 AED in USD").inputValue());
 assert(rate > 0.2 && rate < 0.35, `the live rate is plausible (1 AED = ${rate} USD)`, rate);
 await shot(owner, "10-currency-quote");

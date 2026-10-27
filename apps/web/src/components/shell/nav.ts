@@ -34,13 +34,13 @@ export const NAV_ITEMS: NavItem[] = [
     phase: 12,
   },
   {
-    // LUME AI working leads live (Autopilot spec 2026-10-19 §2): whoever may view leads, while LUME AI is on for them.
+    // LUME AI working leads live (Autopilot spec 2026-10-19 §2), named LUME AI everywhere (owner, 2026-10-27): whoever
+    // may view leads, on or off; off, its page says how to switch it on.
     id: "autopilot",
-    label: "Autopilot",
+    label: "LUME AI",
     href: "/autopilot",
     icon: "autopilot",
     permission: "leads.view",
-    needs: "ai",
     phase: 11,
   },
   {

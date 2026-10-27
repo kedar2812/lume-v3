@@ -33,23 +33,22 @@ vi.mock("@/lib/media/uploads", async (orig) => ({
 }));
 
 describe("Sidebar", () => {
-  it("Autopilot, while LUME AI is on; Live while a run is going (Autopilot A3)", () => {
+  it("LUME AI is always there, with its own mark drawing itself; Live while a run is going (owner, 2026-10-27)", () => {
+    // Named LUME AI, not Autopilot: one name for the assistant everywhere. Off, it's still there: its page says how
+    // to switch it on, rather than the item vanishing.
     aiOn = false;
     const { unmount } = render(
       <Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />,
     );
+    const item = screen.getByRole("link", { name: "LUME AI" });
+    expect(item).toHaveAttribute("href", "/autopilot");
+    expect(item.querySelector("[data-draw='loop']")).not.toBeNull();
     expect(screen.queryByRole("link", { name: /Autopilot/ })).toBeNull();
     unmount();
     aiOn = true;
-    running = 0;
-    const quiet = render(
-      <Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />,
-    );
-    expect(screen.getByRole("link", { name: "Autopilot" })).toHaveAttribute("href", "/autopilot");
-    quiet.unmount();
     running = 2;
     render(<Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />);
-    expect(screen.getByRole("link", { name: "Autopilot, live" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "LUME AI, live" })).toBeInTheDocument();
     expect(screen.getByText("Live")).toBeInTheDocument();
     aiOn = false;
     running = 0;

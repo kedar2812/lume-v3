@@ -57,6 +57,17 @@ describe("the WhatsApp card (spec 2026-10-18 §3.2; canvas board Main)", () => {
     expect(screen.getByRole("switch")).toBeDisabled();
   });
 
+  it("while its numbers load, a placeholder holds the card's place: it never collapses and jumps back (owner, 2026-10-27)", async () => {
+    let answer: (v: unknown) => void = () => {};
+    vi.mocked(whatsappClient.numbers).mockReturnValue(new Promise((r) => (answer = r)) as never);
+    render(<WhatsAppCard wa={on} onView={vi.fn()} />);
+    const holding = screen.getByRole("status", { name: "Looking for connected numbers" });
+    expect(holding).toHaveAttribute("aria-busy", "true");
+    answer(ok({ numbers: [] }));
+    expect(await screen.findByText("No number connected yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Looking for connected numbers" })).toBeNull();
+  });
+
   it("switching on says so to the page", async () => {
     const onView = vi.fn();
     vi.mocked(whatsappClient.setEnabled).mockResolvedValue(ok({ whatsapp: on } as never));
@@ -73,9 +84,17 @@ describe("the WhatsApp card (spec 2026-10-18 §3.2; canvas board Main)", () => {
     render(<WhatsAppCard wa={on} onView={vi.fn()} />);
     await userEvent.click(await screen.findByRole("button", { name: "Connect a WhatsApp number" }));
     const sheet = screen.getByRole("dialog", { name: "Connect a WhatsApp number" });
-    expect(within(sheet).getByText("Broadcast lists stop working in the app.")).toBeInTheDocument();
-    expect(within(sheet).getByText(/WhatsApp app for Windows stops working/)).toBeInTheDocument();
-    expect(within(sheet).getByText(/at least once every 13 days/)).toBeInTheDocument();
+    // Each change at a glance: an icon, what stops, and what to do instead (owner, 2026-10-27).
+    const changes = within(sheet).getByRole("list", { name: "What changes on the phone" });
+    expect(
+      within(changes)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual([
+      "Broadcast lists stopThey stop working in the WhatsApp Business app.",
+      "WhatsApp for Windows stopsUse WhatsApp Web on a computer instead.",
+      "Open WhatsApp every 13 daysOn the phone, or the connection pauses.",
+    ]);
     expect(whatsappClient.connect).not.toHaveBeenCalled();
     await userEvent.click(within(sheet).getByRole("button", { name: "Continue with Facebook" }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith("https://relay.test/wa/start?x"));

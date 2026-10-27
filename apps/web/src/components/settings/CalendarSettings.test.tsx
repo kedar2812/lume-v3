@@ -113,6 +113,20 @@ describe("Settings → Calendar", () => {
     expect(within(bar).getByRole("button", { name: "Connect again" })).toBeInTheDocument();
   });
 
+  it("not connected yet: one way to Calendly for an admin, the row, never a second inside the connect card (owner, 2026-10-27)", () => {
+    render(
+      <CalendarSettings
+        initial={{ connected: false, available: true } as never}
+        calendly={{ connected: false }}
+      />,
+    );
+    const links = screen.getAllByRole("link", { name: /Calendly/ });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/settings/integrations/calendly");
+    expect(screen.queryByText("Booking calls with Calendly?")).toBeNull();
+    expect(screen.getByRole("button", { name: /Continue with Google/ })).toBeInTheDocument();
+  });
+
   it("shows the Calendly row to an admin, linking to Integrations", () => {
     render(<CalendarSettings initial={connected()} calendly={{ connected: true }} />);
     expect(screen.getByRole("link", { name: /Calendly/ })).toHaveAttribute(

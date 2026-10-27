@@ -220,14 +220,20 @@
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
+/* The title, and a control on the right that drops under it when the card is narrow (a phone): never out of the
+   card (layout sweep, 2026-10-27: Team's "Rank by" spilled 85 px). Wider still, the control scrolls in its place. */
 .cardHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px;
   margin-bottom: 12px;
 }
 .cardHead > :last-child:not(:first-child) {
-  margin-left: auto;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 2px;
+  margin: -2px -2px -2px auto;
 }
 .link {
   display: inline-flex;

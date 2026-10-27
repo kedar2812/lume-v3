@@ -198,6 +198,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* The stages and the chosen one side by side only with room for both: 400 px of stages and the stage's controls. */
+@container settings (max-width: 780px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 /* The stage rows: the dot leads the name, which never truncates while there's room; the row's rename and
    archive show on hover and to the keyboard (they keep their place, so nothing jumps). */

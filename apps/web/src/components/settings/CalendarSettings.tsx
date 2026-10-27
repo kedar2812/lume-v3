@@ -50,7 +50,12 @@ export function CalendarSettings({
     return (
       <div className={s.wrap}>
         {backLink}
-        <ConnectCalendar state={conn.available ? "connect" : "off"} admin={!!calendly} />
+        {/* Calendly has its own row just below: the card doesn't offer it a second time. */}
+        <ConnectCalendar
+          state={conn.available ? "connect" : "off"}
+          admin={!!calendly}
+          offerCalendly={false}
+        />
         {calendly && <CalendlyRow connected={calendly.connected} />}
       </div>
     );

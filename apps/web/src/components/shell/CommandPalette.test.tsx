@@ -50,15 +50,12 @@ describe("Search LUME (Ctrl K)", () => {
     });
   });
 
-  it("Autopilot is a page to go to while LUME AI is on, as in the sidebar (A3)", async () => {
+  it("LUME AI is a page to go to, as in the sidebar, whether or not it's on (owner, 2026-10-27)", async () => {
     aiOn = false;
-    const { unmount } = render(<CommandPalette open onOpenChange={vi.fn()} can={() => true} />);
-    expect(await screen.findByRole("group", { name: "Go to" })).not.toHaveTextContent("Autopilot");
-    unmount();
-    aiOn = true;
     render(<CommandPalette open onOpenChange={vi.fn()} can={() => true} />);
-    expect(await screen.findByRole("group", { name: "Go to" })).toHaveTextContent("Autopilot");
-    aiOn = false;
+    const go = await screen.findByRole("group", { name: "Go to" });
+    expect(go).toHaveTextContent("LUME AI");
+    expect(go).not.toHaveTextContent("Autopilot");
   });
 
   it("empty, it offers the leads opened lately, things to do, and the pages", async () => {

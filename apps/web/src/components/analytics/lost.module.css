@@ -402,9 +402,11 @@ button.wbs:focus-visible {
   flex-direction: column;
   gap: 6px;
 }
+/* The answer gives way first (down to 64 px), the bar takes what's left, the two figures keep their own width: a
+   narrow card never pushes "12 leads" out of itself (layout sweep, 2026-10-27). */
 .sg {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) 62px 76px;
+  grid-template-columns: minmax(64px, 120px) minmax(24px, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   height: 30px;

@@ -67,6 +67,10 @@
   position: relative;
   z-index: 1;
 }
+/* LUME AI's Loop, in its own colour: the one item that isn't a grey icon (owner, 2026-10-27). */
+.link svg.aiMark {
+  opacity: 1;
+}
 .label {
   position: relative;
   z-index: 1;

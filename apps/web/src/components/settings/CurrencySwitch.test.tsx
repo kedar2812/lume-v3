@@ -63,7 +63,9 @@ describe("CurrencySwitch", () => {
     const dialog = await screen.findByRole("dialog", { name: "Change the currency to US Dollar?" });
     expect(dialog).toHaveTextContent("1 AED = 0.2723 USD");
     expect(dialog).toHaveTextContent("42 lead values and 3 package prices will be converted");
-    expect(dialog).toHaveTextContent("open.er-api.com, 25 Sep 2026");
+    // The rate is LUME's to state: the service it came from is never named on screen (owner, 2026-10-27).
+    expect(dialog).toHaveTextContent("Live rate, 25 Sep 2026");
+    expect(dialog).not.toHaveTextContent("open.er-api.com");
     expect(settingsClient.switchCurrency).not.toHaveBeenCalled();
     await userEvent.click(within(dialog).getByRole("button", { name: "Convert to USD" }));
     expect(settingsClient.switchCurrency).toHaveBeenCalledWith({ from: "AED", to: "USD", rate: 0.2723 });

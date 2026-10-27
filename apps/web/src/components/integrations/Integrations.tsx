@@ -97,7 +97,8 @@ export function Integrations({ tz }: { tz?: string } = {}) {
   };
 
   return (
-    <>
+    // One stack with Settings' gap between cards (owner, 2026-10-27: they sat edge to edge).
+    <div className={s.stack}>
       <AttentionBanner items={(sources ?? []).filter((x) => x.status === "needs_attention")} />
       <article className={s.card} aria-labelledby="gs-title">
         <header className={s.cardHead}>
@@ -186,6 +187,6 @@ export function Integrations({ tz }: { tz?: string } = {}) {
           void loadSources();
         }}
       />
-    </>
+    </div>
   );
 }

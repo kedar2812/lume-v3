@@ -16,8 +16,11 @@ export function AiGlyph({
 }: {
   size?: number;
   className?: string;
-  /** Draw the stroke: `once` (a run starting), or `pen`, again and again while LUME AI works (Autopilot §1.4, §2). */
-  draw?: "once" | "pen";
+  /**
+   * Draw the stroke: `once` (a run starting), `pen` again and again while LUME AI writes (Autopilot §1.4, §2), or `loop`:
+   * drawn in 2.4 s, resting 3 s, then again, LUME AI's own mark in the sidebar (owner, 2026-10-27). Calm, never busy.
+   */
+  draw?: "once" | "pen" | "loop";
 }) {
   // One gradient per drawing: two marks on a page never share (or lose) each other's.
   const id = `lume-ai-loop-${useId().replace(/:/g, "")}`;
@@ -52,7 +55,13 @@ export function AiGlyph({
                 animate: { pathLength: [0, 1, 1], opacity: [1, 1, 0.35] },
                 transition: { duration: 2.4, times: [0, 0.7, 1], ease: "easeInOut", repeat: Infinity },
               }
-            : {})}
+            : moving === "loop"
+              ? {
+                  initial: { pathLength: 0 },
+                  animate: { pathLength: [0, 1, 1, 1], opacity: [1, 1, 1, 0.3] },
+                  transition: { duration: 6, times: [0, 0.4, 0.85, 1], ease: "easeInOut", repeat: Infinity },
+                }
+              : {})}
       />
     </svg>
   );

@@ -306,28 +306,31 @@ export function GoalsEditor({
                     Optional · each team&rsquo;s leads, credited as Analytics credits them
                   </span>
                 </div>
-                <table className={s.grid}>
-                  <thead>
-                    <tr>
-                      <th scope="col">Team</th>
-                      {metrics(TEAM_METRICS).map((m) => (
-                        <th key={m} scope="col">
-                          {WORDS[m]}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teams.map((t) => (
-                      <tr key={t.id}>
-                        <th scope="row">{t.name}</th>
+                {/* Wider than its card on a narrow window: it scrolls inside the card, never out of it. */}
+                <div className={s.scroll}>
+                  <table className={s.grid}>
+                    <thead>
+                      <tr>
+                        <th scope="col">Team</th>
                         {metrics(TEAM_METRICS).map((m) => (
-                          <td key={m}>{box("team", t.id, m, `${WORDS[m]}, ${t.name}, ${words.label}`)}</td>
+                          <th key={m} scope="col">
+                            {WORDS[m]}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {teams.map((t) => (
+                        <tr key={t.id}>
+                          <th scope="row">{t.name}</th>
+                          {metrics(TEAM_METRICS).map((m) => (
+                            <td key={m}>{box("team", t.id, m, `${WORDS[m]}, ${t.name}, ${words.label}`)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </section>
             )}
 
@@ -336,39 +339,42 @@ export function GoalsEditor({
                 <h2>People</h2>
                 <span className={s.opt}>Optional · each person sees their own on My numbers</span>
               </div>
-              <table className={s.grid}>
-                <thead>
-                  <tr>
-                    <th scope="col">Person</th>
-                    {metrics(PERSON_METRICS).map((m) => (
-                      <th key={m} scope="col">
-                        {WORDS[m]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {people
-                    .filter((p) => p.active)
-                    .map((p) => (
-                      <tr key={p.id}>
-                        <th scope="row">
-                          <span className={s.who}>
-                            <Avatar
-                              name={p.name}
-                              size={24}
-                              {...(p.avatar?.color ? { color: p.avatar.color } : {})}
-                            />
-                            {p.name}
-                          </span>
+              {/* Wider than its card on a narrow window: it scrolls inside the card, never out of it. */}
+              <div className={s.scroll}>
+                <table className={s.grid}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Person</th>
+                      {metrics(PERSON_METRICS).map((m) => (
+                        <th key={m} scope="col">
+                          {WORDS[m]}
                         </th>
-                        {metrics(PERSON_METRICS).map((m) => (
-                          <td key={m}>{box("user", p.id, m, `${WORDS[m]}, ${p.name}, ${words.label}`)}</td>
-                        ))}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {people
+                      .filter((p) => p.active)
+                      .map((p) => (
+                        <tr key={p.id}>
+                          <th scope="row">
+                            <span className={s.who}>
+                              <Avatar
+                                name={p.name}
+                                size={24}
+                                {...(p.avatar?.color ? { color: p.avatar.color } : {})}
+                              />
+                              {p.name}
+                            </span>
+                          </th>
+                          {metrics(PERSON_METRICS).map((m) => (
+                            <td key={m}>{box("user", p.id, m, `${WORDS[m]}, ${p.name}, ${words.label}`)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           </>
         )}

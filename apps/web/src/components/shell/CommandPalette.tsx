@@ -14,7 +14,6 @@ import { templatesClient } from "@/lib/templates/client";
 import { themeCookie, type ThemePref } from "@/lib/theme";
 import { viewsClient } from "@/lib/views/client";
 import { NavIcon } from "./icons";
-import { useAiOn } from "@/lib/ai/use-ai-on";
 import { NAV_ITEMS, visibleNav } from "./nav";
 import { usePageNav } from "./PageTransition";
 import s from "./palette.module.css";
@@ -100,8 +99,6 @@ const LEAVE = {
 };
 
 export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
-  // Autopilot is a place to go only while LUME AI is on for this person (as in the sidebar).
-  const ai = useAiOn();
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -247,7 +244,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
         run: () => theme("system"),
       },
     );
-    for (const i of visibleNav(NAV_ITEMS, can, { ai }))
+    for (const i of visibleNav(NAV_ITEMS, can))
       out.push({
         id: `p:${i.id}`,
         group: "Go to",
@@ -295,7 +292,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
         run: () => go("/templates"),
       });
     return out;
-  }, [can, ai, views, templates, go, onFeedback]);
+  }, [can, views, templates, go, onFeedback]);
 
   const items = useMemo<Item[]>(() => {
     const leadItems: Item[] = leads.map((l) => {

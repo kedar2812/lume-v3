@@ -8,6 +8,7 @@ import { useAiOn } from "@/lib/ai/use-ai-on";
 import { useLiveRuns } from "@/lib/autopilot/use-run";
 import { useUploadBatch } from "@/lib/media/uploads";
 import { SPRINGS, toMotion } from "@/lib/motion";
+import { AiGlyph } from "@/components/ai/AiGlyph";
 import { NavIcon } from "./icons";
 import { MediaRing } from "./MediaRing";
 import { NAV_ITEMS, activeNav, visibleNav } from "./nav";
@@ -78,7 +79,12 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
                   transition={reduce ? { duration: 0 } : { layout: toMotion(SPRINGS.default) }}
                 />
               )}
-              <NavIcon name={i.icon} />
+              {i.id === "autopilot" ? (
+                // LUME AI's own mark, drawing itself: calm, still under Reduce motion (owner, 2026-10-27).
+                <AiGlyph size={18} draw="loop" className={s.aiMark} />
+              ) : (
+                <NavIcon name={i.icon} />
+              )}
               <span className={s.label}>{i.label}</span>
               {up && <MediaRing batch={up} />}
               {isLive && (
