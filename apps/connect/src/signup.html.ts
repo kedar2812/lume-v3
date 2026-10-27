@@ -2,6 +2,8 @@
  * Meta's Embedded Signup, on the relay's own page (spec 2026-10-18 §3.2): the person logs in to Facebook, chooses
  * "connect my existing WhatsApp Business app number" and scans the code with the phone. Meta's popup tells this page
  * the account and number ids; the login callback gives a one-time code. Both go to /wa/done; nothing else leaves.
+ * Embedded Signup v5: a WhatsApp Business app number connects by default there (v2 and v3, and their featureType,
+ * ended 2026-10-15; Meta serves anything older as v4).
  */
 export function signupPage(o: {
   appId: string;
@@ -43,6 +45,7 @@ window.addEventListener("message", function (e) {
   try {
     var d = JSON.parse(e.data);
     if (d.type !== "WA_EMBEDDED_SIGNUP") return;
+    if (d.event === "ERROR") { msg.textContent = "Facebook stopped the connection: " + ((d.data && d.data.error_message) || "something went wrong.") + " Choose Continue with Facebook to try again."; return; }
     if (d.event === "CANCEL") { msg.textContent = "You didn't finish connecting. Choose Continue with Facebook to try again."; return; }
     if (d.data && d.data.waba_id && d.data.phone_number_id) { got.waba = d.data.waba_id; got.phone = d.data.phone_number_id; finish(); }
   } catch (_) {}
@@ -58,7 +61,7 @@ document.getElementById("go").addEventListener("click", function () {
     config_id: ${js(o.configId)},
     response_type: "code",
     override_default_response_type: true,
-    extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" }
+    extras: { setup: {}, version: "v5" }
   });
 });
 </script>

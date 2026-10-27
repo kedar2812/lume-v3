@@ -36,15 +36,18 @@ Lead's phone ──► Meta ──► relay /wa/in/<instance> ──► client's
 2. **App settings → Basic:** note the **App ID** and **App Secret**.
 3. **Facebook Login for Business → Templates:** use **"WhatsApp embedded sign-up configuration with 60-day expiry
    token"** (a new configuration offers only "General", not Embedded Signup), product **WhatsApp Cloud API**, with
-   `whatsapp_business_management` and `whatsapp_business_messaging`. Note its **Configuration ID**. Coexistence is asked
-   for by the signup page itself (`featureType: whatsapp_business_app_onboarding`).
+   `whatsapp_business_management` and `whatsapp_business_messaging`. Note its **Configuration ID**. The signup page asks
+   for Embedded Signup **v5** (`extras.version: "v5"`), where a WhatsApp Business app number (coexistence) connects by
+   default. Meta ended v2 and v3 (and their `featureType`) on 2026-10-15 and serves anything older as v4.
    - **Its tokens last 60 days.** Each client's LUME refreshes a number's token through the relay (`/wa/refresh`,
      which holds the app secret) once it's 30 days old, hourly until it works. If Meta refuses it, the number shows
      "WhatsApp stopped letting LUME in. Connect this number again."
 4. **Facebook Login for Business → Settings:** add `https://connect.lumecrm.in` to **Allowed domains**, and as a
    **Valid OAuth redirect URI**.
-5. **Webhooks:** you don't set one app-wide. Each client's account gets its own address at connect. Make up a
-   **verify token** (16+ random characters) for the relay's settings below.
+5. **Webhooks:** in WhatsApp → Configuration, subscribe the app to `messages`, `account_update`, `history`,
+   `smb_app_state_sync` and `smb_message_echoes` (the last three carry a Business app number's past chats, contacts
+   and the messages sent from the phone). You don't set an app-wide callback address: each client's account gets its
+   own address at connect. Make up a **verify token** (16+ random characters) for the relay's settings below.
 6. **Before real clients:** business verification (Udyam registration in LUME's name), then app review for the two
    permissions (LUME becomes a Tech Provider). Until then only your own test number and accounts can connect.
 

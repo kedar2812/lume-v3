@@ -133,7 +133,7 @@ cross-fades under `prefers-reduced-motion`.
     allows.) Can I see how each rep is doing? (Yes — the Team board; each rep sees their own numbers.) How do I try it? (Book a demo.) Disclosure buttons; one open at a time.
 15. **Enquiry** (A's blue panel): "See LUME on your own leads." Five fields — your name, business, WhatsApp number,
     email (optional), team size — and "How do leads reach you today?" as one optional line. Book my demo; beside it
-    "Or message +91 88058 95066" on WhatsApp.
+    "Or message +91 97642 56655" on WhatsApp.
 16. **Footer:** © 2026 LUME · Kedar Uttam Gurav; the Google API Limited Use statement; Privacy, Terms.
 
 ### 5.H The hero, as the owner shaped it on the canvas (2026-10-06)
@@ -251,7 +251,7 @@ section list below keeps its content; this order wins where they differ.
   honeypot field and a minimum time on page), then independently (a) files it at
   `https://license.lumecrm.in/v1/enquiries` with `ENQUIRY_TOKEN`, and (b) emails it through Resend to
   `ENQUIRY_TO` (an env value, not on the page). Success if either worked: the form turns into "LUME's founder will
-  message you on WhatsApp soon." If both failed, the page opens WhatsApp to +91 88058 95066 with the visitor's
+  message you on WhatsApp soon." If both failed, the page opens WhatsApp to +91 97642 56655 with the visitor's
   details already written, so no enquiry is lost. Inline validation; errors in words.
 - **Config, never code:** WhatsApp number, enquiry email, licence URL and token, Resend key — environment variables;
   the WhatsApp number is also public (`NEXT_PUBLIC_WHATSAPP`).

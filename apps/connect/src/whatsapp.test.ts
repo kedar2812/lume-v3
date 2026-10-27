@@ -1,4 +1,5 @@
 import http from "node:http";
+import vm from "node:vm";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { instanceIdOf, relayCheck, sign, unseal, verify, type Handoff } from "@lume/core";
@@ -105,9 +106,88 @@ describe("connecting a WhatsApp number (Embedded Signup)", () => {
     const html = await r.text();
     expect(html).toContain("https://connect.facebook.net/en_US/sdk.js");
     expect(html).toContain(meta.configId);
-    expect(html).toContain("whatsapp_business_app_onboarding");
     expect(html).not.toContain(meta.appSecret);
     expect(r.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+  });
+
+  /** The signup page's own script, run against a stand-in for the browser and Facebook's SDK. */
+  async function signupScript() {
+    const html = await (await fetch(startLink())).text();
+    const code = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!;
+    const form = { code: { value: "" }, waba_id: { value: "" }, phone_number_id: { value: "" }, sent: 0 };
+    const f = { ...form, submit: () => (f.sent += 1) };
+    const msg = { textContent: "" };
+    let onMessage: (e: { origin: string; data: string }) => void = () => {};
+    let onClick: () => void = () => {};
+    let login: { cb: (r: unknown) => void; opts: Record<string, unknown> } | null = null;
+    const window: Record<string, unknown> = {
+      addEventListener: (_: string, fn: typeof onMessage) => (onMessage = fn),
+    };
+    const go = { addEventListener: (_: string, fn: () => void) => (onClick = fn) };
+    const document = { getElementById: (id: string) => ({ f, msg, go })[id as "f" | "msg" | "go"] };
+    const FB = {
+      init: () => {},
+      login: (cb: (r: unknown) => void, opts: Record<string, unknown>) => (login = { cb, opts }),
+    };
+    vm.runInNewContext(code, { window, document, FB });
+    const meta = (data: unknown, origin = "https://www.facebook.com") =>
+      onMessage({ origin, data: JSON.stringify(data) });
+    return {
+      f,
+      msg,
+      meta,
+      click: () => {
+        onClick();
+        return login!;
+      },
+    };
+  }
+
+  it("asks Meta for Embedded Signup v5, where a WhatsApp Business app number connects by default (v2 and v3 ended 2026-10-15)", async () => {
+    const page = await signupScript();
+    const { opts } = page.click();
+    expect(opts).toMatchObject({
+      config_id: meta.configId,
+      response_type: "code",
+      override_default_response_type: true,
+    });
+    expect(opts.extras).toEqual({ setup: {}, version: "v5" });
+  });
+
+  it("a Business app number finished in Meta's popup, plus the login's code, goes to /wa/done once", async () => {
+    const page = await signupScript();
+    const { cb } = page.click();
+    page.meta({
+      type: "WA_EMBEDDED_SIGNUP",
+      event: "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
+      data: { waba_id: "102290129340398", phone_number_id: "106540352242922", business_id: "1" },
+    });
+    expect(page.f.sent).toBe(0);
+    cb({ authResponse: { code: "good-code" } });
+    expect(page.f.sent).toBe(1);
+    expect([page.f.code.value, page.f.waba_id.value, page.f.phone_number_id.value]).toEqual([
+      "good-code",
+      "102290129340398",
+      "106540352242922",
+    ]);
+  });
+
+  it("Meta's own error in the popup is said in words with a way to try again; another site's message is ignored", async () => {
+    const page = await signupScript();
+    page.meta({
+      type: "WA_EMBEDDED_SIGNUP",
+      event: "ERROR",
+      data: { error_message: "This number is not eligible.", error_code: "524126", session_id: "s" },
+    });
+    expect(page.msg.textContent).toBe(
+      "Facebook stopped the connection: This number is not eligible. Choose Continue with Facebook to try again.",
+    );
+    page.meta(
+      { type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "1", phone_number_id: "2" } },
+      "https://facebook.com.evil.test",
+    );
+    page.click().cb({ authResponse: { code: "good-code" } });
+    expect(page.f.sent).toBe(0);
   });
 
   it("done: the code exchanged, the account subscribed with this LUME's own callback, both syncs asked, the number handed back sealed", async () => {

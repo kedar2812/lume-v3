@@ -21,7 +21,7 @@
 - Flawless at every width: 320–4K; no horizontal scroll; tap targets ≥ 44 px; safe-area insets honoured; text ≥ 16 px body on phones; contrast ≥ 4.5:1 in both themes.
 - Budgets: LCP ≤ 2.5 s (mid phone, 4G), CLS ≤ 0.05, INP ≤ 200 ms, `/` JS ≤ 180 KB gzipped.
 - `/privacy` and `/terms` verbatim from `F:/projects kedar/lume-site`; the Google Limited Use statement on the homepage (spec §9).
-- Config in env, never code: `ENQUIRY_TO`, `RESEND_API_KEY`, `LICENCE_URL`, `ENQUIRY_TOKEN`, `NEXT_PUBLIC_WHATSAPP` (`918805895066`).
+- Config in env, never code: `ENQUIRY_TO`, `RESEND_API_KEY`, `LICENCE_URL`, `ENQUIRY_TOKEN`, `NEXT_PUBLIC_WHATSAPP` (`919764256655`).
 - Secrets never in the repo or logs; the domain moves only on the owner's say-so, after the verification video.
 
 ## Review Focus
@@ -235,7 +235,7 @@ it("on a phone the dock opens a sheet with the links, the theme and WhatsApp; Es
   const sheet = screen.getByRole("dialog", { name: "Menu" });
   expect(within(sheet).getAllByRole("link").map((a) => a.textContent)).toContain("Follow-up");
   expect(within(sheet).getByRole("radio", { name: "Dark" })).toBeInTheDocument();
-  expect(within(sheet).getByRole("link", { name: /WhatsApp/ })).toHaveAttribute("href", "https://wa.me/918805895066");
+  expect(within(sheet).getByRole("link", { name: /WhatsApp/ })).toHaveAttribute("href", "https://wa.me/919764256655");
   await userEvent.keyboard("{Escape}");
   expect(dock).toHaveFocus();
 });
@@ -401,7 +401,7 @@ it("both down: says so and hands back the WhatsApp link with the details written
   const r = await POST(req(ok));
   expect(r.status).toBe(502);
   const { whatsapp } = await r.json();
-  expect(whatsapp).toMatch(/^https:\/\/wa\.me\/918805895066\?text=/);
+  expect(whatsapp).toMatch(/^https:\/\/wa\.me\/919764256655\?text=/);
   expect(decodeURIComponent(whatsapp)).toContain("Petal & Plate Studio");
 });
 it("a bot is thanked and dropped: honeypot filled, or sent in under 3 seconds", async () => {
@@ -464,7 +464,7 @@ export async function emailOwner(d: Enquiry, env = process.env): Promise<boolean
 }
 ```
 
-The route runs both with `Promise.all`, logs only outcomes (`{ filed, emailed }`), never the body. The form: `<form method="post" action="/api/enquire">` (works without JS), enhanced with `onSubmit` → `fetch`; inline errors from the shared schema; the honeypot is a visually hidden field labelled "Leave this empty" with `tabIndex={-1}` and `autoComplete="off"`; `t` set from render time. Fields: Your name · Business · WhatsApp number (`inputMode="tel"`, `autoComplete="tel"`) · Email (optional, `autoComplete="email"`) · Team size (radio chips: Just me / 2–5 / 6–20 / 21+) · How do leads reach you today? (optional). Button "Book my demo"; beside it "Or message +91 88058 95066" on WhatsApp. On phones the panel is one column; inputs 16 px so iOS doesn't zoom.
+The route runs both with `Promise.all`, logs only outcomes (`{ filed, emailed }`), never the body. The form: `<form method="post" action="/api/enquire">` (works without JS), enhanced with `onSubmit` → `fetch`; inline errors from the shared schema; the honeypot is a visually hidden field labelled "Leave this empty" with `tabIndex={-1}` and `autoComplete="off"`; `t` set from render time. Fields: Your name · Business · WhatsApp number (`inputMode="tel"`, `autoComplete="tel"`) · Email (optional, `autoComplete="email"`) · Team size (radio chips: Just me / 2–5 / 6–20 / 21+) · How do leads reach you today? (optional). Button "Book my demo"; beside it "Or message +91 97642 56655" on WhatsApp. On phones the panel is one column; inputs 16 px so iOS doesn't zoom.
 - [ ] **Step 4:** PASS. **Step 5: Commit** `git commit -m "feat: enquiries — to the licence dashboard and the owner's inbox, WhatsApp if both are down"`
 
 ### Task 10: Search, sharing and structured data
@@ -492,7 +492,7 @@ The route runs both with `Promise.all`, logs only outcomes (`{ filed, emailed }`
 
 ### Task 12: Deploy for review, then the switch-over
 
-- [ ] **Step 1:** Create the Vercel project `lume-landing` from the repo (owner's Vercel account, the team that holds `lume-site`); env (Production + Preview): `LICENCE_URL=https://license.lumecrm.in`, `NEXT_PUBLIC_WHATSAPP=918805895066`, `ENQUIRY_TO` = the owner's email (typed by the owner or piped, never committed), `ENQUIRY_TOKEN` piped from the licence server's secret file without printing (`ssh lumedev cat /root/lume-licence/secrets/enquiry.token | npx vercel@latest env add ENQUIRY_TOKEN production`), `RESEND_API_KEY` added by the owner.
+- [ ] **Step 1:** Create the Vercel project `lume-landing` from the repo (owner's Vercel account, the team that holds `lume-site`); env (Production + Preview): `LICENCE_URL=https://license.lumecrm.in`, `NEXT_PUBLIC_WHATSAPP=919764256655`, `ENQUIRY_TO` = the owner's email (typed by the owner or piped, never committed), `ENQUIRY_TOKEN` piped from the licence server's secret file without printing (`ssh lumedev cat /root/lume-licence/secrets/enquiry.token | npx vercel@latest env add ENQUIRY_TOKEN production`), `RESEND_API_KEY` added by the owner.
 - [ ] **Step 2:** Deploy to the preview URL; send the owner the link plus the review screenshots; one real test enquiry end to end (it appears in license.lumecrm.in → Enquiries and in the inbox; then mark it "Not a fit" and note "test").
 - [ ] **Step 3:** On the owner's say-so (after the Google video): move `lumecrm.in` and `www.lumecrm.in` from the `lume-site` project to `lume-landing` (Vercel → Domains; no DNS change), verify `https://lumecrm.in`, `/privacy`, `/terms` all 200 with the same Google wording, and keep `lume-site` (unlinked) for a week as the way back.
 - [ ] **Step 4:** Update LUME's memory and the Google runbook: the homepage is now the product site; `/privacy` and `/terms` unchanged.
