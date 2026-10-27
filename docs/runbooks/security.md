@@ -55,6 +55,8 @@ Settings → Security → Access limits, per role:
   days and hours on the business's clock. Outside them, sign-in is refused and live sessions end.
 - **Where:** anywhere, or only the networks listed (an address like `86.98.40.12`, or a range like
   `94.200.12.0/24`). "Add this network" adds the one you're on.
+- **Every limit applies.** Someone with two roles must meet both roles' limits; a role without limits adds
+  nothing, so giving someone an extra role never lifts a limit set here.
 - **The owner is never limited.** LUME refuses to save limits that would sign *you* out right now, and says how
   to fix it.
 

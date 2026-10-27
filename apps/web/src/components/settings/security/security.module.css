@@ -494,9 +494,11 @@
 .reveal[data-open="true"] {
   grid-template-rows: 1fr;
 }
+/* Seven days in a row while they fit (each at least 58 px); on a narrow panel they wrap onto a second row instead of
+   their words spilling out (layout sweep, 2026-10-27). */
 .days {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
   gap: 6px;
   padding-top: 4px;
 }
@@ -526,7 +528,8 @@
 }
 .day span {
   font-size: 11px;
-  white-space: nowrap;
+  line-height: 1.25;
+  text-align: center;
 }
 .day[aria-pressed="true"] {
   background: var(--accent-soft);

@@ -37,6 +37,8 @@ describe("Settings → Security → Access limits (6A Task 7)", () => {
     );
     expect(within(roles).getByRole("button", { name: /Team lead 1 person/ })).toBeInTheDocument();
     expect(screen.getByText("The owner is never limited.")).toBeInTheDocument();
+    // Every limit applies (owner, 2026-10-26): a second role never lifts the first one's.
+    expect(screen.getByText("Someone with two roles must meet both roles’ limits.")).toBeInTheDocument();
   });
 
   it("business hours say the business's own hours, and save as following them", async () => {

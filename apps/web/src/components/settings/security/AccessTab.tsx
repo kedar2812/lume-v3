@@ -30,6 +30,10 @@ const TIMES = Array.from(
   (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`,
 );
 const END_TIMES = [...TIMES.slice(1), "23:59"];
+
+/** A time for a day button: "9 am", "6:30 pm", its space never a place to break. */
+const dayClock = (hm: string) => clockWords(hm).replace(":00", "").replace(/ /g, "\u00a0");
+
 /** "9:00 am"; the last minute of the day reads as midnight. */
 export function clockWords(t: string): string {
   if (t === "23:59") return "Midnight";
@@ -145,6 +149,7 @@ export function AccessTab({ initial }: { initial: AccessView }) {
           </button>
         ))}
         <p className={s.safe}>The owner is never limited.</p>
+        <p className={s.safe}>Someone with two roles must meet both roles’ limits.</p>
       </section>
 
       <div className={s.stack}>
@@ -204,7 +209,8 @@ export function AccessTab({ initial }: { initial: AccessView }) {
                       <b>{DAY_NAMES[d]!.slice(0, 3)}</b>
                       <span>
                         {on
-                          ? `${clockWords(draft.from).replace(":00", "")}–${clockWords(draft.to).replace(":00", "")}`
+                          ? // Each time whole (a no-break space in "9 am"); a narrow button breaks only after the dash.
+                            `${dayClock(draft.from)}–${dayClock(draft.to)}`
                           : "Off"}
                       </span>
                     </button>

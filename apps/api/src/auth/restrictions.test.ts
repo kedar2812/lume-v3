@@ -58,14 +58,40 @@ describe("per-role login restrictions (report §12.1)", () => {
     ).toBe("ip");
   });
 
-  it("follows the union rule: if any of the user's roles is unrestricted, they may sign in", () => {
-    const roles = [
-      { loginHours: { days: [1], from: "09:00", to: "10:00" }, ipAllowlist: null },
-      { loginHours: null, ipAllowlist: null },
-    ];
+  it("every limit applies: a role without limits adds nothing, so no extra role lifts a limit Security set (owner, 2026-10-26)", () => {
+    // Under "any role allows", adding a role without limits lifted the others' (review 2026-10-25, slice 1 F4).
+    const hours = { loginHours: { days: [1], from: "09:00", to: "10:00" }, ipAllowlist: null };
+    const open = { loginHours: null, ipAllowlist: null };
+    // Tuesday 23:00 UTC: outside the Monday 09:00 to 10:00 hours, whatever else the person holds.
     expect(
-      checkLoginRestrictions({ roles, ip: "1.1.1.1", now: at("2026-09-22T23:00:00Z"), timezone: "UTC" }),
+      checkLoginRestrictions({
+        roles: [hours, open],
+        ip: "1.1.1.1",
+        now: at("2026-09-22T23:00:00Z"),
+        timezone: "UTC",
+      }),
+    ).toBe("hours");
+    // Monday 09:30 UTC: inside them.
+    expect(
+      checkLoginRestrictions({
+        roles: [hours, open],
+        ip: "1.1.1.1",
+        now: at("2026-09-21T09:30:00Z"),
+        timezone: "UTC",
+      }),
     ).toBe("ok");
+  });
+
+  it("two roles with limits: both must allow; a network limit and an hours limit each hold", () => {
+    const office = { loginHours: null, ipAllowlist: ["203.0.113.0/24"] };
+    const weekdays = { loginHours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "18:00" }, ipAllowlist: null };
+    const monday10 = at("2026-09-21T10:00:00Z");
+    const sunday10 = at("2026-09-20T10:00:00Z");
+    const check = (ip: string, now: Date) =>
+      checkLoginRestrictions({ roles: [office, weekdays], ip, now, timezone: "UTC" });
+    expect(check("203.0.113.9", monday10)).toBe("ok");
+    expect(check("198.51.100.1", monday10)).toBe("ip");
+    expect(check("203.0.113.9", sunday10)).toBe("hours");
   });
 
   it("6A R5: business hours follow Settings' working hours at the moment, not the hours saved", () => {
