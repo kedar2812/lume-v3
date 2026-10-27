@@ -311,6 +311,24 @@ describe("Meta's deliveries", () => {
     );
   });
 
+  it("the app's own callback (/wa/in, Meta's dashboard): passes the handshake, and anything sent to it is kept by no one", async () => {
+    // Every connected number has its own address (override_callback_uri); the app-wide one is needed only so Meta lets
+    // the app subscribe to its WhatsApp fields. A delivery there belongs to no client's LUME: dropped, never forwarded.
+    const q = (t: string) => `${base}/wa/in?hub.mode=subscribe&hub.verify_token=${t}&hub.challenge=777`;
+    const ok = await fetch(q(meta.verifyToken));
+    expect(ok.status).toBe(200);
+    expect(await ok.text()).toBe("777");
+    expect((await fetch(q("wrong"))).status).toBe(403);
+    expect((await meta.deliver(`${base}/wa/in`, inbound())).status).toBe(200);
+    const unsigned = await fetch(`${base}/wa/in`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-hub-signature-256": "sha256=00" },
+      body: "{}",
+    });
+    expect(unsigned.status).toBe(401);
+    expect(forwarded).toHaveLength(0);
+  });
+
   it("a relay without Meta's settings has no WhatsApp routes, and Google's still work", async () => {
     expect((await fetch(`${bareBase}/wa/start?i=${ID}&n=x&s=${sign(TOKEN, "x.whatsapp")}`)).status).toBe(404);
     expect((await fetch(`${bareBase}/healthz`)).status).toBe(200);

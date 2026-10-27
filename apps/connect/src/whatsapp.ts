@@ -212,6 +212,32 @@ export function whatsappRoutes(c: WhatsAppContext) {
       return true;
     }
 
+    // The app's own callback, set in Meta's dashboard only so the app can subscribe to its WhatsApp fields: every
+    // connected number has its own address (override_callback_uri), so what arrives here belongs to no client. Meta's
+    // handshake is answered; a delivery signed by Meta is taken and dropped, never kept or forwarded.
+    if (u.pathname === "/wa/in") {
+      if (req.method === "GET") {
+        const ok =
+          u.searchParams.get("hub.mode") === "subscribe" &&
+          u.searchParams.get("hub.verify_token") === c.meta.verifyToken;
+        if (!ok) c.plain(res, 403, "Forbidden");
+        else {
+          res.writeHead(200, { "content-type": "text/plain", ...HARDENED });
+          res.end(u.searchParams.get("hub.challenge") ?? "");
+        }
+        return true;
+      }
+      if (req.method === "POST") {
+        const raw = await rawBody(req, BODY_MAX);
+        if (raw === "too_large") c.plain(res, 413, "Too large");
+        else {
+          const sig = req.headers["x-hub-signature-256"];
+          const signed = metaSignatureOk(c.meta.appSecret, raw, Array.isArray(sig) ? sig[0] : sig);
+          c.plain(res, signed ? 200 : 401, signed ? "ok" : "Unauthorized");
+        }
+        return true;
+      }
+    }
     const m = /^\/wa\/in\/([0-9a-f]{16})$/.exec(u.pathname);
     if (m && req.method === "GET") {
       const ok =
