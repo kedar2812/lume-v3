@@ -21,6 +21,8 @@ let goalStage: { id: string; name: string };
 let numberId: string;
 const licence = testLicence({ instanceId: "LUME-TEST-FLOW", now: () => h.clock.now });
 const provider = fakeProvider();
+/** Something that happens while LUME AI is reading (once): a person or the lead acting in those seconds. */
+let duringRead: (() => Promise<unknown>) | null = null;
 const S = 1000;
 const MIN = 60 * S;
 // Monday, 13:00 in Dubai: inside working hours.
@@ -59,7 +61,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   evidence: null,
   fileIds: [],
   stageId: null,
-  fields: {},
+  fields: [],
   followUp: null,
   lostReasonId: null,
   ...o,
@@ -115,7 +117,16 @@ beforeAll(async () => {
     licence: licence.options,
     oauth: { relayToken: RELAY_TOKEN },
     meta: { graphUrl: meta.url, version: meta.version },
-    ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" },
+    ai: {
+      read: async (o) => {
+        const f = duringRead;
+        duringRead = null;
+        if (f) await f();
+        return provider.read(o);
+      },
+      name: "fake",
+      model: "fake-1",
+    },
   });
   h.clock.now = MONDAY;
   admin = await h.seedUser({ owner: true, grants: ALL_GRANTS, totp: true });
@@ -340,4 +351,64 @@ describe("a LUME AI run, end to end", () => {
       for (const m of out) expect(m).toMatchObject({ sentBy: { id: admin.id }, lumeAi: { runId: run } });
     }
   }, 60_000);
+});
+
+describe("what LUME AI wrote while things changed under it (review 2026-10-26 A1)", () => {
+  const startOn = async (leadIds: string[]) => {
+    const r = await post("/api/v1/autopilot/runs", {
+      leadIds,
+      goal: { kind: "stage", stageId: goalStage.id },
+      speakerId: null,
+      permissions: AUTOPILOT_PRESETS.hands_off,
+      followUpDays: [2, 5],
+      dailyCap: null,
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    return r.json().run.id as string;
+  };
+  /** A lead in a fresh run, its first message sent, inside working hours. */
+  const inRun = async (name: string, phone: string) => {
+    const id = await lead(name, phone);
+    const run = await startOn([id]);
+    await sendNext();
+    expect(sentTo(id)).toEqual(["template"]);
+    return { id, run };
+  };
+
+  beforeAll(async () => {
+    // The end-to-end run left the number rated yellow and the month spent: a healthy number, a fresh week.
+    await h.ownerPool.query("UPDATE whatsapp_numbers SET quality = 'green'");
+    const DAY = 24 * 60 * MIN;
+    let t = MONDAY.getTime();
+    while (t <= h.clock.now.getTime()) t += 7 * DAY;
+    h.clock.now = new Date(t);
+    plan({ calls: 100_000 });
+    expect((await checkIn()).statusCode).toBe(200);
+  });
+
+  it("a person takes over while LUME AI is writing its reply: the reply is dropped and the lead stays theirs", async () => {
+    const { id, run } = await inRun("Tara Nair", "+919876500011");
+    await writes(id, "Do you do bathrooms too?");
+    provider.script("autopilot_reply", [reply({ message: "Yes, bathrooms too." })]);
+    duringRead = async () =>
+      expect((await post(`/api/v1/autopilot/runs/${run}/leads/${id}/take-over`)).statusCode).toBe(200);
+    await sendNext();
+    await sendNext();
+    expect(sentTo(id)).toEqual(["template"]);
+    expect(await stateOf(run, id)).toMatchObject({ state: "with_you", draft: null });
+  });
+
+  it("the lead writes again while LUME AI is writing: the old reply is dropped and the new message answered", async () => {
+    const { id, run } = await inRun("Dev Malhotra", "+919876500012");
+    await writes(id, "Do you do bathrooms too?");
+    provider.script("autopilot_reply", [
+      reply({ message: "Yes, bathrooms too." }),
+      reply({ message: "A modular kitchen is ₹3,80,000 all in." }),
+    ]);
+    duringRead = () => writes(id, "Actually, how much is a kitchen?");
+    await sendNext();
+    await sendNext();
+    expect(sentTo(id)).toEqual(["template", "A modular kitchen is ₹3,80,000 all in."]);
+    expect((await stateOf(run, id)).state).toBe("talking");
+  });
 });

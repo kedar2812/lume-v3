@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type pg from "pg";
 import type { AppDeps } from "../../app";
-import { forbidden, notFound } from "../../http/errors";
+import { conflict, forbidden, notFound } from "../../http/errors";
 import { notify } from "../notifications/notify";
 import { allScope } from "../whatsapp/sender";
 
@@ -76,8 +76,18 @@ const leadKey = (runId: string, leadId: string) => and(eq(L.runId, runId), eq(L.
 /** Approve what LUME AI prepared (§2.1): it goes at once, as it was written, as the speaker. */
 export async function approveAsk(req: FastifyRequest, d: AppDeps, id: string) {
   const ask = await askOf(req, id);
+  // Still waiting on this? Taken over, written to again or stopped since, what LUME AI prepared is stale (A3).
+  const [row] = await req.db.select().from(L).where(leadKey(ask.runId, ask.leadId)).for("update");
+  if (!row || !row.active || row.state !== "needs_you")
+    throw conflict("ASK_GONE", "This lead has moved on since LUME AI asked. Nothing was sent.");
   const now = d.clock();
-  const p = ask.payload as { message: string; fileIds: string[]; updates: unknown };
+  const p = ask.payload as {
+    message: string;
+    fileIds?: string[];
+    updates?: unknown;
+    /** A first message or a follow-up asked about (the run's Ask me): the approved template, as it was prepared. */
+    template?: { submissionId: string; n: number; marks: unknown };
+  };
   await req.db
     .update(schema.autopilotAsks)
     .set({ status: "approved", decidedBy: req.actor!.userId, decidedAt: now })
@@ -87,7 +97,9 @@ export async function approveAsk(req: FastifyRequest, d: AppDeps, id: string) {
     .set({
       state: "writing",
       draft: p.message,
-      draftPayload: { kind: "reply", fileIds: p.fileIds, updates: p.updates },
+      draftPayload: p.template
+        ? { kind: "template", ...p.template }
+        : { kind: "reply", fileIds: p.fileIds, updates: p.updates },
       card: null,
       reason: null,
       nextAt: now,

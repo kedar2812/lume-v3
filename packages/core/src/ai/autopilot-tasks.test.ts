@@ -82,7 +82,7 @@ const reply = (o: Partial<ReturnType<typeof autopilotReplyOutput.parse>> = {}) =
     evidence: null,
     fileIds: [],
     stageId: null,
-    fields: {},
+    fields: [],
     followUp: null,
     lostReasonId: null,
     ...o,
@@ -143,7 +143,7 @@ describe("what a reply may change", () => {
     const say = autopilotInstructions("autopilot_reply", ctx());
     expect(say).toContain("set stageId to one of the stages given by id");
     expect(say).toContain("a lostReasonId from the lost reasons given");
-    expect(say).toContain("fill only the empty fields given, by key");
+    expect(say).toContain("fill only the empty fields given, as key and value pairs");
   });
 });
 
@@ -186,6 +186,26 @@ describe("guards hold", () => {
     ]);
   });
 
+  it("a month is a whole word: decide, market, marble, junior aren't dates; May only beside a day (review 2026-10-26 A6)", () => {
+    expect(timesIn("We can decide on the market price, the marble and the junior suite")).toEqual([]);
+    expect(timesIn("You may come any day")).toEqual([]);
+    expect(timesIn("How about May 5, or the 12th of September?")).toEqual(["may", "12th", "sep"]);
+    expect(timesIn("on 5th may")).toEqual(["5th", "may"]);
+    expect(guardReply(reply({ message: "Let's decide the marble finish together." }), guard())).toMatchObject(
+      {
+        kind: "send",
+      },
+    );
+  });
+
+  it("a discount LUME AI makes up hands over, like a price (review 2026-10-26 A7)", () => {
+    expect(guardReply(reply({ message: "Book this week and get 20% off!" }), guard())).toEqual({
+      kind: "handover",
+      reason: "LUME AI wanted to offer a discount you haven't given it.",
+      evidence: null,
+    });
+  });
+
   it("an action set to Never hands over, naming it; one set to Ask me waits for a tap", () => {
     const never = { ...AUTOPILOT_PRESETS.balanced, replies: "never" as const };
     expect(guardReply(reply(), guard({ permissions: never }))).toEqual({
@@ -220,7 +240,10 @@ describe("guards hold", () => {
       reply({
         message: "Noted.",
         stageId: "0192c000-0000-7000-8000-0000000000ff",
-        fields: { budget: "₹20 lakh", shoe_size: "9" },
+        fields: [
+          { key: "budget", value: "₹20 lakh" },
+          { key: "shoe_size", value: "9" },
+        ],
         lostReasonId: "0192c000-0000-7000-8000-0000000000fe",
       }),
       guard({ permissions: AUTOPILOT_PRESETS.hands_off, prices: [2000000] }),

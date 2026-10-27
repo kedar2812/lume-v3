@@ -30,7 +30,11 @@ const lead = (name: string, o: { owner?: string | null } = {}) =>
     name,
     phone: `+9198765${String(Math.floor(Math.random() * 1e5)).padStart(5, "0")}`,
   });
-const start = async (leadIds: string[], u: U = admin) => {
+const start = async (
+  leadIds: string[],
+  u: U = admin,
+  permissions: Record<string, string> = AUTOPILOT_PRESETS.hands_off,
+) => {
   const r = await (
     await as(u)
   ).inject({
@@ -40,7 +44,7 @@ const start = async (leadIds: string[], u: U = admin) => {
       leadIds,
       goal: { kind: "reply" },
       speakerId: null,
-      permissions: AUTOPILOT_PRESETS.hands_off,
+      permissions,
       followUpDays: [2, 5],
       dailyCap: null,
     },
@@ -257,6 +261,106 @@ describe("the engine", () => {
     expect(meta.sent).toHaveLength(1);
     expect((await stateOf(run, one)).state).toBe("sent");
   });
+
+  it("first messages set to Never: nothing is opened; each lead says why (review 2026-10-26)", async () => {
+    const one = await lead("Meera Iyer");
+    const run = await start([one], admin, { ...AUTOPILOT_PRESETS.hands_off, first_messages: "never" });
+    await tick();
+    await tick(10 * S);
+    expect(await outbox()).toHaveLength(0);
+    expect(await stateOf(run, one)).toMatchObject({
+      state: "skipped",
+      active: false,
+      reason: "First messages are off for this run, so LUME AI didn't write first.",
+    });
+  });
+
+  it("first messages set to Ask me: the template waits for approval, then goes as it was prepared", async () => {
+    const one = await lead("Meera Iyer");
+    const run = await start([one], admin, { ...AUTOPILOT_PRESETS.hands_off, first_messages: "ask" });
+    await tick();
+    await tick(10 * S);
+    expect(await outbox()).toHaveLength(0);
+    expect(await stateOf(run, one)).toMatchObject({ state: "needs_you", active: true });
+    const asks = await h.queryAll<{ id: string; action: string; message: string }>(
+      "SELECT id, action, payload->>'message' AS message FROM autopilot_asks WHERE run_id = $1 AND status = 'waiting'",
+      [run],
+    );
+    expect(asks).toEqual([
+      expect.objectContaining({
+        action: "first_messages",
+        message: "Hi Meera, thanks for your enquiry. Can we help?",
+      }),
+    ]);
+    const ok = await (
+      await as(admin)
+    ).inject({ method: "POST", url: `/api/v1/autopilot/asks/${asks[0]!.id}/approve` });
+    expect(ok.statusCode, ok.body).toBe(200);
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    expect((meta.sent[0]!.body as { type: string }).type).toBe("template");
+    expect(await stateOf(run, one)).toMatchObject({ state: "sent" });
+  });
+
+  it("follow-ups set to Ask me: the first goes; the follow-up waits for approval as a follow-up, not a first message", async () => {
+    const one = await lead("Meera Iyer");
+    const run = await start([one], admin, { ...AUTOPILOT_PRESETS.hands_off, follow_ups: "ask" });
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    h.clock.advance(2 * DAY + MIN);
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    expect(await stateOf(run, one)).toMatchObject({ state: "needs_you", active: true });
+    const asks = await h.queryAll<{ action: string; n: number }>(
+      "SELECT action, (payload->'template'->>'n')::int AS n FROM autopilot_asks WHERE run_id = $1 AND status = 'waiting'",
+      [run],
+    );
+    expect(asks).toEqual([{ action: "follow_ups", n: 1 }]);
+  });
+
+  it("follow-ups set to Never: after the first message, a silent lead is left alone and finished (review 2026-10-26)", async () => {
+    const one = await lead("Meera Iyer");
+    const run = await start([one], admin, { ...AUTOPILOT_PRESETS.hands_off, follow_ups: "never" });
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    h.clock.advance(2 * DAY + MIN);
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    expect(await stateOf(run, one)).toMatchObject({
+      active: false,
+      reason: "No reply. Follow-ups are off for this run.",
+    });
+  });
+
+  it("the month's paid messages used up: the run pauses at once, never waiting on its own lock (review 2026-10-26 A4)", async () => {
+    // The pause went through another connection while the send held the run's row: it waited on itself, minutes long.
+    await (
+      await as(admin)
+    ).inject({ method: "PUT", url: "/api/v1/settings/messaging", payload: { paidSendsMonthly: 1 } });
+    try {
+      const run = await start([await lead("Meera Iyer"), await lead("Rohan Gupta")]);
+      const started = Date.now();
+      for (let i = 0; i < 4; i++) await tick(i ? MIN : 0);
+      await tick(10 * S);
+      expect(Date.now() - started).toBeLessThan(20_000);
+      expect(await runOf(run)).toEqual({ status: "paused", pause_reason: "paid" });
+      expect(await outbox()).toHaveLength(1);
+    } finally {
+      await (
+        await as(admin)
+      ).inject({ method: "PUT", url: "/api/v1/settings/messaging", payload: { paidSendsMonthly: null } });
+    }
+  }, 60_000);
 
   it("a follow-up held by Pause is due again on Resume, not counted as sent", async () => {
     const one = await lead("Meera Iyer");

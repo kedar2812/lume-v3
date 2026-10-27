@@ -1,7 +1,17 @@
-import { isStop } from "@lume/core";
+import { ACTIVE_STATES, isStop, type LeadState } from "@lume/core";
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { setDoNotContact } from "../leads/dnc";
+
+/**
+ * What LUME AI asked about for this lead was prepared for the lead as it was: once the lead writes again, says stop, or a
+ * person takes the conversation, it's gone, never approved into a stale message (review 2026-10-26 A3).
+ */
+export async function asksGone(req: FastifyRequest, leadId: string): Promise<void> {
+  await req.db.execute(
+    sql`UPDATE autopilot_asks SET status = 'gone', decided_at = now() WHERE lead_id = ${leadId} AND status = 'waiting'`,
+  );
+}
 
 /**
  * A lead in a LUME AI run wrote on WhatsApp (spec 2026-10-19 §3). Stop, in any words, is kept at once, whatever the run
@@ -22,8 +32,11 @@ export async function leadWrote(
        WHERE l.lead_id = ${leadId} AND l.active FOR UPDATE OF l`)
   ).rows[0];
   if (!row) return null;
+  await asksGone(req, leadId);
   const running = row.status === "running";
   if (isStop(text)) {
+    // The one apology is LUME AI's to send only while it holds the conversation: never into a person's (A10).
+    const aiHolds = ACTIVE_STATES.includes(row.state as LeadState);
     await setDoNotContact(req, leadId, { reason: "Said stop on WhatsApp", byAi: { runId: row.run_id } });
     await req.db.execute(sql`
       UPDATE autopilot_leads SET state = 'stopped', active = false, draft = NULL, draft_payload = NULL, next_at = NULL,
@@ -32,7 +45,7 @@ export async function leadWrote(
     await req.db.execute(
       sql`INSERT INTO autopilot_events (run_id, lead_id, kind) VALUES (${row.run_id}, ${leadId}, 'stopped')`,
     );
-    return { runId: row.run_id, stopped: true, running };
+    return { runId: row.run_id, stopped: true, running: running && aiHolds };
   }
   const working = ["up_next", "writing", "sent", "replied", "talking"].includes(row.state);
   if (row.goal === "reply" && working) {
@@ -72,6 +85,7 @@ export async function personSent(req: FastifyRequest, leadId: string): Promise<v
     UPDATE autopilot_leads SET state = 'with_you', next_at = NULL, updated_at = now()
      WHERE lead_id = ${leadId} AND active AND state <> 'with_you'
      RETURNING run_id`);
+  if (r.rows.length) await asksGone(req, leadId);
   for (const x of r.rows)
     await req.db.execute(
       sql`INSERT INTO autopilot_events (run_id, lead_id, kind) VALUES (${x.run_id}, ${leadId}, 'with_you')`,

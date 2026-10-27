@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isStop, unbackedAmounts } from "./autopilot";
+import { isStop, offersIn, unbackedAmounts } from "./autopilot";
 import type { FillableType } from "./fill-fields";
 import type { AiProfile, AutopilotAction } from "./profile";
 
@@ -61,7 +61,10 @@ export const autopilotReplyOutput = z
     evidence: z.string().max(300).nullable(),
     fileIds: z.array(z.uuid()).max(3),
     stageId: z.uuid().nullable(),
-    fields: z.record(z.string(), z.string().max(200)),
+    /** Pairs, not a map: Anthropic's structured outputs take only closed objects (review 2026-10-26 A9). */
+    fields: z
+      .array(z.object({ key: z.string().max(80), value: z.string().max(200) }).strict())
+      .max(20),
     /** On the business's clock, "YYYY-MM-DDTHH:mm". */
     followUp: z
       .object({ at: z.string(), title: z.string().min(1).max(80) })
@@ -126,7 +129,7 @@ aren't sure of, answer with kind handover, the reason in one line, and the lead'
       : `Write the next WhatsApp message to the lead toward the goal (${goalWords(c.goal)}). Answer with kind reply and \
 the message, or another kind as the rules say. You may attach up to three of the files given by id; set stageId to one \
 of the stages given by id when the conversation has moved the lead there; when the lead has said no, the lost stage with \
-a lostReasonId from the lost reasons given; fill only the empty fields given, by key, from what the lead said (a choice \
+a lostReasonId from the lost reasons given; fill only the empty fields given, as key and value pairs, from what the lead said (a choice \
 by one of its options, a number as digits, a date as YYYY-MM-DD); and suggest a follow-up.`;
   return `You are LUME AI, messaging a business's lead on WhatsApp. The goal: ${goalWords(c.goal)}.
 ${voice}
@@ -153,18 +156,24 @@ export function autopilotInput(task: AutopilotTask, c: AutopilotCtx): string {
 }
 
 const DAYS = "monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|tomorrow";
-const MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec";
+/** A month as a whole word, never the start of one ("decide", "market", "marble": review 2026-10-26 A6). "May" is a
+ * month only beside a day ("May 5", "5th of May"), never in "you may". */
+const MONTHS =
+  "january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec";
+const DAY_N = String.raw`\d{1,2}(?:st|nd|rd|th)?`;
+const MAY = String.raw`\bmay\b(?=\s+${DAY_N}\b)|(?<=\b${DAY_N}\s+(?:of\s+)?)may\b`;
 const TIME_RE = new RegExp(
-  String.raw`\b(?:${DAYS})\b|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:${MONTHS})[a-z]*\b`,
+  String.raw`\b(?:${DAYS})\b|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:${MONTHS})\b|${MAY}`,
   "gi",
 );
+const MON3 = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/;
 const tidyTime = (s: string) => s.toLowerCase().replace(/\s+(am|pm)\b/g, "$1");
 
 /** The days, dates and times a message names ("tomorrow", "10:30 am", "24th", "oct"), lower-cased, in order. */
 export function timesIn(text: string): string[] {
   return [...text.matchAll(TIME_RE)].map((m) => {
     const t = m[0].toLowerCase();
-    const month = new RegExp(String.raw`^(${MONTHS})`).exec(t);
+    const month = MON3.exec(t);
     return /^\d/.test(t) || !month ? t : month[1]!;
   });
 }
@@ -219,6 +228,7 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
 
   const amounts = unbackedAmounts(message, g.prices);
   if (amounts.length) return handover("LUME AI wanted to quote a price that isn't in your price list.");
+  if (offersIn(message)) return handover("LUME AI wanted to offer a discount you haven't given it.");
   const priced = unbackedAmounts(message, []).length > 0;
   if (priced && perms.answer_prices === "never") return neverSays("answer_prices");
   const lead = tidyTime(g.leadWords);
@@ -245,7 +255,7 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
     // Marking lost needs one of the business's reasons.
     if (reasonKnown && allowed("mark_lost")) [stageId, lostReasonId] = [out.stageId, out.lostReasonId];
   } else if (stageKnown && allowed("move_stages")) stageId = out.stageId;
-  const fieldEntries = Object.entries(out.fields).filter(([k]) => g.fieldKeys.includes(k));
+  const fieldEntries = out.fields.map((f) => [f.key, f.value] as const).filter(([k]) => g.fieldKeys.includes(k));
   const fields = fieldEntries.length && allowed("fill_fields") ? Object.fromEntries(fieldEntries) : {};
   const followUp = out.followUp && allowed("set_follow_ups") ? out.followUp : null;
 

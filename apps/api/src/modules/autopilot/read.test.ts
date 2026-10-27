@@ -82,7 +82,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   evidence: null,
   fileIds: [],
   stageId: null,
-  fields: {},
+  fields: [],
   followUp: null,
   lostReasonId: null,
   ...o,

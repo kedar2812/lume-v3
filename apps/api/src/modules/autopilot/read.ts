@@ -101,6 +101,16 @@ export async function getRun(req: FastifyRequest, id: string) {
   const asks = await req.db
     .select({ id: A.id, leadId: A.leadId, action: A.action, payload: A.payload, createdAt: A.createdAt })
     .from(A)
+    // Only what a lead still waits on: one that moved on (taken over, wrote again) has nothing to approve (A3).
+    .innerJoin(
+      schema.autopilotLeads,
+      and(
+        eq(schema.autopilotLeads.runId, A.runId),
+        eq(schema.autopilotLeads.leadId, A.leadId),
+        eq(schema.autopilotLeads.state, "needs_you"),
+        eq(schema.autopilotLeads.active, true),
+      ),
+    )
     .where(and(eq(A.runId, id), eq(A.status, "waiting")));
   // The template behind each first message or follow-up being written, by name ("Approved template · First hello").
   const subs = leads

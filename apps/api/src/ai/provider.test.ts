@@ -5,6 +5,7 @@ import {
   autopilotReplyOutput,
   catchUpOutput,
   nextStepOutput,
+  replyMeaningOutput,
   type LeadFacts,
 } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -85,6 +86,21 @@ describe("the schema a provider is sent", () => {
     expect(text).not.toMatch(/maxLength|minLength|maxItems|\$schema/);
     const c = JSON.stringify(schemaForProvider(catchUpOutput));
     expect(c).not.toMatch(/prefixItems/);
+  });
+
+  it("every answer LUME AI is asked for is closed: each object lists its keys and allows no others (review 2026-10-26 A9)", () => {
+    // Anthropic's structured outputs refuse an open map: a reply's fields as {key: value} failed every read.
+    const open: string[] = [];
+    const walk = (v: unknown, at: string) => {
+      if (Array.isArray(v)) return v.forEach((x, i) => walk(x, `${at}[${i}]`));
+      if (!v || typeof v !== "object") return;
+      const o = v as Record<string, unknown>;
+      if (o.type === "object" && o.additionalProperties !== false) open.push(at);
+      for (const [k, x] of Object.entries(o)) walk(x, `${at}.${k}`);
+    };
+    const tasks = { nextStepOutput, catchUpOutput, autopilotFirstOutput, autopilotReplyOutput, replyMeaningOutput };
+    for (const [name, schema] of Object.entries(tasks)) walk(schemaForProvider(schema), name);
+    expect(open).toEqual([]);
   });
 });
 
@@ -207,7 +223,7 @@ describe("the fake (tests and e2e)", () => {
         evidence: "stop",
         fileIds: [],
         stageId: null,
-        fields: {},
+        fields: [],
         followUp: null,
         lostReasonId: null,
       },

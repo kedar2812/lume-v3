@@ -6,6 +6,7 @@ import type { AppDeps } from "../../app";
 import { forbidden, notFound } from "../../http/errors";
 import { visibleLead } from "../leads/service";
 import { endRun, pauseRun, resumeRun } from "./engine";
+import { asksGone } from "./lead-events";
 import { mayControl, runView } from "./read";
 
 const R = schema.autopilotRuns;
@@ -56,11 +57,13 @@ async function leadOf(req: FastifyRequest, runId: string, leadId: string) {
  */
 export async function takeOver(req: FastifyRequest, runId: string, leadId: string) {
   const row = await leadOf(req, runId, leadId);
-  if (row.active && row.state !== "stopped")
+  if (row.active && row.state !== "stopped") {
     await req.db
       .update(L)
       .set({ state: "with_you", nextAt: null, updatedAt: new Date() })
       .where(and(eq(L.runId, runId), eq(L.leadId, leadId)));
+    await asksGone(req, leadId);
+  }
   await req.db.insert(schema.autopilotEvents).values({ runId, leadId, kind: "with_you" });
   return { leadId, state: row.active && row.state !== "stopped" ? "with_you" : row.state, draft: row.draft };
 }

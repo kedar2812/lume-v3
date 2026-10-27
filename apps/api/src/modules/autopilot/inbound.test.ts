@@ -197,7 +197,7 @@ describe("replies, stop, taking over", () => {
         evidence: "Mujhe isme koi interest nahi hai",
         fileIds: [],
         stageId: null,
-        fields: {},
+        fields: [],
         followUp: null,
         lostReasonId: null,
       },
@@ -209,6 +209,20 @@ describe("replies, stop, taking over", () => {
     await tick(MIN);
     await h.runWhatsAppSend();
     expect(textsSent()).toHaveLength(1);
+  });
+
+  it("a stop to a lead a person has taken over: kept, but LUME AI says nothing in their conversation (review 2026-10-26 A10)", async () => {
+    const before = textsSent().length;
+    await h.queryAll("UPDATE leads SET deleted_at = now() WHERE deleted_at IS NULL");
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    const run = await start([lead]);
+    await firstMessage(run, lead);
+    expect((await post(admin, `/api/v1/autopilot/runs/${run}/leads/${lead}/take-over`)).statusCode).toBe(200);
+    await writes("please stop messaging me");
+    await h.runWhatsAppSend();
+    expect(textsSent().slice(before)).toEqual([]);
+    const reply = await post(admin, `/api/v1/leads/${lead}/whatsapp/messages`, { clientKey: newId(), text: "Hi" });
+    expect(reply.json().error?.code).toBe("DO_NOT_CONTACT");
   });
 
   it("a stop while the run is paused is still kept; nothing is sent", async () => {

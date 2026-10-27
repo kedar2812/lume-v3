@@ -57,6 +57,7 @@ const WHY = {
   needsCountry: "The number needs a country code",
   notYours: "Not one you may message",
   gone: "No longer one of your leads, or deleted",
+  dnc: "Asked not to be messaged",
 };
 /** A run plans from at most this many of a view's leads, however long the view. */
 const SCAN = 1000;
@@ -65,6 +66,8 @@ function whyNot(req: FastifyRequest, lead: LeadRow): string | null {
   const a = req.actor!;
   if (!canOnRecord(a, "messages.send", lead.ownerId) || !canOnRecord(a, "messages.send_queue", lead.ownerId))
     return WHY.notYours;
+  // Before the send refuses it and stops the run there (review 2026-10-26 A11).
+  if (lead.dncAt) return WHY.dnc;
   if (lead.phoneStatus === "needs_country") return WHY.needsCountry;
   if (!lead.phoneE164 || lead.phoneStatus !== "valid") return WHY.noNumber;
   return null;

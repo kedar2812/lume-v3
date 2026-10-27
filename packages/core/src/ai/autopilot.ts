@@ -135,15 +135,13 @@ export function revealMs(text: string): number {
 /** A whole message that's only this is a stop ("Stop!", "STOP"). */
 const STOP_ALONE = new Set(["stop", "unsubscribe", "stop please", "please stop", "stop it", "توقف", "بس"]);
 /** Phrases that say stop wherever they are in a message, in the languages LUME's businesses meet most. */
-const STOP_PHRASES = [
+const STOP_ANYWHERE = [
   "please stop",
   "stop messaging",
   "stop sending",
   "stop texting",
   "stop contacting",
   "unsubscribe",
-  "not interested",
-  "no longer interested",
   "dont message",
   "don't message",
   "do not message",
@@ -160,15 +158,28 @@ const STOP_PHRASES = [
   "band karo",
   "mat bhejo",
   "message mat",
-  "nahi chahiye",
   "توقف",
   "لا تراسلني",
   "no me escribas",
   "deja de escribir",
-  "no me interesa",
   "ne m'écrivez plus",
-  "pas intéressé",
 ];
+/**
+ * A no that may be to one option ("not interested in the basic one"): a stop only as the whole message or its end, with
+ * at most a courtesy before or after it ("Sorry, not interested, thanks"). Anything else goes to the model and, when
+ * unsure, to a person (review 2026-10-26 A8).
+ */
+const STOP_ENDING = [
+  "not interested",
+  "no longer interested",
+  "nahi chahiye",
+  "no me interesa",
+  "pas intéressé",
+  "pas interesse",
+];
+const COURTESY_BEFORE = /^(?:(?:sorry|thanks|thank you|no|ok|okay|hi|hello|i'm|im|i am|we're|we are|i)\s+)+$/;
+const COURTESY_AFTER =
+  /(?:\s+(?:anymore|any more|now|thanks|thank you|thankyou|gracias|merci|dhanyavad|shukriya|sorry|bhai|ji))*$/;
 
 /**
  * Whether a lead's message says stop (§3: stop means stop, in any words). Conservative on purpose: "stop" alone is a
@@ -183,7 +194,11 @@ export function isStop(text: string): boolean {
     .trim();
   if (STOP_ALONE.has(norm)) return true;
   const padded = ` ${norm} `;
-  return STOP_PHRASES.some((p) => padded.includes(` ${p} `));
+  if (STOP_ANYWHERE.some((p) => padded.includes(` ${p} `))) return true;
+  const said = norm.replace(COURTESY_AFTER, "").trim();
+  return STOP_ENDING.some(
+    (p) => said === p || (said.endsWith(` ${p}`) && COURTESY_BEFORE.test(said.slice(0, -p.length))),
+  );
 }
 
 const NUM = String.raw`(\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:\.\d+)?)`;
@@ -199,15 +214,16 @@ const MUL: Record<string, number> = {
   crores: 1e7,
 };
 const MUL_WORDS = String.raw`(k|lakhs?|lacs?|crores?|cr|l)`;
+/** Currency codes and words beyond the symbols: the Gulf, South Asia and the usual others (review 2026-10-26 A7). */
+const CODES = String.raw`rs\.?|inr|aed|usd|eur|gbp|sar|qar|kwd|bhd|omr|aud|cad|sgd|nzd|chf|jpy|cny|myr|pkr|lkr|npr|bdt|zar`;
+const WORDS =
+  "rupees?|dirhams?|riyals?|rials?|dollars?|euros?|pounds?|dinars?|takas?|ringgits?|francs?|yen|yuan|bucks";
 /** In order: a currency then a number (and a multiplier); a number and a multiplier; a number then a currency word; a
  * grouped number ("3,80,000"). Bare numbers (a year, a count, a phone number) are never amounts. */
 const AMOUNT_RES = [
-  new RegExp(
-    String.raw`(?:₹|\$|€|£|(?<![\p{L}])(?:rs\.?|inr|aed|usd|eur|gbp))\s*${NUM}\s*(?:${MUL_WORDS}\b)?`,
-    "giu",
-  ),
+  new RegExp(String.raw`(?:₹|\$|€|£|(?<![\p{L}])(?:${CODES}))\s*${NUM}\s*(?:${MUL_WORDS}\b)?`, "giu"),
   new RegExp(String.raw`${NUM}\s*${MUL_WORDS}\b`, "giu"),
-  new RegExp(String.raw`${NUM}\s*(?:aed|inr|usd|rupees|dirhams)\b`, "giu"),
+  new RegExp(String.raw`${NUM}\s*(?:${CODES}|${WORDS})\b`, "giu"),
   new RegExp(String.raw`(?<![\d+])(\d{1,3}(?:,\d{2,3})+(?:\.\d+)?)`, "gu"),
 ];
 
@@ -228,6 +244,13 @@ export function amountsIn(text: string): number[] {
     });
   }
   return found.sort((a, b) => a.at - b.at).map((f) => f.value);
+}
+
+/** A discount or cashback in percent ("20% off", "a discount of 15%"): an offer only the business can make (A7). */
+const OFFER_RE =
+  /\d{1,3}(?:\.\d+)?\s*%\s*(?:off|discount|cashback)\b|\b(?:discount|off|cashback)\s+(?:of\s+)?\d{1,3}(?:\.\d+)?\s*%/i;
+export function offersIn(text: string): boolean {
+  return OFFER_RE.test(text);
 }
 
 /** The amounts a message names that aren't in the business's price list (§11): such a message never goes. */

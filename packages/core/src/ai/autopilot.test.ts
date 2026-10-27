@@ -4,6 +4,7 @@ import {
   amountsIn,
   dailyBudget,
   isStop,
+  offersIn,
   nextMove,
   nextSendAt,
   revealMs,
@@ -157,6 +158,26 @@ describe("stop means stop (§3)", () => {
     ])
       expect(isStop(no), no).toBe(false);
   });
+
+  it('a polite no to one option isn\'t a stop: "not interested" counts only as the whole message, or its end (review 2026-10-26 A8)', () => {
+    for (const yes of [
+      "Not interested",
+      "Sorry, not interested",
+      "I'm not interested anymore, thank you",
+      "No longer interested.",
+      "nahi chahiye",
+      "No me interesa, gracias",
+      "Pas intéressé",
+    ])
+      expect(isStop(yes), yes).toBe(true);
+    for (const no of [
+      "Not interested in the basic one, what about premium?",
+      "I'm not interested in marble, can you do granite?",
+      "No me interesa el básico, ¿y el premium?",
+      "woh wala nahi chahiye, doosra dikhao",
+    ])
+      expect(isStop(no), no).toBe(false);
+  });
 });
 
 describe("amounts (§11: never a price that isn't in the price list)", () => {
@@ -168,6 +189,23 @@ describe("amounts (§11: never a price that isn't in the price list)", () => {
     expect(amountsIn("$950 or €1,200")).toEqual([950, 1200]);
     // A phone number, a year and a count aren't prices.
     expect(amountsIn("Call +91 98200 12345 in 2026 for 3 rooms")).toEqual([]);
+  });
+
+  it("amounts in other currencies, and in words, are amounts too (review 2026-10-26 A7)", () => {
+    expect(amountsIn("That's 1500 dollars")).toEqual([1500]);
+    expect(amountsIn("SAR 2500 for the visit")).toEqual([2500]);
+    expect(amountsIn("QAR 900 or 1200 riyals")).toEqual([900, 1200]);
+    expect(amountsIn("about 300 euros, or 250 pounds")).toEqual([300, 250]);
+    expect(amountsIn("CAD 75 and AUD 80")).toEqual([75, 80]);
+    expect(amountsIn("Room for 4 people, 2 floors")).toEqual([]);
+  });
+
+  it("a discount is an offer the business never gave LUME AI (review 2026-10-26 A7)", () => {
+    expect(offersIn("You get 20% off this month")).toBe(true);
+    expect(offersIn("a 10 % discount on the wardrobe")).toBe(true);
+    expect(offersIn("We can give a discount of 15%")).toBe(true);
+    expect(offersIn("We're 100% sure you'll love it")).toBe(false);
+    expect(offersIn("Is there any discount?")).toBe(false);
   });
 
   it("unbacked amounts are the ones not in the price list", () => {

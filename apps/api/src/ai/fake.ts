@@ -74,7 +74,7 @@ function autopilotFor(task: "autopilot_first" | "autopilot_reply", input: string
     evidence: null,
     fileIds: [],
     stageId: null,
-    fields: {},
+    fields: [],
     followUp: null,
     lostReasonId: null,
   };

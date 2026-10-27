@@ -42,7 +42,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   evidence: null,
   fileIds: [],
   stageId: null,
-  fields: {},
+  fields: [],
   followUp: null,
   lostReasonId: null,
   ...o,
@@ -199,13 +199,13 @@ describe("what a LUME AI reply may change", () => {
     provider.script("autopilot_reply", [
       reply({
         message: "Lovely, a villa it is.",
-        fields: {
-          property_type: "villa",
-          budget: "15,00,000",
-          visit_notes: "Overwritten",
-          site_contact: "+919800000000",
-          no_such_field: "x",
-        },
+        fields: [
+          { key: "property_type", value: "villa" },
+          { key: "budget", value: "15,00,000" },
+          { key: "visit_notes", value: "Overwritten" },
+          { key: "site_contact", value: "+919800000000" },
+          { key: "no_such_field", value: "x" },
+        ],
       }),
     ]);
     await tick();
@@ -261,7 +261,13 @@ describe("what a LUME AI reply may change", () => {
     reads.length = 0;
     await writes(id, "A villa, budget 9,00,000");
     provider.script("autopilot_reply", [
-      reply({ message: "Noted, thank you.", fields: { property_type: "Villa", budget: "9,00,000" } }),
+      reply({
+        message: "Noted, thank you.",
+        fields: [
+          { key: "property_type", value: "Villa" },
+          { key: "budget", value: "9,00,000" },
+        ],
+      }),
     ]);
     await tick();
     const input = JSON.parse(reads.find((r) => JSON.parse(r.input).task === "autopilot_reply")!.input);

@@ -72,7 +72,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   evidence: null,
   fileIds: [],
   stageId: null,
-  fields: {},
+  fields: [],
   followUp: null,
   lostReasonId: null,
   ...o,
@@ -290,5 +290,72 @@ describe("Ask me, and Ready for you", () => {
     await tick(10 * S);
     await h.runWhatsAppSend();
     expect(textsSent()).toEqual(["Thanks for your message! Happy to help."]);
+  });
+
+  /** A price question LUME AI asks about (Ask me), for the tests below. */
+  const asked = async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    const run = await start([lead], {
+      permissions: { ...AUTOPILOT_PRESETS.hands_off, answer_prices: "ask" },
+    });
+    await leadWrote("How much is a modular kitchen?");
+    provider.script("autopilot_reply", [reply({ message: "A modular kitchen is ₹3,80,000 all in." })]);
+    await tick();
+    const ask = (
+      await (await as(admin)).inject({ method: "GET", url: `/api/v1/autopilot/runs/${run}` })
+    ).json().asks[0] as { id: string };
+    return { lead, run, ask };
+  };
+  const sentAfter = async () => {
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    return textsSent();
+  };
+
+  it("taken over after LUME AI asked: the ask is gone, and approving it sends nothing (review 2026-10-26 A3)", async () => {
+    const { lead, run, ask } = await asked();
+    expect((await post(admin, `/api/v1/autopilot/runs/${run}/leads/${lead}/take-over`)).statusCode).toBe(200);
+    const r = await post(admin, `/api/v1/autopilot/asks/${ask.id}/approve`);
+    expect(r.statusCode).toBe(404);
+    expect(r.json().error.message).toBe("That isn't waiting for you any more.");
+    expect(await sentAfter()).toEqual([]);
+    expect((await rowOf(run, lead)).state).toBe("with_you");
+  });
+
+  it("the lead wrote again after LUME AI asked: what it prepared answered an older message, so the ask is gone", async () => {
+    const { lead, run, ask } = await asked();
+    await writes("Actually, I need a wardrobe too");
+    expect((await post(admin, `/api/v1/autopilot/asks/${ask.id}/approve`)).statusCode).toBe(404);
+    expect(await sentAfter()).toEqual([]);
+    expect((await rowOf(run, lead)).state).toBe("needs_you");
+  });
+
+  it("the lead said stop after LUME AI asked: the ask is gone; only the one apology goes", async () => {
+    const { ask } = await asked();
+    await writes("Stop");
+    expect((await post(admin, `/api/v1/autopilot/asks/${ask.id}/approve`)).statusCode).toBe(404);
+    expect(await sentAfter()).not.toContain("A modular kitchen is ₹3,80,000 all in.");
+  });
+
+  it("a lead no longer waiting on the ask, however it got there: approving sends nothing and says why", async () => {
+    const { lead, run, ask } = await asked();
+    // Moved on by a path that left the ask behind: the approval itself checks the lead.
+    await h.queryAll("UPDATE autopilot_leads SET state = 'with_you' WHERE run_id = $1 AND lead_id = $2", [
+      run,
+      lead,
+    ]);
+    const r = await post(admin, `/api/v1/autopilot/asks/${ask.id}/approve`);
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error).toMatchObject({
+      code: "ASK_GONE",
+      message: "This lead has moved on since LUME AI asked. Nothing was sent.",
+    });
+    expect(await sentAfter()).toEqual([]);
+    // And the screen no longer offers it.
+    const asks = (
+      await (await as(admin)).inject({ method: "GET", url: `/api/v1/autopilot/runs/${run}` })
+    ).json().asks;
+    expect(asks).toEqual([]);
   });
 });

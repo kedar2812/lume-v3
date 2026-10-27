@@ -86,6 +86,18 @@ export async function pauseRun(pool: pg.Pool, runId: string, reason: PauseReason
   return !!r.rowCount;
 }
 
+/** Pause a run from inside a step's own transaction, which may already hold the run's row (review 2026-10-26 A4). */
+async function pauseRunIn(req: FastifyRequest, runId: string, reason: PauseReason): Promise<boolean> {
+  const r = await req.db.execute(sql`
+    UPDATE autopilot_runs SET status = 'paused', pause_reason = ${reason}, updated_at = now()
+     WHERE id = ${runId} AND status = 'running'`);
+  if (!r.rowCount) return false;
+  await req.db.execute(sql`
+    INSERT INTO autopilot_events (run_id, lead_id, kind, data)
+    VALUES (${runId}, NULL, 'paused', ${JSON.stringify({ reason })}::jsonb)`);
+  return true;
+}
+
 /** Resume a paused run: it carries on from the same place (a written draft goes as it is). */
 export async function resumeRun(pool: pg.Pool, runId: string): Promise<boolean> {
   const r = await pool.query(
@@ -264,7 +276,26 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
           }
           return acted + (await writeReply(o, req, run, l));
         }
-        // A first message or a follow-up: an approved template, paced under Meta's tier and the cap (§6).
+        // A first message or a follow-up, as the run allows it (§1.3): Never leaves the lead be; Ask me waits for a person.
+        const allow = run.permissions[move.kind === "first" ? "first_messages" : "follow_ups"];
+        if (allow === "never") {
+          await req.db
+            .update(L)
+            .set({
+              ...(move.kind === "first" ? { state: "skipped" as const } : {}),
+              active: false,
+              nextAt: null,
+              reason:
+                move.kind === "first"
+                  ? "First messages are off for this run, so LUME AI didn't write first."
+                  : "No reply. Follow-ups are off for this run.",
+              updatedAt: now,
+            })
+            .where(keyOf(l));
+          acted++;
+          continue;
+        }
+        // An approved template, paced under Meta's tier and the cap (§6).
         const sentToday = await templatesToday(pool, run.numberId, now, tz);
         const lastSent = leads.reduce<Date | null>(
           (m, x) => (x.lastSentAt && (!m || x.lastSentAt > m) ? x.lastSentAt : m),
@@ -279,7 +310,18 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
             await req.db.update(L).set({ nextAt: at, updatedAt: now }).where(keyOf(l));
           return acted;
         }
-        return acted + (await writeTemplate(o, req, run, l, number.waba, move.kind === "first" ? 0 : move.n));
+        return (
+          acted +
+          (await writeTemplate(
+            o,
+            req,
+            run,
+            l,
+            number.waba,
+            move.kind === "first" ? 0 : move.n,
+            allow === "ask",
+          ))
+        );
       }
       return acted;
     },
@@ -310,6 +352,27 @@ async function leadNow(req: FastifyRequest, leadId: string): Promise<LeadRow | n
   });
 }
 
+/**
+ * After LUME AI's read (seconds, outside any lock), the lead is locked and checked: still as the read saw it, or what it
+ * wrote is dropped (review 2026-10-26 A1). A person taking over, a message from the lead or one sent from the phone all
+ * change the row; the next step starts from the lead as it is now.
+ */
+async function stillAsRead(req: FastifyRequest, l: Lead): Promise<boolean> {
+  const L = schema.autopilotLeads;
+  const [now] = await req.db
+    .select({ state: L.state, active: L.active, updatedAt: L.updatedAt, lastInboundAt: L.lastInboundAt })
+    .from(L)
+    .where(keyOf(l))
+    .for("update");
+  return (
+    !!now &&
+    now.active &&
+    now.state === l.state &&
+    now.updatedAt.getTime() === l.updatedAt.getTime() &&
+    (now.lastInboundAt?.getTime() ?? null) === (l.lastInboundAt?.getTime() ?? null)
+  );
+}
+
 async function leave(
   req: FastifyRequest,
   l: Lead,
@@ -336,7 +399,16 @@ async function leave(
 }
 
 /** Choose and fill an approved template for a first message or a follow-up (§3): never a variable invented or blank. */
-async function writeTemplate(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead, waba: string, n: number) {
+async function writeTemplate(
+  o: EngineDeps,
+  req: FastifyRequest,
+  run: Run,
+  l: Lead,
+  waba: string,
+  n: number,
+  /** The run's Ask me (§1.3): prepared as it would go, then it waits for a person's approval. */
+  ask = false,
+) {
   const lead = await leadNow(req, l.leadId);
   if (!lead) return leave(req, l, "skipped", "LUME AI can't reach this lead any more.");
   if (lead.dncAt) return leave(req, l, "skipped", "Asked not to be messaged.");
@@ -375,6 +447,7 @@ async function writeTemplate(o: EngineDeps, req: FastifyRequest, run: Run, l: Le
       schema: autopilotFirstOutput,
       maxOutputTokens: 300,
     });
+    if (!(await stillAsRead(req, l))) return 1;
     if ("unavailable" in r) return unavailable(o, req, run, l, r);
     const id = guardFirst(
       r.output,
@@ -385,6 +458,22 @@ async function writeTemplate(o: EngineDeps, req: FastifyRequest, run: Run, l: Le
   }
   // Where its filled values sit, so the screen can highlight them as it types (A3).
   const { text: draft, marks } = renderMarked(chosen.body, ctx);
+  if (ask) {
+    const action = n === 0 ? ("first_messages" as const) : ("follow_ups" as const);
+    await req.db.insert(schema.autopilotAsks).values({
+      id: newId(),
+      runId: run.id,
+      leadId: lead.id,
+      action,
+      payload: { message: draft, template: { submissionId: chosen.id, n, marks } },
+    });
+    const pool = poolOf(o.d);
+    req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "ask", action }));
+    return leave(req, l, "needs_you", "LUME AI is waiting for you to approve its next step.", {
+      headline: "Waiting for you",
+      quote: null,
+    });
+  }
   await req.db
     .update(schema.autopilotLeads)
     .set({
@@ -541,6 +630,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     schema: autopilotReplyOutput,
     maxOutputTokens: 1200,
   });
+  if (!(await stillAsRead(req, l))) return 1;
   if ("unavailable" in r) return unavailable(o, req, run, l, r);
   const stages = await req.db
     .select({ id: schema.stages.id, kind: schema.stages.kind })
@@ -709,7 +799,8 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   } catch (e) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT autopilot_send`);
     if (!(e instanceof HttpError)) throw e;
-    if (e.code === "PAID_LIMIT") return (await pauseRun(poolOf(o.d), run.id, "paid")) ? 1 : 0;
+    // In this transaction: it holds the run's row, so a pause on another connection would wait on it (A4).
+    if (e.code === "PAID_LIMIT") return (await pauseRunIn(req, run.id, "paid")) ? 1 : 0;
     return leave(req, now, "needs_you", e.message);
   }
   const at = o.d.clock();

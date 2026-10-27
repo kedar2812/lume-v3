@@ -162,6 +162,20 @@ describe("planning a run (4C Task 2)", () => {
     await post(viewer, `/api/v1/queues/${r.json().queue.id}/cancel`);
   });
 
+  it("leaves out a lead marked do not contact, and says why, before and during a run (review 2026-10-26 A11)", async () => {
+    const [ok, asked, later] = await leads(3, "Dncqueue");
+    await h.queryAll("UPDATE leads SET dnc_at = now(), dnc_reason = 'Asked on a call' WHERE id = $1", [asked]);
+    const r = await start(rep, { leadIds: [ok, asked, later] });
+    expect(r.statusCode).toBe(201);
+    expect(r.json().queue.items.map((i: { leadId: string }) => i.leadId)).toEqual([ok, later]);
+    expect(r.json().leftOut).toEqual([{ name: "Dncqueue B", reason: "Asked not to be messaged" }]);
+    // Marked during the run: that lead says why, and the run carries on past it.
+    const q = r.json().queue;
+    await h.queryAll("UPDATE leads SET dnc_at = now(), dnc_reason = 'Said stop' WHERE id = $1", [later]);
+    expect((await get(rep, item(q.id, 1, "text"))).json()).toEqual({ unavailable: "Asked not to be messaged" });
+    await post(rep, `/api/v1/queues/${q.id}/cancel`);
+  });
+
   it("nothing to send: says so, and starts nothing", async () => {
     const lead = await h.seedLead({ ownerId: repId, name: "Nonumber", phoneStatus: "missing" });
     const r = await start(rep, { leadIds: [lead] });
