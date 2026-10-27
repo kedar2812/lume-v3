@@ -11,7 +11,13 @@ import { usedShare, type FilesDeps } from "../whatsapp/files";
 type Q = Pick<pg.Pool, "query">;
 const H = 3_600_000;
 
-export type Problem = { key: string; words: string };
+/**
+ * What to do about a problem (owner, 2026-10-27: a warning with no action has no point): a place in LUME to fix it, or
+ * "tell", Tell LUME, for what's on the server's side, which the business can't change from LUME.
+ */
+export type ProblemAction = { label: string; href: string } | "tell";
+/** A problem in words a business owner understands (what's wrong, what it means for them), and what to do about it. */
+export type Problem = { key: string; words: string; actions: ProblemAction[] };
 export type Health = {
   checkedAt: string;
   followUps: { lastSweepAt: string | null; pending: number; late: number; firedToday: number };
@@ -130,23 +136,29 @@ export async function readHealth(
   if (late && !settling)
     problems.push({
       key: "reminders_late",
-      words: `${plural(late, "reminder is", "reminders are")} late: the follow-up engine may have stopped. Restart LUME's API.`,
+      words: `${plural(late, "reminder is", "reminders are")} late: follow-ups aren't reaching people on time.`,
+      actions: ["tell"],
     });
   if (o.lastSweepAt && (!lastSweep || now.getTime() - lastSweep.getTime() > 5 * 60_000))
     problems.push({
       key: "sweeper_stopped",
-      words: "Follow-up reminders haven't been checked for over 5 minutes. Restart LUME's API.",
+      words:
+        "Follow-up reminders haven't been checked for over 5 minutes, so new ones may not go out on time.",
+      actions: ["tell"],
     });
   if (!jobs)
     problems.push({
       key: "jobs_unreadable",
-      words: "LUME couldn't read its background jobs just now. If this stays, restart LUME's API.",
+      words:
+        "LUME couldn't check its background work just now. If this stays, imports, syncs and messages may wait.",
+      actions: ["tell"],
     });
   const failed = n(jobs?.failed);
   if (failed)
     problems.push({
       key: "jobs_failed",
-      words: `${plural(failed, "background job", "background jobs")} failed in the last day, after 5 tries.`,
+      words: `${plural(failed, "background job", "background jobs")} failed in the last day, after 5 tries: something LUME was doing for you didn't finish.`,
+      actions: ["tell"],
     });
   const digestFailed = n(events.digest_failed);
   // The mail server, not one bad address: failures for more than one person, or none sent at all
@@ -154,29 +166,45 @@ export async function readHealth(
   if (digestFailed >= 3 && (n(events.digest_failed_people) >= 2 || n(digest.sent24h) === 0))
     problems.push({
       key: "digest_failing",
-      words: "Morning emails aren't going out. Check the mail server settings (SMTP_URL in .env).",
+      words: "Morning emails aren't going out, so people don't get their day's list by email.",
+      actions: ["tell"],
     });
   for (const src of sources)
     if (src.status === "needs_attention")
-      problems.push({ key: `source:${src.id}`, words: `${src.name} needs attention. Open Integrations.` });
+      problems.push({
+        key: `source:${src.id}`,
+        words: `${src.name} needs attention: new leads from it may not be arriving.`,
+        actions: [{ label: `Open ${src.name}`, href: `/settings/integrations/${src.id}` }],
+      });
   const installedLongAgo = s[0] ? now.getTime() - s[0].created_at.getTime() > 8 * 24 * H : false;
   if (restore && !restore.ok)
-    problems.push({ key: "restore_test", words: "The last backup restore test failed. Check the backups." });
+    problems.push({
+      key: "restore_test",
+      words: "The last backup test failed: LUME couldn't prove a backup can be brought back.",
+      actions: ["tell"],
+    });
   else if (
     (restore && now.getTime() - restore.finished_at.getTime() > 8 * 24 * H) ||
     (!restore && installedLongAgo)
   )
-    problems.push({ key: "restore_test", words: "No backup restore test in over a week. Check the worker." });
+    problems.push({
+      key: "restore_test",
+      words:
+        "No backup has been test-restored in over a week, so there's no proof the backups can be brought back.",
+      actions: ["tell"],
+    });
 
   if (disk && usedShare(disk) >= DISK_WARN)
     problems.push({
       key: "disk_full",
-      words: `The server's disk is ${Math.round(usedShare(disk) * 100)}% full (${bytesText(disk.free)} left). Keep WhatsApp files for fewer months in Integrations, or move LUME to a bigger server.`,
+      words: `The server's disk is ${Math.round(usedShare(disk) * 100)}% full (${bytesText(disk.free)} left). When it's full, LUME can't save new messages or files.`,
+      actions: [{ label: "Keep files for fewer months", href: "/settings/integrations" }, "tell"],
     });
   if (!writable)
     problems.push({
       key: "files_unwritable",
-      words: "LUME can't write WhatsApp files on this server. Check the files volume.",
+      words: "LUME can't save WhatsApp photos, voice notes or documents on this server right now.",
+      actions: ["tell"],
     });
   // Backups run every 6 hours: a day without one that carried the files, once there have been files for a day.
   const DAY = 24 * H;
@@ -187,7 +215,9 @@ export async function readHealth(
   )
     problems.push({
       key: "files_backup",
-      words: "WhatsApp files haven't reached the backup for over a day. Check the worker.",
+      words:
+        "Photos, voice notes and documents from WhatsApp haven't reached the off-site backup for over a day. If this server were lost, they couldn't be brought back.",
+      actions: ["tell"],
     });
 
   return {

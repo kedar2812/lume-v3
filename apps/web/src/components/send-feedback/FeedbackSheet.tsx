@@ -35,11 +35,20 @@ const KINDS: { value: FeedbackKind; label: string; dot: string }[] = [
  * where private), and one plain line saying where it goes. It closes only once the report reached LUME's team; when
  * it didn't, everything stays, with one line saying why.
  */
-export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function FeedbackSheet({
+  open,
+  onClose,
+  initialText = "",
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Words already in, to send or add to (System health's Tell LUME). */
+  initialText?: string;
+}) {
   const path = usePathname();
   const { toast } = useToast();
   const [kind, setKind] = useState<FeedbackKind>("bug");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [shots, setShots] = useState<Shot[]>([]);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -75,7 +84,8 @@ export function FeedbackSheet({ open, onClose }: { open: boolean; onClose: () =>
   };
   const empty = text.trim() === "";
   const busy = shots.some((x) => x.pending !== null);
-  const hasContent = !empty || shots.length > 0;
+  // Words it was opened with aren't the person's to lose: closing untouched asks nothing.
+  const hasContent = (!empty && text !== initialText) || shots.length > 0;
   const close = () => {
     for (const sh of shots) drop(sh.prepared);
     onClose();

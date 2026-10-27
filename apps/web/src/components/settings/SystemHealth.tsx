@@ -1,7 +1,9 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { bytesText } from "@lume/core/shared";
+import { FeedbackSheet } from "@/components/send-feedback/FeedbackSheet";
 import { healthClient, type Health } from "@/lib/settings/health";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import h from "./health.module.css";
@@ -32,6 +34,8 @@ const SOURCE_STATUS: Record<string, string> = {
 export function SystemHealth({ initial }: { initial: Health }) {
   const reduce = useReducedMotion();
   const [health, setHealth] = useState(initial);
+  // Tell LUME: Send feedback, opened with the problem already written in.
+  const [telling, setTelling] = useState<string | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -117,7 +121,29 @@ export function SystemHealth({ initial }: { initial: Health }) {
             transition={toMotion(SPRINGS.default)}
           >
             {problems.map((p) => (
-              <li key={p.key}>{p.words}</li>
+              <li key={p.key}>
+                <p>{p.words}</p>
+                {(p.actions ?? []).length > 0 && (
+                  <div className={h.actions}>
+                    {(p.actions ?? []).map((a) =>
+                      a === "tell" ? (
+                        <button
+                          key="tell"
+                          type="button"
+                          className={h.action}
+                          onClick={() => setTelling(`System health: ${p.words}`)}
+                        >
+                          Tell LUME
+                        </button>
+                      ) : (
+                        <Link key={a.href} href={a.href} className={h.action} data-primary="">
+                          {a.label}
+                        </Link>
+                      ),
+                    )}
+                  </div>
+                )}
+              </li>
             ))}
           </motion.ul>
         )}
@@ -179,6 +205,7 @@ export function SystemHealth({ initial }: { initial: Health }) {
           </Line>
         </Card>
       </div>
+      {telling !== null && <FeedbackSheet open initialText={telling} onClose={() => setTelling(null)} />}
     </div>
   );
 }

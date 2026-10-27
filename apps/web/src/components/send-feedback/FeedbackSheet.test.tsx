@@ -43,6 +43,16 @@ function held() {
 }
 
 describe("Send feedback", () => {
+  it("opened with words already in (System health's Tell LUME): they're there to send, or to add to", async () => {
+    render(
+      <FeedbackSheet open onClose={vi.fn()} initialText="System health: Morning emails aren't going out." />,
+    );
+    expect(screen.getByLabelText("What happened?")).toHaveValue(
+      "System health: Morning emails aren't going out.",
+    );
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
   it("opens on Something's broken, with the plain line, and Send waits for words", () => {
     open();
     expect(screen.getByRole("dialog", { name: "Send feedback" })).toBeInTheDocument();

@@ -70,7 +70,8 @@ describe("System health (3C Task 5)", () => {
     expect(s.followUps).toMatchObject({ pending: 2, late: 1 });
     expect(s.problems).toContainEqual({
       key: "reminders_late",
-      words: expect.stringMatching(/1 reminder is late/),
+      words: expect.stringMatching(/^1 reminder is late/),
+      actions: ["tell"],
     });
     await h.queryAll(
       "UPDATE scheduled_notifications SET status = 'fired', fired_at = now() WHERE task_id = $1",
@@ -143,6 +144,28 @@ describe("System health (3C Task 5)", () => {
     expect(keys).toEqual(expect.arrayContaining(["digest_failing", "restore_test"]));
     expect(keys.some((k: string) => k.startsWith("source:"))).toBe(true);
     for (const p of s.problems) expect(p.words).not.toContain(p.key); // words, never its key
+  });
+
+  it("each problem says what it means for the business and what to do: never server jargon (owner, 2026-10-27)", async () => {
+    // "Check the worker" told an owner nothing: a problem on the server's side offers Tell LUME; one the business can
+    // fix in LUME links there.
+    const s = await health();
+    for (const p of s.problems as { key: string; words: string; actions: unknown[] }[]) {
+      expect(p.words, p.key).not.toMatch(/restart|worker|SMTP|\.env|volume|LUME's API|check the/i);
+      expect(p.actions.length, p.key).toBeGreaterThan(0);
+    }
+    const byKey = new Map(
+      (s.problems as { key: string; actions: unknown[] }[]).map((p) => [p.key.split(":")[0], p.actions]),
+    );
+    expect(byKey.get("digest_failing")).toEqual(["tell"]);
+    expect(byKey.get("restore_test")).toEqual(["tell"]);
+    const source = (s.problems as { key: string; words: string; actions: unknown[] }[]).find((p) =>
+      p.key.startsWith("source:"),
+    )!;
+    expect(source.words).toBe("Site form needs attention: new leads from it may not be arriving.");
+    expect(source.actions).toEqual([
+      { label: "Open Site form", href: `/settings/integrations/${source.key.slice("source:".length)}` },
+    ]);
   });
 
   it("each problem reaches the admins once a business day, in the app and by email; never a rep", async () => {
@@ -232,7 +255,8 @@ describe("System health: storage", () => {
     expect(s.problems).toContainEqual({
       key: "disk_full",
       words:
-        "The server's disk is 92% full (8.2 GB left). Keep WhatsApp files for fewer months in Integrations, or move LUME to a bigger server.",
+        "The server's disk is 92% full (8.2 GB left). When it's full, LUME can't save new messages or files.",
+      actions: [{ label: "Keep files for fewer months", href: "/settings/integrations" }, "tell"],
     });
     const fine = await readHealth(h.pool, { files: filesWith({ total: 100 * GB, free: 15.5 * GB }) });
     expect(keys(fine)).not.toContain("disk_full");
@@ -255,7 +279,8 @@ describe("System health: storage", () => {
     try {
       expect((await readHealth(h.pool, { files: filesWith(null, false) })).problems).toContainEqual({
         key: "files_unwritable",
-        words: "LUME can't write WhatsApp files on this server. Check the files volume.",
+        words: "LUME can't save WhatsApp photos, voice notes or documents on this server right now.",
+        actions: ["tell"],
       });
       expect(keys(await readHealth(h.pool, { files: filesWith(null, true) }))).not.toContain(
         "files_unwritable",
@@ -278,7 +303,9 @@ describe("System health: storage", () => {
       await h.ownerPool.query("UPDATE whatsapp_files SET created_at = $1", [old]);
       expect((await readHealth(h.pool, { now })).problems).toContainEqual({
         key: "files_backup",
-        words: "WhatsApp files haven't reached the backup for over a day. Check the worker.",
+        words:
+          "Photos, voice notes and documents from WhatsApp haven't reached the off-site backup for over a day. If this server were lost, they couldn't be brought back.",
+        actions: ["tell"],
       });
       await h.queryAll(
         "INSERT INTO ops_events (kind, ok, detail, at) VALUES ('backup.files', false, '{}', $1)",

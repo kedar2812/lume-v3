@@ -17,7 +17,8 @@ export type Health = {
     database: number | null;
     whatsappFiles: number;
   };
-  problems: { key: string; words: string }[];
+  /** What's wrong, in words, and what to do: a place in LUME to fix it, or "tell" (Tell LUME, a server-side problem). */
+  problems: { key: string; words: string; actions: ({ label: string; href: string } | "tell")[] }[];
 };
 
 export const healthClient = { get: () => api.get<Health>("/api/v1/system/health") };

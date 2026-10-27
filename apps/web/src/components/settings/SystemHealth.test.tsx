@@ -1,9 +1,19 @@
 import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { healthClient, type Health } from "@/lib/settings/health";
 import { SystemHealth } from "./SystemHealth";
 
 vi.mock("@/lib/settings/health", () => ({ healthClient: { get: vi.fn() } }));
+// Send feedback, as the sheet the page opens: only what it was opened with matters here.
+vi.mock("@/components/send-feedback/FeedbackSheet", () => ({
+  FeedbackSheet: ({ open, initialText }: { open: boolean; initialText?: string }) =>
+    open ? (
+      <div role="dialog" aria-label="Send feedback">
+        {initialText}
+      </div>
+    ) : null,
+}));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const at = "2026-09-28T10:00:00.000Z";
 const healthy: Health = {
@@ -84,8 +94,8 @@ describe("System health (3C Task 7)", () => {
           ...healthy,
           followUps: { ...healthy.followUps, late: 2 },
           problems: [
-            { key: "reminders_late", words: "2 reminders are late: restart LUME's API." },
-            { key: "digest_failing", words: "Morning emails aren't going out." },
+            { key: "reminders_late", words: "2 reminders are late.", actions: ["tell"] },
+            { key: "digest_failing", words: "Morning emails aren't going out.", actions: ["tell"] },
           ],
         }}
       />,
@@ -94,6 +104,40 @@ describe("System health (3C Task 7)", () => {
     const list = screen.getByRole("list", { name: "What needs a look" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
     expect(list).toHaveTextContent("Morning emails aren't going out.");
+  });
+
+  it("each problem says what to do: a place in LUME to fix it, or Tell LUME with the problem written in (owner, 2026-10-27)", async () => {
+    render(
+      <SystemHealth
+        initial={{
+          ...healthy,
+          problems: [
+            {
+              key: "source:s1",
+              words: "Site form needs attention: new leads from it may not be arriving.",
+              actions: [{ label: "Open Site form", href: "/settings/integrations/s1" }],
+            },
+            {
+              key: "files_backup",
+              words: "Photos from WhatsApp haven't reached the off-site backup for over a day.",
+              actions: ["tell"],
+            },
+          ],
+        }}
+      />,
+    );
+    const [source, backup] = within(screen.getByRole("list", { name: "What needs a look" })).getAllByRole(
+      "listitem",
+    );
+    expect(within(source!).getByRole("link", { name: "Open Site form" })).toHaveAttribute(
+      "href",
+      "/settings/integrations/s1",
+    );
+    expect(within(source!).queryByRole("button", { name: "Tell LUME" })).toBeNull();
+    await userEvent.click(within(backup!).getByRole("button", { name: "Tell LUME" }));
+    expect(screen.getByRole("dialog", { name: "Send feedback" })).toHaveTextContent(
+      "System health: Photos from WhatsApp haven't reached the off-site backup for over a day.",
+    );
   });
 
   it("checks again every 30 s while it's on screen, and not while the tab is hidden", async () => {
