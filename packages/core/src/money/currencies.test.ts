@@ -30,5 +30,13 @@ describe("currencies", () => {
     expect(currencyForCountry("us")).toBe("USD");
     expect(currencyForCountry("DE")).toBe("EUR");
     expect(currencyForCountry("ZZ")).toBeNull();
+    // Bulgaria is in the euro since 2026; El Salvador, Ecuador and Timor-Leste use the US dollar; Montenegro and
+    // Kosovo the euro without being members (review C12).
+    expect(currencyForCountry("BG")).toBe("EUR");
+    expect(currencyForCountry("SV")).toBe("USD");
+    expect(currencyForCountry("EC")).toBe("USD");
+    expect(currencyForCountry("TL")).toBe("USD");
+    expect(currencyForCountry("ME")).toBe("EUR");
+    expect(currencyForCountry("XK")).toBe("EUR");
   });
 });

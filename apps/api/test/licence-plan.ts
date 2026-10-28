@@ -1,23 +1,31 @@
 import { generateKeyPairSync } from "node:crypto";
-import { rawPublicKey, signLicence, type LicencePayload, type PlanClaim } from "@lume/core";
+import {
+  rawPublicKey,
+  signLicence,
+  type LicencePayload,
+  type LicenceStateName,
+  type PlanClaim,
+} from "@lume/core";
 import type { AppDeps } from "../src/app";
 
 const D = 86_400_000;
 
 /**
  * A licence server for a test: a LUME in enforce mode whose check-ins answer with a token signed here, carrying the plan
- * the test sets. After `setPlan`, a check-in (POST /api/v1/licence/check as an admin) brings it in.
+ * the test sets. After `setPlan`, a check-in (POST /api/v1/licence/check as an admin) brings it in; after `setState`,
+ * `h.app.licence.check()` does (a locked licence refuses the route's POST).
  */
 export function testLicence(o: { instanceId: string; now: () => Date }) {
   const server = generateKeyPairSync("ed25519");
   let plan: PlanClaim | undefined;
+  let state: LicenceStateName = "active";
   const token = () =>
     signLicence(
       {
         v: 1,
         kid: "t1",
         instanceId: o.instanceId,
-        state: "active",
+        state,
         licenseType: "subscription",
         issuedAt: o.now().toISOString(),
         validUntil: new Date(o.now().getTime() + 8 * D).toISOString(),
@@ -42,6 +50,9 @@ export function testLicence(o: { instanceId: string; now: () => Date }) {
     options,
     setPlan(p: PlanClaim | undefined) {
       plan = p;
+    },
+    setState(s: LicenceStateName) {
+      state = s;
     },
   };
 }

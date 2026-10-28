@@ -33,7 +33,7 @@ export async function monthOf(q: Pick<pg.Pool, "query">, now: Date, tz: string):
   return [rows[0]!.from_at, rows[0]!.to_at];
 }
 
-/** Paid messages this month, every lead's (not failed ones): counted by the database, whoever asks. */
+/** Paid messages this month, every lead's (not failed or cancelled ones): counted by the database, whoever asks. */
 export async function paidUse(q: Pick<pg.Pool, "query">, now: Date, tz: string): Promise<number> {
   const [from, to] = await monthOf(q, now, tz);
   const { rows } = await q.query<{ n: number }>("SELECT lume_whatsapp_paid_count($1, $2) AS n", [from, to]);

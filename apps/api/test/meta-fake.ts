@@ -32,6 +32,8 @@ export type MetaFake = {
   expired: Set<string>;
   /** The next sends answer with these Meta error codes, one each, in order. */
   failNext: number[];
+  /** The next sends are taken (recorded as sent) and the answer lost, as a dropped connection would (review W1). */
+  takeThenLose: number;
   /** A number's quality rating and messaging tier (Autopilot A2), by its phone number id, as Graph answers them. */
   health: Map<string, { quality: string; tier: string }>;
   /** Templates (W3b-2), by name: what WhatsApp holds for each and how many variables its body has. */
@@ -100,6 +102,8 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
     sent: [] as { numberId: string; body: Record<string, unknown> }[],
     expired: new Set<string>(),
     failNext: [] as number[],
+    /** Sends Meta takes but whose answer is lost (a 502 with no body after the message went): the next N. */
+    takeThenLose: 0,
     health: new Map<string, { quality: string; tier: string }>(),
     templates: new Map<string, FakeTemplate>(),
     templatePageSize: 100,
@@ -367,6 +371,10 @@ export async function startMetaFake(o: { port?: number; version?: string } = {})
         if (file.id && (state.expired.has(file.id) || !state.uploads.some((u) => u.id === file.id)))
           return send(res, 400, oauthError(131053, "Media upload error"));
         state.sent.push({ numberId: id!, body: m });
+        if (state.takeThenLose > 0) {
+          state.takeThenLose--;
+          return send(res, 502, {});
+        }
         return send(res, 200, {
           messaging_product: "whatsapp",
           contacts: [{ input: m.to, wa_id: m.to }],

@@ -91,7 +91,7 @@ export async function switchCurrency(req: FastifyRequest, input: { from: string;
     sql`SELECT key FROM field_definitions WHERE type = 'currency'`,
   );
   const converted = await req.db.execute<{ leads: number; products: number }>(
-    sql`SELECT * FROM convert_amounts(${input.rate}::numeric, ${`{${keys.rows.map((k) => `"${k.key}"`).join(",")}}`}::text[])`,
+    sql`SELECT * FROM convert_amounts(${input.rate}::numeric, ${`{${keys.rows.map((k) => `"${k.key}"`).join(",")}}`}::text[], ${input.to})`,
   );
   await req.db.execute(sql`UPDATE settings SET currency = ${input.to} WHERE id = 1`);
   const counts = {

@@ -22,10 +22,14 @@ const read: Health = {
   restoreTest: { at: "2026-10-14T03:15:00.000Z", ok: true },
   storage: { diskTotal: 100e9, diskFree: 38e9, database: 5e8, whatsappFiles: 0 },
   problems: [
-    { key: "reminders_late", words: "2 reminders are late." },
-    { key: "jobs_failed", words: "3 background jobs failed." },
-    { key: "source:s1", words: "Instagram leads — Dubai needs attention. Open Integrations." },
-    { key: "source:s2", words: "Website form needs attention." },
+    { key: "reminders_late", words: "2 reminders are late.", actions: [] },
+    { key: "jobs_failed", words: "3 background jobs failed.", actions: ["tell"] },
+    {
+      key: "source:s1",
+      words: "Instagram leads — Dubai needs attention.",
+      actions: [{ label: "Open Integrations", href: "/settings/integrations" }],
+    },
+    { key: "source:s2", words: "Website form needs attention.", actions: [] },
   ],
 };
 

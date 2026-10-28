@@ -69,6 +69,50 @@ describe("Phase 0 schema and grants", () => {
     expect((await as("lume_readonly_backup", "SELECT kind FROM ops_events")).length).toBe(2);
   });
 
+  it("the worker has only what its jobs use, and nothing on a new table; the app never deletes an export (review D6)", async () => {
+    const may = async (role: DbRole, table: string, priv: string, column?: string) =>
+      (
+        await as<{ ok: boolean }>(
+          "lume_owner",
+          column
+            ? "SELECT has_column_privilege($1, $2, $4, $3) AS ok"
+            : priv === "SELECT"
+              ? "SELECT has_any_column_privilege($1, $2, $3) AS ok"
+              : "SELECT has_table_privilege($1, $2, $3) AS ok",
+          [role, table, priv, ...(column ? [column] : [])],
+        )
+      )[0]!.ok;
+    // No lead, person, export, security or LUME AI data: the worker clears records by age and never reads them.
+    for (const t of [
+      "leads",
+      "activities",
+      "users",
+      "lead_exports",
+      "security_alerts",
+      "autopilot_runs",
+      "whatsapp_outbox",
+    ])
+      for (const p of ["SELECT", "INSERT", "UPDATE", "DELETE"])
+        expect(await may("lume_worker", t, p), `${t} ${p}`).toBe(false);
+    expect(await may("lume_worker", "idempotency_keys", "SELECT", "response")).toBe(false);
+    expect(await may("lume_worker", "settings", "SELECT", "integrations")).toBe(false);
+    // What its jobs do still works: clearing by age, the files backup's salt, recording what ran.
+    expect(await may("lume_worker", "idempotency_keys", "DELETE")).toBe(true);
+    expect(await may("lume_worker", "settings", "SELECT", "files_salt")).toBe(true);
+    expect(await may("lume_worker", "autopilot_events", "DELETE")).toBe(true);
+    expect(await may("lume_worker", "ops_events", "INSERT")).toBe(true);
+    // A table made later gives the worker nothing until a migration says so.
+    await as("lume_owner", "CREATE TABLE d6_probe (id int)");
+    try {
+      for (const p of ["SELECT", "INSERT", "UPDATE", "DELETE"])
+        expect(await may("lume_worker", "d6_probe", p), p).toBe(false);
+      expect(await may("lume_app", "d6_probe", "SELECT")).toBe(true);
+    } finally {
+      await as("lume_owner", "DROP TABLE d6_probe");
+    }
+    expect(await may("lume_app", "lead_exports", "DELETE")).toBe(false);
+  });
+
   it("4A templates: a version is never changed; a category must be one of five; backups read both", async () => {
     await as(
       "lume_app",
@@ -290,17 +334,18 @@ describe("W3b-2 paid messages this month", () => {
 });
 
 describe("What LUME AI knows (Autopilot A1, Task 5)", () => {
-  it("one profile per business: the app writes it, the worker reads it", async () => {
+  it("one profile per business: the app writes it; the worker never sees it (review D6)", async () => {
     await as("lume_app", 'INSERT INTO ai_profile (id, profile) VALUES (1, \'{"voice":{"tone":"warm"}}\')');
     await expect(as("lume_app", "INSERT INTO ai_profile (id, profile) VALUES (2, '{}')")).rejects.toThrow(
       /ai_profile_id_check/,
     );
     await as("lume_app", 'UPDATE ai_profile SET profile = \'{"voice":{"tone":"formal"}}\' WHERE id = 1');
     const [row] = await as<{ tone: string }>(
-      "lume_worker",
+      "lume_app",
       "SELECT profile -> 'voice' ->> 'tone' AS tone FROM ai_profile",
     );
     expect(row?.tone).toBe("formal");
+    await expect(as("lume_worker", "SELECT profile FROM ai_profile")).rejects.toThrow(/permission denied/);
     await expect(as("lume_worker", "UPDATE ai_profile SET profile = '{}'")).rejects.toThrow(
       /permission denied/,
     );

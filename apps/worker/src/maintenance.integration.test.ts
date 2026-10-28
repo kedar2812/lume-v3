@@ -35,9 +35,10 @@ describe("maintenance jobs (as lume_worker)", () => {
         ('0190e0c0-0000-7000-8000-000000000001', 'old-key-0001', 'POST /x', 'h', 201, now() - interval '25 hours'),
         ('0190e0c0-0000-7000-8000-000000000001', 'new-key-0001', 'POST /x', 'h', 201, now())`,
     );
-    await owner.end();
     expect(await makeMaintenanceJobs(pool).purgeIdempotencyKeys()).toBe(1);
-    expect((await pool.query("SELECT key FROM idempotency_keys")).rows).toEqual([{ key: "new-key-0001" }]);
+    // Read back by the owner: the worker clears by age and never reads a key (review D6).
+    expect((await owner.query("SELECT key FROM idempotency_keys")).rows).toEqual([{ key: "new-key-0001" }]);
+    await owner.end();
   });
 
   it("2C final review, Critical 1: an old webhook draft goes, and the webhook it edits stays", async () => {

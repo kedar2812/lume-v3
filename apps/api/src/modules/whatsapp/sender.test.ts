@@ -89,6 +89,7 @@ beforeEach(async () => {
   meta.sent.length = 0;
   meta.uploads.length = 0;
   meta.failNext.length = 0;
+  meta.takeThenLose = 0;
   meta.revoked.clear();
   await seedNumber(h, { runAs: admin.id, owner: rep.id });
   await h.ownerPool.query(
@@ -97,6 +98,24 @@ beforeEach(async () => {
 });
 
 describe("sending", () => {
+  it("Meta took it but its answer was lost: marked may-have-gone, never sent again (review 2026-10-26 W1)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const from = meta.sent.length;
+    meta.takeThenLose = 1;
+    const once = await reply(lead, { text: "Only once, please" });
+    h.whatsappSendQueued.length = 0;
+    await sendOutbox({ app: h.app, d: h.deps }, once.outboxId).catch(() => undefined);
+    for (let i = 0; i < 4; i++) await h.runWhatsAppSend();
+    expect(meta.sent.slice(from).map((m) => (m.body as { text?: { body: string } }).text?.body)).toEqual([
+      "Only once, please",
+    ]);
+    expect(await outbox(once.outboxId)).toMatchObject({
+      status: "failed",
+      problem: "LUME couldn't tell whether this went. Check the phone before sending it again.",
+    });
+  });
+
   it("a reply goes from the number, as its sender; then it counts as a send: last message, first contact, the follow-up done", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     await writes();
@@ -274,15 +293,80 @@ describe("when Meta says no", () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     await writes();
     const m = await reply(lead, { text: "did it go?" });
-    await h.queryAll(
-      "UPDATE whatsapp_outbox SET status = 'sending', updated_at = now() - interval '3 minutes' WHERE id = $1",
-      [m.outboxId],
-    );
+    const sendingFor = (minutes: number) =>
+      h.queryAll(
+        `UPDATE whatsapp_outbox SET status = 'sending', updated_at = now() - interval '${minutes} minutes' WHERE id = $1`,
+        [m.outboxId],
+      );
+    // A slow send (an upload and a send, each up to 30 s, twice for an expired file) is still on its way (W6).
+    await sendingFor(3);
+    expect(await staleOutbox(h.pool)).toEqual([]);
+    await sendOutbox({ app: h.app, d: h.deps }, m.outboxId);
+    expect(await outbox(m.outboxId)).toMatchObject({ status: "sending" });
+    await sendingFor(11);
+    expect(await staleOutbox(h.pool)).toEqual([m.outboxId]);
     await h.runWhatsAppSend();
     expect(meta.sent).toEqual([]);
     expect(await outbox(m.outboxId)).toMatchObject({
       status: "failed",
       problem: "LUME couldn't tell whether this went. Check the phone before sending it again.",
+    });
+  });
+
+  it("Meta took it after the sweep gave up on it: it's sent, with Meta's id, so its echo and statuses find it (review W6)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const m = await reply(lead, { text: "slow one" });
+    await sendOutbox(
+      {
+        app: h.app,
+        d: h.deps,
+        testHooks: {
+          whileSending: () =>
+            h
+              .queryAll(
+                "UPDATE whatsapp_outbox SET status = 'failed', problem = 'LUME couldn''t tell whether this went. Check the phone before sending it again.' WHERE id = $1",
+                [m.outboxId],
+              )
+              .then(() => undefined),
+        },
+      },
+      m.outboxId,
+    );
+    expect(meta.sent).toHaveLength(1);
+    expect(await outbox(m.outboxId)).toMatchObject({
+      status: "sent",
+      problem: null,
+      wamid: expect.any(String),
+    });
+  });
+
+  it("do not contact, or the bin, arriving while the send is being checked: nothing is sent, and it says why (review W4)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const run = (id: string, meanwhile: string) =>
+      sendOutbox(
+        {
+          app: h.app,
+          d: h.deps,
+          testHooks: { beforeClaim: () => h.queryAll(meanwhile, [lead]).then(() => undefined) },
+        },
+        id,
+      );
+    const m = await reply(lead, { text: "one" });
+    await run(m.outboxId, "UPDATE leads SET dnc_at = now(), dnc_reason = 'Said stop' WHERE id = $1");
+    expect(meta.sent).toEqual([]);
+    expect(await outbox(m.outboxId)).toMatchObject({
+      status: "failed",
+      problem: expect.stringMatching(/^Sneha asked not to be messaged./),
+    });
+    await h.queryAll("UPDATE leads SET dnc_at = NULL, dnc_reason = NULL WHERE id = $1", [lead]);
+    const n = await reply(lead, { text: "two" });
+    await run(n.outboxId, "UPDATE leads SET deleted_at = now() WHERE id = $1");
+    expect(meta.sent).toEqual([]);
+    expect(await outbox(n.outboxId)).toMatchObject({
+      status: "failed",
+      problem: "This lead isn't here any more.",
     });
   });
 

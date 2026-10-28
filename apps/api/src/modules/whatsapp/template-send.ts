@@ -19,8 +19,7 @@ import { contextFor, sendable } from "../leads/sending";
 import type { LeadRow } from "../leads/serialize";
 import { readMessaging } from "../settings/messaging";
 import { notePaidUse, paidLimit, paidLimitError, paidUseIn } from "./paid";
-import type { SendLimiter } from "./send";
-import { relayOf } from "./service";
+import { replyOn, type SendLimiter } from "./send";
 import { messagesOf, type ThreadMessage } from "./thread";
 import { personSent } from "../autopilot/lead-events";
 
@@ -48,16 +47,6 @@ export type TemplateState = {
 } | null;
 
 const conflict = (code: string, message: string) => new HttpError(409, code, message);
-
-/** Whether replying from LUME is on here: WhatsApp on, the admin's switch on, set up. */
-async function replyOn(req: FastifyRequest, d: AppDeps): Promise<boolean> {
-  if (!relayOf(d) || !d.meta) return false;
-  const [s] = await req.db
-    .select({ i: schema.settings.integrations })
-    .from(schema.settings)
-    .where(eq(schema.settings.id, 1));
-  return !!s?.i.whatsapp?.enabled && !!s.i.whatsapp.replyFromLume;
-}
 
 /**
  * The number a template goes from (W3b-2): the lead's owner's own number, else the business's first, else the first

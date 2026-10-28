@@ -108,6 +108,43 @@ describe("pipelines & stages (report §6)", () => {
     expect(moved.json().lead.stageId).toBe(cfg.stages["Message sent"]);
   });
 
+  it("leads moved out of an archived won or lost stage are open again: no longer won, lost, or lost for a reason (review L6)", async () => {
+    const p = (
+      await admin.inject({ method: "POST", url: "/api/v1/pipelines", payload: { name: "Closing" } })
+    ).json().pipeline;
+    const open = p.stages.find((s: { kind: string }) => s.kind === "open").id as string;
+    const extra = async (kind: "won" | "lost") =>
+      (
+        await admin.inject({
+          method: "POST",
+          url: `/api/v1/pipelines/${p.id}/stages`,
+          payload: { name: `Old ${kind}`, kind, color: "ok" },
+        })
+      ).json();
+    for (const kind of ["won", "lost"] as const) {
+      const added = await extra(kind);
+      const stageId: string =
+        added.stage?.id ?? added.pipeline.stages.find((s: { name: string }) => s.name === `Old ${kind}`).id;
+      const lead = await h.seedLead({ ownerId: null });
+      await h.queryAll(
+        `UPDATE leads SET pipeline_id = $2, stage_id = $3, won_at = CASE WHEN $4 = 'won' THEN now() END,
+                lost_at = CASE WHEN $4 = 'lost' THEN now() END, lost_note = CASE WHEN $4 = 'lost' THEN 'Went quiet' END
+          WHERE id = $1`,
+        [lead, p.id, stageId, kind],
+      );
+      const a = await admin.inject({
+        method: "POST",
+        url: `/api/v1/stages/${stageId}/archive`,
+        payload: { moveToStageId: open },
+      });
+      expect(a.statusCode, a.body).toBe(204);
+      expect(
+        await h.queryAll("SELECT stage_id, won_at, lost_at, lost_note FROM leads WHERE id = $1", [lead]),
+        kind,
+      ).toEqual([{ stage_id: open, won_at: null, lost_at: null, lost_note: null }]);
+    }
+  });
+
   it("archive needs full lead visibility, so a partial view can't hide leads", async () => {
     const cfg = await h.config();
     const pm = await h.signIn(

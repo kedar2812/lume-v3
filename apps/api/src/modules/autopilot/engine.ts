@@ -37,6 +37,7 @@ import type pg from "pg";
 import type { AppDeps } from "../../app";
 import { HttpError } from "../../http/errors";
 import { loadFieldRegistry } from "../../leads/fields";
+import { heldBack } from "../../licence/enforce";
 import { loadActor } from "../../rbac/actor";
 import { openStages, filesOf } from "../ai/profile";
 import { aiStatus, runRead } from "../ai/service";
@@ -156,9 +157,11 @@ function messageKey(runId: string, leadId: string, n: string): string {
 
 /**
  * One step of a run (spec §1–§3, §6), under a lock so a run never steps twice at once. Returns how many things it did
- * (a message written or sent, a lead moved on), 0 when nothing was due.
+ * (a message written or sent, a lead moved on), 0 when nothing was due. While the licence is read-only or suspended,
+ * nothing: LUME AI waits, as LUME's other clocks do, and carries on once it's active (review 2026-10-26 D1).
  */
 export async function stepRun(o: EngineDeps, runId: string): Promise<number> {
+  if (heldBack(o.app, "LUME AI")) return 0;
   const pool = poolOf(o.d);
   const lock = await pool.connect();
   try {
@@ -186,13 +189,21 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
 
   const actor = await loadActor(pool, run.speakerId);
   if (!actor || !can(actor, "messages.send")) {
-    if (await pauseRun(pool, runId, "speaker"))
-      for (const id of await adminIds(pool))
-        await notify(pool, id, {
-          kind: "system_alert",
-          title: "LUME AI paused a run: its speaker can't message leads",
-          body: `"${run.name}" waits for a new speaker. Start it again as someone who may send messages.`,
-        });
+    // Paused for the speaker, from running or from the month's pause (a top-up wouldn't help any more), said once.
+    // Nothing changed is nothing done: a month-paused run stepped again never spins (review 2026-10-26 A5).
+    const r = await pool.query(
+      `UPDATE autopilot_runs SET status = 'paused', pause_reason = 'speaker', updated_at = now()
+        WHERE id = $1 AND (status = 'running' OR (status = 'paused' AND pause_reason = 'month'))`,
+      [runId],
+    );
+    if (!r.rowCount) return 0;
+    await say(pool, runId, null, "paused", { reason: "speaker" });
+    for (const id of await adminIds(pool))
+      await notify(pool, id, {
+        kind: "system_alert",
+        title: "LUME AI paused a run: its speaker can't message leads",
+        body: `"${run.name}" waits for a new speaker. Start it again as someone who may send messages.`,
+      });
     return 1;
   }
   const now = o.d.clock();

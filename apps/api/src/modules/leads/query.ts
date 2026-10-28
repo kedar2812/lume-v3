@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gt, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { leadScope, seesFullContacts } from "@lume/core";
 import { schema } from "@lume/db";
@@ -50,9 +50,9 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 export const arrivalsWhere = (since: Date, me: string) =>
   sql`(${L.createdAt} > ${since} AND (${L.createdBy} IS DISTINCT FROM ${me} OR EXISTS (SELECT 1 FROM lead_sources s WHERE s.id = ${L.sourceId} AND s.type IN ('google_sheet', 'webhook'))))`;
 
-function encodeCursor(sort: ListQuery["sort"], row: LeadRow): string {
-  const v =
-    sort === "updated" ? row.updatedAt.toISOString() : sort === "name" ? row.name.toLowerCase() : null;
+/** `exactUpdatedAt`: the database's own text for updated_at, microseconds and all (a Date keeps ms, review L2). */
+function encodeCursor(sort: ListQuery["sort"], row: LeadRow & { exactUpdatedAt: string }): string {
+  const v = sort === "updated" ? row.exactUpdatedAt : sort === "name" ? row.name.toLowerCase() : null;
   return Buffer.from(JSON.stringify([sort, v, row.id])).toString("base64url");
 }
 
@@ -196,6 +196,14 @@ export function leadFilters(
 ): (SQL | undefined)[] {
   const ctx = { actor: req.actor!, fields };
   const where: (SQL | undefined)[] = [isNull(L.deletedAt), scopeCondition(req)];
+  // A field hidden from this person can't be learned by filtering on it either (review L8).
+  const seen = (key: string) => {
+    if (!isFieldVisible(ctx, key)) throw badRequest("UNKNOWN_FIELD", "Unknown filter");
+  };
+  if (q.stageId) seen("stage");
+  if (q.ownerId) seen("owner");
+  if (q.source) seen("source");
+  if (q.createdFrom || q.createdTo) seen("lead_created_at");
 
   if (q.pipelineId) where.push(eq(L.pipelineId, q.pipelineId));
   if (q.stageId) where.push(inArray(L.stageId, q.stageId.split(",")));
@@ -238,10 +246,13 @@ export function leadFilters(
     // else the day the lead arrived; written as two ranges so each reads its index (7A: the sidebar counts this).
     const today = sql`(now() AT TIME ZONE ${tz})::date`;
     const first = sql`(${today} - ${q.createdDays - 1}::int)`;
+    const reached = sql`${L.createdAt} >= (${first}::timestamp AT TIME ZONE ${tz})
+               AND ${L.createdAt} < ((${today} + 1)::timestamp AT TIME ZONE ${tz})`;
+    // Someone who can't see the enquiry date gets when each lead reached LUME, which tells nothing hidden (L8).
     where.push(
-      sql`(${L.leadCreatedAt} BETWEEN ${first} AND ${today}
-           OR (${L.leadCreatedAt} IS NULL AND ${L.createdAt} >= (${first}::timestamp AT TIME ZONE ${tz})
-               AND ${L.createdAt} < ((${today} + 1)::timestamp AT TIME ZONE ${tz})))`,
+      isFieldVisible(ctx, "lead_created_at")
+        ? sql`(${L.leadCreatedAt} BETWEEN ${first} AND ${today} OR (${L.leadCreatedAt} IS NULL AND ${reached}))`
+        : sql`(${reached})`,
     );
   }
 
@@ -281,7 +292,7 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
   const hits = await resolveSearch(req, q, fields);
   const where = [...leadFilters(req, q, fields, hits), cursorWhere(q.sort, q.cursor)];
   const rows = await req.db
-    .select()
+    .select({ ...getTableColumns(L), exactUpdatedAt: sql<string>`${L.updatedAt}::text` })
     .from(L)
     .where(and(...where))
     .orderBy(...orderBy(q.sort))
@@ -325,7 +336,11 @@ const COUNTED = new Set(["pipelineId", "ownerId", "stageId", "sort"]);
  * person instead of every lead. Row-level security shows each person the counts their lead scope allows; the owner
  * condition mirrors the list's.
  */
-async function countFromTable(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
+async function countFromTable(
+  req: FastifyRequest,
+  q: FilterQuery & { pipelineId: string },
+  showValue: boolean,
+) {
   const where: SQL[] = [sql`pipeline_id = ${q.pipelineId}`];
   const actor = req.actor!;
   const scope = leadScope(actor);
@@ -343,7 +358,7 @@ async function countFromTable(req: FastifyRequest, q: FilterQuery & { pipelineId
      WHERE ${sql.join(where, sql` AND `)} GROUP BY stage_id HAVING sum(n) <> 0`);
   return {
     counts: Object.fromEntries(rows.map((r) => [r.stage_id, r.n])),
-    values: Object.fromEntries(rows.map((r) => [r.stage_id, Number(r.value)])),
+    values: showValue ? Object.fromEntries(rows.map((r) => [r.stage_id, Number(r.value)])) : {},
     total: rows.reduce((sum, r) => sum + r.n, 0),
     searchCapped: false,
   };
@@ -354,9 +369,11 @@ export function countable(q: FilterQuery): boolean {
   return !!q.pipelineId && Object.entries(q).every(([k, v]) => v === undefined || v === "" || COUNTED.has(k));
 }
 
+/** Per stage: how many, and their value when the person may see value (a hidden value has no totals, review L7). */
 export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelineId: string }) {
-  if (countable(q)) return countFromTable(req, q);
   const fields = await loadFieldRegistry(req);
+  const showValue = isFieldVisible({ actor: req.actor!, fields }, "value");
+  if (countable(q)) return countFromTable(req, q, showValue);
   const hits = await resolveSearch(req, q, fields);
   const rows = await req.db
     .select({
@@ -370,7 +387,7 @@ export async function countLeads(req: FastifyRequest, q: FilterQuery & { pipelin
     .groupBy(L.stageId);
   return {
     counts: Object.fromEntries(rows.map((r) => [r.stageId, r.n])),
-    values: Object.fromEntries(rows.map((r) => [r.stageId, Number(r.value)])),
+    values: showValue ? Object.fromEntries(rows.map((r) => [r.stageId, Number(r.value)])) : {},
     total: rows.reduce((sum, r) => sum + r.n, 0),
     searchCapped: hits?.capped ?? false,
   };

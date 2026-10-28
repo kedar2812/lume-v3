@@ -7,6 +7,7 @@ import { jobServer, withJobRequest } from "../imports/job-request";
 import { countSend, dncWords } from "../leads/sending";
 import { recordActivity, visibleLead } from "../leads/service";
 import { HttpError } from "../../http/errors";
+import { heldBack } from "../../licence/enforce";
 import { photoForWhatsApp } from "../media/photo";
 import { MetaError, metaClient } from "./meta";
 import { WHATSAPP_PHOTO_MAX } from "./sniff";
@@ -14,13 +15,22 @@ import { unsent } from "../autopilot/unsent";
 import type { WhatsAppJobDeps } from "./process";
 import { tokenContext } from "./service";
 
-/** A message that has been "sending" this long was cut short somewhere: never sent again (it may have gone). */
-const SENDING_STUCK_MS = 2 * 60_000;
+/**
+ * A message that has been "sending" this long was cut short somewhere: never sent again (it may have gone). Well past
+ * the slowest send (an upload and a send, each up to 30 s, twice for a file Meta forgot), so one still on its way is
+ * never given up on (review 2026-10-26 W6).
+ */
+export const SENDING_STUCK_MS = 10 * 60_000;
 /** Meta's ids for uploaded files last 30 days: reused for 25. */
 const UPLOAD_KEEP_MS = 25 * 86_400_000;
 /** Tries of a passing refusal (busy, rate limited) before it's failed with words. */
 export const SEND_TRIES = 5;
 const MAYBE_SENT = "LUME couldn't tell whether this went. Check the phone before sending it again.";
+
+/** The send job's deps; tests may act in the moment between the checks and the claim. */
+export type SendDeps = WhatsAppJobDeps & {
+  testHooks?: { beforeClaim?(): Promise<void>; whileSending?(): Promise<void> };
+};
 
 /** A transaction that sees every lead: background work only. */
 export async function allScope<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
@@ -41,7 +51,7 @@ export async function allScope<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promi
 
 type Row = {
   status: string;
-  /** "sending" untouched for 2 minutes, by the database's clock. */
+  /** "sending" untouched for 10 minutes, by the database's clock. */
   stuck: boolean;
   lead_name: string | null;
   lead_dnc: boolean;
@@ -83,7 +93,7 @@ type Row = {
  * again later" (pg-boss's backoff), anything else is final.
  *
  * - Never twice: the message is marked `sending` (committed) before Meta is called, and one found `sending` for over
- *   2 minutes is failed with words, never sent again; it may have gone.
+ *   10 minutes is failed with words, never sent again; it may have gone.
  * - Sent as the person who tapped Send: if they can't message the lead any more, or the lead went to the bin, it
  *   isn't sent.
  * - A file is uploaded to Meta once per number and content, its id reused for 25 days; an id Meta no longer has is
@@ -91,7 +101,10 @@ type Row = {
  * - Once Meta takes it, it counts as a send, as that person: the lead's last message, first contact, the follow-up
  *   done, the stage's move.
  */
-export async function sendOutbox(o: WhatsAppJobDeps, id: string): Promise<void> {
+export async function sendOutbox(o: SendDeps, id: string): Promise<void> {
+  // A locked licence (read-only, suspended): nothing goes. It stays queued, and the minute sweep finds it again once
+  // the licence is active (review 2026-10-26 D1).
+  if (heldBack(o.app, "WhatsApp sends")) return;
   try {
     await sendOne(o, id);
   } finally {
@@ -117,7 +130,7 @@ async function wakeNext(o: WhatsAppJobDeps, id: string): Promise<void> {
   if (next) await o.d.whatsapp?.enqueueSend(next);
 }
 
-async function sendOne(o: WhatsAppJobDeps, id: string): Promise<void> {
+async function sendOne(o: SendDeps, id: string, again = false): Promise<void> {
   const { d } = o;
   const pool = d.jobPool ?? d.pool;
   const row = await allScope(
@@ -215,23 +228,38 @@ async function sendOne(o: WhatsAppJobDeps, id: string): Promise<void> {
   if (!allowed) return void (await fail(lost));
 
   const tries = row.tries + 1;
-  // Taken only when nothing sent to this lead before it is still on its way; otherwise that one wakes it when it's done.
+  await o.testHooks?.beforeClaim?.();
+  // Taken only when nothing sent to this lead before it is still on its way (that one wakes it when it's done), and
+  // only if the checks above still hold: the lead isn't in the bin or do not contact, and LUME AI's run still has it
+  // (review 2026-10-26 W4). If they don't, it's looked at once more, so it fails or is held with words.
   const claimed = await allScope(pool, (c) =>
     c.query(
       `UPDATE whatsapp_outbox o SET status = 'sending', tries = $2, problem = NULL, updated_at = now()
         WHERE o.id = $1 AND o.status = 'queued' AND NOT EXISTS (
           SELECT 1 FROM whatsapp_outbox e
            WHERE e.lead_id = o.lead_id AND e.id <> o.id AND e.status IN ('queued', 'sending')
-             AND (e.created_at, e.id) < (o.created_at, o.id))`,
+             AND (e.created_at, e.id) < (o.created_at, o.id))
+          AND EXISTS (
+            SELECT 1 FROM leads l WHERE l.id = o.lead_id AND l.deleted_at IS NULL
+               AND (l.dnc_at IS NULL OR o.allow_after_dnc))
+          AND (o.autopilot_run_id IS NULL OR o.allow_after_dnc OR EXISTS (
+            SELECT 1 FROM autopilot_runs ar
+              JOIN autopilot_leads al ON al.run_id = ar.id AND al.lead_id = o.lead_id
+             WHERE ar.id = o.autopilot_run_id AND ar.status = 'running' AND al.active
+               AND al.state NOT IN ('with_you', 'stopped')))`,
       [id, tries],
     ),
   );
-  if (!claimed.rowCount) return;
+  if (!claimed.rowCount) return again ? undefined : sendOne({ app: o.app, d: o.d }, id, true);
+  await o.testHooks?.whileSending?.();
   const meta = metaClient(d.meta, d.keyring.decrypt(row.token_enc, tokenContext(row.number_id)));
   let wamid: string;
+  // Set once the message is on its way to Meta: from then on, an unclear answer may mean it went (W1).
+  let handed = false;
   try {
     const first = await bodyOf(o, row, meta, false);
     try {
+      handed = true;
       wamid = await meta.sendMessage(row.phone_number_id, first.body);
     } catch (e) {
       // A reused file id Meta no longer has (131053): dropped, the file uploaded again, and sent once more.
@@ -240,11 +268,20 @@ async function sendOne(o: WhatsAppJobDeps, id: string): Promise<void> {
         row.number_id,
         row.media_sha ?? row.header_sha,
       ]);
-      wamid = await meta.sendMessage(row.phone_number_id, (await bodyOf(o, row, meta, true)).body);
+      // Uploading the file again isn't a send: only the second send itself is handed to Meta.
+      handed = false;
+      const again = await bodyOf(o, row, meta, true);
+      handed = true;
+      wamid = await meta.sendMessage(row.phone_number_id, again.body);
     }
   } catch (e) {
     if (e instanceof MissingFile)
       return void (await fail("This file isn't on the server any more. Attach it again."));
+    // Handed to Meta and no clear answer (unreachable, a 5xx, a body without an id): it may have gone. Never again.
+    if (handed && (!(e instanceof MetaError) || (e.kind === "transient" && e.code === null))) {
+      o.app.log.warn({ outbox: id }, "whatsapp send unclear");
+      return void (await fail(MAYBE_SENT));
+    }
     if (!(e instanceof MetaError)) {
       await set("queued");
       throw e;
@@ -282,9 +319,10 @@ async function sendOne(o: WhatsAppJobDeps, id: string): Promise<void> {
   await withJobRequest(
     { app: jobServer(o.app), pool, actor, requestId: `whatsapp-sent:${id}`, allLeads: true },
     async (req) => {
+      // Sent, even if the sweep gave up on it meanwhile ("may have gone"): it went, and its id is kept (W6).
       await req.db.execute(sql`
         UPDATE whatsapp_outbox SET status = 'sent', wamid = ${wamid}, problem = NULL, updated_at = now()
-         WHERE id = ${id} AND status = 'sending'`);
+         WHERE id = ${id} AND (status = 'sending' OR (status = 'failed' AND problem = ${MAYBE_SENT}))`);
       const lead = await visibleLead(req, row.lead_id);
       await recordActivity(req, lead.id, "whatsapp_confirmed_sent", { via: "lume", outboxId: id });
       await countSend(req, d, lead, row.task_id ?? undefined);

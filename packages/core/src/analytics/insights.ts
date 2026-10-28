@@ -53,6 +53,8 @@ export type InsightContext = {
   stages?: {
     id: string;
     name: string;
+    /** open, won or lost: where leads stop is an open stage. */
+    kind: string;
     reached: number;
     stopped: number;
     prevReached: number;
@@ -88,7 +90,12 @@ export function duration(min: number): string {
 }
 /** An hour of the day in words: "9 am", "6 pm". */
 export const hour12 = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? " am" : " pm"}`;
-const windowWords = (w: Window) => `${hour12(w.hour).replace(/ (am|pm)$/, "")}–${hour12((w.hour + 2) % 24)}`;
+/** "9–11 am", "10 am–12 pm", "10 pm–12 am": the start's am or pm only when it isn't the end's (review C9). */
+export function windowWords(w: Window): string {
+  const start = hour12(w.hour);
+  const end = hour12((w.hour + 2) % 24);
+  return `${start.slice(-2) === end.slice(-2) ? start.slice(0, -3) : start}–${end}`;
+}
 /** "Dev's and Leo's", "Dev's, Leo's and one other's", "Dev's, Leo's and 3 others'". */
 export function possessives(names: string[]): string {
   const p = names.map((n) => `${n}’s`);
@@ -265,7 +272,8 @@ const weekdayLate: Detector = ({ people, view }) => {
 
 const stageDrop: Detector = ({ stages }) => {
   if (!stages?.length) return null;
-  const eligible = stages.filter((s) => s.reached >= 50);
+  // Open stages only: everyone who reaches Won or Lost stays there (review C8).
+  const eligible = stages.filter((s) => s.kind === "open" && s.reached >= 50);
   if (!eligible.length) return null;
   const worst = eligible.reduce((a, s) => (s.stopped / s.reached > a.stopped / a.reached ? s : a));
   const now = worst.stopped / worst.reached;

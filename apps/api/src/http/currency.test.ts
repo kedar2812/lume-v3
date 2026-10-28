@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../test/harness";
@@ -90,6 +91,77 @@ describe("one currency across LUME, set in Settings", () => {
       payload: { from: "USD", to: "AED", rate: 3.7 },
     });
     expect(back.statusCode).toBe(200);
+  });
+
+  it("converts every amount there is: binned leads, a source's spend, revenue goals, won value in Analytics; the codes follow (review D4, D5)", async () => {
+    const binned = (
+      await admin.inject({
+        method: "POST",
+        url: "/api/v1/leads",
+        payload: { name: "In the bin", value: 1000 },
+      })
+    ).json().lead;
+    await h.queryAll("UPDATE leads SET deleted_at = now(), currency = 'AED' WHERE id = $1", [binned.id]);
+    const source = randomUUID();
+    await h.ownerPool.query(
+      "INSERT INTO lead_sources (id, type, name, monthly_spend) VALUES ($1, 'manual', 'Spend test', 2000)",
+      [source],
+    );
+    const revenue = randomUUID();
+    const won = randomUUID();
+    await h.ownerPool.query(
+      `INSERT INTO goals (id, scope, metric, period, period_start, target)
+       VALUES ($1, 'business', 'revenue', 'month', '2026-10-01', 10000), ($2, 'business', 'won', 'month', '2026-10-01', 5)`,
+      [revenue, won],
+    );
+    await h.ownerPool.query(
+      `INSERT INTO analytics_daily_event (day, source_id, won, won_value, won_no_value, lost, booked, held, no_show,
+         cancelled, tasks_due, tasks_done, tasks_on_time, late_minutes_sum, late_count, sends, replies72)
+       VALUES ('2026-10-02', $1, 1, 4000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)`,
+      [source],
+    );
+    const product = (
+      await admin.inject({
+        method: "POST",
+        url: "/api/v1/products",
+        payload: { name: "Coded pkg", defaultValue: 100 },
+      })
+    ).json().product;
+    await h.ownerPool.query("UPDATE products SET currency = 'AED' WHERE id = $1", [product.id]);
+
+    const sw = await admin.inject({
+      method: "POST",
+      url: "/api/v1/settings/currency",
+      payload: { from: "AED", to: "USD", rate: 0.27 },
+    });
+    expect(sw.statusCode, sw.body).toBe(200);
+    try {
+      // Undo from the bin brings it back in the business's currency, not the old one.
+      expect(
+        await h.queryAll("SELECT value::float AS value, currency FROM leads WHERE id = $1", [binned.id]),
+      ).toEqual([{ value: 270, currency: "USD" }]);
+      const one = async (q: string, p: unknown[]) => (await h.ownerPool.query(q, p)).rows[0];
+      expect(await one("SELECT monthly_spend::float AS v FROM lead_sources WHERE id = $1", [source])).toEqual(
+        { v: 540 },
+      );
+      expect(await one("SELECT target::float AS v FROM goals WHERE id = $1", [revenue])).toEqual({ v: 2700 });
+      expect(await one("SELECT target::float AS v FROM goals WHERE id = $1", [won])).toEqual({ v: 5 });
+      expect(
+        await one("SELECT won_value::float AS v FROM analytics_daily_event WHERE source_id = $1", [source]),
+      ).toEqual({ v: 1080 });
+      expect(await one("SELECT currency FROM products WHERE id = $1", [product.id])).toEqual({
+        currency: "USD",
+      });
+    } finally {
+      const back = await admin.inject({
+        method: "POST",
+        url: "/api/v1/settings/currency",
+        payload: { from: "USD", to: "AED", rate: 3.7 },
+      });
+      expect(back.statusCode).toBe(200);
+      await h.ownerPool.query("DELETE FROM analytics_daily_event WHERE source_id = $1", [source]);
+      await h.ownerPool.query("DELETE FROM goals WHERE id = ANY($1)", [[revenue, won]]);
+    }
   });
 
   it("refuses to quote or switch to the current currency, a made-up one, or a silly rate", async () => {

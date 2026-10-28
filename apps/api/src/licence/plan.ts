@@ -83,10 +83,7 @@ export async function modulesOn(q: Pick<pg.Pool, "query">): Promise<PlanModule[]
   const calendly = (
     await q.query("SELECT 1 FROM lead_sources WHERE type = 'calendly' AND status <> 'archived' LIMIT 1")
   ).rowCount;
-  // WhatsApp (spec 2026-10-18 part D) has no switch yet: never on.
-  return PLAN_MODULES.filter((k) =>
-    k === "calendly" ? !!calendly : k === "whatsapp" ? false : !!s?.[k]?.enabled,
-  );
+  return PLAN_MODULES.filter((k) => (k === "calendly" ? !!calendly : !!s?.[k]?.enabled));
 }
 
 /**
@@ -115,9 +112,11 @@ export async function applyPlan(
     for (const k of excluded.filter((x) => !before.includes(x))) {
       if (!on.has(k)) continue;
       if (k !== "calendly")
+        // Only the switch: the rest of how it was set up is kept (review 2026-10-26 D2).
         await c.query(
-          "UPDATE settings SET integrations = jsonb_set(integrations, ARRAY[$1::text], $2::jsonb) WHERE id = 1",
-          [k, JSON.stringify({ enabled: false })],
+          `UPDATE settings SET integrations = jsonb_set(integrations, ARRAY[$1::text],
+             coalesce(integrations -> $1, '{}'::jsonb) || '{"enabled": false}'::jsonb) WHERE id = 1`,
+          [k],
         );
       await c.query(
         "INSERT INTO audit_log (actor_user_id, action, entity_type, diff) VALUES (NULL, 'integration.disabled', 'integration', $1)",

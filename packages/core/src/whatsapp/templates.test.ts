@@ -140,4 +140,9 @@ describe("a lead's values for the numbered variables", () => {
       missing: ["meeting.date"],
     });
   });
+
+  it("a value with a line break, a tab or a run of spaces goes as one line WhatsApp accepts (review C5)", () => {
+    const ctx = { ...CTX, business: { ...CTX.business, name: "Acme\nStudio\t\tand     Sons\r\n" } };
+    expect(paramsFor(["business.name"], ctx).values).toEqual(["Acme Studio and Sons"]);
+  });
 });

@@ -128,7 +128,8 @@ export function toMetaTemplate(t: {
 export function paramsFor(tokens: string[], ctx: RenderContext): { values: string[]; missing: string[] } {
   const missing: string[] = [];
   const values = tokens.map((token) => {
-    const v = valueOf(token, ctx);
+    // WhatsApp refuses a value with a line break, a tab or four spaces in a row: one line, single-spaced (C5).
+    const v = valueOf(token, ctx)?.replace(/\s+/g, " ").trim() || null;
     if (v === null) missing.push(token);
     return v ?? "";
   });

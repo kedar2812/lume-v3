@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DETECTORS, cooling, duration, noticed, possessives, type InsightContext } from "./insights";
+import {
+  DETECTORS,
+  cooling,
+  duration,
+  noticed,
+  possessives,
+  windowWords,
+  type InsightContext,
+} from "./insights";
 
 const base: InsightContext = { view: "team", money: (n) => `₹${Math.round(n).toLocaleString("en-IN")}` };
 const one = (id: keyof typeof DETECTORS, c: Partial<InsightContext>) => {
@@ -73,6 +81,50 @@ describe("LUME noticed: each detector, in its own words (8B)", () => {
     expect(
       one("speed_pays", { speed: { fastN: 30, fastWon: 3, slowN: 30, slowWon: 1, medianMinutes: 10 } }),
     ).toBeNull();
+  });
+
+  it("where leads stop: an open stage, never Won or Lost, where everyone who arrives stays (review C8)", () => {
+    const i = one("stage_drop", {
+      stages: [
+        {
+          id: "new",
+          name: "New",
+          kind: "open",
+          reached: 400,
+          stopped: 60,
+          prevReached: 380,
+          prevStopped: 50,
+        },
+        {
+          id: "quoted",
+          name: "Quoted",
+          kind: "open",
+          reached: 200,
+          stopped: 90,
+          prevReached: 210,
+          prevStopped: 50,
+        },
+        {
+          id: "won",
+          name: "Won",
+          kind: "won",
+          reached: 110,
+          stopped: 110,
+          prevReached: 160,
+          prevStopped: 160,
+        },
+        {
+          id: "lost",
+          name: "Lost",
+          kind: "lost",
+          reached: 60,
+          stopped: 60,
+          prevReached: 30,
+          prevStopped: 30,
+        },
+      ],
+    });
+    expect(i).toMatchObject({ subject: "quoted", title: "Most leads stop at Quoted" });
   });
 
   it("a source punching above its weight, and one costing more than it returns", () => {
@@ -237,5 +289,16 @@ describe("choosing what to show", () => {
     expect(duration(2880)).toBe("2 days");
     expect(possessives(["Dev", "Leo", "Ira"])).toBe("Dev’s, Leo’s and one other’s");
     expect(possessives(["Dev", "Leo", "Ira", "Sam"])).toBe("Dev’s, Leo’s and 2 others’");
+  });
+});
+
+describe("a two-hour window in words", () => {
+  it("names the start's half of the day when it isn't the end's (review C9)", () => {
+    expect(windowWords({ day: 1, hour: 9 })).toBe("9–11 am");
+    expect(windowWords({ day: 1, hour: 14 })).toBe("2–4 pm");
+    expect(windowWords({ day: 1, hour: 10 })).toBe("10 am–12 pm");
+    expect(windowWords({ day: 1, hour: 11 })).toBe("11 am–1 pm");
+    expect(windowWords({ day: 1, hour: 22 })).toBe("10 pm–12 am");
+    expect(windowWords({ day: 1, hour: 23 })).toBe("11 pm–1 am");
   });
 });

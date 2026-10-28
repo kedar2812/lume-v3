@@ -63,6 +63,30 @@ describe("a pipeline's 'on booking' stage (5B)", () => {
   });
 });
 
+describe("a booking stage that stops being open (review L5)", () => {
+  it("turned into a won or lost stage, it's no longer where booked leads go", async () => {
+    const [p] = await pipelines();
+    const added = (
+      await admin.inject({
+        method: "POST",
+        url: `/api/v1/pipelines/${p!.id}/stages`,
+        payload: { name: "Booked, then won", kind: "open", color: "accent" },
+      })
+    ).json();
+    const stageId: string =
+      added.stage?.id ??
+      added.pipeline.stages.find((s: { name: string }) => s.name === "Booked, then won").id;
+    expect((await patch(p!.id, stageId)).statusCode).toBe(200);
+    const r = await admin.inject({
+      method: "PATCH",
+      url: `/api/v1/stages/${stageId}`,
+      payload: { kind: "won" },
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    expect((await pipelines())[0]!.bookingStageId).toBeNull();
+  });
+});
+
 describe("Calendly as a lead source (5B)", () => {
   it("is a source type the database takes", async () => {
     const id = newId();

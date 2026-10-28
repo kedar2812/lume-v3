@@ -124,6 +124,45 @@ describe("Not a lead yet", () => {
         leadId,
       ]),
     ).toHaveLength(2);
+    expect(await h.queryAll("SELECT dnc_at FROM leads WHERE id = $1", [leadId])).toEqual([{ dnc_at: null }]);
+  });
+
+  it("with no WhatsApp name, the lead is named after its number, masked, as a name is shown to everyone (review C1)", async () => {
+    const body = inbound({ from: "919000000777", name: "", id: "wamid.NN1", at: h.clock.now.toISOString() });
+    expect((await deliver(h, body)).statusCode).toBe(200);
+    await h.runWhatsApp();
+    const r = await (
+      await h.signIn(rep)
+    ).inject({
+      method: "POST",
+      url: `/api/v1/whatsapp/inbox/${numberId}/${encodeURIComponent(STRANGER)}/lead`,
+    });
+    expect(r.statusCode).toBe(201);
+    expect(await h.queryAll("SELECT name, phone_e164 FROM leads WHERE id = $1", [r.json().leadId])).toEqual([
+      { name: "+91 90 ••• ••77", phone_e164: STRANGER },
+    ]);
+  });
+
+  it("a stranger who said stop is do not contact the moment they become a lead, however they talk after (review W2)", async () => {
+    await stranger("wamid.S1", "Please stop messaging me");
+    await stranger("wamid.S2", "ok and when do you open?");
+    const r = await (
+      await h.signIn(rep)
+    ).inject({
+      method: "POST",
+      url: `/api/v1/whatsapp/inbox/${numberId}/${encodeURIComponent(STRANGER)}/lead`,
+    });
+    expect(r.statusCode).toBe(201);
+    const leadId = r.json().leadId as string;
+    expect(
+      await h.queryAll("SELECT dnc_reason, dnc_by FROM leads WHERE id = $1 AND dnc_at IS NOT NULL", [leadId]),
+    ).toEqual([{ dnc_reason: "Said stop on WhatsApp", dnc_by: null }]);
+    expect(
+      await h.queryAll(
+        "SELECT payload->>'via' AS via FROM activities WHERE lead_id = $1 AND type = 'dnc_set'",
+        [leadId],
+      ),
+    ).toEqual([{ via: "whatsapp" }]);
   });
 
   it("Not a lead: gone, and that number never shows up again here", async () => {

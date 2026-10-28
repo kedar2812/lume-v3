@@ -283,4 +283,48 @@ describe("7B: undo", () => {
     });
     expect((await lead(ids[0]!)).owner_id).toBe(riya.id);
   });
+
+  it("undo of a delete leaves a lead in the bin when its stage was archived since, and says so (review L9)", async () => {
+    const p = (
+      await admin.inject({ method: "POST", url: "/api/v1/pipelines", payload: { name: "Undo stages" } })
+    ).json().pipeline;
+    const open = p.stages.filter((s: { kind: string }) => s.kind === "open").map((s: { id: string }) => s.id);
+    const added = (
+      await admin.inject({
+        method: "POST",
+        url: `/api/v1/pipelines/${p.id}/stages`,
+        payload: { name: "Soon gone", kind: "open", color: "accent" },
+      })
+    ).json();
+    const doomed: string =
+      added.stage?.id ?? added.pipeline.stages.find((s: { name: string }) => s.name === "Soon gone").id;
+    const [inDoomed, inOpen] = [await h.seedLead({ ownerId: null }), await h.seedLead({ ownerId: null })];
+    await h.queryAll("UPDATE leads SET pipeline_id = $2, stage_id = $3 WHERE id = $1", [
+      inDoomed,
+      p.id,
+      doomed,
+    ]);
+    await h.queryAll("UPDATE leads SET pipeline_id = $2, stage_id = $3 WHERE id = $1", [
+      inOpen,
+      p.id,
+      open[0],
+    ]);
+    const run = await runOf(admin, [inDoomed, inOpen], { type: "delete" });
+    await h.runBulk();
+    const a = await admin.inject({
+      method: "POST",
+      url: `/api/v1/stages/${doomed}/archive`,
+      payload: { moveToStageId: open[0] },
+    });
+    expect(a.statusCode, a.body).toBe(204);
+    const u = await undo(admin, run.id);
+    await h.runBulk();
+    expect(await read(admin, u.json().run.id)).toMatchObject({
+      done: 1,
+      skipped: 1,
+      skippedBy: { STAGE_GONE: 1 },
+    });
+    expect((await lead(inDoomed)).deleted_at).not.toBeNull();
+    expect((await lead(inOpen)).deleted_at).toBeNull();
+  });
 });

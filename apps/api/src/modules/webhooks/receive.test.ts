@@ -142,6 +142,18 @@ describe("replays", () => {
     expect(await events(id)).toHaveLength(1);
   });
 
+  it("an empty event id is no event id: two different posts are two events (review W3)", async () => {
+    const id = await source();
+    for (const [raw, given] of [
+      ['{"name":"First"}', ""],
+      ['{"name":"Second"}', "   "],
+    ] as const)
+      expect((await post(id, raw, { ...signed(raw), "x-lume-event-id": given })).json()).toEqual({
+        accepted: true,
+      });
+    expect(await events(id)).toHaveLength(2);
+  });
+
   it("a captured signed post sent again under a fresh event id is a duplicate (the signature works once)", async () => {
     const id = await source();
     const raw = '{"name":"Replayed"}';

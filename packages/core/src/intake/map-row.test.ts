@@ -37,13 +37,14 @@ describe("empty rows and names (§6.1, §6.2, §6.4)", () => {
     );
   });
 
-  it("uses the contact as the name when there is none, and says so", () => {
+  it("names a lead with no name after its contact, masked as everywhere, and says so (review C1)", () => {
+    // A name is shown to everyone who sees the lead; the contact only to those allowed it.
     const o = draft(run(["name", "phone", "email"], ["", "0501234567", "a@x.com"]));
-    expect(o.draft.name).toBe("+971 50 123 4567");
+    expect(o.draft.name).toBe("+971 50 ••• ••67");
     expect(o.draft.nameFromContact).toBe(true);
     expect(warns(o)).toContain("NAME_FROM_CONTACT");
-    expect(draft(run(["name", "email"], ["", "a@x.com"])).draft.name).toBe("a@x.com");
-    expect(draft(run(["name", "instagram"], ["", "@aisha"])).draft.name).toBe("@aisha");
+    expect(draft(run(["name", "email"], ["", "aisha@x.com"])).draft.name).toBe("a•••@x.com");
+    expect(draft(run(["name", "instagram"], ["", "@aisha"])).draft.name).toBe("@a•••a");
   });
 
   it("refuses a row with no name and no contact, and no name at all when asked", () => {
@@ -226,6 +227,14 @@ describe("custom fields (§6.8)", () => {
     const o = draft(run(["name", "website", "alt_phone"], ["A", "not a link", "123"]));
     expect(o.draft.custom).toEqual({});
     expect(warns(o)).toEqual(expect.arrayContaining(["URL_INVALID", "PHONE_INVALID"]));
+  });
+
+  it("a phone in a custom field is read with the import's country, as the lead's own phone is (review C7)", () => {
+    // The business is in the UAE; this sheet's numbers are Indian, and the import says so.
+    const rules = { ...testRules(), defaultCountry: "IN" };
+    const o = draft(run(["name", "phone", "alt_phone"], ["A", "98765 43210", "91234 56789"], rules));
+    expect(o.draft.phone.e164).toBe("+919876543210");
+    expect(o.draft.custom.alt_phone).toBe("+919123456789");
   });
 
   it("matches person fields like owners, with no fallback", () => {

@@ -6,6 +6,8 @@ import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { approvedTemplate, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 import { fakeProvider } from "../../ai/fake";
 import { onNumberHealth } from "../whatsapp/health";
+import { staleOutbox } from "../whatsapp/queue";
+import { sendOutbox } from "../whatsapp/sender";
 import { dueRuns, endRun, pauseRun, resumeRun } from "./engine";
 
 /**
@@ -262,6 +264,50 @@ describe("the engine", () => {
     expect((await stateOf(run, one)).state).toBe("sent");
   });
 
+  it("a locked licence holds LUME AI and its sends back; once it's active again, both carry on (review D1)", async () => {
+    const one = await lead("Meera Iyer");
+    const two = await lead("Rohan Gupta");
+    const run = await start([one]);
+    await tick();
+    await tick(10 * S);
+    expect(await outbox()).toHaveLength(1);
+    // Started just before the licence locks (a locked licence refuses a new run).
+    const run2 = await start([two]);
+    licence.setState("read_only");
+    await h.app.licence.check();
+    try {
+      // The message already queued waits; nothing new is written.
+      await h.runWhatsAppSend();
+      expect(meta.sent).toHaveLength(0);
+      expect((await outbox())[0]!.status).toBe("queued");
+      await tick();
+      await tick(10 * S);
+      expect(await stateOf(run2, two)).toMatchObject({ state: "up_next" });
+      expect(await outbox()).toHaveLength(1);
+    } finally {
+      licence.setState("active");
+      await h.app.licence.check();
+    }
+    await h.queryAll("UPDATE whatsapp_outbox SET updated_at = now() - interval '3 minutes'");
+    for (const id of await staleOutbox(h.pool)) h.whatsappSendQueued.push(id);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+    expect((await stateOf(run, one)).state).toBe("sent");
+  });
+
+  it("pause landing while the send is checked: it still never reaches Meta, and Resume writes it again (review W4)", async () => {
+    const one = await lead("Meera Iyer");
+    const run = await start([one]);
+    await tick();
+    await tick(10 * S);
+    const [id] = await h.queryAll<{ id: string }>("SELECT id FROM whatsapp_outbox WHERE lead_id = $1", [one]);
+    const pause = () => pauseRun(h.ownerPool, run, "person").then(() => undefined);
+    await sendOutbox({ app: h.app, d: h.deps, testHooks: { beforeClaim: pause } }, id!.id);
+    expect(meta.sent).toHaveLength(0);
+    expect((await outbox())[0]!.status).toBe("cancelled");
+    expect((await stateOf(run, one)).state).toBe("up_next");
+  });
+
   it("first messages set to Never: nothing is opened; each lead says why (review 2026-10-26)", async () => {
     const one = await lead("Meera Iyer");
     const run = await start([one], admin, { ...AUTOPILOT_PRESETS.hands_off, first_messages: "never" });
@@ -457,6 +503,28 @@ describe("the engine", () => {
       "LUME AI paused a run: its speaker can't message leads",
     );
   });
+
+  it("a run paused for the month whose speaker can't message any more: said once, and nothing spins (review 2026-10-26 A5)", async () => {
+    await h.ownerPool.query("DELETE FROM user_roles WHERE user_id = $1", [rep.id]);
+    await h.grant(rep.id, [
+      { key: "leads.view", scope: "own" },
+      { key: "messages.send", scope: "own" },
+      { key: "messages.send_queue", scope: null },
+    ]);
+    await h.waitForRbacNotify();
+    const run = await start([await lead("Meera Iyer", { owner: rep.id })], rep);
+    await h.queryAll("UPDATE autopilot_runs SET status = 'paused', pause_reason = 'month' WHERE id = $1", [
+      run,
+    ]);
+    await h.ownerPool.query("DELETE FROM user_roles WHERE user_id = $1", [rep.id]);
+    await h.grant(rep.id, [{ key: "leads.view", scope: "own" }]);
+    await h.waitForRbacNotify();
+    const started = Date.now();
+    await tick();
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(await runOf(run)).toEqual({ status: "paused", pause_reason: "speaker" });
+    expect(await dueRuns(h.ownerPool, h.clock.now)).not.toContain(run);
+  }, 30_000);
 
   it("a drop to yellow pauses every run on the number", async () => {
     const run = await start([await lead("Meera Iyer")]);

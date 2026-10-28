@@ -84,6 +84,8 @@ describe("mandatory two-factor (report §12.1)", () => {
     [[{ key: "roles.manage", scope: null }], true],
     [[{ key: "leads.export", scope: "own" }], true],
     [[{ key: "security.manage", scope: null }], true],
+    // The whole-workspace export (review C2).
+    [[{ key: "data.export", scope: null }], true],
     [[{ key: "leads.contact.full", scope: "all" }], true],
     [[{ key: "leads.contact.full", scope: "own" }], false],
     [[{ key: "leads.view", scope: "all" }], false],

@@ -98,7 +98,13 @@ describe("the schema a provider is sent", () => {
       if (o.type === "object" && o.additionalProperties !== false) open.push(at);
       for (const [k, x] of Object.entries(o)) walk(x, `${at}.${k}`);
     };
-    const tasks = { nextStepOutput, catchUpOutput, autopilotFirstOutput, autopilotReplyOutput, replyMeaningOutput };
+    const tasks = {
+      nextStepOutput,
+      catchUpOutput,
+      autopilotFirstOutput,
+      autopilotReplyOutput,
+      replyMeaningOutput,
+    };
     for (const [name, schema] of Object.entries(tasks)) walk(schemaForProvider(schema), name);
     expect(open).toEqual([]);
   });

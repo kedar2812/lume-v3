@@ -27,9 +27,19 @@ describe("dates: the order of day and month, per column", () => {
     [["03/13/2026", "03/04/2026"], "MDY"],
     [["2026-03-04", "2026/03/05"], "YMD"],
     [["03/04/2026", "05/06/2026"], "ambiguous"],
+    // ISO beside a slash date that reads either way: the business country decides the slash one (review C4).
+    [["2026-03-04", "03/04/2026"], "ambiguous"],
+    [["2026-03-04", "13/03/2026"], "DMY"],
     [["13/03/2026", "03/13/2026"], "conflict"],
     [["4 Mar 2026", "", "45123"], "ambiguous"],
   ])("%j → %s", (values, order) => expect(detectDateOrder(values)).toBe(order));
+
+  it("a year is two digits or four, never three (review C10)", () => {
+    for (const v of ["04/03/202", "202/03/04", "4 Mar 202", "Mar 4, 202"])
+      expect(code(parseDate(v, "DMY", ctx)), v).toBe("DATE_UNREADABLE");
+    expect(val(parseDate("04/03/26", "DMY", ctx))?.date).toBe("2026-03-04");
+    expect(val(parseDate("4 Mar 2026", "DMY", ctx))?.date).toBe("2026-03-04");
+  });
 
   it("defaults from the business country", () => {
     expect(defaultDateOrder("US")).toBe("MDY");
@@ -119,6 +129,28 @@ describe("numbers and money", () => {
     expect(r.ok && r.warning?.code).toBe("AMOUNT_ROUNDED");
     // Half a cent rounds up from the digits typed, even where the float sits just below it.
     expect(val(parseMoney("5,000,000.015", ".", "AED"))).toBe(5000000.02);
+  });
+
+  it("a symbol many currencies share is the business's own when it's one of them (review C3, C6)", () => {
+    expect(val(parseMoney("$1,200", ".", "AUD"))).toBe(1200);
+    expect(val(parseMoney("$1,200", ".", "CAD"))).toBe(1200);
+    expect(val(parseMoney("$ 99", ".", "SGD"))).toBe(99);
+    expect(val(parseMoney("¥8,000", ".", "CNY"))).toBe(8000);
+    expect(val(parseMoney("﷼ 250", ".", "OMR"))).toBe(250);
+    expect(val(parseMoney("﷼ 250", ".", "QAR"))).toBe(250);
+    // Rs, Rs. and ₨: rupees, read as the amount they are.
+    expect(val(parseMoney("Rs 50,000", ".", "INR"))).toBe(50000);
+    expect(val(parseMoney("Rs. 1,20,000", ".", "INR"))).toBe(120000);
+    expect(val(parseMoney("₨ 7,500", ".", "PKR"))).toBe(7500);
+    // A marked dollar names its own currency, and one the business doesn't use is still refused.
+    expect(val(parseMoney("A$1,200", ".", "AUD"))).toBe(1200);
+    const cad = parseMoney("C$1,200", ".", "AUD");
+    expect(!cad.ok && cad.issue.message).toBe(
+      "This amount is in CAD; LUME works in AUD — convert it before importing.",
+    );
+    expect(code(parseMoney("$1,200", ".", "INR"))).toBe("FOREIGN_CURRENCY");
+    expect(code(parseMoney("Rs 500", ".", "AED"))).toBe("FOREIGN_CURRENCY");
+    expect(code(parseMoney("¥8,000", ".", "INR"))).toBe("FOREIGN_CURRENCY");
   });
 });
 

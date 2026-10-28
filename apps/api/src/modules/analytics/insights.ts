@@ -247,6 +247,7 @@ export async function insights(req: FastifyRequest, q: AnalyticsQuery, now: Date
     stages: fun.stages.map((x) => ({
       id: x.id,
       name: x.name,
+      kind: x.kind,
       reached: x.reached,
       stopped: x.stoppedN,
       prevReached: x.previousReached,

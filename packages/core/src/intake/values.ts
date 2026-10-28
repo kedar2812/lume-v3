@@ -15,7 +15,7 @@ export const fold = (s: string): string =>
 
 // ── dates ─────────────────────────────────────────────────────────────────────
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-const NUMERIC = /^(\d{1,4})[/.-](\d{1,2})[/.-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
+const NUMERIC = /^(\d{1,2}|\d{4})[/.-](\d{1,2})[/.-](\d{2}|\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
 const ISO = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 const MDY_COUNTRIES = new Set(["US", "PH", "BZ", "FM", "MH", "PW"]);
 
@@ -27,6 +27,8 @@ export function detectDateOrder(values: string[]): DateOrder | "conflict" | "amb
   let dmy = false;
   let mdy = false;
   let ymd = false;
+  // A day-and-month date that reads either way: only the business country can say (review C4).
+  let either = false;
   for (const raw of values) {
     const v = raw.trim();
     if (!v) continue;
@@ -44,11 +46,12 @@ export function detectDateOrder(values: string[]): DateOrder | "conflict" | "amb
     const b = Number(m[2]);
     if (a > 12 && a <= 31) dmy = true;
     if (b > 12 && b <= 31) mdy = true;
+    if (a <= 12 && b <= 12) either = true;
   }
   if (dmy && mdy) return "conflict";
   if (dmy) return "DMY";
   if (mdy) return "MDY";
-  if (ymd) return "YMD";
+  if (ymd && !either) return "YMD";
   return "ambiguous";
 }
 
@@ -168,8 +171,8 @@ export function parseDate(
     return order === "MDY" ? finish(y, a, b, t, null, ctx) : finish(y, b, a, t, null, ctx);
   }
 
-  const words = /^(\d{1,2})\s+([a-z]+)\.?,?\s+(\d{2,4})$/i.exec(v);
-  const wordsUs = /^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{2,4})$/i.exec(v);
+  const words = /^(\d{1,2})\s+([a-z]+)\.?,?\s+(\d{2}|\d{4})$/i.exec(v);
+  const wordsUs = /^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{2}|\d{4})$/i.exec(v);
   const pick = words
     ? { d: Number(words[1]), mon: words[2]!, y: Number(words[3]) }
     : wordsUs
@@ -237,23 +240,37 @@ export function parseNumber(raw: string, decimal: "." | ","): Parsed<number> {
   return Number.isFinite(n) ? okv(n) : notOne;
 }
 
-const SYMBOLS: Record<string, string> = {
-  $: "USD",
-  "€": "EUR",
-  "£": "GBP",
-  "₹": "INR",
-  "¥": "JPY",
-  "₩": "KRW",
-  "₽": "RUB",
-  "₺": "TRY",
-  "₦": "NGN",
-  "₱": "PHP",
-  "د.إ": "AED",
-  "ر.س": "SAR",
-  "﷼": "SAR",
-};
+/**
+ * What a symbol can stand for, the first named when it isn't the business's own (review C3, C6). A marked dollar names
+ * one currency; longer marks are tried first, so "A$" is never read as "$".
+ */
+const SYMBOLS: [RegExp, string[]][] = [
+  [/US\$/, ["USD"]],
+  [/A\$/, ["AUD"]],
+  [/C\$/, ["CAD"]],
+  [/NZ\$/, ["NZD"]],
+  [/HK\$/, ["HKD"]],
+  [/S\$/, ["SGD"]],
+  [/R\$/, ["BRL"]],
+  [/\$/, ["USD", "AUD", "CAD", "SGD", "NZD", "HKD", "MXN", "ARS", "CLP", "COP", "TWD", "FJD", "JMD", "TTD", "BSD", "BBD", "BZD", "LRD", "NAD", "GYD", "SRD", "SBD", "XCD"]],
+  [/€/, ["EUR"]],
+  [/£/, ["GBP", "EGP", "GIP", "FKP", "SHP"]],
+  [/₹/, ["INR"]],
+  [/¥/, ["JPY", "CNY"]],
+  [/₩/, ["KRW"]],
+  [/₽/, ["RUB"]],
+  [/₺/, ["TRY"]],
+  [/₦/, ["NGN"]],
+  [/₱/, ["PHP"]],
+  [/د\.إ/, ["AED"]],
+  [/ر\.س/, ["SAR"]],
+  [/﷼/, ["SAR", "OMR", "QAR", "YER", "IRR"]],
+  [/₨|\bRs\.?(?=\s*\d)/i, ["INR", "PKR", "LKR", "NPR", "MUR", "SCR"]],
+]; // prettier-ignore
 const CURRENCY_CODES: ReadonlySet<string> = new Set(
-  typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("currency") : Object.values(SYMBOLS),
+  typeof Intl.supportedValuesOf === "function"
+    ? Intl.supportedValuesOf("currency")
+    : SYMBOLS.flatMap(([, codes]) => codes),
 );
 
 /** The most a lead's value can hold (numeric(14, 2)), the same ceiling the lead form has. */
@@ -269,10 +286,11 @@ const toCents = (v: number): number => {
 export function parseMoney(raw: string, decimal: "." | ",", currency: string): Parsed<number> {
   let s = raw.trim();
   let found: string | null = null;
-  for (const [sym, code] of Object.entries(SYMBOLS))
-    if (s.includes(sym)) {
-      found = code;
+  for (const [sym, codes] of SYMBOLS)
+    if (sym.test(s)) {
+      found = codes.includes(currency) ? currency : codes[0]!;
       s = s.replace(sym, "");
+      break;
     }
   const codeMatch = /\b([A-Za-z]{3})\b/.exec(s);
   if (codeMatch && CURRENCY_CODES.has(codeMatch[1]!.toUpperCase())) {

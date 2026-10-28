@@ -145,6 +145,34 @@ describe("the switch", () => {
     expect(r.json().error.code).toBe("PLAN_MODULE");
   });
 
+  it("a plan that leaves WhatsApp out switches it off once, keeping how it was set up; nothing is offered to send (review D2)", async () => {
+    expect((await switchTo(true)).statusCode).toBe(200);
+    await h.ownerPool.query(
+      `UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp,replyFromLume}', 'true') WHERE id = 1`,
+    );
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: "+919876543210" });
+    const templates = async () =>
+      (
+        await (await as(admin)).inject({ method: "GET", url: `/api/v1/leads/${lead}/whatsapp/templates` })
+      ).json();
+    expect(await templates()).not.toBeNull();
+    await withPlan({ places: null, modules: { ...all, whatsapp: false } });
+    await withPlan({ places: null, modules: { ...all, whatsapp: false } });
+    const s = await h.ownerPool.query<{ w: { enabled: boolean; replyFromLume: boolean } }>(
+      "SELECT integrations -> 'whatsapp' AS w FROM settings WHERE id = 1",
+    );
+    expect(s.rows[0]!.w).toMatchObject({ enabled: false, replyFromLume: true });
+    const audits = await h.ownerPool.query(
+      "SELECT 1 FROM audit_log WHERE action = 'integration.disabled' AND diff ->> 'by' = 'plan' AND diff ->> 'module' = 'whatsapp'",
+    );
+    expect(audits.rows).toHaveLength(1);
+    // Switched on behind the plan's back (or before it lands), it still offers nothing: the plan is checked at the send.
+    await h.ownerPool.query(
+      `UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp,enabled}', 'true') WHERE id = 1`,
+    );
+    expect(await templates()).toBeNull();
+  });
+
   it("a rep can't switch it, start a connection, or list numbers", async () => {
     expect((await switchTo(true, rep)).statusCode).toBe(403);
     expect(

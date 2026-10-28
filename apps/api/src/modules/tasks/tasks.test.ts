@@ -262,6 +262,15 @@ describe("done", () => {
       [replied],
     );
     expect((await call(rep, "POST", `/api/v1/tasks/${c.id}/done`)).json().next).toBeNull();
+
+    // A reply on WhatsApp is a reply too (review L3).
+    const wrote = await h.seedLead({ ownerId: repId, name: "WhatsApp Case" });
+    const w = (await create(rep, wrote, { recurrence: weekly })).json();
+    await h.queryAll(
+      "INSERT INTO activities (id, lead_id, type) VALUES (gen_random_uuid(), $1, 'whatsapp_received')",
+      [wrote],
+    );
+    expect((await call(rep, "POST", `/api/v1/tasks/${w.id}/done`)).json().next).toBeNull();
   });
 });
 

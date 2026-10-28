@@ -46,7 +46,14 @@ export function can(actor: Actor, key: PermissionKey, atLeast?: Scope): boolean 
 /** The scope row-level security enforces for lead tables (report §7.4). */
 export const leadScope = (actor: Actor): Scope | null => scopeOf(actor, "leads.view");
 
-const TWO_FACTOR_KEYS: PermissionKey[] = ["users.manage", "roles.manage", "leads.export", "security.manage"];
+const TWO_FACTOR_KEYS: PermissionKey[] = [
+  "users.manage",
+  "roles.manage",
+  "leads.export",
+  // Everything LUME holds, unmasked (review C2).
+  "data.export",
+  "security.manage",
+];
 /** Report §12.1: owner, people/role/security managers, anyone who can export, full contacts at `all`. */
 export function requiresTwoFactor(actor: Actor): boolean {
   if (actor.twoFactorWaived) return false;

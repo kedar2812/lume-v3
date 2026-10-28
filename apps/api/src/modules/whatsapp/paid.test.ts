@@ -61,12 +61,13 @@ describe("the monthly limit", () => {
     expect(paidLimit(null, { paidSendsMonthly: 250 })).toBe(250);
   });
 
-  it("counts this calendar month's paid messages on the business's clock: every lead's, not failed ones", async () => {
+  it("counts this calendar month's paid messages on the business's clock: every lead's, not failed or cancelled ones", async () => {
     await sent("2026-10-01T00:00:00+05:30"); // the first minute of October in India
     await sent("2026-10-20T06:00:00Z");
     await sent("2026-10-31T23:30:00+05:30"); // the last half hour of October in India
     await sent("2026-10-20T06:00:00Z", { paid: false }); // inside the 24 hours, no charge
     await sent("2026-10-20T06:00:00Z", { status: "failed" }); // never went
+    await sent("2026-10-20T06:00:00Z", { status: "cancelled" }); // held by a pause, never went (review D3)
     await sent("2026-09-30T23:59:00+05:30"); // September
     await sent("2026-11-01T00:00:00+05:30"); // November
     // Counted by a request that can't see this lead (the app's own role, no one signed in): the count is everyone's.

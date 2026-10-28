@@ -67,6 +67,8 @@ describe("masking (spec §3 Leads)", () => {
   it("phone keeps the country code, two national digits and the last two", () => {
     expect(maskPhone({ e164: "+971501234567", raw: "0501234567" })).toBe("+971 50 ••• ••67");
     expect(maskPhone({ e164: null, raw: "98765 43210" })).toBe("••• ••10");
+    // A short number (Tokelau's are four digits) never shows whole: only its last two (review C11).
+    expect(maskPhone({ e164: "+6901234", raw: null })).toBe("+690 ••• ••34");
   });
   it("email keeps the first letter and the domain", () => {
     expect(maskEmail("asha.patel@gmail.com")).toBe("a•••@gmail.com");

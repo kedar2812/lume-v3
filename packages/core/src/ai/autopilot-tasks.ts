@@ -62,9 +62,7 @@ export const autopilotReplyOutput = z
     fileIds: z.array(z.uuid()).max(3),
     stageId: z.uuid().nullable(),
     /** Pairs, not a map: Anthropic's structured outputs take only closed objects (review 2026-10-26 A9). */
-    fields: z
-      .array(z.object({ key: z.string().max(80), value: z.string().max(200) }).strict())
-      .max(20),
+    fields: z.array(z.object({ key: z.string().max(80), value: z.string().max(200) }).strict()).max(20),
     /** On the business's clock, "YYYY-MM-DDTHH:mm". */
     followUp: z
       .object({ at: z.string(), title: z.string().min(1).max(80) })
@@ -255,7 +253,9 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
     // Marking lost needs one of the business's reasons.
     if (reasonKnown && allowed("mark_lost")) [stageId, lostReasonId] = [out.stageId, out.lostReasonId];
   } else if (stageKnown && allowed("move_stages")) stageId = out.stageId;
-  const fieldEntries = out.fields.map((f) => [f.key, f.value] as const).filter(([k]) => g.fieldKeys.includes(k));
+  const fieldEntries = out.fields
+    .map((f) => [f.key, f.value] as const)
+    .filter(([k]) => g.fieldKeys.includes(k));
   const fields = fieldEntries.length && allowed("fill_fields") ? Object.fromEntries(fieldEntries) : {};
   const followUp = out.followUp && allowed("set_follow_ups") ? out.followUp : null;
 

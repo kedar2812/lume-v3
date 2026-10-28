@@ -1,4 +1,5 @@
-import { formatPhone, normalizePhone, type NormalizedPhone } from "../leads/phone";
+import { maskEmail, maskInstagram, maskPhone } from "../leads/mask";
+import { normalizePhone, type NormalizedPhone } from "../leads/phone";
 import { isCheckEmail, isCheckPhone } from "../security/export-code";
 import { INTAKE_LIMITS } from "./limits";
 import type { ColumnMap, Issue, IntakeField, MapContext, Mapping, Rules } from "./mapping";
@@ -156,7 +157,7 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
         archived: false,
         access: "edit",
       };
-      readCustom(f, c, raw, d, ctx, problems, warnings);
+      readCustom(f, c, raw, d, ctx, problems, warnings, r.defaultCountry);
       continue;
     }
     const key = keyOf(c)!;
@@ -278,7 +279,7 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
       }
       default: {
         const f = fieldOf(ctx, key);
-        if (f) readCustom(f, c, raw, d, ctx, problems, warnings);
+        if (f) readCustom(f, c, raw, d, ctx, problems, warnings, r.defaultCountry);
       }
     }
   }
@@ -309,9 +310,15 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
     }
 
   if (!d.name) {
-    const contact = d.phone.e164
-      ? formatPhone(d.phone.e164)
-      : (d.phone.raw ?? d.email ?? (d.instagram ? `@${d.instagram}` : null));
+    // Masked as everywhere: a name is shown to everyone who sees the lead, a contact only to those allowed it (C1).
+    const contact =
+      d.phone.e164 || d.phone.raw
+        ? maskPhone({ e164: d.phone.e164, raw: d.phone.raw })
+        : d.email
+          ? maskEmail(d.email)
+          : d.instagram
+            ? maskInstagram(d.instagram)
+            : null;
     if (r.noName === "error") problems.push(issue(null, "NO_NAME", "No name."));
     else if (!contact) problems.push(issue(null, "NO_NAME_NO_CONTACT", "No name and no contact."));
     else {
@@ -340,6 +347,8 @@ function readCustom(
   ctx: MapContext,
   problems: Issue[],
   warnings: Issue[],
+  /** The import's own country for numbers (its rules). */
+  country: string | null,
 ) {
   const col = c.column;
   const max = TEXT_MAX[f.type];
@@ -403,7 +412,11 @@ function readCustom(
       return;
     }
     case "phone": {
-      const p = normalizePhone(raw, ctx.country);
+      // The column's country, else the import's, as the lead's own phone (review C7).
+      const p = normalizePhone(
+        raw,
+        (c.to === "field" && c.transform?.defaultCountry) || country || ctx.country,
+      );
       if (p.status === "valid") d.custom[f.key] = p.e164;
       else
         warnings.push(

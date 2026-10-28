@@ -176,6 +176,7 @@ export function currencyCountry(code: string): string | null {
 const EUROZONE = new Set([
   "AT",
   "BE",
+  "BG",
   "CY",
   "DE",
   "EE",
@@ -196,9 +197,28 @@ const EUROZONE = new Set([
   "SK",
 ]);
 
+/** Countries that use another's money as their own (review C12): the euro outside the union, and the US dollar. */
+const USES: Record<string, string> = {
+  ME: "EUR",
+  XK: "EUR",
+  AD: "EUR",
+  MC: "EUR",
+  SM: "EUR",
+  VA: "EUR",
+  EC: "USD",
+  SV: "USD",
+  TL: "USD",
+  PW: "USD",
+  FM: "USD",
+  MH: "USD",
+  PR: "USD",
+  GU: "USD",
+};
+
 /** The currency a country uses (the reverse of currencyCountry), for a first guess; null when there's no single one. */
 export function currencyForCountry(country: string): string | null {
   const iso = country.toUpperCase();
   if (EUROZONE.has(iso)) return "EUR";
+  if (USES[iso]) return USES[iso]!;
   return CURRENCIES.find((c) => c.startsWith(iso) && !c.startsWith("X")) ?? null;
 }

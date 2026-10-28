@@ -287,6 +287,12 @@ export async function updateStage(req: FastifyRequest, id: string, patch: StageI
   if (Object.keys(patch).length)
     await req.db.update(schema.stages).set(patch).where(eq(schema.stages.id, id));
   if (patch.kind === "lost") await dropMovesTo(req, id);
+  // Won or lost now: booked leads can't go there (review L5).
+  if (patch.kind && patch.kind !== "open")
+    await req.db
+      .update(schema.pipelines)
+      .set({ bookingStageId: null })
+      .where(eq(schema.pipelines.bookingStageId, id));
   const { onEnter, ...rest } = patch;
   if (Object.keys(rest).length)
     await audit(req, { action: "stage.updated", entityType: "stage", entityId: id, diff: rest });
@@ -339,7 +345,8 @@ export async function archiveStage(req: FastifyRequest, id: string, moveToStageI
       INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, pipeline_id, changed_by)
       SELECT id, stage_id, ${target.id}, pipeline_id, ${actorId} FROM leads WHERE stage_id = ${id} AND deleted_at IS NULL`);
     await req.db.execute(sql`
-      UPDATE leads SET stage_id = ${target.id}, stage_entered_at = now(), version = version + 1
+      UPDATE leads SET stage_id = ${target.id}, stage_entered_at = now(), version = version + 1,
+             won_at = NULL, lost_at = NULL, lost_reason_id = NULL, lost_note = NULL
        WHERE stage_id = ${id} AND deleted_at IS NULL`);
   }
   await req.db.update(schema.stages).set({ archivedAt: new Date() }).where(eq(schema.stages.id, id));

@@ -221,7 +221,10 @@ describe("replies, stop, taking over", () => {
     await writes("please stop messaging me");
     await h.runWhatsAppSend();
     expect(textsSent().slice(before)).toEqual([]);
-    const reply = await post(admin, `/api/v1/leads/${lead}/whatsapp/messages`, { clientKey: newId(), text: "Hi" });
+    const reply = await post(admin, `/api/v1/leads/${lead}/whatsapp/messages`, {
+      clientKey: newId(),
+      text: "Hi",
+    });
     expect(reply.json().error?.code).toBe("DO_NOT_CONTACT");
   });
 

@@ -109,6 +109,15 @@ describe("bulk runs client (7C)", () => {
       "1 was deleted, or stopped being yours to see, before LUME reached it",
     );
     expect(reasonWords("SOMETHING_NEW", 2)).toBe("2 couldn’t be changed");
+    // Every skip an undo gives has its own words (review 2026-10-26 L4, L9).
+    expect(reasonWords("FOLLOW_UP_NOT_YOURS", 1)).toBe(
+      "1 follow-up was handed to someone else since, so it stays theirs",
+    );
+    expect(reasonWords("STAGE_GONE", 2)).toBe("2 were in a stage that has been archived since");
+    expect(reasonWords("OWNER_INACTIVE", 1)).toBe("1 was owned by someone who can’t take leads now");
+    expect(reasonWords("UNCHANGED", 3)).toBe(
+      "3 weren’t changed by the action, so there was nothing to put back",
+    );
     const names = { person: () => "Riya Shah", stage: () => "Contacted", tag: () => "VIP" };
     expect(runLine(run({ status: "done", done: 12396 }), names)).toBe("12,396 leads assigned to Riya Shah");
     expect(runLine(run({ status: "running", action: { type: "stage", stageId: "s" } }), names)).toBe(

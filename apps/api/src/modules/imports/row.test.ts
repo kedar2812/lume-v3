@@ -71,4 +71,63 @@ describe("writeRow", () => {
     const c = await run(["", ""], 10);
     expect(c).toMatchObject({ result: "skipped", counters: { empty: 1 }, draft: null });
   });
+
+  it("reopens a closed lead into a stage of another pipeline, the lead moving with it, and says so (review L10)", async () => {
+    const actor = (await h.actorOf(userId))!;
+    const home = (await h.queryAll<{ id: string }>("SELECT id FROM pipelines WHERE is_default"))[0]!.id;
+    const other = (
+      await h.queryAll<{ id: string }>(
+        "INSERT INTO pipelines (id, name, position) VALUES (gen_random_uuid(), 'Second line', 9) RETURNING id",
+      )
+    )[0]!.id;
+    const reopenTo = (
+      await h.queryAll<{ id: string }>(
+        "INSERT INTO stages (id, pipeline_id, name, kind, color, position) VALUES (gen_random_uuid(), $1, 'Back again', 'open', 'accent', 0) RETURNING id",
+        [other],
+      )
+    )[0]!.id;
+    const lost = (
+      await h.queryAll<{ id: string }>(
+        "SELECT id FROM stages WHERE pipeline_id = $1 AND kind = 'lost' LIMIT 1",
+        [home],
+      )
+    )[0]!.id;
+    const lead = await h.seedLead({ ownerId: null, name: "Came back", phone: "+971506665555" });
+    await h.queryAll("UPDATE leads SET stage_id = $2, lost_at = now() WHERE id = $1", [lead, lost]);
+    const open = (
+      await h.queryAll<{ id: string }>(
+        "SELECT id FROM stages WHERE pipeline_id = $1 AND kind = 'open' ORDER BY position LIMIT 1",
+        [home],
+      )
+    )[0]!.id;
+    const rules = {
+      ...DEFAULT_RULES({ pipelineId: home, stageId: open, country: "AE" }),
+      reopenClosedTo: reopenTo,
+    };
+    const sourceId = (
+      await h.queryAll<{ id: string }>(
+        "INSERT INTO lead_sources (id, type, name, status) VALUES (gen_random_uuid(), 'google_sheet', 'Reopens', 'active') RETURNING id",
+      )
+    )[0]!.id;
+    const r = await withJobRequest(
+      { app: jobServer(h.app), pool: h.pool, actor, requestId: "t:reopen", allLeads: true },
+      async (req) =>
+        writeRow(req, {
+          sourceId,
+          rules,
+          mapping,
+          ctx: await loadMapContext(req, { pipelineId: home, headerCount: 2 }),
+          cells: ["Came back", "0506665555"],
+          origin: { sourceId, sheet: "Reopens", row: 3 },
+          nextTurn: async () => 0,
+        }),
+    );
+    expect(r).toMatchObject({ result: "merged", leadId: lead });
+    expect(
+      await h.queryAll("SELECT pipeline_id, stage_id, lost_at FROM leads WHERE id = $1", [lead]),
+    ).toEqual([{ pipeline_id: other, stage_id: reopenTo, lost_at: null }]);
+    expect(
+      await h.queryAll("SELECT payload FROM activities WHERE lead_id = $1 AND type = 'reopened'", [lead]),
+    ).toEqual([{ payload: { from: lost, to: reopenTo } }]);
+  });
 });

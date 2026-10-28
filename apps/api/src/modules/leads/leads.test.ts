@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SALES_GRANTS } from "../../../test/grants";
@@ -131,6 +132,55 @@ describe("reading leads (report §4.4, §7.4)", () => {
       "FIELD_NOT_EDITABLE",
     );
   });
+
+  it("a hidden field can't be learned another way: no totals of a hidden value, no filtering by a hidden field (review L7, L8)", async () => {
+    const cfg = await h.config();
+    const u = await h.seedUser({ grants: [...SALES] });
+    const {
+      rows: [role],
+    } = await h.pool.query("SELECT role_id FROM user_roles WHERE user_id = $1", [u.id]);
+    await admin.inject({
+      method: "PUT",
+      url: `/api/v1/roles/${role.role_id}/field-access`,
+      payload: {
+        entries: ["value", "owner", "stage", "source", "lead_created_at"].map((k) => ({
+          fieldId: cfg.fields[k],
+          access: "hidden",
+        })),
+      },
+    });
+    await h.waitForRbacNotify();
+    const c = await h.signIn(u);
+    await h.seedLead({ ownerId: u.id, name: "Worth a lot" });
+    await h.queryAll("UPDATE leads SET value = 90000 WHERE name = 'Worth a lot'");
+    // Counted from the kept table (a pipeline only) and live (a search): no values either way.
+    for (const extra of ["", "&q=Worth"]) {
+      const counts = await c.inject({
+        method: "GET",
+        url: `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}${extra}`,
+      });
+      expect(counts.statusCode, counts.body).toBe(200);
+      expect(counts.json().values, extra).toEqual({});
+    }
+    for (const filter of [
+      `stageId=${cfg.stages.Replied}`,
+      "ownerId=none",
+      `source=${randomUUID()}`,
+      "createdFrom=2026-01-01",
+      "createdTo=2026-12-31",
+    ]) {
+      const r = await c.inject({ method: "GET", url: `/api/v1/leads?${filter}` });
+      expect([r.statusCode, r.json().error?.code], filter).toEqual([400, "UNKNOWN_FIELD"]);
+    }
+    // The pipeline itself (the board) still works, and "added lately" goes by when each reached LUME.
+    expect(
+      (await c.inject({ method: "GET", url: `/api/v1/leads?pipelineId=${cfg.pipelineId}` })).statusCode,
+    ).toBe(200);
+    await h.queryAll("UPDATE leads SET lead_created_at = '2020-01-01' WHERE name = 'Worth a lot'");
+    const recent = await c.inject({ method: "GET", url: "/api/v1/leads?createdDays=7" });
+    expect(recent.statusCode).toBe(200);
+    expect(recent.json().items.map((l: { name: string }) => l.name)).toContain("Worth a lot");
+  });
 });
 
 describe("listing and search (report §14, §12.2)", () => {
@@ -147,6 +197,36 @@ describe("listing and search (report §14, §12.2)", () => {
     expect(p2.nextCursor).toBeNull();
     expect([...p1.items, ...p2.items].every((l: { ownerId: string }) => l.ownerId === u.id)).toBe(true);
     expect((await c.inject({ method: "GET", url: "/api/v1/leads?limit=101" })).statusCode).toBe(400);
+  });
+
+  it("pages by last change without skipping or repeating leads changed within the same millisecond (review L2)", async () => {
+    const u = await h.seedUser({ grants: [...SALES] });
+    const c = await h.signIn(u);
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i++) ids.push(await h.seedLead({ ownerId: u.id, name: `Same ms ${i}` }));
+    // The database keeps microseconds; JavaScript's dates keep milliseconds. (Set by hand: the trigger would say now.)
+    await h.ownerPool.query("ALTER TABLE leads DISABLE TRIGGER leads_updated_at");
+    try {
+      for (const [i, id] of ids.entries())
+        await h.queryAll(`UPDATE leads SET updated_at = '2026-10-28 06:00:00.1234${i}1+00' WHERE id = $1`, [
+          id,
+        ]);
+    } finally {
+      await h.ownerPool.query("ALTER TABLE leads ENABLE TRIGGER leads_updated_at");
+    }
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const page: { items: { id: string }[]; nextCursor: string | null } = (
+        await c.inject({
+          method: "GET",
+          url: `/api/v1/leads?sort=updated&limit=1${cursor ? `&cursor=${cursor}` : ""}`,
+        })
+      ).json();
+      seen.push(...page.items.map((l) => l.id));
+      cursor = page.nextCursor;
+    } while (cursor && seen.length < 10);
+    expect(seen).toEqual([...ids].reverse());
   });
 
   it("filters by stage and owner, and searches names", async () => {

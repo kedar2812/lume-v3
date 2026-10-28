@@ -6,7 +6,7 @@ import { scanWhatsAppFiles, sweepWhatsAppFiles } from "./keep";
 import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
 import { readReplyMeaning } from "./meaning";
-import { sendOutbox } from "./sender";
+import { SENDING_STUCK_MS, sendOutbox } from "./sender";
 import { sweepTemplates } from "./submit";
 import { relayOf } from "./service";
 import { relayTokenRefresh, sweepWhatsAppTokens } from "./token-refresh";
@@ -52,8 +52,8 @@ export async function staleMedia(pool: pg.Pool): Promise<string[]> {
 }
 
 /**
- * Replies from LUME a lost job left behind (plan W3a): queued or sending, untouched for 2 minutes. Queued again;
- * the sender fails a "sending" one with words rather than sending it twice.
+ * Replies from LUME a lost job left behind (plan W3a): queued and untouched for 2 minutes, or sending for 10. Queued
+ * again; the sender fails a "sending" one with words rather than sending it twice.
  */
 export async function staleOutbox(pool: pg.Pool): Promise<string[]> {
   const c = await pool.connect();
@@ -61,8 +61,11 @@ export async function staleOutbox(pool: pg.Pool): Promise<string[]> {
     await c.query("BEGIN");
     await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
     const { rows } = await c.query<{ id: string }>(
-      `SELECT id FROM whatsapp_outbox WHERE status IN ('queued', 'sending') AND updated_at < now() - interval '2 minutes'
+      `SELECT id FROM whatsapp_outbox
+        WHERE (status = 'queued' AND updated_at < now() - interval '2 minutes')
+           OR (status = 'sending' AND updated_at < now() - make_interval(secs => $1))
         ORDER BY updated_at LIMIT 500`,
+      [SENDING_STUCK_MS / 1000],
     );
     await c.query("COMMIT");
     return rows.map((r) => r.id);

@@ -189,12 +189,23 @@ export async function mergeIntoLead(
   if (fill.leadCreatedAt) set.leadCreatedAt = fill.leadCreatedAt;
   if (fill.ownerId) set.ownerId = fill.ownerId;
   if (fill.custom) set.custom = sql`${L.custom} || ${JSON.stringify(fill.custom)}::jsonb`;
+  // A reopen goes into the stage's own pipeline, whichever the lead was in (review L10).
+  const reopenPipeline = fill.reopenTo
+    ? ((
+        await req.db
+          .select({ pipelineId: schema.stages.pipelineId })
+          .from(schema.stages)
+          .where(eq(schema.stages.id, fill.reopenTo.stageId))
+      )[0]?.pipelineId ?? lead.pipelineId)
+    : lead.pipelineId;
   if (fill.reopenTo)
     Object.assign(set, {
+      pipelineId: reopenPipeline,
       stageId: fill.reopenTo.stageId,
       wonAt: null,
       lostAt: null,
       lostReasonId: null,
+      lostNote: null,
       stageEnteredAt: new Date(),
     });
   await req.db.update(L).set(set).where(eq(L.id, lead.id));
@@ -211,13 +222,15 @@ export async function mergeIntoLead(
       changedBy: actorId,
       reason: "imported",
     });
-  if (fill.reopenTo)
+  if (fill.reopenTo) {
     await req.db.insert(schema.leadStageHistory).values({
       leadId: lead.id,
       fromStageId: lead.stageId,
       toStageId: fill.reopenTo.stageId,
-      pipelineId: lead.pipelineId,
+      pipelineId: reopenPipeline,
       changedBy: actorId,
     });
+    await recordActivity(req, lead.id, "reopened", { from: lead.stageId, to: fill.reopenTo.stageId });
+  }
   await recordActivity(req, lead.id, activity.type, activity.payload);
 }

@@ -59,7 +59,9 @@ export function FilterBar({
     catalog.pipelines.find((p) => p.id === filters.pipelineId) ??
     catalog.pipelines.find((p) => p.isDefault) ??
     catalog.pipelines[0];
-  const phoneVisible = catalog.fields.find((f) => f.key === "phone")?.access !== "hidden";
+  // A field hidden from this person offers no filter (LUME refuses one, review 2026-10-26 L8).
+  const visible = (key: string) => catalog.fields.find((f) => f.key === key)?.access !== "hidden";
+  const phoneVisible = visible("phone");
   const extra = filterableFields(catalog);
   const count = activeFilterCount(hideStage ? { ...filters, stageIds: [] } : filters);
   const mode = searchMode(filters.q ?? "", contactsVisible);
@@ -121,7 +123,7 @@ export function FilterBar({
         <Caret />
       </button>
       <div id={menusId} className={s.menus} data-open={menusOpen || undefined}>
-        {!hideStage && pipeline && (
+        {!hideStage && pipeline && visible("stage") && (
           <Popover
             label="Stage"
             triggerClassName={s.tool}
@@ -157,7 +159,7 @@ export function FilterBar({
           </Popover>
         )}
 
-        {viewScope && viewScope !== "own" && (
+        {viewScope && viewScope !== "own" && visible("owner") && (
           <Select label="Owner" value={filters.owner ?? ""} onChange={(v) => set({ owner: v || undefined })}>
             <option value="">Any owner</option>
             <option value="me">My leads</option>
@@ -198,38 +200,40 @@ export function FilterBar({
           </Select>
         )}
 
-        <Popover
-          label="Enquiry date"
-          triggerClassName={s.tool}
-          active={!!(filters.from || filters.to)}
-          trigger={
-            <>
-              Date
-              <Caret />
-            </>
-          }
-        >
-          <div className={s.dates}>
-            <label>
-              From
-              <input
-                type="date"
-                value={filters.from ?? ""}
-                max={filters.to}
-                onChange={(e) => set({ from: e.target.value || undefined })}
-              />
-            </label>
-            <label>
-              To
-              <input
-                type="date"
-                value={filters.to ?? ""}
-                min={filters.from}
-                onChange={(e) => set({ to: e.target.value || undefined })}
-              />
-            </label>
-          </div>
-        </Popover>
+        {visible("lead_created_at") && (
+          <Popover
+            label="Enquiry date"
+            triggerClassName={s.tool}
+            active={!!(filters.from || filters.to)}
+            trigger={
+              <>
+                Date
+                <Caret />
+              </>
+            }
+          >
+            <div className={s.dates}>
+              <label>
+                From
+                <input
+                  type="date"
+                  value={filters.from ?? ""}
+                  max={filters.to}
+                  onChange={(e) => set({ from: e.target.value || undefined })}
+                />
+              </label>
+              <label>
+                To
+                <input
+                  type="date"
+                  value={filters.to ?? ""}
+                  min={filters.from}
+                  onChange={(e) => set({ to: e.target.value || undefined })}
+                />
+              </label>
+            </div>
+          </Popover>
+        )}
 
         <Popover
           label="More filters"

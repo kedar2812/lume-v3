@@ -76,3 +76,29 @@ describe("FilterBar", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ lostReasonId: undefined }));
   });
 });
+
+describe("fields hidden from this person (review 2026-10-26 L8)", () => {
+  it("offers no filter on a stage, owner or enquiry date they can't see; Added stays", async () => {
+    const base = testCatalog();
+    const name = base.fields.find((f) => f.key === "name")!;
+    const hidden = (key: string) => ({ ...name, id: `f-${key}`, key, label: key, access: "hidden" as const });
+    const catalog = {
+      ...base,
+      fields: [...base.fields, hidden("stage"), hidden("owner"), hidden("lead_created_at")],
+    };
+    render(
+      <FilterBar
+        session={session}
+        catalog={catalog}
+        filters={EMPTY_FILTERS}
+        onChange={vi.fn()}
+        contactsVisible
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Stage/i })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Owner" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Enquiry )?date/i })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /^More/ }));
+    expect(screen.getByRole("combobox", { name: "Added" })).toBeInTheDocument();
+  });
+});

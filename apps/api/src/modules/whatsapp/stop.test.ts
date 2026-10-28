@@ -104,6 +104,24 @@ describe("a stop on WhatsApp, for every lead", () => {
     expect(acts).toHaveLength(1);
   });
 
+  it("every lead with their number, whoever owns it, is do not contact: they asked, not one lead (review W5)", async () => {
+    const mine = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    const twin = await h.seedLead({ ownerId: admin.id, name: "Sneha R (site visit)", phone: SNEHA });
+    const other = await h.seedLead({ ownerId: rep.id, name: "Kiran Dsouza", phone: "+919811122233" });
+    await writes("Please stop messaging me");
+    for (const lead of [mine, twin])
+      expect(await dncOf(lead), lead).toMatchObject({ dnc_by: null, dnc_reason: "Said stop on WhatsApp" });
+    expect((await dncOf(twin)).dnc_at).not.toBeNull();
+    expect((await dncOf(other)).dnc_at).toBeNull();
+    // Each one's timeline says so.
+    expect(
+      await h.queryAll(
+        "SELECT lead_id FROM activities WHERE type = 'dnc_set' AND lead_id = ANY($1) ORDER BY lead_id",
+        [[mine, twin]],
+      ),
+    ).toHaveLength(2);
+  });
+
   it("not a stop: a question with the word in it, or a stop from past chats", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     await writes("Can you stop by on Saturday to see the site?");

@@ -7,6 +7,8 @@ export function maskPhone(p: { e164: string | null; raw: string | null }): strin
   const parsed = p.e164 ? parsePhoneNumberFromString(p.e164) : undefined;
   if (parsed) {
     const nat = String(parsed.nationalNumber);
+    // Six digits or fewer would show nearly whole: only the last two (review C11).
+    if (nat.length <= 6) return `+${parsed.countryCallingCode} ${DOTS} ••${nat.slice(-2)}`;
     return `+${parsed.countryCallingCode} ${nat.slice(0, 2)} ${DOTS} ••${nat.slice(-2)}`;
   }
   const digits = (p.raw ?? "").replace(/\D/g, "");

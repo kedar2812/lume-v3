@@ -152,7 +152,8 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
       // 5–6. One transaction: the signature is spent only if the post is kept (a failed keep can be resent),
       // and one row per (source, key), however many arrive at once. A signature works once: the same signed
       // post sent again (under any event id) is a duplicate.
-      const given = header(req.headers["x-lume-event-id"])?.trim();
+      // An empty one is none: hashing "" would make every post the same event (review 2026-10-26 W3).
+      const given = header(req.headers["x-lume-event-id"])?.trim() || undefined;
       const eventKey =
         given && given.length <= 200
           ? given

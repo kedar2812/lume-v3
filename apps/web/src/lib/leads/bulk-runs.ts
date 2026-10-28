@@ -83,6 +83,10 @@ export function reasonWords(code: string, count: number): string {
     NO_NUMBER: `${c} ${count === 1 ? "has" : "have"} no phone number`,
     STILL_INVALID: `${c} still can’t be read, even with that country`,
     CANCELLED: `${c} weren’t reached: the action was stopped first`,
+    FOLLOW_UP_NOT_YOURS: `${c} ${count === 1 ? "follow-up was" : "follow-ups were"} handed to someone else since, so ${count === 1 ? "it stays" : "they stay"} theirs`,
+    STAGE_GONE: `${c} ${w} in a stage that has been archived since`,
+    OWNER_INACTIVE: `${c} ${w} owned by someone who can’t take leads now`,
+    UNCHANGED: `${c} ${count === 1 ? "wasn’t" : "weren’t"} changed by the action, so there was nothing to put back`,
   };
   return words[code] ?? `${c} couldn’t be changed`;
 }

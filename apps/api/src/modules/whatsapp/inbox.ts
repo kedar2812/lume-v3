@@ -1,9 +1,10 @@
-import { newId } from "@lume/core";
+import { isStop, maskPhone, newId } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type pg from "pg";
 import { notFound } from "../../http/errors";
+import { setDoNotContact } from "../leads/dnc";
 import { createLead } from "../leads/service";
 
 const I = schema.whatsappInbox;
@@ -60,12 +61,14 @@ export async function inboxPerson(req: FastifyRequest, numberId: string, peer: s
 
 /**
  * Make it an enquiry: a lead with their WhatsApp name (or the number), the number as its phone, owned as the number
- * is (a person's number: that person; the business's: unassigned), and their messages on it. They wait no more.
+ * is (a person's number: that person; the business's: unassigned), and their messages on it. They wait no more. One
+ * who said stop while waiting is do not contact from the start, as a lead who says it is (review 2026-10-26 W2).
  */
 export async function makeLead(req: FastifyRequest, numberId: string, peer: string) {
   const rows = await messagesOf(req, numberId, peer);
   const [n] = await req.db.select({ owner: N.ownerUserId }).from(N).where(eq(N.id, numberId));
-  const name = rows.findLast((m) => m.name)?.name ?? peer;
+  // No WhatsApp name: the number, masked, as a name is shown to everyone who sees the lead (review C1).
+  const name = rows.findLast((m) => m.name)?.name ?? maskPhone({ e164: peer, raw: null });
   const { lead } = await createLead(req, { name, phone: peer, ownerId: n?.owner ?? null });
   for (const m of rows) {
     // A file keeps what it is (a photo stays a photo on the lead).
@@ -100,6 +103,8 @@ export async function makeLead(req: FastifyRequest, numberId: string, peer: stri
         .set({ leadId: lead.id, inboxId: null })
         .where(eq(schema.whatsappMedia.id, m.mediaId));
   }
+  if (rows.some((m) => isStop(m.text ?? "")))
+    await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", fromLead: true });
   const last = rows.at(-1)!.at;
   await req.db.execute(sql`UPDATE leads SET last_reply_at = ${last} WHERE id = ${lead.id}`);
   await req.db.delete(I).where(and(eq(I.numberId, numberId), eq(I.peer, peer)));

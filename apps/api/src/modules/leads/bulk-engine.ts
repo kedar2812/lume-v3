@@ -11,7 +11,7 @@ import { serverHelpers } from "../../server-helpers";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { notify, type NewNotification } from "../notifications/notify";
 import { cancelLeadTasks } from "../tasks/lifecycle";
-import { cancelTask, createTask } from "../tasks/service";
+import { cancelTask, createTask, mayManageFor } from "../tasks/service";
 import {
   limits,
   type BulkAction,
@@ -560,13 +560,15 @@ async function undoChunk(
       : [],
   );
   const archived = new Set(
-    kind === "stage"
+    kind === "stage" || kind === "delete"
       ? (
           await req.db.execute<{ id: string }>(sql`
             SELECT id FROM stages WHERE archived_at IS NOT NULL AND id = ANY(${uuids(
-              [...orig.values()].flatMap((o) =>
-                (o.before?.stageId as string | null) ? [o.before!.stageId as string] : [],
-              ),
+              kind === "delete"
+                ? leads.map((l) => l.stageId)
+                : [...orig.values()].flatMap((o) =>
+                    (o.before?.stageId as string | null) ? [o.before!.stageId as string] : [],
+                  ),
             )}::uuid[])`)
         ).rows.map((r) => r.id)
       : [],
@@ -603,7 +605,11 @@ async function undoChunk(
       out.set(lead.id, skip(lead.id, "OWNER_INACTIVE"));
       continue;
     }
-    if (kind === "stage" && archived.has(to.stageId as string)) {
+    // A deleted lead comes back where it was: never into a stage archived since (review L9).
+    if (
+      (kind === "stage" && archived.has(to.stageId as string)) ||
+      (kind === "delete" && archived.has(lead.stageId))
+    ) {
       out.set(lead.id, skip(lead.id, "STAGE_GONE"));
       continue;
     }
@@ -752,11 +758,17 @@ async function undoChunk(
           const taskId = b.to.taskId as string | undefined;
           if (!taskId) continue;
           const [t] = await req.db
-            .select({ status: schema.tasks.status })
+            .select({ status: schema.tasks.status, assigneeId: schema.tasks.assigneeId })
             .from(schema.tasks)
             .where(eq(schema.tasks.id, taskId));
           // Done, snoozed into a new one or cancelled by hand since: left as the person left it.
-          if (t?.status === "open") await cancelTask(req, taskId);
+          if (t?.status !== "open") continue;
+          // Handed since to someone whose follow-ups this person doesn't manage: theirs now (review L4).
+          if (!mayManageFor(req.actor!, t.assigneeId)) {
+            out.set(b.lead.id, skip(b.lead.id, "FOLLOW_UP_NOT_YOURS"));
+            continue;
+          }
+          await cancelTask(req, taskId);
         }
         versions = (
           await req.db.execute<{ id: string; version: number }>(

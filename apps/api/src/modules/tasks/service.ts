@@ -343,7 +343,7 @@ export async function cancelTask(req: FastifyRequest, id: string) {
 async function stopped(req: FastifyRequest, t: Task, r: Recurrence): Promise<boolean> {
   const { rows } = await req.db.execute<{ kind: string; replied: boolean }>(sql`
     SELECT s.kind,
-      EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = l.id AND a.type = 'reply_logged'
+      EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = l.id AND a.type IN ('reply_logged', 'whatsapp_received')
         AND a.occurred_at >= (SELECT min(created_at) FROM tasks WHERE series_id = ${t.seriesId})) AS replied
     FROM leads l JOIN stages s ON s.id = l.stage_id WHERE l.id = ${t.leadId}`);
   const x = rows[0];
