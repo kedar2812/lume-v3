@@ -74,29 +74,32 @@ beforeEach(() => {
   vi.mocked(whatsappClient.thread).mockResolvedValue(ok({ on: true, reply: null, messages: [] } as never));
 });
 
-/** Autopilot on a phone (spec 2026-10-19 §2.3): one lead at a time, Live or Ready, Pause always in reach. */
-describe("Autopilot on a phone", () => {
-  it("Live shows the lead LUME AI is on; Ready, with its count, shows the cards", async () => {
+/** LUME AI on a phone (plan 2026-10-28, artboard 3): the list first, Pause always in reach, a lead opens on its own. */
+describe("LUME AI on a phone", () => {
+  it("opens on the list, with the filter; Ready shows who's ready", async () => {
     render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
     const show = await screen.findByRole("radiogroup", { name: "Show" });
-    expect(screen.getByRole("region", { name: "Conversation with Vikram Shetty" })).toBeInTheDocument();
-    await userEvent.click(within(show).getByRole("radio", { name: "Ready · 1" }));
-    expect(screen.getByRole("article", { name: "Meera Iyer" })).toHaveTextContent(
-      "Reached Site visit booked",
-    );
+    expect(screen.getByRole("list", { name: "Leads in this run" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /Conversation with/ })).toBeNull();
+    await userEvent.click(within(show).getByRole("radio", { name: "Ready 1" }));
+    expect(screen.getByRole("button", { name: /^Meera Iyer, Ready/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Vikram Shetty/ })).toBeNull();
   });
 
-  it("Pause is in reach on either tab", async () => {
+  it("Pause all is in reach on the list and in a conversation", async () => {
     render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
-    await userEvent.click(await screen.findByRole("radio", { name: "Ready · 1" }));
-    await userEvent.click(screen.getByRole("button", { name: "Pause (Esc)" }));
-    expect(autopilotClient.pause).toHaveBeenCalledWith("r1");
+    await userEvent.click(await screen.findByRole("button", { name: "Pause all (Esc)" }));
+    expect(autopilotClient.pause).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("button", { name: /^Vikram Shetty/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Pause all (Esc)" }));
+    expect(autopilotClient.pause).toHaveBeenCalledTimes(2);
   });
 
-  it("every lead is a tap away, folded under the conversation", async () => {
+  it("a tap opens the lead's conversation; Back returns to the list", async () => {
     render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
-    await userEvent.click(await screen.findByText("All leads in this run"));
+    await userEvent.click(await screen.findByRole("button", { name: /^Meera Iyer/ }));
+    expect(screen.getByRole("region", { name: "Conversation with Meera Iyer" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to the leads" }));
     expect(screen.getByRole("list", { name: "Leads in this run" })).toBeInTheDocument();
   });
 });

@@ -198,9 +198,10 @@ test.describe.serial("Autopilot", () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "LUME AI" }).click();
     await page.waitForURL("**/autopilot");
     await expect(page.getByRole("heading", { name: "LUME AI", level: 1 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Let LUME AI work your leads" })).toBeVisible();
+    // The first visit is the work that's waiting, never a pitch (plan 2026-10-28, artboard 4).
+    await expect(page.getByRole("heading", { name: "LUME AI", level: 2 })).toBeVisible();
     await expect(
-      page.getByText("Select leads on Leads, then choose Let LUME AI handle these."),
+      page.getByText(/Nobody here is waiting on a follow-up\.|haven't heard from you in 3 days or more/),
     ).toBeVisible();
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
@@ -261,9 +262,9 @@ test.describe.serial("Autopilot", () => {
     await expect.poll(async () => (await sentTo(page.request, TARUN)).length, { timeout: 60_000 }).toBe(1);
     await expect.poll(async () => (await sentTo(page.request, ISHITA)).length, { timeout: 90_000 }).toBe(1);
     expect((await sentTo(page.request, TARUN))[0]!.type).toBe("template");
-    await expect(bar).toContainText("Waiting for replies", { timeout: 20_000 });
+    await expect(bar).toContainText("Next follow-up", { timeout: 20_000 });
     const leads = page.getByRole("list", { name: "Leads in this run" });
-    await expect(leads.getByRole("button", { name: /Tarun Dsouza, Sent/ })).toBeVisible();
+    await expect(leads.getByRole("button", { name: /Tarun Dsouza, Messaged/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "1 skipped" })).toBeVisible();
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
@@ -328,11 +329,15 @@ test.describe.serial("Autopilot", () => {
   test("a lead says yes: Ready for you, with their own words, and LUME says so", async ({ page }) => {
     await openApp(page, runUrl);
     await writes(page.request, TARUN, "Saturday works for me");
-    const card = page.getByRole("article", { name: "Tarun Dsouza" });
-    await expect(card).toBeVisible({ timeout: 30_000 });
-    await expect(card).toContainText("Agreed to meet.");
-    await expect(card).toContainText("Saturday works for me");
-    await expect(page.getByText("Tarun is ready for you. Want to take over?")).toBeVisible();
+    await expect(page.getByText("Tarun is ready for you. Want to take over?")).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.getByRole("radio", { name: "Ready 1" }).click();
+    const bar = page
+      .getByRole("region", { name: "Conversation with Tarun Dsouza" })
+      .getByRole("region", { name: "What to do" });
+    await expect(bar).toContainText("Agreed to meet");
+    await expect(bar).toContainText("Saturday works for me");
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);
@@ -342,16 +347,18 @@ test.describe.serial("Autopilot", () => {
     await page.emulateMedia({ colorScheme: "light" });
   });
 
-  test("on a phone: Live or Ready, one lead at a time, Pause in reach", async ({ page }) => {
+  test("on a phone: the list first, a lead opens on its own, Pause all in reach", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openApp(page, runUrl);
     const show = page.getByRole("radiogroup", { name: "Show" });
     await expect(show).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pause (Esc)" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pause all (Esc)" })).toBeVisible();
     // Nothing wider than the screen.
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await show.getByRole("radio", { name: /^Ready/ }).click();
-    await expect(page.getByRole("article", { name: "Tarun Dsouza" })).toBeVisible();
+    await page.getByRole("button", { name: /^Tarun Dsouza, Ready/ }).click();
+    await expect(page.getByRole("region", { name: "Conversation with Tarun Dsouza" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Back to the leads" })).toBeVisible();
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);
@@ -368,7 +375,7 @@ test.describe.serial("Autopilot", () => {
     const page = await ctx.newPage();
     await openApp(page, runUrl);
     await expect(page.getByRole("region", { name: /Your goal · 3 leads/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pause (Esc)" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Pause all (Esc)" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "End run" })).toHaveCount(0);
     await expect(page.getByText("Tarun Dsouza")).toHaveCount(0);
     await ctx.close();
@@ -383,7 +390,7 @@ test.describe.serial("Autopilot", () => {
     await openApp(page, runUrl);
     await openApp(second, runUrl);
     const bar = (p: Page) => p.getByRole("region", { name: /Your goal · 3 leads/ });
-    await page.getByRole("button", { name: "Pause (Esc)" }).click();
+    await page.getByRole("button", { name: "Pause all (Esc)" }).click();
     await expect(bar(second)).toContainText("Paused", { timeout: 15_000 });
     await second.getByRole("button", { name: "Resume" }).click();
     await expect(bar(page)).not.toContainText("Paused", { timeout: 15_000 });

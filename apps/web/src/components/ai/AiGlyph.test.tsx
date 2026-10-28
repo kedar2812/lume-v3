@@ -43,6 +43,26 @@ describe("the mark drawing itself (Autopilot A3, spec 2026-10-19 §1.4, §2)", (
     expect(container.querySelector("path")).not.toHaveAttribute("data-draw");
   });
 
+  // Drawn to nothing, the stroke's dashes start at 0: only the round cap shows, a dot.
+  const dot = (p: Element | null) => /^0(px)?[ ,]/.test(p?.getAttribute("stroke-dasharray") ?? "");
+
+  it("the sidebar's Loop starts whole: its first frame is the mark, never an empty stroke (2026-10-28)", () => {
+    reduced = false;
+    const { container } = render(<AiGlyph draw="loop" />);
+    expect(container.querySelector("path")).toHaveAttribute("data-draw", "loop");
+    expect(dot(container.querySelector("path"))).toBe(false);
+  });
+
+  it("reduced motion known only after the first frame: the mark is whole, never left a dot (2026-10-28)", () => {
+    reduced = false;
+    const { container, rerender } = render(<AiGlyph draw="pen" />);
+    reduced = true;
+    rerender(<AiGlyph draw="pen" />);
+    expect(container.querySelector("path")).not.toHaveAttribute("data-draw");
+    expect(dot(container.querySelector("path"))).toBe(false);
+    reduced = false;
+  });
+
   it("with reduced motion it rests, fully drawn", () => {
     reduced = true;
     const { container } = render(<AiGlyph draw="pen" />);

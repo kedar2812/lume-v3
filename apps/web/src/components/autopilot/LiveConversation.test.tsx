@@ -58,17 +58,18 @@ const lead = (o: Partial<RunLead> = {}): RunLead => ({
 });
 const props = (o: Partial<Parameters<typeof LiveConversation>[0]> = {}) => ({
   lead: lead(),
-  current: true,
   tz: "Asia/Kolkata",
   speaker: "Priya Nair",
   frozenAt: null,
   takenOverText: null,
-  onBack: vi.fn(),
   onTakeOver: vi.fn(),
   onHandBack: vi.fn(),
   ended: false,
   canDecide: true,
   onCarryOn: vi.fn(),
+  ask: null,
+  onApprove: vi.fn(),
+  onDecline: vi.fn(),
   ...o,
 });
 
@@ -88,7 +89,10 @@ describe("LiveConversation", () => {
       />,
     );
     expect(await screen.findByText("Do you do kitchens?")).toBeInTheDocument();
-    expect(screen.getByText("She asked about kitchens.")).toBeInTheDocument();
+    // At the foot, in one quiet line (plan 2026-10-28, artboard 1).
+    expect(screen.getByText(/She asked about kitchens\./)).toHaveTextContent(
+      "Why · She asked about kitchens.",
+    );
   });
 
   it("reads the thread again when LUME AI sends to this lead, not for others", async () => {
@@ -99,11 +103,11 @@ describe("LiveConversation", () => {
     await waitFor(() => expect(whatsappClient.thread).toHaveBeenCalledTimes(2));
   });
 
-  it("watching another lead: Back to LUME AI's lead", async () => {
-    const p = props({ current: false });
-    render(<LiveConversation {...p} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Back to LUME AI's lead" }));
-    expect(p.onBack).toHaveBeenCalledOnce();
+  it("the header: the name, what's happening in one line, and the lead itself one click away", async () => {
+    render(<LiveConversation {...props({ lead: lead({ state: "sent", nextAt: null }) })} />);
+    expect(await screen.findByRole("heading", { name: "Meera Iyer" })).toBeInTheDocument();
+    expect(screen.getByText("Messaged")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open lead" })).toHaveAttribute("href", "/leads?lead=a");
   });
 
   it("a lead with you: your own reply box, starting from LUME AI's words, and Hand back", async () => {
@@ -128,10 +132,14 @@ describe("LiveConversation", () => {
     expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
   });
 
-  it("a lead ready for you, or needing you: Take over, or let LUME AI carry on, right here", async () => {
-    const p = props({ lead: lead({ state: "ready", reason: "Reached Site visit booked" }) });
+  it("a lead ready for you, or needing you: one bar where the reply box would be, with what to do (artboard 2)", async () => {
+    const p = props({
+      lead: lead({ state: "ready", card: { headline: "Site visit agreed", quote: "Okay, Saturday works" } }),
+    });
     const { unmount } = render(<LiveConversation {...p} />);
-    expect(await screen.findByText("Meera is ready for you.")).toBeInTheDocument();
+    const bar = await screen.findByRole("region", { name: "What to do" });
+    expect(bar).toHaveTextContent("Meera is ready. Site visit agreed");
+    expect(bar).toHaveTextContent("“Okay, Saturday works”");
     await userEvent.click(screen.getByRole("button", { name: "Take over Meera" }));
     expect(p.onTakeOver).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole("button", { name: "Let LUME AI carry on" }));
@@ -139,16 +147,39 @@ describe("LiveConversation", () => {
     unmount();
 
     const q = props({
-      lead: lead({ state: "needs_you", reason: "Asked about a discount." }),
+      lead: lead({ state: "needs_you", reason: "LUME AI wanted to offer a discount you haven't given it." }),
       canDecide: false,
     });
     render(<LiveConversation {...q} />);
-    expect(await screen.findByText("Meera needs you.")).toBeInTheDocument();
-    expect(screen.getByText("Asked about a discount.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Take over Meera" }));
+    expect(await screen.findByRole("region", { name: "What to do" })).toHaveTextContent(
+      "LUME AI wanted to offer a discount you haven't given it.",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reply yourself" }));
     expect(q.onTakeOver).toHaveBeenCalledOnce();
     // Carrying on is the run's controllers' call; anyone who may message the lead may take it.
     expect(screen.queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
+  });
+
+  it("an ask: what LUME AI prepared, sent in one tap, or the lead is yours", async () => {
+    const p = props({
+      lead: lead({ state: "needs_you" }),
+      ask: {
+        id: "k1",
+        leadId: "a",
+        action: "send_files",
+        payload: { message: "Here are a few of our recent kitchens.", fileIds: ["f1"] },
+        createdAt: "2026-10-26T08:00:00.000Z",
+      },
+    });
+    render(<LiveConversation {...p} />);
+    const bar = await screen.findByRole("region", { name: "What to do" });
+    expect(bar).toHaveTextContent("LUME AI asks: Send files");
+    expect(bar).toHaveTextContent("Here are a few of our recent kitchens.");
+    expect(bar).toHaveTextContent("With a file from Media");
+    await userEvent.click(screen.getByRole("button", { name: "Send it" }));
+    expect(p.onApprove).toHaveBeenCalledWith("k1");
+    await userEvent.click(screen.getByRole("button", { name: "I'll reply" }));
+    expect(p.onDecline).toHaveBeenCalledWith("k1");
   });
 
   it("ready for you, but this person can't message the lead: nothing to take", async () => {

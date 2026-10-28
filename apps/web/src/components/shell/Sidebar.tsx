@@ -81,7 +81,8 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
               )}
               {i.id === "autopilot" ? (
                 // LUME AI's own mark, drawing itself: calm, still under Reduce motion (owner, 2026-10-27).
-                <AiGlyph size={18} draw="loop" className={s.aiMark} />
+                // 17 px, as every other icon, so its label lines up with theirs.
+                <AiGlyph size={17} draw="loop" className={s.aiMark} />
               ) : (
                 <NavIcon name={i.icon} />
               )}

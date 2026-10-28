@@ -1,334 +1,51 @@
-/* Autopilot (spec 2026-10-19 §2): the run bar, the leads, the live conversation and Ready for you. */
+/* LUME AI (spec 2026-10-19 §2; the approved redesign, plan 2026-10-28): the header, the two panes, the conversation. */
 
 .screen {
   display: grid;
-  gap: 14px;
+  gap: 20px;
+  min-height: 0;
+  container: lumeai / inline-size;
+}
+
+/* The two panes (plan 2026-10-28, artboard 1): the leads and the conversation, in one card, as Mail. */
+.panes {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  height: calc(100dvh - 210px);
+  min-height: 520px;
+  border-radius: 16px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  overflow: hidden;
+}
+.panes > :first-child:not(:only-child) {
+  box-shadow: inset -0.5px 0 0 var(--line);
+}
+/* A phone (artboard 3): the list, or one lead with Back. */
+.panes[data-phone] {
+  display: block;
+  height: auto;
   min-height: 0;
 }
-
-/* ── the run bar ── */
-.bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px 18px;
-  padding: 14px 16px;
-  border-radius: var(--r-sheet);
-  background: var(--raised);
-  box-shadow:
-    0 0 0 0.5px var(--line),
-    var(--shadow-lift);
-}
-.barMark {
+.phoneLead {
   display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  flex: none;
-  border-radius: 14px;
-  background: var(--mark-ground);
-  box-shadow: inset 0 0 0 0.5px var(--line);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: calc(100dvh - 190px);
 }
-.barWords {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  flex: 1 1 220px;
-}
-.barName {
-  overflow: hidden;
-  font-size: var(--fs-lg);
-  font-weight: var(--fw-bold);
-  letter-spacing: var(--ls-lg);
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.barStatus {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  font-size: var(--fs-sm);
-  letter-spacing: var(--ls-sm);
-  color: var(--text-2);
-}
-.barStatus b {
-  font-weight: var(--fw-semibold);
-  color: var(--text);
-}
-.barMark[data-working] + .barWords .barStatus b {
-  color: var(--accent-ink);
-}
-
-.counts {
-  display: flex;
-  gap: 18px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.counts li {
-  display: grid;
-  justify-items: start;
-  gap: 1px;
-}
-.counts li > span:first-child {
-  font-size: var(--fs-xl);
-  font-weight: var(--fw-bold);
-  letter-spacing: var(--ls-xl);
-  font-variant-numeric: tabular-nums;
-}
-.counts li > span:last-child {
-  font-size: var(--fs-2xs);
-  letter-spacing: 0.02em;
-  color: var(--text-3);
-  white-space: nowrap;
-}
-.barActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-.asksPill {
-  height: 30px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--warn-soft);
-  color: var(--warn-ink);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  cursor: pointer;
-  transition: transform 120ms ease-out;
-}
-.asksPill:active {
-  transform: scale(0.97);
-}
-.asksPill:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.confirm {
-  display: grid;
-  gap: 10px;
-}
-.confirm h2 {
-  font-size: var(--fs-lg);
-  font-weight: var(--fw-bold);
-  letter-spacing: var(--ls-lg);
-}
-.confirm p {
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-  line-height: 1.45;
-}
-.confirmActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.switcher {
+.back {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  justify-self: start;
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-}
-.switcher select {
-  height: 32px;
-  max-width: min(420px, 70vw);
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--r-ctl);
-  background: var(--sunk);
-  box-shadow: inset 0 0 0 0.5px var(--line-2);
-  color: var(--text);
-  font: inherit;
-}
-.switcher select:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-/* ── the columns ── */
-.cols {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(260px, 340px);
-  gap: 14px;
-  align-items: start;
-  min-height: 0;
-}
-.cols:not(:has(> :nth-child(3))) {
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
 }
 .loadingBar {
   display: grid;
   gap: 14px;
-}
-
-/* the leads */
-.leadsCol {
-  display: grid;
-  gap: 8px;
-  max-height: calc(100dvh - 220px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 6px;
-  border-radius: var(--r-card);
-  background: var(--raised);
-  box-shadow: 0 0 0 0.5px var(--line);
-}
-.leads {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.leadRow {
-  position: relative;
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 46px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 160ms ease-out,
-    transform 120ms ease-out;
-}
-.leadRow:hover {
-  background: var(--hover);
-}
-.leadRow:active {
-  transform: scale(0.985);
-}
-.leadRow[aria-pressed="true"] {
-  background: var(--sunk);
-}
-.leadRow:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-/* The blue rail: the lead LUME AI is on (§2). */
-.leadRow[data-current]::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 9px;
-  bottom: 9px;
-  width: 3px;
-  border-radius: 3px;
-  background: var(--accent);
-}
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--sunk);
-  color: var(--text-2);
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-semibold);
-}
-.leadName {
-  overflow: hidden;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.stateChip {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--sunk);
-  color: var(--text-2);
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-.stateChip[data-state="writing"],
-.stateChip[data-state="replied"],
-.stateChip[data-state="talking"] {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-.stateChip[data-state="ready"] {
-  background: var(--ok-soft);
-  color: var(--ok-ink);
-}
-.stateChip[data-state="needs_you"] {
-  background: var(--warn-soft);
-  color: var(--warn-ink);
-}
-.stateChip[data-state="stopped"] {
-  background: var(--danger-soft);
-  color: var(--danger-ink);
-}
-.stateChip[data-state="with_you"] {
-  background: var(--meet-soft);
-  color: var(--meet-ink);
-}
-.skippedBox {
-  display: grid;
-  gap: 6px;
-  padding: 4px 10px 8px;
-  border-top: 0.5px solid var(--line);
-}
-.skippedToggle {
-  justify-self: start;
-  padding: 4px 0;
-  border: 0;
-  background: none;
-  color: var(--text-2);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-.skippedToggle:focus-visible {
-  outline: none;
-  border-radius: 4px;
-  box-shadow: var(--focus-ring);
-}
-.skippedList {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.skippedList li {
-  display: grid;
-  font-size: var(--fs-xs);
-}
-.skippedList b {
-  font-weight: var(--fw-medium);
-}
-.skippedList span {
-  color: var(--text-3);
 }
 
 /* the live conversation */
@@ -336,35 +53,117 @@
   position: relative;
   min-width: 0;
 }
+/* The conversation pane (plan 2026-10-28): the right side of the two panes, no card of its own. */
 .convo {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
-  gap: 10px;
-  min-height: 420px;
-  max-height: calc(100dvh - 220px);
-  padding: 14px 16px 16px;
-  border-radius: var(--r-card);
-  background: var(--raised);
-  box-shadow: 0 0 0 0.5px var(--line);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 .convoHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  padding: 14px 20px;
+  box-shadow: inset 0 -0.5px 0 var(--line);
 }
-.convoHead > div {
+.convoWho {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 1px;
   min-width: 0;
+  margin-right: auto;
 }
-.convoHead h2 {
+.convoWho h2 {
   overflow: hidden;
-  font-size: var(--fs-md);
+  font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-lg);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.convoWho span {
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.openLead {
+  flex: none;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+.openLead:hover {
+  text-decoration: underline;
+}
+/* LUME AI's reason, at the foot in one quiet line while it works. */
+.why {
+  margin: 0;
+  padding: 12px 20px 14px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.why b {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+/* The one thing a person needs to do, where the reply box would be (artboard 2). */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.barText {
+  flex: 1 1 260px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.barText svg {
+  flex: none;
+  margin-top: 3px;
+}
+.barText b {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.barQuote {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--sheet);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text);
+}
+.barNote {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.barActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
 }
 .thought {
   display: flex;
@@ -388,6 +187,7 @@
 }
 .thread {
   min-height: 0;
+  padding: 16px 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -569,72 +369,92 @@ button.typingBox:focus-visible {
   opacity: 0.6;
 }
 
-/* the empty page: what Autopilot does */
-.empty {
+/* LUME AI is off (plan 2026-10-28, artboard 5): its grey Loop drawing slowly, why, and the one way to switch it on. */
+.off {
+  display: grid;
+  place-items: center;
+  padding: 40px 0;
+}
+.offCard {
   display: grid;
   justify-items: center;
   gap: 14px;
-  max-width: 520px;
-  margin: 8vh auto 0;
-  padding: 0 16px;
+  width: min(640px, 100%);
+  padding: 40px 32px;
+  border-radius: 24px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
   text-align: center;
 }
-.empty h2 {
-  font-size: var(--fs-2xl);
-  font-weight: var(--fw-bold);
-  letter-spacing: var(--ls-2xl);
+.offCard h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
 }
-.emptyLede {
+.offCard p {
+  max-width: 460px;
+  margin: 0;
   font-size: var(--fs-md);
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--text-2);
 }
-.emptySteps {
-  display: grid;
-  gap: 10px;
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-  text-align: left;
-}
-.emptySteps li {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  font-size: var(--fs-sm);
-  line-height: 1.45;
-}
-.emptyIcon {
+.offMark {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  width: 84px;
+  height: 84px;
+  border-radius: 24px;
+  background: var(--sunk);
 }
-.emptyCta {
+.offBadge {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--sheet);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  line-height: 24px;
+}
+.offActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.offPrimary,
+.offSecondary {
   display: inline-flex;
   align-items: center;
-  height: 40px;
-  margin-top: 6px;
+  min-height: 44px;
   padding: 0 18px;
-  border-radius: var(--r-ctl);
-  background: var(--accent);
-  color: #fff;
+  border-radius: 12px;
+  font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
   text-decoration: none;
-  transition: transform 120ms ease-out;
 }
-.emptyCta:active {
-  transform: scale(0.97);
+.offPrimary {
+  background: var(--accent);
+  color: #fff;
 }
-.emptyCta:focus-visible {
-  outline: none;
+.offSecondary {
+  background: var(--sunk);
+  color: var(--text);
+}
+.offPrimary:focus-visible,
+.offSecondary:focus-visible {
   box-shadow: var(--focus-ring);
 }
-
+.offCard .offNote {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
 .srOnly {
   position: absolute;
   width: 1px;
@@ -646,86 +466,14 @@ button.typingBox:focus-visible {
   white-space: nowrap;
 }
 
-/* A narrower window: the leads go above the conversation. */
-@media (max-width: 1080px) {
-  .cols {
+/* A narrower window that isn't a phone: the list goes above the conversation. */
+@container lumeai (max-width: 760px) {
+  .panes:not([data-phone]) {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 260px) minmax(0, 1fr);
+    height: auto;
   }
-  .cols:not(:has(> :nth-child(3))) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .leadsCol {
-    max-height: 240px;
-  }
-  .barActions {
-    margin-left: 0;
-  }
-}
-
-/* ── a phone (§2.3): one lead at a time, Live or Ready, Pause always in reach ── */
-.phone {
-  display: grid;
-  gap: 12px;
-}
-.phone > [role="radiogroup"] {
-  width: 100%;
-}
-.phone > [role="radiogroup"] > button {
-  flex: 1;
-}
-.allLeads {
-  border-radius: var(--r-card);
-  background: var(--raised);
-  box-shadow: 0 0 0 0.5px var(--line);
-}
-.allLeads summary {
-  padding: 12px 14px;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-}
-.allLeads summary:focus-visible {
-  outline: none;
-  border-radius: var(--r-card);
-  box-shadow: var(--focus-ring);
-}
-.allLeads .leadsCol {
-  max-height: none;
-  box-shadow: none;
-}
-@media (max-width: 699px) {
-  .bar {
-    gap: 10px 12px;
-    padding: 12px;
-  }
-  .barMark {
-    width: 40px;
-    height: 40px;
-  }
-  .barName {
-    font-size: var(--fs-md);
-  }
-  .counts {
-    order: 3;
-    width: 100%;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .barActions {
-    order: 4;
-    width: 100%;
-  }
-  .barActions > button {
-    flex: 1;
-    min-height: 40px;
-  }
-  .convo {
-    min-height: 0;
-    max-height: none;
-    padding: 12px;
-  }
-  .veil {
-    align-items: start;
-    padding-top: 40px;
+  .panes > :first-child:not(:only-child) {
+    box-shadow: inset 0 -0.5px 0 var(--line);
   }
 }

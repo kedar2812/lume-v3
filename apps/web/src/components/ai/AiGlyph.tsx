@@ -13,14 +13,18 @@ export function AiGlyph({
   size = 16,
   className,
   draw,
+  tone,
 }: {
   size?: number;
   className?: string;
   /**
    * Draw the stroke: `once` (a run starting), `pen` again and again while LUME AI writes (Autopilot §1.4, §2), or `loop`:
-   * drawn in 2.4 s, resting 3 s, then again, LUME AI's own mark in the sidebar (owner, 2026-10-27). Calm, never busy.
+   * LUME AI's own mark in the sidebar (owner, 2026-10-27), whole for 3 s, fading a moment, then drawn again in 2.4 s.
+   * Calm, never busy, and whole on its first frame, so it never shows as an empty stroke (2026-10-28).
    */
   draw?: "once" | "pen" | "loop";
+  /** `muted`: grey, and slower, for LUME AI switched off (plan 2026-10-28, artboard 5). */
+  tone?: "muted";
 }) {
   // One gradient per drawing: two marks on a page never share (or lose) each other's.
   const id = `lume-ai-loop-${useId().replace(/:/g, "")}`;
@@ -36,9 +40,13 @@ export function AiGlyph({
         </linearGradient>
       </defs>
       <motion.path
+        // A mark that stops moving (reduced motion, known only after the first frame) is drawn afresh, whole: one
+        // left where its animation was would be a dot (2026-10-28).
+        key={moving ?? "still"}
         d={LOOP}
         fill="none"
-        stroke={`url(#${id})`}
+        stroke={tone === "muted" ? "var(--text-3)" : `url(#${id})`}
+        {...(tone ? { "data-tone": tone } : {})}
         strokeWidth="11"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -57,9 +65,14 @@ export function AiGlyph({
               }
             : moving === "loop"
               ? {
-                  initial: { pathLength: 0 },
-                  animate: { pathLength: [0, 1, 1, 1], opacity: [1, 1, 1, 0.3] },
-                  transition: { duration: 6, times: [0, 0.4, 0.85, 1], ease: "easeInOut", repeat: Infinity },
+                  initial: { pathLength: 1, opacity: 1 },
+                  animate: { pathLength: [1, 1, 1, 0, 1], opacity: [1, 1, 0.15, 1, 1] },
+                  transition: {
+                    duration: tone === "muted" ? 8 : 6,
+                    times: [0, 0.5, 0.58, 0.6, 1],
+                    ease: "easeInOut",
+                    repeat: Infinity,
+                  },
                 }
               : {})}
       />

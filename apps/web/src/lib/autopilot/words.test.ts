@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { RunDetail, RunLead } from "./types";
-import { currentLead, runCounts, runStatus, whenWords } from "./words";
+import type { RunAsk, RunDetail, RunLead } from "./types";
+import {
+  currentLead,
+  defaultFilter,
+  leadLine,
+  leadsIn,
+  runCounts,
+  runLine,
+  runStatus,
+  whenWords,
+} from "./words";
 
 const lead = (o: Partial<RunLead> & { leadId: string }): RunLead => ({
   name: "Lead",
@@ -170,5 +179,131 @@ describe("whenWords", () => {
     expect(whenWords("2026-10-26T08:30:00.000Z", "Asia/Kolkata", now)).toBe("at 2 pm");
     expect(whenWords("2026-10-27T05:00:00.000Z", "Asia/Kolkata", now)).toBe("tomorrow at 10:30 am");
     expect(whenWords("2026-10-29T04:30:00.000Z", "Asia/Kolkata", now)).toMatch(/^on October 29.* at 10 am$/);
+  });
+});
+
+/** The LUME AI page, redesigned (plan 2026-10-28): each lead in one line, the filters, the header in one sentence. */
+describe("leadLine", () => {
+  const ask = (action: RunAsk["action"]): RunAsk =>
+    ({ id: "k", leadId: "a", action, payload: {}, createdAt: "2026-10-26T09:00:00.000Z" }) as RunAsk;
+  it("one line per state, with a dot only where it matters: writing, needs you, ready", () => {
+    expect(
+      leadLine(
+        lead({ leadId: "a", state: "writing", draft: { kind: "reply" } as RunLead["draft"] }),
+        null,
+        when,
+      ),
+    ).toEqual({
+      text: "Writing a reply",
+      dot: "writing",
+    });
+    expect(
+      leadLine(
+        lead({ leadId: "a", state: "writing", draft: { kind: "template" } as RunLead["draft"] }),
+        null,
+        when,
+      ),
+    ).toEqual({
+      text: "Writing a message",
+      dot: "writing",
+    });
+    expect(
+      leadLine(
+        lead({ leadId: "a", state: "needs_you", card: { headline: "Asked for a discount", quote: null } }),
+        null,
+        when,
+      ),
+    ).toEqual({ text: "Needs you · Asked for a discount", dot: "needs" });
+    expect(leadLine(lead({ leadId: "a", state: "needs_you" }), ask("send_files"), when)).toEqual({
+      text: "Needs you · Send files?",
+      dot: "needs",
+    });
+    expect(
+      leadLine(
+        lead({ leadId: "a", state: "ready", card: { headline: "Site visit agreed", quote: "Okay" } }),
+        null,
+        when,
+      ),
+    ).toEqual({ text: "Ready · Site visit agreed", dot: "ready" });
+    expect(
+      leadLine(lead({ leadId: "a", state: "replied", repliedAt: "2026-10-26T08:55:00.000Z" }), null, when),
+    ).toEqual({
+      text: "Replied at 08:55",
+      dot: null,
+    });
+    expect(
+      leadLine(lead({ leadId: "a", state: "sent", nextAt: "2026-10-28T05:00:00.000Z" }), null, when),
+    ).toEqual({
+      text: "Messaged · follow-up at 05:00",
+      dot: null,
+    });
+    expect(
+      leadLine(lead({ leadId: "a", state: "up_next", nextAt: "2026-10-26T10:40:00.000Z" }), null, when).text,
+    ).toBe("Up next at 10:40");
+    expect(leadLine(lead({ leadId: "a", state: "with_you" }), null, when).text).toBe("With you");
+    expect(leadLine(lead({ leadId: "a", state: "talking" }), null, when).text).toBe("Talking");
+    expect(leadLine(lead({ leadId: "a", state: "stopped" }), null, when).text).toBe("Stopped");
+    // A headline that ends in a full stop reads once.
+    expect(
+      leadLine(lead({ leadId: "a", state: "ready", card: { headline: "Replied.", quote: null } }), null, when)
+        .text,
+    ).toBe("Ready · Replied");
+  });
+});
+
+describe("the filters", () => {
+  const ls = [
+    lead({ leadId: "a", state: "needs_you" }),
+    lead({ leadId: "b", state: "ready" }),
+    lead({ leadId: "c", state: "talking" }),
+    lead({ leadId: "d", state: "skipped" }),
+  ];
+  it("Needs you, Ready and All (never the skipped); opens on Needs you only when someone needs you", () => {
+    expect(leadsIn(ls, "needs").map((l) => l.leadId)).toEqual(["a"]);
+    expect(leadsIn(ls, "ready").map((l) => l.leadId)).toEqual(["b"]);
+    expect(leadsIn(ls, "all").map((l) => l.leadId)).toEqual(["a", "b", "c"]);
+    expect(defaultFilter(ls)).toBe("needs");
+    expect(defaultFilter(ls.slice(1))).toBe("all");
+  });
+});
+
+describe("runLine", () => {
+  const ls = [
+    lead({
+      leadId: "a",
+      state: "writing",
+      lastSentAt: "2026-10-26T08:00:00.000Z",
+      repliedAt: "2026-10-26T08:30:00.000Z",
+    }),
+    lead({ leadId: "b", state: "sent", lastSentAt: "2026-10-26T08:10:00.000Z" }),
+    lead({ leadId: "c", state: "up_next" }),
+    lead({ leadId: "d", state: "skipped" }),
+  ];
+  it("going: who it's following up with, and how far; resting: when the next one goes", () => {
+    expect(runLine(detail({ leads: ls }), NOW, when)).toEqual({
+      text: "LUME AI is following up with 3 leads · 2 messaged · 1 replied",
+      working: true,
+    });
+    const resting = [
+      lead({
+        leadId: "b",
+        state: "sent",
+        lastSentAt: "2026-10-26T08:10:00.000Z",
+        nextAt: "2026-10-28T05:00:00.000Z",
+      }),
+    ];
+    expect(runLine(detail({ leads: resting }), NOW, when)).toEqual({
+      text: "Following up with 1 lead · 1 messaged · Next follow-up at 05:00",
+      working: false,
+    });
+  });
+  it("paused and done say so", () => {
+    expect(runLine(detail({ status: "paused", pauseReason: "person", leads: ls }), NOW, when)).toEqual({
+      text: "Paused · Nothing is sent until you resume.",
+      working: false,
+    });
+    expect(runLine(detail({ status: "ended", leads: ls }), NOW, when).text).toBe(
+      "Done · 2 messaged · 0 ready for you",
+    );
   });
 });

@@ -30,6 +30,14 @@ const replace = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }) }));
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
+let phone = false;
+vi.mock("@/lib/usePhone", () => ({ usePhone: () => phone }));
+// The first visit is its own (WaitingWork.test): here, only that it's what a page with no runs shows.
+vi.mock("./WaitingWork", () => ({
+  WaitingWork: ({ canStart }: { canStart: boolean }) => (
+    <section aria-label="The work waiting">{canStart ? "can start" : "watching"}</section>
+  ),
+}));
 
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const lead = (o: Partial<RunLead> & { leadId: string; name: string }): RunLead => ({
@@ -97,15 +105,14 @@ beforeEach(() => {
   vi.mocked(autopilotClient.resume).mockResolvedValue(ok({ run: {} as never }));
   vi.mocked(whatsappClient.thread).mockResolvedValue(ok(thread as never));
   vi.mocked(whatsappClient.templateState).mockResolvedValue(ok(null));
+  phone = false;
 });
 
 /** Autopilot, the page (spec 2026-10-19 §2): watch LUME AI work, pause with Esc, take over by clicking its message. */
 describe("AutopilotScreen", () => {
-  it("no runs yet: what LUME AI does, in three lines, and where to start", () => {
+  it("no runs yet: the work that's waiting, never a pitch (plan 2026-10-28, artboard 4)", () => {
     render(<AutopilotScreen initial={{ runs: [], running: 0 }} askedRun={null} canStart />);
-    expect(screen.getByRole("heading", { name: "Let LUME AI work your leads" })).toBeInTheDocument();
-    expect(screen.getByText(/Select leads on Leads/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Choose leads" })).toHaveAttribute("href", "/leads");
+    expect(screen.getByRole("region", { name: "The work waiting" })).toHaveTextContent("can start");
   });
 
   it("LUME AI off: the page says so, and an admin gets the way to switch it on (owner, 2026-10-27)", () => {
@@ -122,7 +129,10 @@ describe("AutopilotScreen", () => {
       "href",
       "/settings/integrations",
     );
-    expect(screen.queryByRole("link", { name: "Choose leads" })).toBeNull();
+    expect(screen.getByRole("link", { name: "What LUME AI does" })).toHaveAttribute("href", "/settings/ai");
+    // Its mark, grey and drawing slowly (artboard 5).
+    expect(document.querySelector("[data-draw='loop'][data-tone='muted']")).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "The work waiting" })).toBeNull();
     unmount();
     render(
       <AutopilotScreen
@@ -136,15 +146,33 @@ describe("AutopilotScreen", () => {
     expect(screen.queryByRole("link", { name: "Switch LUME AI on" })).toBeNull();
   });
 
-  it("opens on the run going, and says what LUME AI is doing to whom", async () => {
+  it("opens on the run going: where it stands in one line, and the lead LUME AI is writing to (plan 2026-10-28)", async () => {
     render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
-    expect(await screen.findByRole("region", { name: "Site visit booked · 2 leads" })).toHaveTextContent(
-      "LUME AI is working",
-    );
-    expect(await screen.findByText("LUME AI is writing as Priya Nair")).toBeInTheDocument();
     expect(
-      screen.getByText("Only one approved template fits Meera, so LUME AI uses it."),
+      await screen.findByRole("heading", { name: "Site visit booked · 2 leads", level: 2 }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("LUME AI is following up with 2 leads · 2 messaged · 1 replied"),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("LUME AI is writing as Priya Nair")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Conversation with Meera Iyer" })).toHaveTextContent(
+      "Why · Only one approved template fits Meera, so LUME AI uses it.",
+    );
+    // Nobody needs anyone: it opens on everyone.
+    expect(screen.getByRole("radio", { name: "All 2" })).toBeChecked();
+  });
+
+  it("opens on Needs you when someone needs you, with that lead shown", async () => {
+    const rohan = lead({
+      leadId: "b",
+      name: "Rohan Gupta",
+      state: "needs_you",
+      reason: "Asked for a discount.",
+    });
+    vi.mocked(autopilotClient.run).mockResolvedValue(ok(detail({ leads: [writing, rohan] })));
+    render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
+    expect(await screen.findByRole("radio", { name: "Needs you 1" })).toBeChecked();
+    expect(screen.getByRole("region", { name: "Conversation with Rohan Gupta" })).toBeInTheDocument();
   });
 
   it("Esc pauses everything; Esc again resumes; never while typing in a box", async () => {
@@ -202,12 +230,23 @@ describe("AutopilotScreen", () => {
     expect(autopilotClient.takeOver).toHaveBeenCalledWith("r1", "a");
   });
 
-  it("watching another lead while LUME AI carries on; back to its lead", async () => {
+  it("choosing another lead shows theirs while LUME AI carries on; its own lead is one click back", async () => {
     render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
-    await userEvent.click(await screen.findByRole("button", { name: /Rohan Gupta/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Rohan Gupta/ }));
     expect(screen.getByRole("region", { name: "Conversation with Rohan Gupta" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Back to LUME AI's lead" }));
+    await userEvent.click(screen.getByRole("button", { name: /LUME AI is on this lead/ }));
     expect(screen.getByRole("region", { name: "Conversation with Meera Iyer" })).toBeInTheDocument();
+  });
+
+  it("a phone: the list first; a lead opens its conversation, and Back returns to the list", async () => {
+    phone = true;
+    render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
+    await userEvent.click(await screen.findByRole("button", { name: /^Rohan Gupta/ }));
+    expect(screen.getByRole("region", { name: "Conversation with Rohan Gupta" })).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Leads in this run" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Back to the leads" }));
+    expect(screen.getByRole("list", { name: "Leads in this run" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /Conversation with/ })).toBeNull();
   });
 
   it("a lead ready for you, watched: carry on from the conversation itself", async () => {
@@ -220,13 +259,13 @@ describe("AutopilotScreen", () => {
     vi.mocked(autopilotClient.run).mockResolvedValue(ok(detail({ leads: [writing, rohan] })));
     vi.mocked(autopilotClient.carryOn).mockResolvedValue(ok({ leadId: "b", state: "sent" }) as never);
     render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
-    await userEvent.click(await screen.findByRole("button", { name: /Rohan Gupta/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Ready 1" }));
     const pane = screen.getByRole("region", { name: "Conversation with Rohan Gupta" });
     await userEvent.click(await within(pane).findByRole("button", { name: "Let LUME AI carry on" }));
     expect(autopilotClient.carryOn).toHaveBeenCalledWith("r1", "b");
   });
 
-  it("an ended run: its ready leads can be taken, but LUME AI can't carry on", async () => {
+  it("an ended run: its leads are simply yours to message, and LUME AI can't carry on", async () => {
     const rohan = lead({
       leadId: "b",
       name: "Rohan Gupta",
@@ -235,10 +274,28 @@ describe("AutopilotScreen", () => {
     });
     vi.mocked(autopilotClient.run).mockResolvedValue(ok(detail({ status: "ended", leads: [rohan] })));
     render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
-    const card = await screen.findByRole("article", { name: "Rohan Gupta" });
-    expect(within(card).getByRole("button", { name: "Take over" })).toBeInTheDocument();
-    expect(within(card).queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
+    const pane = await screen.findByRole("region", { name: "Conversation with Rohan Gupta" });
+    expect(await within(pane).findByRole("textbox", { name: "Message to Rohan" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
+  });
+
+  it("a lead that arrives needing you while you watch: LUME says so once, with Take over", async () => {
+    render(<AutopilotScreen initial={runs} askedRun={null} canStart />);
+    await screen.findByText("LUME AI is writing as Priya Nair");
+    expect(toast).not.toHaveBeenCalled();
+    const rohan = lead({
+      leadId: "b",
+      name: "Rohan Gupta",
+      state: "needs_you",
+      reason: "Asked for a discount.",
+    });
+    vi.mocked(autopilotClient.run).mockResolvedValue(ok(detail({ leads: [writing, rohan] })));
+    await userEvent.keyboard("{Escape}"); // any refresh brings the new state; Pause reads the run again
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Rohan needs you: Asked for a discount." }),
+      ),
+    );
   });
 });
 
