@@ -9,4 +9,10 @@
 #     licence: subscription         subscription, perpetual or trial
 #     instance: LUME-XXXX-XXXX      from New licence on the licence server
 #     status: new                   new, active or decommissioned
-clients: []
+clients:
+  - slug: nupuurpatilfitness
+    host: 201.18.204.163
+    user: lume-deploy
+    version: none
+    licence: perpetual
+    status: new

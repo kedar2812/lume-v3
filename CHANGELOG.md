@@ -4,8 +4,10 @@ Every LUME release, newest first. The version is the root `package.json`'s; tagg
 release images (`docs/runbooks/fleet.md`). Migrations are forward-only and additive: an update never drops a
 column in the release that stops using it.
 
-## Unreleased
+## 1.1.0 — 2026-10-29
 
+- **Security updates:** Next.js 16.4.3 (the licence panel and the web app) and Zod 4.6.7, for published denial-of-service
+  advisories. No data or permission changes from these.
 - **Product keys (2026-10-15):** a client's LUME asks for its product key at the first step of setup and goes on
   once license.lumecrm.in approves it ("your LUME is online", with the new online chime). A key works on one
   server: another server is refused and the owner's bell says so. The owner changes the key in Settings → About.
