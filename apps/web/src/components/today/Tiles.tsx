@@ -215,7 +215,9 @@ function LeadsTile({
           ))}
         </div>
       </div>
-      <div className={s.foot}>{foot}</div>
+      <div className={s.foot} data-tile-foot>
+        {foot}
+      </div>
     </Tile>
   );
 }
@@ -289,7 +291,7 @@ function MonthTile({
           </>
         )}
       </div>
-      <div className={s.foot} data-live-count>
+      <div className={s.foot} data-tile-foot data-live-count>
         {g && g.pace !== null ? (
           <>
             At this pace: <b>{shown(g.pace * g.target)}</b> by {month.slice(0, 3)} {lastDay}
@@ -365,7 +367,7 @@ function PipelineTile({
           <span className={s.empty}>No open leads right now</span>
         )}
       </div>
-      <div className={s.foot} data-live-count>
+      <div className={s.foot} data-tile-foot data-live-count>
         {t.forecast !== null ? (
           <>
             <b>{money(t.forecast, currency)}</b> forecast
@@ -414,7 +416,7 @@ function CalendarTile({ t, i }: { t: TilesData["calendar"]; i: number }) {
           })}
         </div>
       </div>
-      <div className={s.foot} data-live-count>
+      <div className={s.foot} data-tile-foot data-live-count>
         {week > 0 ? (
           <>
             <b>{t.held}</b> held today · {count(week)} this week
@@ -461,7 +463,7 @@ function TeamTile({ t, i }: { t: NonNullable<TilesData["team"]>; i: number }) {
           <span className={s.empty}>Nobody&apos;s follow-ups are overdue</span>
         )}
       </div>
-      <div className={s.foot} data-live-count>
+      <div className={s.foot} data-tile-foot data-live-count>
         {t.onTime !== null ? (
           <>
             <b>{pct(t.onTime)}</b> done on time this month
@@ -505,7 +507,7 @@ function StreakTile({ t, i }: { t: NonNullable<TilesData["streak"]>; i: number }
           )}
         </div>
       </div>
-      <div className={s.foot} data-live-count>
+      <div className={s.foot} data-tile-foot data-live-count>
         {nothing ? (
           <>Starts with your first follow-up</>
         ) : left > 0 ? (
@@ -572,7 +574,7 @@ function RepliesTile({ t, own, i }: { t: NonNullable<TilesData["replies"]>; own:
           </svg>
         )}
       </div>
-      <div className={s.foot} data-live-count>
+      <div className={s.foot} data-tile-foot data-live-count>
         {since ? (
           <>
             <b>{since.count.toLocaleString("en-US")}</b> replied since your send

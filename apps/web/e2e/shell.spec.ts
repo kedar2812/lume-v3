@@ -35,7 +35,8 @@ test("Today's tiles show every footer line in full, never cut off mid-word", asy
   // The Team tile read "The on-time rate shows after 10 are c" on a client's demo (2026-10-19): a one-line
   // footer clipped its text with no ellipsis.
   await openApp(page, "/today");
-  const feet = page.locator('[class*="__foot"]');
+  // A hook of its own: a CSS module's class names change with Next (16.4 made "__foot" "_foot").
+  const feet = page.locator("[data-tile-foot]");
   await expect(feet.first()).toBeVisible();
   const cut = await feet.evaluateAll((els) =>
     els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent?.trim()),
