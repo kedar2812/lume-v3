@@ -25,7 +25,10 @@ export const whatsappClient = {
   setReplyFromLume: (replyFromLume: boolean) =>
     api.put<IntegrationsView>("/api/v1/integrations/whatsapp", { replyFromLume }),
   /** A reply from LUME (plan W3a): `clientKey` makes a retried send the same message, never a second one. */
-  send: (leadId: string, body: { clientKey: string; text?: string; mediaId?: string; taskId?: string }) =>
+  send: (
+    leadId: string,
+    body: { clientKey: string; text?: string; mediaId?: string; taskId?: string; retryOf?: string },
+  ) =>
     api.post<{ message: WaThreadMessage }>(
       `/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/messages`,
       body,
@@ -40,6 +43,12 @@ export const whatsappClient = {
   /** Approved templates for a lead (W3b-2), and sending one, outside the 24 hours too. */
   templateState: (leadId: string) =>
     api.get<WaTemplateState>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/templates`),
+  /** Recommended by LUME AI (2026-10-31): the approved template that fits this lead best, and why; or none. */
+  recommendTemplate: (leadId: string) =>
+    api.post<{ pick: { submissionId: string; why: string } | null }>(
+      `/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/templates/recommend`,
+      {},
+    ),
   sendTemplate: (leadId: string, body: { submissionId: string; clientKey: string }) =>
     api.post<{ message: WaThreadMessage }>(
       `/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/template`,

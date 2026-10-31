@@ -2,7 +2,7 @@
 import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from "motion/react";
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { contentUrl, type LibraryFile } from "@/lib/files/client";
+import { srcOf, type LibraryFile } from "@/lib/files/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { Toolbar } from "./Toolbar";
 import v from "./viewer.module.css";
@@ -347,7 +347,7 @@ export function ImageView({ file: f, onZoomed }: { file: LibraryFile; onZoomed(z
       >
         <motion.img
           ref={img}
-          src={contentUrl(f.id)}
+          src={srcOf(f)}
           alt={f.name}
           draggable={false}
           className={v.image}

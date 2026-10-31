@@ -49,6 +49,7 @@ export const editorTransition = (reduce: boolean) => (reduce ? { duration: 0.15 
 
 export function TemplateEditor({
   template,
+  draft,
   roles,
   fields,
   readOnly,
@@ -56,6 +57,8 @@ export function TemplateEditor({
   onClose,
 }: {
   template?: TemplateView;
+  /** A new template from LUME AI's draft (2026-10-31): its words to start from, nothing saved yet. */
+  draft?: { name: string; category: TemplateCategory; body: string };
   roles: RoleName[];
   fields: EditorField[];
   readOnly: boolean;
@@ -66,9 +69,11 @@ export function TemplateEditor({
   const reduce = useReducedMotion();
   const titleId = useId();
   const bodyId = useId();
-  const [name, setName] = useState(template?.name ?? "");
-  const [category, setCategory] = useState<TemplateCategory>(template?.category ?? "first_touch");
-  const [body, setBody] = useState(template?.body ?? "");
+  const [name, setName] = useState(template?.name ?? draft?.name ?? "");
+  const [category, setCategory] = useState<TemplateCategory>(
+    template?.category ?? draft?.category ?? "first_touch",
+  );
+  const [body, setBody] = useState(template?.body ?? draft?.body ?? "");
   const [onlyRoles, setOnlyRoles] = useState((template?.allowedRoleIds.length ?? 0) > 0);
   const [roleIds, setRoleIds] = useState<string[]>(template?.allowedRoleIds ?? []);
   const [saved, setSaved] = useState<string | null>(null);

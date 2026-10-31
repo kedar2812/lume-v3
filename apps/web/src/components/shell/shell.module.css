@@ -92,8 +92,34 @@
     0 1px 2px rgba(0, 0, 0, 0.05);
   z-index: 0;
 }
-.spacer {
+/* The lockup and the profile keep their size; what's between them scrolls when the window is short. */
+.lockup,
+.meWrap {
+  flex: none;
+}
+.sideScroll {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for focus rings and the pill's shadow, which the scroller would otherwise clip; the margin gives it back,
+     so the sidebar lays out to the pixel as it did before it scrolled. */
+  margin: -2px -4px;
+  padding: 2px 4px;
+  /* A thin, quiet bar that is there only when something overflows, and clearer under the pointer. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+.sideScroll:hover,
+.sideScroll:focus-within {
+  scrollbar-color: var(--text-3) transparent;
+}
+.sideScroll > * {
+  flex: none;
 }
 .meWrap {
   position: relative;
@@ -191,10 +217,12 @@
   border-bottom: 0.5px solid var(--line);
   flex: none;
 }
+/* Where the person is, said with weight (owner, 2026-10-31): the toolbar's title, as on Apple's platforms. */
 .crumb {
   font-weight: var(--fw-semibold);
-  font-size: var(--fs-md);
-  letter-spacing: var(--ls-md);
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  line-height: 1.2;
 }
 .search {
   margin-left: auto;
@@ -281,19 +309,31 @@
 .bell {
   position: relative;
 }
-.bellDot {
+/* The count, as iOS badges an app icon (owner, 2026-10-31): white on red, a circle for one digit, a capsule for 9+,
+   ringed in the bar's own colour so it stands clear of the bell. */
+.bellBadge {
   position: absolute;
-  top: 6px;
-  right: 7px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--canvas);
+  top: 1px;
+  left: calc(50% + 2px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0;
+  box-shadow: 0 0 0 2px var(--sheet);
+  pointer-events: none;
 }
 /* With Reduce Motion the bell doesn't swing: the dot breathes instead, slowly, while unread ones wait. */
 @media (prefers-reduced-motion: reduce) {
-  .bellDot[data-waiting] {
+  .bellBadge[data-waiting] {
     animation: dotBreathe 2.4s ease-in-out infinite;
   }
 }

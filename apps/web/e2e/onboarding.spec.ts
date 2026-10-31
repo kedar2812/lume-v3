@@ -39,9 +39,23 @@ test.describe("a sales rep", () => {
 
     await page.getByRole("switch", { name: /email me the morning digest/i }).click();
     await page.getByRole("button", { name: "Continue" }).click();
-    // Connecting is optional: it leads to Settings, never a dead end, and "I’ll do this later" moves on.
+    // Connecting is optional and never a dead end: Connect goes to Google from here (2026-10-31: it linked to the
+    // Calendar, which onboarding sent straight back), and "I’ll do this later" moves on.
     await expect(page.getByRole("heading", { name: "Connect your tools" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /connect/i })).toHaveAttribute("href", "/calendar");
+    await page.route("**/api/v1/calendar/connect", (r) =>
+      r.fulfill({ json: { url: "/calendar/connected?p=onboarding&s=x" } }),
+    );
+    const [google] = await Promise.all([
+      page.waitForRequest("**/api/v1/calendar/connect"),
+      page.getByRole("button", { name: "Connect Google Calendar" }).click(),
+    ]);
+    expect(google.method()).toBe("POST");
+    // Google's hand-back finishes during onboarding (here refused, said in words), rather than bouncing to /welcome.
+    await expect(page).toHaveURL(/\/calendar\/connected\?/);
+    await expect(page.getByRole("alert")).toBeVisible();
+    await page.unroute("**/api/v1/calendar/connect");
+    await page.goto("/welcome"); // where Google hands back to, and onboarding picks up at Connect
+    await expect(page.getByRole("heading", { name: "Connect your tools" })).toBeVisible();
     await page.getByRole("button", { name: "I’ll do this later" }).click();
     await expect(page.getByRole("heading", { name: "You’re all set, Riya" })).toBeVisible();
     await page.getByRole("button", { name: /take the tour/i }).click();

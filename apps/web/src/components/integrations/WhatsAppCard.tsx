@@ -172,7 +172,7 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
   };
 
   return (
-    <article className={s.card} aria-labelledby="wa-title">
+    <article id="whatsapp" className={s.card} aria-labelledby="wa-title">
       <header className={s.cardHead}>
         <WhatsAppIcon size={44} />
         <div className={s.cardText}>

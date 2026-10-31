@@ -41,7 +41,12 @@ export type WhatsAppSubmission = {
 
 const one = (id: string) => `/api/v1/templates/${encodeURIComponent(id)}`;
 
+/** One of LUME AI's drafts (2026-10-31): a template LUME could send as written, and when it works best. */
+export type TemplateDraft = { name: string; category: TemplateCategory; body: string; why: string };
+
 export const templatesClient = {
+  /** Write with LUME AI: two or three drafts from what the person asks for (none when LUME couldn't send any). */
+  draft: (prompt: string) => api.post<{ options: TemplateDraft[] }>("/api/v1/templates/draft", { prompt }),
   list: () => api.get<{ templates: TemplateView[]; roles?: RoleName[] }>("/api/v1/templates"),
   create: (b: TemplateInput) => api.post<TemplateView>("/api/v1/templates", b),
   update: (id: string, b: Partial<TemplateInput>) => api.patch<TemplateView>(one(id), b),

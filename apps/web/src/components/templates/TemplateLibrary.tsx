@@ -2,17 +2,20 @@
 import { AnimatePresence, Reorder, motion, useDragControls, useReducedMotion } from "motion/react";
 import { useCallback, useState, type KeyboardEvent, useRef } from "react";
 import { SavedHud } from "@/components/feedback/SavedHud";
+import { AiGlyph } from "@/components/ai/AiGlyph";
 import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
-import { templatesClient, type RoleName, type TemplateView } from "@/lib/templates/client";
+import { useAiOn } from "@/lib/ai/use-ai-on";
+import { templatesClient, type RoleName, type TemplateDraft, type TemplateView } from "@/lib/templates/client";
+import { DraftWithAi } from "./DraftWithAi";
 import { TemplateEditor, type EditorField } from "./TemplateEditor";
 import { TokenLine } from "./TokenLine";
 import s from "./templates.module.css";
 
 /** One opening of the editor: its key stays the same while it's open, so a save updates it in place. */
-type Editing = { key: string; template?: TemplateView } | null;
+type Editing = { key: string; template?: TemplateView; draft?: TemplateDraft } | null;
 const firstLine = (body: string) => body.split("\n").find((l) => l.trim()) ?? "";
 
 /**
@@ -33,6 +36,9 @@ export function TemplateLibrary({
   const reduce = useReducedMotion();
   const [templates, setTemplates] = useState(initial);
   const [editing, setEditing] = useState<Editing>(null);
+  // Write with LUME AI (2026-10-31), for whoever manages templates while LUME AI is on.
+  const ai = useAiOn();
+  const [drafting, setDrafting] = useState(false);
   const [note, setNote] = useState<{ text: string; undo?: () => void } | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [hud, setHud] = useState<{ title: string; detail: string } | null>(null);
@@ -109,9 +115,17 @@ export function TemplateLibrary({
           {canManage ? ". Write once; everyone sends it in two taps." : ". Pick one when you message a lead."}
         </p>
         {canManage && (
-          <Button variant="primary" onClick={() => setEditing({ key: crypto.randomUUID() })}>
-            New template
-          </Button>
+          <div className={s.toolbarActions}>
+            {ai && (
+              <Button onClick={() => setDrafting(true)}>
+                <AiGlyph size={16} />
+                Write with LUME AI
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => setEditing({ key: crypto.randomUUID() })}>
+              New template
+            </Button>
+          </div>
         )}
       </div>
 
@@ -198,6 +212,7 @@ export function TemplateLibrary({
           <TemplateEditor
             key={editing.key}
             {...(editing.template ? { template: editing.template } : {})}
+            {...(editing.draft ? { draft: editing.draft } : {})}
             roles={roles}
             fields={fields}
             readOnly={!canManage}
@@ -214,6 +229,16 @@ export function TemplateLibrary({
           />
         )}
       </AnimatePresence>
+      {drafting && (
+        <DraftWithAi
+          fields={fields}
+          onUse={(d) => {
+            setDrafting(false);
+            setEditing({ key: crypto.randomUUID(), draft: d });
+          }}
+          onClose={() => setDrafting(false)}
+        />
+      )}
       <SavedHud shown={!!hud} title={hud?.title ?? ""} detail={hud?.detail ?? ""} onDone={hudDone} />
     </div>
   );

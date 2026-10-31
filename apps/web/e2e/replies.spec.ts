@@ -2,7 +2,7 @@ import { createHash, createHmac } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { inbound } from "../../../packages/core/src/whatsapp/fixtures";
-import { callApi, expect, openApp, reviewCopy, stateFile, test } from "./fixtures";
+import { callApi, expect, openApp, openChat, reviewCopy, stateFile, test } from "./fixtures";
 import { settle } from "./settle";
 
 /**
@@ -114,14 +114,15 @@ test.describe.serial("Who replied", () => {
   test("a reply on a lead, and what it means right under it", async ({ page }) => {
     await writes(page.request, LEADS[0][1], "How much does a modular kitchen cost?");
     await openApp(page, `/leads?lead=${made[0]}`);
-    const drawer = page.getByRole("dialog", { name: "Varsha Kulkarni" });
+    const drawer = page.getByRole("dialog", { name: "Varsha Kulkarni", exact: true });
+    const chat = page.getByRole("dialog", { name: "WhatsApp with Varsha Kulkarni" });
     await expect(async () => {
-      await drawer.getByRole("tab", { name: "WhatsApp" }).click();
-      await expect(drawer.getByRole("group", { name: "What Varsha's reply means" })).toBeVisible({
+      await openChat(page, drawer, "Varsha Kulkarni");
+      await expect(chat.getByRole("group", { name: "What Varsha's reply means" })).toBeVisible({
         timeout: 1500,
       });
     }).toPass({ timeout: 30_000 });
-    const meaning = drawer.getByRole("group", { name: "What Varsha's reply means" });
+    const meaning = chat.getByRole("group", { name: "What Varsha's reply means" });
     await expect(meaning).toContainText("Asked the price");
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });

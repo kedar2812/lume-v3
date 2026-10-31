@@ -165,13 +165,13 @@ describe("GET /api/v1/autopilot/setup", () => {
     expect((await setup()).ready).toMatchObject({
       ok: false,
       code: "NO_NUMBER",
-      fixHref: "/settings/integrations/whatsapp",
+      fixHref: "/settings/integrations#whatsapp",
     });
     await put(admin, "/api/v1/integrations/whatsapp", { replyFromLume: false });
     expect((await setup()).ready).toMatchObject({
       ok: false,
       code: "REPLY_OFF",
-      fixHref: "/settings/integrations/whatsapp",
+      fixHref: "/settings/integrations#whatsapp",
     });
     await put(admin, "/api/v1/integrations/ai", { enabled: false });
     expect((await setup()).ready).toEqual({

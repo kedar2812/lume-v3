@@ -158,10 +158,14 @@ export function TopBar({
         onClick={() => (open ? close() : setOpen(true))}
       >
         <motion.span animate={swing} style={{ display: "grid", transformOrigin: "50% 10%" }}>
-          <Bell size={18} strokeWidth={1.8} aria-hidden />
+          <Bell size={21} strokeWidth={1.8} aria-hidden />
         </motion.span>
+        {/* How many, as iOS badges an app (owner, 2026-10-31): the number in red, 9+ past 9. The exact count is heard in
+            the label. */}
         {unread > 0 && (
-          <span className={s.bellDot} aria-hidden data-live-count data-waiting={!open || undefined} />
+          <span className={s.bellBadge} aria-hidden data-live-count data-waiting={!open || undefined}>
+            {unread > 9 ? "9+" : unread}
+          </span>
         )}
       </IconButton>
       <NotificationCentre open={open} onClose={close} tz={tz} canMessage={!!canMessage} />

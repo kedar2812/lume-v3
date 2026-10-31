@@ -246,6 +246,73 @@ describe("sending", () => {
     });
   });
 
+  describe("Try again (2026-10-31: a retried message left its failed copy, with a live Try again, on the thread)", () => {
+    const failed = async (lead: string, text: string) => {
+      const r = await send(rep, lead, { text });
+      expect(r.statusCode, r.body).toBe(202);
+      const m = r.json().message as { id: string };
+      // Row security is forced on the outbox: the harness's all-scope query, as the send queue's own failure would.
+      const marked = await h.queryAll<{ id: string }>(
+        "UPDATE whatsapp_outbox SET status = 'failed', problem = 'WhatsApp stopped letting LUME in. Connect this number again.' WHERE activity_id = $1 RETURNING id",
+        [m.id],
+      );
+      expect(marked, "the message to mark failed").toHaveLength(1);
+      return m.id;
+    };
+    const outs = async (lead: string) =>
+      ((await thread(rep, lead)).messages as { direction: string; text: string; status: string }[])
+        .filter((m) => m.direction === "out")
+        .map((m) => [m.text, m.status]);
+
+    it("sends it once more as one message; the failed one leaves the thread, and a second Try again finds it gone", async () => {
+      const phone = "+919811122233";
+      const lead = await h.seedLead({ ownerId: rep.id, name: "Ravi Shah", phone });
+      await writes({ from: phone });
+      const was = await failed(lead, "hey there");
+      const again = await send(rep, lead, { text: "hey there", retryOf: was });
+      expect(again.statusCode, again.body).toBe(202);
+      // A double click, or the same message open in another tab: never a second copy.
+      const twice = await send(rep, lead, { text: "hey there", retryOf: was });
+      expect(twice.statusCode).toBe(409);
+      expect(twice.json().error.code).toBe("ALREADY_SENT_AGAIN");
+      expect((await outbox(lead)).map((o) => o.status)).toEqual(["cancelled", "queued"]);
+      expect(await outs(lead)).toEqual([["hey there", "queued"]]);
+    });
+
+    it("refused when the lead can't be messaged now; the failed one stays, with its reason", async () => {
+      const phone = "+919811122244";
+      const lead = await h.seedLead({ ownerId: rep.id, name: "Asha Rao", phone });
+      await writes({ from: phone });
+      const was = await failed(lead, "hello");
+      const dnc = await (await as(admin)).inject({
+        method: "POST",
+        url: `/api/v1/leads/${lead}/do-not-contact`,
+        payload: { reason: "Asked on a call" },
+      });
+      expect(dnc.statusCode, dnc.body).toBe(200);
+      const refused = await send(rep, lead, { text: "hello", retryOf: was });
+      expect(refused.statusCode, refused.body).toBeGreaterThanOrEqual(400);
+      expect((await outbox(lead)).map((o) => o.status)).toEqual(["failed"]);
+      expect(await outs(lead)).toEqual([["hello", "failed"]]);
+    });
+
+    it("names only a failed message on this lead", async () => {
+      const phone = "+919811122255";
+      const lead = await h.seedLead({ ownerId: rep.id, name: "Neel Joshi", phone });
+      const other = await h.seedLead({ ownerId: rep.id, name: "Mira Das", phone: "+919811122266" });
+      await writes({ from: phone });
+      await writes({ from: "+919811122266" });
+      const sent = (await send(rep, lead, { text: "on its way" })).json().message.id as string;
+      const elsewhere = await failed(other, "hi Mira");
+      for (const retryOf of [sent, elsewhere]) {
+        const r = await send(rep, lead, { text: "again", retryOf });
+        expect(r.statusCode).toBe(400);
+        expect(r.json().error.code).toBe("NOT_RETRYABLE");
+      }
+      expect((await outbox(other)).map((o) => o.status)).toEqual(["failed"]);
+    });
+  });
+
   it("words: empty, or over WhatsApp's 4,096 characters, is refused and says why", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     await writes();

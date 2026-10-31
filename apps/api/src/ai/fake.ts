@@ -4,6 +4,7 @@ import {
   catchUpOutput,
   isStop,
   replyMeaningOutput,
+  templateDraftOutput,
   type AiTask,
   type AutopilotReply,
   type CatchUp,
@@ -168,10 +169,36 @@ export function fakeProvider(answers: Partial<Record<AiTask, unknown>> = {}): Fa
               ? "autopilot_reply"
               : s === replyMeaningOutput
                 ? "reply_meaning"
-                : "next_step";
+                : s === templateDraftOutput
+                  ? "template_draft"
+                  : "next_step";
       const scripted = scripts.get(task)?.shift();
       if (scripted !== undefined)
         return { output: r.schema.parse(scripted), inputTokens: 100, outputTokens: 30 };
+      // Two drafts a business could submit as written (2026-10-31).
+      if (task === "template_draft")
+        return {
+          output: r.schema.parse(
+            answers[task] ?? {
+              options: [
+                {
+                  name: "Friendly follow-up",
+                  category: "follow_up",
+                  body: "Hi {{lead.first_name}}, just checking in about your enquiry. Would a quick call this week help?",
+                  why: "Short and warm, with an easy yes.",
+                },
+                {
+                  name: "Helpful nudge",
+                  category: "follow_up",
+                  body: "Hi {{lead.first_name}}, happy to answer any questions you have. What would be most useful to know?",
+                  why: "Invites a question when someone has gone quiet.",
+                },
+              ],
+            },
+          ),
+          inputTokens: 100,
+          outputTokens: 60,
+        };
       if (task === "reply_meaning")
         return {
           output: r.schema.parse(answers[task] ?? meaningFor(r.input)),

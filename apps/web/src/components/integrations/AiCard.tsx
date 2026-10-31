@@ -84,7 +84,7 @@ export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: I
               ? NOT_IN_PLAN_NOTE
               : !ai.available
                 ? "LUME AI isn't set up on this server yet."
-                : "Reads a note after a call and suggests the next step. A person always decides."}
+                : "Reads notes and WhatsApp replies and suggests the next step. It messages leads only in a run someone starts."}
           </p>
         </div>
         <Switch
@@ -104,8 +104,8 @@ export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: I
       )}
       {usable && (
         <p className={s.aiPrivacy}>
-          The words of a note are sent to the AI provider to be read. They aren't used to train it, and
-          nothing is ever sent to a lead.
+          What LUME AI reads is sent to the AI provider: a note, a reply, or a run's conversation. It isn't used to
+          train the AI, and LUME AI messages a lead only in a run someone starts on the LUME AI page.
         </p>
       )}
       {on && status && (

@@ -238,6 +238,8 @@ export async function sendReply(
     text?: string | undefined;
     mediaId?: string | undefined;
     taskId?: string | undefined;
+    /** Try again: the failed message (its activity) this sends once more. */
+    retryOf?: string | undefined;
   },
   /** LUME AI's, in a run (Autopilot A2): the same checks, marked as LUME AI's, paced by the run, not this limiter. */
   auto?: { runId: string; afterStop?: boolean },
@@ -294,6 +296,21 @@ export async function sendReply(
     throw new HttpError(429, "TOO_MANY", "That's a lot of messages at once. Wait a minute and send again.", {
       retryAfterSec: verdict.retryAfterSec,
     });
+
+  // Try again (2026-10-31): only after every check above has passed, the failed message is claimed under a lock and
+  // leaves the thread, so a double click or a second tab sends one copy, never two; a refusal above leaves it failed.
+  if (body.retryOf) {
+    const [was] = await req.db
+      .select({ id: O.id, leadId: O.leadId, status: O.status })
+      .from(O)
+      .where(eq(O.activityId, body.retryOf))
+      .for("update");
+    if (was?.leadId === lead.id && was.status === "cancelled")
+      throw conflict("ALREADY_SENT_AGAIN", "This message was already sent again.");
+    if (!was || was.leadId !== lead.id || was.status !== "failed")
+      throw badRequest("NOT_RETRYABLE", "Only a message that didn't go can be sent again.");
+    await req.db.update(O).set({ status: "cancelled", updatedAt: d.clock() }).where(eq(O.id, was.id));
+  }
 
   const outboxId = newId();
   const activityId = newId();

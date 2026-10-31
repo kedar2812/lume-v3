@@ -5,6 +5,21 @@ import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaMediaInfo, WaThreadMessage } from "@/lib/whatsapp/types";
 import { WhatsAppThread } from "./WhatsAppThread";
 
+// LUME's viewer is the Media tab's own (tested there); here, what it was asked to open.
+vi.mock("@/components/media/viewer/Viewer", () => ({
+  Viewer: (p: {
+    files: { name: string; src?: string; viewAs: string }[];
+    back: string;
+    info: boolean;
+    onClose(id: string): void;
+  }) => (
+    <div role="dialog" aria-label={p.files[0]!.name} data-src={p.files[0]!.src} data-view={p.files[0]!.viewAs}>
+      <button type="button" onClick={() => p.onClose("x")}>
+        Back to {p.back}
+      </button>
+    </div>
+  ),
+}));
 vi.mock("@/lib/whatsapp/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/whatsapp/client")>()),
   whatsappClient: { mediaInfo: vi.fn() },
@@ -84,7 +99,44 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
     expect(img).toHaveAttribute("src", "/api/v1/whatsapp/media/m1");
   });
 
-  it("a voice note plays in place; a document is a download with its name and size", async () => {
+  it("a photo opens in LUME's viewer, over everything, and closes back to the chat (2026-10-31)", async () => {
+    vi.mocked(whatsappClient.mediaInfo).mockResolvedValue(ok(info({ filename: "IMG_2041.jpg" })));
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={[
+          msg({
+            id: "1",
+            media: { id: "m1", kind: "image", mime: "image/jpeg", filename: "IMG_2041.jpg", voice: false },
+          }),
+        ]}
+      />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Open photo from Sneha" }));
+    const viewer = screen.getByRole("dialog", { name: "IMG_2041.jpg" });
+    expect(viewer).toHaveAttribute("data-src", "/api/v1/whatsapp/media/m1");
+    expect(viewer).toHaveAttribute("data-view", "image");
+    await userEvent.click(within(viewer).getByRole("button", { name: "Back to Chat" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("a video opens in the viewer too, named for who sent it when it has no file name", async () => {
+    vi.mocked(whatsappClient.mediaInfo).mockResolvedValue(ok(info({ kind: "video", mime: "video/mp4" })));
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={[
+          msg({ id: "1", media: { id: "v1", kind: "video", mime: "video/mp4", filename: null, voice: false } }),
+        ]}
+      />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Open video from Sneha" }));
+    expect(screen.getByRole("dialog", { name: "Video from Sneha" })).toHaveAttribute("data-view", "video");
+  });
+
+  it("a voice note plays in place; a document opens in the viewer, its card naming it and its size", async () => {
     vi.mocked(whatsappClient.mediaInfo).mockImplementation(async (id) =>
       ok(
         id === "a1"
@@ -114,9 +166,10 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
         ]}
       />,
     );
-    const link = await screen.findByRole("link", { name: /Floor plan\.pdf/ });
-    expect(link).toHaveAttribute("href", "/api/v1/whatsapp/media/d1");
-    expect(link).toHaveTextContent("PDF · 1.2 MB");
+    const card = await screen.findByRole("button", { name: /Floor plan\.pdf/ });
+    expect(card).toHaveTextContent("PDF · 1.2 MB");
+    await userEvent.click(card);
+    expect(screen.getByRole("dialog", { name: "Floor plan.pdf" })).toHaveAttribute("data-view", "pdf");
     const audio = container.querySelector("audio")!;
     expect(audio).toHaveAttribute("src", "/api/v1/whatsapp/media/a1");
     expect(audio).toHaveAttribute("controls");

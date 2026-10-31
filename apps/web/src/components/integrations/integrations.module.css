@@ -4,6 +4,8 @@
   gap: 16px;
 }
 .card {
+  /* A card a link lands on (#whatsapp) keeps a little room above it. */
+  scroll-margin-top: 16px;
   background: var(--raised);
   border-radius: var(--r-card);
   box-shadow: 0 0 0 0.5px var(--line-2);

@@ -108,9 +108,10 @@ describe("LUME AI's tasks", () => {
     expect(nextStepOutput.safeParse(step({ tagIds: ["a", "b", "c", "d"] })).success).toBe(false);
   });
 
-  it("a catch-up is exactly three lines of at most 160 characters", () => {
+  it("a catch-up is two or three lines of at most 160 characters (two when the history is short, eval 2026-10-31)", () => {
     expect(catchUpOutput.safeParse({ lines: ["a", "b", "c"] }).success).toBe(true);
-    expect(catchUpOutput.safeParse({ lines: ["a", "b"] }).success).toBe(false);
+    expect(catchUpOutput.safeParse({ lines: ["a", "b"] }).success).toBe(true);
+    expect(catchUpOutput.safeParse({ lines: ["a"] }).success).toBe(false);
     expect(catchUpOutput.safeParse({ lines: ["a", "b", "x".repeat(161)] }).success).toBe(false);
   });
 });

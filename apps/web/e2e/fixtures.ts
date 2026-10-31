@@ -124,6 +124,17 @@ export function nearBusinessMidnight(now = new Date()): boolean {
   return hour >= 23;
 }
 
+/**
+ * A lead's WhatsApp, which opens as a window of its own (2026-10-31): closed first when it's open, so the thread is
+ * read again (a test waiting for a message re-opens it until it's there). The window, by its name.
+ */
+export async function openChat(page: Page, drawer: Locator, name: string): Promise<Locator> {
+  const chat = page.getByRole("dialog", { name: `WhatsApp with ${name}`, exact: true });
+  if (await chat.isVisible()) await chat.getByRole("button", { name: "Close (Esc)" }).click();
+  await drawer.getByRole("tab", { name: "WhatsApp" }).click();
+  return chat;
+}
+
 export async function openApp(page: Page, path: string): Promise<void> {
   await page.goto(path);
   await page.locator('html[data-shell="ready"]').waitFor({ state: "attached" });

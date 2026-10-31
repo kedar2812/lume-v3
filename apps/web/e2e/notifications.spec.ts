@@ -100,6 +100,8 @@ test.describe("Notifications (3B)", () => {
         { timeout: 75_000 },
       )
       .toBe(true);
+    // Whether earlier steps left a read notice decides Clear read; clear them, so the screenshots never depend on it.
+    await callApi(page, "POST", "/api/v1/notifications/clear-read");
     await openApp(page, "/leads");
     await expect(page.getByRole("button", { name: /^Notifications, \d+ unread$/ })).toBeVisible();
 
@@ -112,6 +114,7 @@ test.describe("Notifications (3B)", () => {
     });
     await expect(escalation).toBeVisible();
     await expect(centre.getByRole("list", { name: "Overdue" })).toContainText("Own Late");
+    await expect(centre.getByRole("button", { name: "Clear read" })).toBeDisabled();
 
     // The full copies first, both themes, before anything is frozen for the baselines.
     for (const theme of ["light", "dark"] as const) {

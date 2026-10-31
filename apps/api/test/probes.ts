@@ -832,6 +832,14 @@ export const PROBES: Record<string, Probe> = {
     path: (f) => `/api/v1/leads/${f.leadId}/whatsapp/template`,
     body: () => ({ submissionId: uuid, clientKey: uuid }),
   },
+  "POST /api/v1/leads/:id/whatsapp/templates/recommend": {
+    access: "messages.send",
+    path: (f) => `/api/v1/leads/${f.leadId}/whatsapp/templates/recommend`,
+  },
+  "POST /api/v1/templates/draft": {
+    access: "templates.manage",
+    body: () => ({ prompt: "A first hello for a new lead" }),
+  },
   "POST /api/v1/templates/:id/whatsapp": {
     access: "templates.manage",
     path: () => `/api/v1/templates/${uuid}/whatsapp`,

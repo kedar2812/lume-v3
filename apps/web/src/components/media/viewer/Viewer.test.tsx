@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { filesClient, type LibraryFile } from "@/lib/files/client";
 import { MediaScreen } from "../MediaScreen";
+import { Viewer } from "./Viewer";
 
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
@@ -100,6 +101,42 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toHaveAttribute("data-viewer-origin", "f2"));
+  });
+
+  it("Download saves the file under its own name (2026-10-31)", async () => {
+    render(<MediaScreen initial={ALL} canManage guideSeen />);
+    await openTile("Kitchen.png");
+    const down = within(viewer()).getByRole("link", { name: "Download" });
+    expect(down).toHaveAttribute("href", "/api/v1/files/f2/content");
+    expect(down).toHaveAttribute("download", "Kitchen.png");
+  });
+
+  it("a photo from a WhatsApp chat opens from its own address, back to the chat, with Download and no Info (2026-10-31)", async () => {
+    const photo = file({ id: "m1", name: "Photo from Sneha.jpg", src: "/api/v1/whatsapp/media/m1", thumbUrl: null });
+    const onClose = vi.fn();
+    render(
+      <Viewer
+        files={[photo]}
+        openId="m1"
+        canManage={false}
+        back="Chat"
+        info={false}
+        onClose={onClose}
+        onChange={vi.fn()}
+        onArchived={vi.fn()}
+      />,
+    );
+    expect(within(viewer()).getByRole("img", { name: "Photo from Sneha.jpg" })).toHaveAttribute(
+      "src",
+      "/api/v1/whatsapp/media/m1",
+    );
+    expect(within(viewer()).getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      "/api/v1/whatsapp/media/m1",
+    );
+    expect(within(viewer()).queryByRole("button", { name: "Info" })).toBeNull();
+    await userEvent.click(within(viewer()).getByRole("button", { name: "Back to Chat (Esc)" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith("m1"));
   });
 
   it("Left and Right move between files in the page's order, and the ends say so instead of wrapping", async () => {

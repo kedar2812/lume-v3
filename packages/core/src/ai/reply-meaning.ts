@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { softText } from "./fit";
 import { cleanNextStep, trimHistory, type LeadFacts } from "./tasks";
 
 /**
@@ -31,13 +32,13 @@ export const replyMeaningOutput = z
   .object({
     meaning: z.enum(REPLY_MEANINGS),
     /** One plain line on what the reply says, shown under it. */
-    summary: z.string().min(1).max(140),
+    summary: softText(140, 1),
     /** The lead asks not to be messaged, in any words or language. */
     stop: z.boolean(),
     stageId: z.string().nullable(),
     /** On the business's clock, "YYYY-MM-DDTHH:mm": a time the lead named, or a sensible next contact. */
     followUp: z
-      .object({ at: z.string(), title: z.string().min(1).max(80) })
+      .object({ at: z.string(), title: softText(80, 1) })
       .strict()
       .nullable(),
     lostReasonId: z.string().nullable(),
@@ -54,7 +55,7 @@ Answer with:
 (Wants a visit or call), later (Later: not now, come back another time), not_interested (Not interested), stop (Stop \
 messaging: asks not to be messaged any more), wrong_number (Wrong number: not the person or not looking), not_sure \
 (Not sure: anything else, or you can't tell).
-- summary: one line on what the reply says.
+- summary: one line on what the reply says, at most 140 characters.
 - stop: true when the lead asks not to be messaged, in any words; then meaning is stop. Otherwise false.
 - stageId: the stage the lead should move to now, or null to leave it; ids only from the lists given.
 - followUp: when to contact the lead next, as local time "YYYY-MM-DDTHH:mm" on the business's clock after "now", with a \

@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
 import { TemplateEditor } from "./TemplateEditor";
@@ -18,8 +18,12 @@ vi.mock("@/lib/templates/client", () => ({
     // WhatsApp approval (W3b-2): not set up in these tests, so the panel stays away.
     whatsapp: vi.fn(async () => ({ ok: true, status: 200, data: { on: false, submissions: [] } })),
     submitToWhatsApp: vi.fn(),
+    draft: vi.fn(),
   },
 }));
+// LUME AI's switch, per test: off unless a test turns it on.
+let aiOn = false;
+vi.mock("@/lib/ai/use-ai-on", () => ({ useAiOn: () => aiOn }));
 vi.mock("@/lib/leads/client", () => ({ leadsClient: { list: vi.fn() } }));
 
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
@@ -65,6 +69,60 @@ beforeEach(() => {
   vi.mocked(templatesClient.reorder).mockImplementation(
     async (ids) => ok({ templates: ids.map((id) => TEMPLATES.find((x) => x.id === id)!) }) as never,
   );
+});
+
+describe("Write with LUME AI on the library (owner, 2026-10-31)", () => {
+  beforeEach(() => {
+    aiOn = true;
+  });
+  afterEach(() => {
+    aiOn = false;
+  });
+
+  it("only with LUME AI on, for whoever manages templates", () => {
+    aiOn = false;
+    const { unmount } = render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />);
+    expect(screen.queryByRole("button", { name: "Write with LUME AI" })).toBeNull();
+    unmount();
+    aiOn = true;
+    const second = render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage={false} />);
+    expect(screen.queryByRole("button", { name: "Write with LUME AI" })).toBeNull();
+    second.unmount();
+    render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />);
+    expect(screen.getByRole("button", { name: "Write with LUME AI" })).toBeInTheDocument();
+  });
+
+  it("Use this opens the editor with LUME AI's words, nothing saved until Save", async () => {
+    vi.mocked(templatesClient.draft).mockResolvedValue(
+      ok({
+        options: [
+          {
+            name: "Gentle nudge",
+            category: "follow_up" as const,
+            body: "Hi {{lead.first_name}}, still keen on a visit this week?",
+            why: "Short, with an easy yes.",
+          },
+          {
+            name: "Helpful nudge",
+            category: "follow_up" as const,
+            body: "Hi {{lead.first_name}}, any questions I can answer?",
+            why: "Invites a question.",
+          },
+        ],
+      }) as never,
+    );
+    render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Write with LUME AI" }));
+    const sheet = screen.getByRole("dialog", { name: "Write with LUME AI" });
+    await userEvent.type(within(sheet).getByRole("textbox", { name: "What should this template do?" }), "Nudge");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Write templates" }));
+    const [first] = await within(sheet).findAllByRole("article");
+    await userEvent.click(within(first!).getByRole("button", { name: "Use this" }));
+    expect(screen.queryByRole("dialog", { name: "Write with LUME AI" })).toBeNull();
+    const editor = screen.getByRole("dialog", { name: "New template" });
+    expect(within(editor).getByRole("textbox", { name: "Name" })).toHaveValue("Gentle nudge");
+    expect(templatesClient.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("the template library (4A Task 5)", () => {

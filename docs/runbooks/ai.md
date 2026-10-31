@@ -1,7 +1,7 @@
 # LUME AI
 
 LUME AI reads a call note or a note into a suggested next step (the stage, a follow-up and tags, applied only with a
-tap), and catches someone up on a lead in three lines when they ask. Spec:
+tap), and catches someone up on a lead in two or three lines when they ask. Spec:
 `docs/superpowers/specs/2026-10-18-whatsapp-replies-ai-design.md` §2 and §5.
 
 It is **off by default** on every LUME, and it stays off unless three things are true:
@@ -116,3 +116,34 @@ Notes, calls and follow-ups keep working the whole time: LUME AI only ever sugge
 
 LUME AI talking to leads on WhatsApp by itself, in runs: `docs/runbooks/autopilot.md`. Every message it writes is one
 LUME AI call against the same month and hour.
+
+## Recommended by LUME AI (2026-10-31)
+
+Outside WhatsApp's 24 hours, the reply box offers the business's approved templates. With LUME AI on, it first asks
+LUME AI which one fits this lead (`POST /api/v1/leads/:id/whatsapp/templates/recommend`, for anyone who may message
+the lead). It's Autopilot's first-message read (`autopilot_first`), outside a run: the speaker is the person, the goal
+"get a reply".
+
+- **What's sent:** the same as a run's first message: the business's words from Settings → LUME AI, the lead's first
+  name, stage and filled fields, the last 30 WhatsApp messages' words, and each template that has every value it
+  needs, in this lead's words. Never a phone number or email.
+- **What comes back:** one template's id and why, in one line. The id must be one of the templates offered
+  (`guardFirst`); anything else is no recommendation, and the list shows as before.
+- **Cost:** one read against the month and hour. The screen remembers the pick for the session, so opening the lead
+  again asks nothing new. Dismiss hides it for that lead for the session.
+
+## Write with LUME AI (2026-10-31)
+
+On Templates, whoever manages templates can describe a template and get two or three drafts
+(`POST /api/v1/templates/draft`, task `template_draft`).
+
+- **What's sent:** the request, the business's name, its words from Settings → LUME AI (about, questions and answers,
+  price list, voice), the variables a template may use, and the names of its templates. Nothing about any lead: this
+  is the one read that belongs to no lead (migration 0097, and only this task may).
+- **What's kept from the answer** (`cleanTemplateDrafts`): drafts LUME could submit as written. Dropped: a variable
+  LUME doesn't have; anything WhatsApp turns down (`templateProblems`: a variable first or last, two together, over
+  1,024 characters); an amount not in the price list; a discount or offer; a copy of another draft. A name already in
+  the list gets a number. None left: the person is told to say it another way.
+- **Nothing is saved by drafting.** Use this opens the editor; the person saves it and submits it for WhatsApp's
+  approval as any template.
+- **Cost:** one read against the month and hour, like every read.

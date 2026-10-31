@@ -247,11 +247,42 @@ export function NotificationCentre({
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [open]);
+  // A press anywhere outside closes it, on the press (owner, 2026-10-31). Not outside: the panel, the bell (it toggles
+  // the centre itself), and whatever is in front of it, a Snooze menu or a sheet opened from a row.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      const root = panel.current;
+      if (!t || !root || root.contains(t)) return;
+      if (t.closest('[aria-haspopup="dialog"][aria-expanded="true"]')) return;
+      if (!t.closest("[data-centre-scrim]") && t.closest('[aria-modal="true"], [role="menu"], [data-scrim]')) return;
+      closeRef.current();
+    };
+    document.addEventListener("pointerdown", h, true);
+    return () => document.removeEventListener("pointerdown", h, true);
+  }, [open]);
 
   return (
     <AnimatePresence>
+      {/* Full screen: the whole window steps back, dimmed and blurred, as behind every LUME popup (2026-10-31). */}
+      {open && full && (
+        <motion.div
+          key="scrim"
+          className={s.scrim}
+          data-centre-scrim
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduce ? 0 : 0.24 }}
+        />
+      )}
       {open && (
         <motion.div
+          key="panel"
           ref={panel}
           role="dialog"
           tabIndex={-1}

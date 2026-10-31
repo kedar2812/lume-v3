@@ -69,12 +69,12 @@ export async function leadAi(req: FastifyRequest, d: AppDeps, leadId: string): P
   };
 }
 
-/** `POST /api/v1/leads/:id/ai/catch-up` (§5.3): three lines from the lead's own history, on request only. */
+/** `POST /api/v1/leads/:id/ai/catch-up` (§5.3): two or three lines from the lead's own history, on request only. */
 export async function catchUp(
   req: FastifyRequest,
   d: AppDeps,
   leadId: string,
-): Promise<{ read: { id: string; lines: [string, string, string] } } | AiUnavailable> {
+): Promise<{ read: { id: string; lines: string[] } } | AiUnavailable> {
   const lead = await visibleLead(req, leadId);
   const facts = await leadFacts(req, d, lead);
   const r = await runRead(req, d, {

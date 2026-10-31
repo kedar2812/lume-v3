@@ -5,7 +5,8 @@ import { tz } from "./types";
 /** LUME AI (spec 2026-10-18 §2.3): one row per read, seen with its lead. Only the outcome ever changes. */
 export const aiReads = pgTable("ai_reads", {
   id: uuid("id").primaryKey(),
-  leadId: uuid("lead_id").notNull(),
+  /** None only for a template drafted for the business (0097). */
+  leadId: uuid("lead_id"),
   userId: uuid("user_id").notNull(),
   task: text("task").$type<AiTask>().notNull(),
   sourceActivityId: uuid("source_activity_id"),

@@ -1,6 +1,7 @@
 import {
   AUTOPILOT_PRESETS,
   guardFirst,
+  businessWordsOf,
   guardReply,
   mergeAiProfile,
   type AutopilotCtx,
@@ -134,6 +135,7 @@ export function ctxFor(c: AutopilotCase, businesses: Businesses, profiles: Profi
       .map((m) => m.text)
       .join("\n"),
     lastLeadMessage: theirs.at(-1)?.text ?? "",
+    businessWords: businessWordsOf(ctx.profile),
     permissions: { ...AUTOPILOT_PRESETS[c.permissions ?? "hands_off"] },
     openStageIds: stages.filter((s) => s.kind === "open").map((s) => s.id),
     lostStageIds: stages.filter((s) => s.kind === "lost").map((s) => s.id),

@@ -69,7 +69,7 @@ describe("StartSheet", () => {
             ok: false,
             code: "NO_NUMBER",
             message: "LUME AI works on WhatsApp. Connect a number in Settings → Integrations → WhatsApp.",
-            fixHref: "/settings/integrations/whatsapp",
+            fixHref: "/settings/integrations#whatsapp",
           },
         }),
       ),
@@ -78,7 +78,7 @@ describe("StartSheet", () => {
     expect(await screen.findByText(/LUME AI works on WhatsApp/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open WhatsApp settings" })).toHaveAttribute(
       "href",
-      "/settings/integrations/whatsapp",
+      "/settings/integrations#whatsapp",
     );
     expect(screen.queryByRole("button", { name: "Start the run" })).toBeNull();
     expect(autopilotClient.estimate).not.toHaveBeenCalled();

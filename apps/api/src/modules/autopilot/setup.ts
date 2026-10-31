@@ -46,7 +46,7 @@ export async function readiness(req: FastifyRequest, d: AppDeps, speakerId: stri
     return not(
       "REPLY_OFF",
       "Replying from LUME is off. An admin can switch it on in Settings → Integrations → WhatsApp.",
-      "/settings/integrations/whatsapp",
+      "/settings/integrations#whatsapp",
     );
   const numbers = await req.db
     .select({
@@ -65,7 +65,7 @@ export async function readiness(req: FastifyRequest, d: AppDeps, speakerId: stri
     return not(
       "NO_NUMBER",
       "LUME AI works on WhatsApp. Connect a number in Settings → Integrations → WhatsApp.",
-      "/settings/integrations/whatsapp",
+      "/settings/integrations#whatsapp",
     );
   if (n.quality === "yellow" || n.quality === "red")
     return not(

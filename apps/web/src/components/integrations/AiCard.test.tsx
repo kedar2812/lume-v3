@@ -45,11 +45,13 @@ describe("the LUME AI card (spec 2026-10-18 §2.2)", () => {
     );
     render(<AiCard ai={{ enabled: false, available: true, inPlan: true }} tz={TZ} onView={onView} />);
     expect(
-      screen.getByText("Reads a note after a call and suggests the next step. A person always decides."),
+      screen.getByText(
+        "Reads notes and WhatsApp replies and suggests the next step. It messages leads only in a run someone starts.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "The words of a note are sent to the AI provider to be read. They aren't used to train it, and nothing is ever sent to a lead.",
+        "What LUME AI reads is sent to the AI provider: a note, a reply, or a run's conversation. It isn't used to train the AI, and LUME AI messages a lead only in a run someone starts on the LUME AI page.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("This hour")).not.toBeInTheDocument();

@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence, animate, motion, useReducedMotion } from "motion/react";
-import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Info } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -15,7 +15,7 @@ import { BodyPortal } from "@/components/ui/BodyPortal";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { useModalFocus } from "@/components/ui/useModalFocus";
-import { contentUrl, filesClient, pdfUrl, type LibraryFile } from "@/lib/files/client";
+import { filesClient, pdfUrl, srcOf, type LibraryFile } from "@/lib/files/client";
 import { bytesText } from "@lume/core/shared";
 import { mediaMeta } from "@/lib/files/words";
 import { SPRINGS, sheetDismisses, toMotion } from "@/lib/motion";
@@ -83,10 +83,16 @@ export function Viewer({
   onClose,
   onChange,
   onArchived,
+  back = "Media",
+  info: hasInfo = true,
 }: {
   files: LibraryFile[];
   openId: string;
   canManage: boolean;
+  /** Where Esc and the back button go, by name: Media, or a WhatsApp chat (2026-10-31). */
+  back?: string;
+  /** Info (where it goes, share, rename, archive): a library file's, not a chat's. */
+  info?: boolean;
   /** Closed, on this file: its tile gets the focus back. */
   onClose(id: string): void;
   onChange(f: LibraryFile): void;
@@ -187,7 +193,7 @@ export function Viewer({
     if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) return;
     if (e.key === "ArrowRight") return void (e.preventDefault(), move("next"));
     if (e.key === "ArrowLeft") return void (e.preventDefault(), move("previous"));
-    if (e.key === "i" || e.key === "I") return void (e.preventDefault(), setInfo((o) => !o));
+    if (hasInfo && (e.key === "i" || e.key === "I")) return void (e.preventDefault(), setInfo((o) => !o));
     // Focus outside the viewer (dropped on the page): Escape still closes it.
     if (e.key === "Escape" && !root.current?.contains(t)) return void (e.preventDefault(), void close());
   };
@@ -274,11 +280,11 @@ export function Viewer({
           <button
             type="button"
             className={v.back}
-            aria-label="Back to Media (Esc)"
+            aria-label={`Back to ${back} (Esc)`}
             onClick={() => void close()}
           >
             <ChevronLeft size={18} aria-hidden />
-            <span>Media</span>
+            <span>{back}</span>
           </button>
           <div className={v.titles}>
             {renaming ? (
@@ -290,18 +296,25 @@ export function Viewer({
           </div>
           <span className={v.grow} />
           <div ref={setSlot} className={v.tools} />
-          <button
-            type="button"
-            className={v.tb}
-            // The word goes on a phone; the name stays.
-            aria-label="Info"
-            data-on={info || undefined}
-            aria-pressed={info}
-            onClick={() => setInfo((o) => !o)}
-          >
-            <Info size={16} aria-hidden />
-            <span className={v.tbWord}>Info</span>
-          </button>
+          {/* The file itself, under its own name (2026-10-31). */}
+          <a className={v.tb} href={srcOf(f)} download={f.name} aria-label="Download">
+            <Download size={16} aria-hidden />
+            <span className={v.tbWord}>Download</span>
+          </a>
+          {hasInfo && (
+            <button
+              type="button"
+              className={v.tb}
+              // The word goes on a phone; the name stays.
+              aria-label="Info"
+              data-on={info || undefined}
+              aria-pressed={info}
+              onClick={() => setInfo((o) => !o)}
+            >
+              <Info size={16} aria-hidden />
+              <span className={v.tbWord}>Info</span>
+            </button>
+          )}
         </header>
 
         <div className={v.body}>
@@ -419,9 +432,9 @@ function Content({
     case "audio":
       return <AudioView file={f} />;
     case "pdf":
-      return <PdfView src={contentUrl(f.id)} pages={f.pages} name={f.name} />;
+      return <PdfView src={srcOf(f)} pages={f.pages} name={f.name} />;
     case "sheet":
-      return <SheetView src={contentUrl(f.id)} name={f.name} />;
+      return <SheetView src={srcOf(f)} name={f.name} />;
     case "text":
       return <TextView file={f} />;
     case "office":

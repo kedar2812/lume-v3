@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { within, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiClient } from "@/lib/ai/client";
@@ -717,7 +717,7 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
       expect(screen.queryByRole("tab", { name: "WhatsApp" })).toBeNull();
     });
 
-    it("with WhatsApp on: the tab, and the lead's messages in it", async () => {
+    it("with WhatsApp on: the tab opens the chat as a window of its own; closed, the tab offers it again (2026-10-31)", async () => {
       vi.mocked(whatsappClient.thread).mockResolvedValue(
         ok({
           on: true,
@@ -740,8 +740,15 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
       );
       open();
       await userEvent.click(await screen.findByRole("tab", { name: "WhatsApp" }));
-      expect(await screen.findByText("Is Saturday ok?")).toBeInTheDocument();
+      const chat = await screen.findByRole("dialog", { name: "WhatsApp with Aisha Khan" });
+      expect(await within(chat).findByText("Is Saturday ok?")).toBeInTheDocument();
       expect(whatsappClient.thread).toHaveBeenCalledWith("l1");
+      await userEvent.click(within(chat).getByRole("button", { name: "Close (Esc)" }));
+      expect(screen.queryByRole("dialog", { name: "WhatsApp with Aisha Khan" })).toBeNull();
+      const card = screen.getByRole("region", { name: "WhatsApp with Aisha" });
+      expect(card).toHaveTextContent("Aisha: Is Saturday ok?");
+      await userEvent.click(within(card).getByRole("button", { name: "Open chat" }));
+      expect(screen.getByRole("dialog", { name: "WhatsApp with Aisha Khan" })).toBeInTheDocument();
     });
   });
 });

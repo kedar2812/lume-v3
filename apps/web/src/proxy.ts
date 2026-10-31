@@ -43,6 +43,8 @@ export function proxy(request: NextRequest) {
   ].join("; ");
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);
+  // The page asked for, for the app's layout: a connect's hand-back finishes during onboarding (lib/first-run).
+  headers.set("x-lume-path", pathname);
   headers.set("Content-Security-Policy", csp);
   const response = NextResponse.next({ request: { headers } });
   response.headers.set("Content-Security-Policy", csp);

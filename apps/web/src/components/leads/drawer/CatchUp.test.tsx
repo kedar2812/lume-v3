@@ -26,7 +26,7 @@ describe("Catch me up (spec 2026-10-18 §5.3, canvas board CatchUp)", () => {
     vi.mocked(aiClient.catchUp).mockReturnValue(new Promise((r) => (answer = r)) as never);
     const { container } = render(<CatchUp leadId="l1" tz={TZ} />);
     expect(
-      screen.getByText("New to this lead? LUME AI can sum up its history in three lines."),
+      screen.getByText("New to this lead? LUME AI can sum up its history in a few lines."),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Catch me up" }));
     expect(aiClient.catchUp).toHaveBeenCalledWith("l1");

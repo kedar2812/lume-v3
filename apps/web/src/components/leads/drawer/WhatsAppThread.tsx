@@ -1,8 +1,11 @@
 "use client";
 import { bytesText } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Play } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { Viewer } from "@/components/media/viewer/Viewer";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
+import type { LibraryFile, ViewAs } from "@/lib/files/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { mediaUrl, whatsappClient } from "@/lib/whatsapp/client";
 import type { WaMediaInfo, WaThreadMessage } from "@/lib/whatsapp/types";
@@ -22,6 +25,39 @@ export const sizeWords = (bytes: number | null): string | null => (bytes === nul
 const typeWord = (mime: string, filename: string | null) =>
   mime === "application/pdf" ? "PDF" : (filename?.split(".").pop()?.toUpperCase() ?? "File");
 
+/** How LUME's viewer shows a file from a chat, by its type. */
+const viewAsOf = (mime: string, kind: WaMediaInfo["kind"]): ViewAs => {
+  if (kind === "image" || kind === "sticker" || mime.startsWith("image/")) return "image";
+  if (kind === "video" || mime.startsWith("video/")) return "video";
+  if (kind === "audio" || mime.startsWith("audio/")) return "audio";
+  if (mime === "application/pdf") return "pdf";
+  if (mime === "text/csv" || mime.includes("spreadsheet") || mime === "application/vnd.ms-excel") return "sheet";
+  if (mime.startsWith("text/")) return "text";
+  return "office";
+};
+
+/** A file from a chat as LUME's viewer takes it: from its own address, named for who sent it when it has no name. */
+export function chatFile(id: string, info: WaMediaInfo, label: string, at: string): LibraryFile {
+  return {
+    id,
+    name: info.filename ?? label,
+    kind: info.kind === "sticker" ? "image" : info.kind,
+    mime: info.mime,
+    size: info.size ?? 0,
+    link: { on: false, url: null, opens: 0 },
+    createdAt: at,
+    archived: false,
+    viewAs: viewAsOf(info.mime, info.kind),
+    preview: "none",
+    thumbUrl: null,
+    pages: null,
+    durationMs: null,
+    width: null,
+    height: null,
+    src: mediaUrl(id),
+  };
+}
+
 /** While a file is on its way: looked at again this often, for this long (then the next open of the lead). */
 const RECHECK_MS = 4_000;
 const RECHECK_FOR_MS = 120_000;
@@ -31,7 +67,18 @@ const RECHECK_FOR_MS = 120_000;
  * gone from the disk, or waiting for a reason such as a full disk). A file on its way is looked at again until it's
  * here; one that won't load says so rather than showing a broken image.
  */
-function MediaPart({ media, from }: { media: NonNullable<WaThreadMessage["media"]>; from: string }) {
+function MediaPart({
+  media,
+  from,
+  at,
+  onOpen,
+}: {
+  media: NonNullable<WaThreadMessage["media"]>;
+  from: string;
+  at: string;
+  /** Opens the file in LUME's viewer, in place (2026-10-31): a photo zooms, a video plays, a PDF pages. */
+  onOpen(f: LibraryFile): void;
+}) {
   const [info, setInfo] = useState<WaMediaInfo | null>(null);
   const [broken, setBroken] = useState(false);
   useEffect(() => {
@@ -70,33 +117,59 @@ function MediaPart({ media, from }: { media: NonNullable<WaThreadMessage["media"
   if (broken) return <p className={s.mediaNote}>LUME couldn’t show this {noun}. Open it on the phone.</p>;
   const src = mediaUrl(media.id);
   const label = `${noun[0]!.toUpperCase()}${noun.slice(1)} from ${from}`;
+  const open = () => onOpen(chatFile(media.id, info, label, at));
   if (media.kind === "image" || media.kind === "sticker")
-    return <img className={s.photo} src={src} alt={label} loading="lazy" onError={() => setBroken(true)} />;
+    return (
+      <button
+        type="button"
+        className={s.mediaOpen}
+        aria-label={`Open ${noun} from ${from}`}
+        data-viewer-origin={media.id}
+        onClick={open}
+      >
+        <img className={s.photo} src={src} alt={label} loading="lazy" onError={() => setBroken(true)} />
+      </button>
+    );
   if (media.kind === "video")
     return (
-      <video
-        className={s.photo}
-        src={src}
-        controls
-        preload="metadata"
-        aria-label={label}
-        onError={() => setBroken(true)}
-      />
+      <button
+        type="button"
+        className={s.mediaOpen}
+        aria-label={`Open ${noun} from ${from}`}
+        data-viewer-origin={media.id}
+        onClick={open}
+      >
+        {/* Its first frame, still: it plays in the viewer, with LUME's own controls. */}
+        <video
+          className={s.photo}
+          src={`${src}#t=0.1`}
+          preload="metadata"
+          muted
+          playsInline
+          aria-hidden
+          tabIndex={-1}
+          onError={() => setBroken(true)}
+        />
+        <span className={s.playBadge} aria-hidden>
+          <Play size={20} fill="currentColor" />
+        </span>
+      </button>
     );
+  // A voice note plays where it is, as on WhatsApp.
   if (media.kind === "audio")
     return <audio className={s.audio} src={src} controls preload="metadata" aria-label={label} />;
   return (
-    <a className={s.doc} href={src}>
+    <button type="button" className={s.doc} data-viewer-origin={media.id} onClick={open}>
       <span className={s.docType} aria-hidden>
         {typeWord(info.mime, info.filename)}
       </span>
       <span className={s.docText}>
         <span className={s.docName}>{info.filename ?? "Document"}</span>
         <span className={s.docMeta}>
-          {[typeWord(info.mime, info.filename), sizeWords(info.size), "Download"].filter(Boolean).join(" · ")}
+          {[typeWord(info.mime, info.filename), sizeWords(info.size)].filter(Boolean).join(" · ")}
         </span>
       </span>
-    </a>
+    </button>
   );
 }
 
@@ -182,6 +255,7 @@ export function WhatsAppThread({
   onRetry,
   onMeaning,
   composer,
+  bare = false,
 }: {
   leadName: string;
   tz: string;
@@ -192,9 +266,29 @@ export function WhatsAppThread({
   onMeaning?: () => void;
   /** The reply box (plan W3a), when this person may reply from LUME; in place of the line about replying on the phone. */
   composer?: ReactNode;
+  /** Only the messages: the chat window pins its own reply box at the bottom (2026-10-31). */
+  bare?: boolean;
 }) {
   const who = first(leadName);
   const reduce = useReducedMotion();
+  const [open, setOpen] = useState<LibraryFile | null>(null);
+  const viewer = open && (
+    <Viewer
+      files={[open]}
+      openId={open.id}
+      canManage={false}
+      back="Chat"
+      info={false}
+      onClose={() => setOpen(null)}
+      onChange={() => {}}
+      onArchived={() => {}}
+    />
+  );
+  const foot = bare
+    ? null
+    : (composer ?? (
+        <p className={s.foot}>Replies arrive here by themselves. Reply on your phone; it shows up here too.</p>
+      ));
   // A message that arrives, or one just sent, rises in from the reply box; the rest stay still (initial={false}).
   const rise = reduce
     ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
@@ -205,7 +299,7 @@ export function WhatsAppThread({
         <p className={s.empty}>
           No WhatsApp messages with {who} yet. When {who} writes to your number, it shows up here.
         </p>
-        {composer}
+        {!bare && composer}
       </>
     );
   const today = dayKey(new Date(), tz);
@@ -249,7 +343,7 @@ export function WhatsAppThread({
                   <span className={s.srOnly}>: </span>
                 </span>
                 <div className={s.bubble}>
-                  {r.m.media && <MediaPart media={r.m.media} from={who} />}
+                  {r.m.media && <MediaPart media={r.m.media} from={who} at={r.m.at} onOpen={setOpen} />}
                   {r.m.text && <span className={s.text}>{r.m.text}</span>}
                 </div>
                 <SendStatus m={r.m} onRetry={onRetry} />
@@ -261,11 +355,8 @@ export function WhatsAppThread({
           )}
         </AnimatePresence>
       </ol>
-      {composer ?? (
-        <p className={s.foot}>
-          Replies arrive here by themselves. Reply on your phone; it shows up here too.
-        </p>
-      )}
+      {foot}
+      {viewer}
     </div>
   );
 }

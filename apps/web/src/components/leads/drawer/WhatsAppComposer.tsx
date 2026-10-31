@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { Popover } from "@/components/ui/Popover";
 import { MediaPicker } from "@/components/media/MediaPicker";
 import { TemplatePick } from "@/components/whatsapp/TemplatePick";
+import { useAiOn } from "@/lib/ai/use-ai-on";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
 import type { LibraryFile } from "@/lib/files/client";
 import { fileTypeWord } from "@/lib/files/words";
@@ -101,6 +102,8 @@ export function WhatsAppComposer({
   autoFocus?: boolean;
 }) {
   const who = first(leadName);
+  // Recommended by LUME AI for a template, when LUME AI is on here (2026-10-31).
+  const ai = useAiOn();
   const [text, setText] = useState(initialText);
   const [files, setFiles] = useState<Ready[]>([]);
   const [attaching, setAttaching] = useState<string | null>(null);
@@ -136,7 +139,7 @@ export function WhatsAppComposer({
       <section className={s.composerClosed} aria-label={`Reply to ${who}`}>
         <p>{reply.reason}</p>
         {/* Outside the 24 hours an approved template can still go (W3b-2). */}
-        <TemplatePick leadId={leadId} leadName={leadName} onSent={onSent} />
+        <TemplatePick leadId={leadId} leadName={leadName} ai={ai} onSent={onSent} />
         {fallback}
       </section>
     );

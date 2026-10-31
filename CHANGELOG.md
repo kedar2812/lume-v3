@@ -4,6 +4,39 @@ Every LUME release, newest first. The version is the root `package.json`'s; tagg
 release images (`docs/runbooks/fleet.md`). Migrations are forward-only and additive: an update never drops a
 column in the release that stops using it.
 
+## Unreleased
+
+- **WhatsApp chat in its own window:** a lead's WhatsApp opens over the whole of LUME (dimmed and blurred behind it),
+  the messages scrolling between a header (name and number) and the reply box pinned at the foot, as WhatsApp lays a
+  chat out. Full screen on a phone. The lead's WhatsApp tab keeps the latest message and Open chat.
+- **Photos, videos and PDFs from a chat open in LUME's viewer:** a photo zooms (click, wheel, pinch), a video plays
+  with LUME's controls, a PDF pages; every file has Download. The Media tab's viewer gains Download too.
+- **Recommended by LUME AI:** outside WhatsApp's 24 hours, LUME AI picks the approved template that fits this lead
+  best and says why in one line; Send, Other templates, or Dismiss (remembered for that lead in the session). Only
+  ever a template the person could send; with LUME AI off, the template list as before. One LUME AI read, counted
+  against the month.
+- **Write with LUME AI (Templates):** say what a template is for and LUME AI writes two or three to choose from, in
+  the business's voice, using only LUME's variables and the business's own prices; anything WhatsApp would turn down,
+  any price not in the price list and any discount are left out. Use this opens it in the editor; it's saved and
+  submitted for WhatsApp's approval as any template is. One read, counted against the month. Migration 0097 lets
+  this read alone belong to no lead.
+- **LUME AI keeps more of its answers:** an explanation a few characters over its limit is shortened at a word
+  instead of the whole answer being dropped (a message to a lead never is), and LUME AI is told each limit. In the
+  October eval this took unread answers from 24 in 165 to none.
+- **Autopilot may say the business's own hours:** a reply that repeats the days and times the business wrote in
+  Settings → LUME AI is no longer held for a person; a time neither the lead nor the business gave still is, now
+  matched whole (a lead's "11 pm" never lets "1 pm" through).
+- **Try again sends one copy:** retrying a WhatsApp message that didn't go sends it again and takes the failed one off
+  the thread; a second tap, or the same message open in another tab, is refused instead of sending twice. Every
+  check runs again (do not contact, the 24 hours, the limits).
+- **Smaller fixes:** the sidebar scrolls instead of squeezing its rows in a short window; the WhatsApp tab's icon
+  sits beside its word; Fix it opens WhatsApp's card on Integrations (an address that isn't a page now says so);
+  onboarding's Calendar Connect goes to Google and comes back to onboarding (it went to the Calendar, which sent it
+  straight back), and its Sheets card says it's set up on Integrations after onboarding; the LUME AI card says what it reads and that it messages leads only in a run someone starts;
+  the notification centre closes on a press outside it, and its full screen dims and blurs the window behind; the
+  bell shows how many are unread (9+ past nine); page titles in the top bar are larger.
+- **Update notes:** migration 0097 (additive). No `.env` changes.
+
 ## 1.1.0 — 2026-10-29
 
 - **Security updates:** Next.js 16.4.3 (the licence panel and the web app) and Zod 4.6.7, for published denial-of-service

@@ -2,7 +2,7 @@ import { createHash, createHmac } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { echo, inbound, statuses } from "../../../packages/core/src/whatsapp/fixtures";
-import { callApi, expect, freezeVolatile, openApp, reviewCopy, stateFile, test } from "./fixtures";
+import { callApi, expect, freezeVolatile, openApp, openChat, reviewCopy, stateFile, test } from "./fixtures";
 import { settle } from "./settle";
 
 /**
@@ -100,16 +100,29 @@ test.describe.serial("WhatsApp", () => {
       }),
     );
     await openApp(page, `/leads?lead=${id}`);
-    const drawer = page.getByRole("dialog", { name: "Sneha Reddy" });
+    const drawer = page.getByRole("dialog", { name: "Sneha Reddy", exact: true });
     await expect(async () => {
-      await drawer.getByRole("tab", { name: "WhatsApp" }).click();
-      await expect(drawer.getByRole("list", { name: "WhatsApp messages with Sneha" })).toContainText(
+      const chat = await openChat(page, drawer, "Sneha Reddy");
+      await expect(chat.getByRole("list", { name: "WhatsApp messages with Sneha" })).toContainText(
         "Yes, Saturday works",
         {
           timeout: 1000,
         },
       );
     }).toPass({ timeout: 20_000 });
+    // The tab's icon sits beside its word, never above it (owner, 2026-10-31: the live build stacked them).
+    const beside = await drawer.getByRole("tab", { name: "WhatsApp" }).evaluate((tab) => {
+      const icon = tab.querySelector("img")!.getBoundingClientRect();
+      const range = document.createRange();
+      const word = [...tab.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())!;
+      range.selectNodeContents(word);
+      const text = range.getBoundingClientRect();
+      return {
+        leftOf: icon.right <= text.left + 0.5,
+        centred: Math.abs(icon.top + icon.height / 2 - (text.top + text.height / 2)) <= 2,
+      };
+    });
+    expect(beside).toEqual({ leftOf: true, centred: true });
     await expect(page.getByRole("button", { name: /^Notifications/ })).toBeVisible();
     const notes = await callApi<{ items: { title: string }[] }>(page, "GET", "/api/v1/notifications");
     expect(notes.data.items.map((n) => n.title)).toContain("Sneha replied on WhatsApp");
@@ -133,7 +146,7 @@ test.describe.serial("WhatsApp", () => {
     );
     await expect(async () => {
       await page.reload();
-      await page.getByRole("dialog", { name: "Sneha Reddy" }).getByRole("tab", { name: "WhatsApp" }).click();
+      await page.getByRole("dialog", { name: "Sneha Reddy", exact: true }).getByRole("tab", { name: "WhatsApp" }).click();
       await expect(page.getByRole("img", { name: "Photo from Sneha" })).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 30_000 });
 
@@ -212,10 +225,11 @@ test.describe.serial("WhatsApp", () => {
       }),
     );
     await openApp(page, `/leads?lead=${id}`);
-    const drawer = page.getByRole("dialog", { name: "Ananya Rao" });
-    const form = drawer.getByRole("form", { name: "Reply to Ananya on WhatsApp" });
+    const drawer = page.getByRole("dialog", { name: "Ananya Rao", exact: true });
+    const chat = page.getByRole("dialog", { name: "WhatsApp with Ananya Rao" });
+    const form = chat.getByRole("form", { name: "Reply to Ananya on WhatsApp" });
     await expect(async () => {
-      await drawer.getByRole("tab", { name: "WhatsApp" }).click();
+      await openChat(page, drawer, "Ananya Rao");
       await expect(form).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 20_000 });
     await expect(form).toContainText("You can reply until");
@@ -223,7 +237,7 @@ test.describe.serial("WhatsApp", () => {
     // Words, sent with Enter.
     await form.getByRole("textbox", { name: "Message to Ananya" }).fill("Of course, sending it now.");
     await form.getByRole("textbox", { name: "Message to Ananya" }).press("Enter");
-    const list = drawer.getByRole("list", { name: "WhatsApp messages with Ananya" });
+    const list = chat.getByRole("list", { name: "WhatsApp messages with Ananya" });
     await expect(list).toContainText("Of course, sending it now.");
     await expect(list.getByText("Sent", { exact: true })).toBeVisible({ timeout: 20_000 });
 
@@ -328,10 +342,11 @@ test.describe.serial("WhatsApp", () => {
       }),
     );
     await openApp(page, `/leads?lead=${id}`);
-    const drawer = page.getByRole("dialog", { name: "Meera Iyer" });
-    const form = drawer.getByRole("form", { name: "Reply to Meera on WhatsApp" });
+    const drawer = page.getByRole("dialog", { name: "Meera Iyer", exact: true });
+    const chat = page.getByRole("dialog", { name: "WhatsApp with Meera Iyer" });
+    const form = chat.getByRole("form", { name: "Reply to Meera on WhatsApp" });
     await expect(async () => {
-      await drawer.getByRole("tab", { name: "WhatsApp" }).click();
+      await openChat(page, drawer, "Meera Iyer");
       await expect(form).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 20_000 });
     await form.getByRole("button", { name: "Attach" }).click();
@@ -418,22 +433,22 @@ test.describe.serial("WhatsApp", () => {
     await expect(card.getByRole("switch", { name: "Reply from LUME" })).toBeChecked();
     const id = await lead(page, "Kavya Nair", "+919876512377");
     await openApp(page, `/leads?lead=${id}`);
-    const drawer = page.getByRole("dialog", { name: "Kavya Nair" });
-    await drawer.getByRole("tab", { name: "WhatsApp" }).click();
-    const pick = drawer.getByRole("region", { name: "Send an approved template" });
+    const drawer = page.getByRole("dialog", { name: "Kavya Nair", exact: true });
+    const chat = await openChat(page, drawer, "Kavya Nair");
+    const pick = chat.getByRole("region", { name: "Send an approved template" });
     const option = pick.getByRole("radio", { name: /Price list/ });
     await expect(option).toContainText("Hi Kavya, here is our price list, as promised. Have a look!");
     await expect(option).toContainText("WhatsApp charges about ₹0.86 + GST for this.");
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);
-      await reviewCopy(drawer, `template-pick-${theme}.png`);
+      await reviewCopy(chat, `template-pick-${theme}.png`);
       expect(await axe(page)).toEqual([]);
     }
     await page.emulateMedia({ colorScheme: "light" });
     await option.click();
     await pick.getByRole("button", { name: "Send template" }).click();
-    const list = drawer.getByRole("list", { name: "WhatsApp messages with Kavya" });
+    const list = chat.getByRole("list", { name: "WhatsApp messages with Kavya" });
     await expect(list).toContainText("Hi Kavya, here is our price list");
 
     type Sent = {
@@ -548,10 +563,10 @@ test.describe.serial("WhatsApp", () => {
       await page.keyboard.press("Escape");
 
       await openApp(page, `/leads?lead=${id}`);
-      const drawer = page.getByRole("dialog", { name: "Karan Mehta" });
+      const drawer = page.getByRole("dialog", { name: "Karan Mehta", exact: true });
       await expect(async () => {
-        await drawer.getByRole("tab", { name: "WhatsApp" }).click();
-        await expect(drawer.getByRole("list", { name: "WhatsApp messages with Karan" })).toContainText(
+        const chat = await openChat(page, drawer, "Karan Mehta");
+        await expect(chat.getByRole("list", { name: "WhatsApp messages with Karan" })).toContainText(
           "Monday 11 am works.",
           {
             timeout: 1000,
@@ -567,4 +582,91 @@ test.describe.serial("WhatsApp", () => {
       expect(await axe(page)).toEqual([]);
     }
   });
+
+  test("on a phone: the chat fills the screen, the reply box whole at its foot, nothing wider than the screen (2026-10-31)", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openApp(page, "/leads");
+    // Its own starting point: replying from LUME on, whatever the tests before it left.
+    await callApi(page, "PUT", "/api/v1/integrations/whatsapp", { replyFromLume: true });
+    const id = await lead(page, "Riya Kapoor", "+919876512399");
+    await meta(
+      page.request,
+      inbound({
+        from: "919876512399",
+        name: "Riya Kapoor",
+        id: "wamid.E2EPHONE1",
+        at: new Date().toISOString(),
+        type: "text",
+        text: { body: "Is Saturday free for a visit?" },
+      }),
+    );
+    await openApp(page, `/leads?lead=${id}`);
+    const drawer = page.getByRole("dialog", { name: "Riya Kapoor", exact: true });
+    const chat = page.getByRole("dialog", { name: "WhatsApp with Riya Kapoor" });
+    await expect(async () => {
+      await openChat(page, drawer, "Riya Kapoor");
+      await expect(chat.getByRole("list", { name: "WhatsApp messages with Riya" })).toContainText(
+        "Is Saturday free for a visit?",
+        { timeout: 1000 },
+      );
+    }).toPass({ timeout: 20_000 });
+    await settle(page);
+    // The whole screen, edge to edge.
+    expect(await chat.boundingBox()).toEqual({ x: 0, y: 0, width: 390, height: 844 });
+    // The reply box whole at the foot, Close in reach, and nothing running off to the side.
+    const form = chat.getByRole("form", { name: "Reply to Riya on WhatsApp" });
+    await expect(form).toBeInViewport({ ratio: 1 });
+    await expect(chat.getByRole("button", { name: "Close (Esc)" })).toBeInViewport({ ratio: 1 });
+    expect(await chat.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(chat, `chat-phone-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+  });
+});
+
+test("a link to one card lands on it; an address that isn't a page says so (2026-10-31)", async ({ page }) => {
+  // Autopilot's "Fix it" led to /settings/integrations/whatsapp, read as a sheet's id: "Request is invalid", under a
+  // tab titled Google Sheet. Links now name the card; the cards load after the page, which must still land on them.
+  await page.setViewportSize({ width: 1366, height: 600 });
+  await openApp(page, "/settings/integrations#whatsapp");
+  await expect(page.getByRole("heading", { name: "WhatsApp", level: 2 })).toBeInViewport();
+  await openApp(page, "/settings/integrations#sheets");
+  await expect(page.getByRole("heading", { name: "Google Sheets", level: 2 })).toBeInViewport();
+  const r = await page.goto("/settings/integrations/whatsapp");
+  expect(r?.status()).toBe(404);
+});
+
+test("Write with LUME AI fits a phone: the request, then the drafts one under another (2026-10-31)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openApp(page, "/templates");
+  await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: true });
+  try {
+    await page.reload();
+    await page.getByRole("button", { name: "Write with LUME AI" }).click();
+    const sheet = page.getByRole("dialog", { name: "Write with LUME AI" });
+    await sheet.getByRole("textbox", { name: "What should this template do?" }).fill("Follow up after no reply");
+    await sheet.getByRole("button", { name: "Write templates" }).click();
+    const cards = sheet.getByRole("article");
+    await expect(cards.first()).toBeVisible();
+    // One under another, each the sheet's width; nothing off the side of the phone.
+    const [a, b] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
+    expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1);
+    expect(await sheet.evaluate((el) => el.getBoundingClientRect().right <= window.innerWidth + 0.5)).toBe(true);
+    expect(await sheet.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(sheet, `draft-phone-${theme}.png`);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+  } finally {
+    // Other specs see LUME AI as they left it.
+    await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: false });
+  }
 });

@@ -50,7 +50,7 @@ import {
 } from "./score";
 
 const USAGE = `usage: node scripts/ai-eval.mjs --provider anthropic|google|fake --model <id> [--yes]
-       [--only next-step|catch-up|autopilot|reply-meaning] [--limit <n>] [--price-in <usd per 1M>] [--price-out <usd per 1M>] [--out <file>]
+       [--only next-step|catch-up|autopilot|reply-meaning] [--ids <id,id>] [--limit <n>] [--price-in <usd per 1M>] [--price-out <usd per 1M>] [--out <file>]
 A real provider spends money on every run: it needs --yes, and the key in LUME_AI_KEY.`;
 
 type Args = {
@@ -58,6 +58,8 @@ type Args = {
   model: string;
   yes: boolean;
   only: "next-step" | "catch-up" | "autopilot" | "reply-meaning" | null;
+  /** Only these cases (a re-run of the ones that missed, for cents). */
+  ids: Set<string> | null;
   limit: number;
   priceIn: number | null;
   priceOut: number | null;
@@ -88,6 +90,7 @@ function parse(argv: string[]): Args | string {
     model,
     yes: argv.includes("--yes"),
     only,
+    ids: get("ids") ? new Set(get("ids")!.split(",").map((x) => x.trim())) : null,
     limit: num(get("limit")) ?? Infinity,
     priceIn: num(get("price-in")),
     priceOut: num(get("price-out")),
@@ -148,7 +151,8 @@ export async function run(argv: string[], root: string): Promise<number> {
   const runs = (part: "next-step" | "catch-up" | "autopilot" | "reply-meaning") =>
     a.only === null || a.only === part;
   if (runs("next-step")) {
-    const cases = lines<NextStepCase>(path.join(dir, "next-step.jsonl")).slice(0, a.limit);
+    const cases = lines<NextStepCase>(path.join(dir, "next-step.jsonl")).filter((c) => !a.ids || a.ids.has(c.id))
+      .slice(0, a.limit);
     const scores: NextStepScore[] = [];
     const failed: { id: string; error: string }[] = [];
     console.log(`Next step: ${cases.length} notes, ${a.provider} ${a.model}`);
@@ -194,7 +198,8 @@ export async function run(argv: string[], root: string): Promise<number> {
   }
 
   if (runs("catch-up")) {
-    const cases = lines<CatchUpCase>(path.join(dir, "catch-up.jsonl")).slice(0, a.limit);
+    const cases = lines<CatchUpCase>(path.join(dir, "catch-up.jsonl")).filter((c) => !a.ids || a.ids.has(c.id))
+      .slice(0, a.limit);
     const out: { id: string; lines?: string[]; ungrounded?: string[]; error?: string }[] = [];
     console.log(`\nCatch-up: ${cases.length} leads (check each line against its history by hand)`);
     for (const c of cases) {
@@ -217,7 +222,8 @@ export async function run(argv: string[], root: string): Promise<number> {
 
   if (runs("autopilot")) {
     const profiles = JSON.parse(readFileSync(path.join(dir, "autopilot-profiles.json"), "utf8")) as Profiles;
-    const cases = lines<AutopilotCase>(path.join(dir, "autopilot.jsonl")).slice(0, a.limit);
+    const cases = lines<AutopilotCase>(path.join(dir, "autopilot.jsonl")).filter((c) => !a.ids || a.ids.has(c.id))
+      .slice(0, a.limit);
     const replies: ReplyScore[] = [];
     const firsts: boolean[] = [];
     const failed: { id: string; error: string }[] = [];
@@ -259,6 +265,8 @@ Autopilot: ${cases.length} cases (read every message by hand for tone and words)
           `  ${c.id}  ${(r.output as AutopilotReply).kind}${miss.length ? `  missed ${miss.join(", ")}` : ""}${worst ? `  ${worst}` : ""}`,
         );
         console.log(`      ${s.sent ?? `(no message: ${s.why})`}`);
+        // What a held reply would have said, so a person can judge the guard as well as the model.
+        if (s.held) console.log(`      held: ${(r.output as AutopilotReply).message ?? ""}`);
       } catch (e) {
         // No answer is a miss on every mark: the lead would go to Needs you.
         failed.push({ id: c.id, error: e instanceof Error ? e.message : String(e) });
@@ -294,7 +302,8 @@ Autopilot: ${cases.length} cases (read every message by hand for tone and words)
   }
 
   if (runs("reply-meaning")) {
-    const cases = lines<MeaningCase>(path.join(dir, "reply-meaning.jsonl")).slice(0, a.limit);
+    const cases = lines<MeaningCase>(path.join(dir, "reply-meaning.jsonl")).filter((c) => !a.ids || a.ids.has(c.id))
+      .slice(0, a.limit);
     const scores: MeaningScore[] = [];
     const failed: { id: string; error: string }[] = [];
     console.log(`

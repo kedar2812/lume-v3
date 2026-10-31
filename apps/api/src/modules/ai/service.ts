@@ -242,7 +242,8 @@ export async function runRead<T>(
   d: AppDeps,
   o: {
     task: AiTask;
-    leadId: string;
+    /** None only for a template drafted for the business (2026-10-31). */
+    leadId: string | null;
     sourceActivityId?: string;
     instructions: string;
     input: string;

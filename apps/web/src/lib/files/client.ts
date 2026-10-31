@@ -24,6 +24,8 @@ export type LibraryFile = {
   durationMs: number | null;
   width: number | null;
   height: number | null;
+  /** Where its bytes are when it isn't in the library: a photo in a WhatsApp chat (2026-10-31). */
+  src?: string;
 };
 
 const one = (id: string) => `/api/v1/files/${encodeURIComponent(id)}`;
@@ -31,6 +33,8 @@ const one = (id: string) => `/api/v1/files/${encodeURIComponent(id)}`;
 export const contentUrl = (id: string) => `${one(id)}/content`;
 /** A Word or PowerPoint file's pages, made once on the server. */
 export const pdfUrl = (id: string) => `${one(id)}/pdf`;
+/** A file's bytes: its own address when it has one (a chat's photo), else the library's. */
+export const srcOf = (f: Pick<LibraryFile, "id" | "src">) => f.src ?? contentUrl(f.id);
 
 /** The file library's routes (W3b-1 Task 2): reading for anyone who may use templates, the rest for admins. */
 export const filesClient = {

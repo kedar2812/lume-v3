@@ -63,6 +63,34 @@ describe("the bell", () => {
     expect(container.querySelector("[data-live-count]")).not.toHaveAttribute("data-waiting");
   });
 
+  it("the bell shows how many, as iOS does: the number in a red badge, 9+ past 9; none, no badge (2026-10-31)", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 3 }));
+    const { container, unmount } = render(<TopBar theme="system" onSearch={vi.fn()} />);
+    await screen.findByRole("button", { name: "Notifications, 3 unread" });
+    expect(container.querySelector("[data-live-count]")).toHaveTextContent(/^3$/);
+    unmount();
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 140 }));
+    const many = render(<TopBar theme="system" onSearch={vi.fn()} />);
+    await screen.findByRole("button", { name: "Notifications, 140 unread" });
+    expect(many.container.querySelector("[data-live-count]")).toHaveTextContent(/^9\+$/);
+    many.unmount();
+    // The edge: nine is still a number; ten is 9+.
+    for (const [n, shown] of [
+      [9, /^9$/],
+      [10, /^9\+$/],
+    ] as const) {
+      vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: n }));
+      const edge = render(<TopBar theme="system" onSearch={vi.fn()} />);
+      await screen.findByRole("button", { name: `Notifications, ${n} unread` });
+      expect(edge.container.querySelector("[data-live-count]")).toHaveTextContent(shown);
+      edge.unmount();
+    }
+    vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
+    const none = render(<TopBar theme="system" onSearch={vi.fn()} />);
+    await screen.findByRole("button", { name: "Notifications" });
+    expect(none.container.querySelector("[data-live-count]")).toBeNull();
+  });
+
   it("a live one adds to the count; reading them all lets it go", async () => {
     vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
     render(<TopBar theme="system" onSearch={vi.fn()} />);

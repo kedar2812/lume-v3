@@ -1,3 +1,4 @@
+import { fitAnswer } from "@lume/core";
 import { z } from "zod";
 
 /** The provider answered, but not in the shape asked for (or declined): LUME shows no suggestion. */
@@ -52,7 +53,10 @@ export function schemaForProvider(schema: z.ZodType): Record<string, unknown> {
   return walk(z.toJSONSchema(schema)) as Record<string, unknown>;
 }
 
-/** The provider's text as the task's shape, or `AiUnreadable`. */
+/**
+ * The provider's text as the task's shape, or `AiUnreadable`. An explanation a few characters past its limit is
+ * shortened first (`fitAnswer`); a message to a lead or a value for one never is.
+ */
 export function parseAnswer<T>(text: string, schema: z.ZodType<T>): T {
   let json: unknown;
   try {
@@ -60,7 +64,7 @@ export function parseAnswer<T>(text: string, schema: z.ZodType<T>): T {
   } catch {
     throw new AiUnreadable("not JSON");
   }
-  const r = schema.safeParse(json);
+  const r = schema.safeParse(fitAnswer(schema, json));
   if (!r.success) throw new AiUnreadable(r.error.issues[0]?.message ?? "not the shape asked for");
   return r.data;
 }

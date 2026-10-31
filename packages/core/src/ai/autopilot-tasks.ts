@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isStop, offersIn, unbackedAmounts } from "./autopilot";
+import { softText } from "./fit";
 import type { FillableType } from "./fill-fields";
 import type { AiProfile, AutopilotAction } from "./profile";
 
@@ -49,23 +50,23 @@ export type AutopilotCtx = {
   timezone: string;
 };
 
-export const autopilotFirstOutput = z.object({ templateId: z.uuid(), why: z.string().max(200) }).strict();
+export const autopilotFirstOutput = z.object({ templateId: z.uuid(), why: softText(200) }).strict();
 export type AutopilotFirst = z.infer<typeof autopilotFirstOutput>;
 
 export const autopilotReplyOutput = z
   .object({
     kind: z.enum(["reply", "handover", "stop", "converted"]),
     message: z.string().max(1000).nullable(),
-    reason: z.string().max(200),
+    reason: softText(200),
     /** The lead's own words that show it (a converted lead, or why a person is needed). */
-    evidence: z.string().max(300).nullable(),
+    evidence: softText(300).nullable(),
     fileIds: z.array(z.uuid()).max(3),
     stageId: z.uuid().nullable(),
     /** Pairs, not a map: Anthropic's structured outputs take only closed objects (review 2026-10-26 A9). */
     fields: z.array(z.object({ key: z.string().max(80), value: z.string().max(200) }).strict()).max(20),
     /** On the business's clock, "YYYY-MM-DDTHH:mm". */
     followUp: z
-      .object({ at: z.string(), title: z.string().min(1).max(80) })
+      .object({ at: z.string(), title: softText(80, 1) })
       .strict()
       .nullable(),
     lostReasonId: z.uuid().nullable(),
@@ -123,12 +124,13 @@ aren't sure of, answer with kind handover, the reason in one line, and the lead'
 - ${bot}`;
   const what =
     task === "autopilot_first"
-      ? "Choose the one approved template that best fits this lead and the goal. Answer with its templateId and why."
+      ? "Choose the one approved template that best fits this lead and the goal. Answer with its templateId and why, in one line of at most 200 characters."
       : `Write the next WhatsApp message to the lead toward the goal (${goalWords(c.goal)}). Answer with kind reply and \
 the message, or another kind as the rules say. You may attach up to three of the files given by id; set stageId to one \
 of the stages given by id when the conversation has moved the lead there; when the lead has said no, the lost stage with \
 a lostReasonId from the lost reasons given; fill only the empty fields given, as key and value pairs, from what the lead said (a choice \
-by one of its options, a number as digits, a date as YYYY-MM-DD); and suggest a follow-up.`;
+by one of its options, a number as digits, a date as YYYY-MM-DD); and suggest a follow-up. Keep the message at most \
+1,000 characters, the reason at most 200 characters and the evidence at most 300 characters.`;
   return `You are LUME AI, messaging a business's lead on WhatsApp. The goal: ${goalWords(c.goal)}.
 ${voice}
 
@@ -176,12 +178,26 @@ export function timesIn(text: string): string[] {
   });
 }
 
+/** Everything the business wrote about itself in Settings → LUME AI, as plain words the guards can check against. */
+export function businessWordsOf(p: AiProfile): string {
+  const k = p.knows;
+  return [
+    k.about,
+    ...k.faqs.flatMap((f) => [f.q, f.a]),
+    ...k.prices.map((x) => [x.item, x.unit, x.notes].filter(Boolean).join(" ")),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 /** What the guards check an answer against: the business's own lists and the run's permissions. */
 export type GuardCtx = {
   prices: number[];
   fileIds: string[];
   /** The lead's own recent messages, joined: a time may be confirmed only when they named it. */
   leadWords: string;
+  /** What the business wrote in Settings → LUME AI (`businessWordsOf`): its own hours may be said too. */
+  businessWords: string;
   lastLeadMessage: string;
   permissions: Record<AutopilotAction, "go" | "ask" | "never">;
   openStageIds: string[];
@@ -229,8 +245,10 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
   if (offersIn(message)) return handover("LUME AI wanted to offer a discount you haven't given it.");
   const priced = unbackedAmounts(message, []).length > 0;
   if (priced && perms.answer_prices === "never") return neverSays("answer_prices");
-  const lead = tidyTime(g.leadWords);
-  if (timesIn(message).some((t) => !lead.includes(tidyTime(t))))
+  // A day or time the lead named, or the business's own words give (its hours, eval 2026-10-31), matched whole:
+  // a lead's "11 pm" never lets "1 pm" through.
+  const given = new Set(timesIn(`${g.leadWords}\n${g.businessWords}`).map(tidyTime));
+  if (timesIn(message).some((t) => !given.has(tidyTime(t))))
     return handover("LUME AI wanted to offer a time you haven't given it.");
 
   const asks: AutopilotAction[] = [];

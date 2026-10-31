@@ -84,6 +84,8 @@ describe("the schema a provider is sent", () => {
     expect(s).toMatchObject({ type: "object", additionalProperties: false });
     expect(s.required).toEqual(["summary", "stageId", "followUp", "lostReasonId", "tagIds", "decisionMaker"]);
     expect(text).not.toMatch(/maxLength|minLength|maxItems|\$schema/);
+    // Which explanations may be shortened is LUME's own business, never sent to the provider.
+    expect(text).not.toMatch(/soft|clip|fit/i);
     const c = JSON.stringify(schemaForProvider(catchUpOutput));
     expect(c).not.toMatch(/prefixItems/);
   });
@@ -133,6 +135,17 @@ describe("Anthropic (Claude)", () => {
     await expect(p.read(ask())).rejects.toBeInstanceOf(AiUnreadable);
     reply = () => ({ status: 200, body: claude("", "refusal") });
     await expect(p.read(ask())).rejects.toBeInstanceOf(AiUnreadable);
+  });
+
+  it("an explanation a little past its limit is shortened, not thrown away (eval 2026-10-31)", async () => {
+    const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
+    const summary = "She liked the 3D design and wants the quote revised for a smaller island before she decides, ".repeat(2);
+    reply = () => ({ status: 200, body: claude(JSON.stringify({ ...answer, summary })) });
+    const r = await p.read(ask());
+    const got = (r.output as { summary: string }).summary;
+    expect(got.length).toBeLessThanOrEqual(140);
+    expect(got.endsWith("…")).toBe(true);
+    expect(summary.startsWith(got.slice(0, -1).trimEnd())).toBe(true);
   });
 
   it("an aborted read rejects, and is not AiUnreadable", async () => {

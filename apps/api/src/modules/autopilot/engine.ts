@@ -12,6 +12,7 @@ import {
   firstNameOf,
   followUpMoment,
   guardFirst,
+  businessWordsOf,
   guardReply,
   newId,
   mergeAiProfile,
@@ -501,10 +502,13 @@ async function writeTemplate(
   return 1;
 }
 
-/** The read's facts for LUME AI: the business's own words and lists, the lead, and the thread (§3). */
-async function aiCtx(
+/**
+ * The read's facts for LUME AI: the business's own words and lists, the lead, and the thread (§3). Of a run, only who
+ * speaks and the goal: a recommendation outside a run (Recommended by LUME AI, 2026-10-31) reads the same facts.
+ */
+export async function aiCtx(
   req: FastifyRequest,
-  run: Run,
+  run: Pick<Run, "speakerId" | "goal">,
   lead: LeadRow,
   templates: AutopilotCtx["templates"],
 ): Promise<AutopilotCtx & { profileRaw: AiProfile; leadWords: string; lastLeadMessage: string }> {
@@ -653,6 +657,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     prices: c.profile.knows.prices.map((x) => x.price),
     fileIds: c.files.map((f) => f.id),
     leadWords: c.leadWords,
+    businessWords: businessWordsOf(c.profile),
     lastLeadMessage: c.lastLeadMessage,
     permissions: run.permissions,
     openStageIds: stages.filter((x) => x.kind === "open").map((x) => x.id),

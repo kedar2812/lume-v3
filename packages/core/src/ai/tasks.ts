@@ -1,12 +1,20 @@
 import { z } from "zod";
 import { wallTime } from "../tasks/time";
+import { softText } from "./fit";
 
 /**
  * LUME AI's tasks (spec 2026-10-18 §2.1, §5.2–5.4): what each one is given, what it must answer, and the rules
  * that hold whichever provider reads it. Pure: no provider, no database.
  */
 /** The read-a-note tasks (2026-10-18), and Autopilot's (2026-10-19): each counts against the month. */
-export type AiTask = "next_step" | "catch_up" | "autopilot_first" | "autopilot_reply" | "reply_meaning";
+/** And a template drafted for the business (2026-10-31): the one read that is about no lead. */
+export type AiTask =
+  | "next_step"
+  | "catch_up"
+  | "autopilot_first"
+  | "autopilot_reply"
+  | "reply_meaning"
+  | "template_draft";
 type NoteTask = "next_step" | "catch_up";
 
 /**
@@ -34,24 +42,25 @@ const LOCAL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 export const nextStepOutput = z
   .object({
     /** One plain line on what the note means, shown above the suggestion. */
-    summary: z.string().min(1).max(140),
+    summary: softText(140, 1),
     stageId: z.string().nullable(),
     /** On the business's clock, "YYYY-MM-DDTHH:mm". */
     followUp: z
-      .object({ at: z.string(), title: z.string().min(1).max(80) })
+      .object({ at: z.string(), title: softText(80, 1) })
       .strict()
       .nullable(),
     lostReasonId: z.string().nullable(),
     /** The business's own tags stand for objections and segments (§5.2): at most three. */
     tagIds: z.array(z.string()).max(3),
-    decisionMaker: z.string().min(1).max(60).nullable(),
+    decisionMaker: softText(60, 1).nullable(),
   })
   .strict();
 export type NextStep = z.infer<typeof nextStepOutput>;
 
 export const catchUpOutput = z
   .object({
-    lines: z.tuple([z.string().min(1).max(160), z.string().min(1).max(160), z.string().min(1).max(160)]),
+    /** Three lines when the history has enough to say, two when it doesn't (eval 2026-10-31). */
+    lines: z.array(softText(160, 1)).min(2).max(3),
   })
   .strict();
 export type CatchUp = z.infer<typeof catchUpOutput>;
@@ -63,16 +72,16 @@ than guess. Write plain, short English, whatever language the notes are in.`;
 const INSTRUCTIONS: Record<NoteTask, string> = {
   next_step: `You help a salesperson decide the next step on a lead after a call or a note. ${RULES}
 Answer with:
-- summary: one line on what the note means for the sale.
+- summary: one line on what the note means for the sale, at most 140 characters.
 - stageId: the stage the lead should move to now, or null to leave it where it is. Use ids only from the lists given.
 - followUp: when to contact the lead next, as local time "YYYY-MM-DDTHH:mm" on the business's clock after "now", \
-with a short title; null when the note names no time and none is clearly needed.
+with a short title (at most 80 characters); null when the note names no time and none is clearly needed.
 - lostReasonId: only when the stage you chose is a lost one; an id from lostReasons, or null.
 - tagIds: up to three ids from tags that the note clearly supports (an objection, a segment); usually none.
-- decisionMaker: who else decides, when the note names them ("her husband"); otherwise null.`,
+- decisionMaker: who else decides, when the note names them ("her husband"), at most 60 characters; otherwise null.`,
   catch_up: `You catch a salesperson up on a lead they are picking up. ${RULES}
-Answer with exactly three lines: who the lead is and what they want; where the sale stands now; what was promised \
-or is due next. Each line at most 160 characters.`,
+Answer with two or three lines: who the lead is and what they want; where the sale stands now; and what was \
+promised or is due next, when the history says. Each line at most 160 characters.`,
 };
 
 export function instructionsFor(task: NoteTask): string {

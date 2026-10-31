@@ -45,8 +45,9 @@ Lead's phone ──► Meta ──► relay /wa/in/<instance> ──► client's
 4. **Facebook Login for Business → Settings:** add `https://connect.lumecrm.in` to **Allowed domains**, and as a
    **Valid OAuth redirect URI**.
 5. **Webhooks:** in WhatsApp → Configuration, subscribe the app to `messages`, `account_update`, `history`,
-   `smb_app_state_sync` and `smb_message_echoes` (the last three carry a Business app number's past chats, contacts
-   and the messages sent from the phone). You don't set an app-wide callback address: each client's account gets its
+   `smb_app_state_sync`, `smb_message_echoes` (these three carry a Business app number's past chats, contacts
+   and the messages sent from the phone) and `message_template_status_update` (a template's approval reaches LUME at
+   once; without it the 15-minute sweep finds it). You don't set an app-wide callback address: each client's account gets its
    own address at connect. Make up a **verify token** (16+ random characters) for the relay's settings below.
 6. **Before real clients:** business verification (Udyam registration in LUME's name), then app review for the two
    permissions (LUME becomes a Tech Provider). Until then only your own test number and accounts can connect.

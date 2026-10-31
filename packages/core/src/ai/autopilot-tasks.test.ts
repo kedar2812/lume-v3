@@ -10,6 +10,7 @@ import {
   timesIn,
   type AutopilotCtx,
   type GuardCtx,
+  businessWordsOf,
 } from "./autopilot-tasks";
 
 /** What LUME AI is asked in a run, and the guards on every answer (Autopilot spec 2026-10-19 §1.3, §3, §11). */
@@ -67,6 +68,7 @@ const guard = (o: Partial<GuardCtx> = {}): GuardCtx => ({
   fileIds: [FILE],
   lastLeadMessage: "Hi, what does a kitchen cost?",
   leadWords: "Hi, what does a kitchen cost?",
+  businessWords: "",
   permissions: AUTOPILOT_PRESETS.hands_off,
   openStageIds: [STAGE_OPEN, STAGE_GOAL],
   lostStageIds: [STAGE_LOST],
@@ -89,6 +91,14 @@ const reply = (o: Partial<ReturnType<typeof autopilotReplyOutput.parse>> = {}) =
   });
 
 describe("what LUME AI is asked", () => {
+  it("the instructions name each answer's length limit, the message's included (eval 2026-10-31)", () => {
+    expect(autopilotInstructions("autopilot_first", ctx())).toMatch(/why.*at most 200 characters/);
+    const say = autopilotInstructions("autopilot_reply", ctx());
+    expect(say).toMatch(/message.*at most 1,000 characters/);
+    expect(say).toMatch(/reason.*at most 200 characters/);
+    expect(say).toMatch(/evidence.*at most 300 characters/);
+  });
+
   it("the instructions carry the business's own words and never offer denying it's AI", () => {
     const say = autopilotInstructions("autopilot_reply", ctx());
     for (const words of [
@@ -163,6 +173,41 @@ describe("guards hold", () => {
   it("a file nobody chose is dropped; a chosen one goes", () => {
     const g = guardReply(reply({ message: "Here's our brochure.", fileIds: [FILE, OTHER_FILE] }), guard());
     expect(g).toMatchObject({ kind: "send", fileIds: [FILE] });
+  });
+
+  it("the business's own hours may be said; a slot neither the business nor the lead gave is still held (eval 2026-10-31)", () => {
+    // Every held reply in the Sonnet 5.5 eval repeated hours the business wrote in Settings → LUME AI.
+    const hours = guard({ businessWords: "We are open Monday to Saturday, 10 am to 7 pm, near Baner metro." });
+    expect(
+      guardReply(reply({ message: "We're open Monday to Saturday, 10 am to 7 pm. Which day suits you?" }), hours),
+    ).toMatchObject({ kind: "send" });
+    expect(guardReply(reply({ message: "Shall we say Saturday 4 pm?" }), hours)).toMatchObject({
+      kind: "handover",
+      reason: "LUME AI wanted to offer a time you haven't given it.",
+    });
+  });
+
+  it("a time matches whole: a lead's 11 pm never lets 1 pm through", () => {
+    const g = guard({ leadWords: "I'm free after 11 pm", lastLeadMessage: "I'm free after 11 pm" });
+    // Only the time differs ("tomorrow" would be held on its own and hide what's tested).
+    expect(guardReply(reply({ message: "How about 1 pm instead?" }), g)).toMatchObject({
+      kind: "handover",
+    });
+    expect(guardReply(reply({ message: "11 pm works, see you then." }), g)).toMatchObject({ kind: "send" });
+  });
+
+  it("the business's words are its about, its questions and answers and its price notes", () => {
+    const words = businessWordsOf({
+      ...DEFAULT_AI_PROFILE,
+      knows: {
+        ...DEFAULT_AI_PROFILE.knows,
+        about: "A clinic on Baner Road.",
+        faqs: [{ q: "When are you open?", a: "Monday to Saturday, 10 am to 7 pm." }],
+        prices: [{ id: "p1", item: "Consultation", price: 800, unit: "per visit", notes: "Sundays by appointment" }],
+      },
+    });
+    for (const w of ["Baner Road", "When are you open?", "10 am to 7 pm", "Consultation", "Sundays by appointment"])
+      expect(words).toContain(w);
   });
 
   it("a time the lead didn't name is never offered; one they named may be confirmed", () => {

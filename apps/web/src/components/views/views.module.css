@@ -4,7 +4,6 @@
   display: grid;
   gap: 4px;
   margin-top: 18px;
-  min-height: 0;
 }
 .head {
   margin: 0 10px 2px;
@@ -20,8 +19,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  overflow-y: auto;
-  max-height: 40vh;
 }
 /* The row: the handle and the edit button show on hover or focus, so the list reads as names first. */
 .row {

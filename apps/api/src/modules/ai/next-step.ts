@@ -81,7 +81,7 @@ async function openRead(req: FastifyRequest, id: string) {
         eq(schema.aiReads.status, "ok"),
       ),
     );
-  if (!row) throw notFound("READ_NOT_FOUND", "That suggestion isn't here any more");
+  if (!row?.leadId) throw notFound("READ_NOT_FOUND", "That suggestion isn't here any more");
   const lead = await visibleLead(req, row.leadId);
   if (row.outcome) throw new HttpError(409, "ALREADY_DONE", "That suggestion was already used or dismissed.");
   return { lead, kept: row.result as Kept };

@@ -6,6 +6,7 @@ import { catchUp, leadAi } from "./catch-up";
 import { applyRead, dismissRead, suggestNextStep } from "./next-step";
 import { getAiProfile, patchAiProfile } from "./profile";
 import { aiStatus, requestTopUp, setAiEnabled } from "./service";
+import { draftTemplates } from "../templates/draft";
 
 /** LUME AI (spec 2026-10-18 §2.2): its status for anyone signed in, and its switch for admins. */
 export async function aiRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
@@ -23,6 +24,15 @@ export async function aiRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
   // Settings → LUME AI (Autopilot spec 2026-10-19 §5): what it knows, its voice, the standing choices; admins. The body
   // is checked by the core schema in the service, so a refusal says what's wrong in words.
   r.get("/api/v1/ai/profile", { config: { permission: "settings.manage" } }, (req) => getAiProfile(req));
+  // LUME AI writes templates (2026-10-31): two or three drafts from what the person asks for; whoever manages templates.
+  r.post(
+    "/api/v1/templates/draft",
+    {
+      config: { permission: "templates.manage", idempotent: false },
+      schema: { body: z.object({ prompt: z.string().max(500) }).strict() },
+    },
+    (req) => draftTemplates(req, d, req.body),
+  );
   r.patch(
     "/api/v1/ai/profile",
     { config: { permission: "settings.manage" }, schema: { body: z.record(z.string(), z.unknown()) } },

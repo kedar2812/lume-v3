@@ -43,6 +43,15 @@ export function Integrations({ tz }: { tz?: string } = {}) {
     void calendarClient.calendly().then((r) => r.ok && setCalendly(r.data));
   }, [loadSources]);
 
+  // A link to one card (Autopilot's Fix it, onboarding's Set up) names it after #. The cards come after the page has
+  // loaded, past the browser's own jump, so land on it once they're here (2026-10-31).
+  const loaded = !!view;
+  useEffect(() => {
+    if (!loaded) return;
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (id) document.getElementById(id)?.scrollIntoView({ block: "start" });
+  }, [loaded]);
+
   // While any sheet is checking, look again every 2 seconds, so "Checking now" turns into what it found.
   const checking = !!sources?.some((x) => x.syncing);
   useEffect(() => {
@@ -100,7 +109,7 @@ export function Integrations({ tz }: { tz?: string } = {}) {
     // One stack with Settings' gap between cards (owner, 2026-10-27: they sat edge to edge).
     <div className={s.stack}>
       <AttentionBanner items={(sources ?? []).filter((x) => x.status === "needs_attention")} />
-      <article className={s.card} aria-labelledby="gs-title">
+      <article id="sheets" className={s.card} aria-labelledby="gs-title">
         <header className={s.cardHead}>
           <span className={s.brandTile}>
             <img src="/brand/google-sheets.png" alt="" width={28} height={28} />

@@ -44,66 +44,70 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
           <span className={s.client}>{businessName}</span>
         </div>
       </div>
-      <nav className={s.nav} aria-label="Main">
-        {items.map((i) => {
-          const on = i.id === current?.id;
-          const isLive = i.id === "autopilot" && live;
-          const up = i.id === "media" ? batch : null;
-          const named = isLive
-            ? `${i.label}, live`
-            : up
-              ? up.done
-                ? `${i.label}, ${up.total} ${up.total === 1 ? "file" : "files"} added`
-                : `${i.label}, uploading ${Math.round(up.share * 100)}%`
-              : undefined;
-          return (
-            <Link
-              key={i.id}
-              href={i.href}
-              className={s.link}
-              aria-label={named}
-              data-blink={up?.done ? "" : undefined}
-              data-tour={`nav-${i.id}`}
-              aria-current={on ? "page" : undefined}
-              onClick={(e) => {
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-                e.preventDefault();
-                go(i.href);
-              }}
-            >
-              {on && (
-                // One shared pill travels between items; it stretches slightly along the way (spec §5.3).
-                <motion.span
-                  layoutId="nav-pill"
-                  className={s.pill}
-                  transition={reduce ? { duration: 0 } : { layout: toMotion(SPRINGS.default) }}
-                />
-              )}
-              {i.id === "autopilot" ? (
-                // LUME AI's own mark, drawing itself: calm, still under Reduce motion (owner, 2026-10-27).
-                // 17 px, as every other icon, so its label lines up with theirs.
-                <AiGlyph size={17} draw="loop" className={s.aiMark} />
-              ) : (
-                <NavIcon name={i.icon} />
-              )}
-              <span className={s.label}>{i.label}</span>
-              {up && <MediaRing batch={up} />}
-              {isLive && (
-                <span className={s.live} aria-hidden>
-                  <i />
-                  Live
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-      {can("leads.view") && (
-        <Suspense fallback={null}>
-          <SidebarViews canShare={can("views.manage")} />
-        </Suspense>
-      )}
-      <div className={s.spacer} />
+      {/* Everything between the lockup and the profile scrolls as one when the window is short, so no row is ever
+          squashed to fit (owner, 2026-10-31). layoutScroll keeps the travelling pill and a view's drag measured
+          against the scrolled position. Its own class: the page's scroller is `.scroll`. */}
+      <motion.div layoutScroll className={s.sideScroll} data-testid="side-scroll">
+        <nav className={s.nav} aria-label="Main">
+          {items.map((i) => {
+            const on = i.id === current?.id;
+            const isLive = i.id === "autopilot" && live;
+            const up = i.id === "media" ? batch : null;
+            const named = isLive
+              ? `${i.label}, live`
+              : up
+                ? up.done
+                  ? `${i.label}, ${up.total} ${up.total === 1 ? "file" : "files"} added`
+                  : `${i.label}, uploading ${Math.round(up.share * 100)}%`
+                : undefined;
+            return (
+              <Link
+                key={i.id}
+                href={i.href}
+                className={s.link}
+                aria-label={named}
+                data-blink={up?.done ? "" : undefined}
+                data-tour={`nav-${i.id}`}
+                aria-current={on ? "page" : undefined}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                  e.preventDefault();
+                  go(i.href);
+                }}
+              >
+                {on && (
+                  // One shared pill travels between items; it stretches slightly along the way (spec §5.3).
+                  <motion.span
+                    layoutId="nav-pill"
+                    className={s.pill}
+                    transition={reduce ? { duration: 0 } : { layout: toMotion(SPRINGS.default) }}
+                  />
+                )}
+                {i.id === "autopilot" ? (
+                  // LUME AI's own mark, drawing itself: calm, still under Reduce motion (owner, 2026-10-27).
+                  // 17 px, as every other icon, so its label lines up with theirs.
+                  <AiGlyph size={17} draw="loop" className={s.aiMark} />
+                ) : (
+                  <NavIcon name={i.icon} />
+                )}
+                <span className={s.label}>{i.label}</span>
+                {up && <MediaRing batch={up} />}
+                {isLive && (
+                  <span className={s.live} aria-hidden>
+                    <i />
+                    Live
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+        {can("leads.view") && (
+          <Suspense fallback={null}>
+            <SidebarViews canShare={can("views.manage")} />
+          </Suspense>
+        )}
+      </motion.div>
       <ProfileMenu user={user} onFeedback={onFeedback} />
     </aside>
   );

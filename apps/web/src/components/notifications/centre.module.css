@@ -20,8 +20,23 @@
   box-shadow: var(--shadow-pop);
   transform-origin: calc(100% - 22px) -10px; /* grows out of the bell */
 }
-/* Full screen: a centred reading column, the same actions. */
+/* Full screen: a centred reading column, the same actions, over the whole window dimmed and blurred (2026-10-31);
+   a sheet opened from a row (80) still comes in front. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 78;
+  background: var(--scrim);
+  backdrop-filter: var(--scrim-blur);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .scrim {
+    backdrop-filter: none;
+    background: color-mix(in srgb, var(--scrim) 100%, var(--canvas) 35%);
+  }
+}
 .panel[data-full] {
+  z-index: 79;
   top: 24px;
   bottom: 24px;
   left: 50%;

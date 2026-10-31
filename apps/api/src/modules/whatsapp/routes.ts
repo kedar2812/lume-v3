@@ -11,6 +11,7 @@ import { mediaInfo, sendMedia } from "./media";
 import { attachFile, attachLibraryFile, sendLimiter, sendReply } from "./send";
 import { LIMITS } from "./sniff";
 import { submissionsOf, submitTemplate } from "./submit";
+import { recommendTemplate } from "./recommend";
 import { sendTemplate, templateState } from "./template-send";
 import { replyBoard } from "./replies";
 import { leadThread } from "./thread";
@@ -107,6 +108,8 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
             text: z.string().max(8192).optional(),
             mediaId: z.uuid().optional(),
             taskId: z.uuid().optional(),
+            /** Try again: the failed message this sends once more, which then leaves the thread. */
+            retryOf: z.uuid().optional(),
           })
           .strict(),
       },
@@ -118,6 +121,12 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
     "/api/v1/leads/:id/whatsapp/templates",
     { config: { permission: "messages.send" }, schema: { params: id } },
     async (req) => templateState(req, d, await sendable(req, req.params.id)),
+  );
+  // Recommended by LUME AI (2026-10-31): the approved template that fits this lead best, and why.
+  r.post(
+    "/api/v1/leads/:id/whatsapp/templates/recommend",
+    { config: { permission: "messages.send" }, schema: { params: id } },
+    (req) => recommendTemplate(req, d, req.params.id),
   );
   r.post(
     "/api/v1/leads/:id/whatsapp/template",

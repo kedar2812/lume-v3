@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { contentUrl, type LibraryFile } from "@/lib/files/client";
+import { srcOf, type LibraryFile } from "@/lib/files/client";
 import v from "./viewer.module.css";
 
 /** The most of a text file shown: a megabyte is a book; more is read in a text editor. */
@@ -12,7 +12,7 @@ export function TextView({ file: f }: { file: LibraryFile }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const ctl = new AbortController();
-    void fetch(contentUrl(f.id), {
+    void fetch(srcOf(f), {
       credentials: "same-origin",
       signal: ctl.signal,
       headers: f.size > MOST ? { range: `bytes=0-${MOST - 1}` } : {},

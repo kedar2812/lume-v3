@@ -17,6 +17,7 @@ vi.mock("@/lib/whatsapp/client", () => ({
   },
 }));
 vi.mock("@/lib/files/client", () => ({ filesClient: { list: vi.fn() } }));
+vi.mock("@/lib/ai/use-ai-on", () => ({ useAiOn: () => false }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 202, data });
 const TZ = "Asia/Kolkata";
 const open: NonNullable<WaReply> = {

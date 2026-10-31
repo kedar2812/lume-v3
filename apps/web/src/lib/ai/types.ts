@@ -35,7 +35,7 @@ export type LeadAi = {
     from: { activityId: string | null; at: string };
   } | null;
 };
-export type CatchUpRead = { read: { id: string; lines: [string, string, string] } };
+export type CatchUpRead = { read: { id: string; lines: string[] } };
 
 /** Settings → LUME AI as the API says it (Autopilot A1, Task 5): the profile and the business's things it names. */
 export type AiProfileView = {

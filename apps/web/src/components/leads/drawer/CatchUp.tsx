@@ -11,14 +11,14 @@ import s from "./ai.module.css";
 type State =
   | { is: "offered" }
   | { is: "reading" }
-  | { is: "ready"; lines: [string, string, string] }
+  | { is: "ready"; lines: string[] }
   | { is: "limit"; pause: AiPause }
   | { is: "failed" }
   | { is: "gone" };
 
 /**
  * Catch me up (spec 2026-10-18 §5.3; the approved canvas board CatchUp): offered on a lead someone just picked up or
- * one gone quiet, and read only when they ask — three lines from the lead's own notes and calls.
+ * one gone quiet, and read only when they ask — two or three lines from the lead's own notes and calls.
  */
 export function CatchUp({ leadId, tz }: { leadId: string; tz: string }) {
   const [state, setState] = useState<State>({ is: "offered" });
@@ -52,7 +52,7 @@ export function CatchUp({ leadId, tz }: { leadId: string; tz: string }) {
     <div aria-live="polite" className={s.live}>
       {state.is === "offered" && (
         <div className={s.offer}>
-          <p className={s.offerText}>New to this lead? LUME AI can sum up its history in three lines.</p>
+          <p className={s.offerText}>New to this lead? LUME AI can sum up its history in a few lines.</p>
           <Button onClick={() => void ask()}>
             <AiGlyph size={16} />
             Catch me up

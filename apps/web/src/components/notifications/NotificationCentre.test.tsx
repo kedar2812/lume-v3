@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
@@ -235,6 +235,46 @@ describe("the notification centre (3B Task 5)", () => {
     expect(onClose).not.toHaveBeenCalled();
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("closing by clicking outside (owner, 2026-10-31)", () => {
+    it("a press outside closes it; one inside doesn't", async () => {
+      const outside = document.createElement("button");
+      document.body.append(outside);
+      const onClose = await open();
+      fireEvent.pointerDown(screen.getByRole("list", { name: "Overdue" }));
+      expect(onClose).not.toHaveBeenCalled();
+      fireEvent.pointerDown(outside);
+      expect(onClose).toHaveBeenCalledTimes(1);
+      outside.remove();
+    });
+
+    it("the bell and anything in front of it (a sheet, a menu) aren't outside", async () => {
+      const bell = document.createElement("button");
+      bell.setAttribute("aria-haspopup", "dialog");
+      bell.setAttribute("aria-expanded", "true");
+      const sheet = document.createElement("div");
+      sheet.setAttribute("aria-modal", "true");
+      const inSheet = document.createElement("button");
+      sheet.append(inSheet);
+      const menu = document.createElement("div");
+      menu.setAttribute("role", "menu");
+      document.body.append(bell, sheet, menu);
+      const onClose = await open();
+      for (const el of [bell, inSheet, menu]) fireEvent.pointerDown(el);
+      expect(onClose).not.toHaveBeenCalled();
+      for (const el of [bell, sheet, menu]) el.remove();
+    });
+
+    it("full screen: the whole window dims and blurs behind it, and a press on it closes the centre", async () => {
+      const onClose = await open();
+      expect(document.querySelector("[data-centre-scrim]")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Full screen (F)" }));
+      const scrim = document.querySelector<HTMLElement>("[data-centre-scrim]");
+      expect(scrim).not.toBeNull();
+      fireEvent.pointerDown(scrim!);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("an arrival while it's open brings it up to date", async () => {

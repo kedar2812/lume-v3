@@ -1,7 +1,7 @@
 "use client";
 import { Maximize, Pause, Play, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { contentUrl, type LibraryFile } from "@/lib/files/client";
+import { srcOf, type LibraryFile } from "@/lib/files/client";
 import { lengthText } from "@/lib/files/words";
 import { Scrubber, useMediaElement } from "./Scrubber";
 import v from "./viewer.module.css";
@@ -44,7 +44,7 @@ export function VideoView({ file: f }: { file: LibraryFile }) {
     >
       <video
         ref={m.ref}
-        src={contentUrl(f.id)}
+        src={srcOf(f)}
         poster={f.thumbUrl ?? undefined}
         playsInline
         preload="metadata"
@@ -105,7 +105,7 @@ export function AudioView({ file: f }: { file: LibraryFile }) {
   const m = useMediaElement(f.durationMs);
   return (
     <div className={v.audio}>
-      <audio ref={m.ref} src={contentUrl(f.id)} preload="metadata" />
+      <audio ref={m.ref} src={srcOf(f)} preload="metadata" />
       <button
         type="button"
         className={v.audioPlay}

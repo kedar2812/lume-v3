@@ -22,6 +22,12 @@
   justify-content: space-between;
   gap: 16px;
 }
+.toolbarActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .lead {
   font-size: var(--fs-sm);
   letter-spacing: var(--ls-sm);

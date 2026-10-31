@@ -42,7 +42,8 @@ import { LogCall } from "./LogCall";
 import { ContactBox } from "./ContactBox";
 import { MeetingsTab } from "./MeetingsTab";
 import { WhatsAppComposer } from "./WhatsAppComposer";
-import { WhatsAppThread } from "./WhatsAppThread";
+import { ChatCard } from "./ChatCard";
+import { WhatsAppChat } from "./WhatsAppChat";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaThread, WaThreadMessage } from "@/lib/whatsapp/types";
 import { MessageButton } from "./MessageButton";
@@ -161,6 +162,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   }, [loadMeetings]);
   // WhatsApp on this lead (spec 2026-10-18 §4.2): a tab while WhatsApp is on, or when the lead has messages.
   const [wa, setWa] = useState<WaThread | null>(null);
+  // The chat as a window of its own (owner, 2026-10-31), opened from the WhatsApp tab.
+  const [chat, setChat] = useState(false);
   const loadWa = useCallback(() => {
     void whatsappClient.thread(id).then((r) => r.ok && shown.current === id && setWa(r.data));
   }, [id]);
@@ -185,9 +188,12 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     waSince.current = Date.now();
     setWa((w) => (w ? { ...w, messages: [...w.messages.filter((x) => x.id !== m.id), m] } : w));
   };
+  // Try again sends the failed message once more and takes it off the thread (2026-10-31: it stayed, with a live
+  // Try again, and a second tap sent a second copy).
   const waRetry = async (m: WaThreadMessage) => {
-    const r = await whatsappClient.send(id, { clientKey: crypto.randomUUID(), text: m.text ?? "" });
+    const r = await whatsappClient.send(id, { clientKey: crypto.randomUUID(), text: m.text ?? "", retryOf: m.id });
     if (!r.ok) return toast({ tone: "danger", title: "Didn't go", detail: r.message });
+    setWa((w) => (w ? { ...w, messages: w.messages.filter((x) => x.id !== m.id) } : w));
     waSent(r.data.message);
   };
   const TABS: { id: Tab; label: string }[] = [
@@ -303,7 +309,10 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
 
   const openTab = (t: Tab) => {
     setTab(t);
-    if (t === "whatsapp") loadWa();
+    if (t === "whatsapp") {
+      loadWa();
+      setChat(true);
+    }
     else if (t !== "details") reloadActivities();
   };
 
@@ -874,10 +883,20 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                     </>
                   )}
                   {tab === "whatsapp" && wa && (
-                    <WhatsAppThread
+                    <ChatCard
                       leadName={lead.name ?? "this lead"}
                       tz={tz}
+                      last={wa.messages.at(-1) ?? null}
+                      onOpen={() => setChat(true)}
+                    />
+                  )}
+                  {chat && wa && (
+                    <WhatsAppChat
+                      leadName={lead.name ?? "this lead"}
+                      phone={lead.phone?.display ?? null}
+                      tz={tz}
                       messages={wa.messages}
+                      onClose={() => setChat(false)}
                       onRetry={(m) => void waRetry(m)}
                       onMeaning={() => {
                         loadWa();

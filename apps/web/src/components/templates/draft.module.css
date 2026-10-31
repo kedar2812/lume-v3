@@ -1,0 +1,228 @@
+/* Write with LUME AI (owner, 2026-10-31): a request, then two or three drafts to choose from. */
+.sheet {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  max-height: calc(100dvh - 48px);
+}
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.title {
+  margin: 0 0 2px;
+  font-size: var(--fs-lg);
+  letter-spacing: -0.01em;
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.lede {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.ask {
+  display: grid;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+  transition: box-shadow 0.15s;
+}
+.ask:focus-within {
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.input {
+  resize: none;
+  padding: 12px 14px 4px;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text);
+}
+.input::placeholder {
+  color: var(--text-3);
+}
+.askFoot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 10px 12px;
+}
+.starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.starter {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  background: var(--sunk);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s ease-out;
+}
+.starter:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+.starter:active {
+  transform: scale(0.97);
+}
+.starter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.results {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.status {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+  animation: rise 0.32s var(--spring) both;
+}
+.card:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.card:nth-child(3) {
+  animation-delay: 0.1s;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cardName {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.category {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.body {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.why {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.use {
+  align-self: flex-start;
+}
+.hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.ghost {
+  animation: none;
+}
+.ghost span {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--skel) 0%, var(--hover) 50%, var(--skel) 100%) 0 0 / 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.ghost span:nth-child(1) {
+  width: 46%;
+}
+.ghost span:nth-child(2) {
+  width: 96%;
+  height: 46px;
+}
+.ghost span:nth-child(3) {
+  width: 70%;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (max-width: 640px) {
+  .sheet {
+    padding: 18px;
+  }
+  .askFoot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .ghost span {
+    animation: none;
+  }
+}

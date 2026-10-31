@@ -999,6 +999,21 @@
   font-family: Roboto, var(--font, system-ui);
   white-space: nowrap;
 }
+.connLater {
+  flex: none;
+  max-width: 132px;
+  text-align: right;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+  line-height: 1.35;
+}
+.gbtn:disabled {
+  opacity: 0.6;
+}
+.connText .connError {
+  color: var(--danger);
+}
 :global([data-theme="obsidian"]) .gbtn {
   background: #131314;
   color: #e3e3e3;

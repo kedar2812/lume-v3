@@ -12,6 +12,22 @@ import s from "./connect.module.css";
 /** Where connecting began (the Calendar page or Settings → Calendar), kept for the hand-back. */
 export const RETURN_KEY = "lume:calendar:return";
 
+/**
+ * Starts connecting: notes the page it began on for the hand-back, then goes to Google. Resolves only with
+ * why it couldn't (Calendar off on this server, already connected), for the caller to say.
+ */
+export async function startCalendarConnect(): Promise<string> {
+  try {
+    sessionStorage.setItem(RETURN_KEY, window.location.pathname);
+  } catch {
+    // No storage (a private window): the hand-back returns to the Calendar.
+  }
+  const r = await calendarClient.connect();
+  if (!r.ok) return r.message;
+  window.location.assign(r.data.url);
+  return new Promise<string>(() => {});
+}
+
 /** wait: the Google tile lifts and the wire runs; linked: the wire is solid and the tiles click together. */
 type Phase = "idle" | "wait" | "linked" | "reading" | "done";
 
@@ -140,17 +156,9 @@ export function ConnectCalendar({
   const go = async () => {
     setError(null);
     setPhase("wait");
-    try {
-      sessionStorage.setItem(RETURN_KEY, window.location.pathname);
-    } catch {
-      // No storage (a private window): the hand-back returns to the Calendar.
-    }
-    const r = await calendarClient.connect();
-    if (!r.ok) {
-      setPhase("idle");
-      return setError(r.message);
-    }
-    window.location.assign(r.data.url);
+    const why = await startCalendarConnect();
+    setPhase("idle");
+    setError(why);
   };
 
   if (compact)
