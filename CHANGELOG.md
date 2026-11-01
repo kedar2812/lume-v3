@@ -34,7 +34,9 @@ column in the release that stops using it.
   onboarding's Calendar Connect goes to Google and comes back to onboarding (it went to the Calendar, which sent it
   straight back), and its Sheets card says it's set up on Integrations after onboarding; the LUME AI card says what it reads and that it messages leads only in a run someone starts;
   the notification centre closes on a press outside it, and its full screen dims and blurs the window behind; the
-  bell shows how many are unread (9+ past nine); page titles in the top bar are larger.
+  bell shows how many are unread (9+ past nine); page titles in the top bar are larger; Analytics' Sources lists
+  only sources with leads or wins in the range (a source whose only activity was a loss, meeting or task was listed
+  at nothing, and a tag filter then disagreed).
 - **Update notes:** migration 0097 (additive). No `.env` changes.
 
 ## 1.1.0 — 2026-10-29

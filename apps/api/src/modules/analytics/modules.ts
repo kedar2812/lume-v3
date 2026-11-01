@@ -73,7 +73,9 @@ export async function sources(
   const mint = minter(d, req, range, q, tz, now);
   const [from, to] = [range.days[0]!, range.days.at(-1)!];
   const money = seesRevenue(req);
-  // Under a tag or field filter, the same numbers read live by the drill definitions (live.ts).
+  // Under a tag or field filter, the same numbers read live by the drill definitions (live.ts). A source is listed
+  // for leads that arrived or were won in the range: the event rollup's rows for losses, meetings and tasks alone
+  // listed it at nothing (2026-11-01).
   const s = spanOf(q, range);
   const live = isLive(q);
   const [cohort, events, srcs, series] = await Promise.all([
@@ -90,7 +92,7 @@ export async function sources(
           FROM leads l WHERE ${frag.leads(s)} AND ${frag.won(s)} GROUP BY 1`)
       : req.db.execute<{ source_id: string | null; won: number; value: number }>(sql`
           SELECT source_id, sum(won)::int AS won, sum(won_value)::float8 AS value FROM analytics_daily_event
-          WHERE ${rw(q, from, to, true)} GROUP BY source_id`),
+          WHERE ${rw(q, from, to, true)} GROUP BY source_id HAVING sum(won) > 0`),
     req.db.execute<{ id: string; name: string; type: string; spend: string | null }>(sql`
       SELECT id, name, type, monthly_spend::text AS spend FROM lead_sources`),
     live

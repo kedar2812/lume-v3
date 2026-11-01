@@ -292,15 +292,20 @@ describe("files nothing points to", () => {
 });
 
 describe("at a thousand people's volume", () => {
-  it("one sweep works through many batches of files nothing points to, each its own transaction", async () => {
-    await h.ownerPool.query(
-      `INSERT INTO whatsapp_files (sha256, size, last_ref_at)
+  // 2,500 rows in many transactions: near the 5 s default on CI's runner (2026-11-01), so its own limit.
+  it(
+    "one sweep works through many batches of files nothing points to, each its own transaction",
+    { timeout: 60_000 },
+    async () => {
+      await h.ownerPool.query(
+        `INSERT INTO whatsapp_files (sha256, size, last_ref_at)
        SELECT lpad(to_hex(g), 64, '0'), 1, now() - interval '2 hours' FROM generate_series(1, 2500) g`,
-    );
-    expect(await sweep()).toEqual({ removed: 0, deleted: 2500, mended: 0 });
-    expect(await files()).toEqual([]);
-    expect(await gone()).toHaveLength(2500);
-  });
+      );
+      expect(await sweep()).toEqual({ removed: 0, deleted: 2500, mended: 0 });
+      expect(await files()).toEqual([]);
+      expect(await gone()).toHaveLength(2500);
+    },
+  );
 
   it("a sweep out of time stops, and the next one goes on", async () => {
     await h.ownerPool.query(

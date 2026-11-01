@@ -135,6 +135,27 @@ describe("tag and field filters, counted live (8D-1 Task 3)", () => {
     expect(c.sources.reduce((n: number, x: { leads: number }) => n + x.leads, 0)).toBe(5);
   });
 
+  it("a span with only a loss lists no source, with or without a filter (2026-11-01)", async () => {
+    // CI on the 1st of the month: the month's only events were losses, so the rollups listed each such source at
+    // 0 leads, 0 won, 0 revenue, and a filter keeping every lead listed none.
+    const id = await h.seedLead({ ownerId: admin.id });
+    await h.queryAll("UPDATE leads SET created_at = $2, lost_at = $3 WHERE id = $1", [
+      id,
+      new Date(Date.UTC(2026, 4, 20, 5)),
+      new Date(Date.UTC(2026, 6, 2, 5)),
+    ]);
+    await h.queryAll("INSERT INTO lead_tags (lead_id, tag_id) VALUES ($1, $2)", [id, everyone]);
+    await rollupDays(h.pool, ["2026-05-20", "2026-07-02"], TZ);
+    const a = await h.signIn(admin);
+    const july = "range=custom&from=2026-07-01&to=2026-07-31";
+    const plain = (await a.inject({ method: "GET", url: `/api/v1/analytics/sources?${july}` })).json();
+    const live = (
+      await a.inject({ method: "GET", url: `/api/v1/analytics/sources?${july}&tag=${everyone}` })
+    ).json();
+    expect(plain.sources).toEqual([]);
+    expect(live.sources).toEqual([]);
+  });
+
   it("someone who sees every number but opens only their own leads: tags, fields and what converts are refused in words, not counted short", async () => {
     const mixed = await h.seedUser({
       grants: [

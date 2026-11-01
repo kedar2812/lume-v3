@@ -17,8 +17,9 @@ test("@smoke signing in: the door, a wrong password, then in — and back to whe
 
   await page.getByLabel("Password", { exact: true }).fill(PEOPLE.aman.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  // Aman hasn't done onboarding, so the app routes him there first.
-  await expect(page).toHaveURL(/\/welcome$/);
+  // Aman hasn't done onboarding, so the app routes him there first. The password check (argon2), the way to /leads
+  // and its redirect together passed 5 s on a loaded build box (2026-11-01), so their own limit.
+  await expect(page).toHaveURL(/\/welcome$/, { timeout: 15_000 });
 
   // Already signed in, the sign-in page steps aside.
   await page.goto("/sign-in");
