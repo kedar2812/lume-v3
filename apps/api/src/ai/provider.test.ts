@@ -139,7 +139,10 @@ describe("Anthropic (Claude)", () => {
 
   it("an explanation a little past its limit is shortened, not thrown away (eval 2026-10-31)", async () => {
     const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
-    const summary = "She liked the 3D design and wants the quote revised for a smaller island before she decides, ".repeat(2);
+    const summary =
+      "She liked the 3D design and wants the quote revised for a smaller island before she decides, ".repeat(
+        2,
+      );
     reply = () => ({ status: 200, body: claude(JSON.stringify({ ...answer, summary })) });
     const r = await p.read(ask());
     const got = (r.output as { summary: string }).summary;

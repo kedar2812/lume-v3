@@ -43,13 +43,24 @@ const clean = (options: ReturnType<typeof option>[], c = ctx()) =>
 describe("LUME AI's template drafts", () => {
   it("asks for two or three, and keeps those LUME could submit as they are", () => {
     expect(templateDraftOutput.safeParse({ options: [option()] }).success).toBe(false);
-    expect(templateDraftOutput.safeParse({ options: [option(), option(), option(), option()] }).success).toBe(false);
-    const out = clean([option(), option({ name: "Designs ready", body: "Hi {{lead.first_name}}, your designs are ready to see. When suits you?" })]);
+    expect(templateDraftOutput.safeParse({ options: [option(), option(), option(), option()] }).success).toBe(
+      false,
+    );
+    const out = clean([
+      option(),
+      option({
+        name: "Designs ready",
+        body: "Hi {{lead.first_name}}, your designs are ready to see. When suits you?",
+      }),
+    ]);
     expect(out.map((o) => o.name)).toEqual(["Gentle nudge", "Designs ready"]);
   });
 
   it("drops one with a variable LUME doesn't have", () => {
-    const out = clean([option(), option({ name: "Bad", body: "Hi {{lead.budget}}, still keen on a visit?" })]);
+    const out = clean([
+      option(),
+      option({ name: "Bad", body: "Hi {{lead.budget}}, still keen on a visit?" }),
+    ]);
     expect(out.map((o) => o.name)).toEqual(["Gentle nudge"]);
   });
 
@@ -60,13 +71,18 @@ describe("LUME AI's template drafts", () => {
       option({ name: "Ends", body: "A quick hello from {{business.name}}" }),
     ]);
     expect(out.map((o) => o.name)).toEqual(["Gentle nudge"]);
-    expect(clean([option({ body: "Hi {{lead.first_name}} {{owner.first_name}} here, any questions?" })])).toEqual([]);
+    expect(
+      clean([option({ body: "Hi {{lead.first_name}} {{owner.first_name}} here, any questions?" })]),
+    ).toEqual([]);
   });
 
   it("drops a price not in the price list, and any discount it wasn't given", () => {
     const out = clean([
       option(),
-      option({ name: "Listed", body: "Hi {{lead.first_name}}, a modular kitchen is ₹3,80,000. Want a visit?" }),
+      option({
+        name: "Listed",
+        body: "Hi {{lead.first_name}}, a modular kitchen is ₹3,80,000. Want a visit?",
+      }),
       option({ name: "Made up", body: "Hi {{lead.first_name}}, kitchens start at ₹2,50,000. Want a visit?" }),
       option({ name: "Offer", body: "Hi {{lead.first_name}}, 20% off this week only. Want a visit?" }),
     ]);

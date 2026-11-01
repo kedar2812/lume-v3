@@ -41,7 +41,9 @@ describe("Write with LUME AI", () => {
       "Follow up with leads who asked for pricing and went quiet",
     );
     await userEvent.click(within(sheet).getByRole("button", { name: "Write templates" }));
-    expect(templatesClient.draft).toHaveBeenCalledWith("Follow up with leads who asked for pricing and went quiet");
+    expect(templatesClient.draft).toHaveBeenCalledWith(
+      "Follow up with leads who asked for pricing and went quiet",
+    );
     const cards = await within(sheet).findAllByRole("article");
     expect(cards).toHaveLength(2);
     expect(cards[0]).toHaveTextContent("Friendly follow-up");
@@ -70,7 +72,9 @@ describe("Write with LUME AI", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "What should this template do?" }), "Follow up");
     await userEvent.click(screen.getByRole("button", { name: "Write templates" }));
     expect(
-      await screen.findByText("LUME AI couldn't write one LUME could send for that. Try saying it another way."),
+      await screen.findByText(
+        "LUME AI couldn't write one LUME could send for that. Try saying it another way.",
+      ),
     ).toBeInTheDocument();
   });
 

@@ -146,7 +146,10 @@ test.describe.serial("WhatsApp", () => {
     );
     await expect(async () => {
       await page.reload();
-      await page.getByRole("dialog", { name: "Sneha Reddy", exact: true }).getByRole("tab", { name: "WhatsApp" }).click();
+      await page
+        .getByRole("dialog", { name: "Sneha Reddy", exact: true })
+        .getByRole("tab", { name: "WhatsApp" })
+        .click();
       await expect(page.getByRole("img", { name: "Photo from Sneha" })).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 30_000 });
 
@@ -630,7 +633,9 @@ test.describe.serial("WhatsApp", () => {
   });
 });
 
-test("a link to one card lands on it; an address that isn't a page says so (2026-10-31)", async ({ page }) => {
+test("a link to one card lands on it; an address that isn't a page says so (2026-10-31)", async ({
+  page,
+}) => {
   // Autopilot's "Fix it" led to /settings/integrations/whatsapp, read as a sheet's id: "Request is invalid", under a
   // tab titled Google Sheet. Links now name the card; the cards load after the page, which must still land on them.
   await page.setViewportSize({ width: 1366, height: 600 });
@@ -642,7 +647,9 @@ test("a link to one card lands on it; an address that isn't a page says so (2026
   expect(r?.status()).toBe(404);
 });
 
-test("Write with LUME AI fits a phone: the request, then the drafts one under another (2026-10-31)", async ({ page }) => {
+test("Write with LUME AI fits a phone: the request, then the drafts one under another (2026-10-31)", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openApp(page, "/templates");
   await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: true });
@@ -650,14 +657,18 @@ test("Write with LUME AI fits a phone: the request, then the drafts one under an
     await page.reload();
     await page.getByRole("button", { name: "Write with LUME AI" }).click();
     const sheet = page.getByRole("dialog", { name: "Write with LUME AI" });
-    await sheet.getByRole("textbox", { name: "What should this template do?" }).fill("Follow up after no reply");
+    await sheet
+      .getByRole("textbox", { name: "What should this template do?" })
+      .fill("Follow up after no reply");
     await sheet.getByRole("button", { name: "Write templates" }).click();
     const cards = sheet.getByRole("article");
     await expect(cards.first()).toBeVisible();
     // One under another, each the sheet's width; nothing off the side of the phone.
     const [a, b] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
     expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1);
-    expect(await sheet.evaluate((el) => el.getBoundingClientRect().right <= window.innerWidth + 0.5)).toBe(true);
+    expect(await sheet.evaluate((el) => el.getBoundingClientRect().right <= window.innerWidth + 0.5)).toBe(
+      true,
+    );
     expect(await sheet.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });

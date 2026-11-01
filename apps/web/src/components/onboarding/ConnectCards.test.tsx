@@ -16,8 +16,15 @@ describe("onboarding's Connect cards", () => {
   it("Google Calendar's Connect goes to Google from here and comes back to onboarding (2026-10-31)", async () => {
     // It linked to /calendar, which onboarding sends back to /welcome: Connect did nothing.
     const assign = vi.fn();
-    Object.defineProperty(window, "location", { configurable: true, value: { ...window.location, pathname: "/welcome", assign } });
-    vi.mocked(calendarClient.connect).mockResolvedValue({ ok: true, status: 200, data: { url: "https://connect.lumecrm.in/start?x" } } as never);
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, pathname: "/welcome", assign },
+    });
+    vi.mocked(calendarClient.connect).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { url: "https://connect.lumecrm.in/start?x" },
+    } as never);
     render(<ConnectCards calendar sheets={false} />);
     await userEvent.click(screen.getByRole("button", { name: /connect/i }));
     expect(calendarClient.connect).toHaveBeenCalled();

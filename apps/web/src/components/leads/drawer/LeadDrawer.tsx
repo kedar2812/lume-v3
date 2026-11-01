@@ -191,7 +191,11 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   // Try again sends the failed message once more and takes it off the thread (2026-10-31: it stayed, with a live
   // Try again, and a second tap sent a second copy).
   const waRetry = async (m: WaThreadMessage) => {
-    const r = await whatsappClient.send(id, { clientKey: crypto.randomUUID(), text: m.text ?? "", retryOf: m.id });
+    const r = await whatsappClient.send(id, {
+      clientKey: crypto.randomUUID(),
+      text: m.text ?? "",
+      retryOf: m.id,
+    });
     if (!r.ok) return toast({ tone: "danger", title: "Didn't go", detail: r.message });
     setWa((w) => (w ? { ...w, messages: w.messages.filter((x) => x.id !== m.id) } : w));
     waSent(r.data.message);
@@ -312,8 +316,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     if (t === "whatsapp") {
       loadWa();
       setChat(true);
-    }
-    else if (t !== "details") reloadActivities();
+    } else if (t !== "details") reloadActivities();
   };
 
   const pipeline = lead ? catalog.pipelines.find((p) => p.id === lead.pipelineId) : undefined;

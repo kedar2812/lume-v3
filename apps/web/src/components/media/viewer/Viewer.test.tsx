@@ -112,7 +112,12 @@ describe("LUME's own viewer (plan 2026-10-20-media-tab, Task 7)", () => {
   });
 
   it("a photo from a WhatsApp chat opens from its own address, back to the chat, with Download and no Info (2026-10-31)", async () => {
-    const photo = file({ id: "m1", name: "Photo from Sneha.jpg", src: "/api/v1/whatsapp/media/m1", thumbUrl: null });
+    const photo = file({
+      id: "m1",
+      name: "Photo from Sneha.jpg",
+      src: "/api/v1/whatsapp/media/m1",
+      thumbUrl: null,
+    });
     const onClose = vi.fn();
     render(
       <Viewer

@@ -59,7 +59,11 @@ export async function draftTemplates(
   });
   if ("unavailable" in r)
     throw r.unavailable === "limit"
-      ? new HttpError(429, "AI_LIMIT", "LUME AI has reached its limit for now. Try again later, or ask for a top-up.")
+      ? new HttpError(
+          429,
+          "AI_LIMIT",
+          "LUME AI has reached its limit for now. Try again later, or ask for a top-up.",
+        )
       : new HttpError(503, "AI_UNAVAILABLE", "LUME AI couldn't write these just now. Try again.");
   return { options: cleanTemplateDrafts(r.output, c) };
 }

@@ -72,7 +72,9 @@ export function TemplatePick({
     };
   }, [leadId]);
 
-  const readyIds = state?.number ? state.options.filter((o) => o.missing.length === 0).map((o) => o.submissionId) : [];
+  const readyIds = state?.number
+    ? state.options.filter((o) => o.missing.length === 0).map((o) => o.submissionId)
+    : [];
   const asks = ai && !dismissed && readyIds.length > 0;
   const askKey = `${leadId}:${readyIds.join(",")}`;
   useEffect(() => {

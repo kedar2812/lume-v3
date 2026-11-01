@@ -258,7 +258,8 @@ export function NotificationCentre({
       const root = panel.current;
       if (!t || !root || root.contains(t)) return;
       if (t.closest('[aria-haspopup="dialog"][aria-expanded="true"]')) return;
-      if (!t.closest("[data-centre-scrim]") && t.closest('[aria-modal="true"], [role="menu"], [data-scrim]')) return;
+      if (!t.closest("[data-centre-scrim]") && t.closest('[aria-modal="true"], [role="menu"], [data-scrim]'))
+        return;
       closeRef.current();
     };
     document.addEventListener("pointerdown", h, true);

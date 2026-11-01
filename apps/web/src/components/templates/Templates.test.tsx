@@ -81,11 +81,15 @@ describe("Write with LUME AI on the library (owner, 2026-10-31)", () => {
 
   it("only with LUME AI on, for whoever manages templates", () => {
     aiOn = false;
-    const { unmount } = render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />);
+    const { unmount } = render(
+      <TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />,
+    );
     expect(screen.queryByRole("button", { name: "Write with LUME AI" })).toBeNull();
     unmount();
     aiOn = true;
-    const second = render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage={false} />);
+    const second = render(
+      <TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage={false} />,
+    );
     expect(screen.queryByRole("button", { name: "Write with LUME AI" })).toBeNull();
     second.unmount();
     render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />);
@@ -114,7 +118,10 @@ describe("Write with LUME AI on the library (owner, 2026-10-31)", () => {
     render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />);
     await userEvent.click(screen.getByRole("button", { name: "Write with LUME AI" }));
     const sheet = screen.getByRole("dialog", { name: "Write with LUME AI" });
-    await userEvent.type(within(sheet).getByRole("textbox", { name: "What should this template do?" }), "Nudge");
+    await userEvent.type(
+      within(sheet).getByRole("textbox", { name: "What should this template do?" }),
+      "Nudge",
+    );
     await userEvent.click(within(sheet).getByRole("button", { name: "Write templates" }));
     const [first] = await within(sheet).findAllByRole("article");
     await userEvent.click(within(first!).getByRole("button", { name: "Use this" }));

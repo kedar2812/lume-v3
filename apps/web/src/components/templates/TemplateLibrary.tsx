@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { useAiOn } from "@/lib/ai/use-ai-on";
-import { templatesClient, type RoleName, type TemplateDraft, type TemplateView } from "@/lib/templates/client";
+import {
+  templatesClient,
+  type RoleName,
+  type TemplateDraft,
+  type TemplateView,
+} from "@/lib/templates/client";
 import { DraftWithAi } from "./DraftWithAi";
 import { TemplateEditor, type EditorField } from "./TemplateEditor";
 import { TokenLine } from "./TokenLine";

@@ -14,7 +14,11 @@ export type Recommendation = { pick: { submissionId: string; why: string } | nul
  * sees each template in this lead's words and may name only one of them. Nothing when LUME AI is off, when no template
  * has every value it needs, or when the answer names something else; the reply box then offers the list as before.
  */
-export async function recommendTemplate(req: FastifyRequest, d: AppDeps, leadId: string): Promise<Recommendation> {
+export async function recommendTemplate(
+  req: FastifyRequest,
+  d: AppDeps,
+  leadId: string,
+): Promise<Recommendation> {
   const lead = await sendable(req, leadId);
   const state = await templateState(req, d, lead);
   const ready = state?.number ? state.options.filter((o) => o.missing.length === 0) : [];

@@ -76,9 +76,13 @@ describe("POST /api/v1/leads/:id/whatsapp/templates/recommend", () => {
       admin,
       "Hi {{lead.first_name}}, would a short call this week suit you?",
     );
-    provider.script("autopilot_first", [{ templateId: call, why: "Mrunal asked how it works: a call shows it best." }]);
+    provider.script("autopilot_first", [
+      { templateId: call, why: "Mrunal asked how it works: a call shows it best." },
+    ]);
     const l = await lead();
-    const state = await (await as(rep)).inject({ method: "GET", url: `/api/v1/leads/${l}/whatsapp/templates` });
+    const state = await (
+      await as(rep)
+    ).inject({ method: "GET", url: `/api/v1/leads/${l}/whatsapp/templates` });
     expect(state.json().options?.length, state.body).toBe(2);
     const r = await recommend(rep, l);
     expect(r.statusCode, r.body).toBe(200);

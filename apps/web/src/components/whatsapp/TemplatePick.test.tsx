@@ -49,7 +49,9 @@ beforeEach(() => {
   sessionStorage.clear();
   forgetTemplatePicks();
   vi.mocked(whatsappClient.recommendTemplate).mockResolvedValue(
-    ok({ pick: { submissionId: "s1", why: "Sneha went quiet after asking about visits: a gentle nudge fits." } }),
+    ok({
+      pick: { submissionId: "s1", why: "Sneha went quiet after asking about visits: a gentle nudge fits." },
+    }),
   );
   vi.mocked(whatsappClient.templateState).mockResolvedValue(ok(STATE));
   vi.mocked(whatsappClient.sendTemplate).mockResolvedValue(ok({ message: sent }));
@@ -110,10 +112,15 @@ describe("Recommended by LUME AI (owner, 2026-10-31)", () => {
     const rec = await screen.findByRole("region", { name: "Recommended by LUME AI" });
     await waitFor(() => expect(rec).toHaveTextContent("Gentle nudge"));
     expect(rec).toHaveTextContent("Hi Sneha, still keen on a visit this week?");
-    expect(rec).toHaveTextContent("Why this one: Sneha went quiet after asking about visits: a gentle nudge fits.");
+    expect(rec).toHaveTextContent(
+      "Why this one: Sneha went quiet after asking about visits: a gentle nudge fits.",
+    );
     expect(rec).toHaveTextContent("WhatsApp charges about ₹0.86 + GST for this.");
     await userEvent.click(screen.getByRole("button", { name: "Send template" }));
-    expect(whatsappClient.sendTemplate).toHaveBeenCalledWith("l1", { submissionId: "s1", clientKey: expect.any(String) });
+    expect(whatsappClient.sendTemplate).toHaveBeenCalledWith("l1", {
+      submissionId: "s1",
+      clientKey: expect.any(String),
+    });
     await waitFor(() => expect(onSent).toHaveBeenCalledWith(sent));
   });
 

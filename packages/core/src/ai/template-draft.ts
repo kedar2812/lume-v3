@@ -82,7 +82,10 @@ export function templateDraftInput(c: TemplateDraftCtx): string {
  * doesn't have, for anything WhatsApp would turn down, for a price not in the price list or an offer, and for being
  * a copy of another; a name already in the list is told apart.
  */
-export function cleanTemplateDrafts(out: z.infer<typeof templateDraftOutput>, c: TemplateDraftCtx): TemplateDraft[] {
+export function cleanTemplateDrafts(
+  out: z.infer<typeof templateDraftOutput>,
+  c: TemplateDraftCtx,
+): TemplateDraft[] {
   const known = new Set(c.variables.map((v) => v.token));
   const prices = c.profile.knows.prices.map((p) => p.price);
   const seen = new Set<string>();

@@ -21,8 +21,11 @@ const reads = async () =>
     "SELECT task, lead_id, status FROM ai_reads ORDER BY created_at",
   );
 const monthUsed = async () =>
-  ((await (await as(admin)).inject({ method: "GET", url: "/api/v1/ai" })).json() as { month?: { used: number } }).month
-    ?.used;
+  (
+    (await (await as(admin)).inject({ method: "GET", url: "/api/v1/ai" })).json() as {
+      month?: { used: number };
+    }
+  ).month?.used;
 
 beforeAll(async () => {
   h = await createHarness({
@@ -39,7 +42,9 @@ beforeEach(async () => {
   await h.ownerPool.query("TRUNCATE ai_reads, ai_limit_notices");
   licence.setPlan({ places: null, modules: ALL_MODULES, aiReadsHourly: null, aiCallsMonthly: 1000 });
   await (await as(admin)).inject({ method: "POST", url: "/api/v1/licence/check" });
-  await (await as(admin)).inject({ method: "PUT", url: "/api/v1/integrations/ai", payload: { enabled: true } });
+  await (
+    await as(admin)
+  ).inject({ method: "PUT", url: "/api/v1/integrations/ai", payload: { enabled: true } });
 });
 
 describe("POST /api/v1/templates/draft", () => {
@@ -57,7 +62,9 @@ describe("POST /api/v1/templates/draft", () => {
     }
     expect(await reads()).toEqual([{ task: "template_draft", lead_id: null, status: "ok" }]);
     // Never about one lead: nothing of any lead goes to LUME AI.
-    expect(provider.calls.at(-1)!.input).toContain("Follow up with leads who asked for pricing and went quiet");
+    expect(provider.calls.at(-1)!.input).toContain(
+      "Follow up with leads who asked for pricing and went quiet",
+    );
   });
 
   it("drafts LUME couldn't submit are left out; none left says so with an empty list", async () => {
@@ -65,7 +72,12 @@ describe("POST /api/v1/templates/draft", () => {
       {
         options: [
           { name: "Starts", category: "follow_up", body: "{{lead.first_name}}, still keen?", why: "Short." },
-          { name: "Offer", category: "follow_up", body: "Hi {{lead.first_name}}, 30% off today. Keen?", why: "Urgent." },
+          {
+            name: "Offer",
+            category: "follow_up",
+            body: "Hi {{lead.first_name}}, 30% off today. Keen?",
+            why: "Urgent.",
+          },
         ],
       },
     ]);
@@ -75,7 +87,9 @@ describe("POST /api/v1/templates/draft", () => {
   });
 
   it("LUME AI off: said in words, and nothing is read", async () => {
-    await (await as(admin)).inject({ method: "PUT", url: "/api/v1/integrations/ai", payload: { enabled: false } });
+    await (
+      await as(admin)
+    ).inject({ method: "PUT", url: "/api/v1/integrations/ai", payload: { enabled: false } });
     const r = await draft(admin, "Follow up");
     expect(r.statusCode).toBe(400);
     expect(r.json().error.code).toBe("AI_OFF");

@@ -13,7 +13,12 @@ vi.mock("@/components/media/viewer/Viewer", () => ({
     info: boolean;
     onClose(id: string): void;
   }) => (
-    <div role="dialog" aria-label={p.files[0]!.name} data-src={p.files[0]!.src} data-view={p.files[0]!.viewAs}>
+    <div
+      role="dialog"
+      aria-label={p.files[0]!.name}
+      data-src={p.files[0]!.src}
+      data-view={p.files[0]!.viewAs}
+    >
       <button type="button" onClick={() => p.onClose("x")}>
         Back to {p.back}
       </button>
@@ -128,7 +133,10 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
         leadName="Sneha Reddy"
         tz={TZ}
         messages={[
-          msg({ id: "1", media: { id: "v1", kind: "video", mime: "video/mp4", filename: null, voice: false } }),
+          msg({
+            id: "1",
+            media: { id: "v1", kind: "video", mime: "video/mp4", filename: null, voice: false },
+          }),
         ]}
       />,
     );

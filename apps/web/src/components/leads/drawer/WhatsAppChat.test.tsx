@@ -23,7 +23,13 @@ const msg = (o: Partial<WaThreadMessage> & { id: string }): WaThreadMessage => (
 });
 const MESSAGES = [
   msg({ id: "1", text: "hlo saw ur ad, what does lume do?" }),
-  msg({ id: "2", direction: "out", text: "hey there, how are you", status: "delivered", sentBy: { id: "u", name: "Kedar Gurav" } }),
+  msg({
+    id: "2",
+    direction: "out",
+    text: "hey there, how are you",
+    status: "delivered",
+    sentBy: { id: "u", name: "Kedar Gurav" },
+  }),
 ];
 
 /** The lead's WhatsApp as its own window (owner, 2026-10-31): over everything, the reply box pinned at its foot. */
@@ -54,7 +60,9 @@ describe("WhatsApp chat window", () => {
 
   it("Close and Escape close it", async () => {
     const onClose = vi.fn();
-    render(<WhatsAppChat leadName="Kedar Gurav" phone={null} tz={TZ} messages={MESSAGES} onClose={onClose} />);
+    render(
+      <WhatsAppChat leadName="Kedar Gurav" phone={null} tz={TZ} messages={MESSAGES} onClose={onClose} />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Close (Esc)" }));
     expect(onClose).toHaveBeenCalledTimes(1);
     await userEvent.keyboard("{Escape}");
@@ -62,7 +70,9 @@ describe("WhatsApp chat window", () => {
   });
 
   it("no reply box (replying from LUME is off): says where replies go instead", () => {
-    render(<WhatsAppChat leadName="Kedar Gurav" phone={null} tz={TZ} messages={MESSAGES} onClose={vi.fn()} />);
+    render(
+      <WhatsAppChat leadName="Kedar Gurav" phone={null} tz={TZ} messages={MESSAGES} onClose={vi.fn()} />,
+    );
     expect(screen.getByText(/Replies arrive here by themselves/)).toBeInTheDocument();
   });
 });

@@ -99,7 +99,9 @@ export function WhatsAppChat({
         </div>
         <div className={s.chatFoot} data-chat-foot>
           {composer ?? (
-            <p className={s.foot}>Replies arrive here by themselves. Reply on your phone; it shows up here too.</p>
+            <p className={s.foot}>
+              Replies arrive here by themselves. Reply on your phone; it shows up here too.
+            </p>
           )}
         </div>
       </motion.div>

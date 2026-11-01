@@ -104,8 +104,8 @@ export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: I
       )}
       {usable && (
         <p className={s.aiPrivacy}>
-          What LUME AI reads is sent to the AI provider: a note, a reply, or a run's conversation. It isn't used to
-          train the AI, and LUME AI messages a lead only in a run someone starts on the LUME AI page.
+          What LUME AI reads is sent to the AI provider: a note, a reply, or a run's conversation. It isn't
+          used to train the AI, and LUME AI messages a lead only in a run someone starts on the LUME AI page.
         </p>
       )}
       {on && status && (

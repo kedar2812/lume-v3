@@ -177,9 +177,14 @@ describe("guards hold", () => {
 
   it("the business's own hours may be said; a slot neither the business nor the lead gave is still held (eval 2026-10-31)", () => {
     // Every held reply in the Sonnet 5.5 eval repeated hours the business wrote in Settings → LUME AI.
-    const hours = guard({ businessWords: "We are open Monday to Saturday, 10 am to 7 pm, near Baner metro." });
+    const hours = guard({
+      businessWords: "We are open Monday to Saturday, 10 am to 7 pm, near Baner metro.",
+    });
     expect(
-      guardReply(reply({ message: "We're open Monday to Saturday, 10 am to 7 pm. Which day suits you?" }), hours),
+      guardReply(
+        reply({ message: "We're open Monday to Saturday, 10 am to 7 pm. Which day suits you?" }),
+        hours,
+      ),
     ).toMatchObject({ kind: "send" });
     expect(guardReply(reply({ message: "Shall we say Saturday 4 pm?" }), hours)).toMatchObject({
       kind: "handover",
@@ -203,10 +208,18 @@ describe("guards hold", () => {
         ...DEFAULT_AI_PROFILE.knows,
         about: "A clinic on Baner Road.",
         faqs: [{ q: "When are you open?", a: "Monday to Saturday, 10 am to 7 pm." }],
-        prices: [{ id: "p1", item: "Consultation", price: 800, unit: "per visit", notes: "Sundays by appointment" }],
+        prices: [
+          { id: "p1", item: "Consultation", price: 800, unit: "per visit", notes: "Sundays by appointment" },
+        ],
       },
     });
-    for (const w of ["Baner Road", "When are you open?", "10 am to 7 pm", "Consultation", "Sundays by appointment"])
+    for (const w of [
+      "Baner Road",
+      "When are you open?",
+      "10 am to 7 pm",
+      "Consultation",
+      "Sundays by appointment",
+    ])
       expect(words).toContain(w);
   });
 

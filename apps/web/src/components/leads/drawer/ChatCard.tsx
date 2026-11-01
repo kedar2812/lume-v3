@@ -6,7 +6,13 @@ import type { WaThreadMessage } from "@/lib/whatsapp/types";
 import s from "./whatsapp.module.css";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
-const NOUN = { image: "Photo", sticker: "Sticker", video: "Video", audio: "Voice note", document: "Document" } as const;
+const NOUN = {
+  image: "Photo",
+  sticker: "Sticker",
+  video: "Video",
+  audio: "Voice note",
+  document: "Document",
+} as const;
 
 /**
  * The WhatsApp tab, while the chat is a window of its own (2026-10-31): the latest message at a glance, and Open chat

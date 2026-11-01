@@ -14,7 +14,10 @@ const STARTERS = [
   { label: "Thank a new enquiry", prompt: "Thank someone who just enquired and invite them to a short call" },
   { label: "Follow up after no reply", prompt: "Follow up with leads who haven't replied in a few days" },
   { label: "Remind about a visit", prompt: "Remind a lead about their booked visit and ask them to confirm" },
-  { label: "Win back an old lead", prompt: "Reconnect with a lead who went quiet a month ago, warmly, without pressure" },
+  {
+    label: "Win back an old lead",
+    prompt: "Reconnect with a lead who went quiet a month ago, warmly, without pressure",
+  },
 ] as const;
 const categoryLabel = (key: string) => TEMPLATE_CATEGORIES.find((c) => c.key === key)?.label ?? key;
 
@@ -62,7 +65,9 @@ export function DraftWithAi({
         </span>
         <div>
           <h2 className={s.title}>Write with LUME AI</h2>
-          <p className={s.lede}>Say what the template is for. LUME AI writes a few to choose from, in your voice.</p>
+          <p className={s.lede}>
+            Say what the template is for. LUME AI writes a few to choose from, in your voice.
+          </p>
         </div>
       </header>
 
@@ -129,7 +134,9 @@ export function DraftWithAi({
           </p>
         )}
         {state.is === "none" && (
-          <p className={s.status}>LUME AI couldn&apos;t write one LUME could send for that. Try saying it another way.</p>
+          <p className={s.status}>
+            LUME AI couldn&apos;t write one LUME could send for that. Try saying it another way.
+          </p>
         )}
         {state.is === "ready" && (
           <>

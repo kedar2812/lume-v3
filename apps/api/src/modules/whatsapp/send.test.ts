@@ -284,7 +284,9 @@ describe("sending", () => {
       const lead = await h.seedLead({ ownerId: rep.id, name: "Asha Rao", phone });
       await writes({ from: phone });
       const was = await failed(lead, "hello");
-      const dnc = await (await as(admin)).inject({
+      const dnc = await (
+        await as(admin)
+      ).inject({
         method: "POST",
         url: `/api/v1/leads/${lead}/do-not-contact`,
         payload: { reason: "Asked on a call" },

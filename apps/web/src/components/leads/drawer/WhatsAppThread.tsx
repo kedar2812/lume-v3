@@ -31,7 +31,8 @@ const viewAsOf = (mime: string, kind: WaMediaInfo["kind"]): ViewAs => {
   if (kind === "video" || mime.startsWith("video/")) return "video";
   if (kind === "audio" || mime.startsWith("audio/")) return "audio";
   if (mime === "application/pdf") return "pdf";
-  if (mime === "text/csv" || mime.includes("spreadsheet") || mime === "application/vnd.ms-excel") return "sheet";
+  if (mime === "text/csv" || mime.includes("spreadsheet") || mime === "application/vnd.ms-excel")
+    return "sheet";
   if (mime.startsWith("text/")) return "text";
   return "office";
 };
@@ -287,7 +288,9 @@ export function WhatsAppThread({
   const foot = bare
     ? null
     : (composer ?? (
-        <p className={s.foot}>Replies arrive here by themselves. Reply on your phone; it shows up here too.</p>
+        <p className={s.foot}>
+          Replies arrive here by themselves. Reply on your phone; it shows up here too.
+        </p>
       ));
   // A message that arrives, or one just sent, rises in from the reply box; the rest stay still (initial={false}).
   const rise = reduce

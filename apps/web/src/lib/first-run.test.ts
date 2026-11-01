@@ -33,10 +33,12 @@ describe("firstRunStop", () => {
     for (const path of ["/calendar", "/today", "/calendar/connected/x", "/calendar/connectedx", null])
       expect(firstRunStop(onboarding, false, path), String(path)).toBe("/welcome");
     // Never past the agreement or a required two-step.
-    expect(firstRunStop(flags({ needsAgreement: true, needsOnboarding: true }), false, "/calendar/connected")).toBe(
-      "/agree",
+    expect(
+      firstRunStop(flags({ needsAgreement: true, needsOnboarding: true }), false, "/calendar/connected"),
+    ).toBe("/agree");
+    expect(firstRunStop(flags({ needsTwoFactorEnrolment: true }), false, "/calendar/connected")).toBe(
+      "/welcome",
     );
-    expect(firstRunStop(flags({ needsTwoFactorEnrolment: true }), false, "/calendar/connected")).toBe("/welcome");
   });
 
   it("while LUME is locked, onboarding waits: the agreement and a required two-step still come first", () => {
