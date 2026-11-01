@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RunAsk, RunLead } from "@/lib/autopilot/types";
 import { leadLine, whenWords } from "@/lib/autopilot/words";
-import { useAutopilot } from "@/lib/notifications/stream";
+import { useAutopilot, useWhatsApp } from "@/lib/notifications/stream";
+import { useChatOnScreen } from "@/lib/whatsapp/open-chats";
 import { useStickToBottom } from "@/lib/ui/use-stick-to-bottom";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaThread } from "@/lib/whatsapp/types";
@@ -86,6 +87,11 @@ export function LiveConversation({
   useAutopilot((e) => {
     if (e.lead === shown.current || e.run === "*") read();
   });
+  // Any WhatsApp message on this chat too (2026-11-01): a lead that's ready for a person writes again, a person replies.
+  useWhatsApp((e) => {
+    if (e.lead === shown.current || e.lead === "*") read();
+  });
+  useChatOnScreen(lead.leadId);
 
   // The newest message stays in view as messages arrive and LUME AI types, unless someone scrolled up to read.
   const scroller = useRef<HTMLDivElement>(null);
@@ -202,21 +208,25 @@ export function LiveConversation({
           </span>
         </p>
         {lead.card?.quote && <blockquote className={s.barQuote}>{`“${lead.card.quote}”`}</blockquote>}
-        {mayMessage && (
+        {mayMessage && canDecide && (
           <div className={s.barActions}>
-            {canDecide && (
-              <Button size="sm" variant="ghost" onClick={onCarryOn}>
-                Let LUME AI carry on
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={onTakeOver}
-              {...(ready ? { "aria-label": `Take over ${who}` } : {})}
-            >
-              {ready ? "Take over" : "Reply yourself"}
+            <Button size="sm" variant="ghost" onClick={onCarryOn}>
+              Let LUME AI carry on
             </Button>
+          </div>
+        )}
+        {/* The reply box itself (owner, 2026-11-01: "where is the text box?"): LUME AI is waiting on a person here, so
+            what's typed is theirs. */}
+        {thread?.reply && (
+          <div className={s.mine}>
+            <WhatsAppComposer
+              key={lead.leadId}
+              leadId={lead.leadId}
+              leadName={lead.name}
+              tz={tz}
+              reply={thread.reply}
+              onSent={() => read()}
+            />
           </div>
         )}
       </section>

@@ -81,6 +81,12 @@
   white-space: nowrap;
   color: var(--text-2);
 }
+/* Let LUME AI handle these (2026-11-01): the group's leads into a run, through the start sheet. */
+.ai {
+  justify-self: start;
+  align-self: start;
+  gap: 6px;
+}
 .action {
   display: flex;
   flex-wrap: wrap;

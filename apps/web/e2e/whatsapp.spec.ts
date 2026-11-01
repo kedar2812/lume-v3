@@ -586,6 +586,59 @@ test.describe.serial("WhatsApp", () => {
     }
   });
 
+  test("live: a message in shows in the open chat by itself; on another page it's a notice that opens the chat (2026-11-01)", async ({
+    page,
+  }) => {
+    // Owner: "I have to close and reopen the window to see that the lead has texted me back."
+    await page.setViewportSize({ width: 1366, height: 800 });
+    await openApp(page, "/leads");
+    await callApi(page, "PUT", "/api/v1/integrations/whatsapp", { replyFromLume: true });
+    const id = await lead(page, "Ishaan Kapoor", "+919876512401");
+    const says = (n: number, body: string) =>
+      meta(
+        page.request,
+        inbound({
+          from: "919876512401",
+          name: "Ishaan Kapoor",
+          id: `wamid.E2ELIVE${n}`,
+          at: new Date().toISOString(),
+          type: "text",
+          text: { body },
+        }),
+      );
+    await says(1, "Hello there");
+    await openApp(page, `/leads?lead=${id}`);
+    const drawer = page.getByRole("dialog", { name: "Ishaan Kapoor", exact: true });
+    const chat = page.getByRole("dialog", { name: "WhatsApp with Ishaan Kapoor" });
+    const messages = chat.getByRole("list", { name: "WhatsApp messages with Ishaan" });
+    await expect(async () => {
+      await openChat(page, drawer, "Ishaan Kapoor");
+      await expect(messages).toContainText("Hello there", { timeout: 1000 });
+    }).toPass({ timeout: 20_000 });
+    // The next one arrives while the chat is open: there without reopening, and no notice for a chat on screen.
+    await says(2, "Can we talk at 5?");
+    await expect(messages).toContainText("Can we talk at 5?", { timeout: 15_000 });
+    const notices = page.getByRole("region", { name: "Messages from your leads" });
+    await expect(notices.getByRole("button", { name: /Open the chat$/ })).toHaveCount(0);
+    // Elsewhere in LUME: a notice in the corner, and pressing it opens the chat.
+    await openApp(page, "/today");
+    await says(3, "Still there?");
+    const notice = notices.getByRole("button", {
+      name: "Ishaan Kapoor on WhatsApp: Still there?. Open the chat",
+    });
+    await expect(notice).toBeVisible({ timeout: 15_000 });
+    const box = await notice.boundingBox();
+    // Bottom right, clear of the edges.
+    expect(box!.x + box!.width).toBeGreaterThan(1366 - 60);
+    expect(box!.y + box!.height).toBeGreaterThan(800 - 60);
+    await notice.click();
+    // Their chat, open: Leads keeps only the lead in its address (a reload doesn't open the chat again).
+    await expect(page).toHaveURL(new RegExp("/leads\\?lead=" + id));
+    await expect(chat).toBeVisible();
+    await expect(messages).toContainText("Still there?");
+    expect(await axe(page)).toEqual([]);
+  });
+
   test("on a phone: the chat fills the screen, the reply box whole at its foot, nothing wider than the screen (2026-10-31)", async ({
     page,
   }) => {

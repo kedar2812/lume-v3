@@ -20,10 +20,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
     typeof since === "string" && !Number.isNaN(Date.parse(since))
       ? new Date(since).toISOString()
       : new Date(Date.now() - WEEK).toISOString();
-  const [board, pipelines, reasons] = await Promise.all([
+  const [board, pipelines, reasons, ai] = await Promise.all([
     apiGet<ReplyBoard>(`/api/v1/whatsapp/replies?since=${encodeURIComponent(from)}`),
     apiGet<{ pipelines: Pipeline[] }>("/api/v1/pipelines"),
     apiGet<{ lostReasons: LostReason[] }>("/api/v1/lost-reasons"),
+    apiGet<{ on: boolean }>("/api/v1/ai"),
   ]);
   const pipeline = pipelines.data?.pipelines.find((p) => p.isDefault) ?? pipelines.data?.pipelines[0];
   return (
@@ -32,6 +33,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       stages={(pipeline?.stages ?? []).map((x) => ({ id: x.id, name: x.name, kind: x.kind }))}
       lostReasons={(reasons.data?.lostReasons ?? []).map((r) => ({ id: r.id, label: r.label }))}
       canBulk={can(session.actor, "leads.bulk_edit")}
+      canAi={!!ai.data?.on && can(session.actor, "messages.send_queue")}
     />
   );
 }

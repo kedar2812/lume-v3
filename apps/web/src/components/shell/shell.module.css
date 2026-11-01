@@ -110,13 +110,41 @@
      so the sidebar lays out to the pixel as it did before it scrolled. */
   margin: -2px -4px;
   padding: 2px 4px;
-  /* A thin, quiet bar that is there only when something overflows, and clearer under the pointer. */
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
 }
-.sideScroll:hover,
-.sideScroll:focus-within {
-  scrollbar-color: var(--text-3) transparent;
+/* As on a Mac: no track, no arrows, a slim rounded thumb that shows only while the pointer is over the sidebar
+   (2026-11-01: Windows drew its own grey bar with arrows). Chrome draws these only when the standard
+   scrollbar-width/scrollbar-color are unset, so those are Firefox's alone, below. */
+.sideScroll::-webkit-scrollbar {
+  width: 6px;
+}
+.sideScroll::-webkit-scrollbar-track,
+.sideScroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.sideScroll::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+.sideScroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+.sideScroll:hover::-webkit-scrollbar-thumb,
+.sideScroll:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-3) 45%, transparent);
+}
+.sideScroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+@supports not selector(::-webkit-scrollbar) {
+  .sideScroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .sideScroll:hover,
+  .sideScroll:focus-within {
+    scrollbar-color: var(--text-3) transparent;
+  }
 }
 .sideScroll > * {
   flex: none;
@@ -285,6 +313,10 @@
   margin: 0 auto;
   padding: 34px 36px 110px;
   min-width: 0;
+}
+/* A page that fills the window itself (the LUME AI page's panes, 2026-11-01): no room left below for a scroll. */
+.page:has([data-fit-screen]) {
+  padding-bottom: 0;
 }
 @media (max-width: 860px) {
   .app {

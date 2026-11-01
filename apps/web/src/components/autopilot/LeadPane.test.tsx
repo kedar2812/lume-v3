@@ -87,6 +87,29 @@ describe("LeadPane", () => {
     expect(screen.getByText("Nobody needs you right now.")).toBeInTheDocument();
   });
 
+  it("search finds a lead by any part of the name, whatever its case or accents; the counts stay the run's (2026-11-01)", async () => {
+    render(
+      <LeadPane
+        {...base}
+        leads={[...leads, lead({ leadId: "f", name: "José Ávila", state: "sent" })]}
+        filter="all"
+      />,
+    );
+    const search = screen.getByRole("searchbox", { name: "Search leads in this run" });
+    await userEvent.type(search, "REDD");
+    expect(
+      within(screen.getByRole("list", { name: "Leads in this run" })).getAllByRole("button"),
+    ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Sneha Reddy/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "All 5" })).toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, "jose av");
+    expect(screen.getByRole("button", { name: /José Ávila/ })).toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, "nobody");
+    expect(screen.getByText("No one called “nobody” here.")).toBeInTheDocument();
+  });
+
   it("choosing a filter or a lead says so to the page", async () => {
     const onSelect = vi.fn();
     const onFilter = vi.fn();

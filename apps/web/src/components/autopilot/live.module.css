@@ -11,6 +11,9 @@
 .panes {
   display: grid;
   grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  /* One row the card's own height: an auto row grew to a long conversation, which the card then cut off unscrollable
+     (2026-11-01). Each pane scrolls inside it. */
+  grid-template-rows: minmax(0, 1fr);
   height: calc(100dvh - 210px);
   min-height: 520px;
   border-radius: 16px;
@@ -52,6 +55,7 @@
 .convoWrap {
   position: relative;
   min-width: 0;
+  min-height: 0;
 }
 /* The conversation pane (plan 2026-10-28): the right side of the two panes, no card of its own. */
 .convo {

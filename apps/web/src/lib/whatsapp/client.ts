@@ -64,6 +64,11 @@ export const whatsappClient = {
   disconnect: (id: string) => api.del<WaNumbers>(`/api/v1/whatsapp/numbers/${encodeURIComponent(id)}`),
   people: () => api.get<{ people: { id: string; name: string; active: boolean }[] }>("/api/v1/people"),
   thread: (leadId: string) => api.get<WaThread>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp`),
+  /** The newest message in and the lead's name, for its owner's notice (2026-11-01); not opening the lead. */
+  latest: (leadId: string) =>
+    api.get<{ name: string | null; message: WaThreadMessage | null }>(
+      `/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/latest`,
+    ),
   mediaInfo: (id: string) => api.get<WaMediaInfo>(`/api/v1/whatsapp/media/${encodeURIComponent(id)}/info`),
   inbox: () => api.get<{ people: WaPerson[] }>("/api/v1/whatsapp/inbox"),
   inboxPerson: (numberId: string, peer: string) =>

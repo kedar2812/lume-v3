@@ -1,0 +1,25 @@
+/* "Let LUME AI handle this" (2026-11-01), on a lead and its chat. */
+.go {
+  gap: 6px;
+  white-space: nowrap;
+}
+.on {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink, var(--accent));
+  background: var(--accent-soft);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.on:hover {
+  filter: brightness(0.97);
+}
+.on:focus-visible {
+  box-shadow: var(--focus-ring);
+}

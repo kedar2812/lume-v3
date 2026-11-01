@@ -12,7 +12,14 @@ const leadListeners = new Set<() => void>();
  */
 export type AutopilotEvent = { run: string; lead: string | null; kind: string };
 const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
-const anyone = () => listeners.size + leadListeners.size + autopilotListeners.size > 0;
+/**
+ * A WhatsApp message on a lead's chat (2026-11-01): in (with whose lead it is, when known), out, or a tick from LUME's
+ * queue. Lead "*": the stream was away, so any chat may have changed.
+ */
+export type WhatsAppEvent = { lead: string; kind: "in" | "out" | "status" | "reconnected"; owner?: string };
+const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
+const anyone = () =>
+  listeners.size + leadListeners.size + autopilotListeners.size + whatsappListeners.size > 0;
 let source: EventSource | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let failures = 0;
@@ -33,6 +40,7 @@ function open() {
       for (const l of leadListeners) l();
       // A run may have moved on meanwhile too: "*" is every run.
       for (const l of autopilotListeners) l({ run: "*", lead: null, kind: "reconnected" });
+      for (const l of whatsappListeners) l({ lead: "*", kind: "reconnected" });
     }
     connectedBefore = true;
     failures = 0;
@@ -56,6 +64,23 @@ function open() {
       kind: ev.kind,
     };
     for (const l of autopilotListeners) l(said);
+  });
+  s.addEventListener("whatsapp", (e) => {
+    let ev: Partial<WhatsAppEvent>;
+    try {
+      ev = JSON.parse((e as MessageEvent<string>).data) as Partial<WhatsAppEvent>;
+    } catch {
+      return;
+    }
+    if (typeof ev.lead !== "string" || (ev.kind !== "in" && ev.kind !== "out" && ev.kind !== "status"))
+      return;
+    failures = 0;
+    const said: WhatsAppEvent = {
+      lead: ev.lead,
+      kind: ev.kind,
+      ...(typeof ev.owner === "string" ? { owner: ev.owner } : {}),
+    };
+    for (const l of whatsappListeners) l(said);
   });
   s.addEventListener("notification", (e) => {
     let n: NotificationView;
@@ -161,4 +186,21 @@ export function useAutopilot(on: (e: AutopilotEvent) => void): void {
   const latest = useRef(on);
   latest.current = on;
   useEffect(() => subscribeAutopilot((e) => latest.current(e)), []);
+}
+
+/** WhatsApp messages on leads' chats (2026-11-01), on the tab's one stream. */
+export function subscribeWhatsApp(listener: (e: WhatsAppEvent) => void): () => void {
+  whatsappListeners.add(listener);
+  if (!source) open();
+  return () => {
+    whatsappListeners.delete(listener);
+    closeIfUnused();
+  };
+}
+
+/** Calls `on` for each WhatsApp message in, out or tick while the component is mounted: the chat, the owner's notice. */
+export function useWhatsApp(on: (e: WhatsAppEvent) => void): void {
+  const latest = useRef(on);
+  latest.current = on;
+  useEffect(() => subscribeWhatsApp((e) => latest.current(e)), []);
 }

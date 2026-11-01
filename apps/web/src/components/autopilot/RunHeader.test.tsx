@@ -27,6 +27,7 @@ const props = (o: Partial<Parameters<typeof RunHeader>[0]> = {}) => ({
   onPause: vi.fn(),
   onResume: vi.fn(),
   onEnd: vi.fn(),
+  onNewRun: vi.fn(),
   ...o,
 });
 
@@ -71,11 +72,14 @@ describe("RunHeader", () => {
     expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
   });
 
-  it("New run goes to Leads, for whoever may start one", () => {
-    const { rerender } = render(<RunHeader {...props()} />);
-    expect(screen.getByRole("link", { name: "New run" })).toHaveAttribute("href", "/leads");
-    rerender(<RunHeader {...props({ canStart: false })} />);
+  it("New run starts here, for whoever may start one: no trip to Leads (2026-11-01)", async () => {
+    const onNewRun = vi.fn();
+    const { rerender } = render(<RunHeader {...props({ onNewRun })} />);
+    await userEvent.click(screen.getByRole("button", { name: "New run" }));
+    expect(onNewRun).toHaveBeenCalledOnce();
     expect(screen.queryByRole("link", { name: "New run" })).toBeNull();
+    rerender(<RunHeader {...props({ canStart: false, onNewRun })} />);
+    expect(screen.queryByRole("button", { name: "New run" })).toBeNull();
   });
 
   it("several runs: one to choose, each saying how it is", async () => {

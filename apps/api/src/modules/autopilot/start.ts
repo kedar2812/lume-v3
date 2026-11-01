@@ -255,8 +255,12 @@ export async function startRun(
   const L = schema.autopilotLeads;
   const taken = c.eligible.length
     ? await req.db.execute<{ lead_id: string }>(sql`
-        INSERT INTO autopilot_leads (run_id, lead_id, state, next_at, updated_at)
-        SELECT ${runId}::uuid, x, 'up_next', ${now}, ${now}
+        INSERT INTO autopilot_leads (run_id, lead_id, state, next_at, updated_at, last_inbound_at, last_sent_at)
+        -- Where the WhatsApp conversation already stands: a lead who wrote and wasn't answered is answered first
+        -- (2026-11-01). WhatsApp messages only: a reply logged by hand opens no 24 hours.
+        SELECT ${runId}::uuid, x, 'up_next', ${now}, ${now},
+               (SELECT max(a.occurred_at) FROM activities a WHERE a.lead_id = x AND a.type = 'whatsapp_received'),
+               (SELECT max(a.occurred_at) FROM activities a WHERE a.lead_id = x AND a.type = 'whatsapp_sent')
           FROM unnest(ARRAY[${sql.join(
             c.eligible.map((l) => sql`${l.id}::uuid`),
             sql`, `,

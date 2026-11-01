@@ -60,6 +60,23 @@ describe("the next move for a lead", () => {
     });
   });
 
+  it("a lead who already wrote, unanswered and inside the 24 hours, is answered, never sent a first template (2026-11-01)", () => {
+    // Live test: a new run opened "thanks for your interest" to someone whose last words were "this is a scam".
+    const wrote = lead({ lastSentAt: T0, lastInboundAt: at(H) });
+    expect(nextMove(wrote, { now: at(2 * H), followUpDays: days })).toEqual({ kind: "reply" });
+    // Never sent anything, and they wrote first: answered too.
+    expect(nextMove(lead({ lastInboundAt: at(H) }), { now: at(2 * H), followUpDays: days })).toEqual({
+      kind: "reply",
+    });
+    // Answered already (by a person), or the 24 hours are gone: a first message, as an approved template.
+    expect(
+      nextMove(lead({ lastSentAt: at(2 * H), lastInboundAt: at(H) }), { now: at(3 * H), followUpDays: days }),
+    ).toEqual({
+      kind: "first",
+    });
+    expect(nextMove(wrote, { now: at(H + D), followUpDays: days })).toEqual({ kind: "first" });
+  });
+
   it("a lead marked replied is answered even when their message carries the same second as the send (Meta's stamps are whole seconds)", () => {
     const quick = lead({ state: "replied", firstSentAt: T0, lastSentAt: at(400), lastInboundAt: T0 });
     expect(nextMove(quick, { now: at(5_000), followUpDays: days })).toEqual({ kind: "reply" });

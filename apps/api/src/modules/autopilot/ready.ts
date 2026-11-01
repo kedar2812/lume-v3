@@ -52,7 +52,7 @@ export async function tellPeople(
     });
 }
 
-const mayDecide = (req: FastifyRequest, startedBy: string) =>
+export const mayDecide = (req: FastifyRequest, startedBy: string) =>
   startedBy === req.actor!.userId || can(req.actor!, "settings.manage");
 
 async function askOf(req: FastifyRequest, id: string) {

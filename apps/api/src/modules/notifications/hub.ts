@@ -139,10 +139,28 @@ function autopilotEventOf(payload: string): AutopilotEvent | null {
   }
 }
 
+/** A WhatsApp message on a lead's chat (2026-11-01): in (whose lead, when known), out, or a tick from LUME's queue. */
+export type WhatsAppEvent = { lead: string; kind: "in" | "out" | "status"; owner?: string };
+function whatsappEventOf(payload: string): WhatsAppEvent | null {
+  try {
+    const e = JSON.parse(payload) as { lead?: unknown; kind?: unknown; owner?: unknown };
+    if (typeof e.lead !== "string" || !ID.test(e.lead)) return null;
+    if (e.kind !== "in" && e.kind !== "out" && e.kind !== "status") return null;
+    return {
+      lead: e.lead,
+      kind: e.kind,
+      ...(e.kind === "in" && typeof e.owner === "string" && ID.test(e.owner) ? { owner: e.owner } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function startHub(pool: pg.Pool) {
   const subscribers = new Map<string, Set<(n: NotificationView) => void>>();
   /** Told whenever leads change (4B): no payload, so nothing about whose or which. */
   const leadListeners = new Set<() => void>();
+  const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
   /** Told of each change in a LUME AI run (Autopilot A2): its run, lead and kind, never words. */
   const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
   /** Told when the listener comes back after losing its connection: whatever arrived meanwhile wasn't heard. */
@@ -195,6 +213,9 @@ export async function startHub(pool: pg.Pool) {
       else if (m.channel === "lume_autopilot") {
         const e = autopilotEventOf(m.payload ?? "");
         if (e) for (const l of autopilotListeners) l(e);
+      } else if (m.channel === "lume_whatsapp") {
+        const e = whatsappEventOf(m.payload ?? "");
+        if (e) for (const l of whatsappListeners) l(e);
       }
     });
     c.on("error", () => {
@@ -205,6 +226,7 @@ export async function startHub(pool: pg.Pool) {
     await c.query("LISTEN lume_notifications");
     await c.query("LISTEN lume_leads");
     await c.query("LISTEN lume_autopilot");
+    await c.query("LISTEN lume_whatsapp");
     client = c;
   };
   await connect();
@@ -226,6 +248,11 @@ export async function startHub(pool: pg.Pool) {
       autopilotListeners.add(listener);
       return () => void autopilotListeners.delete(listener);
     },
+    /** A WhatsApp message on a lead's chat (2026-11-01): ids and kind only. */
+    onWhatsApp(listener: (e: WhatsAppEvent) => void): () => void {
+      whatsappListeners.add(listener);
+      return () => void whatsappListeners.delete(listener);
+    },
     /** Leads changed somewhere (4B): each stream decides how often to say so. */
     onLeads(listener: () => void): () => void {
       leadListeners.add(listener);
@@ -240,6 +267,7 @@ export async function startHub(pool: pg.Pool) {
         await c.query("UNLISTEN lume_notifications").catch(() => undefined);
         await c.query("UNLISTEN lume_leads").catch(() => undefined);
         await c.query("UNLISTEN lume_autopilot").catch(() => undefined);
+        await c.query("UNLISTEN lume_whatsapp").catch(() => undefined);
         c.release();
       }
     },

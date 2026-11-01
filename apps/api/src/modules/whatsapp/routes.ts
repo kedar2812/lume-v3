@@ -14,7 +14,7 @@ import { submissionsOf, submitTemplate } from "./submit";
 import { recommendTemplate } from "./recommend";
 import { sendTemplate, templateState } from "./template-send";
 import { replyBoard } from "./replies";
-import { leadThread } from "./thread";
+import { leadLatest, leadThread } from "./thread";
 import {
   connectComplete,
   connectStart,
@@ -79,6 +79,12 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
     "/api/v1/leads/:id/whatsapp",
     { config: { permission: "leads.view" }, schema: { params: id } },
     (req) => leadThread(req, d, req.params.id),
+  );
+  // The newest message in, with the lead's name, for its owner's notice (2026-11-01).
+  r.get(
+    "/api/v1/leads/:id/whatsapp/latest",
+    { config: { permission: "leads.view" }, schema: { params: id } },
+    (req) => leadLatest(req, req.params.id),
   );
   // Who replied (W2, §4.2): each lead's latest reply since a moment, grouped by what it means (a week by default).
   r.get(

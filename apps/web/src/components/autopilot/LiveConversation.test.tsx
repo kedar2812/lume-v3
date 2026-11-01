@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AutopilotEvent } from "@/lib/notifications/stream";
+import type { AutopilotEvent, WhatsAppEvent } from "@/lib/notifications/stream";
 import type { RunLead } from "@/lib/autopilot/types";
 import type { WaThread } from "@/lib/whatsapp/types";
 import { whatsappClient } from "@/lib/whatsapp/client";
@@ -12,9 +12,13 @@ vi.mock("@/lib/whatsapp/client", async (orig) => ({
   whatsappClient: { thread: vi.fn(), send: vi.fn(), templateState: vi.fn(), mediaInfo: vi.fn() },
 }));
 let hear: ((e: AutopilotEvent) => void) | null = null;
+let hearWa: ((e: WhatsAppEvent) => void) | null = null;
 vi.mock("@/lib/notifications/stream", () => ({
   useAutopilot: (on: (e: AutopilotEvent) => void) => {
     hear = on;
+  },
+  useWhatsApp: (on: (e: WhatsAppEvent) => void) => {
+    hearWa = on;
   },
 }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
@@ -132,7 +136,8 @@ describe("LiveConversation", () => {
     expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
   });
 
-  it("a lead ready for you, or needing you: one bar where the reply box would be, with what to do (artboard 2)", async () => {
+  it("a lead ready for you, or needing you: why, LUME AI's offer to carry on, and the reply box itself (2026-11-01)", async () => {
+    // Owner: "where is the text box?" It took a Take over first, under a pane that didn't scroll.
     const p = props({
       lead: lead({ state: "ready", card: { headline: "Site visit agreed", quote: "Okay, Saturday works" } }),
     });
@@ -140,8 +145,8 @@ describe("LiveConversation", () => {
     const bar = await screen.findByRole("region", { name: "What to do" });
     expect(bar).toHaveTextContent("Meera is ready. Site visit agreed");
     expect(bar).toHaveTextContent("“Okay, Saturday works”");
-    await userEvent.click(screen.getByRole("button", { name: "Take over Meera" }));
-    expect(p.onTakeOver).toHaveBeenCalledOnce();
+    expect(screen.getByRole("textbox", { name: "Message to Meera" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Let LUME AI carry on" }));
     expect(p.onCarryOn).toHaveBeenCalledOnce();
     unmount();
@@ -154,10 +159,20 @@ describe("LiveConversation", () => {
     expect(await screen.findByRole("region", { name: "What to do" })).toHaveTextContent(
       "LUME AI wanted to offer a discount you haven't given it.",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Reply yourself" }));
-    expect(q.onTakeOver).toHaveBeenCalledOnce();
-    // Carrying on is the run's controllers' call; anyone who may message the lead may take it.
+    expect(screen.getByRole("textbox", { name: "Message to Meera" })).toBeInTheDocument();
+    // Carrying on is the run's controllers' call; anyone who may message the lead may reply.
     expect(screen.queryByRole("button", { name: "Let LUME AI carry on" })).toBeNull();
+  });
+
+  it("a WhatsApp message on this chat, or a return after a dropped stream, reads the thread again; another lead's doesn't", async () => {
+    render(<LiveConversation {...props({ lead: lead({ state: "ready" }) })} />);
+    await screen.findByText("Do you do kitchens?");
+    const reads = vi.mocked(whatsappClient.thread).mock.calls.length;
+    hearWa?.({ lead: "someone-else", kind: "in" });
+    expect(vi.mocked(whatsappClient.thread).mock.calls.length).toBe(reads);
+    hearWa?.({ lead: "a", kind: "in" });
+    hearWa?.({ lead: "*", kind: "reconnected" });
+    expect(vi.mocked(whatsappClient.thread).mock.calls.length).toBe(reads + 2);
   });
 
   it("an ask: what LUME AI prepared, sent in one tap, or the lead is yours", async () => {

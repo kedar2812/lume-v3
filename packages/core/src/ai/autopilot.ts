@@ -60,12 +60,13 @@ export function nextMove(
   o: { now: Date; followUpDays: number[] },
 ): Move {
   if (l.state === "writing" || !ACTIVE_STATES.includes(l.state)) return { kind: "wait", until: null };
-  if (!l.firstSentAt) return { kind: "first" };
   // "Replied" is what LUME says when the lead wrote (their stamp is whole seconds: it can read as before a send in the
   // same second); otherwise a message later than the last send.
   const unanswered =
     !!l.lastInboundAt && (l.state === "replied" || !l.lastSentAt || l.lastInboundAt > l.lastSentAt);
+  // Before the run's first message too: a lead who already wrote is answered, not opened cold (2026-11-01).
   if (unanswered && windowOpen(l.lastInboundAt, o.now)) return { kind: "reply" };
+  if (!l.firstSentAt) return { kind: "first" };
   if (l.followUpsSent >= o.followUpDays.length) return { kind: "done" };
   const anchor = l.lastInboundAt && l.lastInboundAt > l.firstSentAt ? l.lastInboundAt : l.firstSentAt;
   const due = new Date(anchor.getTime() + o.followUpDays[l.followUpsSent]! * DAY_MS);

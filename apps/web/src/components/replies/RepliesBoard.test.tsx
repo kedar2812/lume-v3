@@ -11,6 +11,19 @@ vi.mock("@/lib/leads/bulk-runs", async (orig) => ({
 }));
 vi.mock("@/lib/replies/client", () => ({ repliesClient: { board: vi.fn() } }));
 vi.mock("@/components/ZoneProvider", () => ({ useZone: () => "Asia/Kolkata" }));
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+// The start sheet has its own tests: here, which leads it's handed, and where a run started from it goes.
+vi.mock("@/components/autopilot/StartSheet", () => ({
+  StartSheet: (p: { target: { leadIds: string[] }; onStarted(r: { run: { id: string } }): void }) => (
+    <div role="dialog" aria-label="Start sheet">
+      {p.target.leadIds.join(",")}
+      <button type="button" onClick={() => p.onStarted({ run: { id: "r9" } })}>
+        Start
+      </button>
+    </div>
+  ),
+}));
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
@@ -138,5 +151,31 @@ describe("RepliesBoard", () => {
   it("someone who can't change many leads at once sees the board without the actions", () => {
     show(board({ interested: [lead("a", "Meera Iyer", "Yes")] }), false);
     expect(within(screen.getByRole("region", { name: "Interested, 1" })).queryByRole("button")).toBeNull();
+  });
+  it("Let LUME AI handle these: a group LUME AI may follow up, into the start sheet with exactly its leads (2026-11-01)", async () => {
+    render(
+      <RepliesBoard
+        initial={board({
+          interested: [lead("l1", "Meera Iyer", "Wants a visit"), lead("l2", "Rohan Gupta", null)],
+          not_interested: [lead("l3", "Kabir Shah", "No thanks")],
+          stop: [lead("l4", "Isha Menon", "Stop")],
+        })}
+        stages={stages}
+        lostReasons={lostReasons}
+        canBulk
+        canAi
+      />,
+    );
+    // Never for those who said no or stop.
+    expect(screen.getAllByRole("button", { name: /^Let LUME AI handle/ })).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: /^Let LUME AI handle these 2: / }));
+    expect(screen.getByRole("dialog", { name: "Start sheet" })).toHaveTextContent("l1,l2");
+    await userEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(push).toHaveBeenCalledWith("/autopilot?run=r9");
+  });
+
+  it("LUME AI off, or someone who can't start a run: no Let LUME AI handle", () => {
+    show(board({ interested: [lead("l1", "Meera Iyer", null)] }));
+    expect(screen.queryByRole("button", { name: /^Let LUME AI handle/ })).toBeNull();
   });
 });

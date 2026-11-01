@@ -23,9 +23,12 @@ import {
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { useAutopilot } from "@/lib/notifications/stream";
 import { usePhone } from "@/lib/usePhone";
+import { useFitHeight } from "@/lib/ui/use-fit-height";
 import { LeadPane } from "./LeadPane";
 import { LiveConversation } from "./LiveConversation";
+import { ChooseLeads } from "./ChooseLeads";
 import { RunHeader } from "./RunHeader";
+import { StartSheet } from "./StartSheet";
 import { WaitingWork } from "./WaitingWork";
 import s from "./live.module.css";
 
@@ -123,6 +126,8 @@ export function AutopilotScreen({
   // A phone (plan 2026-10-28, artboard 3): the list, or one lead's conversation with Back.
   const phone = usePhone();
   const [phoneLead, setPhoneLead] = useState<string | null>(null);
+  // New run (owner, 2026-11-01): choose the leads here, then the start sheet, never a trip to Leads.
+  const [newRun, setNewRun] = useState<"choose" | { leadIds: string[] } | null>(null);
 
   // The runs list follows the stream too (a new run, one ended), once things settle.
   const listTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -207,6 +212,9 @@ export function AutopilotScreen({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [data, pause, resume]);
+  // The two panes fill the window on a computer: one scroll per list, never the page's too (owner, 2026-11-01).
+  const panesRef = useRef<HTMLDivElement>(null);
+  useFitHeight(panesRef, { on: !!data && !phone });
 
   const show = (leadId: string) => {
     setPicked(leadId);
@@ -370,6 +378,7 @@ export function AutopilotScreen({
             onPause={pause}
             onResume={resume}
             onEnd={() => void act(() => autopilotClient.end(runId!), "LUME couldn't end it")}
+            onNewRun={() => setNewRun("choose")}
           />
           {phone ? (
             <div className={s.panes} data-phone="">
@@ -385,13 +394,30 @@ export function AutopilotScreen({
               )}
             </div>
           ) : (
-            <div className={s.panes}>
+            <div className={s.panes} ref={panesRef} data-fit-screen="">
               {pane(data)}
               {conversation(data, shownLead)}
             </div>
           )}
         </>
       )}
+      <AnimatePresence>
+        {newRun === "choose" && (
+          <ChooseLeads onClose={() => setNewRun(null)} onContinue={(leadIds) => setNewRun({ leadIds })} />
+        )}
+        {newRun && newRun !== "choose" && (
+          <StartSheet
+            target={{ leadIds: newRun.leadIds }}
+            count={newRun.leadIds.length}
+            onClose={() => setNewRun(null)}
+            onStarted={(r) => {
+              setNewRun(null);
+              void autopilotClient.runs().then((x) => x.ok && setRuns(x.data.runs));
+              router.replace(`/autopilot?run=${encodeURIComponent(r.run.id)}`);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

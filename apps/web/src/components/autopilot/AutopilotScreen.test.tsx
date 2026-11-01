@@ -24,7 +24,10 @@ vi.mock("@/lib/whatsapp/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/whatsapp/client")>()),
   whatsappClient: { thread: vi.fn(), send: vi.fn(), templateState: vi.fn(), mediaInfo: vi.fn() },
 }));
-vi.mock("@/lib/notifications/stream", () => ({ useAutopilot: () => undefined }));
+vi.mock("@/lib/notifications/stream", () => ({
+  useAutopilot: () => undefined,
+  useWhatsApp: () => undefined,
+}));
 vi.mock("@/components/ZoneProvider", () => ({ useZone: () => "Asia/Kolkata" }));
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }) }));

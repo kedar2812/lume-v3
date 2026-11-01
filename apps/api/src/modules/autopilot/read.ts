@@ -3,6 +3,8 @@ import { schema } from "@lume/db";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { notFound } from "../../http/errors";
+import { visibleLead } from "../leads/service";
+import { mayDecide } from "./ready";
 
 type RunRow = typeof schema.autopilotRuns.$inferSelect;
 export type RunView = Omit<RunRow, "createdAt" | "updatedAt" | "endedAt"> & {
@@ -170,5 +172,28 @@ export async function getRun(req: FastifyRequest, id: string) {
       updatedAt: l.updatedAt.toISOString(),
     })),
     asks: asks.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })),
+  };
+}
+
+/**
+ * Where a lead stands with LUME AI (2026-11-01), for "Let LUME AI handle this" wherever the lead is: the run it's active
+ * in and its state there, or none. Seen with the lead.
+ */
+export async function leadInRun(req: FastifyRequest, leadId: string) {
+  const lead = await visibleLead(req, leadId);
+  const L = schema.autopilotLeads;
+  const R = schema.autopilotRuns;
+  const [row] = await req.db
+    .select({ runId: L.runId, state: L.state, startedBy: R.startedBy, status: R.status })
+    .from(L)
+    .innerJoin(R, eq(R.id, L.runId))
+    .where(and(eq(L.leadId, lead.id), eq(L.active, true)))
+    .limit(1);
+  if (!row) return { run: null };
+  return {
+    run: { id: row.runId, status: row.status },
+    state: row.state as LeadState,
+    // Carrying on is the run's controllers' call (A3): its starter, or an admin.
+    canDecide: mayDecide(req, row.startedBy),
   };
 }

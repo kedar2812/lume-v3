@@ -237,3 +237,25 @@ describe("the live view's fields", () => {
     expect((await get(admin, "/api/v1/autopilot/runs")).running).toBe(0);
   });
 });
+
+describe("where one lead stands with LUME AI (2026-11-01)", () => {
+  it("the run it's active in and its state, and whether this person may let LUME AI carry on; none once it ends", async () => {
+    const mine = await lead("Kiran Bose", rep);
+    expect(await get(rep, `/api/v1/leads/${mine}/autopilot`)).toEqual({ run: null });
+    const run = await start([mine], admin);
+    expect(await get(rep, `/api/v1/leads/${mine}/autopilot`)).toEqual({
+      run: { id: run, status: "running" },
+      state: "up_next",
+      canDecide: false,
+    });
+    expect((await get(admin, `/api/v1/leads/${mine}/autopilot`)).canDecide).toBe(true);
+    await (await as(admin)).inject({ method: "POST", url: `/api/v1/autopilot/runs/${run}/end` });
+    expect(await get(rep, `/api/v1/leads/${mine}/autopilot`)).toEqual({ run: null });
+  });
+
+  it("someone who can't see the lead gets 404", async () => {
+    const mine = await lead("Asha Pillai", rep);
+    const r = await (await as(other)).inject({ method: "GET", url: `/api/v1/leads/${mine}/autopilot` });
+    expect(r.statusCode).toBe(404);
+  });
+});

@@ -1,7 +1,11 @@
 "use client";
 import { REPLY_MEANING_WORDS, wallTime, type ReplyMeaningGroup } from "@lume/core/shared";
+import { AnimatePresence } from "motion/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AiGlyph } from "@/components/ai/AiGlyph";
+import { StartSheet } from "@/components/autopilot/StartSheet";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useZone } from "@/components/ZoneProvider";
 import { Button } from "@/components/ui/Button";
@@ -18,6 +22,8 @@ const FOLLOW_UP_TITLE: Partial<Record<ReplyMeaningGroup, string>> = {
   visit_or_call: "Arrange the visit or call",
   later: "Check back with them",
 };
+/** The groups LUME AI may follow up for you (owner, 2026-11-01): never those who said no, stop or wrong number. */
+const AI_GROUPS: readonly ReplyMeaningGroup[] = ["interested", "price", "visit_or_call", "later", "not_sure"];
 /** "2026-11-10T11:00" on the business's clock, as a moment; null when it isn't one. */
 function moment(local: string, tz: string): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local);
@@ -46,6 +52,7 @@ export function RepliesBoard({
   stages,
   lostReasons,
   canBulk,
+  canAi = false,
 }: {
   initial: ReplyBoard;
   /** The default pipeline's stages (where a group moves to, and its lost stage). */
@@ -53,11 +60,15 @@ export function RepliesBoard({
   lostReasons: { id: string; label: string }[];
   /** May change many leads at once (leads.bulk_edit). */
   canBulk: boolean;
+  /** LUME AI is on and this person may start its runs: "Let LUME AI handle these" (2026-11-01). */
+  canAi?: boolean;
 }) {
   const tz = useZone();
   const { toast } = useToast();
   const [board, setBoard] = useState(initial);
   const [busy, setBusy] = useState<ReplyMeaningGroup | null>(null);
+  const [handing, setHanding] = useState<string[] | null>(null);
+  const router = useRouter();
   const shown = board.groups.filter((g) => g.count > 0);
   const lost = stages.find((x) => x.kind === "lost") ?? null;
 
@@ -125,6 +136,17 @@ export function RepliesBoard({
               </li>
             ))}
           </ul>
+          {canAi && AI_GROUPS.includes(g.group) && (
+            <Button
+              size="sm"
+              className={s.ai}
+              onClick={() => setHanding(g.leads.map((l) => l.leadId))}
+              aria-label={`Let LUME AI handle ${g.leads.length === 1 ? "this 1" : `these ${g.leads.length}`}: ${REPLY_MEANING_WORDS[g.group]}`}
+            >
+              <AiGlyph size={14} />
+              Let LUME AI handle {g.leads.length === 1 ? "this" : "these"}
+            </Button>
+          )}
           {g.group === "stop" ? (
             <p className={s.note}>LUME marked these do not contact.</p>
           ) : (
@@ -143,6 +165,19 @@ export function RepliesBoard({
           )}
         </section>
       ))}
+      <AnimatePresence>
+        {handing && (
+          <StartSheet
+            target={{ leadIds: handing }}
+            count={handing.length}
+            onClose={() => setHanding(null)}
+            onStarted={(r) => {
+              setHanding(null);
+              router.push(`/autopilot?run=${encodeURIComponent(r.run.id)}`);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

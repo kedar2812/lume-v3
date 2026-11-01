@@ -356,40 +356,43 @@ describe("leads changed on the live stream (4B Task 4)", () => {
   });
 });
 
-describe("Autopilot on the live stream (A2 Task 9)", () => {
-  /** Open the stream for `ms` and collect every `autopilot` event's data. */
-  async function autopilotEvents(c: AuthedClient, o: { ms: number; after: () => Promise<unknown> }) {
-    const ac = new AbortController();
-    const res = await fetch(`${base}/api/v1/stream`, { headers: { cookie: cookie(c) }, signal: ac.signal });
-    const out: { id: string | null; data: Record<string, unknown> }[] = [];
-    const reader = res.body!.getReader();
-    const text = new TextDecoder();
-    let buf = "";
-    const timer = setTimeout(() => ac.abort(), o.ms);
-    setTimeout(() => void o.after(), 100);
-    try {
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += text.decode(value);
-        for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
-          const block = buf.slice(0, i);
-          buf = buf.slice(i + 2);
-          if (/^event: autopilot$/m.test(block))
-            out.push({
-              id: /^id: (\S+)$/m.exec(block)?.[1] ?? null,
-              data: JSON.parse(/^data: (.*)$/m.exec(block)![1]!),
-            });
-        }
+/** Open the stream for `ms` and collect every `name` event's id and data. */
+async function eventsOf(c: AuthedClient, name: string, o: { ms: number; after: () => Promise<unknown> }) {
+  const ac = new AbortController();
+  const res = await fetch(`${base}/api/v1/stream`, { headers: { cookie: cookie(c) }, signal: ac.signal });
+  const out: { id: string | null; data: Record<string, unknown> }[] = [];
+  const reader = res.body!.getReader();
+  const text = new TextDecoder();
+  let buf = "";
+  const timer = setTimeout(() => ac.abort(), o.ms);
+  setTimeout(() => void o.after(), 100);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += text.decode(value);
+      for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
+        const block = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        if (new RegExp(`^event: ${name}$`, "m").test(block))
+          out.push({
+            id: /^id: (\S+)$/m.exec(block)?.[1] ?? null,
+            data: JSON.parse(/^data: (.*)$/m.exec(block)![1]!),
+          });
       }
-    } catch {
-      // the time ran out
-    } finally {
-      clearTimeout(timer);
-      ac.abort();
     }
-    return out;
+  } catch {
+    // the time ran out
+  } finally {
+    clearTimeout(timer);
+    ac.abort();
   }
+  return out;
+}
+
+describe("Autopilot on the live stream (A2 Task 9)", () => {
+  const autopilotEvents = (c: AuthedClient, o: { ms: number; after: () => Promise<unknown> }) =>
+    eventsOf(c, "autopilot", o);
 
   it("each change in a run reaches open streams once, as its kind and ids only: never a lead's words", async () => {
     const number = await seedNumber(h, { runAs: meId });
@@ -409,5 +412,67 @@ describe("Autopilot on the live stream (A2 Task 9)", () => {
         ),
     });
     expect(got).toEqual([{ id: null, data: { run, lead, kind: "draft" } }]);
+  });
+});
+
+describe("WhatsApp on the live stream (2026-11-01)", () => {
+  it("a message in reaches open streams as its lead, kind and owner: never its words or the number", async () => {
+    const lead = await h.seedLead({ ownerId: meId, name: "Sneha Reddy" });
+    const got = await eventsOf(me, "whatsapp", {
+      ms: 1500,
+      after: () =>
+        h.queryAll(
+          `INSERT INTO activities (id, lead_id, type, payload, occurred_at)
+           VALUES (gen_random_uuid(), $1, 'whatsapp_received', $2, now())`,
+          [lead, JSON.stringify({ text: "Is the kitchen ready?", wamid: "wamid.live-1" })],
+        ),
+    });
+    expect(got).toEqual([{ id: null, data: { lead, kind: "in", owner: meId } }]);
+  });
+
+  it("a message sent, and each tick of one from LUME, reach the chat; a send that doesn't change its status says nothing", async () => {
+    // The Autopilot block above connected this LUME's one number.
+    const [kept] = await h.queryAll<{ id: string }>("SELECT id FROM whatsapp_numbers LIMIT 1");
+    const number = kept?.id ?? (await seedNumber(h, { runAs: meId }));
+    const lead = await h.seedLead({ ownerId: meId, name: "Rohan Gupta" });
+    const id = newId();
+    const got = await eventsOf(me, "whatsapp", {
+      ms: 2000,
+      after: async () => {
+        await h.queryAll(
+          `INSERT INTO activities (id, lead_id, type, payload, occurred_at)
+           VALUES (gen_random_uuid(), $1, 'whatsapp_sent', '{}', now())`,
+          [lead],
+        );
+        await h.queryAll(
+          `INSERT INTO whatsapp_outbox (id, lead_id, number_id, user_id, client_key, text, status)
+           VALUES ($1, $2, $3, $4, gen_random_uuid(), 'On its way', 'queued')`,
+          [id, lead, number, meId],
+        );
+        await h.queryAll("UPDATE whatsapp_outbox SET tries = tries + 1 WHERE id = $1", [id]);
+        await h.queryAll("UPDATE whatsapp_outbox SET status = 'delivered' WHERE id = $1", [id]);
+      },
+    });
+    expect(got.map((e) => e.data)).toEqual([
+      { lead, kind: "out" },
+      { lead, kind: "status" },
+      { lead, kind: "status" },
+    ]);
+  });
+
+  it("someone who can't see leads isn't told", async () => {
+    const u = await h.seedUser({ grants: [], totp: true });
+    const c = await h.signIn(u);
+    const lead = await h.seedLead({ ownerId: someoneId, name: "Not for them" });
+    const got = await eventsOf(c, "whatsapp", {
+      ms: 1500,
+      after: () =>
+        h.queryAll(
+          `INSERT INTO activities (id, lead_id, type, payload, occurred_at)
+           VALUES (gen_random_uuid(), $1, 'whatsapp_received', '{}', now())`,
+          [lead],
+        ),
+    });
+    expect(got).toEqual([]);
   });
 });

@@ -814,6 +814,14 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.view",
     path: (f) => `/api/v1/leads/${f.leadId}/whatsapp`,
   },
+  "GET /api/v1/leads/:id/autopilot": {
+    access: "leads.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/autopilot`,
+  },
+  "GET /api/v1/leads/:id/whatsapp/latest": {
+    access: "leads.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/whatsapp/latest`,
+  },
   "POST /api/v1/leads/:id/whatsapp/messages": {
     access: "messages.send",
     path: (f) => `/api/v1/leads/${f.leadId}/whatsapp/messages`,

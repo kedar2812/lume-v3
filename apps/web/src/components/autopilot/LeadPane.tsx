@@ -14,6 +14,8 @@ const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join("") || "?";
 const fmt = (n: number) => n.toLocaleString("en-US");
+/** Case and accents aside, as a person types a name: "anya" finds "Ananya", "jose" finds "José". */
+const fold = (x: string) => x.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("en");
 const EMPTY: Record<LeadFilter, string> = {
   needs: "Nobody needs you right now.",
   ready: "No one is ready for you yet.",
@@ -50,7 +52,10 @@ export function LeadPane({
   now: Date;
 }) {
   const [showSkipped, setShowSkipped] = useState(false);
-  const shown = leadsIn(leads, filter);
+  // Search (owner, 2026-11-01): within the filter chosen, by name; the counts stay the run's.
+  const [query, setQuery] = useState("");
+  const q = fold(query.trim());
+  const shown = leadsIn(leads, filter).filter((l) => !q || fold(l.name).includes(q));
   const skipped = leads.filter((l) => l.state === "skipped");
   const when = (iso: string) => whenWords(iso, tz, now);
   // The row's corner: a time today, else the day.
@@ -72,9 +77,29 @@ export function LeadPane({
           ]}
           onChange={onFilter}
         />
+        <label className={s.search}>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            type="search"
+            aria-label="Search leads in this run"
+            placeholder="Search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
       </div>
       {shown.length === 0 ? (
-        <p className={s.empty}>{EMPTY[filter]}</p>
+        <p className={s.empty}>{q ? `No one called “${query.trim()}” here.` : EMPTY[filter]}</p>
       ) : (
         <ul className={s.rows} aria-label="Leads in this run">
           {shown.map((l) => {

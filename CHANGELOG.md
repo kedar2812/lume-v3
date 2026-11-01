@@ -6,6 +6,26 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **WhatsApp, live:** a message a lead sends, and the ticks on one LUME sent, show in their open chat as they happen,
+  in the lead's drawer and on the LUME AI page alike; nobody closes and reopens a chat to see a reply. Migration 0098
+  says each message on the live stream as its lead and kind only, never its words.
+- **A notice for each message in:** when one of your leads writes on WhatsApp, a notice slides into the bottom-right
+  corner (the top on a phone) with their name, what they wrote and when; press it to open their chat. One per lead (a
+  second message updates it), at most three, none for the chat already on screen, none with reply alerts off in
+  Settings → My account. Swipe it away or let it go. Never a phone number, and it never counts as opening the lead.
+- **LUME AI answers a lead who already wrote:** a lead added to a run with a message unanswered inside WhatsApp's 24
+  hours gets a reply to it, not the opening template ("thanks for your interest" to someone who had just written).
+  Past the 24 hours, the template as before.
+- **The LUME AI page:** the two panes fill the window on a computer, so the page never scrolls along with them and each
+  list or conversation scrolls on its own (a long conversation was cut off at the foot of the card); a lead ready for
+  you, or needing you, has the reply box right there beside Let LUME AI carry on; the leads list has a search (any
+  part of a name, case and accents aside); New run chooses its leads in a sheet right there (search, No reply 3+ days,
+  New today, All) and goes on to the start sheet, never a trip to Leads.
+- **Let LUME AI handle this:** on a lead, in their chat and on each Who replied group that fits (never no, stop or wrong
+  number). One press opens the start sheet for those leads with the business's own choices; a lead already in a run
+  instead offers Let LUME AI carry on (ready or waiting on you), Hand back (taken over), or says LUME AI is on it.
+- **The sidebar's scrollbar** is a slim rounded thumb with no track or arrows, shown only while the pointer is over the
+  sidebar, as on a Mac (Windows drew its own grey bar).
 - **WhatsApp chat in its own window:** a lead's WhatsApp opens over the whole of LUME (dimmed and blurred behind it),
   the messages scrolling between a header (name and number) and the reply box pinned at the foot, as WhatsApp lays a
   chat out. Full screen on a phone. The lead's WhatsApp tab keeps the latest message and Open chat.
@@ -37,7 +57,7 @@ column in the release that stops using it.
   bell shows how many are unread (9+ past nine); page titles in the top bar are larger; Analytics' Sources lists
   only sources with leads or wins in the range (a source whose only activity was a loss, meeting or task was listed
   at nothing, and a tag filter then disagreed).
-- **Update notes:** migration 0097 (additive). No `.env` changes.
+- **Update notes:** migrations 0097 and 0098 (additive). No `.env` changes.
 
 ## 1.1.0 — 2026-10-29
 

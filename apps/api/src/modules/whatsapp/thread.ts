@@ -203,3 +203,19 @@ export async function leadThread(req: FastifyRequest, d: AppDeps, leadId: string
     messages: await shape(req, rows),
   };
 }
+
+/**
+ * A lead's newest message in, and their name, for the owner's notice when it arrives (2026-11-01): seen with the lead,
+ * as the thread is. Not opening the lead: a message arriving never counts against a person's watch limits.
+ */
+export async function leadLatest(req: FastifyRequest, leadId: string) {
+  const lead = await visibleLead(req, leadId);
+  const rows = await req.db
+    .select({ id: A.id, type: A.type, at: A.occurredAt, payload: A.payload })
+    .from(A)
+    .where(and(eq(A.leadId, lead.id), eq(A.type, "whatsapp_received")))
+    .orderBy(desc(A.occurredAt), desc(A.id))
+    .limit(1);
+  const [message] = await shape(req, rows);
+  return { name: lead.name ?? null, message: message ?? null };
+}

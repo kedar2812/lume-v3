@@ -181,7 +181,17 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
       const offAutopilot = hub.onAutopilot((e) => {
         if (seesLeads) write(`event: autopilot\ndata: ${JSON.stringify(e)}\n\n`);
       });
+      // WhatsApp (2026-11-01): a message in, out or a tick, as its lead and kind (and, in, whose lead); the chat and the
+      // owner's notice read the rest under their own access.
+      const offWhatsApp = hub.onWhatsApp((e) => {
+        if (seesLeads)
+          write(`event: whatsapp
+data: ${JSON.stringify(e)}
+
+`);
+      });
       req.raw.on("close", () => {
+        offWhatsApp();
         offAutopilot();
         offRevoked();
         clearInterval(beat);

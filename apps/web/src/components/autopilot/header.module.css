@@ -63,6 +63,8 @@
   color: var(--sheet);
   background: var(--text);
   text-decoration: none;
+  border: 0;
+  cursor: pointer;
 }
 .newRun:hover {
   opacity: 0.88;

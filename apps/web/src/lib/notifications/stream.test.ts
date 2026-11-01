@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { subscribe, subscribeLeads, useAutopilot, useLeadsChanged, useStream } from "./stream";
+import { subscribe, subscribeLeads, useAutopilot, useLeadsChanged, useStream, useWhatsApp } from "./stream";
 
 class FakeSource {
   static made: FakeSource[] = [];
@@ -170,5 +170,27 @@ describe("Autopilot on the stream (A2 Task 9)", () => {
     FakeSource.made[0]!.opened();
     FakeSource.made[0]!.opened();
     expect(on).toHaveBeenCalledWith({ run: "*", lead: null, kind: "reconnected" });
+  });
+  it("useWhatsApp hears each message in, out or tick, its lead and kind (and whose lead, in); anything else is dropped (2026-11-01)", () => {
+    const on = vi.fn();
+    renderHook(() => useWhatsApp(on));
+    const src = FakeSource.made[0]!;
+    src.emitText("whatsapp", JSON.stringify({ lead: "l1", kind: "in", owner: "u1" }));
+    src.emitText("whatsapp", JSON.stringify({ lead: "l1", kind: "status" }));
+    expect(on.mock.calls).toEqual([
+      [{ lead: "l1", kind: "in", owner: "u1" }],
+      [{ lead: "l1", kind: "status" }],
+    ]);
+    src.emitText("whatsapp", "not json");
+    src.emitText("whatsapp", JSON.stringify({ lead: "l1", kind: "typing" }));
+    src.emitText("whatsapp", JSON.stringify({ kind: "in" }));
+    expect(on).toHaveBeenCalledTimes(2);
+  });
+  it("back after a drop, a chat hears that it may have missed messages (lead '*')", () => {
+    const on = vi.fn();
+    renderHook(() => useWhatsApp(on));
+    FakeSource.made[0]!.opened();
+    FakeSource.made[0]!.opened();
+    expect(on).toHaveBeenCalledWith({ lead: "*", kind: "reconnected" });
   });
 });

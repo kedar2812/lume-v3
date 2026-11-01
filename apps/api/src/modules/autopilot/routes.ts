@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { controlRun, handBack, takeOver } from "./control";
 import { approveAsk, carryOn, declineAsk } from "./ready";
-import { getRun, listRuns } from "./read";
+import { getRun, leadInRun, listRuns } from "./read";
 import { autopilotSetup } from "./setup";
 import { estimateRun, runBody, startRun } from "./start";
 
@@ -30,6 +30,12 @@ export async function autopilotRoutes(app: FastifyInstance, d: AppDeps): Promise
     async (req, reply) => reply.code(201).send(await startRun(req, d, req.body)),
   );
   r.get("/api/v1/autopilot/runs", { config: { permission: "leads.view" } }, (req) => listRuns(req));
+  // Where one lead stands with LUME AI (2026-11-01): "Let LUME AI handle this" on the lead and its chat.
+  r.get(
+    "/api/v1/leads/:id/autopilot",
+    { config: { permission: "leads.view" }, schema: { params: id } },
+    (req) => leadInRun(req, req.params.id),
+  );
   r.get(
     "/api/v1/autopilot/runs/:id",
     { config: { permission: "leads.view" }, schema: { params: id } },

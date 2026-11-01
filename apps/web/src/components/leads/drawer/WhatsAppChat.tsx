@@ -28,6 +28,7 @@ export function WhatsAppChat({
   onRetry,
   onMeaning,
   composer,
+  headAction,
 }: {
   leadName: string;
   /** The lead's number as people read it, under their name. */
@@ -39,6 +40,8 @@ export function WhatsAppChat({
   onMeaning?: () => void;
   /** The reply box (or the approved templates outside 24 hours); without it, where replies go instead. */
   composer?: ReactNode;
+  /** Beside Close: "Let LUME AI handle this" (2026-11-01). */
+  headAction?: ReactNode;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -75,6 +78,7 @@ export function WhatsAppChat({
             <h2 className={s.chatName}>{leadName}</h2>
             {phone && <span className={s.chatPhone}>{phone}</span>}
           </div>
+          {headAction}
           <button type="button" className={s.chatClose} aria-label="Close (Esc)" onClick={onClose}>
             <X size={18} aria-hidden />
           </button>

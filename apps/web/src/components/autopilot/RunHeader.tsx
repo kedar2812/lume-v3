@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +24,7 @@ export function RunHeader({
   onPause,
   onResume,
   onEnd,
+  onNewRun,
 }: {
   run: RunDetail["run"];
   line: { text: string; working: boolean };
@@ -37,6 +37,8 @@ export function RunHeader({
   onPause(): void;
   onResume(): void;
   onEnd(): void;
+  /** New run: choose its leads here (owner, 2026-11-01), not on Leads. */
+  onNewRun(): void;
 }) {
   const [ending, setEnding] = useState(false);
   const control = run.canControl && run.status !== "ended";
@@ -75,9 +77,9 @@ export function RunHeader({
           </Button>
         )}
         {canStart && (
-          <Link href="/leads" className={h.newRun}>
+          <button type="button" className={h.newRun} onClick={onNewRun}>
             New run
-          </Link>
+          </button>
         )}
       </div>
       {ending && (

@@ -26,6 +26,8 @@ import { zoneOf } from "@/lib/zone";
 import { guardNumberWheel } from "@/lib/ui/wheel";
 import { GlobalUploadTray } from "@/components/media/UploadTray";
 import { uploads } from "@/lib/media/uploads";
+import { MessageNotices, chatHref } from "@/components/notifications/MessageNotices";
+import { useRouter } from "next/navigation";
 
 type Props = {
   session: Session;
@@ -61,6 +63,7 @@ export function AppShell({ session, businessName, theme, mac = false, children }
   const [palette, setPalette] = useState(false);
   const [feedback, setFeedback] = useState(false);
   const { can, user } = shellIdentity(session);
+  const router = useRouter();
   // Send feedback (spec 2026-10-16 §1.1): wherever there is a product key to send it under.
   const openFeedback = session.licence.feedback ? () => setFeedback(true) : undefined;
 
@@ -143,6 +146,15 @@ export function AppShell({ session, businessName, theme, mac = false, children }
             </div>
             <PaymentReminder businessName={businessName} />
             <PendingSent />
+            {/* A WhatsApp message from one of this person's leads, on whichever screen is open (owner, 2026-11-01). */}
+            {can("leads.view") && (
+              <MessageNotices
+                userId={session.user.id}
+                tz={zoneOf(session.user)}
+                repliesOn={session.preferences.alerts.replies !== false}
+                onOpen={(leadId) => router.push(chatHref(leadId, window.location))}
+              />
+            )}
             {/* Files going up into Media, on whichever screen is open (owner, 2026-10-25). */}
             <GlobalUploadTray />
             {/* A security alert, live, for whoever reviews them (6A). */}

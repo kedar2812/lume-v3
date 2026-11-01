@@ -338,6 +338,17 @@ test.describe.serial("Autopilot", () => {
       .getByRole("region", { name: "What to do" });
     await expect(bar).toContainText("Agreed to meet");
     await expect(bar).toContainText("Saturday works for me");
+    // The reply box is right there (owner 2026-11-01: "where is the text box?"), and in view: the conversation scrolls
+    // inside its pane, never past the card that cut it off.
+    const box = page
+      .getByRole("region", { name: "Conversation with Tarun Dsouza" })
+      .getByRole("textbox", { name: "Message to Tarun" });
+    await expect(box).toBeInViewport({ ratio: 1 });
+    // One scroll at a time (owner 2026-11-01: "scrolling on the LUME AI page is very difficult"): the panes fill the
+    // window, so the page itself has nothing to scroll; only the list and the conversation do.
+    await expect
+      .poll(() => page.locator("[data-scroll]").evaluate((el) => el.scrollHeight - el.clientHeight))
+      .toBeLessThanOrEqual(1);
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);

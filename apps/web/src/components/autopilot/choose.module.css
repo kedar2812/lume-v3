@@ -1,0 +1,122 @@
+/* New run's first step (2026-11-01): choose leads in the sheet, as the start sheet looks. */
+.head {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 16px;
+}
+.title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-lg);
+  line-height: 1.2;
+}
+.lede {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.tools {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text-3);
+}
+.search:focus-within {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+.search svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  outline: 0;
+}
+.search input:focus-visible {
+  box-shadow: none;
+}
+.all,
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.all {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+.row:hover,
+.all:hover {
+  background: var(--hover);
+}
+.row input,
+.all input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rows li + li .row {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.loading {
+  display: grid;
+  gap: 8px;
+}
+.none,
+.more {
+  padding: 12px 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.problem {
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.count {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}

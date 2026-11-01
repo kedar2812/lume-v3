@@ -79,3 +79,37 @@ describe("GET /api/v1/leads/:id/whatsapp", () => {
     ).toBe(404);
   });
 });
+
+describe("GET /api/v1/leads/:id/whatsapp/latest (2026-11-01)", () => {
+  it("the lead's name and newest message in, for its owner's notice; a message out isn't it", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Meera Iyer", phone: "+919876500777" });
+    await h.queryAll(
+      `INSERT INTO activities (id, lead_id, type, payload, occurred_at) VALUES
+         (gen_random_uuid(), $1, 'whatsapp_received', '{"text":"First"}', '2026-10-21T06:00:00Z'),
+         (gen_random_uuid(), $1, 'whatsapp_received', '{"text":"Is Saturday still on?"}', '2026-10-21T06:01:00Z'),
+         (gen_random_uuid(), $1, 'whatsapp_sent', '{"text":"Yes"}', '2026-10-21T06:02:00Z')`,
+      [lead],
+    );
+    const r = await (
+      await h.signIn(rep)
+    ).inject({ method: "GET", url: `/api/v1/leads/${lead}/whatsapp/latest` });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({
+      name: "Meera Iyer",
+      message: { direction: "in", text: "Is Saturday still on?", at: "2026-10-21T06:01:00.000Z" },
+    });
+  });
+
+  it("nothing in yet: no message; someone who can't see the lead gets 404", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Quiet One", phone: "+919876500778" });
+    const c = await h.signIn(rep);
+    expect((await c.inject({ method: "GET", url: `/api/v1/leads/${lead}/whatsapp/latest` })).json()).toEqual({
+      name: "Quiet One",
+      message: null,
+    });
+    expect(
+      (await (await h.signIn(other)).inject({ method: "GET", url: `/api/v1/leads/${lead}/whatsapp/latest` }))
+        .statusCode,
+    ).toBe(404);
+  });
+});

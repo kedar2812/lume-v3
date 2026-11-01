@@ -1,6 +1,9 @@
 "use client";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { useLoadingSignal } from "@/lib/loading";
+import { useWhatsApp } from "@/lib/notifications/stream";
+import { useChatOnScreen } from "@/lib/whatsapp/open-chats";
+import { useSearchParams } from "next/navigation";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { can, canOnRecord } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -44,6 +47,7 @@ import { MeetingsTab } from "./MeetingsTab";
 import { WhatsAppComposer } from "./WhatsAppComposer";
 import { ChatCard } from "./ChatCard";
 import { WhatsAppChat } from "./WhatsAppChat";
+import { HandToAi } from "@/components/autopilot/HandToAi";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaThread, WaThreadMessage } from "@/lib/whatsapp/types";
 import { MessageButton } from "./MessageButton";
@@ -171,6 +175,10 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     setWa(null);
     loadWa();
   }, [loadWa]);
+  // Live (2026-11-01): a message in or out, or a tick, on this lead's chat shows at once; after a dropped stream, look again.
+  useWhatsApp((e) => {
+    if (e.lead === id || e.lead === "*") loadWa();
+  });
   const seesWa = !!wa && (wa.on || wa.messages.length > 0);
   // A reply from LUME on its way (plan W3a): the thread looks again every 5 s until it's delivered, for 2 minutes.
   const waPending = !!wa?.messages.some(
@@ -318,6 +326,17 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
       setChat(true);
     } else if (t !== "details") reloadActivities();
   };
+  useChatOnScreen(chat ? id : null);
+  // A message notice opens the chat itself (2026-11-01): ?lead=<id>&chat=<when>, a new value each time it's pressed.
+  const params = useSearchParams();
+  // Null outside the app router (a test, a preview): nothing asked.
+  const askedChat = params?.get("lead") === id ? params.get("chat") : null;
+  useEffect(() => {
+    if (!askedChat) return;
+    setTab("whatsapp");
+    loadWa();
+    setChat(true);
+  }, [askedChat, loadWa]);
 
   const pipeline = lead ? catalog.pipelines.find((p) => p.id === lead.pipelineId) : undefined;
   const stage = pipeline?.stages.find((st) => st.id === lead?.stageId);
@@ -704,6 +723,14 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       onChange={() => void refresh()}
                     />
                   )}
+                  {lead.can.message && (
+                    <HandToAi
+                      leadId={lead.id}
+                      leadName={lead.name ?? "this lead"}
+                      canStart={can(session.actor, "messages.send_queue")}
+                      size="md"
+                    />
+                  )}
                   {stage?.kind === "lost"
                     ? lead.can.move && (
                         <Popover label="Reopen" role="menu" trigger="Reopen" triggerClassName={b.btn}>
@@ -895,6 +922,15 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   )}
                   {chat && wa && (
                     <WhatsAppChat
+                      headAction={
+                        lead.can.message ? (
+                          <HandToAi
+                            leadId={lead.id}
+                            leadName={lead.name ?? "this lead"}
+                            canStart={can(session.actor, "messages.send_queue")}
+                          />
+                        ) : undefined
+                      }
                       leadName={lead.name ?? "this lead"}
                       phone={lead.phone?.display ?? null}
                       tz={tz}

@@ -398,6 +398,30 @@ describe("what LUME AI wrote while things changed under it (review 2026-10-26 A1
     expect(await stateOf(run, id)).toMatchObject({ state: "with_you", draft: null });
   });
 
+  it("a lead who wrote before the run is answered in the conversation, not opened with a template (2026-11-01)", async () => {
+    // Live test: a new run sent "thanks for your interest" to someone who had just written "this is a scam".
+    const id = await lead("Kiran Bose", "+919876500013");
+    await writes(id, "Is this the kitchen people? What do you charge?");
+    h.clock.advance(60 * MIN);
+    provider.script("autopilot_reply", [
+      reply({ message: "Yes, we design kitchens. A modular one is ₹3,80,000." }),
+    ]);
+    const run = await startOn([id]);
+    await sendNext();
+    expect(sentTo(id)).toEqual(["Yes, we design kitchens. A modular one is ₹3,80,000."]);
+    expect((await stateOf(run, id)).state).toBe("talking");
+  });
+
+  it("a lead whose message is past the 24 hours gets the approved template, as WhatsApp requires", async () => {
+    const id = await lead("Neel Joshi", "+919876500014");
+    await writes(id, "Hello?");
+    h.clock.advance(25 * 60 * MIN);
+    const run = await startOn([id]);
+    await sendNext();
+    expect(sentTo(id)).toEqual(["template"]);
+    expect((await stateOf(run, id)).state).toBe("sent");
+  });
+
   it("the lead writes again while LUME AI is writing: the old reply is dropped and the new message answered", async () => {
     const { id, run } = await inRun("Dev Malhotra", "+919876500012");
     await writes(id, "Do you do bathrooms too?");
