@@ -48,6 +48,8 @@ export type AutopilotCtx = {
   fillable: { key: string; label: string; type: FillableType; options: string[] }[];
   now: string;
   timezone: string;
+  /** A person read the conversation and pressed Let LUME AI carry on, and the lead hasn't written since. */
+  carriedOn?: boolean;
 };
 
 export const autopilotFirstOutput = z.object({ templateId: z.uuid(), why: softText(200) }).strict();
@@ -121,7 +123,12 @@ export function autopilotInstructions(task: AutopilotTask, c: AutopilotCtx): str
 - If the lead complains, is upset, asks for a person, or asks for legal, medical or financial advice, or anything you \
 aren't sure of, answer with kind handover, the reason in one line, and the lead's own words as evidence.
 - When the goal is reached, answer with kind converted, the reason, and the lead's own words as evidence.
-- ${bot}`;
+- ${bot}${
+    c.carriedOn
+      ? `
+- A person at ${c.business} has read this conversation and asked you to carry on: write the next message to the lead, kind reply. They have seen what the lead said, so don't hand over or call the goal reached on it again; still answer with kind stop if the lead says stop.`
+      : ""
+  }`;
   const what =
     task === "autopilot_first"
       ? "Choose the one approved template that best fits this lead and the goal. Answer with its templateId and why, in one line of at most 200 characters."
@@ -129,7 +136,7 @@ aren't sure of, answer with kind handover, the reason in one line, and the lead'
 the message, or another kind as the rules say. You may attach up to three of the files given by id; set stageId to one \
 of the stages given by id when the conversation has moved the lead there; when the lead has said no, the lost stage with \
 a lostReasonId from the lost reasons given; fill only the empty fields given, as key and value pairs, from what the lead said (a choice \
-by one of its options, a number as digits, a date as YYYY-MM-DD); and suggest a follow-up. Keep the message at most \
+by one of its options, a number as digits, a date as YYYY-MM-DD); and suggest a follow-up, its time as "YYYY-MM-DDTHH:mm" on the business's clock. Keep the message at most \
 1,000 characters, the reason at most 200 characters and the evidence at most 300 characters.`;
   return `You are LUME AI, messaging a business's lead on WhatsApp. The goal: ${goalWords(c.goal)}.
 ${voice}

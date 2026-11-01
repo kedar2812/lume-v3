@@ -6,6 +6,17 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **Let LUME AI carry on, carries on:** pressed on a lead LUME AI handed over ("lets do a call tomorrow 5 pm"), it now
+  answers them, where it read the same words again and came straight back as Ready, notice after notice. If it still
+  can't, the lead stays with you once, said plainly ("LUME AI can't carry on from here"). A lead in the run's goal
+  stage is Ready once for each move into it, so one sent back talks on instead of bouncing. Migration 0099.
+- **LUME AI's follow-up reminders are kept:** a time LUME AI wrote with seconds or its zone
+  ("2026-11-02T10:00:00+05:30") was thrown away, so no reminder it suggested on a reply was ever set; such a time is
+  now that time, and LUME AI is told the format it should use.
+- **The Ready and Needs you card on the LUME AI page:** the reply box has the card's whole width under the lead's words,
+  with Let LUME AI carry on beside the words, where the box was squeezed into a corner beside the button and pushed the
+  words past the card's edge.
+
 - **WhatsApp, live:** a message a lead sends, and the ticks on one LUME sent, show in their open chat as they happen,
   in the lead's drawer and on the LUME AI page alike; nobody closes and reopens a chat to see a reply. Migration 0098
   says each message on the live stream as its lead and kind only, never its words.
@@ -18,7 +29,7 @@ column in the release that stops using it.
   Past the 24 hours, the template as before.
 - **The LUME AI page:** the two panes fill the window on a computer, so the page never scrolls along with them and each
   list or conversation scrolls on its own (a long conversation was cut off at the foot of the card); a lead ready for
-  you, or needing you, has the reply box right there beside Let LUME AI carry on; the leads list has a search (any
+  you, or needing you, has the reply box right there under their words; the leads list has a search (any
   part of a name, case and accents aside); New run chooses its leads in a sheet right there (search, No reply 3+ days,
   New today, All) and goes on to the start sheet, never a trip to Leads.
 - **Let LUME AI handle this:** on a lead, in their chat and on each Who replied group that fits (never no, stop or wrong
@@ -57,7 +68,7 @@ column in the release that stops using it.
   bell shows how many are unread (9+ past nine); page titles in the top bar are larger; Analytics' Sources lists
   only sources with leads or wins in the range (a source whose only activity was a loss, meeting or task was listed
   at nothing, and a tag filter then disagreed).
-- **Update notes:** migrations 0097 and 0098 (additive). No `.env` changes.
+- **Update notes:** migrations 0097, 0098 and 0099 (additive). No `.env` changes.
 
 ## 1.1.0 — 2026-10-29
 

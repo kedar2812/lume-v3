@@ -32,7 +32,8 @@ export type LeadFacts = {
 
 const HISTORY_ITEMS = 20;
 const HISTORY_CHARS = 4000;
-const LOCAL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+/** "YYYY-MM-DDTHH:mm", seconds and a zone allowed: the model writes ISO times however it likes (live test 2026-11-01). */
+const LOCAL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:\d{2})?$/;
 
 export const nextStepOutput = z
   .object({
@@ -102,12 +103,23 @@ export function inputFor(task: AiTask, facts: LeadFacts, note?: string): string 
   return note === undefined ? body : `${body}\n\nThe note:\n${note}`;
 }
 
+/** "Z" or "+05:30" as milliseconds east of UTC. */
+const offsetMs = (z: string) =>
+  z === "Z" ? 0 : (z[0] === "-" ? -1 : 1) * (Number(z.slice(1, 3)) * 60 + Number(z.slice(4, 6))) * 60_000;
+
 /** "YYYY-MM-DDTHH:mm" on `tz` as a moment, or null when it isn't a real date and time. */
 function localMoment(local: string, tz: string): Date | null {
   const m = LOCAL.exec(local);
   if (!m) return null;
-  const [y, mo, d, h, mi] = m.slice(1).map(Number) as [number, number, number, number, number];
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
+  const [y, mo, d, h, mi] = m.slice(1, 6).map(Number) as [number, number, number, number, number];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || Number(m[6] ?? 0) > 59) return null;
+  // A time with its own zone is that moment; the date it names is checked on that zone's clock.
+  if (m[7]) {
+    const at = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00${m[7]}`);
+    return Number.isNaN(at.getTime()) || new Date(at.getTime() + offsetMs(m[7])).getUTCDate() !== d
+      ? null
+      : at;
+  }
   const at = wallTime(y, mo, d, h, mi, tz);
   // A day past the month's end (Feb 30) rolls over: not the date that was written.
   const back = new Intl.DateTimeFormat("en-CA", {

@@ -292,6 +292,87 @@ describe("Ask me, and Ready for you", () => {
     expect(textsSent()).toEqual(["Thanks for your message! Happy to help."]);
   });
 
+  // Live test 2026-11-01: "lets do a call tomorrow 5 pm" went Ready; Let LUME AI carry on re-read the same words and went
+  // Ready again, three times over. Carry on means: answer the lead, the goal is the person's to know already.
+  it("carry on after a written goal is reached: LUME AI answers, never Ready again on the same words", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    const run = await start([lead], {
+      goal: { kind: "brief", text: "Get them to agree to a call this week." },
+    });
+    await leadWrote("Lets do a call tomorrow 5 pm");
+    const converted = reply({ kind: "converted", message: null, reason: "Agreed to a call", evidence: null });
+    provider.script("autopilot_reply", [converted]);
+    await tick();
+    expect((await rowOf(run, lead)).state).toBe("ready");
+    const before = provider.calls.length;
+    await post(admin, `/api/v1/autopilot/runs/${run}/leads/${lead}/carry-on`);
+    provider.script("autopilot_reply", [reply({ message: "Great, talk tomorrow at 5 pm." })]);
+    expect(await sentAfter()).toEqual(["Great, talk tomorrow at 5 pm."]);
+    expect(provider.calls.slice(before).map((c) => c.instructions)).toEqual([
+      expect.stringContaining("asked you to carry on"),
+    ]);
+    expect((await rowOf(run, lead)).state).toBe("talking");
+    // Asked to carry on, it still hands the lead back on the same words: to a person, said plainly, not Ready again.
+    await writes("Perfect");
+    provider.script("autopilot_reply", [converted]);
+    await tick();
+    expect((await rowOf(run, lead)).state).toBe("ready");
+    await post(admin, `/api/v1/autopilot/runs/${run}/leads/${lead}/carry-on`);
+    provider.script("autopilot_reply", [converted]);
+    await tick();
+    expect(await rowOf(run, lead)).toEqual({
+      state: "needs_you",
+      card: expect.objectContaining({ headline: "LUME AI can't carry on from here" }),
+    });
+    expect(
+      (await bell(admin))
+        .map((n) => n.title)
+        .filter((t) => /Agreed to a call|carry on/.test(t))
+        .sort(),
+    ).toEqual([
+      "Sneha needs you: LUME AI can't carry on from here",
+      "Sneha: Agreed to a call. Want to take over?",
+      "Sneha: Agreed to a call. Want to take over?",
+    ]);
+  });
+
+  it("carry on with a lead already in the goal stage: LUME AI talks on, Ready again only on a new move into it", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    const run = await start([lead]);
+    await leadWrote("Saturday works for the visit");
+    provider.script("autopilot_reply", [reply({ message: "Lovely, see you then.", stageId: goalStage.id })]);
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect((await rowOf(run, lead)).state).toBe("ready");
+    const before = textsSent().length;
+    await writes("What should I bring?");
+    await post(admin, `/api/v1/autopilot/runs/${run}/leads/${lead}/carry-on`);
+    provider.script("autopilot_reply", [reply({ message: "Just your floor plan." })]);
+    expect((await sentAfter()).slice(before)).toEqual(["Just your floor plan."]);
+    expect((await rowOf(run, lead)).state).toBe("talking");
+    // Still in the goal stage, a new message is answered, not turned straight back to Ready.
+    await writes("And parking?");
+    provider.script("autopilot_reply", [reply({ message: "Yes, there's parking." })]);
+    expect((await sentAfter()).slice(before)).toEqual(["Just your floor plan.", "Yes, there's parking."]);
+    expect((await rowOf(run, lead)).state).toBe("talking");
+    // Out of the goal stage and back in: a new move, Ready again.
+    const other = (
+      await h.ownerPool.query<{ id: string }>(
+        "SELECT id FROM stages WHERE pipeline_id = (SELECT pipeline_id FROM stages WHERE id = $1) AND kind = 'open' AND id <> $1 LIMIT 1",
+        [goalStage.id],
+      )
+    ).rows[0]!.id;
+    await writes("Can we make it Sunday?");
+    provider.script("autopilot_reply", [reply({ message: "Let me check Sunday.", stageId: other })]);
+    await sentAfter();
+    expect((await rowOf(run, lead)).state).toBe("talking");
+    await writes("Sunday then");
+    provider.script("autopilot_reply", [reply({ message: "Sunday it is.", stageId: goalStage.id })]);
+    await sentAfter();
+    expect((await rowOf(run, lead)).state).toBe("ready");
+  });
+
   /** A price question LUME AI asks about (Ask me), for the tests below. */
   const asked = async () => {
     const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });

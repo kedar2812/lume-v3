@@ -152,7 +152,7 @@ export async function carryOn(req: FastifyRequest, d: AppDeps, runId: string, le
     );
   await req.db
     .update(L)
-    .set({ state, card: null, reason: null, nextAt: now, updatedAt: now })
+    .set({ state, card: null, reason: null, nextAt: now, carriedOnAt: now, updatedAt: now })
     .where(leadKey(runId, leadId));
   req.afterCommit(() => void d.autopilot?.kick(runId));
   return { leadId, state };

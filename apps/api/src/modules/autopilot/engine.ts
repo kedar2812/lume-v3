@@ -65,6 +65,9 @@ const UNLIMITED = { take: () => ({ ok: true as const }) };
 const MAX_FAILS = 3;
 
 const poolOf = (d: AppDeps) => d.jobPool ?? d.pool;
+/** A person pressed Let LUME AI carry on, and the lead hasn't written since: LUME AI answers, it doesn't hand back. */
+const carriedOn = (l: Lead) =>
+  !!l.carriedOnAt && (!l.lastInboundAt || l.carriedOnAt.getTime() >= l.lastInboundAt.getTime());
 const say = (c: pg.PoolClient | pg.Pool, runId: string, leadId: string | null, kind: string, data = {}) =>
   c.query("INSERT INTO autopilot_events (run_id, lead_id, kind, data) VALUES ($1, $2, $3, $4)", [
     runId,
@@ -614,6 +617,8 @@ async function reachedGoal(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead
   if (goal.kind !== "stage") return false;
   const lead = await leadNow(req, l.leadId);
   if (!lead || lead.stageId !== goal.stageId) return false;
+  // Ready once for each move into it: sent back (carry on), a lead still there talks on until it's moved in again.
+  if (l.goalEntryAt?.getTime() === lead.stageEnteredAt.getTime()) return false;
   const stage = (await openStages(req)).find((x) => x.id === goal.stageId)?.name ?? "the goal";
   const A = schema.activities;
   const [last] = await req.db
@@ -625,6 +630,7 @@ async function reachedGoal(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead
   const quote = (last?.payload as { text?: string | null } | undefined)?.text ?? null;
   const headline = `Reached ${stage}`;
   await leave(req, l, "ready", headline, { headline, quote });
+  await req.db.update(schema.autopilotLeads).set({ goalEntryAt: lead.stageEnteredAt }).where(keyOf(l));
   const pool = poolOf(o.d);
   req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "ready", headline }));
   return true;
@@ -636,7 +642,8 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
   if (!lead) return leave(req, l, "skipped", "LUME AI can't reach this lead any more.");
   if (lead.dncAt) return leave(req, l, "stopped", "Asked not to be messaged.");
   if (await reachedGoal(o, req, run, l)) return 1;
-  const c = await aiCtx(req, run, lead, []);
+  const carried = carriedOn(l);
+  const c = { ...(await aiCtx(req, run, lead, [])), carriedOn: carried };
   const r = await runRead(req, o.d, {
     task: "autopilot_reply",
     leadId: lead.id,
@@ -665,7 +672,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     lostReasonIds: reasons.map((x) => x.id),
     fieldKeys,
   });
-  return actOn(o, req, run, l, lead, g, c.lastLeadMessage, r.output.reason);
+  return actOn(o, req, run, l, lead, g, c.lastLeadMessage, r.output.reason, carried);
 }
 
 /** What a guarded answer does to the lead (§2–§3). Stop, ask and Ready for you are finished in Tasks 7–8. */
@@ -679,6 +686,8 @@ async function actOn(
   theirWords: string,
   /** LUME AI's own reason, the live view's thought line. */
   reason: string,
+  /** Sent back by a person (carry on): handing the lead back again on the same words would go round in circles. */
+  carried = false,
 ) {
   if (g.kind === "stop") {
     await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", byAi: { runId: run.id } });
@@ -687,6 +696,13 @@ async function actOn(
     return leave(req, l, "stopped", "Said stop. LUME AI marked them do not contact.");
   }
   const pool = poolOf(o.d);
+  if (carried && (g.kind === "handover" || g.kind === "converted")) {
+    const headline = "LUME AI can't carry on from here";
+    req.afterCommit(
+      () => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "needs_you", headline }),
+    );
+    return leave(req, l, "needs_you", g.reason, { headline, quote: theirWords || null });
+  }
   if (g.kind === "handover") {
     const headline = g.reason;
     req.afterCommit(

@@ -207,14 +207,16 @@ export function LiveConversation({
             )}
           </span>
         </p>
-        {lead.card?.quote && <blockquote className={s.barQuote}>{`“${lead.card.quote}”`}</blockquote>}
+        {/* Beside the words, not beside the reply box: the box takes a row of its own (owner, 2026-11-01). */}
         {mayMessage && canDecide && (
           <div className={s.barActions}>
-            <Button size="sm" variant="ghost" onClick={onCarryOn}>
+            <Button size="sm" onClick={onCarryOn}>
+              <AiGlyph size={14} />
               Let LUME AI carry on
             </Button>
           </div>
         )}
+        {lead.card?.quote && <blockquote className={s.barQuote}>{`“${lead.card.quote}”`}</blockquote>}
         {/* The reply box itself (owner, 2026-11-01: "where is the text box?"): LUME AI is waiting on a person here, so
             what's typed is theirs. */}
         {thread?.reply && (

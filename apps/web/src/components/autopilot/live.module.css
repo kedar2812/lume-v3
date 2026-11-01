@@ -131,6 +131,8 @@
 }
 .barText {
   flex: 1 1 260px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -168,6 +170,19 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-left: auto;
+}
+/* The reply box under the words, the panel's full width: never squeezed beside a button. */
+.bar > .mine {
+  flex: 1 0 100%;
+  min-width: 0;
+  margin-top: 2px;
+}
+/* In the card the box is part of it: no footer of its own (the drawer's sticky sheet and edge). */
+.bar > .mine > form {
+  position: static;
+  padding: 0;
+  background: none;
+  box-shadow: none;
 }
 .thought {
   display: flex;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   catchUpOutput,
   cleanNextStep,
+  followUpMoment,
   inputFor,
   instructionsFor,
   nextStepOutput,
@@ -72,6 +73,26 @@ describe("LUME AI's tasks", () => {
     expect(at("2026-10-18T11:00")).toEqual({ at: "2026-10-18T11:00", title: "Call back" });
     expect(at("2026-13-40T11:00")).toBeNull(); // not a date
     expect(at("tomorrow")).toBeNull();
+  });
+
+  it("a follow-up time with seconds or its zone is still that time (live test 2026-11-01: every one was dropped)", () => {
+    const due = (at: string) => followUpMoment({ at, title: "Call back" }, "Asia/Kolkata").toISOString();
+    expect(due("2026-11-02T10:00")).toBe("2026-11-02T04:30:00.000Z");
+    expect(due("2026-11-02T10:00:00")).toBe("2026-11-02T04:30:00.000Z");
+    expect(due("2026-11-02T10:00:00+05:30")).toBe("2026-11-02T04:30:00.000Z");
+    expect(due("2026-11-02T10:00+04:00")).toBe("2026-11-02T06:00:00.000Z"); // its own zone, as written
+    expect(due("2026-11-02T04:30:00Z")).toBe("2026-11-02T04:30:00.000Z");
+    expect(() => due("2026-11-02T10:00+5")).toThrow();
+    expect(() => due("2026-11-02T10:00:61")).toThrow();
+    expect(() => due("2026-02-30T10:00:00+05:30")).toThrow(); // no such day, not March 2nd
+    expect(due("2026-11-02T00:30+05:30")).toBe("2026-11-01T19:00:00.000Z"); // the day on its own zone's clock
+    const kept = (local: string) =>
+      cleanNextStep(step({ followUp: { at: local, title: "Call back" } }), facts()).followUp;
+    expect(kept("2026-10-18T11:00:00+04:00")).toEqual({
+      at: "2026-10-18T11:00:00+04:00",
+      title: "Call back",
+    });
+    expect(kept("2026-10-18T09:30:00+04:00")).toBeNull(); // 9:30 in Dubai, it's 10:00 there
   });
 
   it("keeps the same tag once, and at most three", () => {

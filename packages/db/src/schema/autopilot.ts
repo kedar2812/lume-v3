@@ -45,6 +45,10 @@ export const autopilotLeads = pgTable(
     /** LUME AI's one line on what it's doing for this lead, while it works it (A3). */
     thought: text("thought"),
     fails: integer("fails").notNull().default(0),
+    /** When a person last pressed Let LUME AI carry on (live test 2026-11-01). */
+    carriedOnAt: tz("carried_on_at"),
+    /** The lead's entry into the goal stage that made it Ready: the same entry never does again. */
+    goalEntryAt: tz("goal_entry_at"),
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.runId, t.leadId] })],

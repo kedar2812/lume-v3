@@ -344,6 +344,16 @@ test.describe.serial("Autopilot", () => {
       .getByRole("region", { name: "Conversation with Tarun Dsouza" })
       .getByRole("textbox", { name: "Message to Tarun" });
     await expect(box).toBeInViewport({ ratio: 1 });
+    // The box has the card's full width, under the words and Let LUME AI carry on, never squeezed beside the button;
+    // nothing in the card runs past its edge (owner 2026-11-01, a screenshot of both).
+    const [barBox, boxBox, carryBox] = await Promise.all([
+      bar.boundingBox(),
+      box.boundingBox(),
+      bar.getByRole("button", { name: "Let LUME AI carry on" }).boundingBox(),
+    ]);
+    expect(boxBox!.width).toBeGreaterThan(barBox!.width * 0.6);
+    expect(boxBox!.y).toBeGreaterThanOrEqual(carryBox!.y + carryBox!.height);
+    expect(await bar.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
     // One scroll at a time (owner 2026-11-01: "scrolling on the LUME AI page is very difficult"): the panes fill the
     // window, so the page itself has nothing to scroll; only the list and the conversation do.
     await expect
