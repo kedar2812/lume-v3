@@ -30,6 +30,7 @@ export function ReplyMeaning({
   from,
   tz,
   onDone,
+  current = true,
 }: {
   meaning: WaMeaning | { failed: true };
   /** The lead's first name. */
@@ -37,6 +38,11 @@ export function ReplyMeaning({
   tz: string;
   /** Something was applied: the thread and the lead are read again. */
   onDone(): void;
+  /**
+   * The newest reply's read (2026-11-02): only its next step is offered. An older one's was overtaken by what the lead
+   * said since; its Apply did nothing anyone could see, and applying the newest left the rest asking.
+   */
+  current?: boolean;
 }) {
   const [outcome, setOutcome] = useState<WaMeaning["outcome"]>("failed" in meaning ? null : meaning.outcome);
   const [said, setSaid] = useState<{ done: string | null; skipped: string[] } | null>(null);
@@ -47,7 +53,7 @@ export function ReplyMeaning({
   const m = meaning;
   const stage = m.stageName ? (m.lostReason ? `${m.stageName} · ${m.lostReason}` : m.stageName) : null;
   const when = m.dueAt ? dueWords(m.dueAt, tz) : null;
-  const offered = !m.stop && (stage || when);
+  const offered = current && !m.stop && (stage || when);
   const apply = async () => {
     setBusy(true);
     setProblem(null);

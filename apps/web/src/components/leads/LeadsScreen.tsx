@@ -130,7 +130,8 @@ function useLeadList(filters: ListFilters, first: LeadPage | null) {
     loadMore: () => {
       if (cursor && !loading) void fetchPage(cursor);
     },
-    reload: () => void fetchPage(),
+    /** Resolves once the rows are in (or the load failed): what a Refresh's glow waits for. */
+    reload: () => fetchPage().then(() => undefined),
     replace,
     removeRow: (id: string) => setRows((prev) => prev.filter((x) => x.id !== id)),
     prepend: (lead: Lead) => setRows((prev) => [lead, ...prev.filter((x) => x.id !== lead.id)]),
@@ -637,16 +638,17 @@ function Screen({
               <RefreshButton
                 personal={personal}
                 onArrived={(p) => {
-                  list.reload();
                   recount();
-                  arrivals.flash(p.leadIds);
+                  // The glow's five seconds start once the new rows are on screen, not while they load: on a slow
+                  // line (or a loaded test box, 2026-11-02) they arrived with the glow already over.
+                  void list.reload().then(() => arrivals.flash(p.leadIds));
                 }}
               />
             ) : (
               <ReloadRefresh
                 pipelineId={pipeline?.id}
                 onReload={() => {
-                  list.reload();
+                  void list.reload();
                   recount();
                 }}
               />
@@ -782,7 +784,7 @@ function Screen({
             onRun={setRun}
             onClear={clearSelection}
             onFinished={() => {
-              list.reload();
+              void list.reload();
               recount();
             }}
           />
@@ -793,7 +795,7 @@ function Screen({
           session={session}
           onClose={() => setRunsOpen(false)}
           onChanged={() => {
-            list.reload();
+            void list.reload();
             recount();
           }}
         />
@@ -804,7 +806,7 @@ function Screen({
         onClose={() => {
           setImporting(false);
           setUnseenImport(null);
-          list.reload();
+          void list.reload();
           recount();
         }}
       />

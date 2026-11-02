@@ -122,7 +122,7 @@ export function leadLine(
   l: RunLead,
   ask: RunAsk | null,
   when: (iso: string) => string,
-): { text: string; dot: "writing" | "needs" | "ready" | null } {
+): { text: string; dot: "writing" | "needs" | "ready" | "stopped" | null } {
   switch (l.state) {
     case "writing":
       return { text: l.draft?.kind === "template" ? "Writing a message" : "Writing a reply", dot: "writing" };
@@ -144,8 +144,11 @@ export function leadLine(
       return { text: "Talking", dot: null };
     case "with_you":
       return { text: "With you", dot: null };
-    case "stopped":
-      return { text: "Stopped", dot: null };
+    case "stopped": {
+      // Why, in its first words ("Said stop", "Asked not to be messaged"): owner 2026-11-01, in red.
+      const why = bare((l.reason ?? "").split(/(?<=\.)\s/)[0] ?? "");
+      return { text: why ? `Stopped · ${why}` : "Stopped", dot: "stopped" };
+    }
     case "skipped":
       return { text: l.reason ?? "Skipped", dot: null };
   }

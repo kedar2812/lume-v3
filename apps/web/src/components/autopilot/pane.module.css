@@ -147,6 +147,12 @@
 .dot[data-dot="needs"] {
   background: var(--warn);
 }
+.dot[data-dot="stopped"] {
+  background: var(--danger);
+}
+.line[data-tone="stop"] {
+  color: var(--danger-ink);
+}
 .empty {
   margin: 0;
   padding: 28px 22px;

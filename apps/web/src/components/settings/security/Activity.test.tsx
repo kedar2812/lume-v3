@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usersClient } from "@/lib/settings/people";
 import type { SecurityActivity } from "@/lib/settings/security";
 import { Activity, usualWords } from "./Activity";
@@ -47,6 +47,14 @@ const activity = (over: Partial<SecurityActivity> = {}): SecurityActivity => ({
   ...over,
 });
 const props = { timezone: "Asia/Dubai", canManagePeople: true };
+
+// Mid-morning in Dubai: a session "a minute ago" is today's, whenever the suite runs. At 20:00 UTC (Dubai's midnight)
+// it was yesterday's, and the gate failed (2026-11-02). Only the date is pinned: clicks and timers run as ever.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-03T06:00:00Z"));
+});
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => vi.clearAllMocks());
 

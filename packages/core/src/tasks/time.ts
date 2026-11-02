@@ -19,6 +19,8 @@ const MAX_OFFSET = 43_200; // 30 days, in minutes
 const MAX_REMINDERS = 5;
 
 type Local = { y: number; m: number; d: number; hh: number; mm: number };
+/** A date on a business's own calendar. */
+export type LocalDay = { y: number; m: number; d: number };
 const formats = new Map<string, Intl.DateTimeFormat>();
 const format = (tz: string) => {
   let f = formats.get(tz);
@@ -82,6 +84,22 @@ function addDays(l: Pick<Local, "y" | "m" | "d">, days: number) {
 const at = (l: Pick<Local, "y" | "m" | "d">, hh: number, mm: number, tz: string) =>
   wallTime(l.y, l.m, l.d, hh, mm, tz);
 const weekday = (l: Pick<Local, "y" | "m" | "d">) => new Date(Date.UTC(l.y, l.m - 1, l.d)).getUTCDay();
+
+/** The wall clock in `tz` at an instant: the date, the time to the minute, and the weekday (0 = Sunday). */
+export function wallClock(when: Date, tz: string): LocalDay & { hh: number; mm: number; weekday: number } {
+  const l = local(when, tz);
+  return { y: l.y, m: l.m, d: l.d, hh: l.hh, mm: l.mm, weekday: weekday(l) };
+}
+
+/** The instant a local date and minute of the day happen in `tz` (`wallTime` for a date already read). */
+export function wallMinute(day: LocalDay, minute: number, tz: string): Date {
+  return at(day, Math.floor(minute / 60), minute % 60, tz);
+}
+
+/** A local date `days` later (or earlier). */
+export function addLocalDays(day: LocalDay, days: number): LocalDay {
+  return addDays(day, days);
+}
 
 /** The same wall-clock time `days` later in `tz`: "in 2 days" across a clock change keeps 09:15 at 09:15. */
 function sameClockIn(now: Date, days: number, tz: string): Date {

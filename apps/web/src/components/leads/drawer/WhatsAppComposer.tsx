@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { Popover } from "@/components/ui/Popover";
 import { MediaPicker } from "@/components/media/MediaPicker";
 import { TemplatePick } from "@/components/whatsapp/TemplatePick";
+import { QuickTemplates } from "./QuickTemplates";
 import { useAiOn } from "@/lib/ai/use-ai-on";
 import { addDays, dayKey, longDate, timeOf } from "@/lib/dates";
 import type { LibraryFile } from "@/lib/files/client";
@@ -319,6 +320,19 @@ export function WhatsAppComposer({
             <Clip />
           </label>
         )}
+        {/* A template's words, free inside the 24 hours: no LUME AI needed for a quick reply (owner 2026-11-02). */}
+        <QuickTemplates
+          leadId={leadId}
+          disabled={sending}
+          onPick={(t) => {
+            setText(t);
+            requestAnimationFrame(() => {
+              const el = box.current;
+              el?.focus();
+              el?.setSelectionRange(el.value.length, el.value.length);
+            });
+          }}
+        />
         <textarea
           ref={box}
           className={s.input}

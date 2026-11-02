@@ -1,8 +1,17 @@
 import { z } from "zod";
 import { isStop, offersIn, unbackedAmounts } from "./autopilot";
+import {
+  callTimeWords,
+  freeCallTimes,
+  slotProblem,
+  type Busy,
+  type CallRules,
+  type SlotProblem,
+} from "./calls";
 import { softText } from "./fit";
 import type { FillableType } from "./fill-fields";
 import type { AiProfile, AutopilotAction } from "./profile";
+import { localMoment } from "./tasks";
 
 /**
  * What LUME AI is asked during a run (Autopilot spec 2026-10-19 §1.3, §3), and the guards every answer passes before
@@ -50,6 +59,16 @@ export type AutopilotCtx = {
   timezone: string;
   /** A person read the conversation and pressed Let LUME AI carry on, and the lead hasn't written since. */
   carriedOn?: boolean;
+  /** The calls LUME AI may say yes to (spec 2026-11-02), when the business gave it times and Book meetings isn't Never. */
+  calls?: {
+    windows: string;
+    minutes: number;
+    noticeHours: number;
+    daysAhead: number;
+    how: string;
+    /** Free times it may offer or say yes to, on the business's clock ("YYYY-MM-DDTHH:mm"). */
+    free: { at: string; label: string }[];
+  } | null;
 };
 
 export const autopilotFirstOutput = z.object({ templateId: z.uuid(), why: softText(200) }).strict();
@@ -72,6 +91,8 @@ export const autopilotReplyOutput = z
       .strict()
       .nullable(),
     lostReasonId: z.uuid().nullable(),
+    /** A call LUME AI says yes to, on the business's clock, "YYYY-MM-DDTHH:mm" (spec 2026-11-02). */
+    meeting: z.object({ at: z.string() }).strict().nullable().default(null),
   })
   .strict();
 export type AutopilotReply = z.infer<typeof autopilotReplyOutput>;
@@ -116,13 +137,39 @@ export function autopilotInstructions(task: AutopilotTask, c: AutopilotCtx): str
     p.voice.language === "match_lead"
       ? "Write in the language the lead writes in."
       : `Write in this language: ${p.voice.language}.`
-  }${p.voice.signOff ? ` Sign off as "${p.voice.signOff}".` : ""} Keep messages short, like a WhatsApp message.`;
+  }${
+    // A chat under way reads like a person on WhatsApp (live test 2026-11-01: every reply opened "Hi Kedar," and was
+    // signed "Team LUME"). The business's first message keeps its greeting and sign-off.
+    c.thread.some((m) => m.from === "business")
+      ? " The conversation is under way: don't open with a greeting or their name, and don't sign off."
+      : p.voice.signOff
+        ? ` Sign off as "${p.voice.signOff}".`
+        : ""
+  } Keep messages short, like a WhatsApp message.`;
   const rules = `Rules that always hold:
 - Use only the facts given. Never invent a price, discount, date, time, offer or promise that isn't given.
-- If the lead says stop or not interested in any words, answer with kind stop and no message.
+- If the lead says stop, asks not to be messaged, or says they're not interested, in any words, answer with kind stop \
+and no message.
+- If the lead declines for a reason, such as they chose another business or already bought elsewhere, without asking \
+you to stop: answer with kind reply, one short warm message that closes the conversation, and set the lost stage with \
+the lostReason that fits.
 - If the lead complains, is upset, asks for a person, or asks for legal, medical or financial advice, or anything you \
-aren't sure of, answer with kind handover, the reason in one line, and the lead's own words as evidence.
-- When the goal is reached, answer with kind converted, the reason, and the lead's own words as evidence.
+aren't sure of, answer with kind handover, the reason in one line, and the lead's own words as evidence. A question \
+about their own health, symptoms, medicine or treatment, or about investment returns or money decisions, is handed \
+over even when you would only decline to answer it.
+- When the goal is reached, answer with kind converted, the reason, and the lead's own words as evidence.${
+    c.calls
+      ? `
+- Calls: you may say yes to a call of ${c.calls.minutes} minutes on ${c.calls.windows} (the business's time), at least \
+${c.calls.noticeHours} hours ahead and at most ${c.calls.daysAhead} days ahead. The free times are in callTimes. When the \
+lead agrees to one of them, or proposes a time that is one of them, say yes in your message with its day and time, \
+answer with kind reply, and set meeting.at to that time exactly as given.${c.calls.how ? ` Say how the call happens: ${c.calls.how}` : ""} \
+When they propose a time that isn't free, offer up to two of the free times and leave meeting null. Never say a call \
+is booked without setting meeting, and never set meeting to a time that isn't in callTimes.`
+      : ` A day or time the lead proposes for the goal step reaches it: a person confirms the slot, so never hand over \
+for want of a calendar. Never say a call or visit is booked: a person confirms it.`
+  }
+- Never say you're sending a file unless it's attached by its id in fileIds.
 - ${bot}${
     c.carriedOn
       ? `
@@ -158,7 +205,13 @@ export function autopilotInput(task: AutopilotTask, c: AutopilotCtx): string {
     thread: c.thread.slice(-30),
     ...(task === "autopilot_first"
       ? { templates: c.templates }
-      : { files: c.files, stages: c.stages, lostReasons: c.lostReasons, fillable: c.fillable }),
+      : {
+          files: c.files,
+          stages: c.stages,
+          lostReasons: c.lostReasons,
+          fillable: c.fillable,
+          ...(c.calls ? { callTimes: c.calls.free } : {}),
+        }),
   });
 }
 
@@ -211,12 +264,16 @@ export type GuardCtx = {
   lostStageIds: string[];
   lostReasonIds: string[];
   fieldKeys: string[];
+  /** The times LUME AI may say yes to a call at and the speaker's meetings; null when none were given. */
+  calls?: { rules: CallRules; tz: string; now: Date; busy: Busy[] } | null;
 };
 export type ReplyUpdates = {
   stageId: string | null;
   fields: Record<string, string>;
   followUp: { at: string; title: string } | null;
   lostReasonId: string | null;
+  /** A call to book as the reply goes, its start as an instant (ISO). */
+  meeting?: { at: string } | null;
 };
 export type GuardedReply =
   | { kind: "send"; message: string; fileIds: string[]; updates: ReplyUpdates }
@@ -231,6 +288,35 @@ const handover = (reason: string, evidence: string | null = null): GuardedReply 
   evidence,
 });
 const neverSays = (a: AutopilotAction) => handover(`"${AUTOPILOT_ACTION_TITLES[a]}" is set to Never.`);
+
+const FILE_WORDS = String.raw`brochures?|catalog(?:ue)?s?|portfolios?|pdfs?|files?|documents?|floor ?plans?|syllabus|menus?|price ?lists?|photos?|pictures?|videos?`;
+/** The business doing it, not asking the lead to: sharing, attached, here's, I'll send, "bhej raha hu". */
+const SENDING = String.raw`sharing|sending|attached|attaching|here(?:'s| is| are)|i(?:'ve| have) (?:added|attached|shared|sent)|(?:i|we)(?:'ll| will) (?:send|share)|bhej (?:raha|rahi|rahe|diya|di|deta|deti)`;
+const PROMISES_FILE = new RegExp(
+  String.raw`\b(?:${SENDING})\b[^.!?\n]{0,40}\b(?:${FILE_WORDS})\b|\b(?:${FILE_WORDS})\b[^.!?\n]{0,30}\b(?:attached|bhej (?:raha|rahi|rahe|diya|di))\b`,
+  "i",
+);
+/** A sentence that says a file is on its way; an offer ("Would you like me to send…?") isn't one. */
+export function promisesFile(message: string): boolean {
+  return message
+    .split(/(?<=[.!?\n])\s*/)
+    .some((sentence) => !sentence.trim().endsWith("?") && PROMISES_FILE.test(sentence));
+}
+
+/** Words that say a call is booked; a question ("Shall I book…?") isn't one. */
+const BOOKED = /\b(?:booked|confirmed|locked in|scheduled|see you|you're all set|all set)\b/i;
+function saysBooked(message: string): boolean {
+  return message
+    .split(/(?<=[.!?\n])\s*/)
+    .some((x) => !x.trim().endsWith("?") && BOOKED.test(x) && timesIn(x).length > 0);
+}
+
+const SLOT_WORDS: Record<SlotProblem, string> = {
+  outside: "LUME AI wanted to say yes to a call outside the times you gave it.",
+  soon: "LUME AI wanted to say yes to a call sooner than the notice you asked for.",
+  far: "LUME AI wanted to say yes to a call further ahead than you allow.",
+  taken: "LUME AI wanted to say yes to a call at a time you already have a meeting.",
+};
 
 /**
  * The guards on a reply (§0, §1.3, §3, §11), whatever the model said: the lead's stop wins; an amount not in the price
@@ -252,11 +338,33 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
   if (offersIn(message)) return handover("LUME AI wanted to offer a discount you haven't given it.");
   const priced = unbackedAmounts(message, []).length > 0;
   if (priced && perms.answer_prices === "never") return neverSays("answer_prices");
+  // A call it says yes to (spec 2026-11-02): checked here, whatever the model said, and again under a lock as it's booked.
+  let meeting: { at: string } | null = null;
+  if (out.meeting) {
+    if (perms.book_meetings === "never") return neverSays("book_meetings");
+    if (!g.calls) return handover(SLOT_WORDS.outside);
+    const at = localMoment(out.meeting.at, g.calls.tz);
+    if (!at) return handover("LUME AI wanted to book a call at a time it couldn't read.");
+    const problem = slotProblem(at, g.calls);
+    if (problem) return handover(SLOT_WORDS[problem]);
+    meeting = { at: at.toISOString() };
+  }
   // A day or time the lead named, or the business's own words give (its hours, eval 2026-10-31), matched whole:
-  // a lead's "11 pm" never lets "1 pm" through.
-  const given = new Set(timesIn(`${g.leadWords}\n${g.businessWords}`).map(tidyTime));
+  // a lead's "11 pm" never lets "1 pm" through. A call being booked: its own time; otherwise the free ones it may offer.
+  const calls = g.calls;
+  const callWords = !calls
+    ? ""
+    : meeting
+      ? callTimeWords(new Date(meeting.at), calls.tz, calls.now)
+      : perms.book_meetings === "never"
+        ? ""
+        : freeCallTimes(calls, 6)
+            .map((t) => callTimeWords(t, calls.tz, calls.now))
+            .join(" ");
+  const given = new Set(timesIn(`${g.leadWords}\n${g.businessWords}\n${callWords}`).map(tidyTime));
   if (timesIn(message).some((t) => !given.has(tidyTime(t))))
     return handover("LUME AI wanted to offer a time you haven't given it.");
+  if (!meeting && saysBooked(message)) return handover("LUME AI said a call was booked, but didn't book it.");
 
   const asks: AutopilotAction[] = [];
   const allowed = (a: AutopilotAction) => {
@@ -265,9 +373,13 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
     return true;
   };
   if (perms.replies === "ask") asks.push("replies");
+  if (meeting && perms.book_meetings === "ask") asks.push("book_meetings");
   if (priced && perms.answer_prices === "ask") asks.push("answer_prices");
   const chosen = out.fileIds.filter((f, i, all) => g.fileIds.includes(f) && all.indexOf(f) === i);
   const fileIds = chosen.length && allowed("send_files") ? chosen : [];
+  // Saying a file is on its way with none attached (eval 2026-11-02: "sharing our brochure here"): a person sends it.
+  if (!fileIds.length && promisesFile(message))
+    return handover("LUME AI said it was sending a file, but none was attached.");
 
   const lost = !!out.stageId && g.lostStageIds.includes(out.stageId);
   const stageKnown = !!out.stageId && (g.openStageIds.includes(out.stageId) || lost);
@@ -284,11 +396,12 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
   const fields = fieldEntries.length && allowed("fill_fields") ? Object.fromEntries(fieldEntries) : {};
   const followUp = out.followUp && allowed("set_follow_ups") ? out.followUp : null;
 
-  const updates: ReplyUpdates = { stageId, fields, followUp, lostReasonId };
+  const updates: ReplyUpdates = { stageId, fields, followUp, lostReasonId, meeting };
   // One tap for the most careful thing waiting: losing a lead, then prices, then the rest.
   const order: AutopilotAction[] = [
     "mark_lost",
     "answer_prices",
+    "book_meetings",
     "replies",
     "send_files",
     "move_stages",

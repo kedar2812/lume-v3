@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { AVATAR_MAX_BYTES, AVATAR_SIZE } from "@lume/core/shared";
+import { cleanImage } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Scrim } from "@/components/ui/Scrim";
 import { useModalFocus } from "@/components/ui/useModalFocus";
@@ -14,6 +15,7 @@ import {
   drawCrop,
   magnet,
   project,
+  throwVelocity,
   turned,
   type Offset,
   type Turn,
@@ -36,7 +38,11 @@ async function encode(img: HTMLImageElement, turn: Turn, zoom: number, o: Offset
       blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", q));
     if (!blob) return null;
     if (blob.size > AVATAR_MAX_BYTES) continue;
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    // Only the picture: Chrome writes a colour profile into every canvas WebP and JPEG (owner 2026-11-02).
+    const bytes = cleanImage(
+      new Uint8Array(await blob.arrayBuffer()),
+      blob.type === "image/webp" ? "image/webp" : "image/jpeg",
+    );
     let bin = "";
     for (let i = 0; i < bytes.length; i += 0x8000)
       bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -118,24 +124,21 @@ export function PhotoCropper({
   const move = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     if (!d) return;
-    d.trail = [...d.trail.slice(-4), { x: e.clientX, y: e.clientY, t: e.timeStamp }];
+    d.trail = [...d.trail.slice(-7), { x: e.clientX, y: e.clientY, t: e.timeStamp }];
     setO({
       x: dragAxis(d.o.x + e.clientX - d.x, b.x, FRAME),
       y: dragAxis(d.o.y + e.clientY - d.y, b.y, FRAME),
     });
   };
-  const up = () => {
+  const up = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     drag.current = null;
     setDragging(false);
     if (!d) return;
-    const first = d.trail[0]!;
-    const last = d.trail[d.trail.length - 1]!;
-    const dt = Math.max(1, last.t - first.t);
-    const vx = ((last.x - first.x) / dt) * 1000;
-    const vy = ((last.y - first.y) / dt) * 1000;
+    // Its speed as it was let go: none once the finger stopped, so a photo placed with care stays put.
+    const v = throwVelocity(d.trail, e.timeStamp);
     setO((cur) => {
-      const thrown = clampOffset({ x: cur.x + project(vx), y: cur.y + project(vy) }, b);
+      const thrown = clampOffset({ x: cur.x + project(v.x, 0.99), y: cur.y + project(v.y, 0.99) }, b);
       return { x: magnet(thrown.x), y: magnet(thrown.y) };
     });
   };

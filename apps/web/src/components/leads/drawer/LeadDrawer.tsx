@@ -47,6 +47,7 @@ import { MeetingsTab } from "./MeetingsTab";
 import { WhatsAppComposer } from "./WhatsAppComposer";
 import { ChatCard } from "./ChatCard";
 import { WhatsAppChat } from "./WhatsAppChat";
+import { DoNotContact } from "./DoNotContact";
 import { HandToAi } from "@/components/autopilot/HandToAi";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaThread, WaThreadMessage } from "@/lib/whatsapp/types";
@@ -826,6 +827,15 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                 </div>
 
                 <div ref={setSentSlot} data-sent-slot />
+                {lead.doNotContact && (
+                  <DoNotContact
+                    leadId={lead.id}
+                    leadName={lead.name ?? "this lead"}
+                    value={lead.doNotContact}
+                    canLift={can(session.actor, "settings.manage")}
+                    onLifted={() => void refresh()}
+                  />
+                )}
                 {ai.ui}
                 <NextFollowUp
                   key={lead.id}

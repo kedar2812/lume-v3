@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CALL_MINUTES, DEFAULT_CALL_RULES, type CallRules } from "./calls";
 
 /**
  * Settings → LUME AI (Autopilot spec 2026-10-19 §5): what LUME AI knows about the business, its voice, and the
@@ -77,6 +78,33 @@ const amount = z.number({ error: "A price is a number." }).superRefine((x, ctx) 
     ctx.addIssue({ code: "custom", message: "A price has at most two decimal places." });
 });
 
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "A time is like 16:00.");
+const whole = (min: number, max: number, message: string) =>
+  z.number({ error: message }).int(message).min(min, message).max(max, message);
+/** The calls LUME AI may say yes to (spec 2026-11-02): none until the business gives it times. */
+const calls = z.strictObject({
+  windows: z
+    .array(
+      z
+        .strictObject({
+          days: z
+            .array(whole(0, 6, "Choose days from Sunday to Saturday."))
+            .min(1, "Choose at least one day for each time.")
+            .refine(unique, "A day is chosen twice."),
+          from: clock,
+          to: clock,
+        })
+        .refine((w) => w.from < w.to, "Each time ends after it starts."),
+    )
+    .max(14, "Up to 14 times."),
+  minutes: z
+    .number()
+    .refine((m) => (CALL_MINUTES as readonly number[]).includes(m), "A call is 15, 30, 45 or 60 minutes."),
+  noticeHours: whole(0, 72, "Notice is from 0 to 72 hours."),
+  daysAhead: whole(1, 60, "How far ahead is from 1 to 60 days."),
+  how: words(200, "How the call happens"),
+});
+
 const allow = z.enum(["go", "ask", "never"], { error: "Choose Go ahead, Ask me or Never." });
 const action = z.enum(AUTOPILOT_ACTIONS, { error: "That isn't something LUME AI does." });
 
@@ -152,6 +180,7 @@ const FIELDS = {
     /** Denying it's AI is never a choice (§3). */
     botQuestion: z.enum(["say_so", "hand_over"], { error: "Choose say so or hand over." }),
     outsideHours: z.enum(["reply_any_time", "wait"], { error: "Choose reply any time or wait." }),
+    calls,
   },
 };
 
@@ -172,6 +201,7 @@ export type AiProfile = {
     dailyCap: number | null;
     botQuestion: "say_so" | "hand_over";
     outsideHours: "reply_any_time" | "wait";
+    calls: CallRules;
   };
 };
 
@@ -186,6 +216,7 @@ export const DEFAULT_AI_PROFILE: AiProfile = {
     dailyCap: null,
     botQuestion: "say_so",
     outsideHours: "wait",
+    calls: DEFAULT_CALL_RULES,
   },
 };
 

@@ -108,7 +108,7 @@ const offsetMs = (z: string) =>
   z === "Z" ? 0 : (z[0] === "-" ? -1 : 1) * (Number(z.slice(1, 3)) * 60 + Number(z.slice(4, 6))) * 60_000;
 
 /** "YYYY-MM-DDTHH:mm" on `tz` as a moment, or null when it isn't a real date and time. */
-function localMoment(local: string, tz: string): Date | null {
+export function localMoment(local: string, tz: string): Date | null {
   const m = LOCAL.exec(local);
   if (!m) return null;
   const [y, mo, d, h, mi] = m.slice(1, 6).map(Number) as [number, number, number, number, number];

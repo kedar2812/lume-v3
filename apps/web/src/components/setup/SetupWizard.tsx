@@ -409,7 +409,7 @@ export function SetupWizard({
               <p className={s.legend} aria-hidden>
                 6-digit code
               </p>
-              <OtpInput label="6-digit code" onChange={setCode} disabled={busy} />
+              <OtpInput autoFocus label="6-digit code" onChange={setCode} disabled={busy} />
               {alert}
               <div className={s.row}>
                 {back(3)}

@@ -308,7 +308,7 @@ type RoleAccess = {
 const ROLES = sql`
   SELECT r.id, r.name::text AS name, r.login_hours AS "loginHours", r.ip_allowlist::text[] AS "ipAllowlist",
          (SELECT count(*)::int FROM user_roles ur JOIN users u ON u.id = ur.user_id
-           WHERE ur.role_id = r.id AND u.status <> 'disabled') AS people
+           WHERE ur.role_id = r.id AND u.status NOT IN ('disabled', 'deleted')) AS people
     FROM roles r WHERE r.deleted_at IS NULL`;
 
 /** Every role, who holds it, the business's hours and timezone, and the network the editor is on now. */

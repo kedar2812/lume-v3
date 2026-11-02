@@ -658,3 +658,51 @@
   padding-top: 0;
   box-shadow: none;
 }
+
+/* Templates in the reply box (owner 2026-11-02): each its name, then its words in this lead's terms. */
+.quickList {
+  display: grid;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 280px;
+  max-width: 360px;
+}
+.quickItem {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+.quickItem b {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.quickItem span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.quickItem:hover,
+.quickItem:focus-visible {
+  outline: none;
+  background: var(--hover);
+}
+.quickItem:active {
+  transform: scale(0.99);
+}
+.quickEmpty {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}

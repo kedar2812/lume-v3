@@ -2,7 +2,10 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
-import { offboard, offboardingPreview } from "./offboard";
+import { passwordInput, totpCodeSchema } from "../../http/schemas";
+import { badRequest } from "../../http/errors";
+import { deleteAccount } from "./delete";
+import { leadsChoiceSchema, offboard, offboardingPreview } from "./offboard";
 import * as users from "./service";
 
 const params = z.object({ id: z.uuid() });
@@ -67,6 +70,26 @@ export async function userRoutes(app: FastifyInstance, d: AppDeps): Promise<void
       },
     },
     (req) => offboard(req, d, req.params.id, req.body.leads),
+  );
+  // Delete someone's account (spec 2026-11-02): an admin, with their own password (and code); never themselves here
+  // (that's My account), never the business owner.
+  r.post(
+    "/api/v1/users/:id/delete",
+    {
+      config: cfg,
+      schema: {
+        params,
+        body: z
+          .object({ leads: leadsChoiceSchema, password: passwordInput, code: totpCodeSchema.optional() })
+          .strict(),
+      },
+    },
+    async (req, reply) => {
+      if (req.params.id === req.actor!.userId)
+        throw badRequest("USE_MY_ACCOUNT", "Delete your own account from My account");
+      if (await deleteAccount(req, reply, d, req.params.id, req.body)) return reply.code(204).send();
+      return reply;
+    },
   );
   r.delete("/api/v1/users/:id/sessions", { config: cfg, schema: { params } }, async (req, reply) => {
     await users.killSessions(req, d, req.params.id);

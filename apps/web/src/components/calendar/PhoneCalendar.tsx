@@ -1,4 +1,5 @@
 "use client";
+import { AiGlyph } from "@/components/ai/AiGlyph";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import Link from "next/link";
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
@@ -59,6 +60,7 @@ export function PhoneCalendar({
     if (OUTCOME[m.status]) return OUTCOME[m.status];
     if (meetingState(m, now) === "needsOutcome") return "Log outcome";
     if (m.matchedBy === "calendly") return "Calendly";
+    if (m.matchedBy === "lume_ai") return "LUME AI";
     if (m.ownerId !== me) return people.find((p) => p.id === m.ownerId)?.name.split(" ")[0];
     return undefined;
   };
@@ -181,7 +183,11 @@ function Hero({
       </p>
       <b className={s.heroName}>{who(m)}</b>
       <p className={s.heroLine}>
-        {m.matchedBy === "calendly" ? (
+        {m.matchedBy === "lume_ai" ? (
+          <span className={s.gtile}>
+            <AiGlyph size={11} />
+          </span>
+        ) : m.matchedBy === "calendly" ? (
           <img src="/brand/calendly.svg" alt="" width={15} height={15} />
         ) : (
           <span className={s.gtile}>

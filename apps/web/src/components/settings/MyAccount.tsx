@@ -12,6 +12,8 @@ import { deviceName } from "@lume/core/shared";
 import { settingsDateTime } from "@/lib/settings/format";
 import { useZone } from "@/components/ZoneProvider";
 import type { Session } from "@/server/session";
+import { DeleteAccountSheet } from "./DeleteAccountSheet";
+import d from "./delete-account.module.css";
 import { MyAlerts } from "./MyAlerts";
 import { ProfilePhoto } from "./profile/ProfilePhoto";
 import s from "./settings.module.css";
@@ -29,7 +31,39 @@ export function MyAccount({ session, children }: { session: Session; children?: 
       <TwoStep session={session} />
       <Sessions />
       {children}
+      {!session.user.isOwner && <DeleteAccount session={session} />}
     </div>
+  );
+}
+
+/**
+ * Delete my account (owner 2026-11-02): at the foot, quiet until opened. The business owner's account can't be
+ * deleted, so they never see it.
+ */
+function DeleteAccount({ session }: { session: Session }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Block title="Delete account">
+      <div className={d.zone}>
+        <p>
+          Your account is deleted and you’re signed out. You choose who takes your leads; what you did stays
+          on the record. This can’t be undone.
+        </p>
+        <Button variant="danger" onClick={() => setOpen(true)}>
+          Delete my account
+        </Button>
+      </div>
+      {open && (
+        <DeleteAccountSheet
+          self
+          personId={session.user.id}
+          personName={session.user.name}
+          twoStep={session.twoFactor.enabled}
+          onClose={() => setOpen(false)}
+          onDeleted={() => window.location.assign("/sign-in?deleted=1")}
+        />
+      )}
+    </Block>
   );
 }
 
@@ -258,6 +292,7 @@ function TwoStep({ session }: { session: Session }) {
             </ol>
             <OtpInput
               key={st.key}
+              autoFocus
               label="6-digit code"
               onComplete={(c) => void confirmCode(c)}
               disabled={!st.enrolment}

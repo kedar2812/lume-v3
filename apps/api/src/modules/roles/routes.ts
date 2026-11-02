@@ -2,6 +2,10 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { badRequest } from "../../http/errors";
+import type { AppDeps } from "../../app";
+import { passwordInput, totpCodeSchema } from "../../http/schemas";
+import { proveIt } from "../users/delete";
+import { leadsChoiceSchema } from "../users/offboard";
 import { setFieldAccess } from "./field-access";
 import * as roles from "./service";
 
@@ -32,7 +36,7 @@ function withoutAccess<T extends { loginHours?: unknown; ipAllowlist?: unknown }
   return rest;
 }
 
-export async function roleRoutes(app: FastifyInstance): Promise<void> {
+export async function roleRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/permissions", { config: cfg }, async () => roles.catalog());
   r.get("/api/v1/roles", { config: cfg }, (req) => roles.listRoles(req));
@@ -52,11 +56,30 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
     "/api/v1/roles/:id",
     {
       config: cfg,
-      schema: { params, body: z.object({ replacementRoleId: z.uuid().optional() }).optional() },
+      // The top of the hierarchy (owner 2026-11-02): the password every time, even for a role nobody holds; and what
+      // happens to its people, when it has some.
+      schema: {
+        params,
+        body: z
+          .object({
+            password: passwordInput,
+            code: totpCodeSchema.optional(),
+            people: z
+              .discriminatedUnion("to", [
+                z.object({ to: z.literal("role"), roleId: z.uuid() }).strict(),
+                z.object({ to: z.literal("new"), name: z.string().trim().min(1).max(60) }).strict(),
+                z.object({ to: z.literal("offboard"), leads: leadsChoiceSchema }).strict(),
+                z.object({ to: z.literal("delete"), leads: leadsChoiceSchema }).strict(),
+              ])
+              .optional(),
+            replacementRoleId: z.uuid().optional(),
+          })
+          .strict(),
+      },
     },
     async (req, reply) => {
-      await roles.deleteRole(req, req.params.id, req.body?.replacementRoleId);
-      return reply.code(204).send();
+      if (!(await proveIt(req, reply, d, req.body))) return reply;
+      return roles.deleteRole(req, d, req.params.id, req.body);
     },
   );
   r.post(

@@ -21,7 +21,7 @@ const INSTANCE = createHash("sha256").update(RELAY_TOKEN).digest("hex").slice(0,
 const APP_SECRET = "meta-app-secret-for-tests";
 const TARUN = "+919876540101";
 const ISHITA = "+919876540102";
-const PHOTOS_REPLY = "Here are a few photos of our recent work";
+const PHOTOS_REPLY = "Happy to show you our recent work";
 
 async function axe(page: Page) {
   await settle(page);
@@ -235,8 +235,10 @@ test.describe.serial("Autopilot", () => {
     // Hands-off, whatever earlier specs left as the standing choices: this run replies by itself.
     await sheet.getByRole("button", { name: /^Hands-off/ }).click();
     await expect(sheet.getByRole("button", { name: /^Hands-off/ })).toHaveAttribute("aria-pressed", "true");
-    // Book meetings can't be used here: it's off, with why.
-    await expect(sheet.getByText("Needs a calendar LUME can book into.")).toBeVisible();
+    // Book meetings can't be used here: it's off, with why (no times given to say yes to a call at).
+    await expect(
+      sheet.getByText("Give LUME AI the times it may say yes to a call in Settings → LUME AI."),
+    ).toBeVisible();
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);

@@ -75,6 +75,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   fields: [],
   followUp: null,
   lostReasonId: null,
+  meeting: null,
   ...o,
 });
 /** The lead has had its first message, and has just written these words. */

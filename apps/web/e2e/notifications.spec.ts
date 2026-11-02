@@ -175,6 +175,10 @@ test.describe("Notifications (3B)", () => {
       due: { at: new Date(Date.now() - 0.5 * H).toISOString() },
     });
 
+    // The business switches the morning email on (off until it does, owner 2026-11-02).
+    expect(
+      (await callApi(page, "PUT", "/api/v1/settings/follow-ups", { digest: { enabled: true } })).status,
+    ).toBe(200);
     // Noor asks for it every day, from midnight: the next run sends it (today's earlier one, if any, is forgotten).
     await forgetDigests(PEOPLE.seller.email);
     const since = new Date().toISOString();

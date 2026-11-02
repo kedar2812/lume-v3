@@ -74,7 +74,7 @@ export async function runDigests(d: DigestDeps, now: Date = new Date()): Promise
   // An optional module (CLAUDE.md): off for the whole business in Settings → Follow-ups, or with no mail server.
   if (d.mailer.configured === false) return 0;
   const { rows: biz } = await d.pool.query<{ business_name: string; on: boolean }>(
-    `SELECT business_name, coalesce((follow_ups -> 'digest' ->> 'enabled')::boolean, true) AS on
+    `SELECT business_name, coalesce((follow_ups -> 'digest' ->> 'enabled')::boolean, false) AS on
        FROM settings WHERE id = 1`,
   );
   if (!biz[0]?.on) return 0;

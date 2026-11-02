@@ -20,7 +20,8 @@ describe("Settings → Follow-ups (3B Task 6)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(api.put).toHaveBeenCalledWith(
       "/api/v1/settings/follow-ups",
-      expect.objectContaining({ escalation: { enabled: true, hours: 6 }, digest: { enabled: true } }),
+      // Never switched on, the morning email stays off (owner 2026-11-02).
+      expect.objectContaining({ escalation: { enabled: true, hours: 6 }, digest: { enabled: false } }),
     );
     expect(await screen.findByText("Saved")).toBeInTheDocument();
   });

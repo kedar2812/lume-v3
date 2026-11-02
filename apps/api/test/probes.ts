@@ -506,6 +506,12 @@ export const PROBES: Record<string, Probe> = {
   "POST /api/v1/me/2fa/enrol": { access: "auth.self" },
   "POST /api/v1/me/2fa/confirm": { access: "auth.self", body: () => ({ code: "000000" }) },
   "POST /api/v1/me/2fa/disable": { access: "auth.self", body: () => ({ password: "wrong" }) },
+  // Deleting my account (spec 2026-11-02): probed with a wrong password, so nobody is deleted by the matrix.
+  "GET /api/v1/me/delete": { access: "auth.self" },
+  "POST /api/v1/me/delete": {
+    access: "auth.self",
+    body: () => ({ leads: { to: "none" }, password: "wrong", passwordAgain: "wrong" }),
+  },
   "POST /api/v1/me/recovery-codes": { access: "auth.self", body: () => ({ password: "wrong" }) },
   "PATCH /api/v1/me": { access: "auth.self", body: () => ({ theme: "obsidian" }) },
   "PUT /api/v1/me/onboarding": { access: "auth.self", body: () => ({ step: "look" }) },
@@ -544,6 +550,11 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/users/:id/offboarding": {
     access: "users.manage",
     path: () => `/api/v1/users/${uuid}/offboarding`,
+  },
+  "POST /api/v1/users/:id/delete": {
+    access: "users.manage",
+    path: () => `/api/v1/users/${uuid}/delete`,
+    body: () => ({ leads: { to: "none" }, password: "wrong" }),
   },
   "POST /api/v1/users/:id/offboard": {
     access: "users.manage",
@@ -592,7 +603,8 @@ export const PROBES: Record<string, Probe> = {
   "DELETE /api/v1/roles/:id": {
     access: "roles.manage",
     path: () => `/api/v1/roles/${uuid}`,
-    body: () => ({}),
+    // The password every time (owner 2026-11-02): a wrong one, so the matrix deletes nothing.
+    body: () => ({ password: "wrong" }),
   },
   "POST /api/v1/roles/:id/clone": {
     access: "roles.manage",

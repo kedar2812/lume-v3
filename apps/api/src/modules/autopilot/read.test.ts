@@ -85,6 +85,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   fields: [],
   followUp: null,
   lostReasonId: null,
+  meeting: null,
   ...o,
 });
 type LeadView = {

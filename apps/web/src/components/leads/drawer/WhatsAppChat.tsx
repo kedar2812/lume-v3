@@ -58,6 +58,18 @@ export function WhatsAppChat({
     const el = body.current;
     if (el && near.current) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
+  // And as photos, stickers and voice notes load in above it, which push it down (2026-11-02: the chat opened part
+  // way up). Someone who scrolled up to read stays where they are.
+  useEffect(() => {
+    const el = body.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const keep = new ResizeObserver(() => {
+      if (near.current) el.scrollTop = el.scrollHeight;
+    });
+    for (const child of Array.from(el.children)) keep.observe(child);
+    keep.observe(el);
+    return () => keep.disconnect();
+  }, []);
 
   return (
     <Scrim onClose={onClose} className={s.chatLayer}>

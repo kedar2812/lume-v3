@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { bounds, clampOffset, coverScale, cropRect, magnet, project, rubber, turned } from "./crop";
+import {
+  bounds,
+  clampOffset,
+  coverScale,
+  cropRect,
+  magnet,
+  project,
+  rubber,
+  throwVelocity,
+  turned,
+} from "./crop";
 
 const F = 280; // the frame, px
 
@@ -45,5 +55,32 @@ describe("the photo cropper's maths (7C)", () => {
     expect(r.size).toBeCloseTo(400);
     expect(r.x).toBeCloseTo(400 - 70 / ((F / 800) * 2));
     expect(r.y).toBeCloseTo(200);
+  });
+
+  it("a photo let go where it was placed stays there: no throw once the finger stopped (owner 2026-11-02)", () => {
+    // A careful drag, then a pause before letting go: it was jumping ~100 px from the moves before the pause.
+    const placed = [
+      { x: 0, y: 0, t: 0 },
+      { x: 10, y: 0, t: 40 },
+      { x: 20, y: 0, t: 80 },
+    ];
+    expect(throwVelocity(placed, 400)).toEqual({ x: 0, y: 0 });
+    // Let go while still moving: a flick carries on, at the speed of its last moves.
+    const flick = [
+      { x: 0, y: 0, t: 300 },
+      { x: 30, y: 15, t: 330 },
+      { x: 60, y: 30, t: 360 },
+    ];
+    const v = throwVelocity(flick, 365);
+    expect(v.x).toBeCloseTo(1000, -1);
+    expect(v.y).toBeCloseTo(500, -1);
+    // Moves from before a pause don't count towards the speed.
+    const restarted = [
+      { x: 0, y: 0, t: 0 },
+      { x: 200, y: 0, t: 50 },
+      { x: 201, y: 0, t: 500 },
+      { x: 202, y: 0, t: 520 },
+    ];
+    expect(Math.abs(throwVelocity(restarted, 525).x)).toBeLessThan(100);
   });
 });

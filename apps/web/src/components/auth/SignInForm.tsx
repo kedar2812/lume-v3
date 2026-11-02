@@ -17,6 +17,8 @@ type Props = {
   onSuccess(): void;
   /** Sent here because a request was refused as paused (6A): open on the paused card. */
   paused?: boolean;
+  /** Here after deleting their own account: says so above the form. */
+  deleted?: boolean;
 };
 
 const MESSAGES = {
@@ -40,6 +42,7 @@ export function SignInForm({
   onVerifyRecovery,
   onSuccess,
   paused = false,
+  deleted = false,
 }: Props) {
   const [step, setStep] = useState<"password" | "otp" | "recovery" | "paused">(
     paused ? "paused" : "password",
@@ -121,6 +124,12 @@ export function SignInForm({
         <h1>LUME</h1>
         {businessName && <p>{businessName}</p>}
       </div>
+      {/* Here after deleting their own account (2026-11-02): said once, calmly. */}
+      {deleted && (
+        <p className={s.deleted} role="status">
+          Your account is deleted. Thank you for using LUME.
+        </p>
+      )}
       <div ref={card} className={s.card}>
         <AnimatePresence mode="wait" initial={false}>
           {step === "paused" ? (
@@ -220,7 +229,7 @@ export function SignInForm({
             >
               <p className={s.otpTitle}>Two-step check</p>
               <p className={s.otpSub}>Enter the 6-digit code from your authenticator app.</p>
-              <OtpInput key={otpKey} onComplete={verify} disabled={busy} />
+              <OtpInput key={otpKey} autoFocus onComplete={verify} disabled={busy} />
               {errorLine("otp-error", true)}
               <div className={s.fine} style={{ justifyContent: "center" }}>
                 <button

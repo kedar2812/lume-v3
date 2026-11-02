@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { checkAvatarImage, type AvatarColor } from "@lume/core";
+import { avatarFromUpload, type AvatarColor } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { HttpError, notFound } from "../../http/errors";
@@ -20,15 +20,14 @@ export async function setAvatar(
   const me = req.actor!.userId;
   let photo: { bytes: Buffer; type: "image/webp" | "image/jpeg" } | null | undefined;
   if (typeof patch.image === "string") {
-    const bytes = Buffer.from(patch.image, "base64");
-    const check = checkAvatarImage(bytes);
+    const check = avatarFromUpload(Buffer.from(patch.image, "base64"));
     if (!check.ok)
       throw new HttpError(
         422,
         "AVATAR_REFUSED",
         `LUME keeps a 256 × 256 photo and nothing else with it. This one has ${check.reason}. Choose it again, then save.`,
       );
-    photo = { bytes, type: check.type };
+    photo = { bytes: Buffer.from(check.bytes), type: check.type };
   } else if (patch.image === null) photo = null;
 
   if (photo)

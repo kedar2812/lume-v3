@@ -6,6 +6,62 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **LUME AI says yes to a call, inside the times you give it** (Settings → LUME AI → Calls LUME AI may say yes to:
+  days and from–to, how long a call is, the notice, how far ahead, and how the call happens). When a lead asks for one
+  of those times and the speaker is free, LUME AI says yes and the call is booked as its reply goes: a meeting on the
+  lead (Calendar, the lead's Meetings, its history), the booking stage, a bell for the lead's owner, and the lead Ready
+  for a person. A time outside them, too soon, too far or taken: it offers free ones, and never books what it wasn't
+  given; checked again under a lock as it books, so two leads never get the same slot. Book meetings is set to Ask me:
+  it waits for your tap. No times given: as before, a person confirms every call. Migration 0101.
+- **A meeting booked shows in the lead's history** ("LUME AI booked a call", or "Meeting booked" from Calendly), with
+  when; it read "Updated".
+- **The two-step code is ready to type** as the code screen appears (sign-in, setting up two-step): no click first; and
+  after a wrong code, the boxes take the next try at once. Typing works on keyboards that don't name their keys
+  (Android's) and with a code the phone fills in by itself.
+- **A profile photo saves:** Chrome now puts a colour profile into every picture a page makes, and LUME refused them
+  all. What a browser adds (a colour profile, where and with what it was taken) is taken out and the picture kept.
+  Lining it up stays where you put it: letting go no longer throws it from the moves before you stopped.
+- **A follow-up's WhatsApp on Today opens the lead's chat** when your WhatsApp chats run in LUME.
+- **Templates in the chat's reply box:** your own templates, in the lead's words, one tap into the box, to send or
+  change; inside WhatsApp's 24 hours that's free, with no LUME AI.
+
+- **LUME AI hands the right things to a person, and closes the rest kindly** (eval 2026-11-02, now 98% on the right
+  kind of answer, none risky): a lead who chose someone else or already bought gets one warm closing message and is
+  marked lost with the reason (no longer do not contact); a question about their own health, treatment or investment
+  goes to a person even when LUME AI would only decline it; a day or time the lead proposes for the goal step is the goal
+  reached, for a person to confirm; and a reply that says a file is on its way with none attached goes to a person.
+
+- **Delete my account,** for everyone but the business owner (My account, at the foot): who takes your leads, your
+  password twice (and your code with two-step), and a plain word that it can't be undone. You're signed out; your name,
+  email, password and photo are gone; what you did stays on the record as "Former member". An admin can delete
+  someone's account from People the same way, with their own password. Deleted people never show in People again,
+  can't be enabled, and their email can be invited again. Migration 0100.
+- **Deleting a role is the top of the hierarchy:** the owner, or someone who manages roles and people, and the password
+  every time. Its people move to another role, to a new one made there as its copy, are offboarded, or have their
+  accounts deleted (never the owner's or your own); the button says exactly what it will do.
+- **LUME AI's template drafts never carry a blank to fill** ("on [day] at [time]" would have reached the lead as written).
+- **A WhatsApp chat opens on the newest message** and stays there as photos and voice notes load in above it, unless
+  you've scrolled up to read.
+- **One reply suggestion to apply:** only the newest reply's next step offers Apply; older ones keep their meaning.
+- **LUME AI's replies read like a person on WhatsApp:** no "Hi Kedar," and no sign-off on every message once the chat is
+  under way; its first message keeps both.
+- **New working hours move LUME AI's waiting leads** to the new times, instead of leaving them on the old opening.
+
+- **The morning email is off until a business switches it on** (Settings → Follow-ups): an optional module, never a
+  surprise in someone's inbox. A business that switched it on keeps it; each person can still turn their own off.
+- **Deleting a role nobody holds works:** the Roles screen's Delete always answered "Request is invalid" (it sends no
+  body, which the server refused).
+- **Leads that a Refresh brings in glow once they're on screen:** the five seconds started while the list was still
+  loading, so on a slow line the rows arrived with the glow already over.
+- **The database takes up to 100 connections** (was 50): LUME's pools need about 45 at rest and more while a container
+  restarts, and at 50 sign-ins were refused ("too many clients"). Takes effect when the database restarts with the
+  update.
+
+- **A lead LUME AI stopped reads as stopped:** in red on the LUME AI page, with why in the list and the header
+  ("Stopped · Said stop"), and a red card where the reply box would be: "LUME AI won't message them again", with the
+  reason (a lead who said stop, or one marked do not contact).
+- **The LUME AI ring beside the bell** is the bell's size, its mark readable (it was a 9px mark in a 20px ring).
+
 - **Let LUME AI carry on, carries on:** pressed on a lead LUME AI handed over ("lets do a call tomorrow 5 pm"), it now
   answers them, where it read the same words again and came straight back as Ready, notice after notice. If it still
   can't, the lead stays with you once, said plainly ("LUME AI can't carry on from here"). A lead in the run's goal
@@ -68,7 +124,7 @@ column in the release that stops using it.
   bell shows how many are unread (9+ past nine); page titles in the top bar are larger; Analytics' Sources lists
   only sources with leads or wins in the range (a source whose only activity was a loss, meeting or task was listed
   at nothing, and a tag filter then disagreed).
-- **Update notes:** migrations 0097, 0098 and 0099 (additive). No `.env` changes.
+- **Update notes:** migrations 0097, 0098, 0099 and 0100 (additive). No `.env` changes.
 
 ## 1.1.0 — 2026-10-29
 

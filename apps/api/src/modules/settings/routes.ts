@@ -15,6 +15,7 @@ import { workingHoursSchema } from "@lume/core";
 import { calendarBody, readCalendarRules, tidyRules } from "./calendar";
 import { followUpsBody, readFollowUps, workingHoursFrom } from "./follow-ups";
 import { messagingBody, readMessaging } from "./messaging";
+import { allScope } from "../whatsapp/sender";
 
 const shape = (s: typeof schema.settings.$inferSelect) => ({
   businessName: s.businessName,
@@ -91,6 +92,30 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
         .where(eq(schema.settings.id, 1))
         .returning();
       await audit(req, { action: "settings.updated", entityType: "settings", entityId: "1", diff: req.body });
+      // New hours (or a new clock): LUME AI's leads waiting for an opening under the old ones look again now, and wait
+      // only if they still must (live test 2026-11-01: they kept the old opening). Every run's leads, as background
+      // work: an admin who sees only their own leads still moves everyone's. A message being written keeps its reveal.
+      if (rest.workingHours || rest.timezone) {
+        const at = d.clock();
+        req.afterCommit(
+          () =>
+            void allScope(d.jobPool ?? d.pool, (c) =>
+              c.query<{ run_id: string }>(
+                `UPDATE autopilot_leads l SET next_at = $1 FROM autopilot_runs r
+                  WHERE r.id = l.run_id AND r.status = 'running' AND l.active
+                    AND l.state IN ('up_next', 'sent', 'replied', 'talking') AND l.next_at > $1
+                RETURNING l.run_id`,
+                [at],
+              ),
+            )
+              .then(async (r) => {
+                for (const runId of new Set(r.rows.map((x) => x.run_id))) await d.autopilot?.kick(runId);
+              })
+              .catch((err: unknown) =>
+                req.log.error({ err }, "autopilot leads not rescheduled for new hours"),
+              ),
+        );
+      }
       return shape(s!);
     },
   );

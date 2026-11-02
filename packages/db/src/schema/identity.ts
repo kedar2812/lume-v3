@@ -92,7 +92,7 @@ export type SecuritySettings = {
   watermark?: WatermarkMode;
 };
 
-export type UserStatus = "invited" | "active" | "disabled" | "suspended";
+export type UserStatus = "invited" | "active" | "disabled" | "suspended" | "deleted";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),

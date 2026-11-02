@@ -45,6 +45,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   fields: [],
   followUp: null,
   lostReasonId: null,
+  meeting: null,
   ...o,
 });
 const phoneOf: Record<string, string> = {};

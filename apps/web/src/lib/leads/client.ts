@@ -15,6 +15,9 @@ const enc = encodeURIComponent;
 
 /** Every lead call the screens make. Each returns ApiResult, so callers handle refusal explicitly. */
 export const leadsClient = {
+  /** An admin lets messages go to a lead who'd asked not to be messaged (settings.manage). */
+  liftDoNotContact: (id: string) =>
+    api.del<{ doNotContact: null }>(`/api/v1/leads/${enc(id)}/do-not-contact`),
   list: (f: ListFilters, cursor?: string, limit = PAGE_SIZE) =>
     api.get<LeadPage>(`/api/v1/leads?${apiQuery(f)}&limit=${limit}${cursor ? `&cursor=${enc(cursor)}` : ""}`),
   counts: (f: ListFilters & { pipelineId: string }) => {

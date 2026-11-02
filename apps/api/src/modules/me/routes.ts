@@ -7,6 +7,9 @@ import { nameSchema, passwordInput, timezoneSchema, totpCodeSchema } from "../..
 import { AVATAR_COLORS, type AvatarColor } from "@lume/core";
 import { sendAvatar, setAvatar } from "./avatar";
 import * as me from "./service";
+import { clearSessionCookie } from "../../auth/cookies";
+import { deleteAccount } from "../users/delete";
+import { leadsChoiceSchema, offboardingPreview } from "../users/offboard";
 
 const self = { permission: "auth.self" as const };
 /** Reachable before a mandatory 2FA enrolment is done — enrolling is how the user gets unstuck. */
@@ -77,6 +80,37 @@ export async function meRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
     "/api/v1/me/2fa/confirm",
     { config: { ...enrol, ...secretOut }, schema: { body: z.object({ code: totpCodeSchema }) } },
     (req, reply) => me.confirmEnrolment(req, reply, d, req.body.code),
+  );
+  // Delete my account (owner 2026-11-02; spec docs/superpowers/specs/2026-11-02-delete-account-and-role.md): what it
+  // would do first (their leads, who could take them), then the act, with the password twice (and the code).
+  r.get("/api/v1/me/delete", { config: self }, (req) =>
+    offboardingPreview(req, d, req.actor!.userId, { self: true }),
+  );
+  r.post(
+    "/api/v1/me/delete",
+    {
+      config: self,
+      schema: {
+        body: z
+          .object({
+            leads: leadsChoiceSchema,
+            password: passwordInput,
+            passwordAgain: passwordInput,
+            code: totpCodeSchema.optional(),
+          })
+          .strict()
+          .refine((b) => b.password === b.passwordAgain, {
+            message: "The two passwords aren't the same",
+            path: ["passwordAgain"],
+          }),
+      },
+    },
+    async (req, reply) => {
+      const { leads, password, code } = req.body;
+      if (!(await deleteAccount(req, reply, d, req.actor!.userId, { leads, password, code }))) return reply;
+      clearSessionCookie(reply, d.config.cookieSecure);
+      return reply.code(204).send();
+    },
   );
   r.post("/api/v1/me/2fa/disable", { config: self, schema: { body: password } }, (req, reply) =>
     me.disableTwoFactor(req, reply, d, req.body.password),

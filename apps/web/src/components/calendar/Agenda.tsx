@@ -1,4 +1,5 @@
 "use client";
+import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Avatar } from "@/components/ui/Avatar";
 import { meetingState, type AgendaDay } from "@/lib/calendar/agenda";
 import type { Meeting } from "@/lib/calendar/types";
@@ -19,8 +20,14 @@ export function soonWords(m: Meeting, now: Date): string {
   return mins > 0 ? `in ${mins} min` : "now";
 }
 
-/** The mark of where a meeting came from: Calendly's own, else Google Calendar's (on white). */
+/** The mark of where a meeting came from: LUME AI's or Calendly's own, else Google Calendar's (on white). */
 export function SourceMark({ m }: { m: Meeting }) {
+  if (m.matchedBy === "lume_ai")
+    return (
+      <span className={s.gtile} role="img" aria-label="Booked by LUME AI">
+        <AiGlyph size={12} />
+      </span>
+    );
   return m.matchedBy === "calendly" ? (
     <img className={s.mark} src="/brand/calendly.svg" alt="From Calendly" width={16} height={16} />
   ) : (

@@ -50,7 +50,8 @@ describe("Not a lead yet (spec 2026-10-18 §4.1; canvas board NotYet)", () => {
     // No name: the number; a photo with no words: said as a message.
     expect(rows[1]).toHaveTextContent("+91 98480 12345");
     const thread = await screen.findByRole("list", { name: "Messages from Ravi K" });
-    expect(within(thread).getByText("Hi, do you do kitchens?")).toBeInTheDocument();
+    // The list is there before its messages are: wait for them (a loaded suite lost that race, 2026-11-02).
+    expect(await within(thread).findByText("Hi, do you do kitchens?")).toBeInTheDocument();
   });
 
   it("Make it an enquiry opens the new lead", async () => {

@@ -64,6 +64,7 @@ const reply = (o: Partial<AutopilotReply>): AutopilotReply => ({
   fields: [],
   followUp: null,
   lostReasonId: null,
+  meeting: null,
   ...o,
 });
 const phoneOf: Record<string, string> = {};
@@ -422,6 +423,26 @@ describe("what LUME AI wrote while things changed under it (review 2026-10-26 A1
     expect((await stateOf(run, id)).state).toBe("sent");
   });
 
+  it("working hours changed to include now: a lead held for the morning goes now, not at the old opening (live test 2026-11-01)", async () => {
+    const patch = async (workingHours: unknown) =>
+      (await as(admin)).inject({ method: "PATCH", url: "/api/v1/settings", payload: { workingHours } });
+    const before = (await get("/api/v1/settings")).workingHours;
+    // Monday, before the business opens (only 18:00 to 20:00): the first message waits for the evening.
+    expect((await patch({ days: [1, 2, 3, 4, 5], start: "18:00", end: "20:00" })).statusCode).toBe(200);
+    const id = await lead("Ira Menon", "+919876500015");
+    await startOn([id]);
+    await sendNext();
+    expect(sentTo(id)).toEqual([]);
+    // Open all day from now: the lead isn't left waiting for an opening that no longer applies.
+    expect((await patch({ days: [0, 1, 2, 3, 4, 5, 6], start: "00:00", end: "23:59" })).statusCode).toBe(200);
+    for (let i = 0; i < 20 && !sentTo(id).length; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      await sendNext();
+    }
+    expect(sentTo(id)).toEqual(["template"]);
+    await patch(before);
+  });
+
   it("the lead writes again while LUME AI is writing: the old reply is dropped and the new message answered", async () => {
     const { id, run } = await inRun("Dev Malhotra", "+919876500012");
     await writes(id, "Do you do bathrooms too?");
@@ -434,5 +455,245 @@ describe("what LUME AI wrote while things changed under it (review 2026-10-26 A1
     await sendNext();
     expect(sentTo(id)).toEqual(["template", "A modular kitchen is ₹3,80,000 all in."]);
     expect((await stateOf(run, id)).state).toBe("talking");
+  });
+});
+
+/** Calls LUME AI may say yes to (spec 2026-11-02 LUME AI books calls), on the business's clock (Dubai). */
+describe("a call LUME AI says yes to", () => {
+  const DAY = 24 * 60 * MIN;
+  const how = "We'll call you on this number.";
+  const calls = {
+    windows: [{ days: [0, 1, 2, 3, 4, 5, 6], from: "16:00", to: "19:00" }],
+    minutes: 30,
+    noticeHours: 2,
+    daysAhead: 14,
+    how,
+  };
+  const setCalls = async (c: unknown) =>
+    (await as(admin)).inject({
+      method: "PATCH",
+      url: "/api/v1/ai/profile",
+      payload: { standing: { calls: c } },
+    });
+  /** Tomorrow on the business's clock (Dubai, UTC+4), as "YYYY-MM-DD". */
+  const tomorrow = () => new Date(h.clock.now.getTime() + 4 * 60 * MIN + DAY).toISOString().slice(0, 10);
+  /** That day's 17:00 in Dubai, as the instant it is. */
+  const fivePm = (day: string) => new Date(`${day}T13:00:00Z`);
+  const meetingsOf = (leadId: string) =>
+    h.queryAll<{
+      source: string;
+      matched_by: string;
+      owner_id: string;
+      starts_at: Date;
+      ends_at: Date;
+      location: string | null;
+      status: string;
+      title: string;
+    }>(
+      "SELECT source, matched_by, owner_id, starts_at, ends_at, location, status, title FROM meetings WHERE lead_id = $1",
+      [leadId],
+    );
+  const startWith = async (leadIds: string[], permissions = AUTOPILOT_PRESETS.hands_off) => {
+    const r = await post("/api/v1/autopilot/runs", {
+      leadIds,
+      goal: { kind: "stage", stageId: goalStage.id },
+      speakerId: null,
+      permissions,
+      followUpDays: [2, 5],
+      dailyCap: null,
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    return r.json().run.id as string;
+  };
+  const inRun = async (name: string, phone: string, permissions = AUTOPILOT_PRESETS.hands_off) => {
+    const id = await lead(name, phone);
+    const run = await startWith([id], permissions);
+    await sendNext();
+    expect(sentTo(id)).toEqual(["template"]);
+    return { id, run };
+  };
+  /** A meeting already on the speaker's calendar, as LUME's Google sync writes one: as its owner. */
+  const busyAt = async (startsAt: Date, minutes = 60) => {
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        "SELECT set_config('lume.user_id', $1, true), set_config('lume.lead_scope', 'all', true)",
+        [admin.id],
+      );
+      const id = newId();
+      await c.query(
+        `INSERT INTO meetings (id, owner_id, source, external_id, matched_by, title, starts_at, ends_at)
+         VALUES ($1, $2, 'google', $5, 'title', 'Site visit', $3, $4)`,
+        [id, admin.id, startsAt, new Date(startsAt.getTime() + minutes * MIN), id],
+      );
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
+  };
+
+  beforeAll(async () => {
+    await h.ownerPool.query("UPDATE whatsapp_numbers SET quality = 'green'");
+    let t = MONDAY.getTime();
+    while (t <= h.clock.now.getTime()) t += 7 * DAY;
+    h.clock.now = new Date(t);
+    plan({ calls: 100_000 });
+    expect((await checkIn()).statusCode).toBe(200);
+  });
+
+  it("no times given: Book meetings can't be chosen, and says where to give them", async () => {
+    expect((await setCalls({ ...calls, windows: [] })).statusCode).toBe(200);
+    expect((await get("/api/v1/ai/profile")).available.book_meetings).toEqual({
+      ok: false,
+      why: "Give LUME AI the times it may say yes to a call in Settings → LUME AI.",
+      fixHref: "/settings/ai",
+    });
+    expect((await setCalls(calls)).statusCode).toBe(200);
+    expect((await get("/api/v1/ai/profile")).available.book_meetings).toEqual({ ok: true });
+  });
+
+  it("a free time the lead proposes: LUME AI says yes, the call is booked as the reply goes, and the lead is Ready", async () => {
+    const { id, run } = await inRun("Zara Khan", "+919876500021");
+    await writes(id, "Can we talk tomorrow at 5 pm?");
+    const day = tomorrow();
+    provider.script("autopilot_reply", [
+      reply({ message: `Done, tomorrow at 5 pm. ${how}`, meeting: { at: `${day}T17:00` } }),
+    ]);
+    await sendNext();
+    expect(sentTo(id)).toEqual(["template", `Done, tomorrow at 5 pm. ${how}`]);
+    expect(await meetingsOf(id)).toEqual([
+      {
+        source: "lume",
+        matched_by: "lume_ai",
+        owner_id: admin.id,
+        starts_at: fivePm(day),
+        ends_at: new Date(fivePm(day).getTime() + 30 * MIN),
+        location: how,
+        status: "scheduled",
+        title: "Call with Zara Khan",
+      },
+    ]);
+    const state = await stateOf(run, id);
+    expect(state.state).toBe("ready");
+    expect(state.card?.headline).toMatch(/^Call booked for .+ at 5 pm$/);
+    // On the lead's Meetings and in the Calendar, and in its history.
+    expect((await get(`/api/v1/leads/${id}/meetings`)).meetings).toEqual([
+      expect.objectContaining({ title: "Call with Zara Khan", matchedBy: "lume_ai" }),
+    ]);
+    const from = new Date(h.clock.now.getTime() - DAY).toISOString();
+    const to = new Date(h.clock.now.getTime() + 3 * DAY).toISOString();
+    expect((await get(`/api/v1/meetings?from=${from}&to=${to}`)).meetings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ title: "Call with Zara Khan" })]),
+    );
+    const acts = await h.queryAll<{ payload: { byAi?: boolean } }>(
+      "SELECT payload FROM activities WHERE lead_id = $1 AND type = 'meeting_booked'",
+      [id],
+    );
+    expect(acts).toEqual([
+      { payload: expect.objectContaining({ byAi: true, startsAt: fivePm(day).toISOString() }) },
+    ]);
+  });
+
+  it("a time already taken is never said yes to: a person gets the lead, with why, and nothing is sent", async () => {
+    const { id, run } = await inRun("Omar Siddiqui", "+919876500022");
+    const day = tomorrow();
+    await busyAt(new Date(`${day}T14:00:00Z`)); // 18:00 to 19:00 in Dubai
+    await writes(id, "Tomorrow 6 pm?");
+    provider.script("autopilot_reply", [
+      reply({ message: "Done, tomorrow at 6 pm.", meeting: { at: `${day}T18:00` } }),
+    ]);
+    await sendNext();
+    expect(sentTo(id)).toEqual(["template"]);
+    expect(await meetingsOf(id)).toEqual([]);
+    expect(await stateOf(run, id)).toMatchObject({
+      state: "needs_you",
+      card: { headline: "LUME AI wanted to say yes to a call at a time you already have a meeting." },
+    });
+  });
+
+  it("two leads say yes to the same time: one is booked; the other gets nothing sent and goes to a person", async () => {
+    const a = await inRun("Lina Haddad", "+919876500023");
+    const b = await inRun("Yusuf Ali", "+919876500024");
+    const day = tomorrow();
+    await writes(a.id, "Tomorrow 4 pm works");
+    await writes(b.id, "Tomorrow 4 pm please");
+    provider.script("autopilot_reply", [
+      reply({ message: "Done, tomorrow at 4 pm.", meeting: { at: `${day}T16:00` } }),
+      reply({ message: "Done, tomorrow at 4 pm.", meeting: { at: `${day}T16:00` } }),
+    ]);
+    // Both written before either is sent: the second finds the time taken as it books.
+    await tick();
+    await tick();
+    expect((await stateOf(a.run, a.id)).draft).toBe("Done, tomorrow at 4 pm.");
+    expect((await stateOf(b.run, b.id)).draft).toBe("Done, tomorrow at 4 pm.");
+    await tick(10 * S);
+    await tick();
+    await h.runWhatsAppSend();
+    const sent = [sentTo(a.id), sentTo(b.id)].map((x) => x.length);
+    expect(sent.sort()).toEqual([1, 2]);
+    const booked = [...(await meetingsOf(a.id)), ...(await meetingsOf(b.id))];
+    expect(booked).toHaveLength(1);
+    const loser = sentTo(a.id).length === 1 ? a : b;
+    expect(await stateOf(loser.run, loser.id)).toMatchObject({
+      state: "needs_you",
+      card: { headline: "LUME AI wanted to say yes to a call at a time you already have a meeting." },
+    });
+  });
+
+  it("set to Ask me: the yes waits for a tap and holds nothing; approved, it's booked as it goes", async () => {
+    const ask = { ...AUTOPILOT_PRESETS.hands_off, book_meetings: "ask" as const };
+    const { id, run } = await inRun("Noor Aziz", "+919876500025", ask);
+    const day = tomorrow();
+    await writes(id, "Tomorrow 5:30 pm?");
+    provider.script("autopilot_reply", [
+      reply({ message: "Done, tomorrow at 5:30 pm.", meeting: { at: `${day}T17:30` } }),
+    ]);
+    await tick();
+    expect((await stateOf(run, id)).state).toBe("needs_you");
+    expect(await meetingsOf(id)).toEqual([]);
+    const asks = (await get(`/api/v1/autopilot/runs/${run}`)).asks;
+    expect(asks).toEqual([expect.objectContaining({ leadId: id, action: "book_meetings" })]);
+    expect((await post(`/api/v1/autopilot/asks/${asks[0].id}/approve`)).statusCode).toBe(200);
+    await tick();
+    await h.runWhatsAppSend();
+    expect(sentTo(id)).toEqual(["template", "Done, tomorrow at 5:30 pm."]);
+    expect(await meetingsOf(id)).toEqual([
+      expect.objectContaining({ starts_at: new Date(`${day}T13:30:00Z`) }),
+    ]);
+  });
+
+  it("approved after the time was taken: nothing is sent, and a person gets the lead", async () => {
+    const ask = { ...AUTOPILOT_PRESETS.hands_off, book_meetings: "ask" as const };
+    const { id, run } = await inRun("Rami Saleh", "+919876500026", ask);
+    const day = tomorrow();
+    await writes(id, "Tomorrow 4:30 pm?");
+    provider.script("autopilot_reply", [
+      reply({ message: "Done, tomorrow at 4:30 pm.", meeting: { at: `${day}T16:30` } }),
+    ]);
+    await tick();
+    const asks = (await get(`/api/v1/autopilot/runs/${run}`)).asks;
+    await busyAt(new Date(`${day}T12:30:00Z`), 30); // someone books 16:30 while it waits
+    expect((await post(`/api/v1/autopilot/asks/${asks[0].id}/approve`)).statusCode).toBe(200);
+    await tick();
+    await h.runWhatsAppSend();
+    expect(sentTo(id)).toEqual(["template"]);
+    expect(await meetingsOf(id)).toEqual([]);
+    expect((await stateOf(run, id)).state).toBe("needs_you");
+  });
+
+  it("the times it may offer are in what LUME AI reads, never one that's taken", async () => {
+    const { id } = await inRun("Huda Karim", "+919876500027");
+    await writes(id, "When can we talk?");
+    provider.script("autopilot_reply", [reply({ message: "Happy to talk." })]);
+    await sendNext();
+    const input = JSON.parse(provider.calls.at(-1)!.input) as { callTimes?: { at: string; label: string }[] };
+    const offered = (input.callTimes ?? []).map((c) => c.at);
+    expect(offered.length).toBeGreaterThan(1);
+    expect(offered.length).toBeLessThanOrEqual(6);
+    // Tomorrow is full (Lina 16:00, a meeting 16:30, Zara 17:00, Noor 17:30, a visit 18:00 to 19:00): none offered.
+    expect(offered.filter((at) => at.startsWith(tomorrow()))).toEqual([]);
+    const dayAfter = new Date(new Date(`${tomorrow()}T12:00:00Z`).getTime() + DAY).toISOString().slice(0, 10);
+    expect(offered).toContain(`${dayAfter}T16:00`);
   });
 });

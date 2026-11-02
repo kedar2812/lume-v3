@@ -114,6 +114,21 @@ describe("LiveConversation", () => {
     expect(screen.getByRole("link", { name: "Open lead" })).toHaveAttribute("href", "/leads?lead=a");
   });
 
+  it("a lead LUME AI stopped: in red, why, and that LUME AI won't message them again (owner 2026-11-01)", async () => {
+    render(
+      <LiveConversation
+        {...props({
+          lead: lead({ state: "stopped", reason: "Said stop. LUME AI marked them do not contact." }),
+        })}
+      />,
+    );
+    expect(await screen.findByText("Stopped · Said stop")).toHaveAttribute("data-tone", "stop");
+    const bar = screen.getByRole("region", { name: "Stopped" });
+    expect(bar).toHaveTextContent("LUME AI won't message Meera again.");
+    expect(bar).toHaveTextContent("Said stop. LUME AI marked them do not contact.");
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
   it("a lead with you: your own reply box, starting from LUME AI's words, and Hand back", async () => {
     const p = props({ lead: lead({ state: "with_you" }), takenOverText: "Yes, we design" });
     render(<LiveConversation {...p} />);

@@ -4,9 +4,12 @@ import { PERMISSIONS, can, isPermissionKey, newId, permissionDef, type Scope } f
 import { schema, type LoginHours } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { normaliseNetworks } from "../../auth/networks";
-import { badRequest, conflict, notFound } from "../../http/errors";
+import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { assertCanAssignRoles, assertCanGrant } from "../../rbac/escalation";
 import { notifyRbac } from "../../rbac/notify";
+import type { AppDeps } from "../../app";
+import { eraseAccount } from "../users/delete";
+import { offboard, type LeadsChoice } from "../users/offboard";
 
 export type GrantInput = { key: string; scope?: Scope | null };
 export type RoleInput = {
@@ -208,35 +211,106 @@ export async function updateRole(req: FastifyRequest, id: string, input: Partial
   return { role: await getRole(req, id) };
 }
 
-export async function deleteRole(req: FastifyRequest, id: string, replacementRoleId?: string) {
-  const role = await getRole(req, id);
-  const used = role.uses.invites + role.uses.templates + role.uses.views;
-  if (role.holders > 0 || used > 0) {
-    if (!replacementRoleId)
-      throw badRequest(
-        "REPLACEMENT_REQUIRED",
-        role.holders > 0
-          ? `${role.holders === 1 ? "1 person holds" : `${role.holders} people hold`} this role; choose a replacement`
-          : "Invites, templates or shared views use this role; choose a replacement",
-      );
-    if (replacementRoleId === id) throw badRequest("REPLACEMENT_REQUIRED", "Choose a different role");
-    await getRole(req, replacementRoleId);
-    await assertCanAssignRoles(req, [replacementRoleId]);
-    await moveUses(req, id, replacementRoleId);
-    // Move holders (skip anyone who already has the replacement), then drop the old links.
-    await req.db.execute(
-      sql`INSERT INTO user_roles (user_id, role_id) SELECT user_id, ${replacementRoleId} FROM user_roles WHERE role_id = ${id} ON CONFLICT DO NOTHING`,
+/** What happens to the people who hold a role being deleted (owner 2026-11-02). */
+export type RolePeople =
+  | { to: "role"; roleId: string }
+  | { to: "new"; name: string }
+  | { to: "offboard"; leads: LeadsChoice }
+  | { to: "delete"; leads: LeadsChoice };
+
+/**
+ * Deleting a role (owner 2026-11-02; spec docs/superpowers/specs/2026-11-02-delete-account-and-role.md): the top of the
+ * hierarchy, so the owner or someone who manages both roles and people, and always after the password (proved by the
+ * route). Its people move to another role, to a new one made here as its copy, are offboarded, or have their accounts
+ * deleted; the owner and the person deleting are only ever moved. Invites, templates and shared views that name it move
+ * to the role its people went to, else to `replacementRoleId`.
+ */
+export async function deleteRole(
+  req: FastifyRequest,
+  d: AppDeps,
+  id: string,
+  o: { people?: RolePeople | undefined; replacementRoleId?: string | undefined },
+) {
+  const actor = req.actor!;
+  if (!actor.isOwner && !(can(actor, "roles.manage") && can(actor, "users.manage")))
+    throw forbidden(
+      "TOP_OF_HIERARCHY",
+      "Only the owner, or someone who manages roles and people, deletes a role",
     );
-    await req.db.delete(schema.userRoles).where(eq(schema.userRoles.roleId, id));
+  const role = await getRole(req, id);
+  const holders = (
+    await req.db.execute(sql`
+      SELECT u.id, u.is_owner FROM user_roles ur JOIN users u ON u.id = ur.user_id
+       WHERE ur.role_id = ${id} AND u.status <> 'deleted'`)
+  ).rows as { id: string; is_owner: boolean }[];
+  const used = role.uses.invites + role.uses.templates + role.uses.views;
+  const people = o.people;
+  if (holders.length && !people)
+    throw badRequest(
+      "PEOPLE_CHOICE_REQUIRED",
+      `${holders.length === 1 ? "1 person holds" : `${holders.length} people hold`} this role; choose what happens to them`,
+    );
+
+  // Where its people (and its invites, templates and views) go, when they go to a role.
+  let moveTo: string | null = null;
+  if (people?.to === "role") {
+    if (people.roleId === id) throw badRequest("REPLACEMENT_REQUIRED", "Choose a different role");
+    await getRole(req, people.roleId);
+    moveTo = people.roleId;
+  } else if (people?.to === "new") moveTo = (await cloneRole(req, id, people.name)).role.id;
+  const forUses = moveTo ?? o.replacementRoleId ?? null;
+  if (used && !forUses)
+    throw badRequest(
+      "REPLACEMENT_REQUIRED",
+      "Invites, templates or shared views use this role; choose a replacement",
+    );
+  if (forUses && forUses === id) throw badRequest("REPLACEMENT_REQUIRED", "Choose a different role");
+
+  if (holders.length && people) {
+    if (people.to === "offboard" || people.to === "delete") {
+      // Never the owner, never the person deleting: they're moved, from here only ever by choosing a role.
+      if (holders.some((h) => h.is_owner || h.id === actor.userId))
+        throw badRequest(
+          "MOVE_THEM_INSTEAD",
+          "You, or the owner, hold this role: move its people to another role instead",
+        );
+      const leads = people.leads;
+      // The leads go to someone who stays: never one of the people leaving with this role.
+      if (leads.to === "person" && holders.some((h) => h.id === leads.userId))
+        throw badRequest("UNKNOWN_USER", "Pick someone outside this role to take the leads");
+      for (const h of holders)
+        if (people.to === "offboard") await offboard(req, d, h.id, people.leads);
+        else await eraseAccount(req, d, h.id, people.leads);
+    } else {
+      await assertCanAssignRoles(req, [moveTo!]);
+      // Move holders (skip anyone who already has the replacement), then drop the old links.
+      await req.db.execute(
+        sql`INSERT INTO user_roles (user_id, role_id) SELECT user_id, ${moveTo} FROM user_roles WHERE role_id = ${id} ON CONFLICT DO NOTHING`,
+      );
+    }
   }
+  if (forUses) {
+    await getRole(req, forUses);
+    // Invites that move to a role may only move to one this person could hand out themselves (no way up through here).
+    await assertCanAssignRoles(req, [forUses]);
+    await moveUses(req, id, forUses);
+  }
+  await req.db.delete(schema.userRoles).where(eq(schema.userRoles.roleId, id));
   await req.db.update(schema.roles).set({ deletedAt: new Date() }).where(eq(schema.roles.id, id));
   await notifyRbac(req);
   await audit(req, {
     action: "role.deleted",
     entityType: "role",
     entityId: id,
-    diff: { replacementRoleId: replacementRoleId ?? null, holders: role.holders, uses: role.uses },
+    diff: {
+      people: people?.to ?? null,
+      movedTo: moveTo,
+      replacementRoleId: forUses,
+      holders: holders.length,
+      uses: role.uses,
+    },
   });
+  return { movedTo: moveTo };
 }
 
 export async function cloneRole(req: FastifyRequest, id: string, name: string) {

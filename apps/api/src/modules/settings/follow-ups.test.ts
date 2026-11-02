@@ -16,9 +16,9 @@ afterAll(() => h.close());
 const url = "/api/v1/settings/follow-ups";
 
 describe("Settings → Follow-ups (Phase 3B, Task 1)", () => {
-  it("escalation is on, after 24 hours, until someone changes it", async () => {
+  it("escalation is on, after 24 hours, until someone changes it; the morning email is off until switched on (owner 2026-11-02)", async () => {
     const r = await admin.inject({ method: "GET", url });
-    expect(r.json()).toMatchObject({ escalation: { enabled: true, hours: 24 }, digest: { enabled: true } });
+    expect(r.json()).toMatchObject({ escalation: { enabled: true, hours: 24 }, digest: { enabled: false } });
   });
 
   it("changing it is audited, and only whole hours from 1 to a week are allowed", async () => {

@@ -73,7 +73,7 @@ export function AiRing() {
               transform="rotate(-90 10 10)"
             />
           </svg>
-          <AiGlyph size={9} className={s.mark} />
+          <AiGlyph size={14} className={s.mark} />
         </span>
       }
     >

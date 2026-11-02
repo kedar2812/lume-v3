@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { AiGlyph } from "@/components/ai/AiGlyph";
 import { dayKey, meetingState } from "@/lib/calendar/agenda";
 import type { Meeting } from "@/lib/calendar/types";
 import { nearDay, timeOf } from "@/lib/dates";
@@ -61,7 +62,14 @@ export function NextMeeting({ meetings, tz, now }: { meetings: Meeting[]; tz: st
           {next.title}, {timeRange(start, new Date(next.endsAt), tz)}
         </p>
         <p className={m.src}>
-          {next.matchedBy === "calendly" ? (
+          {next.matchedBy === "lume_ai" ? (
+            <>
+              <span className={m.gtile}>
+                <AiGlyph size={11} />
+              </span>
+              Booked by LUME AI
+            </>
+          ) : next.matchedBy === "calendly" ? (
             <>
               <img src="/brand/calendly.svg" alt="" width={14} height={14} />
               Booked through Calendly

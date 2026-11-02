@@ -2,6 +2,7 @@
 import type { AvatarColor } from "@lume/core/shared";
 import { api } from "@/lib/api";
 import type { Look } from "@/lib/avatar/look";
+import type { LeadsChoice, OffboardPreview } from "@/lib/settings/people";
 
 export type MySession = {
   id: string;
@@ -27,4 +28,8 @@ export const accountClient = {
   disableTwoFactor: (password: string) => api.post<null>("/api/v1/me/2fa/disable", { password }),
   newRecoveryCodes: (password: string) =>
     api.post<{ recoveryCodes: string[] }>("/api/v1/me/recovery-codes", { password }),
+  /** Deleting my account (2026-11-02): what it would do (my leads, who could take them), then the act. */
+  deletePreview: () => api.get<OffboardPreview>("/api/v1/me/delete"),
+  deleteMe: (o: { leads: LeadsChoice; password: string; passwordAgain: string; code?: string }) =>
+    api.post<null>("/api/v1/me/delete", o),
 };

@@ -25,7 +25,8 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
-/* The ring is 18px across, the bell's size: a 20px box with the stroke's middle at r 8. */
+/* The ring is about the bell's size (owner 2026-11-02: at 20px "barely visible"): a 26px box, the stroke's middle at r 8
+   of 20, its mark 14px inside. */
 .face {
   position: relative;
   display: flex;
@@ -33,18 +34,18 @@
   justify-content: center;
 }
 .ringSvg {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
 }
 .track {
   fill: none;
   stroke: var(--line-2);
-  stroke-width: 2.2;
+  stroke-width: 1.8;
 }
 .fill {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 2.2;
+  stroke-width: 1.8;
   stroke-linecap: round;
   transition:
     stroke-dashoffset 0.9s var(--spring-soft),
@@ -55,8 +56,8 @@
 }
 .mark {
   position: absolute;
-  width: 9px;
-  height: 9px;
+  width: 14px;
+  height: 14px;
 }
 
 /* The panel's content (inside the shared Popover; Settings → LUME AI shows it too). */

@@ -1,5 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { WaThreadMessage } from "@/lib/whatsapp/types";
 import { WhatsAppChat } from "./WhatsAppChat";
@@ -56,6 +57,38 @@ describe("WhatsApp chat window", () => {
     const foot = chat.querySelector("[data-chat-foot]")!;
     expect(within(foot as HTMLElement).getByRole("textbox", { name: "Write to Kedar" })).toBeInTheDocument();
     expect(chat.querySelector("[data-chat-body] textarea")).toBeNull();
+  });
+
+  it("opens on the newest message and stays there as photos load in; never pulls back someone who scrolled up (2026-11-02)", () => {
+    const seen: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          seen.push(cb);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    render(
+      <WhatsAppChat leadName="Kedar Gurav" phone={null} tz={TZ} messages={MESSAGES} onClose={vi.fn()} />,
+    );
+    const body = document.querySelector<HTMLElement>("[data-chat-body]")!;
+    let height = 1200;
+    Object.defineProperty(body, "scrollHeight", { configurable: true, get: () => height });
+    Object.defineProperty(body, "clientHeight", { configurable: true, get: () => 400 });
+    const grow = (to: number) => {
+      height = to;
+      act(() => seen.forEach((cb) => cb([], {} as ResizeObserver)));
+    };
+    grow(1800); // a photo finished loading above the newest message
+    expect(body.scrollTop).toBe(1800);
+    body.scrollTop = 200; // the person scrolls up to read
+    fireEvent.scroll(body);
+    grow(2400);
+    expect(body.scrollTop).toBe(200);
+    vi.unstubAllGlobals();
   });
 
   it("Close and Escape close it", async () => {

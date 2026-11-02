@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 import type { FastifyRequest } from "fastify";
 import { leadScope } from "@lume/core";
 import type { AppDeps } from "../../app";
@@ -10,6 +11,12 @@ import { cancelReminders } from "../tasks/engine";
 import { refreshNextDue } from "../tasks/lifecycle";
 
 export type LeadsChoice = { to: "person"; userId: string } | { to: "team"; teamId: string } | { to: "none" };
+/** Who takes the leads: one person, a team spread by load, or nobody (offboarding and deleting an account). */
+export const leadsChoiceSchema = z.discriminatedUnion("to", [
+  z.object({ to: z.literal("person"), userId: z.uuid() }).strict(),
+  z.object({ to: z.literal("team"), teamId: z.uuid() }).strict(),
+  z.object({ to: z.literal("none") }).strict(),
+]);
 
 let failAt: "calendar" | null = null;
 /** Tests only: fail at a step, to prove the whole act rolls back (Review Focus 1). */
@@ -21,7 +28,8 @@ const rows = async <R>(req: FastifyRequest, q: ReturnType<typeof sql>) =>
   (await req.db.execute(q)).rows as R[];
 
 type Person = { id: string; name: string; status: string; is_owner: boolean };
-async function personOf(req: FastifyRequest, id: string, lock = false): Promise<Person> {
+/** `self`: deleting your own account (2026-11-02), the one time it's about you; offboarding never is. */
+async function personOf(req: FastifyRequest, id: string, lock = false, self = false): Promise<Person> {
   const [p] = await rows<Person>(
     req,
     sql`SELECT id, name, status, is_owner FROM users WHERE id = ${id} ${lock ? sql`FOR UPDATE` : sql``}`,
@@ -29,7 +37,7 @@ async function personOf(req: FastifyRequest, id: string, lock = false): Promise<
   if (!p) throw notFound();
   // As Disable does: the owner and yourself are never offboarded, nor previewed for it (6C review).
   if (p.is_owner) throw forbidden("OWNER_PROTECTED", "The owner account can't be changed by anyone else");
-  if (id === req.actor!.userId) throw forbidden("SELF", "You can't offboard yourself");
+  if (id === req.actor!.userId && !self) throw forbidden("SELF", "You can't offboard yourself");
   return p;
 }
 
@@ -67,8 +75,13 @@ const MEMBERS = (teamId: string, personId: string) => sql`
  * Google Calendar, and their last 30 days. Counts only: never a contact. Live sessions are judged on the app's clock,
  * as signing in judges them.
  */
-export async function offboardingPreview(req: FastifyRequest, d: Pick<AppDeps, "clock">, id: string) {
-  const p = await personOf(req, id);
+export async function offboardingPreview(
+  req: FastifyRequest,
+  d: Pick<AppDeps, "clock">,
+  id: string,
+  o: { self?: boolean } = {},
+) {
+  const p = await personOf(req, id, false, o.self);
   const sessions = await liveSessions(req, d.clock(), id);
   return everyLead(req, async () => {
     const [leads] = await rows<{ total: number; open: number }>(
@@ -167,9 +180,10 @@ export async function offboard(
   d: Pick<AppDeps, "clock">,
   id: string,
   choice: LeadsChoice,
+  o: { self?: boolean } = {},
 ): Promise<Outcome> {
   const actor = req.actor!;
-  const p = await personOf(req, id, true);
+  const p = await personOf(req, id, true, o.self);
   if (p.status !== "active" && p.status !== "suspended")
     throw conflict("NOT_ACTIVE", `${p.name} is already disabled`);
 

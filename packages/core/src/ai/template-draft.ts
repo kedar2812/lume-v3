@@ -42,6 +42,8 @@ export const templateDraftOutput = z
 export type TemplateDraft = z.infer<typeof templateDraftOutput>["options"][number];
 
 const VAR = /\{\{\s*([^{}]+?)\s*\}\}/g;
+/** A blank to fill once LUME's own variables are taken out: [day], <name>, {date}. */
+const BLANK = /\[[^\]\n]{1,40}\]|<[^>\n]{1,40}>|\{[^{}\n]{1,40}\}/;
 const TONE = {
   warm: "warm and friendly",
   formal: "polite and formal",
@@ -63,7 +65,8 @@ warm, helpful with a reason to reply, or one clear question). Each template:
   re_engagement or custom.
 - body: the message, plain text, at most 1,024 characters, short like a real WhatsApp message, ending with an easy
   reason to reply. Use only these variables, written exactly so: ${c.variables.map((v) => `{{${v.token}}} (${v.label})`).join(", ")}.
-  Never start or end the message with a variable, and always put words between two variables.
+  Never start or end the message with a variable, and always put words between two variables. Never a blank in brackets for someone to fill, such as [day], [time], <name> or {date}:
+  what isn't a variable above, the message does without.
 - why: one line on when this one works best, at most 140 characters.
 
 Rules that always hold:
@@ -95,6 +98,8 @@ export function cleanTemplateDrafts(
     const body = o.body.trim();
     const words = body.replace(VAR, " ");
     if ([...body.matchAll(VAR)].some((m) => !known.has(m[1]!))) continue;
+    // A made-up blank (live test 2026-11-02: "on [day] at [time]") would reach the lead exactly as written.
+    if (BLANK.test(words)) continue;
     if (templateProblems(body).length) continue;
     if (unbackedAmounts(words, prices).length || offersIn(words)) continue;
     const key = body.toLowerCase().replace(/\s+/g, " ");

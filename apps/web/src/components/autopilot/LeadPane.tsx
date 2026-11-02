@@ -123,7 +123,7 @@ export function LeadPane({
                       <b>{l.name}</b>
                       <span className={s.corner}>{corner(l.updatedAt)}</span>
                     </span>
-                    <span className={s.line}>
+                    <span className={s.line} data-tone={line.dot === "stopped" ? "stop" : undefined}>
                       {line.dot && <i className={s.dot} data-dot={line.dot} />}
                       <span>{line.text}</span>
                     </span>

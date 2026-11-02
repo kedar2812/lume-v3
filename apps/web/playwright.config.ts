@@ -17,7 +17,10 @@ export default defineConfig({
   timeout: 45_000,
   reporter: process.env.GITHUB_ACTIONS ? [["github"], ["list"]] : "list",
   // Same container everywhere, so renders are deterministic: allow only anti-aliasing noise.
-  expect: { toHaveScreenshot: { maxDiffPixels: 100, animations: "disabled" } },
+  // screenshot.css hides what another test leaves behind (the bell's unread count) from every compared picture.
+  expect: {
+    toHaveScreenshot: { maxDiffPixels: 100, animations: "disabled", stylePath: "./e2e/screenshot.css" },
+  },
   use: {
     baseURL: `http://127.0.0.1:${EDGE}`,
     reducedMotion: "reduce",

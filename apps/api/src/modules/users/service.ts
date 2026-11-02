@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { can } from "@lume/core";
 import { schema } from "@lume/db";
@@ -12,7 +12,8 @@ import { notifyRbac } from "../../rbac/notify";
 
 async function target(req: FastifyRequest, id: string) {
   const [u] = await req.db.select().from(schema.users).where(eq(schema.users.id, id)).for("update");
-  if (!u) throw notFound();
+  // A deleted account is nobody now (spec 2026-11-02): nothing an admin does reaches it.
+  if (!u || u.status === "deleted") throw notFound();
   return u;
 }
 const ownerGuard = (u: { isOwner: boolean }) => {
@@ -20,7 +21,12 @@ const ownerGuard = (u: { isOwner: boolean }) => {
 };
 
 export async function listUsers(req: FastifyRequest) {
-  const users = await req.db.select().from(schema.users).orderBy(schema.users.name);
+  // A deleted account is nobody now (spec 2026-11-02): never listed, never enabled again.
+  const users = await req.db
+    .select()
+    .from(schema.users)
+    .where(ne(schema.users.status, "deleted"))
+    .orderBy(schema.users.name);
   const links = await req.db
     .select({ userId: schema.userRoles.userId, id: schema.roles.id, name: schema.roles.name })
     .from(schema.userRoles)

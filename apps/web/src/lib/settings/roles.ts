@@ -1,4 +1,5 @@
 "use client";
+import type { LeadsChoice } from "@/lib/settings/people";
 import { api } from "@/lib/api";
 
 export type Scope = "own" | "team" | "all";
@@ -11,6 +12,13 @@ export type PermissionDef = {
 };
 export type Grant = { key: string; scope: Scope | null };
 export type FieldAccessLevel = "hidden" | "view" | "edit";
+/** What happens to the people who hold a role being deleted (owner 2026-11-02). */
+export type RolePeople =
+  | { to: "role"; roleId: string }
+  | { to: "new"; name: string }
+  | { to: "offboard"; leads: LeadsChoice }
+  | { to: "delete"; leads: LeadsChoice };
+
 export type Role = {
   id: string;
   name: string;
@@ -32,8 +40,11 @@ export const rolesClient = {
   patch: (id: string, patch: { name?: string; description?: string; color?: string; grants?: Grant[] }) =>
     api.patch<{ role: Role }>(`/api/v1/roles/${id}`, patch),
   clone: (id: string, name: string) => api.post<{ role: Role }>(`/api/v1/roles/${id}/clone`, { name }),
-  remove: (id: string, replacementRoleId?: string) =>
-    api.del<null>(`/api/v1/roles/${id}`, replacementRoleId ? { replacementRoleId } : undefined),
+  /** The top of the hierarchy (owner 2026-11-02): the password every time, and what happens to its people. */
+  remove: (
+    id: string,
+    o: { password: string; code?: string; people?: RolePeople; replacementRoleId?: string },
+  ) => api.del<{ movedTo: string | null }>(`/api/v1/roles/${id}`, o),
   setFieldAccess: (id: string, entries: { fieldId: string; access: FieldAccessLevel }[]) =>
     api.put<{ entries: { fieldId: string; access: FieldAccessLevel }[] }>(
       `/api/v1/roles/${id}/field-access`,

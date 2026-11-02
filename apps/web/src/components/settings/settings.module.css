@@ -1946,3 +1946,7 @@
   gap: 8px;
   margin-top: 18px;
 }
+/* People: Delete account, in the danger colour; the Button keeps its own hover (2026-11-02). */
+.deleteAccount {
+  color: var(--danger-ink);
+}

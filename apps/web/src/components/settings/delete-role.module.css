@@ -1,0 +1,75 @@
+/* Deleting a role (2026-11-02): who holds it, and the details of each choice, inside the offboarding sheet's steps. */
+.swatch {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--accent-soft, var(--sunk));
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.swatch[data-color="ok"] {
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+}
+.swatch[data-color="warn"] {
+  background: color-mix(in srgb, var(--warn) 22%, transparent);
+}
+.swatch[data-color="danger"] {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+}
+.swatch[data-color="accent"],
+.swatch[data-color="meet"],
+.swatch[data-color="cyan"] {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.faces {
+  display: flex;
+  align-items: center;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.faces li {
+  margin-left: -6px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--sheet);
+}
+.faces li:first-child {
+  margin-left: 0;
+}
+.more {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: var(--sunk);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.name {
+  width: 100%;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font: inherit;
+  color: var(--text);
+}
+.name:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.leads {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.label {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.leadRow {
+  display: flex;
+  gap: 8px;
+}

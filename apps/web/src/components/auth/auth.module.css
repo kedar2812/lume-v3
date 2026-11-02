@@ -61,6 +61,12 @@
   font-weight: var(--fw-medium);
   margin-top: 8px;
 }
+/* After deleting their own account (2026-11-02). */
+.deleted {
+  margin: 0 0 14px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
 .card {
   margin-top: 30px;
   padding: 24px;

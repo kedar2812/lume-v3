@@ -40,6 +40,9 @@ export const usersClient = {
   endSessions: (id: string) => api.del<null>(`/api/v1/users/${id}/sessions`),
   /** What offboarding someone would do (6C): counts only, never a contact. */
   offboarding: (id: string) => api.get<OffboardPreview>(`/api/v1/users/${id}/offboarding`),
+  /** Delete someone's account (2026-11-02): with the admin's own password, and code with two-step on. */
+  deleteAccount: (id: string, o: { leads: LeadsChoice; password: string; code?: string }) =>
+    api.post<null>(`/api/v1/users/${id}/delete`, o),
   offboard: (id: string, leads: LeadsChoice) =>
     api.post<OffboardOutcome>(`/api/v1/users/${id}/offboard`, { leads }),
 };

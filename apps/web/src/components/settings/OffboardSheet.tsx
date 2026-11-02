@@ -381,7 +381,8 @@ export function OffboardSheet({
   );
 }
 
-function Step({
+/** One numbered step of a sheet that does several things at once (offboarding, deleting an account). */
+export function Step({
   n,
   state,
   title,
@@ -418,7 +419,8 @@ function Step({
   );
 }
 
-function Option({
+/** One choice of who takes the leads, as a card (offboarding, deleting an account). */
+export function Option({
   on,
   disabled,
   onPick,

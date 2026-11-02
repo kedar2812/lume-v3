@@ -1,13 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ALL_GRANTS } from "@lume/core";
-import { createHarness, type Harness } from "../../../test/harness";
+import { ALL_GRANTS, totpCode } from "@lume/core";
+import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
 
 let h: Harness;
 let admin: Awaited<ReturnType<Harness["signIn"]>>;
+let adminUser: SeededUser;
 beforeAll(async () => {
   h = await createHarness();
-  admin = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+  adminUser = await h.seedUser({ grants: ALL_GRANTS, totp: true });
+  admin = await h.signIn(adminUser);
 });
+/** Deleting a role asks for the password every time, and the code with two-step (owner 2026-11-02). */
+const proof = (u: SeededUser = adminUser) => {
+  h.clock.advance(31_000); // a fresh step: a code is good once
+  return { password: u.password, code: totpCode(u.totpSecret!, h.clock.now.getTime()) };
+};
 afterAll(async () => h.close());
 
 describe("roles admin (report §7.1)", () => {
@@ -35,15 +42,39 @@ describe("roles admin (report §7.1)", () => {
     expect(unknown.statusCode).toBe(400);
   });
 
-  it("deleting a role that people hold requires a replacement, moved in the same transaction", async () => {
+  it("a role nobody holds or uses: the password, then gone; never without it (owner 2026-11-02)", async () => {
+    const made = await admin.inject({
+      method: "POST",
+      url: "/api/v1/roles",
+      payload: { name: "Unused", grants: [] },
+    });
+    const id = made.json().role.id as string;
+    expect((await admin.inject({ method: "DELETE", url: `/api/v1/roles/${id}` })).statusCode).toBe(400);
+    const wrong = await admin.inject({
+      method: "DELETE",
+      url: `/api/v1/roles/${id}`,
+      payload: { ...proof(), password: "not-it-1234" },
+    });
+    expect(wrong.json().error.code).toBe("WRONG_PASSWORD");
+    const gone = await admin.inject({ method: "DELETE", url: `/api/v1/roles/${id}`, payload: proof() });
+    expect(gone.statusCode, gone.body).toBe(200);
+    expect(
+      (await admin.inject({ method: "GET", url: "/api/v1/roles" }))
+        .json()
+        .roles.map((r: { id: string }) => r.id),
+    ).not.toContain(id);
+  });
+
+  it("deleting a role that people hold asks what happens to them; moved to another role in the same transaction", async () => {
     const holder = await h.seedUser({ grants: [{ key: "templates.use", scope: null }] });
     const {
       rows: [held],
     } = await h.pool.query("SELECT role_id FROM user_roles WHERE user_id = $1", [holder.id]);
     expect(
-      (await admin.inject({ method: "DELETE", url: `/api/v1/roles/${held.role_id}`, payload: {} })).json()
-        .error.code,
-    ).toBe("REPLACEMENT_REQUIRED");
+      (
+        await admin.inject({ method: "DELETE", url: `/api/v1/roles/${held.role_id}`, payload: proof() })
+      ).json().error.code,
+    ).toBe("PEOPLE_CHOICE_REQUIRED");
     const json = (
       await admin.inject({ method: "POST", url: "/api/v1/roles", payload: { name: "Fallback", grants: [] } })
     ).json();
@@ -53,10 +84,10 @@ describe("roles admin (report §7.1)", () => {
         await admin.inject({
           method: "DELETE",
           url: `/api/v1/roles/${held.role_id}`,
-          payload: { replacementRoleId: replacement },
+          payload: { ...proof(), people: { to: "role", roleId: replacement } },
         })
       ).statusCode,
-    ).toBe(204);
+    ).toBe(200);
     expect(
       (await h.pool.query("SELECT role_id FROM user_roles WHERE user_id = $1", [holder.id])).rows,
     ).toEqual([{ role_id: replacement }]);
@@ -140,23 +171,29 @@ describe("roles admin (report §7.1)", () => {
         [old, ownerId],
       )
     )[0]!.id;
-    // Someone who manages roles, not views: the shared view, not theirs to see, still counts and still moves.
-    const roleAdmin = await h.signIn(
-      await h.seedUser({ grants: [{ key: "roles.manage", scope: null }], totp: true }),
-    );
+    // Someone who manages roles, not views: the shared view, not theirs to see, still counts.
+    const roleAdminUser = await h.seedUser({ grants: [{ key: "roles.manage", scope: null }], totp: true });
+    const roleAdmin = await h.signIn(roleAdminUser);
     const read = (await roleAdmin.inject({ method: "GET", url: `/api/v1/roles/${old}` })).json().role;
     expect(read).toMatchObject({ holders: 0, uses: { invites: 1, templates: 1, views: 1 } });
+    // Deleting a role is the top of the hierarchy (owner 2026-11-02): roles alone isn't enough, people too.
+    const notTop = await roleAdmin.inject({
+      method: "DELETE",
+      url: `/api/v1/roles/${old}`,
+      payload: { ...proof(roleAdminUser), replacementRoleId: next },
+    });
+    expect(notTop.json().error.code).toBe("TOP_OF_HIERARCHY");
 
-    const bare = await roleAdmin.inject({ method: "DELETE", url: `/api/v1/roles/${old}`, payload: {} });
+    const bare = await admin.inject({ method: "DELETE", url: `/api/v1/roles/${old}`, payload: proof() });
     expect(bare.statusCode).toBe(400);
     expect(bare.json().error.code).toBe("REPLACEMENT_REQUIRED");
 
-    const moved = await roleAdmin.inject({
+    const moved = await admin.inject({
       method: "DELETE",
       url: `/api/v1/roles/${old}`,
-      payload: { replacementRoleId: next },
+      payload: { ...proof(), replacementRoleId: next },
     });
-    expect(moved.statusCode, moved.body).toBe(204);
+    expect(moved.statusCode, moved.body).toBe(200);
     const one = async (q: string, id: string) => (await h.queryAll<{ ids: string[] }>(q, [id]))[0]!.ids;
     expect(await one("SELECT role_ids::text[] AS ids FROM user_invites WHERE id = $1", invite)).toEqual([
       next,

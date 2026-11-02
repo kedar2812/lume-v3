@@ -8,11 +8,14 @@ export function SignInScreen({
   businessName,
   next,
   paused = false,
+  deleted = false,
 }: {
   businessName: string;
   next: string;
   /** A request was refused as paused (6A): open on the paused card. */
   paused?: boolean;
+  /** Here after deleting their own account (2026-11-02). */
+  deleted?: boolean;
 }) {
   const router = useRouter();
   return (
@@ -28,6 +31,7 @@ export function SignInScreen({
         onVerifyRecovery={verifyRecoveryCode}
         onSuccess={() => router.replace(next)}
         paused={paused}
+        deleted={deleted}
       />
     </div>
   );

@@ -34,6 +34,10 @@ async function inbox(userId: string) {
 
 beforeAll(async () => {
   h = await createHarness({ preset: "general" });
+  // The morning email is off until a business switches it on (owner 2026-11-02): this business did, so its failures count.
+  await h.ownerPool.query(
+    `UPDATE settings SET follow_ups = follow_ups || '{"digest":{"enabled":true}}'::jsonb WHERE id = 1`,
+  );
   const a = await h.seedUser({ grants: ALL_GRANTS, totp: true });
   adminId = a.id;
   admin = await h.signIn(a);

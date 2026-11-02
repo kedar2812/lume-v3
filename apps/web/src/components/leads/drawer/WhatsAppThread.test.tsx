@@ -86,6 +86,45 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
     expect(items[2]).toHaveAttribute("data-direction", "out");
   });
 
+  it("only the newest reply's suggestion can be applied: older ones keep their meaning, without Apply (2026-11-02)", () => {
+    const meaning = (readId: string, summary: string) => ({
+      readId,
+      group: "visit_or_call" as const,
+      summary,
+      stop: false,
+      suggestion: {
+        summary,
+        stageId: "s-visit",
+        followUp: { at: "2026-10-24T11:00", title: "Site visit" },
+        lostReasonId: null,
+        tagIds: [],
+        decisionMaker: null,
+      },
+      dueAt: "2026-10-24T05:30:00.000Z",
+      stageName: "Site visit booked",
+      lostReason: null,
+      outcome: null,
+    });
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={[
+          msg({ id: "1", text: "Saturday?", meaning: meaning("r1", "Asks about Saturday.") }),
+          msg({
+            id: "2",
+            text: "Yes, Saturday at 11 works",
+            meaning: meaning("r2", "Agrees to Saturday at 11."),
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("Asks about Saturday.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Apply" })).toHaveLength(1);
+    const groups = screen.getAllByRole("group", { name: "What Sneha's reply means" });
+    expect(groups[1]).toContainElement(screen.getByRole("button", { name: "Apply" }));
+  });
+
   it("a photo shows once it's here, with words for screen readers", async () => {
     vi.mocked(whatsappClient.mediaInfo).mockResolvedValue(ok(info({})));
     render(

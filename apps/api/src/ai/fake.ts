@@ -78,6 +78,7 @@ function autopilotFor(task: "autopilot_first" | "autopilot_reply", input: string
     fields: [],
     followUp: null,
     lostReasonId: null,
+    meeting: null,
   };
   // What the lead last wrote decides it, so an end-to-end run can reach every place a real one does (Autopilot A3):
   // a yes is the goal reached, a price question goes to a person, anything else gets the plain reply.
@@ -97,7 +98,8 @@ function autopilotFor(task: "autopilot_first" | "autopilot_reply", input: string
     return {
       ...plain,
       message:
-        "Here are a few photos of our recent work, from a small studio flat to a large family home. Each one shows the before and after, and what was included. Tell me which feels closest to your space and I can share more like it.",
+        // Promises no file it doesn't attach (the file guard, eval 2026-11-02).
+        "Happy to show you our recent work, from a small studio flat to a large family home. Each one has a before and after, and what was included. Tell me which feels closest to your space and I can show you more like it.",
     };
   return plain;
 }

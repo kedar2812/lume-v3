@@ -1,0 +1,42 @@
+/* Deleting an account (2026-11-02): the password fields and the one plain warning, inside the offboarding sheet's steps. */
+.fields {
+  display: grid;
+  gap: 12px;
+  max-width: 360px;
+  margin-top: 6px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.mismatch {
+  margin: -4px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.warning {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+/* My account: the quiet way in, at the foot. */
+.zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.zone p {
+  margin: 0;
+  max-width: 52ch;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}

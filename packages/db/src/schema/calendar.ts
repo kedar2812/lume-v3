@@ -53,10 +53,12 @@ export const meetings = pgTable(
     leadId: uuid("lead_id"),
     ownerId: uuid("owner_id").notNull(),
     connectionId: uuid("connection_id"),
-    source: text("source").$type<"google" | "calendly">().notNull(),
+    source: text("source").$type<"google" | "calendly" | "lume">().notNull(),
     externalId: text("external_id").notNull(),
     calendarId: text("calendar_id"),
-    matchedBy: text("matched_by").$type<"attendee" | "title" | "calendar" | "calendly">().notNull(),
+    matchedBy: text("matched_by")
+      .$type<"attendee" | "title" | "calendar" | "calendly" | "lume_ai">()
+      .notNull(),
     title: text("title").notNull(),
     startsAt: tz("starts_at").notNull(),
     endsAt: tz("ends_at").notNull(),

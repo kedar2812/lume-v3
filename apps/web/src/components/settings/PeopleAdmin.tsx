@@ -13,6 +13,7 @@ import { settingsDate } from "@/lib/settings/format";
 import { useZone } from "@/components/ZoneProvider";
 import { usePlan } from "@/components/licence/LicenceProvider";
 import { AccessChanged } from "./AccessChanged";
+import { DeleteAccountSheet } from "./DeleteAccountSheet";
 import { OffboardSheet } from "./OffboardSheet";
 import s from "./settings.module.css";
 import { zoneOf } from "@/lib/zone";
@@ -68,6 +69,7 @@ export function PeopleAdmin({
   const [note, setNote] = useState<Note>(null);
   const [forbidden, setForbidden] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<UserRow | null>(null);
   const [offboarding, setOffboarding] = useState<UserRow | null>(() => {
     const u = initialUsers.find((x) => x.id === offboard);
     return u && !u.isOwner && u.id !== session.user.id && u.status !== "disabled" ? u : null;
@@ -330,6 +332,18 @@ export function PeopleAdmin({
                         Enable
                       </Button>
                     )}
+                    {/* Gone for good, with the admin's password (2026-11-02): never the owner, never yourself. */}
+                    {!locked && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className={s.deleteAccount}
+                        aria-label={`Delete ${u.name}’s account`}
+                        onClick={() => setDeleting(u)}
+                      >
+                        Delete account
+                      </Button>
+                    )}
                   </div>
                 </li>
               );
@@ -338,6 +352,21 @@ export function PeopleAdmin({
         )}
       </section>
 
+      {deleting && (
+        <DeleteAccountSheet
+          self={false}
+          personId={deleting.id}
+          personName={deleting.name}
+          twoStep={session.twoFactor.enabled}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            const who = deleting;
+            setDeleting(null);
+            setUsers((all) => all.filter((x) => x.id !== who.id));
+            setNote({ text: `${firstName(who.name)}’s account is deleted.` });
+          }}
+        />
+      )}
       {offboarding && (
         <OffboardSheet
           personId={offboarding.id}

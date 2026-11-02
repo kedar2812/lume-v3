@@ -310,6 +310,11 @@ export function WhatsAppThread({
     const k = dayKey(new Date(iso), tz);
     return k === today ? "Today" : k === addDays(today, -1) ? "Yesterday" : longDate(new Date(iso), tz);
   };
+  // The newest reply LUME AI read: the only one whose next step is offered (2026-11-02).
+  const newestRead = [...messages]
+    .reverse()
+    .find((m) => m.direction === "in" && m.meaning && !("failed" in m.meaning))?.meaning;
+  const currentRead = newestRead && !("failed" in newestRead) ? newestRead.readId : null;
   const rows: ({ day: string } | { m: WaThreadMessage })[] = [];
   let last = "";
   for (const m of messages) {
@@ -351,7 +356,13 @@ export function WhatsAppThread({
                 </div>
                 <SendStatus m={r.m} onRetry={onRetry} />
                 {r.m.direction === "in" && r.m.meaning && (
-                  <ReplyMeaning meaning={r.m.meaning} from={who} tz={tz} onDone={() => onMeaning?.()} />
+                  <ReplyMeaning
+                    meaning={r.m.meaning}
+                    from={who}
+                    tz={tz}
+                    onDone={() => onMeaning?.()}
+                    current={"failed" in r.m.meaning || r.m.meaning.readId === currentRead}
+                  />
                 )}
               </motion.li>
             ),

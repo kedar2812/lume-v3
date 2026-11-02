@@ -4,6 +4,7 @@
  * read from the header before anything decodes it, and no metadata (where it was taken, and with what), animation
  * or extra parts. Pure byte checks: no image library on the server.
  */
+import { cleanImage } from "../images/clean";
 import { readImage } from "../images/read";
 
 /** Deep enough that white initials reach 4.5:1 on every one (WCAG AA). No violet (owner, 2026-10-01). */
@@ -28,4 +29,18 @@ export function checkAvatarImage(b: Uint8Array): AvatarCheck {
   if (b.length > AVATAR_MAX_BYTES) return { ok: false, reason: "over 200 KB" };
   const r = readImage(b, (w, h) => (w === AVATAR_SIZE && h === AVATAR_SIZE ? null : "not 256 × 256"));
   return r.ok ? { ok: true, type: r.type } : r;
+}
+
+/**
+ * A photo as it arrives, made keepable: what browsers put in on their own goes first (Chrome writes a colour profile
+ * into every canvas WebP; owner 2026-11-02: no photo could be saved), then the same check. Only the picture is kept.
+ */
+export function avatarFromUpload(
+  raw: Uint8Array,
+): { ok: true; type: "image/webp" | "image/jpeg"; bytes: Uint8Array } | { ok: false; reason: string } {
+  const b = new Uint8Array(raw);
+  const type = b[0] === 0xff && b[1] === 0xd8 ? "image/jpeg" : "image/webp";
+  const bytes = cleanImage(b, type);
+  const check = checkAvatarImage(bytes);
+  return check.ok ? { ...check, bytes } : check;
 }

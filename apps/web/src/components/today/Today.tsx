@@ -347,6 +347,7 @@ export function Today({
               now={now}
               tz={tz}
               canMessage={canMessage}
+              chatInLume={!!tiles?.chatInLume}
               ticking={ticking}
               onDone={(t) => void done(t)}
               onSent={sent}

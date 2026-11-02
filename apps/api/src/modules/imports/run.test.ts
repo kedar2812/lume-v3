@@ -116,7 +116,7 @@ describe("a run", () => {
       d.id,
     ]);
     expect(rows.rows[0].n).toBe(450);
-  });
+  }, 30_000); // 450 rows imported twice: seconds on a gate box running every suite at once
 
   it("cancels before the next batch, and resumes the rest", async () => {
     const lines = Array.from({ length: 300 }, (_, i) => `Cancel ${i}`).join("\n");

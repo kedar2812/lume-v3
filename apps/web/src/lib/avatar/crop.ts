@@ -1,3 +1,4 @@
+import { releaseVelocity } from "@/lib/motion";
 /**
  * The photo cropper (7C, canvas Profile), as numbers: a square frame the photo always covers, moved by hand with
  * soft edges, carried on by a flick, settling in the middle when close, zoomed and turned — and the square of the
@@ -41,6 +42,26 @@ export function dragAxis(v: number, limit: number, frame: number): number {
 
 /** Where a flick at `velocity` px/s comes to rest, as scrolling does (decelerationRate 0.998). */
 export const project = (velocity: number, rate = 0.998) => ((velocity / 1000) * rate) / (1 - rate);
+
+/** Only moves this recent count towards a throw's speed. */
+const THROW_WINDOW_MS = 100;
+/** A finger still this long before letting go placed the photo; it didn't throw it. */
+const STILL_MS = 60;
+
+/**
+ * How fast a drag was going as it was let go, px/s per axis: from its moves in the last 100 ms only, and nothing once
+ * the finger had stopped (a photo lined up with care, then let go, stays where it was put).
+ */
+export function throwVelocity(trail: { x: number; y: number; t: number }[], upAt: number): Offset {
+  const last = trail[trail.length - 1];
+  if (!last || upAt - last.t > STILL_MS) return { x: 0, y: 0 };
+  const recent = trail.filter((p) => upAt - p.t <= THROW_WINDOW_MS);
+  if (recent.length < 2) return { x: 0, y: 0 };
+  return {
+    x: releaseVelocity(recent.map((p) => [p.t, p.x])),
+    y: releaseVelocity(recent.map((p) => [p.t, p.y])),
+  };
+}
 
 /** Within a few px of the middle, settle exactly there. */
 export const magnet = (v: number, pull = 6) => (Math.abs(v) < pull ? 0 : v);

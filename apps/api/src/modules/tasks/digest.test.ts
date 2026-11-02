@@ -44,6 +44,10 @@ async function person(tz: string, o: { alerts?: Record<string, boolean>; grants?
 
 beforeAll(async () => {
   h = await createHarness({ preset: "general" });
+  // Off until a business switches it on (owner 2026-11-02): these tests are about a business that did.
+  await h.ownerPool.query(
+    `UPDATE settings SET follow_ups = follow_ups || '{"digest":{"enabled":true}}'::jsonb WHERE id = 1`,
+  );
 });
 afterAll(() => h.close());
 
@@ -197,6 +201,18 @@ describe("the daily digest: 3B final review", () => {
     expect(to(fine.email)).toHaveLength(1);
     expect(JSON.stringify(logged)).toContain(broken.id);
     await h.ownerPool.query("UPDATE users SET status = 'disabled' WHERE id = $1", [broken.id]);
+  });
+
+  it("off by default: a business that never switched it on sends none (owner 2026-11-02)", async () => {
+    const u = await person("Asia/Kolkata");
+    await h.ownerPool.query(`UPDATE settings SET follow_ups = follow_ups - 'digest' WHERE id = 1`);
+    await run("2026-10-13T03:00:00Z"); // Tuesday 08:30 in Kolkata
+    expect(to(u.email)).toHaveLength(0);
+    await h.ownerPool.query(
+      `UPDATE settings SET follow_ups = follow_ups || '{"digest":{"enabled":true}}'::jsonb WHERE id = 1`,
+    );
+    await run("2026-10-13T03:15:00Z");
+    expect(to(u.email)).toHaveLength(1);
   });
 
   it("Important 8: switched off for everyone in Settings, or with no mail server, nobody gets one", async () => {

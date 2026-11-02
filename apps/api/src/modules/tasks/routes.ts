@@ -35,7 +35,7 @@ export async function taskRoutes(app: FastifyInstance, d: AppDeps): Promise<void
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/today", { config: { permission: "auth.self" } }, (req) => today(req, d));
   // Today's tiles (the control centre): each one checks its own permission and is left out without it.
-  r.get("/api/v1/today/tiles", { config: { permission: "auth.self" } }, (req) => tiles(req, d.clock()));
+  r.get("/api/v1/today/tiles", { config: { permission: "auth.self" } }, (req) => tiles(req, d.clock(), d));
   // The time choices for the follow-up sheet (3C): names only, in the admin's order.
   r.get("/api/v1/follow-ups/presets", { config: { permission: "auth.self" } }, async (req) => ({
     presets: (await readFollowUps(req)).duePresets.map(({ id, label }) => ({ id, label })),

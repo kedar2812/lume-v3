@@ -6,6 +6,7 @@ import { Field } from "@/components/ui/Field";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
 import type { Available } from "@/lib/autopilot/types";
+import { CallTimes } from "./CallTimes";
 import s from "./ai.module.css";
 
 type Standing = AiProfile["standing"];
@@ -14,7 +15,12 @@ type Stage = { id: string; name: string; pipeline: string };
 const HERE = "/settings/ai";
 const hereFirst = (a: Record<AutopilotAction, Available>) =>
   Object.fromEntries(
-    Object.entries(a).map(([k, v]) => [k, !v.ok && v.fixHref === HERE ? { ...v, fixHref: "#ai-knows" } : v]),
+    Object.entries(a).map(([k, v]) => [
+      k,
+      !v.ok && v.fixHref === HERE
+        ? { ...v, fixHref: k === "book_meetings" ? "#ai-calls-block" : "#ai-knows" }
+        : v,
+    ]),
   ) as Record<AutopilotAction, Available>;
 
 /**
@@ -77,6 +83,8 @@ export function StandingSection({
           {...(available ? { available: hereFirst(available) } : {})}
         />
       </div>
+
+      <CallTimes value={v.calls} onChange={(calls) => set({ calls })} />
 
       <div className={s.block}>
         <div className={s.pair}>

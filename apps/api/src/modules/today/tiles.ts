@@ -15,13 +15,15 @@ import {
 import { glance } from "../analytics/glance";
 import { listGoals } from "../analytics/goals";
 import { templates } from "../analytics/modules";
+import type { AppDeps } from "../../app";
+import { replyOn } from "../whatsapp/send";
 
 /**
  * Today's tiles (spec 2026-10-05-today-control-centre-design.md). Each number answers one question, is counted
  * exactly as the same number is everywhere else in LUME, and is left out when the viewer may not see it — the
  * owner's rule: nothing on Today without a reason, nothing that isn't true.
  */
-export async function tiles(req: FastifyRequest, now: Date) {
+export async function tiles(req: FastifyRequest, now: Date, d?: AppDeps) {
   const actor = req.actor!;
   const analytics = scopeOf(actor, "analytics.view");
   const leadsView = scopeOf(actor, "leads.view");
@@ -35,7 +37,9 @@ export async function tiles(req: FastifyRequest, now: Date) {
     analytics === "team" || analytics === "all" ? undefined : streakTile(req, now, userTz),
     analytics ? repliesTile(req, now) : undefined,
   ]);
-  return { leads, month, pipeline, calendar, team, streak, replies };
+  // WhatsApp's chats run inside LUME here: a follow-up's WhatsApp opens the lead's chat (owner 2026-11-02).
+  const chatInLume = d ? await replyOn(req, d) : false;
+  return { leads, month, pipeline, calendar, team, streak, replies, chatInLume };
 }
 
 async function viewerTz(req: FastifyRequest): Promise<string> {

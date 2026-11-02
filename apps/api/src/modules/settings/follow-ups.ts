@@ -30,7 +30,8 @@ export type FollowUpSettings = {
 
 export const FOLLOW_UP_DEFAULTS: FollowUpSettings = {
   escalation: { enabled: true, hours: 24 },
-  digest: { enabled: true },
+  // Off until the business switches it on (owner 2026-11-02): an optional module, never a surprise email.
+  digest: { enabled: false },
   noTouch: { enabled: false, days: 7 },
   shiftToWorkingHours: true,
   duePresets: DEFAULT_DUE_PRESETS,

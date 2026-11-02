@@ -147,6 +147,25 @@ export function describeActivity(a: Activity, cat: Catalog, tz?: string): Histor
         detail: join(p.title ? `“${String(p.title)}”` : undefined, by(a)),
         tone: "neutral",
       };
+    // Do not contact (Autopilot A2): set with why (a stop on WhatsApp, or a person), and lifted by an admin.
+    case "dnc_set":
+      return {
+        title: "Asked not to be messaged",
+        detail: by(a),
+        tone: "danger",
+        ...(p.reason ? { quote: String(p.reason) } : {}),
+      };
+    case "dnc_lifted":
+      return { title: "Can be messaged again", detail: by(a), tone: "ok" };
+    // A meeting booked on the lead: through Calendly, or by LUME AI in a WhatsApp chat (spec 2026-11-02).
+    case "meeting_booked": {
+      const at = typeof p.startsAt === "string" ? dueWords(p.startsAt, tz) : undefined;
+      return {
+        title: p.byAi ? "LUME AI booked a call" : "Meeting booked",
+        detail: [p.title ? `“${String(p.title)}”` : "", at ?? ""].filter(Boolean).join(", ") || undefined,
+        tone: "accent",
+      };
+    }
     // LUME's own work (3C): a stage's automations, and leads gone quiet.
     case "automation":
       return automationLine(p, cat, tz);

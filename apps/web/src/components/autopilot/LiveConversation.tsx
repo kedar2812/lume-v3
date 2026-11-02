@@ -111,6 +111,7 @@ export function LiveConversation({
     }
   };
   const line = leadLine(lead, ask, (iso) => whenWords(iso, tz, new Date())).text;
+  const stopped = lead.state === "stopped";
 
   // Where the reply box would be: the person's own box, LUME AI typing, or the one thing a person needs to do.
   let composer = null;
@@ -188,7 +189,19 @@ export function LiveConversation({
         )}
       </section>
     );
-  } else if (!ended && (lead.state === "needs_you" || lead.state === "ready")) {
+  } else if (stopped)
+    // Where the reply box would be: plainly, that nobody from LUME AI will write to them again, and why.
+    composer = (
+      <section className={s.bar} data-tone="stop" aria-label="Stopped">
+        <p className={s.barText}>
+          <AiGlyph size={16} />
+          <span>
+            <b>LUME AI won&apos;t message {who} again.</b> {lead.reason}
+          </span>
+        </p>
+      </section>
+    );
+  else if (!ended && (lead.state === "needs_you" || lead.state === "ready")) {
     const ready = lead.state === "ready";
     const why = ready
       ? (lead.card?.headline ?? null)
@@ -240,7 +253,7 @@ export function LiveConversation({
       <header className={s.convoHead}>
         <div className={s.convoWho}>
           <h2>{lead.name}</h2>
-          <span>{line}</span>
+          <span data-tone={stopped ? "stop" : undefined}>{line}</span>
         </div>
         <Link href={`/leads?lead=${encodeURIComponent(lead.leadId)}`} className={s.openLead}>
           Open lead

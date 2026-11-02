@@ -1,13 +1,14 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Dialog } from "@/components/ui/Dialog";
 import type { ApiResult } from "@/lib/api";
 import { tokenColor } from "@/lib/leads/colors";
 import type { FieldDefView } from "@/lib/leads/types";
 import { accessGone } from "@/lib/settings/access";
 import { rolesClient, type PermissionDef, type Role } from "@/lib/settings/roles";
 import { AccessChanged } from "./AccessChanged";
+import { DeleteRoleSheet, type RolePerson } from "./DeleteRoleSheet";
 import { FieldAccess } from "./FieldAccess";
 import { RoleMatrix } from "./RoleMatrix";
 import s from "./settings.module.css";
@@ -15,18 +16,7 @@ import { roving } from "@/lib/roving";
 
 type Tab = "can" | "fields";
 type Note = { text: string; problem?: boolean } | null;
-const people = (n: number) => (n === 0 ? "Nobody yet" : `${n} ${n === 1 ? "person" : "people"}`);
-const some = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`);
-/** "3 people, an open invite and 2 templates": everything that moves to the replacement. */
-function whatMoves(r: Role): string {
-  const parts = [
-    r.holders ? people(r.holders) : null,
-    r.uses.invites ? some(r.uses.invites, "open invite", "open invites") : null,
-    r.uses.templates ? some(r.uses.templates, "template", "templates") : null,
-    r.uses.views ? some(r.uses.views, "shared view", "shared views") : null,
-  ].filter((p): p is string => !!p);
-  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "");
-}
+const peopleWords = (n: number) => (n === 0 ? "Nobody yet" : `${n} ${n === 1 ? "person" : "people"}`);
 
 /**
  * Roles & access: the roles on the left, the one open on the right with what it can do and which fields
@@ -36,11 +26,22 @@ export function RolesAdmin({
   roles: initial,
   catalog,
   fields,
+  people = [],
+  me = "",
+  twoStep = false,
+  canDelete = false,
 }: {
   roles: Role[];
   catalog: PermissionDef[];
   fields: FieldDefView[];
+  /** Everyone active, with their roles: who holds a role being deleted (2026-11-02). */
+  people?: RolePerson[];
+  me?: string;
+  twoStep?: boolean;
+  /** Deleting a role is the top of the hierarchy: the owner, or someone who manages roles and people. */
+  canDelete?: boolean;
 }) {
+  const router = useRouter();
   const [roles, setRoles] = useState(initial);
   const [openId, setOpenId] = useState(initial[0]?.id ?? null);
   const [tab, setTab] = useState<Tab>("can");
@@ -92,7 +93,7 @@ export function RolesAdmin({
                   <span className={s.swatch} style={{ background: tokenColor(r.color) }} aria-hidden />{" "}
                   {r.name}
                 </span>
-                <span className={s.fieldRowMeta}>{people(r.holders)}</span>
+                <span className={s.fieldRowMeta}>{peopleWords(r.holders)}</span>
               </button>
             </li>
           ))}
@@ -166,7 +167,7 @@ export function RolesAdmin({
                   {open.name}
                 </h2>
               )}
-              <span className={s.teamCount}>{people(open.holders)}</span>
+              <span className={s.teamCount}>{peopleWords(open.holders)}</span>
               <Button
                 size="sm"
                 variant="ghost"
@@ -188,14 +189,16 @@ export function RolesAdmin({
               >
                 Duplicate
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`Delete ${open.name}`}
-                onClick={() => setDeleting(true)}
-              >
-                Delete
-              </Button>
+              {canDelete && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Delete ${open.name}`}
+                  onClick={() => setDeleting(true)}
+                >
+                  Delete
+                </Button>
+              )}
             </div>
             <div
               role="tablist"
@@ -255,71 +258,40 @@ export function RolesAdmin({
       </div>
 
       {deleting && open && (
-        <DeleteRole
+        <DeleteRoleSheet
           role={open}
           others={roles.filter((r) => r.id !== open.id)}
-          onCancel={() => setDeleting(false)}
-          onDelete={async (to) => {
+          people={people}
+          me={me}
+          twoStep={twoStep}
+          onClose={() => setDeleting(false)}
+          onDeleted={(done) => {
             setDeleting(false);
-            if (!landed(await rolesClient.remove(open.id, to ?? undefined))) return;
-            const target = roles.find((r) => r.id === to);
+            const target = roles.find((r) => r.id === done.movedTo);
             setRoles((all) =>
               all
                 .filter((r) => r.id !== open.id)
-                .map((r) => (r.id === to ? { ...r, holders: r.holders + open.holders } : r)),
+                .map((r) => (r.id === done.movedTo ? { ...r, holders: r.holders + open.holders } : r)),
             );
             setOpenId(roles.find((r) => r.id !== open.id)?.id ?? null);
-            setNote({ text: `${open.name} deleted.${target ? ` Its people now have ${target.name}.` : ""}` });
+            setNote({
+              text: `${open.name} deleted.${
+                done.people === "role" && target
+                  ? ` Its people now have ${target.name}.`
+                  : done.people === "new"
+                    ? ` Its people now have ${done.newName}.`
+                    : done.people === "offboard"
+                      ? " Its people are offboarded."
+                      : done.people === "delete"
+                        ? " Its people’s accounts are deleted."
+                        : ""
+              }`,
+            });
+            // A new role was made here: the list reads it in.
+            if (done.people === "new") router.refresh();
           }}
         />
       )}
     </div>
-  );
-}
-
-/**
- * Deleting a role that people hold, or that invites, templates or shared views name, asks which role they all move
- * to (review 2026-10-25); a role nothing uses just asks to confirm.
- */
-function DeleteRole({
-  role,
-  others,
-  onCancel,
-  onDelete,
-}: {
-  role: Role;
-  others: Role[];
-  onCancel: () => void;
-  onDelete: (replacementId: string | null) => void;
-}) {
-  const [to, setTo] = useState("");
-  const held = role.holders + role.uses.invites + role.uses.templates + role.uses.views > 0;
-  return (
-    <Dialog label={`Delete ${role.name}?`} onClose={onCancel}>
-      <h2 className={s.dialogTitle}>Delete {role.name}?</h2>
-      {held ? (
-        <div className={s.rateField}>
-          <label htmlFor="role-to">Move its {whatMoves(role)} to</label>
-          <select id="role-to" className={s.dialogSelect} value={to} onChange={(e) => setTo(e.target.value)}>
-            <option value="">Choose a role</option>
-            {others.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <p className={s.dialogText}>Nothing uses it, so nothing else changes.</p>
-      )}
-      <div className={s.dialogActions}>
-        <Button variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button variant="danger" disabled={held && !to} onClick={() => onDelete(to || null)}>
-          Delete role
-        </Button>
-      </div>
-    </Dialog>
   );
 }

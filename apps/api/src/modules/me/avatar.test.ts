@@ -63,7 +63,6 @@ describe("profile photo (7C)", () => {
     const c = await h.signIn(me);
     for (const image of [
       webp(4096, 4096), // the bomb guard: a size read from the header, before anything decodes
-      webp(256, 256, [...ascii("EXIF"), ...le32(4), 1, 2, 3, 4]), // where it was taken, and with what
       Buffer.from("<svg onload=alert(1)>").toString("base64"),
     ]) {
       const r = await c.inject({ method: "PUT", url: "/api/v1/me/avatar", payload: { image } });
@@ -84,6 +83,19 @@ describe("profile photo (7C)", () => {
       version: 0,
       photo: false,
     });
+  });
+
+  it("what a browser adds goes before it's kept: metadata and a colour profile never reach the database (owner 2026-11-02)", async () => {
+    const me = await h.seedUser({ grants: [] });
+    const c = await h.signIn(me);
+    // Where it was taken, and with what: taken out, and the picture kept.
+    const image = webp(256, 256, [...ascii("EXIF"), ...le32(4), 1, 2, 3, 4]);
+    const r = await c.inject({ method: "PUT", url: "/api/v1/me/avatar", payload: { image } });
+    expect(r.statusCode, r.body).toBe(200);
+    const [kept] = await h.queryAll<{ image: Buffer }>("SELECT image FROM user_avatars WHERE user_id = $1", [
+      me.id,
+    ]);
+    expect(kept!.image.toString("latin1")).not.toContain("EXIF");
   });
 
   it("is your own: no one changes another person's look, and a photo needs a signed-in viewer", async () => {

@@ -3,6 +3,9 @@ import { plural } from "@lume/core/shared";
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import { SendSheet } from "@/components/messages/SendSheet";
+import { chatHref } from "@/components/notifications/MessageNotices";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
+import ms from "@/components/messages/messages.module.css";
 import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { avatarColor, initials } from "@/components/ui/Avatar";
 import { Popover } from "@/components/ui/Popover";
@@ -41,6 +44,7 @@ export function WorkTile({
   now,
   tz,
   canMessage,
+  chatInLume = false,
   ticking,
   onDone,
   onSent,
@@ -53,6 +57,8 @@ export function WorkTile({
   now: Date;
   tz: string;
   canMessage: boolean;
+  /** WhatsApp chats run inside LUME: the row's WhatsApp opens the lead's chat window (owner 2026-11-02). */
+  chatInLume?: boolean;
   ticking: Set<string>;
   onDone: (t: TaskView) => void;
   onSent: (t: TaskView) => void;
@@ -258,7 +264,16 @@ export function WorkTile({
                     <span>{x.t.title}</span>
                   </Link>
                   <span className={s.acts}>
-                    {canMessage && (
+                    {canMessage && chatInLume && (
+                      <Link
+                        href={chatHref(x.t.leadId, { pathname: "/today", search: "" })}
+                        className={ms.icon}
+                        aria-label={`WhatsApp ${x.t.leadName}`}
+                      >
+                        <WhatsAppIcon size={18} />
+                      </Link>
+                    )}
+                    {canMessage && !chatInLume && (
                       <SendSheet
                         compact
                         align="end"

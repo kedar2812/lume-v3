@@ -64,6 +64,25 @@ describe("LUME AI's template drafts", () => {
     expect(out.map((o) => o.name)).toEqual(["Gentle nudge"]);
   });
 
+  it("drops one with a made-up blank to fill: [day] at [time], <name>, {date} (live test 2026-11-02)", () => {
+    const out = clean([
+      option(),
+      option({
+        name: "Square",
+        body: "Hi {{lead.first_name}}, your call is on [day] at [time]. See you then?",
+      }),
+      option({ name: "Angle", body: "Hi {{lead.first_name}}, see you on <date>. All good?" }),
+      option({ name: "Brace", body: "Hi {{lead.first_name}}, see you on {date}. All good?" }),
+      // Brackets that are words, not blanks, stay.
+      option({
+        name: "Aside",
+        body: "Hi {{lead.first_name}}, the plan (with two options) is ready. Shall I send it?",
+      }),
+    ]);
+    expect(out.map((o) => o.name)).toEqual(["Gentle nudge", "Aside"]);
+    expect(templateDraftInstructions(ctx())).toMatch(/never a blank in brackets/i);
+  });
+
   it("drops one WhatsApp would turn down: a variable first or last, two together", () => {
     const out = clean([
       option(),

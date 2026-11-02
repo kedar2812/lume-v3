@@ -62,6 +62,7 @@ export function SendSheet({
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [flash, setFlash] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // One answer per question: a double-tap's second press finds it answered, however fast the server was.
   const answered = useRef(false);
 
@@ -78,7 +79,13 @@ export function SendSheet({
       }),
     [],
   );
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      clearTimeout(flashTimer.current);
+    },
+    [],
+  );
   // The lead moved on since (a reply, a drag): undoing the send's move now would undo the wrong one. Still
   // where it came from means the screen hasn't caught up yet; where Sent put it means nothing changed.
   const moved = outcome?.moved && !outcome.undone ? outcome.moved : null;
@@ -111,7 +118,7 @@ export function SendSheet({
     // Logged: the sound, the tick and the button's tint together, on the frame LUME knows it.
     sound.play("sent");
     setFlash(true);
-    setTimeout(() => setFlash(false), 900);
+    flashTimer.current = setTimeout(() => setFlash(false), 900);
     const said: Outcome = r.data.moved
       ? { moved: r.data.moved }
       : r.data.notMoved

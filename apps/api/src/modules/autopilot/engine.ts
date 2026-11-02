@@ -13,7 +13,11 @@ import {
   followUpMoment,
   guardFirst,
   businessWordsOf,
+  callStamp,
+  callTimeLabel,
+  freeCallTimes,
   guardReply,
+  windowsWords,
   newId,
   mergeAiProfile,
   nextMove,
@@ -27,6 +31,7 @@ import {
   type AiProfile,
   type AutopilotCtx,
   type FillableType,
+  type GuardCtx,
   type GuardedReply,
   type LeadState,
   type PauseReason,
@@ -49,6 +54,7 @@ import { isFieldEditable, type LeadRow } from "../leads/serialize";
 import { updateLead, visibleLead } from "../leads/service";
 import { moveStage } from "../leads/write";
 import { adminIds, notify } from "../notifications/notify";
+import { bookCall, busyFor, tellBooked, type Booked } from "../meetings/book";
 import { workingHoursFrom } from "../settings/follow-ups";
 import { createTask } from "../tasks/service";
 import { attachLibraryFile, sendReply } from "../whatsapp/send";
@@ -511,10 +517,19 @@ async function writeTemplate(
  */
 export async function aiCtx(
   req: FastifyRequest,
-  run: Pick<Run, "speakerId" | "goal">,
+  run: Pick<Run, "speakerId" | "goal"> & { permissions?: Run["permissions"] },
   lead: LeadRow,
   templates: AutopilotCtx["templates"],
-): Promise<AutopilotCtx & { profileRaw: AiProfile; leadWords: string; lastLeadMessage: string }> {
+  /** A reply's read: the engine's clock, and the calls LUME AI may say yes to (spec 2026-11-02). */
+  o: { now?: Date; calls?: boolean } = {},
+): Promise<
+  AutopilotCtx & {
+    profileRaw: AiProfile;
+    leadWords: string;
+    lastLeadMessage: string;
+    callCheck: GuardCtx["calls"];
+  }
+> {
   const [s] = await req.db
     .select({
       name: schema.settings.businessName,
@@ -574,6 +589,24 @@ export async function aiCtx(
     .from(schema.lostReasons)
     .where(isNull(schema.lostReasons.archivedAt))
     .orderBy(asc(schema.lostReasons.position));
+  const tz = s?.tz ?? "UTC";
+  const now = o.now ?? new Date();
+  // Times given, and Book meetings not Never on this run: the speaker's meetings ahead, and the free times to offer.
+  const rules = profile.standing.calls;
+  const callCheck =
+    o.calls && rules.windows.length && run.permissions && run.permissions.book_meetings !== "never"
+      ? {
+          rules,
+          tz,
+          now,
+          busy: await busyFor(
+            req,
+            run.speakerId,
+            now,
+            new Date(now.getTime() + (rules.daysAhead + 1) * 86_400_000),
+          ),
+        }
+      : null;
   const registry = await loadFieldRegistry(req);
   const custom = (lead.custom as Record<string, unknown> | null) ?? {};
   const fillable = registry.defs
@@ -598,8 +631,17 @@ export async function aiCtx(
     stages: pipelineStages.map((x) => ({ id: x.id, name: x.name, kind: x.kind as "open" | "lost" })),
     lostReasons,
     fillable,
-    now: new Date().toISOString(),
-    timezone: s?.tz ?? "UTC",
+    now: now.toISOString(),
+    timezone: tz,
+    calls: callCheck && {
+      windows: windowsWords(rules),
+      minutes: rules.minutes,
+      noticeHours: rules.noticeHours,
+      daysAhead: rules.daysAhead,
+      how: rules.how,
+      free: freeCallTimes(callCheck, 6).map((t) => ({ at: callStamp(t, tz), label: callTimeLabel(t, tz) })),
+    },
+    callCheck,
     leadWords: theirs
       .slice(-5)
       .map((m) => m.text)
@@ -620,20 +662,41 @@ async function reachedGoal(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead
   // Ready once for each move into it: sent back (carry on), a lead still there talks on until it's moved in again.
   if (l.goalEntryAt?.getTime() === lead.stageEnteredAt.getTime()) return false;
   const stage = (await openStages(req)).find((x) => x.id === goal.stageId)?.name ?? "the goal";
-  const A = schema.activities;
-  const [last] = await req.db
-    .select({ payload: A.payload })
-    .from(A)
-    .where(and(eq(A.leadId, lead.id), eq(A.type, "whatsapp_received")))
-    .orderBy(sql`${A.occurredAt} DESC`)
-    .limit(1);
-  const quote = (last?.payload as { text?: string | null } | undefined)?.text ?? null;
+  const quote = await lastWords(req, lead.id);
   const headline = `Reached ${stage}`;
   await leave(req, l, "ready", headline, { headline, quote });
   await req.db.update(schema.autopilotLeads).set({ goalEntryAt: lead.stageEnteredAt }).where(keyOf(l));
   const pool = poolOf(o.d);
   req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: lead.id, kind: "ready", headline }));
   return true;
+}
+
+/** The lead's last WhatsApp message, in their own words. */
+async function lastWords(req: FastifyRequest, leadId: string): Promise<string | null> {
+  const A = schema.activities;
+  const [last] = await req.db
+    .select({ payload: A.payload })
+    .from(A)
+    .where(and(eq(A.leadId, leadId), eq(A.type, "whatsapp_received")))
+    .orderBy(sql`${A.occurredAt} DESC`)
+    .limit(1);
+  return (last?.payload as { text?: string | null } | undefined)?.text ?? null;
+}
+
+/**
+ * A call LUME AI said yes to went with its reply (spec 2026-11-02): Ready for a person, the call's time the headline.
+ * A lead the booking moved into the goal stage is that goal reached too, once.
+ */
+async function callBooked(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead, label: string) {
+  const goal = run.goal as RunGoal;
+  const lead = await leadNow(req, l.leadId);
+  if (lead && goal.kind === "stage" && lead.stageId === goal.stageId)
+    await req.db.update(schema.autopilotLeads).set({ goalEntryAt: lead.stageEnteredAt }).where(keyOf(l));
+  const headline = `Call booked for ${label}`;
+  await leave(req, l, "ready", headline, { headline, quote: await lastWords(req, l.leadId) });
+  const pool = poolOf(o.d);
+  req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: l.leadId, kind: "ready", headline }));
+  return 1;
 }
 
 /** Write a reply inside the 24 hours (§3), guarded (Task 2), as the speaker. */
@@ -643,7 +706,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
   if (lead.dncAt) return leave(req, l, "stopped", "Asked not to be messaged.");
   if (await reachedGoal(o, req, run, l)) return 1;
   const carried = carriedOn(l);
-  const c = { ...(await aiCtx(req, run, lead, [])), carriedOn: carried };
+  const c = { ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true })), carriedOn: carried };
   const r = await runRead(req, o.d, {
     task: "autopilot_reply",
     leadId: lead.id,
@@ -671,6 +734,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     lostStageIds: stages.filter((x) => x.kind === "lost").map((x) => x.id),
     lostReasonIds: reasons.map((x) => x.id),
     fieldKeys,
+    calls: c.callCheck,
   });
   return actOn(o, req, run, l, lead, g, c.lastLeadMessage, r.output.reason, carried);
 }
@@ -802,6 +866,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       fields: Record<string, string>;
       followUp: { at: string; title: string } | null;
       lostReasonId: string | null;
+      meeting?: { at: string } | null;
     };
   };
   // One key per message as written: a retried step never sends it twice, and one written again after a Pause held it
@@ -809,6 +874,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   const key = (part: string) =>
     messageKey(run.id, l.leadId, `${now.lastSentAt?.getTime() ?? 0}:${now.updatedAt.getTime()}:${part}`);
   const auto = { runId: run.id };
+  let booked: Booked | null = null;
   try {
     await req.db.execute(sql`SAVEPOINT autopilot_send`);
     if (p.kind === "template")
@@ -821,6 +887,19 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
         auto,
       );
     else {
+      // The call it says yes to, booked before the yes goes: checked again under the speaker's calendar lock.
+      const call = p.updates?.meeting;
+      if (call) {
+        const [s] = await req.db.select({ tz: schema.settings.timezone }).from(schema.settings);
+        const [prof] = await req.db.select({ p: schema.aiProfile.profile }).from(schema.aiProfile);
+        booked = await bookCall(req, o.d, {
+          ownerId: run.speakerId,
+          leadId: l.leadId,
+          at: new Date(call.at),
+          rules: mergeAiProfile(prof?.p ?? null, {}).standing.calls,
+          tz: s?.tz ?? "UTC",
+        });
+      }
       await sendReply(req, o.d, UNLIMITED, l.leadId, { clientKey: key("m"), text: now.draft }, auto);
       for (const [i, f] of (p.fileIds ?? []).entries()) {
         const { media } = await attachLibraryFile(req, o.d, l.leadId, f);
@@ -828,11 +907,20 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       }
     }
     await req.db.execute(sql`RELEASE SAVEPOINT autopilot_send`);
+    if (booked) tellBooked(req, o.d, booked);
   } catch (e) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT autopilot_send`);
     if (!(e instanceof HttpError)) throw e;
     // In this transaction: it holds the run's row, so a pause on another connection would wait on it (A4).
     if (e.code === "PAID_LIMIT") return (await pauseRunIn(req, run.id, "paid")) ? 1 : 0;
+    if (e.code === "CALL_NOT_FREE") {
+      const headline = e.message;
+      const pool = poolOf(o.d);
+      req.afterCommit(
+        () => void tellPeople(pool, { runId: run.id, leadId: l.leadId, kind: "needs_you", headline }),
+      );
+      return leave(req, now, "needs_you", headline, { headline, quote: await lastWords(req, l.leadId) });
+    }
     return leave(req, now, "needs_you", e.message);
   }
   const at = o.d.clock();
@@ -852,6 +940,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
     .where(keyOf(l));
   if (p.kind === "reply" && p.updates) await applyUpdates(o, req, l.leadId, p.updates);
   await sayIn(req, run.id, l.leadId, "sent");
+  if (booked) return callBooked(o, req, run, { ...now, state: "talking" }, booked.label);
   // The lead's move into the goal stage (by this reply's update, or anyone's): converted.
   await reachedGoal(o, req, run, { ...now, state: p.kind === "template" ? "sent" : "talking" });
   return 1;

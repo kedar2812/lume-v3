@@ -67,7 +67,11 @@ describe("PermissionRows", () => {
         why: "Add your price list in Settings → LUME AI.",
         fixHref: "/settings/ai",
       },
-      book_meetings: { ok: false, why: "Needs a calendar LUME can book into.", fixHref: null },
+      book_meetings: {
+        ok: false,
+        why: "Give LUME AI the times it may say yes to a call in Settings → LUME AI.",
+        fixHref: "/settings/ai",
+      },
     } as Record<AutopilotAction, Available>;
     render(<Harness start={AUTOPILOT_PRESETS.hands_off} available={available} />);
     const prices = row("Answer price questions");
@@ -75,7 +79,9 @@ describe("PermissionRows", () => {
     for (const r of within(prices).getAllByRole("radio")) expect(r).toBeDisabled();
     expect(screen.getByText("Add your price list in Settings → LUME AI.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Set up prices" })).toHaveAttribute("href", "/settings/ai");
-    expect(screen.getByText("Needs a calendar LUME can book into.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Give LUME AI the times it may say yes to a call in Settings → LUME AI."),
+    ).toBeInTheDocument();
     // Pressing it does nothing: the choice underneath is kept for when it's set up.
     await userEvent.click(within(prices).getByRole("radio", { name: "Go ahead" }));
     expect(last.answer_prices).toBe("go");

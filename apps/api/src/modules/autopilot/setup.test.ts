@@ -138,8 +138,8 @@ describe("GET /api/v1/autopilot/setup", () => {
     });
     expect(available.book_meetings).toEqual({
       ok: false,
-      why: "Needs a calendar LUME can book into.",
-      fixHref: null,
+      why: "Give LUME AI the times it may say yes to a call in Settings → LUME AI.",
+      fixHref: "/settings/ai",
     });
     for (const a of [
       "first_messages",

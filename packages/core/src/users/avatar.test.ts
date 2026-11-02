@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AVATAR_COLORS, AVATAR_SIZE, checkAvatarImage } from "./avatar";
+import { AVATAR_COLORS, AVATAR_SIZE, avatarFromUpload, checkAvatarImage } from "./avatar";
 
 const le32 = (n: number) => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255];
 const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0));
@@ -125,5 +125,26 @@ describe("avatar images (7C)", () => {
     expect(bad(jpeg().slice(0, 30))).toBe(false);
     expect(bad(new Uint8Array([0x89, ...ascii("PNG"), 13, 10, 26, 10]))).toBe(false);
     expect(bad(new Uint8Array(204_801))).toBe(false); // over 200 KB
+  });
+
+  it("an upload loses what browsers add before it's checked: Chrome's colour profile, metadata (owner 2026-11-02)", () => {
+    // Chrome's canvas WebP: VP8X with the colour-profile flag, an ICCP part, then the picture. Refused as it came.
+    const chrome = riff(vp8x(0x20), chunk("ICCP", [1, 2, 3, 4, 5]), vp8());
+    expect(checkAvatarImage(chrome).ok).toBe(false);
+    const r = avatarFromUpload(chrome);
+    expect(r).toMatchObject({ ok: true, type: "image/webp" });
+    // What's kept is only the picture: no colour profile part, no flag saying there's one.
+    const kept = r.ok ? r.bytes : new Uint8Array();
+    expect(checkAvatarImage(kept)).toEqual({ ok: true, type: "image/webp" });
+    expect(String.fromCharCode(...kept)).not.toContain("ICCP");
+    expect(avatarFromUpload(jpeg(256, 256, [[0xff, 0xe1, 0x00, 0x06, ...ascii("Exif")]]))).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it("an upload is still refused for what cleaning can't make right: animation, the wrong size, not a picture", () => {
+    expect(avatarFromUpload(riff(vp8x(0x02), chunk("ANIM", [0, 0, 0, 0, 0, 0]), vp8())).ok).toBe(false);
+    expect(avatarFromUpload(riff(vp8(512, 512))).ok).toBe(false);
+    expect(avatarFromUpload(new Uint8Array([1, 2, 3])).ok).toBe(false);
   });
 });

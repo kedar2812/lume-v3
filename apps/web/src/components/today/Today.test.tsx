@@ -163,6 +163,15 @@ describe("Today, the control centre", () => {
     });
   });
 
+  it("chats inside LUME: a row's WhatsApp opens the lead's chat window, not a sheet (owner 2026-11-02)", async () => {
+    vi.mocked(todayClient.tiles).mockResolvedValue(ok({ ...TILES, chatInLume: true }));
+    vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
+    show({ canMessage: true });
+    const open = await screen.findByRole("link", { name: "WhatsApp Omar Ali" });
+    expect(open.getAttribute("href")).toMatch(/^\/leads\?lead=l-b&chat=\d+$/);
+    expect(screen.queryByRole("button", { name: "WhatsApp Omar Ali" })).not.toBeInTheDocument();
+  });
+
   it("no WhatsApp on the rows for someone who can't send messages", async () => {
     vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
     show();

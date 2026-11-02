@@ -36,7 +36,7 @@ export type Meeting = {
   link: string | null;
   location: string | null;
   ownerId: string;
-  matchedBy: "attendee" | "title" | "calendar" | "calendly";
+  matchedBy: "attendee" | "title" | "calendar" | "calendly" | "lume_ai";
   outcomeNote: string | null;
   lead: { id: string; name: string; pipelineId: string; stageId: string } | null;
 };

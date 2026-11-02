@@ -19,7 +19,6 @@ async function axe(page: Page) {
   return r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`);
 }
 // Relative times, and the live numbers on Today (its tiles and lines follow the time of day).
-const volatile = (page: Page) => [page.locator("[data-volatile]"), page.locator("[data-live-count]")];
 
 /** WhatsApp itself is never contacted from a test run: its pages answer with a stub. */
 const stubWhatsApp = (context: BrowserContext) =>
@@ -244,7 +243,11 @@ test.describe("Templates and sending (4A)", () => {
       await expect(prompt).toBeHidden();
       // The compared copy last: it fixes run-to-run times to one size (the review copies above show them).
       await freezeVolatile(page);
-      await expect(drawer).toHaveScreenshot(`drawer-send-actions-${theme}.png`, { mask: volatile(page) });
+      // The drawer's own moving parts only: a page-wide mask painted the bell's unread badge (under the drawer) over the
+      // drawer's corner whenever an earlier test left a notification (2026-11-02).
+      await expect(drawer).toHaveScreenshot(`drawer-send-actions-${theme}.png`, {
+        mask: [drawer.locator("[data-volatile]"), drawer.locator("[data-live-count]")],
+      });
     }
   });
 });

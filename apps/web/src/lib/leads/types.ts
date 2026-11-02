@@ -41,6 +41,8 @@ export type Lead = {
   tagIds: string[];
   custom: Record<string, unknown>;
   contactMasked: boolean;
+  /** The lead asked not to be messaged (Autopilot A2): when, by whom, why; only an admin lifts it. */
+  doNotContact?: { at: string; by: string | null; reason: string | null } | null;
   can: LeadCan;
 };
 export type LeadPage = {

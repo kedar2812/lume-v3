@@ -63,7 +63,11 @@ function groups(
     {
       name: "Pipeline",
       rows: [
-        { key: "book_meetings", title: "Book meetings", sub: "On free slots in your calendar" },
+        {
+          key: "book_meetings",
+          title: "Book meetings",
+          sub: "Calls at the times you gave LUME AI, when you're free",
+        },
         { key: "move_stages", title: "Move leads along your pipeline", sub: path(stages) || "Your stages" },
         { key: "set_follow_ups", title: "Set follow-up reminders", sub: "For the speaker or the lead's rep" },
         { key: "fill_fields", title: "Fill in lead details", sub: "Your lead fields" },

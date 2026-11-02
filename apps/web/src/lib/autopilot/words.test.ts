@@ -242,7 +242,21 @@ describe("leadLine", () => {
     ).toBe("Up next at 10:40");
     expect(leadLine(lead({ leadId: "a", state: "with_you" }), null, when).text).toBe("With you");
     expect(leadLine(lead({ leadId: "a", state: "talking" }), null, when).text).toBe("Talking");
-    expect(leadLine(lead({ leadId: "a", state: "stopped" }), null, when).text).toBe("Stopped");
+    // Stopped says why, in red (owner 2026-11-01): the stored reason's first words.
+    expect(leadLine(lead({ leadId: "a", state: "stopped" }), null, when)).toEqual({
+      text: "Stopped",
+      dot: "stopped",
+    });
+    expect(
+      leadLine(
+        lead({ leadId: "a", state: "stopped", reason: "Said stop. LUME AI marked them do not contact." }),
+        null,
+        when,
+      ),
+    ).toEqual({ text: "Stopped · Said stop", dot: "stopped" });
+    expect(
+      leadLine(lead({ leadId: "a", state: "stopped", reason: "Asked not to be messaged." }), null, when).text,
+    ).toBe("Stopped · Asked not to be messaged");
     // A headline that ends in a full stop reads once.
     expect(
       leadLine(lead({ leadId: "a", state: "ready", card: { headline: "Replied.", quote: null } }), null, when)

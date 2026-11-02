@@ -1,0 +1,5 @@
+/* Every compared screenshot (playwright.config stylePath): what an earlier test leaves behind is never part of a
+   picture. The bell's unread count came and went with test order and changed Templates and Today (2026-11-02). */
+[data-bell-count] {
+  visibility: hidden !important;
+}

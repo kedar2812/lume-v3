@@ -67,7 +67,13 @@ export function SecurePanel({
               <li>Scan this code.</li>
               <li>Type the 6-digit code it shows.</li>
             </ol>
-            <OtpInput key={otpKey} label="6-digit code" onChange={onCode} disabled={busy || !enrolment} />
+            <OtpInput
+              key={otpKey}
+              autoFocus
+              label="6-digit code"
+              onChange={onCode}
+              disabled={busy || !enrolment}
+            />
             {enrolment && (
               <p className={s.clock}>
                 Can’t scan? Enter this key:{" "}

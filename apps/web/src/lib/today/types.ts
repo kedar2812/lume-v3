@@ -3,6 +3,8 @@
  * see is absent, never zero.
  */
 export type Tiles = {
+  /** WhatsApp chats run inside LUME: a follow-up's WhatsApp opens the lead's chat window. */
+  chatInLume?: boolean;
   leads?: {
     day: string;
     /** The hour it is now on the business's clock. */

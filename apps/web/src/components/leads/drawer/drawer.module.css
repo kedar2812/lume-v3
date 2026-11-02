@@ -731,3 +731,41 @@
   gap: 6px;
   color: var(--ok-ink);
 }
+
+/* Do not contact (owner 2026-11-02): said on the lead, with why; an admin lifts it here. */
+.dnc {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.dncTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--danger-ink);
+}
+.dncWhy,
+.dncAsk p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.dncAsk {
+  display: grid;
+  gap: 8px;
+}
+.dncActions {
+  display: flex;
+  gap: 8px;
+}
+.dncAsk .dncError {
+  color: var(--danger-ink);
+}

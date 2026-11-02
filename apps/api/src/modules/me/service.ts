@@ -137,14 +137,14 @@ async function replaceRecoveryCodes(req: FastifyRequest, userId: string): Promis
   return codes;
 }
 
-const WRONG_PASSWORD = { error: { code: "WRONG_PASSWORD", message: "That password isn't right" } };
+export const WRONG_PASSWORD = { error: { code: "WRONG_PASSWORD", message: "That password isn't right" } };
 const reauthKey = (userId: string) => `reauth:${userId}`;
 
 /**
  * Re-authentication for sensitive self-service changes. Throttled like login; a wrong password is
  * returned (400, not 401 — the session is fine) rather than thrown, so the failure count commits.
  */
-async function confirmPassword(req: FastifyRequest, d: AppDeps, password: string): Promise<boolean> {
+export async function confirmPassword(req: FastifyRequest, d: AppDeps, password: string): Promise<boolean> {
   const userId = req.actor!.userId;
   const now = d.clock();
   const gate = await checkThrottle(req.db, [reauthKey(userId)], now);

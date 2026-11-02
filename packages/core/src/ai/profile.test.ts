@@ -106,6 +106,52 @@ describe("voice and standing choices", () => {
     expect(profileProblem({ voice: { language: "Hindi please" } })).toBe("Choose a language from the list.");
   });
 
+  it("the calls LUME AI may say yes to: days and a from–to, a call's length, notice and how far ahead", () => {
+    const calls = {
+      windows: [{ days: [1, 2, 3, 4, 5], from: "16:00", to: "19:00" }],
+      minutes: 30,
+      noticeHours: 2,
+      daysAhead: 14,
+      how: "We'll call you on this number.",
+    };
+    expect(profileProblem({ standing: { calls } })).toBeNull();
+    expect(DEFAULT_AI_PROFILE.standing.calls).toEqual({
+      windows: [],
+      minutes: 30,
+      noticeHours: 2,
+      daysAhead: 14,
+      how: "",
+    });
+    const w = (x: object) => ({
+      standing: { calls: { ...calls, windows: [{ ...calls.windows[0], ...x }] } },
+    });
+    expect(profileProblem(w({ from: "19:00", to: "16:00" }))).toBe("Each time ends after it starts.");
+    expect(profileProblem(w({ from: "16:00", to: "16:00" }))).toBe("Each time ends after it starts.");
+    expect(profileProblem(w({ from: "4pm" }))).toBe("A time is like 16:00.");
+    expect(profileProblem(w({ days: [] }))).toBe("Choose at least one day for each time.");
+    expect(profileProblem(w({ days: [1, 1] }))).toBe("A day is chosen twice.");
+    expect(profileProblem(w({ days: [7] }))).toBe("Choose days from Sunday to Saturday.");
+    expect(profileProblem({ standing: { calls: { ...calls, minutes: 20 } } })).toBe(
+      "A call is 15, 30, 45 or 60 minutes.",
+    );
+    expect(profileProblem({ standing: { calls: { ...calls, noticeHours: 73 } } })).toBe(
+      "Notice is from 0 to 72 hours.",
+    );
+    expect(profileProblem({ standing: { calls: { ...calls, daysAhead: 0 } } })).toBe(
+      "How far ahead is from 1 to 60 days.",
+    );
+    expect(
+      profileProblem({
+        standing: { calls: { ...calls, windows: Array.from({ length: 15 }, () => calls.windows[0]) } },
+      }),
+    ).toBe("Up to 14 times.");
+    // Saved and read back whole; an older profile without them reads the default.
+    expect(mergeAiProfile(null, { standing: { calls } }).standing.calls).toEqual(calls);
+    expect(mergeAiProfile({ standing: { dailyCap: 40 } }, {}).standing.calls).toEqual(
+      DEFAULT_AI_PROFILE.standing.calls,
+    );
+  });
+
   it("there's no choice to deny being AI", () => {
     expect(aiProfilePatchSchema.safeParse({ standing: { botQuestion: "deny" } }).success).toBe(false);
   });

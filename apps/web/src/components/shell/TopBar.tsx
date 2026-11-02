@@ -163,7 +163,13 @@ export function TopBar({
         {/* How many, as iOS badges an app (owner, 2026-10-31): the number in red, 9+ past 9. The exact count is heard in
             the label. */}
         {unread > 0 && (
-          <span className={s.bellBadge} aria-hidden data-live-count data-waiting={!open || undefined}>
+          <span
+            className={s.bellBadge}
+            aria-hidden
+            data-live-count
+            data-bell-count
+            data-waiting={!open || undefined}
+          >
             {unread > 9 ? "9+" : unread}
           </span>
         )}

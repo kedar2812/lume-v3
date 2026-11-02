@@ -121,8 +121,14 @@ export async function availabilityOf(
     mark_lost: lost?.n
       ? ok
       : { ok: false, why: "Add your lost reasons in Settings → Lists.", fixHref: "/settings/lists" },
-    // LUME's calendar connection only reads, with no free/busy: booking could clash (A2's plan ruling).
-    book_meetings: { ok: false, why: "Needs a calendar LUME can book into.", fixHref: null },
+    // Only inside the times the business gave it, clear of the speaker's meetings (spec 2026-11-02).
+    book_meetings: profile.standing.calls.windows.length
+      ? ok
+      : {
+          ok: false,
+          why: "Give LUME AI the times it may say yes to a call in Settings → LUME AI.",
+          fixHref: "/settings/ai",
+        },
   };
 }
 

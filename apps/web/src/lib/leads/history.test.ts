@@ -180,4 +180,29 @@ describe("LUME's own work, in the lead's history (3C Task 6)", () => {
     );
     expect(line.detail).toContain("10:00");
   });
+
+  it("a meeting booked: by LUME AI in a chat, or through Calendly, with when (spec 2026-11-02)", () => {
+    const ai = describeActivity(
+      a("meeting_booked", { title: "Call with Zara Khan", startsAt: "2026-11-03T13:00:00Z", byAi: true }),
+      cat,
+      "Asia/Dubai",
+    );
+    expect(ai).toMatchObject({ title: "LUME AI booked a call", tone: "accent" });
+    expect(ai.detail).toMatch(/^“Call with Zara Khan”, 3 Nov 2026, 17:00$/);
+    expect(
+      describeActivity(
+        a("meeting_booked", { title: "Discovery call", startsAt: "2026-11-03T13:00:00Z" }),
+        cat,
+      ).title,
+    ).toBe("Meeting booked");
+  });
+
+  it("do not contact, set with why and lifted, in plain words", () => {
+    expect(describeActivity(a("dnc_set", { reason: "Said stop on WhatsApp" }), cat)).toMatchObject({
+      title: "Asked not to be messaged",
+      tone: "danger",
+      quote: "Said stop on WhatsApp",
+    });
+    expect(describeActivity(a("dnc_lifted", {}), cat)).toMatchObject({ title: "Can be messaged again" });
+  });
 });

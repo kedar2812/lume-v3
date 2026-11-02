@@ -11,7 +11,7 @@ import s from "./settings.module.css";
 
 export type FollowUpConfig = {
   escalation: { enabled: boolean; hours: number };
-  /** The morning email for the whole business (an optional module; on unless switched off). */
+  /** The morning email for the whole business (an optional module; off until switched on, owner 2026-11-02). */
   digest?: { enabled: boolean };
   /** Leads gone quiet (3C): a follow-up for the owner after this many days without contact. */
   noTouch?: { enabled: boolean; days: number };
@@ -34,7 +34,7 @@ export function FollowUpSettings({
 }) {
   const [enabled, setEnabled] = useState(initial.escalation.enabled);
   const [hours, setHours] = useState(String(initial.escalation.hours));
-  const [digest, setDigest] = useState(initial.digest?.enabled ?? true);
+  const [digest, setDigest] = useState(initial.digest?.enabled ?? false);
   const [quiet, setQuiet] = useState(initial.noTouch?.enabled ?? false);
   const [quietDays, setQuietDays] = useState(String(initial.noTouch?.days ?? 7));
   const [shift, setShift] = useState(initial.shiftToWorkingHours ?? true);
