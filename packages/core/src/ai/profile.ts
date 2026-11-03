@@ -103,6 +103,7 @@ const calls = z.strictObject({
   noticeHours: whole(0, 72, "Notice is from 0 to 72 hours."),
   daysAhead: whole(1, 60, "How far ahead is from 1 to 60 days."),
   how: words(200, "How the call happens"),
+  meet: z.boolean({ error: "Choose whether LUME makes a Meet link." }).optional(),
 });
 
 const allow = z.enum(["go", "ask", "never"], { error: "Choose Go ahead, Ask me or Never." });

@@ -30,6 +30,7 @@ import {
   valueOf,
   type AiProfile,
   type AutopilotCtx,
+  type CallRules,
   type FillableType,
   type GuardCtx,
   type GuardedReply,
@@ -55,6 +56,7 @@ import { updateLead, visibleLead } from "../leads/service";
 import { moveStage } from "../leads/write";
 import { adminIds, notify } from "../notifications/notify";
 import { bookCall, busyFor, tellBooked, type Booked } from "../meetings/book";
+import { calendarOn } from "../calendar/service";
 import { workingHoursFrom } from "../settings/follow-ups";
 import { createTask } from "../tasks/service";
 import { attachLibraryFile, sendReply } from "../whatsapp/send";
@@ -521,7 +523,7 @@ export async function aiCtx(
   lead: LeadRow,
   templates: AutopilotCtx["templates"],
   /** A reply's read: the engine's clock, and the calls LUME AI may say yes to (spec 2026-11-02). */
-  o: { now?: Date; calls?: boolean } = {},
+  o: { now?: Date; calls?: boolean; google?: boolean } = {},
 ): Promise<
   AutopilotCtx & {
     profileRaw: AiProfile;
@@ -593,6 +595,8 @@ export async function aiCtx(
   const now = o.now ?? new Date();
   // Times given, and Book meetings not Never on this run: the speaker's meetings ahead, and the free times to offer.
   const rules = profile.standing.calls;
+  // LUME makes the Meet link (spec 2026-11-03): only where Google Calendar is set up and switched on.
+  const meet = !!o.calls && !!rules.meet && o.google === true && (await calendarOn(req));
   const callCheck =
     o.calls && rules.windows.length && run.permissions && run.permissions.book_meetings !== "never"
       ? {
@@ -639,6 +643,7 @@ export async function aiCtx(
       noticeHours: rules.noticeHours,
       daysAhead: rules.daysAhead,
       how: rules.how,
+      meet,
       free: freeCallTimes(callCheck, 6).map((t) => ({ at: callStamp(t, tz), label: callTimeLabel(t, tz) })),
     },
     callCheck,
@@ -706,7 +711,10 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
   if (lead.dncAt) return leave(req, l, "stopped", "Asked not to be messaged.");
   if (await reachedGoal(o, req, run, l)) return 1;
   const carried = carriedOn(l);
-  const c = { ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true })), carriedOn: carried };
+  const c = {
+    ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true, google: !!o.d.googleOAuth })),
+    carriedOn: carried,
+  };
   const r = await runRead(req, o.d, {
     task: "autopilot_reply",
     leadId: lead.id,
@@ -892,15 +900,19 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       if (call) {
         const [s] = await req.db.select({ tz: schema.settings.timezone }).from(schema.settings);
         const [prof] = await req.db.select({ p: schema.aiProfile.profile }).from(schema.aiProfile);
+        const rules = mergeAiProfile(prof?.p ?? null, {}).standing.calls;
         booked = await bookCall(req, o.d, {
           ownerId: run.speakerId,
           leadId: l.leadId,
           at: new Date(call.at),
-          rules: mergeAiProfile(prof?.p ?? null, {}).standing.calls,
+          rules,
           tz: s?.tz ?? "UTC",
+          meet: await meetsOn(req, o.d, rules),
         });
       }
-      await sendReply(req, o.d, UNLIMITED, l.leadId, { clientKey: key("m"), text: now.draft }, auto);
+      // The Meet link LUME made (spec 2026-11-03), on its own line under the yes.
+      const text = booked?.link ? `${now.draft}\n\nGoogle Meet: ${booked.link}` : now.draft;
+      await sendReply(req, o.d, UNLIMITED, l.leadId, { clientKey: key("m"), text }, auto);
       for (const [i, f] of (p.fileIds ?? []).entries()) {
         const { media } = await attachLibraryFile(req, o.d, l.leadId, f);
         await sendReply(req, o.d, UNLIMITED, l.leadId, { clientKey: key(`f${i}`), mediaId: media.id }, auto);
@@ -910,10 +922,18 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
     if (booked) tellBooked(req, o.d, booked);
   } catch (e) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT autopilot_send`);
+    // The call was rolled back with the reply: the event LUME added to Google Calendar goes too.
+    booked?.undo();
     if (!(e instanceof HttpError)) throw e;
     // In this transaction: it holds the run's row, so a pause on another connection would wait on it (A4).
     if (e.code === "PAID_LIMIT") return (await pauseRunIn(req, run.id, "paid")) ? 1 : 0;
-    if (e.code === "CALL_NOT_FREE") {
+    // LUME's calendar is gone at Google: the permission is asked for again (Settings → LUME AI shows the button).
+    if (e.code === "CALL_MEET_GONE")
+      await req.db
+        .update(schema.calendarConnections)
+        .set({ addsEvents: false, updatedAt: o.d.clock() })
+        .where(eq(schema.calendarConnections.userId, run.speakerId));
+    if (e.code === "CALL_NOT_FREE" || e.code === "CALL_NO_MEET" || e.code === "CALL_MEET_GONE") {
       const headline = e.message;
       const pool = poolOf(o.d);
       req.afterCommit(
@@ -944,6 +964,11 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   // The lead's move into the goal stage (by this reply's update, or anyone's): converted.
   await reachedGoal(o, req, run, { ...now, state: p.kind === "template" ? "sent" : "talking" });
   return 1;
+}
+
+/** LUME makes the Meet link (spec 2026-11-03): switched on, with Google Calendar set up and on here. */
+async function meetsOn(req: FastifyRequest, d: AppDeps, rules: CallRules): Promise<boolean> {
+  return !!rules.meet && !!d.googleOAuth && (await calendarOn(req));
 }
 
 /** A field nobody has filled in yet. */

@@ -18,7 +18,11 @@ const own = { permission: "calendar.connect" as const };
 export async function calendarRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/calendar/connection", { config: own }, (req) => connectionView(req, d));
-  r.post("/api/v1/calendar/connect", { config: own }, (req) => calendarConnectStart(req, d));
+  r.post(
+    "/api/v1/calendar/connect",
+    { config: own, schema: { body: z.object({ addEvents: z.boolean().optional() }).strict().nullish() } },
+    (req) => calendarConnectStart(req, d, req.body ?? {}),
+  );
   r.post(
     "/api/v1/calendar/complete",
     { config: own, schema: { body: z.object({ p: z.string().max(8000), s: z.string().max(200) }).strict() } },

@@ -27,8 +27,9 @@ function meetingsUrl(q: MeetingsQuery): string {
 export const calendarClient = {
   // A person's own Google Calendar.
   connection: () => api.get<CalendarConnection>(CONNECTION),
-  /** Where to send the browser: the relay's Google consent. */
-  connect: () => api.post<{ url: string }>("/api/v1/calendar/connect"),
+  /** Where to send the browser: the relay's Google consent; `addEvents` also asks to add LUME AI's calls. */
+  connect: (o: { addEvents?: boolean } = {}) =>
+    api.post<{ url: string }>("/api/v1/calendar/connect", o.addEvents ? { addEvents: true } : undefined),
   /** The relay's hand-back (`/calendar/connected?p=&s=`). */
   complete: (b: { p: string; s: string }) => api.post<CalendarConnection>("/api/v1/calendar/complete", b),
   chooseCalendars: (calendars: string[]) => api.patch<CalendarConnection>(CONNECTION, { calendars }),

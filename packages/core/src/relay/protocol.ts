@@ -15,6 +15,8 @@ export type Handoff = {
   refreshToken?: string;
   /** What the grant is for: a sheet (with the picked file), a calendar (Phase 5A; no file) or a WhatsApp number. */
   kind?: "sheet" | "calendar" | "whatsapp";
+  /** A calendar's grant may add events too (calendar.events.owned): LUME AI's calls, with a Meet link. */
+  calendarWrite?: boolean;
   file?: { id: string; name: string };
   /** A connected WhatsApp number (spec 2026-10-18 §3.2): the client's business token, sealed for its LUME only. */
   whatsapp?: {

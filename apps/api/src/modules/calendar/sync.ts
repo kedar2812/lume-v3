@@ -363,8 +363,14 @@ async function write(
 
   // Every event decided across all its calendars first: Google gives one event the same id on each.
   const byEvent = new Map<string, Seen[]>();
+  // A call LUME added (spec 2026-11-03) is its own meeting already: read onto it below, never kept a second time.
+  const ourCalls: CalendarEventRead[] = [];
   for (const r of read.reads)
     for (const ev of r.events) {
+      if (ev.lumeMeeting) {
+        ourCalls.push(ev);
+        continue;
+      }
       // An all-day item (a holiday, a day out) is not a meeting; nor is one without its times.
       const match =
         ev.status === "cancelled" || ev.allDay || !ev.startsAt || !ev.endsAt
@@ -491,6 +497,44 @@ async function write(
         now,
         movedOn,
       ],
+    );
+  }
+
+  // LUME AI's calls in this person's Google Calendar: moved there moves the meeting, cancelled there cancels it. Only
+  // their own meeting LUME booked, still to happen (an outcome is history).
+  for (const ev of ourCalls) {
+    const { rows } = await c.query<{
+      id: string;
+      starts_at: Date;
+      ends_at: Date;
+      outcome_task_id: string | null;
+    }>(
+      `SELECT id, starts_at, ends_at, outcome_task_id FROM meetings
+        WHERE id = $1 AND source = 'lume' AND owner_id = $2 AND status = 'scheduled'`,
+      [ev.lumeMeeting, owner],
+    );
+    const m = rows[0];
+    if (!m) continue;
+    if (ev.status === "cancelled") {
+      await c.query(
+        "UPDATE meetings SET status = 'cancelled', updated_at = $2, version = version + 1 WHERE id = $1",
+        [m.id, now],
+      );
+      tally.cancelled++;
+      await closeOutcomeTasks(c, [m.outcome_task_id], now, [m.id]);
+      continue;
+    }
+    if (ev.allDay || !ev.startsAt || !ev.endsAt) continue;
+    const endsAt = ev.endsAt < ev.startsAt ? ev.startsAt : ev.endsAt;
+    if (m.starts_at.getTime() === ev.startsAt.getTime() && m.ends_at.getTime() === endsAt.getTime()) continue;
+    if (m.starts_at.getTime() !== ev.startsAt.getTime()) {
+      tally.moved++;
+      // Its reminder was for the old time.
+      await closeOutcomeTasks(c, [], now, [m.id]);
+    } else tally.changed++;
+    await c.query(
+      "UPDATE meetings SET starts_at = $2, ends_at = $3, updated_at = $4, version = version + 1 WHERE id = $1",
+      [m.id, ev.startsAt, endsAt, now],
     );
   }
 

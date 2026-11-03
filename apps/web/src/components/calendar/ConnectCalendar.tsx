@@ -16,13 +16,13 @@ export const RETURN_KEY = "lume:calendar:return";
  * Starts connecting: notes the page it began on for the hand-back, then goes to Google. Resolves only with
  * why it couldn't (Calendar off on this server, already connected), for the caller to say.
  */
-export async function startCalendarConnect(): Promise<string> {
+export async function startCalendarConnect(o: { addEvents?: boolean } = {}): Promise<string> {
   try {
     sessionStorage.setItem(RETURN_KEY, window.location.pathname);
   } catch {
     // No storage (a private window): the hand-back returns to the Calendar.
   }
-  const r = await calendarClient.connect();
+  const r = await calendarClient.connect(o);
   if (!r.ok) return r.message;
   window.location.assign(r.data.url);
   return new Promise<string>(() => {});

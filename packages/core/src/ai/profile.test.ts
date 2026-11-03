@@ -121,7 +121,13 @@ describe("voice and standing choices", () => {
       noticeHours: 2,
       daysAhead: 14,
       how: "",
+      meet: false,
     });
+    // LUME makes the Meet link (spec 2026-11-03): a yes or no, and a profile saved before it is still fine.
+    expect(profileProblem({ standing: { calls: { ...calls, meet: true } } })).toBeNull();
+    expect(profileProblem({ standing: { calls: { ...calls, meet: "yes" } } })).toBe(
+      "Choose whether LUME makes a Meet link.",
+    );
     const w = (x: object) => ({
       standing: { calls: { ...calls, windows: [{ ...calls.windows[0], ...x }] } },
     });

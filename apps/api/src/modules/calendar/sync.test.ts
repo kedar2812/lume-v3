@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createRelay } from "../../../../connect/src/relay";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { grantTokens } from "../sheets/google";
-import { createGoogleCalendar } from "./google";
+import { createGoogleCalendar, eventIdOf } from "./google";
 import { askOutcomes } from "../meetings/outcomes";
 import { dueConnections, runCalendarSync } from "./sync";
 
@@ -332,7 +332,7 @@ describe("the calendar sync (5A Task 5)", () => {
       clientFor: (grant: string) => {
         const real = base.clientFor(grant)!;
         return {
-          calendarList: () => real.calendarList(),
+          ...real,
           // Mid-read: what the Refresh card would see right now.
           events: async (...a: Parameters<typeof real.events>) => {
             seen.push(await progress());
@@ -711,5 +711,72 @@ describe("Refresh hears what the sync changed (5D Task 2)", () => {
     h.clock.advance(5000);
     expect(await sync(rafaConn)).toBe("synced");
     expect((await connRow(rafaConn)).next_sync_at.getTime()).toBe(h.clock.now.getTime() + 5 * 60_000);
+  });
+});
+
+describe("a call LUME added to Google Calendar (spec 2026-11-03)", () => {
+  /** LUME AI's booked call, as bookCall keeps it: source lume, no connection. */
+  const lumeCall = async (owner: SeededUser, startsAt: string, endsAt: string) => {
+    const lead = await h.seedLead({ ownerId: owner.id, name: "Asha Rao" });
+    const id = newId();
+    await asPerson(
+      owner.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at,
+                             location, link, status)
+       VALUES ($1::uuid, $2, $3, 'lume', $1::text, 'lume_ai', 'Call with Asha Rao', $4, $5, 'Google Meet',
+               'https://meet.google.com/abc-defg-hij', 'scheduled')`,
+      [id, lead, owner.id, startsAt, endsAt],
+    );
+    return id;
+  };
+  const rows = (owner: string, id: string) =>
+    swept<{ source: string; status: string; starts_at: Date; ends_at: Date }>(
+      `SELECT source, status, starts_at, ends_at FROM meetings
+        WHERE owner_id = $1 AND (id = $2 OR external_id = $3) ORDER BY source`,
+      [owner, id, eventIdOf(id)],
+    );
+
+  it("is read onto LUME's own meeting, never as a second one: moved at Google moves it, cancelled cancels it", async () => {
+    // A title rule that would keep "Call with …" as a Google meeting, were it anyone else's event.
+    await setRules({ attendeeIsLead: true, titleWords: ["call"], calendarIds: [] });
+    const [s, e, s2, e2] = [at(5), at(5.5), at(30), at(30.5)];
+    const id = await lumeCall(maya, s, e);
+    const ev = {
+      id: eventIdOf(id),
+      title: "Call with Asha Rao",
+      link: "https://meet.google.com/abc-defg-hij",
+      lumeMeeting: id,
+    };
+    h.fake!.putEvent(ME, { ...ev, start: s, end: e });
+    expect(await sync(mayaConn)).toBe("synced");
+    expect(await rows(maya.id, id)).toEqual([
+      { source: "lume", status: "scheduled", starts_at: new Date(s), ends_at: new Date(e) },
+    ]);
+    h.fake!.putEvent(ME, { ...ev, start: s2, end: e2 });
+    expect(await sync(mayaConn)).toBe("synced");
+    expect(await rows(maya.id, id)).toEqual([
+      { source: "lume", status: "scheduled", starts_at: new Date(s2), ends_at: new Date(e2) },
+    ]);
+    h.fake!.cancelEvent(ME, eventIdOf(id));
+    expect(await sync(mayaConn)).toBe("synced");
+    expect(await rows(maya.id, id)).toEqual([
+      { source: "lume", status: "cancelled", starts_at: new Date(s2), ends_at: new Date(e2) },
+    ]);
+  });
+
+  it("an event naming someone else's meeting never touches it", async () => {
+    const [s, e] = [at(8), at(8.5)];
+    const sams = await lumeCall(sam, s, e);
+    h.fake!.putEvent(ME, {
+      id: eventIdOf(sams),
+      title: "Call",
+      start: at(40),
+      end: at(40.5),
+      lumeMeeting: sams,
+    });
+    expect(await sync(mayaConn)).toBe("synced");
+    expect(await rows(sam.id, sams)).toEqual([
+      { source: "lume", status: "scheduled", starts_at: new Date(s), ends_at: new Date(e) },
+    ]);
   });
 });

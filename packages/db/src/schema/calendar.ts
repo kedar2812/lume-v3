@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 /** One chosen-or-not calendar of a connection, with how far LUME has read it. */
@@ -30,6 +30,10 @@ export const calendarConnections = pgTable("calendar_connections", {
     .notNull()
     .default(sql`'[]'::jsonb`),
   status: text("status").$type<"active" | "needs_reconnect">().notNull().default("active"),
+  /** The grant may add LUME AI's calls, with a Meet link, to LUME's own calendar (calendar.app.created, 0102). */
+  addsEvents: boolean("adds_events").notNull().default(false),
+  /** The calendar LUME made for them ("LUME calls"): the only one it adds events to. */
+  callsCalendarId: text("calls_calendar_id"),
   lastSyncedAt: tz("last_synced_at"),
   /** What the latest sync changed (5D Refresh); `at` is when it started reading. */
   lastSync: jsonb("last_sync").$type<LastSync>(),

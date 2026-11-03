@@ -75,6 +75,22 @@ describe("a notice for each WhatsApp message in (2026-11-01)", () => {
     expect(notices()).toHaveLength(0);
   });
 
+  it("its chat opened another way (the lead's drawer): the notice goes at once, never over the open chat (gate 2026-11-04)", async () => {
+    const { rerender } = render(<Shell />);
+    says("Riya Kapoor", "Is Saturday free for a visit?", "2026-11-01T05:50:00Z");
+    says("Kedar", "hello", "2026-11-01T05:51:00Z");
+    await arrives("lead-1");
+    await arrives("lead-2");
+    await waitFor(() => expect(notices()).toHaveLength(2));
+    // On a phone the chat fills the screen, and a notice left over it covered its Close button.
+    rerender(<Shell openChat="lead-1" />);
+    await waitFor(() =>
+      expect(notices().map((n) => n.getAttribute("aria-label"))).toEqual([
+        "Kedar on WhatsApp: hello. Open the chat",
+      ]),
+    );
+  });
+
   it("a second message from the same lead updates their notice; a photo or voice note says so; a fourth lead pushes out the oldest", async () => {
     render(<Shell />);
     says("Kedar", "hello", "2026-11-01T05:50:00Z");

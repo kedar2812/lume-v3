@@ -266,6 +266,43 @@ describe("the relay", () => {
       });
     });
 
+    it("adding LUME AI's calls asks for the read-only pair and LUME's own calendar; nothing more", async () => {
+      const r = await calStart("cal-w1", "calendar_write", sign(TOKEN, "cal-w1.calendar_write"));
+      expect(r.status).toBe(302);
+      const scopes = new URL(r.headers.get("location")!).searchParams.get("scope")!.split(" ").sort();
+      expect(scopes).toEqual([
+        "https://www.googleapis.com/auth/calendar.app.created",
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+        "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+      ]);
+      // A read-only link can't be turned into a write one: the kind is signed.
+      expect((await calStart("cal-w2", "calendar_write", sign(TOKEN, "cal-w2.calendar"))).status).toBe(400);
+    });
+
+    it("back from Google with the write grant: the hand-back says LUME may add events", async () => {
+      const start = await calStart("cal-w3", "calendar_write", sign(TOKEN, "cal-w3.calendar_write"));
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      const r = await get(`/callback?code=calendar-write&state=${encodeURIComponent(state)}`);
+      const back = new URL(r.headers.get("location")!);
+      expect(unseal<Handoff>(TOKEN, back.searchParams.get("p")!)).toMatchObject({
+        nonce: "cal-w3",
+        kind: "calendar",
+        calendarWrite: true,
+      });
+    });
+
+    it("LUME's own calendar unticked at Google: the calendar still connects, read-only, and says so", async () => {
+      const start = await calStart("cal-w4", "calendar_write", sign(TOKEN, "cal-w4.calendar_write"));
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      const r = await get(`/callback?code=good-code&state=${encodeURIComponent(state)}`);
+      const back = new URL(r.headers.get("location")!);
+      expect(unseal<Handoff>(TOKEN, back.searchParams.get("p")!)).toMatchObject({
+        nonce: "cal-w4",
+        kind: "calendar",
+        calendarWrite: false,
+      });
+    });
+
     it("a consent that leaves out reading events is said as it is, with a way back — no hand-back", async () => {
       const start = await calStart("cal-4");
       const state = new URL(start.headers.get("location")!).searchParams.get("state")!;

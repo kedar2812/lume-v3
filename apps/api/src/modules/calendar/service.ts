@@ -73,6 +73,8 @@ function view(d: AppDeps, c: Connection | undefined, on: boolean) {
     connected: true as const,
     googleEmail: c.googleEmail,
     status: c.status,
+    /** LUME may add LUME AI's calls to this calendar, with a Meet link (spec 2026-11-03). */
+    addsEvents: c.addsEvents,
     calendars: c.calendars.map(({ id, name, chosen }) => ({ id, name, chosen })),
     lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null,
     lastSync: c.lastSync ?? null,
@@ -94,10 +96,14 @@ export async function connectionView(req: FastifyRequest, d: AppDeps) {
   return view(d, await mine(req), await calendarOn(req));
 }
 
-/** A signed link to the relay, as a calendar's: the kind is signed with the nonce (Task 1). */
-export async function calendarConnectStart(req: FastifyRequest, d: AppDeps) {
+/**
+ * A signed link to the relay, as a calendar's: the kind is signed with the nonce (Task 1). `addEvents`: the link that
+ * also asks Google to let LUME add events (spec 2026-11-03), only for a person who switches it on.
+ */
+export async function calendarConnectStart(req: FastifyRequest, d: AppDeps, o: { addEvents?: boolean } = {}) {
   await requireOn(req, d);
   const { relayUrl, relayToken } = d.googleOAuth!;
+  const kind = o.addEvents ? "calendar_write" : "calendar";
   const nonce = randomBytes(24).toString("base64url");
   await req.db.insert(OC).values({
     id: newId(),
@@ -109,10 +115,30 @@ export async function calendarConnectStart(req: FastifyRequest, d: AppDeps) {
   url.search = new URLSearchParams({
     i: instanceIdOf(relayToken),
     n: nonce,
-    k: "calendar",
-    s: sign(relayToken, `${nonce}.calendar`),
+    k: kind,
+    s: sign(relayToken, `${nonce}.${kind}`),
   }).toString();
   return { url: url.toString() };
+}
+
+/** The name of the calendar LUME makes for LUME AI's calls, in the person's Google Calendar. */
+export const CALLS_CALENDAR = "LUME calls";
+
+/** LUME's own calendar in the account (calendar.app.created), on the business's clock; Google's refusals in words. */
+async function makeCallsCalendar(req: FastifyRequest, d: AppDeps, refreshToken: string): Promise<string> {
+  const google = calendarClientFor(d.googleOAuth, d.googleEndpoint)(refreshToken);
+  if (!google) throw notConfigured();
+  const [s] = await req.db.select({ tz: schema.settings.timezone }).from(schema.settings);
+  try {
+    return (await google.createCalendar(CALLS_CALENDAR, s?.tz ?? "UTC")).id;
+  } catch (e) {
+    if (!(e instanceof GoogleError)) throw e;
+    throw new HttpError(
+      e.kind === "access" ? 409 : 503,
+      "CALENDAR_CALLS_CALENDAR",
+      "Google didn't let LUME make its LUME calls calendar. Try again, and leave every box ticked.",
+    );
+  }
 }
 
 /** The account's calendars, read with the new grant; Google's refusals in LUME's words. */
@@ -176,7 +202,7 @@ export async function calendarConnectComplete(
     .for("update");
   if (!open)
     throw notFound("CONNECT_NOT_FOUND", "This connection was already used, or isn't yours. Try again.");
-  const list = await calendarsOf(d, h.refreshToken);
+  let list = await calendarsOf(d, h.refreshToken);
   const primary = list.find((c) => c.primary) ?? list[0];
   if (!primary) throw new HttpError(409, "CALENDAR_NONE", "LUME found no calendar on this Google account.");
   await req.db.delete(OC).where(eq(OC.id, open.id));
@@ -187,11 +213,22 @@ export async function calendarConnectComplete(
     await req.db.delete(CC).where(eq(CC.id, was.id));
     was = undefined;
   }
+  // Allowed to add LUME AI's calls (spec 2026-11-03): LUME's own calendar, the one it made before if the account still
+  // has it, or a new one, read like the person's own so a call moved or cancelled there follows into LUME.
+  const adds = h.calendarWrite === true;
+  let callsCalendarId = was?.callsCalendarId ?? null;
+  if (adds && !(callsCalendarId && list.some((c) => c.id === callsCalendarId))) {
+    callsCalendarId = await makeCallsCalendar(req, d, h.refreshToken);
+    list = [...list, { id: callsCalendarId, name: CALLS_CALENDAR, primary: false }];
+  }
   const prior = new Map((was?.calendars ?? []).map((c) => [c.id, c]));
   const calendars: ConnectedCalendar[] = list.map((c) => ({
     id: c.id,
     name: c.name,
-    chosen: prior.get(c.id)?.chosen ?? (was ? false : c.id === primary.id),
+    chosen:
+      c.id === callsCalendarId && adds
+        ? true
+        : (prior.get(c.id)?.chosen ?? (was ? false : c.id === primary.id)),
     syncToken: prior.get(c.id)?.syncToken ?? null,
   }));
   const id = was?.id ?? newId();
@@ -200,6 +237,9 @@ export async function calendarConnectComplete(
     grantEnc: d.keyring.encrypt(h.refreshToken, `calendar-connection:${id}`),
     calendars,
     status: "active" as const,
+    // Only a grant Google gave with LUME's own calendar ticked; a read-only connect replaces it, so it goes.
+    addsEvents: adds,
+    callsCalendarId,
     failures: 0,
     lastError: null,
     nextSyncAt: new Date(),
@@ -211,7 +251,7 @@ export async function calendarConnectComplete(
     action: was ? "calendar.reconnected" : "calendar.connected",
     entityType: "calendar_connection",
     entityId: id,
-    diff: { calendars: calendars.filter((c) => c.chosen).length },
+    diff: { calendars: calendars.filter((c) => c.chosen).length, addsEvents: fields.addsEvents },
   });
   req.afterCommit(() => void d.calendar?.enqueue(id));
   return view(d, await mine(req), await calendarOn(req));

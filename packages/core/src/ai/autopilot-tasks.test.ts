@@ -492,4 +492,21 @@ describe("a call LUME AI says yes to", () => {
     expect(autopilotInstructions("autopilot_reply", ctx())).toMatch(/never hand over for want of a calendar/);
     expect(JSON.parse(autopilotInput("autopilot_reply", ctx())).callTimes).toBeUndefined();
   });
+
+  it("LUME makes the Meet link (spec 2026-11-03): the model never writes a link, and the how words give way to it", () => {
+    const calls = {
+      windows: "Monday to Friday 16:00 to 19:00",
+      minutes: 30,
+      noticeHours: 2,
+      daysAhead: 14,
+      how: "We'll call you on this number.",
+      free: [],
+    };
+    const say = autopilotInstructions("autopilot_reply", ctx({ calls: { ...calls, meet: true } }));
+    expect(say).toContain("LUME adds the Google Meet link under your message");
+    expect(say).not.toContain("We'll call you on this number.");
+    const off = autopilotInstructions("autopilot_reply", ctx({ calls: { ...calls, meet: false } }));
+    expect(off).not.toContain("Google Meet");
+    expect(off).toContain("We'll call you on this number.");
+  });
 });

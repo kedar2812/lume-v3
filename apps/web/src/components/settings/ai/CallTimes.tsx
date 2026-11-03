@@ -1,9 +1,20 @@
 "use client";
 import type { CallRules } from "@lume/core/shared";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { Switch } from "@/components/ui/Switch";
 import s from "./ai.module.css";
+
+/**
+ * LUME makes the Meet link (spec 2026-11-03), where Google Calendar is set up here: the person's own calendar, and the
+ * way to let LUME add calls to it (saves the page first, then Google's consent; resolves with why not, if it couldn't).
+ */
+export type MeetSetup = {
+  mine: { googleEmail: string; addsEvents: boolean; status: "active" | "needs_reconnect" } | null;
+  allow(): Promise<string | null>;
+};
 
 /** Monday first, as a week reads; 0 is Sunday, as LUME stores days. */
 const WEEK = [
@@ -34,7 +45,16 @@ const X = (
  * clock, then a call's length, the notice and how far ahead. LUME AI says yes only inside these, when the speaker is free;
  * with none, a person confirms every call a lead proposes.
  */
-export function CallTimes({ value: v, onChange }: { value: CallRules; onChange(v: CallRules): void }) {
+export function CallTimes({
+  value: v,
+  onChange,
+  meet,
+}: {
+  value: CallRules;
+  onChange(v: CallRules): void;
+  /** Absent where Google Calendar isn't set up and on: no Meet link, the business's own words. */
+  meet?: MeetSetup;
+}) {
   const set = (patch: Partial<CallRules>) => onChange({ ...v, ...patch });
   const setRow = (i: number, patch: Partial<CallRules["windows"][number]>) =>
     set({ windows: v.windows.map((w, j) => (j === i ? { ...w, ...patch } : w)) });
@@ -161,20 +181,91 @@ export function CallTimes({ value: v, onChange }: { value: CallRules; onChange(v
               days ahead, at most
             </label>
           </div>
-          <Field label="How the call happens" hint="LUME AI says this when it says yes. Optional.">
-            {(c) => (
-              <input
-                {...c}
-                className={s.input}
-                maxLength={200}
-                placeholder="We'll call you on this number."
-                value={v.how}
-                onChange={(e) => set({ how: e.target.value })}
-              />
-            )}
-          </Field>
+          {meet && <MeetLink on={!!v.meet} setup={meet} onChange={(on) => set({ meet: on })} />}
+          {!(meet && v.meet) && (
+            <Field label="How the call happens" hint="LUME AI says this when it says yes. Optional.">
+              {(c) => (
+                <input
+                  {...c}
+                  className={s.input}
+                  maxLength={200}
+                  placeholder="We'll call you on this number."
+                  value={v.how}
+                  onChange={(e) => set({ how: e.target.value })}
+                />
+              )}
+            </Field>
+          )}
         </>
       )}
     </section>
+  );
+}
+
+const TICK = (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <path d="M3.5 8.4 6.6 11.3 12.5 4.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * The Meet link card: one switch, and under it the one thing left to do, if anything. The permission is Google's own
+ * consent, asked only here, so nobody who leaves this off is ever asked for it.
+ */
+function MeetLink({ on, setup, onChange }: { on: boolean; setup: MeetSetup; onChange(on: boolean): void }) {
+  const [busy, setBusy] = useState(false);
+  const [why, setWhy] = useState<string | null>(null);
+  const mine = setup.mine;
+  const allowed = !!mine?.addsEvents && mine.status === "active";
+  const allow = async () => {
+    setBusy(true);
+    setWhy(null);
+    const r = await setup.allow();
+    // Gone to Google, or back here with why not.
+    setBusy(false);
+    setWhy(r);
+  };
+
+  return (
+    <div className={s.meet} role="group" aria-labelledby="ai-meet">
+      <div className={s.meetHead}>
+        <span className={s.brandTile}>
+          <img src="/brand/google-meet.png" alt="" width={22} height={22} />
+        </span>
+        <div className={s.meetText}>
+          <span id="ai-meet" className={s.meetTitle}>
+            Google Meet link
+          </span>
+          <span className={s.meetLede}>
+            Each call goes into a LUME calls calendar in your Google Calendar, with a new Meet link, and LUME
+            AI sends the link to the lead.
+          </span>
+        </div>
+        <Switch checked={on} onChange={onChange} label="LUME makes a Google Meet link" labelHidden />
+      </div>
+      {on &&
+        (allowed ? (
+          <p className={s.meetOk}>
+            <span className={s.meetTick}>{TICK}</span>
+            LUME adds calls to LUME calls, in {mine.googleEmail}
+          </p>
+        ) : (
+          <div className={s.meetAsk}>
+            <p className={s.meetNote}>
+              {mine?.addsEvents
+                ? "Your Google Calendar needs connecting again. Until then, LUME AI hands each call it would book to you."
+                : "Google asks you once. LUME makes one calendar of its own and adds only the calls LUME AI books there; your other calendars stay as they are. Until then, LUME AI hands each call it would book to you."}
+            </p>
+            <Button size="sm" variant="primary" loading={busy} onClick={() => void allow()}>
+              {mine?.addsEvents ? "Connect again" : "Let LUME add calls to your Google Calendar"}
+            </Button>
+            {why && (
+              <p role="alert" className={s.meetWhy}>
+                {why}
+              </p>
+            )}
+          </div>
+        ))}
+    </div>
   );
 }

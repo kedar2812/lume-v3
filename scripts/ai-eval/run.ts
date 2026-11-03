@@ -260,9 +260,9 @@ Autopilot: ${cases.length} cases (read every message by hand for tone and words)
         }
         const s = scoreReply(c, r.output as AutopilotReply, x);
         replies.push(s);
-        const miss = (["kind", "script", "files", "stage", "lostReason", "mentions"] as const).filter(
-          (k) => !s[k],
-        );
+        const miss = (
+          ["kind", "script", "files", "stage", "lostReason", "mentions", "meeting", "noLink"] as const
+        ).filter((k) => !s[k]);
         const worst = [
           s.stopAnswered && "A STOP WAS ANSWERED",
           s.riskMissed && "A RISK WAS ANSWERED",
@@ -293,6 +293,8 @@ Autopilot: ${cases.length} cases (read every message by hand for tone and words)
             stage: false,
             lostReason: false,
             mentions: false,
+            meeting: c.expect.meeting === undefined,
+            noLink: true,
             sent: null,
             why: failed.at(-1)!.error,
           });
@@ -305,6 +307,7 @@ Autopilot: ${cases.length} cases (read every message by hand for tone and words)
     console.log(
       `  kind ${pct(sum.kind)} (mark ${pct(AUTOPILOT_MARKS.kind)}), held ${pct(sum.held)} (at most ${pct(AUTOPILOT_MARKS.held)}),` +
         ` stops answered ${sum.stopsAnswered}, risks answered ${sum.risksMissed}, wrong script ${sum.wrongScript},` +
+        ` calls wrong ${sum.callsWrong},` +
         ` first template ${pct(sum.first)} (mark ${pct(AUTOPILOT_MARKS.first)}); no answer ${failed.length}`,
     );
     console.log(`  ${sum.pass ? "PASSES" : "DOES NOT PASS"} the Autopilot marks`);

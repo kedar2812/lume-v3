@@ -17,6 +17,11 @@ export type CallRules = {
   daysAhead: number;
   /** How the call happens, in the business's words ("We'll call you on this number"). */
   how: string;
+  /**
+   * LUME makes a Google Meet link for each call (spec 2026-11-03): the call goes into the speaker's Google Calendar and
+   * LUME AI's yes carries the link. Absent on profiles saved before it: off.
+   */
+  meet?: boolean;
 };
 export const CALL_MINUTES = [15, 30, 45, 60] as const;
 export const DEFAULT_CALL_RULES: CallRules = {
@@ -25,6 +30,7 @@ export const DEFAULT_CALL_RULES: CallRules = {
   noticeHours: 2,
   daysAhead: 14,
   how: "",
+  meet: false,
 };
 
 /** The speaker's meetings that aren't cancelled: a call never overlaps one. */

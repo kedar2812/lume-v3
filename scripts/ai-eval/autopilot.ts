@@ -1,5 +1,10 @@
 import {
   AUTOPILOT_PRESETS,
+  DEFAULT_CALL_RULES,
+  callStamp,
+  callTimeLabel,
+  freeCallTimes,
+  windowsWords,
   guardFirst,
   businessWordsOf,
   guardReply,
@@ -8,6 +13,7 @@ import {
   type AutopilotFirst,
   type AutopilotPreset,
   type AutopilotReply,
+  type CallRules,
   type FillableType,
   type GuardCtx,
 } from "../../packages/core/src/index";
@@ -49,6 +55,11 @@ export type AutopilotCase = {
   /** The run's permissions: a preset (default Hands-off: every action allowed, so the model's own judgement shows). */
   permissions?: AutopilotPreset;
   profile?: { botQuestion?: "say_so" | "hand_over"; language?: string };
+  /**
+   * The calls LUME AI may say yes to (spec 2026-11-02), over the defaults (30 minutes, 2 hours' notice, 14 days); `busy`
+   * is the speaker's meetings already booked, as UTC instants.
+   */
+  calls?: Partial<CallRules> & Pick<CallRules, "windows"> & { busy?: { start: string; end: string }[] };
   expect: {
     kind: Kind | Kind[];
     /** The script a message must be written in (the lead's). */
@@ -62,6 +73,10 @@ export type AutopilotCase = {
     mentions?: string[];
     /** A first message: the templates that are right, by key. */
     template?: string[];
+    /** The call booked, on the business's clock ("2026-10-22T17:00"); null when none must be (offer times instead). */
+    meeting?: string | null;
+    /** LUME makes the Meet link: the message must carry no link of the model's own. */
+    noLink?: boolean;
   };
 };
 
@@ -127,6 +142,30 @@ export function ctxFor(c: AutopilotCase, businesses: Businesses, profiles: Profi
     now: NOW,
     timezone: b.timezone,
   };
+  // As aiCtx asks it (engine.ts): the times in words and the free ones, and the guard's slot check.
+  let calls: GuardCtx["calls"] = null;
+  if (c.calls) {
+    const { busy = [], ...given } = c.calls;
+    const rules: CallRules = { ...DEFAULT_CALL_RULES, ...given };
+    calls = {
+      rules,
+      tz: b.timezone,
+      now: new Date(now),
+      busy: busy.map((x) => ({ start: new Date(x.start), end: new Date(x.end) })),
+    };
+    ctx.calls = {
+      windows: windowsWords(rules),
+      minutes: rules.minutes,
+      noticeHours: rules.noticeHours,
+      daysAhead: rules.daysAhead,
+      how: rules.how,
+      meet: !!rules.meet,
+      free: freeCallTimes(calls, 6).map((t) => ({
+        at: callStamp(t, b.timezone),
+        label: callTimeLabel(t, b.timezone),
+      })),
+    };
+  }
   const guard: GuardCtx = {
     prices: p.prices.map((x) => x.price),
     fileIds: ctx.files.map((f) => f.id),
@@ -141,6 +180,7 @@ export function ctxFor(c: AutopilotCase, businesses: Businesses, profiles: Profi
     lostStageIds: stages.filter((s) => s.kind === "lost").map((s) => s.id),
     lostReasonIds: ctx.lostReasons.map((r) => r.id),
     fieldKeys: ctx.fillable.map((f) => f.key),
+    calls,
   };
   return { ctx, guard, keyOf: (v: string | null) => (v === null ? null : (keys.get(v) ?? null)) };
 }
@@ -171,6 +211,10 @@ export type ReplyScore = {
   stage: boolean;
   lostReason: boolean;
   mentions: boolean;
+  /** The call booked is the one expected (or none, when none must be). */
+  meeting: boolean;
+  /** No link of the model's own, with the Meet link on. */
+  noLink: boolean;
   /** What would have been sent, for reading by hand; null when nothing would go. */
   sent: string | null;
   why: string;
@@ -197,6 +241,12 @@ export function scoreReply(c: AutopilotCase, out: AutopilotReply, x: ReturnType<
     lostReason: e.lostReason === undefined || x.keyOf(updates?.lostReasonId ?? null) === e.lostReason,
     mentions:
       !e.mentions || (!!sent && e.mentions.every((m) => sent.toLowerCase().includes(m.toLowerCase()))),
+    meeting:
+      e.meeting === undefined ||
+      (updates?.meeting && x.guard.calls
+        ? callStamp(new Date(updates.meeting.at), x.guard.calls.tz)
+        : null) === e.meeting,
+    noLink: !e.noLink || !sent || !/https?:\/\//i.test(sent),
     sent,
     why: g.kind === "handover" || g.kind === "converted" ? g.reason : out.reason,
   };
@@ -211,7 +261,8 @@ export function scoreFirst(c: AutopilotCase, out: AutopilotFirst, x: ReturnType<
   return !!chosen && (c.expect.template ?? []).includes(x.keyOf(chosen) ?? "");
 }
 
-type Scored = Pick<ReplyScore, "kind" | "held" | "stopAnswered" | "riskMissed" | "script">;
+type Scored = Pick<ReplyScore, "kind" | "held" | "stopAnswered" | "riskMissed" | "script"> &
+  Partial<Pick<ReplyScore, "meeting" | "noLink">>;
 /** Each mark as a share or a count, and whether LUME's marks are met. */
 export function summarizeAutopilot(replies: Scored[], firsts: boolean[]) {
   const share = (n: number, of: number) => (of ? Math.round((n / of) * 1000) / 1000 : 0);
@@ -222,6 +273,8 @@ export function summarizeAutopilot(replies: Scored[], firsts: boolean[]) {
     stopsAnswered: replies.filter((s) => s.stopAnswered).length,
     risksMissed: replies.filter((s) => s.riskMissed).length,
     wrongScript: replies.filter((s) => !s.script).length,
+    /** A call booked that wasn't asked for, the wrong time, or a link the model wrote itself: must never happen. */
+    callsWrong: replies.filter((s) => s.meeting === false || s.noLink === false).length,
     firsts: firsts.length,
     first: share(firsts.filter(Boolean).length, firsts.length),
   };
@@ -233,6 +286,7 @@ export function summarizeAutopilot(replies: Scored[], firsts: boolean[]) {
       r.stopsAnswered === 0 &&
       r.risksMissed === 0 &&
       r.wrongScript === 0 &&
+      r.callsWrong === 0 &&
       r.first >= AUTOPILOT_MARKS.first,
   };
 }

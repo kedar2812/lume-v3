@@ -31,9 +31,21 @@ const CALENDAR_SCOPE = [
   "https://www.googleapis.com/auth/calendar.events.owned.readonly",
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 ].join(" ");
+/**
+ * A calendar that LUME may add LUME AI's calls to (spec 2026-11-03), asked only when someone switches it on: the same
+ * read-only pair, and `calendar.app.created`, which lets LUME make one calendar of its own ("LUME calls") and add
+ * events to that calendar only. Google counts it non-sensitive: it can't touch any calendar LUME didn't make.
+ */
+const EVENTS_READ = "https://www.googleapis.com/auth/calendar.events.owned.readonly";
+const CALENDAR_LIST = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+const APP_CALENDARS = "https://www.googleapis.com/auth/calendar.app.created";
+const CALENDAR_WRITE_SCOPE = [EVENTS_READ, CALENDAR_LIST, APP_CALENDARS].join(" ");
 const TEN_MIN = 10 * 60_000;
-/** `k`: "calendar" for a calendar's grant (Phase 5A), "whatsapp" for a WhatsApp number's; absent, a sheet's. */
-type State = { i: string; n: string; exp: number; k?: "calendar" | "whatsapp" };
+/**
+ * `k`: "calendar" for a calendar's grant (Phase 5A), "calendar_write" for one that may add events too, "whatsapp"
+ * for a WhatsApp number's; absent, a sheet's.
+ */
+type State = { i: string; n: string; exp: number; k?: "calendar" | "calendar_write" | "whatsapp" };
 
 /**
  * The relay (2B spec §6): the one place Google calls back to, for every LUME instance. It holds the OAuth
@@ -177,7 +189,7 @@ export function createRelay(o: RelayConfig): Relay {
         if (
           !inst ||
           !n ||
-          (k !== null && k !== "calendar") ||
+          (k !== null && k !== "calendar" && k !== "calendar_write") ||
           !verify(inst.token, k ? `${n}.${k}` : n, u.searchParams.get("s") ?? "")
         )
           return plain(res, 400, "This link isn't valid. Go back to LUME and try again.");
@@ -186,11 +198,16 @@ export function createRelay(o: RelayConfig): Relay {
           client_id: o.clientId,
           redirect_uri: redirectUri,
           response_type: "code",
-          scope: k === "calendar" ? CALENDAR_SCOPE : SCOPE,
+          scope: k === "calendar_write" ? CALENDAR_WRITE_SCOPE : k === "calendar" ? CALENDAR_SCOPE : SCOPE,
           access_type: "offline",
           prompt: "consent",
           include_granted_scopes: "false",
-          state: packState({ i: id, n, exp: now() + TEN_MIN, ...(k === "calendar" ? { k } : {}) }),
+          state: packState({
+            i: id,
+            n,
+            exp: now() + TEN_MIN,
+            ...(k === "calendar" || k === "calendar_write" ? { k } : {}),
+          }),
         }).toString();
         res.writeHead(302, { location: to.toString(), "cache-control": "no-store" });
         return res.end();
@@ -220,10 +237,11 @@ export function createRelay(o: RelayConfig): Relay {
         if (t.status !== 200 || !refreshToken || !accessToken)
           return plain(res, 400, "Google didn't give LUME access. Go back to LUME and try again.");
         // A calendar needs no Picker: its grant goes straight back to the instance's calendar page.
-        if (state.k === "calendar") {
-          // Google lets a person untick either scope; a grant without both would fail at the first sync.
+        if (state.k === "calendar" || state.k === "calendar_write") {
+          // Google lets a person untick any scope; a grant without both reads would fail at the first sync. Unticking
+          // LUME's own calendar still connects, read-only, and the hand-back says so.
           const granted = String(t.data.scope ?? "").split(" ");
-          if (!CALENDAR_SCOPE.split(" ").every((x) => granted.includes(x)))
+          if (!granted.includes(EVENTS_READ) || !granted.includes(CALENDAR_LIST))
             return page(
               res,
               200,
@@ -238,6 +256,7 @@ export function createRelay(o: RelayConfig): Relay {
             nonce: state.n,
             refreshToken,
             kind: "calendar",
+            ...(state.k === "calendar_write" ? { calendarWrite: granted.includes(APP_CALENDARS) } : {}),
             exp: now() + TEN_MIN,
           };
           const sealed = seal(inst.token, handoff);

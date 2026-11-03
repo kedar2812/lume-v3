@@ -99,13 +99,16 @@ const asPerson = async (userId: string, sql: string, params: unknown[] = []) => 
 /** Starts a connect and returns the hand-back the relay would bring home for it. */
 async function handBack(
   c: AuthedClient,
-  o: { kind?: "calendar" | "sheet"; exp?: number; token?: string } = {},
+  o: { kind?: "calendar" | "sheet"; exp?: number; token?: string; write?: boolean } = {},
 ) {
-  const { url } = (await call(c, "POST", "/api/v1/calendar/connect")).json();
+  const { url } = (
+    await call(c, "POST", "/api/v1/calendar/connect", o.write !== undefined ? { addEvents: true } : undefined)
+  ).json();
   const nonce = new URL(url).searchParams.get("n")!;
   const p = seal(RELAY_TOKEN, {
     nonce,
     refreshToken: o.token ?? "rt-good",
+    ...(o.write !== undefined ? { calendarWrite: o.write } : {}),
     ...(o.kind === "sheet" ? { file: { id: "f", name: "F" } } : { kind: "calendar" }),
     exp: o.exp ?? Date.now() + 60_000,
   });
@@ -308,6 +311,75 @@ describe("connecting a calendar (5A Task 3)", () => {
       [me.id],
     );
     expect(after).toEqual({ id: before!.id, failures: 0 });
+  });
+
+  it("letting LUME add calls (spec 2026-11-03): its own link, signed as calendar_write; nothing else changes", async () => {
+    const { url } = (await call(admin, "POST", "/api/v1/calendar/connect", { addEvents: true })).json();
+    const u = new URL(url);
+    expect(u.searchParams.get("k")).toBe("calendar_write");
+    expect(verify(RELAY_TOKEN, `${u.searchParams.get("n")}.calendar_write`, u.searchParams.get("s")!)).toBe(
+      true,
+    );
+    expect(verify(RELAY_TOKEN, `${u.searchParams.get("n")}.calendar`, u.searchParams.get("s")!)).toBe(false);
+    expect((await call(admin, "POST", "/api/v1/calendar/connect", { addEvents: "yes" })).statusCode).toBe(
+      400,
+    );
+  });
+
+  it("the permission to add calls is kept when Google gave it, and goes with a read-only connect", async () => {
+    expect((await call(admin, "GET", "/api/v1/calendar/connection")).json()).toMatchObject({
+      addsEvents: false,
+    });
+    const made = h.fake!.createdCalendars.length;
+    const yes = await call(
+      admin,
+      "POST",
+      "/api/v1/calendar/complete",
+      await handBack(admin, { write: true, token: "rt-write" }),
+    );
+    expect(yes.json()).toMatchObject({ connected: true, addsEvents: true });
+    // LUME made its own calendar in the account, and reads it like the person's own (moves there follow into LUME).
+    expect(h.fake!.createdCalendars.slice(made).map((c) => c.summary)).toEqual(["LUME calls"]);
+    const callsId = h.fake!.createdCalendars.at(-1)!.id;
+    expect(yes.json().calendars).toContainEqual({ id: callsId, name: "LUME calls", chosen: true });
+    // Unticked at Google: connected, read-only, and said so.
+    const unticked = await call(
+      admin,
+      "POST",
+      "/api/v1/calendar/complete",
+      await handBack(admin, { write: false }),
+    );
+    expect(unticked.json()).toMatchObject({ connected: true, addsEvents: false });
+    const again = await call(
+      admin,
+      "POST",
+      "/api/v1/calendar/complete",
+      await handBack(admin, { write: true, token: "rt-write" }),
+    );
+    // Allowed again: the same calendar, never a second one.
+    expect(again.json()).toMatchObject({ addsEvents: true });
+    expect(h.fake!.createdCalendars.length).toBe(made + 1);
+    // Connect again the read-only way: the grant is replaced, so LUME may no longer add events.
+    const plain = await call(admin, "POST", "/api/v1/calendar/complete", await handBack(admin));
+    expect(plain.json()).toMatchObject({ connected: true, addsEvents: false });
+    const audit = await h.queryAll<{ diff: { addsEvents?: boolean } }>(
+      "SELECT diff FROM audit_log WHERE actor_user_id = $1 AND action = 'calendar.reconnected' ORDER BY at",
+      [me.id],
+    );
+    expect(audit.slice(-4).map((a) => a.diff.addsEvents)).toEqual([true, false, true, false]);
+  });
+
+  it("Google won't let LUME make its calendar: nothing changes, and LUME says so", async () => {
+    // The calendar LUME made is gone from the account, so allowing it again makes a new one.
+    h.fake!.removeCalendar(h.fake!.createdCalendars.at(-1)!.id);
+    const before = (await call(admin, "GET", "/api/v1/calendar/connection")).json();
+    // A grant without calendar.app.created, though the hand-back says yes.
+    const r = await call(admin, "POST", "/api/v1/calendar/complete", await handBack(admin, { write: true }));
+    expect(r.json().error).toMatchObject({
+      code: "CALENDAR_CALLS_CALENDAR",
+      message: "Google didn't let LUME make its LUME calls calendar. Try again, and leave every box ticked.",
+    });
+    expect((await call(admin, "GET", "/api/v1/calendar/connection")).json()).toEqual(before);
   });
 
   it("disconnecting leaves no grant and no meetings, and is audited", async () => {

@@ -15,6 +15,7 @@ const conn = (last: LastSync | null): CalendarConnection => ({
   connected: true,
   googleEmail: "maya@example.com",
   status: "active",
+  addsEvents: false,
   calendars: [],
   lastSyncedAt: last?.at ?? null,
   lastSync: last,

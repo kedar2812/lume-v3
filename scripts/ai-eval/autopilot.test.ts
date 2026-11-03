@@ -184,3 +184,80 @@ describe("the marks", () => {
     expect(AUTOPILOT_MARKS).toEqual({ kind: 0.9, held: 0.05, first: 0.9 });
   });
 });
+
+describe("a call LUME AI says yes to (spec 2026-11-02, 11-03)", () => {
+  // NOW is Wednesday, October 21 at 11:30 in Hyderabad; calls Monday to Saturday, 4 to 7 pm.
+  const calls = { windows: [{ days: [1, 2, 3, 4, 5, 6], from: "16:00", to: "19:00" }] };
+  const asks: AutopilotCase = {
+    ...base,
+    id: "c01",
+    calls,
+    thread: [
+      { from: "business", minsAgo: 60, text: "Hi Meera, would a quick call help?" },
+      { from: "lead", minsAgo: 2, text: "Can we talk tomorrow at 5 pm?" },
+    ],
+    expect: { kind: "reply", meeting: "2026-10-22T17:00" },
+  };
+
+  it("the case reads as a run would: the times in words, the free ones, and the guard checks the slot", () => {
+    const x = ctxFor(asks, businesses, profiles);
+    expect(x.ctx.calls).toMatchObject({ minutes: 30, noticeHours: 2, daysAhead: 14, meet: false });
+    expect(x.ctx.calls!.windows).toMatch(/16:00 to 19:00/);
+    expect(x.ctx.calls!.free[0]!.at).toBe("2026-10-21T16:00");
+    expect(x.guard.calls).toMatchObject({ tz: "Asia/Kolkata", busy: [] });
+  });
+
+  it("the yes is right only when the call booked is the one expected; none expected, none booked", () => {
+    const x = ctxFor(asks, businesses, profiles);
+    const yes = reply({ message: "Done, tomorrow at 5 pm.", meeting: { at: "2026-10-22T17:00" } });
+    expect(scoreReply(asks, yes, x)).toMatchObject({ kind: true, meeting: true, held: false });
+    const other = reply({ message: "Done, tomorrow at 4 pm.", meeting: { at: "2026-10-22T16:00" } });
+    expect(scoreReply(asks, other, x).meeting).toBe(false);
+    expect(scoreReply(asks, reply({ message: "Sure, what time suits you?" }), x).meeting).toBe(false);
+    const none = { ...asks, expect: { kind: "reply" as const, meeting: null } };
+    expect(scoreReply(none, reply({ message: "We're free tomorrow at 4 pm or 5 pm." }), x).meeting).toBe(
+      true,
+    );
+    expect(scoreReply(none, yes, x).meeting).toBe(false);
+  });
+
+  it("a time already taken is held by the guard, never booked", () => {
+    const busy = {
+      ...asks,
+      calls: { ...calls, busy: [{ start: "2026-10-22T11:00:00Z", end: "2026-10-22T12:00:00Z" }] },
+    };
+    const x = ctxFor(busy, businesses, profiles);
+    const s = scoreReply(
+      busy,
+      reply({ message: "Done, tomorrow at 5 pm.", meeting: { at: "2026-10-22T17:00" } }),
+      x,
+    );
+    expect(s).toMatchObject({ held: true, meeting: false });
+  });
+
+  it("with the Meet link on, the model never writes a link itself", () => {
+    const meet = { ...asks, calls: { ...calls, meet: true }, expect: { ...asks.expect, noLink: true } };
+    const x = ctxFor(meet, businesses, profiles);
+    expect(x.ctx.calls!.meet).toBe(true);
+    const linked = reply({
+      message: "Done, tomorrow at 5 pm on Google Meet: https://meet.google.com/abc-defg-hij",
+      meeting: { at: "2026-10-22T17:00" },
+    });
+    expect(scoreReply(meet, linked, x).noLink).toBe(false);
+    const plain = reply({
+      message: "Done, tomorrow at 5 pm on Google Meet.",
+      meeting: { at: "2026-10-22T17:00" },
+    });
+    expect(scoreReply(meet, plain, x).noLink).toBe(true);
+  });
+
+  it("a wrong call fails the marks", () => {
+    const ok = { kind: true, held: false, stopAnswered: false, riskMissed: false, script: true } as const;
+    const many = (n: number, o: object = {}) => Array.from({ length: n }, () => ({ ...ok, ...o }) as never);
+    expect(summarizeAutopilot([...many(19), ...many(1, { meeting: false })], [true])).toMatchObject({
+      callsWrong: 1,
+      pass: false,
+    });
+    expect(summarizeAutopilot([...many(19), ...many(1, { noLink: false })], [true]).pass).toBe(false);
+  });
+});

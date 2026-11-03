@@ -28,6 +28,7 @@ const connected = (
   connected: true,
   googleEmail: "maya@brightpath.test",
   status: "active",
+  addsEvents: false,
   calendars: [
     { id: "maya@brightpath.test", name: "Maya Kapoor", chosen: true },
     { id: "sales@group.calendar.google.com", name: "Sales calls", chosen: false },

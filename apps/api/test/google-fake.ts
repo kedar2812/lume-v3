@@ -26,6 +26,8 @@ export type FakeEvent = {
   organizer?: string;
   location?: string;
   link?: string;
+  /** An event LUME added (spec 2026-11-03): its meeting's id, in the event's private properties. */
+  lumeMeeting?: string;
 };
 export type GoogleFake = {
   url: string;
@@ -68,6 +70,12 @@ export type GoogleFake = {
   fail(status: number, count?: number, reason?: string): void;
   /** Every Google call's method and path, in order ("GET /v4/spreadsheets/abc"). */
   calls: string[];
+  /** Every event LUME added, with what it sent. */
+  inserted: { calendarId: string; body: Record<string, unknown>; query: URLSearchParams }[];
+  /** Every calendar the app made (calendar.app.created). */
+  createdCalendars: { id: string; summary: string; timeZone: string }[];
+  /** Every event LUME removed. */
+  removed: { calendarId: string; id: string }[];
   /** The query of the last calendar-list call. */
   lastCalendarListQuery: URLSearchParams | null;
   close(): Promise<void>;
@@ -83,6 +91,8 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const shared = new Set<string>();
   const tokens = new Set<string>();
   const oauthTokens = new Set<string>();
+  /** Access tokens from a grant that may add events (calendar.events.owned). */
+  const writeTokens = new Set<string>();
   let revoked = false;
   const revokedOne = new Set<string>();
   const tokenGrant = new Map<string, string>();
@@ -90,7 +100,14 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   type StoredEvent = FakeEvent & { status: "confirmed" | "cancelled"; updated: number };
   const calendars = new Map<
     string,
-    { name: string; primary: boolean; access: "owner" | "reader"; events: Map<string, StoredEvent> }
+    {
+      name: string;
+      primary: boolean;
+      access: "owner" | "reader";
+      events: Map<string, StoredEvent>;
+      /** Made by the app (calendar.app.created): the only kind its write grant may add events to. */
+      appCreated?: boolean;
+    }
   >();
   let tokensValidFrom = 0;
   let clock = Date.parse("2026-09-27T00:00:00Z");
@@ -170,6 +187,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
         : {}),
       ...(e.location ? { location: e.location } : {}),
       ...(e.link ? { hangoutLink: e.link } : {}),
+      ...(e.lumeMeeting ? { extendedProperties: { private: { lumeMeeting: e.lumeMeeting } } } : {}),
     };
   };
   const calendarRoute = (u: URL, res: http.ServerResponse, viaGrant: boolean) => {
@@ -257,30 +275,41 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       if (grant === "authorization_code" || grant === "refresh_token") {
         // "calendar-list-only": a consent where the person unticked reading events (Google's granular consent).
         const partial = grant === "authorization_code" && form.get("code") === "calendar-list-only";
+        // "calendar-write": a consent to add events (LUME AI's calls) too; its grant is "rt-write".
+        const writes =
+          (grant === "authorization_code" && form.get("code") === "calendar-write") ||
+          (grant === "refresh_token" && /^rt-write/.test(form.get("refresh_token") ?? ""));
         const good =
           grant === "authorization_code"
-            ? form.get("code") === "good-code" || partial
-            : /^rt-(good$|ok-)/.test(form.get("refresh_token") ?? "") &&
+            ? form.get("code") === "good-code" || partial || writes
+            : /^rt-(good$|ok-|write)/.test(form.get("refresh_token") ?? "") &&
               !revoked &&
               !revokedOne.has(form.get("refresh_token")!);
         if (!good) return send(res, 400, { error: "invalid_grant" });
         const token = randomBytes(16).toString("hex");
         tokens.add(token);
         oauthTokens.add(token);
-        tokenGrant.set(token, form.get("refresh_token") ?? "rt-good");
+        tokenGrant.set(token, form.get("refresh_token") ?? (writes ? "rt-write" : "rt-good"));
+        if (writes) writeTokens.add(token);
         return send(res, 200, {
           access_token: token,
           expires_in: 3600,
           token_type: "Bearer",
-          ...(grant === "authorization_code" ? { refresh_token: "rt-good" } : {}),
+          ...(grant === "authorization_code" ? { refresh_token: writes ? "rt-write" : "rt-good" } : {}),
           // What was granted, as Google says it (the fake grants everything LUME asks for, or the list alone).
           scope: partial
             ? "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
-            : [
-                "https://www.googleapis.com/auth/drive.file",
-                "https://www.googleapis.com/auth/calendar.events.owned.readonly",
-                "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-              ].join(" "),
+            : writes
+              ? [
+                  "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+                  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+                  "https://www.googleapis.com/auth/calendar.app.created",
+                ].join(" ")
+              : [
+                  "https://www.googleapis.com/auth/drive.file",
+                  "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+                  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+                ].join(" "),
         });
       }
       const [h, c, sig] = (form.get("assertion") ?? "").split(".");
@@ -317,6 +346,77 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
         failing.status === 429 ? "RESOURCE_EXHAUSTED" : "UNAVAILABLE",
         "fake failure",
       );
+    }
+    // Making a calendar of the app's own (calendar.app.created): it's the account's, the app may write to it.
+    if (u.pathname === "/calendar/v3/calendars" && req.method === "POST") {
+      const tok = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+      if (!writeTokens.has(tok))
+        return googleError(res, 403, "PERMISSION_DENIED", "Request had insufficient authentication scopes.");
+      const b = JSON.parse((await readBody(req)) || "{}") as { summary?: string; timeZone?: string };
+      const id = `lume-calls-${(api.createdCalendars.length + 1).toString()}@group.calendar.google.com`;
+      calendars.set(id, {
+        name: b.summary ?? "",
+        primary: false,
+        access: "owner",
+        events: new Map(),
+        appCreated: true,
+      });
+      api.createdCalendars.push({ id, summary: b.summary ?? "", timeZone: b.timeZone ?? "" });
+      return send(res, 200, { id, summary: b.summary, timeZone: b.timeZone });
+    }
+    // Adding an event (LUME AI's call): only with the write grant, on a calendar the app made; its id is LUME's, so a
+    // second insert of the same one is Google's 409, and reading it back by id finds it.
+    const one = /^\/calendar\/v3\/calendars\/([^/]+)\/events(?:\/([^/]+))?$/.exec(u.pathname);
+    if (one && (req.method === "POST" || ((req.method === "GET" || req.method === "DELETE") && one[2]))) {
+      const calId = decodeURIComponent(one[1]!);
+      const cal = calendars.get(calId);
+      if (!cal) return googleError(res, 404, "NOT_FOUND", "Not Found");
+      if (req.method === "GET") {
+        const e = cal.events.get(decodeURIComponent(one[2]!));
+        return e ? send(res, 200, asGoogle(calId, e)) : googleError(res, 404, "NOT_FOUND", "Not Found");
+      }
+      const tok = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+      if (!writeTokens.has(tok) || !cal.appCreated)
+        return googleError(res, 403, "PERMISSION_DENIED", "Request had insufficient authentication scopes.");
+      // Removing one: Google's 204, and an incremental read then sees it cancelled; one already gone is its 410.
+      if (req.method === "DELETE") {
+        const e = cal.events.get(decodeURIComponent(one[2]!));
+        if (!e) return googleError(res, 404, "NOT_FOUND", "Not Found");
+        if (e.status === "cancelled") return googleError(res, 410, "GONE", "Resource has been deleted");
+        api.removed.push({ calendarId: calId, id: e.id });
+        cal.events.set(e.id, { ...e, status: "cancelled", updated: (clock += 1000) });
+        res.writeHead(204);
+        return res.end();
+      }
+      const b = JSON.parse((await readBody(req)) || "{}") as {
+        id?: string;
+        summary?: string;
+        start?: { dateTime?: string };
+        end?: { dateTime?: string };
+        attendees?: { email: string }[];
+        conferenceData?: { createRequest?: { requestId?: string } };
+        extendedProperties?: { private?: { lumeMeeting?: string } };
+      };
+      if (!b.id || !/^[0-9a-v]{5,1024}$/.test(b.id))
+        return googleError(res, 400, "INVALID_ARGUMENT", "Invalid resource id value.");
+      if (cal.events.has(b.id))
+        return googleError(res, 409, "ALREADY_EXISTS", "The requested identifier already exists.");
+      const meet = !!b.conferenceData?.createRequest && u.searchParams.get("conferenceDataVersion") === "1";
+      api.inserted.push({ calendarId: calId, body: b as Record<string, unknown>, query: u.searchParams });
+      cal.events.set(b.id, {
+        id: b.id,
+        title: b.summary ?? "",
+        start: b.start?.dateTime ?? "",
+        end: b.end?.dateTime ?? "",
+        attendees: (b.attendees ?? []).map((a) => a.email),
+        ...(meet ? { link: `https://meet.google.com/lum-${b.id.slice(4, 8)}-ume` } : {}),
+        ...(b.extendedProperties?.private?.lumeMeeting
+          ? { lumeMeeting: b.extendedProperties.private.lumeMeeting }
+          : {}),
+        status: "confirmed",
+        updated: (clock += 1000),
+      } as StoredEvent);
+      return send(res, 200, asGoogle(calId, cal.events.get(b.id)!));
     }
     if (u.pathname.startsWith("/calendar/v3/")) return calendarRoute(u, res, viaGrant);
     const drive = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname);
@@ -458,6 +558,9 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       tokensValidFrom = clock += 1000;
     },
     calendarPageSize: 250,
+    inserted: [],
+    createdCalendars: [],
+    removed: [],
     lastCalendarListQuery: null,
     fail(status, count = 1, reason) {
       failing = { status, left: count, ...(reason ? { reason } : {}) };

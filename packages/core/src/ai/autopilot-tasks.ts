@@ -66,6 +66,8 @@ export type AutopilotCtx = {
     noticeHours: number;
     daysAhead: number;
     how: string;
+    /** LUME makes a Google Meet link for the call it books, and adds it under the message (spec 2026-11-03). */
+    meet?: boolean;
     /** Free times it may offer or say yes to, on the business's clock ("YYYY-MM-DDTHH:mm"). */
     free: { at: string; label: string }[];
   } | null;
@@ -163,7 +165,13 @@ over even when you would only decline to answer it.
 - Calls: you may say yes to a call of ${c.calls.minutes} minutes on ${c.calls.windows} (the business's time), at least \
 ${c.calls.noticeHours} hours ahead and at most ${c.calls.daysAhead} days ahead. The free times are in callTimes. When the \
 lead agrees to one of them, or proposes a time that is one of them, say yes in your message with its day and time, \
-answer with kind reply, and set meeting.at to that time exactly as given.${c.calls.how ? ` Say how the call happens: ${c.calls.how}` : ""} \
+answer with kind reply, and set meeting.at to that time exactly as given.${
+          c.calls.meet
+            ? " LUME adds the Google Meet link under your message: never write a link, and say the call is on Google Meet."
+            : c.calls.how
+              ? ` Say how the call happens: ${c.calls.how}`
+              : ""
+        } \
 When they propose a time that isn't free, offer up to two of the free times and leave meeting null. Never say a call \
 is booked without setting meeting, and never set meeting to a time that isn't in callTimes.`
       : ` A day or time the lead proposes for the goal step reaches it: a person confirms the slot, so never hand over \

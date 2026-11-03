@@ -2,12 +2,15 @@
 import { profileProblem, type AiProfile, type AiProfilePatch } from "@lume/core/shared";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
+import { startCalendarConnect } from "@/components/calendar/ConnectCalendar";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import { AiRingPanel } from "@/components/ai/AiRingPanel";
 import { useZone } from "@/components/ZoneProvider";
 import { Button } from "@/components/ui/Button";
 import { aiClient } from "@/lib/ai/client";
 import type { AiProfileView, AiStatus } from "@/lib/ai/types";
+import type { CalendarConnection } from "@/lib/calendar/types";
 import { useLeaveGuard } from "../LeaveGuard";
 import sp from "../settings.module.css";
 import { KnowsSection, type KnowsDraft } from "./KnowsSection";
@@ -95,9 +98,12 @@ function Panel({
 export function AiSettings({
   initial,
   status: firstStatus,
+  calendar,
 }: {
   initial: AiProfileView;
   status: AiStatus | null;
+  /** The person's own Google Calendar connection; null where Google Calendar isn't set up or they can't connect one. */
+  calendar?: CalendarConnection | null;
 }) {
   const tz = useZone();
   const [status, setStatus] = useState(firstStatus);
@@ -134,13 +140,19 @@ export function AiSettings({
     setDraft((d) => ({ ...d, [k]: v }));
     setSaid((x) => ({ ...x, [k]: undefined }));
   };
-  const save = async (k: Section) => {
+  const save = async (k: Section): Promise<string | null> => {
     const p = patchOf(k, draft);
-    if ("problem" in p) return setSaid((x) => ({ ...x, [k]: { ok: false, text: p.problem! } }));
+    if ("problem" in p) {
+      setSaid((x) => ({ ...x, [k]: { ok: false, text: p.problem! } }));
+      return p.problem!;
+    }
     setBusy(k);
     const r = await aiClient.saveProfile(p.patch!);
     setBusy(null);
-    if (!r.ok) return setSaid((x) => ({ ...x, [k]: { ok: false, text: r.message } }));
+    if (!r.ok) {
+      setSaid((x) => ({ ...x, [k]: { ok: false, text: r.message } }));
+      return r.message;
+    }
     // What the server kept, for this section only: another section's unsaved edits stay as they are.
     const next =
       k === "knows" ? knowsDraft(r.data.profile, r.data.files, r.data.currency) : r.data.profile[k];
@@ -148,7 +160,26 @@ export function AiSettings({
     setAvailable(r.data.available);
     setDraft((x) => ({ ...x, [k]: next }));
     setSaid((x) => ({ ...x, [k]: { ok: true, text: "Saved" } }));
+    return null;
   };
+  // LUME makes the Meet link (spec 2026-11-03): where Google Calendar is set up for this person. Letting LUME add calls
+  // goes to Google and back, so the standing choices (the switch with them) are saved first, and nothing is lost.
+  const meet = calendar?.available
+    ? {
+        mine: calendar.connected
+          ? { googleEmail: calendar.googleEmail, addsEvents: calendar.addsEvents, status: calendar.status }
+          : null,
+        allow: async () => {
+          if (dirtyOf("standing")) {
+            const why = await save("standing");
+            if (why) return why;
+            // The save's render, now: the leave guard sees nothing unsaved before the browser goes to Google.
+            flushSync(() => {});
+          }
+          return startCalendarConnect({ addEvents: true });
+        },
+      }
+    : undefined;
   const foot = (k: Section, label: string) => (
     <>
       {said[k] && (
@@ -196,6 +227,7 @@ export function AiSettings({
           stages={initial.stages}
           speakers={initial.speakers}
           available={available}
+          {...(meet ? { meet } : {})}
           onChange={(v) => edit("standing", v)}
         />
       </Panel>

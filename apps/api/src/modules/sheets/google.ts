@@ -10,7 +10,7 @@ export type SpreadsheetMeta = { title: string; tabs: SheetTab[] };
  * gone: Google's 410 (a calendar's sync token expired: read it in full again).
  */
 export type GoogleErrorKind =
-  "access" | "not_found" | "rate" | "unavailable" | "bad_request" | "setup" | "gone";
+  "access" | "not_found" | "rate" | "unavailable" | "bad_request" | "setup" | "gone" | "exists";
 
 /** Google's error reasons that mean "slow down", which Drive sends as 403 (not 429). */
 const RATE_REASONS = new Set([
@@ -293,13 +293,15 @@ export function createGoogleSheets(
 
 /**
  * One authorised GET against a Google API, as every LUME client makes it: a 401 refreshes the access token
- * once; Google busy (429, a rate reason, 5xx, the network) is retried 1, 2, 4 s apart; then a GoogleError.
+ * once; Google busy (429, a rate reason, 5xx, the network) is retried 1, 2, 4 s apart; then a GoogleError. A write
+ * (`init`) is retried the same way only because each one LUME makes is idempotent (an event's id is LUME's own).
  */
+export type GoogleWrite = { method: "POST" | "DELETE"; body?: unknown };
 export function googleCaller(o: {
   tokens: TokenSource;
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
-}): <T>(url: string) => Promise<T> {
+}): <T>(url: string, init?: GoogleWrite) => Promise<T> {
   const http = o.fetch ?? fetch;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   let force = false;
@@ -308,17 +310,30 @@ export function googleCaller(o: {
     force = false;
     return t;
   };
-  return async function call<T>(url: string): Promise<T> {
+  return async function call<T>(url: string, init?: GoogleWrite): Promise<T> {
     let refreshed = false;
     for (let attempt = 0; ; attempt++) {
       let res: Response | null = null;
       try {
-        res = await http(url, { headers: { authorization: `Bearer ${await accessToken()}` } });
+        const auth = { authorization: `Bearer ${await accessToken()}` };
+        res = await http(
+          url,
+          init
+            ? {
+                method: init.method,
+                headers: {
+                  ...auth,
+                  ...(init.body !== undefined ? { "content-type": "application/json" } : {}),
+                },
+                ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+              }
+            : { headers: auth },
+        );
       } catch (e) {
         if (e instanceof GoogleError) throw e;
         res = null; // the network failed: treated like a 503
       }
-      if (res?.ok) return (await res.json()) as T;
+      if (res?.ok) return (res.status === 204 ? undefined : await res.json()) as T;
       const status = res?.status ?? 503;
       if (status === 401 && !refreshed) {
         refreshed = true;
@@ -342,6 +357,7 @@ export function googleCaller(o: {
       if (status >= 500) throw new GoogleError("unavailable", message);
       if (status === 404) throw new GoogleError("not_found", message);
       if (status === 410) throw new GoogleError("gone", message);
+      if (status === 409) throw new GoogleError("exists", message);
       if (status === 401 || status === 403) throw new GoogleError("access", message);
       throw new GoogleError("bad_request", message);
     }

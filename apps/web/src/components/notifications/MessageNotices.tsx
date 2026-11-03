@@ -8,7 +8,7 @@ import { timeOf } from "@/lib/dates";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { useWhatsApp, type WhatsAppEvent } from "@/lib/notifications/stream";
 import { whatsappClient } from "@/lib/whatsapp/client";
-import { isChatOpen } from "@/lib/whatsapp/open-chats";
+import { isChatOpen, onChatOpened } from "@/lib/whatsapp/open-chats";
 import s from "./MessageNotices.module.css";
 
 const NOUN = {
@@ -30,7 +30,7 @@ type Notice = { leadId: string; name: string; words: string; at: string; count: 
 /**
  * A notice in the corner for each WhatsApp message a person's own lead sends (2026-11-01, owner): who, what they wrote and
  * when; pressing it opens their chat. One per lead (a second message updates it), at most three, none for a chat already
- * on screen, none when the person switched reply alerts off. Never a phone number. Silent: LUME's sounds are for
+ * on screen (and one already up goes when its chat opens), none when the person switched reply alerts off. Never a phone number. Silent: LUME's sounds are for
  * achievements.
  */
 export function MessageNotices({
@@ -68,6 +68,9 @@ export function MessageNotices({
     const t = timers.current;
     return () => t.forEach(clearTimeout);
   }, []);
+  // Their chat opened another way (the drawer, LUME AI): the notice has nothing left to say, and on a phone it would sit
+  // over the chat's own header.
+  useEffect(() => onChatOpened(dismiss), [dismiss]);
 
   useWhatsApp((e: WhatsAppEvent) => {
     if (e.kind !== "in" || e.owner !== userId || !repliesOn || isChatOpen(e.lead)) return;

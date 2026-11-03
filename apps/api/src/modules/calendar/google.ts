@@ -17,6 +17,18 @@ export type CalendarEventRead = {
   attendees: string[];
   link: string | null;
   location: string | null;
+  /** An event LUME added for one of its own meetings (spec 2026-11-03): that meeting's id; null for anyone else's. */
+  lumeMeeting: string | null;
+};
+
+/** LUME AI's call, as LUME adds it to the speaker's Google Calendar (spec 2026-11-03). */
+export type NewCall = { meetingId: string; title: string; start: Date; end: Date; tz: string };
+/** The event's id at Google: LUME's own, from the meeting's (base32hex allows 0-9 and a-v), so a retry finds it. */
+export const eventIdOf = (meetingId: string) => `lume${meetingId.replace(/-/g, "").toLowerCase()}`;
+/** The meeting an event id LUME made is for; null for any other id. */
+export const meetingOfEventId = (eventId: string): string | null => {
+  const m = /^lume([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/.exec(eventId);
+  return m ? m.slice(1).join("-") : null;
 };
 
 /** Google's 410: the sync token expired; the calendar must be read in full again (spec §2.3). */
@@ -27,9 +39,21 @@ export class SyncTokenGone extends Error {
   }
 }
 
-/** What LUME asks of Google Calendar: read-only, its calendars and their events. */
+/** What LUME asks of Google Calendar: its calendars and their events; and, with that permission, LUME AI's calls. */
 export type GoogleCalendar = {
   calendarList(): Promise<CalendarListEntry[]>;
+  /**
+   * Makes LUME's own calendar in the account (calendar.app.created, spec 2026-11-03): the only calendar LUME may add
+   * events to. It shows in the person's Google Calendar beside their own.
+   */
+  createCalendar(name: string, tz: string): Promise<{ id: string }>;
+  /**
+   * Adds the call, with a new Google Meet link, to LUME's own calendar; asked again for the same call, reads the one
+   * event back.
+   */
+  addCall(calendarId: string, c: NewCall): Promise<{ eventId: string; link: string | null }>;
+  /** Removes an event LUME added; one already gone is fine. */
+  removeEvent(calendarId: string, eventId: string): Promise<void>;
   /** Every event in the window, or every change since the token; with the token to read on from. */
   events(
     calendarId: string,
@@ -51,7 +75,12 @@ type GEvent = {
   attendees?: { email?: string; self?: boolean }[];
   hangoutLink?: string;
   location?: string;
+  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
+  extendedProperties?: { private?: { lumeMeeting?: string } };
 };
+/** The Meet link of an event: Google's hangoutLink, or the video entry point of its conference. */
+const meetLink = (e: GEvent) =>
+  e.hangoutLink ?? e.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video")?.uri ?? null;
 
 const at = (t: GTime | undefined): Date | null => {
   const v = t?.dateTime ?? (t?.date ? `${t.date}T00:00:00Z` : null);
@@ -72,6 +101,8 @@ const read = (e: GEvent): CalendarEventRead => ({
     .filter(Boolean),
   link: e.hangoutLink ?? null,
   location: e.location ?? null,
+  // A cancelled event read incrementally comes as its id and status alone: LUME's own id still says whose it is.
+  lumeMeeting: e.extendedProperties?.private?.lumeMeeting ?? meetingOfEventId(e.id),
 });
 
 export function createGoogleCalendar(o: {
@@ -110,6 +141,54 @@ export function createGoogleCalendar(o: {
         `${base}/users/me/calendarList?maxResults=250&minAccessRole=owner`,
       );
       return items.map((c) => ({ id: c.id, name: c.summary ?? c.id, primary: !!c.primary }));
+    },
+    async createCalendar(name, tz) {
+      const j = await call<{ id: string }>(`${base}/calendars`, {
+        method: "POST",
+        body: {
+          summary: name,
+          timeZone: tz,
+          description: "Calls LUME AI booked for you, with their Meet links.",
+        },
+      });
+      return { id: j.id };
+    },
+    async addCall(calendarId, c) {
+      const eventId = eventIdOf(c.meetingId);
+      const events = `${base}/calendars/${enc(calendarId)}/events`;
+      let e: GEvent;
+      try {
+        // No attendees and no Google invite: the lead gets the link from LUME AI, on WhatsApp.
+        e = await call<GEvent>(`${events}?conferenceDataVersion=1&sendUpdates=none`, {
+          method: "POST",
+          body: {
+            id: eventId,
+            summary: c.title,
+            description: "Booked by LUME AI.",
+            start: { dateTime: c.start.toISOString(), timeZone: c.tz },
+            end: { dateTime: c.end.toISOString(), timeZone: c.tz },
+            conferenceData: {
+              createRequest: { requestId: c.meetingId, conferenceSolutionKey: { type: "hangoutsMeet" } },
+            },
+            extendedProperties: { private: { lumeMeeting: c.meetingId } },
+            reminders: { useDefault: true },
+          },
+        });
+      } catch (err) {
+        if (!(err instanceof GoogleError && err.kind === "exists")) throw err;
+        e = await call<GEvent>(`${events}/${enc(eventId)}`);
+      }
+      return { eventId, link: meetLink(e) };
+    },
+    async removeEvent(calendarId, eventId) {
+      try {
+        await call(`${base}/calendars/${enc(calendarId)}/events/${enc(eventId)}?sendUpdates=none`, {
+          method: "DELETE",
+        });
+      } catch (err) {
+        if (err instanceof GoogleError && (err.kind === "gone" || err.kind === "not_found")) return;
+        throw err;
+      }
     },
     async events(calendarId, from) {
       const q =

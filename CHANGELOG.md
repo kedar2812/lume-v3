@@ -6,6 +6,14 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **LUME makes the Google Meet link** (owner 2026-11-02): with "Google Meet link" switched on in Settings → LUME AI →
+  Calls LUME AI may say yes to, a call LUME AI books also goes into a "LUME calls" calendar in the speaker's Google
+  Calendar, with a new Meet link, and LUME AI's yes carries the link. Only people who switch it on are asked for
+  Google's permission (calendar.app.created: LUME may change only the calendar it made, never the person's own);
+  everyone else's calendar connection stays read-only. Without the permission, or when Google won't, the lead goes to
+  a person and nothing is sent. The lead gets no Google invite; moving or cancelling the call in Google Calendar moves
+  or cancels it in LUME.
+
 - **LUME AI says yes to a call, inside the times you give it** (Settings → LUME AI → Calls LUME AI may say yes to:
   days and from–to, how long a call is, the notice, how far ahead, and how the call happens). When a lead asks for one
   of those times and the speaker is free, LUME AI says yes and the call is booked as its reply goes: a meeting on the

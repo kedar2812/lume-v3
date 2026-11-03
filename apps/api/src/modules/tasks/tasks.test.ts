@@ -203,13 +203,15 @@ describe("done", () => {
       "SELECT coalesce(u.timezone, s.timezone, 'UTC') AS tz FROM settings s LEFT JOIN users u ON u.id = $1 WHERE s.id = 1",
       [repId],
     )) as [{ tz: string }];
-    const { end } = localDayBounds(h.clock.now, tz);
+    // Done reads the real clock (tasks/service.ts doneTask), as the due times here do: the harness's clock is weeks
+    // behind, and a "today" from it disagreed with the API's just after midnight (gate 2026-11-04, 00:20 in Dubai).
+    const { end } = localDayBounds(new Date(), tz);
     const open = await h.queryAll(
       "SELECT 1 FROM tasks WHERE assignee_id = $1 AND status = 'open' AND due_at < $2",
       [repId, end],
     );
     // Cleared today means this one was due today and nothing else of theirs due today is still open: "today" on the
-    // API's clock, in the rep's timezone (a 12-hour guess on the real clock failed late in the evening).
+    // API's clock, in the rep's timezone (a 12-hour guess failed late in the evening).
     expect(d.json().clearedToday).toBe(new Date(soon.dueAt) < end && open.length === 0);
   });
 

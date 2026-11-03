@@ -11,6 +11,8 @@ export type CalendarConnection =
       connected: true;
       googleEmail: string;
       status: "active" | "needs_reconnect";
+      /** LUME may add LUME AI's calls to this calendar, with a Meet link (spec 2026-11-03). */
+      addsEvents: boolean;
       calendars: { id: string; name: string; chosen: boolean }[];
       lastSyncedAt: string | null;
       lastSync: LastSync | null;

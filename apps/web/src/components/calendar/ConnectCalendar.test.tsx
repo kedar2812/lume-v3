@@ -95,6 +95,7 @@ describe("back from Google", () => {
         connected: true as const,
         googleEmail: "maya@example.com",
         status: "active" as const,
+        addsEvents: false,
         calendars: [],
         lastSyncedAt: "2026-10-01T10:00:00.000Z",
         lastSync: { at: "2026-10-01T10:00:00.000Z", added: 3, moved: 0, cancelled: 0, changed: 0 },
