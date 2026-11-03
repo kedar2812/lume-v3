@@ -3,6 +3,7 @@ import {
   DEFAULT_CALL_RULES,
   callTimeLabel,
   callTimeWords,
+  freeCallStarts,
   freeCallTimes,
   slotProblem,
   windowsWords,
@@ -129,5 +130,21 @@ describe("a call time in words", () => {
         ],
       }),
     ).toBe("Monday to Friday 16:00 to 19:00; Saturday 11:00 to 13:00; Monday and Wednesday 09:00 to 10:00");
+  });
+});
+
+describe("every free start (eval 2026-11-04: the guard's times, not just the first of each day)", () => {
+  it("each quarter hour a call fits inside the hours, with notice, within the days ahead, clear of meetings", () => {
+    const busy = [{ start: new Date("2026-11-03T13:00:00Z"), end: new Date("2026-11-03T14:00:00Z") }]; // 17:00-18:00
+    const all = freeCallStarts({ rules, tz: TZ, now, busy }).map((d) => d.toISOString());
+    expect(all).toContain("2026-11-02T12:00:00.000Z"); // today 16:00
+    expect(all).toContain("2026-11-02T13:30:00.000Z"); // today 17:30, not the first of its day
+    expect(all).toContain("2026-11-02T14:30:00.000Z"); // 18:30, ends at 19:00
+    expect(all).not.toContain("2026-11-02T14:45:00.000Z"); // 18:45 would run past 19:00
+    expect(all).not.toContain("2026-11-03T13:00:00.000Z"); // taken
+    expect(all).not.toContain("2026-11-03T12:45:00.000Z"); // runs into the meeting
+    expect(all).toContain("2026-11-03T14:00:00.000Z"); // free as the meeting ends
+    expect(all).not.toContain("2026-11-07T12:00:00.000Z"); // Saturday isn't in the hours
+    expect(all.every((x) => Date.parse(x) <= now.getTime() + 15 * 86_400_000)).toBe(true);
   });
 });

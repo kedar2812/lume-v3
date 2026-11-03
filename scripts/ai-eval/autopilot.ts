@@ -164,6 +164,10 @@ export function ctxFor(c: AutopilotCase, businesses: Businesses, profiles: Profi
         at: callStamp(t, b.timezone),
         label: callTimeLabel(t, b.timezone),
       })),
+      taken: calls.busy.map((x) => ({
+        from: callStamp(x.start, b.timezone),
+        to: callStamp(x.end, b.timezone),
+      })),
     };
   }
   const guard: GuardCtx = {

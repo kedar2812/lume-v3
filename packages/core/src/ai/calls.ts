@@ -92,6 +92,39 @@ export function freeCallTimes(o: Check, max: number): Date[] {
   return out;
 }
 
+/**
+ * Every free start, each quarter hour, across the days ahead (eval 2026-11-04): what the time guard lets LUME AI name.
+ * The first of each day alone (freeCallTimes) made every other free time read as invented.
+ */
+export function freeCallStarts(o: Check): Date[] {
+  const today = wallClock(o.now, o.tz);
+  const out = new Set<number>();
+  for (let k = 0; k <= o.rules.daysAhead; k++) {
+    const day = addLocalDays(today, k);
+    const weekday = new Date(Date.UTC(day.y, day.m - 1, day.d)).getUTCDay();
+    for (const w of o.rules.windows) {
+      if (!w.days.includes(weekday)) continue;
+      for (let m = minuteOf(w.from); m + o.rules.minutes <= minuteOf(w.to); m += 15) {
+        const at = wallMinute(day, m, o.tz);
+        if (slotProblem(at, o) === null) out.add(at.getTime());
+      }
+    }
+  }
+  return [...out].sort((a, b) => a - b).map((t) => new Date(t));
+}
+
+/** The hours' own bounds as people write them ("4pm 4:00pm 16:00 7pm 7:00pm 19:00"): LUME AI may tell a lead them. */
+export function windowBoundWords(r: CallRules): string {
+  const words = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number) as [number, number];
+    const ampm = h < 12 ? "am" : "pm";
+    return [m === 0 ? `${twelve(h)}${ampm}` : "", `${twelve(h)}:${pad(m)}${ampm}`, hhmm, `${h}:${pad(m)}`]
+      .filter(Boolean)
+      .join(" ");
+  };
+  return r.windows.flatMap((w) => [words(w.from), words(w.to)]).join(" ");
+}
+
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const MONTH_NAMES = [
   "january",
@@ -127,6 +160,8 @@ export function callTimeWords(at: Date, tz: string, now: Date): string {
     MONTH_NAMES[c.m - 1],
     c.mm === 0 ? `${twelve(c.hh)}${ampm}` : "",
     `${twelve(c.hh)}:${pad(c.mm)}${ampm}`,
+    // On a 12-hour clock without am or pm ("from 5:00 to 5:30 pm", eval 2026-11-04).
+    `${twelve(c.hh)}:${pad(c.mm)}`,
     `${pad(c.hh)}:${pad(c.mm)}`,
     `${c.hh}:${pad(c.mm)}`,
   ]

@@ -2,8 +2,9 @@ import { z } from "zod";
 import { isStop, offersIn, unbackedAmounts } from "./autopilot";
 import {
   callTimeWords,
-  freeCallTimes,
+  freeCallStarts,
   slotProblem,
+  windowBoundWords,
   type Busy,
   type CallRules,
   type SlotProblem,
@@ -68,8 +69,10 @@ export type AutopilotCtx = {
     how: string;
     /** LUME makes a Google Meet link for the call it books, and adds it under the message (spec 2026-11-03). */
     meet?: boolean;
-    /** Free times it may offer or say yes to, on the business's clock ("YYYY-MM-DDTHH:mm"). */
+    /** The soonest free times to offer, on the business's clock ("YYYY-MM-DDTHH:mm"). */
     free: { at: string; label: string }[];
+    /** The speaker's meetings in the days ahead (eval 2026-11-04): a call never overlaps one. */
+    taken?: { from: string; to: string }[];
   } | null;
 };
 
@@ -150,6 +153,8 @@ export function autopilotInstructions(task: AutopilotTask, c: AutopilotCtx): str
   } Keep messages short, like a WhatsApp message.`;
   const rules = `Rules that always hold:
 - Use only the facts given. Never invent a price, discount, date, time, offer or promise that isn't given.
+- Never repeat an amount the lead names (their budget, or a price they offer): the only amounts in your message are \
+from the price list. Say "a little above your budget", not their number.
 - If the lead says stop, asks not to be messaged, or says they're not interested, in any words, answer with kind stop \
 and no message.
 - If the lead declines for a reason, such as they chose another business or already bought elsewhere, without asking \
@@ -163,17 +168,18 @@ over even when you would only decline to answer it.
     c.calls
       ? `
 - Calls: you may say yes to a call of ${c.calls.minutes} minutes on ${c.calls.windows} (the business's time), at least \
-${c.calls.noticeHours} hours ahead and at most ${c.calls.daysAhead} days ahead. The free times are in callTimes. When the \
-lead agrees to one of them, or proposes a time that is one of them, say yes in your message with its day and time, \
-answer with kind reply, and set meeting.at to that time exactly as given.${
+${c.calls.noticeHours} hours ahead and at most ${c.calls.daysAhead} days ahead, the whole call inside those hours, and \
+never overlapping a time in callsTaken (the speaker's meetings). When the lead proposes or agrees to such a time, say yes \
+in your message with its day and time, answer with kind reply, and set meeting.at to it ("YYYY-MM-DDTHH:mm" on the \
+business's clock). LUME checks it again before anything is sent.${
           c.calls.meet
             ? " LUME adds the Google Meet link under your message: never write a link, and say the call is on Google Meet."
             : c.calls.how
               ? ` Say how the call happens: ${c.calls.how}`
               : ""
         } \
-When they propose a time that isn't free, offer up to two of the free times and leave meeting null. Never say a call \
-is booked without setting meeting, and never set meeting to a time that isn't in callTimes.`
+When they ask when, or propose a time that doesn't fit, offer up to two times from callTimes (the soonest free ones) \
+and leave meeting null. Never say a call is booked without setting meeting.`
       : ` A day or time the lead proposes for the goal step reaches it: a person confirms the slot, so never hand over \
 for want of a calendar. Never say a call or visit is booked: a person confirms it.`
   }
@@ -218,7 +224,7 @@ export function autopilotInput(task: AutopilotTask, c: AutopilotCtx): string {
           stages: c.stages,
           lostReasons: c.lostReasons,
           fillable: c.fillable,
-          ...(c.calls ? { callTimes: c.calls.free } : {}),
+          ...(c.calls ? { callTimes: c.calls.free, callsTaken: c.calls.taken ?? [] } : {}),
         }),
   });
 }
@@ -363,13 +369,23 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
   const callWords = !calls
     ? ""
     : meeting
-      ? callTimeWords(new Date(meeting.at), calls.tz, calls.now)
+      ? // The call booked, from its start to its end ("from 5:00 to 5:30 pm", eval 2026-11-04).
+        [
+          callTimeWords(new Date(meeting.at), calls.tz, calls.now),
+          callTimeWords(new Date(Date.parse(meeting.at) + calls.rules.minutes * 60_000), calls.tz, calls.now),
+        ].join(" ")
       : perms.book_meetings === "never"
         ? ""
-        : freeCallTimes(calls, 6)
-            .map((t) => callTimeWords(t, calls.tz, calls.now))
-            .join(" ");
-  const given = new Set(timesIn(`${g.leadWords}\n${g.businessWords}\n${callWords}`).map(tidyTime));
+        : [
+            ...freeCallStarts(calls).map((t) => callTimeWords(t, calls.tz, calls.now)),
+            windowBoundWords(calls.rules),
+          ].join(" ");
+  // A lead's bare hour ("tonight at 9", eval 2026-11-04) is theirs to hear back with am or pm: that hour only.
+  const bare = [...g.leadWords.matchAll(/\bat\s+(\d{1,2})(?::(\d{2}))?\b(?!\s*(?:am|pm|:))/gi)]
+    .filter((m) => Number(m[1]) >= 1 && Number(m[1]) <= 12)
+    .map((m) => (m[2] ? `${m[1]}:${m[2]}am ${m[1]}:${m[2]}pm` : `${m[1]}am ${m[1]}pm`))
+    .join(" ");
+  const given = new Set(timesIn(`${g.leadWords}\n${g.businessWords}\n${callWords}\n${bare}`).map(tidyTime));
   if (timesIn(message).some((t) => !given.has(tidyTime(t))))
     return handover("LUME AI wanted to offer a time you haven't given it.");
   if (!meeting && saysBooked(message)) return handover("LUME AI said a call was booked, but didn't book it.");

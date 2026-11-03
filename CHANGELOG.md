@@ -6,6 +6,13 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **LUME AI books the time the lead asks for** (real-model eval 2026-11-04, 12 new call cases): it was told only the first
+  free time of each day, so every other free time read as taken and it offered 4 pm instead. Now it may say yes to any
+  time inside your call hours that's free (it's told the speaker's meetings, and LUME checks again before sending),
+  may name your call hours and the call's start and end ("from 5:00 to 5:30 pm"), and may say a lead's own bare hour
+  back ("9 pm", for "tonight at 9"). It never repeats a lead's budget or offered price: the price guard still holds any
+  amount that isn't in your price list. Calls booked wrong: 6 of 12 before, 0 after.
+
 - **LUME makes the Google Meet link** (owner 2026-11-02): with "Google Meet link" switched on in Settings → LUME AI →
   Calls LUME AI may say yes to, a call LUME AI books also goes into a "LUME calls" calendar in the speaker's Google
   Calendar, with a new Meet link, and LUME AI's yes carries the link. Only people who switch it on are asked for

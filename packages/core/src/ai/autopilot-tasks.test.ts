@@ -99,6 +99,23 @@ describe("what LUME AI is asked", () => {
     expect(say).toMatch(/evidence.*at most 300 characters/);
   });
 
+  it("eval 2026-11-04: never the lead's own amount said back (the price guard holds any amount not in the list)", () => {
+    expect(autopilotInstructions("autopilot_reply", ctx())).toContain(
+      "Never repeat an amount the lead names (their budget, or a price they offer)",
+    );
+    // The guard stays as strict: a lead's number agreed to would be a price the business never gave.
+    const offer = "Can you do it for 3,00,000?";
+    expect(
+      guardReply(
+        reply({ message: "Sure, 3,00,000 works for us." }),
+        guard({ lastLeadMessage: offer, leadWords: offer }),
+      ),
+    ).toMatchObject({
+      kind: "handover",
+      reason: "LUME AI wanted to quote a price that isn't in your price list.",
+    });
+  });
+
   it("the instructions carry the business's own words and never offer denying it's AI", () => {
     const say = autopilotInstructions("autopilot_reply", ctx());
     for (const words of [
@@ -390,6 +407,65 @@ describe("a call LUME AI says yes to", () => {
   const yes = (at: string | null, message = "Done, tomorrow at 5 pm. We'll call you on this number.") =>
     reply({ message, meeting: at === null ? null : { at } });
 
+  it("eval 2026-11-04: any free start may be offered, on any day, and the hours themselves may be named", () => {
+    const ask = "When can we talk?";
+    const h = (message: string) =>
+      guardReply(reply({ message }), g({ lastLeadMessage: ask, leadWords: ask }));
+    // 17:30 on Wednesday is free, though not the first free time of its day.
+    expect(h("We can do Wednesday at 5:30 pm, or Thursday at 4 pm. Which suits you?")).toMatchObject({
+      kind: "send",
+    });
+    // The business's own call hours, as LUME AI tells a lead whose time didn't fit.
+    expect(h("Our calls run 4 to 7 pm, Monday to Friday. Could tomorrow at 4 pm work?")).toMatchObject({
+      kind: "send",
+    });
+    // Never a time outside them.
+    expect(h("We can do Wednesday at 8 pm.")).toMatchObject({
+      kind: "handover",
+      reason: "LUME AI wanted to offer a time you haven't given it.",
+    });
+  });
+
+  it("eval 2026-11-04: the call booked may be said from its start to its end, '5:00' as well as '5 pm'", () => {
+    expect(
+      guardReply(
+        yes(
+          "2026-11-03T17:00",
+          "Yes, tomorrow works! We'll call you on this number, Tuesday from 5:00 to 5:30 pm.",
+        ),
+        g(),
+      ),
+    ).toMatchObject({ kind: "send" });
+    // Never another time beside it.
+    expect(
+      guardReply(yes("2026-11-03T17:00", "Done, tomorrow at 5 pm, or 6:15 pm if that's easier."), g()),
+    ).toMatchObject({ kind: "handover" });
+  });
+
+  it("eval 2026-11-04: the lead's own bare hour ('tonight at 9') may be said back with am or pm, and only that hour", () => {
+    const ask = "Can your designer call me tonight at 9?";
+    const h = (message: string) =>
+      guardReply(reply({ message }), g({ lastLeadMessage: ask, leadWords: ask }));
+    expect(
+      h("9 pm is outside our call hours, which are 4 to 7 pm. Could we do tomorrow at 4 pm?"),
+    ).toMatchObject({
+      kind: "send",
+    });
+    expect(h("10 pm is outside our call hours. Could we do tomorrow at 4 pm?")).toMatchObject({
+      kind: "handover",
+    });
+  });
+
+  it("eval 2026-11-04: a time the lead proposes inside the hours is booked, though it isn't among the times to offer", () => {
+    const ask = "Can we talk on Thursday at 6 pm?";
+    expect(
+      guardReply(
+        yes("2026-11-05T18:00", "Done, Thursday at 6 pm. We'll call you on this number."),
+        g({ lastLeadMessage: ask, leadWords: ask }),
+      ),
+    ).toMatchObject({ kind: "send", updates: { meeting: { at: "2026-11-05T14:00:00.000Z" } } });
+  });
+
   it("a free time inside the ones given is booked with the reply", () => {
     expect(guardReply(yes("2026-11-03T17:00"), g())).toMatchObject({
       kind: "send",
@@ -472,9 +548,13 @@ describe("a call LUME AI says yes to", () => {
         daysAhead: 14,
         how: "We'll call you on this number.",
         free: [{ at: "2026-11-02T16:00", label: "November 2, Monday at 4 pm" }],
+        taken: [{ from: "2026-11-03T18:00", to: "2026-11-03T19:00" }],
       },
     });
     const say = autopilotInstructions("autopilot_reply", c);
+    // Eval 2026-11-04: the lead's own time inside the hours is booked; callTimes are only the soonest to offer.
+    expect(say).toContain("callsTaken");
+    expect(say).not.toMatch(/never set meeting to a time that isn't in callTimes/);
     for (const words of [
       "Monday to Friday 16:00 to 19:00",
       "30 minutes",
@@ -487,6 +567,9 @@ describe("a call LUME AI says yes to", () => {
     expect(say).not.toMatch(/never hand over for want of a calendar/);
     expect(JSON.parse(autopilotInput("autopilot_reply", c)).callTimes).toEqual([
       { at: "2026-11-02T16:00", label: "November 2, Monday at 4 pm" },
+    ]);
+    expect(JSON.parse(autopilotInput("autopilot_reply", c)).callsTaken).toEqual([
+      { from: "2026-11-03T18:00", to: "2026-11-03T19:00" },
     ]);
     // No times given: as before, a proposed time is the goal reached for a person to confirm.
     expect(autopilotInstructions("autopilot_reply", ctx())).toMatch(/never hand over for want of a calendar/);

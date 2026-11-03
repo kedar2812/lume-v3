@@ -645,6 +645,8 @@ export async function aiCtx(
       how: rules.how,
       meet,
       free: freeCallTimes(callCheck, 6).map((t) => ({ at: callStamp(t, tz), label: callTimeLabel(t, tz) })),
+      // The speaker's meetings ahead (eval 2026-11-04): LUME AI may say yes to any time inside the hours but these.
+      taken: callCheck.busy.map((b) => ({ from: callStamp(b.start, tz), to: callStamp(b.end, tz) })),
     },
     callCheck,
     leadWords: theirs
