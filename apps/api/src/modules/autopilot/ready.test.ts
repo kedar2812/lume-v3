@@ -177,16 +177,17 @@ describe("Ask me, and Ready for you", () => {
       await (await as(admin)).inject({ method: "GET", url: `/api/v1/autopilot/runs/${run}` })
     ).json().asks;
     expect(asks).toEqual([expect.objectContaining({ leadId: lead, action: "answer_prices" })]);
-    const told = (await bell(admin)).filter((n) => n.kind === "autopilot_ask");
-    expect(told).toEqual(
-      [
-        {
-          kind: "autopilot_ask",
-          title: "LUME AI is waiting for you: Answer price questions for Sneha",
-          leadId: lead,
-        },
-      ].map((x) => expect.objectContaining(x)),
-    );
+    await expect
+      .poll(async () => (await bell(admin)).filter((n) => n.kind === "autopilot_ask"))
+      .toEqual(
+        [
+          {
+            kind: "autopilot_ask",
+            title: "LUME AI is waiting for you: Answer price questions for Sneha",
+            leadId: lead,
+          },
+        ].map((x) => expect.objectContaining(x)),
+      );
     expect((await post(admin, `/api/v1/autopilot/asks/${asks[0].id}/approve`)).statusCode).toBe(200);
     await tick();
     await tick(10 * S);
@@ -226,9 +227,11 @@ describe("Ask me, and Ready for you", () => {
       card: { headline: `Reached ${goalStage.name}`, quote: "Saturday works for the visit" },
     });
     const title = `Sneha: Reached ${goalStage.name}. Want to take over?`;
-    expect((await bell(admin)).map((n) => n.title)).toContain(title);
+    // Told once the run's step commits, on its own connection (ready.ts tellPeople): waited for, not raced (CI
+    // 2026-11-04 read the bell before it landed).
+    await expect.poll(async () => (await bell(admin)).map((n) => n.title)).toContain(title);
     // Hand a lead to a rep is Go ahead in Hands-off: the lead's own rep hears too.
-    expect((await bell(rep)).map((n) => n.title)).toContain(title);
+    await expect.poll(async () => (await bell(rep)).map((n) => n.title)).toContain(title);
   });
 
   it("LUME AI's reason ending in a full stop reads once in the notice, not twice", async () => {
@@ -246,7 +249,9 @@ describe("Ask me, and Ready for you", () => {
       }),
     ]);
     await tick();
-    expect((await bell(admin)).map((n) => n.title)).toContain("Sneha: Agreed to meet. Want to take over?");
+    await expect
+      .poll(async () => (await bell(admin)).map((n) => n.title))
+      .toContain("Sneha: Agreed to meet. Want to take over?");
   });
 
   it("a written goal converts on LUME AI's judgement, with the lead's words as evidence", async () => {
@@ -325,16 +330,18 @@ describe("Ask me, and Ready for you", () => {
       state: "needs_you",
       card: expect.objectContaining({ headline: "LUME AI can't carry on from here" }),
     });
-    expect(
-      (await bell(admin))
-        .map((n) => n.title)
-        .filter((t) => /Agreed to a call|carry on/.test(t))
-        .sort(),
-    ).toEqual([
-      "Sneha needs you: LUME AI can't carry on from here",
-      "Sneha: Agreed to a call. Want to take over?",
-      "Sneha: Agreed to a call. Want to take over?",
-    ]);
+    await expect
+      .poll(async () =>
+        (await bell(admin))
+          .map((n) => n.title)
+          .filter((t) => /Agreed to a call|carry on/.test(t))
+          .sort(),
+      )
+      .toEqual([
+        "Sneha needs you: LUME AI can't carry on from here",
+        "Sneha: Agreed to a call. Want to take over?",
+        "Sneha: Agreed to a call. Want to take over?",
+      ]);
   });
 
   it("carry on with a lead already in the goal stage: LUME AI talks on, Ready again only on a new move into it", async () => {
