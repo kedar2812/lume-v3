@@ -17,6 +17,12 @@ describe("calls LUME AI may say yes to", () => {
   it("none at first: it says a person confirms every call, and offers to add times", async () => {
     render(<Harness />);
     expect(screen.getByRole("heading", { name: "Calls LUME AI may say yes to" })).toBeInTheDocument();
+    // What's new's Show me points here (spec 2026-11-02).
+    expect(
+      screen
+        .getByRole("heading", { name: "Calls LUME AI may say yes to" })
+        .closest('[data-whatsnew="calls"]'),
+    ).not.toBeNull();
     expect(screen.getByText(/With none, a person confirms every call/)).toBeInTheDocument();
     expect(screen.queryByRole("radiogroup", { name: "A call is" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Add times" }));

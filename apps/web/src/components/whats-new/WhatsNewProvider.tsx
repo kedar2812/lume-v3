@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useReducedMotion } from "motion/react";
 import {
   EMPTY_WHATS_NEW,
@@ -22,7 +22,9 @@ import {
 import { useTour } from "@/components/tour/TourProvider";
 import type { WhatsNewPatch } from "@/lib/whats-new/client";
 import type { Session } from "@/server/session";
+import { ShowMe } from "./ShowMe";
 import { WhatsNewWindow } from "./WhatsNewWindow";
+import s from "./whats-new.module.css";
 
 export type WhatsNewClient = { save(patch: WhatsNewPatch): Promise<WhatsNewState | null> };
 
@@ -62,6 +64,7 @@ export function WhatsNewProvider({
   children: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const tour = useTour();
   const reduced = useReducedMotion() ?? false;
   const { version, stories: ids } = session.whatsNew;
@@ -72,6 +75,7 @@ export function WhatsNewProvider({
   );
   const [state, setState] = useState<WhatsNewState>(session.whatsNew.state);
   const [win, setWin] = useState<{ at: number; overture: boolean; key: number } | null>(null);
+  const [spot, setSpot] = useState<Story | null>(null);
   const autoDone = useRef(false);
   const due = session.flags.needsWhatsNew && !!release && stories.length > 0;
 
@@ -107,9 +111,22 @@ export function WhatsNewProvider({
     [release, stories.length],
   );
 
+  /** Show me: LUME opens where the story lives, and the tip points at it there. Opening it counts as used. */
+  const showMe = useCallback(
+    (id: StoryId) => {
+      const story = stories.find((x) => x.id === id);
+      if (!story) return;
+      setWin(null);
+      setSpot(story);
+      router.push(story.place.route);
+      void client.save({ used: id }).then((next) => next && setState(next));
+    },
+    [stories, router, client],
+  );
+
   const api = useMemo<WhatsNewApi>(
-    () => ({ open, showMe: () => undefined, state, release, stories }),
-    [open, state, release, stories],
+    () => ({ open, showMe, state, release, stories }),
+    [open, showMe, state, release, stories],
   );
 
   return (
@@ -124,6 +141,22 @@ export function WhatsNewProvider({
           overture={win.overture && !reduced}
           reduced={reduced}
           onClosed={() => setWin(null)}
+          actions={(story, fold) => (
+            <button type="button" className={s.cta} onClick={() => fold(() => showMe(story.id))}>
+              Show me
+            </button>
+          )}
+        />
+      )}
+      {spot && (
+        <ShowMe
+          key={spot.id}
+          story={spot}
+          onGotIt={() => setSpot(null)}
+          onBack={() => {
+            setSpot(null);
+            setWin({ at: Math.max(0, stories.indexOf(spot)), overture: false, key: Date.now() });
+          }}
         />
       )}
     </WhatsNewContext.Provider>

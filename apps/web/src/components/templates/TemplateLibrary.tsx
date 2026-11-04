@@ -122,7 +122,7 @@ export function TemplateLibrary({
         {canManage && (
           <div className={s.toolbarActions}>
             {ai && (
-              <Button onClick={() => setDrafting(true)}>
+              <Button onClick={() => setDrafting(true)} data-whatsnew="write-with-ai">
                 <AiGlyph size={16} />
                 Write with LUME AI
               </Button>

@@ -94,6 +94,11 @@ describe("Write with LUME AI on the library (owner, 2026-10-31)", () => {
     second.unmount();
     render(<TemplateLibrary initial={TEMPLATES} roles={ROLES} fields={FIELDS} canManage />);
     expect(screen.getByRole("button", { name: "Write with LUME AI" })).toBeInTheDocument();
+    // What's new's Show me points here (spec 2026-11-02).
+    expect(screen.getByRole("button", { name: "Write with LUME AI" })).toHaveAttribute(
+      "data-whatsnew",
+      "write-with-ai",
+    );
   });
 
   it("Use this opens the editor with LUME AI's words, nothing saved until Save", async () => {

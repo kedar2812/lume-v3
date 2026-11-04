@@ -64,7 +64,7 @@ export function CallTimes({
   };
 
   return (
-    <section className={s.block} aria-labelledby="ai-calls" id="ai-calls-block">
+    <section className={s.block} aria-labelledby="ai-calls" id="ai-calls-block" data-whatsnew="calls">
       <h3 id="ai-calls" className={s.blockTitle}>
         Calls LUME AI may say yes to
       </h3>
