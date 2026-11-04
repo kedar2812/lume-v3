@@ -132,7 +132,9 @@ export async function authRoutes(
         // Onboarding itself offers the tour, so the tour is only outstanding on its own afterwards.
         needsTour: !needsOnboarding(onboarding) && needsTour(tour),
         // What's new waits for everything that comes first (spec 2026-11-02).
-        needsWhatsNew: whatsNew.due && !agreementDue && !enrolmentDue && !needsOnboarding(onboarding),
+        // …the tour included, so the two never open together (final review 2026-11-05).
+        needsWhatsNew:
+          whatsNew.due && !agreementDue && !enrolmentDue && !needsOnboarding(onboarding) && !needsTour(tour),
       },
     };
   });

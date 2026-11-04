@@ -94,3 +94,9 @@ export const roleFieldAccess = pgTable(
   },
   (t) => [primaryKey({ columns: [t.roleId, t.fieldId] })],
 );
+
+/** What's new (0104): when this installation first ran each version, so "New" counts from its own update day. */
+export const appReleases = pgTable("app_releases", {
+  version: text("version").primaryKey(),
+  firstRunAt: tz("first_run_at").notNull().defaultNow(),
+});

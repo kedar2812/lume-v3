@@ -1,4 +1,5 @@
 "use client";
+import { pressedWithin } from "@/components/ui/Popover";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -40,7 +41,7 @@ export function MobileTabs({
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const away = (e: PointerEvent) => !pressedWithin(e.target, box.current) && setOpen(false);
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);

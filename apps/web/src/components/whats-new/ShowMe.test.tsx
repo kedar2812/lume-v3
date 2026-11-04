@@ -120,6 +120,26 @@ describe("Show me", () => {
     expect(screen.getByTestId("tour-veil").style.clipPath).toBe("");
   });
 
+  it("follows the control when the page shifts after it's found (a section loading above it)", async () => {
+    const vp = { width: window.innerWidth, height: window.innerHeight };
+    const el = target("calls", { top: 200, left: 300, width: 300, height: 60 });
+    render(<ShowMe story={calls} onGotIt={() => undefined} onBack={() => undefined} />);
+    tick(150);
+    const moved = { top: 320, left: 300, width: 300, height: 60 };
+    el.getBoundingClientRect = () => ({
+      ...moved,
+      bottom: 380,
+      right: 600,
+      x: 300,
+      y: 320,
+      toJSON: () => moved,
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(tip()!.style.top).toBe(`${cardPosition(moved, "bottom", TIP, vp).top}px`);
+  });
+
   it("below the control when there's room, above it when there isn't", () => {
     const vp = { width: window.innerWidth, height: window.innerHeight };
     const low = { top: vp.height - 90, left: 300, width: 300, height: 60 };

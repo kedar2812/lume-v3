@@ -1,4 +1,5 @@
 "use client";
+import { pressedWithin } from "@/components/ui/Popover";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTour } from "@/components/tour/TourProvider";
 import { useWhatsNew } from "@/components/whats-new/WhatsNewProvider";
@@ -24,7 +25,7 @@ export function ProfileMenu({
 
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => !root.current?.contains(e.target as Node) && setOpen(false);
+    const away = (e: PointerEvent) => !pressedWithin(e.target, root.current) && setOpen(false);
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);

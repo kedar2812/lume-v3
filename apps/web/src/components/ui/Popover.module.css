@@ -24,7 +24,8 @@
 /* On <body> (a trigger inside something that clips, like the bulk island): fixed beside it, above the island. */
 .panel[data-portal] {
   position: fixed;
-  z-index: 80;
+  /* Above sheets (81) and the media viewer (85) it may open from; under toasts (90). */
+  z-index: 86;
 }
 /* A small form (a follow-up): as tall as it needs, up to most of the window. */
 .panel[data-size="form"] {

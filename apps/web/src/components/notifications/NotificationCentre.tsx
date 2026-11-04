@@ -1,4 +1,5 @@
 "use client";
+import { pressedWithin } from "@/components/ui/Popover";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -256,7 +257,7 @@ export function NotificationCentre({
     const h = (e: PointerEvent) => {
       const t = e.target as Element | null;
       const root = panel.current;
-      if (!t || !root || root.contains(t)) return;
+      if (!t || !root || pressedWithin(t, root)) return;
       if (t.closest('[aria-haspopup="dialog"][aria-expanded="true"]')) return;
       if (!t.closest("[data-centre-scrim]") && t.closest('[aria-modal="true"], [role="menu"], [data-scrim]'))
         return;

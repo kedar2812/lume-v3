@@ -1,4 +1,5 @@
 "use client";
+import { pressedWithin } from "./Popover";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import s from "./SearchList.module.css";
@@ -85,8 +86,7 @@ export function SearchList({
     };
     measure();
     const away = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (!anchor.current?.contains(t) && !panel.current?.contains(t)) closeRef.current(false);
+      if (!pressedWithin(e.target, anchor.current, panel.current)) closeRef.current(false);
     };
     document.addEventListener("pointerdown", away);
     window.addEventListener("resize", measure);

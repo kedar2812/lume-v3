@@ -21,6 +21,17 @@ const NEW_FOR_MS = 7 * DAY_MS;
 /** The release day's first instant (UTC). */
 export const releaseStart = (r: Release): number => Date.parse(`${r.date}T00:00:00Z`);
 
+/**
+ * Where "New" and "joined after the update" count from on this installation: the later of the release day and the day
+ * it first ran the version (UTC). Every client updates on its own day (final review 2026-11-05).
+ */
+export function startedOn(r: Release, firstRunAt: Date | null): number {
+  const release = releaseStart(r);
+  if (!firstRunAt) return release;
+  const day = Date.parse(`${firstRunAt.toISOString().slice(0, 10)}T00:00:00Z`);
+  return Math.max(release, day);
+}
+
 export function releaseFor(version: string): Release | null {
   return RELEASES.find((r) => r.version === version) ?? null;
 }
@@ -38,17 +49,26 @@ export function windowDue(o: {
   release: Release | null;
   stories: Story[];
   joinedAt: Date;
+  /** startedOn() for this installation; the release day when absent. */
+  since?: number;
 }): boolean {
   if (!o.release || o.stories.length === 0) return false;
   if (o.state.seen === o.release.version) return false;
   // Everything is new to someone who joined on or after the release: onboarding and the tour show them around.
-  return o.joinedAt.getTime() < releaseStart(o.release);
+  return o.joinedAt.getTime() < (o.since ?? releaseStart(o.release));
 }
 
 export const usedKey = (version: string, story: StoryId): string => `${version}:${story}`;
 
 /** "New" beside a story's place: for a week from the release, until it's used. */
-export function isNew(o: { state: WhatsNewState; release: Release; story: StoryId; now: Date }): boolean {
+export function isNew(o: {
+  state: WhatsNewState;
+  release: Release;
+  story: StoryId;
+  now: Date;
+  /** startedOn() for this installation; the release day when absent. */
+  since?: number;
+}): boolean {
   if (o.state.used.includes(usedKey(o.release.version, o.story))) return false;
-  return o.now.getTime() < releaseStart(o.release) + NEW_FOR_MS;
+  return o.now.getTime() < (o.since ?? releaseStart(o.release)) + NEW_FOR_MS;
 }

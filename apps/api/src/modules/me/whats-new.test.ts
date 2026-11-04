@@ -1,11 +1,11 @@
-import { ALL_GRANTS, LEGAL_VERSION, RELEASES } from "@lume/core";
+import { ALL_GRANTS, LEGAL_VERSION, TOUR_VERSION } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "../../../test/harness";
 import { fakeProvider } from "../../ai/fake";
+import { RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 
 /** What's new in LUME (spec 2026-11-02): who is shown which stories, and the state kept per person. */
 const V = "1.2.0";
-const release = RELEASES.find((r) => r.version === V)!;
 let h: Harness;
 
 beforeAll(async () => {
@@ -13,10 +13,14 @@ beforeAll(async () => {
   h = await createHarness({
     version: V,
     ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" },
+    // WhatsApp set up for real: a relay, Meta, and a connected number (the chats story needs all three).
+    oauth: { relayToken: RELAY_TOKEN },
+    meta: { graphUrl: "http://127.0.0.1:9", version: "v21.0" },
   });
   await h.ownerPool.query(
     `UPDATE settings SET integrations = integrations || '{"ai": {"enabled": true}, "whatsapp": {"enabled": true}}'::jsonb WHERE id = 1`,
   );
+  await seedNumber(h, { runAs: (await h.seedUser({ grants: [] })).id });
 });
 afterAll(async () => h.close());
 
@@ -31,8 +35,8 @@ async function person(o: {
   const u = await h.seedUser({ owner: o.owner ?? false, grants: o.grants as never, totp: all });
   await h.ownerPool.query(
     `UPDATE users SET agreed_version = $2, onboarding = '{"completedAt": "2026-10-01T00:00:00Z"}'::jsonb,
-       created_at = $3 WHERE id = $1`,
-    [u.id, LEGAL_VERSION, o.joined ?? "2026-10-01T00:00:00Z"],
+       tour = jsonb_build_object('version', $4::int, 'completedAt', '2026-10-01T00:00:00Z'), created_at = $3 WHERE id = $1`,
+    [u.id, LEGAL_VERSION, o.joined ?? "2026-10-01T00:00:00Z", TOUR_VERSION],
   );
   return { ...u, c: await h.signIn(u) };
 }
@@ -49,6 +53,7 @@ describe("What's new on /auth/me", () => {
       version: V,
       stories: ["calls", "chats", "templates"],
       state: { seen: null, used: [], pillGone: null },
+      since: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     });
     expect(m.flags.needsWhatsNew).toBe(true);
   });
@@ -76,7 +81,8 @@ describe("What's new on /auth/me", () => {
   });
 
   it("someone who joined on or after the release day isn't shown the window, and it's kept as seen", async () => {
-    const n = await person({ grants: ALL_GRANTS, joined: `${release.date}T00:00:00Z` });
+    // On or after the day this installation ran it (here, today), so the release's own day isn't enough by itself.
+    const n = await person({ grants: ALL_GRANTS, joined: new Date().toISOString() });
     expect((await me(n.c)).flags.needsWhatsNew).toBe(false);
     const row = await h.ownerPool.query("SELECT whats_new FROM users WHERE id = $1", [n.id]);
     expect(row.rows[0].whats_new.seen).toBe(V);
@@ -91,6 +97,41 @@ describe("What's new on /auth/me", () => {
       [o.id],
     );
     expect((await me(o.c)).flags.needsWhatsNew).toBe(false);
+  });
+
+  it("waits while the tour is still to run, so the two never open together (final review 2026-11-05)", async () => {
+    const o = await person({ grants: ALL_GRANTS });
+    await h.ownerPool.query(`UPDATE users SET tour = '{}'::jsonb WHERE id = $1`, [o.id]);
+    const m = await me(o.c);
+    expect(m.flags.needsTour).toBe(true);
+    expect(m.flags.needsWhatsNew).toBe(false);
+  });
+
+  it("counts from the day this installation first ran the version: a late update still tells people who joined in between", async () => {
+    // The first /auth/me on this version keeps the day; a client that updates two weeks after the release starts then.
+    const first = await person({ grants: ALL_GRANTS });
+    await me(first.c);
+    const kept = await h.ownerPool.query("SELECT first_run_at FROM app_releases WHERE version = $1", [V]);
+    expect(kept.rows).toHaveLength(1);
+    await h.ownerPool.query(
+      "UPDATE app_releases SET first_run_at = '2026-11-20T09:00:00Z' WHERE version = $1",
+      [V],
+    );
+    const between = await person({ grants: ALL_GRANTS, joined: "2026-11-10T00:00:00Z" });
+    const m = await me(between.c);
+    expect(m.whatsNew.since).toBe("2026-11-20");
+    expect(m.flags.needsWhatsNew).toBe(true);
+    await h.ownerPool.query("UPDATE app_releases SET first_run_at = now() WHERE version = $1", [V]);
+  });
+
+  it("WhatsApp switched on with no number connected: nobody is told their chats are live", async () => {
+    await h.ownerPool.query("DELETE FROM whatsapp_numbers");
+    try {
+      const o = await person({ grants: ALL_GRANTS });
+      expect((await me(o.c)).whatsNew.stories).toEqual(["calls", "templates"]);
+    } finally {
+      await seedNumber(h, { runAs: (await h.seedUser({ grants: [] })).id });
+    }
   });
 
   it("a version that isn't the running one is refused (a tab from before the update)", async () => {

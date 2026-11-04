@@ -63,7 +63,10 @@ export function useStoryAt(): (href: string) => StoryId | undefined {
 /** Never during a task: setup, onboarding, an import being mapped. */
 const BUSY = [/^\/setup(\/|$)/, /^\/onboarding(\/|$)/, /^\/settings\/imports\/./];
 const busyPath = (p: string) => BUSY.some((r) => r.test(p));
-const sheetOpen = () => document.querySelector('[aria-modal="true"]') !== null;
+/** A sheet, or a small form or menu (a half-typed message is never covered up). */
+const sheetOpen = () => document.querySelector('[aria-modal="true"], [data-popover]') !== null;
+/** Tabs of the same browser tell each other the window was shown, so one that was waiting doesn't show it again. */
+const CHANNEL = "lume-whats-new";
 
 /**
  * What's new in LUME (spec 2026-11-02). Once per version per person, at the first page after the update: never over a
@@ -83,6 +86,8 @@ export function WhatsNewProvider({
   const tour = useTour();
   const reduced = useReducedMotion() ?? false;
   const { version, stories: ids } = session.whatsNew;
+  // Where "New" counts from on this installation (every client updates on its own day).
+  const since = session.whatsNew.since ? Date.parse(`${session.whatsNew.since}T00:00:00Z`) : undefined;
   const release = useMemo(() => releaseFor(version), [version]);
   const stories = useMemo(
     () => (release ? release.stories.filter((s) => ids.includes(s.id)) : []),
@@ -99,6 +104,15 @@ export function WhatsNewProvider({
   const due = session.flags.needsWhatsNew && !!release && stories.length > 0;
 
   useEffect(() => {
+    if (typeof BroadcastChannel === "undefined" || !release) return;
+    const ch = new BroadcastChannel(CHANNEL);
+    ch.onmessage = (e: MessageEvent<{ seen?: string }>) => {
+      if (e.data?.seen === release.version) autoDone.current = true;
+    };
+    return () => ch.close();
+  }, [release]);
+
+  useEffect(() => {
     if (!due || autoDone.current || !release) return;
     const tryOpen = () => {
       if (autoDone.current) return true;
@@ -106,6 +120,11 @@ export function WhatsNewProvider({
       autoDone.current = true;
       setWin({ at: 0, overture: true, key: Date.now() });
       void client.save({ seen: release.version }).then((s) => s && setState(s));
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel(CHANNEL);
+        ch.postMessage({ seen: release.version });
+        ch.close();
+      }
       return true;
     };
     if (tryOpen()) return;
@@ -126,10 +145,10 @@ export function WhatsNewProvider({
   useEffect(() => {
     const story = stories.find((x) => pathname === x.place.route || pathname.startsWith(`${x.place.route}/`));
     if (!story || !release) return setHere(null);
-    if (!isNew({ state: stateNow.current, release, story: story.id, now: new Date() })) return;
+    if (!isNew({ state: stateNow.current, release, story: story.id, now: new Date(), since })) return;
     setHere(story.id);
     void client.save({ used: story.id }).then((next) => next && setState(next));
-  }, [pathname, stories, release, client]);
+  }, [pathname, stories, release, client, since]);
 
   const open = useCallback(
     (v?: string) => {
@@ -156,8 +175,8 @@ export function WhatsNewProvider({
     (id: StoryId) =>
       !!release &&
       stories.some((x) => x.id === id) &&
-      (id === here || isNew({ state, release, story: id, now: new Date() })),
-    [release, stories, here, state],
+      (id === here || isNew({ state, release, story: id, now: new Date(), since })),
+    [release, stories, here, state, since],
   );
 
   const hidePill = useCallback(() => {

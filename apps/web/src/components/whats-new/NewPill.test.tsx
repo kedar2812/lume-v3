@@ -65,6 +65,29 @@ describe("New, beside what's new", () => {
     expect(pill()).toBe("");
   });
 
+  it("an installation that updated late still gets its own week (final review 2026-11-05)", () => {
+    vi.setSystemTime(new Date("2026-11-24T10:00:00Z"));
+    pills(
+      "chats",
+      fakeSession({
+        whatsNew: {
+          version: "1.2.0",
+          stories: ["chats"],
+          state: { ...EMPTY_WHATS_NEW, seen: "1.2.0" },
+          since: "2026-11-20",
+        },
+        flags: {
+          needsAgreement: false,
+          needsOnboarding: false,
+          needsTwoFactorEnrolment: false,
+          needsTour: false,
+          needsWhatsNew: false,
+        },
+      }),
+    );
+    expect(pill()).toBe("New");
+  });
+
   it("not once used", () => {
     pills("chats", sessionWith(["chats"], { ...EMPTY_WHATS_NEW, seen: "1.2.0", used: ["1.2.0:chats"] }));
     expect(pill()).toBe("");

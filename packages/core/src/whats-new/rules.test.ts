@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RELEASES, type Release } from "./releases";
-import { EMPTY_WHATS_NEW, isNew, releaseFor, storiesFor, windowDue } from "./rules";
+import { EMPTY_WHATS_NEW, isNew, releaseFor, startedOn, storiesFor, windowDue } from "./rules";
 
 const all = { can: () => true, on: { ai: true, whatsapp: true } };
 const r = RELEASES[0] as Release;
@@ -96,5 +96,38 @@ describe("isNew", () => {
     const state = { ...EMPTY_WHATS_NEW, used: ["1.2.0:calls"] };
     expect(isNew({ state, release: r, story: "calls", now: new Date(start + DAY) })).toBe(false);
     expect(isNew({ state, release: r, story: "chats", now: new Date(start + DAY) })).toBe(true);
+  });
+});
+
+/**
+ * Every client updates on its own day (final review 2026-11-05): an installation that first runs 1.2.0 two weeks after
+ * the release still gets its week of "New", and its people who joined in between (still on 1.1.0) still get the window.
+ */
+describe("counted from the day this installation first ran the version", () => {
+  const late = new Date(Date.parse(`${r.date}T00:00:00Z`) + 16 * DAY + 5 * 3_600_000);
+  const since = startedOn(r, late);
+  it("startedOn is the later of the release day and that day, at its start", () => {
+    expect(new Date(since).toISOString()).toBe(
+      new Date(Date.parse(`${r.date}T00:00:00Z`) + 16 * DAY).toISOString(),
+    );
+    expect(startedOn(r, null)).toBe(Date.parse(`${r.date}T00:00:00Z`));
+    expect(startedOn(r, new Date(Date.parse(`${r.date}T00:00:00Z`) - DAY))).toBe(
+      Date.parse(`${r.date}T00:00:00Z`),
+    );
+  });
+  it("New lasts a week from then", () => {
+    expect(
+      isNew({ state: EMPTY_WHATS_NEW, release: r, story: "calls", now: new Date(since + 6 * DAY), since }),
+    ).toBe(true);
+    expect(
+      isNew({ state: EMPTY_WHATS_NEW, release: r, story: "calls", now: new Date(since + 7 * DAY), since }),
+    ).toBe(false);
+  });
+  it("someone who joined after the release day but before this installation ran it still gets the window", () => {
+    const joinedAt = new Date(Date.parse(`${r.date}T00:00:00Z`) + 5 * DAY);
+    expect(windowDue({ state: EMPTY_WHATS_NEW, release: r, stories: r.stories, joinedAt, since })).toBe(true);
+    expect(
+      windowDue({ state: EMPTY_WHATS_NEW, release: r, stories: r.stories, joinedAt: new Date(since), since }),
+    ).toBe(false);
   });
 });

@@ -98,6 +98,40 @@ describe("What's new: the window", () => {
     expect(win()).toBeInTheDocument();
   });
 
+  it("waits while a small form or menu is open too (a half-typed message is never lost)", async () => {
+    const form = document.createElement("div");
+    form.setAttribute("data-popover", "");
+    document.body.appendChild(form);
+    mount();
+    expect(win()).not.toBeInTheDocument();
+    await act(async () => {
+      form.remove();
+    });
+    expect(win()).toBeInTheDocument();
+  });
+
+  it("a tab that was waiting doesn't open it once another tab has shown it", async () => {
+    vi.useRealTimers();
+    const sheet = document.createElement("div");
+    sheet.setAttribute("aria-modal", "true");
+    document.body.appendChild(sheet);
+    const other = new BroadcastChannel("lume-whats-new");
+    try {
+      mount();
+      other.postMessage({ seen: "1.2.0" });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      await act(async () => {
+        sheet.remove();
+      });
+      expect(win()).not.toBeInTheDocument();
+    } finally {
+      sheet.remove();
+      other.close();
+    }
+  });
+
   it("never opens in the middle of setup, onboarding or an import", () => {
     for (const p of ["/onboarding", "/setup", "/settings/imports/abc"]) {
       path = p;

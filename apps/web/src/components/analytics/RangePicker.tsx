@@ -1,4 +1,5 @@
 "use client";
+import { pressedWithin } from "@/components/ui/Popover";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Switch } from "@/components/ui/Switch";
@@ -53,7 +54,7 @@ export function RangePicker({
     if (!open) return;
     setMonth(to);
     setStart(null);
-    const away = (e: PointerEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
+    const away = (e: PointerEvent) => !pressedWithin(e.target, wrap.current) && setOpen(false);
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setOpen(false);

@@ -30,6 +30,8 @@ const WITHOUT_RLS: Record<string, string> = {
   lead_sources: "Business configuration",
   goals: "Business configuration",
   ai_profile: "Business configuration",
+  // What's new (0104): which versions this installation has run, and since when. No lead data.
+  app_releases: "Business configuration",
   // Autopilot runs (A2): no lead data (a goal, choices, a status); each route checks who may see or change one. Its
   // leads, asks and events are row-level secured by the lead.
   autopilot_runs: "Business configuration",

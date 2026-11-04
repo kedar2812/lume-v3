@@ -45,11 +45,17 @@ export function ShowMe({
     let el: HTMLElement | null = null;
     let waited = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let watch: ReturnType<typeof setInterval> | undefined;
+    let last = "";
     const measure = () => {
       if (!el) return;
       const r = el.getBoundingClientRect();
+      const vp = viewport();
+      const key = `${r.top}|${r.left}|${r.width}|${r.height}|${vp.width}|${vp.height}`;
+      if (key === last) return;
+      last = key;
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-      setVp(viewport());
+      setVp(vp);
     };
     const look = () => {
       const found = findTarget(story.place.target);
@@ -58,6 +64,8 @@ export function ShowMe({
         el.scrollIntoView?.({ block: "center", inline: "nearest" });
         measure();
         setPhase("found");
+        // The page may still be settling (a section loading above the control): the ring follows it.
+        watch = setInterval(measure, POLL_MS);
         return;
       }
       waited += POLL_MS;
@@ -73,6 +81,7 @@ export function ShowMe({
     window.addEventListener("scroll", measure, { passive: true, capture: true });
     return () => {
       clearTimeout(timer);
+      clearInterval(watch);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, { capture: true });
     };

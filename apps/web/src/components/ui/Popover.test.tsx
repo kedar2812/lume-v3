@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Popover } from "./Popover";
+import { Popover, pressedWithin } from "./Popover";
 
 /** Puts the trigger at a height in a 800px-tall window. */
 function triggerAt(top: number, bottom: number) {
@@ -55,6 +55,33 @@ describe("Popover placement (4C)", () => {
     const panel = await open("below");
     expect(panel).toHaveAttribute("data-side", "below");
     expect(panel.style.maxHeight).toContain("160px");
+  });
+  it("inline on the page's scroller, its room ends where the scroller ends, not the window (Analytics' Filters)", async () => {
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    const box = (top: number, bottom: number) => ({
+      top,
+      bottom,
+      left: 0,
+      right: 100,
+      width: 100,
+      height: bottom - top,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute("data-scroll") ? box(60, 700) : box(300, 332);
+    });
+    render(
+      <div data-scroll style={{ overflowY: "auto" }}>
+        <Popover label="Panel" trigger="Open" size="form">
+          <p>Inside</p>
+        </Popover>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    // 700 (the scroller's foot) - 332 - 12.
+    expect(screen.getByRole("dialog", { name: "Panel" }).style.maxHeight).toContain("356px");
   });
   it("turns over when it doesn't fit below and there's more room above (owner, 2026-11-04: off the foot of a phone)", async () => {
     triggerAt(700, 732);
@@ -175,6 +202,36 @@ describe("Popover on <body> (tour, 2026-10-11)", () => {
     expect(panel.style.position).toBe("fixed");
   });
 
+  it("inside a dialog (a chat window, a lead's drawer) it goes into that dialog, so a screen reader in it still reaches it", async () => {
+    render(
+      <div role="dialog" aria-modal="true" aria-label="WhatsApp with Meera" style={{ overflow: "hidden" }}>
+        <form aria-label="Reply" style={{ overflowY: "auto" }}>
+          <Popover label="Attach" trigger="Add" role="menu">
+            <button type="button" role="menuitem">
+              From Media
+            </button>
+          </Popover>
+        </form>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    const panel = screen.getByRole("menu", { name: "Attach" });
+    expect(panel.parentElement).toBe(screen.getByRole("dialog", { name: "WhatsApp with Meera" }));
+    expect(panel.style.position).toBe("fixed");
+  });
+
+  it("a dialog that moves its fixed children with it (a transform) can't hold it: it goes on <body>", async () => {
+    render(
+      <div role="dialog" aria-label="Sliding" style={{ overflow: "hidden", transform: "translateX(0px)" }}>
+        <Popover label="Attach" trigger="Add">
+          <p>Inside</p>
+        </Popover>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByRole("dialog", { name: "Attach" }).parentElement).toBe(document.body);
+  });
+
   it("stays beside its trigger on the page's own scroller, which scrolls it into view", async () => {
     render(
       <div data-testid="page" data-scroll style={{ overflowY: "auto" }}>
@@ -182,6 +239,20 @@ describe("Popover on <body> (tour, 2026-10-11)", () => {
           <p>Inside</p>
         </Popover>
       </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Stage" }));
+    expect(screen.getByTestId("page")).toContainElement(screen.getByRole("dialog", { name: "Filter" }));
+  });
+
+  it("stays inline on the page's scroller even though the shell around it clips (the real app's .main)", async () => {
+    render(
+      <main style={{ overflow: "hidden" }}>
+        <div data-testid="page" data-scroll style={{ overflowY: "auto" }}>
+          <Popover label="Filter" trigger="Stage">
+            <p>Inside</p>
+          </Popover>
+        </div>
+      </main>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Stage" }));
     expect(screen.getByTestId("page")).toContainElement(screen.getByRole("dialog", { name: "Filter" }));
@@ -233,6 +304,92 @@ describe("Popover on <body> (tour, 2026-10-11)", () => {
       await new Promise((r) => requestAnimationFrame(() => r(null)));
     });
     expect(panel.style.top).toBe("246px");
+  });
+
+  it("on <body>, a panel that grows after opening (its list loads) turns over when it no longer fits below", async () => {
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      top: 560,
+      bottom: 590,
+      left: 100,
+      right: 200,
+      width: 100,
+      height: 30,
+      x: 100,
+      y: 560,
+      toJSON: () => ({}),
+    });
+    let tall = 120;
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(() => tall);
+    render(
+      <div style={{ overflow: "hidden" }}>
+        <Popover label="Save view" trigger="Save view" size="form">
+          <p>Name</p>
+        </Popover>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save view" }));
+    const panel = screen.getByRole("dialog", { name: "Save view" });
+    expect(panel).toHaveAttribute("data-side", "below");
+    tall = 260;
+    await act(async () => {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+    });
+    expect(panel).toHaveAttribute("data-side", "above");
+  });
+
+  it("a panel opened from inside another stays its own: pressing in it never closes the one it came from", async () => {
+    render(
+      <div style={{ overflow: "hidden" }}>
+        <Popover label="Outer" trigger="Filters" size="form">
+          <div style={{ overflow: "hidden" }}>
+            <Popover label="Inner" trigger="Stage">
+              <button type="button">New</button>
+            </Popover>
+          </div>
+        </Popover>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Stage" }));
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    expect(screen.getByRole("dialog", { name: "Outer" })).toBeInTheDocument();
+  });
+
+  it("pressedWithin: a press in a panel whose trigger is inside a box counts as inside it (the notification centre)", async () => {
+    render(
+      <>
+        <div data-testid="centre" style={{ overflow: "hidden" }}>
+          <Popover label="WhatsApp Arjun" trigger="WhatsApp">
+            <button type="button">First hello</button>
+          </Popover>
+        </div>
+        <button type="button">Elsewhere</button>
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "WhatsApp" }));
+    const centre = screen.getByTestId("centre");
+    expect(pressedWithin(screen.getByRole("button", { name: "First hello" }), centre)).toBe(true);
+    expect(pressedWithin(screen.getByRole("button", { name: "Elsewhere" }), centre)).toBe(false);
+  });
+
+  it("moved out of its trigger's box, Tab past its last control closes it and goes back to the trigger", async () => {
+    render(
+      <div style={{ overflow: "hidden" }}>
+        <Popover label="Templates" trigger="WhatsApp">
+          <button type="button">First hello</button>
+          <button type="button">Thanks</button>
+        </Popover>
+      </div>,
+    );
+    const trigger = screen.getByRole("button", { name: "WhatsApp" });
+    await userEvent.click(trigger);
+    screen.getByRole("button", { name: "Thanks" }).focus();
+    await userEvent.tab();
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Templates" })).not.toBeInTheDocument(),
+    );
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("stays open when something inside it is clicked, and closes on a click outside", async () => {

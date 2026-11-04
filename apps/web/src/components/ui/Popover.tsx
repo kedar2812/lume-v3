@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { BodyPortal } from "./BodyPortal";
+import { FOCUSABLE } from "./useModalFocus";
 import s from "./Popover.module.css";
 
 type Props = {
@@ -52,11 +54,58 @@ function clipOf(el: HTMLElement): { left: number; right: number } {
  */
 function insideClip(el: HTMLElement): boolean {
   for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
-    if (a.hasAttribute("data-scroll")) continue;
+    // The page's own scroller: it scrolls the panel into view, and the shell around it is the window's own frame.
+    if (a.hasAttribute("data-scroll")) return false;
     const cs = getComputedStyle(a);
     if ([cs.overflow, cs.overflowX, cs.overflowY].some((o) => o !== "visible" && o !== "")) return true;
   }
   return false;
+}
+
+/**
+ * Whether a press landed inside any of `boxes`, counting the panels opened from inside them: a panel that left its
+ * trigger's box (on <body>, or in the dialog) still belongs to the box its trigger is in, and to that box's owner in
+ * turn (a menu opened from a panel opened from the notification centre). Every "a press outside closes it" uses this.
+ */
+export function pressedWithin(target: EventTarget | null, ...boxes: (Element | null | undefined)[]): boolean {
+  let at = target instanceof Element ? target : null;
+  for (let hops = 0; at && hops < 10; hops++) {
+    if (boxes.some((b) => b?.contains(at))) return true;
+    const panel = at.closest<HTMLElement>("[data-popover]");
+    if (!panel?.id) return false;
+    at = document.querySelector(`[aria-controls="${panel.id.replace(/["\\]/g, "\\$&")}"]`);
+  }
+  return false;
+}
+
+/** Whether `el` makes itself the box its fixed children are placed in (and clipped by): a transform, a filter, … */
+function holdsFixed(el: HTMLElement): boolean {
+  const cs = getComputedStyle(el) as CSSStyleDeclaration & Record<string, string>;
+  const set = (v: string | undefined) => !!v && v !== "none" && v !== "normal" && v !== "auto";
+  return (
+    set(cs.transform) ||
+    set(cs.translate) ||
+    set(cs.scale) ||
+    set(cs.rotate) ||
+    set(cs.filter) ||
+    set(cs.backdropFilter) ||
+    set(cs.perspective) ||
+    /paint|layout|strict|content/.test(cs.contain ?? "") ||
+    /transform|filter|perspective/.test(cs.willChange ?? "")
+  );
+}
+
+/**
+ * Where a panel that leaves its trigger's box goes: into the dialog the trigger is in (a chat window, a lead's drawer),
+ * so a screen reader inside that dialog still reaches it; <body> otherwise, or when that dialog (or anything around it)
+ * would hold a fixed panel inside itself and clip it.
+ */
+function hostFor(el: HTMLElement): HTMLElement | null {
+  const dialog = el.closest<HTMLElement>('[role="dialog"]');
+  if (!dialog) return null;
+  for (let a: HTMLElement | null = dialog; a && a !== document.body; a = a.parentElement)
+    if (holdsFixed(a)) return null;
+  return dialog;
 }
 
 /** A panel on <body>, fixed beside its trigger's box on the chosen side and edge (6px off, as inline). */
@@ -98,6 +147,8 @@ export function Popover({
   const [open, setOpenNow] = useState(false);
   // On <body>: asked for, or because the trigger sits inside something that clips (decided as it opens).
   const [clipped, setClipped] = useState(false);
+  // The dialog it goes into instead of <body> (decided with `clipped`).
+  const [host, setHost] = useState<HTMLElement | null>(null);
   const onBody = portal || clipped;
   // Closing plays a short exit (Popover.module.css), then the panel goes.
   const [closing, setClosing] = useState(false);
@@ -141,15 +192,20 @@ export function Popover({
   // Measured as it opens, before it paints: which side, how tall it may be there, and which edge it lines up
   // with — a panel that would run past the edge of what clips it (a drawer, the window) lines up with the
   // other edge of its trigger instead, so nothing scrolls sideways to show it.
-  useLayoutEffect(() => {
-    if (!open) return setPlace(null);
+  const measure = useCallback(() => {
     const r = root.current?.getBoundingClientRect();
     if (!r) return;
-    const below = window.innerHeight - r.bottom - 12;
-    const above = r.top - 12;
+    // Inline, the panel is seen only inside the box that scrolls it (the page's scroller): its room ends there.
+    const frame = onBody
+      ? null
+      : root.current?.closest<HTMLElement>("[data-scroll]")?.getBoundingClientRect();
+    const floor = Math.min(window.innerHeight, frame?.bottom ?? Infinity);
+    const ceiling = Math.max(0, frame?.top ?? 0);
+    const below = floor - r.bottom - 12;
+    const above = r.top - ceiling - 12;
     // A side that's asked for is kept while the panel fits there; one that doesn't fit turns over to the side with
-    // more room (owner, 2026-11-04: a menu ran off the foot of a phone).
-    const need = panel.current?.offsetHeight ?? 0;
+    // more room (owner, 2026-11-04: a menu ran off the foot of a phone). Its whole height, not the part shown.
+    const need = Math.max(panel.current?.offsetHeight ?? 0, panel.current?.scrollHeight ?? 0);
     const chosen =
       side === "auto"
         ? below < 420 && above > below
@@ -178,30 +234,38 @@ export function Popover({
       nudge: width ? Math.round(nudge) : 0,
       ...(onBody ? { at: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } } : {}),
     });
-  }, [open, side, align, onBody]);
+  }, [side, align, onBody]);
 
-  // On <body> the panel is fixed: it follows its trigger as anything scrolls or the window changes size.
+  useLayoutEffect(() => {
+    if (!open) return setPlace(null);
+    measure();
+  }, [open, measure]);
+
+  // On <body> the panel is fixed, so it's placed again whenever its trigger moves (a scroll, the page settling as data
+  // loads, the window resizing) or the panel itself grows (its list arrives): never left behind, never off the window.
   useEffect(() => {
     if (!open || !onBody) return;
+    const key = () => {
+      const r = root.current?.getBoundingClientRect();
+      const p = panel.current;
+      return r
+        ? `${r.top}|${r.bottom}|${r.left}|${r.right}|${p?.scrollHeight ?? 0}|${p?.offsetWidth ?? 0}`
+        : "";
+    };
+    // As placed when it opened; any change from here on places it again.
+    let last = key();
     let frame = 0;
-    const follow = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const r = root.current?.getBoundingClientRect();
-        if (!r) return;
-        setPlace((p) =>
-          p ? { ...p, at: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } } : p,
-        );
-      });
+    const look = () => {
+      const now = key();
+      if (now !== last) {
+        last = now;
+        measure();
+      }
+      frame = requestAnimationFrame(look);
     };
-    window.addEventListener("scroll", follow, { passive: true, capture: true });
-    window.addEventListener("resize", follow, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", follow, { capture: true });
-      window.removeEventListener("resize", follow);
-    };
-  }, [open, onBody]);
+    frame = requestAnimationFrame(look);
+    return () => cancelAnimationFrame(frame);
+  }, [open, onBody, measure]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -211,8 +275,7 @@ export function Popover({
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (!root.current?.contains(t) && !panel.current?.contains(t)) setOpen(false);
+      if (!pressedWithin(e.target, root.current, panel.current)) setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -237,7 +300,21 @@ export function Popover({
       role={role}
       aria-label={label}
       className={s.panel}
+      data-popover
       data-closing={closing || undefined}
+      onKeyDown={(e) => {
+        // Moved out of its trigger's box, the panel isn't next to it in the page's order: Tab past either end goes
+        // back to the trigger (and closes it) rather than off to the end of the document.
+        if (e.key !== "Tab" || !onBody || !panel.current) return;
+        const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+          (el) => !el.closest("[inert]"),
+        );
+        const edge = e.shiftKey ? items[0] : items.at(-1);
+        if (!items.length || document.activeElement === edge) {
+          e.preventDefault();
+          close();
+        }
+      }}
       onAnimationEnd={(e) => {
         if (closing && e.target === e.currentTarget) gone();
       }}
@@ -272,13 +349,16 @@ export function Popover({
         data-active={active || undefined}
         disabled={disabled}
         onClick={() => {
-          if (!shown.current.open && root.current) setClipped(insideClip(root.current));
+          if (!shown.current.open && root.current) {
+            setClipped(insideClip(root.current));
+            setHost(hostFor(root.current));
+          }
           setOpen((v) => !v);
         }}
       >
         {trigger}
       </button>
-      {open && (onBody ? <BodyPortal>{panelEl}</BodyPortal> : panelEl)}
+      {open && (onBody ? host ? createPortal(panelEl, host) : <BodyPortal>{panelEl}</BodyPortal> : panelEl)}
     </div>
   );
 }

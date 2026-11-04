@@ -186,3 +186,22 @@ export async function whatsappSwitch(on: boolean): Promise<boolean> {
     return was.rows[0]?.on ?? false;
   });
 }
+
+/**
+ * A WhatsApp number connected for What's new's own run (its chats story needs one; whatsapp.spec connects its own later
+ * and must find none of ours). Returns a function that takes it away again.
+ */
+export async function whatsNewNumber(ownerEmail: string): Promise<() => Promise<void>> {
+  const id = "0190e0c0-0000-7000-8000-00000000f00d";
+  await asSuperuser((c) =>
+    c.query(
+      `INSERT INTO whatsapp_numbers (id, phone_number_id, waba_id, display_phone, owner_user_id, run_as, status, token_enc)
+       SELECT $1, '999000111222333', '102290129340398', '+91 90000 00009', NULL, id, 'needs_attention', decode('00', 'hex')
+       FROM users WHERE email = $2
+       ON CONFLICT (id) DO NOTHING`,
+      [id, ownerEmail],
+    ),
+  );
+  return () =>
+    asSuperuser(async (c) => void (await c.query("DELETE FROM whatsapp_numbers WHERE id = $1", [id])));
+}

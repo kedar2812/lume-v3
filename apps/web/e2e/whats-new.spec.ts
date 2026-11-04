@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { PEOPLE, callApi, expect, openApp, stateFile, test } from "./fixtures";
-import { whatsNewDue, whatsappSwitch } from "./db";
+import { whatsNewDue, whatsNewNumber, whatsappSwitch } from "./db";
 import { WIDTHS, cutText, spills } from "./spills";
 
 /**
@@ -11,6 +11,7 @@ test.use({ storageState: stateFile("owner") });
 
 const win = (page: Page) => page.getByRole("dialog", { name: "What's new in 1.2.0" });
 let whatsappWas = false;
+let dropNumber: (() => Promise<void>) | null = null;
 
 /** LUME AI and WhatsApp on (the three stories need them), What's new due for the owner, then Today. */
 async function due(page: Page) {
@@ -18,6 +19,8 @@ async function due(page: Page) {
   const ai = await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: true });
   expect(ai.status, JSON.stringify(ai.data)).toBe(200);
   whatsappWas = await whatsappSwitch(true);
+  // The chats story needs a number really connected, not only the switch.
+  dropNumber ??= await whatsNewNumber(PEOPLE.owner.email);
   await whatsNewDue(PEOPLE.owner.email);
 }
 
@@ -26,6 +29,7 @@ test.afterAll(async ({ browser }) => {
   await openApp(page, "/settings/about");
   await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: false });
   await whatsappSwitch(whatsappWas);
+  await dropNumber?.();
   await page.close();
 });
 

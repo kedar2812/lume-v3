@@ -1,4 +1,5 @@
 "use client";
+import { pressedWithin } from "@/components/ui/Popover";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
@@ -79,7 +80,7 @@ export function FiltersButton({
   useEffect(() => {
     if (!open) return;
     if (teams === null) void analyticsClient.teams().then((r) => setTeams(r.ok ? r.data.teams : []));
-    const away = (e: PointerEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
+    const away = (e: PointerEvent) => !pressedWithin(e.target, wrap.current) && setOpen(false);
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);

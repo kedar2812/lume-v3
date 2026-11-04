@@ -63,7 +63,13 @@ export type Session = {
   today: string;
 };
 
-export type WhatsNewView = { version: string; stories: StoryId[]; state: WhatsNewState };
+export type WhatsNewView = {
+  version: string;
+  stories: StoryId[];
+  state: WhatsNewState;
+  /** The day "New" counts from on this installation (YYYY-MM-DD); absent from an API before it: the release day. */
+  since?: string;
+};
 /** An API from before What's new: no release, so nothing is shown. */
 const NO_WHATS_NEW: WhatsNewView = { version: "", stories: [], state: EMPTY_WHATS_NEW };
 

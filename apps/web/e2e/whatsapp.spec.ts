@@ -353,9 +353,10 @@ test.describe.serial("WhatsApp", () => {
       await expect(form).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 20_000 });
     await form.getByRole("button", { name: "Attach" }).click();
-    await form.getByRole("menuitem", { name: "From Media" }).click();
-    await form.getByRole("option", { name: /Price list\.pdf/ }).click();
-    await form.getByRole("option", { name: /Showroom\.png/ }).click();
+    // The attach menu opens over the chat window (inside its dialog, outside the reply box that would cut it).
+    await chat.getByRole("menuitem", { name: "From Media" }).click();
+    await chat.getByRole("option", { name: /Price list\.pdf/ }).click();
+    await chat.getByRole("option", { name: /Showroom\.png/ }).click();
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);

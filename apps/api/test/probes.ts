@@ -516,6 +516,8 @@ export const PROBES: Record<string, Probe> = {
   "PATCH /api/v1/me": { access: "auth.self", body: () => ({ theme: "obsidian" }) },
   "PUT /api/v1/me/onboarding": { access: "auth.self", body: () => ({ step: "look" }) },
   "PUT /api/v1/me/tour": { access: "auth.self", body: () => ({ step: 1 }) },
+  // What's new in LUME (spec 2026-11-02): the person's own state.
+  "PUT /api/v1/me/whats-new": { access: "auth.self", body: () => ({ used: "calls" }) },
   "POST /api/v1/invites": {
     access: "users.manage",
     body: () => ({ email: `new-${Date.now()}@test.lume`, name: "New", roleIds: [] }),

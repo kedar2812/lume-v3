@@ -15,7 +15,8 @@ column in the release that stops using it.
   sheet, the tour, setup or an import), and only once: seen on one device is seen on all. "New" sits beside each
   feature for a week or until it's used; Today keeps a pill back to the window until its own X, and Settings → About
   and the profile menu open it again. People who join after an update aren't shown it (onboarding and the tour cover
-  everything). Migration 0103.
+  everything). "New" and who counts as joining after the update follow the day each installation first runs the
+  version, so a client that updates later gets its own week. Migrations 0103 and 0104.
 - **Nothing that opens is cut off** (owner 2026-11-04): a menu or sheet inside something that clips or scrolls on its
   own (a chat window, a drawer, a card) now opens over the page and follows its button, so the template list in a
   chat whose 24 hours are over is whole again; one that doesn't fit below turns over, and one wider than the room on
@@ -160,7 +161,7 @@ column in the release that stops using it.
   bell shows how many are unread (9+ past nine); page titles in the top bar are larger; Analytics' Sources lists
   only sources with leads or wins in the range (a source whose only activity was a loss, meeting or task was listed
   at nothing, and a tag filter then disagreed).
-- **Update notes:** migrations 0097 to 0103 (additive). No `.env` changes.
+- **Update notes:** migrations 0097 to 0104 (additive). No `.env` changes.
 
 ## 1.1.0 — 2026-10-29
 
