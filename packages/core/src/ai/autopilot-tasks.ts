@@ -2,7 +2,7 @@ import { z } from "zod";
 import { isStop, offersIn, unbackedAmounts } from "./autopilot";
 import {
   callTimeWords,
-  freeCallStarts,
+  callHourWords,
   slotProblem,
   windowBoundWords,
   type Busy,
@@ -376,10 +376,7 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
         ].join(" ")
       : perms.book_meetings === "never"
         ? ""
-        : [
-            ...freeCallStarts(calls).map((t) => callTimeWords(t, calls.tz, calls.now)),
-            windowBoundWords(calls.rules),
-          ].join(" ");
+        : [callHourWords(calls), windowBoundWords(calls.rules)].join(" ");
   // A lead's bare hour ("tonight at 9", eval 2026-11-04) is theirs to hear back with am or pm: that hour only.
   const bare = [...g.leadWords.matchAll(/\bat\s+(\d{1,2})(?::(\d{2}))?\b(?!\s*(?:am|pm|:))/gi)]
     .filter((m) => Number(m[1]) >= 1 && Number(m[1]) <= 12)

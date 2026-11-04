@@ -10,6 +10,10 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/components/ZoneProvider", () => ({ useZone: () => "Asia/Kolkata" }));
 vi.mock("@/lib/ai/client", () => ({ aiClient: { saveProfile: vi.fn(), askTopUp: vi.fn() } }));
+const startCalendarConnect = vi.fn<(o?: { addEvents?: boolean }) => Promise<string>>(async () => "");
+vi.mock("@/components/calendar/ConnectCalendar", () => ({
+  startCalendarConnect: (o?: { addEvents?: boolean }) => startCalendarConnect(o),
+}));
 vi.mock("@/components/media/MediaPicker", () => ({
   MediaPicker: ({ onPick }: { onPick(f: { id: string; name: string }[]): void }) => (
     <button onClick={() => onPick([{ id: F3, name: "Past work.pdf" }])}>pick Past work</button>
@@ -152,6 +156,54 @@ describe("Settings → LUME AI", () => {
     expect(within(prices).getByRole("radio", { name: "Go ahead" })).toBeEnabled();
     expect(within(standing).getByText("Only from your price list")).toBeInTheDocument();
     expect(within(standing).queryByText(/Add your price list/)).toBeNull();
+  });
+
+  it("letting LUME add calls with another section's words unsaved: says so, and never goes to Google (review 2026-11-04)", async () => {
+    const withMeet = view({
+      profile: {
+        ...DEFAULT_AI_PROFILE,
+        standing: {
+          ...DEFAULT_AI_PROFILE.standing,
+          calls: {
+            ...DEFAULT_AI_PROFILE.standing.calls,
+            windows: [{ days: [1], from: "10:00", to: "18:00" }],
+            meet: true,
+          },
+        },
+      },
+    });
+    render(
+      <AiSettings initial={withMeet} status={status} calendar={{ available: true, connected: false }} />,
+    );
+    await userEvent.type(screen.getByRole("textbox", { name: "About your business" }), "Kitchens.");
+    await userEvent.click(screen.getByRole("button", { name: "Let LUME add calls to your Google Calendar" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Save your other changes on this page first, then let LUME add calls.",
+    );
+    expect(startCalendarConnect).not.toHaveBeenCalled();
+  });
+
+  it("with only the standing choices changed: saved first, then to Google for the permission", async () => {
+    const withMeet = view({
+      profile: {
+        ...DEFAULT_AI_PROFILE,
+        standing: {
+          ...DEFAULT_AI_PROFILE.standing,
+          calls: {
+            ...DEFAULT_AI_PROFILE.standing.calls,
+            windows: [{ days: [1], from: "10:00", to: "18:00" }],
+          },
+        },
+      },
+    });
+    vi.mocked(aiClient.saveProfile).mockResolvedValue(ok(withMeet) as never);
+    render(
+      <AiSettings initial={withMeet} status={status} calendar={{ available: true, connected: false }} />,
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "LUME makes a Google Meet link" }));
+    await userEvent.click(screen.getByRole("button", { name: "Let LUME add calls to your Google Calendar" }));
+    expect(aiClient.saveProfile).toHaveBeenCalledTimes(1);
+    expect(startCalendarConnect).toHaveBeenCalledWith({ addEvents: true });
   });
 
   it("leaving with unsaved changes asks first", async () => {

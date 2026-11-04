@@ -182,8 +182,15 @@ export function CallTimes({
             </label>
           </div>
           {meet && <MeetLink on={!!v.meet} setup={meet} onChange={(on) => set({ meet: on })} />}
-          {!(meet && v.meet) && (
-            <Field label="How the call happens" hint="LUME AI says this when it says yes. Optional.">
+          {
+            <Field
+              label="How the call happens"
+              hint={
+                meet && v.meet
+                  ? "LUME AI says this when a call can't have a Meet link (the speaker hasn't allowed it). Optional."
+                  : "LUME AI says this when it says yes. Optional."
+              }
+            >
               {(c) => (
                 <input
                   {...c}
@@ -195,7 +202,7 @@ export function CallTimes({
                 />
               )}
             </Field>
-          )}
+          }
         </>
       )}
     </section>
@@ -245,16 +252,22 @@ function MeetLink({ on, setup, onChange }: { on: boolean; setup: MeetSetup; onCh
       </div>
       {on &&
         (allowed ? (
-          <p className={s.meetOk}>
-            <span className={s.meetTick}>{TICK}</span>
-            LUME adds calls to LUME calls, in {mine.googleEmail}
-          </p>
+          <div className={s.meetAsk}>
+            <p className={s.meetOk}>
+              <span className={s.meetTick}>{TICK}</span>
+              LUME adds calls to LUME calls, in {mine.googleEmail}
+            </p>
+            <p className={s.meetNote}>
+              Each person LUME AI speaks as allows this for their own calendar, here. Until they do, their
+              calls use your words below.
+            </p>
+          </div>
         ) : (
           <div className={s.meetAsk}>
             <p className={s.meetNote}>
               {mine?.addsEvents
-                ? "Your Google Calendar needs connecting again. Until then, LUME AI hands each call it would book to you."
-                : "Google asks you once. LUME makes one calendar of its own and adds only the calls LUME AI books there; your other calendars stay as they are. Until then, LUME AI hands each call it would book to you."}
+                ? "Your Google Calendar needs connecting again. Until then, your calls use the words below, without a Meet link."
+                : "Google asks you once. LUME makes one calendar of its own and adds only the calls LUME AI books there; your other calendars stay as they are. Until then, your calls use the words below, without a Meet link."}
             </p>
             <Button size="sm" variant="primary" loading={busy} onClick={() => void allow()}>
               {mine?.addsEvents ? "Connect again" : "Let LUME add calls to your Google Calendar"}

@@ -245,6 +245,28 @@ describe("adding LUME AI's call to Google Calendar (spec 2026-11-03)", () => {
     await expect(w().removeEvent(calls, eventId)).resolves.toBeUndefined();
   });
 
+  it("review 2026-11-04: making a calendar or adding a call is one attempt, never retried into a second one", async () => {
+    const made = fake.createdCalendars.length;
+    const posts = () => fake.calls.filter((c) => c === "POST /calendar/v3/calendars").length;
+    const before = posts();
+    fake.fail(503, 1);
+    await expect(w().createCalendar("LUME calls", "UTC")).rejects.toMatchObject({ kind: "unavailable" });
+    expect(posts() - before).toBe(1);
+    expect(fake.createdCalendars.length).toBe(made);
+    // Adding a call runs inside the booking's transaction: no 1-2-4 s waits while it holds the speaker's lock.
+    const slept: number[] = [];
+    const once = createGoogleCalendar({
+      tokens: writeTokens(),
+      endpoint: fake.url,
+      sleep: async (ms) => void slept.push(ms),
+    });
+    fake.fail(503, 1);
+    await expect(once.addCall(calls, call("0190e0c0-0000-7000-8000-00000000a008"))).rejects.toMatchObject({
+      kind: "unavailable",
+    });
+    expect(slept).toEqual([]);
+  });
+
   it("a read-only grant can't add one: access, nothing added", async () => {
     const n = fake.inserted.length;
     await expect(g.addCall(calls, call("0190e0c0-0000-7000-8000-00000000a004"))).rejects.toMatchObject({

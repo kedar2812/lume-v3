@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useLeaveGuard } from "./LeaveGuard";
+import { leaveOnPurpose, useLeaveGuard } from "./LeaveGuard";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -60,5 +60,18 @@ describe("Leave without saving?", () => {
     const clean = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(clean);
     expect(clean.defaultPrevented).toBe(false);
+  });
+
+  it("leaving on purpose (to Google's consent, with what matters saved) never asks the browser's way (review 2026-11-04)", () => {
+    render(<Form dirty />);
+    leaveOnPurpose();
+    const going = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(going);
+    expect(going.defaultPrevented).toBe(false);
+    // Still on the page after all (Google couldn't be reached): changes waiting ask again.
+    leaveOnPurpose(false);
+    const stayed = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(stayed);
+    expect(stayed.defaultPrevented).toBe(true);
   });
 });

@@ -143,8 +143,10 @@ export function createGoogleCalendar(o: {
       return items.map((c) => ({ id: c.id, name: c.summary ?? c.id, primary: !!c.primary }));
     },
     async createCalendar(name, tz) {
+      // Never retried: a lost answer to a calendar Google made would make a second "LUME calls" (review 2026-11-04).
       const j = await call<{ id: string }>(`${base}/calendars`, {
         method: "POST",
+        retry: false,
         body: {
           summary: name,
           timeZone: tz,
@@ -159,8 +161,10 @@ export function createGoogleCalendar(o: {
       let e: GEvent;
       try {
         // No attendees and no Google invite: the lead gets the link from LUME AI, on WhatsApp.
+        // One attempt: this runs inside the booking's transaction, under the speaker's lock (review 2026-11-04).
         e = await call<GEvent>(`${events}?conferenceDataVersion=1&sendUpdates=none`, {
           method: "POST",
+          retry: false,
           body: {
             id: eventId,
             summary: c.title,

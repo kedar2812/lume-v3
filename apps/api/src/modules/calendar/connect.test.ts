@@ -359,6 +359,10 @@ describe("connecting a calendar (5A Task 3)", () => {
     // Allowed again: the same calendar, never a second one.
     expect(again.json()).toMatchObject({ addsEvents: true });
     expect(h.fake!.createdCalendars.length).toBe(made + 1);
+    // Review 2026-11-04: connecting again from the Calendar page asks for what they allowed before, so a reconnect
+    // never quietly stops the Meet links.
+    const { url } = (await call(admin, "POST", "/api/v1/calendar/connect")).json();
+    expect(new URL(url).searchParams.get("k")).toBe("calendar_write");
     // Connect again the read-only way: the grant is replaced, so LUME may no longer add events.
     const plain = await call(admin, "POST", "/api/v1/calendar/complete", await handBack(admin));
     expect(plain.json()).toMatchObject({ connected: true, addsEvents: false });
@@ -380,6 +384,27 @@ describe("connecting a calendar (5A Task 3)", () => {
       message: "Google didn't let LUME make its LUME calls calendar. Try again, and leave every box ticked.",
     });
     expect((await call(admin, "GET", "/api/v1/calendar/connection")).json()).toEqual(before);
+  });
+
+  it("review 2026-11-04: a LUME calls calendar already in the account is the one used, never a second", async () => {
+    // Forgotten here (as a disconnect would, without its audit line, which the next case counts).
+    await asPerson(me.id, "DELETE FROM calendar_connections WHERE user_id = $1", [me.id]);
+    // Made by LUME before, then forgotten (disconnected, or Google's answer was lost).
+    h.fake!.putCalendar("lume-calls-orphan@group.calendar.google.com", { name: "LUME calls" });
+    const made = h.fake!.createdCalendars.length;
+    const r = await call(
+      admin,
+      "POST",
+      "/api/v1/calendar/complete",
+      await handBack(admin, { write: true, token: "rt-write" }),
+    );
+    expect(r.json()).toMatchObject({ connected: true, addsEvents: true });
+    expect(h.fake!.createdCalendars.length).toBe(made);
+    expect(r.json().calendars).toContainEqual({
+      id: "lume-calls-orphan@group.calendar.google.com",
+      name: "LUME calls",
+      chosen: true,
+    });
   });
 
   it("disconnecting leaves no grant and no meetings, and is audited", async () => {

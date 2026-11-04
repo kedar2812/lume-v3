@@ -59,7 +59,10 @@ export type GoogleFake = {
    * Google Calendar (5A): calendars on the grant's account, and their events. `access` is the person's role
    * on it (default "owner"); LUME's grant reads events only on calendars they own.
    */
-  putCalendar(id: string, c: { name: string; primary?: boolean; access?: "owner" | "reader" }): void;
+  putCalendar(
+    id: string,
+    c: { name: string; primary?: boolean; access?: "owner" | "reader"; appCreated?: boolean },
+  ): void;
   putEvent(calendarId: string, e: FakeEvent): void;
   cancelEvent(calendarId: string, eventId: string): void;
   /** Every sync token given out so far now answers 410 Gone (Google expires them). */
@@ -541,6 +544,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
         primary: !!c.primary,
         access: c.access ?? "owner",
         events: was?.events ?? new Map(),
+        ...(c.appCreated ? { appCreated: true } : {}),
       });
     },
     putEvent(calendarId, e) {

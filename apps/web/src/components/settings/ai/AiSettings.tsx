@@ -2,7 +2,6 @@
 import { profileProblem, type AiProfile, type AiProfilePatch } from "@lume/core/shared";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import { startCalendarConnect } from "@/components/calendar/ConnectCalendar";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import { AiRingPanel } from "@/components/ai/AiRingPanel";
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { aiClient } from "@/lib/ai/client";
 import type { AiProfileView, AiStatus } from "@/lib/ai/types";
 import type { CalendarConnection } from "@/lib/calendar/types";
-import { useLeaveGuard } from "../LeaveGuard";
+import { leaveOnPurpose, useLeaveGuard } from "../LeaveGuard";
 import sp from "../settings.module.css";
 import { KnowsSection, type KnowsDraft } from "./KnowsSection";
 import { draftsOf, pricesOf } from "./PriceList";
@@ -170,13 +169,19 @@ export function AiSettings({
           ? { googleEmail: calendar.googleEmail, addsEvents: calendar.addsEvents, status: calendar.status }
           : null,
         allow: async () => {
+          // Going to Google and back: another section's unsaved words would be lost (review 2026-11-04).
+          if (dirtyOf("knows") || dirtyOf("voice"))
+            return "Save your other changes on this page first, then let LUME add calls.";
           if (dirtyOf("standing")) {
             const why = await save("standing");
             if (why) return why;
-            // The save's render, now: the leave guard sees nothing unsaved before the browser goes to Google.
-            flushSync(() => {});
           }
-          return startCalendarConnect({ addEvents: true });
+          // Saved: the browser's own "Leave site?" would only alarm on the way to Google.
+          leaveOnPurpose(true);
+          const why = await startCalendarConnect({ addEvents: true });
+          // Still here (Google Calendar off, say): unsaved changes ask again.
+          leaveOnPurpose(false);
+          return why;
         },
       }
     : undefined;

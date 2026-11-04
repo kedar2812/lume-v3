@@ -19,6 +19,12 @@ function linkLeaving(e: MouseEvent): string | null {
   return `${to.pathname}${to.search}${to.hash}`;
 }
 
+/** This tab is leaving on purpose (to Google's consent, the page saved first): the browser's own ask would only alarm. */
+let onPurpose = false;
+export function leaveOnPurpose(on = true): void {
+  onPurpose = on;
+}
+
 /**
  * Owner ruling 2026-10-18 (1): while a Settings form has unsaved changes, a link inside LUME asks "Leave without saving?"
  * first, and closing or reloading the tab asks the browser's way. Returns the sheet to render.
@@ -40,6 +46,7 @@ export function useLeaveGuard(dirty: boolean): ReactNode {
       setTo(where);
     };
     const unload = (e: BeforeUnloadEvent) => {
+      if (onPurpose) return;
       e.preventDefault();
       // Older browsers ask only when this is set.
       e.returnValue = "";

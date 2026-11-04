@@ -73,7 +73,7 @@ describe("calls LUME AI may say yes to", () => {
       expect(screen.getByLabelText("How the call happens")).toBeInTheDocument();
     });
 
-    it("switched on: says what happens, and the how words give way to the Meet link", async () => {
+    it("switched on: says what happens; the how words stay, for a speaker whose calendar can't take a link", async () => {
       render(<Harness start={withTimes} meet={{ mine: null, allow: async () => null }} />);
       expect(
         screen.getByText(/LUME calls calendar in your Google Calendar, with a new Meet link/),
@@ -81,7 +81,9 @@ describe("calls LUME AI may say yes to", () => {
       expect(meetSwitch()).toHaveAttribute("aria-checked", "false");
       await userEvent.click(meetSwitch());
       expect(last.meet).toBe(true);
-      expect(screen.queryByLabelText("How the call happens")).toBeNull();
+      expect(screen.getByLabelText("How the call happens")).toHaveAccessibleDescription(
+        /when a call can't have a Meet link/,
+      );
       await userEvent.click(meetSwitch());
       expect(last.meet).toBe(false);
       expect(screen.getByLabelText("How the call happens")).toBeInTheDocument();
@@ -96,7 +98,7 @@ describe("calls LUME AI may say yes to", () => {
         />,
       );
       expect(
-        screen.getByText(/Until then, LUME AI hands each call it would book to you/),
+        screen.getByText(/Until then, your calls use the words below, without a Meet link/),
       ).toBeInTheDocument();
       expect(
         screen.getByText(/makes one calendar of its own .* your other calendars stay as they are/),
@@ -131,6 +133,10 @@ describe("calls LUME AI may say yes to", () => {
         />,
       );
       expect(screen.getByText("LUME adds calls to LUME calls, in maya@business.test")).toBeInTheDocument();
+      // Review 2026-11-04: the permission is each speaker's own.
+      expect(
+        screen.getByText(/Each person LUME AI speaks as allows this for their own calendar/),
+      ).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Let LUME add calls/ })).toBeNull();
     });
 

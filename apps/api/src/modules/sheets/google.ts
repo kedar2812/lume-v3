@@ -296,7 +296,8 @@ export function createGoogleSheets(
  * once; Google busy (429, a rate reason, 5xx, the network) is retried 1, 2, 4 s apart; then a GoogleError. A write
  * (`init`) is retried the same way only because each one LUME makes is idempotent (an event's id is LUME's own).
  */
-export type GoogleWrite = { method: "POST" | "DELETE"; body?: unknown };
+/** `retry: false`: one attempt (a write that isn't idempotent, or one inside a transaction holding a lock). */
+export type GoogleWrite = { method: "POST" | "DELETE"; body?: unknown; retry?: boolean };
 export function googleCaller(o: {
   tokens: TokenSource;
   fetch?: typeof fetch;
@@ -347,7 +348,7 @@ export function googleCaller(o: {
         status === 429 ||
         body.error?.status === "RESOURCE_EXHAUSTED" ||
         reasons.some((r) => RATE_REASONS.has(r));
-      if ((rate || status >= 500) && attempt < RETRIES.length) {
+      if ((rate || status >= 500) && attempt < RETRIES.length && init?.retry !== false) {
         await sleep(RETRIES[attempt]!);
         continue;
       }

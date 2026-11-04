@@ -19,7 +19,9 @@ column in the release that stops using it.
   Google's permission (calendar.app.created: LUME may change only the calendar it made, never the person's own);
   everyone else's calendar connection stays read-only. Without the permission, or when Google won't, the lead goes to
   a person and nothing is sent. The lead gets no Google invite; moving or cancelling the call in Google Calendar moves
-  or cancels it in LUME.
+  or cancels it in LUME. Each speaker allows it for their own calendar; until they do, their calls are booked in
+  your own words. Reconnecting keeps the permission, LUME never makes a second "LUME calls" calendar, and the calendar
+  sync removes any event whose booking didn't go through.
 
 - **LUME AI says yes to a call, inside the times you give it** (Settings → LUME AI → Calls LUME AI may say yes to:
   days and from–to, how long a call is, the notice, how far ahead, and how the call happens). When a lead asks for one

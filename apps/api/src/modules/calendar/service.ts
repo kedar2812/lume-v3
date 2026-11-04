@@ -103,7 +103,9 @@ export async function connectionView(req: FastifyRequest, d: AppDeps) {
 export async function calendarConnectStart(req: FastifyRequest, d: AppDeps, o: { addEvents?: boolean } = {}) {
   await requireOn(req, d);
   const { relayUrl, relayToken } = d.googleOAuth!;
-  const kind = o.addEvents ? "calendar_write" : "calendar";
+  // A reconnect asks for what they allowed before (review 2026-11-04): Meet links never stop by a quiet read-only grant.
+  const was = await mine(req);
+  const kind = o.addEvents || was?.addsEvents ? "calendar_write" : "calendar";
   const nonce = randomBytes(24).toString("base64url");
   await req.db.insert(OC).values({
     id: newId(),
@@ -218,8 +220,10 @@ export async function calendarConnectComplete(
   const adds = h.calendarWrite === true;
   let callsCalendarId = was?.callsCalendarId ?? null;
   if (adds && !(callsCalendarId && list.some((c) => c.id === callsCalendarId))) {
-    callsCalendarId = await makeCallsCalendar(req, d, h.refreshToken);
-    list = [...list, { id: callsCalendarId, name: CALLS_CALENDAR, primary: false }];
+    // One LUME made before and LUME lost track of (a lost answer, a disconnect): that one, never a second.
+    const named = list.find((c) => !c.primary && c.name === CALLS_CALENDAR);
+    callsCalendarId = named?.id ?? (await makeCallsCalendar(req, d, h.refreshToken));
+    if (!named) list = [...list, { id: callsCalendarId, name: CALLS_CALENDAR, primary: false }];
   }
   const prior = new Map((was?.calendars ?? []).map((c) => [c.id, c]));
   const calendars: ConnectedCalendar[] = list.map((c) => ({

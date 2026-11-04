@@ -266,49 +266,54 @@ describe("LUME makes the Meet link", () => {
     expect((await stateOf(run, id)).state).toBe("ready");
   });
 
-  it("the speaker hasn't let LUME add calls: a person gets the lead, with why; nothing sent, booked or added", async () => {
-    await asAdmin("UPDATE calendar_connections SET adds_events = false");
-    const { id, run } = await inRun("Bilal Ahmed");
+  /** The speaker's own calendar can't take the call: LUME AI is told so, and books it in the business's own words. */
+  const fallsBack = async (name: string) => {
+    const { id, run } = await inRun(name);
     const before = h.fake!.inserted.length;
-    await saysYes(id);
+    await writes(id, "Can we talk tomorrow at 5 pm?");
+    provider.script("autopilot_reply", [
+      reply({ message: `Done, tomorrow at 5 pm. ${calls.how}`, meeting: { at: `${tomorrow()}T17:00` } }),
+    ]);
     await sendNext();
+    // Review 2026-11-04: the Meet link is the speaker's own permission, not the admin's.
+    expect(provider.calls.at(-1)!.instructions).not.toContain("Google Meet");
+    expect(provider.calls.at(-1)!.instructions).toContain(calls.how);
+    expect(sentTo(id)).toEqual(["template", `Done, tomorrow at 5 pm. ${calls.how}`]);
+    expect(await meetingsOf(id)).toEqual([
+      expect.objectContaining({ link: null, location: calls.how, status: "scheduled" }),
+    ]);
+    expect(h.fake!.inserted.length).toBe(before);
+    expect((await stateOf(run, id)).state).toBe("ready");
+  };
+
+  it("the speaker hasn't let LUME add calls: the call is booked in the business's own words, no event", async () => {
+    await asAdmin("UPDATE calendar_connections SET adds_events = false");
+    await fallsBack("Bilal Ahmed");
+  });
+
+  it("allowed, but with no calendar of LUME's own on record: the same, never another calendar", async () => {
+    await asAdmin("UPDATE calendar_connections SET calls_calendar_id = NULL");
+    await fallsBack("Ivan Petrov");
+  });
+
+  it("the speaker's calendar needs connecting again: the same", async () => {
+    await asAdmin("UPDATE calendar_connections SET status = 'needs_reconnect'");
+    await fallsBack("Chen Wei");
+  });
+
+  it("the permission goes between the writing and the sending: held, since the yes promised a Meet link", async () => {
+    const { id, run } = await inRun("Jun Park");
+    await saysYes(id);
+    await tick();
+    await asAdmin("UPDATE calendar_connections SET adds_events = false");
+    await tick(10 * S);
+    await h.runWhatsAppSend();
     expect(sentTo(id)).toEqual(["template"]);
     expect(await meetingsOf(id)).toEqual([]);
-    expect(h.fake!.inserted.length).toBe(before);
     expect(await stateOf(run, id)).toMatchObject({
       state: "needs_you",
       card: {
         headline: `LUME couldn't make a Meet link: ${SPEAKER} hasn't let LUME add calls to their Google Calendar. Nothing was sent.`,
-      },
-    });
-  });
-
-  it("allowed, but with no calendar of LUME's own on record: held as not allowed, never sent to another calendar", async () => {
-    await asAdmin("UPDATE calendar_connections SET calls_calendar_id = NULL");
-    const { id, run } = await inRun("Ivan Petrov");
-    const before = h.fake!.inserted.length;
-    await saysYes(id);
-    await sendNext();
-    expect(sentTo(id)).toEqual(["template"]);
-    expect(h.fake!.inserted.length).toBe(before);
-    expect(await stateOf(run, id)).toMatchObject({
-      state: "needs_you",
-      card: {
-        headline: `LUME couldn't make a Meet link: ${SPEAKER} hasn't let LUME add calls to their Google Calendar. Nothing was sent.`,
-      },
-    });
-  });
-
-  it("the speaker's calendar needs connecting again: held, and said so", async () => {
-    await asAdmin("UPDATE calendar_connections SET status = 'needs_reconnect'");
-    const { id, run } = await inRun("Chen Wei");
-    await saysYes(id);
-    await sendNext();
-    expect(sentTo(id)).toEqual(["template"]);
-    expect(await stateOf(run, id)).toMatchObject({
-      state: "needs_you",
-      card: {
-        headline: `LUME couldn't make a Meet link: ${SPEAKER}'s Google Calendar needs connecting again. Nothing was sent.`,
       },
     });
   });

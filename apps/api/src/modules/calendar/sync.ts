@@ -41,6 +41,8 @@ type Row = {
   calendars: ConnectedCalendar[];
   status: string;
   failures: number;
+  /** LUME's own calendar for LUME AI's calls (0102), when they allowed it. */
+  calls_calendar_id: string | null;
 };
 type CalendarRead = { id: string; full: boolean; events: CalendarEventRead[] };
 
@@ -109,7 +111,7 @@ async function syncLocked(d: CalendarSyncDeps, id: string): Promise<SyncOutcome>
   const now = (d.now ?? (() => new Date()))();
   const [conn] = await inTx(d.pool, { user: null, sweep: true }, async (c) => {
     const { rows } = await c.query<Row>(
-      "SELECT id, user_id, google_email, grant_enc, calendars, status, failures FROM calendar_connections WHERE id = $1",
+      "SELECT id, user_id, google_email, grant_enc, calendars, status, failures, calls_calendar_id FROM calendar_connections WHERE id = $1",
       [id],
     );
     return rows;
@@ -132,6 +134,8 @@ async function syncLocked(d: CalendarSyncDeps, id: string): Promise<SyncOutcome>
       ]),
     ).catch(() => undefined); // progress is a courtesy: never what fails a sync
   let read: Awaited<ReturnType<typeof readCalendars>>;
+  // On the real clock, as meetings' created_at is: a call booked after this moment can't be in what's read.
+  const readFrom = new Date();
   try {
     read = await readCalendars(google, conn.calendars, now, (done, total) =>
       report({ stage: "reading", done, total }),
@@ -141,7 +145,16 @@ async function syncLocked(d: CalendarSyncDeps, id: string): Promise<SyncOutcome>
     return failed(d, conn, e, now);
   }
   await report({ stage: "saving", done: read.reads.length, total: read.reads.length });
-  return inTx(d.pool, { user: conn.user_id }, (c) => write(c, conn, read, now));
+  const orphans: { calendar: string; id: string }[] = [];
+  const out = await inTx(d.pool, { user: conn.user_id }, (c) =>
+    write(c, conn, read, now, { readFrom, orphans }),
+  );
+  // Events LUME made for a booking that was never kept: out of Google, after the commit (review 2026-11-04).
+  for (const o of orphans)
+    await google
+      .removeEvent(o.calendar, o.id)
+      .catch((err: unknown) => d.log?.error({ err }, "couldn't remove a call LUME added to Google Calendar"));
+  return out;
 }
 
 async function clearProgress(pool: pg.Pool, conn: Row) {
@@ -318,6 +331,7 @@ async function write(
   conn: Row,
   read: Awaited<ReturnType<typeof readCalendars>>,
   now: Date,
+  tidy: { readFrom: Date; orphans: { calendar: string; id: string }[] } = { readFrom: now, orphans: [] },
 ): Promise<SyncOutcome> {
   const { rows: cur } = await c.query<{ calendars: ConnectedCalendar[] }>(
     "SELECT calendars FROM calendar_connections WHERE id = $1 FOR UPDATE",
@@ -364,11 +378,11 @@ async function write(
   // Every event decided across all its calendars first: Google gives one event the same id on each.
   const byEvent = new Map<string, Seen[]>();
   // A call LUME added (spec 2026-11-03) is its own meeting already: read onto it below, never kept a second time.
-  const ourCalls: CalendarEventRead[] = [];
+  const ourCalls: (CalendarEventRead & { calendar: string })[] = [];
   for (const r of read.reads)
     for (const ev of r.events) {
       if (ev.lumeMeeting) {
-        ourCalls.push(ev);
+        ourCalls.push({ ...ev, calendar: r.id });
         continue;
       }
       // An all-day item (a holiday, a day out) is not a meeting; nor is one without its times.
@@ -497,6 +511,58 @@ async function write(
         now,
         movedOn,
       ],
+    );
+  }
+
+  // Tidying LUME's own calendar needs no booking of theirs under way (the one lock bookCall takes): a booking holds it
+  // from before its event is made until its meeting is kept, so with the lock, an event without a meeting is an orphan.
+  const { rows: free } = await c.query<{ ok: boolean }>(
+    "SELECT pg_try_advisory_xact_lock(hashtext('lume_calls'), hashtext($1)) AS ok",
+    [owner],
+  );
+  const tidyNow = !!free[0]?.ok;
+  if (tidyNow) {
+    // Across row-level security (the calendar sweep's read-only view, as busyFor reads): a meeting on a lead out of
+    // this person's sight is still a meeting, and its event stays.
+    await c.query("SELECT set_config('lume.calendar_sweep', 'on', true)");
+    try {
+      for (const ev of ourCalls) {
+        if (ev.status === "cancelled") continue;
+        const { rows } = await c.query("SELECT 1 FROM meetings WHERE id = $1 AND source = 'lume'", [
+          ev.lumeMeeting,
+        ]);
+        if (!rows.length) tidy.orphans.push({ calendar: ev.calendar, id: ev.id });
+      }
+    } finally {
+      await c.query("SELECT set_config('lume.calendar_sweep', '', true)");
+    }
+  }
+  // A full read of LUME's own calendar lists every call still there: one of theirs with a Meet link that's missing was
+  // deleted in Google Calendar (Google leaves deleted events out of a full read). Booked before the read, only.
+  const callsRead = read.reads.find((r) => r.full && r.id === conn.calls_calendar_id);
+  if (tidyNow && callsRead) {
+    const seen = callsRead.events.map((e) => e.id);
+    const { rows: gone } = await c.query<{ id: string; outcome_task_id: string | null }>(
+      `UPDATE meetings SET status = 'cancelled', updated_at = $2, version = version + 1
+        WHERE source = 'lume' AND owner_id = $1 AND status = 'scheduled' AND link IS NOT NULL
+          AND starts_at >= $3 AND starts_at < $4 AND created_at < $5
+          AND NOT ('lume' || replace(id::text, '-', '') = ANY($6::text[]))
+       RETURNING id, outcome_task_id`,
+      [
+        owner,
+        now,
+        new Date(now.getTime() - BACK_MS),
+        new Date(now.getTime() + AHEAD_MS),
+        tidy.readFrom,
+        seen,
+      ],
+    );
+    tally.cancelled += gone.length;
+    await closeOutcomeTasks(
+      c,
+      gone.map((x) => x.outcome_task_id),
+      now,
+      gone.map((x) => x.id),
     );
   }
 

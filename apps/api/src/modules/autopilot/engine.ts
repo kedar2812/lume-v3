@@ -523,7 +523,7 @@ export async function aiCtx(
   lead: LeadRow,
   templates: AutopilotCtx["templates"],
   /** A reply's read: the engine's clock, and the calls LUME AI may say yes to (spec 2026-11-02). */
-  o: { now?: Date; calls?: boolean; google?: boolean } = {},
+  o: { now?: Date; calls?: boolean; d?: AppDeps } = {},
 ): Promise<
   AutopilotCtx & {
     profileRaw: AiProfile;
@@ -596,7 +596,7 @@ export async function aiCtx(
   // Times given, and Book meetings not Never on this run: the speaker's meetings ahead, and the free times to offer.
   const rules = profile.standing.calls;
   // LUME makes the Meet link (spec 2026-11-03): only where Google Calendar is set up and switched on.
-  const meet = !!o.calls && !!rules.meet && o.google === true && (await calendarOn(req));
+  const meet = !!o.calls && !!o.d && (await meetsOn(req, o.d, rules, run.speakerId));
   const callCheck =
     o.calls && rules.windows.length && run.permissions && run.permissions.book_meetings !== "never"
       ? {
@@ -714,7 +714,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
   if (await reachedGoal(o, req, run, l)) return 1;
   const carried = carriedOn(l);
   const c = {
-    ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true, google: !!o.d.googleOAuth })),
+    ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true, d: o.d })),
     carriedOn: carried,
   };
   const r = await runRead(req, o.d, {
@@ -746,7 +746,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     fieldKeys,
     calls: c.callCheck,
   });
-  return actOn(o, req, run, l, lead, g, c.lastLeadMessage, r.output.reason, carried);
+  return actOn(o, req, run, l, lead, g, c.lastLeadMessage, r.output.reason, carried, !!c.calls?.meet);
 }
 
 /** What a guarded answer does to the lead (§2–§3). Stop, ask and Ready for you are finished in Tasks 7–8. */
@@ -762,6 +762,8 @@ async function actOn(
   reason: string,
   /** Sent back by a person (carry on): handing the lead back again on the same words would go round in circles. */
   carried = false,
+  /** The reply was written to carry LUME's Meet link (meetsOn when it was read). */
+  meet = false,
 ) {
   if (g.kind === "stop") {
     await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", byAi: { runId: run.id } });
@@ -812,7 +814,8 @@ async function actOn(
     .set({
       state: "writing",
       draft: g.message,
-      draftPayload: { kind: "reply", fileIds: g.fileIds, updates: g.updates },
+      // Whether the yes was written to carry LUME's Meet link: the booking makes one only then (review 2026-11-04).
+      draftPayload: { kind: "reply", fileIds: g.fileIds, updates: g.updates, meet },
       thought: reason.trim().slice(0, 200) || null,
       nextAt: new Date(o.d.clock().getTime() + revealMs(g.message)),
       fails: 0,
@@ -868,6 +871,8 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   if (!now || now.state !== "writing" || !now.active || !now.draft) return 0;
   const p = (now.draftPayload ?? {}) as {
     kind?: "template" | "reply";
+    /** The reply was written to carry LUME's Meet link (its read's meetsOn). */
+    meet?: boolean;
     submissionId?: string;
     n?: number;
     fileIds?: string[];
@@ -909,7 +914,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
           at: new Date(call.at),
           rules,
           tz: s?.tz ?? "UTC",
-          meet: await meetsOn(req, o.d, rules),
+          meet: p.meet === true,
         });
       }
       // The Meet link LUME made (spec 2026-11-03), on its own line under the yes.
@@ -968,9 +973,27 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   return 1;
 }
 
-/** LUME makes the Meet link (spec 2026-11-03): switched on, with Google Calendar set up and on here. */
-async function meetsOn(req: FastifyRequest, d: AppDeps, rules: CallRules): Promise<boolean> {
-  return !!rules.meet && !!d.googleOAuth && (await calendarOn(req));
+/**
+ * LUME makes the Meet link (spec 2026-11-03): switched on, Google Calendar set up and on here, and the speaker's own
+ * calendar letting LUME add calls (review 2026-11-04: the permission is each person's, not the admin's). Read as the
+ * speaker: their connection is theirs alone. Without it LUME AI uses the business's own words.
+ */
+async function meetsOn(
+  req: FastifyRequest,
+  d: AppDeps,
+  rules: CallRules,
+  speakerId: string,
+): Promise<boolean> {
+  if (!rules.meet || !d.googleOAuth || !(await calendarOn(req))) return false;
+  const [c] = await req.db
+    .select({
+      adds: schema.calendarConnections.addsEvents,
+      cal: schema.calendarConnections.callsCalendarId,
+      status: schema.calendarConnections.status,
+    })
+    .from(schema.calendarConnections)
+    .where(eq(schema.calendarConnections.userId, speakerId));
+  return !!c?.adds && !!c.cal && c.status === "active";
 }
 
 /** A field nobody has filled in yet. */

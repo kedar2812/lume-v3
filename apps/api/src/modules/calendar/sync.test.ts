@@ -780,3 +780,98 @@ describe("a call LUME added to Google Calendar (spec 2026-11-03)", () => {
     ]);
   });
 });
+
+describe("LUME's own calendar, kept tidy (review 2026-11-04)", () => {
+  const CALLS = "zoe-calls@group.calendar.google.com";
+  let zoe: SeededUser;
+  let zoeConn: string;
+  beforeAll(async () => {
+    zoe = await h.seedUser({ grants: ALL_GRANTS, totp: true, name: "Zoe Lin" });
+    h.fake!.putCalendar(CALLS, { name: "LUME calls", appCreated: true });
+    // A grant that may change LUME's own calendar (calendar.app.created), reading it like a chosen calendar.
+    zoeConn = await connect(await h.signIn(zoe), zoe.id, "rt-write-zoe");
+    await asPerson(
+      zoe.id,
+      `UPDATE calendar_connections SET adds_events = true, calls_calendar_id = $2,
+              calendars = (SELECT jsonb_agg(CASE WHEN c->>'id' = $2 THEN c || '{"chosen": true}' ELSE c END)
+                             FROM jsonb_array_elements(calendars) c)
+        WHERE id = $1`,
+      [zoeConn, CALLS],
+    );
+  });
+  const call = async (startsAt: string) => {
+    const lead = await h.seedLead({ ownerId: zoe.id, name: "Asha Rao" });
+    const id = newId();
+    await asPerson(
+      zoe.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at,
+                             location, link, status)
+       VALUES ($1::uuid, $2, $3, 'lume', $1::text, 'lume_ai', 'Call with Asha Rao', $4, $5, 'Google Meet',
+               'https://meet.google.com/abc-defg-hij', 'scheduled')`,
+      [id, lead, zoe.id, startsAt, new Date(Date.parse(startsAt) + 30 * 60_000).toISOString()],
+    );
+    return id;
+  };
+  const statusOf = async (id: string) =>
+    (await swept<{ status: string }>("SELECT status FROM meetings WHERE id = $1", [id]))[0]?.status;
+
+  it("an event LUME made whose booking never kept (rolled back, or a crash) is taken out of Google", async () => {
+    const ghost = newId();
+    h.fake!.putEvent(CALLS, {
+      id: eventIdOf(ghost),
+      title: "Call with Asha Rao",
+      start: at(6),
+      end: at(6.5),
+      lumeMeeting: ghost,
+    });
+    expect(await sync(zoeConn)).toBe("synced");
+    expect(h.fake!.removed).toContainEqual({ calendarId: CALLS, id: eventIdOf(ghost) });
+  });
+
+  it("never while one of the speaker's bookings is under way: its meeting isn't kept yet", async () => {
+    const busy = newId();
+    h.fake!.putEvent(CALLS, {
+      id: eventIdOf(busy),
+      title: "Call",
+      start: at(7),
+      end: at(7.5),
+      lumeMeeting: busy,
+    });
+    // A booking holds the speaker's calls lock (meetings/book.ts) until its transaction ends.
+    const held = await h.ownerPool.connect();
+    try {
+      await held.query("SELECT pg_advisory_lock(hashtext('lume_calls'), hashtext($1))", [zoe.id]);
+      expect(await sync(zoeConn)).toBe("synced");
+    } finally {
+      await held.query("SELECT pg_advisory_unlock(hashtext('lume_calls'), hashtext($1))", [zoe.id]);
+      held.release();
+    }
+    expect(h.fake!.removed.map((r) => r.id)).not.toContain(eventIdOf(busy));
+  });
+
+  it("a call deleted in Google Calendar, seen by a full read only by its absence, is cancelled in LUME", async () => {
+    const id = await call(at(9));
+    h.fake!.putEvent(CALLS, {
+      id: eventIdOf(id),
+      title: "Call with Asha Rao",
+      start: at(9),
+      end: at(9.5),
+      lumeMeeting: id,
+    });
+    expect(await sync(zoeConn)).toBe("synced");
+    expect(await statusOf(id)).toBe("scheduled");
+    h.fake!.cancelEvent(CALLS, eventIdOf(id));
+    // The sync token expired: Google leaves deleted events out of the full read that follows.
+    h.fake!.expireSyncTokens();
+    expect(await sync(zoeConn)).toBe("synced");
+    expect(await statusOf(id)).toBe("cancelled");
+  });
+
+  it("a call of LUME's made without a Meet link has no event, and a full read leaves it alone", async () => {
+    const id = await call(at(11));
+    await asPerson(zoe.id, "UPDATE meetings SET link = NULL WHERE id = $1", [id]);
+    h.fake!.expireSyncTokens();
+    expect(await sync(zoeConn)).toBe("synced");
+    expect(await statusOf(id)).toBe("scheduled");
+  });
+});

@@ -99,3 +99,26 @@ reconnect; a gone calendar clearing the permission; the `adds_events` guard; rem
 back; the 409 read-back; the sync never keeping LUME's event as a second meeting; the sync touching only the owner's
 meeting; the write link's signed kind; the prompt's Meet line; the eval scoring the call; and a lead's pop-up going when
 their chat opens (the gate found it covering the chat's Close on a phone).
+
+## Review fixes (code review 2026-11-04, medium; all tested, each guard mutation-checked)
+
+- **The permission is each speaker's.** LUME AI is told about the Meet link only when the run's speaker has allowed it
+  (meetsOn: setting on, Google Calendar set up and on, the speaker's connection adds events with a LUME calls calendar
+  and active). Otherwise the call is booked in the business's own words, with no hold. The draft remembers which way
+  it was written; a permission lost between writing and sending holds the lead, since the yes promised a link. The
+  Settings card says each person allows it for their own calendar, and the "how" words stay as the fallback.
+- **Orphans are cleaned up by the sync.** An event in LUME's calendar whose meeting doesn't exist (a booking that
+  rolled back after the savepoint, or a crash) is removed from Google after the sync commits, but only when the
+  speaker's calls lock is free (no booking under way), and reading meetings across row-level security.
+- **A call deleted in Google that only a full read shows by its absence** (a sync token reset) is cancelled: a full
+  read of LUME's calendar cancels the person's scheduled LUME meetings with a Meet link, booked before the read, whose
+  event isn't there. Calls booked without a link have no event and are left alone.
+- **No duplicate calendars.** Making the calendar is never retried, and a "LUME calls" already in the account is reused.
+- **Bounded while locked.** Adding the event inside the booking's transaction is one attempt (no 1-2-4 s retries).
+- **A reconnect keeps what was allowed.** Connecting the calendar again from Settings → Calendar asks for the write
+  kind when the connection had it, so Meet links never stop by a quiet read-only grant.
+- **Leaving for Google.** The page refuses (with words) while another section has unsaved changes, saves the standing
+  choices, and leaves without the browser's "Leave site?" (cleared again if it stays).
+- **The time guard is cheap.** It reads the call hours as words (each quarter hour, the bounds, the days and dates
+  ahead with hours) instead of checking every quarter hour against the calendar for up to 60 days.
+- Not taken: the Meet line overflowing WhatsApp's 4,096 characters (LUME AI's message is capped at 1,000).

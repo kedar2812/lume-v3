@@ -93,24 +93,35 @@ export function freeCallTimes(o: Check, max: number): Date[] {
 }
 
 /**
- * Every free start, each quarter hour, across the days ahead (eval 2026-11-04): what the time guard lets LUME AI name.
- * The first of each day alone (freeCallTimes) made every other free time read as invented.
+ * The call hours as the time guard reads a message (review 2026-11-04): each quarter hour from each window's start to
+ * its end, each way people write one, and the days and dates ahead that have hours. Cheap, with no calendar check per
+ * slot: the guard matches times of day, and the booking checks the real slot under the speaker's lock.
  */
-export function freeCallStarts(o: Check): Date[] {
+export function callHourWords(o: Check): string {
+  const out = new Set<string>();
+  for (const w of o.rules.windows)
+    for (let m = minuteOf(w.from); m <= minuteOf(w.to); m += 15) {
+      const hh = Math.floor(m / 60);
+      const mm = m % 60;
+      const ampm = hh < 12 ? "am" : "pm";
+      if (mm === 0) out.add(`${twelve(hh)}${ampm}`);
+      out.add(`${twelve(hh)}:${pad(mm)}${ampm}`);
+      out.add(`${twelve(hh)}:${pad(mm)}`);
+      out.add(`${pad(hh)}:${pad(mm)}`);
+      out.add(`${hh}:${pad(mm)}`);
+    }
   const today = wallClock(o.now, o.tz);
-  const out = new Set<number>();
   for (let k = 0; k <= o.rules.daysAhead; k++) {
     const day = addLocalDays(today, k);
     const weekday = new Date(Date.UTC(day.y, day.m - 1, day.d)).getUTCDay();
-    for (const w of o.rules.windows) {
-      if (!w.days.includes(weekday)) continue;
-      for (let m = minuteOf(w.from); m + o.rules.minutes <= minuteOf(w.to); m += 15) {
-        const at = wallMinute(day, m, o.tz);
-        if (slotProblem(at, o) === null) out.add(at.getTime());
-      }
-    }
+    if (!o.rules.windows.some((w) => w.days.includes(weekday))) continue;
+    out.add(DAY_NAMES[weekday]!);
+    if (k === 0) out.add("today").add("tonight");
+    if (k === 1) out.add("tomorrow");
+    out.add(ordinal(day.d));
+    out.add(MONTH_NAMES[day.m - 1]!);
   }
-  return [...out].sort((a, b) => a - b).map((t) => new Date(t));
+  return [...out].join(" ");
 }
 
 /** The hours' own bounds as people write them ("4pm 4:00pm 16:00 7pm 7:00pm 19:00"): LUME AI may tell a lead them. */
