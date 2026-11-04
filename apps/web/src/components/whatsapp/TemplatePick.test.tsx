@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaTemplateState, WaThreadMessage } from "@/lib/whatsapp/types";
-import { TemplatePick, forgetTemplatePicks } from "./TemplatePick";
+import { SENT_MS, TemplatePick, forgetTemplatePicks } from "./TemplatePick";
 
 vi.mock("@/lib/whatsapp/client", () => ({
   whatsappClient: { templateState: vi.fn(), sendTemplate: vi.fn(), recommendTemplate: vi.fn() },
@@ -122,6 +122,36 @@ describe("Recommended by LUME AI (owner, 2026-10-31)", () => {
       clientKey: expect.any(String),
     });
     await waitFor(() => expect(onSent).toHaveBeenCalledWith(sent));
+  });
+
+  it("sent: the card says so with a tick, then folds itself away to Send a template (owner 2026-11-04)", async () => {
+    const onSent = vi.fn();
+    const { unmount } = render(<TemplatePick leadId="l1" leadName="Sneha Reddy" ai onSent={onSent} />);
+    await screen.findByText("Gentle nudge");
+    await userEvent.click(screen.getByRole("button", { name: "Send template" }));
+    // At once: the message is in the chat, and the card confirms it.
+    expect(await screen.findByRole("status")).toHaveTextContent("Sent to Sneha");
+    expect(onSent).toHaveBeenCalledWith(sent);
+    expect(screen.queryByRole("button", { name: "Send template" })).toBeNull();
+    // Then it closes by itself, leaving only the quiet way to another template.
+    expect(
+      await screen.findByRole("button", { name: "Send a template" }, { timeout: SENT_MS + 2000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Recommended by LUME AI" })).toBeNull();
+    // Opened again in this session: folded, never the same recommendation to send twice.
+    unmount();
+    render(<TemplatePick leadId="l1" leadName="Sneha Reddy" ai onSent={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Send a template" })).toBeInTheDocument();
+  });
+
+  it("the same from the list of templates", async () => {
+    render(<TemplatePick leadId="l1" leadName="Sneha Reddy" onSent={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("radio", { name: /Gentle nudge/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Send template" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Sent to Sneha");
+    expect(
+      await screen.findByRole("button", { name: "Send a template" }, { timeout: SENT_MS + 2000 }),
+    ).toBeInTheDocument();
   });
 
   it("while LUME AI chooses, it says so; Dismiss works then too", async () => {

@@ -291,6 +291,15 @@ describe("the relay", () => {
       });
     });
 
+    it("turned down at Google: said for a calendar as a calendar, never as a sheet (2026-11-04)", async () => {
+      const start = await calStart("cal-w5", "calendar_write", sign(TOKEN, "cal-w5.calendar_write"));
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      const r = await get(`/callback?error=access_denied&state=${encodeURIComponent(state)}`);
+      const page = await r.text();
+      expect(page).toContain("You didn't give LUME access to your calendar.");
+      expect(page).not.toContain("sheet");
+    });
+
     it("LUME's own calendar unticked at Google: the calendar still connects, read-only, and says so", async () => {
       const start = await calStart("cal-w4", "calendar_write", sign(TOKEN, "cal-w4.calendar_write"));
       const state = new URL(start.headers.get("location")!).searchParams.get("state")!;

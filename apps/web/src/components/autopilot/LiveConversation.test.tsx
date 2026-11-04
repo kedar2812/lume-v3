@@ -1,11 +1,15 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AutopilotEvent, WhatsAppEvent } from "@/lib/notifications/stream";
 import type { RunLead } from "@/lib/autopilot/types";
 import type { WaThread } from "@/lib/whatsapp/types";
+import { leadsClient } from "@/lib/leads/client";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import { LiveConversation } from "./LiveConversation";
+
+vi.mock("@/lib/leads/client", () => ({ leadsClient: { get: vi.fn(), liftDoNotContact: vi.fn() } }));
+vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 vi.mock("@/lib/whatsapp/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/whatsapp/client")>()),
@@ -127,6 +131,46 @@ describe("LiveConversation", () => {
     expect(bar).toHaveTextContent("LUME AI won't message Meera again.");
     expect(bar).toHaveTextContent("Said stop. LUME AI marked them do not contact.");
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("a stopped lead who asked not to be messaged: an admin lifts it beside Open lead, after a word (owner 2026-11-04)", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue(
+      ok({
+        lead: { doNotContact: { at: "2026-11-02T10:00:00Z", by: null, reason: "Said stop on WhatsApp" } },
+      }) as never,
+    );
+    vi.mocked(leadsClient.liftDoNotContact).mockResolvedValue(ok({ doNotContact: null }) as never);
+    render(<LiveConversation {...props({ lead: lead({ state: "stopped" }), canLiftDnc: true })} />);
+    const header = (await screen.findByRole("heading", { name: "Meera Iyer" })).closest(
+      "header",
+    ) as HTMLElement;
+    const lift = await within(header).findByRole("button", { name: "Lift do not contact" });
+    expect(within(header).getByRole("link", { name: "Open lead" })).toBeInTheDocument();
+    await userEvent.click(lift);
+    // Never one stray click: what it means, then Keep it or Lift it.
+    const ask = await screen.findByRole("dialog", { name: "Lift do not contact" });
+    expect(ask).toHaveTextContent("Only lift this if Meera asked to hear from you again.");
+    expect(leadsClient.liftDoNotContact).not.toHaveBeenCalled();
+    await userEvent.click(within(ask).getByRole("button", { name: "Lift it" }));
+    expect(leadsClient.liftDoNotContact).toHaveBeenCalledWith("a");
+    await waitFor(() =>
+      expect(within(header).queryByRole("button", { name: "Lift do not contact" })).toBeNull(),
+    );
+  });
+
+  it("not for someone who can't lift it, nor for a lead without do not contact", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue(
+      ok({ lead: { doNotContact: { at: "2026-11-02T10:00:00Z", by: null, reason: null } } }) as never,
+    );
+    const { unmount } = render(<LiveConversation {...props({ lead: lead({ state: "stopped" }) })} />);
+    await screen.findByText(/Stopped/);
+    expect(screen.queryByRole("button", { name: "Lift do not contact" })).toBeNull();
+    expect(leadsClient.get).not.toHaveBeenCalled();
+    unmount();
+    vi.mocked(leadsClient.get).mockResolvedValue(ok({ lead: { doNotContact: null } }) as never);
+    render(<LiveConversation {...props({ lead: lead({ state: "stopped" }), canLiftDnc: true })} />);
+    await waitFor(() => expect(leadsClient.get).toHaveBeenCalledWith("a"));
+    expect(screen.queryByRole("button", { name: "Lift do not contact" })).toBeNull();
   });
 
   it("a lead with you: your own reply box, starting from LUME AI's words, and Hand back", async () => {

@@ -3,11 +3,14 @@ import { AUTOPILOT_ACTION_TITLES, firstNameOf } from "@lume/core/shared";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
+import { useToast } from "@/components/feedback/ToastProvider";
 import { WhatsAppComposer } from "@/components/leads/drawer/WhatsAppComposer";
 import { WhatsAppThread } from "@/components/leads/drawer/WhatsAppThread";
 import { Button } from "@/components/ui/Button";
+import { Popover } from "@/components/ui/Popover";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RunAsk, RunLead } from "@/lib/autopilot/types";
+import { leadsClient } from "@/lib/leads/client";
 import { leadLine, whenWords } from "@/lib/autopilot/words";
 import { useAutopilot, useWhatsApp } from "@/lib/notifications/stream";
 import { useChatOnScreen } from "@/lib/whatsapp/open-chats";
@@ -43,7 +46,10 @@ export function LiveConversation({
   ask,
   onApprove,
   onDecline,
+  canLiftDnc = false,
 }: {
+  /** An admin (settings.manage): may lift a lead's do not contact here, beside Open lead (owner 2026-11-04). */
+  canLiftDnc?: boolean;
   lead: RunLead;
   tz: string;
   speaker: string;
@@ -92,6 +98,22 @@ export function LiveConversation({
     if (e.lead === shown.current || e.lead === "*") read();
   });
   useChatOnScreen(lead.leadId);
+  const { toast } = useToast();
+
+  // A stopped lead who asked not to be messaged: an admin may lift it from here, as on the lead (owner 2026-11-04).
+  const isStopped = lead.state === "stopped";
+  const [dnc, setDnc] = useState(false);
+  useEffect(() => {
+    setDnc(false);
+    if (!isStopped || !canLiftDnc) return;
+    let live = true;
+    void leadsClient.get(lead.leadId).then((r) => {
+      if (live && r.ok) setDnc(!!r.data.lead.doNotContact);
+    });
+    return () => {
+      live = false;
+    };
+  }, [isStopped, canLiftDnc, lead.leadId]);
 
   // The newest message stays in view as messages arrive and LUME AI types, unless someone scrolled up to read.
   const scroller = useRef<HTMLDivElement>(null);
@@ -258,6 +280,21 @@ export function LiveConversation({
         <Link href={`/leads?lead=${encodeURIComponent(lead.leadId)}`} className={s.openLead}>
           Open lead
         </Link>
+        {dnc && (
+          <LiftDoNotContact
+            leadId={lead.leadId}
+            who={who}
+            onLifted={() => {
+              setDnc(false);
+              toast({
+                tone: "ok",
+                title: `${who} can be messaged again`,
+                detail: "LUME lifted do not contact.",
+              });
+              read();
+            }}
+          />
+        )}
         {working && mayMessage && (
           <Button size="sm" variant="primary" onClick={onTakeOver} aria-label={`Take over ${who}`}>
             Take over
@@ -290,5 +327,52 @@ export function LiveConversation({
         </p>
       )}
     </section>
+  );
+}
+
+/** Lift do not contact, beside Open lead (owner 2026-11-04): the same word first as on the lead, then Keep it or Lift it. */
+function LiftDoNotContact({ leadId, who, onLifted }: { leadId: string; who: string; onLifted(): void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const lift = async (close: () => void) => {
+    setBusy(true);
+    setError(null);
+    const r = await leadsClient.liftDoNotContact(leadId);
+    setBusy(false);
+    if (!r.ok) return setError(r.message);
+    close();
+    onLifted();
+  };
+  return (
+    <Popover
+      label="Lift do not contact"
+      trigger="Lift do not contact"
+      triggerClassName={s.liftDnc}
+      role="dialog"
+      size="form"
+      align="end"
+    >
+      {(close) => (
+        <div className={s.liftAsk}>
+          <p>
+            Only lift this if {who} asked to hear from you again. LUME, LUME AI and your team can message{" "}
+            {who} once it&apos;s lifted.
+          </p>
+          {error && (
+            <p role="alert" className={s.liftError}>
+              {error}
+            </p>
+          )}
+          <div className={s.liftActions}>
+            <Button size="sm" onClick={close} disabled={busy}>
+              Keep it
+            </Button>
+            <Button size="sm" variant="danger" loading={busy} onClick={() => void lift(close)}>
+              Lift it
+            </Button>
+          </div>
+        </div>
+      )}
+    </Popover>
   );
 }

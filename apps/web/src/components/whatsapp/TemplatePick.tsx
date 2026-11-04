@@ -14,6 +14,9 @@ const costLine = (o: WaTemplateOption) =>
   o.cost ? `WhatsApp charges ${aboutCost(o.cost)} for this.` : "WhatsApp charges for this.";
 
 type Pick = { submissionId: string; why: string };
+/** How long "Sent to …" shows before the card folds itself away (owner 2026-11-04); its last 320 ms are the fold. */
+export const SENT_MS = 1600;
+const FOLD_MS = 320;
 /** LUME AI's pick, once per lead and set of templates in a session: opening the lead again asks nothing new. */
 const picks = new Map<string, Promise<Pick | null>>();
 /** For tests: each starts with nothing remembered. */
@@ -57,6 +60,10 @@ export function TemplatePick({
   const [view, setView] = useState<"pick" | "list">("pick");
   // Dismissed: folded to one button until it's opened again.
   const [openList, setOpenList] = useState(false);
+  // Sent: "Sent to …" with its tick, then folding away; null when nothing was just sent.
+  const [sent, setSent] = useState<null | "shown" | "folding">(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
   const key = useRef(crypto.randomUUID());
   const busy = useRef(false);
   const id = useId();
@@ -118,18 +125,28 @@ export function TemplatePick({
     key.current = crypto.randomUUID();
     setChosen(null);
     onSent(r.data.message);
+    // Said, then put away by itself (owner 2026-11-04): folded for this lead, so the same one is never sent twice.
+    setSent("shown");
+    timers.current.push(
+      setTimeout(() => setSent("folding"), SENT_MS - FOLD_MS),
+      setTimeout(() => {
+        setSent(null);
+        fold();
+      }, SENT_MS),
+    );
   };
-  const dismiss = () => {
+  const fold = () => {
     try {
       sessionStorage.setItem(dismissKey(leadId), "1");
     } catch {
-      // A private window: dismissed for now, not remembered.
+      // A private window: folded for now, not remembered.
     }
     setDismissed(true);
     setView("list");
     setChosen(null);
     setOpenList(false);
   };
+  const dismiss = fold;
   const foot = (
     <>
       {error && (
@@ -153,6 +170,23 @@ export function TemplatePick({
       Send template
     </Button>
   );
+
+  if (sent)
+    return (
+      <div className={s.sent} data-folding={sent === "folding" || undefined}>
+        <div role="status" className={s.sentInner}>
+          <span className={s.sentTick} aria-hidden>
+            <svg viewBox="0 0 24 24">
+              <path d="M6.5 12.5l3.6 3.6 7.4-8.2" />
+            </svg>
+          </span>
+          <span className={s.sentText}>
+            <b>Sent to {who}</b>
+            <span>It&apos;s in the chat.</span>
+          </span>
+        </div>
+      </div>
+    );
 
   // LUME AI's pick: choosing, then the pick with why.
   const recommended = pick ? options.find((o) => o.submissionId === pick.submissionId) : undefined;
@@ -257,7 +291,11 @@ export function TemplatePick({
                 } else onKey(e, i);
               }}
             >
-              <span className={s.dot} aria-hidden />
+              <span className={s.dot} aria-hidden>
+                <svg viewBox="0 0 24 24">
+                  <path d="M6.5 12.5l3.6 3.6 7.4-8.2" />
+                </svg>
+              </span>
               <span className={s.body}>
                 <span className={s.name}>{o.name}</span>
                 <span className={s.preview}>{o.preview}</span>

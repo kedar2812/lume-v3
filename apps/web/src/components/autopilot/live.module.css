@@ -104,6 +104,49 @@
 .openLead:hover {
   text-decoration: underline;
 }
+/* Lift do not contact, beside Open lead (owner 2026-11-04): a quiet pill in the stop's red, its word in a small sheet. */
+.liftDnc {
+  flex: none;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--danger-ink);
+  background: var(--danger-soft);
+  transition:
+    background 0.15s,
+    transform 0.1s ease-out;
+}
+.liftDnc:hover {
+  background: color-mix(in srgb, var(--danger-soft) 70%, var(--danger) 12%);
+}
+.liftDnc:active {
+  transform: scale(0.97);
+}
+.liftDnc:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.liftAsk {
+  display: grid;
+  gap: 12px;
+  max-width: 300px;
+  padding: 4px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.liftAsk p {
+  margin: 0;
+}
+.liftError {
+  color: var(--danger-ink);
+}
+.liftActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 /* LUME AI's reason, at the foot in one quiet line while it works. */
 .why {
   margin: 0;

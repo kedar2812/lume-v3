@@ -45,31 +45,82 @@
   outline: 0;
   transition:
     box-shadow 0.15s,
-    background 0.15s;
+    background 0.15s,
+    transform 0.1s ease-out;
 }
 .option:focus-visible {
   box-shadow:
     0 0 0 1.5px var(--accent),
     0 0 0 4px var(--accent-soft);
 }
-.option[data-on] {
+.option:hover:not([aria-disabled="true"]) {
+  box-shadow: 0 0 0 0.5px var(--text-3);
+}
+.option:active:not([aria-disabled="true"]) {
+  transform: scale(0.995);
+}
+/* Chosen (owner 2026-11-04): the card itself says so, a soft green ground and ring, not a dot alone. */
+.option[data-on],
+.option[data-on]:hover {
+  background: color-mix(in srgb, var(--wa) 9%, var(--sheet));
   box-shadow: 0 0 0 1.5px var(--wa);
 }
 .option[aria-disabled="true"] {
   cursor: default;
   opacity: 0.72;
 }
+/* A round check (owner 2026-11-04): a quiet ring until chosen, then it fills and draws its tick. */
 .dot {
+  display: grid;
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 0;
   border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  transition:
+    background 0.2s var(--spring),
+    box-shadow 0.2s var(--spring),
+    transform 0.2s var(--spring);
+}
+.option:hover:not([aria-disabled="true"]) .dot {
   box-shadow: inset 0 0 0 1.5px var(--text-3);
-  transition: box-shadow 0.18s var(--spring);
+}
+.dot svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset 0.26s ease-out;
 }
 .option[data-on] .dot {
-  box-shadow: inset 0 0 0 5px var(--wa);
+  background: var(--wa);
+  box-shadow: none;
+  animation: dotPop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.option[data-on] .dot svg {
+  stroke-dashoffset: 0;
+  transition-delay: 0.08s;
+}
+@keyframes dotPop {
+  0% {
+    transform: scale(0.7);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .option[data-on] .dot {
+    animation: none;
+  }
+  .dot svg {
+    transition: none;
+  }
 }
 .body {
   flex: 1;
@@ -288,5 +339,101 @@
   }
   .ghost span {
     animation: none;
+  }
+}
+
+/* Sent (owner 2026-11-04): "Sent to …" with a tick that draws itself, then the card folds away on its own. */
+.sent {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: 4px;
+  transition:
+    grid-template-rows 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.24s ease-in,
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sent[data-folding] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+.sentInner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa) 45%, transparent);
+  animation: sentIn 0.42s var(--spring) both;
+}
+@keyframes sentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.sentTick {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--wa);
+  color: #fff;
+  animation: tickPop 0.46s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s both;
+}
+.sentTick svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: tickDraw 0.34s ease-out 0.22s forwards;
+}
+@keyframes tickPop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+@keyframes tickDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.sentText {
+  display: grid;
+  gap: 1px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+}
+.sentText b {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.sentText span {
+  color: var(--text-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sent,
+  .sent[data-folding] {
+    transform: none;
+    transition: opacity 0.2s;
+  }
+  .sentInner,
+  .sentTick {
+    animation: none;
+  }
+  .sentTick svg {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }

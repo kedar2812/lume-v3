@@ -100,7 +100,10 @@ export function AutopilotScreen({
   askedRun,
   canStart,
   off,
+  canLiftDnc = false,
 }: {
+  /** An admin (settings.manage): lifts a lead's do not contact from the chat (owner 2026-11-04). */
+  canLiftDnc?: boolean;
   initial: RunsList;
   askedRun: string | null;
   /** May start runs (New run, and the first visit's start). */
@@ -278,6 +281,7 @@ export function AutopilotScreen({
           ask={d.asks.find((a) => a.leadId === l.leadId) ?? null}
           onApprove={(id) => act(() => autopilotClient.approve(id), "LUME couldn't do that")}
           onDecline={(id) => act(() => autopilotClient.decline(id), "LUME couldn't hand it to you")}
+          canLiftDnc={canLiftDnc}
         />
       ) : (
         <p className={s.nobody}>Choose a lead to see the conversation.</p>

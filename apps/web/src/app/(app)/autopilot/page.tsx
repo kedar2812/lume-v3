@@ -20,6 +20,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
       initial={list.data ?? { runs: [], running: 0 }}
       askedRun={typeof run === "string" ? run : null}
       canStart={can(session.actor, "messages.send_queue")}
+      // Lift do not contact beside Open lead, as on the lead: admins only, as the server asks (owner 2026-11-04).
+      canLiftDnc={can(session.actor, "settings.manage")}
       // Off (or unknown), the page says so, and how to switch it on (owner, 2026-10-27).
       off={ai.data?.on ? undefined : { canSwitch: can(session.actor, "integrations.manage") }}
     />

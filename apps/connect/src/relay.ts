@@ -225,7 +225,9 @@ export function createRelay(o: RelayConfig): Relay {
             200,
             wordsPage(
               "LUME didn't get access",
-              "You didn't give LUME access to a sheet. Go back to LUME and choose Continue with Google when you're ready.",
+              state.k === "calendar" || state.k === "calendar_write"
+                ? "You didn't give LUME access to your calendar. Go back to LUME and try again when you're ready."
+                : "You didn't give LUME access to a sheet. Go back to LUME and choose Continue with Google when you're ready.",
               backTo(state.i),
             ),
           );
