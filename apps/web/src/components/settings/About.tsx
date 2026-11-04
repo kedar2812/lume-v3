@@ -1,4 +1,5 @@
 "use client";
+import { AboutWhatsNew } from "@/components/whats-new/AboutWhatsNew";
 import { useEffect, useState } from "react";
 import { LUME_OWNER } from "@lume/core/shared";
 import { aboutClient, type AboutInfo } from "@/lib/settings/about";
@@ -67,6 +68,8 @@ export function About() {
           </div>
         </dl>
       </section>
+      {/* What's new in this version, working (spec 2026-11-02). */}
+      <AboutWhatsNew />
     </div>
   );
 }

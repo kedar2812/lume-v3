@@ -35,6 +35,10 @@ type WhatsNewApi = {
   showMe: (id: StoryId) => void;
   /** "New" beside a story's place: for a week, until used; kept while they're on the page that used it. */
   isStoryNew: (id: StoryId) => boolean;
+  /** Today's pill put away for good, for this version. */
+  hidePill: () => void;
+  /** The window is showing (Today's pill waits for it to close). */
+  isOpen: boolean;
   state: WhatsNewState;
   release: Release | null;
   stories: Story[];
@@ -43,6 +47,8 @@ const WhatsNewContext = createContext<WhatsNewApi>({
   open: () => undefined,
   showMe: () => undefined,
   isStoryNew: () => false,
+  hidePill: () => undefined,
+  isOpen: false,
   state: EMPTY_WHATS_NEW,
   release: null,
   stories: [],
@@ -154,9 +160,15 @@ export function WhatsNewProvider({
     [release, stories, here, state],
   );
 
+  const hidePill = useCallback(() => {
+    if (!release) return;
+    setState((cur) => ({ ...cur, pillGone: release.version }));
+    void client.save({ pillGone: release.version });
+  }, [release, client]);
+
   const api = useMemo<WhatsNewApi>(
-    () => ({ open, showMe, isStoryNew, state, release, stories }),
-    [open, showMe, isStoryNew, state, release, stories],
+    () => ({ open, showMe, isStoryNew, hidePill, isOpen: !!win, state, release, stories }),
+    [open, showMe, isStoryNew, hidePill, win, state, release, stories],
   );
 
   return (

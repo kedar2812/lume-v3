@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTour } from "@/components/tour/TourProvider";
+import { useWhatsNew } from "@/components/whats-new/WhatsNewProvider";
 import { Avatar } from "@/components/ui/Avatar";
 import { api } from "@/lib/api";
 import s from "./shell.module.css";
 
-/** The person's row at the foot of the sidebar, opening a small menu: replay the tour, send feedback, or sign out. */
+/** The person's row at the foot of the sidebar, opening a small menu: replay the tour, What's new, send feedback, sign out. */
 export function ProfileMenu({
   user,
   onFeedback,
@@ -19,6 +20,7 @@ export function ProfileMenu({
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const tour = useTour();
+  const whatsNew = useWhatsNew();
 
   useEffect(() => {
     if (!open) return;
@@ -54,6 +56,18 @@ export function ProfileMenu({
           >
             Replay the tour
           </button>
+          {whatsNew.release && whatsNew.stories.length > 0 && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                whatsNew.open();
+              }}
+            >
+              What&apos;s new
+            </button>
+          )}
           {onFeedback && (
             <button
               type="button"

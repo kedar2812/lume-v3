@@ -16,6 +16,8 @@ export type Story = {
   head: [string, string];
   /** The rail's small line under the title. */
   note: string;
+  /** A word or two for the chips on Settings → About. */
+  chip: string;
   /** One sentence. */
   sub: string;
   /** How long the story plays by itself. */
@@ -50,6 +52,7 @@ export const RELEASES: readonly Release[] = [
         kicker: "lume-ai",
         head: ["LUME AI books", "your calls."],
         note: "At the times you choose",
+        chip: "Calls booked",
         sub: "Give it the times you take calls. When a lead asks for one and you're free, it says yes, books it and sends the Google Meet link if you let it.",
         ms: 8500,
         place: { route: "/settings/ai", target: "calls" },
@@ -65,6 +68,7 @@ export const RELEASES: readonly Release[] = [
         kicker: "whatsapp",
         head: ["Your chats,", "live in LUME."],
         note: "The moment they arrive",
+        chip: "Live chats",
         sub: "A lead's message shows the moment it arrives, with a notice on whatever screen you're on, and their chat opens in its own window.",
         ms: 8000,
         place: { route: "/replies", target: "nav-replies" },
@@ -80,6 +84,7 @@ export const RELEASES: readonly Release[] = [
         kicker: "lume-ai",
         head: ["Templates,", "written for you."],
         note: "Say what it's for",
+        chip: "AI templates",
         sub: "Say what a template is for and LUME AI writes a few to choose from. In a chat, one tap puts yours in the reply box.",
         ms: 8000,
         place: { route: "/templates", target: "write-with-ai" },

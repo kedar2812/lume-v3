@@ -17,6 +17,7 @@ describe("the releases", () => {
       expect(s.ms).toBeLessThanOrEqual(9000);
       for (const line of s.head) expect(line.length).toBeLessThanOrEqual(18);
       expect(s.note.length).toBeLessThanOrEqual(24);
+      expect(s.chip.length).toBeLessThanOrEqual(14);
     }
     expect(r.alsoNew).toHaveLength(4);
   });

@@ -1,4 +1,5 @@
 "use client";
+import { AgainPill } from "@/components/whats-new/AgainPill";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
@@ -331,6 +332,8 @@ export function Today({
           )}
         </div>
       </header>
+      {/* What's new (spec 2026-11-02): the way back to this version's window, until its own X. */}
+      <AgainPill />
       {canQueue && <ResumeRun variant="card" />}
       {error && (
         <p role="alert" className={s.error}>
