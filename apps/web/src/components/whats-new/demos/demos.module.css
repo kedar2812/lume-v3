@@ -1,0 +1,560 @@
+/* The stories, played in LUME's own look (spec 2026-11-02): built in code, crisp in both themes. Each element's resting
+   style is its finished frame (reduced motion, or a story not playing); under [data-playing] it arrives on a timeline. */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.panel {
+  position: absolute;
+  background: var(--raised);
+  border-radius: 20px;
+  box-shadow:
+    var(--shadow-pop),
+    0 0 0 0.5px var(--line-2);
+  overflow: hidden;
+}
+
+/* ── A chat, as LUME's chat window draws it ── */
+.chat {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.chatBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--line);
+}
+.av {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 99px;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.who {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+.who b {
+  font-size: 14px;
+}
+.who small {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 9px;
+  background: var(--ok);
+}
+.msgs {
+  display: grid;
+  align-content: end;
+  gap: 8px;
+  padding: 14px;
+  background: var(--sunk);
+  min-height: 0;
+}
+.m {
+  max-width: 86%;
+  padding: 9px 12px;
+  border-radius: 16px;
+}
+.lead {
+  justify-self: start;
+  background: var(--raised);
+  border-bottom-left-radius: 5px;
+  box-shadow: 0 0 0 0.5px var(--line);
+}
+.ai {
+  justify-self: end;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.ai u {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+.me {
+  justify-self: end;
+  background: var(--wa-fill, var(--ok-soft));
+  border-bottom-right-radius: 5px;
+}
+.ticks {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: -1px;
+  color: var(--sky);
+}
+.sig,
+.writing {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+.foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 0.5px solid var(--line);
+}
+.box {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text-3);
+  font-size: 13px;
+}
+.send {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+/* ── Calls: the chat, then the call lands in the Calendar ── */
+.calls .chat {
+  left: 0;
+  top: 2%;
+  width: 62%;
+  height: 86%;
+}
+.cal {
+  right: 0;
+  bottom: 0;
+  width: 46%;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+.calTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.calTop small {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.day {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  grid-auto-rows: minmax(44px, auto);
+  gap: 4px;
+}
+.h {
+  font-size: 11px;
+  color: var(--text-3);
+  padding-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.c {
+  position: relative;
+  border-radius: 10px;
+  background: var(--sunk);
+}
+.busy {
+  padding: 5px 8px;
+  background: var(--tile);
+  box-shadow: inset 2px 0 0 var(--text-3);
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+.slot {
+  display: grid;
+  gap: 2px;
+  height: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11.5px;
+}
+.slotHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.slotHead img {
+  flex: none;
+  border-radius: 3px;
+  background: #fff;
+  padding: 1px;
+}
+.slot small {
+  opacity: 0.9;
+}
+.ticket {
+  position: absolute;
+  z-index: 4;
+  left: 18%;
+  top: 58%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow:
+    var(--shadow-pop),
+    0 0 0 0.5px var(--line-2);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+/* ── Chats: a message arrives, and the notice slides into the corner of any screen ── */
+.page {
+  right: 0;
+  top: 0;
+  width: 72%;
+  height: 70%;
+  padding: 16px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  background: var(--sheet);
+}
+.pageTitle {
+  font-weight: 700;
+  font-size: 15px;
+}
+.cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.cols i {
+  border-radius: 12px;
+  background: var(--tile);
+}
+.chatWin {
+  left: 0;
+  bottom: 0;
+  width: 64%;
+  height: 78%;
+}
+.notice {
+  position: absolute;
+  z-index: 3;
+  top: 6%;
+  right: 3%;
+  width: min(300px, 62%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--raised);
+  box-shadow:
+    var(--shadow-pop),
+    0 0 0 0.5px var(--line-2);
+}
+
+/* ── Templates: LUME AI writes three, one is chosen, it goes into the reply box ── */
+.writer {
+  left: 0;
+  top: 0;
+  width: 68%;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.writerHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-ink);
+}
+.ask {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.typed {
+  display: inline-block;
+  white-space: nowrap;
+}
+.drafts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.draft {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: 13px;
+}
+.tick {
+  width: 20px;
+  height: 20px;
+  border-radius: 99px;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  display: grid;
+  place-items: center;
+}
+.tick svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 12;
+  stroke-dashoffset: 12;
+}
+.draft[data-chosen] {
+  background: var(--ok-soft);
+  box-shadow: inset 0 0 0 1.5px var(--ok);
+}
+.draft[data-chosen] .tick {
+  background: var(--ok);
+  box-shadow: none;
+}
+.draft[data-chosen] .tick svg {
+  stroke-dashoffset: 0;
+}
+.replyCard {
+  right: 0;
+  bottom: 0;
+  width: 56%;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.replyHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.replyBox {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: 13px;
+}
+.flyIn {
+  display: block;
+}
+
+/* ── The timelines ── */
+[data-playing] .t1 {
+  animation: pop 0.5s 0.4s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+[data-playing] .t2 {
+  animation: pop 0.5s 2.8s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+[data-playing] .t3 {
+  animation: pop 0.4s 3.1s ease both;
+}
+[data-playing] .t4 {
+  animation: pop 0.7s 3.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+[data-playing] .t5 {
+  animation: land 0.5s 5.6s cubic-bezier(0.34, 1.5, 0.5, 1) both;
+}
+[data-playing] .writing {
+  animation:
+    appear 0.3s 1.3s ease both,
+    gone 0.25s 2.7s forwards;
+}
+[data-playing] .ticket {
+  animation: ticket 2.4s 3.6s cubic-bezier(0.65, 0, 0.25, 1) forwards;
+}
+
+.chats[data-playing] .chatWin {
+  animation: pop 0.5s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.chats[data-playing] .t1 {
+  animation-delay: 0.7s;
+}
+.chats[data-playing] .t2 {
+  animation-delay: 1.5s;
+}
+.chats[data-playing] .t3 {
+  animation: pop 0.5s 3s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.chats[data-playing] .t4 {
+  animation: slide 0.7s 3.6s cubic-bezier(0.34, 1.3, 0.5, 1) both;
+}
+
+.templates[data-playing] .typed {
+  animation: type 1.1s 0.5s steps(18) both;
+}
+.templates[data-playing] .d1 {
+  animation: pop 0.5s 2.1s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.templates[data-playing] .d2 {
+  animation: pop 0.5s 2.5s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.templates[data-playing] .d3 {
+  animation: pop 0.5s 2.9s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.templates[data-playing] .draft[data-chosen] {
+  animation: chosen 0.4s 4s ease both;
+}
+.templates[data-playing] .draft[data-chosen] .tick {
+  animation: tickFill 0.3s 4s ease both;
+}
+.templates[data-playing] .draft[data-chosen] .tick svg {
+  animation: draw 0.35s 4.15s ease both;
+}
+.templates[data-playing] .t5 {
+  animation: pop 0.6s 4.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.templates[data-playing] .flyIn {
+  animation: fly 0.7s 5.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes gone {
+  to {
+    opacity: 0;
+    height: 0;
+    margin: -4px 0;
+  }
+}
+@keyframes land {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes ticket {
+  0% {
+    opacity: 0;
+    transform: translate(0, 10px) scale(0.9);
+  }
+  18%,
+  55% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(min(26vw, 300px), 70px) scale(0.55);
+  }
+}
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes chosen {
+  from {
+    background: transparent;
+    box-shadow: inset 0 0 0 0.5px var(--line-2);
+  }
+}
+@keyframes tickFill {
+  from {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--line-2);
+  }
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 12;
+  }
+}
+@keyframes fly {
+  from {
+    opacity: 0;
+    transform: translate(-30%, -60px) scale(0.9);
+  }
+}
+
+@media (max-width: 560px) {
+  .scene {
+    font-size: 12.5px;
+  }
+  .calls .chat,
+  .chatWin {
+    width: 82%;
+  }
+  .cal {
+    width: 60%;
+  }
+  .writer {
+    width: 88%;
+  }
+  .replyCard {
+    width: 78%;
+  }
+  .page {
+    width: 86%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene *,
+  .scene {
+    animation: none !important;
+  }
+}
