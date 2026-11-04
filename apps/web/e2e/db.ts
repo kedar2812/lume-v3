@@ -145,3 +145,44 @@ export async function rollupAnalytics(): Promise<void> {
     await c.end();
   }
 }
+
+/** As the test database's superuser: test housekeeping, outside anyone's row-level scope. */
+async function asSuperuser<T>(run: (c: pg.Client) => Promise<T>): Promise<T> {
+  const url = new URL(adminUrl());
+  url.pathname = `/${DB}`;
+  const c = new pg.Client({ connectionString: url.toString() });
+  await c.connect();
+  try {
+    return await run(c);
+  } finally {
+    await c.end();
+  }
+}
+
+/**
+ * What's new (spec 2026-11-02) is due for this person again: nothing seen, and an account from before the release (people
+ * who join on or after it never get the window, which is every seeded person).
+ */
+export async function whatsNewDue(email: string): Promise<void> {
+  await asSuperuser((c) =>
+    c.query(
+      "UPDATE users SET whats_new = '{}'::jsonb, created_at = now() - interval '60 days' WHERE email = $1",
+      [email],
+    ),
+  );
+}
+
+/** WhatsApp switched on or off for the business (its stories need it on), returning what it was. */
+export async function whatsappSwitch(on: boolean): Promise<boolean> {
+  return asSuperuser(async (c) => {
+    const was = await c.query<{ on: boolean }>(
+      "SELECT coalesce((integrations->'whatsapp'->>'enabled')::boolean, false) AS on FROM settings WHERE id = 1",
+    );
+    await c.query(
+      `UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp}',
+         coalesce(integrations->'whatsapp', '{}'::jsonb) || jsonb_build_object('enabled', $1::boolean)) WHERE id = 1`,
+      [on],
+    );
+    return was.rows[0]?.on ?? false;
+  });
+}

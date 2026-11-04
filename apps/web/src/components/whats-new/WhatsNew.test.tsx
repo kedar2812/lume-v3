@@ -172,6 +172,11 @@ describe("What's new: the window", () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it("focus starts on the window itself, never ringing the Close button as it opens", () => {
+    mount();
+    expect(document.activeElement).toBe(win());
+  });
+
   it("lists the smaller changes under Also new", () => {
     mount();
     tick(OVERTURE_MS);

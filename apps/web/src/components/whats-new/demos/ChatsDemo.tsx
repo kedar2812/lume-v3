@@ -24,6 +24,16 @@ export function ChatsDemo({ playing }: DemoProps) {
           <i />
         </div>
       </div>
+      <div className={`${s.notice} ${s.t4}`} role="status">
+        <span className={s.av} style={{ background: "#0b7285" }}>
+          AR
+        </span>
+        <span className={s.who}>
+          <b>Arjun Rao</b>
+          <small>What are your timings on Saturday?</small>
+        </span>
+        <WhatsAppIcon size={16} />
+      </div>
       <div className={`${s.panel} ${s.chat} ${s.chatWin}`}>
         <div className={s.chatBar}>
           <span className={s.av} style={{ background: "#0b7285" }}>
@@ -50,16 +60,6 @@ export function ChatsDemo({ playing }: DemoProps) {
           <span className={s.box}>Write to Arjun</span>
           <span className={s.send}>Send</span>
         </div>
-      </div>
-      <div className={`${s.notice} ${s.t4}`} role="status">
-        <span className={s.av} style={{ background: "#0b7285" }}>
-          AR
-        </span>
-        <span className={s.who}>
-          <b>Arjun Rao</b>
-          <small>What are your timings on Saturday?</small>
-        </span>
-        <WhatsAppIcon size={16} />
       </div>
     </div>
   );

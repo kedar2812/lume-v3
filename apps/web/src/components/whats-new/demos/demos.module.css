@@ -91,9 +91,10 @@
   border-bottom-right-radius: 5px;
 }
 .ai u {
+  display: block;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .me {
   justify-self: end;
@@ -126,6 +127,9 @@
 .box {
   flex: 1;
   min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-height: 34px;
   display: flex;
   align-items: center;
@@ -149,16 +153,17 @@
 }
 
 /* ── Calls: the chat, then the call lands in the Calendar ── */
+/* Side by side, never one over the other's words. */
 .calls .chat {
   left: 0;
-  top: 2%;
-  width: 62%;
-  height: 86%;
+  top: 0;
+  width: 56%;
+  height: 80%;
 }
 .cal {
   right: 0;
   bottom: 0;
-  width: 46%;
+  width: 42%;
   padding: 14px;
   display: grid;
   gap: 10px;
@@ -531,16 +536,58 @@
   }
 }
 
-@media (max-width: 560px) {
+/* A narrow demo column (a phone, or a 1024 px window beside the rail): stacked, never squeezed. */
+@container (max-width: 440px) {
+  /* Chats and templates flow top to bottom, never one panel over another's words: the notice, then the chat; the
+     drafts, then the reply box. */
+  .chats {
+    position: relative;
+    inset: auto;
+    display: grid;
+    gap: 12px;
+    align-content: start;
+  }
+  .chats .page {
+    display: none;
+  }
+  .chats .notice,
+  .chats .chatWin {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+  }
+  .templates {
+    position: relative;
+    inset: auto;
+    display: grid;
+    gap: 12px;
+    align-content: start;
+  }
+  .templates .writer,
+  .templates .replyCard {
+    position: relative;
+    inset: auto;
+    width: 100%;
+  }
+  .templates .replyCard {
+    width: 88%;
+    justify-self: end;
+  }
   .scene {
     font-size: 12.5px;
   }
-  .calls .chat,
-  .chatWin {
-    width: 82%;
+  /* A phone: the chat on top, the call's one row below it, clear of its messages. */
+  .calls .chat {
+    width: 100%;
+    height: 62%;
   }
   .cal {
-    width: 60%;
+    width: 72%;
+  }
+  .cal .day > :nth-child(-n + 2),
+  .cal .day > :nth-child(n + 5) {
+    display: none;
   }
   .writer {
     width: 88%;

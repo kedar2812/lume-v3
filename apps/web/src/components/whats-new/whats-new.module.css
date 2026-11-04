@@ -22,6 +22,7 @@
     var(--shadow-sheet),
     0 0 0 0.5px var(--line-2);
   overflow: hidden;
+  outline: none;
   animation: unfold 0.95s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .win[data-closing] {
@@ -325,7 +326,7 @@
 /* ── The stage ── */
 .stage {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   gap: 4vw;
   align-items: center;
   padding: 3vh 4vw;
@@ -338,6 +339,8 @@
   align-content: center;
   justify-items: start;
   min-width: 0;
+  /* The headline is sized to its column, so each line stays one line at every width. */
+  container-type: inline-size;
 }
 .kicker {
   display: inline-flex;
@@ -350,7 +353,8 @@
 }
 .headline {
   margin: 0;
-  font-size: clamp(38px, 4.6vw, 72px);
+  width: 100%;
+  font-size: clamp(30px, 12cqi, 72px);
   line-height: 1.04;
   letter-spacing: -0.045em;
   font-weight: 800;
@@ -359,9 +363,10 @@
    gives the room back: nothing is ever cut off (owner, 2026-11-02). */
 .line {
   display: block;
+  white-space: nowrap;
   overflow: hidden;
-  padding-block: 0.08em 0.24em;
-  margin-block: -0.08em -0.24em;
+  padding-block: 0.18em 0.26em;
+  margin-block: -0.18em -0.26em;
 }
 .line > span {
   display: block;
@@ -430,6 +435,8 @@
   position: relative;
   height: min(64vh, 560px);
   min-width: 0;
+  /* The demos lay out by their own width, not the screen's: a narrow column stacks them (demos.module.css). */
+  container-type: inline-size;
 }
 
 @media (max-width: 980px) {
@@ -466,8 +473,10 @@
     gap: 18px;
     overflow-y: auto;
   }
+  /* The stage scrolls here: a demo that flows (templates) takes the room it needs. */
   .demo {
-    height: 380px;
+    height: auto;
+    min-height: 380px;
   }
 }
 @media (max-width: 560px) {
@@ -488,7 +497,7 @@
     padding: 20px 18px;
   }
   .demo {
-    height: 340px;
+    min-height: 340px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -86,6 +86,9 @@ export function WhatsNewWindow({
 
   useInertBehind(panel);
   const focus = useModalFocus(panel, close);
+  // Focus rests on the window itself (the focus hook took it to the first button, Close, which then wore its ring as
+  // the window opened); Tab still goes to Close first.
+  useEffect(() => panel.current?.focus({ preventScroll: true }), []);
 
   const go = useCallback(
     (i: number) => {
@@ -123,6 +126,7 @@ export function WhatsNewWindow({
         role="dialog"
         aria-modal="true"
         aria-labelledby="whats-new-title"
+        tabIndex={-1}
         className={s.win}
         data-closing={closing || undefined}
         data-still={reduced || undefined}
