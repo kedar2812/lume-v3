@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { PERMISSIONS, TOUR_STEPS } from "@lume/core/shared";
+import { EMPTY_WHATS_NEW, PERMISSIONS, TOUR_STEPS } from "@lume/core/shared";
+import { WhatsNewProvider } from "@/components/whats-new/WhatsNewProvider";
 import { fakeSession } from "@/server/session";
 import { AppShell } from "./AppShell";
 import { Sidebar } from "./Sidebar";
@@ -33,6 +34,27 @@ vi.mock("@/lib/media/uploads", async (orig) => ({
 }));
 
 describe("Sidebar", () => {
+  it("New beside the items What's new tells this person about, for the week (spec 2026-11-02)", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-06T10:00:00Z"));
+    const session = fakeSession({
+      whatsNew: {
+        version: "1.2.0",
+        stories: ["chats", "templates"],
+        state: { ...EMPTY_WHATS_NEW, seen: "1.2.0" },
+      },
+    });
+    render(
+      <WhatsNewProvider session={session} client={{ save: vi.fn(async () => null) }}>
+        <Sidebar businessName="X" user={{ name: "Riya", role: "Sales" }} can={() => true} />
+      </WhatsNewProvider>,
+    );
+    expect(screen.getByRole("link", { name: /Who replied/ })).toHaveTextContent("New");
+    expect(screen.getByRole("link", { name: /Templates/ })).toHaveTextContent("New");
+    expect(screen.getByRole("link", { name: /Leads/ })).not.toHaveTextContent("New");
+    vi.useRealTimers();
+  });
+
   it("LUME AI is always there, with its own mark drawing itself; Live while a run is going (owner, 2026-10-27)", () => {
     // Named LUME AI, not Autopilot: one name for the assistant everywhere. Off, it's still there: its page says how
     // to switch it on, rather than the item vanishing.

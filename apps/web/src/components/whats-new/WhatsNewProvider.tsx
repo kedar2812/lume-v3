@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useReducedMotion } from "motion/react";
 import {
   EMPTY_WHATS_NEW,
+  isNew,
   releaseFor,
   type Release,
   type Story,
@@ -32,6 +33,8 @@ type WhatsNewApi = {
   /** Open the window again, the whole opening included (the Today pill, About, the profile menu). */
   open: (version?: string) => void;
   showMe: (id: StoryId) => void;
+  /** "New" beside a story's place: for a week, until used; kept while they're on the page that used it. */
+  isStoryNew: (id: StoryId) => boolean;
   state: WhatsNewState;
   release: Release | null;
   stories: Story[];
@@ -39,11 +42,17 @@ type WhatsNewApi = {
 const WhatsNewContext = createContext<WhatsNewApi>({
   open: () => undefined,
   showMe: () => undefined,
+  isStoryNew: () => false,
   state: EMPTY_WHATS_NEW,
   release: null,
   stories: [],
 });
 export const useWhatsNew = () => useContext(WhatsNewContext);
+/** The story, if any, whose place is this nav item's page (for its "New"). */
+export function useStoryAt(): (href: string) => StoryId | undefined {
+  const { stories } = useWhatsNew();
+  return (href) => stories.find((x) => x.place.route === href)?.id;
+}
 
 /** Never during a task: setup, onboarding, an import being mapped. */
 const BUSY = [/^\/setup(\/|$)/, /^\/onboarding(\/|$)/, /^\/settings\/imports\/./];
@@ -76,6 +85,10 @@ export function WhatsNewProvider({
   const [state, setState] = useState<WhatsNewState>(session.whatsNew.state);
   const [win, setWin] = useState<{ at: number; overture: boolean; key: number } | null>(null);
   const [spot, setSpot] = useState<Story | null>(null);
+  // The story whose place is open now and was new on arrival: its pills stay until they leave.
+  const [here, setHere] = useState<StoryId | null>(null);
+  const stateNow = useRef(state);
+  stateNow.current = state;
   const autoDone = useRef(false);
   const due = session.flags.needsWhatsNew && !!release && stories.length > 0;
 
@@ -103,6 +116,15 @@ export function WhatsNewProvider({
     return () => watch.disconnect();
   }, [due, release, pathname, tour.active, client]);
 
+  // Opening a story's place counts as using it.
+  useEffect(() => {
+    const story = stories.find((x) => pathname === x.place.route || pathname.startsWith(`${x.place.route}/`));
+    if (!story || !release) return setHere(null);
+    if (!isNew({ state: stateNow.current, release, story: story.id, now: new Date() })) return;
+    setHere(story.id);
+    void client.save({ used: story.id }).then((next) => next && setState(next));
+  }, [pathname, stories, release, client]);
+
   const open = useCallback(
     (v?: string) => {
       if (!release || stories.length === 0 || (v && v !== release.version)) return;
@@ -124,9 +146,17 @@ export function WhatsNewProvider({
     [stories, router, client],
   );
 
+  const isStoryNew = useCallback(
+    (id: StoryId) =>
+      !!release &&
+      stories.some((x) => x.id === id) &&
+      (id === here || isNew({ state, release, story: id, now: new Date() })),
+    [release, stories, here, state],
+  );
+
   const api = useMemo<WhatsNewApi>(
-    () => ({ open, showMe, state, release, stories }),
-    [open, showMe, state, release, stories],
+    () => ({ open, showMe, isStoryNew, state, release, stories }),
+    [open, showMe, isStoryNew, state, release, stories],
   );
 
   return (

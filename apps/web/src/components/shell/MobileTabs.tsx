@@ -3,6 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAiOn } from "@/lib/ai/use-ai-on";
+import { NewDot, NewPill } from "@/components/whats-new/NewPill";
+import { useStoryAt, useWhatsNew } from "@/components/whats-new/WhatsNewProvider";
 import { NavIcon } from "./icons";
 import { NAV_ITEMS, activeNav, visibleNav, type NavItem } from "./nav";
 import s from "./shell.module.css";
@@ -28,6 +30,12 @@ export function MobileTabs({
   const tabs = items.filter((i) => (PRIMARY as readonly string[]).includes(i.id));
   const more = items.filter((i) => !(PRIMARY as readonly string[]).includes(i.id));
   const [open, setOpen] = useState(false);
+  const storyAt = useStoryAt();
+  const { isStoryNew } = useWhatsNew();
+  const moreNew = more.some((i) => {
+    const id = storyAt(i.href);
+    return !!id && isStoryNew(id);
+  });
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -45,6 +53,7 @@ export function MobileTabs({
     <Link key={i.id} href={i.href} className={s.tab} aria-current={i.id === current?.id ? "page" : undefined}>
       <NavIcon name={i.icon} />
       <span>{i.label}</span>
+      {storyAt(i.href) && <NewPill story={storyAt(i.href)!} dot />}
     </Link>
   );
   return (
@@ -66,6 +75,7 @@ export function MobileTabs({
               <circle cx="19" cy="12" r="1.6" />
             </svg>
             <span>More</span>
+            {moreNew && <NewDot />}
           </button>
           {open && (
             <div className={s.moreMenu} role="menu" aria-label="More">
@@ -78,6 +88,7 @@ export function MobileTabs({
                 >
                   <NavIcon name={i.icon} />
                   {i.label}
+                  {storyAt(i.href) && <NewPill story={storyAt(i.href)!} end />}
                 </Link>
               ))}
               {onFeedback && (

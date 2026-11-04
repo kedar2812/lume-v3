@@ -579,3 +579,33 @@
     animation: none;
   }
 }
+
+/* ── New, beside what's new, for a week ── */
+.newPill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  vertical-align: 0.15em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+.newEnd {
+  margin-left: auto;
+}
+.newDot {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 16px);
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--sheet);
+}

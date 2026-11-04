@@ -1,4 +1,5 @@
 "use client";
+import { NewPill } from "@/components/whats-new/NewPill";
 import type { CallRules } from "@lume/core/shared";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -67,6 +68,7 @@ export function CallTimes({
     <section className={s.block} aria-labelledby="ai-calls" id="ai-calls-block" data-whatsnew="calls">
       <h3 id="ai-calls" className={s.blockTitle}>
         Calls LUME AI may say yes to
+        <NewPill story="calls" />
       </h3>
       <p className={s.blockLede}>
         When a lead asks for a call at one of these times and you&apos;re free, LUME AI says yes and books it.

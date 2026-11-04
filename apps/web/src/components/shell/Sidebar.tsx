@@ -9,6 +9,8 @@ import { useLiveRuns } from "@/lib/autopilot/use-run";
 import { useUploadBatch } from "@/lib/media/uploads";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { AiGlyph } from "@/components/ai/AiGlyph";
+import { NewPill } from "@/components/whats-new/NewPill";
+import { useStoryAt } from "@/components/whats-new/WhatsNewProvider";
 import { NavIcon } from "./icons";
 import { MediaRing } from "./MediaRing";
 import { NAV_ITEMS, activeNav, visibleNav } from "./nav";
@@ -35,6 +37,7 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
   const batch = useUploadBatch();
   const { go } = usePageNav();
   const reduce = useReducedMotion();
+  const storyAt = useStoryAt();
   return (
     <aside className={s.side}>
       <div className={s.lockup} data-testid="lockup" data-tour="brand">
@@ -91,6 +94,7 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
                   <NavIcon name={i.icon} />
                 )}
                 <span className={s.label}>{i.label}</span>
+                {storyAt(i.href) && <NewPill story={storyAt(i.href)!} end />}
                 {up && <MediaRing batch={up} />}
                 {isLive && (
                   <span className={s.live} aria-hidden>

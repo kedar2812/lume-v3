@@ -1,4 +1,5 @@
 "use client";
+import { NewPill } from "@/components/whats-new/NewPill";
 import { AnimatePresence, Reorder, motion, useDragControls, useReducedMotion } from "motion/react";
 import { useCallback, useState, type KeyboardEvent, useRef } from "react";
 import { SavedHud } from "@/components/feedback/SavedHud";
@@ -125,6 +126,7 @@ export function TemplateLibrary({
               <Button onClick={() => setDrafting(true)} data-whatsnew="write-with-ai">
                 <AiGlyph size={16} />
                 Write with LUME AI
+                <NewPill story="templates" />
               </Button>
             )}
             <Button variant="primary" onClick={() => setEditing({ key: crypto.randomUUID() })}>

@@ -1,9 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { EMPTY_WHATS_NEW } from "@lume/core/shared";
+import { WhatsNewProvider } from "@/components/whats-new/WhatsNewProvider";
+import { fakeSession } from "@/server/session";
 import { MobileTabs } from "./MobileTabs";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/templates" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/templates", useRouter: () => ({ push: vi.fn() }) }));
 
 describe("the phone's tab bar (canvas Phone)", () => {
   it("Today, Leads, Calendar and Settings at hand; the rest under More, which marks where you are", async () => {
@@ -61,5 +64,25 @@ describe("Send feedback on a phone (spec 2026-10-16 §1.1)", () => {
     render(<MobileTabs can={() => true} />);
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.queryByRole("menuitem", { name: "Send feedback" })).toBeNull();
+  });
+
+  it("New on what's new under More, and a dot on More itself (spec 2026-11-02)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-06T10:00:00Z"));
+    const session = fakeSession({
+      whatsNew: { version: "1.2.0", stories: ["chats"], state: { ...EMPTY_WHATS_NEW, seen: "1.2.0" } },
+    });
+    render(
+      <WhatsNewProvider session={session} client={{ save: vi.fn(async () => null) }}>
+        <MobileTabs can={() => true} />
+      </WhatsNewProvider>,
+    );
+    const more = screen.getByRole("button", { name: "More" });
+    expect(more.querySelector("[data-new]")).not.toBeNull();
+    await userEvent.click(more);
+    const menu = screen.getByRole("menu", { name: "More" });
+    expect(within(menu).getByRole("menuitem", { name: /Who replied/ })).toHaveTextContent("New");
+    expect(within(menu).getByRole("menuitem", { name: /Pipeline/ })).not.toHaveTextContent("New");
+    vi.useRealTimers();
   });
 });
