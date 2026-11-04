@@ -68,3 +68,23 @@ booked calls live in LUME's Calendar, not Google's, and LUME makes no Meet link.
 happens" (a phone call, a fixed Zoom or Meet link) is what LUME AI says. The owner asked (2026-11-02) to apply for
 writing now: "LUME makes the Meet link" (calendar.events.owned, asked only of those who switch it on), then Google's
 verification with a recorded demo; its own spec.
+
+## Decisions on completion (2026-11-05, plan docs/superpowers/plans/2026-11-04-whats-new.md)
+
+- **1.2.0's stories:** LUME AI books your calls (Show me: Settings → LUME AI, the calls panel), Your chats, live in LUME
+  (Who replied), Templates, written for you (Templates, Write with LUME AI). Also new, one line each: the two-step code
+  ready to type, lifting do not contact from LUME AI's chat, deleting your own account, profile photos from every
+  browser. The mock's "Two-step, ready to type" story became an Also-new line (its Show me would point at sign-in).
+- **Calls: what's true** above is superseded: LUME makes the Meet link (spec 2026-11-03) shipped before 1.2.0, so the
+  calls story says so ("if you let it").
+- **Who sees it:** only stories whose place their role opens and whose feature is really on here (LUME AI on; WhatsApp
+  switched on, set up and a number connected). Not while the agreement, two-step enrolment, onboarding or the tour is
+  due; never over a sheet, an open form or menu, setup or an import; once per version, and a tab that was waiting
+  doesn't show it after another tab did.
+- **Each installation's own day:** the week of "New" and "joined after the update" (people who join after an update
+  skip the window) count from the later of the release day and the day this installation first ran the version
+  (app_releases, migration 0104), since every client updates on its own day.
+- **Ways back:** Today's pill (until its X), Settings → About, the profile menu's What's new. One release, so no
+  version select yet.
+- **No text cut, nothing spills:** every screen and everything that opens is swept at a laptop's and a phone's width
+  (text-fit.spec, opened.spec), and the window at every width (whats-new.spec), both themes.
