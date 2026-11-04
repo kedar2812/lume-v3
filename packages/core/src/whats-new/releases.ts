@@ -45,7 +45,7 @@ export const RELEASES: readonly Release[] = [
   {
     version: "1.2.0",
     from: "1.1.0",
-    date: "2026-11-05",
+    date: "2026-11-04",
     stories: [
       {
         id: "calls",

@@ -6,6 +6,25 @@ column in the release that stops using it.
 
 ## Unreleased
 
+## 1.2.0 — 2026-11-04
+
+- **What's new in LUME** (owner 2026-11-02): at the first page after an update, a near full-screen window plays the
+  version's new features in LUME's own look, opening with the version rolling from the last one ("1.1.0" to "1.2.0").
+  Each story plays by itself; Show me opens LUME where the feature lives, with a spotlight and a tip on it. A person
+  is told only about what they can open (their role) and what's switched on for the business, never during a task (a
+  sheet, the tour, setup or an import), and only once: seen on one device is seen on all. "New" sits beside each
+  feature for a week or until it's used; Today keeps a pill back to the window until its own X, and Settings → About
+  and the profile menu open it again. People who join after an update aren't shown it (onboarding and the tour cover
+  everything). Migration 0103.
+- **Nothing that opens is cut off** (owner 2026-11-04): a menu or sheet inside something that clips or scrolls on its
+  own (a chat window, a drawer, a card) now opens over the page and follows its button, so the template list in a
+  chat whose 24 hours are over is whole again; one that doesn't fit below turns over, and one wider than the room on
+  a phone moves back onto the screen. Today's tile headers wrap on a phone instead of losing their end. Two new
+  checks open every menu and sheet on every screen, and look for text cut off on every screen, at a laptop's and a
+  phone's width.
+- **A sent template folds away with a tick** ("Sent to …"), leaving the reply box free; the template choices have a
+  round tick that draws itself and a tinted card for the one chosen.
+- **Lift do not contact from LUME AI's chat:** beside Open lead, for whoever may lift it, with a confirm first.
 - **LUME AI books the time the lead asks for** (real-model eval 2026-11-04, 12 new call cases): it was told only the first
   free time of each day, so every other free time read as taken and it offered 4 pm instead. Now it may say yes to any
   time inside your call hours that's free (it's told the speaker's meetings, and LUME checks again before sending),
@@ -141,7 +160,7 @@ column in the release that stops using it.
   bell shows how many are unread (9+ past nine); page titles in the top bar are larger; Analytics' Sources lists
   only sources with leads or wins in the range (a source whose only activity was a loss, meeting or task was listed
   at nothing, and a tag filter then disagreed).
-- **Update notes:** migrations 0097, 0098, 0099 and 0100 (additive). No `.env` changes.
+- **Update notes:** migrations 0097 to 0103 (additive). No `.env` changes.
 
 ## 1.1.0 — 2026-10-29
 
