@@ -16,6 +16,7 @@ describe("the releases", () => {
       expect(s.ms).toBeGreaterThanOrEqual(7000);
       expect(s.ms).toBeLessThanOrEqual(9000);
       for (const line of s.head) expect(line.length).toBeLessThanOrEqual(18);
+      expect(s.note.length).toBeLessThanOrEqual(24);
     }
     expect(r.alsoNew).toHaveLength(4);
   });
@@ -39,7 +40,10 @@ describe("storiesFor", () => {
     expect(ids).toEqual(["chats", "templates"]);
   });
   it("drops WhatsApp's story when WhatsApp is off", () => {
-    expect(storiesFor(r, { ...all, on: { ai: true, whatsapp: false } }).map((s) => s.id)).toEqual(["calls", "templates"]);
+    expect(storiesFor(r, { ...all, on: { ai: true, whatsapp: false } }).map((s) => s.id)).toEqual([
+      "calls",
+      "templates",
+    ]);
   });
   it("drops LUME AI's stories when LUME AI is off", () => {
     expect(storiesFor(r, { ...all, on: { ai: false, whatsapp: true } }).map((s) => s.id)).toEqual(["chats"]);
@@ -75,8 +79,17 @@ describe("windowDue", () => {
 describe("isNew", () => {
   const start = Date.parse(`${r.date}T00:00:00Z`);
   it("is new for a week from the release day", () => {
-    expect(isNew({ state: EMPTY_WHATS_NEW, release: r, story: "calls", now: new Date(start + 7 * DAY - 3_600_000) })).toBe(true);
-    expect(isNew({ state: EMPTY_WHATS_NEW, release: r, story: "calls", now: new Date(start + 7 * DAY) })).toBe(false);
+    expect(
+      isNew({
+        state: EMPTY_WHATS_NEW,
+        release: r,
+        story: "calls",
+        now: new Date(start + 7 * DAY - 3_600_000),
+      }),
+    ).toBe(true);
+    expect(
+      isNew({ state: EMPTY_WHATS_NEW, release: r, story: "calls", now: new Date(start + 7 * DAY) }),
+    ).toBe(false);
   });
   it("isn't new once used", () => {
     const state = { ...EMPTY_WHATS_NEW, used: ["1.2.0:calls"] };

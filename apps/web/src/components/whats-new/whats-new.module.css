@@ -1,0 +1,504 @@
+/* What's new in LUME (spec 2026-11-02, the approved mock v4): a window that nearly fills the screen over LUME's
+   full-window scrim. Its opening is the version itself rolling from the last release to this one; then a rail of
+   stories on the left, each playing in LUME's own look on the right. Still (reduced motion) is the finished frame. */
+
+/* Above sheets and drawers, under toasts. */
+.layer[data-scrim] {
+  z-index: 84;
+}
+
+.win {
+  position: fixed;
+  top: max(3vh, env(safe-area-inset-top, 0px));
+  bottom: max(3vh, env(safe-area-inset-bottom, 0px));
+  left: max(3vw, env(safe-area-inset-left, 0px));
+  right: max(3vw, env(safe-area-inset-right, 0px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--sheet);
+  color: var(--text);
+  border-radius: 30px;
+  box-shadow:
+    var(--shadow-sheet),
+    0 0 0 0.5px var(--line-2);
+  overflow: hidden;
+  animation: unfold 0.95s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.win[data-closing] {
+  animation: fold 0.45s cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+.win[data-still] {
+  animation: none;
+}
+@keyframes unfold {
+  from {
+    clip-path: inset(46% 46% 46% 46% round 40px);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 30px);
+  }
+}
+@keyframes fold {
+  from {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 30px);
+  }
+  to {
+    opacity: 0;
+    clip-path: inset(6% 6% 6% 6% round 40px);
+  }
+}
+
+/* ── The opening: LUME, the version big, rolling from the last to this one ── */
+.overture {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  background: var(--sheet);
+  pointer-events: none;
+}
+.stack {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+.brandline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-2);
+  opacity: 0;
+  transform: translateY(8px);
+}
+.brandline img {
+  width: 30px;
+  height: auto;
+}
+.version {
+  display: flex;
+  align-items: flex-end;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+  font-size: clamp(96px, 19vw, 260px);
+  font-variant-numeric: tabular-nums;
+}
+.vpart {
+  display: inline-flex;
+  align-items: flex-end;
+}
+.dot {
+  color: var(--accent);
+}
+/* One digit's column: the last release's above this one's; the window shows one at a time. The column is as tall as
+   the digit's whole box, so no part of a figure is ever cut. */
+.roll {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.roll span {
+  display: block;
+  height: 1em;
+  line-height: 1;
+  transition: transform 1.1s cubic-bezier(0.65, 0, 0.15, 1);
+}
+.wordin {
+  font-size: clamp(18px, 2.2vw, 26px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-2);
+  opacity: 0;
+  transform: translateY(10px);
+}
+.overture[data-beat] .brandline,
+.overture[data-beat] .wordin {
+  animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.overture[data-beat] .wordin {
+  animation-delay: 0.25s;
+}
+.overture[data-beat="rolled"] .roll span,
+.overture[data-beat="leave"] .roll span {
+  transform: translateY(-100%);
+}
+.overture[data-beat="leave"] {
+  animation: lift 0.6s cubic-bezier(0.7, 0, 0.2, 1) forwards;
+}
+@keyframes rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes lift {
+  to {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: blur(8px);
+  }
+}
+
+/* ── Header ── */
+.head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 22px 18px 26px;
+  border-bottom: 0.5px solid var(--line);
+  min-width: 0;
+}
+.headMark {
+  width: 28px;
+  height: auto;
+  flex: none;
+}
+.title {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.v {
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.meta {
+  font-size: 13px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.close {
+  margin-left: auto;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 0;
+  background: var(--sunk);
+  color: var(--text-2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.close:active,
+.ghost:active,
+.cta:active {
+  transform: scale(0.96);
+}
+.close:focus-visible,
+.chap:focus-visible,
+.cta:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-height: 0;
+}
+
+/* ── The rail ── */
+.rail {
+  border-right: 0.5px solid var(--line);
+  padding: 18px 14px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.label,
+.alsoLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 4px 10px 8px;
+}
+.chap {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: center;
+  text-align: left;
+  padding: 12px;
+  border-radius: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+.chap:hover,
+.chap[data-on] {
+  background: var(--sunk);
+}
+.ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--sheet);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.chapText {
+  min-width: 0;
+}
+.chapText b {
+  display: block;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.chapText small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+.bar {
+  grid-column: 1 / -1;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+}
+.bar i[data-playing] {
+  animation: fill linear both;
+}
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+.alsonew {
+  margin-top: 14px;
+  padding: 14px 2px 4px;
+  border-top: 0.5px solid var(--line);
+}
+.alsonew ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px;
+  display: grid;
+  gap: 8px;
+}
+.alsonew li {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.alsonew li::before {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: 7px;
+  border-radius: 9px;
+  background: var(--accent);
+}
+
+/* ── The stage ── */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+  gap: 4vw;
+  align-items: center;
+  padding: 3vh 4vw;
+  min-height: 0;
+  overflow: hidden;
+}
+.words {
+  display: grid;
+  gap: 18px;
+  align-content: center;
+  justify-items: start;
+  min-width: 0;
+}
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--accent-ink);
+}
+.headline {
+  margin: 0;
+  font-size: clamp(38px, 4.6vw, 72px);
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+  font-weight: 800;
+}
+/* Each line rises out of its own mask. The mask reaches above the accents and below the descenders (y, g, p), then
+   gives the room back: nothing is ever cut off (owner, 2026-11-02). */
+.line {
+  display: block;
+  overflow: hidden;
+  padding-block: 0.08em 0.24em;
+  margin-block: -0.08em -0.24em;
+}
+.line > span {
+  display: block;
+}
+.words[data-enter] .line > span {
+  animation: up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.words[data-enter] .line:nth-child(2) > span {
+  animation-delay: 0.08s;
+}
+@keyframes up {
+  from {
+    transform: translateY(105%);
+  }
+}
+.sub {
+  margin: 0;
+  font-size: clamp(15px, 1.25vw, 18px);
+  line-height: 1.5;
+  color: var(--text-2);
+  max-width: 30em;
+}
+.words[data-enter] .sub {
+  animation: enter 0.6s 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.words[data-enter] .actions {
+  animation: enter 0.6s 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.cta,
+.ghost {
+  height: 46px;
+  border: 0;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+.cta {
+  padding: 0 22px;
+  background: var(--accent);
+  color: #fff;
+}
+.ghost {
+  padding: 0 18px;
+  background: var(--sunk);
+  color: var(--text);
+}
+.count {
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.demo {
+  position: relative;
+  height: min(64vh, 560px);
+  min-width: 0;
+}
+
+@media (max-width: 980px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .rail {
+    border-right: 0;
+    border-bottom: 0.5px solid var(--line);
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px;
+  }
+  .label,
+  .alsonew,
+  .chapText small {
+    display: none;
+  }
+  .chap {
+    flex: none;
+    grid-template-columns: 28px auto;
+    padding: 8px 12px;
+  }
+  .ic {
+    width: 28px;
+    height: 28px;
+  }
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    align-items: start;
+    gap: 18px;
+    overflow-y: auto;
+  }
+  .demo {
+    height: 380px;
+  }
+}
+@media (max-width: 560px) {
+  .win {
+    top: max(8px, env(safe-area-inset-top, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    left: max(8px, env(safe-area-inset-left, 0px));
+    right: max(8px, env(safe-area-inset-right, 0px));
+    border-radius: 24px;
+  }
+  .meta {
+    display: none;
+  }
+  .head {
+    padding: 14px 14px 14px 18px;
+  }
+  .stage {
+    padding: 20px 18px;
+  }
+  .demo {
+    height: 340px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .win,
+  .overture,
+  .roll span,
+  .bar i,
+  .words .line > span,
+  .words .sub,
+  .words .actions {
+    animation: none;
+    transition: none;
+  }
+}

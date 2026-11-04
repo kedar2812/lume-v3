@@ -316,7 +316,11 @@ export async function createHarness(
     pool,
     keyring,
     mailer,
-    config: { publicUrl: TEST_PUBLIC_URL, cookieSecure: true, ...(opts.version ? { version: opts.version } : {}) },
+    config: {
+      publicUrl: TEST_PUBLIC_URL,
+      cookieSecure: true,
+      ...(opts.version ? { version: opts.version } : {}),
+    },
     clock: () => clock.now,
     setupTokens,
     isBreached: createBreachedChecker(Buffer.alloc(0)),

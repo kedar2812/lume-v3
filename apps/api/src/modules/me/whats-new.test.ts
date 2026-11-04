@@ -10,7 +10,10 @@ let h: Harness;
 
 beforeAll(async () => {
   const provider = fakeProvider();
-  h = await createHarness({ version: V, ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" } });
+  h = await createHarness({
+    version: V,
+    ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" },
+  });
   await h.ownerPool.query(
     `UPDATE settings SET integrations = integrations || '{"ai": {"enabled": true}, "whatsapp": {"enabled": true}}'::jsonb WHERE id = 1`,
   );
@@ -18,7 +21,11 @@ beforeAll(async () => {
 afterAll(async () => h.close());
 
 /** A person past the agreement and onboarding, who joined before the release unless told otherwise. */
-async function person(o: { owner?: boolean; grants: { key: string; scope: string | null }[]; joined?: string }) {
+async function person(o: {
+  owner?: boolean;
+  grants: { key: string; scope: string | null }[];
+  joined?: string;
+}) {
   // One owner per business: the rest are admins with every grant (two-step on, as their role requires).
   const all = o.grants === ALL_GRANTS;
   const u = await h.seedUser({ owner: o.owner ?? false, grants: o.grants as never, totp: all });

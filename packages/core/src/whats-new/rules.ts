@@ -9,7 +9,11 @@ export type WhatsNewState = {
   pillGone: string | null;
 };
 
-export const EMPTY_WHATS_NEW: WhatsNewState = Object.freeze({ seen: null, used: [], pillGone: null }) as WhatsNewState;
+export const EMPTY_WHATS_NEW: WhatsNewState = Object.freeze({
+  seen: null,
+  used: [],
+  pillGone: null,
+}) as WhatsNewState;
 
 const DAY_MS = 86_400_000;
 const NEW_FOR_MS = 7 * DAY_MS;
@@ -29,7 +33,12 @@ export function storiesFor(
   return r.stories.filter((s) => o.can(s.permission) && (s.needs === null || o.on[s.needs]));
 }
 
-export function windowDue(o: { state: WhatsNewState; release: Release | null; stories: Story[]; joinedAt: Date }): boolean {
+export function windowDue(o: {
+  state: WhatsNewState;
+  release: Release | null;
+  stories: Story[];
+  joinedAt: Date;
+}): boolean {
   if (!o.release || o.stories.length === 0) return false;
   if (o.state.seen === o.release.version) return false;
   // Everything is new to someone who joined on or after the release: onboarding and the tour show them around.

@@ -14,6 +14,8 @@ import type { ThemePref } from "@/lib/theme";
 import type { Session } from "@/server/session";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { tourClient } from "@/lib/tour-client";
+import { WhatsNewProvider } from "@/components/whats-new/WhatsNewProvider";
+import { whatsNewClient } from "@/lib/whats-new/client";
 import { CommandPalette } from "./CommandPalette";
 import { AlertHud } from "@/components/security/AlertHud";
 import { LeadWatermark } from "@/components/security/LeadWatermark";
@@ -113,57 +115,60 @@ export function AppShell({ session, businessName, theme, mac = false, children }
   return (
     <PageTransitionProvider>
       <TourProvider session={session} client={tourClient} autoStart>
-        <LicenceProvider session={session}>
-          <LoadingProvider>
-            <div className={s.app}>
-              <Sidebar businessName={businessName} user={user} can={can} onFeedback={openFeedback} />
-              <MobileTabs can={can} onFeedback={openFeedback} />
-              <main className={s.main}>
-                {/* The licence (L-A): grace or read-only across the top; paused covers the whole page. */}
-                <LicenceBanner />
-                <TopBar
-                  theme={theme}
-                  tz={zoneOf(session.user)}
-                  canMessage={canCore(session.actor, "messages.send")}
-                  canQueue={canCore(session.actor, "messages.send_queue")}
-                  onSearch={() => setPalette(true)}
-                  mac={mac}
-                />
-                {/* From LUME's team (spec 2026-10-16 fleet §4): one at a time, under the top bar. */}
-                <AnnouncementStrip zone={zoneOf(session.user)} />
-                <div className={s.scroll} data-scroll>
-                  <div className={s.page}>
-                    <PageContent>{children}</PageContent>
+        {/* What's new in LUME (spec 2026-11-02): once per version, at the first page after an update. */}
+        <WhatsNewProvider session={session} client={whatsNewClient}>
+          <LicenceProvider session={session}>
+            <LoadingProvider>
+              <div className={s.app}>
+                <Sidebar businessName={businessName} user={user} can={can} onFeedback={openFeedback} />
+                <MobileTabs can={can} onFeedback={openFeedback} />
+                <main className={s.main}>
+                  {/* The licence (L-A): grace or read-only across the top; paused covers the whole page. */}
+                  <LicenceBanner />
+                  <TopBar
+                    theme={theme}
+                    tz={zoneOf(session.user)}
+                    canMessage={canCore(session.actor, "messages.send")}
+                    canQueue={canCore(session.actor, "messages.send_queue")}
+                    onSearch={() => setPalette(true)}
+                    mac={mac}
+                  />
+                  {/* From LUME's team (spec 2026-10-16 fleet §4): one at a time, under the top bar. */}
+                  <AnnouncementStrip zone={zoneOf(session.user)} />
+                  <div className={s.scroll} data-scroll>
+                    <div className={s.page}>
+                      <PageContent>{children}</PageContent>
+                    </div>
                   </div>
-                </div>
-                <LockScreen />
-                {/* The on-screen watermark over lead screens, for whoever it applies to (6A). */}
-                <LeadWatermark
-                  show={session.watermark}
-                  viewer={{ name: session.user.name, email: session.user.email, today: session.today }}
+                  <LockScreen />
+                  {/* The on-screen watermark over lead screens, for whoever it applies to (6A). */}
+                  <LeadWatermark
+                    show={session.watermark}
+                    viewer={{ name: session.user.name, email: session.user.email, today: session.today }}
+                  />
+                </main>
+              </div>
+              <PaymentReminder businessName={businessName} />
+              <PendingSent />
+              {/* A WhatsApp message from one of this person's leads, on whichever screen is open (owner, 2026-11-01). */}
+              {can("leads.view") && (
+                <MessageNotices
+                  userId={session.user.id}
+                  tz={zoneOf(session.user)}
+                  repliesOn={session.preferences.alerts.replies !== false}
+                  onOpen={(leadId) => router.push(chatHref(leadId, window.location))}
                 />
-              </main>
-            </div>
-            <PaymentReminder businessName={businessName} />
-            <PendingSent />
-            {/* A WhatsApp message from one of this person's leads, on whichever screen is open (owner, 2026-11-01). */}
-            {can("leads.view") && (
-              <MessageNotices
-                userId={session.user.id}
-                tz={zoneOf(session.user)}
-                repliesOn={session.preferences.alerts.replies !== false}
-                onOpen={(leadId) => router.push(chatHref(leadId, window.location))}
-              />
-            )}
-            {/* Files going up into Media, on whichever screen is open (owner, 2026-10-25). */}
-            <GlobalUploadTray />
-            {/* A security alert, live, for whoever reviews them (6A). */}
-            {can("security.manage") && <AlertHud />}
-            <CommandPalette open={palette} onOpenChange={setPalette} can={can} onFeedback={openFeedback} />
-            {/* Mounted only while open: every opening is a fresh sheet, from the page it was opened on. */}
-            {feedback && <FeedbackSheet open onClose={() => setFeedback(false)} />}
-          </LoadingProvider>
-        </LicenceProvider>
+              )}
+              {/* Files going up into Media, on whichever screen is open (owner, 2026-10-25). */}
+              <GlobalUploadTray />
+              {/* A security alert, live, for whoever reviews them (6A). */}
+              {can("security.manage") && <AlertHud />}
+              <CommandPalette open={palette} onOpenChange={setPalette} can={can} onFeedback={openFeedback} />
+              {/* Mounted only while open: every opening is a fresh sheet, from the page it was opened on. */}
+              {feedback && <FeedbackSheet open onClose={() => setFeedback(false)} />}
+            </LoadingProvider>
+          </LicenceProvider>
+        </WhatsNewProvider>
       </TourProvider>
     </PageTransitionProvider>
   );
