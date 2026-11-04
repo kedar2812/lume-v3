@@ -38,4 +38,21 @@ describe("session", () => {
     });
     expect([...s.actor.perms.keys()]).toEqual(["leads.view", "templates.use"]);
   });
+
+  it("an API from before What's new sends none: no release, nothing due", () => {
+    const s = toSession(payload);
+    expect(s.whatsNew).toEqual({ version: "", stories: [], state: { seen: null, used: [], pillGone: null } });
+    expect(s.flags.needsWhatsNew).toBe(false);
+  });
+
+  it("keeps the stories and state the API sent", () => {
+    const whatsNew = {
+      version: "1.2.0",
+      stories: ["chats" as const],
+      state: { seen: "1.1.0", used: ["1.2.0:chats"], pillGone: null },
+    };
+    const s = toSession({ ...payload, whatsNew, flags: { ...payload.flags, needsWhatsNew: true } });
+    expect(s.whatsNew).toEqual(whatsNew);
+    expect(s.flags.needsWhatsNew).toBe(true);
+  });
 });

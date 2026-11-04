@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   EMPTY_ONBOARDING,
   EMPTY_TOUR,
+  EMPTY_WHATS_NEW,
   LEGAL_VERSION,
   PREFERENCES_DEFAULTS,
   can,
@@ -14,7 +15,9 @@ import {
   type PermissionKey,
   type Preferences,
   type Scope,
+  type StoryId,
   type TourState,
+  type WhatsNewState,
 } from "@lume/core/shared";
 import type { LicenceForPerson } from "@/lib/licence/client";
 import { apiGet } from "./api";
@@ -39,6 +42,8 @@ export type Session = {
   preferences: Preferences;
   onboarding: OnboardingState;
   tour: TourState;
+  /** What's new in LUME (spec 2026-11-02): the running version, the stories this person may see, their state. */
+  whatsNew: WhatsNewView;
   capabilities: Capabilities;
   /** The licence agreement, terms and privacy policy: the version agreed to, and the current one. */
   agreement: { version: string | null; current: string };
@@ -47,6 +52,7 @@ export type Session = {
     needsOnboarding: boolean;
     needsTwoFactorEnrolment: boolean;
     needsTour: boolean;
+    needsWhatsNew: boolean;
   };
   /** The same Actor shape the API and core use, so gates call the very same `can()`. */
   actor: Actor;
@@ -57,11 +63,17 @@ export type Session = {
   today: string;
 };
 
+export type WhatsNewView = { version: string; stories: StoryId[]; state: WhatsNewState };
+/** An API from before What's new: no release, so nothing is shown. */
+const NO_WHATS_NEW: WhatsNewView = { version: "", stories: [], state: EMPTY_WHATS_NEW };
+
 /** Exactly what GET /auth/me sends. Permission keys stay loose here: a newer API may know more of them. */
 export type MePayload = Omit<
   Session,
-  "actor" | "permissions" | "agreement" | "flags" | "licence" | "watermark" | "today"
+  "actor" | "permissions" | "agreement" | "flags" | "licence" | "watermark" | "today" | "whatsNew"
 > & {
+  /** Absent from an API that predates What's new. */
+  whatsNew?: WhatsNewView;
   /** Absent from an API that predates the watch (6A). */
   watermark?: boolean;
   today?: string;
@@ -70,7 +82,10 @@ export type MePayload = Omit<
   permissions: { key: string; scope: Scope | null }[];
   /** Absent from an API that predates the agreement. */
   agreement?: Session["agreement"];
-  flags: Omit<Session["flags"], "needsAgreement"> & { needsAgreement?: boolean };
+  flags: Omit<Session["flags"], "needsAgreement" | "needsWhatsNew"> & {
+    needsAgreement?: boolean;
+    needsWhatsNew?: boolean;
+  };
 };
 
 /** An API from before product keys (spec 2026-10-15) says nothing of one: nothing to show, nothing to change. */
@@ -109,10 +124,15 @@ export function toSession(me: MePayload): Session {
     preferences: me.preferences ?? PREFERENCES_DEFAULTS,
     onboarding: me.onboarding ?? EMPTY_ONBOARDING,
     tour: me.tour ?? EMPTY_TOUR,
+    whatsNew: me.whatsNew ?? NO_WHATS_NEW,
     capabilities: me.capabilities,
     agreement: me.agreement ?? { version: null, current: LEGAL_VERSION },
     // An API from before the agreement existed sends no flag: nobody is asked.
-    flags: { ...me.flags, needsAgreement: me.flags.needsAgreement ?? false },
+    flags: {
+      ...me.flags,
+      needsAgreement: me.flags.needsAgreement ?? false,
+      needsWhatsNew: me.flags.needsWhatsNew ?? false,
+    },
     // An API from before licensing sends none: nothing is locked, nothing is said.
     // An API from before announcements (spec 2026-10-16 fleet) sends none: an empty list, never undefined.
     licence: me.licence

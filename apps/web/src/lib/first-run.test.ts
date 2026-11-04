@@ -8,6 +8,7 @@ const flags = (
   needsOnboarding: false,
   needsTwoFactorEnrolment: false,
   needsTour: false,
+  needsWhatsNew: false,
   ...f,
 });
 
