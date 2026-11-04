@@ -58,3 +58,5 @@ export * from "./words/bytes";
 export * from "./words/hours";
 // LUME AI's tasks (spec 2026-10-18): what each is given and must answer, and the rules on it. zod only.
 export * from "./ai";
+// What's new in LUME (spec 2026-11-02): each release's stories and who sees them. Pure.
+export * from "./whats-new";
