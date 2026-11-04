@@ -345,9 +345,13 @@
     padding: 13px 14px;
     border-radius: 20px;
   }
+  /* Two tiles to a row on a phone: a long header ("Won in November") wraps rather than losing its end. */
   .tiles .th {
-    white-space: nowrap;
-    overflow: hidden;
+    line-height: 1.25;
+  }
+  /* No arrow on a phone: the whole tile is the link, and its header needs the room ("Revenue · November"). */
+  .tiles .arrow {
+    display: none;
   }
   .tiles .big {
     font-size: 24px;
@@ -401,6 +405,9 @@ a.tl:active {
     opacity: 0;
     transform: translateY(10px) scale(0.98);
   }
+}
+.thLabel {
+  min-width: 0;
 }
 .th {
   display: flex;

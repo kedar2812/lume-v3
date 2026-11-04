@@ -83,7 +83,8 @@ function Tile({
         >
           {icon}
         </svg>
-        {label}
+        {/* One piece of text, so a long header ("Revenue · November") wraps on a phone. */}
+        <span className={s.thLabel}>{label}</span>
         <span className={s.arrow} aria-hidden>
           <svg
             viewBox="0 0 24 24"

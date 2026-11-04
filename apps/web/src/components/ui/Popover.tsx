@@ -44,6 +44,21 @@ function clipOf(el: HTMLElement): { left: number; right: number } {
   return { left: 0, right: window.innerWidth };
 }
 
+/**
+ * Whether something around the trigger hides what runs past it: a box that clips (a card with rounded corners, the bulk
+ * island) or one that scrolls on its own (a chat's thread, its reply bar stuck to the foot). An inline panel there is
+ * cut off (owner, 2026-11-04: the template sheet in a chat), so it goes on <body> instead. Only the page's own scroller
+ * ([data-scroll]) is left alone: it scrolls the panel into view.
+ */
+function insideClip(el: HTMLElement): boolean {
+  for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+    if (a.hasAttribute("data-scroll")) continue;
+    const cs = getComputedStyle(a);
+    if ([cs.overflow, cs.overflowX, cs.overflowY].some((o) => o !== "visible" && o !== "")) return true;
+  }
+  return false;
+}
+
 /** A panel on <body>, fixed beside its trigger's box on the chosen side and edge (6px off, as inline). */
 function fixedAt(
   at: { top: number; bottom: number; left: number; right: number },
@@ -81,6 +96,9 @@ export function Popover({
   children,
 }: Props) {
   const [open, setOpenNow] = useState(false);
+  // On <body>: asked for, or because the trigger sits inside something that clips (decided as it opens).
+  const [clipped, setClipped] = useState(false);
+  const onBody = portal || clipped;
   // Closing plays a short exit (Popover.module.css), then the panel goes.
   const [closing, setClosing] = useState(false);
   const shown = useRef({ open: false, closing: false });
@@ -115,6 +133,8 @@ export function Popover({
     side: "below" | "above";
     room: number;
     align: "start" | "end";
+    /** Sideways, in px: a panel wider than the room on either side of its trigger, moved back onto the window. */
+    nudge: number;
     /** On <body>: where the trigger is, for the fixed panel. */
     at?: { top: number; bottom: number; left: number; right: number };
   } | null>(null);
@@ -127,21 +147,61 @@ export function Popover({
     if (!r) return;
     const below = window.innerHeight - r.bottom - 12;
     const above = r.top - 12;
-    const chosen = side === "auto" ? (below < 420 && above > below ? "above" : "below") : side;
+    // A side that's asked for is kept while the panel fits there; one that doesn't fit turns over to the side with
+    // more room (owner, 2026-11-04: a menu ran off the foot of a phone).
+    const need = panel.current?.offsetHeight ?? 0;
+    const chosen =
+      side === "auto"
+        ? below < 420 && above > below
+          ? "above"
+          : "below"
+        : side === "below" && need > below && above > below
+          ? "above"
+          : side === "above" && need > above && below > above
+            ? "below"
+            : side;
     const width = panel.current?.offsetWidth ?? 0;
-    const clip = portal ? { left: 0, right: window.innerWidth } : clipOf(root.current!);
+    const clip = onBody ? { left: 0, right: window.innerWidth } : clipOf(root.current!);
     const fits = (a: "start" | "end") =>
       a === "start" ? r.left + width <= clip.right - 8 : r.right - width >= clip.left + 8;
     const other = align === "start" ? "end" : "start";
     const edge = fits(align) || !fits(other) ? align : other;
     if (panel.current) panel.current.dataset.align = edge;
+    // Wider than the room on either side (a phone): moved sideways until it's on the window, 8px in.
+    const left = edge === "start" ? r.left : r.right - width;
+    let nudge = left + width > window.innerWidth - 8 ? window.innerWidth - 8 - (left + width) : 0;
+    if (left + nudge < 8) nudge = 8 - left;
     setPlace({
       side: chosen,
       room: Math.max(160, Math.floor(chosen === "above" ? above : below)),
       align: edge,
-      ...(portal ? { at: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } } : {}),
+      nudge: width ? Math.round(nudge) : 0,
+      ...(onBody ? { at: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } } : {}),
     });
-  }, [open, side, align, portal]);
+  }, [open, side, align, onBody]);
+
+  // On <body> the panel is fixed: it follows its trigger as anything scrolls or the window changes size.
+  useEffect(() => {
+    if (!open || !onBody) return;
+    let frame = 0;
+    const follow = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const r = root.current?.getBoundingClientRect();
+        if (!r) return;
+        setPlace((p) =>
+          p ? { ...p, at: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } } : p,
+        );
+      });
+    };
+    window.addEventListener("scroll", follow, { passive: true, capture: true });
+    window.addEventListener("resize", follow, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", follow, { capture: true });
+      window.removeEventListener("resize", follow);
+    };
+  }, [open, onBody]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -183,12 +243,13 @@ export function Popover({
       }}
       data-align={place?.align ?? align}
       data-side={place?.side ?? (side === "above" ? "above" : "below")}
-      data-portal={portal || undefined}
+      data-portal={onBody || undefined}
       style={
         place
           ? {
               maxHeight: `min(${size === "form" ? "640px, calc(100vh - 96px)" : "420px, 60vh"}, ${place.room}px)`,
               ...(place.at ? fixedAt(place.at, place.side, place.align) : {}),
+              ...(place.nudge ? { "--nudge": `${place.nudge}px` } : {}),
             }
           : undefined
       }
@@ -210,11 +271,14 @@ export function Popover({
         aria-controls={open ? id : undefined}
         data-active={active || undefined}
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!shown.current.open && root.current) setClipped(insideClip(root.current));
+          setOpen((v) => !v);
+        }}
       >
         {trigger}
       </button>
-      {open && (portal ? <BodyPortal>{panelEl}</BodyPortal> : panelEl)}
+      {open && (onBody ? <BodyPortal>{panelEl}</BodyPortal> : panelEl)}
     </div>
   );
 }
