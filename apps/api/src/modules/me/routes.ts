@@ -1,12 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { ONBOARDING_STEPS, preferencesPatchSchema, type OnboardingStepId } from "@lume/core";
+import { ONBOARDING_STEPS, STORY_IDS, preferencesPatchSchema, type OnboardingStepId } from "@lume/core";
 import type { AppDeps } from "../../app";
 import { nameSchema, passwordInput, timezoneSchema, totpCodeSchema } from "../../http/schemas";
 import { AVATAR_COLORS, type AvatarColor } from "@lume/core";
 import { sendAvatar, setAvatar } from "./avatar";
 import * as me from "./service";
+import { updateWhatsNew } from "./whats-new";
 import { clearSessionCookie } from "../../auth/cookies";
 import { deleteAccount } from "../users/delete";
 import { leadsChoiceSchema, offboardingPreview } from "../users/offboard";
@@ -170,5 +171,22 @@ export async function meRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
       },
     },
     (req) => me.updateTour(req, req.body),
+  );
+  // What's new in LUME (spec 2026-11-02): the window seen, a story used, the Today pill put away.
+  r.put(
+    "/api/v1/me/whats-new",
+    {
+      config: self,
+      schema: {
+        body: z
+          .object({
+            seen: z.string().max(32).optional(),
+            used: z.enum(STORY_IDS).optional(),
+            pillGone: z.string().max(32).optional(),
+          })
+          .strict(),
+      },
+    },
+    (req) => updateWhatsNew(req, d, req.body),
   );
 }

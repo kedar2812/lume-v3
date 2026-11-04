@@ -14,7 +14,8 @@ export const EMPTY_WHATS_NEW: WhatsNewState = Object.freeze({ seen: null, used: 
 const DAY_MS = 86_400_000;
 const NEW_FOR_MS = 7 * DAY_MS;
 
-const startOf = (r: Release): number => Date.parse(`${r.date}T00:00:00Z`);
+/** The release day's first instant (UTC). */
+export const releaseStart = (r: Release): number => Date.parse(`${r.date}T00:00:00Z`);
 
 export function releaseFor(version: string): Release | null {
   return RELEASES.find((r) => r.version === version) ?? null;
@@ -32,7 +33,7 @@ export function windowDue(o: { state: WhatsNewState; release: Release | null; st
   if (!o.release || o.stories.length === 0) return false;
   if (o.state.seen === o.release.version) return false;
   // Everything is new to someone who joined on or after the release: onboarding and the tour show them around.
-  return o.joinedAt.getTime() < startOf(o.release);
+  return o.joinedAt.getTime() < releaseStart(o.release);
 }
 
 export const usedKey = (version: string, story: StoryId): string => `${version}:${story}`;
@@ -40,5 +41,5 @@ export const usedKey = (version: string, story: StoryId): string => `${version}:
 /** "New" beside a story's place: for a week from the release, until it's used. */
 export function isNew(o: { state: WhatsNewState; release: Release; story: StoryId; now: Date }): boolean {
   if (o.state.used.includes(usedKey(o.release.version, o.story))) return false;
-  return o.now.getTime() < startOf(o.release) + NEW_FOR_MS;
+  return o.now.getTime() < releaseStart(o.release) + NEW_FOR_MS;
 }

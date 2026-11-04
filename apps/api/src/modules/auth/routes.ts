@@ -19,6 +19,7 @@ import { revokeSession } from "../../auth/sessions";
 import { CAPABILITIES } from "../../capabilities";
 import { unauthorized } from "../../http/errors";
 import { onboardingOf, tourOf } from "../me/service";
+import { whatsNewFor } from "../me/whats-new";
 import { watermarkFor } from "../security/service";
 import { emailSchema as email, passwordInput, totpCodeSchema, urlTokenSchema } from "../../http/schemas";
 import { forgotPassword, resetPassword } from "./password";
@@ -81,6 +82,9 @@ export async function authRoutes(
     if (!u) throw unauthorized();
     const onboarding = onboardingOf(u);
     const tour = tourOf(u);
+    const whatsNew = await whatsNewFor(req, d, u);
+    const agreementDue = needsAgreement(u.agreedVersion);
+    const enrolmentDue = requiresTwoFactor(a) && !a.twoFactorEnabled;
     return {
       user: {
         id: u.id,
@@ -114,6 +118,7 @@ export async function authRoutes(
       preferences: mergePreferences(u.preferences, {}),
       onboarding,
       tour,
+      whatsNew: whatsNew.whatsNew,
       capabilities: CAPABILITIES,
       agreement: { version: u.agreedVersion ?? null, current: LEGAL_VERSION },
       // The licence as this person sees it (L-A): with the rest, so nothing flashes on load.
@@ -121,11 +126,13 @@ export async function authRoutes(
       ...(await watermarkFor(req)),
       flags: {
         // The licence agreement, terms and privacy policy come before everything, onboarding included.
-        needsAgreement: needsAgreement(u.agreedVersion),
+        needsAgreement: agreementDue,
         needsOnboarding: needsOnboarding(onboarding),
-        needsTwoFactorEnrolment: requiresTwoFactor(a) && !a.twoFactorEnabled,
+        needsTwoFactorEnrolment: enrolmentDue,
         // Onboarding itself offers the tour, so the tour is only outstanding on its own afterwards.
         needsTour: !needsOnboarding(onboarding) && needsTour(tour),
+        // What's new waits for everything that comes first (spec 2026-11-02).
+        needsWhatsNew: whatsNew.due && !agreementDue && !enrolmentDue && !needsOnboarding(onboarding),
       },
     };
   });

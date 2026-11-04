@@ -223,6 +223,8 @@ export async function createHarness(
     meta?: AppDeps["meta"];
     /** Media (plan 2026-10-20-media-tab): a stand-in render service on a local port. */
     render?: boolean;
+    /** The running LUME version (What's new reads its release). Unset: none, so no window is ever due. */
+    version?: string;
   } = {},
 ): Promise<Harness> {
   const tdb = await createTestDatabase();
@@ -314,7 +316,7 @@ export async function createHarness(
     pool,
     keyring,
     mailer,
-    config: { publicUrl: TEST_PUBLIC_URL, cookieSecure: true },
+    config: { publicUrl: TEST_PUBLIC_URL, cookieSecure: true, ...(opts.version ? { version: opts.version } : {}) },
     clock: () => clock.now,
     setupTokens,
     isBreached: createBreachedChecker(Buffer.alloc(0)),

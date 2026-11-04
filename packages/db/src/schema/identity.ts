@@ -21,6 +21,7 @@ import type {
   Preferences,
   TourState,
   WatermarkMode,
+  WhatsNewState,
 } from "@lume/core";
 import { bytea, cidrArray, citext, inet, tz } from "./types";
 
@@ -120,6 +121,11 @@ export const users = pgTable("users", {
     .default(sql`'{}'::jsonb`),
   tour: jsonb("tour")
     .$type<Partial<TourState>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  /** What's new in LUME (0103): the last version seen, the stories used, the Today pill put away. */
+  whatsNew: jsonb("whats_new")
+    .$type<Partial<WhatsNewState>>()
     .notNull()
     .default(sql`'{}'::jsonb`),
   /** When this person last left Leads (2B amendment A8): what arrived after it glows. */

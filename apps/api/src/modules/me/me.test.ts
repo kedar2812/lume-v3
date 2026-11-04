@@ -167,6 +167,7 @@ describe("preferences, onboarding and tour state (spec §4.2)", () => {
       needsOnboarding: true,
       needsTwoFactorEnrolment: false,
       needsTour: false,
+      needsWhatsNew: false,
     });
     const r = await c.inject({
       method: "PATCH",

@@ -6,7 +6,8 @@ import type { PermissionKey } from "../rbac/catalog";
  * points at), the permission that place needs and the feature it needs switched on, so a person is
  * only told about what they can open here.
  */
-export type StoryId = "calls" | "chats" | "templates";
+export const STORY_IDS = ["calls", "chats", "templates"] as const;
+export type StoryId = (typeof STORY_IDS)[number];
 
 export type Story = {
   id: StoryId;
