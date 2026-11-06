@@ -58,7 +58,13 @@ describe("Filters panel (8D-3 artboard)", () => {
     });
     render(
       <div data-scroll style={{ overflowY: "auto" }}>
-        <FiltersButton filters={{}} catalog={testCatalog()} rangeDays={30} coverage={none} onChange={vi.fn()} />
+        <FiltersButton
+          filters={{}}
+          catalog={testCatalog()}
+          rangeDays={30}
+          coverage={none}
+          onChange={vi.fn()}
+        />
       </div>,
     );
     await userEvent.click(screen.getByRole("button", { name: /^Filters/ }));
