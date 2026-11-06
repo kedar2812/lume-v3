@@ -4,6 +4,13 @@ Every LUME release, newest first. The version is the root `package.json`'s; tagg
 release images (`docs/runbooks/fleet.md`). Migrations are forward-only and additive: an update never drops a
 column in the release that stops using it.
 
+## 1.1.2 — 2026-11-07
+
+- **Add a lead from a calendar call:** a call that isn't with a lead yet now offers Add as a lead (the New lead form;
+  the call is linked to the lead it makes) and Link to a lead (find them by name, phone or email), in the meeting's
+  drawer and on a phone. Add needs permission to add leads; Link, to see them.
+- **Update notes:** no migrations, no `.env` changes.
+
 ## 1.1.1 — 2026-11-06
 
 - **A Google Sheet keeps syncing once every row is read:** a form's sheet has no empty rows below its data, and LUME
