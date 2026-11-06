@@ -172,6 +172,16 @@ export async function whatsNewDue(email: string): Promise<void> {
   );
 }
 
+/** What's new seen again, so no later spec meets the window over its page (its own save can still be in flight). */
+export async function whatsNewSeen(email: string, version: string): Promise<void> {
+  await asSuperuser((c) =>
+    c.query(
+      "UPDATE users SET whats_new = jsonb_build_object('seen', $2::text, 'used', '[]'::jsonb) WHERE email = $1",
+      [email, version],
+    ),
+  );
+}
+
 /** WhatsApp switched on or off for the business (its stories need it on), returning what it was. */
 export async function whatsappSwitch(on: boolean): Promise<boolean> {
   return asSuperuser(async (c) => {

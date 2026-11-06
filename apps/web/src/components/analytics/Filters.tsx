@@ -1,7 +1,7 @@
 "use client";
 import { pressedWithin } from "@/components/ui/Popover";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { analyticsClient } from "@/lib/analytics/client";
@@ -76,6 +76,15 @@ export function FiltersButton({
   const [teams, setTeams] = useState<{ id: string; name: string; memberIds: string[] }[] | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const n = filterCount(filters);
+  // As tall as the room down to the foot of the page's scroller, never past it (owner, 2026-11-04: cut 3px on Timing).
+  const [room, setRoom] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!open || !wrap.current) return;
+    const r = wrap.current.getBoundingClientRect();
+    const frame = wrap.current.closest<HTMLElement>("[data-scroll]")?.getBoundingClientRect();
+    const floor = Math.min(window.innerHeight, frame?.bottom ?? Infinity);
+    setRoom(Math.max(240, Math.min(720, Math.floor(floor - r.bottom - 10 - 12))));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,6 +160,7 @@ export function FiltersButton({
         {open && (
           <motion.div
             className={s.panel}
+            style={room ? { maxHeight: `${room}px` } : undefined}
             role="dialog"
             aria-label="Filters"
             initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: -6, filter: "blur(4px)" }}

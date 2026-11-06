@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { PEOPLE, callApi, expect, openApp, stateFile, test } from "./fixtures";
-import { whatsNewDue, whatsNewNumber, whatsappSwitch } from "./db";
+import { whatsNewDue, whatsNewNumber, whatsNewSeen, whatsappSwitch } from "./db";
 import { WIDTHS, cutText, spills } from "./spills";
 
 /**
@@ -30,6 +30,7 @@ test.afterAll(async ({ browser }) => {
   await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: false });
   await whatsappSwitch(whatsappWas);
   await dropNumber?.();
+  await whatsNewSeen(PEOPLE.owner.email, "1.2.0");
   await page.close();
 });
 

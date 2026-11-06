@@ -40,6 +40,34 @@ describe("Filters panel (8D-3 artboard)", () => {
     expect(within(panel).getByText("Every lead in the range")).toBeInTheDocument();
   });
 
+  it("never taller than the room to the foot of the page's scroller (owner, 2026-11-04: cut 3px on Timing)", async () => {
+    const box = (top: number, bottom: number) => ({
+      top,
+      bottom,
+      left: 0,
+      right: 100,
+      width: 100,
+      height: bottom - top,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute("data-scroll") ? box(70, 787) : box(140, 176);
+    });
+    render(
+      <div data-scroll style={{ overflowY: "auto" }}>
+        <FiltersButton filters={{}} catalog={testCatalog()} rangeDays={30} coverage={none} onChange={vi.fn()} />
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    const panel = await screen.findByRole("dialog", { name: "Filters" });
+    // 787 (the scroller's foot) - 176 (the button's) - 10 (the gap) - 12 (breathing room).
+    expect(panel.style.maxHeight).toBe("589px");
+    vi.restoreAllMocks();
+  });
+
   it("a team replaces people (one or the other), and a person shows their team", async () => {
     const onChange = vi.fn();
     render(
