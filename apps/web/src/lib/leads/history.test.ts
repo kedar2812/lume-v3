@@ -75,6 +75,21 @@ describe("describeActivity", () => {
     });
   });
 
+  it("keeps, word for word, what a field couldn't take from a sheet (client 2026-11-06)", () => {
+    const d = describeActivity(
+      a("imported", {
+        sheet: "Website enquiries",
+        row: 14,
+        unfiled: [
+          { label: "Struggles", value: "For many years" },
+          { label: "Date", value: "sometime last week" },
+        ],
+      }),
+      cat,
+    );
+    expect(d.quote).toBe("Not filed: Struggles “For many years”, Date “sometime last week”");
+  });
+
   it("says where an imported lead came from, and when it enquired again", () => {
     const first = describeActivity(a("imported", { file: "march.csv", row: 14 }), cat);
     expect(first.title).toBe("Imported");

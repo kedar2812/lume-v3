@@ -36,6 +36,11 @@ export type LeadDraft = {
   lostReasonId: string | null;
   custom: Record<string, unknown>;
   tagIds: string[];
+  /**
+   * Answers a field couldn't take, word for word (lenient sources only): the lead came in without them, and its
+   * history keeps them (client 2026-11-06).
+   */
+  unfiled: { label: string; value: string }[];
 };
 export type RowOutcome =
   | { kind: "empty" }
@@ -128,6 +133,7 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
     lostReasonId: null,
     custom: {},
     tagIds: [],
+    unfiled: [],
   };
   let first = "";
   let last = "";
@@ -263,7 +269,11 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
       }
       case "lead_created_at": {
         const p = parseDate(raw, ctx.dateOrders[c.column] ?? defaultDateOrder(ctx.country), ctx);
-        if (!p.ok) problems.push(issue(c.column, p.issue.code, p.issue.message));
+        if (!p.ok && ctx.lenient) {
+          // An automatic source: the lead is dated when it arrives, and the date it gave is kept.
+          warnings.push(issue(c.column, p.issue.code, `${p.issue.message} Dated when it arrived in LUME.`));
+          d.unfiled.push({ label: fieldOf(ctx, "lead_created_at")?.label ?? "Date", value: raw });
+        } else if (!p.ok) problems.push(issue(c.column, p.issue.code, p.issue.message));
         else d.leadCreatedAt = p.value.date;
         break;
       }
@@ -351,11 +361,18 @@ function readCustom(
   country: string | null,
 ) {
   const col = c.column;
+  // A value this field can't take. An automatic source (lenient) keeps the lead: the field is left empty and the
+  // answer kept word for word; a file import refuses the row, for the person to fix before it goes in.
+  const fail = (code: string, message: string) => {
+    if (!ctx.lenient) return void problems.push(issue(col, code, message));
+    warnings.push(issue(col, code, `${message} Left empty.`));
+    const value = raw.length > 2000 ? `${raw.slice(0, 2000)}…` : raw;
+    if (!d.unfiled.some((u) => u.label === f.label && u.value === value))
+      d.unfiled.push({ label: f.label, value });
+  };
   const max = TEXT_MAX[f.type];
   if (max !== undefined && raw.length > max) {
-    problems.push(
-      issue(col, "VALUE_TOO_LONG", `${f.label} is limited to ${max.toLocaleString("en")} characters.`),
-    );
+    fail("VALUE_TOO_LONG", `${f.label} is limited to ${max.toLocaleString("en")} characters.`);
     return;
   }
   const live = f.options.filter((o) => !o.archived);
@@ -368,12 +385,12 @@ function readCustom(
     case "number": {
       const p = parseNumber(raw, ctx.decimalMarks[col] ?? defaultDecimalMark(ctx.country));
       if (p.ok) d.custom[f.key] = p.value;
-      else problems.push(issue(col, p.issue.code, p.issue.message));
+      else fail(p.issue.code, p.issue.message);
       return;
     }
     case "currency": {
       const p = parseMoney(raw, ctx.decimalMarks[col] ?? defaultDecimalMark(ctx.country), ctx.currency);
-      if (!p.ok) problems.push(issue(col, p.issue.code, p.issue.message));
+      if (!p.ok) fail(p.issue.code, p.issue.message);
       else {
         d.custom[f.key] = p.value;
         if (p.warning) warnings.push(issue(col, p.warning.code, p.warning.message));
@@ -383,19 +400,19 @@ function readCustom(
     case "date":
     case "datetime": {
       const p = parseDate(raw, ctx.dateOrders[col] ?? defaultDateOrder(ctx.country), ctx);
-      if (!p.ok) problems.push(issue(col, p.issue.code, p.issue.message));
+      if (!p.ok) fail(p.issue.code, p.issue.message);
       else d.custom[f.key] = f.type === "date" ? p.value.date : p.value.instant;
       return;
     }
     case "boolean": {
       const b = parseBoolean(raw);
-      if (b === null) problems.push(issue(col, "NOT_YES_NO", `“${raw}” isn't yes or no.`));
+      if (b === null) fail("NOT_YES_NO", `“${raw}” isn't yes or no.`);
       else d.custom[f.key] = b;
       return;
     }
     case "select": {
       const o = option(raw);
-      if (!o) problems.push(issue(col, "OPTION_UNKNOWN", `“${raw}” isn't an option for ${f.label}.`));
+      if (!o) fail("OPTION_UNKNOWN", `“${raw}” isn't an option for ${f.label}.`);
       else d.custom[f.key] = o.id;
       return;
     }
@@ -405,7 +422,7 @@ function readCustom(
         const mappedPart = viaMap(c, part);
         if (mappedPart === null) continue;
         const o = option(mappedPart ?? part);
-        if (!o) problems.push(issue(col, "OPTION_UNKNOWN", `“${part}” isn't an option for ${f.label}.`));
+        if (!o) fail("OPTION_UNKNOWN", `“${part}” isn't an option for ${f.label}.`);
         else if (!ids.includes(o.id)) ids.push(o.id);
       }
       if (ids.length) d.custom[f.key] = ids;
@@ -448,8 +465,7 @@ function readCustom(
         problems.push(
           issue(col, "PERSON_AMBIGUOUS", `More than one person is called “${raw}”; use their email.`),
         );
-      else if (!person || !person.active)
-        problems.push(issue(col, "PERSON_UNKNOWN", `No active person “${raw}”.`));
+      else if (!person || !person.active) fail("PERSON_UNKNOWN", `No active person “${raw}”.`);
       else d.custom[f.key] = person.id;
       return;
     }

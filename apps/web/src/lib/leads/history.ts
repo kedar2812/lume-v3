@@ -111,6 +111,16 @@ export function describeActivity(a: Activity, cat: Catalog, tz?: string): Histor
       const origin = p.file ?? p.sheet ?? p.webhook;
       const from = origin ? `from ${String(origin)}${p.row ? `, row ${String(p.row)}` : ""}` : undefined;
       const extra = Array.isArray(p.extraPhones) && p.extraPhones.length ? p.extraPhones.map(String) : null;
+      // What a field couldn't take from a sheet or a form, word for word (client 2026-11-06).
+      const unfiled = Array.isArray(p.unfiled)
+        ? (p.unfiled as { label?: unknown; value?: unknown }[])
+            .filter((u) => typeof u?.label === "string" && typeof u?.value === "string")
+            .map((u) => `${String(u.label)} “${String(u.value)}”`)
+        : [];
+      const quotes = [
+        ...(extra ? [`Also gave ${extra.join(", ")}`] : []),
+        ...(unfiled.length ? [`Not filed: ${unfiled.join(", ")}`] : []),
+      ];
       return {
         title:
           a.type === "imported"
@@ -120,7 +130,7 @@ export function describeActivity(a: Activity, cat: Catalog, tz?: string): Histor
               : "Enquired again",
         detail: join(from, by(a)),
         tone: "accent",
-        ...(extra ? { quote: `Also gave ${extra.join(", ")}` } : {}),
+        ...(quotes.length ? { quote: quotes.join(". ") } : {}),
       };
     }
     case "note":

@@ -354,3 +354,34 @@ describe("a LUME export's check row (6B)", () => {
     expect(run(["name", "email"], ["Dana Whitfield", "dana@example.com"]).kind).toBe("draft");
   });
 });
+
+/**
+ * A sheet or a webhook (client 2026-11-06): nobody reviews each row, so a field LUME can't read never costs the lead.
+ * The lead comes in, the field is left empty, and the answer is kept word for word (unfiled) for the lead's history.
+ */
+describe("lenient: an automatic source keeps the lead when one field can't be read", () => {
+  const lenient = (keys: (string | null)[], cells: string[]) =>
+    mapRow(cells, mapOf(keys), testRules(), testContext({ headerCount: keys.length, lenient: true }));
+
+  it("an answer that isn't one of a field's options: the lead comes in, the answer is kept", () => {
+    const o = draft(lenient(["name", "tier"], ["Aisha", "For many years"]));
+    expect(o.draft.custom.tier).toBeUndefined();
+    expect(warns(o)).toContain("OPTION_UNKNOWN");
+    expect(o.draft.unfiled).toEqual([{ label: "Tier", value: "For many years" }]);
+  });
+
+  it("a date LUME can't read: the lead comes in, dated when it arrives, and the date is kept", () => {
+    const o = draft(lenient(["name", "lead_created_at"], ["Aisha", "sometime last week"]));
+    expect(o.draft.leadCreatedAt).toBeNull();
+    expect(warns(o)).toContain("DATE_UNREADABLE");
+    expect(o.draft.unfiled).toEqual([{ label: "Date", value: "sometime last week" }]);
+  });
+
+  it("still refuses what makes a lead unusable: no name and no contact", () => {
+    expect(problems(lenient(["name", "email", "tier"], ["", "", "Bronze"]))).toContain("NO_NAME_NO_CONTACT");
+  });
+
+  it("a file import stays strict: the person fixes the row before it goes in", () => {
+    expect(problems(run(["name", "tier"], ["A", "Bronze"]))).toEqual(["OPTION_UNKNOWN"]);
+  });
+});

@@ -166,7 +166,13 @@ export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowRes
     );
     await mergeIntoLead(req, lead!, fill, {
       type: forced ? o.mergeInto!.activity : "imported_again",
-      payload: { ...o.origin, filled, extraPhones: draft.extraPhones, warnings: warnings.map((w) => w.code) },
+      payload: {
+        ...o.origin,
+        filled,
+        extraPhones: draft.extraPhones,
+        warnings: warnings.map((w) => w.code),
+        ...(draft.unfiled.length ? { unfiled: draft.unfiled } : {}),
+      },
     });
     return out(
       "merged",
@@ -235,7 +241,13 @@ export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowRes
     stageEnteredAt: origin ?? new Date(),
     activity: {
       type: "imported",
-      payload: { ...o.origin, extraPhones: draft.extraPhones, warnings: warnings.map((w) => w.code) },
+      payload: {
+        ...o.origin,
+        extraPhones: draft.extraPhones,
+        warnings: warnings.map((w) => w.code),
+        // What a field couldn't take, word for word (lenient sources): kept with the lead (client 2026-11-06).
+        ...(draft.unfiled.length ? { unfiled: draft.unfiled } : {}),
+      },
     },
     assignReason: "imported",
   });

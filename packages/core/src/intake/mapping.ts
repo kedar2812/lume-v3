@@ -61,6 +61,11 @@ export type MapContext = {
   headerCount: number;
   dateOrders: Record<number, DateOrder>;
   decimalMarks: Record<number, "." | ",">;
+  /**
+   * An automatic source (a sheet, a webhook, Calendly): nobody reviews each row, so a value a field can't take never
+   * costs the lead; it comes in with that field empty and the answer kept (client 2026-11-06). A file import is strict.
+   */
+  lenient?: boolean;
 };
 /** A reason, in LUME's words; `field` names the field it's about when a screen needs to act on it. */
 export type Issue = { column: number | null; code: string; message: string; field?: string };

@@ -527,7 +527,13 @@ async function syncSource(
         ),
       );
     const ctx = await withJobRequest(job("context"), (req) =>
-      loadMapContext(req, { pipelineId: rules.pipelineId, headerCount: width, columnSettings }),
+      // A sheet is read with nobody reviewing each row: a field LUME can't read never costs the lead (client 2026-11-06).
+      loadMapContext(req, {
+        pipelineId: rules.pipelineId,
+        headerCount: width,
+        columnSettings,
+        lenient: true,
+      }),
     );
     for (const t of slice) {
       // Every 25 rows: still ours? Extends the lock if so; Pause and Remove let go of it, and that stops us.
