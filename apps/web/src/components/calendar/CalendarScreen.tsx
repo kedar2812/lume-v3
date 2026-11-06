@@ -23,12 +23,22 @@ import { MeetingDrawer } from "./MeetingDrawer";
 import { CalendarRail } from "./CalendarRail";
 import { CalendarRefresh } from "./CalendarRefresh";
 import { ConnectCalendar } from "./ConnectCalendar";
+import { LinkLeadSheet } from "./LinkLeadSheet";
 import { LogOutcome } from "./LogOutcome";
+import { NewLeadSheet } from "@/components/leads/NewLeadSheet";
+import type { Session } from "@/server/session";
+import { CatalogProvider } from "@/components/leads/CatalogProvider";
+import type { Catalog } from "@/lib/leads/types";
 import { PhoneCalendar } from "./PhoneCalendar";
 import { WeekGrid } from "./WeekGrid";
 import s from "./calendar.module.css";
 
 export type CalendarScreenProps = {
+  /**
+   * A call that isn't with a lead yet can be linked to one, or (canCreate) the person added as a lead (client
+   * 2026-11-06). Absent for someone who can't see leads.
+   */
+  leads?: { session: Session; canCreate: boolean; catalog?: Catalog } | null;
   /** The person looking: "Mine" means theirs. */
   me: string;
   /** The business's clock: every day and time on the page is on it. */
@@ -115,6 +125,7 @@ export function CalendarScreen({
   refreshable = null,
   gear,
   connect = null,
+  leads = null,
   now: nowOf = () => new Date(),
 }: CalendarScreenProps) {
   const [now, setNow] = useState(nowOf);
@@ -136,6 +147,9 @@ export function CalendarScreen({
   /** The meeting whose outcome is being logged (Task 11). */
   const [logging, setLogging] = useState<Meeting | null>(null);
   const onLogOutcome = (m: Meeting) => setLogging(m);
+  /** The call being made into a lead, or linked to one (client 2026-11-06). */
+  const [adding, setAdding] = useState<Meeting | null>(null);
+  const [linking, setLinking] = useState<Meeting | null>(null);
   /** Rows a Refresh brought or changed: they wash blue once. */
   const [washed, setWashed] = useState<Set<string>>(new Set());
   const range = useRef<{ from: number; to: number } | null>(null);
@@ -398,6 +412,8 @@ export function CalendarScreen({
             openId={open}
             onOpen={setOpen}
             onLogOutcome={onLogOutcome}
+            {...(leads ? { onLinkLead: setLinking } : {})}
+            {...(leads?.canCreate && leads.catalog ? { onAddLead: setAdding } : {})}
             notice={notice}
             actions={
               (refreshable || gear) && (
@@ -467,6 +483,34 @@ export function CalendarScreen({
           stage={opened?.lead ? (stages.find((x) => x.id === opened.lead!.stageId) ?? null) : null}
           onClose={() => setOpen(null)}
           onLogOutcome={onLogOutcome}
+          {...(leads ? { onLinkLead: setLinking } : {})}
+          {...(leads?.canCreate && leads.catalog ? { onAddLead: setAdding } : {})}
+        />
+      )}
+      {adding && leads?.catalog && (
+        <CatalogProvider catalog={leads.catalog}>
+          <NewLeadSheet
+            session={leads.session}
+            onClose={() => setAdding(null)}
+            onCreated={(lead) => {
+              const call = adding;
+              setAdding(null);
+              void calendarClient.patchMeeting(call.id, { leadId: lead.id }).then((r) => {
+                if (!r.ok) setError(r.message);
+                void synced();
+              });
+            }}
+          />
+        </CatalogProvider>
+      )}
+      {linking && (
+        <LinkLeadSheet
+          meeting={linking}
+          onClose={() => setLinking(null)}
+          onLinked={() => {
+            setLinking(null);
+            void synced();
+          }}
         />
       )}
       {logging && (

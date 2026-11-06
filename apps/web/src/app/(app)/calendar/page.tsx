@@ -7,6 +7,7 @@ import type { Person, Pipeline } from "@/lib/leads/types";
 import type { IntegrationsView } from "@/lib/sheets/types";
 import { apiGet } from "@/server/api";
 import { requirePermission } from "@/server/session";
+import { loadCatalog } from "@/server/leads";
 
 export const metadata = { title: "Calendar · LUME" };
 
@@ -32,6 +33,10 @@ export default async function Page({
       : Promise.resolve({ data: null }),
   ]);
   const conn = connection.data;
+  // A call that isn't with a lead yet: link it to one, or add the person as a lead (client 2026-11-06).
+  const seesLeads = can(session.actor, "leads.view");
+  const canCreate = can(session.actor, "leads.create");
+  const catalog = canCreate ? await loadCatalog() : undefined;
   const admin = can(session.actor, "integrations.manage");
   // Connecting (Task 5): offered only to someone who may, while the module is on and set up.
   const connect: { state: "connect" | "off" | "unavailable" | "noPermission"; admin: boolean } | null = !can(
@@ -58,6 +63,7 @@ export default async function Page({
         everyone={showsEveryone(session.actor)}
         people={(people.data?.people ?? []).map((p) => ({ id: p.id, name: p.name }))}
         stages={stages}
+        leads={seesLeads ? { session, canCreate, ...(catalog ? { catalog } : {}) } : null}
         initial={readCalendarUrl(params)}
         connect={connect}
         gear={can(session.actor, "calendar.connect") ? <CalendarGear /> : undefined}

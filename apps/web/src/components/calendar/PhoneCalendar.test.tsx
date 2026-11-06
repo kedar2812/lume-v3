@@ -137,6 +137,22 @@ describe("the phone's meeting sheet", () => {
     expect(within(sheet).getByRole("button", { name: "Copied" })).toBeInTheDocument();
   });
 
+  it("a call not with a lead yet: Add as a lead and Link to a lead (client 2026-11-06)", async () => {
+    const onAddLead = vi.fn();
+    const onLinkLead = vi.fn();
+    phone({
+      meetings: [meet("u", "2026-10-01 15:00", "", { title: "Call with Arjun", lead: null })],
+      openId: "u",
+      onAddLead,
+      onLinkLead,
+    });
+    const sheet = screen.getByRole("dialog", { name: "Call with Arjun" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Add as a lead" }));
+    expect(onAddLead).toHaveBeenCalledWith(expect.objectContaining({ id: "u" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Link to a lead" }));
+    expect(onLinkLead).toHaveBeenCalledWith(expect.objectContaining({ id: "u" }));
+  });
+
   it("an ended call with no outcome: Log how it went", async () => {
     const p = phone({ openId: "b" });
     const sheet = screen.getByRole("dialog", { name: "Karim Aziz" });
