@@ -41,6 +41,8 @@ export function MeetingDrawer({
   stage,
   onClose,
   onLogOutcome,
+  onAddLead,
+  onLinkLead,
 }: {
   meeting: Meeting | null;
   tz: string;
@@ -50,6 +52,10 @@ export function MeetingDrawer({
   stage: { id: string; name: string; color: string } | null;
   onClose: () => void;
   onLogOutcome?: (m: Meeting) => void;
+  /** A call that isn't with a lead yet: add the person as a lead (for someone who may add leads)… */
+  onAddLead?: (m: Meeting) => void;
+  /** …or link it to a lead already in LUME (client 2026-11-06). */
+  onLinkLead?: (m: Meeting) => void;
 }) {
   const reduce = useReducedMotion();
   const [copied, setCopied] = useState(false);
@@ -197,7 +203,23 @@ export function MeetingDrawer({
               </span>
             </Link>
           ) : (
-            <p className={s.dnote}>Not with a lead yet.</p>
+            <div className={s.noLead}>
+              <p className={s.dnote}>Not with a lead yet.</p>
+              {(onAddLead || onLinkLead) && (
+                <div className={s.noLeadActions}>
+                  {onAddLead && (
+                    <button type="button" className={s.outcomeBtn} onClick={() => onAddLead(m)}>
+                      Add as a lead
+                    </button>
+                  )}
+                  {onLinkLead && (
+                    <button type="button" className={s.linkBtn} onClick={() => onLinkLead(m)}>
+                      Link to a lead
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           <dl className={s.kv}>

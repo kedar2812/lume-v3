@@ -33,6 +33,8 @@ export function PhoneCalendar({
   openId,
   onOpen,
   onLogOutcome,
+  onAddLead,
+  onLinkLead,
   actions,
   notice,
 }: {
@@ -44,6 +46,9 @@ export function PhoneCalendar({
   openId: string | null;
   onOpen: (id: string | null) => void;
   onLogOutcome: (m: Meeting) => void;
+  /** A call that isn't with a lead yet (client 2026-11-06). */
+  onAddLead?: (m: Meeting) => void;
+  onLinkLead?: (m: Meeting) => void;
   /** Refresh and the gear, beside the title. */
   actions?: ReactNode;
   /** About connecting Google Calendar, under the title. */
@@ -155,6 +160,8 @@ export function PhoneCalendar({
         now={now}
         onClose={() => onOpen(null)}
         onLogOutcome={onLogOutcome}
+        {...(onAddLead ? { onAddLead } : {})}
+        {...(onLinkLead ? { onLinkLead } : {})}
       />
     </div>
   );
@@ -239,12 +246,17 @@ function MeetingSheet({
   now,
   onClose,
   onLogOutcome,
+  onAddLead,
+  onLinkLead,
 }: {
   meeting: Meeting | null;
   tz: string;
   now: Date;
   onClose: () => void;
   onLogOutcome: (m: Meeting) => void;
+  /** A call that isn't with a lead yet (client 2026-11-06). */
+  onAddLead?: (m: Meeting) => void;
+  onLinkLead?: (m: Meeting) => void;
 }) {
   // The last meeting shown stays in the sheet while it slides away.
   const [shown, setShown] = useState<Meeting | null>(meeting);
@@ -372,6 +384,41 @@ function MeetingSheet({
                 </button>
               )}
               <div className={s.tiles}>
+                {!m.lead && onAddLead && (
+                  <button type="button" className={s.tile} onClick={() => onAddLead(m)}>
+                    <span className={s.tileIcon} data-tone="lead" aria-hidden>
+                      <svg
+                        viewBox="0 0 16 16"
+                        width="17"
+                        height="17"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.45"
+                      >
+                        <circle cx="7" cy="5.4" r="2.6" />
+                        <path d="M2 13.6c.6-2.5 2.6-3.9 5-3.9M12 9v5M9.5 11.5h5" />
+                      </svg>
+                    </span>
+                    Add as a lead
+                  </button>
+                )}
+                {!m.lead && onLinkLead && (
+                  <button type="button" className={s.tile} onClick={() => onLinkLead(m)}>
+                    <span className={s.tileIcon} data-tone="lead" aria-hidden>
+                      <svg
+                        viewBox="0 0 16 16"
+                        width="17"
+                        height="17"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.45"
+                      >
+                        <path d="M6.5 9.5 9.5 6.5M7 4.5l1-1a2.8 2.8 0 0 1 4 4l-1 1M9 11.5l-1 1a2.8 2.8 0 0 1-4-4l1-1" />
+                      </svg>
+                    </span>
+                    Link to a lead
+                  </button>
+                )}
                 {m.lead && (
                   <Link className={s.tile} href={`/leads?lead=${m.lead.id}`}>
                     <span className={s.tileIcon} data-tone="lead" aria-hidden>

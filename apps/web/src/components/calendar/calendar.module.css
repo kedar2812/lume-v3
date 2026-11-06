@@ -1025,3 +1025,79 @@
     transition: none;
   }
 }
+
+/* A call that isn't with a lead yet: add the person as a lead, or link it to one (client 2026-11-06). */
+.noLead {
+  display: grid;
+  gap: 10px;
+}
+.noLeadActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.linkBtn {
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sunk);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.linkBtn:focus-visible,
+.linkPick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.linkTitle {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+.linkLede {
+  margin: 0 0 12px;
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+.linkSearch {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+}
+.linkError {
+  margin: 10px 0 0;
+  color: var(--danger-ink);
+  font-size: 13px;
+}
+.linkList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.linkPick {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.linkPick:hover {
+  background: var(--sunk);
+}
