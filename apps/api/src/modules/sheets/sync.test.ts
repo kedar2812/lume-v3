@@ -131,6 +131,15 @@ describe("a sync", () => {
     expect(await sync(s.id)).toMatchObject({ status: "done" });
   });
 
+  it("a row whose date LUME can't read still becomes a lead, and its history keeps the date (client 2026-11-06)", async () => {
+    const s = await connect([["sometime last week", "Unreadable Date", "0507711111", ""]]);
+    expect(await sync(s.id)).toMatchObject({ status: "done", created: 1, errors: 0 });
+    const [act] = await h.queryAll<{ payload: { unfiled: { label: string; value: string }[] } }>(
+      "SELECT a.payload FROM activities a JOIN leads l ON l.id = a.lead_id WHERE l.name = 'Unreadable Date' AND a.type = 'imported'",
+    );
+    expect(act!.payload.unfiled).toEqual([{ label: "Date", value: "sometime last week" }]);
+  });
+
   it("reads only rows added since, and a repeat enquiry from the same person merges", async () => {
     const s = await connect([row(4), row(5)]);
     await sync(s.id);
@@ -164,7 +173,8 @@ describe("a sync", () => {
 
   it("a problem row is retried when the rules change, and one fixed in the sheet replaces it", async () => {
     const unknownOwner = ["2026-08-15 10:00", "Owner Unknown", "0507700015", "nobody@nowhere.test"];
-    const s = await connect([row(14), unknownOwner, ["not a date", "Bad Date", "0507700016", ""]]);
+    // A row with no name and no contact (still a problem: an unreadable value isn't one any more, client 2026-11-06).
+    const s = await connect([row(14), unknownOwner, ["2026-08-15 11:00", "", "", ""]]);
     expect(await sync(s.id)).toMatchObject({ created: 1, errors: 2 });
     // Fix one in the sheet: a new date is a new fingerprint (the date cell is part of it); the old problem is superseded.
     h.fake!.setRows(s.spreadsheetId, "Form responses", [

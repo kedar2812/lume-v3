@@ -230,6 +230,7 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
         ? await withJobRequest(job("context"), (req) =>
             loadMapContext(req, {
               pipelineId: rules.pipelineId,
+              lenient: true,
               headerCount: 4,
               columnSettings: {} as never,
             }),

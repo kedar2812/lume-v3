@@ -150,6 +150,7 @@ export async function processEvent(o: ProcessDeps, eventId: number): Promise<voi
         pipelineId: rules.pipelineId,
         headerCount: headers.length,
         columnSettings: src.columnSettings as never,
+        lenient: true,
       }),
     );
     await withJobRequest(job("row"), async (req) => {

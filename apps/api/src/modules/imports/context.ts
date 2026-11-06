@@ -43,6 +43,8 @@ export async function loadMapContext(
     headerCount: number;
     columnSettings?: { dateOrders: Record<number, DateOrder>; decimalMarks: Record<number, "." | ","> };
     pending?: Mapping;
+    /** An automatic source (sheet, webhook, Calendly): a field LUME can't read never costs the lead. */
+    lenient?: boolean;
   },
 ): Promise<FullMapContext> {
   const actor = req.actor!;
@@ -110,6 +112,7 @@ export async function loadMapContext(
     headerCount: o.headerCount,
     dateOrders: o.columnSettings?.dateOrders ?? {},
     decimalMarks: o.columnSettings?.decimalMarks ?? {},
+    ...(o.lenient ? { lenient: true } : {}),
   };
 }
 

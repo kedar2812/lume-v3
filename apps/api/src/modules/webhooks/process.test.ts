@@ -120,21 +120,15 @@ describe("processing a post (2C spec §5)", () => {
     expect(acts.map((a) => a.type)).toContain("imported_again");
   });
 
-  it("a post that can't be read is a problem, and goes through once the setup is fixed", async () => {
+  it("a post with a date LUME can't read still makes the lead, and keeps the date (client 2026-11-06)", async () => {
     const id = await source();
     const e = await send(id, {
       name: "Date Trouble",
       contact: { phone: "+971501230003" },
       enquired_on: "31/31/2026",
     });
-    expect(e.status).toBe("error");
-    expect(e.problems.length).toBeGreaterThan(0);
-    await h.pool.query(
-      "UPDATE lead_sources SET mapping = $2, config_version = config_version + 1 WHERE id = $1",
-      [id, { ...mapping, columns: [...mapping.columns.slice(0, 3), { column: 3, to: "ignore" }] }],
-    );
-    await processEvent({ app: h.app, pool: h.pool, keyring: h.keyring }, Number(e.id));
-    expect(await lastEvent(id)).toMatchObject({ status: "done", result: "created" });
+    expect(e.status).toBe("done");
+    expect(e.result).toBe("created");
   });
 
   it("Review Focus 4: a huge value is a problem, not a crash", async () => {

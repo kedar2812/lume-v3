@@ -412,14 +412,13 @@ describe("looking after a sheet", () => {
   });
 
   it("problem rows are listed, downloadable, and can be dismissed", async () => {
-    const id = sheet([r(12), ["not a date", "Broken Row", "0508800013"]]);
+    // A name past 200 characters still stops a row (an unreadable value no longer does, client 2026-11-06).
+    const id = sheet([r(12), ["2026-08-13 10:00", `Broken Row ${"x".repeat(200)}`, "0508800013"]]);
     const s = await connect(admin, id);
     await h.runSyncs();
     const detail = (await call(admin, "GET", `/api/v1/sheets/sources/${s.id}`)).json();
     expect(detail.problems).toBe(1);
-    expect(detail.problemRows).toMatchObject([
-      { rowNumber: 3, problems: [{ code: expect.stringMatching(/DATE/) }] },
-    ]);
+    expect(detail.problemRows).toMatchObject([{ rowNumber: 3, problems: [{ code: "NAME_TOO_LONG" }] }]);
     expect(detail.syncs[0]).toMatchObject({ status: "done", created: 1, errors: 1 });
     const csv = await call(admin, "GET", `/api/v1/sheets/sources/${s.id}/problems.csv`);
     expect(csv.headers["content-type"]).toMatch(/text\/csv/);
