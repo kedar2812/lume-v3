@@ -4,6 +4,18 @@ Every LUME release, newest first. The version is the root `package.json`'s; tagg
 release images (`docs/runbooks/fleet.md`). Migrations are forward-only and additive: an update never drops a
 column in the release that stops using it.
 
+## 1.1.1 — 2026-11-06
+
+- **A Google Sheet keeps syncing once every row is read:** a form's sheet has no empty rows below its data, and LUME
+  asked Google for the row after the last one; Google refused and the sync failed until the next response arrived.
+  LUME no longer asks past the last row, and a sheet that shrank is read again in full.
+- **A sheet, webhook or Calendly row never loses its lead to one field LUME can't read:** a date it can't read, or an
+  answer that isn't one of a field's options, used to stop the whole row. The lead now comes in with that field
+  empty (dated when it arrived, for a date) and the answer kept word for word in its history ("Not filed: …"). A file
+  import stays strict: you fix those rows before they go in. Rows that were stopped are tried again at the sheet's
+  next full read (within the hour), and their calls are matched at the calendar's next full read.
+- **Update notes:** no migrations, no `.env` changes.
+
 ## 1.1.0 — 2026-10-29
 
 - **Security updates:** Next.js 16.4.3 (the licence panel and the web app) and Zod 4.6.7, for published denial-of-service
