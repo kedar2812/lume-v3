@@ -38,6 +38,11 @@ export type GoogleFake = {
   /** A Drive file that isn't a spreadsheet (a Google Doc, say), reachable through a grant. */
   putFile(id: string, mimeType: string): void;
   append(id: string, tab: string, rows: FakeCell[][]): void;
+  /**
+   * A sheet with no empty rows below its data, as a form's responses grow one row at a time (real Google refuses a
+   * range that starts past the last row: "exceeds grid limits").
+   */
+  tightGrid(id: string): void;
   setRows(id: string, tab: string, rows: FakeCell[][]): void;
   renameTab(id: string, from: string, to: string): void;
   unshare(id: string): void;
@@ -81,6 +86,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   const sheets = new Map<string, FakeSpreadsheet & { modified: number }>();
   const files = new Map<string, string>();
   const shared = new Set<string>();
+  const tight = new Set<string>();
   const tokens = new Set<string>();
   const oauthTokens = new Set<string>();
   let revoked = false;
@@ -349,7 +355,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
           properties: {
             sheetId: t.sheetId,
             title: t.title,
-            gridProperties: { rowCount: Math.max(1000, t.rows.length) },
+            gridProperties: { rowCount: tight.has(id) ? t.rows.length : Math.max(1000, t.rows.length) },
           },
         })),
       });
@@ -358,6 +364,13 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
       const p = parseRange(r);
       const tab = p && s.tabs.find((t) => t.title === p.tab);
       if (!p || !tab) return googleError(res, 400, "INVALID_ARGUMENT", `Unable to parse range: ${r}`);
+      if (tight.has(id) && p.from > tab.rows.length)
+        return googleError(
+          res,
+          400,
+          "INVALID_ARGUMENT",
+          `Range (${r}) exceeds grid limits. Max rows: ${tab.rows.length}, max columns: 26`,
+        );
       const raw = u.searchParams.get("valueRenderOption") === "UNFORMATTED_VALUE";
       const rows = trimmed(
         tab.rows
@@ -390,6 +403,9 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     },
     putFile(id, mimeType) {
       files.set(id, mimeType);
+    },
+    tightGrid(id) {
+      tight.add(id);
     },
     append(id, tab, rows) {
       tabOf(id, tab).rows.push(...structuredClone(rows));

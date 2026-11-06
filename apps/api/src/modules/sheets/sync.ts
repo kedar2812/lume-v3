@@ -309,7 +309,9 @@ async function syncSource(
     google.values(cfg.spreadsheetId, [
       rowsRange(tab.title, h, h),
       rowsRange(tab.title, h + 1, h + 1),
-      rowsRange(tab.title, tailRow, tailRow),
+      // A sheet that now ends above where LUME stopped (rows deleted): no tail to ask for; the anchor differs, so
+      // it's read again in full.
+      rowsRange(tab.title, Math.min(tailRow, tab.rowCount), Math.min(tailRow, tab.rowCount)),
     ]),
   );
   // Padded to the saved width first, so a blank header cell is named "Column E" here just as the draft named it.
@@ -326,20 +328,29 @@ async function syncSource(
         : `The column “${broken.was}” is gone from the sheet. Open the sheet's columns to check them. LUME won't guess.`,
     );
   const first = firstRaw[0] ?? [];
-  const anchorNow = anchorHash(header.slice(0, width), first, src.rowsRead ? (tailRaw[0] ?? []) : undefined);
+  const anchorNow = anchorHash(
+    header.slice(0, width),
+    first,
+    src.rowsRead ? (tailRow > tab.rowCount ? ["(gone)"] : (tailRaw[0] ?? [])) : undefined,
+  );
   const full =
     src.baseline || src.rekeyThrough !== null || !src.headHash || anchorNow !== src.headHash || hourly;
 
   // 3. Read everything under the header, or only what's past the last row read.
   const from = full ? h + 1 : tailRow + 1;
-  const raw = await readSheetRows({
-    google: google,
-    spreadsheetId: cfg.spreadsheetId,
-    tab: tab.title,
-    from,
-    lastRow: Math.max(tab.rowCount, from),
-    limit: full ? o.maxRows : o.maxRows - src.rowsRead,
-  });
+  // Nothing past the sheet's last row: a sheet with no empty rows below its data (a form's responses) would have
+  // Google refuse the read ("exceeds grid limits") and fail the sync (client 2026-11-06).
+  const raw =
+    from > tab.rowCount
+      ? []
+      : await readSheetRows({
+          google: google,
+          spreadsheetId: cfg.spreadsheetId,
+          tab: tab.title,
+          from,
+          lastRow: Math.max(tab.rowCount, from),
+          limit: full ? o.maxRows : o.maxRows - src.rowsRead,
+        });
   const rowsRead = (full ? 0 : src.rowsRead) + raw.length;
   const lastRaw = raw.length ? raw.at(-1)! : tailRaw[0];
   const patch = {

@@ -111,6 +111,26 @@ describe("a sync", () => {
     expect(await source(s.id)).toMatchObject({ rows_read: 3, failures: 0, current_sync_id: null });
   });
 
+  it("a sheet with no empty rows below its data keeps syncing once every row is read (client 2026-11-06)", async () => {
+    // Google Forms grows its sheet one row at a time: asking for the row after the last one is refused by Google
+    // ("exceeds grid limits"), and every such sync failed while the sheet waited for its next response.
+    const s = await connect([row(91), row(92)]);
+    h.fake!.tightGrid(s.spreadsheetId);
+    expect(await sync(s.id)).toMatchObject({ status: "done", created: 2 });
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [HEAD, row(91), row(92)]);
+    expect(await sync(s.id)).toMatchObject({ status: "done", created: 0 });
+    h.fake!.append(s.spreadsheetId, "Form responses", [row(93)]);
+    expect(await sync(s.id)).toMatchObject({ status: "done", created: 1 });
+  });
+
+  it("…and keeps syncing when rows are deleted and the sheet now ends above where LUME stopped reading", async () => {
+    const s = await connect([row(94), row(95), row(96)]);
+    h.fake!.tightGrid(s.spreadsheetId);
+    expect(await sync(s.id)).toMatchObject({ status: "done", created: 3 });
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [HEAD, row(94)]);
+    expect(await sync(s.id)).toMatchObject({ status: "done" });
+  });
+
   it("reads only rows added since, and a repeat enquiry from the same person merges", async () => {
     const s = await connect([row(4), row(5)]);
     await sync(s.id);
