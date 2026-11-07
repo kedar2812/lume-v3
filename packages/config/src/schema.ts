@@ -89,6 +89,11 @@ export const apiSchema = base
     /** "Connect with Google" (2B §6): the owner's relay, and this instance's own token there. Unset: hidden. */
     /** Connections for the API's background work (imports, sheets ×3, webhooks, reminders, the export). */
     DB_JOB_POOL_MAX: z.coerce.number().int().min(2).max(100).default(14),
+    /**
+     * Connections for people's requests (each runs in its own transaction). 20 holds a thousand people on one LUME
+     * (owner, 2026-11-06); raise it for more, within Postgres's max_connections (100) less the job pool and the worker.
+     */
+    DB_POOL_MAX: z.coerce.number().int().min(2).max(80).default(20),
     GOOGLE_OAUTH_RELAY_URL: optional(z.url({ protocol: /^https?$/ })),
     GOOGLE_OAUTH_RELAY_TOKEN: optional(z.string().min(32).max(200)),
     /**

@@ -46,7 +46,8 @@ async function time(path: string, call: () => Promise<{ statusCode: number; body
 
 describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
   beforeAll(async () => {
-    h = await createHarness({ preset: "general" });
+    // Production's request pool (DB_POOL_MAX, 20): the burst below is measured as a real LUME would answer it.
+    h = await createHarness({ preset: "general", poolMax: 20 });
     await h.seedUser({ owner: true, grants: ALL_GRANTS, totp: true, name: "Maya Kapoor" });
     const adminUser = await h.seedUser({ grants: ALL_GRANTS, totp: true, name: "Hana Ito" });
     admin = await h.signIn(adminUser);
@@ -273,6 +274,46 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
 
   // 8A: analytics reads its daily rollups. Wins and first contacts as a live instance would have them, the last 90
   // days rolled up, then every dashboard timed. Budget: LUME_SCALE_ANALYTICS_BUDGET ms (300 by default).
+  /**
+   * A thousand people on one LUME (owner, 2026-11-06: "1000 people using it at the same time should raise no issues"):
+   * a burst of what their screens read when leads change (the list, its counts, the sidebar's views, Today and its
+   * tiles, the bell), 300 at once, from an admin, a sales rep and a team lead, through the real request pool.
+   * Nothing may fail, and the slowest must still answer in reasonable time.
+   */
+  it("holds a thousand people's burst: 300 reads at once, none failing", async () => {
+    const cfg = await h.config();
+    const reads = [
+      "/api/v1/leads?limit=50",
+      `/api/v1/leads/counts?pipelineId=${cfg.pipelineId}`,
+      "/api/v1/views/counts",
+      "/api/v1/today",
+      "/api/v1/today/tiles",
+      "/api/v1/notifications",
+    ];
+    const who = [admin, rep, lead];
+    const ms: number[] = [];
+    const bad: string[] = [];
+    const started = performance.now();
+    await Promise.all(
+      Array.from({ length: 300 }, async (_, i) => {
+        const url = reads[i % reads.length]!;
+        const t = performance.now();
+        const r = await who[i % who.length]!.inject({ method: "GET", url });
+        ms.push(performance.now() - t);
+        if (r.statusCode >= 400) bad.push(`${url}: ${r.statusCode} ${r.body.slice(0, 120)}`);
+      }),
+    );
+    const wall = performance.now() - started;
+    ms.sort((a, b) => a - b);
+    const p = (q: number) => Math.round(ms[Math.min(ms.length - 1, Math.floor(ms.length * q))]!);
+    console.log(
+      `
+burst of 300 at ${N.toLocaleString("en-US")} leads: wall ${Math.round(wall)} ms, p50 ${p(0.5)} ms, p95 ${p(0.95)} ms, max ${p(1)} ms, ${Math.round((300 / wall) * 1000)} reads/s`,
+    );
+    expect(bad).toEqual([]);
+    expect(p(0.95)).toBeLessThan(10_000);
+  });
+
   it("answers the analytics dashboards from rollups", async () => {
     await h.ownerPool.query("SET statement_timeout = 0");
     let t = performance.now();

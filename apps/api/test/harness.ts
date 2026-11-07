@@ -223,6 +223,8 @@ export async function createHarness(
     meta?: AppDeps["meta"];
     /** Media (plan 2026-10-20-media-tab): a stand-in render service on a local port. */
     render?: boolean;
+    /** The request pool's size (the scale suite runs at production's DB_POOL_MAX). Default 8. */
+    poolMax?: number;
     /** The running LUME version (What's new reads its release). Unset: none, so no window is ever due. */
     version?: string;
   } = {},
@@ -230,7 +232,7 @@ export async function createHarness(
   const tdb = await createTestDatabase();
   await installQueueSchema(tdb.url("lume_owner"), QUEUE_NAMES);
   await migrate(tdb.url("lume_owner"), MIGRATIONS_DIR_DEFAULT);
-  const pool = new pg.Pool({ connectionString: tdb.url("lume_app"), max: 8 });
+  const pool = new pg.Pool({ connectionString: tdb.url("lume_app"), max: opts.poolMax ?? 8 });
   const ownerPool = new pg.Pool({ connectionString: tdb.url("lume_owner"), max: 2 });
 
   const master = masterKeyFromBase64(Buffer.alloc(32, 7).toString("base64"));

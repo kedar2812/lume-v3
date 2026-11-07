@@ -28,7 +28,7 @@ const cfg = loadConfig(apiSchema);
 // A request never waits long for a connection: exhaustion fails loudly instead of hanging the API.
 const pool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
-  max: 10,
+  max: cfg.DB_POOL_MAX,
   connectionTimeoutMillis: 10_000,
   // No query on a request runs away (Phase 9 Task 4): it is stopped at 30 s and answered as "took too long"
   // (errors.ts). No idle-in-transaction limit here: "Export all data" holds its request transaction (and audit

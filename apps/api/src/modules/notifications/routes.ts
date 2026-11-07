@@ -8,12 +8,12 @@ import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { onSessionsRevoked } from "../../auth/sessions";
 import { alertIdOf, missedSince, startHub, streamWriter, type NotificationView } from "./hub";
+import { leadsDelay, leadsEveryMs } from "./budget";
 
 const N = schema.notifications;
 const self = { permission: "auth.self" as const };
 const HEARTBEAT_MS = 25_000;
 /** At most one "leads changed" per stream in this long: a burst (an import) becomes one or two (4B). */
-const LEADS_EVERY_MS = 3000;
 /** How far before the last id a replay starts (ids can commit out of order), and how many ids a stream remembers. */
 const OVERLAP = 50;
 const SENT_MAX = 2000;
@@ -169,12 +169,14 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
       const seesLeads = can(req.actor!, "leads.view");
       const offLeads = hub.onLeads(() => {
         if (!seesLeads) return;
-        const wait = lastLeads + LEADS_EVERY_MS - Date.now();
-        if (wait <= 0) return sayLeads();
+        // The refresh budget (budget.ts): within 3 s for a small team, less often and spread out for a big one, so a
+        // thousand browsers never re-read their counts in the same instant.
+        const streams = hub.streams();
+        const wait = lastLeads + leadsEveryMs(streams) - Date.now();
         trailing ??= setTimeout(() => {
           trailing = undefined;
           sayLeads();
-        }, wait);
+        }, leadsDelay({ streams, wait }));
       });
       // LUME AI's runs (Autopilot A2): each change as its run, lead and kind (no id, no words); the screen reads the
       // rest under its own access.

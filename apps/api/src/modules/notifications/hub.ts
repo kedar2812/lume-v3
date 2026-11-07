@@ -243,6 +243,12 @@ export async function startHub(pool: pg.Pool) {
         if (resync) resyncs.delete(resync);
       };
     },
+    /** How many streams are open on this API (the refresh budget's size: budget.ts). */
+    streams(): number {
+      let n = 0;
+      for (const set of subscribers.values()) n += set.size;
+      return n;
+    },
     /** A change in a LUME AI run (Autopilot A2): ids and kind only. */
     onAutopilot(listener: (e: AutopilotEvent) => void): () => void {
       autopilotListeners.add(listener);

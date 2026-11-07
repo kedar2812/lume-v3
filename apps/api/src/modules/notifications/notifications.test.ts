@@ -4,6 +4,7 @@ import { newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
 import { seedNumber } from "../../../test/whatsapp";
+import { startHub } from "./hub";
 
 let h: Harness;
 let base: string;
@@ -313,6 +314,23 @@ async function blocks(c: AuthedClient, o: { ms: number; after?: () => Promise<un
 }
 
 describe("leads changed on the live stream (4B Task 4)", () => {
+  it("the hub counts the open streams, for the refresh budget (owner, 2026-11-06: a thousand people at once)", async () => {
+    const hub = await startHub(h.pool);
+    try {
+      const off1 = hub.subscribe("u-1", () => undefined);
+      const off2 = hub.subscribe("u-1", () => undefined);
+      const off3 = hub.subscribe("u-2", () => undefined);
+      expect(hub.streams()).toBe(3);
+      off1();
+      expect(hub.streams()).toBe(2);
+      off2();
+      off3();
+      expect(hub.streams()).toBe(0);
+    } finally {
+      await hub.stop();
+    }
+  });
+
   it("a lead change reaches an open stream as one `leads` event, with no id and nothing about the lead", async () => {
     const got = await blocks(me, {
       ms: 1500,
