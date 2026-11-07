@@ -86,9 +86,13 @@ scripts/update.sh 1.1.0 all
 ```
 
 For each client: the encrypted backup (as the nightly one, off-site as configured) and a plain dump kept on
-the server for this update (`/opt/lume/backups/before-1.1.0.dump`); then pull, migrate, restart, and wait
-for health. If health fails, it goes back to the previous version, and restores the dump **only if
-migrations ran**. One client's failure never stops the others. The table at the end says what happened to
+the server for this update (`/opt/lume/backups/before-1.1.0.dump`); then the release's own `Caddyfile` and
+`docker-compose.yml` (from its tag, `git show v1.1.0:infra/…`; fetch the tags first) replace the server's,
+which are kept as `.prev`, and are checked against the server's `.env` before anything is pulled; then pull,
+migrate, restart (the proxy too, if its Caddyfile changed), and wait for health. If health fails, it goes back
+to the previous version and its files, and restores the dump **only if migrations ran**. Never edit a client's
+`Caddyfile` or compose file by hand: the next update replaces them with the release's. A setting a client
+needs goes in its `.env` (for example `LUME_EDGE_ADDRESS_PER_MIN`). One client's failure never stops the others. The table at the end says what happened to
 each; `deploy/clients.yml` keeps each client's real version (an update counts only when the new version
 is the one running). Commit it. The update dumps are plain lead data: kept on the server 14 days, then deleted.
 

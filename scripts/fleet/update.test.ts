@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { inventory, run as runScript, tempDir, type Answer } from "./harness";
@@ -27,10 +27,22 @@ const NOTHING_TO_MIGRATE: Answer = {
   out: '{"msg":"migrations complete","applied":[]}',
 };
 
+/** The release's own edge and compose files (what `git show v<version>:infra/…` gives outside the tests). */
+function release(dir: string, o: { caddy?: string; compose?: string } = {}) {
+  const rel = path.join(dir, "release");
+  mkdirSync(path.join(rel, "infra"), { recursive: true });
+  if (o.caddy !== "")
+    writeFileSync(path.join(rel, "infra/Caddyfile"), o.caddy ?? "# the release's Caddyfile\n");
+  if (o.compose !== "")
+    writeFileSync(path.join(rel, "infra/docker-compose.yml"), o.compose ?? "# the release's compose file\n");
+  return rel;
+}
+
 function fleet(clients = [C("harbour-clinic", "203.0.113.10")]) {
   const dir = tempDir();
   inventory(dir, clients);
   const env = {
+    LUME_RELEASE_DIR: release(dir),
     LUME_INVENTORY: path.join(dir, "clients.yml"),
     LUME_WAIT_SECONDS: "0",
     LUME_HEALTH_TRIES: "3",
@@ -72,6 +84,103 @@ describe("update.sh (L-C Task 4)", () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(f.version("harbour-clinic")).toBe("1.1.0");
     expect(r.stdout).toMatch(/harbour-clinic\s+1\.0\.0\s+1\.1\.0\s+updated/);
+  });
+
+  it("ships the release's Caddyfile and compose file (the old ones kept), checks them against the server's .env, then pulls; the proxy restarts if its file changed", () => {
+    const f = fleet();
+    writeFileSync(
+      path.join(f.env.LUME_RELEASE_DIR, "infra/Caddyfile"),
+      "events {$LUME_EDGE_ADDRESS_PER_MIN:12000}\n",
+    );
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [NOTHING_TO_MIGRATE],
+    });
+    expect(r.code, r.stderr).toBe(0);
+    expect(readFileSync(path.join(r.dir, "uploads", "Caddyfile.next"), "utf8")).toContain("12000");
+    expect(readFileSync(path.join(r.dir, "uploads", "docker-compose.yml.next"), "utf8")).toContain(
+      "the release's compose file",
+    );
+    const order = [
+      /LUME_TAG='1\.1\.0'/,
+      /^scp .*Caddyfile .*:\/opt\/lume\/Caddyfile\.next$/,
+      /^scp .*docker-compose\.yml .*:\/opt\/lume\/docker-compose\.yml\.next$/,
+      /cp -p Caddyfile Caddyfile\.prev && cp -p docker-compose\.yml docker-compose\.yml\.prev && mv Caddyfile\.next Caddyfile && mv docker-compose\.yml\.next docker-compose\.yml/,
+      /docker compose config --quiet/,
+      /docker compose pull/,
+      /docker compose up -d$/,
+      /cmp -s Caddyfile Caddyfile\.prev \|\| docker compose restart caddy/,
+    ].map((re) => at(r.calls, re));
+    expect(
+      order.every((i) => i >= 0),
+      JSON.stringify(r.calls, null, 1),
+    ).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it("the release's compose file doesn't fit this server's .env: the old files and the old version go back, nothing is pulled", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [
+        { match: /docker compose config --quiet/, code: 1, out: "required variable LUME_X is missing" },
+      ],
+    });
+    expect(r.code).not.toBe(0);
+    expect(at(r.calls, /compose pull/)).toBe(-1);
+    expect(
+      r.calls.some((c) =>
+        /mv Caddyfile\.prev Caddyfile && mv docker-compose\.yml\.prev docker-compose\.yml/.test(c),
+      ),
+    ).toBe(true);
+    expect(r.calls.some((c) => /LUME_TAG='1\.0\.0'/.test(c))).toBe(true);
+    expect(r.stdout).toMatch(
+      /harbour-clinic\s+1\.0\.0\s+1\.1\.0\s+the release's compose file doesn't fit this server's \.env, nothing changed/,
+    );
+    expect(f.version("harbour-clinic")).toBe("1.0.0");
+  });
+
+  it("a rollback puts the old Caddyfile and compose file back before the old version starts", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [NOTHING_TO_MIGRATE, { match: /^curl /, code: 7, times: 3 }],
+    });
+    expect(r.code).not.toBe(0);
+    const back = at(
+      r.calls,
+      /mv Caddyfile\.prev Caddyfile && mv docker-compose\.yml\.prev docker-compose\.yml/,
+    );
+    const firstUp = at(r.calls, /docker compose up -d$/);
+    expect(back).toBeGreaterThan(firstUp);
+    expect(r.calls.slice(back).some((c) => /docker compose up -d$/.test(c))).toBe(true);
+    expect(
+      r.calls
+        .slice(back)
+        .some((c) =>
+          /cmp -s Caddyfile Caddyfile\.next \|\| docker compose restart caddy|docker compose restart caddy/.test(
+            c,
+          ),
+        ),
+    ).toBe(true);
+  });
+
+  it("a release without its Caddyfile or compose file to ship stops before anything changes", () => {
+    const f = fleet();
+    release(f.dir, { caddy: "", compose: "" });
+    const empty = path.join(f.dir, "empty-release");
+    mkdirSync(empty);
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: { ...f.env, LUME_RELEASE_DIR: empty },
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.calls.some((c) => /ops\.backup|LUME_TAG=|compose pull/.test(c))).toBe(false);
+    expect(r.stderr).toMatch(/1\.1\.0's Caddyfile and compose file/);
+    expect(f.version("harbour-clinic")).toBe("1.0.0");
   });
 
   it("health fails after migrations ran: back to the previous version, and the pre-update backup restored", () => {

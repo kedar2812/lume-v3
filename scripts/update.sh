@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Update LUME for one client or all of them (licensing L-C; the source spec §4). For each: back up first (the
 # encrypted backup, and a plain dump kept on the server for this update), pull the new version, migrate,
-# restart and check health. If health fails, go back to the previous version, and restore the pre-update
-# dump if migrations ran. One client's failure never stops the others. A table says what happened.
+# restart and check health. The release's own Caddyfile and compose file go with it (the old ones kept, and checked
+# against the server's .env before anything is pulled). If health fails, go back to the previous version and its
+# files, and restore the pre-update dump if migrations ran. One client's failure never stops the others. A table
+# says what happened.
 #
 #   scripts/update.sh <X.Y.Z> <slug|all> [--dry-run]
 set -euo pipefail
@@ -22,7 +24,23 @@ if [ "$which" = all ]; then mapfile -t slugs < <(inv list); else slugs=("$which"
 [ "${#slugs[@]}" -gt 0 ] || die "no clients to update"
 
 table="$(mktemp)"
-trap 'rm -f "$table"' EXIT
+REL_TMP=""
+trap 'rm -f "$table"; [ -z "$REL_TMP" ] || rm -rf "$REL_TMP"' EXIT
+
+# The release's own Caddyfile and compose file: from LUME_RELEASE_DIR (tests, a release being checked by hand), else
+# from the release's tag. A client's edge and services change with the release that needs them, never by hand.
+RELEASE="${LUME_RELEASE_DIR:-}"
+if [ -z "$RELEASE" ]; then
+  REL_TMP="$(mktemp -d)"
+  RELEASE="$REL_TMP"
+  mkdir -p "$RELEASE/infra"
+  for f in Caddyfile docker-compose.yml; do
+    git -C "$FLEET_ROOT" show "v$version:infra/$f" > "$RELEASE/infra/$f" 2>/dev/null || rm -f "$RELEASE/infra/$f"
+  done
+fi
+if ! [ -s "$RELEASE/infra/Caddyfile" ] || ! [ -s "$RELEASE/infra/docker-compose.yml" ]; then
+  die "can't find $version's Caddyfile and compose file: fetch the tags (git fetch --tags) or set LUME_RELEASE_DIR"
+fi
 
 healthy() {
   $DRY && return 0
@@ -34,6 +52,10 @@ healthy() {
 }
 # The version .env names (provision.sh writes LUME_TAG='X.Y.Z'); it must be there to be changed.
 set_tag() { remote "grep -q '^LUME_TAG=' /opt/lume/.env && sed -i \"s/^LUME_TAG=.*/LUME_TAG='$1'/\" /opt/lume/.env"; }
+# The files this update replaced go back; the release's stay beside them as .next, so the proxy can tell it changed.
+files_back() {
+  remote "cd /opt/lume && mv Caddyfile Caddyfile.next && mv docker-compose.yml docker-compose.yml.next && mv Caddyfile.prev Caddyfile && mv docker-compose.yml.prev docker-compose.yml"
+}
 # pg-boss's schema version (empty if it can't be read: then it counts as unchanged).
 boss_version() {
   $DRY && return 0
@@ -74,7 +96,23 @@ update_one() {
     result "couldn't set the version, nothing changed"
     return 1
   fi
+  step "$slug: the release's Caddyfile and compose file (the old ones kept as .prev)"
+  if ! upload "$RELEASE/infra/Caddyfile" /opt/lume/Caddyfile.next ||
+    ! upload "$RELEASE/infra/docker-compose.yml" /opt/lume/docker-compose.yml.next ||
+    ! remote "cd /opt/lume && cp -p Caddyfile Caddyfile.prev && cp -p docker-compose.yml docker-compose.yml.prev && mv Caddyfile.next Caddyfile && mv docker-compose.yml.next docker-compose.yml"; then
+    set_tag "$prev" || true
+    result "couldn't put the release's files in place, still on $prev"
+    return 1
+  fi
+  # A release's compose file may need something this server's .env doesn't have yet: found now, nothing pulled.
+  if ! remote "cd /opt/lume && docker compose config --quiet"; then
+    files_back || true
+    set_tag "$prev" || true
+    result "the release's compose file doesn't fit this server's .env, nothing changed"
+    return 1
+  fi
   if ! remote "cd /opt/lume && docker compose pull"; then
+    files_back || true
     set_tag "$prev" || true
     result "pull failed, still on $prev"
     return 1
@@ -93,7 +131,10 @@ update_one() {
   # Anything but a clean "nothing applied" counts as migrations having run (a restore is then needed).
   grep -q '"applied":\[\]' <<<"$out" || migrated=true
   # Healthy isn't enough: it must be the new version that's running.
-  if $migrate_ok && remote "cd /opt/lume && docker compose up -d" && healthy "$host_name" && on_version; then
+  # The proxy reads its Caddyfile only when it starts: a changed one needs a restart (a few seconds).
+  if $migrate_ok && remote "cd /opt/lume && docker compose up -d" &&
+    remote "cd /opt/lume && (cmp -s Caddyfile Caddyfile.prev || docker compose restart caddy)" &&
+    healthy "$host_name" && on_version; then
     $DRY || inv set "$slug" version "$version"
     result "updated"
     return 0
@@ -101,6 +142,7 @@ update_one() {
 
   step "$slug: unhealthy on $version, rolling back to $prev"
   set_tag "$prev" || true
+  files_back || true
   # A changed version counts as migrated; one that can't be read (before or after) counts as unchanged.
   boss_after="$(boss_version)"
   if [ -n "$boss_before" ] && [ -n "$boss_after" ] && [ "$boss_after" != "$boss_before" ]; then migrated=true; fi
@@ -115,6 +157,7 @@ update_one() {
     fi
   fi
   remote "cd /opt/lume && docker compose up -d" || true
+  remote "cd /opt/lume && (cmp -s Caddyfile Caddyfile.next || docker compose restart caddy)" || true
   if healthy "$host_name"; then
     result "rolled back to $prev$restored"
   else
