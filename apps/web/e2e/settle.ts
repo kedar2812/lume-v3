@@ -25,3 +25,12 @@ export async function settle(page: Page): Promise<void> {
   }
   await page.waitForTimeout(600);
 }
+
+/**
+ * A glass panel opened from the lead drawer (the follow-up and send sheets) is drawn a little differently on each page
+ * load: measured 2026-11-07, its layout was identical to 1/64 px across runs and its picture held still within a page,
+ * yet single glyphs and the focus ring differed between loads by up to 3,039 of its ~157,000 pixels (CI: ~1,500), and
+ * neither waiting, opening it without its animation nor repainting it changed that. Up to 5,000 may differ; a moved or
+ * cut-off row is caught by opened.spec and the drawer's own pictures.
+ */
+export const GLASS_TEXT = { maxDiffPixels: 5000 };

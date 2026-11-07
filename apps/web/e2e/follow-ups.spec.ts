@@ -10,7 +10,7 @@ import {
   stateFile,
   test,
 } from "./fixtures";
-import { settle } from "./settle";
+import { GLASS_TEXT, settle } from "./settle";
 
 async function axe(page: Page) {
   await settle(page);
@@ -137,8 +137,9 @@ test.describe("Follow-ups", () => {
       await drawer.getByRole("button", { name: "Follow-up", exact: true }).click();
       const sheet = page.getByRole("dialog", { name: "Follow up with Shot" });
       await expect(sheet).toBeVisible();
+      await settle(page);
       await reviewCopy(sheet, `follow-up-sheet-${theme}.png`);
-      await expect(sheet).toHaveScreenshot(`follow-up-sheet-${theme}.png`);
+      await expect(sheet).toHaveScreenshot(`follow-up-sheet-${theme}.png`, GLASS_TEXT);
       expect(await axe(page)).toEqual([]);
       await page.keyboard.press("Escape");
     }

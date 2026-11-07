@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { bulkRunsClient, type RunView } from "@/lib/leads/bulk-runs";
@@ -108,7 +108,8 @@ describe("the bulk island (7C)", () => {
       { type: "assign", ownerId: person.id },
     );
     expect(await screen.findByText(`12,396 leads assigned to ${person.name}`)).toBeInTheDocument();
-    expect(onFinished).toHaveBeenCalledTimes(1);
+    // Told in an effect, just after the words are on screen; a slow machine can look in between.
+    await waitFor(() => expect(onFinished).toHaveBeenCalledTimes(1));
     await userEvent.click(screen.getByRole("button", { name: "12 skipped" }));
     expect(screen.getByRole("dialog", { name: "Why some were skipped" })).toHaveTextContent(
       "were deleted, or stopped being yours to see",

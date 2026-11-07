@@ -11,7 +11,7 @@ import {
   stateFile,
   test,
 } from "./fixtures";
-import { settle } from "./settle";
+import { GLASS_TEXT, settle } from "./settle";
 
 async function axe(page: Page) {
   await settle(page);
@@ -228,8 +228,9 @@ test.describe("Templates and sending (4A)", () => {
       await drawer.getByRole("button", { name: "WhatsApp" }).click();
       const sheet = page.getByRole("dialog", { name: "WhatsApp Shot Messaging" });
       await sheet.getByRole("option", { name: /First hello/ }).click();
+      await settle(page);
       await reviewCopy(sheet, `send-sheet-${theme}.png`);
-      await expect(sheet).toHaveScreenshot(`send-sheet-${theme}.png`);
+      await expect(sheet).toHaveScreenshot(`send-sheet-${theme}.png`, GLASS_TEXT);
       expect(await axe(page)).toEqual([]);
 
       await handOff(page, context, "971509990044");
