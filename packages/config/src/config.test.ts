@@ -41,7 +41,7 @@ describe("loadConfig", () => {
     expect(loadConfig(apiSchema, { ...apiEnv, DB_JOB_POOL_MAX: "20" }).DB_JOB_POOL_MAX).toBe(20);
     // The requests' own pool (owner, 2026-11-06: a thousand people at once): 20 by default, more for a big team.
     expect(loadConfig(apiSchema, apiEnv).DB_POOL_MAX).toBe(20);
-    expect(loadConfig(apiSchema, { ...apiEnv, DB_POOL_MAX: "40" }).DB_POOL_MAX).toBe(40);
+    expect(loadConfig(apiSchema, { ...apiEnv, DB_POOL_MAX: "30" }).DB_POOL_MAX).toBe(30);
     expect(() => loadConfig(apiSchema, { ...apiEnv, DB_POOL_MAX: "1" })).toThrow();
   });
 

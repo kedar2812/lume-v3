@@ -39,6 +39,9 @@ const optional = <T extends z.ZodType>(t: T) => z.preprocess((v) => (v === "" ? 
 
 const AGE_PUBLIC_KEY = /^age1[02-9ac-hj-np-z]{58}$/;
 
+/** What the API's request and job pools may hold together (see the check in apiSchema). */
+const POOLS_MAX = 44;
+
 const base = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
@@ -134,6 +137,14 @@ export const apiSchema = base
     LUME_AI_MONTHLY_CAP: optional(z.coerce.number().positive().max(1_000_000)),
   })
   .superRefine((c, ctx) => {
+    // Postgres takes 100 connections: the job queues hold up to 33, the worker 9, the listeners, migrations, backups
+    // and Postgres's own reserved ones about 11. These two pools get the rest (connections.test).
+    if (c.DB_POOL_MAX + c.DB_JOB_POOL_MAX > POOLS_MAX)
+      ctx.addIssue({
+        code: "custom",
+        path: ["DB_POOL_MAX"],
+        message: `DB_POOL_MAX + DB_JOB_POOL_MAX may be ${POOLS_MAX} at most (Postgres takes 100 connections in all)`,
+      });
     if (c.LUME_AI_PROVIDER === "anthropic" || c.LUME_AI_PROVIDER === "google")
       for (const k of ["LUME_AI_MODEL", "LUME_AI_KEY"] as const)
         if (!c[k])

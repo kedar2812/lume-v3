@@ -11,7 +11,13 @@ export async function startQueue(opts: {
   maintenance: MaintenanceJobs;
   log: Logger;
 }): Promise<PgBoss> {
-  const boss = new PgBoss({ connectionString: opts.connectionString, schema: "pgboss", migrate: false });
+  // Housekeeping, one job at a time: four connections, not pg-boss's ten (connections.test: all of LUME fits in 100).
+  const boss = new PgBoss({
+    connectionString: opts.connectionString,
+    schema: "pgboss",
+    migrate: false,
+    max: 4,
+  });
   boss.on("error", (err) => opts.log.error({ err }, "queue error"));
   await boss.start();
   // An hour to run: the dump, then a big first copy of WhatsApp's files (30 minutes at most a run).

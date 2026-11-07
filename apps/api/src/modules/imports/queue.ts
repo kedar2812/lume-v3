@@ -21,6 +21,8 @@ export async function startImportQueue(o: {
     migrate: false,
     supervise: false,
     schedule: false,
+    // One run at a time: two connections, not pg-boss's ten (connections.test: all of LUME fits in Postgres's 100).
+    max: 2,
   });
   boss.on("error", (err) => o.app.log.error({ err }, "import queue error"));
   await boss.start();
