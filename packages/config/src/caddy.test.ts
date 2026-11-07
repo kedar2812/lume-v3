@@ -26,4 +26,13 @@ describe("the Caddyfile", () => {
   it("keeps each person's own allowance at 600 a minute", () => {
     expect(/zone per_client \{[\s\S]*?events ([^\n]+)/.exec(caddy)?.[1]?.trim()).toBe("600");
   });
+
+  it("gives the edge room for a thousand open live streams (about 70 KB each, both sides): 256 MB", () => {
+    const compose = readFileSync(
+      path.resolve(import.meta.dirname, "../../../infra/docker-compose.yml"),
+      "utf8",
+    );
+    const edge = /\n {2}caddy:\n[\s\S]*?mem_limit: (\S+)/.exec(compose)?.[1];
+    expect(edge).toBe("256m");
+  });
 });

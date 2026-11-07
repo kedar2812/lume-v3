@@ -187,5 +187,6 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     networks: [frontend]
-    mem_limit: 128m
+    # A thousand open live streams hold about 70 KB each across both sides of the edge.
+    mem_limit: 256m
     depends_on: [api, web]
