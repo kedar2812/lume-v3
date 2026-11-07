@@ -4,6 +4,7 @@ import type pg from "pg";
 import { METRICS, mergePreferences, scopeOf, type MetricId } from "@lume/core";
 import { schema } from "@lume/db";
 import { applyRequestScope } from "../../db/context";
+import { oneAtATime } from "../../db/one-at-a-time";
 import { weeklyAnalyticsMail } from "../../mail/templates";
 import type { Mailer } from "../../mail/mailer";
 import { loadActor } from "../../rbac/actor";
@@ -108,7 +109,7 @@ async function build(
     await c.query("BEGIN");
     await applyRequestScope(c, actor);
     // The numbers as this person reads them, through the same code the screens use.
-    const req = { db: drizzle(c, { schema }), actor, log: d.log } as unknown as FastifyRequest;
+    const req = { db: drizzle(oneAtATime(c), { schema }), actor, log: d.log } as unknown as FastifyRequest;
     const q: AnalyticsQuery = { range: "custom", from, to, compare: true };
     const [ov, people, fun, noticed] = await Promise.all([
       overview(req, q, now),

@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import { RULES, RULE_IDS, breached, isWatched, mergeAnomaly } from "@lume/core";
 import { schema, type SecuritySettings } from "@lume/db";
+import { oneAtATime } from "../../db/one-at-a-time";
 import { loadActor } from "../../rbac/actor";
 import { raiseAlert } from "./alerts";
 import { windowStart } from "./counts";
@@ -42,7 +43,7 @@ export async function securitySweep(o: { pool: pg.Pool; clock: () => Date }): Pr
       const client = await o.pool.connect();
       try {
         await client.query("BEGIN");
-        const tx = drizzle(client, { schema });
+        const tx = drizzle(oneAtATime(client), { schema });
         const pauses = setting.action === "suspend";
         const alert = await raiseAlert(tx, {
           userId: r.id,

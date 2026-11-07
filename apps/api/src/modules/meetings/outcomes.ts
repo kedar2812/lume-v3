@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { LOG_OUTCOME_RULE_ID, newId } from "@lume/core";
 import { schema } from "@lume/db";
+import { oneAtATime } from "../../db/one-at-a-time";
 import { schedule, type EngineDeps } from "../tasks/engine";
 
 const BATCH = 200;
@@ -48,7 +49,7 @@ export async function askOutcomes(
       [now, new Date(now.getTime() - ASK_WITHIN_MS), BATCH],
     );
     await client.query("SELECT set_config('lume.calendar_sweep', '', true)");
-    const db = drizzle(client, { schema });
+    const db = drizzle(oneAtATime(client), { schema });
     for (const m of ended) {
       await client.query("SELECT set_config('lume.user_id', $1, true)", [m.owner_id]);
       const id = newId();

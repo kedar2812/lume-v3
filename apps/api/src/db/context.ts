@@ -4,6 +4,7 @@ import type pg from "pg";
 import { can, leadScope, scopeOf, type Actor } from "@lume/core";
 import { schema } from "@lume/db";
 import type { ActorRecord } from "../rbac/actor";
+import { oneAtATime } from "./one-at-a-time";
 
 export type Db = NodePgDatabase<typeof schema>;
 export type BeforeCommit = (r: { statusCode: number; payload: unknown }) => Promise<void>;
@@ -101,7 +102,7 @@ export function dbContext(app: FastifyInstance, opts: { pool: pg.Pool }): void {
     held.set(req, { client, failed: false, afterCommit: [], beforeCommit: [], onError });
     await client.query("BEGIN");
     if (req.actor) await applyRequestScope(client, req.actor);
-    req.db = drizzle(client, { schema });
+    req.db = drizzle(oneAtATime(client), { schema });
   });
   app.addHook("onError", async (req) => markRequestFailed(req));
   app.addHook("onSend", async (req, reply, payload) => {

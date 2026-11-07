@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { schema } from "@lume/db";
 import { applyRequestScope } from "../../db/context";
+import { oneAtATime } from "../../db/one-at-a-time";
 import type { ActorRecord } from "../../rbac/actor";
 
 /**
@@ -31,7 +32,7 @@ export async function withJobRequest<T>(
     await applyRequestScope(client, o.actor);
     if (o.allLeads) await client.query("SELECT set_config('lume.lead_scope', 'all', true)");
     const req = {
-      db: drizzle(client, { schema }),
+      db: drizzle(oneAtATime(client), { schema }),
       actor: o.actor,
       server: o.app,
       id: o.requestId,
