@@ -62,7 +62,7 @@ export async function login(
   }
   if (!user || !ok || user.status !== "active") {
     const a = await recordFailure(req.db, acct, THROTTLE.accountLockAfter, now);
-    await recordFailure(req.db, ip, THROTTLE.ipLockAfter, now);
+    await recordFailure(req.db, ip, THROTTLE.ipLockAfter, now, { delay: false });
     await audit(req, {
       action: a.lockedNow ? "user.login.locked" : "user.login.failed",
       entityType: "user",

@@ -99,6 +99,16 @@ describe("POST /auth/login (report §12.1)", () => {
     expect(alerts[0]!.text).not.toContain(u.email);
   });
 
+  it("one office, one address: ten colleagues' typos never make the eleventh wait", async () => {
+    h.clock.advance(16 * 60_000); // a fresh window for this address
+    const team = [];
+    for (let i = 0; i < 11; i++) team.push(await h.seedUser({ grants: [] }));
+    for (const u of team.slice(0, 10))
+      expect((await login(u.email, "a-typo-xxxxxxxx")).res.statusCode).toBe(401);
+    const right = await login(team[10]!.email, team[10]!.password);
+    expect(right.res.statusCode, right.res.body).toBe(200);
+  });
+
   it("logout revokes the session", async () => {
     const u = await h.seedUser({ grants: [] });
     const { c, session } = await login(u.email, u.password);

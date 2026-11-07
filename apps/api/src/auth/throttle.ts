@@ -6,7 +6,12 @@ import type { Db } from "../db/context";
 export const THROTTLE = {
   windowMs: 15 * 60_000,
   accountLockAfter: 10,
-  ipLockAfter: 50,
+  /**
+   * An address is many people when it's an office (owner 2026-11-06: a thousand at once): it never slows down, so one
+   * colleague's typos don't hold up the rest; it only locks once it guesses like a machine. Each account still slows
+   * and locks on its own.
+   */
+  ipLockAfter: 100,
   lockMs: 15 * 60_000,
   freeFailures: 2,
   maxDelayS: 30,
@@ -22,7 +27,13 @@ export type ThrottleState = {
 export const accountKey = (email: string) => `acct:${sha256Hex(email.trim().toLowerCase())}`;
 export const ipKey = (ip: string) => `ip:${ip}`;
 
-export function nextOnFailure(s: ThrottleState, now: Date, lockAfter: number): ThrottleState {
+/** `delay: false` (an address): failures count towards the lock, but never slow the next try. */
+export function nextOnFailure(
+  s: ThrottleState,
+  now: Date,
+  lockAfter: number,
+  o: { delay?: boolean } = {},
+): ThrottleState {
   const expired = now.getTime() - s.windowStartedAt.getTime() > THROTTLE.windowMs;
   const failures = (expired ? 0 : s.failures) + 1;
   const windowStartedAt = expired ? now : s.windowStartedAt;
@@ -36,7 +47,7 @@ export function nextOnFailure(s: ThrottleState, now: Date, lockAfter: number): T
     };
   }
   const over = failures - THROTTLE.freeFailures;
-  const delayS = over > 0 ? Math.min(THROTTLE.maxDelayS, 2 ** (over - 1)) : 0;
+  const delayS = o.delay !== false && over > 0 ? Math.min(THROTTLE.maxDelayS, 2 ** (over - 1)) : 0;
   return {
     failures,
     windowStartedAt,
@@ -79,6 +90,7 @@ export async function recordFailure(
   key: string,
   lockAfter: number,
   now: Date,
+  o: { delay?: boolean } = {},
 ): Promise<{ lockedNow: boolean; lockouts: number }> {
   // Row lock so concurrent failures can't both read the same count.
   await db.insert(schema.authThrottle).values({ key, windowStartedAt: now }).onConflictDoNothing();
@@ -87,7 +99,7 @@ export async function recordFailure(
     .from(schema.authThrottle)
     .where(eq(schema.authThrottle.key, key))
     .for("update");
-  const next = nextOnFailure(cur!, now, lockAfter);
+  const next = nextOnFailure(cur!, now, lockAfter, o);
   await db.update(schema.authThrottle).set(next).where(eq(schema.authThrottle.key, key));
   return { lockedNow: next.lockouts > cur!.lockouts, lockouts: next.lockouts };
 }

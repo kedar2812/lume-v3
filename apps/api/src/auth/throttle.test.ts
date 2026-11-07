@@ -31,6 +31,22 @@ describe("login throttle (report §12.1: progressive delay, 15-min lockout after
     expect(verdict(s, plus(THROTTLE.lockMs + 1))).toEqual({ allowed: true });
   });
 
+  it("never delays a whole address: an office's typos don't hold up the colleague who types it right", () => {
+    let s = fresh();
+    for (let i = 0; i < THROTTLE.ipLockAfter - 1; i++)
+      s = nextOnFailure(s, t0, THROTTLE.ipLockAfter, { delay: false });
+    expect(s.nextAllowedAt).toBeNull();
+    expect(verdict(s, t0)).toEqual({ allowed: true });
+  });
+
+  it("still locks an address that guesses like a machine: 100 failures in the window", () => {
+    expect(THROTTLE.ipLockAfter).toBe(100);
+    let s = fresh();
+    for (let i = 0; i < THROTTLE.ipLockAfter; i++)
+      s = nextOnFailure(s, t0, THROTTLE.ipLockAfter, { delay: false });
+    expect(s.lockedUntil?.getTime()).toBe(plus(THROTTLE.lockMs).getTime());
+  });
+
   it("forgets failures once the window has passed", () => {
     let s = fresh();
     for (let i = 0; i < 5; i++) s = nextOnFailure(s, t0, THROTTLE.accountLockAfter);

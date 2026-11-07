@@ -520,7 +520,7 @@ Keep a `MessageChannel` interface (`prepare()`, `send()`, `capabilities`) with `
 - **2FA (TOTP)**: mandatory for the owner and for any role holding `users.manage`, `roles.manage`, `leads.export`, `security.manage` or `leads.contact.full` with scope `all`. Optional-but-enforceable per role for others (a setting). 10 single-use recovery codes.
 - Server-side sessions: random 256-bit token in a cookie `__Host-lume_session` (`HttpOnly; Secure; SameSite=Lax; Path=/`). Only the SHA-256 of the token is stored. Rotate on login and privilege change. Idle timeout 12h (configurable), absolute timeout 7 days (configurable).
 - **Session management screen:** users see and revoke their own sessions, and admins can revoke anyone's. **Disabling a user kills all their sessions immediately** (critical when someone leaves or is suspected of leaking).
-- Login throttling: per IP and per account, progressive delay, lockout for 15 min after 10 failures, admin notified on repeated lockouts. Generic error messages (no user enumeration). Password reset by emailed single-use token (30 min).
+- Login throttling: per account, progressive delay, lockout for 15 min after 10 failures; per IP, no delay (an office is many people on one address), lockout for 15 min after 100 failures in 15 min; admin notified on repeated lockouts. Generic error messages (no user enumeration). Password reset by emailed single-use token (30 min).
 - Optional per-role restrictions: **IP allowlist** and **allowed login hours** (e.g. sales can only log in 09:00–21:00 business time).
 - CSRF: SameSite cookie + `Origin`/`Sec-Fetch-Site` check on all state-changing requests + a double-submit token.
 - No public self-signup, ever. Users exist only by admin invite (single-use, 72h link).
