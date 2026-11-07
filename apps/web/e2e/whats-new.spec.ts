@@ -10,7 +10,8 @@ import { WIDTHS, cutText, spills } from "./spills";
 test.use({ storageState: stateFile("owner") });
 
 const win = (page: Page) => page.getByRole("dialog", { name: "What's new in 1.2.0" });
-let whatsappWas = false;
+/** WhatsApp's switch as this spec found it (the first time only: every later test finds it on, as it left it). */
+let whatsappWas: boolean | null = null;
 let dropNumber: (() => Promise<void>) | null = null;
 
 /** LUME AI and WhatsApp on (the three stories need them), What's new due for the owner, then Today. */
@@ -18,7 +19,8 @@ async function due(page: Page) {
   await openApp(page, "/settings/about");
   const ai = await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: true });
   expect(ai.status, JSON.stringify(ai.data)).toBe(200);
-  whatsappWas = await whatsappSwitch(true);
+  const was = await whatsappSwitch(true);
+  whatsappWas ??= was;
   // The chats story needs a number really connected, not only the switch.
   dropNumber ??= await whatsNewNumber(PEOPLE.owner.email);
   await whatsNewDue(PEOPLE.owner.email);
@@ -28,7 +30,7 @@ test.afterAll(async ({ browser }) => {
   const page = await browser.newPage({ storageState: stateFile("owner") });
   await openApp(page, "/settings/about");
   await callApi(page, "PUT", "/api/v1/integrations/ai", { enabled: false });
-  await whatsappSwitch(whatsappWas);
+  await whatsappSwitch(whatsappWas ?? false);
   await dropNumber?.();
   await whatsNewSeen(PEOPLE.owner.email, "1.2.0");
   await page.close();

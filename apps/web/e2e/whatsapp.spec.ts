@@ -364,9 +364,9 @@ test.describe.serial("WhatsApp", () => {
       expect(await axe(page)).toEqual([]);
     }
     await page.emulateMedia({ colorScheme: "light" });
-    await form.getByRole("button", { name: "Attach 2 files" }).click();
+    await chat.getByRole("button", { name: "Attach 2 files" }).click();
     // The picker closes with the pick (its exit can still be on screen a moment under load).
-    await expect(form.getByRole("listbox", { name: "Media" })).toBeHidden();
+    await expect(chat.getByRole("listbox", { name: "Media" })).toBeHidden();
     await expect(form.getByRole("button", { name: "Remove Price list.pdf" })).toBeVisible();
     await expect(form.getByRole("button", { name: "Remove Showroom.png" })).toBeVisible();
     await form.getByRole("textbox", { name: "Words with the files" }).fill("Our prices, and our showroom");
