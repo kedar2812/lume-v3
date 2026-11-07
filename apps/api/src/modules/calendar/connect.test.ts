@@ -170,7 +170,8 @@ describe("connecting a calendar (5A Task 3)", () => {
     const good = await handBack(admin);
     const r1 = await call(admin, "POST", "/api/v1/calendar/complete", {
       p: good.p,
-      s: "x" + good.s.slice(1),
+      // Always a different signature: one in 64 already starts with "x", and then this would be the genuine one.
+      s: (good.s[0] === "x" ? "y" : "x") + good.s.slice(1),
     });
     expect(r1.json().error.code).toBe("CONNECT_INVALID");
     const old = await handBack(admin, { exp: Date.now() - 1 });
