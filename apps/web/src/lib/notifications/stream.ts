@@ -25,6 +25,25 @@ let retry: ReturnType<typeof setTimeout> | undefined;
 let failures = 0;
 /** Connected once already: an open after that is a reconnection, and leads may have changed meanwhile. */
 let connectedBefore = false;
+/**
+ * Back after a drop, each tab catches up at a moment of its own within this long (owner 2026-11-06: a thousand people
+ * at once): an update restarts LUME for everyone together, and a thousand tabs re-reading in the same instant would
+ * queue behind each other on an API that has only just started.
+ */
+export const CATCH_UP_SPREAD_MS = 5000;
+let catchUp: ReturnType<typeof setTimeout> | undefined;
+function catchUpSoon() {
+  catchUp ??= setTimeout(
+    () => {
+      catchUp = undefined;
+      for (const l of leadListeners) l();
+      // A run may have moved on meanwhile too: "*" is every run.
+      for (const l of autopilotListeners) l({ run: "*", lead: null, kind: "reconnected" });
+      for (const l of whatsappListeners) l({ lead: "*", kind: "reconnected" });
+    },
+    Math.floor(Math.random() * CATCH_UP_SPREAD_MS),
+  );
+}
 /** The last id seen, to resume from; and the ids already passed on (a replay overlaps; 3A final review). */
 let lastId = 0;
 const seen = new Set<number>();
@@ -36,12 +55,7 @@ function open() {
   source = s;
   // Back after a drop (the browser's own retry, or LUME's): what changed meanwhile was never said.
   s.addEventListener("open", () => {
-    if (connectedBefore) {
-      for (const l of leadListeners) l();
-      // A run may have moved on meanwhile too: "*" is every run.
-      for (const l of autopilotListeners) l({ run: "*", lead: null, kind: "reconnected" });
-      for (const l of whatsappListeners) l({ lead: "*", kind: "reconnected" });
-    }
+    if (connectedBefore) catchUpSoon();
     connectedBefore = true;
     failures = 0;
   });
@@ -97,15 +111,17 @@ function open() {
     for (const l of listeners) l(n);
   });
   // The browser retries a dropped connection itself, but gives up for good on an error answer (a 502 while
-  // the API restarts). Then LUME opens a new one, from where it was, backing off to 30 s (Important 4).
+  // the API restarts). Then LUME opens a new one, from where it was, backing off to 30 s (Important 4): half the
+  // back-off, plus a share of the rest, so the tabs a restart dropped together don't all come back together.
   s.onerror = () => {
     if (s.readyState !== EventSource.CLOSED || source !== s || !anyone()) return;
     clearTimeout(retry);
+    const backOff = Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5));
     retry = setTimeout(
       () => {
         if (source === s && anyone()) open();
       },
-      Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)),
+      backOff / 2 + Math.floor((Math.random() * backOff) / 2),
     );
   };
 }
@@ -125,6 +141,8 @@ export function subscribe(listener: Listener): () => void {
 function closeIfUnused() {
   if (anyone()) return;
   clearTimeout(retry);
+  clearTimeout(catchUp);
+  catchUp = undefined;
   source?.close();
   source = null;
 }

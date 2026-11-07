@@ -1,6 +1,14 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { subscribe, subscribeLeads, useAutopilot, useLeadsChanged, useStream, useWhatsApp } from "./stream";
+import {
+  CATCH_UP_SPREAD_MS,
+  subscribe,
+  subscribeLeads,
+  useAutopilot,
+  useLeadsChanged,
+  useStream,
+  useWhatsApp,
+} from "./stream";
 
 class FakeSource {
   static made: FakeSource[] = [];
@@ -137,15 +145,66 @@ describe("leads changed (4B Task 4)", () => {
     expect(on).toHaveBeenCalledTimes(1);
   });
 
-  it("back after a dropped connection, leads may have changed meanwhile: listeners hear it once", () => {
+  it("back after a dropped connection, leads may have changed meanwhile: listeners hear it once", async () => {
+    vi.useFakeTimers();
     const heard = vi.fn();
     const off = subscribeLeads(heard);
     const src = FakeSource.made.at(-1)!;
     src.opened();
+    await vi.advanceTimersByTimeAsync(CATCH_UP_SPREAD_MS);
     expect(heard).not.toHaveBeenCalled(); // the first connection isn't a change
     src.opened(); // the browser reconnected on its own
+    src.opened(); // and again, before catching up: still once
+    await vi.advanceTimersByTimeAsync(CATCH_UP_SPREAD_MS);
     expect(heard).toHaveBeenCalledTimes(1);
     off();
+    vi.useRealTimers();
+  });
+
+  it("after an update restarts LUME, a thousand browsers catch up at moments of their own, within 5 s, never all at once", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const heard = vi.fn();
+    const off = subscribeLeads(heard);
+    const src = FakeSource.made.at(-1)!;
+    src.opened();
+    src.opened();
+    expect(CATCH_UP_SPREAD_MS).toBe(5000);
+    await vi.advanceTimersByTimeAsync(2499);
+    expect(heard).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(heard).toHaveBeenCalledTimes(1);
+    off();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("a tab that lets go before catching up asks for nothing", async () => {
+    vi.useFakeTimers();
+    const heard = vi.fn();
+    const off = subscribeLeads(heard);
+    const src = FakeSource.made.at(-1)!;
+    src.opened();
+    src.opened();
+    off();
+    await vi.advanceTimersByTimeAsync(CATCH_UP_SPREAD_MS);
+    expect(heard).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("when the browser gives up, LUME's own retries are spread too: half the back-off, plus a share of the rest", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const off = subscribe(vi.fn());
+    const before = FakeSource.made.length;
+    FakeSource.made.at(-1)!.die();
+    await vi.advanceTimersByTimeAsync(499);
+    expect(FakeSource.made).toHaveLength(before);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(FakeSource.made).toHaveLength(before + 1);
+    off();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 });
 
@@ -163,13 +222,16 @@ describe("Autopilot on the stream (A2 Task 9)", () => {
     expect(on).toHaveBeenCalledTimes(1);
     expect(note).not.toHaveBeenCalled();
   });
-  it("back after a drop, Autopilot's listeners hear that anything may have changed (run '*')", () => {
+  it("back after a drop, Autopilot's listeners hear that anything may have changed (run '*')", async () => {
+    vi.useFakeTimers();
     const on = vi.fn();
     renderHook(() => useAutopilot(on));
     // The first open may be this tab's first connection or not (the stream outlives a test); the second is a return.
     FakeSource.made[0]!.opened();
     FakeSource.made[0]!.opened();
+    await vi.advanceTimersByTimeAsync(CATCH_UP_SPREAD_MS);
     expect(on).toHaveBeenCalledWith({ run: "*", lead: null, kind: "reconnected" });
+    vi.useRealTimers();
   });
   it("useWhatsApp hears each message in, out or tick, its lead and kind (and whose lead, in); anything else is dropped (2026-11-01)", () => {
     const on = vi.fn();
@@ -186,11 +248,14 @@ describe("Autopilot on the stream (A2 Task 9)", () => {
     src.emitText("whatsapp", JSON.stringify({ kind: "in" }));
     expect(on).toHaveBeenCalledTimes(2);
   });
-  it("back after a drop, a chat hears that it may have missed messages (lead '*')", () => {
+  it("back after a drop, a chat hears that it may have missed messages (lead '*')", async () => {
+    vi.useFakeTimers();
     const on = vi.fn();
     renderHook(() => useWhatsApp(on));
     FakeSource.made[0]!.opened();
     FakeSource.made[0]!.opened();
+    await vi.advanceTimersByTimeAsync(CATCH_UP_SPREAD_MS);
     expect(on).toHaveBeenCalledWith({ lead: "*", kind: "reconnected" });
+    vi.useRealTimers();
   });
 });
