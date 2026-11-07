@@ -12,4 +12,18 @@ describe("the Caddyfile", () => {
       expect.arrayContaining(["/api/*", "/webhooks/*", "/whatsapp/in", "/healthz", "/readyz"]),
     );
   });
+
+  it("lets a thousand people share one office address: the address's ceiling is a setting, 12,000 a minute unless set", () => {
+    const zone = /zone per_ip \{[\s\S]*?events ([^\n]+)/.exec(caddy)?.[1]?.trim();
+    expect(zone).toBe("{$LUME_EDGE_ADDRESS_PER_MIN:12000}");
+    const compose = readFileSync(
+      path.resolve(import.meta.dirname, "../../../infra/docker-compose.yml"),
+      "utf8",
+    );
+    expect(compose).toContain("LUME_EDGE_ADDRESS_PER_MIN: ${LUME_EDGE_ADDRESS_PER_MIN:-12000}");
+  });
+
+  it("keeps each person's own allowance at 600 a minute", () => {
+    expect(/zone per_client \{[\s\S]*?events ([^\n]+)/.exec(caddy)?.[1]?.trim()).toBe("600");
+  });
 });
