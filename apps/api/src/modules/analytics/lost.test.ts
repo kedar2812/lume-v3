@@ -210,9 +210,12 @@ describe("lost, won back, what converts (8D-1 Task 6)", () => {
     const live = (await get(`lost?${Q}&tag=${tag}`)).json();
     expect(live.total).toBe(plain.total);
     expect(live.owners).toEqual(plain.owners);
-    expect(live.matrix.cells.map((c: { n: number }) => c.n)).toEqual(
-      plain.matrix.cells.map((c: { n: number }) => c.n),
-    );
+    // The same cells, in the same order, whichever way it was read: busiest first, then by reason and source.
+    type Cell = { n: number; reasonId: string | null; sourceId: string | null };
+    const key = (c: Cell) => [c.n, c.reasonId, c.sourceId];
+    expect(live.matrix.cells.map(key)).toEqual(plain.matrix.cells.map(key));
+    const ns = plain.matrix.cells.map((c: Cell) => c.n);
+    expect(ns).toEqual([...ns].sort((x: number, y: number) => y - x));
     expect(live.wonBackFlow).toMatchObject({ lost: 8, reopened: 3, won: 1 });
   });
 

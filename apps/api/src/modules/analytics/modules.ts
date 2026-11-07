@@ -177,7 +177,7 @@ export async function lost(req: FastifyRequest, q: AnalyticsQuery, now: Date, d?
   const [cells, flowNow, flowBefore, reasonNames, sourceNames] = await Promise.all([
     req.db.execute<{ reason_id: string | null; source_id: string | null; n: number }>(sql`
       SELECT l.lost_reason_id AS reason_id, l.source_id, count(*)::int AS n FROM leads l
-      WHERE ${base(range.from, range.to)} GROUP BY 1, 2`),
+      WHERE ${base(range.from, range.to)} GROUP BY 1, 2 ORDER BY n DESC, 1 NULLS LAST, 2 NULLS LAST`),
     req.db.execute<Flow>(flow(range.from, range.to)),
     req.db.execute<Flow>(flow(range.previous.from, range.previous.to)),
     req.db.execute<{ id: string; name: string }>(sql`SELECT id, label::text AS name FROM lost_reasons`),
