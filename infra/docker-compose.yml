@@ -180,6 +180,7 @@ services:
     environment:
       LUME_PUBLIC_HOST: ${LUME_PUBLIC_HOST:?}
       LUME_TLS: ${LUME_TLS:-}
+      LUME_EDGE_ADDRESS_PER_MIN: ${LUME_EDGE_ADDRESS_PER_MIN:-12000}
     ports: ["80:80", "443:443"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

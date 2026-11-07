@@ -20,7 +20,8 @@
 	# Static files (content-hashed chunks, fonts, flags) are never limited: one page view loads dozens.
 	# Everything else is limited per client — the session when there is one, else the address — so
 	# colleagues behind one office address don't use up each other's allowance. One address as a whole
-	# still has a ceiling, so rotating cookies can't get round it. Sign-in has its own throttle in the API.
+	# still has a ceiling, so rotating cookies can't get round it: 12,000 a minute unless .env sets
+	# LUME_EDGE_ADDRESS_PER_MIN, room for a thousand people in one office. Sign-in has its own throttle in the API.
 	# The router's own prefetches (every link on screen, fetched ahead) aren't something a person did, so
 	# they don't use up the person's allowance; they still count toward the address's ceiling.
 	rate_limit {
@@ -38,7 +39,7 @@
 				not path /_next/static/* /fonts/* /flags/* /favicon.ico /icon* /apple-icon*
 			}
 			key {remote_host}
-			events 3000
+			events {$LUME_EDGE_ADDRESS_PER_MIN:12000}
 			window 1m
 		}
 	}
