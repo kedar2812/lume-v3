@@ -70,6 +70,22 @@ describe("Enquiries (website spec §7)", () => {
     ).toBeInTheDocument();
   });
 
+  it("one enquiry shows what's going wrong and the leads a month when the form asked, and nothing when it didn't", async () => {
+    vi.mocked(api.get).mockResolvedValue(
+      ok({ enquiry: { ...ENQ, need: "Replies go out late, Follow-ups get forgotten", volume: "200-1000" } }),
+    );
+    const { unmount } = render(<EnquiryScreen id="e1" />);
+    expect(await screen.findByText("Replies go out late, Follow-ups get forgotten")).toBeInTheDocument();
+    expect(screen.getByText("What’s going wrong")).toBeInTheDocument();
+    expect(screen.getByText("200 to 1,000")).toBeInTheDocument();
+    unmount();
+    vi.mocked(api.get).mockResolvedValue(ok({ enquiry: { ...ENQ, need: null, volume: null } }));
+    render(<EnquiryScreen id="e1" />);
+    await screen.findByText("Instagram DMs and a Google Form");
+    expect(screen.queryByText("What’s going wrong")).not.toBeInTheDocument();
+    expect(screen.queryByText("New leads a month")).not.toBeInTheDocument();
+  });
+
   it("one enquiry: WhatsApp and email one tap away, the status saved at once", async () => {
     vi.mocked(api.get).mockResolvedValue(ok({ enquiry: ENQ }));
     vi.mocked(api.patch).mockResolvedValue(

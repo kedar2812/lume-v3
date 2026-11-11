@@ -16,11 +16,14 @@ export type Enquiry = {
   email: string | null;
   teamSize: string;
   how: string | null;
+  need: string | null;
+  volume: Volume | null;
   source: "website";
   status: Status;
   notes: string;
   updatedAt: string;
 };
+export type Volume = "<50" | "50-200" | "200-1000" | "1000+";
 
 const trimmed = (max: number) => z.string().trim().min(1).max(max);
 /** Exactly what the website sends: nothing else is accepted. */
@@ -32,6 +35,9 @@ export const enquirySchema = z
     email: z.email().max(254).nullish(),
     teamSize: z.enum(["1", "2-5", "6-20", "21+"]),
     how: z.string().trim().max(500).nullish(),
+    // The multi-step form's answers (2026-11-11): optional, so older websites keep filing.
+    need: z.string().trim().max(300).nullish(),
+    volume: z.enum(["<50", "50-200", "200-1000", "1000+"]).nullish(),
   })
   .strict();
 const MAX_BODY = 8192;
@@ -90,15 +96,35 @@ export async function handleEnquiry(req: Request, ctx: Ctx): Promise<Response> {
   if (again) {
     await ctx.db.query(
       `UPDATE enquiries SET name = $2, business = $3, email = $4, team_size = $5, how = coalesce($6, how),
-              updated_at = $7 WHERE id = $1`,
-      [again.id, b.name, b.business, b.email ?? null, b.teamSize, b.how || null, now],
+              need = coalesce($8, need), volume = coalesce($9, volume), updated_at = $7 WHERE id = $1`,
+      [
+        again.id,
+        b.name,
+        b.business,
+        b.email ?? null,
+        b.teamSize,
+        b.how || null,
+        now,
+        b.need || null,
+        b.volume ?? null,
+      ],
     );
     return json(201, { id: again.id, folded: true });
   }
   const { rows } = await ctx.db.query<{ id: string }>(
-    `INSERT INTO enquiries (name, business, whatsapp, email, team_size, how, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7) RETURNING id`,
-    [b.name, b.business, b.whatsapp, b.email ?? null, b.teamSize, b.how || null, now],
+    `INSERT INTO enquiries (name, business, whatsapp, email, team_size, how, need, volume, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $8, $9, $7, $7) RETURNING id`,
+    [
+      b.name,
+      b.business,
+      b.whatsapp,
+      b.email ?? null,
+      b.teamSize,
+      b.how || null,
+      now,
+      b.need || null,
+      b.volume ?? null,
+    ],
   );
   return json(201, { id: rows[0]!.id });
 }
@@ -112,6 +138,8 @@ type Row = {
   email: string | null;
   team_size: string;
   how: string | null;
+  need: string | null;
+  volume: Volume | null;
   source: "website";
   status: Status;
   notes: string;
@@ -126,6 +154,8 @@ const view = (r: Row): Enquiry => ({
   email: r.email,
   teamSize: r.team_size,
   how: r.how,
+  need: r.need,
+  volume: r.volume,
   source: r.source,
   status: r.status,
   notes: r.notes,

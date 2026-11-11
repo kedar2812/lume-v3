@@ -96,6 +96,80 @@ describe("enquiries from the website", () => {
     expect((await post({ ...BODY, how: "y".repeat(20_000) })).status).toBe(413);
   });
 
+  it("keeps the multi-step form's answers: what's going wrong, and leads a month", async () => {
+    const r = await post(
+      {
+        ...BODY,
+        whatsapp: "+919800000010",
+        need: "  Replies go out late, Follow-ups get forgotten ",
+        volume: "50-200",
+      },
+      { ip: "198.51.100.30" },
+    );
+    expect(r.status).toBe(201);
+    const { id } = (await r.json()) as { id: string };
+    const row = (await t.pool.query("SELECT need, volume FROM enquiries WHERE id = $1", [id])).rows[0];
+    expect(row).toEqual({ need: "Replies go out late, Follow-ups get forgotten", volume: "50-200" });
+    const got = (await admin.call("GET", `/api/enquiries/${id}`)).data as {
+      enquiry: { need: string | null; volume: string | null };
+    };
+    expect(got.enquiry.need).toBe("Replies go out late, Follow-ups get forgotten");
+    expect(got.enquiry.volume).toBe("50-200");
+  });
+
+  it("an enquiry without them (the older website, the plain form) files as before, with neither", async () => {
+    const r = await post({ ...BODY, whatsapp: "+919800000011" }, { ip: "198.51.100.31" });
+    expect(r.status).toBe(201);
+    const { id } = (await r.json()) as { id: string };
+    const row = (await t.pool.query("SELECT need, volume FROM enquiries WHERE id = $1", [id])).rows[0];
+    expect(row).toEqual({ need: null, volume: null });
+    const blank = await post(
+      { ...BODY, whatsapp: "+919800000012", need: "   ", volume: null },
+      { ip: "198.51.100.31" },
+    );
+    expect(blank.status).toBe(201);
+    const b = (await blank.json()) as { id: string };
+    expect((await t.pool.query("SELECT need, volume FROM enquiries WHERE id = $1", [b.id])).rows[0]).toEqual({
+      need: null,
+      volume: null,
+    });
+  });
+
+  it("refuses a leads-a-month that isn't one of the four, and a too-long what's going wrong", async () => {
+    expect(
+      (await post({ ...BODY, whatsapp: "+919800000013", volume: "lots" }, { ip: "198.51.100.32" })).status,
+    ).toBe(400);
+    expect(
+      (await post({ ...BODY, whatsapp: "+919800000013", volume: "" }, { ip: "198.51.100.32" })).status,
+    ).toBe(400);
+    expect(
+      (await post({ ...BODY, whatsapp: "+919800000013", need: "n".repeat(301) }, { ip: "198.51.100.32" }))
+        .status,
+    ).toBe(400);
+    expect(
+      (
+        await post(
+          { ...BODY, whatsapp: "+919800000013", need: "n".repeat(300), volume: "1000+" },
+          { ip: "198.51.100.32" },
+        )
+      ).status,
+    ).toBe(201);
+  });
+
+  it("a second enquiry inside ten minutes keeps the answers the first one gave, unless it gives its own", async () => {
+    const first = { ...BODY, whatsapp: "+919800000014", need: "Replies go out late", volume: "<50" };
+    const a = (await (await post(first, { ip: "198.51.100.33" })).json()) as { id: string };
+    await post({ ...BODY, whatsapp: "+919800000014" }, { ip: "198.51.100.33" });
+    const kept = (await t.pool.query("SELECT need, volume FROM enquiries WHERE id = $1", [a.id])).rows[0];
+    expect(kept).toEqual({ need: "Replies go out late", volume: "<50" });
+    await post(
+      { ...first, need: "Leads are scattered across apps", volume: "200-1000" },
+      { ip: "198.51.100.33" },
+    );
+    const changed = (await t.pool.query("SELECT need, volume FROM enquiries WHERE id = $1", [a.id])).rows[0];
+    expect(changed).toEqual({ need: "Leads are scattered across apps", volume: "200-1000" });
+  });
+
   it("limits one address, and everyone together", async () => {
     const tight = testCtx(t.pool, () => now, {
       limits: {

@@ -4,7 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { when } from "@/lib/format";
 import { Toast, useToast } from "./bits";
-import { EnquiryPill, STATUS_WORDS, TEAM_WORDS, type Enquiry, type Status } from "./EnquiriesScreen";
+import {
+  EnquiryPill,
+  STATUS_WORDS,
+  TEAM_WORDS,
+  VOLUME_WORDS,
+  type Enquiry,
+  type Status,
+} from "./EnquiriesScreen";
 import { Head } from "./Shell";
 
 const ORDER: Status[] = ["new", "contacted", "demo_booked", "won", "not_a_fit"];
@@ -111,6 +118,18 @@ export function EnquiryScreen({ id }: { id: string }) {
             <dd>{TEAM_WORDS[e.teamSize] ?? e.teamSize}</dd>
             <dt>How leads reach them</dt>
             <dd>{e.how ?? "—"}</dd>
+            {e.need && (
+              <>
+                <dt>What’s going wrong</dt>
+                <dd>{e.need}</dd>
+              </>
+            )}
+            {e.volume && (
+              <>
+                <dt>New leads a month</dt>
+                <dd>{VOLUME_WORDS[e.volume] ?? e.volume}</dd>
+              </>
+            )}
             <dt>Asked</dt>
             <dd>{when(e.createdAt)}</dd>
           </dl>

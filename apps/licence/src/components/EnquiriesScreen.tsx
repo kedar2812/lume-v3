@@ -16,6 +16,8 @@ export type Enquiry = {
   email: string | null;
   teamSize: string;
   how: string | null;
+  need?: string | null;
+  volume?: string | null;
   source: "website";
   status: Status;
   notes: string;
@@ -28,6 +30,13 @@ export const STATUS_WORDS: Record<Status, string> = {
   demo_booked: "Demo booked",
   won: "Won",
   not_a_fit: "Not a fit",
+};
+/** New leads a month, as the website's form asked it. */
+export const VOLUME_WORDS: Record<string, string> = {
+  "<50": "Under 50",
+  "50-200": "50 to 200",
+  "200-1000": "200 to 1,000",
+  "1000+": "Over 1,000",
 };
 export const TEAM_WORDS: Record<string, string> = {
   "1": "Just me",
