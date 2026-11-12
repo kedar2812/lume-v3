@@ -1,4 +1,10 @@
-import { autopilotFirstOutput, autopilotInput, autopilotInstructions, guardFirst } from "@lume/core";
+import {
+  AI_OUTPUT_TOKENS,
+  autopilotFirstOutput,
+  autopilotInput,
+  autopilotInstructions,
+  guardFirst,
+} from "@lume/core";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { aiCtx } from "../autopilot/engine";
@@ -35,7 +41,7 @@ export async function recommendTemplate(
     instructions: autopilotInstructions("autopilot_first", c),
     input: autopilotInput("autopilot_first", c),
     schema: autopilotFirstOutput,
-    maxOutputTokens: 300,
+    maxOutputTokens: AI_OUTPUT_TOKENS.autopilot_first,
   });
   if ("unavailable" in r) return { pick: null };
   const id = guardFirst(

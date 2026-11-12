@@ -5,7 +5,7 @@ import { apiSchema, loadConfig } from "@lume/config";
 import { buildApp, type AppDeps } from "./app";
 import { startImportQueue } from "./modules/imports/queue";
 import { startBulkQueue } from "./modules/leads/bulk-queue";
-import { providerFromConfig } from "./ai/from-config";
+import { aiFromConfig } from "./ai/from-config";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
 import { calendarClientFor } from "./modules/calendar/google";
@@ -25,6 +25,8 @@ import { sweepLeftExports } from "./export/service";
 import { appVersion, asksForKey, isReleaseBuild, resolveLicence } from "./licence/options";
 
 const cfg = loadConfig(apiSchema);
+// LUME AI: the provider, a model per action and the prices; a setting that doesn't read stops the server here.
+const lumeAi = aiFromConfig(cfg);
 // A request never waits long for a connection: exhaustion fails loudly instead of hanging the API.
 const pool = new pg.Pool({
   connectionString: cfg.DATABASE_URL_APP,
@@ -103,7 +105,8 @@ const deps: AppDeps = {
   google,
   sheets,
   calendar,
-  ai: providerFromConfig(cfg),
+  ai: lumeAi.ai,
+  aiModels: lumeAi.aiModels,
   webhooks,
   tasks,
   manychatPreset: cfg.LUME_MANYCHAT_PRESET === "on",
@@ -124,10 +127,7 @@ const deps: AppDeps = {
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   render: cfg.LUME_RENDER_URL ? { url: cfg.LUME_RENDER_URL.replace(/\/$/, "") } : null,
   media,
-  aiPricing:
-    cfg.LUME_AI_PRICE_IN !== undefined && cfg.LUME_AI_PRICE_OUT !== undefined
-      ? { in: cfg.LUME_AI_PRICE_IN, out: cfg.LUME_AI_PRICE_OUT, cap: cfg.LUME_AI_MONTHLY_CAP ?? null }
-      : null,
+  aiPricing: lumeAi.aiPricing,
   mailer,
   config: { publicUrl, cookieSecure: true, version: appVersion(cfg) },
   rates:

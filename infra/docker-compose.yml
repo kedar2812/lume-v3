@@ -107,6 +107,9 @@ services:
       LUME_AI_PRICE_IN: ${LUME_AI_PRICE_IN:-}
       LUME_AI_PRICE_OUT: ${LUME_AI_PRICE_OUT:-}
       LUME_AI_MONTHLY_CAP: ${LUME_AI_MONTHLY_CAP:-}
+      # A model per action, and each model's prices with the cache (2026-11-12; docs/runbooks/ai.md).
+      LUME_AI_TASK_MODELS: ${LUME_AI_TASK_MODELS:-}
+      LUME_AI_PRICES: ${LUME_AI_PRICES:-}
       MAIL_FROM: ${MAIL_FROM:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # This installation's licence (licensing L-A): from New licence on license.lumecrm.in.

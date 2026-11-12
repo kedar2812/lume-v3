@@ -100,6 +100,20 @@ describe("loadConfig", () => {
     ).toMatch(/LUME_AI_PRICE_IN/);
   });
 
+  it("a model per action and each model's prices are optional text, read as the API starts (2026-11-12)", () => {
+    const c = loadConfig(apiSchema, {
+      ...apiEnv,
+      LUME_AI_TASK_MODELS: "reply_meaning=claude-haiku-5-5",
+      LUME_AI_PRICES: "claude-sonnet-5-5=2/10/2.5/0.1",
+    });
+    expect([c.LUME_AI_TASK_MODELS, c.LUME_AI_PRICES]).toEqual([
+      "reply_meaning=claude-haiku-5-5",
+      "claude-sonnet-5-5=2/10/2.5/0.1",
+    ]);
+    const empty = loadConfig(apiSchema, { ...apiEnv, LUME_AI_TASK_MODELS: "", LUME_AI_PRICES: "" });
+    expect([empty.LUME_AI_TASK_MODELS, empty.LUME_AI_PRICES]).toEqual([undefined, undefined]);
+  });
+
   it("the render service is optional, an http address when set (plan 2026-10-20-media-tab)", () => {
     expect(loadConfig(apiSchema, apiEnv).LUME_RENDER_URL).toBeUndefined();
     expect(loadConfig(apiSchema, { ...apiEnv, LUME_RENDER_URL: "" }).LUME_RENDER_URL).toBeUndefined();

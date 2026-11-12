@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  AI_OUTPUT_TOKENS,
   ACTIVE_STATES,
   autopilotFirstOutput,
   autopilotInput,
@@ -468,7 +469,7 @@ async function writeTemplate(
       instructions: autopilotInstructions("autopilot_first", c),
       input: autopilotInput("autopilot_first", c),
       schema: autopilotFirstOutput,
-      maxOutputTokens: 300,
+      maxOutputTokens: AI_OUTPUT_TOKENS.autopilot_first,
     });
     if (!(await stillAsRead(req, l))) return 1;
     if ("unavailable" in r) return unavailable(o, req, run, l, r);
@@ -723,7 +724,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     instructions: autopilotInstructions("autopilot_reply", c),
     input: autopilotInput("autopilot_reply", c),
     schema: autopilotReplyOutput,
-    maxOutputTokens: 1200,
+    maxOutputTokens: AI_OUTPUT_TOKENS.autopilot_reply,
   });
   if (!(await stillAsRead(req, l))) return 1;
   if ("unavailable" in r) return unavailable(o, req, run, l, r);

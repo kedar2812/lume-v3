@@ -767,23 +767,76 @@ describe("LUME AI's slots: reserved under one lock, then finished (spec 2026-10-
     const at = "2030-03-04T10:00:00Z";
     const { id } = await as("lume_app", { scope: "own" }, (c) => reserve(c, at, null, null));
     await as("lume_app", { scope: "own" }, (c) =>
-      c.query("SELECT lume_ai_finish($1, 'ok', '{\"summary\":\"x\"}'::jsonb, 120, 30)", [id]),
+      c.query("SELECT lume_ai_finish($1, 'ok', '{\"summary\":\"x\"}'::jsonb, 120, 30, 900, 2087)", [id]),
     );
+    // Finished once (2026-11-12): a second finish, with other tokens, changes nothing.
     await as("lume_app", { scope: "own" }, (c) =>
-      c.query("SELECT lume_ai_finish($1, 'failed', NULL, 0, 0)", [id]),
+      c.query("SELECT lume_ai_finish($1, 'failed', NULL, 5, 5, 5, 5)", [id]),
     );
     const row = await as(
       "lume_app",
       { scope: "own" },
       async (c) =>
-        (await c.query("SELECT status, result, input_tokens FROM ai_reads WHERE id = $1", [id])).rows[0],
+        (
+          await c.query(
+            "SELECT status, result, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens FROM ai_reads WHERE id = $1",
+            [id],
+          )
+        ).rows[0],
     );
-    expect(row).toEqual({ status: "ok", result: { summary: "x" }, input_tokens: 120 });
+    expect(row).toEqual({
+      status: "ok",
+      result: { summary: "x" },
+      input_tokens: 120,
+      output_tokens: 30,
+      cache_write_tokens: 900,
+      cache_read_tokens: 2087,
+    });
     await expect(
       as("lume_app", { scope: "own" }, (c) =>
         c.query("UPDATE ai_reads SET status = 'ok' WHERE id = $1", [id]),
       ),
     ).rejects.toThrow(/permission/);
+  });
+
+  it("the month's tokens by model: good and failed reads (both billed), not pending ones, not last month's (2026-11-12)", async () => {
+    const slot = (at: string, model: string) =>
+      as(
+        "lume_app",
+        { scope: "own" },
+        async (c) =>
+          (
+            await c.query<{ id: string }>(
+              `SELECT * FROM lume_ai_reserve($1, $2, 'next_step', NULL, 'fake', $3, $4::timestamptz, NULL, NULL, NULL,
+                                           $4::timestamptz - interval '1 hour', $4::timestamptz - interval '7 days',
+                                           $4::timestamptz - interval '31 days')`,
+              [L.rep, U.rep, model, at],
+            )
+          ).rows[0]!.id,
+      );
+    const finish = (id: string, status: "ok" | "failed", n: number) =>
+      as("lume_app", { scope: "own" }, (c) =>
+        c.query("SELECT lume_ai_finish($1, $2, NULL, $3, $3, $3, $3)", [id, status, n]),
+      );
+    await finish(await slot("2030-05-04T10:00:00Z", "m-a"), "ok", 10);
+    await finish(await slot("2030-05-04T10:01:00Z", "m-a"), "failed", 5);
+    await finish(await slot("2030-05-04T10:02:00Z", "m-b"), "ok", 7);
+    await slot("2030-05-04T10:03:00Z", "m-a"); // still pending: no tokens yet
+    await finish(await slot("2030-04-30T23:59:00Z", "m-a"), "ok", 1000); // last month
+    // A rep's own scope: the month is the whole business's (numbers only).
+    const month = await as("lume_app", { scope: "own" }, async (c) =>
+      (await c.query("SELECT * FROM lume_ai_month_tokens('2030-05-01T00:00:00Z')")).rows.map((r) => ({
+        ...r,
+        input_tokens: Number(r.input_tokens),
+        output_tokens: Number(r.output_tokens),
+        cache_write_tokens: Number(r.cache_write_tokens),
+        cache_read_tokens: Number(r.cache_read_tokens),
+      })),
+    );
+    expect(month).toEqual([
+      { model: "m-a", input_tokens: 15, output_tokens: 15, cache_write_tokens: 15, cache_read_tokens: 15 },
+      { model: "m-b", input_tokens: 7, output_tokens: 7, cache_write_tokens: 7, cache_read_tokens: 7 },
+    ]);
   });
 });
 

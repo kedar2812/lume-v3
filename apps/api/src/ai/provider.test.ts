@@ -12,7 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { anthropicProvider } from "./anthropic";
 import { fakeProvider } from "./fake";
 import { googleProvider } from "./google";
-import { providerFromConfig } from "./from-config";
+import { aiFromConfig, providerFromConfig } from "./from-config";
 import { AiUnreadable, schemaForProvider } from "./provider";
 
 /** LUME AI's plug (spec 2026-10-18 §2.1): each adapter against a stand-in for its provider's API. */
@@ -117,11 +117,22 @@ describe("Anthropic (Claude)", () => {
     reply = () => ({ status: 200, body: claude(JSON.stringify(answer)) });
     const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
     const r = await p.read(ask());
-    expect(r).toEqual({ output: answer, inputTokens: 412, outputTokens: 57 });
+    expect(r).toEqual({
+      output: answer,
+      inputTokens: 412,
+      outputTokens: 57,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 0,
+    });
     expect(seen[0]!.path).toBe("/v1/messages");
     expect(seen[0]!.headers["x-api-key"]).toBe("sk-test-key-000000000000");
     const b = seen[0]!.body;
-    expect(b).toMatchObject({ model: "claude-test", max_tokens: 800, system: "Rules." });
+    // The instructions carry a cache breakpoint (2026-11-12): the next read with the same ones reads them from the cache.
+    expect(b).toMatchObject({
+      model: "claude-test",
+      max_tokens: 800,
+      system: [{ type: "text", text: "Rules.", cache_control: { type: "ephemeral" } }],
+    });
     expect(b.messages).toEqual([{ role: "user", content: '{"lead":{}}\n\nThe note:\nCall me Saturday.' }]);
     expect(b.output_config).toMatchObject({ format: { type: "json_schema" } });
     expect(JSON.stringify(b.output_config)).toContain('"summary"');
@@ -135,6 +146,38 @@ describe("Anthropic (Claude)", () => {
     await expect(p.read(ask())).rejects.toBeInstanceOf(AiUnreadable);
     reply = () => ({ status: 200, body: claude("", "refusal") });
     await expect(p.read(ask())).rejects.toBeInstanceOf(AiUnreadable);
+  });
+
+  it("an answer LUME can't use was still billed: AiUnreadable carries what it cost (2026-11-12)", async () => {
+    const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
+    const cut = claude('{"summary":"Wants a vis', "max_tokens");
+    for (const body of [
+      claude(JSON.stringify({ ...answer, summary: 7 })),
+      claude("not json"),
+      claude("", "refusal"),
+      cut,
+    ]) {
+      reply = () => ({ status: 200, body });
+      const e = await p.read(ask()).catch((x: unknown) => x);
+      expect(e).toBeInstanceOf(AiUnreadable);
+      expect((e as AiUnreadable).usage).toEqual({
+        inputTokens: 412,
+        outputTokens: 57,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+      });
+    }
+  });
+
+  it("a request the provider turned away has no usage: nothing was billed", async () => {
+    reply = () => ({
+      status: 400,
+      body: { type: "error", error: { type: "invalid_request_error", message: "no" } },
+    });
+    const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
+    const e = await p.read(ask()).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(Error);
+    expect(e).not.toBeInstanceOf(AiUnreadable);
   });
 
   it("an explanation a little past its limit is shortened, not thrown away (eval 2026-10-31)", async () => {
@@ -151,6 +194,37 @@ describe("Anthropic (Claude)", () => {
     expect(summary.startsWith(got.slice(0, -1).trimEnd())).toBe(true);
   });
 
+  it("what the cache wrote and read is kept apart from the input (2026-11-12)", async () => {
+    reply = () => ({
+      status: 200,
+      body: {
+        ...claude(JSON.stringify(answer)),
+        usage: {
+          input_tokens: 300,
+          output_tokens: 57,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 2087,
+        },
+      },
+    });
+    const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
+    expect(await p.read(ask())).toMatchObject({
+      inputTokens: 300,
+      outputTokens: 57,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 2087,
+    });
+  });
+
+  it("a read on another model (a model per action, 2026-11-12) is sent to that model", async () => {
+    reply = () => ({ status: 200, body: claude(JSON.stringify(answer)) });
+    const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
+    await p.read({ ...ask(), model: "claude-light" });
+    expect(seen[0]!.body).toMatchObject({ model: "claude-light" });
+    await p.read(ask());
+    expect(seen[1]!.body).toMatchObject({ model: "claude-test" });
+  });
+
   it("an aborted read rejects, and is not AiUnreadable", async () => {
     reply = () => ({ status: 200, body: claude(JSON.stringify(answer)), delayMs: 2_000 });
     const p = anthropicProvider({ apiKey: "sk-test-key-000000000000", model: "claude-test", baseURL: base });
@@ -165,7 +239,13 @@ describe("Google (Gemini)", () => {
     reply = () => ({ status: 200, body: gemini(JSON.stringify(answer)) });
     const p = googleProvider({ apiKey: "g-test-key-0000000000000", model: "gemini-test", baseURL: base });
     const r = await p.read(ask());
-    expect(r).toEqual({ output: answer, inputTokens: 398, outputTokens: 61 });
+    expect(r).toEqual({
+      output: answer,
+      inputTokens: 398,
+      outputTokens: 61,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 0,
+    });
     expect(seen[0]!.path).toMatch(/\/models\/gemini-test:generateContent$/);
     const b = seen[0]!.body as {
       contents: { parts: { text: string }[] }[];
@@ -178,10 +258,48 @@ describe("Google (Gemini)", () => {
     expect(JSON.stringify(b.generationConfig.responseJsonSchema)).toContain('"summary"');
   });
 
-  it("an answer that doesn't match the schema is AiUnreadable", async () => {
+  it("thinking is billed as output, and what came from Gemini's cache is apart from the input (2026-11-12)", async () => {
+    reply = () => ({
+      status: 200,
+      body: {
+        ...gemini(JSON.stringify(answer)),
+        usageMetadata: {
+          promptTokenCount: 1_000,
+          cachedContentTokenCount: 600,
+          candidatesTokenCount: 61,
+          thoughtsTokenCount: 140,
+          totalTokenCount: 1_201,
+        },
+      },
+    });
+    const p = googleProvider({ apiKey: "g-test-key-0000000000000", model: "gemini-test", baseURL: base });
+    const r = await p.read(ask());
+    expect(r).toMatchObject({
+      inputTokens: 400,
+      outputTokens: 201,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 600,
+    });
+  });
+
+  it("a read on another model goes to that model", async () => {
+    reply = () => ({ status: 200, body: gemini(JSON.stringify(answer)) });
+    const p = googleProvider({ apiKey: "g-test-key-0000000000000", model: "gemini-test", baseURL: base });
+    await p.read({ ...ask(), model: "gemini-light" });
+    expect(seen[0]!.path).toMatch(/\/models\/gemini-light:generateContent$/);
+  });
+
+  it("an answer that doesn't match the schema is AiUnreadable, with what it cost", async () => {
     reply = () => ({ status: 200, body: gemini('{"summary":true}') });
     const p = googleProvider({ apiKey: "g-test-key-0000000000000", model: "gemini-test", baseURL: base });
-    await expect(p.read(ask())).rejects.toBeInstanceOf(AiUnreadable);
+    const e = await p.read(ask()).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(AiUnreadable);
+    expect((e as AiUnreadable).usage).toEqual({
+      inputTokens: 398,
+      outputTokens: 61,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 0,
+    });
   });
 });
 
@@ -278,5 +396,65 @@ describe("providerFromConfig", () => {
         LUME_AI_KEY: "k".repeat(30),
       }),
     ).toMatchObject({ name: "google", model: "gemini-test" });
+  });
+});
+
+describe("aiFromConfig (2026-11-12): the provider, a model per action, and the prices", () => {
+  const key = "k".repeat(30);
+  const anthropic = {
+    LUME_AI_PROVIDER: "anthropic" as const,
+    LUME_AI_MODEL: "claude-sonnet-5-5",
+    LUME_AI_KEY: key,
+  };
+  it("no provider: no AI, no models, no prices", () => {
+    expect(aiFromConfig({})).toEqual({ ai: null, aiModels: {}, aiPricing: null });
+  });
+  it("the actions named run on their model; the rest on LUME_AI_MODEL", () => {
+    const c = aiFromConfig({
+      ...anthropic,
+      LUME_AI_TASK_MODELS: "reply_meaning=claude-haiku-5-5,autopilot_first=claude-haiku-5-5",
+    });
+    expect(c.ai?.model).toBe("claude-sonnet-5-5");
+    expect(c.aiModels).toEqual({ reply_meaning: "claude-haiku-5-5", autopilot_first: "claude-haiku-5-5" });
+  });
+  it("prices every model it can use, with the cache", () => {
+    const c = aiFromConfig({
+      ...anthropic,
+      LUME_AI_TASK_MODELS: "reply_meaning=claude-haiku-5-5",
+      LUME_AI_PRICES: "claude-sonnet-5-5=2/10/2.5/0.1,claude-haiku-5-5=0.1/0.5/0.125/0.01",
+      LUME_AI_MONTHLY_CAP: 15,
+    });
+    expect(c.aiPricing).toEqual({
+      models: {
+        "claude-sonnet-5-5": { in: 2, out: 10, cacheWrite: 2.5, cacheRead: 0.1 },
+        "claude-haiku-5-5": { in: 0.1, out: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
+      },
+      cap: 15,
+    });
+  });
+  it("the legacy pair still prices the default model", () => {
+    const c = aiFromConfig({ ...anthropic, LUME_AI_PRICE_IN: 2, LUME_AI_PRICE_OUT: 10 });
+    expect(c.aiPricing?.models["claude-sonnet-5-5"]).toEqual({
+      in: 2,
+      out: 10,
+      cacheWrite: 2.5,
+      cacheRead: 0.2,
+    });
+  });
+  it("a bad list or a model without a price stops the server, saying which", () => {
+    expect(() => aiFromConfig({ ...anthropic, LUME_AI_TASK_MODELS: "lead_score=claude-haiku-5-5" })).toThrow(
+      /lead_score/,
+    );
+    expect(() =>
+      aiFromConfig({
+        ...anthropic,
+        LUME_AI_TASK_MODELS: "reply_meaning=claude-haiku-5-5",
+        LUME_AI_PRICE_IN: 2,
+        LUME_AI_PRICE_OUT: 10,
+      }),
+    ).toThrow(/claude-haiku-5-5/);
+  });
+  it("models per action mean nothing without a provider", () => {
+    expect(aiFromConfig({ LUME_AI_TASK_MODELS: "reply_meaning=claude-haiku-5-5" }).aiModels).toEqual({});
   });
 });

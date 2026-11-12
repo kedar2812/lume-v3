@@ -78,6 +78,24 @@ The runner exits 0 only when the next-step marks pass. Record each paid run belo
    LUME_AI_KEY=<the client's key>
    ```
 
+   Optional, and recommended (measured 2026-11-12, `lume-ai-costs.md`): run the high-volume reads that pass the eval on
+   Haiku, and price every model so the ring shows the month's spend:
+
+   ```sh
+   LUME_AI_TASK_MODELS=reply_meaning=claude-haiku-5-5,autopilot_first=claude-haiku-5-5
+   LUME_AI_PRICES=claude-sonnet-5-5=2/10/2.5/0.1,claude-haiku-5-5=0.1/0.5/0.125/0.01
+   LUME_AI_MONTHLY_CAP=<the cap set in the provider's console, USD>
+   ```
+
+   - `LUME_AI_TASK_MODELS` is `action=model` pairs; every other action runs on `LUME_AI_MODEL`. Actions:
+     `next_step`, `catch_up`, `reply_meaning`, `autopilot_first` (Autopilot's template choice and Recommended),
+     `autopilot_reply`, `template_draft`. Same provider and key for all of them.
+   - `LUME_AI_PRICES` is `model=input/output/cache write/cache read`, USD per million tokens, from the provider's
+     pricing page (all four, always). With prices set, every model LUME AI can use needs one.
+   - A list that doesn't read, an action LUME doesn't have, or a model without a price stops the API at start with a
+     line naming it (`docker compose logs api`): fix the inputs and provision again.
+   - Never move an action to another model without its eval passing first (section 1).
+
    Then run `scripts/provision.sh <slug>` again (it changes nothing else) and restart the API on the server:
    `cd /opt/lume && docker compose up -d api`.
 
@@ -98,17 +116,26 @@ Notes, calls and follow-ups keep working the whole time: LUME AI only ever sugge
 ## 4. Check it
 
 - `GET /api/v1/ai` (signed in): `on`, this hour's and this week's reads and limits, and a pause if one is in force.
-- Every read is one row in `ai_reads` (task, model, tokens, how long it took, whether it was applied or dismissed); no
-  note text is kept there.
+- Every read is one row in `ai_reads` (task, the model that served it, tokens with the cache's apart, whether it was
+  applied or dismissed); no note text is kept there. A failed read keeps the tokens it was billed (0 when the provider
+  never answered).
 
 ## The month, the ring and top-ups (Autopilot A1, 2026-10-20)
 
 - From a licence server that signs **LUME AI a month** (`plan4`), every AI call counts against one monthly allowance
   on the business's clock (from the 1st, 00:00), plus any top-ups for that month; the week no longer applies, the hour
   still does. Admins hear once at 75% and 90% of the month and once at the limit. An older licence keeps the week.
-- **Spend:** set `LUME_AI_PRICE_IN` and `LUME_AI_PRICE_OUT` (USD per million tokens, the chosen model's published
-  prices) and `LUME_AI_MONTHLY_CAP` (the hard cap set in the provider's console) in the client's `.env`. The ring then
-  shows the month's spend against the cap. Unset, it shows no money at all; nothing is guessed.
+- **Spend (2026-11-12):** set `LUME_AI_PRICES` (above) and `LUME_AI_MONTHLY_CAP` (the hard cap set in the
+  provider's console) in the client's inputs. The ring then shows the month's spend against the cap: every model at
+  its own prices, the prompt cache's writes and reads at theirs, and **failed reads included** (the provider billed
+  them; they still don't use up the client's allowance). Unset, it shows no money at all; nothing is guessed. If the
+  month has tokens from a model with no price (one removed from the list mid-month), the spend line hides rather than
+  show part of it: keep a model in `LUME_AI_PRICES` until the month it was last used is over.
+  The older `LUME_AI_PRICE_IN` / `LUME_AI_PRICE_OUT` pair still prices `LUME_AI_MODEL` alone, its cache at
+  Anthropic's standard 1.25x and 0.1x of input (an upper bound); move to `LUME_AI_PRICES` when you next touch a client.
+- **Prompt caching (2026-11-12):** every read marks its instructions for Anthropic's 5-minute cache; a read within 5
+  minutes of another with the same instructions pays the cache price for them (about 5% of input on Sonnet 5.5).
+  Nothing to set. `ai_reads.cache_write_tokens` and `cache_read_tokens` show it working.
 - **Top-ups:** an admin presses Ask for a top-up (the ring's panel); the request reaches the licence dashboard as an
   alert. Add a top-up there; it reaches their LUME at its next check-in and AI carries on by itself.
 

@@ -168,6 +168,10 @@ kv() {
   # LUME AI (docs/runbooks/ai.md): only when the inputs name a provider; without one it isn't set up on this server.
   if [ -n "$(envget LUME_AI_PROVIDER)" ]; then
     for key in LUME_AI_PROVIDER LUME_AI_MODEL LUME_AI_KEY; do kv "$key" "$(envget "$key")"; done
+    # A model per action, each model's prices and the provider's cap (2026-11-12): only those the inputs set.
+    for key in LUME_AI_TASK_MODELS LUME_AI_PRICES LUME_AI_PRICE_IN LUME_AI_PRICE_OUT LUME_AI_MONTHLY_CAP; do
+      if [ -n "$(envget "$key")" ]; then kv "$key" "$(envget "$key")"; fi
+    done
   fi
   kv LOG_LEVEL info
 } > "$rendered"

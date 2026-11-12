@@ -1,4 +1,5 @@
 import {
+  AI_OUTPUT_TOKENS,
   canOnRecord,
   cleanNextStep,
   followUpMoment,
@@ -46,7 +47,7 @@ export async function suggestNextStep(
     instructions: instructionsFor("next_step"),
     input: inputFor("next_step", facts, note),
     schema: nextStepOutput,
-    maxOutputTokens: 2000,
+    maxOutputTokens: AI_OUTPUT_TOKENS.next_step,
     clean: (out) => cleanNextStep(out, facts),
     store: (out): Kept => ({ suggestion: out, stageAtRead: lead.stageId }),
   });

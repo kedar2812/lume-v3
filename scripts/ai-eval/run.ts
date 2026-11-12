@@ -3,6 +3,7 @@ import path from "node:path";
 import { providerFromConfig } from "../../apps/api/src/ai/from-config";
 import type { AiProvider } from "../../apps/api/src/ai/provider";
 import {
+  AI_OUTPUT_TOKENS,
   autopilotFirstOutput,
   autopilotInput,
   autopilotInstructions,
@@ -137,7 +138,7 @@ export async function run(argv: string[], root: string): Promise<number> {
   })!;
   const dir = path.join(root, "evals", "ai");
   const businesses = JSON.parse(readFileSync(path.join(dir, "businesses.json"), "utf8")) as Businesses;
-  const tokens = { input: 0, output: 0 };
+  const tokens = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
   const report: Record<string, unknown> = { provider: a.provider, model: a.model, now: NOW, marks: MARKS };
 
   const read = async <T>(task: "next_step" | "catch_up", input: string): Promise<T> => {
@@ -145,11 +146,13 @@ export async function run(argv: string[], root: string): Promise<number> {
       instructions: instructionsFor(task),
       input,
       schema: (task === "next_step" ? nextStepOutput : catchUpOutput) as never,
-      maxOutputTokens: task === "next_step" ? 2000 : 1500,
+      maxOutputTokens: AI_OUTPUT_TOKENS[task],
       signal: AbortSignal.timeout(30_000),
     });
     tokens.input += r.inputTokens;
     tokens.output += r.outputTokens;
+    tokens.cacheWrite += r.cacheWriteTokens ?? 0;
+    tokens.cacheRead += r.cacheReadTokens ?? 0;
     return r.output as T;
   };
 
@@ -247,11 +250,13 @@ Autopilot: ${cases.length} cases (read every message by hand for tone and words)
           input: autopilotInput(task, x.ctx),
           schema: (task === "autopilot_first" ? autopilotFirstOutput : autopilotReplyOutput) as never,
           // As a run asks it (engine.ts): a short answer for a template's choice, room for a reply.
-          maxOutputTokens: task === "autopilot_first" ? 300 : 1200,
+          maxOutputTokens: AI_OUTPUT_TOKENS[task],
           signal: AbortSignal.timeout(30_000),
         });
         tokens.input += r.inputTokens;
         tokens.output += r.outputTokens;
+        tokens.cacheWrite += r.cacheWriteTokens ?? 0;
+        tokens.cacheRead += r.cacheReadTokens ?? 0;
         if (c.task === "first") {
           const right = scoreFirst(c, r.output as AutopilotFirst, x);
           firsts.push(right);
@@ -328,11 +333,13 @@ Reply meaning: ${cases.length} WhatsApp replies`);
           instructions: replyMeaningInstructions,
           input: replyMeaningInput(x.facts, x.thread, c.reply),
           schema: replyMeaningOutput as never,
-          maxOutputTokens: 1000,
+          maxOutputTokens: AI_OUTPUT_TOKENS.reply_meaning,
           signal: AbortSignal.timeout(30_000),
         });
         tokens.input += r.inputTokens;
         tokens.output += r.outputTokens;
+        tokens.cacheWrite += r.cacheWriteTokens ?? 0;
+        tokens.cacheRead += r.cacheReadTokens ?? 0;
         const s = scoreMeaning(c, r.output as ReplyMeaning, x);
         scores.push(s);
         const miss = (["group", "stage", "followUp"] as const).filter((k) => !s[k]);
@@ -365,11 +372,17 @@ Reply meaning: ${cases.length} WhatsApp replies`);
 
   const cost =
     a.priceIn !== null && a.priceOut !== null
-      ? (tokens.input * a.priceIn + tokens.output * a.priceOut) / 1_000_000
+      ? // The cache at Anthropic's standard multipliers of the input price (writes 1.25x, reads 0.1x), as the API's
+        // legacy pair does: an upper bound on current models.
+        (tokens.input * a.priceIn +
+          tokens.output * a.priceOut +
+          tokens.cacheWrite * a.priceIn * 1.25 +
+          tokens.cacheRead * a.priceIn * 0.1) /
+        1_000_000
       : null;
   report.tokens = { ...tokens, costUsd: cost };
   console.log(
-    `\nTokens: ${tokens.input} in, ${tokens.output} out${cost === null ? " (add --price-in/--price-out for cost)" : `, about $${cost.toFixed(4)}`}`,
+    `\nTokens: ${tokens.input} in, ${tokens.output} out, ${tokens.cacheWrite} cache written, ${tokens.cacheRead} cache read${cost === null ? " (add --price-in/--price-out for cost)" : `, about $${cost.toFixed(4)}`}`,
   );
   if (a.out) writeFileSync(a.out, JSON.stringify(report, null, 2));
   return pass ? 0 : 1;

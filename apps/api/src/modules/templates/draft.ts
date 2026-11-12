@@ -1,4 +1,5 @@
 import {
+  AI_OUTPUT_TOKENS,
   VARIABLES,
   cleanTemplateDrafts,
   mergeAiProfile,
@@ -55,7 +56,7 @@ export async function draftTemplates(
     instructions: templateDraftInstructions(c),
     input: templateDraftInput(c),
     schema: templateDraftOutput,
-    maxOutputTokens: 1600,
+    maxOutputTokens: AI_OUTPUT_TOKENS.template_draft,
   });
   if ("unavailable" in r)
     throw r.unavailable === "limit"

@@ -1,4 +1,4 @@
-import { catchUpOutput, inputFor, instructionsFor, type NextStep } from "@lume/core";
+import { AI_OUTPUT_TOKENS, catchUpOutput, inputFor, instructionsFor, type NextStep } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -83,7 +83,7 @@ export async function catchUp(
     instructions: instructionsFor("catch_up"),
     input: inputFor("catch_up", facts),
     schema: catchUpOutput,
-    maxOutputTokens: 1500,
+    maxOutputTokens: AI_OUTPUT_TOKENS.catch_up,
   });
   return "unavailable" in r ? r : { read: { id: r.id, lines: r.output.lines } };
 }

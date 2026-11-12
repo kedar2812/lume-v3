@@ -220,6 +220,33 @@ LUME_AI_KEY=sk-client-key`,
     expect(readFileSync(path.join(r2.dir, "uploads", ".env"), "utf8")).not.toContain("LUME_AI_");
   });
 
+  it("a model per action, the prices and the monthly cap come along when the inputs have them (2026-11-12)", () => {
+    const f = fleet({
+      inputs: `${INPUTS}
+LUME_AI_PROVIDER=anthropic
+LUME_AI_MODEL=claude-sonnet-5-5
+LUME_AI_KEY=sk-client-key
+LUME_AI_TASK_MODELS=reply_meaning=claude-haiku-5-5,autopilot_first=claude-haiku-5-5
+LUME_AI_PRICES=claude-sonnet-5-5=2/10/2.5/0.1,claude-haiku-5-5=0.1/0.5/0.125/0.01
+LUME_AI_MONTHLY_CAP=40`,
+    });
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: ANSWERS,
+    });
+    const server = readFileSync(path.join(r.dir, "uploads", ".env"), "utf8");
+    expect(server).toMatch(
+      /^LUME_AI_TASK_MODELS='reply_meaning=claude-haiku-5-5,autopilot_first=claude-haiku-5-5'$/m,
+    );
+    expect(server).toMatch(
+      /^LUME_AI_PRICES='claude-sonnet-5-5=2\/10\/2.5\/0.1,claude-haiku-5-5=0.1\/0.5\/0.125\/0.01'$/m,
+    );
+    expect(server).toMatch(/^LUME_AI_MONTHLY_CAP='40'$/m);
+    // Ones the inputs leave out aren't written empty: the server reads their absence as "not set".
+    expect(server).not.toMatch(/^LUME_AI_PRICE_IN=/m);
+  });
+
   it("with no --version, a new client gets LUME's own version (read from the repository's package.json)", () => {
     const f = fleet();
     const r = run("scripts/provision.sh", ["harbour-clinic"], { dir: f.dir, env: f.env, answers: ANSWERS });

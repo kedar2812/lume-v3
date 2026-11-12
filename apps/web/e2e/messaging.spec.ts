@@ -199,6 +199,9 @@ test.describe("Templates and sending (4A)", () => {
     page,
     context,
   }) => {
+    // Two themes, each with five screenshots and four axe scans: 37 s alone on a quiet build box, so the default 45 s
+    // ran out at the end of a full run on a busy one (gate 2026-11-12, found and written in the ledger).
+    test.setTimeout(90_000);
     await openApp(page, "/leads");
     const id = await noorsLead(page, "Shot Messaging", "+971509990044");
     await stubWhatsApp(context);

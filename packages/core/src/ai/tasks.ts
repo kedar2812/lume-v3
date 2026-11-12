@@ -8,8 +8,15 @@ import { softText } from "./fit";
  */
 /** The read-a-note tasks (2026-10-18), and Autopilot's (2026-10-19): each counts against the month. */
 /** And a template drafted for the business (2026-10-31): the one read that is about no lead. */
-export type AiTask =
-  "next_step" | "catch_up" | "autopilot_first" | "autopilot_reply" | "reply_meaning" | "template_draft";
+export const AI_TASKS = [
+  "next_step",
+  "catch_up",
+  "autopilot_first",
+  "autopilot_reply",
+  "reply_meaning",
+  "template_draft",
+] as const;
+export type AiTask = (typeof AI_TASKS)[number];
 type NoteTask = "next_step" | "catch_up";
 
 /**

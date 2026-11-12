@@ -135,6 +135,13 @@ export const apiSchema = base
     LUME_AI_PRICE_IN: optional(z.coerce.number().positive().max(1000)),
     LUME_AI_PRICE_OUT: optional(z.coerce.number().positive().max(1000)),
     LUME_AI_MONTHLY_CAP: optional(z.coerce.number().positive().max(1_000_000)),
+    /**
+     * A model per action (2026-11-12): `task=model, …` (for example `reply_meaning=claude-haiku-5-5`), the rest on
+     * LUME_AI_MODEL; and each model's prices, `model=in/out/cache write/cache read, …` in USD per million. Read and
+     * checked as the API starts (apps/api/src/ai/from-config.ts): one that doesn't read stops it.
+     */
+    LUME_AI_TASK_MODELS: optional(z.string().max(2000)),
+    LUME_AI_PRICES: optional(z.string().max(2000)),
   })
   .superRefine((c, ctx) => {
     // Postgres takes 100 connections: the job queues hold up to 33, the worker 9, the listeners, migrations, backups

@@ -110,16 +110,3 @@ export function aiPace(
   const perDay = month.used / days;
   return { daysLeft: Math.max(0, Math.floor((month.limit - month.used) / perDay)) };
 }
-
-/** What the owner set LUME AI's tokens to cost, in USD per million, and the provider's monthly cap (§4). */
-export type AiPricing = { in: number; out: number; cap: number | null };
-
-/** The month's spend at the owner's prices, to the cent; null when no prices are set (nothing is guessed). */
-export function aiSpend(
-  tokens: { inputTokens: number; outputTokens: number },
-  pricing: AiPricing | null,
-): { used: number; cap: number | null; currency: "USD" } | null {
-  if (!pricing) return null;
-  const used = (tokens.inputTokens * pricing.in + tokens.outputTokens * pricing.out) / 1_000_000;
-  return { used: Math.round(used * 100) / 100, cap: pricing.cap, currency: "USD" };
-}

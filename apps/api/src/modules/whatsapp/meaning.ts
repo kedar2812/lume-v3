@@ -1,4 +1,5 @@
 import {
+  AI_OUTPUT_TOKENS,
   cleanReplyMeaning,
   replyMeaningInput,
   replyMeaningInstructions,
@@ -86,7 +87,7 @@ export async function readReplyMeaning(o: WhatsAppJobDeps, activityId: string): 
         instructions: replyMeaningInstructions,
         input: replyMeaningInput(facts, thread, reply),
         schema: replyMeaningOutput,
-        maxOutputTokens: 1000,
+        maxOutputTokens: AI_OUTPUT_TOKENS.reply_meaning,
         clean: (out) => cleanReplyMeaning(out, facts),
         store: (out): KeptMeaning => ({
           meaning: out.meaning,

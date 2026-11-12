@@ -11,7 +11,8 @@ import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
 import { fakeProvider } from "../../ai/fake";
-import type { AiProvider } from "../../ai/provider";
+import { AiUnreadable, type AiProvider } from "../../ai/provider";
+import type { AppDeps } from "../../app";
 import { runRead } from "./service";
 
 /** LUME AI's switch, its Claude-style limits and its notices (spec 2026-10-18 §2.2). */
@@ -32,6 +33,8 @@ let lead: string;
 let plan: PlanClaim | undefined;
 let provider: AiProvider = fakeProvider();
 let topUpCalls: { month: string; askedBy: { name: string; email: string } }[] = [];
+/** The app's own deps: a test sets the owner's prices on them (2026-11-12). */
+let deps: AppDeps;
 
 const token = () =>
   signLicence(
@@ -110,6 +113,7 @@ beforeAll(async () => {
     ai: { read: (o) => provider.read(o), name: "fake", model: "fake-1" },
     aiTimeoutMs: 200,
     extraRoutes: (app, d) => {
+      deps = d;
       app.post<{ Params: { id: string } }>(
         "/test/ai-read/:id",
         { config: { permission: "leads.view" } },
@@ -134,6 +138,8 @@ afterAll(() => h.close());
 beforeEach(async () => {
   provider = fakeProvider();
   topUpCalls = [];
+  deps.aiPricing = null;
+  deps.aiModels = {};
   // No read is ever deleted (no delete policy, by design): the owner empties the table between tests.
   await h.ownerPool.query("TRUNCATE ai_reads, ai_limit_notices");
   noticesFrom = await asBackup(async (r) =>
@@ -378,5 +384,155 @@ describe("the month", () => {
     expect(second.statusCode).toBe(200);
     expect(topUpCalls).toHaveLength(2);
     expect(await status()).toEqual({ asked: true });
+  });
+});
+
+/** What a read cost (2026-11-12): a provider bills an answer LUME couldn't use, so its tokens are kept and priced. */
+describe("what a read cost", () => {
+  const billed = { inputTokens: 1_000_000, outputTokens: 100_000, cacheWriteTokens: 0, cacheReadTokens: 0 };
+  const unusable = (): AiProvider => ({
+    name: "fake",
+    model: "fake-1",
+    read: async () => {
+      throw new AiUnreadable("not JSON", billed);
+    },
+  });
+  const rows = () =>
+    asBackup(
+      async (c) =>
+        (
+          await c.query<{ status: string; input_tokens: number; output_tokens: number }>(
+            "SELECT status, input_tokens, output_tokens FROM ai_reads ORDER BY created_at",
+          )
+        ).rows,
+    );
+  const spendFor = async (as: () => Promise<AuthedClient>) =>
+    (await (await as()).inject({ method: "GET", url: "/api/v1/ai" })).json() as {
+      spend: { used: number } | null;
+      month: { used: number };
+    };
+  beforeEach(async () => {
+    await switchOn();
+    deps.aiPricing = { models: { "fake-1": { in: 2, out: 10, cacheWrite: 2.5, cacheRead: 0.1 } }, cap: 15 };
+  });
+
+  it("an answer LUME couldn't use is kept failed with the tokens it was billed", async () => {
+    provider = unusable();
+    expect((await read()).json()).toEqual({ unavailable: "failed" });
+    expect(await rows()).toEqual([{ status: "failed", input_tokens: 1_000_000, output_tokens: 100_000 }]);
+  });
+
+  it("it's in the month's spend, but not against the allowance", async () => {
+    provider = unusable();
+    await read();
+    const s = await spendFor(rep);
+    expect(s.spend).toMatchObject({ used: 3 }); // 1M in at $2 + 100k out at $10
+    expect(s.month.used).toBe(0);
+  });
+
+  it("good and failed reads add up together; only the good one is a read used", async () => {
+    await read(); // the fake: 100 in, 30 out
+    provider = unusable();
+    await read();
+    const s = await spendFor(rep);
+    expect(s.spend).toMatchObject({ used: 3 });
+    expect(s.month.used).toBe(1);
+  });
+
+  it("a provider that never answered billed nothing: the read is failed with 0 tokens", async () => {
+    provider = {
+      name: "fake",
+      model: "fake-1",
+      read: async () => {
+        throw new Error("provider down");
+      },
+    };
+    await read();
+    expect(await rows()).toEqual([{ status: "failed", input_tokens: 0, output_tokens: 0 }]);
+  });
+
+  it("a rep's spend is the whole business's, reads on leads they can't see included", async () => {
+    const theirs = await h.seedLead({ ownerId: ownerUser.id, name: "Arjun Mehta" });
+    provider = unusable();
+    await (await owner()).inject({ method: "POST", url: `/test/ai-read/${theirs}` });
+    expect((await spendFor(rep)).spend).toMatchObject({ used: 3 });
+    expect((await spendFor(owner)).spend).toMatchObject({ used: 3 });
+  });
+
+  it("the month is the business's: a failed read at 11:59 pm on September 30 isn't October's, one at 00:00 is", async () => {
+    provider = unusable();
+    await read();
+    await read();
+    const ids = await asBackup(
+      async (c) => (await c.query<{ id: string }>("SELECT id FROM ai_reads ORDER BY created_at")).rows,
+    );
+    // The clock stays on October 21 (licence tokens only move forward): the reads are dated across the boundary.
+    // Row security is forced on ai_reads, so the owner sees them only with every lead in scope.
+    const c = await h.ownerPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
+      const a = await c.query("UPDATE ai_reads SET created_at = '2026-09-30T18:29:00Z' WHERE id = $1", [
+        ids[0]!.id,
+      ]);
+      const b = await c.query("UPDATE ai_reads SET created_at = '2026-09-30T18:30:00Z' WHERE id = $1", [
+        ids[1]!.id,
+      ]);
+      expect([a.rowCount, b.rowCount]).toEqual([1, 1]);
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
+    expect((await spendFor(rep)).spend).toMatchObject({ used: 3 }); // only the second: October 1, 00:00 in Kolkata
+  });
+});
+
+/** A model per action (2026-11-12): the Haiku split runs some actions on a lighter model than the server's own. */
+describe("a model per action", () => {
+  beforeEach(async () => {
+    await switchOn();
+  });
+
+  it("an action set to another model is read on it, kept with it, and priced at its prices", async () => {
+    let asked: string | undefined;
+    provider = {
+      name: "fake",
+      model: "fake-1",
+      read: async (o) => {
+        asked = o.model;
+        return { ...(await fakeProvider().read(o)), inputTokens: 1_000_000, outputTokens: 0 };
+      },
+    };
+    deps.aiModels = { next_step: "fake-light" };
+    deps.aiPricing = {
+      models: {
+        "fake-1": { in: 2, out: 10, cacheWrite: 2.5, cacheRead: 0.1 },
+        "fake-light": { in: 0.1, out: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
+      },
+      cap: 15,
+    };
+    expect((await read()).json()).toHaveProperty("output");
+    expect(asked).toBe("fake-light");
+    const kept = await asBackup(async (c) => (await c.query("SELECT model FROM ai_reads")).rows);
+    expect(kept).toEqual([{ model: "fake-light" }]);
+    const s = (await (await rep()).inject({ method: "GET", url: "/api/v1/ai" })).json();
+    expect(s.spend).toMatchObject({ used: 0.1 }); // 1M input at the light model's $0.10, not $2
+  });
+
+  it("an action left alone runs on the server's own model", async () => {
+    let asked: string | undefined = "unset";
+    provider = {
+      name: "fake",
+      model: "fake-1",
+      read: async (o) => {
+        asked = o.model;
+        return fakeProvider().read(o);
+      },
+    };
+    deps.aiModels = { reply_meaning: "fake-light" };
+    await read();
+    expect(asked).toBe("fake-1");
+    const kept = await asBackup(async (c) => (await c.query("SELECT model FROM ai_reads")).rows);
+    expect(kept).toEqual([{ model: "fake-1" }]);
   });
 });

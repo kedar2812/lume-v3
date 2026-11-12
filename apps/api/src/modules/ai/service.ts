@@ -10,6 +10,7 @@ import {
   moduleIncluded,
   usesMonthly,
   type AiLimitState,
+  type AiModelTokens,
   type AiPause,
   type AiTask,
 } from "@lume/core";
@@ -22,6 +23,7 @@ import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { HttpError } from "../../http/errors";
 import { assertModule } from "../../licence/plan";
+import { AiUnreadable, type AiUsage } from "../../ai/provider";
 import { adminIds, notify } from "../notifications/notify";
 import { integrationsView } from "../sheets/service";
 
@@ -32,7 +34,7 @@ export type AiUnavailable =
   | { unavailable: "off" | "not_configured" | "failed" }
   | { unavailable: "limit"; by: AiPause["by"]; until: string };
 export type AiStatus = { on: boolean } & AiLimitState & {
-    /** The month's spend at the owner's prices (LUME_AI_PRICE_IN/OUT); null when none are set. */
+    /** The month's spend at the owner's prices per model (LUME_AI_PRICES); null when none are set or one is missing. */
     spend: { used: number; cap: number | null; currency: "USD" } | null;
     /** About how many days the month's allowance lasts at this pace. */
     pace: { daysLeft: number | null };
@@ -73,11 +75,7 @@ export async function available(
   return { ok: s.on && moduleIncluded(planOf(req), "ai"), why: "off", tz: s.tz };
 }
 
-async function stateNow(
-  req: FastifyRequest,
-  d: AppDeps,
-  tz: string,
-): Promise<AiLimitState & { tokens: { inputTokens: number; outputTokens: number } }> {
+async function stateNow(req: FastifyRequest, d: AppDeps, tz: string): Promise<AiLimitState> {
   const now = d.clock();
   const w = aiWindows(now, tz);
   const r = await req.db.execute<{
@@ -102,10 +100,28 @@ async function stateNow(
     now,
     tz,
   );
-  return {
-    ...state,
-    tokens: { inputTokens: Number(u?.month_in ?? 0), outputTokens: Number(u?.month_out ?? 0) },
-  };
+  return state;
+}
+
+/**
+ * The month's tokens by the model that served them (2026-11-12): every finished read, failed ones too (the provider
+ * billed them), on the business's month.
+ */
+async function monthTokens(req: FastifyRequest, monthStart: Date): Promise<AiModelTokens[]> {
+  const r = await req.db.execute<{
+    model: string;
+    input_tokens: string | number;
+    output_tokens: string | number;
+    cache_write_tokens: string | number;
+    cache_read_tokens: string | number;
+  }>(sql`SELECT * FROM lume_ai_month_tokens(${monthStart.toISOString()}::timestamptz)`);
+  return r.rows.map((x) => ({
+    model: x.model,
+    inputTokens: Number(x.input_tokens),
+    outputTokens: Number(x.output_tokens),
+    cacheWriteTokens: Number(x.cache_write_tokens),
+    cacheReadTokens: Number(x.cache_read_tokens),
+  }));
 }
 
 /**
@@ -129,12 +145,12 @@ async function topUpAsked(pool: pg.Pool, monthStart: Date, allowance: number | n
  */
 export async function aiStatus(req: FastifyRequest, d: AppDeps): Promise<AiStatus> {
   const a = await available(req, d);
-  const { tokens, ...state } = await stateNow(req, d, a.tz);
+  const state = await stateNow(req, d, a.tz);
   const w = aiWindows(d.clock(), a.tz);
   return {
     on: a.ok,
     ...state,
-    spend: aiSpend(tokens, d.aiPricing ?? null),
+    spend: d.aiPricing ? aiSpend(await monthTokens(req, w.monthStart), d.aiPricing) : null,
     pace: aiPace(state.month, d.clock(), w.monthStart),
     topUp: can(req.actor!, "settings.manage")
       ? { asked: await topUpAsked(d.jobPool ?? d.pool, w.monthStart, state.month.limit) }
@@ -258,6 +274,8 @@ export async function runRead<T>(
   const a = await available(req, d);
   if (!a.ok || !d.ai) return { unavailable: a.why };
   const ai = d.ai;
+  // The action's own model when one is set (the Haiku split, 2026-11-12): sent with the read and kept on it.
+  const model = d.aiModels?.[o.task] ?? ai.model;
   const side = d.jobPool ?? d.pool;
   const now = d.clock();
   const w = aiWindows(now, a.tz);
@@ -273,7 +291,7 @@ export async function runRead<T>(
       o.task,
       o.sourceActivityId ?? null,
       ai.name,
-      ai.model,
+      model,
       now,
       limits.hourly,
       limits.weekly,
@@ -313,17 +331,21 @@ export async function runRead<T>(
     ).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's limit"));
     return { unavailable: "limit", by: pause.by, until: pause.until };
   }
-  const finish = (status: "ok" | "failed", result: unknown, input = 0, output = 0) =>
-    side.query("SELECT lume_ai_finish($1, $2, $3, $4, $5)", [
+  // Every finished read keeps what the provider billed (2026-11-12): a failed one too, when it answered at all.
+  const finish = (status: "ok" | "failed", result: unknown, u: AiUsage | null) =>
+    side.query("SELECT lume_ai_finish($1, $2, $3, $4, $5, $6, $7)", [
       slot.id,
       status,
       result === null ? null : JSON.stringify(result),
-      input,
-      output,
+      u?.inputTokens ?? 0,
+      u?.outputTokens ?? 0,
+      u?.cacheWriteTokens ?? 0,
+      u?.cacheReadTokens ?? 0,
     ]);
   let answer: Awaited<ReturnType<typeof ai.read<T>>>;
   try {
     answer = await ai.read({
+      model,
       instructions: o.instructions,
       input: o.input,
       schema: o.schema,
@@ -332,11 +354,16 @@ export async function runRead<T>(
     });
   } catch (err) {
     req.log.warn({ err, provider: ai.name, task: o.task }, "LUME AI couldn't read this");
-    await finish("failed", null);
+    await finish("failed", null, err instanceof AiUnreadable ? err.usage : null);
     return { unavailable: "failed" };
   }
   const output = o.clean ? o.clean(answer.output) : answer.output;
-  await finish("ok", o.store ? o.store(output) : output, answer.inputTokens, answer.outputTokens);
+  await finish("ok", o.store ? o.store(output) : output, {
+    inputTokens: answer.inputTokens,
+    outputTokens: answer.outputTokens,
+    cacheWriteTokens: answer.cacheWriteTokens ?? 0,
+    cacheReadTokens: answer.cacheReadTokens ?? 0,
+  });
   if (limits.monthly !== null && limits.monthly !== undefined) {
     const used = (await stateNow(req, d, a.tz)).month.used;
     const back = backWords({ by: "month", until: w.nextMonthStart.toISOString() }, now, a.tz);

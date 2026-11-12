@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiLimitState, aiPace, aiSpend, aiWindows, backWords } from "./limits";
+import { aiLimitState, aiPace, aiWindows, backWords } from "./limits";
 
 /** LUME AI's limits (spec 2026-10-18 §2.2): a rolling hour, and a week from Monday 00:00 on the business's clock. */
 const TZ = "Asia/Kolkata";
@@ -125,13 +125,5 @@ describe("the pace and the spend (Autopilot A1 Task 3)", () => {
     expect(aiPace({ used: 50, limit: null }, at("2026-10-10T18:30:00Z"), monthStart)).toEqual({
       daysLeft: null,
     });
-  });
-  it("spend: tokens at the owner's prices, to the cent", () => {
-    expect(aiSpend({ inputTokens: 1_000_000, outputTokens: 200_000 }, { in: 3, out: 15, cap: 50 })).toEqual({
-      used: 6,
-      cap: 50,
-      currency: "USD",
-    });
-    expect(aiSpend({ inputTokens: 1, outputTokens: 1 }, null)).toBeNull();
   });
 });
