@@ -410,6 +410,27 @@
 .row[data-asking] {
   background: var(--danger-soft);
 }
+/* A drag: the lifted row tracks the pointer 1:1 (no transition); the others glide out of its way. */
+.rows[data-dragging] {
+  user-select: none;
+  cursor: grabbing;
+}
+.rows[data-dragging] .row {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.rows[data-dragging] .row[data-dragging] {
+  position: relative;
+  z-index: 1;
+  transition: none;
+  background: var(--sheet);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lift);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rows[data-dragging] .row {
+    transition: none;
+  }
+}
 .handle {
   display: grid;
   place-items: center;
@@ -418,6 +439,11 @@
   border-radius: 6px;
   color: var(--text-3);
   cursor: grab;
+  /* A finger on the handle drags the row, never the page. */
+  touch-action: none;
+}
+.rows[data-dragging] .handle {
+  cursor: grabbing;
 }
 .handle:hover {
   background: var(--hover);

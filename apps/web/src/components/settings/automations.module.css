@@ -346,17 +346,21 @@
 .menu {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
+/* One line each, the menu as wide as its longest choice: a fixed height let a long choice wrap out of its row. */
 .menuItem {
   display: flex;
   align-items: center;
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
+  min-height: 34px;
+  padding: 7px 12px;
   border-radius: 9px;
   font-size: var(--fs-sm);
+  line-height: 1.3;
+  letter-spacing: var(--ls-sm, 0);
   text-align: left;
+  white-space: nowrap;
   color: var(--text);
 }
 .menuItem:disabled {

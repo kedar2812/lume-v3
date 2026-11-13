@@ -114,6 +114,26 @@ const liveStages = (req: FastifyRequest, pipelineId: string) =>
     .where(and(eq(schema.stages.pipelineId, pipelineId), isNull(schema.stages.archivedAt)))
     .orderBy(asc(schema.stages.position), asc(schema.stages.createdAt));
 
+/**
+ * One change to a pipeline's set or order of stages at a time, held to the end of the request. Two people
+ * saving an order at once otherwise update the same rows in opposite orders and deadlock (one gets an error),
+ * and a stage added or archived meanwhile could slip past the "every stage exactly once" check.
+ */
+const lockStages = (req: FastifyRequest, pipelineId: string) =>
+  req.db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`lume.stages:${pipelineId}`}, 0))`);
+
+/**
+ * Writes a pipeline's stage order as positions 0..n-1: the open stages first, then the outcomes (Won and
+ * Lost), each group in the order given. Settings, the board and every report read this order, and Settings
+ * always lists the outcomes apart, after the open stages, so no order may put one in the middle.
+ */
+async function writeOrder(req: FastifyRequest, stages: { id: string; kind: string; position?: number }[]) {
+  const ordered = [...stages.filter((s) => s.kind === "open"), ...stages.filter((s) => s.kind !== "open")];
+  for (const [i, s] of ordered.entries())
+    if (s.position !== i)
+      await req.db.update(schema.stages).set({ position: i }).where(eq(schema.stages.id, s.id));
+}
+
 async function pipelineView(req: FastifyRequest, id: string) {
   const p = await livePipeline(req, id);
   return {
@@ -254,6 +274,7 @@ export async function createStage(
   await assertFieldsExist(req, input.requiredFieldIds);
   await assertRulePeople(req, input.onEnter);
   await assertMoves(req, pipelineId, input);
+  await lockStages(req, pipelineId);
   const current = await liveStages(req, pipelineId);
   if (current.some((s) => s.name.toLowerCase() === input.name.toLowerCase()))
     throw conflict("STAGE_EXISTS", "A stage with that name already exists");
@@ -264,6 +285,8 @@ export async function createStage(
     position: current.length ? Math.max(...current.map((s) => s.position)) + 1 : 0,
     ...input,
   });
+  // A new open stage goes after the last open one, before Won and Lost; a new outcome goes last.
+  await writeOrder(req, [...current, { id, kind: input.kind }]);
   await audit(req, {
     action: "stage.created",
     entityType: "stage",
@@ -274,7 +297,12 @@ export async function createStage(
 }
 
 export async function updateStage(req: FastifyRequest, id: string, patch: StageInput) {
-  const s = await liveStage(req, id);
+  let s = await liveStage(req, id);
+  // A new kind reorders the stages and must leave a Won and a Lost: one such change at a time, read after.
+  if (patch.kind) {
+    await lockStages(req, s.pipelineId);
+    s = await liveStage(req, id);
+  }
   await assertFieldsExist(req, patch.requiredFieldIds);
   await assertRulePeople(req, patch.onEnter);
   await assertMoves(req, s.pipelineId, patch);
@@ -286,6 +314,13 @@ export async function updateStage(req: FastifyRequest, id: string, patch: StageI
   }
   if (Object.keys(patch).length)
     await req.db.update(schema.stages).set(patch).where(eq(schema.stages.id, id));
+  // A stage that changes kind moves to its group: made Won or Lost, it's the first outcome; made open, the
+  // last open stage.
+  if (patch.kind && patch.kind !== s.kind)
+    await writeOrder(
+      req,
+      (await liveStages(req, s.pipelineId)).map((x) => (x.id === id ? { ...x, kind: patch.kind! } : x)),
+    );
   if (patch.kind === "lost") await dropMovesTo(req, id);
   // Won or lost now: booked leads can't go there (review L5).
   if (patch.kind && patch.kind !== "open")
@@ -302,6 +337,8 @@ export async function updateStage(req: FastifyRequest, id: string, patch: StageI
 }
 
 export async function reorderStages(req: FastifyRequest, pipelineId: string, stageIds: string[]) {
+  await livePipeline(req, pipelineId);
+  await lockStages(req, pipelineId);
   const current = await liveStages(req, pipelineId);
   const want = new Set(stageIds);
   if (
@@ -311,8 +348,11 @@ export async function reorderStages(req: FastifyRequest, pipelineId: string, sta
   ) {
     throw badRequest("STAGE_ORDER_INCOMPLETE", "List every active stage of the pipeline exactly once");
   }
-  for (const [i, sid] of stageIds.entries())
-    await req.db.update(schema.stages).set({ position: i }).where(eq(schema.stages.id, sid));
+  const byId = new Map(current.map((s) => [s.id, s]));
+  await writeOrder(
+    req,
+    stageIds.map((sid) => ({ id: sid, kind: byId.get(sid)!.kind })),
+  );
   await audit(req, {
     action: "stage.reordered",
     entityType: "pipeline",
@@ -323,7 +363,8 @@ export async function reorderStages(req: FastifyRequest, pipelineId: string, sta
 }
 
 export async function archiveStage(req: FastifyRequest, id: string, moveToStageId?: string) {
-  const s = await liveStage(req, id);
+  await lockStages(req, (await liveStage(req, id)).pipelineId);
+  const s = await liveStage(req, id); // read again under the lock: someone may have archived it meanwhile
   const siblings = await liveStages(req, s.pipelineId);
   assertKinds(siblings.filter((x) => x.id !== id));
   assertFullVisibility(req);

@@ -40,7 +40,14 @@ describe("pipelines & stages (report §6)", () => {
         payload: { name: "Pitched", kind: "open", color: "warn", winProbability: 50 },
       })
     ).json().stage;
-    expect(s).toMatchObject({ name: "Pitched", position: 3, color: "warn", winProbability: 50 });
+    // A new open stage lands before the outcomes, in one call: never after Lost.
+    expect(s).toMatchObject({ name: "Pitched", position: 1, color: "warn", winProbability: 50 });
+    const listed = async () =>
+      (await admin.inject({ method: "GET", url: "/api/v1/pipelines" }))
+        .json()
+        .pipelines.find((x: { id: string }) => x.id === p.id)
+        .stages.map((x: { name: string }) => x.name);
+    expect(await listed()).toEqual(["New", "Pitched", "Won", "Lost"]);
     const order = [s.id, ...p.stages.map((x: { id: string }) => x.id)];
     const re = (
       await admin.inject({
@@ -59,6 +66,96 @@ describe("pipelines & stages (report §6)", () => {
         })
       ).json().error.code,
     ).toBe("STAGE_ORDER_INCOMPLETE");
+  });
+
+  it("keeps the outcomes after the open stages, whatever order is sent or kind is set", async () => {
+    const p = (
+      await admin.inject({ method: "POST", url: "/api/v1/pipelines", payload: { name: "Ordered" } })
+    ).json().pipeline;
+    const [neu, won, lost] = p.stages as { id: string }[];
+    const pitched = (
+      await admin.inject({
+        method: "POST",
+        url: `/api/v1/pipelines/${p.id}/stages`,
+        payload: { name: "Pitched", kind: "open" },
+      })
+    ).json().stage;
+    const names = (x: { stages: { name: string }[] }) => x.stages.map((s) => s.name);
+    // Lost and Won sent first: the open stages still lead, each group keeps the order it was sent in.
+    const re = (
+      await admin.inject({
+        method: "PUT",
+        url: `/api/v1/pipelines/${p.id}/stage-order`,
+        payload: { stageIds: [lost!.id, pitched.id, won!.id, neu!.id] },
+      })
+    ).json().pipeline;
+    expect(names(re)).toEqual(["Pitched", "New", "Lost", "Won"]);
+    expect(re.stages.map((s: { position: number }) => s.position)).toEqual([0, 1, 2, 3]);
+    // An open stage made Won joins the outcomes, first among them; made open again, it's the last open stage.
+    await admin.inject({ method: "PATCH", url: `/api/v1/stages/${pitched.id}`, payload: { kind: "won" } });
+    const listed = async () =>
+      (await admin.inject({ method: "GET", url: "/api/v1/pipelines" }))
+        .json()
+        .pipelines.find((x: { id: string }) => x.id === p.id);
+    expect(names(await listed())).toEqual(["New", "Pitched", "Lost", "Won"]);
+    await admin.inject({ method: "PATCH", url: `/api/v1/stages/${pitched.id}`, payload: { kind: "open" } });
+    expect(names(await listed())).toEqual(["New", "Pitched", "Lost", "Won"]);
+    await admin.inject({ method: "PATCH", url: `/api/v1/stages/${neu!.id}`, payload: { kind: "lost" } });
+    expect(names(await listed())).toEqual(["Pitched", "New", "Lost", "Won"]);
+    expect((await listed()).stages.map((s: { position: number }) => s.position)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("only someone who manages pipelines can reorder stages", async () => {
+    const rep = await h.signIn(await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] }));
+    const p = (await admin.inject({ method: "GET", url: "/api/v1/pipelines" })).json().pipelines[0];
+    const ids = p.stages.map((s: { id: string }) => s.id);
+    const r = await rep.inject({
+      method: "PUT",
+      url: `/api/v1/pipelines/${p.id}/stage-order`,
+      payload: { stageIds: [...ids].reverse() },
+    });
+    expect(r.statusCode).toBe(403);
+    const after = (await admin.inject({ method: "GET", url: "/api/v1/pipelines" })).json().pipelines[0];
+    expect(after.stages.map((s: { id: string }) => s.id)).toEqual(ids);
+  });
+
+  it("two people reordering at once both get an answer, and one whole order wins (never a mix)", async () => {
+    const other = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+    const p = (
+      await admin.inject({ method: "POST", url: "/api/v1/pipelines", payload: { name: "Busy" } })
+    ).json().pipeline;
+    for (const name of ["One", "Two", "Three", "Four", "Five", "Six"])
+      await admin.inject({
+        method: "POST",
+        url: `/api/v1/pipelines/${p.id}/stages`,
+        payload: { name, kind: "open" },
+      });
+    const read = async () =>
+      (await admin.inject({ method: "GET", url: "/api/v1/pipelines" }))
+        .json()
+        .pipelines.find((x: { id: string }) => x.id === p.id)
+        .stages.map((s: { id: string }) => s.id) as string[];
+    const all = await read();
+    const open = all.slice(0, -2);
+    const outcomes = all.slice(-2);
+    const forward = [...open, ...outcomes];
+    const backward = [...[...open].reverse(), ...outcomes];
+    for (let round = 0; round < 8; round++) {
+      const [a, b] = await Promise.all([
+        admin.inject({
+          method: "PUT",
+          url: `/api/v1/pipelines/${p.id}/stage-order`,
+          payload: { stageIds: forward },
+        }),
+        other.inject({
+          method: "PUT",
+          url: `/api/v1/pipelines/${p.id}/stage-order`,
+          payload: { stageIds: backward },
+        }),
+      ]);
+      expect([a.statusCode, b.statusCode]).toEqual([200, 200]);
+      expect([forward, backward]).toContainEqual(await read());
+    }
   });
 
   it("keeps at least one won and one lost stage", async () => {

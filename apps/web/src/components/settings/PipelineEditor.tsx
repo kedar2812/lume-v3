@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { describeRule, type OnEnter } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -71,6 +71,8 @@ export function PipelineEditor({
   const [forbidden, setForbidden] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ReminderTemplate[]>([]);
+  // Which order change is the latest: only its reply may change what's shown (an older one can land later).
+  const orderSeq = useRef(0);
   // The reminder messages a meeting reminder may send (4A's "reminder" templates).
   useEffect(() => {
     void templatesClient.list().then((r) => {
@@ -114,13 +116,27 @@ export function PipelineEditor({
       })),
     );
     setNote(saved);
+    // A new kind moves the stage to its group (LUME reorders it): read the order back.
+    if (change.kind && change.kind !== stage.kind) {
+      const seq = ++orderSeq.current;
+      const fresh = await pipelinesClient.list();
+      if (seq === orderSeq.current && fresh.ok) setPipelines(fresh.data.pipelines);
+    }
   };
 
+  /** Saves a new order at once on screen; a refusal says why and shows the order LUME has saved. */
   const reorder = async (ids: string[]) => {
-    const before = stages;
-    setStages(ids.map((id, position) => ({ ...stages.find((x) => x.id === id)!, position })));
+    const seq = ++orderSeq.current;
+    const byId = new Map(stages.map((x) => [x.id, x]));
+    setStages(ids.flatMap((id, position) => (byId.has(id) ? [{ ...byId.get(id)!, position }] : [])));
+    setNote(null);
     const r = await pipelinesClient.reorder(pipeline.id, ids);
-    if (!landed(r)) return setStages(before);
+    if (seq !== orderSeq.current) return; // a newer move is on its way: its reply is the one that counts
+    if (!landed(r)) {
+      const fresh = await pipelinesClient.list();
+      if (seq === orderSeq.current && fresh.ok) setPipelines(fresh.data.pipelines);
+      return;
+    }
     replacePipeline(r.data.pipeline);
     setNote({ text: "Saved" });
   };
@@ -129,12 +145,18 @@ export function PipelineEditor({
     setNote(null);
     const r = await pipelinesClient.addStage(pipeline.id, { name, kind: "open" });
     if (!landed(r)) return;
-    // A new open stage belongs before the outcomes, not after Lost.
-    const ids = stages.map((x) => x.id);
-    const at = stages.findIndex((x) => x.kind !== "open");
-    ids.splice(at < 0 ? ids.length : at, 0, r.data.stage.id);
-    setStages([...stages, r.data.stage]);
-    await reorder(ids);
+    // LUME puts a new open stage after the last open one, before Won and Lost: shown the same way here.
+    const stage = r.data.stage;
+    setPipelines((all) =>
+      all.map((p) => {
+        if (p.id !== pipeline.id) return p;
+        const rest = sorted(p).filter((x) => x.id !== stage.id);
+        const at = rest.findIndex((x) => x.kind !== "open");
+        rest.splice(at < 0 ? rest.length : at, 0, stage);
+        return { ...p, stages: rest.map((x, position) => ({ ...x, position })) };
+      }),
+    );
+    setNote({ text: `${stage.name} added` });
   };
 
   const rename = (stage: Stage, name: string) =>

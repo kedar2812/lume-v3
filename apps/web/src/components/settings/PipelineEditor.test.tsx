@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testCatalog } from "@/lib/leads/test-catalog";
@@ -67,6 +67,98 @@ const added: Stage = {
   requiredFieldIds: [],
 };
 const renderEditor = () => render(<PipelineEditor pipelines={catalog.pipelines} fields={catalog.fields} />);
+/** The names in one of the editor's lists ("Stages" or "Outcomes"), top to bottom, as shown. */
+const rowNames = (list: string) =>
+  within(screen.getByRole("list", { name: list }))
+    .getAllByRole("button", { name: /^Move / })
+    .map((b) => b.getAttribute("aria-label")!.replace(/^Move /, ""));
+const pipelineOf = (ids: string[]) =>
+  ({
+    ...catalog.pipelines[0]!,
+    stages: ids.map((sid, position) => ({ ...stageOf(sid), position })),
+  }) as Pipeline;
+const deferred = <T,>() => {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+};
+
+describe("PipelineEditor: the stage order", () => {
+  it("a reply that comes back late never undoes a newer move", async () => {
+    const first = deferred<ReturnType<typeof ok<{ pipeline: Pipeline }>>>();
+    const second = deferred<ReturnType<typeof ok<{ pipeline: Pipeline }>>>();
+    vi.mocked(pipelinesClient.reorder)
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
+    renderEditor();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Move New" }), { key: "ArrowDown" });
+    expect(rowNames("Stages")).toEqual(["Message sent", "New", "Call booked"]);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Move New" }), { key: "ArrowDown" });
+    expect(rowNames("Stages")).toEqual(["Message sent", "Call booked", "New"]);
+    await act(async () =>
+      second.resolve(ok({ pipeline: pipelineOf(["s-sent", "s-booked", "s-new", "s-won", "s-lost"]) })),
+    );
+    await act(async () =>
+      first.resolve(ok({ pipeline: pipelineOf(["s-sent", "s-new", "s-booked", "s-won", "s-lost"]) })),
+    );
+    expect(rowNames("Stages")).toEqual(["Message sent", "Call booked", "New"]);
+  });
+
+  it("a refused move says why and shows the order LUME has saved", async () => {
+    vi.mocked(pipelinesClient.reorder).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      code: "STAGE_ORDER_INCOMPLETE",
+      message: "List every active stage of the pipeline exactly once",
+    });
+    // Someone else moved Call booked to the top meanwhile: that's what's saved, so that's what shows.
+    vi.mocked(pipelinesClient.list).mockResolvedValueOnce(
+      ok({ pipelines: [pipelineOf(["s-booked", "s-new", "s-sent", "s-won", "s-lost"])] }),
+    );
+    renderEditor();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Move New" }), { key: "ArrowDown" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "List every active stage of the pipeline exactly once",
+    );
+    expect(rowNames("Stages")).toEqual(["Call booked", "New", "Message sent"]);
+  });
+
+  it("a new stage stays on screen even if loading the order afterwards fails", async () => {
+    vi.mocked(pipelinesClient.addStage).mockResolvedValue(ok({ stage: added }));
+    vi.mocked(pipelinesClient.reorder).mockResolvedValue({
+      ok: false,
+      status: 503,
+      code: "UNAVAILABLE",
+      message: "LUME couldn't save that just now.",
+    });
+    renderEditor();
+    await userEvent.type(screen.getByRole("textbox", { name: "New stage" }), "Proposal sent{Enter}");
+    await screen.findByText("Proposal sent");
+    expect(rowNames("Stages")).toContain("Proposal sent");
+  });
+
+  it("a stage made Won moves to the outcomes, as LUME saves it", async () => {
+    vi.mocked(pipelinesClient.list).mockResolvedValueOnce(
+      ok({
+        pipelines: [
+          {
+            ...pipelineOf(["s-new", "s-booked", "s-sent", "s-won", "s-lost"]),
+            stages: pipelineOf(["s-new", "s-booked", "s-sent", "s-won", "s-lost"]).stages.map((x) =>
+              x.id === "s-sent" ? { ...x, kind: "won" as const } : x,
+            ),
+          },
+        ],
+      }),
+    );
+    renderEditor();
+    await userEvent.click(screen.getByRole("button", { name: "Open Message sent" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Kind of Message sent" }), "won");
+    expect(pipelinesClient.patchStage).toHaveBeenCalledWith("s-sent", { kind: "won" });
+    expect(pipelinesClient.list).toHaveBeenCalled(); // the order is LUME's, read back
+    await vi.waitFor(() => expect(rowNames("Outcomes")).toEqual(["Message sent", "Won", "Lost"]));
+    expect(rowNames("Stages")).toEqual(["New", "Call booked"]);
+  });
+});
 
 describe("PipelineEditor", () => {
   it("renames, recolours and reorders stages, and saves each change as it's made", async () => {
@@ -149,19 +241,16 @@ describe("PipelineEditor", () => {
     expect(screen.getByRole("combobox", { name: "Kind of Won" })).toHaveValue("won"); // put back
   });
 
-  it("adds a new stage just before Won and Lost", async () => {
+  it("adds a new stage just before Won and Lost, in one save (LUME puts it there itself)", async () => {
     vi.mocked(pipelinesClient.addStage).mockResolvedValue(ok({ stage: added }));
     renderEditor();
     await userEvent.type(screen.getByRole("textbox", { name: "New stage" }), "Proposal sent{Enter}");
     expect(pipelinesClient.addStage).toHaveBeenCalledWith("p1", { name: "Proposal sent", kind: "open" });
-    expect(pipelinesClient.reorder).toHaveBeenCalledWith("p1", [
-      "s-new",
-      "s-sent",
-      "s-booked",
-      "s-prop",
-      "s-won",
-      "s-lost",
-    ]);
+    await screen.findByText("Proposal sent");
+    expect(rowNames("Stages")).toEqual(["New", "Message sent", "Call booked", "Proposal sent"]);
+    expect(rowNames("Outcomes")).toEqual(["Won", "Lost"]);
+    // No second save that could fail and take the new stage off the screen while it's saved.
+    expect(pipelinesClient.reorder).not.toHaveBeenCalled();
   });
 
   it("sets how long a lead may sit in a stage, or clears it", async () => {

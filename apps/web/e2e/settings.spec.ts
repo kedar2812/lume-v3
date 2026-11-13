@@ -32,6 +32,53 @@ const stages = async (page: Page) =>
 const roleNamed = async (page: Page, name: string) =>
   (await callApi<{ roles: Role[] }>(page, "GET", "/api/v1/roles")).data.roles.find((r) => r.name === name)!;
 
+test("@smoke drag a stage to a new place; it sticks after a reload and the board follows", async ({
+  page,
+}) => {
+  await openApp(page, "/settings/pipeline");
+  const before = await stages(page);
+  const shown = () =>
+    page
+      .getByRole("list", { name: "Stages" })
+      .getByRole("button", { name: /^Move / })
+      .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")!.replace(/^Move /, "")));
+  try {
+    const open = await shown();
+    expect(open.slice(0, 3)).toEqual(["New", "Message sent", "Replied"]);
+    // Grab Replied by its handle and drop it above New, with a real mouse.
+    const list = page.getByRole("list", { name: "Stages" });
+    const handle = list.getByRole("button", { name: "Move Replied", exact: true });
+    const target = list.getByRole("button", { name: "Move New", exact: true });
+    const a = (await handle.boundingBox())!;
+    const b = (await target.boundingBox())!;
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 - 6, { steps: 3 });
+    await page.mouse.move(b.x + b.width / 2, b.y - 4, { steps: 12 });
+    await page.mouse.up();
+    const want = ["Replied", "New", "Message sent", ...open.slice(3)];
+    await expect.poll(shown).toEqual(want);
+    await expect(note(page, "Saved")).toBeVisible();
+
+    await page.reload();
+    await expect.poll(shown).toEqual(want);
+    await openApp(page, "/pipeline");
+    const columns = await page
+      .getByRole("region", { name: /,/ })
+      .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")!.split(",")[0]));
+    expect(columns.slice(0, 3)).toEqual(["Replied", "New", "Message sent"]);
+  } finally {
+    await callApi(
+      page,
+      "PUT",
+      `/api/v1/pipelines/${(await callApi<{ pipelines: { id: string }[] }>(page, "GET", "/api/v1/pipelines")).data.pipelines[0]!.id}/stage-order`,
+      {
+        stageIds: before.map((s) => s.id),
+      },
+    );
+  }
+});
+
 test("@smoke rename a stage and see it on the board", async ({ page }) => {
   await openApp(page, "/settings/pipeline");
   const replied = (await stages(page)).find((s) => s.name === "Replied")!;
