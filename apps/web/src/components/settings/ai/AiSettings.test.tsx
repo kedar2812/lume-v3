@@ -43,6 +43,8 @@ const status: AiStatus = {
   hour: { used: 2, limit: 100, resetsAt: "2026-10-21T11:00:00.000Z" },
   week: { used: 0, limit: null, resetsAt: "2026-10-25T18:30:00.000Z" },
   month: { used: 300, limit: 3000, resetsAt: "2026-10-31T18:30:00.000Z" },
+  leads: { used: 0, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
+  countsLeads: false,
   paused: null,
   spend: null,
   pace: { daysLeft: null },

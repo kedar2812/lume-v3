@@ -6,7 +6,8 @@ export type RunGoal =
   { kind: "stage"; stageId: string } | { kind: "reply" } | { kind: "brief"; text: string };
 export type Permissions = Record<AutopilotAction, Allow>;
 export type Available = { ok: true } | { ok: false; why: string; fixHref: string | null };
-export type ReadyCode = "AI_OFF" | "AI_MONTH" | "REPLY_OFF" | "NO_NUMBER" | "NUMBER_QUALITY" | "NO_TEMPLATES";
+export type ReadyCode =
+  "AI_OFF" | "AI_MONTH" | "AI_LEADS" | "REPLY_OFF" | "NO_NUMBER" | "NUMBER_QUALITY" | "NO_TEMPLATES";
 
 /** `GET /api/v1/autopilot/setup`: what the start sheet opens with. */
 export type AutopilotSetup = {
@@ -46,6 +47,8 @@ export type Estimate = {
   firstMessages: number;
   metaCost: { amount: number; currency: string } | null;
   monthShare: number | null;
+  /** This month's AI leads left (2026-11-12), when the licence counts them with a limit; else null. */
+  aiLeadsLeft?: number | null;
 };
 
 export type RunView = {

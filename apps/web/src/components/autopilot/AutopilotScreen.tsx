@@ -332,7 +332,7 @@ export function AutopilotScreen({
                 </Link>
               </div>
               <p className={s.offNote}>
-                Settings → Integrations → LUME AI. It uses your plan&apos;s monthly allowance.
+                Settings → Integrations → LUME AI. It uses your plan&apos;s AI leads for the month.
               </p>
             </>
           ) : (

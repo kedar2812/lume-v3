@@ -9,9 +9,10 @@ const BUSY: readonly LeadState[] = ["up_next", "writing", "replied"];
 
 const PAUSED: Record<string, { title: string; line: string }> = {
   person: { title: "Paused", line: "Nothing is sent until you resume." },
+  // The month's hidden safety net (AI leads, 2026-11-12), or an older licence's monthly allowance.
   month: {
-    title: "Paused: this month's LUME AI is used",
-    line: "It carries on by itself once a top-up is added.",
+    title: "Paused for the rest of the month",
+    line: "It carries on by itself on the 1st, or once a top-up is added.",
   },
   quality: {
     title: "Paused to protect your WhatsApp number",
@@ -32,6 +33,9 @@ const PAUSED: Record<string, { title: string; line: string }> = {
 };
 
 const n = (x: number) => x.toLocaleString("en-US");
+/** How the engine says a lead waits for this month's AI leads (its LEADS_HELD, 2026-11-12). */
+export const isHeldForLeads = (l: Pick<RunLead, "reason">) =>
+  !!l.reason?.startsWith("This month's AI leads are used up.");
 
 /** Messaged, replied, ready for you and stopped, from what really happened to each lead (spec §2's counts). */
 export function runCounts(d: RunDetail) {
@@ -73,6 +77,13 @@ export function runStatus(
       .map((l) => l.nextAt)
       .filter((x): x is string => !!x)
       .sort()[0];
+  // Every lead left to write to waits for this month's AI leads: it says so, not when a message goes.
+  if (busy.length && busy.every(isHeldForLeads))
+    return {
+      title: "Waiting for more AI leads",
+      line: "This month's are used up. These leads start on the 1st, or sooner with a top-up.",
+      working: false,
+    };
   if (busy.length) {
     const next = soonest(busy);
     return {

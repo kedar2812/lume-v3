@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import {
   AI_OUTPUT_TOKENS,
   ACTIVE_STATES,
+  aiMonthKey,
+  aiWindows,
+  backWords,
   autopilotFirstOutput,
   autopilotInput,
   autopilotInstructions,
@@ -48,7 +51,7 @@ import { loadFieldRegistry } from "../../leads/fields";
 import { heldBack } from "../../licence/enforce";
 import { loadActor } from "../../rbac/actor";
 import { openStages, filesOf } from "../ai/profile";
-import { aiStatus, runRead } from "../ai/service";
+import { aiLeadsRoom, aiStatus, runRead, startAiLead } from "../ai/service";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { setDoNotContact } from "../leads/dnc";
 import { contextFor } from "../leads/sending";
@@ -63,6 +66,7 @@ import { createTask } from "../tasks/service";
 import { attachLibraryFile, sendReply } from "../whatsapp/send";
 import { allScope } from "../whatsapp/sender";
 import { approvedFor, labelsOf, sendTemplate } from "../whatsapp/template-send";
+import { handOverAtMax } from "./at-max";
 import { tellPeople } from "./ready";
 
 export type EngineDeps = { app: FastifyInstance; d: AppDeps };
@@ -147,20 +151,31 @@ export async function pauseRunsOnNumber(pool: pg.Pool, numberId: string, reason:
   for (const r of rows) await pauseRun(pool, r.id, reason);
 }
 
-/** Runs with something due now, and runs paused by the month's allowance (they resume by themselves after a top-up). */
+/**
+ * Runs with something due now, runs paused by the month's allowance, and runs with leads held for the month's AI leads
+ * (both carry on by themselves after a top-up).
+ */
 export async function dueRuns(pool: pg.Pool, now: Date): Promise<string[]> {
   return allScope(pool, async (c) => {
     const { rows } = await c.query<{ id: string }>(
       `SELECT DISTINCT r.id FROM autopilot_runs r
          JOIN autopilot_leads l ON l.run_id = r.id AND l.active
         WHERE (r.status = 'running' AND l.state = ANY($2) AND (l.next_at IS NULL OR l.next_at <= $1))
+           OR (r.status = 'running' AND l.state = ANY($2) AND l.reason = $3 AND l.next_at > $1)
            OR (r.status = 'paused' AND r.pause_reason = 'month')`,
       // Only leads LUME AI is working on: one that's with a person, or ready for them, waits for that person.
-      [now, ACTIVE_STATES],
+      [now, ACTIVE_STATES, LEADS_HELD],
     );
     return rows.map((r) => r.id);
   });
 }
+
+/**
+ * Why a lead waits to start (AI leads, 2026-11-12): this month's AI leads are used up. It starts on the 1st, or as soon
+ * as a top-up makes room; leads LUME AI is already talking to carry on meanwhile.
+ */
+export const LEADS_HELD =
+  "This month's AI leads are used up. LUME AI starts on this lead on the 1st, or sooner with a top-up.";
 
 /** A stable key for one message of a run, so a retried step never sends it twice (the outbox's client key). */
 function messageKey(runId: string, leadId: string, n: string): string {
@@ -256,6 +271,27 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
         .select()
         .from(L)
         .where(and(eq(L.runId, runId), eq(L.active, true)));
+
+      // Held for the month's AI leads: a top-up (or the 1st) lets them start now.
+      const held = leads.filter(
+        (l) =>
+          ACTIVE_STATES.includes(l.state) && l.reason === LEADS_HELD && l.nextAt !== null && l.nextAt > now,
+      );
+      if (held.length && (await aiLeadsRoom(req, o.d))) {
+        await req.db
+          .update(L)
+          .set({ nextAt: now, reason: null, updatedAt: now })
+          .where(
+            and(
+              eq(L.runId, runId),
+              inArray(
+                L.leadId,
+                held.map((l) => l.leadId),
+              ),
+            ),
+          );
+        return held.length;
+      }
 
       // One lead at a time: a message being written goes when the screen has revealed it.
       const writing = leads.find((l) => l.state === "writing");
@@ -453,6 +489,21 @@ async function writeTemplate(
       "skipped",
       `No approved template fits this lead yet: it has no ${missing.join(", ")}.`,
     );
+  }
+  if (n === 0) {
+    // Starting on this lead counts it this month (AI leads, 2026-11-12), with or without a read to choose.
+    const started = await startAiLead(req, o.d, lead.id);
+    if (!started.ok) {
+      if (started.why === "lead_cap") {
+        await handOverAtMax(req, o.d, lead.id, started.month, started.back);
+        return 1;
+      }
+      await req.db
+        .update(schema.autopilotLeads)
+        .set({ nextAt: new Date(started.until), reason: LEADS_HELD, updatedAt: o.d.clock() })
+        .where(keyOf(l));
+      return 1;
+    }
   }
   let chosen = fits[0]!;
   let thought = `Only one approved template fits ${firstNameOf(lead.name ?? "") || "this lead"}, so LUME AI uses it.`;
@@ -747,7 +798,19 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     fieldKeys,
     calls: c.callCheck,
   });
-  return actOn(o, req, run, l, lead, g, c.lastLeadMessage, r.output.reason, carried, !!c.calls?.meet);
+  return actOn(
+    o,
+    req,
+    run,
+    l,
+    lead,
+    g,
+    c.lastLeadMessage,
+    r.output.reason,
+    carried,
+    !!c.calls?.meet,
+    !!r.atMax,
+  );
 }
 
 /** What a guarded answer does to the lead (§2–§3). Stop, ask and Ready for you are finished in Tasks 7–8. */
@@ -765,6 +828,8 @@ async function actOn(
   carried = false,
   /** The reply was written to carry LUME's Meet link (meetsOn when it was read). */
   meet = false,
+  /** This reply was the lead's 20th counted read this month: once it's sent, the lead goes to a person. */
+  atMax = false,
 ) {
   if (g.kind === "stop") {
     await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", byAi: { runId: run.id } });
@@ -816,7 +881,13 @@ async function actOn(
       state: "writing",
       draft: g.message,
       // Whether the yes was written to carry LUME's Meet link: the booking makes one only then (review 2026-11-04).
-      draftPayload: { kind: "reply", fileIds: g.fileIds, updates: g.updates, meet },
+      draftPayload: {
+        kind: "reply",
+        fileIds: g.fileIds,
+        updates: g.updates,
+        meet,
+        ...(atMax ? { atMax } : {}),
+      },
       thought: reason.trim().slice(0, 200) || null,
       nextAt: new Date(o.d.clock().getTime() + revealMs(g.message)),
       fails: 0,
@@ -846,6 +917,16 @@ async function unavailable(
   }
   if (r.unavailable === "off" || r.unavailable === "not_configured")
     return (await pauseRun(poolOf(o.d), run.id, "person")) ? 1 : 0;
+  // Its 20 this month: runRead has handed it to a person already.
+  if (r.unavailable === "lead_cap") return 1;
+  if (r.unavailable === "leads") {
+    // A lead that isn't one of this month's AI leads (it last talked last month): it waits for room, like a new one.
+    await req.db
+      .update(schema.autopilotLeads)
+      .set({ nextAt: new Date(r.until!), reason: LEADS_HELD, updatedAt: o.d.clock() })
+      .where(keyOf(l));
+    return 1;
+  }
   if (l.fails + 1 >= MAX_FAILS)
     return leave(req, l, "needs_you", "LUME AI couldn't write to this lead just now.");
   await req.db
@@ -874,6 +955,8 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
     kind?: "template" | "reply";
     /** The reply was written to carry LUME's Meet link (its read's meetsOn). */
     meet?: boolean;
+    /** It was the lead's 20th counted read this month (AI leads): handed to a person once it's sent. */
+    atMax?: boolean;
     submissionId?: string;
     n?: number;
     fileIds?: string[];
@@ -959,6 +1042,8 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       firstSentAt: now.firstSentAt ?? at,
       lastSentAt: at,
       followUpsSent: p.kind === "template" ? (p.n ?? 0) : 0,
+      // It waited for this month's AI leads and has started now: that's no longer why.
+      ...(now.reason === LEADS_HELD ? { reason: null } : {}),
       draft: null,
       draftPayload: null,
       thought: null,
@@ -970,8 +1055,19 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   await sayIn(req, run.id, l.leadId, "sent");
   if (booked) return callBooked(o, req, run, { ...now, state: "talking" }, booked.label);
   // The lead's move into the goal stage (by this reply's update, or anyone's): converted.
-  await reachedGoal(o, req, run, { ...now, state: p.kind === "template" ? "sent" : "talking" });
+  if (await reachedGoal(o, req, run, { ...now, state: p.kind === "template" ? "sent" : "talking" })) return 1;
+  // Its 20th counted read this month went: a person's from here until the 1st.
+  if (p.atMax) await handOverAtMax(req, o.d, l.leadId, ...(await atMaxMonth(req, o.d)));
   return 1;
+}
+
+/** This month's key and "on December 1", on the business's clock, for a lead handed over at its 20. */
+async function atMaxMonth(req: FastifyRequest, d: AppDeps): Promise<[string, string]> {
+  const [s] = await req.db.select({ tz: schema.settings.timezone }).from(schema.settings);
+  const tz = s?.tz ?? "UTC";
+  const now = d.clock();
+  const w = aiWindows(now, tz);
+  return [aiMonthKey(now, tz), backWords({ by: "month", until: w.nextMonthStart.toISOString() }, now, tz)];
 }
 
 /**

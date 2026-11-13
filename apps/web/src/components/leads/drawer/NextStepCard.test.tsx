@@ -180,6 +180,19 @@ describe("the suggested next step (spec 2026-10-18 §5.2, canvas board NextStep)
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("AI leads (2026-11-12): this month's are used up and this lead isn't one: says so, with no button", async () => {
+    vi.mocked(aiClient.nextStep).mockResolvedValue(
+      ok({ unavailable: "leads" as const, until: "2026-10-31T18:30:00.000Z" }),
+    );
+    show();
+    expect(
+      await screen.findByText(
+        "This month's AI leads are used up, so LUME AI can't start on this lead. It can on November 1, or sooner with a top-up.",
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("when the read fails, Try again reads it again", async () => {
     vi.mocked(aiClient.nextStep).mockResolvedValueOnce(ok({ unavailable: "failed" as const }));
     show();

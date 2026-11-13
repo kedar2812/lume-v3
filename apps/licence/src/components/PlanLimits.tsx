@@ -1,4 +1,5 @@
 "use client";
+import { AI_LEAD_TIERS } from "@lume/core/shared";
 import { useState } from "react";
 import { api } from "@/lib/client";
 
@@ -13,11 +14,15 @@ export type Plan = {
   /** LUME AI calls a month (Autopilot spec 2026-10-19 §4), and the top-ups signed around this month. */
   aiCallsMonthly: number | null;
   aiTopUps: { month: string; calls: number }[];
+  /** AI leads a month (2026-11-12): Base 0; null no limit. Absent from a server answer before them. */
+  aiLeadsMonthly?: number | null;
+  aiLeadTopUps?: { month: string; leads: number }[];
 };
 /**
  * `knowsAi`: their LUME accepts plan2, so it keeps LUME AI, WhatsApp and the AI limits (spec 2026-10-18 §2.2).
  * `knowsPaid`: it accepts plan3, so it keeps the monthly limit on paid WhatsApp messages (W3b-2).
  * `knowsMonthly`: it accepts plan4, so LUME AI a month replaces its weekly reads (Autopilot A1).
+ * `knowsLeads`: it accepts plan5, so it counts AI leads (2026-11-12); an older one counts 7 actions for each.
  */
 export type Usage = {
   people: number;
@@ -26,6 +31,7 @@ export type Usage = {
   knowsAi: boolean;
   knowsPaid: boolean;
   knowsMonthly: boolean;
+  knowsLeads?: boolean;
 };
 
 const MODULES: { key: Module; name: string; mark: string | null }[] = [
@@ -36,10 +42,27 @@ const MODULES: { key: Module; name: string; mark: string | null }[] = [
   { key: "ai", name: "LUME AI", mark: null },
   { key: "whatsapp", name: "WhatsApp", mark: "/brand/whatsapp.svg" },
 ];
-const AI_LIMITS = [
-  { key: "aiReadsHourly", label: "AI reads an hour", most: 100_000 },
-  { key: "aiReadsWeekly", label: "AI reads a week", most: 1_000_000 },
+/** The hidden safety net (AI leads, 2026-11-12): never shown to the client, sized well above use. */
+const SAFETY = [
+  { key: "aiReadsHourly", label: "Most an hour", most: 100_000, placeholder: "No limit" },
+  { key: "aiCallsMonthly", label: "Most a month", most: 10_000_000, placeholder: "Automatic" },
+  {
+    key: "aiReadsWeekly",
+    label: "Most a week (LUME before monthly limits)",
+    most: 1_000_000,
+    placeholder: "No limit",
+  },
 ] as const;
+const LEADS_MOST = 10_000_000;
+/** AI leads typed: empty is no limit; a whole number from 0 (Base) to the most; anything else is invalid. */
+const leadsOf = (typed: string): number | null | "invalid" => {
+  const t = typed.trim();
+  if (!t) return null;
+  if (!/^\d+$/.test(t)) return "invalid";
+  const n = Number(t);
+  return n <= LEADS_MOST ? n : "invalid";
+};
+const n = (x: number) => x.toLocaleString("en-IN");
 const PAID_MOST = 10_000_000;
 /** What's typed in an AI limit: empty is no limit; a whole number from 1 to its most; anything else is invalid. */
 const limitOf = (typed: string, most: number): number | null | "invalid" => {
@@ -78,7 +101,15 @@ export function PlanLimits({
     aiReadsWeekly: plan.aiReadsWeekly === null ? "" : String(plan.aiReadsWeekly),
     paidSendsMonthly: plan.paidSendsMonthly === null ? "" : String(plan.paidSendsMonthly),
     aiCallsMonthly: plan.aiCallsMonthly === null ? "" : String(plan.aiCallsMonthly),
+    aiLeadsMonthly:
+      plan.aiLeadsMonthly === null || plan.aiLeadsMonthly === undefined ? "" : String(plan.aiLeadsMonthly),
   });
+  // Custom is chosen to type a number no tier has; a tier's own number shows as that tier.
+  const [custom, setCustom] = useState(
+    plan.aiLeadsMonthly !== null &&
+      plan.aiLeadsMonthly !== undefined &&
+      !AI_LEAD_TIERS.some((t) => t.leads === plan.aiLeadsMonthly),
+  );
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -87,7 +118,13 @@ export function PlanLimits({
   const weekly = limitOf(typed.aiReadsWeekly, 1_000_000);
   const paid = limitOf(typed.paidSendsMonthly, PAID_MOST);
   const monthly = limitOf(typed.aiCallsMonthly, PAID_MOST);
-  const invalid = hourly === "invalid" || weekly === "invalid" || paid === "invalid" || monthly === "invalid";
+  const leads = leadsOf(typed.aiLeadsMonthly);
+  const invalid =
+    hourly === "invalid" ||
+    weekly === "invalid" ||
+    paid === "invalid" ||
+    monthly === "invalid" ||
+    leads === "invalid";
   const now = {
     places: unlimited ? null : places,
     modules,
@@ -95,6 +132,7 @@ export function PlanLimits({
     aiReadsWeekly: weekly === "invalid" ? null : weekly,
     paidSendsMonthly: paid === "invalid" ? null : paid,
     aiCallsMonthly: monthly === "invalid" ? null : monthly,
+    aiLeadsMonthly: leads === "invalid" ? null : leads,
   };
   const dirty =
     now.places !== plan.places ||
@@ -102,7 +140,14 @@ export function PlanLimits({
     now.aiReadsHourly !== plan.aiReadsHourly ||
     now.aiReadsWeekly !== plan.aiReadsWeekly ||
     now.paidSendsMonthly !== plan.paidSendsMonthly ||
-    now.aiCallsMonthly !== plan.aiCallsMonthly;
+    now.aiCallsMonthly !== plan.aiCallsMonthly ||
+    now.aiLeadsMonthly !== (plan.aiLeadsMonthly ?? null);
+  const tier = custom ? null : (AI_LEAD_TIERS.find((t) => t.leads === now.aiLeadsMonthly) ?? null);
+  const pick = (v: number | null, isCustom = false) =>
+    change(() => {
+      setCustom(isCustom);
+      setTyped((x) => ({ ...x, aiLeadsMonthly: v === null ? "" : String(v) }));
+    });
   const change = (f: () => void) => {
     f();
     setSaved(false);
@@ -252,15 +297,87 @@ export function PlanLimits({
         })}
       </div>
       <div className="pl-group">
-        <span className="pl-label">LUME AI limits</span>
+        <span className="pl-label">LUME AI</span>
         {usage.knows && !usage.knowsAi && (
           <span className="note">
             Their LUME{version ? ` (${version})` : ""} can’t keep LUME AI and WhatsApp settings yet; it will
             once it’s updated.
           </span>
         )}
+        <span className="pl-sub">AI leads a month</span>
+        <div className="chips" role="radiogroup" aria-label="AI leads a month">
+          {AI_LEAD_TIERS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className="chip"
+              role="radio"
+              aria-checked={tier?.key === t.key}
+              aria-label={`${t.name}: ${n(t.leads)} AI leads`}
+              onClick={() => pick(t.leads)}
+            >
+              {t.name} · {n(t.leads)}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="chip"
+            role="radio"
+            aria-checked={!custom && now.aiLeadsMonthly === null}
+            aria-label="No AI leads limit"
+            onClick={() => pick(null)}
+          >
+            No limit
+          </button>
+          <button
+            type="button"
+            className="chip"
+            role="radio"
+            aria-checked={custom}
+            onClick={() => pick(now.aiLeadsMonthly, true)}
+          >
+            Custom
+          </button>
+        </div>
+        {custom && (
+          <div className="pl-row">
+            <label className="field pl-limit">
+              <span>AI leads a month</span>
+              <input
+                className="input"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={LEADS_MOST}
+                step={1}
+                placeholder="No limit"
+                value={typed.aiLeadsMonthly}
+                aria-invalid={leads === "invalid" || undefined}
+                aria-describedby={leads === "invalid" ? "aiLeadsMonthly-problem" : undefined}
+                onChange={(e) => change(() => setTyped((x) => ({ ...x, aiLeadsMonthly: e.target.value })))}
+              />
+              {leads === "invalid" && (
+                <span id="aiLeadsMonthly-problem" className="pl-warn">
+                  A whole number from 0, or empty for no limit.
+                </span>
+              )}
+            </label>
+          </div>
+        )}
+        <span className="note">
+          {usage.knows && !usage.knowsLeads
+            ? `Their LUME${version ? ` (${version})` : ""} counts LUME AI by its actions until it’s updated: 7 for each AI lead, unless you set the month below.`
+            : "Leads LUME AI may start on in a month, on their clock from the 1st. Each counts once a month, and up to 20 replies and suggestions each. When they’re used up, leads it’s already working on carry on."}
+        </span>
+        {now.aiLeadsMonthly === 0 && (
+          <span className="note">
+            Base: LUME AI starts on no lead. Choosing a template and reading replies still work while LUME AI
+            is on; switch LUME AI off above to stop it all.
+          </span>
+        )}
+        <span className="pl-sub">Safety net (they never see it)</span>
         <div className="pl-row">
-          {AI_LIMITS.map((l) => {
+          {SAFETY.map((l) => {
             const bad = limitOf(typed[l.key], l.most) === "invalid";
             return (
               <label key={l.key} className="field pl-limit">
@@ -272,7 +389,7 @@ export function PlanLimits({
                   min={1}
                   max={l.most}
                   step={1}
-                  placeholder="No limit"
+                  placeholder={l.placeholder}
                   value={typed[l.key]}
                   aria-invalid={bad || undefined}
                   aria-describedby={bad ? `${l.key}-problem` : undefined}
@@ -280,40 +397,17 @@ export function PlanLimits({
                 />
                 {bad && (
                   <span id={`${l.key}-problem`} className="pl-warn">
-                    A whole number from 1, or empty for no limit.
+                    A whole number from 1, or empty for{" "}
+                    {l.placeholder === "Automatic" ? "automatic" : "no limit"}.
                   </span>
                 )}
               </label>
             );
           })}
         </div>
-        <div className="pl-row">
-          <label className="field pl-limit">
-            <span>LUME AI calls a month</span>
-            <input
-              className="input"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={PAID_MOST}
-              step={1}
-              placeholder="No limit"
-              value={typed.aiCallsMonthly}
-              aria-invalid={monthly === "invalid" || undefined}
-              aria-describedby={monthly === "invalid" ? "aiCallsMonthly-problem" : undefined}
-              onChange={(e) => change(() => setTyped((x) => ({ ...x, aiCallsMonthly: e.target.value })))}
-            />
-            {monthly === "invalid" && (
-              <span id="aiCallsMonthly-problem" className="pl-warn">
-                A whole number from 1, or empty for no limit.
-              </span>
-            )}
-          </label>
-        </div>
         <span className="note">
-          {usage.knows && !usage.knowsMonthly
-            ? `Their LUME${version ? ` (${version})` : ""} keeps the weekly reads until it’s updated; the month applies then.`
-            : "Every AI call their LUME makes, on their clock, from the 1st. It replaces the week; the hour still holds."}
+          How many times LUME AI may run, well above what they use. An empty month is automatic: 30 for each
+          AI lead, at least 1,000.
         </span>
       </div>
       <div className="pl-group">

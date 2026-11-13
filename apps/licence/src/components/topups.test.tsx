@@ -28,16 +28,21 @@ describe("LUME AI top-ups on a client's page (Autopilot spec 2026-10-19 §4)", (
       data: { topUps: { requests: [], added: [] } },
     } as never);
     render(
-      <TopUps clientId="c1" monthly={3000} topUps={{ requests: [REQUEST], added: [] }} onSaved={onSaved} />,
+      <TopUps clientId="c1" leads={1000} topUps={{ requests: [REQUEST], added: [] }} onSaved={onSaved} />,
     );
     const card = screen.getByRole("region", { name: "LUME AI top-ups" });
     expect(card).toHaveTextContent("Priya Shah asked for October 2026");
     expect(card).toHaveTextContent("Running Autopilot on a campaign.");
-    await user.type(within(card).getByRole("spinbutton", { name: "AI calls to add" }), "1500");
+    expect(card).toHaveTextContent("1,000 AI leads a month");
+    await user.type(within(card).getByRole("spinbutton", { name: "Packs of 100 AI leads" }), "3");
+    // T6: for the month asked for, only.
+    expect(card).toHaveTextContent(
+      "300 AI leads for October 2026 only: they don’t carry into the next month.",
+    );
     await user.click(within(card).getByRole("button", { name: "Add a top-up" }));
     expect(api.post).toHaveBeenCalledWith("/api/clients/c1/topup", {
       month: "2026-10",
-      calls: 1500,
+      packs: 3,
       note: "",
     });
     expect(onSaved).toHaveBeenCalled();
@@ -46,10 +51,12 @@ describe("LUME AI top-ups on a client's page (Autopilot spec 2026-10-19 §4)", (
   it("refuses an empty or a zero top-up before sending", async () => {
     const user = userEvent.setup();
     render(
-      <TopUps clientId="c1" monthly={3000} topUps={{ requests: [REQUEST], added: [] }} onSaved={vi.fn()} />,
+      <TopUps clientId="c1" leads={1000} topUps={{ requests: [REQUEST], added: [] }} onSaved={vi.fn()} />,
     );
+    // No month to choose: their month now only (no rollover).
+    expect(screen.queryByLabelText("Month")).toBeNull();
     expect(screen.getByRole("button", { name: "Add a top-up" })).toBeDisabled();
-    await user.type(screen.getByRole("spinbutton", { name: "AI calls to add" }), "0");
+    await user.type(screen.getByRole("spinbutton", { name: "Packs of 100 AI leads" }), "0");
     expect(screen.getByRole("button", { name: "Add a top-up" })).toBeDisabled();
   });
 
@@ -57,16 +64,20 @@ describe("LUME AI top-ups on a client's page (Autopilot spec 2026-10-19 §4)", (
     render(
       <TopUps
         clientId="c1"
-        monthly={3000}
+        leads={1000}
         topUps={{
           requests: [],
-          added: [{ month: "2026-09", calls: 900, note: "Launch", addedAt: "2026-09-12T08:00:00.000Z" }],
+          added: [
+            { month: "2026-10", leads: 200, note: "", addedAt: "2026-10-12T08:00:00.000Z" },
+            { month: "2026-09", calls: 900, note: "Launch", addedAt: "2026-09-12T08:00:00.000Z" },
+          ],
         }}
         onSaved={vi.fn()}
       />,
     );
-    expect(screen.getByRole("region", { name: "LUME AI top-ups" })).toHaveTextContent(
-      "900 calls for September 2026",
-    );
+    const card = screen.getByRole("region", { name: "LUME AI top-ups" });
+    expect(card).toHaveTextContent("200 AI leads for October 2026");
+    // One added before AI leads keeps its calls.
+    expect(card).toHaveTextContent("900 calls for September 2026");
   });
 });

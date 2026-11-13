@@ -40,6 +40,8 @@ const aiOff: AiStatus = {
   hour: { used: 0, limit: null, resetsAt: "" },
   week: { used: 0, limit: null, resetsAt: "" },
   month: { used: 0, limit: null, resetsAt: "" },
+  leads: { used: 0, limit: null, resetsAt: "" },
+  countsLeads: false,
   paused: null,
   spend: null,
   pace: { daysLeft: null },

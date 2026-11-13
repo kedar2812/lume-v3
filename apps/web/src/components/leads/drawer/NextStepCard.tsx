@@ -5,7 +5,7 @@ import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { aiClient } from "@/lib/ai/client";
-import type { AiPause, Applied, LeadAi, Part } from "@/lib/ai/types";
+import type { AiStop, Applied, LeadAi, Part } from "@/lib/ai/types";
 import { appliedWords, dueWords, pausedWords, type PartNames } from "@/lib/ai/words";
 import { longDate, timeOf } from "@/lib/dates";
 import { relativeTime, stageOf } from "@/lib/leads/format";
@@ -20,7 +20,7 @@ type State =
   | { is: "reading" }
   | { is: "ready"; read: Read }
   | { is: "done"; read: Read; result: Applied }
-  | { is: "limit"; pause: AiPause }
+  | { is: "limit"; pause: AiStop }
   | { is: "failed" }
   | { is: "gone" };
 const PARTS: Part[] = ["stage", "followUp", "tags"];
@@ -84,6 +84,8 @@ export function NextStepCard({
     const d = r.data;
     if (!("unavailable" in d)) return setState({ is: "ready", read: d.read });
     if (d.unavailable === "limit") return setState({ is: "limit", pause: { by: d.by, until: d.until } });
+    if (d.unavailable === "leads" || d.unavailable === "lead_cap")
+      return setState({ is: "limit", pause: { by: d.unavailable, until: d.until } });
     if (d.unavailable === "failed") return setState({ is: "failed" });
     // Switched off (or never set up here) since the drawer looked: no card at all.
     setState({ is: "gone" });

@@ -53,6 +53,20 @@ describe("Catch me up (spec 2026-10-18 §5.3, canvas board CatchUp)", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("AI leads (2026-11-12): none left for this lead, or its 20 used: says so, with no button", async () => {
+    vi.mocked(aiClient.catchUp).mockResolvedValue(
+      ok({ unavailable: "lead_cap" as const, until: "2026-10-31T18:30:00.000Z" }),
+    );
+    render(<CatchUp leadId="l1" tz={TZ} />);
+    await userEvent.click(screen.getByRole("button", { name: "Catch me up" }));
+    expect(
+      await screen.findByText(
+        "LUME AI has given this lead its 20 replies and suggestions for this month. It can help again on November 1.",
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("when the read fails, Try again asks again", async () => {
     vi.mocked(aiClient.catchUp)
       .mockResolvedValueOnce(ok({ unavailable: "failed" as const }))

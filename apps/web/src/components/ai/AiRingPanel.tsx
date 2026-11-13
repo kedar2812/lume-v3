@@ -8,28 +8,35 @@ import { AiGlyph } from "./AiGlyph";
 import s from "./ring.module.css";
 
 const n = (x: number) => x.toLocaleString("en-US");
+/** What an admin asking about a bigger plan sends with the request. */
+export const BIGGER_PLAN_NOTE = "They'd like a bigger plan, with more AI leads every month.";
 
 /**
- * Which limit the ring measures: the month when the licence signs one, else the week (a licence server from before
- * the monthly allowance), else the month's count with no limit.
+ * What the ring measures: this month's AI leads when the licence counts them (owner's spec 2026-11-12), or when it
+ * sets no limit at all; else, from a licence server from before AI leads, the month's reads, or the week's.
  */
-export function measured(st: AiStatus): { limit: AiLimit; per: "month" | "week" } {
-  if (st.month.limit !== null) return { limit: st.month, per: "month" };
-  if (st.week.limit !== null) return { limit: st.week, per: "week" };
-  return { limit: st.month, per: "month" };
+export function measured(st: AiStatus): { limit: AiLimit; per: "month" | "week"; leads: boolean } {
+  if (st.countsLeads || (st.month.limit === null && st.week.limit === null))
+    return { limit: st.leads, per: "month", leads: true };
+  if (st.month.limit !== null) return { limit: st.month, per: "month", leads: false };
+  return { limit: st.week, per: "week", leads: false };
 }
 export const shareOf = (l: AiLimit) => (l.limit ? Math.min(1, l.used / l.limit) : 0);
-/** Amber from 80%, and while the month's allowance is used up. */
-export const amberAt = (st: AiStatus) => st.paused?.by === "month" || shareOf(measured(st).limit) >= 0.8;
+/** Every one of this month's AI leads is used: no new lead can start (Base, 0, is always). */
+export const leadsFull = (st: AiStatus) =>
+  measured(st).leads && st.leads.limit !== null && st.leads.used >= st.leads.limit;
+/** Amber from 80%, and while the month's AI leads are used up or LUME AI is paused for the month. */
+export const amberAt = (st: AiStatus) =>
+  st.paused?.by === "month" || leadsFull(st) || shareOf(measured(st).limit) >= 0.8;
 
 const dayWords = (iso: string, tz: string) =>
   new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long", day: "numeric" }).format(new Date(iso));
 
 /**
- * What the ring's panel says (Autopilot spec 2026-10-19 §4), also Settings → LUME AI's Usage: the share used, the pace,
- * this month's, this week's and this hour's use, the spend when the owner set the prices, when it resets, and for an
- * admin, Ask for a top-up. A top-up is only offered against a monthly allowance (a licence server from before it
- * can't take the request).
+ * What the ring's panel says (Autopilot spec 2026-10-19 §4; AI leads 2026-11-12), also Settings → LUME AI's Usage:
+ * "X of Y AI leads used this month", the share and the pace, the spend when the owner set the prices, when it resets,
+ * and from 80% (or when they're all used) for an admin, Ask for a top-up or about a bigger plan. The hour and the
+ * month's reads are a safety net once AI leads are counted: never shown as numbers, only as a pause if one is reached.
  */
 export function AiRingPanel({
   st,
@@ -46,21 +53,23 @@ export function AiRingPanel({
   settingsLink?: boolean;
   onLeave?: () => void;
 }) {
-  const [asking, setAsking] = useState(false);
+  const [asking, setAsking] = useState<"topup" | "plan" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const { limit, per } = measured(st);
+  const { limit, per, leads } = measured(st);
   const share = shareOf(limit);
   const pct = Math.round(share * 100);
   const amber = amberAt(st);
-  const monthly = st.month.limit !== null;
-  const canAsk = !!st.topUp && !st.topUp.asked && monthly && (pct >= 80 || st.paused?.by === "month");
+  const full = leadsFull(st);
+  const monthly = limit.limit !== null && per === "month";
+  const canAsk = !!st.topUp && !st.topUp.asked && monthly && (pct >= 80 || full || st.paused?.by === "month");
   const paused = st.paused ? pausedWords(st.paused, tz) : null;
+  const resets = dayWords(st.month.resetsAt, tz);
   const daysToReset = Math.max(0, (new Date(st.month.resetsAt).getTime() - Date.now()) / 86_400_000);
-  const ask = async () => {
-    setAsking(true);
+  const ask = async (what: "topup" | "plan") => {
+    setAsking(what);
     setProblem(null);
-    const r = await aiClient.askTopUp();
-    setAsking(false);
+    const r = await aiClient.askTopUp(what === "plan" ? BIGGER_PLAN_NOTE : undefined);
+    setAsking(null);
     if (!r.ok) return setProblem(r.message);
     onAsked();
   };
@@ -81,8 +90,24 @@ export function AiRingPanel({
           </span>
         </div>
       )}
+      {leads && (
+        <p className={s.line}>
+          <b>
+            {limit.limit !== null
+              ? `${n(limit.used)} of ${n(limit.limit)} AI leads used this month`
+              : `${n(limit.used)} AI ${limit.used === 1 ? "lead" : "leads"} this month`}
+          </b>
+        </p>
+      )}
       {paused && <p className={s.paused}>{paused}</p>}
-      {!paused && st.pace.daysLeft !== null && (
+      {!paused && full && (
+        <p className={s.paused}>
+          {limit.limit === 0
+            ? "Your plan has no AI leads, so LUME AI can't start on a lead."
+            : `This month's AI leads are used up. Leads LUME AI is already working on carry on; new leads start on ${resets}, or sooner with a top-up.`}
+        </p>
+      )}
+      {!paused && !full && st.pace.daysLeft !== null && (
         <p className={s.line}>
           {st.pace.daysLeft >= daysToReset
             ? "Enough for the month at this pace"
@@ -90,15 +115,17 @@ export function AiRingPanel({
         </p>
       )}
       <dl className={s.rows}>
-        <div>
-          <dt>This month</dt>
-          <dd>
-            {monthly
-              ? `${n(st.month.used)} of ${n(st.month.limit!)} this month`
-              : `${n(st.month.used)} this month`}
-          </dd>
-        </div>
-        {!monthly && st.week.limit !== null && (
+        {!leads && (
+          <div>
+            <dt>This month</dt>
+            <dd>
+              {st.month.limit !== null
+                ? `${n(st.month.used)} of ${n(st.month.limit)} this month`
+                : `${n(st.month.used)} this month`}
+            </dd>
+          </div>
+        )}
+        {!leads && st.month.limit === null && st.week.limit !== null && (
           <div>
             <dt>This week</dt>
             <dd>
@@ -106,7 +133,7 @@ export function AiRingPanel({
             </dd>
           </div>
         )}
-        {st.hour.limit !== null && (
+        {!leads && st.hour.limit !== null && (
           <div>
             <dt>This hour</dt>
             <dd>
@@ -125,15 +152,35 @@ export function AiRingPanel({
         )}
         <div>
           <dt>Resets</dt>
-          <dd>Resets on {dayWords(st.month.resetsAt, tz)}</dd>
+          <dd>Resets on {resets}</dd>
         </div>
       </dl>
       {canAsk && (
-        <button type="button" className={s.ask} disabled={asking} onClick={() => void ask()}>
-          {asking ? "Asking…" : "Ask for a top-up"}
-        </button>
+        <div className={s.asks}>
+          <button
+            type="button"
+            className={s.ask}
+            disabled={asking !== null}
+            onClick={() => void ask("topup")}
+          >
+            {asking === "topup" ? "Asking…" : leads ? "Ask for a top-up of 100 AI leads" : "Ask for a top-up"}
+          </button>
+          {leads && (
+            <button
+              type="button"
+              className={s.askPlain}
+              disabled={asking !== null}
+              onClick={() => void ask("plan")}
+            >
+              {asking === "plan" ? "Asking…" : "Ask about a bigger plan"}
+            </button>
+          )}
+        </div>
       )}
       {st.topUp?.asked && <p className={s.asked}>Asked. LUME will let you know when it&apos;s added.</p>}
+      {!st.topUp && full && limit.limit !== 0 && (
+        <p className={s.line}>An admin can ask for a top-up from here.</p>
+      )}
       {problem && (
         <p role="alert" className={s.problem}>
           {problem}

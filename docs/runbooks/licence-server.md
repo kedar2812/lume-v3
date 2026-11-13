@@ -264,3 +264,16 @@ banner, 7 days on it's read-only (never locked; everyone can still export everyt
 - **Add a top-up** on their page (month, calls, an optional note only you see) closes that month's request. Their LUME
   picks it up at its next check-in (within 6 hours, or at once with Check now there) and paused runs carry on.
 - Migration `0010_ai_monthly.sql` ships with this release: deploy the licence app to apply it.
+
+## AI leads (2026-11-12)
+
+- **AI leads a month** on Plan limits: Base 0, Pro 1,000, Max 3,000, Enterprise 10,000, No limit, or Custom (any
+  number from 0). Signed to a LUME that accepts `plan5`. An older LUME (`plan4`) is signed AI calls a month instead:
+  the owner's own monthly number, else 7 for each AI lead (the measured average); on Base it's signed LUME AI off.
+- **Safety net (they never see it):** Most an hour, Most a month (empty: automatic, 30 for each AI lead, at least
+  1,000), and Most a week (only a LUME from before monthly limits uses it).
+- **Top-ups** are packs of 100 AI leads for the client's month now (the month they asked for, else this one), with no
+  rollover: a pack is signed only around its own month. Top-ups added before AI leads keep their calls.
+- Migration `0012_ai_leads.sql`: a licence with a monthly number gets AI leads of that ÷ 7, up to the next 100 (at
+  least 100; an older LUME is then signed at least what it had), and its safety net becomes automatic; a licence with
+  none keeps no limit. Deploy the licence app to apply it, before or with the LUME release that accepts `plan5`.

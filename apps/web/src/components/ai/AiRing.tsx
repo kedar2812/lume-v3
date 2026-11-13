@@ -6,7 +6,7 @@ import { aiClient } from "@/lib/ai/client";
 import type { AiStatus } from "@/lib/ai/types";
 import { useStream } from "@/lib/notifications/stream";
 import { AiGlyph } from "./AiGlyph";
-import { AiRingPanel, amberAt, measured, shareOf } from "./AiRingPanel";
+import { AiRingPanel, amberAt, leadsFull, measured, shareOf } from "./AiRingPanel";
 import s from "./ring.module.css";
 
 /** How often the ring looks again on its own while the tab is shown (also on a notification, and as it opens). */
@@ -22,8 +22,9 @@ function OnShow({ on, children }: { on: () => void; children: ReactNode }) {
 }
 
 /**
- * LUME AI's ring (Autopilot spec 2026-10-19 §4): a small ring beside the bell, filling with the month's use and turning
- * amber past 80%, the LUME AI mark inside. Its panel is `AiRingPanel`. Shown only while LUME AI is on for this person.
+ * LUME AI's ring (Autopilot spec 2026-10-19 §4): a small ring beside the bell, filling with the month's AI leads
+ * (2026-11-12) and turning amber from 80%, the LUME AI mark inside. Its panel is `AiRingPanel`. Shown only while LUME
+ * AI is on for this person.
  */
 export function AiRing() {
   const tz = useZone();
@@ -44,14 +45,21 @@ export function AiRing() {
   useStream(() => void load());
 
   if (!st?.on) return null;
-  const { limit, per } = measured(st);
+  const { limit, per, leads } = measured(st);
   const share = shareOf(limit);
+  const n = (x: number) => x.toLocaleString("en-US");
   const name =
     st.paused?.by === "month"
-      ? "LUME AI: this month's allowance is used up"
-      : limit.limit
-        ? `LUME AI: ${Math.round(share * 100)}% of this ${per} used`
-        : `LUME AI: ${limit.used.toLocaleString("en-US")} used this month`;
+      ? "LUME AI: paused for the rest of the month"
+      : leadsFull(st)
+        ? "LUME AI: this month's AI leads are used up"
+        : leads
+          ? limit.limit !== null
+            ? `LUME AI: ${n(limit.used)} of ${n(limit.limit)} AI leads used this month`
+            : `LUME AI: ${n(limit.used)} AI leads this month`
+          : limit.limit
+            ? `LUME AI: ${Math.round(share * 100)}% of this ${per} used`
+            : `LUME AI: ${n(limit.used)} used this month`;
 
   return (
     <Popover

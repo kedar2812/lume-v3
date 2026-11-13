@@ -5,6 +5,11 @@ import type { Available } from "@/lib/autopilot/types";
 export type AiLimit = { used: number; limit: number | null; resetsAt: string };
 export type AiPause = { by: "hour" | "week" | "month"; until: string };
 /**
+ * Why a lead's read didn't happen (AI leads, 2026-11-12): a pause, or `leads` (this month's AI leads are used up and
+ * this lead isn't one of them) or `lead_cap` (this lead has had its 20 this month), each until the 1st.
+ */
+export type AiStop = AiPause | { by: "leads" | "lead_cap"; until: string };
+/**
  * Autopilot A1 (spec 2026-10-19 §4): the month beside the hour and the week; the spend at the owner's prices (null when
  * none are set); the pace; and, for admins, whether a top-up has been asked for this month.
  */
@@ -13,6 +18,10 @@ export type AiStatus = {
   hour: AiLimit;
   week: AiLimit;
   month: AiLimit;
+  /** This month's AI leads (owner's spec 2026-11-12). */
+  leads: AiLimit;
+  /** The licence counts LUME AI in AI leads; false on a licence server from before them. */
+  countsLeads: boolean;
   paused: AiPause | null;
   spend: { used: number; cap: number | null; currency: "USD" } | null;
   pace: { daysLeft: number | null };
@@ -21,7 +30,8 @@ export type AiStatus = {
 /** Why no suggestion came back: off, not set up here, at a limit (and until when), or the read failed. */
 export type AiUnavailable =
   | { unavailable: "off" | "not_configured" | "failed" }
-  | { unavailable: "limit"; by: AiPause["by"]; until: string };
+  | { unavailable: "limit"; by: AiPause["by"]; until: string }
+  | { unavailable: "leads" | "lead_cap"; until: string };
 export type Part = "stage" | "followUp" | "tags";
 /** `dueAt`: the suggested follow-up as a moment, read on the person's own clock (null when there's none). */
 export type NextStepRead = { read: { id: string; suggestion: NextStep; dueAt: string | null } };

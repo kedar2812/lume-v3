@@ -18,13 +18,25 @@ const monthDay = (iso: string, tz: string) =>
   new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long", day: "numeric" }).format(new Date(iso));
 
 /** One limit as a line of words and a bar; words alone when there's no limit (spec 2026-10-18 §2.2). */
-function Meter({ label, per, l, resets }: { label: string; per: string; l: AiLimit; resets: string }) {
+function Meter({
+  label,
+  per,
+  l,
+  resets,
+  unit = "reads",
+}: {
+  label: string;
+  per: string;
+  l: AiLimit;
+  resets: string;
+  unit?: string;
+}) {
   if (l.limit === null)
     return (
       <div className={s.meter}>
         <div className={s.meterHead}>
           <span className={s.meterLabel}>{label}</span>
-          <span>{n(l.used)} · no limit</span>
+          <span>{`${n(l.used)}${unit === "AI leads" ? " AI leads" : ""} · no limit`}</span>
         </div>
       </div>
     );
@@ -34,10 +46,11 @@ function Meter({ label, per, l, resets }: { label: string; per: string; l: AiLim
       <div className={s.meterHead}>
         <span className={s.meterLabel}>{label}</span>
         <span>
-          {n(l.used)} of {n(l.limit)} · resets {resets}
+          {n(l.used)} of {n(l.limit)}
+          {unit === "AI leads" ? " AI leads used" : ""} · resets {resets}
         </span>
       </div>
-      <div role="img" aria-label={`${n(l.used)} of ${n(l.limit)} reads ${per}`} className={s.meterTrack}>
+      <div role="img" aria-label={`${n(l.used)} of ${n(l.limit)} ${unit} ${per}`} className={s.meterTrack}>
         <div
           className={s.meterFill}
           data-high={share >= 0.75 || undefined}
@@ -115,14 +128,25 @@ export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: I
               {pausedWords(status.paused, tz)} Notes and calls still save as usual.
             </p>
           )}
-          <Meter
-            label="This hour"
-            per="this hour"
-            l={status.hour}
-            resets={resetWords(status.hour.resetsAt, tz)}
-          />
-          {/* A licence with a monthly allowance (Autopilot A1) measures the month; an older one, the week. */}
-          {status.month.limit !== null ? (
+          {/* AI leads (2026-11-12): the month's leads; the hour and the month's reads are a hidden safety net. A
+              licence server from before them measures the hour and the month (Autopilot A1), or the week. */}
+          {status.countsLeads ? (
+            <Meter
+              label="AI leads this month"
+              per="this month"
+              unit="AI leads"
+              l={status.leads}
+              resets={monthDay(status.leads.resetsAt, tz)}
+            />
+          ) : (
+            <Meter
+              label="This hour"
+              per="this hour"
+              l={status.hour}
+              resets={resetWords(status.hour.resetsAt, tz)}
+            />
+          )}
+          {status.countsLeads ? null : status.month.limit !== null ? (
             <Meter
               label="This month"
               per="this month"

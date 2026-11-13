@@ -69,6 +69,9 @@ const WITHOUT_RLS: Record<string, string> = {
   analytics_insight_seen: "Background work and its bookkeeping",
   // LUME AI's limit notices (spec 2026-10-18 §2.2): which notice went for which window; no lead data
   ai_limit_notices: "Background work and its bookkeeping",
+  // AI leads a month (owner's spec 2026-11-12): a lead's id and a month, which the app's roles can't reach at all;
+  // only the counting functions (lume_ai_reserve, lume_ai_start_lead…) read and write it.
+  ai_lead_months: "Background work and its bookkeeping",
   weekly_runs: "Background work and its bookkeeping",
   webhook_signatures: "Background work and its bookkeeping",
   // WhatsApp (spec 2026-10-18 §3–4): an intake table (as webhook_events, its body encrypted and cleared once

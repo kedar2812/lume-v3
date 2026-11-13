@@ -102,17 +102,20 @@ describe("the owner sees it, and adds a top-up", () => {
       }),
     ]);
 
-    const after = await addTopUp(ctx, s.clientId, { month: "2026-10", calls: 1500, note: "Campaign week" });
+    // AI leads (2026-11-12): packs of 100 AI leads.
+    const after = await addTopUp(ctx, s.clientId, { month: "2026-10", packs: 15, note: "Campaign week" });
     expect(after.topUps.requests).toEqual([]);
-    expect(after.topUps.added).toEqual([expect.objectContaining({ month: "2026-10", calls: 1500 })]);
+    expect(after.topUps.added).toEqual([expect.objectContaining({ month: "2026-10", leads: 1500 })]);
     expect(
       (await listAlerts(ctx)).alerts.filter((a) => a.clientId === s.clientId).map((a) => a.title),
     ).not.toContain("Cedar Fitness asked for a LUME AI top-up");
   });
 
-  it("a top-up is a whole number between 1 and 10,000,000, in words", async () => {
+  it("a top-up is a whole number of packs, for a real month, in words", async () => {
     const s = await bound("Pine Bakery");
-    await expect(addTopUp(ctx, s.clientId, { month: "2026-10", calls: 0 })).rejects.toThrow("At least 1");
-    await expect(addTopUp(ctx, s.clientId, { month: "2026-13", calls: 5 })).rejects.toThrow("month");
+    await expect(addTopUp(ctx, s.clientId, { month: "2026-10", packs: 0 })).rejects.toThrow(
+      "At least 1 pack.",
+    );
+    await expect(addTopUp(ctx, s.clientId, { month: "2026-13", packs: 5 })).rejects.toThrow("month");
   });
 });

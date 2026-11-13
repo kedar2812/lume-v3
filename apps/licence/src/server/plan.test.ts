@@ -109,9 +109,17 @@ describe("the plan, signed", () => {
   it("Autopilot A1: signs LUME AI a month and the top-ups around this month only for a LUME that accepts plan4", async () => {
     const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
     await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiCallsMonthly: 3000 });
-    await addTopUp(ctx, c.clientId, { month: "2026-10", calls: 500 });
-    await addTopUp(ctx, c.clientId, { month: "2026-10", calls: 250 });
-    await addTopUp(ctx, c.clientId, { month: "2026-04", calls: 900 });
+    // Top-ups in calls, as they were added before AI leads (2026-11-12): kept, and still signed to an older LUME.
+    for (const [month, calls] of [
+      ["2026-10", 500],
+      ["2026-10", 250],
+      ["2026-04", 900],
+    ] as const)
+      await t.pool.query("INSERT INTO ai_topups (client_id, month, calls) VALUES ($1, $2, $3)", [
+        c.clientId,
+        month,
+        calls,
+      ]);
     const v3 = (await payloadOf(await post(c, ["announcements", "plan", "plan2", "plan3"]), c.instanceId))!
       .plan!;
     expect(v3).not.toHaveProperty("aiCallsMonthly");
@@ -169,6 +177,9 @@ describe("PATCH /api/clients/:id/plan", () => {
       // Autopilot A1: LUME AI a month and its top-ups are on the client's page whether or not their LUME knows them.
       aiCallsMonthly: null,
       aiTopUps: [],
+      // AI leads (2026-11-12): likewise, none set is no limit.
+      aiLeadsMonthly: null,
+      aiLeadTopUps: [],
     });
     expect(r.usage).toEqual({
       people: 4,
@@ -177,6 +188,7 @@ describe("PATCH /api/clients/:id/plan", () => {
       knowsAi: false,
       knowsPaid: false,
       knowsMonthly: false,
+      knowsLeads: false,
     });
     expect(r.history[0]).toMatchObject({
       kind: "plan",
@@ -233,5 +245,143 @@ describe("PATCH /api/clients/:id/plan", () => {
     const before = (await getClient(ctx, c.clientId)).history.length;
     await patchPlan(ctx, c.clientId, { places: null, modules: {} });
     expect((await getClient(ctx, c.clientId)).history.length).toBe(before);
+  });
+});
+
+/** AI leads (owner's spec 2026-11-12 §2, §7): the plan counts AI leads a month; top-ups are packs of 100 for a month. */
+describe("AI leads, signed", () => {
+  const ALL5 = ["announcements", "plan", "plan2", "plan3", "plan4", "plan5"];
+  const ALL4 = ["announcements", "plan", "plan2", "plan3", "plan4"];
+  const planFor = async (c: { instanceId: string; licenseKey: string }, accepts: string[]) =>
+    (await payloadOf(await post(c, accepts), c.instanceId))!.plan!;
+
+  it("a LUME that accepts plan5 gets its AI leads, this month's packs, and the safety net as set (empty: automatic)", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: 1000 });
+    await addTopUp(ctx, c.clientId, { month: "2026-10", packs: 2 });
+    await addTopUp(ctx, c.clientId, { month: "2026-10", packs: 1, note: "Diwali rush" });
+    const p = await planFor(c, ALL5);
+    expect(p.aiLeadsMonthly).toBe(1000);
+    expect(p.aiLeadTopUps).toEqual([{ month: "2026-10", leads: 300 }]);
+    // No number of the owner's: the client's LUME sizes the safety net itself (30 actions an AI lead).
+    expect(p.aiCallsMonthly).toBeNull();
+    expect(p.aiTopUps).toEqual([]);
+    await patchPlan(ctx, c.clientId, {
+      places: null,
+      modules: {},
+      aiLeadsMonthly: 1000,
+      aiCallsMonthly: 50_000,
+    });
+    expect((await planFor(c, ALL5)).aiCallsMonthly).toBe(50_000);
+  });
+
+  it("an older LUME (plan4) gets 7 actions for each AI lead and each pack, unless the owner set its own", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: 1000 });
+    await addTopUp(ctx, c.clientId, { month: "2026-10", packs: 1 });
+    const p = await planFor(c, ALL4);
+    expect(p).not.toHaveProperty("aiLeadsMonthly");
+    expect(p).not.toHaveProperty("aiLeadTopUps");
+    expect(p.aiCallsMonthly).toBe(7000);
+    expect(p.aiTopUps).toEqual([{ month: "2026-10", calls: 700 }]);
+    await patchPlan(ctx, c.clientId, {
+      places: null,
+      modules: {},
+      aiLeadsMonthly: 1000,
+      aiCallsMonthly: 9000,
+    });
+    expect((await planFor(c, ALL4)).aiCallsMonthly).toBe(9000);
+  });
+
+  it("Base (0 AI leads): plan5 is told 0; an older LUME has LUME AI off (it can't be told 0)", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: 0 });
+    const v5 = await planFor(c, ALL5);
+    expect(v5.aiLeadsMonthly).toBe(0);
+    expect(v5.modules.ai).toBe(true);
+    const v4 = await planFor(c, ALL4);
+    expect(v4.modules.ai).toBe(false);
+    expect(v4.aiCallsMonthly).toBeNull();
+  });
+
+  it("no AI leads limit: plan5 is told none, and an older LUME keeps the owner's monthly number or none", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    expect((await planFor(c, ALL5)).aiLeadsMonthly).toBeNull();
+    expect((await planFor(c, ALL4)).aiCallsMonthly).toBeNull();
+  });
+
+  it("keeps AI leads, says them in the history, and refuses a number out of bounds", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    const r = await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: 3000 });
+    expect(r.plan).toMatchObject({ aiLeadsMonthly: 3000 });
+    expect(r.history[0]).toMatchObject({ kind: "plan", detail: { aiLeadsMonthly: 3000 } });
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: -1 }),
+    ).rejects.toThrow("AI leads a month: 0 or more, or no limit.");
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: 10_000_001 }),
+    ).rejects.toThrow(/^AI leads a month: .* at most\.$/);
+  });
+
+  it("T6: a pack is for its month: this month's, the next month's plan has none of it", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2027-12-31" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: 100 });
+    await addTopUp(ctx, c.clientId, { month: "2026-10", packs: 1 });
+    now = new Date("2026-12-05T09:00:00Z");
+    ctx = testCtx(t.pool, () => now);
+    expect((await planFor(c, ALL5)).aiLeadTopUps).toEqual([]);
+  });
+
+  it("a top-up is packs of 100, for the client's month now only (the open request's, or this one ±1 for their clock)", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await expect(addTopUp(ctx, c.clientId, { month: "2026-10", packs: 0 })).rejects.toThrow(
+      "At least 1 pack.",
+    );
+    await expect(addTopUp(ctx, c.clientId, { month: "2026-10", packs: 1.5 })).rejects.toThrow(
+      "A top-up is a whole number of packs.",
+    );
+    await expect(addTopUp(ctx, c.clientId, { month: "2026-08", packs: 1 })).rejects.toThrow(
+      "A top-up is for this month only.",
+    );
+    await expect(addTopUp(ctx, c.clientId, { month: "2027-01", packs: 1 })).rejects.toThrow(
+      "A top-up is for this month only.",
+    );
+    const r = await addTopUp(ctx, c.clientId, { month: "2026-10", packs: 3, note: "Busy week" });
+    expect(r.topUps.added[0]).toMatchObject({ month: "2026-10", leads: 300, note: "Busy week" });
+    expect(r.history[0]).toMatchObject({ kind: "ai_topup", detail: { month: "2026-10", leads: 300 } });
+  });
+});
+
+describe("migration 0012: existing licences move to AI leads", () => {
+  it("a monthly number becomes AI leads (÷ 7, up to the next 100, at least 100); none stays none; top-ups stay", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync(new URL("../../migrations/0012_ai_leads.sql", import.meta.url), "utf8");
+    const move = /-- move:start\n([\s\S]*?)-- move:end/.exec(sql)![1]!;
+    const a = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    const b = await seedClient(t.pool, { type: "perpetual" });
+    const small = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await t.pool.query(
+      "UPDATE licences SET ai_calls_monthly = 3000, ai_leads_monthly = NULL WHERE client_id = $1",
+      [a.clientId],
+    );
+    await t.pool.query(
+      "UPDATE licences SET ai_calls_monthly = NULL, ai_leads_monthly = NULL WHERE client_id = $1",
+      [b.clientId],
+    );
+    await t.pool.query(
+      "UPDATE licences SET ai_calls_monthly = 50, ai_leads_monthly = NULL WHERE client_id = $1",
+      [small.clientId],
+    );
+    await t.pool.query(move);
+    const rows = async (id: string) =>
+      (
+        await t.pool.query("SELECT ai_leads_monthly, ai_calls_monthly FROM licences WHERE client_id = $1", [
+          id,
+        ])
+      ).rows[0];
+    // 3,000 a month is about 429 AI leads: 500, and an older LUME is signed 3,500 (never less than it had).
+    expect(await rows(a.clientId)).toEqual({ ai_leads_monthly: 500, ai_calls_monthly: null });
+    expect(await rows(b.clientId)).toEqual({ ai_leads_monthly: null, ai_calls_monthly: null });
+    expect(await rows(small.clientId)).toEqual({ ai_leads_monthly: 100, ai_calls_monthly: null });
   });
 });

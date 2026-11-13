@@ -43,6 +43,8 @@ describe("the state", () => {
       week: { used: 4, limit: 10, resetsAt: "2026-10-25T18:30:00.000Z" },
       // No monthly allowance from this licence: the month counts nothing and limits nothing.
       month: { used: 0, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
+      // Nor AI leads (a licence from before them).
+      leads: { used: 0, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
       paused: null,
     });
   });

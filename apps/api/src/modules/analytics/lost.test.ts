@@ -161,6 +161,8 @@ describe("lost, won back, what converts (8D-1 Task 6)", () => {
   it("through LUME's own stage moves: lost with a reason, reopened, won — the flow counts it", async () => {
     const c = await h.signIn(admin);
     const id = await h.seedLead({ ownerId: admin.id });
+    // The day the moves start on: a run that crosses midnight in Kolkata (18:30 UTC) reads from it to the next.
+    const from = dayOf(new Date(), TZ);
     const to = (stageId: string, extra: object = {}) =>
       c.inject({ method: "POST", url: `/api/v1/leads/${id}/stage`, payload: { stageId, ...extra } });
     expect((await to(st.lost, { lostReasonId: r2 })).statusCode).toBe(200);
@@ -169,7 +171,7 @@ describe("lost, won back, what converts (8D-1 Task 6)", () => {
     // The moves were stamped now; read today in the business's time zone.
     h.clock.now = new Date(Date.now() + 60_000);
     const today = dayOf(h.clock.now, TZ);
-    const l = (await get(`lost?range=custom&from=${today}&to=${today}`)).json();
+    const l = (await get(`lost?range=custom&from=${from}&to=${today}`)).json();
     expect(l.total).toBe(0);
     expect(l.wonBackFlow).toMatchObject({ lost: 1, reopened: 1, won: 1 });
     expect(l.wonBack.n).toBe(1);

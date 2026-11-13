@@ -139,10 +139,41 @@ Notes, calls and follow-ups keep working the whole time: LUME AI only ever sugge
 - **Top-ups:** an admin presses Ask for a top-up (the ring's panel); the request reaches the licence dashboard as an
   alert. Add a top-up there; it reaches their LUME at its next check-in and AI carries on by itself.
 
+## AI leads (2026-11-12)
+
+The allowance a client buys is **AI leads a month**, not AI calls. From a licence server that signs them (`plan5`):
+
+- **What counts.** A lead counts once a calendar month on the business's clock (from the 1st, 00:00), the first time
+  Autopilot starts on it (its first message, whether or not choosing the template needed a read) or it gets an
+  Autopilot reply, a Suggest next step or a Catch me up. Choosing a template (Autopilot's and Recommended in the reply
+  box), reading a reply's meaning and drafting a template never count and are never refused for AI leads. A failed
+  read doesn't count its lead (its tokens stay in the spend). A lead AI never touches doesn't count. The same lead
+  counts again next month.
+- **Where it's kept.** `ai_lead_months` (one row per lead per month; migration 0106), written only by the counting
+  functions under the same lock as the reads (`lume_ai_reserve`, `lume_ai_start_lead`); the app's roles can't read or
+  write it. A deleted lead keeps its place for the month. Each counted read carries its month in
+  `ai_reads.lead_month`. The ledger is written whatever the licence, so moving to AI leads mid-month counts the month
+  from what already happened (0106 filled in the month it was installed).
+- **At 80% and 100%.** Admins hear once at 80% and once when they're all used (again after a top-up raises the
+  allowance). At 100% no new lead can start: next step and catch-up say why, Autopilot holds leads it hasn't started
+  (`up_next`, reason "This month's AI leads are used up…", woken on the 1st or as soon as a top-up makes room); leads
+  already counted keep full AI. The ring shows "X of Y AI leads used this month", amber from 80%, and at 100% Ask for a
+  top-up of 100 AI leads and Ask about a bigger plan (both reach the licence dashboard as the top-up request).
+- **Per lead.** At most 20 counted reads a lead a month. After the 20th, a lead Autopilot is working goes to Waiting
+  for you, and its rep is told (and the run's starter), once a month; the 21st next step or catch-up is refused until
+  the 1st. A licence with no AI leads limit has no per-lead limit either.
+- **Safety net (hidden).** The hour (`aiReadsHourly`) and the month's reads still stop LUME AI if ever reached:
+  the owner's own monthly number on the licence, else 30 for each of the month's AI leads (at least 1,000). Never shown
+  as numbers; at the month's, LUME AI says it's paused for the rest of the month. Autopilot's daily send limit is
+  unchanged.
+- **Base (0 AI leads).** No lead can start; template choice and reply meaning still run while LUME AI is on. Switch
+  the LUME AI module off on the licence to stop all AI.
+- **Older licence servers.** A `plan4` answer counts AI calls a month as before; the ring then shows the month's reads.
+
 ## Autopilot (A2, 2026-10-23)
 
-LUME AI talking to leads on WhatsApp by itself, in runs: `docs/runbooks/autopilot.md`. Every message it writes is one
-LUME AI call against the same month and hour.
+LUME AI talking to leads on WhatsApp by itself, in runs: `docs/runbooks/autopilot.md`. Starting on a lead counts it as
+one of the month's AI leads; every read it makes still counts against the hidden hour and month.
 
 ## Recommended by LUME AI (2026-10-31)
 

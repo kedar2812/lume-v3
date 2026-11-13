@@ -10,7 +10,8 @@ import { replyOn } from "../whatsapp/send";
 
 const N = schema.whatsappNumbers;
 
-export type ReadyCode = "AI_OFF" | "AI_MONTH" | "REPLY_OFF" | "NO_NUMBER" | "NUMBER_QUALITY" | "NO_TEMPLATES";
+export type ReadyCode =
+  "AI_OFF" | "AI_MONTH" | "AI_LEADS" | "REPLY_OFF" | "NO_NUMBER" | "NUMBER_QUALITY" | "NO_TEMPLATES";
 type Number = { id: string; display: string; quality: string | null; tier: string | null; waba: string };
 export type Readiness =
   { ok: true; number: Number } | { ok: false; code: ReadyCode; message: string; fixHref: string | null };
@@ -36,10 +37,21 @@ export async function readiness(req: FastifyRequest, d: AppDeps, speakerId: stri
       "LUME AI is off. An admin can switch it on in Settings → Integrations.",
       "/settings/integrations",
     );
+  // AI leads (2026-11-12): with none left, a run would only hold every lead it has; it says so before it starts.
+  if (ai.countsLeads && ai.leads.limit !== null && ai.leads.used >= ai.leads.limit)
+    return not(
+      "AI_LEADS",
+      ai.leads.limit === 0
+        ? "Your plan has no AI leads, so LUME AI can't start on leads."
+        : "This month's AI leads are used up, so LUME AI can't start on new leads. Ask for a top-up from LUME AI's ring, or start again on the 1st.",
+      null,
+    );
   if (ai.month.limit !== null && ai.month.used >= ai.month.limit)
     return not(
       "AI_MONTH",
-      "LUME AI has used this month's allowance. Ask for a top-up from LUME AI's ring.",
+      ai.countsLeads
+        ? "LUME AI is paused for the rest of the month. Ask for a top-up from LUME AI's ring."
+        : "LUME AI has used this month's allowance. Ask for a top-up from LUME AI's ring.",
       null,
     );
   if (!(await replyOn(req, d)))

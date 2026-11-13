@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aiSafetyFor } from "../ai/leads";
 
 /**
  * Fleet (spec 2026-10-16 fleet §1): what a LUME says about its own health with each check-in, and what the licence
@@ -129,9 +130,48 @@ export const planClaimSchema = z
       )
       .max(12)
       .optional(),
+    /**
+     * AI leads a month (owner's spec 2026-11-12): leads LUME AI may start on in a calendar month, on the business's
+     * clock. 0 (Base): none. Null: no limit. Absent: an older licence server's answer, and the actions a month stay the
+     * allowance. Only for a LUME that accepts plan5; `aiCallsMonthly` beside it is then a hidden safety net.
+     */
+    aiLeadsMonthly: z.number().int().min(0).max(10_000_000).nullable().optional(),
+    /** Top-ups in AI leads (packs of 100), by month "YYYY-MM": each for its own month only. */
+    aiLeadTopUps: z
+      .array(
+        z
+          .object({
+            month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+            leads: z.number().int().min(1).max(10_000_000),
+          })
+          .strict(),
+      )
+      .max(12)
+      .optional(),
   })
   .strict();
 export type PlanClaim = z.infer<typeof planClaimSchema>;
+/** Whether this LUME's licence counts LUME AI in AI leads (a plan5 answer). */
+export const usesLeads = (plan: PlanClaim | null | undefined): boolean => plan?.aiLeadsMonthly !== undefined;
+/** The month's AI leads ("YYYY-MM"): the plan's, plus that month's top-ups. Null: no limit, or not counted in leads. */
+export function aiLeadAllowance(plan: PlanClaim | null | undefined, month: string): number | null {
+  if (plan?.aiLeadsMonthly === undefined || plan.aiLeadsMonthly === null) return null;
+  return (
+    plan.aiLeadsMonthly +
+    (plan.aiLeadTopUps ?? []).filter((t) => t.month === month).reduce((a, t) => a + t.leads, 0)
+  );
+}
+/**
+ * LUME AI's actions a month (hidden from the client once it counts AI leads): the owner's own number with its call
+ * top-ups when it's set, else 30 for each of the month's AI leads (at least 1,000), else none. An older licence's
+ * monthly calls stay exactly the allowance they were.
+ */
+export function aiSafetyMonthly(plan: PlanClaim | null | undefined, month: string): number | null {
+  const own = aiAllowance(plan, month);
+  if (own !== null || !usesLeads(plan)) return own;
+  const leads = aiLeadAllowance(plan, month);
+  return leads === null ? null : aiSafetyFor(leads);
+}
 /** Whether this LUME's licence counts LUME AI by the month (a plan4 answer), rather than the week. */
 export const usesMonthly = (plan: PlanClaim | null | undefined): boolean =>
   plan?.aiCallsMonthly !== undefined;
@@ -147,4 +187,4 @@ export function aiAllowance(plan: PlanClaim | null | undefined, month: string): 
 export const moduleIncluded = (plan: PlanClaim | null | undefined, key: PlanModule): boolean =>
   plan?.modules[key] !== false;
 /** What a LUME from this release can keep, sent with its check-in: the licence server signs those claims only then. */
-export const ACCEPTS = ["announcements", "plan", "plan2", "plan3", "plan4"] as const;
+export const ACCEPTS = ["announcements", "plan", "plan2", "plan3", "plan4", "plan5"] as const;

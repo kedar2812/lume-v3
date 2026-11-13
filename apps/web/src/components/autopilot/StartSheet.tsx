@@ -33,6 +33,7 @@ const DRAW_MS = 700;
 const FIX_WORDS: Record<ReadyCode, string> = {
   AI_OFF: "Open Integrations",
   AI_MONTH: "See LUME AI's use",
+  AI_LEADS: "See LUME AI's use",
   REPLY_OFF: "Open WhatsApp settings",
   NO_NUMBER: "Open WhatsApp settings",
   NUMBER_QUALITY: "Open WhatsApp settings",
@@ -57,7 +58,17 @@ function estimateLine(e: Estimate): string {
     `${e.firstMessages.toLocaleString("en-US")} first ${e.firstMessages === 1 ? "message" : "messages"}`,
   ];
   if (e.metaCost) parts.push(`about ${money(e.metaCost)} to Meta`);
-  if (e.monthShare !== null) {
+  // AI leads (2026-11-12): each lead started uses one of this month's at most; past what's left, the rest wait.
+  if (e.aiLeadsLeft !== null && e.aiLeadsLeft !== undefined) {
+    const left = e.aiLeadsLeft;
+    parts.push(
+      e.firstMessages <= left
+        ? `uses up to ${e.firstMessages.toLocaleString("en-US")} of your ${left.toLocaleString("en-US")} AI leads left this month`
+        : left === 0
+          ? "no AI leads left this month, so they wait until the 1st or a top-up"
+          : `${left.toLocaleString("en-US")} AI leads left this month: the rest wait until the 1st or a top-up`,
+    );
+  } else if (e.monthShare !== null) {
     const pct = Math.round(e.monthShare * 100);
     parts.push(
       pct < 1 ? "uses under 1% of this month's LUME AI" : `uses about ${pct}% of this month's LUME AI`,

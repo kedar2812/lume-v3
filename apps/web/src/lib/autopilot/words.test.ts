@@ -66,6 +66,35 @@ describe("runStatus", () => {
     ).toBe(true);
   });
 
+  it("AI leads (2026-11-12): leads held for this month's AI leads say so, not when a message goes", () => {
+    const held =
+      "This month's AI leads are used up. LUME AI starts on this lead on the 1st, or sooner with a top-up.";
+    const s = status(
+      detail({
+        leads: [
+          lead({ leadId: "a", state: "up_next", reason: held, nextAt: "2026-10-31T20:00:00.000Z" }),
+          lead({ leadId: "b", state: "sent", nextAt: "2026-10-28T04:30:00.000Z" }),
+        ],
+      }),
+    );
+    expect(s).toEqual({
+      title: "Waiting for more AI leads",
+      line: "This month's are used up. These leads start on the 1st, or sooner with a top-up.",
+      working: false,
+    });
+    // One held, one paced: the next message's time still says when something goes.
+    expect(
+      status(
+        detail({
+          leads: [
+            lead({ leadId: "a", state: "up_next", reason: held, nextAt: "2026-10-31T20:00:00.000Z" }),
+            lead({ leadId: "b", state: "up_next", nextAt: "2026-10-27T04:30:00.000Z" }),
+          ],
+        }),
+      ).title,
+    ).toBe("Waiting to send the next message");
+  });
+
   it("waiting for replies says when the next follow-up goes; one due now is work", () => {
     expect(
       status(detail({ leads: [lead({ leadId: "a", state: "sent", nextAt: "2026-10-28T04:30:00.000Z" })] })),
@@ -106,8 +135,8 @@ describe("runStatus", () => {
       line: "Nothing is sent until you resume.",
       working: false,
     });
-    expect(paused("month").title).toBe("Paused: this month's LUME AI is used");
-    expect(paused("month").line).toBe("It carries on by itself once a top-up is added.");
+    expect(paused("month").title).toBe("Paused for the rest of the month");
+    expect(paused("month").line).toBe("It carries on by itself on the 1st, or once a top-up is added.");
     expect(paused("quality").title).toBe("Paused to protect your WhatsApp number");
     expect(paused("speaker").title).toBe("Paused: the person it speaks as can't send messages now");
     expect(paused("number").title).toBe("Paused: the WhatsApp number isn't connected");

@@ -4,7 +4,7 @@ import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { aiClient } from "@/lib/ai/client";
-import type { AiPause } from "@/lib/ai/types";
+import type { AiStop } from "@/lib/ai/types";
 import { pausedWords } from "@/lib/ai/words";
 import s from "./ai.module.css";
 
@@ -12,7 +12,7 @@ type State =
   | { is: "offered" }
   | { is: "reading" }
   | { is: "ready"; lines: string[] }
-  | { is: "limit"; pause: AiPause }
+  | { is: "limit"; pause: AiStop }
   | { is: "failed" }
   | { is: "gone" };
 
@@ -45,6 +45,8 @@ export function CatchUp({ leadId, tz }: { leadId: string; tz: string }) {
     const d = r.data;
     if (!("unavailable" in d)) return setState({ is: "ready", lines: d.read.lines });
     if (d.unavailable === "limit") return setState({ is: "limit", pause: { by: d.by, until: d.until } });
+    if (d.unavailable === "leads" || d.unavailable === "lead_cap")
+      return setState({ is: "limit", pause: { by: d.unavailable, until: d.until } });
     setState(d.unavailable === "failed" ? { is: "failed" } : { is: "gone" });
   };
 

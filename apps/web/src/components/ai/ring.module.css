@@ -166,10 +166,28 @@
   font-weight: var(--fw-semibold);
   cursor: pointer;
 }
-.ask:disabled {
+.ask:disabled,
+.askPlain:disabled {
   opacity: 0.6;
 }
+/* AI leads (2026-11-12): a top-up, and beside it the quieter ask about a bigger plan. */
+.asks {
+  display: grid;
+  gap: 6px;
+}
+.askPlain {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
 .ask:focus-visible,
+.askPlain:focus-visible,
 .link:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

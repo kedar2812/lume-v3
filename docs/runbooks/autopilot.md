@@ -57,7 +57,7 @@ them a run doesn't start, and LUME says which is missing.
 
   | Reason | When | Resumes |
   |---|---|---|
-  | `month` | the month's LUME AI allowance is used up | by itself, after a top-up reaches the licence |
+  | `month` | the month's hidden safety net is reached (AI leads: rarely) | by itself, after a top-up reaches the licence |
   | `quality` | Meta rates the number yellow (or flags it) | an admin, once the rating recovers |
   | `speaker` | the speaker can no longer message the leads | an admin, after choosing another speaker or fixing the role |
   | `number` | the number is disconnected | an admin, after connecting it again |

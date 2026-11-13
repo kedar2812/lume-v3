@@ -8,11 +8,34 @@ import { wallTime } from "../tasks/time";
  */
 const HOUR = 3_600_000;
 
-export type AiUsage = { hourN: number; hourOldest: Date | null; weekN: number; monthN?: number };
-export type AiLimits = { hourly: number | null; weekly: number | null; monthly?: number | null };
+/** `leadsN`: AI leads counted this month (owner's spec 2026-11-12). */
+export type AiUsage = {
+  hourN: number;
+  hourOldest: Date | null;
+  weekN: number;
+  monthN?: number;
+  leadsN?: number;
+};
+/** `monthly` is the actions a month (a hidden safety net once a licence counts AI leads); `leads` the AI leads. */
+export type AiLimits = {
+  hourly: number | null;
+  weekly: number | null;
+  monthly?: number | null;
+  leads?: number | null;
+};
 export type AiLimit = { used: number; limit: number | null; resetsAt: string };
 export type AiPause = { by: "hour" | "week" | "month"; until: string };
-export type AiLimitState = { hour: AiLimit; week: AiLimit; month: AiLimit; paused: AiPause | null };
+/**
+ * `leads`: the month's AI leads. Using them all up isn't a pause: leads counted this month keep LUME AI, and only a new
+ * lead can't start. `paused` is the hour, the week or the month's actions (the safety net).
+ */
+export type AiLimitState = {
+  hour: AiLimit;
+  week: AiLimit;
+  month: AiLimit;
+  leads: AiLimit;
+  paused: AiPause | null;
+};
 
 /** The local calendar date of `at` on `tz`, and its weekday (Monday 1 … Sunday 7). */
 function localDay(at: Date, tz: string): { y: number; m: number; d: number; dow: number } {
@@ -59,6 +82,11 @@ export function aiLimitState(u: AiUsage, limits: AiLimits, now: Date, tz: string
     limit: limits.monthly ?? null,
     resetsAt: w.nextMonthStart.toISOString(),
   };
+  const leads: AiLimit = {
+    used: u.leadsN ?? 0,
+    limit: limits.leads ?? null,
+    resetsAt: w.nextMonthStart.toISOString(),
+  };
   const paused: AiPause | null =
     month.limit !== null && month.used >= month.limit
       ? { by: "month", until: month.resetsAt }
@@ -67,7 +95,7 @@ export function aiLimitState(u: AiUsage, limits: AiLimits, now: Date, tz: string
         : hour.limit !== null && hour.used >= hour.limit
           ? { by: "hour", until: hour.resetsAt }
           : null;
-  return { hour, week, month, paused };
+  return { hour, week, month, leads, paused };
 }
 
 /** "at 3:40 pm", "tomorrow at 12:10 am", or "Monday": when LUME AI is back, on the business's clock. */

@@ -4,6 +4,7 @@ import {
   nextStepOutput,
   rawPublicKey,
   signLicence,
+  type AiTask,
   type LicencePayload,
   type PlanClaim,
 } from "@lume/core";
@@ -114,12 +115,13 @@ beforeAll(async () => {
     aiTimeoutMs: 200,
     extraRoutes: (app, d) => {
       deps = d;
-      app.post<{ Params: { id: string } }>(
+      app.post<{ Params: { id: string }; Querystring: { task?: AiTask } }>(
         "/test/ai-read/:id",
         { config: { permission: "leads.view" } },
         (req) =>
           runRead(req, d, {
-            task: "next_step",
+            // Any task (AI leads, 2026-11-12: which ones count); the fake answers by the schema.
+            task: req.query.task ?? "next_step",
             leadId: req.params.id,
             instructions: "Rules.",
             input: "{}",
@@ -141,7 +143,7 @@ beforeEach(async () => {
   deps.aiPricing = null;
   deps.aiModels = {};
   // No read is ever deleted (no delete policy, by design): the owner empties the table between tests.
-  await h.ownerPool.query("TRUNCATE ai_reads, ai_limit_notices");
+  await h.ownerPool.query("TRUNCATE ai_reads, ai_limit_notices, ai_lead_months");
   noticesFrom = await asBackup(async (r) =>
     Number((await r.query("SELECT coalesce(max(id), 0) AS n FROM notifications")).rows[0].n),
   );
@@ -275,6 +277,9 @@ describe("the limits", () => {
       week: { used: 1, limit: 750, resetsAt: "2026-10-25T18:30:00.000Z" },
       // A licence without the month (plan3 or older): no monthly limit, no spend set, no top-ups to ask for (a rep).
       month: { used: 1, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
+      // The read was a next step: its lead is counted this month (AI leads), against no limit on this licence.
+      leads: { used: 1, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
+      countsLeads: false,
       paused: null,
       spend: null,
       pace: { daysLeft: null },
@@ -534,5 +539,173 @@ describe("a model per action", () => {
     expect(asked).toBe("fake-1");
     const kept = await asBackup(async (c) => (await c.query("SELECT model FROM ai_reads")).rows);
     expect(kept).toEqual([{ model: "fake-1" }]);
+  });
+});
+
+/** AI leads (owner's spec 2026-11-12): the month's allowance counts leads, not reads. */
+describe("AI leads", () => {
+  const leads = (
+    aiLeadsMonthly: number | null,
+    o: { topUps?: { month: string; leads: number }[]; calls?: number | null; weekly?: number | null } = {},
+  ) =>
+    withPlan({
+      places: null,
+      modules: all,
+      aiReadsHourly: null,
+      aiReadsWeekly: o.weekly ?? null,
+      ...(o.calls !== undefined ? { aiCallsMonthly: o.calls } : {}),
+      aiLeadsMonthly,
+      aiLeadTopUps: o.topUps ?? [],
+    });
+  const status = async (as: () => Promise<AuthedClient> = owner) =>
+    (await (await as()).inject({ method: "GET", url: "/api/v1/ai" })).json();
+  const readOn = async (id: string, task = "next_step", as: () => Promise<AuthedClient> = owner) =>
+    (await (await as()).inject({ method: "POST", url: `/test/ai-read/${id}?task=${task}` })).json();
+  let others: string[] = [];
+  beforeAll(async () => {
+    others = [];
+    for (const name of ["Arjun Mehta", "Kavya Nair", "Rohan Das", "Meera Iyer", "Vikram Rao"])
+      others.push(await h.seedLead({ ownerId: repUser.id, name }));
+  });
+  beforeEach(async () => {
+    await switchOn();
+  });
+
+  it("T1: a lead counts once a month, however many counted reads it gets", async () => {
+    await leads(10);
+    for (const task of ["next_step", "catch_up", "autopilot_reply", "next_step"])
+      expect(await readOn(lead, task)).toHaveProperty("output");
+    expect((await status()).leads).toEqual({ used: 1, limit: 10, resetsAt: "2026-10-31T18:30:00.000Z" });
+    await readOn(others[0]!);
+    expect((await status()).leads.used).toBe(2);
+  });
+
+  it("T2: choosing a template, a reply's meaning and drafting a template never count, even with none left", async () => {
+    await leads(0); // Base
+    for (const task of ["autopilot_first", "reply_meaning"])
+      expect(await readOn(lead, task)).toHaveProperty("output");
+    expect((await status()).leads).toMatchObject({ used: 0, limit: 0 });
+    // Base: a read that counts can't start on any lead.
+    expect(await readOn(lead)).toEqual({ unavailable: "leads", until: "2026-10-31T18:30:00.000Z" });
+  });
+
+  it("T2: a failed read doesn't count its lead (it stays in the spend, as before)", async () => {
+    await leads(10);
+    provider = {
+      name: "fake",
+      model: "fake-1",
+      read: async () => {
+        throw new AiUnreadable("refused", {
+          inputTokens: 900,
+          outputTokens: 40,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+        });
+      },
+    };
+    expect(await readOn(lead)).toEqual({ unavailable: "failed" });
+    expect((await status()).leads.used).toBe(0);
+    const tokens = await asBackup(async (c) => (await c.query("SELECT input_tokens FROM ai_reads")).rows);
+    expect(tokens).toEqual([{ input_tokens: 900 }]);
+  });
+
+  it("T4: all AI leads used: a new lead is refused, a counted one keeps full AI, and admins hear once", async () => {
+    await leads(1);
+    expect(await readOn(lead)).toHaveProperty("output");
+    expect(await readOn(others[0]!)).toEqual({ unavailable: "leads", until: "2026-10-31T18:30:00.000Z" });
+    expect(await readOn(others[1]!)).toEqual({ unavailable: "leads", until: "2026-10-31T18:30:00.000Z" });
+    for (let i = 0; i < 3; i++) expect(await readOn(lead, "autopilot_reply")).toHaveProperty("output");
+    const full = await alerts("LUME AI has used this month's AI leads");
+    expect(full.map((n) => n.user_id)).toEqual([ownerUser.id]);
+    expect(full[0]!.body).toBe(
+      "All 1 AI leads are used this month. Leads it's already working on keep it; new leads start again on November 1, or sooner with a top-up.",
+    );
+  });
+
+  it("80%: admins hear once, with X of Y; and again at all of them", async () => {
+    await leads(5);
+    for (const id of [lead, ...others.slice(0, 3)]) await readOn(id);
+    await readOn(lead); // a counted lead again: no new notice
+    const eighty = await alerts("LUME AI has used 80% of this month's AI leads");
+    expect(eighty.map((n) => n.body)).toEqual([
+      "4 of 5 AI leads used this month. They start again on November 1.",
+    ]);
+    expect(await alerts("LUME AI has used this month's AI leads")).toHaveLength(0);
+    await readOn(others[3]!);
+    expect(await alerts("LUME AI has used this month's AI leads")).toHaveLength(1);
+    expect(await alerts("LUME AI has used 80% of this month's AI leads")).toHaveLength(1);
+    // The reads a month (75%/90% of an allowance) aren't said any more: they're a hidden safety net now.
+    expect(await alerts("LUME AI has used 75%%")).toHaveLength(0);
+  });
+
+  it("T5: a lead's 20 counted reads a month, then it's refused until the 1st; cheap reads still go", async () => {
+    await leads(100);
+    for (let i = 0; i < 20; i++)
+      expect(await readOn(lead, i % 2 ? "catch_up" : "next_step")).toHaveProperty("output");
+    expect(await readOn(lead)).toEqual({ unavailable: "lead_cap", until: "2026-10-31T18:30:00.000Z" });
+    expect(await readOn(lead, "autopilot_reply")).toMatchObject({ unavailable: "lead_cap" });
+    expect(await readOn(lead, "autopilot_first")).toHaveProperty("output");
+    // Another lead is unaffected (next month it starts again: leads.test.ts).
+    expect(await readOn(others[0]!)).toHaveProperty("output");
+  });
+
+  it("no AI leads limit (null): no per-lead limit either", async () => {
+    await leads(null);
+    for (let i = 0; i < 21; i++) expect(await readOn(lead)).toHaveProperty("output");
+    expect((await status()).leads).toMatchObject({ used: 1, limit: null });
+  });
+
+  it("the safety net: the owner's reads a month still stop LUME AI, worded without a number", async () => {
+    await leads(10, { calls: 3 });
+    for (let i = 0; i < 3; i++) expect(await readOn(lead)).toHaveProperty("output");
+    expect(await readOn(lead)).toMatchObject({ unavailable: "limit", by: "month" });
+    const notes = await alerts("LUME AI has paused%");
+    expect(notes.map((n) => [n.title, n.body])).toEqual([
+      [
+        "LUME AI has paused for the rest of the month",
+        "It reached its monthly safety limit and is back on November 1, or sooner with a top-up: ask for one from LUME AI's ring.",
+      ],
+    ]);
+  });
+
+  it("the safety net, when the owner set none: 30 reads an AI lead, at least 1,000", async () => {
+    await leads(1);
+    expect((await status()).month).toMatchObject({ limit: 1000 });
+    await leads(100);
+    expect((await status()).month).toMatchObject({ limit: 3000 });
+  });
+
+  it("the week doesn't apply with AI leads; the hour still does", async () => {
+    await leads(10, { weekly: 1 });
+    for (let i = 0; i < 3; i++) expect(await readOn(lead)).toHaveProperty("output");
+    await withPlan({ places: null, modules: all, aiReadsHourly: 4, aiReadsWeekly: null, aiLeadsMonthly: 10 });
+    expect(await readOn(lead)).toHaveProperty("output");
+    expect(await readOn(lead)).toMatchObject({ unavailable: "limit", by: "hour" });
+  });
+
+  it("a top-up is asked against the AI leads; once one arrives, it's no longer asked", async () => {
+    await leads(1);
+    await readOn(lead);
+    expect((await status()).topUp).toEqual({ asked: false });
+    expect(
+      (await (await owner()).inject({ method: "POST", url: "/api/v1/ai/topup", payload: {} })).json(),
+    ).toEqual({
+      asked: true,
+    });
+    expect((await status()).topUp).toEqual({ asked: true });
+    await leads(1, { topUps: [{ month: "2026-10", leads: 100 }] });
+    expect((await status()).topUp).toEqual({ asked: false });
+    // The pace is the AI leads' too.
+    expect((await status()).pace.daysLeft).toBeGreaterThan(30);
+  });
+
+  it("a rep sees the count too, but no top-up", async () => {
+    await leads(10);
+    await readOn(lead, "next_step", rep);
+    expect(await status(rep)).toMatchObject({
+      leads: { used: 1, limit: 10 },
+      countsLeads: true,
+      topUp: null,
+    });
   });
 });

@@ -41,7 +41,7 @@ describe("the plan in the signed answer", () => {
       "ai",
       "whatsapp",
     ]);
-    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3", "plan4"]);
+    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5"]);
   });
   it("W3b-2: a monthly limit on paid WhatsApp messages, within bounds", () => {
     const sign = (p: unknown) =>

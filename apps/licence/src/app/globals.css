@@ -2829,6 +2829,13 @@ a.fl-row:hover {
   gap: 10px;
   flex-wrap: wrap;
 }
+/* AI leads (2026-11-12): the tiers, and the safety net under them. */
+.pl-sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink2);
+  margin-top: 4px;
+}
 .pl-step {
   display: inline-flex;
   align-items: center;

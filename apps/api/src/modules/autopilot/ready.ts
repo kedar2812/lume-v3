@@ -15,7 +15,13 @@ import { allScope } from "../whatsapp/sender";
 export async function tellPeople(
   pool: pg.Pool,
   o: { runId: string; leadId: string } & (
-    { kind: "ask"; action: AutopilotAction } | { kind: "ready" | "needs_you"; headline: string }
+    | { kind: "ask"; action: AutopilotAction }
+    | {
+        kind: "ready" | "needs_you";
+        headline: string;
+        /** The lead's own rep hears too, whatever the run's Hand a lead to a rep (a lead at its 20, 2026-11-12). */
+        toOwner?: boolean;
+      }
   ),
 ): Promise<void> {
   const facts = await allScope(pool, async (c) => {
@@ -41,7 +47,12 @@ export async function tellPeople(
           `${first}: ${o.headline.replace(/[.\s]+$/, "")}. Want to take over?`
         : `${first} needs you: ${o.headline}`;
   const to = [facts.started_by];
-  if (o.kind !== "ask" && facts.hand === "go" && facts.owner_id && facts.owner_id !== facts.started_by)
+  if (
+    o.kind !== "ask" &&
+    (facts.hand === "go" || o.toOwner) &&
+    facts.owner_id &&
+    facts.owner_id !== facts.started_by
+  )
     to.push(facts.owner_id);
   for (const id of to)
     await notify(pool, id, {

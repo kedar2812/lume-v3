@@ -112,6 +112,8 @@ describe("estimate and start", () => {
       firstMessages: 2,
       metaCost: { amount: expect.any(Number), currency: "INR" },
       monthShare: 0.002,
+      // A licence counting AI calls (plan4), not AI leads: no AI leads left to say.
+      aiLeadsLeft: null,
     });
   });
 

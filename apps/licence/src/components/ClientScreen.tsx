@@ -166,22 +166,19 @@ export function said(e: Detail["history"][number]): { text: string; color: strin
         ? `; ${left.map((k) => names[k] ?? k).join(", ")} not included`
         : "; every module included";
       const n = (v: unknown) => (typeof v === "number" ? v.toLocaleString("en-IN") : null);
+      // AI leads (2026-11-12): the leads a month, then the safety net (the hour, the month, the week) as at most.
+      const leads = n(d.aiLeadsMonthly);
+      const aiLeads = leads ? `; ${leads} AI leads a month` : "";
       const hour = n(d.aiReadsHourly);
+      const month = n(d.aiCallsMonthly);
       const week = n(d.aiReadsWeekly);
-      const ai =
-        hour || week
-          ? `; LUME AI ${[
-              hour && `${hour} reads an hour`,
-              week && `${week} ${hour ? "a week" : "reads a week"}`,
-            ]
-              .filter(Boolean)
-              .join(", ")}`
-          : "";
+      const most = [hour && `${hour} an hour`, month && `${month} a month`, week && `${week} a week`].filter(
+        Boolean,
+      );
+      const ai = most.length ? `; LUME AI at most ${most.join(", ")}` : "";
       const paid = n(d.paidSendsMonthly);
       const wa = paid ? `; ${paid} paid WhatsApp messages a month` : "";
-      const month = n(d.aiCallsMonthly);
-      const aiMonth = month ? `; LUME AI ${month} calls a month` : "";
-      return { text: `Plan: ${places}${out}${ai}${aiMonth}${wa}`, color: "#2a5bff" };
+      return { text: `Plan: ${places}${out}${aiLeads}${ai}${wa}`, color: "#2a5bff" };
     }
     case "topup_requested":
       return {
@@ -190,7 +187,10 @@ export function said(e: Detail["history"][number]): { text: string; color: strin
       };
     case "ai_topup":
       return {
-        text: `LUME AI top-up: ${Number(d.calls).toLocaleString("en-IN")} calls for ${monthWords(String(d.month))}`,
+        text:
+          d.leads !== undefined
+            ? `LUME AI top-up: ${Number(d.leads).toLocaleString("en-IN")} AI leads for ${monthWords(String(d.month))}`
+            : `LUME AI top-up: ${Number(d.calls).toLocaleString("en-IN")} calls for ${monthWords(String(d.month))}`,
         color: "#18a566",
       };
     case "announcement":
@@ -720,7 +720,7 @@ export function ClientScreen({ id }: { id: string }) {
             <TopUps
               key={`topups-${c.id}`}
               clientId={c.id}
-              monthly={d.plan?.aiCallsMonthly ?? null}
+              leads={d.plan?.aiLeadsMonthly}
               topUps={d.topUps}
               onSaved={(x) => setD(x as Detail)}
             />

@@ -18,6 +18,8 @@ export const aiReads = pgTable("ai_reads", {
   cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
   cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
   status: text("status").$type<"pending" | "ok" | "failed">().notNull(),
+  /** The month ("YYYY-MM", business clock) a counted read counts in against its lead (0106, AI leads); else null. */
+  leadMonth: text("lead_month"),
   /** The cleaned output (a next step or a catch-up); null when the read failed. */
   result: jsonb("result").$type<Record<string, unknown> | null>(),
   outcome: text("outcome").$type<"applied" | "dismissed" | null>(),

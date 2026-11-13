@@ -1,5 +1,5 @@
 import { dayKey, longDate, timeOf } from "@/lib/dates";
-import type { AiPause, Applied, Part } from "./types";
+import type { AiStop, Applied, Part } from "./types";
 
 const weekday = (d: Date, tz: string) =>
   new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d);
@@ -16,12 +16,20 @@ export function resetWords(iso: string, tz: string, now: Date = new Date()): str
 }
 
 /**
- * "LUME AI has reached this hour's limit. It's back at 3:40 pm." — the week's, back on its day; the month's allowance
- * (Autopilot A1), back on the 1st at the latest (a top-up brings it back sooner).
+ * "LUME AI has reached this hour's limit. It's back at 3:40 pm." — the week's, back on its day; the month's, back on the
+ * 1st at the latest (a top-up brings it back sooner). AI leads (2026-11-12): this month's are used up and this lead
+ * isn't one, or this lead has had its 20 replies and suggestions; both back on the 1st.
  */
-export function pausedWords(p: AiPause, tz: string, now: Date = new Date()): string {
-  if (p.by === "month")
-    return `LUME AI has reached this month's allowance. It's back on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long", day: "numeric" }).format(new Date(p.until))}.`;
+export function pausedWords(p: AiStop, tz: string, now: Date = new Date()): string {
+  const day = () =>
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long", day: "numeric" }).format(
+      new Date(p.until),
+    );
+  if (p.by === "leads")
+    return `This month's AI leads are used up, so LUME AI can't start on this lead. It can on ${day()}, or sooner with a top-up.`;
+  if (p.by === "lead_cap")
+    return `LUME AI has given this lead its 20 replies and suggestions for this month. It can help again on ${day()}.`;
+  if (p.by === "month") return `LUME AI is paused for the rest of the month. It's back on ${day()}.`;
   if (p.by === "week")
     return `LUME AI has reached this week's limit. It's back ${weekday(new Date(p.until), tz)}.`;
   const when = resetWords(p.until, tz, now);

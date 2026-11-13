@@ -15,6 +15,8 @@ const status = (over: Partial<AiStatus> = {}): AiStatus => ({
   hour: { used: 12, limit: 100, resetsAt: "2026-10-21T10:10:00.000Z" }, // 3:40 pm in Kolkata
   week: { used: 640, limit: 750, resetsAt: "2026-10-25T18:30:00.000Z" }, // Monday 12 am in Kolkata
   month: { used: 640, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
+  leads: { used: 0, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" },
+  countsLeads: false,
   paused: null,
   spend: null,
   pace: { daysLeft: null },
@@ -150,5 +152,38 @@ describe("the LUME AI card (spec 2026-10-18 §2.2)", () => {
     render(<AiCard ai={{ enabled: false, available: true, inPlan: true }} tz={TZ} onView={vi.fn()} />);
     await userEvent.click(screen.getByRole("switch", { name: "LUME AI" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("LUME AI isn't set up on this server yet.");
+  });
+});
+
+/** AI leads (owner's spec 2026-11-12): the month's AI leads; the hour and the month's reads aren't shown. */
+describe("the card counts AI leads", () => {
+  it("X of Y AI leads used, when it resets, and no hour or week", async () => {
+    vi.mocked(aiClient.status).mockResolvedValue(
+      ok(
+        status({
+          countsLeads: true,
+          leads: { used: 612, limit: 1000, resetsAt: "2026-10-31T18:30:00.000Z" },
+          month: { used: 5000, limit: 30_000, resetsAt: "2026-10-31T18:30:00.000Z" },
+        }),
+      ),
+    );
+    render(<AiCard ai={{ enabled: true, available: true, inPlan: true }} tz={TZ} onView={vi.fn()} />);
+    expect(await screen.findByText("612 of 1,000 AI leads used · resets November 1")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "612 of 1,000 AI leads this month" })).toBeInTheDocument();
+    expect(screen.getByText("AI leads this month")).toBeInTheDocument();
+    expect(screen.queryByText("This hour")).not.toBeInTheDocument();
+    expect(screen.queryByText("This week")).not.toBeInTheDocument();
+    expect(screen.queryByText(/30,000/)).not.toBeInTheDocument();
+  });
+
+  it("no AI leads limit: the count, no bar", async () => {
+    vi.mocked(aiClient.status).mockResolvedValue(
+      ok(
+        status({ countsLeads: true, leads: { used: 3, limit: null, resetsAt: "2026-10-31T18:30:00.000Z" } }),
+      ),
+    );
+    render(<AiCard ai={{ enabled: true, available: true, inPlan: true }} tz={TZ} onView={vi.fn()} />);
+    expect(await screen.findByText("3 AI leads · no limit")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /AI leads/ })).not.toBeInTheDocument();
   });
 });

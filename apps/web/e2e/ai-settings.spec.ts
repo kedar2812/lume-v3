@@ -115,43 +115,79 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     await admin.close();
   });
 
-  test("the ring fills with the month, turns amber at 80%, asks for a top-up once, and falls back when it's added", async ({
+  test("AI leads: the ring fills, turns amber at 80%, says when they're used up, asks for a top-up once, and falls back when it's added", async ({
     page,
   }) => {
     await openApp(page, "/today");
-    const used = (await callApi<{ month: { used: number } }>(page, "GET", "/api/v1/ai")).data.month.used;
-    // A small allowance: five calls left this month.
-    await licenceSays(page, {
-      plan: { places: null, modules: all, aiReadsHourly: null, aiCallsMonthly: used + 5 },
-    });
-    const lead = (
-      await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", { name: "Meera Iyer" })
-    ).data.lead.id;
-    leads.push(lead);
-    for (let i = 0; i < 4; i++) {
-      const r = await callApi(page, "POST", `/api/v1/leads/${lead}/ai/catch-up`);
+    const used = (await callApi<{ leads: { used: number } }>(page, "GET", "/api/v1/ai")).data.leads.used;
+    // A small allowance (owner's spec 2026-11-12): five AI leads left this month.
+    const plan = { places: null, modules: all, aiReadsHourly: null, aiLeadsMonthly: used + 5 };
+    await licenceSays(page, { plan: { ...plan, aiLeadTopUps: [] } });
+    const ours: string[] = [];
+    for (const name of [
+      "Meera Iyer",
+      "Rohan Gupta",
+      "Anika Rao",
+      "Kabir Shah",
+      "Isha Menon",
+      "Arjun Mehta",
+    ]) {
+      const id = (await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", { name })).data.lead
+        .id;
+      leads.push(id);
+      ours.push(id);
+    }
+    // Four leads caught up: four AI leads, however many times each is asked.
+    for (const id of ours.slice(0, 4)) {
+      const r = await callApi(page, "POST", `/api/v1/leads/${id}/ai/catch-up`);
       expect(r.status, JSON.stringify(r.data)).toBe(200);
     }
+    await callApi(page, "POST", `/api/v1/leads/${ours[0]}/ai/catch-up`);
+    const n = (x: number) => x.toLocaleString("en-US");
 
     await openApp(page, "/today");
-    const pct = Math.round(((used + 4) / (used + 5)) * 100);
-    await expect(ring(page)).toHaveAccessibleName(`LUME AI: ${pct}% of this month used`);
+    await expect(ring(page)).toHaveAccessibleName(
+      `LUME AI: ${n(used + 4)} of ${n(used + 5)} AI leads used this month`,
+    );
     await expect(ring(page).locator('[data-tone="amber"]')).toHaveCount(1);
     await ring(page).click();
     const panel = page.getByRole("dialog", { name: "LUME AI this month" });
-    await expect(panel).toContainText(
-      `${(used + 4).toLocaleString("en-US")} of ${(used + 5).toLocaleString("en-US")} this month`,
-    );
+    await expect(panel).toContainText(`${n(used + 4)} of ${n(used + 5)} AI leads used this month`);
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       expect(await axe(page)).toEqual([]);
       await reviewCopy(panel, `ring-amber-${theme}.png`);
     }
     await page.emulateMedia({ colorScheme: "light" });
+    await page.keyboard.press("Escape");
 
-    await panel.getByRole("button", { name: "Ask for a top-up" }).click();
+    // The fifth uses the last one; the sixth lead can't start, while a counted one still gets its catch-up.
+    expect((await callApi(page, "POST", `/api/v1/leads/${ours[4]}/ai/catch-up`)).status).toBe(200);
+    const sixth = await callApi<{ unavailable?: string }>(
+      page,
+      "POST",
+      `/api/v1/leads/${ours[5]}/ai/catch-up`,
+    );
+    expect(sixth.data.unavailable).toBe("leads");
+    const again = await callApi<{ read?: unknown }>(page, "POST", `/api/v1/leads/${ours[1]}/ai/catch-up`);
+    expect(again.data.read).toBeTruthy();
+
+    await openApp(page, "/today");
+    await expect(ring(page)).toHaveAccessibleName("LUME AI: this month's AI leads are used up");
+    await ring(page).click();
+    await expect(panel).toContainText(
+      "This month's AI leads are used up. Leads LUME AI is already working on carry on",
+    );
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      expect(await axe(page)).toEqual([]);
+      await reviewCopy(panel, `ring-full-${theme}.png`);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+
+    await panel.getByRole("button", { name: "Ask for a top-up of 100 AI leads" }).click();
     await expect(panel).toContainText("Asked. LUME will let you know when it's added.");
-    await expect(panel.getByRole("button", { name: "Ask for a top-up" })).toHaveCount(0);
+    await expect(panel.getByRole("button", { name: /^Ask/ })).toHaveCount(0);
     // Asked again (another admin, or the API twice): still one request reaches the owner.
     await callApi(page, "POST", "/api/v1/ai/topup", {});
     const month = await monthKey(page);
@@ -160,20 +196,14 @@ test.describe("LUME AI's month, and Settings → LUME AI", () => {
     };
     expect(asked.topUps.filter((t) => t.month === month)).toHaveLength(1);
 
-    // The owner adds 20 for this month: the ring falls back at the next check-in.
-    await licenceSays(page, {
-      plan: {
-        places: null,
-        modules: all,
-        aiReadsHourly: null,
-        aiCallsMonthly: used + 5,
-        aiTopUps: [{ month, calls: 20 }],
-      },
-    });
+    // The owner adds a pack of 100 for this month: the ring falls back at the next check-in, and the sixth starts.
+    await licenceSays(page, { plan: { ...plan, aiLeadTopUps: [{ month, leads: 100 }] } });
     await openApp(page, "/today");
-    const after = Math.round(((used + 4) / (used + 25)) * 100);
-    await expect(ring(page)).toHaveAccessibleName(`LUME AI: ${after}% of this month used`);
+    await expect(ring(page)).toHaveAccessibleName(
+      `LUME AI: ${n(used + 5)} of ${n(used + 105)} AI leads used this month`,
+    );
     await expect(ring(page).locator('[data-tone="amber"]')).toHaveCount(0);
+    expect((await callApi(page, "POST", `/api/v1/leads/${ours[5]}/ai/catch-up`)).status).toBe(200);
   });
 
   test("Settings → LUME AI: prices, a question, two files, Careful then one row changed; all kept after a reload", async ({

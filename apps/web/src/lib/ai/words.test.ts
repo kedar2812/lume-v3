@@ -24,9 +24,18 @@ describe("LUME AI's words for time", () => {
     );
   });
 
-  it("the month's allowance (Autopilot A1) says so, and the day it's back at the latest", () => {
+  it("the month (Autopilot A1; a safety net once AI leads count) says so, and the day it's back at the latest", () => {
     expect(pausedWords({ by: "month", until: "2026-10-31T18:30:00.000Z" }, TZ, now)).toBe(
-      "LUME AI has reached this month's allowance. It's back on November 1.",
+      "LUME AI is paused for the rest of the month. It's back on November 1.",
+    );
+  });
+
+  it("AI leads (2026-11-12): none left for a new lead, or this lead's 20 used; both back on the 1st", () => {
+    expect(pausedWords({ by: "leads", until: "2026-10-31T18:30:00.000Z" }, TZ, now)).toBe(
+      "This month's AI leads are used up, so LUME AI can't start on this lead. It can on November 1, or sooner with a top-up.",
+    );
+    expect(pausedWords({ by: "lead_cap", until: "2026-10-31T18:30:00.000Z" }, TZ, now)).toBe(
+      "LUME AI has given this lead its 20 replies and suggestions for this month. It can help again on November 1.",
     );
   });
 });

@@ -13,7 +13,7 @@ import type { Ctx } from "./context";
 import { ROTATE_OVERLAP_MS } from "./check";
 import { clientFeedback, fixedByVersion } from "./feedback-admin";
 import { clientHealth, healthForAlerts } from "./fleet";
-import { planOf, topUpsAround } from "./plan";
+import { monthAround, planOf, topUpsAround } from "./plan";
 import { currentRates } from "./fx";
 
 export class Refusal extends Error {
@@ -288,7 +288,7 @@ export async function getClient(ctx: Ctx, id: string) {
     plan: planOf(
       (
         await ctx.db.query<PlanRow>(
-          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly FROM licences WHERE client_id = $1",
+          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly, ai_leads_monthly FROM licences WHERE client_id = $1",
           [id],
         )
       ).rows[0] ?? {
@@ -298,8 +298,9 @@ export async function getClient(ctx: Ctx, id: string) {
         ai_reads_weekly: null,
         paid_sends_monthly: null,
         ai_calls_monthly: null,
+        ai_leads_monthly: null,
       },
-      { v2: true, v3: true, v4: true, topUps: await topUpsAround(ctx.db, id, now) },
+      { v2: true, v3: true, v4: true, v5: true, topUps: await topUpsAround(ctx.db, id, now) },
     ),
     // LUME AI top-ups (Autopilot spec 2026-10-19 §4): what the client's admins asked for, and what was added.
     topUps: await clientTopUps(ctx.db, id),
@@ -313,6 +314,8 @@ export async function getClient(ctx: Ctx, id: string) {
       knowsPaid: !!l?.accepts?.includes("plan3"),
       // LUME AI a month (Autopilot A1) reaches only a LUME that accepts plan4; an older one keeps the weekly reads.
       knowsMonthly: !!l?.accepts?.includes("plan4"),
+      // AI leads (2026-11-12) reach only a LUME that accepts plan5; an older one counts actions (7 an AI lead).
+      knowsLeads: !!l?.accepts?.includes("plan5"),
     },
   };
 }
@@ -324,6 +327,7 @@ type PlanRow = {
   ai_reads_weekly: number | null;
   paid_sends_monthly: number | null;
   ai_calls_monthly: number | null;
+  ai_leads_monthly: number | null;
 };
 
 const aiLimit = (most: number, words: string) =>
@@ -344,6 +348,14 @@ export const planSchema = z
     aiReadsWeekly: aiLimit(1_000_000, "AI reads a week"),
     paidSendsMonthly: aiLimit(10_000_000, "Paid WhatsApp messages a month"),
     aiCallsMonthly: aiLimit(10_000_000, "LUME AI a month"),
+    // AI leads a month (2026-11-12): Base is 0; absent or null is no limit.
+    aiLeadsMonthly: z
+      .number()
+      .int("AI leads a month is a whole number.")
+      .min(0, "AI leads a month: 0 or more, or no limit.")
+      .max(10_000_000, `AI leads a month: ${(10_000_000).toLocaleString("en-IN")} at most.`)
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -358,6 +370,7 @@ export async function patchPlan(
     aiReadsWeekly?: number | null;
     paidSendsMonthly?: number | null;
     aiCallsMonthly?: number | null;
+    aiLeadsMonthly?: number | null;
   },
 ) {
   const p = planSchema.safeParse(body);
@@ -368,9 +381,10 @@ export async function patchPlan(
   const weekly = p.data.aiReadsWeekly ?? null;
   const paid = p.data.paidSendsMonthly ?? null;
   const monthly = p.data.aiCallsMonthly ?? null;
+  const leads = p.data.aiLeadsMonthly ?? null;
   const before = (
     await ctx.db.query<PlanRow>(
-      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly FROM licences WHERE client_id = $1",
+      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly, ai_leads_monthly FROM licences WHERE client_id = $1",
       [id],
     )
   ).rows[0]!;
@@ -381,12 +395,13 @@ export async function patchPlan(
     before.ai_reads_hourly === hourly &&
     before.ai_reads_weekly === weekly &&
     before.paid_sends_monthly === paid &&
-    before.ai_calls_monthly === monthly
+    before.ai_calls_monthly === monthly &&
+    before.ai_leads_monthly === leads
   )
     return getClient(ctx, id);
   await ctx.db.query(
     `UPDATE licences SET places = $2, modules = $3, ai_reads_hourly = $4, ai_reads_weekly = $5, paid_sends_monthly = $6,
-            ai_calls_monthly = $7
+            ai_calls_monthly = $7, ai_leads_monthly = $8
       WHERE client_id = $1`,
     [
       id,
@@ -396,6 +411,7 @@ export async function patchPlan(
       weekly,
       paid,
       monthly,
+      leads,
     ],
   );
   await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'plan', $3)", [
@@ -408,6 +424,7 @@ export async function patchPlan(
       aiReadsWeekly: weekly,
       paidSendsMonthly: paid,
       aiCallsMonthly: monthly,
+      aiLeadsMonthly: leads,
     }),
   ]);
   return getClient(ctx, id);
@@ -1076,14 +1093,16 @@ export async function releases(ctx: Ctx) {
 /* ---------- LUME AI top-ups (Autopilot spec 2026-10-19 §4) ---------- */
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** A top-up (AI leads, 2026-11-12): packs of this many AI leads, for one month. */
+const PACK = 100;
 const topUpSchema = z
   .object({
     month: z.string().regex(MONTH, "That's not a month (YYYY-MM)."),
-    calls: z
+    packs: z
       .number()
-      .int("A top-up is a whole number of AI calls.")
-      .min(1, "At least 1 AI call.")
-      .max(10_000_000, "10,000,000 AI calls at most."),
+      .int("A top-up is a whole number of packs.")
+      .min(1, "At least 1 pack.")
+      .max(1000, "1,000 packs at most."),
     note: z.string().trim().max(300, "A note is 300 characters at most.").optional(),
   })
   .strict();
@@ -1096,8 +1115,8 @@ async function clientTopUps(db: pg.Pool, id: string) {
         WHERE client_id = $1 AND done_at IS NULL ORDER BY asked_at`,
       [id],
     ),
-    db.query<{ month: string; calls: number; note: string; added_at: Date }>(
-      "SELECT month, calls, note, added_at FROM ai_topups WHERE client_id = $1 ORDER BY added_at DESC LIMIT 24",
+    db.query<{ month: string; calls: number | null; leads: number | null; note: string; added_at: Date }>(
+      "SELECT month, calls, leads, note, added_at FROM ai_topups WHERE client_id = $1 ORDER BY added_at DESC LIMIT 24",
       [id],
     ),
   ]);
@@ -1109,9 +1128,10 @@ async function clientTopUps(db: pg.Pool, id: string) {
       askedByEmail: r.asked_by_email,
       note: r.note,
     })),
+    // In AI leads; one added before them says its calls.
     added: added.rows.map((r) => ({
       month: r.month,
-      calls: r.calls,
+      ...(r.leads !== null ? { leads: r.leads } : { calls: r.calls ?? 0 }),
       note: r.note,
       addedAt: r.added_at.toISOString(),
     })),
@@ -1119,20 +1139,29 @@ async function clientTopUps(db: pg.Pool, id: string) {
 }
 
 /**
- * Add a LUME AI top-up for a month (§4): it reaches the client's LUME at its next check-in, a paused run carries on by
- * itself, and that month's request closes.
+ * Add a LUME AI top-up for a month (§4; AI leads 2026-11-12: packs of 100 AI leads, for the client's month now only,
+ * no rollover): it reaches the client's LUME at its next check-in, held leads start by themselves, and that month's
+ * request closes. Their clock may be a day either side of the server's, so the month before or after is theirs too.
  */
-export async function addTopUp(ctx: Ctx, id: string, body: { month: string; calls: number; note?: string }) {
+export async function addTopUp(ctx: Ctx, id: string, body: { month: string; packs: number; note?: string }) {
   const p = topUpSchema.safeParse(body);
   if (!p.success) throw new Refusal(400, p.error.issues[0]?.message ?? "That top-up doesn't look right.");
   await row(ctx.db, id);
   const now = ctx.now();
+  const near = [monthAround(now, -1), monthAround(now, 0), monthAround(now, 1)];
+  const asked = await ctx.db.query(
+    "SELECT 1 FROM topup_requests WHERE client_id = $1 AND month = $2 AND done_at IS NULL",
+    [id, p.data.month],
+  );
+  const theirs = asked.rowCount ? near.includes(p.data.month) : p.data.month === monthAround(now, 0);
+  if (!theirs) throw new Refusal(400, "A top-up is for this month only.");
+  const leads = p.data.packs * PACK;
   const c = await ctx.db.connect();
   try {
     await c.query("BEGIN");
     await c.query(
-      "INSERT INTO ai_topups (client_id, month, calls, note, added_at) VALUES ($1, $2, $3, $4, $5)",
-      [id, p.data.month, p.data.calls, p.data.note ?? "", now],
+      "INSERT INTO ai_topups (client_id, month, leads, note, added_at) VALUES ($1, $2, $3, $4, $5)",
+      [id, p.data.month, leads, p.data.note ?? "", now],
     );
     await c.query(
       "UPDATE topup_requests SET done_at = $3 WHERE client_id = $1 AND month = $2 AND done_at IS NULL",
@@ -1141,7 +1170,7 @@ export async function addTopUp(ctx: Ctx, id: string, body: { month: string; call
     await c.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'ai_topup', $3)", [
       id,
       now,
-      JSON.stringify({ month: p.data.month, calls: p.data.calls }),
+      JSON.stringify({ month: p.data.month, leads }),
     ]);
     await c.query("COMMIT");
   } catch (e) {

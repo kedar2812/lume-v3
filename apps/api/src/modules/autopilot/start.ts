@@ -89,6 +89,8 @@ type Checked = {
   skipped: { leadId: string; why: string }[];
   monthLeft: number | null;
   monthLimit: number | null;
+  /** This month's AI leads left (2026-11-12), when the licence counts them with a limit. */
+  leadsLeft: number | null;
   /** How many leads were asked for. */
   total: number;
 };
@@ -167,6 +169,7 @@ async function check(req: FastifyRequest, d: AppDeps, b: RunBody): Promise<Check
     skipped,
     monthLeft: ai.month.limit === null ? null : ai.month.limit - ai.month.used,
     monthLimit: ai.month.limit,
+    leadsLeft: ai.countsLeads && ai.leads.limit !== null ? Math.max(0, ai.leads.limit - ai.leads.used) : null,
     total: ids.length,
   };
 }
@@ -185,7 +188,8 @@ async function inRuns(req: FastifyRequest, ids: string[]): Promise<Set<string>> 
 
 /**
  * `POST /api/v1/autopilot/estimate` (§1.4): how many first messages would go, which leads would be skipped and why, about
- * what Meta charges for them, and the share of this month's LUME AI (one read each to choose a template).
+ * what Meta charges for them, and the share of this month's LUME AI (one read each to choose a template). With AI leads
+ * (2026-11-12): how many of this month's are left, each lead started taking one at most (one counted already doesn't).
  */
 export async function estimateRun(req: FastifyRequest, d: AppDeps, b: RunBody) {
   const c = await check(req, d, b);
@@ -211,7 +215,8 @@ export async function estimateRun(req: FastifyRequest, d: AppDeps, b: RunBody) {
     skipped,
     firstMessages: eligible.length,
     metaCost,
-    monthShare: c.monthLimit ? eligible.length / c.monthLimit : null,
+    monthShare: c.leadsLeft === null && c.monthLimit ? eligible.length / c.monthLimit : null,
+    aiLeadsLeft: c.leadsLeft,
   };
 }
 

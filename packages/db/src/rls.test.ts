@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { QUEUE_NAMES } from "@lume/core";
@@ -725,7 +727,7 @@ describe("LUME AI's slots: reserved under one lock, then finished (spec 2026-10-
       .query<{ id: string | null; refused: string | null; hour_oldest: Date | null }>(
         `SELECT * FROM lume_ai_reserve($1, $2, 'next_step', NULL, 'fake', 'fake-1', $3::timestamptz, $4, $5, $6,
                                        $3::timestamptz - interval '1 hour', $3::timestamptz - interval '7 days',
-                                       $3::timestamptz - interval '31 days')`,
+                                       $3::timestamptz - interval '31 days', NULL, NULL, NULL)`,
         [L.rep, U.rep, now, hourLimit, weekLimit, monthLimit],
       )
       .then((r) => r.rows[0]!);
@@ -809,7 +811,7 @@ describe("LUME AI's slots: reserved under one lock, then finished (spec 2026-10-
             await c.query<{ id: string }>(
               `SELECT * FROM lume_ai_reserve($1, $2, 'next_step', NULL, 'fake', $3, $4::timestamptz, NULL, NULL, NULL,
                                            $4::timestamptz - interval '1 hour', $4::timestamptz - interval '7 days',
-                                           $4::timestamptz - interval '31 days')`,
+                                           $4::timestamptz - interval '31 days', NULL, NULL, NULL)`,
               [L.rep, U.rep, model, at],
             )
           ).rows[0]!.id,
@@ -1036,5 +1038,233 @@ describe("WhatsApp (spec 2026-10-18 §4.1, §6.3; plan W1 Task 3)", () => {
         Number((await c.query("SELECT count(*) FROM whatsapp_events WHERE wamid = 'wamid.X'")).rows[0].count),
       ).toBe(1);
     });
+  });
+});
+
+describe("AI leads (owner's spec 2026-11-12): a lead counts once a month, under the same lock", () => {
+  // After every other read in this file (their windows have no end), each test in its own month.
+  type Slot = { id: string | null; refused: string | null };
+  const reserve = (o: {
+    lead: string;
+    at: string;
+    month: string | null;
+    task?: string;
+    leads?: number | null;
+    max?: number | null;
+  }) =>
+    as(
+      "lume_app",
+      { scope: "all", user: U.rep },
+      async (c) =>
+        (
+          await c.query<Slot>(
+            `SELECT id, refused FROM lume_ai_reserve($1, $2, $3, NULL, 'fake', 'fake-1', $4::timestamptz, NULL, NULL, NULL,
+                                       $4::timestamptz - interval '1 hour', $4::timestamptz - interval '7 days',
+                                       $4::timestamptz - interval '31 days', $5, $6, $7)`,
+            [o.lead, U.rep, o.task ?? "next_step", o.at, o.month, o.leads ?? null, o.max ?? null],
+          )
+        ).rows[0]!,
+    );
+  const finish = (id: string, status: "ok" | "failed") =>
+    as("lume_app", { scope: "all", user: U.rep }, (c) =>
+      c.query("SELECT lume_ai_finish($1, $2, NULL, 1, 1, 0, 0)", [id, status]),
+    );
+  const used = (month: string) =>
+    as("lume_app", { scope: "own", user: U.rep }, async (c) =>
+      Number((await c.query("SELECT lume_ai_leads_used($1) AS n", [month])).rows[0].n),
+    );
+  const leadMonth = (lead: string, month: string, at: string) =>
+    as(
+      "lume_app",
+      { scope: "all", user: U.rep },
+      async (c) =>
+        (await c.query("SELECT * FROM lume_ai_lead_month($1, $2, $3::timestamptz)", [lead, month, at]))
+          .rows[0],
+    );
+  const start = (lead: string, month: string, at: string, leads: number | null) =>
+    as(
+      "lume_app",
+      { scope: "all", user: U.rep },
+      async (c) =>
+        (
+          await c.query("SELECT lume_ai_start_lead($1, $2, $3::timestamptz, $4) AS r", [
+            lead,
+            month,
+            at,
+            leads,
+          ])
+        ).rows[0].r as string,
+    );
+
+  it("T1: many counted reads on one lead are one AI lead; its reads add up", async () => {
+    for (const [i, task] of (["next_step", "catch_up", "autopilot_reply"] as const).entries()) {
+      const s = await reserve({
+        lead: L.rep,
+        at: `2031-01-05T10:0${i}:00Z`,
+        month: "2031-01",
+        task,
+        leads: 5,
+      });
+      await finish(s.id!, "ok");
+    }
+    expect(await used("2031-01")).toBe(1);
+    expect(await leadMonth(L.rep, "2031-01", "2031-01-05T11:00:00Z")).toEqual({
+      counted: true,
+      reads: 3,
+      capped: false,
+    });
+  });
+
+  it("T2: a read that doesn't count (no month) never counts its lead, even with the month's AI leads used up", async () => {
+    const s = await reserve({
+      lead: L.mate,
+      at: "2031-02-05T10:00:00Z",
+      month: null,
+      task: "autopilot_first",
+      leads: 0,
+    });
+    expect(s.id).not.toBeNull();
+    await finish(s.id!, "ok");
+    expect(await used("2031-02")).toBe(0);
+    // A read that counts must be about a lead.
+    await expect(
+      reserve({ lead: null as never, at: "2031-02-05T10:01:00Z", month: "2031-02" }),
+    ).rejects.toThrow(/about a lead/);
+  });
+
+  it("T2: a failed read uncounts the lead it counted in; a good one keeps it", async () => {
+    const s = await reserve({ lead: L.other, at: "2031-03-05T10:00:00Z", month: "2031-03", leads: 5 });
+    // Held while it's read, so two at once can't both take the last place.
+    expect(await used("2031-03")).toBe(1);
+    await finish(s.id!, "failed");
+    expect(await used("2031-03")).toBe(0);
+    const t = await reserve({ lead: L.other, at: "2031-03-05T10:01:00Z", month: "2031-03", leads: 5 });
+    const u = await reserve({ lead: L.other, at: "2031-03-05T10:02:00Z", month: "2031-03", leads: 5 });
+    await finish(t.id!, "ok");
+    await finish(u.id!, "failed");
+    expect(await used("2031-03")).toBe(1);
+    expect((await leadMonth(L.other, "2031-03", "2031-03-05T10:03:00Z")).reads).toBe(1);
+  });
+
+  it("T2: a failed read doesn't uncount a lead Autopilot started on, or one with another read still going", async () => {
+    expect(await start(L.none, "2031-04", "2031-04-05T10:00:00Z", 5)).toBe("started");
+    const s = await reserve({ lead: L.none, at: "2031-04-05T10:01:00Z", month: "2031-04", leads: 5 });
+    await finish(s.id!, "failed");
+    expect(await used("2031-04")).toBe(1);
+    const a = await reserve({ lead: L.rep, at: "2031-04-05T10:02:00Z", month: "2031-04", leads: 5 });
+    const b = await reserve({ lead: L.rep, at: "2031-04-05T10:02:30Z", month: "2031-04", leads: 5 });
+    await finish(a.id!, "failed");
+    expect(await used("2031-04")).toBe(2); // b is still being read
+    await finish(b.id!, "ok");
+    expect(await used("2031-04")).toBe(2);
+  });
+
+  it("T3: the same lead counts again in the next month", async () => {
+    const may = await reserve({ lead: L.mate, at: "2031-05-28T10:00:00Z", month: "2031-05", leads: 5 });
+    await finish(may.id!, "ok");
+    const june = await reserve({ lead: L.mate, at: "2031-06-02T10:00:00Z", month: "2031-06", leads: 5 });
+    await finish(june.id!, "ok");
+    expect(await used("2031-05")).toBe(1);
+    expect(await used("2031-06")).toBe(1);
+    expect((await leadMonth(L.mate, "2031-06", "2031-06-02T11:00:00Z")).reads).toBe(1);
+  });
+
+  it("T4: all AI leads used: a new lead is refused, a counted one keeps going", async () => {
+    const first = await reserve({ lead: L.rep, at: "2031-07-05T10:00:00Z", month: "2031-07", leads: 1 });
+    await finish(first.id!, "ok");
+    expect(await reserve({ lead: L.mate, at: "2031-07-05T10:01:00Z", month: "2031-07", leads: 1 })).toEqual({
+      id: null,
+      refused: "leads",
+    });
+    const again = await reserve({ lead: L.rep, at: "2031-07-05T10:02:00Z", month: "2031-07", leads: 1 });
+    expect(again.id).not.toBeNull();
+    // Autopilot can't start a new lead either; one already counted it can.
+    expect(await start(L.mate, "2031-07", "2031-07-05T10:03:00Z", 1)).toBe("full");
+    expect(await start(L.rep, "2031-07", "2031-07-05T10:03:00Z", 1)).toBe("counted");
+    // Base: none at all. No limit: any lead.
+    expect(await start(L.other, "2031-07", "2031-07-05T10:04:00Z", 0)).toBe("full");
+    expect(await start(L.other, "2031-07", "2031-07-05T10:04:00Z", null)).toBe("started");
+    expect(await used("2031-07")).toBe(2);
+  });
+
+  it("T4: two new leads at once with one place left: only one gets it", async () => {
+    const [a, b] = await Promise.all([
+      reserve({ lead: L.rep, at: "2031-08-05T10:00:00Z", month: "2031-08", leads: 1 }),
+      reserve({ lead: L.mate, at: "2031-08-05T10:00:00Z", month: "2031-08", leads: 1 }),
+    ]);
+    expect([a.id, b.id].filter(Boolean)).toHaveLength(1);
+    expect([a.refused, b.refused].filter(Boolean)).toEqual(["leads"]);
+  });
+
+  it("T5: a lead's 20 counted reads, then 'lead_cap' until the month ends; marked once", async () => {
+    for (let i = 0; i < 20; i++) {
+      const at = `2031-09-05T10:${String(i).padStart(2, "0")}:00Z`;
+      const s = await reserve({ lead: L.other, at, month: "2031-09", max: 20 });
+      expect(s.id).not.toBeNull();
+      await finish(s.id!, "ok");
+    }
+    expect(await reserve({ lead: L.other, at: "2031-09-05T11:00:00Z", month: "2031-09", max: 20 })).toEqual({
+      id: null,
+      refused: "lead_cap",
+    });
+    // A read that doesn't count still goes (choosing a template, a reply's meaning).
+    const cheap = await reserve({ lead: L.other, at: "2031-09-05T11:01:00Z", month: null, max: 20 });
+    expect(cheap.id).not.toBeNull();
+    const capped = (at: string) =>
+      as(
+        "lume_app",
+        { scope: "all", user: U.rep },
+        async (c) =>
+          (await c.query("SELECT lume_ai_lead_capped($1, '2031-09', $2::timestamptz) AS r", [L.other, at]))
+            .rows[0].r,
+      );
+    expect(await capped("2031-09-05T11:02:00Z")).toBe(true);
+    expect(await capped("2031-09-05T11:03:00Z")).toBe(false);
+    expect((await leadMonth(L.other, "2031-09", "2031-09-05T11:04:00Z")).capped).toBe(true);
+    // Next month it starts again.
+    const october = await reserve({ lead: L.other, at: "2031-10-01T10:00:00Z", month: "2031-10", max: 20 });
+    expect(october.id).not.toBeNull();
+  });
+
+  it("the app's roles can't reach the ledger itself", async () => {
+    await expect(
+      as("lume_app", { scope: "all", user: U.rep }, (c) => c.query("SELECT * FROM ai_lead_months")),
+    ).rejects.toThrow(/permission/);
+    await expect(
+      as("lume_worker", { scope: "all", user: U.rep }, (c) => c.query("SELECT * FROM ai_lead_months")),
+    ).rejects.toThrow(/permission/);
+  });
+
+  it("migration 0106 counts this month from what LUME AI already did: good counted reads and Autopilot's first messages", async () => {
+    const text = readFileSync(join(MIGRATIONS_DIR_DEFAULT, "0106_ai_leads.sql"), "utf8");
+    const backfill = /DO \$\$[\s\S]*?\nEND;\n\$\$;/.exec(text)![0];
+    const month = await as("lume_owner", { scope: "all", user: U.rep }, async (c) => {
+      const tz = (await c.query("SELECT coalesce((SELECT timezone FROM settings WHERE id = 1), 'UTC') AS tz"))
+        .rows[0].tz;
+      const m = (await c.query("SELECT to_char(now() AT TIME ZONE $1, 'YYYY-MM') AS m", [tz])).rows[0]
+        .m as string;
+      await c.query("DELETE FROM ai_lead_months WHERE month = $1", [m]);
+      // A good next step on one lead; on another a failed one and a template choice (neither counts).
+      for (const [lead, task, status] of [
+        [L.rep, "next_step", "ok"],
+        [L.mate, "next_step", "failed"],
+        [L.mate, "autopilot_first", "ok"],
+      ] as const)
+        await c.query(
+          `INSERT INTO ai_reads (id, lead_id, user_id, task, provider, model, status, created_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, 'fake', 'fake-1', $4, now())`,
+          [lead, U.rep, task, status],
+        );
+      await c.query(backfill);
+      return m;
+    });
+    // The good next steps this month (this one, and the earlier tests' on L.rep and L.other) count their leads; the
+    // failed one and the template choice don't.
+    const at = new Date().toISOString();
+    expect(await leadMonth(L.rep, month, at)).toMatchObject({ counted: true });
+    expect((await leadMonth(L.rep, month, at)).reads).toBeGreaterThanOrEqual(1);
+    expect(await leadMonth(L.other, month, at)).toMatchObject({ counted: true });
+    expect(await leadMonth(L.mate, month, at)).toMatchObject({ counted: false, reads: 0 });
+    expect(await used(month)).toBe(2);
   });
 });
