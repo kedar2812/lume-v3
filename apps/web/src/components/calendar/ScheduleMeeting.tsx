@@ -211,8 +211,8 @@ function LeadSearch({ onPick }: { onPick: (l: Lead) => void }) {
   const asked = useRef(0);
   useEffect(() => {
     const words = q.trim();
+    const n = ++asked.current; // any answer to an earlier search is now stale
     if (words.length < 2) return setFound(null);
-    const n = ++asked.current;
     const t = setTimeout(async () => {
       const r = await leadsClient.list({ ...EMPTY_FILTERS, q: words }, undefined, 6);
       if (n !== asked.current) return; // a later search is on its way

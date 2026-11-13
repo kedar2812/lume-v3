@@ -193,6 +193,20 @@ describe("Schedule a meeting (owner, 2026-11-13)", () => {
     expect(schedule).toBeEnabled();
   });
 
+  it("on the Calendar: a search still on its way when the box is cleared never fills the list", async () => {
+    let answer!: (v: unknown) => void;
+    vi.mocked(leadsClient.list).mockReturnValue(new Promise((r) => (answer = r)) as never);
+    sheet(null);
+    const box = await screen.findByRole("searchbox", { name: "Find a lead" });
+    await userEvent.type(box, "Mee");
+    await waitFor(() => expect(leadsClient.list).toHaveBeenCalled());
+    await userEvent.clear(box);
+    await userEvent.type(box, "M");
+    answer(ok({ items: [{ id: MEERA.id, name: MEERA.name }], nextCursor: null }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole("button", { name: "Meera Iyer" })).toBeNull();
+  });
+
   it("a refusal from the server is said in its own words, and the form stays", async () => {
     vi.mocked(calendarClient.schedule).mockResolvedValue({
       ok: false,
