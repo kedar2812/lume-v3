@@ -1,5 +1,5 @@
 "use client";
-import type { AnnouncementClaim, LicenceView, PlanClaim } from "@lume/core/shared";
+import type { AnnouncementClaim, LicenceView, PlanClaim, PlanTier } from "@lume/core/shared";
 import { api } from "@/lib/api";
 
 /** The licence as one person sees it (licensing L-A): what the API sends with /auth/me and on its own. */
@@ -18,6 +18,8 @@ export type LicenceForPerson = Omit<LicenceView, "announcements" | "plan"> & {
   nextCheckAt: string | null;
   /** Show the payment reminder now (owners and admins; not closed this session). */
   showNotice: boolean;
+  /** The plan's tier, for everyone (Plans and pricing, November 2026); null or absent (an older API): none. */
+  tier?: PlanTier | null;
   /** May Check now (people who manage settings). */
   canCheck: boolean;
   /** Why the last check brought no new answer (people who manage settings only), or null. */

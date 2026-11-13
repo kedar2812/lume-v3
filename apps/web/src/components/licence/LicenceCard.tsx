@@ -6,6 +6,7 @@ import { licenceClient } from "@/lib/licence/client";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { ExportAll } from "./ExportAll";
 import { KeyRow } from "./KeyRow";
+import { PlanCard } from "./PlanCard";
 import { ago, day, until, useLicence } from "./LicenceProvider";
 import s from "./licence.module.css";
 
@@ -189,6 +190,8 @@ export function LicenceCard() {
           )}
         </div>
       </motion.section>
+
+      <PlanCard />
 
       {licence.announcements.length > 0 && (
         <section aria-label="From LUME’s team, now showing" className={s.aboutCard}>

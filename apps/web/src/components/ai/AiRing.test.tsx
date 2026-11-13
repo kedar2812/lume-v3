@@ -1,4 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { LicenceProvider } from "@/components/licence/LicenceProvider";
+import { fakeSession } from "@/server/session";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { aiClient } from "@/lib/ai/client";
@@ -257,6 +259,33 @@ describe("the ring counts AI leads", () => {
     expect(aiClient.askTopUp).toHaveBeenCalledWith(BIGGER_PLAN_NOTE);
     expect(panel).toHaveTextContent("Asked. LUME will let you know when it's added.");
     expect(within(panel).queryByRole("button", { name: /Ask/ })).toBeNull();
+  });
+
+  it("on a tier, the plan to ask about is the next one by name; Enterprise has only the top-up", async () => {
+    vi.mocked(aiClient.status).mockResolvedValue(ok(leads(1000, 1000, { topUp: { asked: false } })));
+    vi.mocked(aiClient.askTopUp).mockResolvedValue(ok({ asked: true as const }));
+    const onTier = (tier: "pro" | "enterprise") =>
+      render(
+        <LicenceProvider
+          session={fakeSession({
+            permissions: [{ key: "settings.manage", scope: null }],
+            licence: { ...fakeSession().licence, tier },
+          })}
+        >
+          <AiRing />
+        </LicenceProvider>,
+      );
+    const { unmount } = onTier("pro");
+    let panel = await open();
+    await userEvent.click(within(panel).getByRole("button", { name: "Ask about Max" }));
+    expect(aiClient.askTopUp).toHaveBeenCalledWith("They'd like to move to Max.");
+    unmount();
+    onTier("enterprise");
+    panel = await open();
+    expect(
+      within(panel).getByRole("button", { name: "Ask for a top-up of 100 AI leads" }),
+    ).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Ask about/ })).toBeNull();
   });
 
   it("a top-up asked from the first button goes without a note", async () => {

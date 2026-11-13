@@ -28,6 +28,7 @@ import {
   nextSendAt,
   paramsFor,
   renderMarked,
+  repliesLocked,
   revealMs,
   shiftToWorkingHours,
   tierLimitOf,
@@ -176,6 +177,13 @@ export async function dueRuns(pool: pg.Pool, now: Date): Promise<string[]> {
  */
 export const LEADS_HELD =
   "This month's AI leads are used up. LUME AI starts on this lead on the 1st, or sooner with a top-up.";
+
+/**
+ * Why a lead who wrote back is the team's (Plans and pricing, November 2026): on Pro, Autopilot writes first and
+ * follows up, and replies are on Max and Enterprise.
+ */
+export const REPLIES_HANDED =
+  "They wrote back. Autopilot replies are on Max and Enterprise, so this one is yours.";
 
 /** A stable key for one message of a run, so a retried step never sends it twice (the outbox's client key). */
 function messageKey(runId: string, leadId: string, n: string): string {
@@ -765,6 +773,21 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
   if (lead.dncAt) return leave(req, l, "stopped", "Asked not to be messaged.");
   if (await reachedGoal(o, req, run, l)) return 1;
   const carried = carriedOn(l);
+  // On a tier without Autopilot replies (Pro), the team answers: handed over before any read, so none is spent.
+  if (repliesLocked(req.server.licence.view().plan)) {
+    const theirs = (await aiCtx(req, run, lead, [], { now: o.d.clock(), d: o.d })).lastLeadMessage;
+    return actOn(
+      o,
+      req,
+      run,
+      l,
+      lead,
+      { kind: "handover", reason: REPLIES_HANDED, evidence: theirs || null },
+      theirs,
+      REPLIES_HANDED,
+      carried,
+    );
+  }
   const c = {
     ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true, d: o.d })),
     carriedOn: carried,

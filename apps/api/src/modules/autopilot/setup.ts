@@ -1,4 +1,14 @@
-import { AUTOPILOT_ACTIONS, can, hoursLine, tierLimitOf, type Allow, type AutopilotAction } from "@lume/core";
+import {
+  AUTOPILOT_ACTIONS,
+  can,
+  hoursLine,
+  tierAllows,
+  tierLimitOf,
+  tierName,
+  tiersWith,
+  type Allow,
+  type AutopilotAction,
+} from "@lume/core";
 import { schema } from "@lume/db";
 import { and, asc, count, eq, isNull } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -31,6 +41,14 @@ const not = (code: ReadyCode, message: string, fixHref: string | null): Readines
  */
 export async function readiness(req: FastifyRequest, d: AppDeps, speakerId: string): Promise<Readiness> {
   const ai = await aiStatus(req, d);
+  // Base (Plans and pricing, November 2026) is LUME without AI: said as the plan, not as a switch to flip.
+  const plan = req.server.licence.view().plan;
+  if (!tierAllows(plan, "ai") && plan?.tier)
+    return not(
+      "AI_OFF",
+      `LUME AI is on ${tiersWith("ai")}. Your LUME is on ${tierName(plan.tier)}.`,
+      "/settings/about#plan",
+    );
   if (!ai.on)
     return not(
       "AI_OFF",

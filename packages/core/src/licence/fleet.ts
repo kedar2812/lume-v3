@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { aiSafetyFor } from "../ai/leads";
+import { PLAN_TIERS, tierAllows } from "./tiers";
 
 /**
  * Fleet (spec 2026-10-16 fleet §1): what a LUME says about its own health with each check-in, and what the licence
@@ -136,6 +137,11 @@ export const planClaimSchema = z
      * allowance. Only for a LUME that accepts plan5; `aiCallsMonthly` beside it is then a hidden safety net.
      */
     aiLeadsMonthly: z.number().int().min(0).max(10_000_000).nullable().optional(),
+    /**
+     * The client's tier (Plans and pricing, November 2026): which features LUME may switch on. Null or absent: no tier
+     * limits. Only for a LUME that accepts plan6.
+     */
+    tier: z.enum(PLAN_TIERS).nullable().optional(),
     /** Top-ups in AI leads (packs of 100), by month "YYYY-MM": each for its own month only. */
     aiLeadTopUps: z
       .array(
@@ -185,6 +191,6 @@ export function aiAllowance(plan: PlanClaim | null | undefined, month: string): 
 }
 /** Whether a plan includes a module: everything does with no plan, and a module the plan doesn't name is in it. */
 export const moduleIncluded = (plan: PlanClaim | null | undefined, key: PlanModule): boolean =>
-  plan?.modules[key] !== false;
+  plan?.modules[key] !== false && (key !== "ai" || tierAllows(plan, "ai"));
 /** What a LUME from this release can keep, sent with its check-in: the licence server signs those claims only then. */
-export const ACCEPTS = ["announcements", "plan", "plan2", "plan3", "plan4", "plan5"] as const;
+export const ACCEPTS = ["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6"] as const;

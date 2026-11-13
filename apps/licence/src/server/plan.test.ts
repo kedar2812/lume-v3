@@ -180,6 +180,8 @@ describe("PATCH /api/clients/:id/plan", () => {
       // AI leads (2026-11-12): likewise, none set is no limit.
       aiLeadsMonthly: null,
       aiLeadTopUps: [],
+      // Plan tiers (November 2026): none set is nothing locked.
+      tier: null,
     });
     expect(r.usage).toEqual({
       people: 4,
@@ -189,6 +191,7 @@ describe("PATCH /api/clients/:id/plan", () => {
       knowsPaid: false,
       knowsMonthly: false,
       knowsLeads: false,
+      knowsTiers: false,
     });
     expect(r.history[0]).toMatchObject({
       kind: "plan",
@@ -349,6 +352,53 @@ describe("AI leads, signed", () => {
     const r = await addTopUp(ctx, c.clientId, { month: "2026-10", packs: 3, note: "Busy week" });
     expect(r.topUps.added[0]).toMatchObject({ month: "2026-10", leads: 300, note: "Busy week" });
     expect(r.history[0]).toMatchObject({ kind: "ai_topup", detail: { month: "2026-10", leads: 300 } });
+  });
+});
+
+describe("the tier, signed (Plans and pricing, November 2026)", () => {
+  const ALL6 = ["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6"];
+  const ALL5 = ALL6.slice(0, -1);
+  const planFor = async (c: { instanceId: string; licenseKey: string }, accepts: string[]) =>
+    (await payloadOf(await post(c, accepts), c.instanceId))!.plan!;
+
+  it("keeps the tier, says it in the history, and signs it only to a LUME that accepts plan6", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    const r = await patchPlan(ctx, c.clientId, {
+      places: null,
+      modules: {},
+      aiLeadsMonthly: 1000,
+      tier: "pro",
+    });
+    expect(r.plan).toMatchObject({ tier: "pro", aiLeadsMonthly: 1000 });
+    expect(r.history[0]).toMatchObject({ kind: "plan", detail: { tier: "pro" } });
+    expect((await planFor(c, ALL6)).tier).toBe("pro");
+    // An older LUME refuses a key it doesn't know: it isn't told the tier at all.
+    expect(await planFor(c, ALL5)).not.toHaveProperty("tier");
+  });
+
+  it("no tier until the owner sets one: a plan6 LUME is told none, so nothing is locked", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    expect((await planFor(c, ALL6)).tier).toBeNull();
+    const r = await patchPlan(ctx, c.clientId, { places: null, modules: {}, tier: "max" });
+    expect(r.plan.tier).toBe("max");
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, tier: null });
+    expect((await planFor(c, ALL6)).tier).toBeNull();
+  });
+
+  it("Base on a LUME too old to know tiers has LUME AI off, whatever its AI leads say", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: {}, aiLeadsMonthly: 500, tier: "base" });
+    expect((await planFor(c, ALL5)).modules.ai).toBe(false);
+    // One that knows tiers is told Base, and switches LUME AI off itself.
+    const v6 = await planFor(c, ALL6);
+    expect(v6.tier).toBe("base");
+  });
+
+  it("refuses a tier it doesn't know", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await expect(
+      patchPlan(ctx, c.clientId, { places: null, modules: {}, tier: "gold" as never }),
+    ).rejects.toThrow("Choose Base, Pro, Max or Enterprise.");
   });
 });
 

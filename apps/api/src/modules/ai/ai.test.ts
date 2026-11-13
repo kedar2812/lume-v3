@@ -546,7 +546,12 @@ describe("a model per action", () => {
 describe("AI leads", () => {
   const leads = (
     aiLeadsMonthly: number | null,
-    o: { topUps?: { month: string; leads: number }[]; calls?: number | null; weekly?: number | null } = {},
+    o: {
+      topUps?: { month: string; leads: number }[];
+      calls?: number | null;
+      weekly?: number | null;
+      tier?: "pro" | "max" | "enterprise";
+    } = {},
   ) =>
     withPlan({
       places: null,
@@ -556,6 +561,7 @@ describe("AI leads", () => {
       ...(o.calls !== undefined ? { aiCallsMonthly: o.calls } : {}),
       aiLeadsMonthly,
       aiLeadTopUps: o.topUps ?? [],
+      ...(o.tier ? { tier: o.tier } : {}),
     });
   const status = async (as: () => Promise<AuthedClient> = owner) =>
     (await (await as()).inject({ method: "GET", url: "/api/v1/ai" })).json();
@@ -636,6 +642,14 @@ describe("AI leads", () => {
     expect(await alerts("LUME AI has used 80% of this month's AI leads")).toHaveLength(1);
     // The reads a month (75%/90% of an allowance) aren't said any more: they're a hidden safety net now.
     expect(await alerts("LUME AI has used 75%%")).toHaveLength(0);
+  });
+
+  it("on a tier, the notices say what to do: 100 more, or the next tier with its own AI leads", async () => {
+    await leads(5, { tier: "pro" });
+    for (const id of [lead, ...others.slice(0, 3)]) await readOn(id);
+    expect((await alerts("LUME AI has used 80% of this month's AI leads")).map((n) => n.body)).toEqual([
+      "4 of 5 AI leads used this month. They start again on November 1. Ask for 100 more from LUME AI's ring, or about Max: 3,000 AI leads a month.",
+    ]);
   });
 
   it("T5: a lead's 20 counted reads a month, then it's refused until the 1st; cheap reads still go", async () => {

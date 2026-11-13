@@ -5,7 +5,8 @@ import type { Allow, AutopilotAction, LeadState, PauseReason, RunStatus } from "
 export type RunGoal =
   { kind: "stage"; stageId: string } | { kind: "reply" } | { kind: "brief"; text: string };
 export type Permissions = Record<AutopilotAction, Allow>;
-export type Available = { ok: true } | { ok: false; why: string; fixHref: string | null };
+/** `fixLabel`: the link's own words when they aren't the action's (a plan's "Upgrade to Max"). */
+export type Available = { ok: true } | { ok: false; why: string; fixHref: string | null; fixLabel?: string };
 export type ReadyCode =
   "AI_OFF" | "AI_MONTH" | "AI_LEADS" | "REPLY_OFF" | "NO_NUMBER" | "NUMBER_QUALITY" | "NO_TEMPLATES";
 

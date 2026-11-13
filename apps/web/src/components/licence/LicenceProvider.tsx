@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { can } from "@lume/core/shared";
+import { can, type PlanTier } from "@lume/core/shared";
 import {
   LICENCE_REFUSED,
   licenceClient,
@@ -13,6 +13,8 @@ type LicenceContext = {
   licence: LicenceForPerson;
   /** May download Export all data (the data.export permission). */
   canExport: boolean;
+  /** Manages settings: may ask LUME about a higher plan (Plans and pricing, November 2026). */
+  canManage: boolean;
   refresh(): Promise<void>;
   set(l: LicenceForPerson): void;
 };
@@ -43,7 +45,15 @@ export function LicenceProvider({ session, children }: { session: Session; child
     };
   }, [refresh, session.licence.dev]);
   return (
-    <Ctx.Provider value={{ licence, canExport: can(session.actor, "data.export"), refresh, set }}>
+    <Ctx.Provider
+      value={{
+        licence,
+        canExport: can(session.actor, "data.export"),
+        canManage: can(session.actor, "settings.manage"),
+        refresh,
+        set,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );
@@ -55,6 +65,15 @@ export function LicenceProvider({ session, children }: { session: Session; child
  */
 export function usePlan(): PlanForPerson | null {
   return useContext(Ctx)?.licence.plan ?? null;
+}
+
+/**
+ * This LUME's tier (Plans and pricing, November 2026), for everyone, and whether this person may ask about another.
+ * No tier, or outside a provider: null, nothing locked by the plan.
+ */
+export function useTier(): { tier: PlanTier | null; canAsk: boolean } {
+  const c = useContext(Ctx);
+  return { tier: c?.licence.tier ?? null, canAsk: !!c?.canManage };
 }
 
 export function useLicence(): LicenceContext {

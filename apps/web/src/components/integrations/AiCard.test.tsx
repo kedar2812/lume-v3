@@ -142,6 +142,31 @@ describe("the LUME AI card (spec 2026-10-18 §2.2)", () => {
     expect(aiClient.status).not.toHaveBeenCalled();
   });
 
+  it("Base (Plans and pricing): says it comes with Pro, and an admin can ask about Pro", () => {
+    const session = fakeSession({ permissions: [{ key: "settings.manage", scope: null }] });
+    render(
+      <LicenceProvider session={{ ...session, licence: { ...session.licence, tier: "base" } }}>
+        <AiCard ai={{ enabled: false, available: true, inPlan: false }} tz={TZ} onView={vi.fn()} />
+      </LicenceProvider>,
+    );
+    expect(screen.getByText("Pro, Max and Enterprise")).toBeInTheDocument();
+    expect(
+      screen.getByText("Suggested next steps, catch-ups and Autopilot come with Pro. Your LUME is on Base."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ask about Pro" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "LUME AI, not in this LUME’s plan" })).toBeDisabled();
+  });
+
+  it("Base, for someone who doesn't manage settings: the words, no button", () => {
+    const session = fakeSession();
+    render(
+      <LicenceProvider session={{ ...session, licence: { ...session.licence, tier: "base" } }}>
+        <AiCard ai={{ enabled: false, available: true, inPlan: false }} tz={TZ} onView={vi.fn()} />
+      </LicenceProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "Ask about Pro" })).toBeNull();
+  });
+
   it("a refusal from the server is said in its own words", async () => {
     vi.mocked(aiClient.setEnabled).mockResolvedValue({
       ok: false,

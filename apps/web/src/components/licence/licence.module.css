@@ -767,3 +767,101 @@ a.bannerBtn {
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* Your plan (Plans and pricing, November 2026): the tier, what's in it, what the next one adds. */
+.planCard {
+  scroll-margin-top: 88px;
+}
+.planHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.planPill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(42, 91, 255, 0.1);
+  color: #2a5bff;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.01em;
+}
+.planCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.planCols[data-single] {
+  grid-template-columns: 1fr;
+}
+.planSub {
+  margin: 0 0 8px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+.planList {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--text);
+}
+.planList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.planList svg {
+  flex: none;
+  margin-top: 2px;
+  color: #2a5bff;
+}
+.planList[data-next] svg {
+  color: var(--text-3);
+}
+.planNext {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 20px;
+  border-left: 0.5px solid var(--line-2);
+}
+.planNext .planList {
+  margin-bottom: 2px;
+}
+.planAsk {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.planAsked {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.planProblem {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger, #e5484d);
+}
+@media (max-width: 760px) {
+  .planCols {
+    grid-template-columns: 1fr;
+  }
+  .planNext {
+    padding-left: 0;
+    padding-top: 16px;
+    border-left: 0;
+    border-top: 0.5px solid var(--line-2);
+  }
+}

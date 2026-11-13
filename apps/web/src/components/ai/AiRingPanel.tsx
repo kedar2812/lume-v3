@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
+import { nextTier, tierName } from "@lume/core/shared";
 import { useState } from "react";
+import { useTier } from "@/components/licence/LicenceProvider";
 import { aiClient } from "@/lib/ai/client";
 import type { AiLimit, AiStatus } from "@/lib/ai/types";
 import { pausedWords } from "@/lib/ai/words";
@@ -54,6 +56,10 @@ export function AiRingPanel({
   onLeave?: () => void;
 }) {
   const [asking, setAsking] = useState<"topup" | "plan" | null>(null);
+  // On a tier (Plans and pricing, November 2026): the plan to ask about is the next one by name; none above Enterprise.
+  const { tier } = useTier();
+  const next = tier ? nextTier(tier) : null;
+  const planNote = next ? `They'd like to move to ${tierName(next)}.` : BIGGER_PLAN_NOTE;
   const [problem, setProblem] = useState<string | null>(null);
   const { limit, per, leads } = measured(st);
   const share = shareOf(limit);
@@ -68,7 +74,7 @@ export function AiRingPanel({
   const ask = async (what: "topup" | "plan") => {
     setAsking(what);
     setProblem(null);
-    const r = await aiClient.askTopUp(what === "plan" ? BIGGER_PLAN_NOTE : undefined);
+    const r = await aiClient.askTopUp(what === "plan" ? planNote : undefined);
     setAsking(null);
     if (!r.ok) return setProblem(r.message);
     onAsked();
@@ -165,14 +171,18 @@ export function AiRingPanel({
           >
             {asking === "topup" ? "Asking…" : leads ? "Ask for a top-up of 100 AI leads" : "Ask for a top-up"}
           </button>
-          {leads && (
+          {leads && (!tier || next) && (
             <button
               type="button"
               className={s.askPlain}
               disabled={asking !== null}
               onClick={() => void ask("plan")}
             >
-              {asking === "plan" ? "Asking…" : "Ask about a bigger plan"}
+              {asking === "plan"
+                ? "Asking…"
+                : next
+                  ? `Ask about ${tierName(next)}`
+                  : "Ask about a bigger plan"}
             </button>
           )}
         </div>

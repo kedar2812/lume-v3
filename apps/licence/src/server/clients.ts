@@ -1,4 +1,4 @@
-import { isCurrency, PLAN_MODULES, type LicenceType } from "@lume/core/shared";
+import { isCurrency, PLAN_MODULES, PLAN_TIERS, type LicenceType, type PlanTier } from "@lume/core/shared";
 import { createHash, randomBytes } from "node:crypto";
 import type pg from "pg";
 import { z } from "zod";
@@ -288,7 +288,7 @@ export async function getClient(ctx: Ctx, id: string) {
     plan: planOf(
       (
         await ctx.db.query<PlanRow>(
-          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly, ai_leads_monthly FROM licences WHERE client_id = $1",
+          "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly, ai_leads_monthly, tier FROM licences WHERE client_id = $1",
           [id],
         )
       ).rows[0] ?? {
@@ -299,8 +299,9 @@ export async function getClient(ctx: Ctx, id: string) {
         paid_sends_monthly: null,
         ai_calls_monthly: null,
         ai_leads_monthly: null,
+        tier: null,
       },
-      { v2: true, v3: true, v4: true, v5: true, topUps: await topUpsAround(ctx.db, id, now) },
+      { v2: true, v3: true, v4: true, v5: true, v6: true, topUps: await topUpsAround(ctx.db, id, now) },
     ),
     // LUME AI top-ups (Autopilot spec 2026-10-19 §4): what the client's admins asked for, and what was added.
     topUps: await clientTopUps(ctx.db, id),
@@ -316,6 +317,8 @@ export async function getClient(ctx: Ctx, id: string) {
       knowsMonthly: !!l?.accepts?.includes("plan4"),
       // AI leads (2026-11-12) reach only a LUME that accepts plan5; an older one counts actions (7 an AI lead).
       knowsLeads: !!l?.accepts?.includes("plan5"),
+      // The tier (November 2026) reaches only a LUME that accepts plan6.
+      knowsTiers: !!l?.accepts?.includes("plan6"),
     },
   };
 }
@@ -328,6 +331,7 @@ type PlanRow = {
   paid_sends_monthly: number | null;
   ai_calls_monthly: number | null;
   ai_leads_monthly: number | null;
+  tier: PlanTier | null;
 };
 
 const aiLimit = (most: number, words: string) =>
@@ -356,6 +360,8 @@ export const planSchema = z
       .max(10_000_000, `AI leads a month: ${(10_000_000).toLocaleString("en-IN")} at most.`)
       .nullable()
       .optional(),
+    // The tier (Plans and pricing, November 2026): which features their LUME switches on. Null: none, nothing locked.
+    tier: z.enum(PLAN_TIERS, { error: "Choose Base, Pro, Max or Enterprise." }).nullable().optional(),
   })
   .strict();
 
@@ -371,6 +377,7 @@ export async function patchPlan(
     paidSendsMonthly?: number | null;
     aiCallsMonthly?: number | null;
     aiLeadsMonthly?: number | null;
+    tier?: PlanTier | null;
   },
 ) {
   const p = planSchema.safeParse(body);
@@ -382,9 +389,10 @@ export async function patchPlan(
   const paid = p.data.paidSendsMonthly ?? null;
   const monthly = p.data.aiCallsMonthly ?? null;
   const leads = p.data.aiLeadsMonthly ?? null;
+  const tier = p.data.tier ?? null;
   const before = (
     await ctx.db.query<PlanRow>(
-      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly, ai_leads_monthly FROM licences WHERE client_id = $1",
+      "SELECT places, modules, ai_reads_hourly, ai_reads_weekly, paid_sends_monthly, ai_calls_monthly, ai_leads_monthly, tier FROM licences WHERE client_id = $1",
       [id],
     )
   ).rows[0]!;
@@ -396,12 +404,13 @@ export async function patchPlan(
     before.ai_reads_weekly === weekly &&
     before.paid_sends_monthly === paid &&
     before.ai_calls_monthly === monthly &&
-    before.ai_leads_monthly === leads
+    before.ai_leads_monthly === leads &&
+    before.tier === tier
   )
     return getClient(ctx, id);
   await ctx.db.query(
     `UPDATE licences SET places = $2, modules = $3, ai_reads_hourly = $4, ai_reads_weekly = $5, paid_sends_monthly = $6,
-            ai_calls_monthly = $7, ai_leads_monthly = $8
+            ai_calls_monthly = $7, ai_leads_monthly = $8, tier = $9
       WHERE client_id = $1`,
     [
       id,
@@ -412,6 +421,7 @@ export async function patchPlan(
       paid,
       monthly,
       leads,
+      tier,
     ],
   );
   await ctx.db.query("INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'plan', $3)", [
@@ -425,6 +435,7 @@ export async function patchPlan(
       paidSendsMonthly: paid,
       aiCallsMonthly: monthly,
       aiLeadsMonthly: leads,
+      tier,
     }),
   ]);
   return getClient(ctx, id);

@@ -88,6 +88,28 @@ describe("PermissionRows", () => {
     expect(within(row("Send first messages")).getByRole("radio", { name: "Go ahead" })).not.toBeDisabled();
   });
 
+  it("a row the plan locks (Pro) says Max and links to the plan, in the plan's own words", () => {
+    const locked = {
+      ok: false,
+      why: "LUME AI does this in its replies, on Max and Enterprise.",
+      fixHref: "/settings/about#plan",
+      fixLabel: "Upgrade to Max",
+    } as const;
+    render(
+      <Harness
+        start={AUTOPILOT_PRESETS.hands_off}
+        available={{ ...allOk, replies: locked, send_files: locked } as Record<AutopilotAction, Available>}
+      />,
+    );
+    const replies = row("Reply and keep the conversation going");
+    expect(within(replies).getByRole("radio", { name: "Never" })).toHaveAttribute("aria-checked", "true");
+    const links = screen.getAllByRole("link", { name: "Upgrade to Max" });
+    expect(links).toHaveLength(2);
+    for (const l of links) expect(l).toHaveAttribute("href", "/settings/about#plan");
+    // The plan's words win over the row's own "Choose files".
+    expect(screen.queryByRole("link", { name: "Choose files" })).toBeNull();
+  });
+
   it("the keyboard moves within a row, and Tab moves between rows", async () => {
     render(<Harness />);
     const first = within(row("Send first messages")).getByRole("radio", { name: "Go ahead" });

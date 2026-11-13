@@ -23,6 +23,8 @@ export * from "./feedback/rules";
 export * from "./images/clean";
 // Fleet (spec 2026-10-16 fleet): the health a LUME reports and the announcement claim, zod only.
 export * from "./licence/fleet";
+// Plan tiers (Plans and pricing, November 2026): what each tier switches on.
+export * from "./licence/tiers";
 export * from "./users/initials";
 export * from "./analytics";
 export * from "./onboarding/steps";
@@ -39,6 +41,8 @@ export * from "./tasks/time";
 export * from "./tasks/rules";
 // Settings → Calendar's rules (5A): no I/O, safe for the browser.
 export * from "./calendar/rules";
+// Schedule a meeting (2026-11-13): the request and the WhatsApp message with its Meet link.
+export * from "./calendar/schedule";
 export * from "./messaging/render";
 // WhatsApp's template rules and rate card (W3b-2): pure, so the editor checks a template as the server will.
 export * from "./whatsapp/templates";

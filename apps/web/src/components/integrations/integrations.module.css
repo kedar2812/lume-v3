@@ -694,3 +694,28 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* LUME AI on Base (Plans and pricing, November 2026): the tiers it comes with, in the accent, and Ask about Pro. */
+.tierPill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  margin-left: 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+  background: rgba(42, 91, 255, 0.1);
+  color: #2a5bff;
+  font-size: var(--fs-2xs);
+  letter-spacing: 0;
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+.tierAsk {
+  padding-left: 58px;
+}
+@media (max-width: 640px) {
+  .tierAsk {
+    padding-left: 0;
+  }
+}

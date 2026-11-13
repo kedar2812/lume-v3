@@ -1,5 +1,5 @@
 "use client";
-import { AI_LEAD_TIERS } from "@lume/core/shared";
+import { AI_LEAD_TIERS, PLAN_TIERS, tierName, type PlanTier } from "@lume/core/shared";
 import { useState } from "react";
 import { api } from "@/lib/client";
 
@@ -17,6 +17,8 @@ export type Plan = {
   /** AI leads a month (2026-11-12): Base 0; null no limit. Absent from a server answer before them. */
   aiLeadsMonthly?: number | null;
   aiLeadTopUps?: { month: string; leads: number }[];
+  /** The tier (Plans and pricing, November 2026): null, none; absent from a server answer before tiers. */
+  tier?: PlanTier | null;
 };
 /**
  * `knowsAi`: their LUME accepts plan2, so it keeps LUME AI, WhatsApp and the AI limits (spec 2026-10-18 §2.2).
@@ -32,6 +34,8 @@ export type Usage = {
   knowsPaid: boolean;
   knowsMonthly: boolean;
   knowsLeads?: boolean;
+  /** It accepts plan6, so it switches on only what its tier has (November 2026). */
+  knowsTiers?: boolean;
 };
 
 const MODULES: { key: Module; name: string; mark: string | null }[] = [
@@ -110,6 +114,7 @@ export function PlanLimits({
       plan.aiLeadsMonthly !== undefined &&
       !AI_LEAD_TIERS.some((t) => t.leads === plan.aiLeadsMonthly),
   );
+  const [tierNow, setTierNow] = useState<PlanTier | null>(plan.tier ?? null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -133,6 +138,7 @@ export function PlanLimits({
     paidSendsMonthly: paid === "invalid" ? null : paid,
     aiCallsMonthly: monthly === "invalid" ? null : monthly,
     aiLeadsMonthly: leads === "invalid" ? null : leads,
+    tier: tierNow,
   };
   const dirty =
     now.places !== plan.places ||
@@ -141,7 +147,8 @@ export function PlanLimits({
     now.aiReadsWeekly !== plan.aiReadsWeekly ||
     now.paidSendsMonthly !== plan.paidSendsMonthly ||
     now.aiCallsMonthly !== plan.aiCallsMonthly ||
-    now.aiLeadsMonthly !== (plan.aiLeadsMonthly ?? null);
+    now.aiLeadsMonthly !== (plan.aiLeadsMonthly ?? null) ||
+    tierNow !== (plan.tier ?? null);
   const tier = custom ? null : (AI_LEAD_TIERS.find((t) => t.leads === now.aiLeadsMonthly) ?? null);
   const pick = (v: number | null, isCustom = false) =>
     change(() => {
@@ -181,6 +188,52 @@ export function PlanLimits({
           you set here waits for it.
         </p>
       )}
+      <div className="pl-group">
+        <span className="pl-label">Tier</span>
+        <div className="chips" role="radiogroup" aria-label="Tier">
+          {PLAN_TIERS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              className="chip"
+              role="radio"
+              aria-checked={tierNow === t}
+              onClick={() =>
+                change(() => {
+                  setTierNow(t);
+                  // A tier brings its own AI leads; Custom keeps the number typed.
+                  const leadsOfTier = AI_LEAD_TIERS.find((x) => x.key === t)?.leads;
+                  if (!custom && leadsOfTier !== undefined)
+                    setTyped((x) => ({ ...x, aiLeadsMonthly: String(leadsOfTier) }));
+                })
+              }
+            >
+              {tierName(t)}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="chip"
+            role="radio"
+            aria-checked={tierNow === null}
+            aria-label="No tier"
+            onClick={() => change(() => setTierNow(null))}
+          >
+            None
+          </button>
+        </div>
+        <span className="note">
+          {usage.knows && !usage.knowsTiers
+            ? `Their LUME${version ? ` (${version})` : ""} can’t keep a tier yet; it will once it’s updated. Until then Base switches LUME AI off, and the rest of LUME AI stays as it is.`
+            : tierNow === null
+              ? "No tier: nothing is locked. Every LUME AI feature works, within the limits below."
+              : tierNow === "base"
+                ? "Base is LUME without AI: their LUME switches LUME AI off and asks about Pro."
+                : tierNow === "pro"
+                  ? "Pro: Autopilot first messages and follow-ups, next steps and catch-ups. When a lead writes back, it’s their team’s to answer."
+                  : "Every LUME AI feature, Autopilot replies and Ask me included."}
+        </span>
+      </div>
       <div className="pl-group">
         <span className="pl-label">Places</span>
         <div className="pl-row">
@@ -369,7 +422,7 @@ export function PlanLimits({
             ? `Their LUME${version ? ` (${version})` : ""} counts LUME AI by its actions until it’s updated: 7 for each AI lead, unless you set the month below.`
             : "Leads LUME AI may start on in a month, on their clock from the 1st. Each counts once a month, and up to 20 replies and suggestions each. When they’re used up, leads it’s already working on carry on."}
         </span>
-        {now.aiLeadsMonthly === 0 && (
+        {now.aiLeadsMonthly === 0 && tierNow !== "base" && (
           <span className="note">
             Base: LUME AI starts on no lead. Choosing a template and reading replies still work while LUME AI
             is on; switch LUME AI off above to stop it all.

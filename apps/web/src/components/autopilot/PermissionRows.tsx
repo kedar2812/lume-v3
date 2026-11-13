@@ -141,7 +141,7 @@ export function PermissionRows({
                         <>
                           {" "}
                           <Link href={off.fixHref} className={s.fix}>
-                            {FIX_WORDS[r.key] ?? "Set it up"}
+                            {off.fixLabel ?? FIX_WORDS[r.key] ?? "Set it up"}
                           </Link>
                         </>
                       )}

@@ -91,6 +91,7 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
         paidSendsMonthly: null,
         aiCallsMonthly: null,
         aiLeadsMonthly: null,
+        tier: null,
       }),
     );
   });
@@ -112,6 +113,7 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
         paidSendsMonthly: 1000,
         aiCallsMonthly: null,
         aiLeadsMonthly: null,
+        tier: null,
       }),
     );
   });
@@ -173,6 +175,7 @@ describe("Plan limits (spec 2026-10-17 control §3.3)", () => {
       paidSendsMonthly: null,
       aiCallsMonthly: null,
       aiLeadsMonthly: null,
+      tier: null,
     });
     expect(
       screen.getByText("Saved. Their LUME keeps it from its next check-in, within 6 hours."),
@@ -331,6 +334,66 @@ describe("AI leads a month", () => {
         "Base: LUME AI starts on no lead. Choosing a template and reading replies still work while LUME AI is on; switch LUME AI off above to stop it all.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("a tier (Plans and pricing): picks its AI leads, says what it locks, and is saved with the plan", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.patch).mockResolvedValue(ok);
+    card({
+      usage: {
+        people: 4,
+        modulesOn: [],
+        knows: true,
+        knowsAi: true,
+        knowsPaid: true,
+        knowsMonthly: true,
+        knowsLeads: true,
+        knowsTiers: true,
+      },
+    });
+    expect(screen.getByRole("radio", { name: "No tier" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText(/No tier: nothing is locked/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Pro" }));
+    expect(screen.getByRole("radio", { name: "Pro: 1,000 AI leads" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByText(/When a lead writes back, it’s their team’s to answer/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(api.patch).toHaveBeenCalledWith(
+      "/api/clients/c1/plan",
+      expect.objectContaining({ tier: "pro", aiLeadsMonthly: 1000 }),
+    );
+  });
+
+  it("a tier keeps a Custom number; Base says LUME AI goes off", async () => {
+    const user = userEvent.setup();
+    card({
+      usage: {
+        people: 4,
+        modulesOn: [],
+        knows: true,
+        knowsAi: true,
+        knowsPaid: true,
+        knowsMonthly: true,
+        knowsLeads: true,
+        knowsTiers: true,
+      },
+    });
+    await user.click(screen.getByRole("radio", { name: "Custom" }));
+    const box = screen.getByRole("spinbutton", { name: "AI leads a month" });
+    await user.type(box, "12000");
+    await user.click(screen.getByRole("radio", { name: "Enterprise" }));
+    expect(box).toHaveValue(12000);
+    await user.click(screen.getByRole("radio", { name: "Base" }));
+    expect(screen.getByText(/Base is LUME without AI/)).toBeInTheDocument();
+  });
+
+  it("on a LUME that can't keep a tier yet, says what Base still does there", async () => {
+    const user = userEvent.setup();
+    card();
+    await user.click(screen.getByRole("radio", { name: "Max" }));
+    expect(screen.getByText(/can’t keep a tier yet/)).toBeInTheDocument();
   });
 
   it("the safety net: hidden from them; an empty month is automatic", () => {

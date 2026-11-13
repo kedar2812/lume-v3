@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { can, type AnnouncementClaim, type LicenceView } from "@lume/core";
+import { can, type AnnouncementClaim, type LicenceView, type PlanTier } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -16,7 +16,14 @@ export type AnnouncementForPerson = AnnouncementClaim & { gotIt: boolean };
 
 export type LicenceForPerson = Omit<LicenceView, "announcements" | "plan"> & {
   /** This LUME's plan (spec 2026-10-17 control §2): places taken and modules, for people who manage settings; else null. */
-  plan: { places: number | null; taken: number; modules: Record<string, boolean> } | null;
+  plan: {
+    places: number | null;
+    taken: number;
+    modules: Record<string, boolean>;
+    tier: PlanTier | null;
+  } | null;
+  /** The plan's tier (Plans and pricing, November 2026), for everyone: what's locked says why. Null: none. */
+  tier: PlanTier | null;
   /** From LUME's team: the ones meant for this person (admins-only to people who manage settings), not ended. */
   announcements: AnnouncementForPerson[];
   instanceId: string | null;
@@ -64,6 +71,7 @@ export async function licenceFor(req: FastifyRequest): Promise<LicenceForPerson>
     ...v,
     announcements: mine.map((a) => ({ ...a, gotIt: got.has(a.id) })),
     plan: await planForPerson(req, admin),
+    tier: v.plan?.tier ?? null,
     // The reminder is between LUME's provider and the people who pay: never sent to anyone else.
     notice: admin ? v.notice : null,
     ...req.server.licence.info(),

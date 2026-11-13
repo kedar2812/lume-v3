@@ -1,4 +1,11 @@
-import { aiCallsForOlder, PLAN_MODULES, PLAN_V1_MODULES, type PlanClaim, type PlanModule } from "@lume/core";
+import {
+  aiCallsForOlder,
+  PLAN_MODULES,
+  PLAN_V1_MODULES,
+  type PlanClaim,
+  type PlanModule,
+  type PlanTier,
+} from "@lume/core";
 
 type Row = {
   places: number | null;
@@ -8,6 +15,7 @@ type Row = {
   paid_sends_monthly?: number | null;
   ai_calls_monthly?: number | null;
   ai_leads_monthly?: number | null;
+  tier?: PlanTier | null;
 };
 /** Top-ups around this month, one entry a month: calls (added before AI leads) and AI leads, each added up. */
 export type TopUpsNow = { month: string; calls: number; leads: number }[];
@@ -24,7 +32,7 @@ export type TopUpsNow = { month: string; calls: number; leads: number }[];
  */
 export function planOf(
   l: Row,
-  o: { v2: boolean; v3?: boolean; v4?: boolean; v5?: boolean; topUps?: TopUpsNow },
+  o: { v2: boolean; v3?: boolean; v4?: boolean; v5?: boolean; v6?: boolean; topUps?: TopUpsNow },
 ): PlanClaim {
   const m = l.modules ?? {};
   const keys = o.v2 ? PLAN_MODULES : PLAN_V1_MODULES;
@@ -35,6 +43,8 @@ export function planOf(
   const topUps = o.topUps ?? [];
   const older = !o.v5;
   if (older && leads === 0 && own === null) modules.ai = false;
+  // Base (Plans and pricing, November 2026) is LUME without AI: a LUME that can't be told its tier has LUME AI off.
+  if (!o.v6 && l.tier === "base") modules.ai = false;
   const calls = o.v5
     ? topUps.filter((t) => t.calls > 0).map((t) => ({ month: t.month, calls: t.calls }))
     : topUps
@@ -62,6 +72,8 @@ export function planOf(
           aiLeadTopUps: topUps.filter((t) => t.leads > 0).map((t) => ({ month: t.month, leads: t.leads })),
         }
       : {}),
+    // The tier (November 2026) only for a LUME that accepts plan6: an older one refuses a key it doesn't know.
+    ...(o.v6 ? { tier: l.tier ?? null } : {}),
   };
 }
 

@@ -71,6 +71,18 @@ describe("POST /v1/topup", () => {
     expect(n.rows[0].n).toBe(1);
   });
 
+  it("a different ask in the same month joins the open request's note, so it isn't lost; the same one isn't added twice", async () => {
+    const s = await bound("Riverside Fitness");
+    expect((await ask(s)).status).toBe(201);
+    const plan = await ask(s, { note: "They'd like to move to Max." });
+    expect(plan.status).toBe(200);
+    expect((await ask(s, { note: "They'd like to move to Max." })).status).toBe(200);
+    const rows = (await db.pool.query("SELECT note FROM topup_requests WHERE client_id = $1", [s.clientId]))
+      .rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].note).toBe("We're running Autopilot on a big campaign.\nThey'd like to move to Max.");
+  });
+
   it("a key that isn't this install's is 401, and nothing is kept", async () => {
     const s = await bound("Northgate Realty");
     const r = await ask({ ...s, licenseKey: "LUME-WRNG-WRNG-WRNG-WRNG" });

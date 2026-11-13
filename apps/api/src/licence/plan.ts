@@ -1,6 +1,15 @@
 import type { FastifyRequest } from "fastify";
 import type pg from "pg";
-import { moduleIncluded, PLAN_MODULES, type PlanClaim, type PlanModule } from "@lume/core";
+import {
+  moduleIncluded,
+  PLAN_MODULES,
+  tierAllows,
+  tierFor,
+  tierName,
+  tiersWith,
+  type PlanClaim,
+  type PlanModule,
+} from "@lume/core";
 import { sql } from "drizzle-orm";
 import { conflict } from "../http/errors";
 import { adminIds, notify } from "../modules/notifications/notify";
@@ -37,7 +46,12 @@ export async function planForPerson(req: FastifyRequest, admin: boolean) {
               + (SELECT count(*) FROM user_invites WHERE accepted_at IS NULL AND revoked_at IS NULL
                   AND expires_at > ${req.server.licence.clock()}))::int AS n`,
   );
-  return { places: plan.places, taken: Number(rows.rows[0]?.n ?? 0), modules: plan.modules };
+  return {
+    places: plan.places,
+    taken: Number(rows.rows[0]?.n ?? 0),
+    modules: plan.modules,
+    tier: plan.tier ?? null,
+  };
 }
 
 /**
@@ -66,6 +80,12 @@ export async function assertPlace(req: FastifyRequest, o: { inviteEmail?: string
 /** Refuses switching on a module the plan leaves out (control §2.2). */
 export function assertModule(req: FastifyRequest, key: PlanModule): void {
   const plan = req.server.licence.view().plan;
+  // LUME AI left out by the tier (Base): said as the plan that has it (Plans and pricing, November 2026).
+  if (key === "ai" && !tierAllows(plan, "ai"))
+    throw conflict(
+      "PLAN_MODULE",
+      `LUME AI is on ${tiersWith("ai")}. Ask LUME about ${tierName(tierFor("ai"))} from Settings → About.`,
+    );
   if (!moduleIncluded(plan, key))
     throw conflict(
       "PLAN_MODULE",
@@ -96,7 +116,8 @@ export async function applyPlan(
   plan: PlanClaim | null,
   log: (o: object, msg: string) => void = () => undefined,
 ): Promise<void> {
-  const excluded = plan ? PLAN_MODULES.filter((k) => plan.modules[k] === false) : [];
+  // A module the plan leaves out, or its tier does (LUME AI on Base).
+  const excluded = plan ? PLAN_MODULES.filter((k) => !moduleIncluded(plan, k)) : [];
   const told: PlanModule[] = [];
   const c = await pool.connect();
   try {
@@ -140,6 +161,9 @@ export async function applyPlan(
       await notify(pool, a, {
         kind: "system_alert",
         title: `${MODULE_NAMES[k]} was switched off`,
-        body: "It isn't in this LUME's plan any more. Its settings are kept.",
+        body:
+          k === "ai" && !tierAllows(plan, "ai")
+            ? `LUME AI is on ${tiersWith("ai")}, and this LUME is on ${tierName(plan!.tier!)}. Its settings are kept.`
+            : "It isn't in this LUME's plan any more. Its settings are kept.",
       }).catch((err: unknown) => log({ err }, "couldn't tell an admin about the plan"));
 }

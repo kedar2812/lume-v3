@@ -3,6 +3,11 @@ import {
   defaultGoalStages,
   mergeAiProfile,
   profileProblem,
+  REPLY_ACTIONS,
+  repliesLocked,
+  tierFor,
+  tierName,
+  tiersWith,
   type AiProfile,
   type AiProfilePatch,
   type AutopilotAction,
@@ -28,7 +33,8 @@ export type AiProfileView = {
   /** What Autopilot can use of what's saved, each action off with why: the same answer the start sheet gets. */
   available: Record<AutopilotAction, Available>;
 };
-export type Available = { ok: true } | { ok: false; why: string; fixHref: string | null };
+/** `fixLabel`: the link's own words when they aren't the action's (a plan's "Upgrade to Max"). */
+export type Available = { ok: true } | { ok: false; why: string; fixHref: string | null; fixLabel?: string };
 
 const refuse = (message: string) => new HttpError(400, "INVALID_PROFILE", message);
 
@@ -129,6 +135,20 @@ export async function availabilityOf(
           why: "Give LUME AI the times it may say yes to a call in Settings → LUME AI.",
           fixHref: "/settings/ai",
         },
+    // Plans and pricing (November 2026): on a tier without Autopilot replies, what LUME AI only does inside one.
+    ...(repliesLocked(req.server.licence.view().plan)
+      ? Object.fromEntries(
+          REPLY_ACTIONS.map((a) => [
+            a,
+            {
+              ok: false,
+              why: `LUME AI does this in its replies, on ${tiersWith("ai_replies")}.`,
+              fixHref: "/settings/about#plan",
+              fixLabel: `Upgrade to ${tierName(tierFor("ai_replies"))}`,
+            } satisfies Available,
+          ]),
+        )
+      : {}),
   };
 }
 

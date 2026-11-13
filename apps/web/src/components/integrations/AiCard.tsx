@@ -1,7 +1,9 @@
 "use client";
+import { tierAllows, tierFor, tierName, tiersWith } from "@lume/core/shared";
 import { useEffect, useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
-import { usePlan } from "@/components/licence/LicenceProvider";
+import { usePlan, useTier } from "@/components/licence/LicenceProvider";
+import { AskAboutPlan } from "@/components/licence/AskAboutPlan";
 import { Switch } from "@/components/ui/Switch";
 import { aiClient } from "@/lib/ai/client";
 import type { AiLimit, AiStatus } from "@/lib/ai/types";
@@ -64,6 +66,9 @@ function Meter({
 /** Settings → Integrations → LUME AI (spec 2026-10-18 §2.2): the switch, what's sent where, and this hour's and this month's (or week's) use. */
 export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: IntegrationsView): void }) {
   const out = !inPlan(usePlan(), "ai") || !ai.inPlan;
+  // Base (Plans and pricing, November 2026): LUME AI comes with Pro; said as the plan, with a way to ask.
+  const { tier, canAsk } = useTier();
+  const byTier = !tierAllows({ tier }, "ai");
   const usable = ai.available && !out;
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,14 +95,16 @@ export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: I
         <div className={s.cardText}>
           <h2 id="ai-title" className={s.cardTitle}>
             LUME AI
-            {out && <NotInPlanPill />}
+            {out && (byTier ? <span className={s.tierPill}>{tiersWith("ai")}</span> : <NotInPlanPill />)}
           </h2>
           <p className={s.cardLede}>
-            {out
-              ? NOT_IN_PLAN_NOTE
-              : !ai.available
-                ? "LUME AI isn't set up on this server yet."
-                : "Reads notes and WhatsApp replies and suggests the next step. It messages leads only in a run someone starts."}
+            {out && byTier
+              ? `Suggested next steps, catch-ups and Autopilot come with ${tierName(tierFor("ai"))}. Your LUME is on ${tierName(tier!)}.`
+              : out
+                ? NOT_IN_PLAN_NOTE
+                : !ai.available
+                  ? "LUME AI isn't set up on this server yet."
+                  : "Reads notes and WhatsApp replies and suggests the next step. It messages leads only in a run someone starts."}
           </p>
         </div>
         <Switch
@@ -110,6 +117,11 @@ export function AiCard({ ai, tz, onView }: { ai: AiView; tz: string; onView(v: I
           disabled={!usable}
         />
       </header>
+      {out && byTier && canAsk && (
+        <div className={s.tierAsk}>
+          <AskAboutPlan tier={tierFor("ai")} quiet />
+        </div>
+      )}
       {error && (
         <p role="alert" className={s.error}>
           {error}

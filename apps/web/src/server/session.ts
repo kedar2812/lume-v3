@@ -148,6 +148,8 @@ export function toSession(me: MePayload): Session {
           announcements: me.licence.announcements ?? [],
           // And one from before plans (spec 2026-10-17 control) sends none: no limits.
           plan: me.licence.plan ?? null,
+          // And one from before tiers (November 2026) sends none: nothing locked.
+          tier: me.licence.tier ?? null,
         }
       : UNLICENSED_API,
     // An API from before the watch draws no watermark.

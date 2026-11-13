@@ -13,6 +13,10 @@ import {
   can,
   isCountedTask,
   moduleIncluded,
+  moreLeadsLine,
+  PLAN_TIERS,
+  tierName,
+  type PlanTier,
   usesLeads,
   usesMonthly,
   type AiLimitState,
@@ -250,6 +254,49 @@ export async function requestTopUp(
   return r.already ? { asked: true, already: true } : { asked: true };
 }
 
+/**
+ * `POST /api/v1/plan/ask` (admins; Plans and pricing, November 2026): ask LUME about a higher tier, through the
+ * licence server's request channel, in words the owner reads. Only a tier above this LUME's own.
+ */
+export async function askAboutPlan(
+  req: FastifyRequest,
+  d: AppDeps,
+  tier: PlanTier,
+): Promise<{ asked: true }> {
+  const now = PLAN_TIERS.indexOf(planOf(req)?.tier ?? "enterprise");
+  if (PLAN_TIERS.indexOf(tier) <= now)
+    throw new HttpError(409, "PLAN_TIER", `This LUME already has everything in ${tierName(tier)}.`);
+  const tz = (await settingsOf(req)).tz;
+  const me = (
+    await req.db
+      .select({ name: schema.users.name, email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, req.actor!.userId))
+  )[0];
+  const r = await req.server.licence.requestTopUp({
+    month: aiMonthKey(d.clock(), tz),
+    askedBy: { name: me?.name ?? "An admin", email: me?.email ?? "" },
+    note: `They'd like to move to ${tierName(tier)}.`,
+  });
+  if (!r.ok) {
+    if (r.reason === "no_key")
+      throw new HttpError(
+        409,
+        "NO_LICENCE",
+        "This LUME has no licence key to ask with. Add it in Settings → About.",
+      );
+    if (r.reason === "limited")
+      throw new HttpError(429, "RATE_LIMITED", "LUME has asked several times today. Try again tomorrow.");
+    throw new HttpError(
+      502,
+      "UNREACHABLE",
+      "LUME couldn't reach its licence server just now. Try again in a minute.",
+    );
+  }
+  await audit(req, { action: "plan.asked", entityType: "integration", diff: { tier } });
+  return { asked: true };
+}
+
 /** Settings → Integrations → LUME AI (admins). */
 export async function setAiEnabled(req: FastifyRequest, d: AppDeps, enabled: boolean) {
   if (enabled) {
@@ -326,11 +373,17 @@ async function noticeLeads(
       body: `All ${limit.toLocaleString("en-US")} AI leads are used this month. Leads it's already working on keep it; new leads start again ${back}, or sooner with a top-up.`,
     },
   ];
+  // On a tier (Plans and pricing, November 2026), what to do about it: a top-up, or the next tier.
+  const more = moreLeadsLine(planOf(req)?.tier);
   for (const x of notices)
     if (full ? x.kind === "leads_limit" : limit > 0 && used >= x.at)
-      await noticeOnce(side, x.kind, monthStart, { title: x.title, body: x.body }, limit).catch(
-        (err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's leads"),
-      );
+      await noticeOnce(
+        side,
+        x.kind,
+        monthStart,
+        { title: x.title, body: more ? `${x.body} ${more}` : x.body },
+        limit,
+      ).catch((err: unknown) => req.log.warn({ err }, "couldn't tell admins about LUME AI's leads"));
 }
 
 /**

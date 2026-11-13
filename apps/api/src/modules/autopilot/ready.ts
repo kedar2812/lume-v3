@@ -1,4 +1,12 @@
-import { AUTOPILOT_ACTION_TITLES, can, firstNameOf, windowOpen, type AutopilotAction } from "@lume/core";
+import {
+  AUTOPILOT_ACTION_TITLES,
+  can,
+  firstNameOf,
+  repliesLocked,
+  tiersWith,
+  windowOpen,
+  type AutopilotAction,
+} from "@lume/core";
 import { schema } from "@lume/db";
 import { and, eq } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -99,6 +107,12 @@ export async function approveAsk(req: FastifyRequest, d: AppDeps, id: string) {
     /** A first message or a follow-up asked about (the run's Ask me): the approved template, as it was prepared. */
     template?: { submissionId: string; n: number; marks: unknown };
   };
+  // A reply asked about on Max is the team's to send once the plan is Pro (Plans and pricing, November 2026).
+  if (!p.template && repliesLocked(req.server.licence.view().plan))
+    throw conflict(
+      "PLAN_TIER",
+      `Autopilot replies are on ${tiersWith("ai_replies")}. Send your own reply from the lead's chat.`,
+    );
   await req.db
     .update(schema.autopilotAsks)
     .set({ status: "approved", decidedBy: req.actor!.userId, decidedAt: now })
