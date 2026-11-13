@@ -55,6 +55,7 @@ async function send<T>(
   const raw = typeof Blob !== "undefined" && body instanceof Blob;
   if (body !== undefined) headers["content-type"] = raw ? "application/octet-stream" : "application/json";
   let res: Response;
+  let text: string;
   try {
     res = await fetch(path, {
       method,
@@ -62,10 +63,11 @@ async function send<T>(
       headers,
       body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     });
+    // The connection can drop while the answer is still arriving, too.
+    text = await res.text();
   } catch {
     return { ok: false, status: 0, code: "OFFLINE", message: OFFLINE };
   }
-  const text = await res.text();
   let payload: unknown = null;
   try {
     payload = text ? JSON.parse(text) : null;

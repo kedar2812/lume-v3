@@ -108,6 +108,17 @@ describe("browser API client", () => {
     expect(r.ok === false && r.message.length).toBeGreaterThan(10);
   });
 
+  it("a connection lost while the answer is arriving is the same plain message, never a crash (night QA 2026-11-13)", async () => {
+    const cut = new Response("{}", { status: 200 });
+    vi.spyOn(cut, "text").mockRejectedValue(new TypeError("network error"));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => (url === "/api/v1/auth/csrf" ? csrfResponse() : cut)),
+    );
+    const r = await api.post("/api/v1/leads", {});
+    expect(r).toMatchObject({ ok: false, status: 0, code: "OFFLINE" });
+  });
+
   it("retries once with a fresh token when the CSRF cookie has expired", async () => {
     let csrfCalls = 0;
     const fetchMock = vi.fn(async (url: string | URL) => {
