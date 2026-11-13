@@ -34,7 +34,8 @@ const scheduled = (whatsapp: Scheduled["whatsapp"]): Scheduled => ({
   } as never,
   link: "https://meet.google.com/abc-defg-hij",
   label: "November 13, Friday at 4 pm",
-  message: "Hi Meera, here's the Google Meet link for our call on November 13, Friday at 4 pm: https://meet.google.com/abc-defg-hij",
+  message:
+    "Hi Meera, here's the Google Meet link for our call on November 13, Friday at 4 pm: https://meet.google.com/abc-defg-hij",
   whatsapp,
 });
 const sheet = (lead: typeof MEERA | null = MEERA, onScheduled = vi.fn()) =>
@@ -80,7 +81,9 @@ describe("Schedule a meeting (owner, 2026-11-13)", () => {
   });
 
   it("from a lead's card: their name in the title, the next whole hour, 30 minutes; Schedule books it on the business's clock", async () => {
-    vi.mocked(calendarClient.schedule).mockResolvedValue(ok(scheduled({ send: true, why: null, open: true })));
+    vi.mocked(calendarClient.schedule).mockResolvedValue(
+      ok(scheduled({ send: true, why: null, open: true })),
+    );
     const onScheduled = vi.fn();
     sheet(MEERA, onScheduled);
     expect(await screen.findByRole("textbox", { name: "Title" })).toHaveValue("Call with Meera");
@@ -105,7 +108,9 @@ describe("Schedule a meeting (owner, 2026-11-13)", () => {
   });
 
   it("they wrote inside 24 hours: the message, ready to edit, goes from LUME's inbox at once", async () => {
-    vi.mocked(calendarClient.schedule).mockResolvedValue(ok(scheduled({ send: true, why: null, open: true })));
+    vi.mocked(calendarClient.schedule).mockResolvedValue(
+      ok(scheduled({ send: true, why: null, open: true })),
+    );
     vi.mocked(whatsappClient.send).mockResolvedValue(ok({ message: {} as never }));
     sheet();
     await userEvent.click(await screen.findByRole("button", { name: "Schedule" }));
@@ -126,15 +131,22 @@ describe("Schedule a meeting (owner, 2026-11-13)", () => {
     const why =
       "It's been more than 24 hours since Meera last wrote, so WhatsApp only lets LUME send them an approved template.";
     vi.mocked(calendarClient.schedule).mockResolvedValue(ok(scheduled({ send: false, why, open: true })));
-    vi.mocked(leadsClient.prepareMessage).mockResolvedValue(ok({ url: "https://wa.me/919876543210?text=x" }) as never);
+    vi.mocked(leadsClient.prepareMessage).mockResolvedValue(
+      ok({ url: "https://wa.me/919876543210?text=x" }) as never,
+    );
     const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
     vi.spyOn(window, "open").mockReturnValue(tab as never);
     sheet();
     await userEvent.click(await screen.findByRole("button", { name: "Schedule" }));
-    expect(await screen.findByText(new RegExp(why.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
+    expect(
+      await screen.findByText(new RegExp(why.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send on WhatsApp" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Open WhatsApp with this message" }));
-    expect(leadsClient.prepareMessage).toHaveBeenCalledWith(MEERA.id, scheduled({ send: false, why, open: true }).message);
+    expect(leadsClient.prepareMessage).toHaveBeenCalledWith(
+      MEERA.id,
+      scheduled({ send: false, why, open: true }).message,
+    );
     await waitFor(() => expect(tab.location.href).toBe("https://wa.me/919876543210?text=x"));
     expect(screen.getByText("WhatsApp opened with the message ready. Press send there.")).toBeInTheDocument();
   });

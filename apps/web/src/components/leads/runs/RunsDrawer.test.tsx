@@ -83,6 +83,20 @@ beforeEach(() => {
 });
 
 describe("recent bulk actions (7C)", () => {
+  it("a list that won't load says so, with Try again, instead of loading forever (QA 2026-11-13)", async () => {
+    vi.mocked(bulkRunsClient.list).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      code: "UNAVAILABLE",
+      message: "LUME couldn't load this just now.",
+    } as never);
+    drawer(admin());
+    expect(await screen.findByRole("alert")).toHaveTextContent("LUME couldn't load this just now.");
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("38 leads deleted")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("lists my runs from today, opens one to show why leads were skipped, and undoes it", async () => {
     vi.mocked(bulkRunsClient.undo).mockResolvedValue({ ok: true, status: 200, data: { run: runs[0]! } });
     const { onChanged } = drawer(admin());

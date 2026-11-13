@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { autopilotClient } from "@/lib/autopilot/client";
 import type { RunDetail, RunLead, RunsList } from "@/lib/autopilot/types";
 import { whatsappClient } from "@/lib/whatsapp/client";
+import { LicenceProvider } from "@/components/licence/LicenceProvider";
+import { fakeSession } from "@/server/session";
 import { AutopilotScreen, runToShow } from "./AutopilotScreen";
 
 vi.mock("@/lib/autopilot/client", () => ({
@@ -147,6 +149,32 @@ describe("AutopilotScreen", () => {
     );
     expect(screen.getByText("An admin can switch it on in Settings → Integrations.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Switch LUME AI on" })).toBeNull();
+  });
+
+  it("Base (Plans and pricing): the page names the plan LUME AI comes with, never a switch it can't flip (QA 2026-11-13)", () => {
+    const session = fakeSession({ permissions: [{ key: "settings.manage", scope: null }] });
+    render(
+      <LicenceProvider session={{ ...session, licence: { ...session.licence, tier: "base" } }}>
+        <AutopilotScreen
+          initial={{ runs: [], running: 0 }}
+          askedRun={null}
+          canStart
+          off={{ canSwitch: true }}
+        />
+      </LicenceProvider>,
+    );
+    expect(screen.getByRole("heading", { name: "LUME AI comes with Pro" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "LUME AI follows up with your leads on Pro, Max and Enterprise. Your LUME is on Base.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Switch LUME AI on" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Ask about Pro" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See your plan" })).toHaveAttribute(
+      "href",
+      "/settings/about#plan",
+    );
   });
 
   it("opens on the run going: where it stands in one line, and the lead LUME AI is writing to (plan 2026-10-28)", async () => {

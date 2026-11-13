@@ -211,6 +211,23 @@ describe("Pro: Autopilot writes first and follows up; replies are the team's", (
     expect(meta.sent).toHaveLength(1);
   });
 
+  it("Let LUME AI carry on, for a lead waiting on an answer, is refused on Pro in words (QA 2026-11-13)", async () => {
+    await onTier("pro");
+    const nikhil = await lead("Nikhil Rao");
+    const run = await startRun([nikhil]);
+    await sendNext();
+    await writes(nikhil, "How much is it?");
+    await sendNext();
+    expect((await stateOf(run, nikhil)).state).toBe("needs_you");
+    const r = await post(`/api/v1/autopilot/runs/${run}/leads/${nikhil}/carry-on`);
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error).toMatchObject({
+      code: "PLAN_TIER",
+      message: "Autopilot replies are on Max and Enterprise. Answer them from the lead's chat.",
+    });
+    expect((await stateOf(run, nikhil)).state).toBe("needs_you");
+  });
+
   it("a run from Max carries on writing first, but stops replying once the plan is Pro", async () => {
     await onTier("max");
     const arjun = await lead("Arjun Mehta");

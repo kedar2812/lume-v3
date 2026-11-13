@@ -2,7 +2,7 @@
 import { AUTOPILOT_ACTION_TITLES, firstNameOf, type AutopilotAction } from "@lume/core/shared";
 import { AnimatePresence } from "motion/react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -73,6 +73,12 @@ export function WaitingWork({ canStart, onStarted }: { canStart: boolean; onStar
   const [left, setLeft] = useState<Set<string>>(new Set());
   const [stages, setStages] = useState<Map<string, string>>(new Map());
   const [setup, setSetup] = useState<AutopilotSetup | null>(null);
+  // LUME AI's setup that didn't load (QA 2026-11-13): said, with Try again; never a button that stays asleep.
+  const [setupProblem, setSetupProblem] = useState<string | null>(null);
+  const loadSetup = useCallback(() => {
+    setSetupProblem(null);
+    void autopilotClient.setup().then((r) => (r.ok ? setSetup(r.data) : setSetupProblem(r.message)));
+  }, []);
   const [preview, setPreview] = useState<{ who: string; text: string } | null>(null);
   const [starting, setStarting] = useState(false);
   const now = useMemo(() => new Date(), []);
@@ -82,8 +88,8 @@ export function WaitingWork({ canStart, onStarted }: { canStart: boolean; onStar
     void pipelinesClient.list().then((r) => {
       if (r.ok) setStages(new Map(r.data.pipelines.flatMap((p) => p.stages.map((st) => [st.id, st.name]))));
     });
-    void autopilotClient.setup().then((r) => r.ok && setSetup(r.data));
-  }, []);
+    loadSetup();
+  }, [loadSetup]);
   useEffect(() => {
     let live = true;
     setLeads(null);
@@ -241,7 +247,14 @@ export function WaitingWork({ canStart, onStarted }: { canStart: boolean; onStar
               <span className={w.caption}>You can change any of these for the run.</span>
             </section>
           )}
-          {ready && !ready.ok ? (
+          {setupProblem ? (
+            <div className={w.notReady} role="alert">
+              <p>{setupProblem}</p>
+              <Button size="sm" onClick={loadSetup}>
+                Try again
+              </Button>
+            </div>
+          ) : ready && !ready.ok ? (
             <div className={w.notReady} role="status">
               <p>{ready.message}</p>
               {ready.fixHref && <Link href={ready.fixHref}>Fix it</Link>}

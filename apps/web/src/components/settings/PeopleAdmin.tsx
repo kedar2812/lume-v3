@@ -4,7 +4,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import type { ApiResult } from "@/lib/api";
-import { can } from "@lume/core/shared";
+import { can, plural } from "@lume/core/shared";
 import { invitesClient, usersClient, type Invite, type RoleRef, type UserRow } from "@/lib/settings/people";
 import { securityClient } from "@/lib/settings/security";
 import type { Session } from "@/server/session";
@@ -31,10 +31,10 @@ function placesWords(places: number | null | undefined, users: UserRow[], invite
   const people = users.filter((u) => u.status === "active" || u.status === "suspended").length;
   const taken = people + invites.filter((i) => !i.expired).length;
   return {
-    count: `${taken} of ${places} places`,
+    count: `${taken} of ${plural(places, "place")}`,
     full:
       people > places
-        ? `${people} people use this LUME and its plan has ${places} places. Nobody loses access; new people can be added once there’s room.`
+        ? `${people} people use this LUME and its plan has ${plural(places, "place")}. Nobody loses access; new people can be added once there’s room.`
         : taken >= places
           ? `Every place on this LUME’s plan is taken (${places} of ${places}). Pause someone, or ask LUME’s team about more places.`
           : null,

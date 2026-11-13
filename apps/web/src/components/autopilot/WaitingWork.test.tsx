@@ -109,6 +109,19 @@ describe("WaitingWork", () => {
     expect(screen.getByRole("button", { name: "Follow up with these 3" })).toBeEnabled();
   });
 
+  it("LUME AI's setup that won't load says so with Try again, rather than a button that never wakes (QA 2026-11-13)", async () => {
+    vi.mocked(autopilotClient.setup).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      code: "UNAVAILABLE",
+      message: "LUME couldn't load this just now.",
+    } as never);
+    render(<WaitingWork canStart onStarted={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("LUME couldn't load this just now.");
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: "Follow up with these 3" })).toBeEnabled();
+  });
+
   it("untick anyone you'd rather call yourself: the button and the start sheet leave them out", async () => {
     render(<WaitingWork canStart onStarted={vi.fn()} />);
     await userEvent.click(await screen.findByRole("checkbox", { name: "Rohan Gupta" }));

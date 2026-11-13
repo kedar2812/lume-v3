@@ -416,5 +416,5 @@ function ago(iso: string, now: Date): string {
   const h = Math.round(m / 60);
   if (h < 48) return `${h} ${h === 1 ? "hour" : "hours"} ago`;
   const d = Math.round(h / 24);
-  return `${d} days ago`;
+  return `${d} ${d === 1 ? "day" : "days"} ago`;
 }

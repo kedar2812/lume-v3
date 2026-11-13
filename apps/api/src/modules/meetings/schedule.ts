@@ -1,13 +1,6 @@
 import type { FastifyRequest } from "fastify";
 import { eq, sql } from "drizzle-orm";
-import {
-  callTimeLabel,
-  can,
-  meetingMessage,
-  moduleIncluded,
-  newId,
-  type ScheduleMeeting,
-} from "@lume/core";
+import { callTimeLabel, can, meetingMessage, moduleIncluded, newId, type ScheduleMeeting } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
@@ -26,8 +19,7 @@ import { meetingById, type MeetingView } from "./service";
  */
 
 export type ScheduleReady =
-  | { ready: true }
-  | { ready: false; why: "off" | "connect" | "permission" | "reconnect"; message: string };
+  { ready: true } | { ready: false; why: "off" | "connect" | "permission" | "reconnect"; message: string };
 
 const NOT_READY: Record<Exclude<ScheduleReady, { ready: true }>["why"], string> = {
   off: "Google Calendar is off in LUME. An admin can switch it on in Settings → Integrations.",
@@ -35,7 +27,11 @@ const NOT_READY: Record<Exclude<ScheduleReady, { ready: true }>["why"], string> 
   permission: "Let LUME add meetings to your Google Calendar, so it can make the Meet link.",
   reconnect: "Connect your Google Calendar again to schedule meetings with a Meet link.",
 };
-const notReady = (why: keyof typeof NOT_READY): ScheduleReady => ({ ready: false, why, message: NOT_READY[why] });
+const notReady = (why: keyof typeof NOT_READY): ScheduleReady => ({
+  ready: false,
+  why,
+  message: NOT_READY[why],
+});
 
 /** Whether this person can schedule now: Google Calendar on here, theirs connected, active, and adding events. */
 export async function scheduleReady(req: FastifyRequest, d: AppDeps): Promise<ScheduleReady> {
@@ -76,14 +72,19 @@ export type Scheduled = {
  * their LUME calls calendar with a Meet link, then kept: the meeting, a line in the lead's history, the move to the
  * booking stage. Anything after Google failing takes the event back out, so Google never keeps one LUME didn't.
  */
-export async function scheduleMeeting(req: FastifyRequest, d: AppDeps, b: ScheduleMeeting): Promise<Scheduled> {
+export async function scheduleMeeting(
+  req: FastifyRequest,
+  d: AppDeps,
+  b: ScheduleMeeting,
+): Promise<Scheduled> {
   // A lead they can't see is missing, whatever else is true.
   const lead = await visibleLead(req, b.leadId);
   const ready = await scheduleReady(req, d);
   if (!ready.ready) throw new HttpError(409, "MEETING_NOT_READY", ready.message);
   const start = new Date(b.startsAt);
   // A minute's grace for a time picked as the clock turns; anything earlier is a mistake.
-  if (start.getTime() < d.clock().getTime() - 60_000) throw badRequest("MEETING_PAST", "Choose a time from now on.");
+  if (start.getTime() < d.clock().getTime() - 60_000)
+    throw badRequest("MEETING_PAST", "Choose a time from now on.");
   const end = new Date(start.getTime() + b.minutes * 60_000);
   const me = req.actor!.userId;
   const tz = await businessTz(req);
@@ -122,10 +123,16 @@ export async function scheduleMeeting(req: FastifyRequest, d: AppDeps, b: Schedu
   const undo = () =>
     void cal.google
       .removeEvent(cal.calendarId, added.eventId)
-      .catch((err: unknown) => req.log.error({ err }, "couldn't remove a meeting LUME added to Google Calendar"));
+      .catch((err: unknown) =>
+        req.log.error({ err }, "couldn't remove a meeting LUME added to Google Calendar"),
+      );
   if (!added.link) {
     undo();
-    throw new HttpError(503, "GOOGLE_UNAVAILABLE", "Google didn't make a Meet link just now. Nothing was scheduled. Try again.");
+    throw new HttpError(
+      503,
+      "GOOGLE_UNAVAILABLE",
+      "Google didn't make a Meet link just now. Nothing was scheduled. Try again.",
+    );
   }
   try {
     await req.db.execute(sql`
@@ -138,7 +145,12 @@ export async function scheduleMeeting(req: FastifyRequest, d: AppDeps, b: Schedu
       byAi: false,
     });
     await toBookingStage(req, lead);
-    await audit(req, { action: "meeting.scheduled", entityType: "lead", entityId: lead.id, diff: { meetingId: id } });
+    await audit(req, {
+      action: "meeting.scheduled",
+      entityType: "lead",
+      entityId: lead.id,
+      diff: { meetingId: id },
+    });
     // Everything the answer needs is read here too: nothing after this can fail and leave Google's event behind.
     return {
       meeting: await meetingById(req, id),
@@ -155,4 +167,5 @@ export async function scheduleMeeting(req: FastifyRequest, d: AppDeps, b: Schedu
 
 /** Who may schedule: a person who may connect their own calendar and see lead meetings. */
 export const maySchedule = (req: FastifyRequest) =>
-  !!req.actor && (req.actor.isOwner || (can(req.actor, "calendar.connect") && can(req.actor, "calendar.view")));
+  !!req.actor &&
+  (req.actor.isOwner || (can(req.actor, "calendar.connect") && can(req.actor, "calendar.view")));

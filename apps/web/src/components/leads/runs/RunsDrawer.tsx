@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { can } from "@lume/core/shared";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Scrim } from "@/components/ui/Scrim";
@@ -56,6 +57,8 @@ export function RunsDrawer({
   const everyoneAllowed = can(session.actor, "leads.bulk_edit", "all");
   const [view, setView] = useState<"mine" | "all">("mine");
   const [runs, setRuns] = useState<RunView[] | null>(null);
+  // A first load that failed (QA 2026-11-13): said, with Try again, never skeletons forever. A failed re-read keeps the list.
+  const [failed, setFailed] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   // A run that was going and has now finished changed leads: the list behind refreshes (7C final review, Important 2).
   const wasLive = useRef<Set<string>>(new Set());
@@ -63,14 +66,15 @@ export function RunsDrawer({
   tellChanged.current = onChanged;
   const load = useCallback(async () => {
     const r = await bulkRunsClient.list();
-    if (!r.ok) return;
+    if (!r.ok) return setFailed(r.message);
+    setFailed(null);
     const nowLive = new Set(r.data.runs.filter(isLive).map((x) => x.id));
     if ([...wasLive.current].some((id) => !nowLive.has(id))) tellChanged.current();
     wasLive.current = nowLive;
     setRuns(r.data.runs);
   }, []);
   useEffect(() => void load(), [load]);
-  useLoadingSignal(runs === null);
+  useLoadingSignal(runs === null && !failed);
   // While anything is running, the list reads itself again every two seconds.
   const anyLive = !!runs?.some(isLive);
   useEffect(() => {
@@ -166,7 +170,13 @@ export function RunsDrawer({
             </svg>
           </button>
         </header>
-        {runs === null ? (
+        {runs === null && failed ? (
+          <ErrorState
+            title="Recent bulk actions didn’t load"
+            message={failed}
+            action={{ label: "Try again", onClick: () => void load() }}
+          />
+        ) : runs === null ? (
           <div className={s.list} aria-busy>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className={s.skel} />

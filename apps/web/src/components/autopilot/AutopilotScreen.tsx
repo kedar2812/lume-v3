@@ -1,10 +1,12 @@
 "use client";
-import { firstNameOf } from "@lume/core/shared";
+import { firstNameOf, tierAllows, tierFor, tierName, tiersWith } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
+import { AskAboutPlan } from "@/components/licence/AskAboutPlan";
+import { useTier } from "@/components/licence/LicenceProvider";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useZone } from "@/components/ZoneProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -128,6 +130,8 @@ export function AutopilotScreen({
   const [now, setNow] = useState(() => new Date());
   // A phone (plan 2026-10-28, artboard 3): the list, or one lead's conversation with Back.
   const phone = usePhone();
+  // The plan's tier (Plans and pricing, November 2026): on Base the off page names the plan LUME AI comes with.
+  const { tier, canAsk } = useTier();
   const [phoneLead, setPhoneLead] = useState<string | null>(null);
   // New run (owner, 2026-11-01): choose the leads here, then the start sheet, never a trip to Leads.
   const [newRun, setNewRun] = useState<"choose" | { leadIds: string[] } | null>(null);
@@ -306,6 +310,8 @@ export function AutopilotScreen({
     </div>
   );
 
+  // Base (Plans and pricing, November 2026): LUME AI isn't in the plan; the page says which plan has it.
+  const byTier = !tierAllows({ tier }, "ai");
   if (off && !runs.length)
     return (
       <div className={s.off}>
@@ -316,8 +322,24 @@ export function AutopilotScreen({
               Off
             </span>
           </span>
-          <h2 id="lumeai-off">LUME AI is off</h2>
-          {off.canSwitch ? (
+          {byTier ? (
+            <>
+              <h2 id="lumeai-off">LUME AI comes with {tierName(tierFor("ai"))}</h2>
+              <p>
+                LUME AI follows up with your leads on {tiersWith("ai")}. Your LUME is on {tierName(tier!)}.
+              </p>
+              <div className={s.offActions}>
+                {canAsk && <AskAboutPlan tier={tierFor("ai")} />}
+                <Link href="/settings/about#plan" className={s.offSecondary}>
+                  See your plan
+                </Link>
+              </div>
+              {!canAsk && <p className={s.offNote}>An admin can ask LUME about {tierName(tierFor("ai"))}.</p>}
+            </>
+          ) : (
+            <h2 id="lumeai-off">LUME AI is off</h2>
+          )}
+          {byTier ? null : off.canSwitch ? (
             <>
               <p>
                 Switch it on to let LUME AI follow up with your leads on WhatsApp. It only does what you

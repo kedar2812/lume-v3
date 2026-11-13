@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -63,10 +64,10 @@ function estimateLine(e: Estimate): string {
     const left = e.aiLeadsLeft;
     parts.push(
       e.firstMessages <= left
-        ? `uses up to ${e.firstMessages.toLocaleString("en-US")} of your ${left.toLocaleString("en-US")} AI leads left this month`
+        ? `uses up to ${e.firstMessages.toLocaleString("en-US")} of your ${plural(left, "AI lead")} left this month`
         : left === 0
           ? "no AI leads left this month, so they wait until the 1st or a top-up"
-          : `${left.toLocaleString("en-US")} AI leads left this month: the rest wait until the 1st or a top-up`,
+          : `${plural(left, "AI lead")} left this month: the rest wait until the 1st or a top-up`,
     );
   } else if (e.monthShare !== null) {
     const pct = Math.round(e.monthShare * 100);

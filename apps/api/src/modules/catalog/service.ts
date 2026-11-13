@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, max, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { newId } from "@lume/core";
 import { schema } from "@lume/db";
@@ -7,6 +7,13 @@ import { badRequest, conflict, notFound } from "../../http/errors";
 import { assertOneCurrency } from "../settings/service";
 
 // ── Lost reasons ───────────────────────────────────────────────────────────────
+/**
+ * One change to the lost reasons at a time (QA 2026-11-13): two reorders took row locks in opposite orders and one
+ * deadlocked (a 500), and two adds of the same words could both pass the duplicate check.
+ */
+const lockReasons = (req: FastifyRequest) =>
+  req.db.execute(sql`SELECT pg_advisory_xact_lock(hashtext('lume.lost_reasons'))`);
+
 const reasonView = (r: typeof schema.lostReasons.$inferSelect) => ({
   id: r.id,
   label: r.label,
@@ -31,6 +38,7 @@ async function assertReasonLabelFree(req: FastifyRequest, label: string, exceptI
 }
 
 export async function createLostReason(req: FastifyRequest, label: string) {
+  await lockReasons(req);
   await assertReasonLabelFree(req, label);
   const [{ top } = { top: null }] = await req.db
     .select({ top: max(schema.lostReasons.position) })
@@ -54,6 +62,7 @@ export async function updateLostReason(
   id: string,
   patch: { label?: string; position?: number },
 ) {
+  await lockReasons(req);
   if (patch.label) await assertReasonLabelFree(req, patch.label, id);
   const [row] = await req.db
     .update(schema.lostReasons)
@@ -67,6 +76,7 @@ export async function updateLostReason(
 
 /** The whole order in one go, inside the request's transaction: every live reason exactly once, or nothing moves. */
 export async function reorderLostReasons(req: FastifyRequest, ids: string[]) {
+  await lockReasons(req);
   const live = await req.db
     .select({ id: schema.lostReasons.id })
     .from(schema.lostReasons)

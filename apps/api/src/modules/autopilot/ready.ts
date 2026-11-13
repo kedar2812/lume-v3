@@ -164,6 +164,12 @@ export async function carryOn(req: FastifyRequest, d: AppDeps, runId: string, le
     !!row.lastInboundAt &&
     (!row.lastSentAt || row.lastInboundAt.getTime() + SAME_SECOND > row.lastSentAt.getTime()) &&
     windowOpen(row.lastInboundAt, now);
+  // Carrying on with a lead's message unanswered is a reply: on Max and Enterprise only (Plans and pricing, 2026-11).
+  if (waiting && repliesLocked(req.server.licence.view().plan))
+    throw conflict(
+      "PLAN_TIER",
+      `Autopilot replies are on ${tiersWith("ai_replies")}. Answer them from the lead's chat.`,
+    );
   const state = waiting ? "replied" : row.firstSentAt ? "sent" : "up_next";
   await req.db
     .update(schema.autopilotAsks)

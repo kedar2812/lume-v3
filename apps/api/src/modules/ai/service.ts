@@ -370,7 +370,7 @@ async function noticeLeads(
       at: limit,
       kind: "leads_limit" as const,
       title: "LUME AI has used this month's AI leads",
-      body: `All ${limit.toLocaleString("en-US")} AI leads are used this month. Leads it's already working on keep it; new leads start again ${back}, or sooner with a top-up.`,
+      body: `${limit === 1 ? "The month's 1 AI lead is" : `All ${limit.toLocaleString("en-US")} AI leads are`} used this month. Leads it's already working on keep it; new leads start again ${back}, or sooner with a top-up.`,
     },
   ];
   // On a tier (Plans and pricing, November 2026), what to do about it: a top-up, or the next tier.

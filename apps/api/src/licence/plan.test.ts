@@ -89,7 +89,7 @@ const invite = (email: string) =>
 describe("the plan, kept (spec 2026-10-17 control §2)", () => {
   it("says it can keep a plan and which modules are on, with its check-in", async () => {
     await check();
-    expect(sent[0]!.accepts).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5"]);
+    expect(sent[0]!.accepts).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6"]);
     expect((sent[0]!.health as { modulesOn: string[] }).modulesOn).toContain("webhooks");
   });
 
@@ -139,7 +139,7 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     plan = { places: 50, modules: all };
     await check();
     const me = (await owner.inject({ method: "GET", url: "/api/v1/licence" })).json();
-    expect(me.plan).toEqual({ places: 50, taken: await taken(), modules: all });
+    expect(me.plan).toEqual({ places: 50, taken: await taken(), modules: all, tier: null });
     const rep = await h.signIn(repUser);
     expect((await rep.inject({ method: "GET", url: "/api/v1/licence" })).json().plan).toBeNull();
   });

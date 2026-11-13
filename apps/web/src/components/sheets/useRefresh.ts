@@ -22,7 +22,8 @@ const plural = (n: number, one: string, many: string) => `${n.toLocaleString("en
 export function waitWords(s: number | null): string {
   if (s === null || s < 90) return "a minute";
   if (s >= 3300) return "an hour";
-  return `${Math.round(s / 60)} minutes`;
+  // 90 s to 55 min: at least 2 minutes, so always plural.
+  return `${Math.max(2, Math.round(s / 60))} minutes`;
 }
 
 /** The card's title when a Refresh didn't happen: what stopped it, in a few words (by the API's code). */

@@ -1,4 +1,5 @@
 "use client";
+import { plural } from "@lume/core/shared";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useZone } from "@/components/ZoneProvider";
 import { Popover } from "@/components/ui/Popover";
@@ -56,7 +57,7 @@ export function AiRing() {
         : leads
           ? limit.limit !== null
             ? `LUME AI: ${n(limit.used)} of ${n(limit.limit)} AI leads used this month`
-            : `LUME AI: ${n(limit.used)} AI leads this month`
+            : `LUME AI: ${plural(limit.used, "AI lead")} this month`
           : limit.limit
             ? `LUME AI: ${Math.round(share * 100)}% of this ${per} used`
             : `LUME AI: ${n(limit.used)} used this month`;

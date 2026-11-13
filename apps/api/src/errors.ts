@@ -48,6 +48,25 @@ export function errorHandler(err: FastifyError | HttpError, req: FastifyRequest,
       } satisfies ErrorBody);
     return;
   }
+  // Two changes that collided (QA 2026-11-13): a deadlock or a serialization clash, or a duplicate a check missed in a
+  // race. Each rolled back whole; said in words, so the person looks again rather than seeing "Something went wrong".
+  if (pgCode === "40P01" || pgCode === "40001") {
+    req.log.warn({ err }, "two changes collided");
+    void reply.code(409).send({
+      error: {
+        code: "CHANGED_AT_ONCE",
+        message: "Someone else changed this at the same moment. Look again, then try once more.",
+      },
+    } satisfies ErrorBody);
+    return;
+  }
+  if (pgCode === "23505") {
+    req.log.warn({ err }, "a duplicate a check didn't catch");
+    void reply.code(409).send({
+      error: { code: "ALREADY_EXISTS", message: "That's already there. Look again before adding it." },
+    } satisfies ErrorBody);
+    return;
+  }
   req.log.error({ err }, "unhandled error");
   void reply
     .code(500)

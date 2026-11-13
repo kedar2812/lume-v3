@@ -19,13 +19,33 @@ type Lead = { id: string; name: string };
 const first = (name: string) => name.trim().split(/\s+/)[0] || "your lead";
 
 const CalendarPlus = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
     <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
     <path d="M8 3v4M16 3v4M3.5 10h17M12 13v5M9.5 15.5h5" />
   </svg>
 );
 const MeetMark = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
     <rect x="3" y="6.5" width="12.5" height="11" rx="2.5" />
     <path d="m15.5 10.5 5.5-3.5v10l-5.5-3.5" />
   </svg>
@@ -53,7 +73,12 @@ export function ScheduleMeeting({
         Schedule a meeting
       </Button>
       {open && (
-        <ScheduleSheet lead={lead} tz={tz} onClose={() => setOpen(false)} {...(onScheduled ? { onScheduled } : {})} />
+        <ScheduleSheet
+          lead={lead}
+          tz={tz}
+          onClose={() => setOpen(false)}
+          {...(onScheduled ? { onScheduled } : {})}
+        />
       )}
     </>
   );
@@ -112,14 +137,23 @@ export function ScheduleSheet({
   );
 }
 
-const CONNECT: Record<Exclude<ScheduleReady, { ready: true }>["why"], { title: string; action: string | null }> = {
+const CONNECT: Record<
+  Exclude<ScheduleReady, { ready: true }>["why"],
+  { title: string; action: string | null }
+> = {
   connect: { title: "Connect your Google Calendar", action: "Connect Google Calendar" },
   permission: { title: "One more permission", action: "Allow LUME to add meetings" },
   reconnect: { title: "Connect Google Calendar again", action: "Connect again" },
   off: { title: "Google Calendar is off", action: null },
 };
 
-function NotReady({ ready, onClose }: { ready: Exclude<ScheduleReady, { ready: true }>; onClose: () => void }) {
+function NotReady({
+  ready,
+  onClose,
+}: {
+  ready: Exclude<ScheduleReady, { ready: true }>;
+  onClose: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const words = CONNECT[ready.why];
@@ -135,7 +169,9 @@ function NotReady({ ready, onClose }: { ready: Exclude<ScheduleReady, { ready: t
       </span>
       <h2 className={s.title}>{words.title}</h2>
       <p className={s.lede}>{ready.message}</p>
-      <p className={s.fine}>LUME only adds meetings to its own LUME calls calendar, each with a Google Meet link.</p>
+      <p className={s.fine}>
+        LUME only adds meetings to its own LUME calls calendar, each with a Google Meet link.
+      </p>
       {problem && (
         <p role="alert" className={s.problem}>
           {problem}
@@ -238,13 +274,25 @@ function ScheduleForm({
     if (!titleTouched) setTitle(`Call with ${first(l.name)}`);
   };
   const at = startOf(date, time, tz);
-  const missing = !lead ? "Choose who the meeting is with." : !title.trim() ? "Give the meeting a title." : !at ? "Choose a day and a time." : null;
+  const missing = !lead
+    ? "Choose who the meeting is with."
+    : !title.trim()
+      ? "Give the meeting a title."
+      : !at
+        ? "Choose a day and a time."
+        : null;
 
   const submit = async () => {
     if (missing || !lead || !at || busy) return;
     setBusy(true);
     setProblem(null);
-    const r = await calendarClient.schedule({ leadId: lead.id, title: title.trim(), startsAt: at, minutes: Number(minutes), notes: notes.trim() });
+    const r = await calendarClient.schedule({
+      leadId: lead.id,
+      title: title.trim(),
+      startsAt: at,
+      minutes: Number(minutes),
+      notes: notes.trim(),
+    });
     setBusy(false);
     if (!r.ok) return setProblem(r.message);
     onDone(r.data, lead);
@@ -262,6 +310,7 @@ function ScheduleForm({
       <input
         className={s.titleInput}
         aria-label="Title"
+        autoFocus={!!fixed}
         placeholder="Add a title"
         maxLength={200}
         value={title}
@@ -290,8 +339,23 @@ function ScheduleForm({
       <div className={s.row}>
         <span className={s.rowLabel}>When</span>
         <div className={s.when}>
-          <input type="date" className={s.input} aria-label="Day" value={date} onChange={(e) => setDate(e.target.value)} required />
-          <input type="time" className={s.input} aria-label="Time" step={300} value={time} onChange={(e) => setTime(e.target.value)} required />
+          <input
+            type="date"
+            className={s.input}
+            aria-label="Day"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+          <input
+            type="time"
+            className={s.input}
+            aria-label="Time"
+            step={300}
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            required
+          />
         </div>
       </div>
       <div className={s.row}>
@@ -386,7 +450,14 @@ function ScheduledView({ done, lead, onClose }: { done: Scheduled; lead: Lead; o
     <div className={s.done}>
       <span className={s.tick} aria-hidden>
         <svg viewBox="0 0 16 16" width="18" height="18">
-          <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M3.5 8.5l3 3 6-7"
+            fill="none"
+            stroke="#fff"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </span>
       <h2 className={s.title}>Meeting scheduled</h2>
@@ -418,7 +489,11 @@ function ScheduledView({ done, lead, onClose }: { done: Scheduled; lead: Lead; o
           </p>
         ) : wa.open || wa.send ? (
           <>
-            {!wa.send && wa.why && <p className={s.why}>{wa.why} You can send it from your own WhatsApp instead, with the message filled in.</p>}
+            {!wa.send && wa.why && (
+              <p className={s.why}>
+                {wa.why} You can send it from your own WhatsApp instead, with the message filled in.
+              </p>
+            )}
             <textarea
               className={s.notes}
               aria-label="Message"

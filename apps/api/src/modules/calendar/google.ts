@@ -23,7 +23,14 @@ export type CalendarEventRead = {
 
 /** LUME AI's call, as LUME adds it to the speaker's Google Calendar (spec 2026-11-03). */
 /** `description`: the event's notes in Google Calendar (a person's own, 2026-11-13); LUME AI's say it booked it. */
-export type NewCall = { meetingId: string; title: string; start: Date; end: Date; tz: string; description?: string };
+export type NewCall = {
+  meetingId: string;
+  title: string;
+  start: Date;
+  end: Date;
+  tz: string;
+  description?: string;
+};
 /** The event's id at Google: LUME's own, from the meeting's (base32hex allows 0-9 and a-v), so a retry finds it. */
 export const eventIdOf = (meetingId: string) => `lume${meetingId.replace(/-/g, "").toLowerCase()}`;
 /** The meeting an event id LUME made is for; null for any other id. */

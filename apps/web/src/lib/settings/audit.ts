@@ -84,7 +84,7 @@ export const AUDIT_ACTIONS: Record<string, ActionDef> = {
     phrase: (d) => {
       const to = (d.keepFilesMonths as { to?: unknown } | undefined)?.to;
       return typeof to === "number"
-        ? `set ${moduleName(d.module)} files to be kept for ${to} months`
+        ? `set ${moduleName(d.module)} files to be kept for ${to} ${to === 1 ? "month" : "months"}`
         : `set ${moduleName(d.module)} files to be kept forever`;
     },
   },

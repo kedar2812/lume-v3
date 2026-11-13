@@ -41,9 +41,11 @@ export async function meetingRoutes(app: FastifyInstance, d: AppDeps): Promise<v
     // The body is checked by the core schema here, so a refusal says what's wrong in words.
     { config: view, schema: { body: z.record(z.string(), z.unknown()) } },
     async (req, reply) => {
-      if (!maySchedule(req)) throw forbidden();
       const p = scheduleMeetingSchema.safeParse(req.body);
-      if (!p.success) throw badRequest("BAD_MEETING", p.error.issues[0]?.message ?? "That meeting doesn't look right.");
+      if (!p.success)
+        throw badRequest("BAD_MEETING", p.error.issues[0]?.message ?? "That meeting doesn't look right.");
+      // Scheduling needs their own calendar too (calendar.connect), checked after the body.
+      if (!maySchedule(req)) throw forbidden();
       return reply.code(201).send(await scheduleMeeting(req, d, p.data));
     },
   );

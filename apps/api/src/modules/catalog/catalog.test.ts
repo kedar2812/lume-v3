@@ -55,6 +55,28 @@ describe("lost reasons, tags, products", () => {
     expect((await get()).map((r) => r.id)).toEqual(reversed);
   });
 
+  it("two people reordering lost reasons at once both get an answer, and one whole order wins (QA 2026-11-13)", async () => {
+    const other = await h.signIn(await h.seedUser({ grants: ALL_GRANTS, totp: true }));
+    for (const label of ["Too far", "Went quiet", "Chose another", "Wrong number"])
+      await admin.inject({ method: "POST", url: "/api/v1/lost-reasons", payload: { label } });
+    const get = async () =>
+      (
+        (await admin.inject({ method: "GET", url: "/api/v1/lost-reasons" })).json().lostReasons as {
+          id: string;
+        }[]
+      ).map((r) => r.id);
+    const forward = await get();
+    const backward = [...forward].reverse();
+    for (let round = 0; round < 8; round++) {
+      const [a, b] = await Promise.all([
+        admin.inject({ method: "PUT", url: "/api/v1/lost-reasons/order", payload: { ids: forward } }),
+        other.inject({ method: "PUT", url: "/api/v1/lost-reasons/order", payload: { ids: backward } }),
+      ]);
+      expect([a.statusCode, b.statusCode]).toEqual([200, 200]);
+      expect([forward, backward]).toContainEqual(await get());
+    }
+  });
+
   it("tags are unique case-insensitively and deletable", async () => {
     const t = (
       await admin.inject({ method: "POST", url: "/api/v1/tags", payload: { label: "VIP", color: "warn" } })

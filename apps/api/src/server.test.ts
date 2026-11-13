@@ -123,4 +123,39 @@ describe("errors (report §4.4)", () => {
     });
     await app.close();
   });
+
+  it("two changes that collided (a deadlock, a clash, a duplicate) are a 409 in words, not a crash (QA 2026-11-13)", async () => {
+    const pg = (code: string) =>
+      new Error("Failed query: update …", { cause: Object.assign(new Error("deadlock detected"), { code }) });
+    const app = await buildServer({
+      checks: {},
+      register: async (scope) => {
+        scope.get("/deadlock", { config: { public: true } }, async () => {
+          throw pg("40P01");
+        });
+        scope.get("/clash", { config: { public: true } }, async () => {
+          throw pg("40001");
+        });
+        scope.get("/twice", { config: { public: true } }, async () => {
+          throw pg("23505");
+        });
+      },
+    });
+    for (const url of ["/deadlock", "/clash"]) {
+      const r = await app.inject({ method: "GET", url });
+      expect(r.statusCode).toBe(409);
+      expect(r.json()).toEqual({
+        error: {
+          code: "CHANGED_AT_ONCE",
+          message: "Someone else changed this at the same moment. Look again, then try once more.",
+        },
+      });
+    }
+    const twice = await app.inject({ method: "GET", url: "/twice" });
+    expect(twice.statusCode).toBe(409);
+    expect(twice.json()).toEqual({
+      error: { code: "ALREADY_EXISTS", message: "That's already there. Look again before adding it." },
+    });
+    await app.close();
+  });
 });

@@ -77,8 +77,7 @@ export type { CalendarRules };
 
 /** Schedule a meeting (2026-11-13): whether this person can now, and why not in words. */
 export type ScheduleReady =
-  | { ready: true }
-  | { ready: false; why: "off" | "connect" | "permission" | "reconnect"; message: string };
+  { ready: true } | { ready: false; why: "off" | "connect" | "permission" | "reconnect"; message: string };
 
 /** A meeting just scheduled: it, its Meet link, its time in words, the WhatsApp message, and how that can go. */
 export type Scheduled = {

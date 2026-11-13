@@ -123,6 +123,9 @@ export const PROBES: Record<string, Probe> = {
     access: "calendar.view",
     path: (f) => `/api/v1/leads/${f.leadId}/meetings`,
   },
+  // Schedule a meeting (2026-11-13): who can now, and booking one (a bare body is refused in words, 400).
+  "GET /api/v1/meetings/schedule/ready": { access: "calendar.view" },
+  "POST /api/v1/meetings/schedule": { access: "calendar.view", body: () => ({}) },
   "PATCH /api/v1/meetings/:id": {
     access: "calendar.view",
     path: () => `/api/v1/meetings/${uuid}`,
@@ -166,6 +169,8 @@ export const PROBES: Record<string, Probe> = {
   // Media (plan 2026-10-20-media-tab): a file, its thumbnail and its PDF read in LUME; a preview tried again.
   // Autopilot A1: ask the owner for a LUME AI top-up (admins).
   "POST /api/v1/ai/topup": { access: "settings.manage", body: () => ({}) },
+  // Ask LUME about a higher tier (Plans and pricing, November 2026).
+  "POST /api/v1/plan/ask": { access: "settings.manage", body: () => ({ tier: "max" }) },
   "GET /api/v1/ai/profile": { access: "settings.manage" },
   // Autopilot (A2): starting LUME AI on leads, and reading runs.
   "GET /api/v1/autopilot/setup": { access: "messages.send_queue" },

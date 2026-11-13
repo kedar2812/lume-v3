@@ -624,7 +624,7 @@ describe("AI leads", () => {
     const full = await alerts("LUME AI has used this month's AI leads");
     expect(full.map((n) => n.user_id)).toEqual([ownerUser.id]);
     expect(full[0]!.body).toBe(
-      "All 1 AI leads are used this month. Leads it's already working on keep it; new leads start again on November 1, or sooner with a top-up.",
+      "The month's 1 AI lead is used this month. Leads it's already working on keep it; new leads start again on November 1, or sooner with a top-up.",
     );
   });
 

@@ -184,7 +184,11 @@ export async function messageRoute(
   if (!lead.phoneE164 || lead.phoneStatus !== "valid")
     return { send: false, why: `${first} has no WhatsApp number in LUME.`, open: false };
   if (!(await replyOn(req, d)))
-    return { send: false, why: "Replying from LUME is off, so the message goes from your own WhatsApp.", open: true };
+    return {
+      send: false,
+      why: "Replying from LUME is off, so the message goes from your own WhatsApp.",
+      open: true,
+    };
   try {
     await replyRoute(req, d, lead);
     return { send: true, why: null, open: true };
