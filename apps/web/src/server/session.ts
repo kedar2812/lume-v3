@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   EMPTY_ONBOARDING,
@@ -181,7 +182,13 @@ export async function requireSession(): Promise<Session> {
   // Paused by the watch (6A): told why, on the paused card, rather than asked to sign in again.
   const me = await readMe();
   if (me.status === 403 && me.data?.error?.code === "SUSPENDED") redirect("/sign-in?paused=1");
-  redirect("/sign-in");
+  // LUME's server didn't answer (restarting during an update, overloaded): nobody is signed out for that. The error
+  // page (app/error.tsx) says so, with Try again.
+  if (me.status === 0 || me.status === 429 || me.status >= 500)
+    throw new Error(`LUME's server didn't answer (${me.status || "no connection"})`);
+  // Signed out with a session cookie still there (it expired): back to the same page once signed in again.
+  const path = (await headers()).get("x-lume-path");
+  redirect(path && path !== "/" ? `/sign-in?next=${encodeURIComponent(path)}` : "/sign-in");
 }
 
 /** Render-time convenience. The API refuses anyway; this only avoids showing a dead end. */

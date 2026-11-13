@@ -1,0 +1,9 @@
+/* A page that couldn't open: the words in the middle of the window, on LUME's own ground in both themes. */
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  background: var(--canvas);
+  color: var(--text);
+}
