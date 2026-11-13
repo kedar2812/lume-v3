@@ -704,8 +704,8 @@
   margin-left: 8px;
   border-radius: 999px;
   vertical-align: middle;
-  background: rgba(42, 91, 255, 0.1);
-  color: #2a5bff;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
   font-size: var(--fs-2xs);
   letter-spacing: 0;
   font-weight: var(--fw-semibold);

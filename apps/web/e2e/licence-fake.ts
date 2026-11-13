@@ -51,7 +51,7 @@ let lastFeedback: unknown = null;
 let feedbackCount = 0;
 let feedbackSays: { status?: number; code?: string; index?: number; retryAfter?: number } = {};
 // LUME AI top-ups (Autopilot A1): every request taken, as the licence server keeps one open request a month.
-let topUps: { month: string; askedBy: unknown }[] = [];
+let topUps: { month: string; askedBy: unknown; note?: string }[] = [];
 
 const body = (req: import("node:http").IncomingMessage) =>
   new Promise<string>((done) => {
@@ -121,11 +121,12 @@ const server = createServer((req, res) => {
         licenseKey?: string;
         month: string;
         askedBy: unknown;
+        note?: string;
       };
       if (b.instanceId !== E2E_INSTANCE || b.licenseKey !== E2E_KEY)
         return send(res, 401, { error: { code: "UNAUTHORIZED" } });
       const already = topUps.some((x) => x.month === b.month);
-      topUps.push({ month: b.month, askedBy: b.askedBy });
+      topUps.push({ month: b.month, askedBy: b.askedBy, ...(b.note ? { note: b.note } : {}) });
       return send(res, already ? 200 : 201, { asked: true });
     }
     if (req.url === "/__fake/topups" && req.method === "DELETE") {

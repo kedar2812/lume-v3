@@ -72,6 +72,52 @@ test.describe("This LUME's plan", () => {
     await expect(page.getByRole("button", { name: "Send invite" })).toBeEnabled();
   });
 
+  test("a tier (Plans and pricing, November 2026): Your plan says what's in it and what Max adds, and Ask about Max reaches LUME — both themes", async ({
+    page,
+  }) => {
+    await openApp(page, "/settings/about");
+    await page.request.delete("http://127.0.0.1:3113/__fake/topups");
+    await licenceSays(page, { plan: { places: null, modules: all, tier: "pro" } });
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await openApp(page, "/settings/about#plan");
+      const card = page.getByRole("region", { name: "Your plan" });
+      await expect(card).toBeVisible();
+      await expect(card.getByText("Pro", { exact: true })).toBeVisible();
+      const inPlan = card.getByRole("list", { name: "In your plan" });
+      await expect(inPlan).toContainText("WhatsApp inbox inside LUME");
+      await expect(inPlan).toContainText("LUME AI, with 1,000 AI leads a month");
+      const adds = card.getByRole("list", { name: "Max adds" });
+      await expect(adds).toContainText("Autopilot replies to your leads");
+      await expect(adds).toContainText("3,000 AI leads a month");
+      await card.scrollIntoViewIfNeeded();
+      await reviewCopy(page, `plan-pro-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+
+    await page
+      .getByRole("region", { name: "Your plan" })
+      .getByRole("button", { name: "Ask about Max" })
+      .click();
+    await expect(page.getByText("Asked. LUME will let you know.")).toBeVisible();
+    const sent = (await (await page.request.get("http://127.0.0.1:3113/__fake/topups")).json()) as {
+      topUps: { note?: string }[];
+    };
+    expect(sent.topUps.map((t) => t.note)).toEqual(["They'd like to move to Max."]);
+
+    // Asking about a tier this LUME already has is refused in words, whatever a stale screen sends.
+    const r = await callApi<{ error: { code: string; message: string } }>(page, "POST", "/api/v1/plan/ask", {
+      tier: "pro",
+    });
+    expect(r.status).toBe(409);
+    expect(r.data.error.message).toBe("This LUME already has everything in Pro.");
+
+    // No tier: no card, nothing locked.
+    await licenceSays(page, { plan: { places: null, modules: all } });
+    await openApp(page, "/settings/about");
+    await expect(page.getByRole("region", { name: "Your plan" })).toHaveCount(0);
+  });
+
   test("a module left out: its card says so and Connect is gone — both themes", async ({ page }) => {
     await openApp(page, "/settings/integrations");
     await licenceSays(page, { plan: { places: null, modules: { ...all, calendly: false } } });
