@@ -49,6 +49,7 @@ import { ChatCard } from "./ChatCard";
 import { WhatsAppChat } from "./WhatsAppChat";
 import { DoNotContact } from "./DoNotContact";
 import { HandToAi } from "@/components/autopilot/HandToAi";
+import { ScheduleMeeting } from "@/components/calendar/ScheduleMeeting";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaThread, WaThreadMessage } from "@/lib/whatsapp/types";
 import { MessageButton } from "./MessageButton";
@@ -730,6 +731,17 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       leadName={lead.name ?? "this lead"}
                       canStart={can(session.actor, "messages.send_queue")}
                       size="md"
+                    />
+                  )}
+                  {/* Schedule a meeting (2026-11-13): with a Meet link, on their own Google Calendar. */}
+                  {seesMeetings && can(session.actor, "calendar.connect") && (
+                    <ScheduleMeeting
+                      lead={{ id: lead.id, name: lead.name ?? "" }}
+                      tz={tz}
+                      onScheduled={() => {
+                        loadMeetings();
+                        void refresh();
+                      }}
                     />
                   )}
                   {stage?.kind === "lost"

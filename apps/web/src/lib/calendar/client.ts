@@ -10,6 +10,8 @@ import type {
   Meeting,
   MeetingPatch,
   MeetingsQuery,
+  Scheduled,
+  ScheduleReady,
   SyncQueued,
 } from "./types";
 
@@ -44,6 +46,10 @@ export const calendarClient = {
   meetings: (q: MeetingsQuery) => api.get<{ meetings: Meeting[] }>(meetingsUrl(q)),
   leadMeetings: (leadId: string) =>
     api.get<{ meetings: Meeting[] }>(`/api/v1/leads/${encodeURIComponent(leadId)}/meetings`),
+  /** Schedule a meeting (2026-11-13): whether this person can, and booking one with a Meet link. */
+  scheduleReady: () => api.get<ScheduleReady>("/api/v1/meetings/schedule/ready"),
+  schedule: (b: { leadId: string; title: string; startsAt: string; minutes: number; notes: string }) =>
+    api.post<Scheduled>("/api/v1/meetings/schedule", b),
   /** Attach to a lead, or Log outcome (once, after it started). */
   patchMeeting: (id: string, patch: MeetingPatch) =>
     api.patch<Meeting>(`/api/v1/meetings/${encodeURIComponent(id)}`, patch),

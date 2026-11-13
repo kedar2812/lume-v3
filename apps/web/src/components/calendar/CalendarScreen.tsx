@@ -22,6 +22,7 @@ import { Agenda } from "./Agenda";
 import { MeetingDrawer } from "./MeetingDrawer";
 import { CalendarRail } from "./CalendarRail";
 import { CalendarRefresh } from "./CalendarRefresh";
+import { ScheduleMeeting } from "./ScheduleMeeting";
 import { ConnectCalendar } from "./ConnectCalendar";
 import { LinkLeadSheet } from "./LinkLeadSheet";
 import { LogOutcome } from "./LogOutcome";
@@ -34,6 +35,8 @@ import { WeekGrid } from "./WeekGrid";
 import s from "./calendar.module.css";
 
 export type CalendarScreenProps = {
+  /** Schedule a meeting (2026-11-13): the blue button, for someone who may connect a calendar and see leads. */
+  canSchedule?: boolean;
   /**
    * A call that isn't with a lead yet can be linked to one, or (canCreate) the person added as a lead (client
    * 2026-11-06). Absent for someone who can't see leads.
@@ -126,6 +129,7 @@ export function CalendarScreen({
   gear,
   connect = null,
   leads = null,
+  canSchedule = false,
   now: nowOf = () => new Date(),
 }: CalendarScreenProps) {
   const [now, setNow] = useState(nowOf);
@@ -191,6 +195,8 @@ export function CalendarScreen({
     setWashed(new Set(changed));
     setTimeout(() => setWashed(new Set()), 2400);
   }, [meetings, day, tz]);
+  // Schedule a meeting: the new one shows at once (the agenda reads its range again).
+  const schedule = canSchedule ? <ScheduleMeeting tz={tz} onScheduled={() => void load(day)} /> : null;
   const onRead = (l: LastSync) => {
     setSyncedAt(l.at);
     void synced();
@@ -345,6 +351,7 @@ export function CalendarScreen({
               onChange={setView}
             />
             {gear}
+            {schedule}
           </div>
         </div>
       )}
@@ -416,12 +423,13 @@ export function CalendarScreen({
             {...(leads?.canCreate && leads.catalog ? { onAddLead: setAdding } : {})}
             notice={notice}
             actions={
-              (refreshable || gear) && (
+              (refreshable || gear || schedule) && (
                 <>
                   {refreshable && (
                     <CalendarRefresh needsReconnect={refreshable.needsReconnect} onSynced={onRead} />
                   )}
                   {gear}
+                  {schedule}
                 </>
               )
             }

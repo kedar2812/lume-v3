@@ -58,7 +58,7 @@ const noMeet = (why: string) =>
   new HttpError(409, "CALL_NO_MEET", `LUME couldn't make a Meet link${why}. Nothing was sent.`);
 
 /** The speaker's Google Calendar, when it may add LUME AI's calls; otherwise why not, in words. */
-async function speakerCalendar(
+export async function speakerCalendar(
   req: FastifyRequest,
   d: AppDeps,
   ownerId: string,
@@ -153,30 +153,7 @@ export async function bookCall(
       startsAt: o.at.toISOString(),
       byAi: true,
     });
-    // As a booking from Calendly does: to the pipeline's booking stage, unless it's there or the lead is closed.
-    const [p] = await req.db
-      .select({ booking: schema.pipelines.bookingStageId })
-      .from(schema.pipelines)
-      .where(eq(schema.pipelines.id, lead.pipelineId));
-    const [now] = await req.db
-      .select({ kind: schema.stages.kind })
-      .from(schema.stages)
-      .where(eq(schema.stages.id, lead.stageId));
-    let moved = false;
-    if (p?.booking && p.booking !== lead.stageId && now?.kind === "open") {
-      await req.db.execute(sql`SAVEPOINT lume_call_move`);
-      try {
-        await moveStage(req, lead, { stageId: p.booking }, { via: "ai_autopilot" });
-        await req.db.execute(sql`RELEASE SAVEPOINT lume_call_move`);
-        moved = true;
-      } catch (e) {
-        await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_call_move`);
-        if (!(e instanceof HttpError)) throw e;
-        req.log.warn({ err: e }, "LUME AI booked a call but couldn't move the lead to its booking stage");
-      }
-    }
-    // No move (already there): the stage's meeting reminders run now there's a meeting.
-    if (!moved && now?.kind === "open") await remindForStage(req, lead);
+    await toBookingStage(req, lead, "ai_autopilot");
     return {
       id,
       label: callTimeLabel(o.at, o.tz),
@@ -190,6 +167,40 @@ export async function bookCall(
     undo();
     throw e;
   }
+}
+
+/**
+ * A meeting booked in LUME (LUME AI's, or a person's): as a booking from Calendly does, the lead goes to its pipeline's
+ * booking stage, unless it's there or closed; a move that's refused leaves the meeting kept. Already there: the stage's
+ * meeting reminders run now there's a meeting.
+ */
+export async function toBookingStage(
+  req: FastifyRequest,
+  lead: Awaited<ReturnType<typeof visibleLead>>,
+  via?: "ai_autopilot",
+): Promise<void> {
+  const [p] = await req.db
+    .select({ booking: schema.pipelines.bookingStageId })
+    .from(schema.pipelines)
+    .where(eq(schema.pipelines.id, lead.pipelineId));
+  const [now] = await req.db
+    .select({ kind: schema.stages.kind })
+    .from(schema.stages)
+    .where(eq(schema.stages.id, lead.stageId));
+  let moved = false;
+  if (p?.booking && p.booking !== lead.stageId && now?.kind === "open") {
+    await req.db.execute(sql`SAVEPOINT lume_call_move`);
+    try {
+      await moveStage(req, lead, { stageId: p.booking }, via ? { via } : {});
+      await req.db.execute(sql`RELEASE SAVEPOINT lume_call_move`);
+      moved = true;
+    } catch (e) {
+      await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_call_move`);
+      if (!(e instanceof HttpError)) throw e;
+      req.log.warn({ err: e }, "a call was booked but the lead couldn't move to its booking stage");
+    }
+  }
+  if (!moved && now?.kind === "open") await remindForStage(req, lead);
 }
 
 /** Tell the lead's owner, once the booking and its reply are both kept (never for one rolled back). */

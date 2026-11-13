@@ -38,7 +38,7 @@ export type Meeting = {
   link: string | null;
   location: string | null;
   ownerId: string;
-  matchedBy: "attendee" | "title" | "calendar" | "calendly" | "lume_ai";
+  matchedBy: "attendee" | "title" | "calendar" | "calendly" | "lume_ai" | "lume";
   outcomeNote: string | null;
   lead: { id: string; name: string; pipelineId: string; stageId: string } | null;
 };
@@ -74,3 +74,17 @@ export type CalendlyView =
     };
 
 export type { CalendarRules };
+
+/** Schedule a meeting (2026-11-13): whether this person can now, and why not in words. */
+export type ScheduleReady =
+  | { ready: true }
+  | { ready: false; why: "off" | "connect" | "permission" | "reconnect"; message: string };
+
+/** A meeting just scheduled: it, its Meet link, its time in words, the WhatsApp message, and how that can go. */
+export type Scheduled = {
+  meeting: Meeting;
+  link: string;
+  label: string;
+  message: string;
+  whatsapp: { send: boolean; why: string | null; open: boolean };
+};

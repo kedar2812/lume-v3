@@ -19,6 +19,7 @@ const WHY: Record<Meeting["matchedBy"], string> = {
   calendar: "It's on a calendar LUME keeps whole.",
   calendly: "It was booked through Calendly.",
   lume_ai: "LUME AI booked it in a WhatsApp chat, at a time you gave it.",
+  lume: "It was scheduled in LUME, with a Google Meet link.",
 };
 const OUTCOME: Partial<Record<Meeting["status"], string>> = {
   completed: "Held",

@@ -278,3 +278,17 @@ describe("Review fixes (5D final review)", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("October 1, Thursday");
   });
 });
+
+describe("the Calendar page: Schedule a meeting (2026-11-13)", () => {
+  it("is the blue button in the header for someone who may schedule, and absent for anyone else", async () => {
+    const { unmount } = view({ canSchedule: true });
+    expect(await screen.findByRole("button", { name: "Schedule a meeting" })).toHaveAttribute(
+      "data-variant",
+      "primary",
+    );
+    unmount();
+    view();
+    await screen.findAllByText(/Lead/);
+    expect(screen.queryByRole("button", { name: "Schedule a meeting" })).toBeNull();
+  });
+});

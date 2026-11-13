@@ -66,6 +66,7 @@ export default async function Page({
         leads={seesLeads ? { session, canCreate, ...(catalog ? { catalog } : {}) } : null}
         initial={readCalendarUrl(params)}
         connect={connect}
+        canSchedule={seesLeads && can(session.actor, "calendar.connect")}
         gear={can(session.actor, "calendar.connect") ? <CalendarGear /> : undefined}
         refreshable={conn?.connected ? { needsReconnect: conn.status === "needs_reconnect" } : null}
         sources={{

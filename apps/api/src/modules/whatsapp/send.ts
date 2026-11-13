@@ -164,6 +164,42 @@ async function mayReply(req: FastifyRequest, d: AppDeps, leadId: string, o: { ig
 }
 
 /**
+ * How a message to this lead can go now (Schedule a meeting, 2026-11-13): `send`, from LUME's inbox (inside WhatsApp's
+ * 24 hours, replying on, the number connected); `open`, from the person's own WhatsApp with the words filled in (the
+ * manual send). `why` says, in words, why it can't go from LUME.
+ */
+export async function messageRoute(
+  req: FastifyRequest,
+  d: AppDeps,
+  leadId: string,
+): Promise<{ send: boolean; why: string | null; open: boolean }> {
+  let lead: LeadRow;
+  try {
+    lead = await sendable(req, leadId);
+  } catch (e) {
+    if (!(e instanceof HttpError)) throw e;
+    return { send: false, why: e.message, open: false };
+  }
+  const first = firstNameOf(lead.name ?? "") || "This lead";
+  if (!lead.phoneE164 || lead.phoneStatus !== "valid")
+    return { send: false, why: `${first} has no WhatsApp number in LUME.`, open: false };
+  if (!(await replyOn(req, d)))
+    return { send: false, why: "Replying from LUME is off, so the message goes from your own WhatsApp.", open: true };
+  try {
+    await replyRoute(req, d, lead);
+    return { send: true, why: null, open: true };
+  } catch (e) {
+    if (!(e instanceof HttpError)) throw e;
+    if (e.code !== "WINDOW_CLOSED") return { send: false, why: e.message, open: true };
+    const them = firstNameOf(lead.name ?? "") || "this lead";
+    const why = (await lastInbound(req, lead.id))
+      ? `It's been more than 24 hours since ${them} last wrote, so WhatsApp only lets LUME send them an approved template.`
+      : `${first} hasn't written to you on WhatsApp yet, so WhatsApp only lets LUME send them an approved template.`;
+    return { send: false, why, open: true };
+  }
+}
+
+/**
  * A file attached in the composer (plan W3a outcomes 12–17): what it really is from its bytes, within WhatsApp's
  * size for that kind, kept once on this server as a draft of this lead by this person until it's sent.
  */

@@ -98,7 +98,8 @@ export async function leadMeetings(req: FastifyRequest, leadId: string) {
   return { meetings: await rows(req, sql`m.lead_id = ${leadId}`) };
 }
 
-async function one(req: FastifyRequest, id: string): Promise<MeetingView> {
+/** One meeting as this person may see it (row-level security), or 404. */
+export async function meetingById(req: FastifyRequest, id: string): Promise<MeetingView> {
   const [m] = await rows(req, sql`m.id = ${id}`);
   if (!m) throw notFound("MEETING_NOT_FOUND", "LUME couldn't find this meeting.");
   return m;
@@ -115,7 +116,7 @@ export async function patchMeeting(
   id: string,
   body: { leadId?: string; status?: "completed" | "no_show" | "rescheduled"; outcomeNote?: string | null },
 ) {
-  const m = await one(req, id);
+  const m = await meetingById(req, id);
   const a = req.actor!;
   if (m.ownerId !== a.userId && !canOnRecord(a, "calendar.view", m.ownerId)) throw forbidden();
   if (body.leadId !== undefined) {
@@ -161,7 +162,7 @@ export async function patchMeeting(
       diff: { status: body.status },
     });
   }
-  return one(req, id);
+  return meetingById(req, id);
 }
 
 const OUTCOME_WORDS: Record<string, string> = {

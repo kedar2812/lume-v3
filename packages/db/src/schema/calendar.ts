@@ -61,7 +61,7 @@ export const meetings = pgTable(
     externalId: text("external_id").notNull(),
     calendarId: text("calendar_id"),
     matchedBy: text("matched_by")
-      .$type<"attendee" | "title" | "calendar" | "calendly" | "lume_ai">()
+      .$type<"attendee" | "title" | "calendar" | "calendly" | "lume_ai" | "lume">()
       .notNull(),
     title: text("title").notNull(),
     startsAt: tz("starts_at").notNull(),
