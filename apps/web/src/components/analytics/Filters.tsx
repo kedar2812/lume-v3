@@ -152,7 +152,7 @@ export function FiltersButton({
       >
         <Icon />
         Filters
-        <span className={s.n} aria-label={`${n} on`}>
+        <span className={s.n} role="img" aria-label={`${n} on`}>
           {n}
         </span>
       </button>

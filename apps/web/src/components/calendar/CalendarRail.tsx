@@ -180,7 +180,7 @@ export function CalendarRail({
                 Calendly
                 <small>bookings arrive in seconds</small>
               </span>
-              <i data-ok aria-label="Working" />
+              <i data-ok role="img" aria-label="Working" />
             </div>
           )}
         </div>

@@ -173,7 +173,7 @@ export function WaitingWork({ canStart, onStarted }: { canStart: boolean; onStar
               {problem}
             </p>
           ) : !leads ? (
-            <div className={w.loading} aria-busy aria-label="Getting the leads">
+            <div className={w.loading} role="status" aria-busy aria-label="Getting the leads">
               <Skeleton height={40} radius={10} />
               <Skeleton height={40} radius={10} />
               <Skeleton height={40} radius={10} />

@@ -52,7 +52,8 @@ export function SheetView({ src, name }: { src: string; name: string }) {
         LUME couldn&apos;t read this spreadsheet. It may be damaged or locked with a password.
       </p>
     );
-  if (!sheets) return <div className={v.sheetSkeleton} aria-busy="true" aria-label={`Reading ${name}`} />;
+  if (!sheets)
+    return <div className={v.sheetSkeleton} role="status" aria-busy="true" aria-label={`Reading ${name}`} />;
 
   return (
     <div className={v.sheetBox}>
@@ -109,7 +110,12 @@ export function SheetView({ src, name }: { src: string; name: string }) {
         </div>
       )}
       <div className={v.sheet}>
-        <div className={v.sheetScroll} tabIndex={0} aria-label={sheet ? `${sheet.name}, scrolls` : name}>
+        <div
+          className={v.sheetScroll}
+          tabIndex={0}
+          role="region"
+          aria-label={sheet ? `${sheet.name}, scrolls` : name}
+        >
           {sheet && sheet.header.length ? (
             <table aria-label={sheet.name}>
               <thead>

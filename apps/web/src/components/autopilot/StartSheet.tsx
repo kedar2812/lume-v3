@@ -300,7 +300,7 @@ export function StartSheet({
             </Button>
           </div>
         ) : (
-          <div className={s.loading} aria-busy aria-label="Getting your choices">
+          <div className={s.loading} role="status" aria-busy aria-label="Getting your choices">
             <Skeleton width="30%" height={14} />
             <Skeleton height={34} radius={10} />
             <Skeleton width="45%" height={14} />

@@ -387,7 +387,7 @@ export function AutopilotScreen({
             {problem}
           </p>
         ) : (
-          <div className={s.loadingBar} aria-busy aria-label="Getting the run">
+          <div className={s.loadingBar} role="status" aria-busy aria-label="Getting the run">
             <Skeleton height={56} radius={14} />
             <Skeleton height={420} radius={16} />
           </div>

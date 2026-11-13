@@ -243,7 +243,7 @@ export function OffboardSheet({
                               ))}
                             </select>
                           )}
-                          <span className={s.split} aria-label="Each person’s share">
+                          <span className={s.split} role="group" aria-label="Each person’s share">
                             {shares.map((x) => (
                               <span key={x.id}>
                                 {x.name} · {x.count.toLocaleString("en-US")}

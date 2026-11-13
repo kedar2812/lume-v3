@@ -314,7 +314,7 @@ export function LiveConversation({
             {problem}
           </p>
         ) : (
-          <div className={s.threadLoading} aria-busy aria-label="Getting the conversation">
+          <div className={s.threadLoading} role="status" aria-busy aria-label="Getting the conversation">
             <Skeleton width="55%" height={38} radius={14} />
             <Skeleton width="40%" height={38} radius={14} />
             <Skeleton width="60%" height={38} radius={14} />

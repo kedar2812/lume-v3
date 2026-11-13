@@ -136,7 +136,7 @@ export function ChooseLeads({
           {problem}
         </p>
       ) : !leads ? (
-        <div className={s.loading} aria-busy aria-label="Getting the leads">
+        <div className={s.loading} role="status" aria-busy aria-label="Getting the leads">
           <Skeleton height={44} radius={10} />
           <Skeleton height={44} radius={10} />
           <Skeleton height={44} radius={10} />

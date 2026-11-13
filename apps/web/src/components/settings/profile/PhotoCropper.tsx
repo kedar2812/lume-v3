@@ -225,7 +225,7 @@ export function PhotoCropper({
               </span>
             </div>
             <div className={s.side}>
-              <div className={s.previews} aria-label="How it will look">
+              <div className={s.previews} role="group" aria-label="How it will look">
                 {PREVIEWS.map((px, i) => (
                   <canvas
                     key={px}

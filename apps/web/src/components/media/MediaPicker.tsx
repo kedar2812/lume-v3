@@ -101,7 +101,13 @@ export function MediaPicker({
     );
   if (!files)
     return (
-      <div className={p.picker} data-wide={wide || undefined} aria-busy="true" aria-label="Loading Media">
+      <div
+        className={p.picker}
+        data-wide={wide || undefined}
+        role="group"
+        aria-busy="true"
+        aria-label="Loading Media"
+      >
         {head}
         <div className={p.grid}>
           {[0, 1, 2].map((i) => (
