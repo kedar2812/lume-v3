@@ -9,7 +9,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => "/calendar",
 }));
-vi.mock("@/lib/calendar/client", () => ({ calendarClient: { meetings: vi.fn() } }));
+vi.mock("@/lib/calendar/client", () => ({
+  calendarClient: {
+    meetings: vi.fn(),
+    scheduleReady: vi.fn(async () => ({ ok: true, status: 200, data: { ready: true } })),
+  },
+}));
 
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const TZ = "Asia/Dubai";

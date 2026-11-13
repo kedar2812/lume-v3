@@ -66,6 +66,19 @@ export function ScheduleMeeting({
   onScheduled?: (m: Meeting) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Google Calendar is an optional integration: with it off for the business there's nothing to schedule with, so no
+  // button. A person who only needs to connect their own calendar keeps it; its sheet connects them.
+  const [off, setOff] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void calendarClient
+      .scheduleReady()
+      .then((r) => live && setOff(r.ok && !r.data.ready && r.data.why === "off"));
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (off !== false) return null;
   return (
     <>
       <Button variant="primary" onClick={() => setOpen(true)} className={s.trigger}>

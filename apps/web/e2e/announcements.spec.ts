@@ -60,7 +60,15 @@ test.describe("From LUME's team", () => {
     await openApp(page, "/today");
     await licenceSays(page, { announcements });
     const sent = (await (await page.request.get(FAKE)).json()) as { lastCheck: Record<string, unknown> };
-    expect(sent.lastCheck.accepts).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5"]);
+    expect(sent.lastCheck.accepts).toEqual([
+      "announcements",
+      "plan",
+      "plan2",
+      "plan3",
+      "plan4",
+      "plan5",
+      "plan6",
+    ]);
     expect(Object.keys(sent.lastCheck.health as object).sort()).toEqual(
       [
         "dbBytes",

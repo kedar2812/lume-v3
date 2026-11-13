@@ -50,10 +50,28 @@ afterEach(() => vi.restoreAllMocks());
 describe("Schedule a meeting (owner, 2026-11-13)", () => {
   it("is the blue button, and opens the sheet", async () => {
     render(<ScheduleMeeting lead={MEERA} tz={TZ} />);
-    const b = screen.getByRole("button", { name: "Schedule a meeting" });
+    const b = await screen.findByRole("button", { name: "Schedule a meeting" });
     expect(b).toHaveAttribute("data-variant", "primary");
     await userEvent.click(b);
     expect(await screen.findByRole("dialog", { name: "Schedule a meeting" })).toBeInTheDocument();
+  });
+
+  it("Google Calendar off for the business (integrations are optional): no button at all", async () => {
+    vi.mocked(calendarClient.scheduleReady).mockResolvedValue(
+      ok({ ready: false as const, why: "off" as const, message: "Google Calendar is off in LUME." }),
+    );
+    render(<ScheduleMeeting lead={MEERA} tz={TZ} />);
+    await waitFor(() => expect(calendarClient.scheduleReady).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole("button", { name: "Schedule a meeting" })).toBeNull();
+  });
+
+  it("their own calendar not connected yet: the button stays, and its sheet connects it", async () => {
+    vi.mocked(calendarClient.scheduleReady).mockResolvedValue(
+      ok({ ready: false as const, why: "connect" as const, message: "Connect your Google Calendar." }),
+    );
+    render(<ScheduleMeeting lead={MEERA} tz={TZ} />);
+    expect(await screen.findByRole("button", { name: "Schedule a meeting" })).toBeInTheDocument();
   });
 
   it("until Google Calendar lets LUME add meetings, says what's missing and asks for that permission", async () => {

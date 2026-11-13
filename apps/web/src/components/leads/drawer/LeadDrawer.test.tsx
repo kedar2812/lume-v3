@@ -27,7 +27,10 @@ vi.mock("@/lib/leads/client", () => ({
   },
 }));
 vi.mock("@/lib/calendar/client", () => ({
-  calendarClient: { leadMeetings: vi.fn(async () => ({ ok: true, status: 200, data: { meetings: [] } })) },
+  calendarClient: {
+    leadMeetings: vi.fn(async () => ({ ok: true, status: 200, data: { meetings: [] } })),
+    scheduleReady: vi.fn(async () => ({ ok: true, status: 200, data: { ready: true } })),
+  },
 }));
 vi.mock("@/lib/templates/client", () => ({
   templatesClient: {
