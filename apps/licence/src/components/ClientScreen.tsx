@@ -180,11 +180,18 @@ export function said(e: Detail["history"][number]): { text: string; color: strin
       const wa = paid ? `; ${paid} paid WhatsApp messages a month` : "";
       return { text: `Plan: ${places}${out}${aiLeads}${ai}${wa}`, color: "#2a5bff" };
     }
-    case "topup_requested":
+    case "topup_requested": {
+      const by = String(d.by ?? "Their admin");
+      const note = typeof d.note === "string" ? d.note : "";
+      // "Ask about Max" in LUME rides this channel with LUME's own words (night QA 2026-11-13): said as what it is.
+      const tier = /^They'd like to move to (\w+)\.$/.exec(note)?.[1];
       return {
-        text: `${String(d.by ?? "Their admin")} asked for a LUME AI top-up for ${monthWords(String(d.month))}`,
+        text: tier
+          ? `${by} asked about moving to ${tier} (${monthWords(String(d.month))})`
+          : `${by} asked for a LUME AI top-up for ${monthWords(String(d.month))}${note ? `: “${note}”` : ""}`,
         color: "#2a5bff",
       };
+    }
     case "ai_topup":
       return {
         text:

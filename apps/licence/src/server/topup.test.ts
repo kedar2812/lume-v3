@@ -81,6 +81,16 @@ describe("POST /v1/topup", () => {
       .rows;
     expect(rows).toHaveLength(1);
     expect(rows[0].note).toBe("We're running Autopilot on a big campaign.\nThey'd like to move to Max.");
+    // Each ask is a line in the history with its words, so a later one is seen too (night QA 2026-11-13); the same
+    // ask again adds nothing.
+    const ev = await db.pool.query(
+      "SELECT detail FROM events WHERE client_id = $1 AND kind = 'topup_requested' ORDER BY id",
+      [s.clientId],
+    );
+    expect(ev.rows.map((e) => e.detail.note)).toEqual([
+      "We're running Autopilot on a big campaign.",
+      "They'd like to move to Max.",
+    ]);
   });
 
   it("a key that isn't this install's is 401, and nothing is kept", async () => {

@@ -69,16 +69,27 @@ export async function handleTopUp(req: Request, ctx: Ctx): Promise<Response> {
       [who.clientId, b.month, now, b.askedBy.name, b.askedBy.email, b.note.trim()],
     );
     // Asked again with other words ("move to Max" after a top-up, 2026-11-13): they join the open request's note.
-    if (!kept.rowCount && b.note.trim())
-      await c.query(
-        `UPDATE topup_requests SET note = left(CASE WHEN note = '' THEN $3 ELSE note || E'\\n' || $3 END, 500)
-          WHERE client_id = $1 AND month = $2 AND done_at IS NULL AND position($3 in note) = 0`,
-        [who.clientId, b.month, b.note.trim()],
-      );
-    if (kept.rowCount)
+    const joined =
+      !kept.rowCount && b.note.trim()
+        ? await c.query(
+            `UPDATE topup_requests SET note = left(CASE WHEN note = '' THEN $3 ELSE note || E'\\n' || $3 END, 500)
+              WHERE client_id = $1 AND month = $2 AND done_at IS NULL AND position($3 in note) = 0`,
+            [who.clientId, b.month, b.note.trim()],
+          )
+        : null;
+    // Every ask is a line in the history, with its words (night QA 2026-11-13): a later one is seen too.
+    if (kept.rowCount || joined?.rowCount)
       await c.query(
         "INSERT INTO events (client_id, at, kind, detail) VALUES ($1, $2, 'topup_requested', $3)",
-        [who.clientId, now, JSON.stringify({ month: b.month, by: b.askedBy.name })],
+        [
+          who.clientId,
+          now,
+          JSON.stringify({
+            month: b.month,
+            by: b.askedBy.name,
+            ...(b.note.trim() ? { note: b.note.trim() } : {}),
+          }),
+        ],
       );
     await c.query("COMMIT");
     return kept.rowCount ? json(201, { asked: true }) : json(200, { asked: true, already: true });

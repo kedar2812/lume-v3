@@ -225,6 +225,13 @@ describe("Autopilot A1: LUME AI a month, and top-ups", () => {
     expect(line("topup_requested", { month: "2026-10", by: "Priya Shah" })).toBe(
       "Priya Shah asked for a LUME AI top-up for October 2026",
     );
+    // With their words (night QA 2026-11-13): an ask about a bigger plan reads as one, not as a top-up.
+    expect(
+      line("topup_requested", { month: "2026-11", by: "Priya Shah", note: "They'd like to move to Max." }),
+    ).toBe("Priya Shah asked about moving to Max (November 2026)");
+    expect(
+      line("topup_requested", { month: "2026-10", by: "Priya Shah", note: "A big campaign this week." }),
+    ).toBe("Priya Shah asked for a LUME AI top-up for October 2026: “A big campaign this week.”");
     expect(line("ai_topup", { month: "2026-10", calls: 1500 })).toBe(
       "LUME AI top-up: 1,500 calls for October 2026",
     );
