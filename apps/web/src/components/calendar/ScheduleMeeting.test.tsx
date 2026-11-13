@@ -105,6 +105,8 @@ describe("Schedule a meeting (owner, 2026-11-13)", () => {
     const onScheduled = vi.fn();
     sheet(MEERA, onScheduled);
     expect(await screen.findByRole("textbox", { name: "Title" })).toHaveValue("Call with Meera");
+    // Who it's with, named by its row's label (a group, so the name is allowed: night QA 2026-11-13).
+    expect(screen.getByRole("group", { name: "With" })).toHaveTextContent("Meera Iyer");
     expect(screen.getByLabelText("Day")).toHaveValue("2026-11-13");
     expect(screen.getByLabelText("Time")).toHaveValue("16:00");
     await userEvent.click(screen.getByRole("radio", { name: "45 min" }));

@@ -337,7 +337,7 @@ function ScheduleForm({
           With
         </span>
         {lead ? (
-          <span className={s.leadChip} aria-labelledby={`${id}-with`}>
+          <span className={s.leadChip} role="group" aria-labelledby={`${id}-with`}>
             <b>{lead.name || "Unnamed lead"}</b>
             {!fixed && (
               <button type="button" className={s.change} onClick={() => setLead(null)}>
