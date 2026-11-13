@@ -89,6 +89,15 @@ describe("Schedule a meeting (owner, 2026-11-13)", () => {
     expect(startCalendarConnect).toHaveBeenCalledWith({ addEvents: true });
   });
 
+  it("while it checks Google Calendar, says so to a screen reader too", async () => {
+    vi.mocked(calendarClient.scheduleReady).mockReturnValue(new Promise(() => {}));
+    sheet();
+    expect(screen.getByRole("status", { name: "Checking your Google Calendar" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
   it("Google Calendar off for the business: says so, with nothing to press but Close", async () => {
     vi.mocked(calendarClient.scheduleReady).mockResolvedValue(
       ok({ ready: false as const, why: "off" as const, message: "Google Calendar is off in LUME." }),

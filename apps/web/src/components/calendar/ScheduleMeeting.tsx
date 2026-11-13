@@ -129,7 +129,12 @@ export function ScheduleSheet({
             {problem}
           </p>
         ) : (
-          <div className={s.checking} aria-busy="true" aria-label="Checking your Google Calendar" />
+          <div
+            className={s.checking}
+            role="status"
+            aria-busy="true"
+            aria-label="Checking your Google Calendar"
+          />
         )
       ) : !ready.ready ? (
         <NotReady ready={ready} onClose={onClose} />
