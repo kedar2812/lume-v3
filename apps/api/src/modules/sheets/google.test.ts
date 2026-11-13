@@ -3,6 +3,8 @@ import { startGoogleFake, type GoogleFake } from "../../../test/google-fake";
 import {
   GoogleError,
   createGoogleSheets,
+  googleCaller,
+  relayTokens,
   isTransient,
   parseServiceAccount,
   parseSheetLink,
@@ -132,5 +134,66 @@ describe("links and ranges", () => {
       clientEmail: fake.email,
       tokenUri: `${fake.url}/token`,
     });
+  });
+});
+
+describe("Google not answering (night QA 2026-11-13)", () => {
+  /** A Google that takes the call and never answers, until LUME gives up on it. */
+  const hung = (tries: string[]) =>
+    ((url: string, init?: RequestInit) =>
+      new Promise((_, reject) => {
+        tries.push(url);
+        init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+      })) as typeof fetch;
+
+  it("each try gives up after its time and is tried again, then it's unavailable: never a request held for minutes", async () => {
+    const tries: string[] = [];
+    const call = googleCaller({
+      tokens: async () => "t",
+      fetch: hung(tries),
+      sleep: async () => {},
+      timeoutMs: 20,
+    });
+    await expect(call("https://google.test/x")).rejects.toMatchObject({ kind: "unavailable" });
+    expect(tries).toHaveLength(4); // the first try and three more
+  });
+
+  it("a write that mustn't be repeated gives up after one try", async () => {
+    const tries: string[] = [];
+    const call = googleCaller({
+      tokens: async () => "t",
+      fetch: hung(tries),
+      sleep: async () => {},
+      timeoutMs: 20,
+    });
+    await expect(
+      call("https://google.test/x", { method: "POST", body: {}, retry: false }),
+    ).rejects.toMatchObject({
+      kind: "unavailable",
+    });
+    expect(tries).toHaveLength(1);
+  });
+
+  it("an answer that stops arriving halfway is unavailable too, never a stray error", async () => {
+    const cut = (async () => {
+      const r = new Response("{", { status: 200 });
+      Object.defineProperty(r, "json", {
+        value: () => Promise.reject(new DOMException("timed out", "TimeoutError")),
+      });
+      return r;
+    }) as unknown as typeof fetch;
+    const call = googleCaller({ tokens: async () => "t", fetch: cut, sleep: async () => {}, timeoutMs: 20 });
+    await expect(call("https://google.test/x")).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
+  it("the connector handing out access gives up too", async () => {
+    const tokens = relayTokens({
+      relayUrl: "https://relay.test",
+      relayToken: "r",
+      refreshToken: "g",
+      fetch: hung([]),
+      timeoutMs: 20,
+    });
+    await expect(tokens()).rejects.toMatchObject({ kind: "unavailable" });
   });
 });

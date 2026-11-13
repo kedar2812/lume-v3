@@ -65,6 +65,13 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.metadata.readonly",
 ].join(" ");
 const RETRIES = [1000, 2000, 4000];
+/**
+ * How long one try at Google may take, answer included (night QA 2026-11-13): some calls run inside a request holding a
+ * database connection and a lock, so a Google that never answers must not hold them for fetch's five minutes.
+ */
+const ATTEMPT_MS = 20_000;
+/** And one ask for an access token. */
+const TOKEN_MS = 15_000;
 
 export function parseServiceAccount(b64: string | undefined): ServiceAccount | null {
   if (!b64) return null;
@@ -110,6 +117,7 @@ export function serviceAccountTokens(o: {
   account: ServiceAccount;
   fetch?: typeof fetch;
   now?: () => number;
+  timeoutMs?: number;
 }): TokenSource {
   const http = o.fetch ?? fetch;
   const now = o.now ?? Date.now;
@@ -134,6 +142,7 @@ export function serviceAccountTokens(o: {
           grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
           assertion: `${unsigned}.${sig}`,
         }),
+        signal: AbortSignal.timeout(o.timeoutMs ?? TOKEN_MS),
       });
     } catch {
       throw new GoogleError("unavailable", "LUME couldn't reach Google.");
@@ -157,6 +166,7 @@ export function relayTokens(o: {
   refreshToken: string;
   fetch?: typeof fetch;
   now?: () => number;
+  timeoutMs?: number;
 }): TokenSource {
   const http = o.fetch ?? fetch;
   const now = o.now ?? Date.now;
@@ -169,6 +179,7 @@ export function relayTokens(o: {
         method: "POST",
         headers: { authorization: `Bearer ${o.relayToken}`, "content-type": "application/json" },
         body: JSON.stringify({ refreshToken: o.refreshToken }),
+        signal: AbortSignal.timeout(o.timeoutMs ?? TOKEN_MS),
       });
     } catch {
       throw new GoogleError("unavailable", "LUME couldn't reach its Google connector.");
@@ -302,6 +313,7 @@ export function googleCaller(o: {
   tokens: TokenSource;
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
+  timeoutMs?: number;
 }): <T>(url: string, init?: GoogleWrite) => Promise<T> {
   const http = o.fetch ?? fetch;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -317,6 +329,7 @@ export function googleCaller(o: {
       let res: Response | null = null;
       try {
         const auth = { authorization: `Bearer ${await accessToken()}` };
+        const signal = AbortSignal.timeout(o.timeoutMs ?? ATTEMPT_MS);
         res = await http(
           url,
           init
@@ -327,14 +340,20 @@ export function googleCaller(o: {
                   ...(init.body !== undefined ? { "content-type": "application/json" } : {}),
                 },
                 ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+                signal,
               }
-            : { headers: auth },
+            : { headers: auth, signal },
         );
       } catch (e) {
         if (e instanceof GoogleError) throw e;
         res = null; // the network failed: treated like a 503
       }
-      if (res?.ok) return (res.status === 204 ? undefined : await res.json()) as T;
+      if (res?.ok)
+        try {
+          return (res.status === 204 ? undefined : await res.json()) as T;
+        } catch {
+          res = null; // the answer stopped arriving (the try's time ran out): treated like a 503
+        }
       const status = res?.status ?? 503;
       if (status === 401 && !refreshed) {
         refreshed = true;
