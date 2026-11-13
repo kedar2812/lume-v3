@@ -124,6 +124,53 @@ describe("errors (report §4.4)", () => {
     await app.close();
   });
 
+  it("something removed at the same moment, or a value in the wrong form, is said in words, not a crash (night QA 2026-11-13)", async () => {
+    const pg = (code: string, message: string) =>
+      new Error("Failed query: …", { cause: Object.assign(new Error(message), { code }) });
+    const app = await buildServer({
+      checks: {},
+      register: async (scope) => {
+        scope.get("/gone", { config: { public: true } }, async () => {
+          throw pg(
+            "23503",
+            'insert or update on table "leads" violates foreign key constraint "leads_owner_id_fkey"',
+          );
+        });
+        scope.get("/used", { config: { public: true } }, async () => {
+          throw pg(
+            "23503",
+            'update or delete on table "stages" violates foreign key constraint "leads_stage_id_fkey" on table "leads"',
+          );
+        });
+        scope.get("/form", { config: { public: true } }, async () => {
+          throw pg("22P02", 'invalid input syntax for type uuid: "abc"');
+        });
+      },
+    });
+    const gone = await app.inject({ method: "GET", url: "/gone" });
+    expect(gone.statusCode).toBe(409);
+    expect(gone.json()).toEqual({
+      error: {
+        code: "GONE_MEANWHILE",
+        message: "Something this uses was just removed. Look again, then try once more.",
+      },
+    });
+    const used = await app.inject({ method: "GET", url: "/used" });
+    expect(used.statusCode).toBe(409);
+    expect(used.json()).toEqual({
+      error: { code: "IN_USE", message: "That's still used elsewhere in LUME, so it can't be removed yet." },
+    });
+    const form = await app.inject({ method: "GET", url: "/form" });
+    expect(form.statusCode).toBe(400);
+    expect(form.json()).toEqual({
+      error: {
+        code: "BAD_INPUT",
+        message: "Something in that isn't in the right form. Look again, then try once more.",
+      },
+    });
+    await app.close();
+  });
+
   it("two changes that collided (a deadlock, a clash, a duplicate) are a 409 in words, not a crash (QA 2026-11-13)", async () => {
     const pg = (code: string) =>
       new Error("Failed query: update …", { cause: Object.assign(new Error("deadlock detected"), { code }) });

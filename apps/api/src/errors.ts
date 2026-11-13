@@ -67,6 +67,32 @@ export function errorHandler(err: FastifyError | HttpError, req: FastifyRequest,
     } satisfies ErrorBody);
     return;
   }
+  // Something removed at the same moment (night QA 2026-11-13): a stage, a person or a lead deleted while this change
+  // pointed at it, or a removal refused because something still points at it. Either way, look again.
+  if (pgCode === "23503") {
+    req.log.warn({ err }, "a reference a check didn't catch");
+    const removing = /^update or delete on table/.test(pgMessageOf(err) ?? "");
+    void reply.code(409).send({
+      error: removing
+        ? { code: "IN_USE", message: "That's still used elsewhere in LUME, so it can't be removed yet." }
+        : {
+            code: "GONE_MEANWHILE",
+            message: "Something this uses was just removed. Look again, then try once more.",
+          },
+    } satisfies ErrorBody);
+    return;
+  }
+  // A value Postgres couldn't read (an id that isn't one, a number that isn't): the request's fault, not LUME's.
+  if (pgCode === "22P02") {
+    req.log.warn({ err }, "a value in the wrong form");
+    void reply.code(400).send({
+      error: {
+        code: "BAD_INPUT",
+        message: "Something in that isn't in the right form. Look again, then try once more.",
+      },
+    } satisfies ErrorBody);
+    return;
+  }
   req.log.error({ err }, "unhandled error");
   void reply
     .code(500)
@@ -78,6 +104,15 @@ export function pgCodeOf(err: unknown): string | undefined {
   for (let e = err, i = 0; e && typeof e === "object" && i < 3; e = (e as { cause?: unknown }).cause, i++) {
     const code = (e as { code?: unknown }).code;
     if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+  }
+  return undefined;
+}
+
+/** The Postgres error's own message (the one carrying the code), whether wrapped by drizzle or not. */
+function pgMessageOf(err: unknown): string | undefined {
+  for (let e = err, i = 0; e && typeof e === "object" && i < 3; e = (e as { cause?: unknown }).cause, i++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return (e as { message?: string }).message;
   }
   return undefined;
 }
