@@ -9,6 +9,7 @@ import {
   tiersWith,
   type PlanClaim,
   type PlanModule,
+  type PlanTier,
 } from "@lume/core";
 import { sql } from "drizzle-orm";
 import { conflict } from "../http/errors";
@@ -118,17 +119,25 @@ export async function applyPlan(
 ): Promise<void> {
   // A module the plan leaves out, or its tier does (LUME AI on Base).
   const excluded = plan ? PLAN_MODULES.filter((k) => !moduleIncluded(plan, k)) : [];
+  const tier = plan?.tier ?? null;
   const told: PlanModule[] = [];
+  // Back in the plan, and a new tier (night QA 2026-11-13): an admin who asked about a plan is told when it's done.
+  let back: PlanModule[] = [];
+  let tierNow: PlanTier | null = null;
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
     await c.query("SELECT pg_advisory_xact_lock(hashtext('lume.plan'))");
-    const before =
+    const prev =
       (
-        await c.query<{ p: { excluded?: string[] } | null }>(
+        await c.query<{ p: { excluded?: string[]; tier?: PlanTier | null } | null }>(
           "SELECT plan_applied AS p FROM licence_state WHERE id = 1",
         )
-      ).rows[0]?.p?.excluded ?? [];
+      ).rows[0]?.p ?? null;
+    const before = prev?.excluded ?? [];
+    back = PLAN_MODULES.filter((k) => before.includes(k) && !excluded.includes(k));
+    // Only a change from a tier this LUME already kept, never on the first plan after an update; to no tier, nothing.
+    if (prev && "tier" in prev && (prev.tier ?? null) !== tier) tierNow = tier;
     const on = new Set(await modulesOn(c));
     for (const k of excluded.filter((x) => !before.includes(x))) {
       if (!on.has(k)) continue;
@@ -145,7 +154,9 @@ export async function applyPlan(
       );
       told.push(k);
     }
-    await c.query("UPDATE licence_state SET plan_applied = $1 WHERE id = 1", [JSON.stringify({ excluded })]);
+    await c.query("UPDATE licence_state SET plan_applied = $1 WHERE id = 1", [
+      JSON.stringify({ excluded, tier }),
+    ]);
     await c.query("COMMIT");
   } catch (e) {
     await c.query("ROLLBACK").catch(() => undefined);
@@ -154,8 +165,29 @@ export async function applyPlan(
   } finally {
     c.release();
   }
-  if (!told.length) return;
+  if (!told.length && !back.length && !tierNow) return;
   const admins = await adminIds(pool);
+  const tell = (n: { title: string; body: string }) =>
+    Promise.all(
+      admins.map((a) =>
+        notify(pool, a, { kind: "system_alert", ...n }).catch((err: unknown) =>
+          log({ err }, "couldn't tell an admin about the plan"),
+        ),
+      ),
+    );
+  for (const k of back)
+    await tell({
+      title: `${MODULE_NAMES[k]} is in this LUME's plan again`,
+      body:
+        k === "calendly"
+          ? "It works again as it was set up."
+          : "Its settings were kept. An admin can switch it on in Settings → Integrations.",
+    });
+  if (tierNow)
+    await tell({
+      title: `This LUME is now on ${tierName(tierNow)}`,
+      body: "Settings → About shows what's in your plan.",
+    });
   for (const k of told)
     for (const a of admins)
       await notify(pool, a, {

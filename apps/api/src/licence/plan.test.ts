@@ -206,6 +206,56 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     expect(on.json().error.code).toBe("PLAN_MODULE");
   });
 
+  it("a module back in the plan, then a new tier: admins hear each once, with where to go (night QA 2026-11-13)", async () => {
+    const notices = async (like: string) => {
+      const reader = new pg.Client({ connectionString: h.url("lume_readonly_backup") });
+      await reader.connect();
+      return (
+        await reader
+          .query(
+            "SELECT user_id, title, body FROM notifications WHERE kind = 'system_alert' AND title LIKE $1",
+            [like],
+          )
+          .finally(() => reader.end())
+      ).rows as { user_id: string; title: string; body: string }[];
+    };
+    // Webhooks was left out above; now it's back.
+    plan = { places: null, modules: all };
+    await check();
+    await check();
+    const back = await notices("Webhooks is in%");
+    expect(back.length).toBeGreaterThan(0);
+    expect(new Set(back.map((r) => r.user_id)).size).toBe(back.length);
+    expect(back[0]).toMatchObject({
+      title: "Webhooks is in this LUME's plan again",
+      body: "Its settings were kept. An admin can switch it on in Settings → Integrations.",
+    });
+    // The owner moves this LUME to Pro, then to Max: "Asked. LUME will let you know." is kept.
+    plan = { places: null, modules: all, tier: "pro" };
+    await check();
+    await check();
+    plan = { places: null, modules: all, tier: "max" };
+    await check();
+    const moved = await notices("This LUME is now on%");
+    expect(new Set(moved.map((r) => r.title))).toEqual(
+      new Set(["This LUME is now on Pro", "This LUME is now on Max"]),
+    );
+    expect(moved.filter((r) => r.title === "This LUME is now on Pro")).toHaveLength(back.length);
+    expect(moved[0]!.body).toBe("Settings → About shows what's in your plan.");
+
+    // No tier again: nothing locked, nothing to announce.
+    plan = { places: null, modules: all };
+    await check();
+    // The first plan a LUME keeps after it's updated (its last one has no tier written): never a notice.
+    await h.ownerPool.query(`UPDATE licence_state SET plan_applied = '{"excluded": []}' WHERE id = 1`);
+    plan = { places: null, modules: all, tier: "enterprise" };
+    await check();
+    expect((await notices("This LUME is now on%")).map((r) => r.title)).not.toContain(
+      "This LUME is now on Enterprise",
+    );
+    expect(await notices("This LUME is now on%")).toHaveLength(moved.length);
+  });
+
   it("no plan in the answer means no limits", async () => {
     plan = undefined;
     await check();
