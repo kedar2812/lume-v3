@@ -42,15 +42,23 @@ describe("0108: Download the audit log is its own permission (owner 2026-11-14)"
          ('audit.view', 'Security', 'See the audit log', '', false, false), ('leads.view', 'Leads', 'View', '', true, false)
        ON CONFLICT (key) DO NOTHING`,
     );
-    const roles = { admin: "0190e0c0-0000-7000-8000-0000000000a1", sales: "0190e0c0-0000-7000-8000-0000000000a2" };
-    await owner("INSERT INTO roles (id, name) VALUES ($1, 'Admin'), ($2, 'Sales')", [roles.admin, roles.sales]);
+    const roles = {
+      admin: "0190e0c0-0000-7000-8000-0000000000a1",
+      sales: "0190e0c0-0000-7000-8000-0000000000a2",
+    };
+    await owner("INSERT INTO roles (id, name) VALUES ($1, 'Admin'), ($2, 'Sales')", [
+      roles.admin,
+      roles.sales,
+    ]);
     await owner(
       `INSERT INTO role_permissions (role_id, permission_key, scope) VALUES ($1, 'audit.view', NULL), ($2, 'leads.view', 'own')`,
       [roles.admin, roles.sales],
     );
     await migrate(db.url("lume_owner"), MIGRATIONS_DIR_DEFAULT);
     expect(
-      await owner("SELECT role_id, scope FROM role_permissions WHERE permission_key = 'audit.export' ORDER BY role_id"),
+      await owner(
+        "SELECT role_id, scope FROM role_permissions WHERE permission_key = 'audit.export' ORDER BY role_id",
+      ),
     ).toEqual([{ role_id: roles.admin, scope: null }]);
     expect(await owner("SELECT label FROM permissions WHERE key = 'audit.export'")).toEqual([
       { label: "Download the audit log" },
