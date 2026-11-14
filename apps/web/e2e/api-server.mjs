@@ -54,6 +54,9 @@ const child = spawn(process.execPath, [path.join(root, "apps/api/dist/main.js")]
     // The follow-up clock in seconds, so an escalation and a morning email arrive within a test (3B).
     LUME_FOLLOW_UP_TICK_MS: "2000",
     LUME_GOOGLE_ENDPOINT: `http://127.0.0.1:${process.env.E2E_GOOGLE_PORT ?? 3112}`,
+    // What's new runs on the newest release that has stories (packages/core/src/whats-new/releases.ts), so its spec
+    // walks a real window whatever version package.json is at (1.3.0 has none).
+    LUME_VERSION: "1.2.0",
     // The licence (L-A), enforced, against the fake licence server (e2e/licence-fake.ts) and its key.
     LUME_LICENSE_MODE: "enforce",
     LUME_LICENSE_URL: `http://127.0.0.1:${process.env.E2E_LICENCE_PORT ?? 3113}`,

@@ -6,6 +6,30 @@ column in the release that stops using it.
 
 ## Unreleased
 
+## 1.3.0 — 2026-11-14
+
+The first release since 1.1.2 for clients: it carries everything in 1.2.0 below (never released on its own), and:
+
+- **Plan tiers** (Plans and pricing, November 2026): Base, Pro, Max and Enterprise, set per client on the licence
+  server. Base is LUME without LUME AI; Pro adds Autopilot's first messages and follow-ups, suggested next steps and
+  catch-ups; Max and Enterprise add Autopilot replies and "Ask me" for replies. Locked features say which tier has
+  them, and admins can "Ask about Max" from Settings → About (Your plan). **No tier locks nothing**: every client keeps
+  everything until a tier is set. Admins hear when a tier changes or a feature is back in their plan.
+- **LUME AI counts AI leads a month**, not actions: a lead counts once a calendar month; 80% and 100% notices; after
+  20 AI actions on one lead it goes to the team. Top-ups are packs of 100 for the month.
+- **Schedule a meeting** (the blue button on a lead's card and on the Calendar): a Google Meet call on your own LUME
+  calls calendar, kept on the lead, then the link on WhatsApp, sent from LUME inside 24 hours or opened in your own
+  WhatsApp with the message filled in. Shown only where Google Calendar is on; asks for Google's permission once.
+- **Calendar calls** that aren't with a lead yet can be added as a lead or linked to one.
+- **Pipeline stages** drag to reorder, and every order change saves.
+- **Sturdier under load and failure**: a thousand people at once (refresh budget, pool sizes, the edge's per-address
+  ceiling 12,000 a minute, Caddy 256 MB, carried in the release's Caddyfile and compose file); Google calls give up in
+  seconds; LUME's server restarting never signs anyone out; a lost connection, a deadlock, a duplicate or something
+  removed at the same moment are said in words; stuck loading screens offer Try again; screen readers get every name.
+- Migrations 0097–0107 (from 1.1.2). They add tables and columns; 0106 fills this month's AI leads from LUME AI's
+  reads so far, and 0107 widens meetings' `matched_by`. No permission changes. The licence server needs 0011–0013
+  first.
+
 ## 1.2.0 — 2026-11-04
 
 - **What's new in LUME** (owner 2026-11-02): at the first page after an update, a near full-screen window plays the
