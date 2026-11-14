@@ -344,6 +344,31 @@ describe("a live sheet's run", () => {
     expect(seen.every((v, i) => i === 0 || v >= seen[i - 1]!)).toBe(true);
   });
 
+  it("paused by a person while a run is writing: the run finishes, the sheet stays paused", async () => {
+    await lead();
+    await lead();
+    const id = await sheet(h);
+    const runId = newId();
+    await h.ownerPool.query(
+      "INSERT INTO live_sheet_runs (id, sheet_id, trigger, status) VALUES ($1, $2, 'make', 'queued')",
+      [runId, id],
+    );
+    await runLiveSheet({
+      app: h.app,
+      d: h.deps,
+      sheetId: id,
+      runId,
+      onProgress: () =>
+        void h.ownerPool.query(
+          "UPDATE live_sheets SET status = 'paused', pause_reason = 'paused_by_person' WHERE id = $1",
+          [id],
+        ),
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    const [s] = (await h.ownerPool.query("SELECT status, pause_reason FROM live_sheets WHERE id = $1", [id])).rows;
+    expect(s).toEqual({ status: "paused", pause_reason: "paused_by_person" });
+  });
+
   it("Google access taken away pauses it as disconnected; a deleted file pauses it as gone", async () => {
     await lead();
     const off = await sheet(h, { token: "rt-ok-revoked" });

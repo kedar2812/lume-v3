@@ -306,6 +306,8 @@ export async function editSheet(req: FastifyRequest, d: AppDeps, id: string, bod
       columns,
       ...(body.rule ? { rule: body.rule as unknown as Record<string, unknown> } : {}),
       ...(body.edits ? { edits: body.edits } : {}),
+      // Due at once: a run already writing started before the edit, so the next tick takes it up.
+      nextSyncAt: new Date(),
       updatedAt: new Date(),
     })
     .where(eq(LS.id, id));

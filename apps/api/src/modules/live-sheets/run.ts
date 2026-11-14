@@ -333,7 +333,7 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
         ? "LUME's Google connection needs fixing on this server."
         : "Google is slow right now; LUME will keep going.";
     await pool.query(
-      "UPDATE live_sheets SET failures = $2, next_sync_at = $3, last_error = $4, status = CASE WHEN status = 'making' THEN 'making' ELSE 'live' END, updated_at = now() WHERE id = $1",
+      "UPDATE live_sheets SET failures = $2, next_sync_at = $3, last_error = $4, status = CASE WHEN status IN ('making', 'paused') THEN status ELSE 'live' END, updated_at = now() WHERE id = $1",
       [sheet.id, failures, new Date(now.getTime() + wait), words],
     );
     if (!(e instanceof GoogleError)) app.log.error({ err: e, sheet: sheet.id }, "live sheet run failed");
@@ -454,7 +454,7 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
     const total = writes.add.length + writes.update.length + writes.remove.length;
     await pool.query("UPDATE live_sheet_runs SET total = $2 WHERE id = $1", [o.runId, total]);
     if (total >= UPDATING_FROM)
-      await pool.query("UPDATE live_sheets SET status = 'updating' WHERE id = $1 AND status <> 'making'", [
+      await pool.query("UPDATE live_sheets SET status = 'updating' WHERE id = $1 AND status NOT IN ('making', 'paused')", [
         sheet.id,
       ]);
     await ping(pool, sheet.id, "progress");
@@ -480,7 +480,10 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
       await google.setAbout(s, aboutLines(rule, read.names, count, now, await tzOf(pool)));
     const after = await google.file(s.spreadsheetId);
     await pool.query(
-      `UPDATE live_sheets SET status = 'live', pause_reason = NULL, lead_count = $2, capped = $3, header = $4,
+      `UPDATE live_sheets SET lead_count = $2,
+              -- Paused by a person while this run wrote: their pause stands.
+              status = CASE WHEN pause_reason = 'paused_by_person' THEN 'paused' ELSE 'live' END,
+              pause_reason = CASE WHEN pause_reason = 'paused_by_person' THEN pause_reason END, capped = $3, header = $4,
               last_synced_at = $5, next_sync_at = $6, failures = 0, last_error = NULL, google_modified_at = $7,
               updated_at = now()
         WHERE id = $1`,
