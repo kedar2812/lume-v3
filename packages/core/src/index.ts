@@ -10,6 +10,8 @@ export * from "./auth/recovery";
 // Argon2 (native module) lives behind the `@lume/core/password` subpath so the worker bundle never pulls it in.
 // Everything the browser may use is in ./shared (the `@lume/core/shared` subpath).
 export * from "./shared";
+// Live sheets' write plan hashes rows with node:crypto: server only.
+export * from "./live-sheets/diff";
 // The intake engine is server-only (Papa Parse never reaches the browser bundle); its limits are in ./shared.
 export * from "./intake";
 export * from "./tasks";

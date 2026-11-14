@@ -57,6 +57,10 @@ export * from "./security/copy";
 export * from "./security/export-code";
 export * from "./words/plural";
 export * from "./audit/words";
+// Live sheets (2026-11-14): the rule, the columns and the words; the write plan is server-only (./index).
+export * from "./live-sheets/rule";
+export * from "./live-sheets/rows";
+export * from "./live-sheets/words";
 export * from "./words/greeting";
 export * from "./words/first-name";
 export * from "./words/bytes";

@@ -77,6 +77,14 @@ export const PERMISSIONS = [
     description: "Download leads as a CSV file",
   },
   {
+    // Live sheets (2026-11-14): Google Sheets LUME keeps filled. Making one also needs leads.export.
+    key: "leads.live_sheets",
+    group: "Leads",
+    scoped: false,
+    label: "Make live sheets",
+    description: "Google Sheets LUME keeps up to date",
+  },
+  {
     key: "leads.import",
     group: "Leads",
     scoped: false,

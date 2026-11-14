@@ -11,9 +11,10 @@ export type PlanTier = (typeof PLAN_TIERS)[number];
 const NAMES: Record<PlanTier, string> = { base: "Base", pro: "Pro", max: "Max", enterprise: "Enterprise" };
 export const tierName = (t: PlanTier): string => NAMES[t];
 
-/** What a tier can switch on: `ai` is all of LUME AI; `ai_replies` is Autopilot answering leads, and Ask me for it. */
-export type TierFeature = "ai" | "ai_replies";
-const FIRST_TIER: Record<TierFeature, PlanTier> = { ai: "pro", ai_replies: "max" };
+/** What a tier can switch on: `ai` is all of LUME AI; `ai_replies` is Autopilot answering leads, and Ask me for it;
+ * `live_sheets` is Google Sheets LUME keeps filled (2026-11-14). */
+export type TierFeature = "ai" | "ai_replies" | "live_sheets";
+const FIRST_TIER: Record<TierFeature, PlanTier> = { ai: "pro", ai_replies: "max", live_sheets: "pro" };
 const rank = (t: PlanTier) => PLAN_TIERS.indexOf(t);
 
 type WithTier = { tier?: PlanTier | null } | null | undefined;
@@ -62,6 +63,7 @@ export const TIER_LINES: Record<PlanTier, readonly string[]> = {
     "LUME AI, with 1,000 AI leads a month",
     "Autopilot first messages and follow-ups",
     "Suggested next steps and catch-ups",
+    "Live sheets for Meta audiences",
   ],
   max: [
     "3,000 AI leads a month",
