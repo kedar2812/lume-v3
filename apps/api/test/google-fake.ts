@@ -1,6 +1,7 @@
 import { generateKeyPairSync, randomBytes, verify } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { madeSheets, type MadeSheets } from "./live-sheets-fake";
 
 /**
  * A stand-in for the three Google endpoints LUME calls (spec 2B §11), over real HTTP: the token exchange,
@@ -86,6 +87,8 @@ export type GoogleFake = {
   removed: { calendarId: string; id: string }[];
   /** The query of the last calendar-list call. */
   lastCalendarListQuery: URLSearchParams | null;
+  /** Live sheets (2026-11-14): the spreadsheets LUME made, and what people do to them. */
+  made: MadeSheets;
   close(): Promise<void>;
 };
 
@@ -122,6 +125,11 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
   let clock = Date.parse("2026-09-27T00:00:00Z");
   let failing: { status: number; left: number; reason?: string } | null = null;
   let url = "";
+  const made = madeSheets({
+    send: (r, s, b) => send(r, s, b),
+    googleError: (r, s, c, m) => googleError(r, s, c, m),
+    tick: () => (clock += 1000),
+  });
 
   const touch = (id: string) => {
     const s = sheets.get(id);
@@ -356,6 +364,9 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
         "fake failure",
       );
     }
+    // Live sheets: the spreadsheets LUME makes, and their writes.
+    if (await made.handle(req, u, res, viaGrant, async () => JSON.parse((await readBody(req)) || "{}")))
+      return;
     // Making a calendar of the app's own (calendar.app.created): it's the account's, the app may write to it.
     if (u.pathname === "/calendar/v3/calendars" && req.method === "POST") {
       const tok = (req.headers.authorization ?? "").replace(/^Bearer /, "");
@@ -582,6 +593,7 @@ export async function startGoogleFake(o: { port?: number } = {}): Promise<Google
     createdCalendars: [],
     removed: [],
     lastCalendarListQuery: null,
+    made: made.api,
     fail(status, count = 1, reason) {
       failing = { status, left: count, ...(reason ? { reason } : {}) };
     },

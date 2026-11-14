@@ -308,7 +308,7 @@ export function createGoogleSheets(
  * (`init`) is retried the same way only because each one LUME makes is idempotent (an event's id is LUME's own).
  */
 /** `retry: false`: one attempt (a write that isn't idempotent, or one inside a transaction holding a lock). */
-export type GoogleWrite = { method: "POST" | "DELETE"; body?: unknown; retry?: boolean };
+export type GoogleWrite = { method: "POST" | "PATCH" | "DELETE"; body?: unknown; retry?: boolean };
 export function googleCaller(o: {
   tokens: TokenSource;
   fetch?: typeof fetch;

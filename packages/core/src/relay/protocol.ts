@@ -14,7 +14,9 @@ export type Handoff = {
   /** Google's grant (a sheet's or a calendar's); a WhatsApp hand-back carries `whatsapp` instead. */
   refreshToken?: string;
   /** What the grant is for: a sheet (with the picked file), a calendar (Phase 5A; no file) or a WhatsApp number. */
-  kind?: "sheet" | "calendar" | "whatsapp";
+  kind?: "sheet" | "calendar" | "whatsapp" | "live_sheet";
+  /** A live sheet's Google account (2026-11-14), as Drive says it: names the account in LUME. */
+  email?: string;
   /** A calendar's grant may add events too (calendar.events.owned): LUME AI's calls, with a Meet link. */
   calendarWrite?: boolean;
   file?: { id: string; name: string };

@@ -45,7 +45,12 @@ const TEN_MIN = 10 * 60_000;
  * `k`: "calendar" for a calendar's grant (Phase 5A), "calendar_write" for one that may add events too, "whatsapp"
  * for a WhatsApp number's; absent, a sheet's.
  */
-type State = { i: string; n: string; exp: number; k?: "calendar" | "calendar_write" | "whatsapp" };
+type State = {
+  i: string;
+  n: string;
+  exp: number;
+  k?: "calendar" | "calendar_write" | "whatsapp" | "live_sheet";
+};
 
 /**
  * The relay (2B spec §6): the one place Google calls back to, for every LUME instance. It holds the OAuth
@@ -149,6 +154,18 @@ export function createRelay(o: RelayConfig): Relay {
     return d.mimeType === "application/vnd.google-apps.spreadsheet";
   }
 
+  /** The Google account a grant belongs to (Drive's about, allowed under drive.file); null when Google won't say. */
+  async function accountEmail(accessToken: string): Promise<string | null> {
+    const r = await fetch(`${apiUrl}/drive/v3/about?fields=${encodeURIComponent("user(emailAddress)")}`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => null);
+    if (!r?.ok) return null;
+    const d = (await r.json().catch(() => ({}))) as { user?: { emailAddress?: unknown } };
+    const e = d.user?.emailAddress;
+    return typeof e === "string" && e.length >= 3 && e.length <= 320 ? e : null;
+  }
+
   async function exchange(params: Record<string, string>) {
     const r = await fetch(tokenUrl, {
       method: "POST",
@@ -189,7 +206,7 @@ export function createRelay(o: RelayConfig): Relay {
         if (
           !inst ||
           !n ||
-          (k !== null && k !== "calendar" && k !== "calendar_write") ||
+          (k !== null && k !== "calendar" && k !== "calendar_write" && k !== "live_sheet") ||
           !verify(inst.token, k ? `${n}.${k}` : n, u.searchParams.get("s") ?? "")
         )
           return plain(res, 400, "This link isn't valid. Go back to LUME and try again.");
@@ -206,7 +223,7 @@ export function createRelay(o: RelayConfig): Relay {
             i: id,
             n,
             exp: now() + TEN_MIN,
-            ...(k === "calendar" || k === "calendar_write" ? { k } : {}),
+            ...(k === "calendar" || k === "calendar_write" || k === "live_sheet" ? { k } : {}),
           }),
         }).toString();
         res.writeHead(302, { location: to.toString(), "cache-control": "no-store" });
@@ -227,7 +244,9 @@ export function createRelay(o: RelayConfig): Relay {
               "LUME didn't get access",
               state.k === "calendar" || state.k === "calendar_write"
                 ? "You didn't give LUME access to your calendar. Go back to LUME and try again when you're ready."
-                : "You didn't give LUME access to a sheet. Go back to LUME and choose Continue with Google when you're ready.",
+                : state.k === "live_sheet"
+                  ? "You didn't give LUME access to make live sheets in your Google Drive. Go back to LUME and try again when you're ready."
+                  : "You didn't give LUME access to a sheet. Go back to LUME and choose Continue with Google when you're ready.",
               backTo(state.i),
             ),
           );
@@ -238,6 +257,29 @@ export function createRelay(o: RelayConfig): Relay {
         const accessToken = t.data.access_token as string | undefined;
         if (t.status !== 200 || !refreshToken || !accessToken)
           return plain(res, 400, "Google didn't give LUME access. Go back to LUME and try again.");
+        // A live sheet (2026-11-14) needs no Picker either: LUME makes the file. The account's email names it in LUME.
+        if (state.k === "live_sheet") {
+          const email = await accountEmail(accessToken);
+          if (!email)
+            return plain(
+              res,
+              502,
+              "LUME couldn't check your Google account with Google. Go back to LUME and try again.",
+            );
+          const inst = byId.get(state.i)!;
+          const handoff: Handoff = {
+            nonce: state.n,
+            refreshToken,
+            kind: "live_sheet",
+            email,
+            exp: now() + TEN_MIN,
+          };
+          const sealed = seal(inst.token, handoff);
+          const to = new URL("/live-sheets/connected", inst.url);
+          to.search = new URLSearchParams({ p: sealed, s: sign(inst.token, sealed) }).toString();
+          res.writeHead(302, { location: to.toString(), ...HARDENED });
+          return res.end();
+        }
         // A calendar needs no Picker: its grant goes straight back to the instance's calendar page.
         if (state.k === "calendar" || state.k === "calendar_write") {
           // Google lets a person untick any scope; a grant without both reads would fail at the first sync. Unticking

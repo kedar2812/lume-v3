@@ -323,4 +323,59 @@ describe("the relay", () => {
       expect(html).toContain("https://client-a.example");
     });
   });
+
+  describe("a live sheet (2026-11-14)", () => {
+    const lsStart = (n: string, sig = sign(TOKEN, `${n}.live_sheet`)) =>
+      get(`/start?i=${instanceIdOf(TOKEN)}&n=${n}&k=live_sheet&s=${sig}`);
+    const back = async (n: string, code = "good-code") => {
+      const start = await lsStart(n);
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      return get(`/callback?code=${code}&state=${encodeURIComponent(state)}`);
+    };
+
+    it("asks Google only for drive.file: LUME may open only the sheets it makes", async () => {
+      const r = await lsStart("ls-1");
+      expect(r.status).toBe(302);
+      expect(new URL(r.headers.get("location")!).searchParams.get("scope")).toBe(
+        "https://www.googleapis.com/auth/drive.file",
+      );
+    });
+
+    it("the kind is signed: a sheet's or a calendar's link can't be turned into a live sheet's", async () => {
+      expect((await lsStart("ls-2", sign(TOKEN, "ls-2"))).status).toBe(400);
+      expect((await lsStart("ls-3", sign(TOKEN, "ls-3.calendar"))).status).toBe(400);
+    });
+
+    it("back from Google: no Picker; the grant and the account's email go to the instance's live sheets page", async () => {
+      const r = await back("ls-4");
+      expect(r.status).toBe(302);
+      const to = new URL(r.headers.get("location")!);
+      expect(to.origin + to.pathname).toBe("https://client-a.example/live-sheets/connected");
+      const p = to.searchParams.get("p")!;
+      expect(verify(TOKEN, p, to.searchParams.get("s")!)).toBe(true);
+      expect(unseal<Handoff>(TOKEN, p)).toMatchObject({
+        nonce: "ls-4",
+        refreshToken: "rt-good",
+        kind: "live_sheet",
+        email: fake.made.accountEmail,
+      });
+    });
+
+    it("turned down at Google: said for live sheets, with a way back to LUME", async () => {
+      const start = await lsStart("ls-5");
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      const html = await (
+        await get(`/callback?error=access_denied&state=${encodeURIComponent(state)}`)
+      ).text();
+      expect(html).toContain("You didn't give LUME access to make live sheets in your Google Drive.");
+      expect(html).toContain("https://client-a.example");
+    });
+
+    it("Google can't say which account it is: said in words, no hand-back", async () => {
+      fake.fail(503, 1);
+      const r = await back("ls-6");
+      expect(r.status).toBe(502);
+      expect(await r.text()).toContain("LUME couldn't check your Google account");
+    });
+  });
 });
