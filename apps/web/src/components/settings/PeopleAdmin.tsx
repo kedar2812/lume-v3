@@ -332,12 +332,12 @@ export function PeopleAdmin({
                         Enable
                       </Button>
                     )}
-                    {/* Gone for good, with the admin's password (2026-11-02): never the owner, never yourself. */}
+                    {/* Gone for good, with the admin's password (2026-11-02): never the owner, never yourself. Red, as it can't
+                        be undone (owner 2026-11-14). */}
                     {!locked && (
                       <Button
                         size="sm"
-                        variant="ghost"
-                        className={s.deleteAccount}
+                        variant="danger"
                         aria-label={`Delete ${u.name}’s account`}
                         onClick={() => setDeleting(u)}
                       >

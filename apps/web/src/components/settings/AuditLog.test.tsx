@@ -5,10 +5,10 @@ import { testCatalog } from "@/lib/leads/test-catalog";
 import { auditClient } from "@/lib/settings/audit";
 import { AuditLog } from "./AuditLog";
 
-vi.mock("@/lib/settings/audit", async (orig) => ({
-  ...(await orig<typeof import("@/lib/settings/audit")>()),
-  auditClient: { list: vi.fn() },
-}));
+vi.mock("@/lib/settings/audit", async (orig) => {
+  const real = await orig<typeof import("@/lib/settings/audit")>();
+  return { ...real, auditClient: { ...real.auditClient, list: vi.fn() } };
+});
 
 const reveal = {
   id: 10,
@@ -37,7 +37,7 @@ describe("AuditLog", () => {
       status: 200,
       data: { entries: [reveal], nextCursor: 10 },
     });
-    render(<AuditLog people={testCatalog().people} />);
+    render(<AuditLog people={testCatalog().people} canExport />);
     expect(await screen.findByText("Riya Sharma revealed a lead’s contact")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open lead" })).toHaveAttribute("href", "/leads?lead=l1");
     expect(screen.getByText("The audit log can’t be edited or deleted, by anyone.")).toBeInTheDocument();
@@ -49,6 +49,17 @@ describe("AuditLog", () => {
     await userEvent.selectOptions(screen.getByLabelText("What"), "lead.delete");
     expect(auditClient.list).toHaveBeenLastCalledWith({ actorUserId: "u-tas", action: "lead.delete" });
     expect(await screen.findByText("Nothing matches these filters.")).toBeInTheDocument();
+    // Download CSV follows the filters on screen, never the page's cursor (2026-11-14).
+    expect(screen.getByRole("link", { name: "Download CSV" })).toHaveAttribute(
+      "href",
+      "/api/v1/audit/csv?actorUserId=u-tas&action=lead.delete",
+    );
+  });
+
+  it("Download CSV only for whoever may download the log (audit.export)", async () => {
+    render(<AuditLog people={testCatalog().people} />);
+    await screen.findByLabelText("Who");
+    expect(screen.queryByRole("link", { name: "Download CSV" })).toBeNull();
   });
 
   it("6A: opened from an alert, it starts filtered to that person", async () => {

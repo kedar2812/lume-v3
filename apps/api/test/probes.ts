@@ -637,6 +637,8 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/settings": { access: "auth.self" },
   "PATCH /api/v1/settings": { access: "settings.manage", body: () => ({ weekStart: 1 }) },
   "GET /api/v1/audit": { access: "audit.view", query: "limit=5" },
+  // The log as a CSV (2026-11-14): reading it is the gate; downloading also needs audit.export, refused in words.
+  "GET /api/v1/audit/csv": { access: "audit.view", query: "action=t.none" },
   // Phase 1B — configuration
   "GET /api/v1/pipelines": { access: "leads.view" },
   "POST /api/v1/pipelines": {

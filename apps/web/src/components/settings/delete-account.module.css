@@ -11,10 +11,9 @@
   font-size: var(--fs-sm);
   color: var(--text-2);
 }
-.mismatch {
-  margin: -4px 0 0;
-  font-size: var(--fs-sm);
-  color: var(--danger-ink);
+/* The shared fields keep their own space below; the grid's gap is the space here. */
+.fields > * {
+  margin-bottom: 0;
 }
 .warning {
   margin: 6px 0 0;

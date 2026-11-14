@@ -1618,6 +1618,43 @@
   font-weight: var(--fw-medium);
   color: var(--text-2);
 }
+/* Download CSV (2026-11-14): the filters' height, at the row's end; it wraps under them on a phone. */
+.auditExport {
+  order: 1;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.auditExport:hover {
+  background: var(--hover);
+}
+.auditExport:focus-visible {
+  outline: 0;
+  box-shadow:
+    inset 0 0 0 0.5px var(--line-2),
+    0 0 0 3px var(--focus-ring);
+}
+.auditExport svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 /* Opened from a Security figure (6C): one day only, with the way back to every day. */
 .auditDay {
   display: inline-flex;
@@ -1971,8 +2008,4 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
-}
-/* People: Delete account, in the danger colour; the Button keeps its own hover (2026-11-02). */
-.deleteAccount {
-  color: var(--danger-ink);
 }

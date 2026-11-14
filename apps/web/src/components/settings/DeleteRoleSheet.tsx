@@ -4,6 +4,7 @@ import { OtpInput } from "@/components/auth/OtpInput";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Field } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { LeadsChoice } from "@/lib/settings/people";
 import { rolesClient, type Role, type RolePeople } from "@/lib/settings/roles";
@@ -269,15 +270,18 @@ export function DeleteRoleSheet({
 
           <Step n={(n ? 1 : 0) + (needsUsesRole ? 1 : 0) + 1} state="idle" title="Your password">
             <div className={d.fields}>
-              <label className={d.field}>
-                <span>Password</span>
-                <PasswordInput
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  disabled={busy}
-                />
-              </label>
+              {/* The shared field (2026-11-14): a bare input had no edge and couldn't be seen. */}
+              <Field label="Password">
+                {(control) => (
+                  <PasswordInput
+                    {...control}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    disabled={busy}
+                  />
+                )}
+              </Field>
               {twoStep && (
                 <div className={d.field}>
                   <span>Your two-step code</span>

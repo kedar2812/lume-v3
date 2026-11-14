@@ -33,8 +33,11 @@ export function AuditLog({
   initialActor,
   initialAction,
   initialDay,
+  canExport = false,
 }: {
   people: Person[];
+  /** Download CSV, for whoever holds audit.export (owner 2026-11-14). */
+  canExport?: boolean;
   initialActor?: string;
   initialAction?: string;
   initialDay?: string;
@@ -112,6 +115,17 @@ export function AuditLog({
             ))}
           </select>
         </label>
+        {/* The log as a spreadsheet, with these filters, every entry (owner 2026-11-14). */}
+        {canExport && (
+          <a className={s.auditExport} href={auditClient.csvHref(filters)} download>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M12 3v12" />
+              <path d="m7 10 5 5 5-5" />
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            </svg>
+            Download CSV
+          </a>
+        )}
         {filters.day && (
           <span className={s.auditDay}>
             Only {longDate(new Date(`${filters.day}T12:00:00Z`), "UTC")}

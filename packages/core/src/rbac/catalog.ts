@@ -217,6 +217,13 @@ export const PERMISSIONS = [
     description: "Who did what, when",
   },
   {
+    key: "audit.export",
+    group: "Security",
+    scoped: false,
+    label: "Download the audit log",
+    description: "As a CSV, with the filters on screen",
+  },
+  {
     key: "security.manage",
     group: "Security",
     scoped: false,

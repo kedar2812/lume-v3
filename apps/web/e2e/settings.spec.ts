@@ -1,4 +1,5 @@
 import type { Browser, Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { callApi, expect, hydrated, lastMailTo, linkIn, openApp, PEOPLE, stateFile, test } from "./fixtures";
 
 /**
@@ -225,6 +226,60 @@ test("@smoke invite, then disable someone: their session dies and their leads mo
   }
 });
 
+/** The deletes are red (owner 2026-11-14), and a password box has an edge you can see: a bare input was invisible. */
+const RED = "rgb(209, 47, 53)";
+const boxOf = (field: ReturnType<Page["getByLabel"]>) =>
+  field.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { height: el.getBoundingClientRect().height, shadow: cs.boxShadow };
+  });
+const expectBoxed = async (field: ReturnType<Page["getByLabel"]>) => {
+  await expect(field).toBeVisible();
+  const box = await boxOf(field);
+  expect(box.height).toBeGreaterThanOrEqual(40);
+  expect(box.shadow).not.toBe("none");
+};
+
+test("deleting an account: a red button, password boxes you can see, the word said once", async ({
+  page,
+  browser,
+}) => {
+  // Someone else's, from People (the owner's own way in).
+  await openApp(page, "/settings/people");
+  const del = page.getByRole("button", { name: `Delete ${PEOPLE.seller.name}’s account` });
+  await expect(del).toHaveCSS("background-color", RED);
+  await del.click();
+  const sheet = page.getByRole("dialog", { name: `Delete ${PEOPLE.seller.name}’s account` });
+  await expectBoxed(sheet.getByLabel("Password", { exact: true }));
+  await expect(sheet.getByText(/your password/i)).toHaveCount(1);
+  await expect(sheet.getByRole("button", { name: "Delete Noor’s account" })).toHaveCSS(
+    "background-color",
+    RED,
+  );
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  await expect(sheet).toHaveCount(0);
+
+  // Your own, from My account.
+  await withSeller(browser, async (p) => {
+    await openApp(p, "/settings/account");
+    const mine = p.getByRole("button", { name: "Delete my account" });
+    await expect(mine).toHaveCSS("background-color", RED);
+    await mine.click();
+    const own = p.getByRole("dialog", { name: "Delete your account" });
+    await expectBoxed(own.getByLabel("Password", { exact: true }));
+    await expectBoxed(own.getByLabel("The same password again"));
+    await own.getByRole("button", { name: "Cancel" }).click();
+  });
+
+  // A role's delete asks for the same password, the same way.
+  await openApp(page, "/settings/roles");
+  await page.getByRole("button", { name: /^Sales/ }).click();
+  await page.getByRole("button", { name: "Delete Sales" }).click();
+  const role = page.getByRole("dialog", { name: "Delete Sales" });
+  await expectBoxed(role.getByLabel("Password", { exact: true }));
+  await role.getByRole("button", { name: "Cancel" }).click();
+});
+
 test("@smoke read the audit log", async ({ page }) => {
   await openApp(page, "/settings/audit");
   await expect(page.getByText("The audit log can’t be edited or deleted, by anyone.")).toBeVisible();
@@ -234,6 +289,20 @@ test("@smoke read the audit log", async ({ page }) => {
   await page.getByLabel("What").selectOption({ label: "Invited someone" });
   await expect(page.getByText(`${PEOPLE.owner.name} invited someone`).first()).toBeVisible();
   await expect(page.getByText(/ signed in$/)).toHaveCount(0);
+
+  // Download CSV (owner 2026-11-14): the same entries, in the same words, as a file.
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "Download CSV" }).click(),
+  ]);
+  expect(file.suggestedFilename()).toMatch(/^lume-audit-log-\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = readFileSync(await file.path(), "utf8")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .split("\r\n");
+  expect(csv[0]).toMatch(/^When \(.+\),Who,What happened,Item,Item ID$/);
+  expect(csv.length).toBeGreaterThan(1);
+  expect(csv.slice(1).every((l) => l.includes(`,${PEOPLE.owner.name},invited someone,`))).toBe(true);
 });
 
 test("switch the currency with a typed rate: every amount converts once", async ({ page }) => {

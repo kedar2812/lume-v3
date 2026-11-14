@@ -56,6 +56,7 @@ export * from "./security/rules";
 export * from "./security/copy";
 export * from "./security/export-code";
 export * from "./words/plural";
+export * from "./audit/words";
 export * from "./words/greeting";
 export * from "./words/first-name";
 export * from "./words/bytes";

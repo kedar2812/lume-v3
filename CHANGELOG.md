@@ -6,6 +6,21 @@ column in the release that stops using it.
 
 ## Unreleased
 
+## 1.3.1 — 2026-11-14
+
+- **Deleting an account is red** (owner 2026-11-14): People's Delete account is a red button, as My account's
+  already was, since it can't be undone.
+- **The password boxes in Delete account and Delete role can be seen:** they had no edge or background, so the box
+  was invisible. They're LUME's usual field now. On People, the step says "Your password" and the box says Password,
+  where both said "Your password".
+- **Download the audit log as a CSV** (owner 2026-11-14): Settings → Audit log → Download CSV, with the filters on
+  screen (who, what, the day), every entry rather than one page: when (on the business's clock), who, what happened
+  in the screen's own words, and the item. Each download is itself in the log.
+- **Download the audit log is its own permission** (Roles → Security): an admin chooses who may take the log away,
+  and Roles shows who can. Reading the log stays "See the audit log". Every role that could read the log gets the
+  download too (migration 0108); new installs' Admin role has it.
+- **Update notes:** migration 0108 (adds one permission and its grants). No `.env` changes.
+
 ## 1.3.0 — 2026-11-14
 
 The first release since 1.1.2 for clients: it carries everything in 1.2.0 below (never released on its own), and:

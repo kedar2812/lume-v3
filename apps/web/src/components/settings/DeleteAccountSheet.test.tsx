@@ -81,7 +81,9 @@ describe("DeleteAccountSheet", () => {
     );
     expect(await screen.findByText("Rory has no leads to hand on")).toBeInTheDocument();
     expect(screen.queryByLabelText("The same password again")).toBeNull();
-    await userEvent.type(screen.getByLabelText("Your password"), "admin-pass");
+    // The step names whose password; the box itself says Password, so the words aren't said twice (2026-11-14).
+    expect(screen.getAllByText(/your password/i)).toHaveLength(1);
+    await userEvent.type(screen.getByLabelText("Password"), "admin-pass");
     await userEvent.click(screen.getByRole("button", { name: "Delete Rory’s account" }));
     expect(usersClient.deleteAccount).toHaveBeenCalledWith("u1", {
       leads: { to: "none" },

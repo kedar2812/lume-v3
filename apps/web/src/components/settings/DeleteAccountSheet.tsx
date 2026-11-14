@@ -4,6 +4,7 @@ import { OtpInput } from "@/components/auth/OtpInput";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Field } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { accountClient } from "@/lib/settings/account";
 import { usersClient, type LeadsChoice, type OffboardPreview } from "@/lib/settings/people";
@@ -226,31 +227,33 @@ export function DeleteAccountSheet({
 
           <Step n={2} state="idle" title={self ? "Your password, twice" : "Your password"}>
             <div className={d.fields}>
-              <label className={d.field}>
-                <span>{self ? "Password" : "Your password"}</span>
-                <PasswordInput
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  disabled={busy}
-                />
-              </label>
-              {self && (
-                <label className={d.field}>
-                  <span>The same password again</span>
+              {/* The shared field (2026-11-14): a bare input had no edge and couldn't be seen; the step says whose. */}
+              <Field label="Password">
+                {(control) => (
                   <PasswordInput
-                    value={again}
-                    onChange={(e) => setAgain(e.target.value)}
+                    {...control}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
-                    aria-invalid={mismatch || undefined}
                     disabled={busy}
                   />
-                </label>
-              )}
-              {mismatch && (
-                <p className={d.mismatch} role="alert">
-                  The two passwords aren’t the same.
-                </p>
+                )}
+              </Field>
+              {self && (
+                <Field
+                  label="The same password again"
+                  error={mismatch ? "The two passwords aren’t the same." : null}
+                >
+                  {(control) => (
+                    <PasswordInput
+                      {...control}
+                      value={again}
+                      onChange={(e) => setAgain(e.target.value)}
+                      autoComplete="current-password"
+                      disabled={busy}
+                    />
+                  )}
+                </Field>
               )}
               {twoStep && (
                 <div className={d.field}>
