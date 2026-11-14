@@ -53,6 +53,10 @@ import s from "./leads.module.css";
 import { NotYetLink } from "@/components/whatsapp/NotYetLink";
 import { useAskedLead } from "@/lib/leads/asked-lead";
 
+/** A live sheet narrows by real ids only (the address bar's words never reach the form). */
+const UUID = /^[0-9a-f-]{36}$/;
+import { CreateLiveSheetButton } from "@/components/live-sheets/CreateLiveSheetButton";
+
 type Props = {
   session: Session;
   catalog: Catalog;
@@ -244,6 +248,8 @@ function Screen({
   const sentinel = useRef<HTMLDivElement>(null);
   const mayCreate = can(session.actor, "leads.create");
   const mayBulk = can(session.actor, "leads.bulk_edit");
+  // Live sheets (owner 2026-11-14): whoever may make them, and export (a sheet takes leads out of LUME).
+  const mayLiveSheets = can(session.actor, "leads.live_sheets") && can(session.actor, "leads.export");
   // 4C: a rep who may run a send queue selects leads to message them, even without bulk edits.
   const maySelect = mayBulk || can(session.actor, "messages.send_queue");
   const mayImport = can(session.actor, "leads.import");
@@ -651,6 +657,22 @@ function Screen({
                   void list.reload();
                   recount();
                 }}
+              />
+            )}
+            {mayLiveSheets && (
+              <CreateLiveSheetButton
+                catalog={catalog}
+                contactsVisible={contactsVisible}
+                prefill={() => ({
+                  stageIds: filters.stageIds,
+                  ...(filters.source && UUID.test(filters.source) ? { sourceIds: [filters.source] } : {}),
+                  ...(filters.tagId ? { tagIds: [filters.tagId] } : {}),
+                  ...(filters.owner && UUID.test(filters.owner)
+                    ? { ownerIds: [filters.owner] }
+                    : filters.owner === "me"
+                      ? { ownerIds: [session.actor.userId] }
+                      : {}),
+                })}
               />
             )}
             {mayBulk && (

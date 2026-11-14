@@ -9,6 +9,7 @@ describe("navigation", () => {
       "Who replied",
       "LUME AI",
       "Pipeline",
+      "Live sheets",
       "Calendar",
       "Templates",
       "Media",
@@ -38,6 +39,14 @@ describe("navigation", () => {
       "settings",
     ]);
     expect(activeNav(NAV_ITEMS, "/media")?.id).toBe("media");
+  });
+
+  it("Live sheets sits after Pipeline, for whoever may make them (owner 2026-11-14)", () => {
+    const can = (p: string) => p === "leads.view" || p === "leads.live_sheets";
+    const ids = visibleNav(NAV_ITEMS, can).map((i) => i.id);
+    expect(ids.indexOf("livesheets")).toBe(ids.indexOf("pipeline") + 1);
+    expect(visibleNav(NAV_ITEMS, (p) => p === "leads.view").map((i) => i.id)).not.toContain("livesheets");
+    expect(activeNav(NAV_ITEMS, "/live-sheets/connected")?.id).toBe("livesheets");
   });
 
   it("matches nested paths to their section", () => {

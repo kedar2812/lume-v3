@@ -27,12 +27,29 @@ function Loop({ size = 24, strokeWidth = 2, ...rest }: LucideProps) {
   );
 }
 
+/** Live sheets: a sheet's grid with a dot that says it's live, drawn as a line like the others. */
+function LiveSheet({ size = 24, strokeWidth = 2, ...rest }: LucideProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" {...rest}>
+      <path
+        d="M14 3.5H6.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V11M4.5 9.5h15M4.5 15h15M10 9.5v11"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="18.5" cy="5" r="2.5" fill="currentColor" />
+    </svg>
+  );
+}
+
 const MAP = {
   today: Sun,
   leads: Users,
   replies: MessageCircle,
   autopilot: Loop,
   pipeline: Columns3,
+  livesheets: LiveSheet,
   calendar: CalendarDays,
   templates: Mail,
   media: Image,

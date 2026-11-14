@@ -40,11 +40,17 @@ export function resultLine(p: RefreshProgress | null, failure: string | null, pe
   if (failure) return failure;
   if (!p) return "Up to date";
   if (p.unreachable) return `Couldn't reach Google. LUME will try again in ${waitWords(p.retryInS)}.`;
-  if (p.status !== "done") return "Still bringing leads in. They'll appear as they arrive.";
-  if (!p.created && !p.merged) return "Up to date";
+  const live = p.liveSheets?.total ?? 0;
+  if (p.status !== "done")
+    return p.rowsTotal === 0 && live > 0
+      ? "Updating your live sheets."
+      : "Still bringing leads in. They'll appear as they arrive.";
+  const sheets = live ? `${plural(live, "live sheet", "live sheets")} updated` : null;
+  if (!p.created && !p.merged) return sheets ? `Up to date · ${sheets}` : "Up to date";
   const parts = [
     p.created ? `${plural(p.created, "new lead", "new leads")}${personal ? " for you" : ""}` : null,
     p.merged ? `${p.merged.toLocaleString("en")} merged into existing ones` : null,
+    sheets,
   ];
   return parts.filter(Boolean).join(" · ");
 }

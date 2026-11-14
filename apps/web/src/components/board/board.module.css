@@ -203,3 +203,40 @@
     transition: none;
   }
 }
+
+/* A live sheet of the stage (2026-11-14): at the header's end, there on hover or focus; always there on touch. */
+.columnAction {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-3);
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+.column:hover .columnAction,
+.columnAction:focus-visible {
+  opacity: 1;
+}
+.columnAction:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.columnAction:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+@media (hover: none) {
+  .columnAction {
+    opacity: 1;
+  }
+}
+/* A won stage's total already takes the room: the button sits right after it. */
+.total + .columnAction {
+  margin-left: 2px;
+}

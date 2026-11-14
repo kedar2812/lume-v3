@@ -37,6 +37,7 @@ import { BoardColumn } from "./BoardColumn";
 import { boardKeys, type BoardKeysState } from "./boardKeys";
 import s from "./board.module.css";
 import { useAskedLead } from "@/lib/leads/asked-lead";
+import { CreateLiveSheetButton } from "@/components/live-sheets/CreateLiveSheetButton";
 
 type Props = {
   session: Session;
@@ -114,6 +115,8 @@ function Board({
   const liftX = useMotionValue(0);
   const liftY = useMotionValue(0);
   const mayCreate = can(session.actor, "leads.create");
+  // Live sheets (owner 2026-11-14): whoever may make them, and export (a sheet takes leads out of LUME).
+  const mayLiveSheets = can(session.actor, "leads.live_sheets") && can(session.actor, "leads.export");
   // 2B spec §8.1 and amendment A10: Refresh on the board too; it reloads the board (the glow is table-only).
   const [sheets, setSheets] = useState<SheetsStatus | null>(null);
   useEffect(() => {
@@ -514,6 +517,13 @@ function Board({
             ) : (
               <ReloadRefresh pipelineId={pipeline.id} onReload={() => setReloadTick((n) => n + 1)} />
             )}
+            {mayLiveSheets && (
+              <CreateLiveSheetButton
+                catalog={catalog}
+                contactsVisible={contactsVisible}
+                prefill={() => ({})}
+              />
+            )}
             {mayCreate && (
               <Button variant="primary" onClick={() => setCreating(true)}>
                 New lead
@@ -557,6 +567,18 @@ function Board({
                 }
                 loadingMore={loadingMore === stage.id}
                 onMore={() => void loadMore(stage)}
+                action={
+                  mayLiveSheets ? (
+                    <CreateLiveSheetButton
+                      iconOnly
+                      className={s.columnAction}
+                      label={`Make a live sheet of ${stage.name}`}
+                      catalog={catalog}
+                      contactsVisible={contactsVisible}
+                      prefill={() => ({ stageIds: [stage.id] })}
+                    />
+                  ) : undefined
+                }
               >
                 {page.items.map((lead) => (
                   <BoardCard

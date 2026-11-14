@@ -18,6 +18,9 @@ const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
  */
 export type WhatsAppEvent = { lead: string; kind: "in" | "out" | "status" | "reconnected"; owner?: string };
 const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
+/** A live sheet's progress or status (2026-11-14). Sheet "*": the stream was away, so any sheet may have moved on. */
+export type LiveSheetEvent = { sheet: string; kind: "progress" | "status" | "reconnected" };
+const liveSheetListeners = new Set<(e: LiveSheetEvent) => void>();
 /**
  * The person's unread count, as the server says it (2026-11-15): as the stream opens, and whenever something of theirs
  * is read anywhere. The bell takes this number; it never counts on its own.
@@ -28,6 +31,7 @@ const anyone = () =>
     leadListeners.size +
     autopilotListeners.size +
     whatsappListeners.size +
+    liveSheetListeners.size +
     unreadListeners.size >
   0;
 let source: EventSource | null = null;
@@ -50,6 +54,7 @@ function catchUpSoon() {
       // A run may have moved on meanwhile too: "*" is every run.
       for (const l of autopilotListeners) l({ run: "*", lead: null, kind: "reconnected" });
       for (const l of whatsappListeners) l({ lead: "*", kind: "reconnected" });
+      for (const l of liveSheetListeners) l({ sheet: "*", kind: "reconnected" });
     },
     Math.floor(Math.random() * CATCH_UP_SPREAD_MS),
   );
@@ -116,6 +121,18 @@ function open() {
     if (typeof ev.unread !== "number" || !Number.isInteger(ev.unread) || ev.unread < 0) return;
     failures = 0;
     for (const l of unreadListeners) l(ev.unread as number);
+  });
+  s.addEventListener("live_sheet", (e) => {
+    let ev: Partial<LiveSheetEvent>;
+    try {
+      ev = JSON.parse((e as MessageEvent<string>).data) as Partial<LiveSheetEvent>;
+    } catch {
+      return;
+    }
+    if (typeof ev.sheet !== "string" || (ev.kind !== "progress" && ev.kind !== "status")) return;
+    failures = 0;
+    const said: LiveSheetEvent = { sheet: ev.sheet, kind: ev.kind };
+    for (const l of liveSheetListeners) l(said);
   });
   s.addEventListener("notification", (e) => {
     let n: NotificationView;
@@ -242,6 +259,23 @@ export function useWhatsApp(on: (e: WhatsAppEvent) => void): void {
   const latest = useRef(on);
   latest.current = on;
   useEffect(() => subscribeWhatsApp((e) => latest.current(e)), []);
+}
+
+/** Live sheets' progress and status (2026-11-14), on the tab's one stream. */
+export function subscribeLiveSheets(listener: (e: LiveSheetEvent) => void): () => void {
+  liveSheetListeners.add(listener);
+  if (!source) open();
+  return () => {
+    liveSheetListeners.delete(listener);
+    closeIfUnused();
+  };
+}
+
+/** Calls `on` for each live sheet's progress or status while the component is mounted. */
+export function useLiveSheets(on: (e: LiveSheetEvent) => void): void {
+  const latest = useRef(on);
+  latest.current = on;
+  useEffect(() => subscribeLiveSheets((e) => latest.current(e)), []);
 }
 
 /** The person's unread count whenever the server says it (2026-11-15), on the tab's one stream. */

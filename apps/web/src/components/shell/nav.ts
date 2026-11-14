@@ -4,6 +4,7 @@ export type IconName =
   | "replies"
   | "autopilot"
   | "pipeline"
+  | "livesheets"
   | "calendar"
   | "templates"
   | "media"
@@ -50,6 +51,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "pipeline",
     permission: "leads.view",
     phase: 1,
+  },
+  {
+    // Live sheets (owner 2026-11-14): Google Sheets LUME keeps up to date, for whoever may make them.
+    id: "livesheets",
+    label: "Live sheets",
+    href: "/live-sheets",
+    icon: "livesheets",
+    permission: "leads.live_sheets",
+    phase: 13,
   },
   {
     id: "calendar",

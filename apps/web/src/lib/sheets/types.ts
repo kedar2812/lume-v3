@@ -99,6 +99,8 @@ export type RefreshProgress = {
   /** When unreachable: seconds until LUME tries again, else null. */
   retryInS: number | null;
   attention: { id: string; name: string }[];
+  /** Live sheets this press asked to update (2026-11-14); absent from an older API. */
+  liveSheets?: { total: number; done: number };
 };
 export type Arrivals = { since: string | null; count: number; ids: string[] };
 /** Attention that "Test again" can clear; the rest need the columns opened and saved. */

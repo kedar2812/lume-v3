@@ -19,6 +19,7 @@ export function BoardColumn({
   over,
   loadingMore,
   onMore,
+  action,
   children,
 }: {
   stage: Stage;
@@ -31,6 +32,8 @@ export function BoardColumn({
   over: boolean;
   loadingMore: boolean;
   onMore: () => void;
+  /** Something to do with the stage itself (a live sheet of it, 2026-11-14), at the end of its header. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -42,11 +45,20 @@ export function BoardColumn({
       className={s.column}
       style={{ ["--c" as string]: tokenColor(stage.color) }}
     >
-      <header className={s.columnHead} aria-hidden>
-        <i className={s.dot} />
-        <span className={s.columnName}>{stage.name}</span>
-        <b className={s.count}>{count}</b>
-        {total ? <span className={s.total}>{formatMoney(total, currency)}</span> : null}
+      <header className={s.columnHead}>
+        <i className={s.dot} aria-hidden />
+        <span className={s.columnName} aria-hidden>
+          {stage.name}
+        </span>
+        <b className={s.count} aria-hidden>
+          {count}
+        </b>
+        {total ? (
+          <span className={s.total} aria-hidden>
+            {formatMoney(total, currency)}
+          </span>
+        ) : null}
+        {action}
       </header>
       <div className={s.cards}>
         {children}

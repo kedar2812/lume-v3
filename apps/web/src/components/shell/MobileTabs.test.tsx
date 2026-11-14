@@ -25,7 +25,7 @@ describe("the phone's tab bar (canvas Phone)", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((l) => l.textContent),
-    ).toEqual(["Who replied", "LUME AI", "Pipeline", "Templates", "Media", "Analytics"]);
+    ).toEqual(["Who replied", "LUME AI", "Pipeline", "Live sheets", "Templates", "Media", "Analytics"]);
     expect(within(menu).getByRole("menuitem", { name: "Templates" })).toHaveAttribute("aria-current", "page");
   });
 
