@@ -6,6 +6,7 @@ export const SCREENS = [
   "/leads",
   "/leads/not-yet",
   "/pipeline",
+  "/live-sheets",
   "/calendar",
   "/templates",
   "/media",

@@ -70,6 +70,12 @@ const CHECKS: Check[] = [
     ready: (p) => p.getByRole("dialog", { name: /tour/i }).waitFor(),
   },
   {
+    name: "live sheets",
+    path: "/live-sheets",
+    who: "owner",
+    ready: (p) => p.getByRole("heading", { name: "Live sheets", level: 1 }).waitFor(),
+  },
+  {
     name: "settings",
     path: "/settings",
     who: "owner",

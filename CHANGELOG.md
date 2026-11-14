@@ -6,6 +6,19 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **Live sheets** (owner 2026-11-14, `docs/superpowers/specs/2026-11-14-live-sheets-design.md`): Google Sheets LUME
+  makes in the client's own Drive and keeps filled with the leads a rule picks. A **Live sheets** page in the sidebar
+  lists every one with its link to copy, its status and what it holds; **Create a live sheet** on Leads (with the
+  filters on screen), on Pipeline and on each Pipeline stage opens a four-step form: what it's for (a **Meta audience**,
+  in Meta's customer list columns, or **your own columns**), which leads (reached a stage, or in it now; source, tag,
+  owner, date; leads from before today; leads with no phone or email, their empty cells shaded; do-not-contact),
+  which columns, then a name, what happens to **edits made in the sheet** (kept, or put back), and the Google account.
+  A real progress bar follows the first fill to Live and the link. Sheets update on lead fetching's rhythm (every
+  2 minutes) and at once on **Refresh** and **Update now**; a lead deleted from LUME always leaves every sheet. Each
+  sheet carries a "Made with LUME" tab with LUME's mark. Pause, Resume, Edit (renames the file too), Make it again,
+  Take it over (an admin) and Delete (the file stays in Drive unless asked to go to Google's bin). Pro and up; a new
+  permission **Make live sheets** (with Export leads); up to 20 per business. Deleting someone's account forgets their
+  Google accounts for live sheets. Migration 0109; the relay (connect.lumecrm.in) learns the live_sheet kind.
 ## 1.3.2 — 2026-11-15
 
 - **The bell counts true** (owner 2026-11-15: "9+ with nothing to notify"): its number is the server's. The live stream
