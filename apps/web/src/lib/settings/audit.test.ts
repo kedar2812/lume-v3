@@ -20,6 +20,15 @@ const entry = (action: string, over: Partial<AuditEntry> = {}): AuditEntry => ({
 /** Every action the API writes today (grep `action: "` in apps/api/src). A new one must be phrased here too. */
 const WRITTEN = [
   "audit.export",
+  "live_sheet.created",
+  "live_sheet.edited",
+  "live_sheet.paused",
+  "live_sheet.resumed",
+  "live_sheet.deleted",
+  "live_sheet.taken_over",
+  "live_sheet.remade",
+  "live_sheet.filled",
+  "live_sheet.google_connected",
   "settings.calendar",
   "calendly.connected",
   "calendly.disconnected",

@@ -29,6 +29,7 @@ import { queueRoutes } from "./modules/queues/routes";
 import { importRoutes } from "./modules/imports/routes";
 import { sheetRoutes } from "./modules/sheets/routes";
 import { calendarRoutes } from "./modules/calendar/routes";
+import { liveSheetRoutes } from "./modules/live-sheets/routes";
 import { meetingRoutes } from "./modules/meetings/routes";
 import { calendlyRoutes } from "./modules/calendly/routes";
 import { calendlyReceiveRoutes } from "./modules/calendly/receive";
@@ -105,6 +106,8 @@ export type AppDeps = {
   sheets?: { enqueue(syncId: string): Promise<void>; maxRows: number };
   /** Google Calendar (5A): where a connection's sync is queued. */
   calendar?: { enqueue(connectionId: string): Promise<void> };
+  /** Live sheets (2026-11-14): a run to do now (Refresh, Update now, a new or edited sheet). */
+  liveSheets?: { enqueue(runId: string, sheetId: string): Promise<void> };
   /** Connect with Google (2B-2): the owner's relay and this instance's token there; null when not set up. */
   googleOAuth?: { relayUrl: string; relayToken: string } | null;
   /** Tests and e2e only: where the Google APIs are (the fake). */
@@ -265,6 +268,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(importRoutes, deps);
         await scope.register(sheetRoutes, deps);
         await scope.register(calendarRoutes, deps);
+        await scope.register(liveSheetRoutes, deps);
         await scope.register(meetingRoutes, deps);
         await scope.register(calendlyRoutes, deps);
         await scope.register(webhookRoutes, deps);

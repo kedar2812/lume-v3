@@ -104,6 +104,14 @@ export async function eraseAccount(req: FastifyRequest, d: AppDeps, id: string, 
      WHERE (started_by = ${id} OR speaker_id = ${id}) AND status <> 'ended'`);
   // A WhatsApp number that was theirs becomes the business's.
   await req.db.execute(sql`UPDATE whatsapp_numbers SET owner_user_id = NULL WHERE owner_user_id = ${id}`);
+  // Live sheets (2026-11-14): LUME forgets their Google accounts, so it never writes into a departed person's Drive
+  // again; sheets that wrote with one pause as disconnected (an admin can make them again in their own Drive).
+  await req.db.execute(sql`SELECT set_config('lume.live_sheets_sweep', 'on', true)`);
+  await req.db.execute(sql`
+    UPDATE live_sheets SET status = 'paused', pause_reason = 'google_disconnected', updated_at = ${now}
+     WHERE deleted_at IS NULL AND grant_id IN (SELECT id FROM live_sheet_grants WHERE user_id = ${id})`);
+  await req.db.execute(sql`DELETE FROM live_sheet_grants WHERE user_id = ${id}`);
+  await req.db.execute(sql`SELECT set_config('lume.live_sheets_sweep', '', true)`);
 
   // 3. The person forgotten; the record kept.
   await req.db.delete(schema.userRoles).where(eq(schema.userRoles.userId, id));

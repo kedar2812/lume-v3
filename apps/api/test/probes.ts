@@ -34,6 +34,12 @@ export type Probe = {
 };
 
 const uuid = "0190e0c0-0000-7000-8000-00000000abcd";
+const liveRule = {
+  stages: { mode: "reached", stageIds: [uuid] },
+  includeMissing: true,
+  includeDnc: false,
+  backfill: true,
+};
 export const PROBES: Record<string, Probe> = {
   // Lead exports you can trace (6B).
   "POST /api/v1/leads/export": {
@@ -109,6 +115,52 @@ export const PROBES: Record<string, Probe> = {
   "PUT /api/v1/integrations/google-calendar": {
     access: "integrations.manage",
     body: () => ({ enabled: false }),
+  },
+  // Live sheets (2026-11-14): Make live sheets; Export leads and the plan are refused in their own words.
+  "POST /api/v1/live-sheets/connect": { access: "leads.live_sheets" },
+  "POST /api/v1/live-sheets/connect/complete": {
+    access: "leads.live_sheets",
+    body: () => ({ p: "x", s: "y" }),
+  },
+  "GET /api/v1/live-sheets/grants": { access: "leads.live_sheets" },
+  "GET /api/v1/live-sheets": { access: "leads.live_sheets" },
+  "POST /api/v1/live-sheets/count": {
+    access: "leads.live_sheets",
+    body: () => ({ preset: "meta", rule: liveRule }),
+  },
+  "POST /api/v1/live-sheets": {
+    access: "leads.live_sheets",
+    body: () => ({ name: "S", preset: "meta", rule: liveRule, columns: [], edits: "keep", grantId: uuid }),
+  },
+  "GET /api/v1/live-sheets/:id": { access: "leads.live_sheets", path: () => `/api/v1/live-sheets/${uuid}` },
+  "PATCH /api/v1/live-sheets/:id": {
+    access: "leads.live_sheets",
+    path: () => `/api/v1/live-sheets/${uuid}`,
+    body: () => ({ name: "S" }),
+  },
+  "POST /api/v1/live-sheets/:id/run": {
+    access: "leads.live_sheets",
+    path: () => `/api/v1/live-sheets/${uuid}/run`,
+  },
+  "POST /api/v1/live-sheets/:id/pause": {
+    access: "leads.live_sheets",
+    path: () => `/api/v1/live-sheets/${uuid}/pause`,
+  },
+  "POST /api/v1/live-sheets/:id/resume": {
+    access: "leads.live_sheets",
+    path: () => `/api/v1/live-sheets/${uuid}/resume`,
+  },
+  "POST /api/v1/live-sheets/:id/take-over": {
+    access: "leads.live_sheets",
+    path: () => `/api/v1/live-sheets/${uuid}/take-over`,
+  },
+  "POST /api/v1/live-sheets/:id/remake": {
+    access: "leads.live_sheets",
+    path: () => `/api/v1/live-sheets/${uuid}/remake`,
+  },
+  "DELETE /api/v1/live-sheets/:id": {
+    access: "leads.live_sheets",
+    path: () => `/api/v1/live-sheets/${uuid}`,
   },
   "POST /api/v1/calendar/connect": { access: "calendar.connect" },
   "POST /api/v1/calendar/complete": { access: "calendar.connect", body: () => ({ p: "x", s: "y" }) },

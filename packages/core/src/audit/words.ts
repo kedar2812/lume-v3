@@ -267,6 +267,29 @@ export const AUDIT_ACTIONS: Record<string, AuditActionDef> = {
       `exported ${String(d.label ?? "leads")}: ${plural(n(d.rows), "lead")} as ${d.format === "xlsx" ? "Excel" : "CSV"} (${String(d.code ?? "")})`,
   },
   "lead.export.download": { area: "Leads", phrase: (d) => `downloaded export ${String(d.code ?? "")}` },
+  // Live sheets (2026-11-14).
+  "live_sheet.created": { area: "Leads", phrase: (d) => `made the live sheet “${String(d.name ?? "")}”` },
+  "live_sheet.edited": { area: "Leads", phrase: (d) => `changed the live sheet “${String(d.name ?? "")}”` },
+  "live_sheet.paused": { area: "Leads", phrase: (d) => `paused the live sheet “${String(d.name ?? "")}”` },
+  "live_sheet.resumed": { area: "Leads", phrase: (d) => `resumed the live sheet “${String(d.name ?? "")}”` },
+  "live_sheet.deleted": {
+    area: "Leads",
+    phrase: (d) =>
+      `deleted the live sheet “${String(d.name ?? "")}”${d.trashed ? " and moved its file to Google's bin" : ""}`,
+  },
+  "live_sheet.remade": {
+    area: "Leads",
+    phrase: (d) => `made the live sheet “${String(d.name ?? "")}” again`,
+  },
+  "live_sheet.taken_over": {
+    area: "Leads",
+    phrase: (d) => `took over the live sheet “${String(d.name ?? "")}”`,
+  },
+  "live_sheet.filled": {
+    area: "Leads",
+    phrase: (d) => `wrote ${plural(n(d.rows), "lead")} to the live sheet “${String(d.name ?? "")}”`,
+  },
+  "live_sheet.google_connected": { area: "Settings", phrase: "connected a Google account for live sheets" },
   "audit.export": {
     area: "Security",
     phrase: (d) => `downloaded the audit log as a CSV: ${plural(n(d.rows), "entry", "entries")}`,
