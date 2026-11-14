@@ -9,6 +9,8 @@ export const QUEUE_NAMES = [
   "sheets.sync",
   "sheets.retention",
   "calendar.sync",
+  // Live sheets (2026-11-14): one run of a sheet LUME keeps in Google.
+  "live-sheets.run",
   "webhooks.process",
   "webhooks.retention",
   "tasks.fire",

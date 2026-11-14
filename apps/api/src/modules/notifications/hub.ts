@@ -158,6 +158,19 @@ function whatsappEventOf(payload: string): WhatsAppEvent | null {
   }
 }
 
+/** A live sheet's progress or status (2026-11-14): its id and which, nothing else. */
+export type LiveSheetEvent = { sheet: string; kind: "progress" | "status" };
+function liveSheetEventOf(payload: string): LiveSheetEvent | null {
+  try {
+    const e = JSON.parse(payload) as { sheet?: unknown; kind?: unknown };
+    if (typeof e.sheet !== "string" || !ID.test(e.sheet)) return null;
+    if (e.kind !== "progress" && e.kind !== "status") return null;
+    return { sheet: e.sheet, kind: e.kind };
+  } catch {
+    return null;
+  }
+}
+
 /** How many of a person's notifications are unread, as they'd count them (their own rows). */
 export const countUnread = (pool: pg.Pool, userId: string) =>
   readAs(pool, userId, async (c) =>
@@ -182,6 +195,7 @@ export async function startHub(pool: pg.Pool) {
   const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
   /** Told of each change in a LUME AI run (Autopilot A2): its run, lead and kind, never words. */
   const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
+  const liveSheetListeners = new Set<(e: LiveSheetEvent) => void>();
   /** Told when the listener comes back after losing its connection: whatever arrived meanwhile wasn't heard. */
   const resyncs = new Set<() => void>();
   let failures = 0;
@@ -245,6 +259,9 @@ export async function startHub(pool: pg.Pool) {
       else if (m.channel === "lume_autopilot") {
         const e = autopilotEventOf(m.payload ?? "");
         if (e) for (const l of autopilotListeners) l(e);
+      } else if (m.channel === "lume_live_sheets") {
+        const e = liveSheetEventOf(m.payload ?? "");
+        if (e) for (const l of liveSheetListeners) l(e);
       } else if (m.channel === "lume_whatsapp") {
         const e = whatsappEventOf(m.payload ?? "");
         if (e) for (const l of whatsappListeners) l(e);
@@ -259,6 +276,7 @@ export async function startHub(pool: pg.Pool) {
     await c.query("LISTEN lume_leads");
     await c.query("LISTEN lume_autopilot");
     await c.query("LISTEN lume_whatsapp");
+    await c.query("LISTEN lume_live_sheets");
     client = c;
   };
   await connect();
@@ -295,6 +313,11 @@ export async function startHub(pool: pg.Pool) {
     onAutopilot(listener: (e: AutopilotEvent) => void): () => void {
       autopilotListeners.add(listener);
       return () => void autopilotListeners.delete(listener);
+    },
+    /** A live sheet's progress or status (2026-11-14): its id and kind only. */
+    onLiveSheet(listener: (e: LiveSheetEvent) => void): () => void {
+      liveSheetListeners.add(listener);
+      return () => void liveSheetListeners.delete(listener);
     },
     /** A WhatsApp message on a lead's chat (2026-11-01): ids and kind only. */
     onWhatsApp(listener: (e: WhatsAppEvent) => void): () => void {

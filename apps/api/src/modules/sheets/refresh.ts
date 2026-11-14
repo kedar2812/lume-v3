@@ -4,6 +4,7 @@ import { can, newId } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { HttpError, notFound } from "../../http/errors";
+import { requestRunIn } from "../live-sheets/queue";
 import { requestSync } from "./requests";
 import { sheetsOn } from "./service";
 
@@ -35,17 +36,31 @@ export type RefreshProgress = {
   /** When unreachable: seconds until LUME's next try (the soonest sheet's), else null. */
   retryInS: number | null;
   attention: { id: string; name: string }[];
+  /** Live sheets this press asked to update (2026-11-14), and how many have finished. */
+  liveSheets: { total: number; done: number };
 };
+
+/** Live sheets Refresh can update: any that Google can still be written to. */
+const writable = sql`deleted_at IS NULL AND (status <> 'paused' OR pause_reason NOT IN ('google_disconnected', 'sheet_gone'))`;
+async function liveSheetIds(req: FastifyRequest, d: AppDeps): Promise<string[]> {
+  if (!d.googleOAuth) return [];
+  const { rows } = await req.db.execute<{ id: string }>(
+    sql`SELECT id FROM live_sheets WHERE ${writable} ORDER BY id`,
+  );
+  return rows.map((r) => r.id);
+}
 
 /** Spec §8.1: Refresh shows with Sheets on and one sheet active; admins also hear what needs attention. */
 export async function sheetsStatus(req: FastifyRequest, d: AppDeps) {
-  if (!d.google || !(await sheetsOn(req))) return { refresh: false, attention: [] };
+  if (!(await sheetsOn(req))) return { refresh: false, attention: [] };
+  const live = (await liveSheetIds(req, d)).length > 0;
+  if (!d.google) return { refresh: live, attention: [] };
   const rows = await req.db
     .select({ id: S.id, name: S.name, status: S.status })
     .from(S)
     .where(and(eq(S.type, "google_sheet"), inArray(S.status, ["active", "needs_attention"])));
   return {
-    refresh: rows.some((r) => r.status === "active"),
+    refresh: live || rows.some((r) => r.status === "active"),
     attention: can(req.actor!, "integrations.manage")
       ? rows.filter((r) => r.status === "needs_attention").map(({ id, name }) => ({ id, name }))
       : [],
@@ -53,7 +68,8 @@ export async function sheetsStatus(req: FastifyRequest, d: AppDeps) {
 }
 
 export async function startRefresh(req: FastifyRequest, d: AppDeps): Promise<{ id: string }> {
-  if (!d.google || !(await sheetsOn(req)))
+  const live = (await sheetsOn(req)) ? await liveSheetIds(req, d) : [];
+  if ((!d.google && !live.length) || !(await sheetsOn(req)))
     throw new HttpError(409, "SHEETS_OFF", "Google Sheets is switched off.");
   const me = req.actor!.userId;
   const [recent] = await req.db
@@ -63,13 +79,15 @@ export async function startRefresh(req: FastifyRequest, d: AppDeps): Promise<{ i
     .orderBy(desc(RF.createdAt))
     .limit(1);
   if (recent) return { id: recent.id };
-  const sources = await req.db
-    .select({ id: S.id })
-    .from(S)
-    .where(and(eq(S.type, "google_sheet"), eq(S.status, "active")))
-    // One order for every refresh: each locks its sources in turn, so two at once never deadlock.
-    .orderBy(S.id);
-  if (!sources.length) throw new HttpError(409, "NO_SHEETS", "No Google Sheet is connected.");
+  const sources = d.google
+    ? await req.db
+        .select({ id: S.id })
+        .from(S)
+        .where(and(eq(S.type, "google_sheet"), eq(S.status, "active")))
+        // One order for every refresh: each locks its sources in turn, so two at once never deadlock.
+        .orderBy(S.id)
+    : [];
+  if (!sources.length && !live.length) throw new HttpError(409, "NO_SHEETS", "No Google Sheet is connected.");
   const syncIds: string[] = [];
   const fresh: string[] = [];
   for (const s of sources) {
@@ -83,9 +101,20 @@ export async function startRefresh(req: FastifyRequest, d: AppDeps): Promise<{ i
     syncIds.push(r.syncId);
     if (r.fresh) fresh.push(r.syncId);
   }
+  // Live sheets (2026-11-14): each asked to update now, joining a run already on its way.
+  const liveRunIds: string[] = [];
+  const liveFresh: { runId: string; sheetId: string }[] = [];
+  for (const sheetId of live) {
+    const r = await requestRunIn(req.db, { sheetId, trigger: "refresh", requestedBy: me });
+    liveRunIds.push(r.runId);
+    if (r.fresh) liveFresh.push({ runId: r.runId, sheetId });
+  }
   const id = newId();
-  await req.db.insert(RF).values({ id, requestedBy: me, syncIds });
-  req.afterCommit(() => fresh.forEach((s) => void d.sheets?.enqueue(s)));
+  await req.db.insert(RF).values({ id, requestedBy: me, syncIds, liveRunIds });
+  req.afterCommit(() => {
+    fresh.forEach((s) => void d.sheets?.enqueue(s));
+    liveFresh.forEach((j) => void d.liveSheets?.enqueue(j.runId, j.sheetId));
+  });
   return { id };
 }
 
@@ -106,7 +135,16 @@ export async function refreshProgress(req: FastifyRequest, id: string): Promise<
         .innerJoin(S, eq(S.id, SY.sourceId))
         .where(inArray(SY.id, r.syncIds))
     : [];
-  const running = syncs.some((x) => x.s.status === "queued" || x.s.status === "running");
+  const liveRuns = r.liveRunIds.length
+    ? (
+        await req.db.execute<{ status: string }>(
+          sql`SELECT status FROM live_sheet_runs WHERE id = ANY(string_to_array(${r.liveRunIds.join(",")}, ',')::uuid[])`,
+        )
+      ).rows
+    : [];
+  const liveDone = liveRuns.filter((x) => x.status === "done" || x.status === "failed").length;
+  const running =
+    syncs.some((x) => x.s.status === "queued" || x.s.status === "running") || liveDone < liveRuns.length;
   const { rows } = r.syncIds.length
     ? await req.db.execute<{ result: "created" | "merged"; lead_id: string }>(sql`
         SELECT sr.result, sr.lead_id FROM source_rows sr
@@ -135,5 +173,6 @@ export async function refreshProgress(req: FastifyRequest, id: string): Promise<
           .filter((x) => x.sourceStatus === "needs_attention")
           .map((x) => ({ id: x.s.sourceId, name: x.name }))
       : [],
+    liveSheets: { total: liveRuns.length, done: liveDone },
   };
 }

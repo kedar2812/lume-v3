@@ -19,13 +19,13 @@ export function setExportCapForTests(n: number | null): void {
 }
 
 type Cell = string | number | null;
-type Lookups = {
+export type Lookups = {
   stages: Map<string, string>;
   people: Map<string, string>;
   tags: Map<string, string>;
   tz: string;
 };
-type Column = {
+export type Column = {
   id: string;
   header: string;
   cell: (v: LeadView, l: Lookups) => Cell;

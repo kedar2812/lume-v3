@@ -8,6 +8,7 @@ import { startBulkQueue } from "./modules/leads/bulk-queue";
 import { aiFromConfig } from "./ai/from-config";
 import { createGoogleSheets, oauthClientFor, parseServiceAccount } from "./modules/sheets/google";
 import { startSheetsQueue } from "./modules/sheets/queue";
+import { startLiveSheetsQueue } from "./modules/live-sheets/queue";
 import { calendarClientFor } from "./modules/calendar/google";
 import { startCalendarQueue } from "./modules/calendar/queue";
 import { startWebhookQueue } from "./modules/webhooks/queue";
@@ -74,6 +75,7 @@ const sheets: { enqueue(id: string): Promise<void>; maxRows: number } = {
 
 // Google Calendar (5A): syncs where Connect with Google is set up; filled once its queue is up.
 const calendar: { enqueue(id: string): Promise<void> } = { enqueue: async () => undefined };
+const liveSheets: NonNullable<AppDeps["liveSheets"]> = { enqueue: async () => undefined };
 // Webhooks (2C): the queue always runs; the module switch gates receiving, not processing what was accepted.
 const webhooks: { enqueue(id: number): Promise<void> } = { enqueue: async () => undefined };
 // Follow-ups (Phase 3): filled once the queue is up; its sweeper fires anything missed before the API listens.
@@ -105,6 +107,7 @@ const deps: AppDeps = {
   google,
   sheets,
   calendar,
+  liveSheets,
   ai: lumeAi.ai,
   aiModels: lumeAi.aiModels,
   webhooks,
@@ -181,6 +184,11 @@ const calendarQueue = googleOAuth
     })
   : null;
 if (calendarQueue) calendar.enqueue = calendarQueue.enqueue;
+// Live sheets write with Connect with Google's grants: only where that's set up here.
+const liveSheetsQueue = googleOAuth
+  ? await startLiveSheetsQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps })
+  : null;
+if (liveSheetsQueue) liveSheets.enqueue = liveSheetsQueue.enqueue;
 const webhookQueue = await startWebhookQueue({
   connectionString: cfg.DATABASE_URL_APP,
   app,
@@ -225,6 +233,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     await mediaQueue.stop();
     await sheetQueue?.stop();
     await calendarQueue?.stop();
+    await liveSheetsQueue?.stop();
     await queue.stop();
     await bulkQueue.stop();
     await app.close();

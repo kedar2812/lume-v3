@@ -53,6 +53,7 @@ import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
 import { fetchMedia } from "../src/modules/whatsapp/media";
 import { makePreview } from "../src/modules/media/preview";
 import { startRenderFake, type RenderFake } from "./render-fake";
+import { runLiveSheet } from "../src/modules/live-sheets/run";
 
 /** Fast Argon2 for tests only; production uses ARGON2_PRODUCTION. */
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
@@ -188,6 +189,9 @@ export type Harness = {
   deps: AppDeps;
   /** Calendar connections whose sync was asked for (5A), in order. */
   calendarQueue: string[];
+  /** Live sheet runs queued (2026-11-14), as runId and sheetId; `runLiveSheets` runs them. */
+  liveSheetQueue: { runId: string; sheetId: string }[];
+  runLiveSheets(): Promise<void>;
   /** Follow-up reminders queued for their time (Phase 3), in the order they were queued. */
   reminderQueue: { id: number; fireAt: Date }[];
   /** Make the reminder queue refuse (it's down), to test that nothing depends on it succeeding. */
@@ -293,6 +297,7 @@ export async function createHarness(
   const previewQueued: string[] = [];
   const render = opts.render ? await startRenderFake() : null;
   const calendarQueue: string[] = [];
+  const liveSheetQueue: { runId: string; sheetId: string }[] = [];
   const reminderQueue: { id: number; fireAt: Date }[] = [];
   let reminderQueueDown = false;
   const reminders = {
@@ -337,6 +342,7 @@ export async function createHarness(
     google,
     sheets: { enqueue: async (id) => void syncs.push(id), maxRows: 50 },
     calendar: { enqueue: async (id) => void calendarQueue.push(id) },
+    liveSheets: { enqueue: async (runId, sheetId) => void liveSheetQueue.push({ runId, sheetId }) },
     tasks: reminders,
     webhooks: {
       enqueue: async (id) => void webhookQueue.push(id),
@@ -560,6 +566,17 @@ export async function createHarness(
     whatsappMeaningQueued,
     files,
     calendarQueue,
+    liveSheetQueue,
+    async runLiveSheets() {
+      for (let j = liveSheetQueue.shift(); j; j = liveSheetQueue.shift())
+        await runLiveSheet({
+          app,
+          d: deps,
+          sheetId: j.sheetId,
+          runId: j.runId,
+          sleep: async () => undefined,
+        });
+    },
     reminderQueue,
     failReminderQueue(on) {
       reminderQueueDown = on;

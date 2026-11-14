@@ -13,6 +13,7 @@ describe("QUEUE_NAMES", () => {
       "sheets.sync",
       "sheets.retention",
       "calendar.sync",
+      "live-sheets.run",
       "webhooks.process",
       "webhooks.retention",
       "tasks.fire",

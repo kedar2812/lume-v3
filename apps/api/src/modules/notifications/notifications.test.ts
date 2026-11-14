@@ -496,6 +496,28 @@ describe("WhatsApp on the live stream (2026-11-01)", () => {
   });
 });
 
+describe("Live sheets on the live stream (2026-11-14)", () => {
+  const sheet = "0190e0c0-0000-7000-8000-0000000051ee";
+  const say = (kind: string) => () =>
+    h.ownerPool.query("SELECT pg_notify('lume_live_sheets', $1)", [
+      JSON.stringify({ sheet, kind, words: "x" }),
+    ]);
+
+  it("a sheet's progress reaches people who make live sheets, as its id and kind only", async () => {
+    const u = await h.seedUser({ grants: [{ key: "leads.live_sheets", scope: null }], totp: true });
+    const got = await eventsOf(await h.signIn(u), "live_sheet", { ms: 1500, after: say("progress") });
+    expect(got).toEqual([{ id: null, data: { sheet, kind: "progress" } }]);
+  });
+
+  it("anyone else isn't told, and a malformed one is dropped", async () => {
+    expect(await eventsOf(me, "live_sheet", { ms: 1200, after: say("progress") })).toEqual([]);
+    const u = await h.seedUser({ grants: [{ key: "leads.live_sheets", scope: null }], totp: true });
+    expect(await eventsOf(await h.signIn(u), "live_sheet", { ms: 1200, after: say("drop table") })).toEqual(
+      [],
+    );
+  });
+});
+
 describe("the bell's count on the stream (owner 2026-11-15: 9+ with nothing to read)", () => {
   const unreadNow = async () =>
     (await me.inject({ method: "GET", url: "/api/v1/notifications" })).json().unread;

@@ -208,7 +208,13 @@ data: ${JSON.stringify(e)}
 
 `);
       });
+      // Live sheets (2026-11-14): a sheet's progress or status, as its id and kind, for people who make them.
+      const makesSheets = can(req.actor!, "leads.live_sheets");
+      const offLiveSheet = hub.onLiveSheet((e) => {
+        if (makesSheets) write(`event: live_sheet\ndata: ${JSON.stringify(e)}\n\n`);
+      });
       req.raw.on("close", () => {
+        offLiveSheet();
         offWhatsApp();
         offUnread();
         offAutopilot();
