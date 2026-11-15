@@ -19,6 +19,7 @@ column in the release that stops using it.
   Take it over (an admin) and Delete (the file stays in Drive unless asked to go to Google's bin). Pro and up; a new
   permission **Make live sheets** (with Export leads); up to 20 per business. Deleting someone's account forgets their
   Google accounts for live sheets. Migration 0109; the relay (connect.lumecrm.in) learns the live_sheet kind.
+
 ## 1.3.2 — 2026-11-15
 
 - **The bell counts true** (owner 2026-11-15: "9+ with nothing to notify"): its number is the server's. The live stream
