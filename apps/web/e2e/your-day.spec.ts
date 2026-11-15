@@ -149,6 +149,37 @@ test.describe("Your day", () => {
     await expect(full(page)).toBeVisible();
   });
 
+  test("full screen: a plain mouse wheel moves the day sideways, comes to rest, and lets the zoom buttons be", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openApp(page, "/today");
+    await openFull(page);
+    for (let i = 0; i < 3; i++) await full(page).getByRole("button", { name: "Zoom in" }).click();
+    const scroller = full(page).locator("[data-day-scroller]");
+    const left = () => scroller.evaluate((el) => el.scrollLeft);
+    const [before, max] = await scroller.evaluate((el) => [el.scrollLeft, el.scrollWidth - el.clientWidth]);
+    const by = before > max / 2 ? -200 : 200;
+    const box = (await scroller.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height - 30);
+    await page.mouse.wheel(0, by);
+    await expect.poll(async () => Math.abs((await left()) - before)).toBeGreaterThan(150);
+    // At rest: it stops moving on its own (two readings 300 ms apart agree), about where the wheel aimed.
+    await expect
+      .poll(async () => {
+        const a = await left();
+        await page.waitForTimeout(300);
+        return (await left()) === a;
+      })
+      .toBe(true);
+    expect(Math.abs((await left()) - (before + by))).toBeLessThanOrEqual(2);
+    // A zoom button moves it; nothing pulls it back afterwards.
+    await full(page).getByRole("button", { name: "Zoom out" }).click();
+    const zoomed = await left();
+    await page.waitForTimeout(800);
+    expect(await left()).toBe(zoomed);
+  });
+
   test("full screen: after a click on empty timeline space, Esc still closes it", async ({ page }) => {
     await openApp(page, "/today");
     await openFull(page);
