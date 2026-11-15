@@ -1,0 +1,164 @@
+/* Your day (spec: Your day full screen): the shared details panel and the focus that brings one item forward. */
+
+.panel {
+  position: absolute;
+  z-index: 30;
+  width: 264px;
+  padding: 12px 14px;
+  border-radius: var(--r-row);
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  text-align: left;
+  animation: panelIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.heading {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-md);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 3px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.who + time::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--text-3);
+}
+.meta time {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.state {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.actions > a {
+  text-decoration: none;
+}
+
+/* Where something stands, in its own colour (text and dots alike). */
+[data-tone="danger"] {
+  --tone: var(--danger);
+}
+[data-tone="warn"] {
+  --tone: var(--warn);
+}
+[data-tone="accent"] {
+  --tone: var(--accent);
+}
+[data-tone="ok"] {
+  --tone: var(--ok);
+}
+[data-tone="quiet"] {
+  --tone: var(--text-3);
+}
+.state[data-tone] {
+  color: var(--tone);
+}
+
+/* Several at about the same time. */
+.group {
+  padding: 10px 6px 6px;
+}
+.groupHead {
+  margin: 0 8px 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: var(--r-chip);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}
+.row:hover {
+  background: var(--hover);
+}
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.row b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.rowText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row time {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+/* One item forward, the rest stepping back (card and timeline alike). */
+.focusing [data-day-item]:not([data-on]),
+.focusing [data-day-back] {
+  filter: blur(2px);
+  opacity: 0.3;
+}
+[data-day-item],
+[data-day-back] {
+  transition:
+    filter 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation-duration: 0.12s;
+  }
+  .focusing [data-day-item]:not([data-on]),
+  .focusing [data-day-back] {
+    filter: none;
+  }
+  [data-day-item],
+  [data-day-back] {
+    transition: opacity 0.15s;
+  }
+}
