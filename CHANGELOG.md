@@ -6,6 +6,14 @@ column in the release that stops using it.
 
 ## Unreleased
 
+## 1.3.2 — 2026-11-15
+
+- **The bell counts true** (owner 2026-11-15: "9+ with nothing to notify"): its number is the server's. The live stream
+  says the person's unread count as it opens, with each new notification, and whenever something of theirs is read
+  anywhere (another tab or device, or LUME settling a follow-up's reminders); the bell never counts by itself any
+  more. It had climbed when a reconnect replayed notifications already read on another device.
+- **Update notes:** no migrations, no `.env` changes.
+
 ## 1.3.1 — 2026-11-14
 
 - **Deleting an account is red** (owner 2026-11-14): People's Delete account is a red button, as My account's
