@@ -15,7 +15,7 @@ test("Live sheets: in the sidebar after Pipeline, a page that says why it can't 
   expect(at).toBeGreaterThan(links.findIndex((t) => t.trim() === "Pipeline"));
   await nav.getByRole("link", { name: "Live sheets" }).click();
   await expect(page).toHaveURL(/\/live-sheets$/);
-  await expect(page.getByRole("heading", { name: "Live sheets", level: 1 })).toBeVisible();
+  await expect(page.locator("#ls-title")).toHaveText("Live sheets");
   await expect(
     page.getByText("Connect with Google isn't set up on this LUME, so it can't make sheets yet."),
   ).toBeVisible();
@@ -35,6 +35,25 @@ test("Leads and Pipeline: Create a live sheet says the same, instead of a form t
   }
   // Each Pipeline column offers one of its own stage, named for screen readers.
   await expect(page.getByRole("button", { name: /^Make a live sheet of / }).first()).toBeAttached();
+});
+
+test("Pipeline at a laptop's width: Create a live sheet is its icon, so the filters keep one row", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1366, height: 800 });
+  await openApp(page, "/pipeline");
+  const make = page.getByRole("button", { name: "Create a live sheet" });
+  await expect(make).toHaveAttribute("title", "Create a live sheet");
+  const [more, lead, icon] = await Promise.all([
+    page.getByRole("button", { name: /More filters/ }).boundingBox(),
+    page.getByRole("button", { name: "New lead" }).boundingBox(),
+    make.boundingBox(),
+  ]);
+  expect(Math.abs(more!.y - lead!.y)).toBeLessThan(4);
+  expect(icon!.width).toBeLessThan(44);
+  // Wide screens have the room for its words.
+  await page.setViewportSize({ width: 1680, height: 900 });
+  await expect.poll(async () => (await make.boundingBox())!.width).toBeGreaterThan(120);
 });
 
 test("a rep who may not make live sheets sees no sign of them", async ({ browser }) => {

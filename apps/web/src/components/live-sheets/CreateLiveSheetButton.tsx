@@ -33,6 +33,7 @@ export function CreateLiveSheetButton({
   prefill,
   label = "Create a live sheet",
   iconOnly = false,
+  squeeze = false,
   className,
 }: {
   catalog: Catalog;
@@ -42,6 +43,8 @@ export function CreateLiveSheetButton({
   label?: string;
   /** A small icon button (a Pipeline column's), named by `label`. */
   iconOnly?: boolean;
+  /** Below 1600px wide, just its icon (named, with the words as a tooltip): Pipeline's one-row toolbar has no room. */
+  squeeze?: boolean;
   className?: string;
 }) {
   const { tier } = useTier();
@@ -78,9 +81,15 @@ export function CreateLiveSheetButton({
           <SheetIcon />
         </button>
       ) : (
-        <Button variant="secondary" className={className} loading={checking} onClick={() => void press()}>
+        <Button
+          variant="secondary"
+          className={[squeeze && s.squeeze, className].filter(Boolean).join(" ") || undefined}
+          title={squeeze ? label : undefined}
+          loading={checking}
+          onClick={() => void press()}
+        >
           <SheetIcon />
-          {label}
+          {squeeze ? <span className={s.squeezeWords}>{label}</span> : label}
         </Button>
       )}
       {lock && (

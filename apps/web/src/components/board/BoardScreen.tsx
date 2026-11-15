@@ -522,6 +522,7 @@ function Board({
                 catalog={catalog}
                 contactsVisible={contactsVisible}
                 prefill={() => ({})}
+                squeeze
               />
             )}
             {mayCreate && (

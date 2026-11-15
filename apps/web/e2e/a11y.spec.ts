@@ -73,7 +73,7 @@ const CHECKS: Check[] = [
     name: "live sheets",
     path: "/live-sheets",
     who: "owner",
-    ready: (p) => p.getByRole("heading", { name: "Live sheets", level: 1 }).waitFor(),
+    ready: (p) => p.locator("#ls-title", { hasText: "Live sheets" }).waitFor(),
   },
   {
     name: "settings",

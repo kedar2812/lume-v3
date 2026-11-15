@@ -823,3 +823,20 @@
     stroke-dashoffset: 0;
   }
 }
+
+/* Pipeline's toolbar is one row at a laptop's width: there the button is its icon, a square like the 34px buttons
+   beside it, and its words stay for screen readers (and as its tooltip). */
+@media (max-width: 1599px) {
+  .squeeze {
+    width: 34px;
+    padding: 0;
+  }
+  .squeezeWords {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

@@ -98,6 +98,12 @@ const WITHOUT_RLS: Record<string, string> = {
   source_rows: "Import working data",
   // Sealed export files: listed to security.manage, downloaded only by the person who made them
   lead_exports: "Sealed export files",
+  // Live sheets (0109): reached only through leads.live_sheets routes, which never return a row's cells; a sheet's
+  // rows hold what its runner's own reach allowed (the run reads leads as that person). The worker can't reach them.
+  // Their Google grants (live_sheet_grants) are row-level secured per person.
+  live_sheets: "Live sheets, behind leads.live_sheets",
+  live_sheet_rows: "Live sheets, behind leads.live_sheets",
+  live_sheet_runs: "Live sheets, behind leads.live_sheets",
 };
 
 let h: Harness;
