@@ -147,6 +147,22 @@ describe("DayFull: other days", () => {
     expect(within(dialog()).queryByRole("button", { name: "Today" })).toBeNull();
   });
 
+  it("while another day loads, the last one stays, faded, as itself (no empty flash)", () => {
+    render(<Page />); // the default answer never comes: the day stays loading
+    fireEvent.keyDown(document, { key: "Tab" });
+    fireEvent.click(within(dialog()).getByRole("radio", { name: "List" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" }));
+    expect(within(dialog()).getByText("October 4, Sunday")).toBeTruthy();
+    expect(within(dialog()).getByRole("status", { name: "Getting the day" })).toBeTruthy();
+    expect(within(dialog()).queryByText("Nothing planned for this day")).toBeNull();
+    expect(
+      within(dialog())
+        .getAllByRole("listitem")
+        .map((r) => r.getAttribute("data-id")),
+    ).toEqual(["o", "m", "l"]);
+    expect(dialog().querySelector("[data-stale]")).not.toBeNull();
+  });
+
   it("an error has Try again, and the day buttons still work", async () => {
     day.mockResolvedValueOnce({ ok: false, status: 0, code: "OFFLINE", message: "offline" });
     day.mockResolvedValueOnce({ date: "2026-10-06", followUps: [], meetings: [] });
