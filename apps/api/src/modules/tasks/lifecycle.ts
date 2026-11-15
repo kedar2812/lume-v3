@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import { readSignal } from "../notifications/hub";
 import { schema } from "@lume/db";
 import { cancelReminders } from "./engine";
 
@@ -24,6 +25,7 @@ export async function settleReminders(req: FastifyRequest, t: { id: string; assi
       sql`UPDATE notifications SET read_at = now()
            WHERE task_id = ${t.id} AND read_at IS NULL AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
     );
+    await req.db.execute(sql`SELECT pg_notify('lume_notifications', ${readSignal(t.assigneeId)})`);
     return;
   }
   // Someone else's: theirs to read as them, once this commits.

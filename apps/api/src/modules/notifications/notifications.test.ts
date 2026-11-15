@@ -4,6 +4,7 @@ import { newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
 import { seedNumber } from "../../../test/whatsapp";
+import { serverHelpers } from "../../server-helpers";
 import { startHub } from "./hub";
 
 let h: Harness;
@@ -492,5 +493,68 @@ describe("WhatsApp on the live stream (2026-11-01)", () => {
         ),
     });
     expect(got).toEqual([]);
+  });
+});
+
+describe("the bell's count on the stream (owner 2026-11-15: 9+ with nothing to read)", () => {
+  const unreadNow = async () =>
+    (await me.inject({ method: "GET", url: "/api/v1/notifications" })).json().unread;
+
+  it("says the person's unread count as the stream opens, so a tab coming back is put right", async () => {
+    const got = await eventsOf(me, "unread", { ms: 800, after: async () => undefined });
+    expect(got[0]?.data).toEqual({ unread: await unreadNow() });
+  });
+
+  it("a new notification brings the count with it", async () => {
+    const got = await eventsOf(me, "notification", { ms: 1500, after: () => notify(meId, "Counted") });
+    expect(got.at(-1)?.data.unread).toBe(await unreadNow());
+  });
+
+  it("read in another tab or on another device: every open stream hears the new count", async () => {
+    await notify(meId, "Read elsewhere");
+    const got = await eventsOf(me, "unread", {
+      ms: 1500,
+      after: () => me.inject({ method: "POST", url: "/api/v1/notifications/read", payload: { all: true } }),
+    });
+    expect(got.at(-1)?.data).toEqual({ unread: 0 });
+  });
+
+  it("a follow-up's reminders that LUME reads (the follow-up done or moved) are heard too", async () => {
+    const lead = await h.seedLead({ ownerId: meId, name: "Reminder lead" });
+    const task = newId();
+    await h.queryAll(
+      `INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id) VALUES ($1, $2, $3, 'Call back', now(), $1)`,
+      [task, lead, meId],
+    );
+    const c: pg.PoolClient = await h.pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('lume.user_id', $1, true)", [meId]);
+      await c.query(
+        "INSERT INTO notifications (user_id, kind, title, task_id) VALUES ($1, 'follow_up_due', 'Call back', $2)",
+        [meId, task],
+      );
+      await c.query("COMMIT");
+    } catch (e) {
+      await c.query("ROLLBACK");
+      throw e;
+    } finally {
+      c.release();
+    }
+    const before = await unreadNow();
+    const got = await eventsOf(me, "unread", {
+      ms: 1500,
+      after: () => serverHelpers({ pool: h.pool }).settleReminders(meId, task),
+    });
+    expect(got.at(-1)?.data).toEqual({ unread: before - 1 });
+  });
+
+  it("someone else's reads never reach my stream", async () => {
+    const got = await eventsOf(me, "unread", {
+      ms: 1200,
+      after: () =>
+        someone.inject({ method: "POST", url: "/api/v1/notifications/read", payload: { all: true } }),
+    });
+    expect(got).toHaveLength(1); // only the count said as it opened
   });
 });

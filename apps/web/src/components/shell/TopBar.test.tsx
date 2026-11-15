@@ -25,7 +25,11 @@ vi.mock("@/lib/notifications/client", () => ({
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 let live: ((n: unknown) => void) | null = null;
-vi.mock("@/lib/notifications/stream", () => ({ useStream: (on: (n: unknown) => void) => void (live = on) }));
+let counted: ((unread: number) => void) | null = null;
+vi.mock("@/lib/notifications/stream", () => ({
+  useStream: (on: (n: unknown) => void) => void (live = on),
+  useUnread: (on: (unread: number) => void) => void (counted = on),
+}));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 
 beforeEach(() => {
@@ -199,5 +203,33 @@ describe("the search shortcut", () => {
     mac.unmount();
     render(<TopBar theme="system" onSearch={vi.fn()} />);
     expect(screen.getByText("Ctrl K")).toBeInTheDocument();
+  });
+
+  describe("the number is the server's, never counted by the bell (owner 2026-11-15: 9+ with nothing to read)", () => {
+    it("a notification that's already read (replayed after a reconnect) doesn't count", async () => {
+      vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 0 }));
+      render(<TopBar theme="system" onSearch={vi.fn()} />);
+      await screen.findByRole("button", { name: "Notifications" });
+      for (let id = 1; id <= 12; id++) await act(async () => live?.({ id, title: "Old", read: true }));
+      expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
+      expect(screen.queryByText("9+")).toBeNull();
+    });
+
+    it("a new one brings the true count with it", async () => {
+      vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 40 }));
+      render(<TopBar theme="system" onSearch={vi.fn()} />);
+      await screen.findByRole("button", { name: "Notifications, 40 unread" });
+      await act(async () => live?.({ id: 99, title: "New", read: false, unread: 1 }));
+      expect(screen.getByRole("button", { name: "Notifications, 1 unread" })).toBeInTheDocument();
+    });
+
+    it("read on another device, or by LUME: the count the stream says replaces the bell's", async () => {
+      vi.mocked(notificationsClient.list).mockResolvedValue(ok({ items: [], unread: 12 }));
+      render(<TopBar theme="system" onSearch={vi.fn()} />);
+      await screen.findByText("9+");
+      await act(async () => counted?.(0));
+      expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
+      expect(screen.queryByText("9+")).toBeNull();
+    });
   });
 });

@@ -18,8 +18,18 @@ const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
  */
 export type WhatsAppEvent = { lead: string; kind: "in" | "out" | "status" | "reconnected"; owner?: string };
 const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
+/**
+ * The person's unread count, as the server says it (2026-11-15): as the stream opens, and whenever something of theirs
+ * is read anywhere. The bell takes this number; it never counts on its own.
+ */
+const unreadListeners = new Set<(unread: number) => void>();
 const anyone = () =>
-  listeners.size + leadListeners.size + autopilotListeners.size + whatsappListeners.size > 0;
+  listeners.size +
+    leadListeners.size +
+    autopilotListeners.size +
+    whatsappListeners.size +
+    unreadListeners.size >
+  0;
 let source: EventSource | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let failures = 0;
@@ -95,6 +105,17 @@ function open() {
       ...(typeof ev.owner === "string" ? { owner: ev.owner } : {}),
     };
     for (const l of whatsappListeners) l(said);
+  });
+  s.addEventListener("unread", (e) => {
+    let ev: { unread?: unknown };
+    try {
+      ev = JSON.parse((e as MessageEvent<string>).data) as { unread?: unknown };
+    } catch {
+      return;
+    }
+    if (typeof ev.unread !== "number" || !Number.isInteger(ev.unread) || ev.unread < 0) return;
+    failures = 0;
+    for (const l of unreadListeners) l(ev.unread as number);
   });
   s.addEventListener("notification", (e) => {
     let n: NotificationView;
@@ -221,4 +242,21 @@ export function useWhatsApp(on: (e: WhatsAppEvent) => void): void {
   const latest = useRef(on);
   latest.current = on;
   useEffect(() => subscribeWhatsApp((e) => latest.current(e)), []);
+}
+
+/** The person's unread count whenever the server says it (2026-11-15), on the tab's one stream. */
+export function subscribeUnread(listener: (unread: number) => void): () => void {
+  unreadListeners.add(listener);
+  if (!source) open();
+  return () => {
+    unreadListeners.delete(listener);
+    closeIfUnused();
+  };
+}
+
+/** Calls `on` with the unread count each time the server says it, while the component is mounted. */
+export function useUnread(on: (unread: number) => void): void {
+  const latest = useRef(on);
+  latest.current = on;
+  useEffect(() => subscribeUnread((n) => latest.current(n)), []);
 }

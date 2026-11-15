@@ -12,7 +12,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { Kbd } from "@/components/ui/Kbd";
 import { TopProgress } from "@/components/ui/TopProgress";
 import { OPEN_NOTIFICATIONS, READ_EVENT, notificationsClient } from "@/lib/notifications/client";
-import { useStream } from "@/lib/notifications/stream";
+import { useStream, useUnread } from "@/lib/notifications/stream";
 import type { ThemePref } from "@/lib/theme";
 import { NAV_ITEMS, activeNav } from "./nav";
 import s from "./shell.module.css";
@@ -57,8 +57,15 @@ export function TopBar({
     window.addEventListener(READ_EVENT, read);
     return () => window.removeEventListener(READ_EVENT, read);
   }, []);
+  // The number is the server's (owner 2026-11-15: 9+ with nothing to read): a notification brings the true count with
+  // it, and the stream says it again as it opens and whenever something is read elsewhere. Counting by itself, the bell
+  // drifted: a replay after a reconnect brought ones already read on the phone, and reads by LUME never reached it.
+  useUnread(setUnread);
   useStream((n) => {
-    setUnread((c) => c + 1);
+    const said = n as { unread?: unknown; read?: unknown } | undefined;
+    if (typeof said?.unread === "number") setUnread(said.unread);
+    else if (said?.read !== true) setUnread((c) => c + 1); // an older API: as before, but never for one already read
+    if (said?.read === true) return;
     // A Calendly booking (5D) is news worth a notice, with Calendly's own mark; the rest, the bell says.
     const note = n as
       { kind?: string; title?: string; body?: string | null; leadId?: string | null } | undefined;

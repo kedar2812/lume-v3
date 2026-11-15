@@ -7,7 +7,15 @@ import { can } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { onSessionsRevoked } from "../../auth/sessions";
-import { alertIdOf, missedSince, startHub, streamWriter, type NotificationView } from "./hub";
+import {
+  alertIdOf,
+  countUnread,
+  missedSince,
+  readSignal,
+  startHub,
+  streamWriter,
+  type NotificationView,
+} from "./hub";
 import { leadsDelay, leadsEveryMs } from "./budget";
 
 const N = schema.notifications;
@@ -72,6 +80,8 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         .update(N)
         .set({ readAt: new Date() })
         .where(and(isNull(N.readAt), "ids" in req.body ? inArray(N.id, req.body.ids) : sql`true`));
+      // Every other tab and device of theirs hears the new count (on commit).
+      await req.db.execute(sql`SELECT pg_notify('lume_notifications', ${readSignal(req.actor!.userId)})`);
       return { unread: await unreadOf(req) };
     },
   );
@@ -151,10 +161,16 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
       const replay = async (from: number) => {
         for (const n of await missedSince(d.pool, userId, Math.max(0, from - OVERLAP))) send(n);
       };
+      // The bell's number (2026-11-15): said as the stream opens and whenever something is read, never counted.
+      const sayUnread = (unread: number) => write(`event: unread\ndata: ${JSON.stringify({ unread })}\n\n`);
+      const offUnread = hub.subscribeUnread(userId, sayUnread);
       const unsubscribe = hub.subscribe(
         userId,
         (n) => (replaying ? waiting.push(n) : send(n)),
-        () => void replay(high).catch(() => undefined),
+        () =>
+          void replay(high)
+            .then(async () => sayUnread(await countUnread(d.pool, userId)))
+            .catch(() => undefined),
       );
       const beat = setInterval(() => write(": ping\n\n"), HEARTBEAT_MS);
       // Leads changed (4B): the first at once, then at most one trailing per window. No id, so the
@@ -194,6 +210,7 @@ data: ${JSON.stringify(e)}
       });
       req.raw.on("close", () => {
         offWhatsApp();
+        offUnread();
         offAutopilot();
         offRevoked();
         clearInterval(beat);
@@ -208,6 +225,8 @@ data: ${JSON.stringify(e)}
         replaying = false;
         for (const n of waiting.sort((a, b) => a.id - b.id)) send(n);
       }
+      // After what was missed: the true count, so a tab that slept while things were read elsewhere is put right.
+      sayUnread(await countUnread(d.pool, userId).catch(() => 0));
     },
   );
 }

@@ -45,6 +45,8 @@ export type NotificationView = {
   read: boolean;
   /** A security alert's id (6A), so Review opens it; null for every other kind. */
   alertId: string | null;
+  /** The person's unread count once this arrived (2026-11-15): the bell says it, it never counts by itself. */
+  unread?: number;
 };
 type Row = {
   id: string;
@@ -156,8 +158,25 @@ function whatsappEventOf(payload: string): WhatsAppEvent | null {
   }
 }
 
+/** How many of a person's notifications are unread, as they'd count them (their own rows). */
+export const countUnread = (pool: pg.Pool, userId: string) =>
+  readAs(pool, userId, async (c) =>
+    Number(
+      (await c.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE read_at IS NULL"))
+        .rows[0]!.n,
+    ),
+  );
+/**
+ * Said (pg_notify on lume_notifications, delivered on commit) whenever someone's notifications are read other than by
+ * a new one arriving: in another tab, on another device, or by LUME (a follow-up done or moved settles its reminders).
+ * Every open stream of theirs then says the new count, so no bell keeps a number that's no longer true.
+ */
+export const readSignal = (userId: string) => JSON.stringify({ u: userId, read: true });
+
 export async function startHub(pool: pg.Pool) {
   const subscribers = new Map<string, Set<(n: NotificationView) => void>>();
+  /** Told a person's unread count when something of theirs is read (2026-11-15). */
+  const unreadSubs = new Map<string, Set<(unread: number) => void>>();
   /** Told whenever leads change (4B): no payload, so nothing about whose or which. */
   const leadListeners = new Set<() => void>();
   const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
@@ -171,22 +190,35 @@ export async function startHub(pool: pg.Pool) {
   let retry: NodeJS.Timeout | undefined;
 
   const deliver = async (payload: string) => {
-    let msg: { u?: string; n?: number };
+    let msg: { u?: string; n?: number; read?: boolean };
     try {
       msg = JSON.parse(payload);
     } catch {
       return;
     }
-    const subs = msg.u ? subscribers.get(msg.u) : undefined;
-    if (!subs?.size || !msg.u || !msg.n) return;
-    const [row] = await readAs(pool, msg.u, async (c) =>
-      (
+    if (!msg.u) return;
+    if (msg.read) {
+      const told = unreadSubs.get(msg.u);
+      if (!told?.size) return;
+      const unread = await countUnread(pool, msg.u);
+      for (const say of told) say(unread);
+      return;
+    }
+    const subs = subscribers.get(msg.u);
+    if (!subs?.size || !msg.n) return;
+    const [row] = await readAs(pool, msg.u, async (c) => {
+      const rows = (
         await c.query<Row>(
           "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at, data FROM notifications WHERE id = $1",
           [msg.n],
         )
-      ).rows.map(toView),
-    );
+      ).rows.map(toView);
+      const unread = Number(
+        (await c.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE read_at IS NULL"))
+          .rows[0]!.n,
+      );
+      return rows.map((r) => ({ ...r, unread }));
+    });
     if (row) for (const send of subs) send(row);
   };
   /** Keeps trying, backing off to 30 s, until it listens again (3A final review, Important 5). */
@@ -241,6 +273,16 @@ export async function startHub(pool: pg.Pool) {
         set.delete(send);
         if (!set.size) subscribers.delete(userId);
         if (resync) resyncs.delete(resync);
+      };
+    },
+    /** A person's unread count, whenever something of theirs is read anywhere (2026-11-15). */
+    subscribeUnread(userId: string, say: (unread: number) => void): () => void {
+      let set = unreadSubs.get(userId);
+      if (!set) unreadSubs.set(userId, (set = new Set()));
+      set.add(say);
+      return () => {
+        set.delete(say);
+        if (!set.size) unreadSubs.delete(userId);
       };
     },
     /** How many streams are open on this API (the refresh budget's size: budget.ts). */
