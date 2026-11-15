@@ -1,15 +1,6 @@
 import { dayKey } from "@/lib/dates";
 import type { TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
-
-/** Minutes since local midnight. */
-function minuteOf(d: Date, tz: string): number {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", { timeZone: tz, hourCycle: "h23", hour: "2-digit", minute: "2-digit" })
-      .formatToParts(d)
-      .map((x) => [x.type, x.value]),
-  );
-  return Number(p.hour) * 60 + Number(p.minute);
-}
+import { minuteOf } from "./day-items";
 
 export type DayDot = {
   id: string;
