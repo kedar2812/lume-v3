@@ -661,9 +661,6 @@
     top: 10px;
     right: 8px;
   }
-  .listTime {
-    white-space: normal;
-  }
   .full {
     inset: 8px;
     border-radius: var(--r-sheet);
@@ -686,7 +683,7 @@
 /* A day already shown that couldn't be fetched again. */
 .note {
   position: absolute;
-  top: 8px;
+  bottom: 16px;
   left: 50%;
   z-index: 9;
   transform: translateX(-50%);

@@ -344,3 +344,21 @@ describe("DayFull: second review (2026-11-15)", () => {
     await waitFor(() => expect(within(dialog()).getByText("0 calls · 1 follow-up")).toBeTruthy());
   });
 });
+
+describe("DayFull: third review (2026-11-16)", () => {
+  it("Try again keeps the keyboard in the window (the button it was on goes away)", async () => {
+    day.mockResolvedValueOnce({ ok: false, status: 0, code: "OFFLINE", message: "offline" });
+    render(<Page />);
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Next day" }));
+    const again = await within(dialog()).findByRole("button", { name: "Try again" });
+    act(() => again.focus());
+    fireEvent.click(again);
+    expect(dialog().contains(document.activeElement)).toBe(true);
+  });
+
+  it("in the full screen, a chip's panel lives inside the window", () => {
+    render(<Page />);
+    fireEvent.pointerEnter(dialog().querySelector("[data-chip]")!);
+    expect(document.querySelector("[data-day-panel]")!.closest('[role="dialog"]')).toBe(dialog());
+  });
+});

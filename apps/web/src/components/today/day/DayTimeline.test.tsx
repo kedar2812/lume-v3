@@ -532,3 +532,105 @@ describe("DayTimeline: second review (2026-11-15)", () => {
     expect(canvas.style.transform).toBe("");
   });
 });
+
+/** A real browser keeps scrollLeft in whole pixels (jsdom keeps fractions, which hid a never-ending ease). */
+function wholePixels(el: HTMLElement) {
+  let v = el.scrollLeft;
+  Object.defineProperty(el, "scrollLeft", {
+    configurable: true,
+    get: () => v,
+    set: (n: number) => {
+      v = Math.round(n);
+    },
+  });
+}
+
+describe("DayTimeline: third review (2026-11-16)", () => {
+  it("the wheel's ease ends with whole-pixel scrolling, and lets go of the timeline when it's done", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance"] });
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    wholePixels(s);
+    const from = s.scrollLeft;
+    act(() => {
+      s.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100 }));
+    });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(s.scrollLeft).toBe(Math.round(from + 100));
+    // Done: something else moving the timeline afterwards (a zoom button, the keyboard) isn't pulled back.
+    act(() => {
+      s.scrollLeft = 50;
+      fireEvent.scroll(s);
+    });
+    act(() => vi.advanceTimersByTime(500));
+    expect(s.scrollLeft).toBe(50);
+  });
+
+  it("a scroll the wheel didn't cause (a zoom button, the keyboard) stops the ease at once", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance"] });
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    wholePixels(s);
+    act(() => {
+      s.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 300 }));
+    });
+    act(() => vi.advanceTimersByTime(16));
+    act(() => {
+      s.scrollLeft = 40;
+      fireEvent.scroll(s);
+    });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(s.scrollLeft).toBe(40);
+  });
+
+  it("a press inside the panel isn't a drag of the timeline", () => {
+    render(<Held items={[fu("a", 12), fu("b", 16)]} start={140} />);
+    fireEvent.pointerEnter(chips()[1]!);
+    const panel = document.querySelector("[data-day-panel]") as HTMLElement;
+    const s = scroller();
+    const from = s.scrollLeft;
+    act(() => {
+      mouse(panel, "pointerdown", 500);
+      mouse(panel, "pointermove", 470);
+      mouse(panel, "pointerup", 470);
+    });
+    expect(s.scrollLeft).toBe(from);
+    expect(document.querySelector("[data-day-panel]")).not.toBeNull();
+  });
+
+  it("a thing that vanishes while the keyboard is in its panel leaves focus in the window, not on the page", () => {
+    const old = fu("old", 9, 0, {
+      before: true,
+      state: "over",
+      at: new Date("2026-10-03T10:30:00Z").toISOString(),
+    });
+    const { rerender } = render(
+      <div role="dialog" aria-label="Your day" tabIndex={-1}>
+        <Held items={[old, fu("a", 12)]} />
+      </div>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "1 from before" }));
+    expect(document.activeElement?.closest("[data-day-panel]")).not.toBeNull();
+    rerender(
+      <div role="dialog" aria-label="Your day" tabIndex={-1}>
+        <Held items={[fu("a", 12)]} />
+      </div>,
+    );
+    expect(document.querySelector("[data-day-panel]")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+  });
+
+  it("in a window, the panel lives inside it (screen readers, Tab order); outside one, on the page", () => {
+    const { unmount } = render(
+      <div role="dialog" aria-label="Your day" tabIndex={-1}>
+        <Held items={[fu("a", 12)]} />
+      </div>,
+    );
+    fireEvent.pointerEnter(chips()[0]!);
+    expect(document.querySelector("[data-day-panel]")!.closest('[role="dialog"]')).not.toBeNull();
+    unmount();
+    render(<Held items={[fu("a", 12)]} />);
+    fireEvent.pointerEnter(chips()[0]!);
+    expect(document.querySelector("[data-day-panel]")!.parentElement!.closest('[role="dialog"]')).toBeNull();
+  });
+});

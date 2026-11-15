@@ -335,3 +335,28 @@ describe("useItemFocus: second review (2026-11-15)", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "act" }));
   });
 });
+
+describe("useItemFocus: third review (2026-11-16)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("Shift+Tab past the panel's first control goes back to the item and the panel stays open", () => {
+    vi.useFakeTimers();
+    render(<Harness onOpen={() => {}} />);
+    const a = screen.getByText("a");
+    act(() => a.focus());
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(a);
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByTestId("panel").textContent).toBe("panel a");
+  });
+
+  it("with the keyboard in a panel, hovering another item doesn't switch the panel under it", () => {
+    render(<Harness onOpen={() => {}} />);
+    const a = screen.getByText("a");
+    act(() => a.focus());
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    fireEvent.pointerEnter(screen.getByText("b"));
+    expect(screen.getByTestId("panel").textContent).toBe("panel a");
+  });
+});

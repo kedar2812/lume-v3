@@ -251,9 +251,8 @@ test.describe("Your day", () => {
 
   test("axe: the full screen and the card's panel have no violations", async ({ page }) => {
     await openApp(page, "/today");
-    await card(page)
-      .getByRole("link", { name: /^YD send the plan/ })
-      .focus();
+    // Its own dot, or the marker it shares when other runs left follow-ups near it.
+    await card(page).locator('[data-day-item][aria-label*="YD send the plan"]').focus();
     await expect(page.locator("[data-day-panel]")).toBeVisible();
     // The card and its panel (the whole of Today is checked in follow-ups.spec, with no panel over it).
     expect(await axe(page, ["[data-your-day]", "[data-day-panel]"])).toEqual([]);

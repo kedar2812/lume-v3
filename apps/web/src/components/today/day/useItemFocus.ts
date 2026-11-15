@@ -37,10 +37,20 @@ export function useItemFocus() {
   const focusPanel = useRef(false);
   /** Focus handed back to an item from its panel: it doesn't reopen the panel just closed. */
   const handedBack = useRef<HTMLElement | null>(null);
+  /** The window the item sits in (the full screen), if any: where focus goes when the item itself is gone. */
+  const home = useRef<HTMLElement | null>(null);
   current.current = focused;
 
   /** The keyboard is in the panel: nothing the pointer does closes it under it. */
-  const keyboardIn = () => !!panel.current?.contains(document.activeElement);
+  /** The keyboard went into the panel and hasn't left (kept even when the panel is unmounted under it). */
+  const keyboardWent = useRef(false);
+  /**
+   * The keyboard is in the panel: nothing the pointer does closes it under it. Also true when the panel was just
+   * unmounted with focus inside (a live update): browsers drop focus to <body> then, without a blur.
+   */
+  const keyboardIn = () =>
+    !!panel.current?.contains(document.activeElement) ||
+    (keyboardWent.current && (!document.activeElement || document.activeElement === document.body));
   const handBack = (el: HTMLElement) => {
     handedBack.current = el;
     el.focus({ preventScroll: true });
@@ -54,7 +64,12 @@ export function useItemFocus() {
     cancel();
     // Closing with the keyboard inside the panel would drop focus to the page: it goes back to the item.
     const f = current.current;
-    if (f && keyboardIn() && f.el.isConnected) handBack(f.el);
+    if (f && keyboardIn()) {
+      // Its item gone (a live update): the window it lives in (the full screen) keeps the keyboard instead.
+      if (f.el.isConnected) handBack(f.el);
+      else home.current?.focus({ preventScroll: true });
+    }
+    keyboardWent.current = false;
     setFocused(null);
   }, [cancel]);
   const later = useCallback(() => {
@@ -72,6 +87,7 @@ export function useItemFocus() {
         return;
       }
       focusPanel.current = !!o.focusPanel;
+      home.current = el.closest<HTMLElement>('[role="dialog"]');
       setFocused((f) => (f?.key === key && f.el === el ? f : { key, el }));
     },
     [cancel],
@@ -110,7 +126,8 @@ export function useItemFocus() {
 
   const bind = (key: string) => ({
     onPointerEnter: (e: ReactPointerEvent<HTMLElement>) => {
-      if (e.pointerType !== "touch") open(key, e.currentTarget);
+      // With the keyboard in a panel, the pointer passing over another item doesn't take the panel away from it.
+      if (e.pointerType !== "touch" && !keyboardIn()) open(key, e.currentTarget);
     },
     onPointerLeave: (e: ReactPointerEvent<HTMLElement>) => {
       if (e.pointerType !== "touch") later();
@@ -152,8 +169,14 @@ export function useItemFocus() {
     onPointerLeave: (e: ReactPointerEvent<HTMLElement>) => {
       if (e.pointerType !== "touch") later();
     },
-    onFocus: cancel,
-    onBlur: later,
+    onFocus: () => {
+      cancel();
+      keyboardWent.current = true;
+    },
+    onBlur: (e: FocusEvent<HTMLElement>) => {
+      if (!panel.current?.contains(e.relatedTarget as Node | null)) keyboardWent.current = false;
+      later();
+    },
     // Tab moves through the panel's own controls (it lives on <body>, outside any window around it); past either
     // end it goes back to the item, and past the last it closes, so the next Tab moves on from the item.
     onKeyDown: (e: ReactKeyboardEvent<HTMLElement>) => {
@@ -167,10 +190,9 @@ export function useItemFocus() {
       const next = at + (e.shiftKey ? -1 : 1);
       if (next >= 0 && next < items.length) return items[next]!.focus();
       handBack(f.el);
-      if (!e.shiftKey) {
-        cancel();
-        setFocused(null);
-      }
+      // Back to the item: Shift+Tab keeps the panel (the focus leaving it would otherwise close it); Tab moves on.
+      cancel();
+      if (!e.shiftKey) setFocused(null);
     },
   };
   return { focused, bind, panelBind, open, close };
@@ -185,7 +207,7 @@ export const PANEL_MAX_H = 360;
 export const panelHeight = (rows = 0) => Math.min(PANEL_MAX_H, rows ? 40 + rows * 33 : 130);
 
 /**
- * Where the panel sits on screen (it's fixed, on <body>, so nothing that clips its insides can cut it off). It never
+ * Where the panel sits on screen (it's fixed, on the page or inside the full screen: see Floating). It never
  * covers the item it's about, and stays 8 px inside the window.
  * - `below` (the card): centred under the item; above it when there's more room there. When neither has room for all
  *   of it (a short window), it takes the larger side and scrolls inside.
@@ -203,8 +225,10 @@ export function fixedPlace(
   const clampX = (x: number) => Math.max(8, Math.min(vw - width - 8, x));
   if (side === "beside") {
     const top = Math.max(8, Math.min(vh - height - 8, r.top - 4));
-    if (r.right + gap + width + 8 <= vw) return { position: "fixed", left: r.right + gap, top };
-    if (r.left - gap - width >= 8) return { position: "fixed", left: r.left - gap - width, top };
+    // A window shorter than the panel: it scrolls inside rather than run off the bottom.
+    const fit: CSSProperties = height > vh - 16 ? { maxHeight: vh - 16, overflowY: "auto" } : {};
+    if (r.right + gap + width + 8 <= vw) return { position: "fixed", left: r.right + gap, top, ...fit };
+    if (r.left - gap - width >= 8) return { position: "fixed", left: r.left - gap - width, top, ...fit };
   }
   const left = clampX(r.left + r.width / 2 - width / 2);
   const below = vh - 8 - (r.bottom + gap);

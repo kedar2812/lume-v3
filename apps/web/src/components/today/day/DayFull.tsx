@@ -101,7 +101,11 @@ export function DayFull({
 
   useLayoutEffect(() => {
     void play(true).then(() => {
-      if (!closing.current) running.current = null;
+      if (closing.current) return;
+      // Landed: let go of the animation (its held end state), so no browser keeps treating the window as a
+      // transformed box that the panel inside it is placed and clipped against.
+      running.current?.cancel();
+      running.current = null;
     });
     // The insides come in a little after the window starts to grow, not after it lands.
     const t = setTimeout(() => !closing.current && setReady(true), 120);
@@ -126,6 +130,11 @@ export function DayFull({
     });
   };
   const focus = useModalFocus(panel, close);
+  /** Try again removes the button pressed: the keyboard stays in the window (Esc, Tab), not on the page. */
+  const retry = () => {
+    panel.current?.focus({ preventScroll: true });
+    data.retry();
+  };
 
   const min = addDays(today, -RANGE);
   const max = addDays(today, RANGE);
@@ -263,9 +272,9 @@ export function DayFull({
         </header>
         <div className={s.fullBody} data-stale={data.stale || undefined} aria-busy={data.state === "loading"}>
           {data.refreshFailed && (
-            <p className={s.note} role="status">
-              <span>LUME couldn't refresh this day.</span>
-              <Button size="sm" variant="ghost" onClick={data.retry}>
+            <p className={s.note}>
+              <span role="status">LUME couldn't refresh this day.</span>
+              <Button size="sm" variant="ghost" onClick={retry}>
                 Try again
               </Button>
             </p>
@@ -277,7 +286,7 @@ export function DayFull({
             <div className={s.fullMessage}>
               <ErrorState
                 message="LUME couldn't get this day. Check your connection and try again."
-                action={{ label: "Try again", onClick: data.retry }}
+                action={{ label: "Try again", onClick: retry }}
               />
             </div>
           ) : !data.data ? (
