@@ -454,9 +454,10 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
     const total = writes.add.length + writes.update.length + writes.remove.length;
     await pool.query("UPDATE live_sheet_runs SET total = $2 WHERE id = $1", [o.runId, total]);
     if (total >= UPDATING_FROM)
-      await pool.query("UPDATE live_sheets SET status = 'updating' WHERE id = $1 AND status NOT IN ('making', 'paused')", [
-        sheet.id,
-      ]);
+      await pool.query(
+        "UPDATE live_sheets SET status = 'updating' WHERE id = $1 AND status NOT IN ('making', 'paused')",
+        [sheet.id],
+      );
     await ping(pool, sheet.id, "progress");
     let shown = 0;
     if (total)

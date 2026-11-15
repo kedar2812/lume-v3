@@ -365,7 +365,8 @@ describe("a live sheet's run", () => {
         ),
     });
     await new Promise((r) => setTimeout(r, 50));
-    const [s] = (await h.ownerPool.query("SELECT status, pause_reason FROM live_sheets WHERE id = $1", [id])).rows;
+    const [s] = (await h.ownerPool.query("SELECT status, pause_reason FROM live_sheets WHERE id = $1", [id]))
+      .rows;
     expect(s).toEqual({ status: "paused", pause_reason: "paused_by_person" });
   });
 
