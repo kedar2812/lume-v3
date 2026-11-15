@@ -181,3 +181,30 @@ describe("useItemFocus: hover, keyboard and touch bring one item forward", () =>
     expect(opened).toEqual(["b"]);
   });
 });
+
+describe("useItemFocus inside the full screen", () => {
+  it("Esc closes an open panel first, and only the next Esc reaches the window around it", () => {
+    const closes: string[] = [];
+    render(
+      <div
+        onKeyDown={(e) => {
+          // What the full screen's modal focus does with Escape.
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            closes.push("window");
+          }
+        }}
+      >
+        <Harness onOpen={() => {}} />
+      </div>,
+    );
+    const a = screen.getByText("a");
+    act(() => a.focus());
+    expect(screen.getByTestId("panel")).toBeTruthy();
+    fireEvent.keyDown(a, { key: "Escape" });
+    expect(screen.queryByTestId("panel")).toBeNull();
+    expect(closes).toEqual([]);
+    fireEvent.keyDown(a, { key: "Escape" });
+    expect(closes).toEqual(["window"]);
+  });
+});

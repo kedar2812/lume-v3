@@ -49,9 +49,15 @@ export function useItemFocus() {
 
   useEffect(() => {
     if (!focused) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    // Capture phase: a panel inside the full screen closes before the full screen hears Escape (its modal focus
+    // stops the key at the React root, so a bubbling listener here would never see it).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      close();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [focused, close]);
   useEffect(() => cancel, [cancel]);
 
