@@ -107,6 +107,7 @@ function Harness({ onOpen }: { onOpen: (id: string) => void }) {
         <div data-testid="panel" {...f.panelBind}>
           panel {f.focused.key}
           <button type="button" aria-label="act" />
+          <button type="button" aria-label="act2" />
         </div>
       )}
     </div>
@@ -266,5 +267,71 @@ describe("useItemFocus: review fixes (2026-11-15)", () => {
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(screen.queryByTestId("panel")).toBeNull();
     expect(document.activeElement).toBe(a);
+  });
+});
+
+describe("useItemFocus: second review (2026-11-15)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("keyboard inside the panel: the pointer leaving doesn't close it under the keyboard", () => {
+    vi.useFakeTimers();
+    render(<Harness onOpen={() => {}} />);
+    const a = screen.getByText("a");
+    act(() => a.focus());
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    fireEvent.pointerLeave(a);
+    fireEvent.pointerLeave(screen.getByTestId("panel"));
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByTestId("panel")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "act" }));
+  });
+
+  it("Tab moves through the panel's own controls and isn't taken by the window around it; past the end it goes back to the item", () => {
+    const outer: string[] = [];
+    render(
+      <div onKeyDown={(e) => e.key === "Tab" && outer.push(e.shiftKey ? "shift-tab" : "tab")}>
+        <Harness onOpen={() => {}} />
+      </div>,
+    );
+    const a = screen.getByText("a");
+    act(() => a.focus());
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "act2" }));
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "act" }));
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(a);
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(document.activeElement).toBe(a);
+    expect(outer).toEqual([]);
+  });
+
+  it("touch: scrolling or lifting a finger inside the panel doesn't close it", () => {
+    vi.useFakeTimers();
+    render(<Harness onOpen={() => {}} />);
+    const a = screen.getByText("a");
+    act(() => {
+      touch(a, "pointerdown");
+      a.click();
+    });
+    act(() => {
+      touch(screen.getByTestId("panel"), "pointerout");
+    });
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByTestId("panel")).toBeTruthy();
+  });
+
+  it("after Esc hands focus back, Down arrow opens the panel again and goes in", () => {
+    render(<Harness onOpen={() => {}} />);
+    const a = screen.getByText("a");
+    act(() => a.focus());
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByTestId("panel")).toBeNull();
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "act" }));
   });
 });

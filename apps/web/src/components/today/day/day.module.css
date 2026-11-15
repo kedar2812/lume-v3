@@ -238,7 +238,7 @@
   min-width: 0;
   display: grid;
   /* Room for a dated time ("Oct 3, Sat, 4 pm") on ones from before today. */
-  grid-template-columns: 124px 18px minmax(0, 1fr) auto;
+  grid-template-columns: 112px 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 11px 12px;
@@ -254,7 +254,8 @@
   font-size: var(--fs-sm);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  /* A dated one ("Sep 30, Wed, 12:30 pm") wraps onto a second line instead of running into the next column. */
+  line-height: 1.3;
 }
 .listIcon {
   display: grid;
@@ -680,4 +681,24 @@
   .loadingBar::after {
     animation-duration: 2.4s;
   }
+}
+
+/* A day already shown that couldn't be fetched again. */
+.note {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 9;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 4px 6px 4px 12px;
+  border-radius: var(--r-ctl);
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  white-space: nowrap;
 }

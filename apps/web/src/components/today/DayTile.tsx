@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import { BodyPortal } from "@/components/ui/BodyPortal";
+import { Floating } from "./day/Floating";
 import { IconButton } from "@/components/ui/IconButton";
 import { dayKey, timeOf } from "@/lib/dates";
 import type { TodayView } from "@/lib/tasks/types";
@@ -93,10 +93,11 @@ export function DayTile({
     return xs.length ? xs : null;
   }, [f.focused, items]);
   // A thing that vanishes in a live update takes its panel with it, and the rest comes back.
+  // Checked after each commit: a live update can also replace the marker a panel hangs on (its group changed).
   const vanished = !!f.focused && !shown;
   useEffect(() => {
-    if (vanished) f.close();
-  }, [vanished, f.close]);
+    if (vanished || (f.focused && !f.focused.el.isConnected)) f.close();
+  });
 
   return (
     <section
@@ -276,19 +277,18 @@ export function DayTile({
         )}
       </div>
       {f.focused && shown && (
-        <BodyPortal>
-          {shown.length === 1 && f.focused.key.startsWith("i:") ? (
-            <ItemPanel item={shown[0]!} now={now} tz={tz} style={fixedPlace(f.focused.el)} {...f.panelBind} />
-          ) : (
-            <GroupPanel
-              items={shown}
-              now={now}
-              tz={tz}
-              style={fixedPlace(f.focused.el, { height: panelHeight(shown.length) })}
-              {...f.panelBind}
-            />
-          )}
-        </BodyPortal>
+        <Floating
+          el={f.focused.el}
+          place={(el) => fixedPlace(el, { height: panelHeight(shown.length > 1 ? shown.length : 0) })}
+        >
+          {(style) =>
+            shown.length === 1 && f.focused?.key.startsWith("i:") ? (
+              <ItemPanel item={shown[0]!} now={now} tz={tz} style={style} {...f.panelBind} />
+            ) : (
+              <GroupPanel items={shown} now={now} tz={tz} style={style} {...f.panelBind} />
+            )
+          }
+        </Floating>
       )}
       <div className={s.nextrow} data-next-call>
         <span className={s.vi} aria-hidden>

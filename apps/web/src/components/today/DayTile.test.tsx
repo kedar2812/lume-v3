@@ -233,3 +233,19 @@ describe("Your day card: a real browser focuses a button on mousedown", () => {
     expect(document.activeElement).toBe(within(panel).getAllByRole("link")[0]);
   });
 });
+
+describe("Your day card: second review (2026-11-15)", () => {
+  it("a live update that changes an open marker's group closes its panel (the marker it hung on is gone)", () => {
+    const three = day({
+      overdue: [t("b", "Omar Ali", at(10))],
+      doneToday: [t("a", "Aisha Khan", at(10)), t("c", "Ravi Rao", at(10, 2))],
+    });
+    const { rerender, container } = render(<DayTile v={three} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    fireEvent.pointerEnter(screen.getByRole("button", { name: /^3 follow-ups: / }));
+    expect(document.querySelector("[data-day-panel]")).not.toBeNull();
+    const four = day({ ...three, later: [t("d", "Sara Pinto", at(10, 3))] });
+    rerender(<DayTile v={four} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    expect(document.querySelector("[data-day-panel]")).toBeNull();
+    expect(container.querySelector("[data-day-line]")!.className).not.toMatch(/focusing/);
+  });
+});

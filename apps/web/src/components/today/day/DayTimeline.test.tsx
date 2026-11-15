@@ -343,14 +343,20 @@ describe("DayTimeline: review fixes (2026-11-15)", () => {
     expect(s.scrollLeft).toBe(from);
   });
 
-  it("a plain mouse wheel moves the day sideways when there's nothing to scroll up and down", () => {
+  it("a plain mouse wheel moves the day sideways (smoothly) when there's nothing to scroll up and down", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance"] });
     render(<Held items={[fu("a", 12)]} start={140} />);
     const s = scroller();
     const from = s.scrollLeft;
     act(() => {
       s.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100 }));
+      s.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100 }));
     });
-    expect(s.scrollLeft).toBe(from + 100);
+    act(() => vi.advanceTimersByTime(16));
+    expect(s.scrollLeft).toBeGreaterThan(from);
+    expect(s.scrollLeft).toBeLessThan(from + 200); // eased, not a jump
+    act(() => vi.advanceTimersByTime(1000));
+    expect(s.scrollLeft).toBeCloseTo(from + 200, 0); // both notches count
   });
 
   it("one Ctrl + wheel notch is a gentle step, and quick steps add up", () => {
@@ -430,5 +436,99 @@ describe("DayTimeline: review fixes (2026-11-15)", () => {
     rerender(<Held items={[fu("a", 12)]} />);
     expect(document.querySelector("[data-day-panel]")).toBeNull();
     expect(scroller().className).not.toMatch(/focusing/);
+  });
+});
+
+/** A touch event with the given finger positions (jsdom has no Touch constructor). */
+const touches = (el: Element, type: string, pts: [number, number][]) => {
+  const e = new Event(type, { bubbles: true, cancelable: true });
+  const list = pts.map(([clientX, clientY], identifier) => ({ clientX, clientY, identifier }));
+  Object.defineProperty(e, "touches", { value: Object.assign(list, { item: (i: number) => list[i] }) });
+  el.dispatchEvent(e);
+  return e;
+};
+const gesture = (el: Element, type: string, scale: number, clientX?: number) => {
+  const e = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(e, "scale", { value: scale });
+  if (clientX != null) Object.defineProperty(e, "clientX", { value: clientX });
+  el.dispatchEvent(e);
+};
+
+describe("DayTimeline: second review (2026-11-15)", () => {
+  it("a panel that closes with the keyboard inside it hands focus back to its item (here: a drag starts)", () => {
+    const old = fu("old", 9, 0, {
+      before: true,
+      state: "over",
+      at: new Date("2026-10-03T10:30:00Z").toISOString(),
+    });
+    render(<Held items={[old, fu("a", 12)]} />);
+    const pile = screen.getByRole("button", { name: "1 from before" });
+    fireEvent.click(pile);
+    expect(document.activeElement?.closest("[data-day-panel]")).not.toBeNull();
+    act(() => {
+      mouse(scroller(), "pointerdown", 500);
+      mouse(scroller(), "pointermove", 480);
+    });
+    expect(document.querySelector("[data-day-panel]")).toBeNull();
+    expect(document.activeElement).toBe(pile);
+  });
+
+  it("iOS: a two-finger pinch zooms once, not once for its touches and again for its gesture events", () => {
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    const pph = () => Number(screen.getByTestId("pph").textContent);
+    act(() => {
+      touches(s, "touchstart", [
+        [300, 100],
+        [400, 100],
+      ]);
+      gesture(s, "gesturestart", 1, 350);
+      touches(s, "touchmove", [
+        [280, 100],
+        [420, 100],
+      ]);
+      gesture(s, "gesturechange", 1.4, 350);
+    });
+    expect(pph()).toBeCloseTo(140 * 1.4, 6);
+  });
+
+  it("a gesture with no position (Safari) zooms around the middle instead of jumping to the start", () => {
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    act(() => {
+      s.scrollLeft = 600;
+    });
+    act(() => {
+      gesture(s, "gesturestart", 1);
+      gesture(s, "gesturechange", 1.2);
+    });
+    expect(Number.isFinite(s.scrollLeft)).toBe(true);
+    expect(s.scrollLeft).toBeGreaterThan(300);
+  });
+
+  it("a wheel during the give at an end puts the day back in place", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance", "Date"] });
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    const canvas = document.querySelector("[data-day-canvas]") as HTMLElement;
+    act(() => {
+      s.scrollLeft = 0;
+      mouse(s, "pointerdown", 300);
+      mouse(s, "pointermove", 400); // past the start: it gives
+      mouse(s, "pointerup", 400);
+    });
+    expect(canvas.style.transform).toMatch(/translateX/);
+    act(() => {
+      s.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          deltaY: -10,
+          clientX: 400,
+        }),
+      );
+    });
+    expect(canvas.style.transform).toBe("");
   });
 });

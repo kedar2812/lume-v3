@@ -315,3 +315,32 @@ describe("DayFull: review fixes (2026-11-15)", () => {
     await waitFor(() => expect(day).toHaveBeenCalledTimes(2));
   });
 });
+
+describe("DayFull: second review (2026-11-15)", () => {
+  it("a day seen before that fails to refresh shows what it had, and says it couldn't refresh, with Try again", async () => {
+    day.mockResolvedValueOnce({ date: "2026-10-04", followUps: [t("y", at(9, 0, 4))], meetings: [] });
+    day.mockResolvedValueOnce({ ok: false, status: 0, code: "OFFLINE", message: "offline" });
+    render(<Page />);
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" }));
+    await waitFor(() => expect(within(dialog()).getByText("0 calls · 1 follow-up")).toBeTruthy());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Today" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" }));
+    await waitFor(() => expect(within(dialog()).getByText("LUME couldn't refresh this day.")).toBeTruthy());
+    expect(within(dialog()).getByText("0 calls · 1 follow-up")).toBeTruthy();
+    expect(within(dialog()).getByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+
+  it("a slow answer for a day left behind never overwrites a newer one", async () => {
+    const answers: ((y: YourDay) => void)[] = [];
+    day.mockImplementation(() => new Promise<YourDay>((r) => answers.push(r)));
+    render(<Page />);
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" })); // asks for the 4th (slow)
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Today" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" })); // asks again
+    await act(async () =>
+      answers[1]!({ date: "2026-10-04", followUps: [t("new", at(9, 0, 4))], meetings: [] }),
+    );
+    await act(async () => answers[0]!({ date: "2026-10-04", followUps: [], meetings: [] }));
+    await waitFor(() => expect(within(dialog()).getByText("0 calls · 1 follow-up")).toBeTruthy());
+  });
+});

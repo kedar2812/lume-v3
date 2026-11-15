@@ -9,7 +9,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { BodyPortal } from "@/components/ui/BodyPortal";
+import { Floating } from "./Floating";
 import { timeOf } from "@/lib/dates";
 import { KINDS, daySpan, minuteOf, openOf, panelOf, type DayItem, type DayKind } from "@/lib/today/day-items";
 import { clampPph, packRows, tickStep, zoomScroll } from "@/lib/today/timeline-math";
@@ -282,27 +282,31 @@ export function DayTimeline({
           </div>
         )}
       </div>
-      {f.focused && (
-        <BodyPortal>
-          {focusedItem ? (
-            <ItemPanel
-              item={focusedItem}
-              now={now}
-              tz={tz}
-              style={fixedPlace(f.focused.el, { side: "beside", height: panelHeight() })}
-              {...f.panelBind}
-            />
-          ) : focusedKey === "pile" ? (
-            <GroupPanel
-              items={before}
-              now={now}
-              tz={tz}
-              heading={`${before.length} from before`}
-              style={fixedPlace(f.focused.el, { side: "beside", height: panelHeight(before.length) })}
-              {...f.panelBind}
-            />
-          ) : null}
-        </BodyPortal>
+      {f.focused && (focusedItem || focusedKey === "pile") && (
+        <Floating
+          el={f.focused.el}
+          place={(el) =>
+            fixedPlace(el, {
+              side: "beside",
+              height: focusedItem ? panelHeight() : panelHeight(before.length),
+            })
+          }
+        >
+          {(style) =>
+            focusedItem ? (
+              <ItemPanel item={focusedItem} now={now} tz={tz} style={style} {...f.panelBind} />
+            ) : (
+              <GroupPanel
+                items={before}
+                now={now}
+                tz={tz}
+                heading={`${before.length} from before`}
+                style={style}
+                {...f.panelBind}
+              />
+            )
+          }
+        </Floating>
       )}
     </div>
   );

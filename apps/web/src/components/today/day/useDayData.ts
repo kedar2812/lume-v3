@@ -51,6 +51,8 @@ export function useDayData(day: string, today: string, v: TodayView) {
     /** Which day `data` is: the day asked for, or while it loads, the last one shown. */
     of: data ? day : (last.current?.of ?? day),
     stale: !data,
+    /** A day already shown that couldn't be fetched again: what it had stays, and the screen says so. */
+    refreshFailed: !!data && day !== today && failed === day,
     retry: () => setAttempt((n) => n + 1),
   };
 }

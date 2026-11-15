@@ -18,7 +18,10 @@ const dubaiHour = () =>
       new Date(),
     ),
   );
-/** Early in the day the follow-ups go ahead of now; later on, behind it: either way they stay on today. */
+/**
+ * Before noon the follow-ups go ahead of now (at most 3½ hours: still today), from noon behind it (at most 3½ hours
+ * back: still today). So the seeded day never spans two days, at any hour of the run.
+ */
 const ahead = () => dubaiHour() < 12;
 
 async function seed(page: Page) {
@@ -74,8 +77,6 @@ async function openFull(page: Page) {
 
 test.describe("Your day", () => {
   test.describe.configure({ mode: "serial" });
-  // Close to midnight, or before 1 am, "an hour away" and "three hours away" can be another day.
-  test.skip(() => dubaiHour() < 1 || dubaiHour() >= 21, "near midnight the seeded day spans two days");
 
   test.beforeAll(async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: stateFile("owner") });
@@ -263,6 +264,36 @@ test.describe("Your day", () => {
     expect(await axe(page, ['[role="dialog"]'])).toEqual([]);
     await full(page).getByRole("radio", { name: "List" }).click();
     expect(await axe(page, ['[role="dialog"]'])).toEqual([]);
+  });
+
+  test("a phone, by touch: a first tap peeks without covering the chip, a second tap opens it", async ({
+    browser,
+  }) => {
+    const ctx = await browser.newContext({
+      storageState: stateFile("owner"),
+      viewport: { width: 375, height: 760 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await ctx.newPage();
+    try {
+      await openApp(page, "/today");
+      await openFull(page);
+      const chip = full(page).locator("[data-chip]", { hasText: "YD send the plan" }).first();
+      await chip.scrollIntoViewIfNeeded();
+      await chip.tap();
+      const panel = page.locator("[data-day-panel]");
+      await expect(panel).toContainText("YD send the plan");
+      const [c, p] = [(await chip.boundingBox())!, (await panel.boundingBox())!];
+      const covers =
+        c.x < p.x + p.width && p.x < c.x + c.width && c.y < p.y + p.height && p.y < c.y + c.height;
+      expect(covers, "the panel sits on the chip it's about").toBe(false);
+      await expect(page).toHaveURL(/\/today/); // the first tap only peeked
+      await chip.tap();
+      await expect(page).toHaveURL(/\/leads\?lead=/);
+    } finally {
+      await ctx.close();
+    }
   });
 
   test("a phone: it opens, the list reads, nothing scrolls the page sideways", async ({ page }) => {

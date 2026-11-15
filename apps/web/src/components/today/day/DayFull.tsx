@@ -262,6 +262,14 @@ export function DayFull({
           </IconButton>
         </header>
         <div className={s.fullBody} data-stale={data.stale || undefined} aria-busy={data.state === "loading"}>
+          {data.refreshFailed && (
+            <p className={s.note} role="status">
+              <span>LUME couldn't refresh this day.</span>
+              <Button size="sm" variant="ghost" onClick={data.retry}>
+                Try again
+              </Button>
+            </p>
+          )}
           {data.state === "loading" && (
             <div className={s.loadingBar} role="status" aria-label="Getting the day" />
           )}

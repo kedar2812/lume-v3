@@ -52,20 +52,26 @@ export function usePanZoom(
   const drag = useRef<Drag | null>(null);
   const suppress = useRef(false);
   const frame = useRef<number | null>(null);
+  /** A plain wheel easing the day sideways: where it is headed (notches add up), and its frame. */
+  const wheel = useRef<{ target: number | null; frame: number }>({ target: null, frame: 0 });
   const [dragging, setDragging] = useState(false);
   const opts = useRef(o);
   opts.current = o;
 
-  const stop = useCallback(() => {
-    if (frame.current != null) cancelAnimationFrame(frame.current);
-    frame.current = null;
-  }, []);
   const shift = useCallback(
     (px: number) => {
       if (canvas.current) canvas.current.style.transform = px ? `translateX(${px}px)` : "";
     },
     [canvas],
   );
+  /** Stop whatever is moving (a glide, a give settling back, a wheel easing) and put the day back in place. */
+  const stop = useCallback(() => {
+    if (frame.current != null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    if (wheel.current.frame) cancelAnimationFrame(wheel.current.frame);
+    wheel.current = { target: null, frame: 0 };
+    shift(0);
+  }, [shift]);
 
   /** Ease a rubber-band offset back to rest. */
   const settle = useCallback(
@@ -79,6 +85,19 @@ export function usePanZoom(
       frame.current = requestAnimationFrame(step);
     },
     [shift],
+  );
+  /** A flick meeting an end: ease out to the give, then settle back (no jump to it). */
+  const bounce = useCallback(
+    (to: number) => {
+      const t0 = performance.now();
+      const step = () => {
+        const k = Math.min(1, (performance.now() - t0) / 120);
+        shift(to * (1 - (1 - k) ** 2));
+        frame.current = k < 1 ? requestAnimationFrame(step) : (settle(to), frame.current);
+      };
+      frame.current = requestAnimationFrame(step);
+    },
+    [shift, settle],
   );
 
   /** Carry a flick of `v` px/s (along the pointer) on until it slows to a stop; meeting an end, give a little. */
@@ -100,25 +119,24 @@ export function usePanZoom(
           // The rest of the flick shows as a short give at the end, then settles back.
           const over = next < 0 ? -next + Math.abs(speed) * 0.05 : next - max + Math.abs(speed) * 0.05;
           const w = el.clientWidth || 1;
-          return settle(next < 0 ? rubberband(over, w) : -rubberband(over, w));
+          return bounce(next < 0 ? rubberband(over, w) : -rubberband(over, w));
         }
         el.scrollLeft = next;
         frame.current = Math.abs(speed) > STOP_V ? requestAnimationFrame(step) : null;
       };
       frame.current = requestAnimationFrame(step);
     },
-    [scroller, settle],
+    [scroller, bounce],
   );
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === "touch" || e.button !== 0) return;
     const el = scroller.current;
     if (!el) return;
-    // A press on the scroller's own scrollbars is the browser's, not a drag.
+    // Any press stops a glide; one on the scroller's own scrollbars is then the browser's, not a drag.
+    stop();
     const box = el.getBoundingClientRect();
     if (e.clientX - box.left >= el.clientWidth || e.clientY - box.top >= el.clientHeight) return;
-    stop();
-    shift(0);
     drag.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -189,7 +207,24 @@ export function usePanZoom(
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const anchorOf = (clientX: number) => clientX - el.getBoundingClientRect().left;
+    /** Px from the scroller's left edge; the middle when the browser gives no position (Safari's gestures). */
+    const anchorOf = (clientX: number | undefined) => {
+      const x = (clientX ?? NaN) - el.getBoundingClientRect().left;
+      return Number.isFinite(x) ? x : el.clientWidth / 2;
+    };
+    /** Ease scrollLeft towards the wheel's target, a quarter of the way each frame. */
+    const ease = () => {
+      const w = wheel.current;
+      if (w.target == null) return;
+      const gap = w.target - el.scrollLeft;
+      if (Math.abs(gap) < 0.5) {
+        el.scrollLeft = w.target;
+        wheel.current = { target: null, frame: 0 };
+        return;
+      }
+      el.scrollLeft += gap * 0.25;
+      w.frame = requestAnimationFrame(ease);
+    };
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
@@ -201,31 +236,42 @@ export function usePanZoom(
         opts.current.zoom(Math.exp(-d * 0.01), anchorOf(e.clientX));
         return;
       }
-      // A plain mouse wheel only scrolls up and down: with nothing to scroll that way, it moves the day sideways.
-      if (e.deltaY && !e.deltaX && !e.shiftKey && el.scrollHeight <= el.clientHeight) {
+      // A plain mouse wheel only scrolls up and down: with nothing to scroll that way (1 px of rounding allowed),
+      // it moves the day sideways, easing like the browser's own scrolling, and notches add up.
+      if (e.deltaY && !e.deltaX && !e.shiftKey && el.scrollHeight - el.clientHeight <= 1) {
         e.preventDefault();
-        stop();
-        el.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+        const w = wheel.current;
+        const max = opts.current.maxLeft();
+        const from = w.target ?? el.scrollLeft;
+        w.target = Math.max(0, Math.min(max, from + e.deltaY * (e.deltaMode === 1 ? 33 : 1)));
+        if (!w.frame) w.frame = requestAnimationFrame(ease);
       }
     };
-    // Two fingers pinch to zoom. Touch events (not pointer events): the browser can't cancel them mid-pinch.
+    // Two fingers pinch to zoom. Touch events (not pointer events): the browser can't cancel them mid-pinch. The
+    // move listener that can stop the browser's own panning is only there during a pinch, so one-finger scrolling
+    // never waits for it.
     let pinch: { d: number } | null = null;
     const spread = (t: TouchList) =>
       Math.hypot(t[0]!.clientX - t[1]!.clientX, t[0]!.clientY - t[1]!.clientY) || 1;
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) pinch = { d: spread(e.touches) };
-    };
     const onTouchMove = (e: TouchEvent) => {
       if (!pinch || e.touches.length !== 2) return;
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
       const d = spread(e.touches);
       opts.current.zoom(d / pinch.d, anchorOf((e.touches[0]!.clientX + e.touches[1]!.clientX) / 2));
       pinch = { d };
     };
-    const onTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) pinch = null;
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || pinch) return;
+      pinch = { d: spread(e.touches) };
+      el.addEventListener("touchmove", onTouchMove, { passive: false });
     };
-    // Safari's trackpad pinch arrives as gesture events, not Ctrl + wheel.
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length >= 2 || !pinch) return;
+      pinch = null;
+      el.removeEventListener("touchmove", onTouchMove);
+    };
+    // Safari's trackpad pinch arrives as gesture events. iOS sends them for a two-finger touch too, alongside the
+    // touches already zooming: there they are ignored, so one pinch zooms once.
     let scale = 1;
     const onGestureStart = (e: Event) => {
       e.preventDefault();
@@ -233,13 +279,13 @@ export function usePanZoom(
     };
     const onGestureChange = (e: Event) => {
       e.preventDefault();
-      const g = e as Event & { scale: number; clientX: number };
+      if (pinch) return;
+      const g = e as Event & { scale: number; clientX?: number };
       opts.current.zoom(g.scale / scale, anchorOf(g.clientX));
       scale = g.scale;
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd);
     el.addEventListener("touchcancel", onTouchEnd);
     el.addEventListener("gesturestart", onGestureStart);
