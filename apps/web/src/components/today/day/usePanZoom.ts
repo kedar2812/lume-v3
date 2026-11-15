@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
@@ -12,12 +13,14 @@ import { rubberband } from "@/lib/today/timeline-math";
 
 /** Movement before a press becomes a drag (a smaller wobble is still a click). */
 export const DRAG_PX = 6;
-/** Velocity is read over the last this many ms of the drag. */
+/** Velocity is read over the last this many ms before letting go: a hold before letting go means no flick. */
 const SAMPLE_MS = 100;
 /** Per-ms decay of a flick's speed: scroll-like deceleration (Apple's 0.998). */
 const DECAY = 0.998;
 /** Below this speed (px/s) a flick has stopped. */
 const STOP_V = 10;
+/** One Ctrl + wheel event zooms by at most this much wheel (a mouse notch is 100): about a 1.28× step. */
+const WHEEL_ZOOM_MAX = 25;
 
 type Drag = {
   startX: number;
@@ -30,8 +33,9 @@ type Drag = {
 
 /**
  * Drag to move (spec: Your day full screen, Timeline): a mouse or pen press that moves more than DRAG_PX moves the
- * timeline 1:1, carries the flick's speed when let go and slows to a stop, and resists softly past either end. Touch
- * keeps the browser's own scrolling; two fingers pinch to zoom. Ctrl + scroll (and a trackpad pinch) zooms too.
+ * timeline 1:1, carries the flick's speed when let go and slows to a stop, and resists softly past either end.
+ * Touch keeps the browser's own scrolling; two fingers pinch to zoom. Ctrl + scroll (and a trackpad pinch, Safari's
+ * included) zooms; a plain mouse wheel moves the day sideways when there's nothing to scroll up and down.
  */
 export function usePanZoom(
   scroller: RefObject<HTMLElement | null>,
@@ -41,13 +45,13 @@ export function usePanZoom(
     maxLeft: () => number;
     /** Zoom by `factor` keeping the time under `anchorX` (px from the scroller's left edge) in place. */
     zoom: (factor: number, anchorX: number) => void;
+    /** A press just became a drag. */
+    onDragStart?: () => void;
   },
 ) {
   const drag = useRef<Drag | null>(null);
   const suppress = useRef(false);
   const frame = useRef<number | null>(null);
-  const touches = useRef(new Map<number, { x: number; y: number }>());
-  const pinch = useRef<{ d: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const opts = useRef(o);
   opts.current = o;
@@ -56,52 +60,63 @@ export function usePanZoom(
     if (frame.current != null) cancelAnimationFrame(frame.current);
     frame.current = null;
   }, []);
-  const shift = (px: number) => {
-    if (canvas.current) canvas.current.style.transform = px ? `translateX(${px}px)` : "";
-  };
+  const shift = useCallback(
+    (px: number) => {
+      if (canvas.current) canvas.current.style.transform = px ? `translateX(${px}px)` : "";
+    },
+    [canvas],
+  );
 
   /** Ease a rubber-band offset back to rest. */
-  const settle = (from: number) => {
-    const t0 = performance.now();
-    const step = () => {
-      const k = Math.min(1, (performance.now() - t0) / 300);
-      shift(from * (1 - (1 - (1 - k) ** 3)));
-      frame.current = k < 1 ? requestAnimationFrame(step) : null;
-    };
-    frame.current = requestAnimationFrame(step);
-  };
+  const settle = useCallback(
+    (from: number) => {
+      const t0 = performance.now();
+      const step = () => {
+        const k = Math.min(1, (performance.now() - t0) / 300);
+        shift(from * (1 - k) ** 3);
+        frame.current = k < 1 ? requestAnimationFrame(step) : null;
+      };
+      frame.current = requestAnimationFrame(step);
+    },
+    [shift],
+  );
 
-  /** Carry a flick of `v` px/s (along the pointer) on until it slows to a stop or meets an end. */
-  const glide = (v: number) => {
-    let last = performance.now();
-    let speed = v;
-    const step = () => {
-      const el = scroller.current;
-      if (!el) return;
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-      const next = el.scrollLeft - (speed * dt) / 1000;
-      const max = opts.current.maxLeft();
-      el.scrollLeft = Math.max(0, Math.min(max, next));
-      speed *= DECAY ** dt;
-      frame.current = Math.abs(speed) > STOP_V && next > 0 && next < max ? requestAnimationFrame(step) : null;
-    };
-    frame.current = requestAnimationFrame(step);
-  };
+  /** Carry a flick of `v` px/s (along the pointer) on until it slows to a stop; meeting an end, give a little. */
+  const glide = useCallback(
+    (v: number) => {
+      let last = performance.now();
+      let speed = v;
+      const step = () => {
+        const el = scroller.current;
+        if (!el) return;
+        const now = performance.now();
+        const dt = now - last;
+        last = now;
+        const next = el.scrollLeft - (speed * dt) / 1000;
+        const max = opts.current.maxLeft();
+        speed *= DECAY ** dt;
+        if (next < 0 || next > max) {
+          el.scrollLeft = next < 0 ? 0 : max;
+          // The rest of the flick shows as a short give at the end, then settles back.
+          const over = next < 0 ? -next + Math.abs(speed) * 0.05 : next - max + Math.abs(speed) * 0.05;
+          const w = el.clientWidth || 1;
+          return settle(next < 0 ? rubberband(over, w) : -rubberband(over, w));
+        }
+        el.scrollLeft = next;
+        frame.current = Math.abs(speed) > STOP_V ? requestAnimationFrame(step) : null;
+      };
+      frame.current = requestAnimationFrame(step);
+    },
+    [scroller, settle],
+  );
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
-    if (e.pointerType === "touch") {
-      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.current.size === 2) {
-        const [a, b] = [...touches.current.values()] as [{ x: number; y: number }, { x: number; y: number }];
-        pinch.current = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1 };
-      }
-      return;
-    }
-    if (e.button !== 0) return;
+    if (e.pointerType === "touch" || e.button !== 0) return;
     const el = scroller.current;
     if (!el) return;
+    // A press on the scroller's own scrollbars is the browser's, not a drag.
+    const box = el.getBoundingClientRect();
+    if (e.clientX - box.left >= el.clientWidth || e.clientY - box.top >= el.clientHeight) return;
     stop();
     shift(0);
     drag.current = {
@@ -115,27 +130,16 @@ export function usePanZoom(
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
-    if (e.pointerType === "touch") {
-      if (!touches.current.has(e.pointerId)) return;
-      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.current.size === 2 && pinch.current) {
-        const [a, b] = [...touches.current.values()] as [{ x: number; y: number }, { x: number; y: number }];
-        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-        const left = scroller.current?.getBoundingClientRect().left ?? 0;
-        opts.current.zoom(d / pinch.current.d, (a.x + b.x) / 2 - left);
-        pinch.current = { d };
-      }
-      return;
-    }
     const g = drag.current;
     const el = scroller.current;
-    if (!g || !el) return;
+    if (!g || !el || e.pointerType === "touch") return;
     const dx = e.clientX - g.startX;
     const dy = e.clientY - g.startY;
     if (!g.moved) {
       if (Math.hypot(dx, dy) < DRAG_PX) return;
       g.moved = true;
       setDragging(true);
+      opts.current.onDragStart?.();
       try {
         el.setPointerCapture?.(e.pointerId);
       } catch {
@@ -154,11 +158,7 @@ export function usePanZoom(
   };
 
   const end = (e: ReactPointerEvent<HTMLElement>) => {
-    if (e.pointerType === "touch") {
-      touches.current.delete(e.pointerId);
-      if (touches.current.size < 2) pinch.current = null;
-      return;
-    }
+    if (e.pointerType === "touch") return;
     const g = drag.current;
     drag.current = null;
     if (!g?.moved) return;
@@ -167,9 +167,12 @@ export function usePanZoom(
     setTimeout(() => (suppress.current = false), 400);
     const offset = canvas.current?.style.transform ? parseFloat(canvas.current.style.transform.slice(11)) : 0;
     if (offset) return settle(offset);
-    const first = g.samples[0]!;
-    const last = g.samples.at(-1)!;
-    const v = last.t > first.t ? ((last.x - first.x) / (last.t - first.t)) * 1000 : 0;
+    // Only the movement in the last SAMPLE_MS before letting go counts: a hold first means no flick.
+    const now = performance.now();
+    const recent = [...g.samples.filter((s) => now - s.t <= SAMPLE_MS), { t: now, x: e.clientX }];
+    const first = recent[0]!;
+    const last = recent.at(-1)!;
+    const v = recent.length > 1 && last.t > first.t ? ((last.x - first.x) / (last.t - first.t)) * 1000 : 0;
     if (Math.abs(v) > 50) glide(v);
   };
 
@@ -180,19 +183,76 @@ export function usePanZoom(
     e.preventDefault();
     e.stopPropagation();
   };
+  /** The browser's own drag of a link (or text) would cancel the pan: the timeline is dragged, not its links. */
+  const onDragStart = (e: ReactDragEvent<HTMLElement>) => e.preventDefault();
 
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
+    const anchorOf = (clientX: number) => clientX - el.getBoundingClientRect().left;
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return;
+      if (e.ctrlKey) {
+        e.preventDefault();
+        stop();
+        const d = Math.max(
+          -WHEEL_ZOOM_MAX,
+          Math.min(WHEEL_ZOOM_MAX, e.deltaY * (e.deltaMode === 1 ? 33 : 1)),
+        );
+        opts.current.zoom(Math.exp(-d * 0.01), anchorOf(e.clientX));
+        return;
+      }
+      // A plain mouse wheel only scrolls up and down: with nothing to scroll that way, it moves the day sideways.
+      if (e.deltaY && !e.deltaX && !e.shiftKey && el.scrollHeight <= el.clientHeight) {
+        e.preventDefault();
+        stop();
+        el.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+      }
+    };
+    // Two fingers pinch to zoom. Touch events (not pointer events): the browser can't cancel them mid-pinch.
+    let pinch: { d: number } | null = null;
+    const spread = (t: TouchList) =>
+      Math.hypot(t[0]!.clientX - t[1]!.clientX, t[0]!.clientY - t[1]!.clientY) || 1;
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinch = { d: spread(e.touches) };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
       e.preventDefault();
-      stop();
-      const left = el.getBoundingClientRect().left;
-      opts.current.zoom(Math.exp(-e.deltaY * 0.01), e.clientX - left);
+      const d = spread(e.touches);
+      opts.current.zoom(d / pinch.d, anchorOf((e.touches[0]!.clientX + e.touches[1]!.clientX) / 2));
+      pinch = { d };
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+    // Safari's trackpad pinch arrives as gesture events, not Ctrl + wheel.
+    let scale = 1;
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+      scale = 1;
+    };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const g = e as Event & { scale: number; clientX: number };
+      opts.current.zoom(g.scale / scale, anchorOf(g.clientX));
+      scale = g.scale;
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+    el.addEventListener("gesturestart", onGestureStart);
+    el.addEventListener("gesturechange", onGestureChange);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+      el.removeEventListener("gesturestart", onGestureStart);
+      el.removeEventListener("gesturechange", onGestureChange);
+    };
   }, [scroller, stop]);
   useEffect(() => stop, [stop]);
 
@@ -204,6 +264,7 @@ export function usePanZoom(
       onPointerUp: end,
       onPointerCancel: end,
       onClickCapture,
+      onDragStart,
     },
   };
 }

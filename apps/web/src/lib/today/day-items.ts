@@ -33,14 +33,31 @@ export type DayData = { followUps: TaskView[]; doneFollowUps: DoneFollowUp[]; me
 
 const SOON_MS = 2 * 3_600_000;
 
+const CLOCKS = new Map<string, Intl.DateTimeFormat>();
+/** The 24-hour clock for a time zone: made once per zone (the timeline asks hundreds of times a render). */
+function clockFor(tz: string): Intl.DateTimeFormat {
+  let f = CLOCKS.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hourCycle: "h23",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    CLOCKS.set(tz, f);
+  }
+  return f;
+}
+
 /** Minutes since local midnight: the wall clock, so a daylight-saving day still reads 0–1440. */
 export function minuteOf(iso: string | Date, tz: string): number {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", { timeZone: tz, hourCycle: "h23", hour: "2-digit", minute: "2-digit" })
-      .formatToParts(new Date(iso))
-      .map((x) => [x.type, x.value]),
-  );
-  return Number(p.hour) * 60 + Number(p.minute);
+  let h = 0;
+  let m = 0;
+  for (const x of clockFor(tz).formatToParts(new Date(iso))) {
+    if (x.type === "hour") h = Number(x.value);
+    else if (x.type === "minute") m = Number(x.value);
+  }
+  return h * 60 + m;
 }
 
 /** Today's data as a day: what the Today page already loaded. */
@@ -108,7 +125,8 @@ export function dayItems(d: DayData, day: string, now: Date, tz: string): DayIte
       endsAt: m.endsAt,
       title: m.title,
       lead: m.lead,
-      state: ended ? "done" : clock(m.startsAt),
+      // A call under way is never "overdue": it stands with what's coming up until it ends.
+      state: ended ? "done" : Date.parse(m.startsAt) <= t && day === today ? "soon" : clock(m.startsAt),
       link: m.link,
       before: false,
     });

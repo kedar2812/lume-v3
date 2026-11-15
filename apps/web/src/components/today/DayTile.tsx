@@ -1,16 +1,26 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type Ref } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type AnchorHTMLAttributes,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { IconButton } from "@/components/ui/IconButton";
 import { dayKey, timeOf } from "@/lib/dates";
 import type { TodayView } from "@/lib/tasks/types";
 import { callsLeft } from "@/lib/today/brief";
-import { dayItems, fromToday, type DayItem } from "@/lib/today/day-items";
+import { dayItems, fromToday, openOf, type DayItem } from "@/lib/today/day-items";
 import { clusterDots, dayline, type DayDot } from "@/lib/today/dayline";
 import { GroupPanel, ItemPanel } from "./day/ItemPanel";
 import d from "./day/day.module.css";
-import { fixedPlace, useItemFocus } from "./day/useItemFocus";
+import { fixedPlace, panelHeight, useItemFocus } from "./day/useItemFocus";
 import s from "./today.module.css";
 
 const MIN = 60_000;
@@ -82,6 +92,11 @@ export function DayTile({
     const xs = ids.map((id) => items.get(id)).filter((i): i is DayItem => !!i);
     return xs.length ? xs : null;
   }, [f.focused, items]);
+  // A thing that vanishes in a live update takes its panel with it, and the rest comes back.
+  const vanished = !!f.focused && !shown;
+  useEffect(() => {
+    if (vanished) f.close();
+  }, [vanished, f.close]);
 
   return (
     <section
@@ -148,10 +163,15 @@ export function DayTile({
           ))}
         {line.calls.map((c, i) => {
           const key = `i:${c.id}`;
+          // The same place as on the timeline (spec Part 1): an upcoming call with a link joins it.
+          const it = items.get(c.id);
+          const go = it
+            ? openOf(it, now)
+            : { href: c.m.lead ? `/leads?lead=${c.m.lead.id}` : `/calendar?m=${c.id}`, external: false };
           return (
-            <Link
+            <GoLink
               key={c.id}
-              href={c.m.lead ? `/leads?lead=${c.m.lead.id}` : `/calendar?m=${c.id}`}
+              go={go}
               className={s.call}
               data-done={c.done || undefined}
               data-day-item
@@ -187,7 +207,7 @@ export function DayTile({
                 </svg>
               )}
               {first(c.m.lead?.name ?? c.m.title)} {timeOf(new Date(c.m.startsAt), tz)}
-            </Link>
+            </GoLink>
           );
         })}
         {groups.map((g) => {
@@ -232,7 +252,7 @@ export function DayTile({
               {...bound}
               onClick={(e) => {
                 bound.onClick(e);
-                f.open(key, e.currentTarget);
+                f.open(key, e.currentTarget, { focusPanel: true });
               }}
             >
               {g.length}
@@ -260,7 +280,13 @@ export function DayTile({
           {shown.length === 1 && f.focused.key.startsWith("i:") ? (
             <ItemPanel item={shown[0]!} now={now} tz={tz} style={fixedPlace(f.focused.el)} {...f.panelBind} />
           ) : (
-            <GroupPanel items={shown} now={now} tz={tz} style={fixedPlace(f.focused.el)} {...f.panelBind} />
+            <GroupPanel
+              items={shown}
+              now={now}
+              tz={tz}
+              style={fixedPlace(f.focused.el, { height: panelHeight(shown.length) })}
+              {...f.panelBind}
+            />
           )}
         </BodyPortal>
       )}
@@ -314,5 +340,25 @@ export function DayTile({
         )}
       </div>
     </section>
+  );
+}
+
+/** A link that opens in LUME, or (a call's meeting) in a new tab. */
+function GoLink({
+  go,
+  children,
+  ...p
+}: {
+  go: { href: string; external: boolean };
+  children: ReactNode;
+} & AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return go.external ? (
+    <a {...p} href={go.href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ) : (
+    <Link {...p} href={go.href}>
+      {children}
+    </Link>
   );
 }

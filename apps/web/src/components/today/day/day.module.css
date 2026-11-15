@@ -100,6 +100,9 @@
 
 /* Several at about the same time. */
 .group {
+  max-height: min(360px, calc(100vh - 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 10px 6px 6px;
 }
 .groupHead {
@@ -234,7 +237,8 @@
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: 96px 18px minmax(0, 1fr) auto;
+  /* Room for a dated time ("Oct 3, Sat, 4 pm") on ones from before today. */
+  grid-template-columns: 124px 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 11px 12px;
@@ -336,7 +340,6 @@
   /* Pinch is ours (zoom), not the page's. */
   touch-action: pan-x pan-y;
   user-select: none;
-  -webkit-user-select: none;
 }
 .scroller[data-dragging] {
   cursor: grabbing;
@@ -433,7 +436,6 @@
 }
 .chip[data-kind="call"] time {
   color: inherit;
-  opacity: 0.8;
 }
 .chip[data-kind="call"][data-state="done"] {
   color: var(--text-3);
@@ -458,7 +460,8 @@
 .pile {
   color: #fff;
   font-weight: var(--fw-semibold);
-  background: var(--danger);
+  /* The fill made for white words (4.5:1 or better), not the dot red. */
+  background: var(--danger-fill);
   box-shadow: none;
 }
 .nowLine {
@@ -492,6 +495,9 @@
   display: grid;
   place-items: stretch;
 }
+.full:focus {
+  outline: none;
+}
 .full {
   position: fixed;
   inset: 20px;
@@ -513,6 +519,7 @@
   opacity: 1;
 }
 .fullHead {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -644,6 +651,18 @@
   background: var(--skel);
 }
 @media (max-width: 640px) {
+  .fullHead {
+    padding-right: 52px;
+  }
+  /* × stays top right on a phone, however the header wraps. */
+  .fullHead .close {
+    position: absolute;
+    top: 10px;
+    right: 8px;
+  }
+  .listTime {
+    white-space: normal;
+  }
   .full {
     inset: 8px;
     border-radius: var(--r-sheet);

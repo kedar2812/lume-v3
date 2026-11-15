@@ -81,6 +81,8 @@ export function DayFull({
     if (!c || !p || !p.width || !p.height) return null;
     return `translate(${c.left - p.left}px, ${c.top - p.top}px) scale(${c.width / p.width}, ${c.height / p.height})`;
   };
+  /** The grow (or fade) now playing: a close while it still runs turns it round from where it is. */
+  const running = useRef<Animation | null>(null);
   const play = (open: boolean): Promise<unknown> => {
     const el = panel.current;
     if (!el || typeof el.animate !== "function") return Promise.resolve();
@@ -93,11 +95,17 @@ export function DayFull({
       easing: EASE,
       fill: "both",
     });
+    running.current = a;
     return a.finished.catch(() => undefined);
   };
 
   useLayoutEffect(() => {
-    void play(true).then(() => setReady(true));
+    void play(true).then(() => {
+      if (!closing.current) running.current = null;
+    });
+    // The insides come in a little after the window starts to grow, not after it lands.
+    const t = setTimeout(() => !closing.current && setReady(true), 120);
+    return () => clearTimeout(t);
     // Once, as it opens.
   }, []);
 
@@ -106,7 +114,13 @@ export function DayFull({
     closing.current = true;
     setReady(false);
     const opener = from.current?.querySelector<HTMLElement>('[aria-label="Open Your day full screen"]');
-    void play(false).then(() => {
+    const still = running.current;
+    let done: Promise<unknown>;
+    if (still && still.playState === "running") {
+      still.reverse();
+      done = still.finished.catch(() => undefined);
+    } else done = play(false);
+    void done.then(() => {
       onClose();
       setTimeout(() => opener?.focus(), 0);
     });
@@ -126,6 +140,8 @@ export function DayFull({
         aria-labelledby="your-day-full"
         className={s.full}
         data-ready={ready || undefined}
+        // Focusable itself: a press on empty timeline space keeps the keyboard (Esc, Tab) in here.
+        tabIndex={-1}
         onKeyDown={focus.onKeyDown}
       >
         <header className={s.fullHead}>
@@ -170,7 +186,8 @@ export function DayFull({
               </Button>
             )}
           </div>
-          <span className={s.count}>{count}</span>
+          {/* While another day loads, its count isn't known yet: no number from the day before. */}
+          <span className={s.count}>{data.stale ? "" : count}</span>
           <div className={s.controls}>
             <Segmented
               label="Show"
@@ -229,7 +246,7 @@ export function DayFull({
               </div>
             )}
           </div>
-          <IconButton label="Close" onClick={close}>
+          <IconButton label="Close" className={s.close} onClick={close}>
             <svg
               viewBox="0 0 14 14"
               width="14"
@@ -262,7 +279,7 @@ export function DayFull({
               ))}
             </div>
           ) : !shown.length ? (
-            <DayEmpty mode={mode} />
+            <DayEmpty mode={mode} show={show} />
           ) : view === "list" ? (
             <div className={s.listScroll}>
               <DayList items={items} mode={mode} show={show} now={now} tz={tz} />

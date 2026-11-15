@@ -304,3 +304,131 @@ describe("DayTimeline: zoom", () => {
     expect(labels()).toContain("8:30");
   });
 });
+
+describe("DayTimeline: review fixes (2026-11-15)", () => {
+  it("a chip can't be dragged as a link: the press stays a pan", () => {
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const chip = chips()[0]!;
+    expect(chip.getAttribute("draggable")).toBe("false");
+    expect(fireEvent.dragStart(chip)).toBe(false); // the browser's own link drag is cancelled
+  });
+
+  it("a flick, then a hold, then letting go: it stays where it was put", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance", "Date"] });
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    act(() => {
+      mouse(s, "pointerdown", 600);
+      vi.advanceTimersByTime(16);
+      mouse(s, "pointermove", 580);
+      vi.advanceTimersByTime(16);
+      mouse(s, "pointermove", 560);
+      vi.advanceTimersByTime(300); // held still
+      mouse(s, "pointerup", 560);
+    });
+    const at = s.scrollLeft;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(s.scrollLeft).toBe(at);
+  });
+
+  it("a press on the scrollbar isn't a drag", () => {
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    const from = s.scrollLeft;
+    act(() => {
+      mouse(s, "pointerdown", 500, 610); // below the 600 px content box: the horizontal scrollbar
+      mouse(s, "pointermove", 400, 610);
+      mouse(s, "pointerup", 400, 610);
+    });
+    expect(s.scrollLeft).toBe(from);
+  });
+
+  it("a plain mouse wheel moves the day sideways when there's nothing to scroll up and down", () => {
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    const from = s.scrollLeft;
+    act(() => {
+      s.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100 }));
+    });
+    expect(s.scrollLeft).toBe(from + 100);
+  });
+
+  it("one Ctrl + wheel notch is a gentle step, and quick steps add up", () => {
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    const pph = () => Number(screen.getByTestId("pph").textContent);
+    act(() => {
+      s.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          deltaY: -100,
+          clientX: 400,
+        }),
+      );
+    });
+    const one = pph();
+    expect(one).toBeGreaterThan(140);
+    expect(one).toBeLessThanOrEqual(140 * 1.35);
+    act(() => {
+      s.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          deltaY: -10,
+          clientX: 400,
+        }),
+      );
+      s.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          deltaY: -10,
+          clientX: 400,
+        }),
+      );
+    });
+    expect(pph()).toBeCloseTo(one * Math.exp(0.2), 6);
+  });
+
+  it("the row's label sits above its first line, not over its first chips", () => {
+    render(<Held items={[fu("a", 8, 10)]} isToday={false} start={140} />);
+    expect(yOf(chips()[0]!)).toBeGreaterThanOrEqual(28);
+  });
+
+  it("scrolling keeps an open panel (it follows its chip); starting a drag closes it", () => {
+    render(<Held items={[fu("a", 12), fu("b", 16)]} start={140} />);
+    fireEvent.pointerEnter(chips()[1]!);
+    fireEvent.scroll(scroller());
+    expect(document.querySelector("[data-day-panel]")).not.toBeNull();
+    const s = scroller();
+    act(() => {
+      mouse(s, "pointerdown", 500);
+      mouse(s, "pointermove", 480);
+    });
+    expect(document.querySelector("[data-day-panel]")).toBeNull();
+  });
+
+  it("the pile, clicked, puts the keyboard on its first row; its list never runs past the window", () => {
+    const old = fu("old", 9, 0, {
+      before: true,
+      state: "over",
+      at: new Date("2026-10-03T10:30:00Z").toISOString(),
+    });
+    render(<Held items={[old, fu("a", 12)]} />);
+    fireEvent.click(screen.getByRole("button", { name: "1 from before" }));
+    const panel = document.querySelector("[data-day-panel]") as HTMLElement;
+    expect(document.activeElement).toBe(within(panel).getByRole("link"));
+  });
+
+  it("a thing that vanishes in a live update takes its panel with it", () => {
+    const { rerender } = render(<Held items={[fu("a", 12), fu("b", 16)]} />);
+    fireEvent.pointerEnter(chips()[1]!);
+    rerender(<Held items={[fu("a", 12)]} />);
+    expect(document.querySelector("[data-day-panel]")).toBeNull();
+    expect(scroller().className).not.toMatch(/focusing/);
+  });
+});

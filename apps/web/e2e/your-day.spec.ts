@@ -41,6 +41,13 @@ async function seed(page: Page) {
     title: "YD send the plan",
     due: { at: at(3 * H) },
   });
+  // One left over from yesterday: Today's "from before" pile.
+  const o = await callApi<{ lead: { id: string } }>(page, "POST", "/api/v1/leads", { name: "YD Old Lead" });
+  made.push(o.data.lead.id);
+  await callApi(page, "POST", `/api/v1/leads/${o.data.lead.id}/tasks`, {
+    title: "YD from yesterday",
+    due: { at: new Date(Date.now() - 26 * H).toISOString() },
+  });
 }
 
 /**
@@ -58,6 +65,12 @@ async function axe(page: Page, only: string[] = []) {
 
 const card = (page: Page) => page.locator("[data-your-day]");
 const full = (page: Page) => page.getByRole("dialog", { name: "Your day" });
+/** Opens the full screen and waits until it has landed (its grow out of the card has finished). */
+async function openFull(page: Page) {
+  await page.getByRole("button", { name: "Open Your day full screen" }).click();
+  await expect(full(page)).toBeVisible();
+  await full(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+}
 
 test.describe("Your day", () => {
   test.describe.configure({ mode: "serial" });
@@ -84,28 +97,80 @@ test.describe("Your day", () => {
     // Full motion: the rest blurs and fades. (The suite runs with reduced motion; that case is checked below.)
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await openApp(page, "/today");
-    const solo = card(page).getByRole("link", { name: /^YD send the plan, YD Solo Lead/ });
+    // Its own dot, or (when other runs left follow-ups near it) the marker it shares: hovering either shows it.
+    const solo = card(page).locator('[data-day-item][aria-label*="YD send the plan"]');
     await solo.hover();
     const panel = page.locator("[data-day-panel]");
     await expect(panel).toContainText("YD send the plan");
     await expect(panel).toContainText("YD Solo Lead");
-    await expect(panel.getByRole("link", { name: "Open lead" })).toBeVisible();
-    const crowd = card(page)
-      .getByRole("button", { name: /^\d+ follow-ups: / })
-      .first();
+    await expect(panel.getByRole("link").first()).toBeVisible();
+    const other = card(page).locator("[data-day-item]:not([data-on])").first();
     const look = () =>
-      crowd.evaluate((el) => [getComputedStyle(el).filter, Number(getComputedStyle(el).opacity)] as const);
+      other.evaluate((el) => [getComputedStyle(el).filter, Number(getComputedStyle(el).opacity)] as const);
     await expect.poll(async () => (await look())[0]).toContain("blur");
     await expect.poll(async () => (await look())[1]).toBeLessThan(0.5);
     // Reduced motion: no blur, still faded back.
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect.poll(async () => (await look())[0]).toBe("none");
     await expect.poll(async () => (await look())[1]).toBeLessThan(0.5);
-    // The crowded stretch is one marker; it opens the list of them all.
+    // The crowded stretch is one marker; a click opens the list of them all, the keyboard on its first row.
     await page.mouse.move(0, 0);
+    const crowd = card(page)
+      .getByRole("button", { name: /YD check-in/ })
+      .first();
     await crowd.click();
     await expect(panel).toContainText(/\d+ follow-ups around/);
-    await expect(panel.getByRole("link")).not.toHaveCount(0);
+    await expect(panel.getByRole("link").first()).toBeFocused();
+    // Esc goes back to the marker, and the panel stays shut.
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await expect(crowd).toBeFocused();
+  });
+
+  test("full screen: a drag that starts on a chip moves the day and opens nothing", async ({ page }) => {
+    await openApp(page, "/today");
+    await openFull(page);
+    for (let i = 0; i < 3; i++) await full(page).getByRole("button", { name: "Zoom in" }).click();
+    const scroller = full(page).locator("[data-day-scroller]");
+    const chip = full(page).locator("[data-chip]", { hasText: "YD check-in 1" }).first();
+    await chip.scrollIntoViewIfNeeded();
+    const [before, max] = await scroller.evaluate((el) => [el.scrollLeft, el.scrollWidth - el.clientWidth]);
+    const by = before > max / 2 ? 120 : -120;
+    const box = (await chip.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + by, box.y + box.height / 2, { steps: 10 });
+    await page.mouse.up();
+    await expect
+      .poll(async () => Math.abs((await scroller.evaluate((el) => el.scrollLeft)) - before))
+      .toBeGreaterThan(60);
+    await expect(page).toHaveURL(/\/today/);
+    await expect(full(page)).toBeVisible();
+  });
+
+  test("full screen: after a click on empty timeline space, Esc still closes it", async ({ page }) => {
+    await openApp(page, "/today");
+    await openFull(page);
+    const box = (await full(page).locator("[data-day-scroller]").boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height - 16);
+    await page.keyboard.press("Escape");
+    await expect(full(page)).toHaveCount(0);
+  });
+
+  test("full screen: in a stacked stretch, moving straight down brings the next one forward", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openApp(page, "/today");
+    await openFull(page);
+    const one = full(page).locator("[data-chip]", { hasText: "YD check-in 1" }).first();
+    const two = full(page).locator("[data-chip]", { hasText: "YD check-in 2" }).first();
+    const a = (await one.boundingBox())!;
+    const b = (await two.boundingBox())!;
+    await page.mouse.move(a.x + 20, a.y + a.height / 2);
+    await expect(page.locator("[data-day-panel]")).toContainText("YD check-in 1");
+    await page.mouse.move(b.x + 20, b.y + b.height / 2, { steps: 4 });
+    await expect(page.locator("[data-day-panel]")).toContainText("YD check-in 2");
   });
 
   test("a click on the card opens the full screen; Esc closes it back", async ({ page }) => {
@@ -122,7 +187,7 @@ test.describe("Your day", () => {
 
   test("a crowded day: on the timeline no two things overlap", async ({ page }) => {
     await openApp(page, "/today");
-    await page.getByRole("button", { name: "Open Your day full screen" }).click();
+    await openFull(page);
     const chips = full(page).locator("[data-chip]");
     await expect(chips.filter({ hasText: "YD check-in 12" })).toBeVisible();
     const boxes = (await chips.evaluateAll((els) =>
@@ -142,7 +207,7 @@ test.describe("Your day", () => {
 
   test("drag moves the timeline; zoom in, Fit day and back", async ({ page }) => {
     await openApp(page, "/today");
-    await page.getByRole("button", { name: "Open Your day full screen" }).click();
+    await openFull(page);
     for (let i = 0; i < 3; i++) await full(page).getByRole("button", { name: "Zoom in" }).click();
     await expect(full(page).getByTestId("zoom-level")).toHaveText("246%");
     const scroller = full(page).locator("[data-day-scroller]");
@@ -165,7 +230,7 @@ test.describe("Your day", () => {
 
   test("List: groups in time order; Previous day and Today; Show", async ({ page }) => {
     await openApp(page, "/today");
-    await page.getByRole("button", { name: "Open Your day full screen" }).click();
+    await openFull(page);
     const dialog = full(page);
     await dialog.getByRole("radio", { name: "List" }).click();
     const group = dialog.getByRole("group", { name: ahead() ? "Coming up" : "Overdue" });
@@ -178,7 +243,7 @@ test.describe("Your day", () => {
     await dialog.getByRole("button", { name: "Today" }).click();
     await expect(dialog.locator("#your-day-full + p")).toHaveText(date!);
     await dialog.getByRole("radio", { name: "Calls" }).click();
-    await expect(dialog).toContainText("Nothing planned for this day");
+    await expect(dialog).toContainText("No calls on this day");
     await dialog.getByRole("radio", { name: "All", exact: true }).click();
     await expect(dialog).toContainText("YD check-in 1");
   });
@@ -192,7 +257,7 @@ test.describe("Your day", () => {
     // The card and its panel (the whole of Today is checked in follow-ups.spec, with no panel over it).
     expect(await axe(page, ["[data-your-day]", "[data-day-panel]"])).toEqual([]);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Open Your day full screen" }).click();
+    await openFull(page);
     await expect(full(page)).toBeVisible();
     // The full screen itself: Today behind it is dimmed by the scrim on purpose.
     expect(await axe(page, ['[role="dialog"]'])).toEqual([]);
@@ -203,11 +268,15 @@ test.describe("Your day", () => {
   test("a phone: it opens, the list reads, nothing scrolls the page sideways", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 760 });
     await openApp(page, "/today");
-    await page.getByRole("button", { name: "Open Your day full screen" }).click();
+    await openFull(page);
     await full(page).getByRole("radio", { name: "List" }).click();
     await expect(full(page).getByRole("link", { name: /^YD send the plan/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
     const head = await full(page).locator("header").boundingBox();
     expect(head!.width).toBeLessThanOrEqual(375);
+    // × stays top right however the header wraps.
+    const x = (await full(page).getByRole("button", { name: "Close" }).boundingBox())!;
+    expect(x.x + x.width).toBeGreaterThan(375 - 60);
+    expect(x.y - head!.y).toBeLessThan(40);
   });
 });

@@ -17,11 +17,18 @@ const TONE: Record<DayItem["state"], string> = {
 };
 
 /** A day with nothing on it (in the chosen Show), and how to add something where that makes sense. */
-export function DayEmpty({ mode }: { mode: DayMode }) {
+export function DayEmpty({ mode, show = "all" }: { mode: DayMode; show?: Show }) {
+  // With Show on one kind, say which kind there is none of: "nothing planned" would be wrong on a busy day.
+  const head =
+    show === "call"
+      ? "No calls on this day"
+      : show === "follow_up"
+        ? "No follow-ups on this day"
+        : "Nothing planned for this day";
   return (
     <div className={s.empty}>
-      <p className={s.emptyHead}>Nothing planned for this day</p>
-      {mode !== "past" && <p className={s.emptySub}>Add a follow-up from any lead</p>}
+      <p className={s.emptyHead}>{head}</p>
+      {mode !== "past" && show !== "call" && <p className={s.emptySub}>Add a follow-up from any lead</p>}
     </div>
   );
 }
@@ -45,7 +52,7 @@ export function DayList({
 }) {
   const shown = show === "all" ? items : items.filter((i) => i.kind === show);
   const groups = listGroups(shown, mode);
-  if (!groups.length) return <DayEmpty mode={mode} />;
+  if (!groups.length) return <DayEmpty mode={mode} show={show} />;
   return (
     <div className={s.list}>
       {groups.map((g) => (

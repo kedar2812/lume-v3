@@ -106,6 +106,7 @@ function Harness({ onOpen }: { onOpen: (id: string) => void }) {
       {f.focused && (
         <div data-testid="panel" {...f.panelBind}>
           panel {f.focused.key}
+          <button type="button" aria-label="act" />
         </div>
       )}
     </div>
@@ -206,5 +207,64 @@ describe("useItemFocus inside the full screen", () => {
     expect(closes).toEqual([]);
     fireEvent.keyDown(a, { key: "Escape" });
     expect(closes).toEqual(["window"]);
+  });
+});
+
+describe("useItemFocus: review fixes (2026-11-15)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("touch on Chrome: the browser focuses the tapped link before its click, and the first tap still only peeks", () => {
+    vi.useFakeTimers();
+    const opened: string[] = [];
+    render(<Harness onOpen={(id) => opened.push(id)} />);
+    const a = screen.getByText("a");
+    act(() => {
+      touch(a, "pointerdown");
+      a.focus(); // what Chrome does on the mousedown it fires after a tap
+    });
+    act(() => a.click());
+    act(() => vi.runAllTimers());
+    expect(screen.getByTestId("panel").textContent).toBe("panel a");
+    expect(opened).toEqual([]);
+    act(() => {
+      touch(a, "pointerdown");
+      a.click();
+    });
+    act(() => vi.runAllTimers());
+    expect(opened).toEqual(["a"]);
+  });
+
+  it("a press anywhere else closes it (touch has no pointer-leave)", () => {
+    render(<Harness onOpen={() => {}} />);
+    const a = screen.getByText("a");
+    act(() => {
+      touch(a, "pointerdown");
+      a.click();
+    });
+    expect(screen.getByTestId("panel")).toBeTruthy();
+    act(() => {
+      touch(document.body, "pointerdown");
+    });
+    expect(screen.queryByTestId("panel")).toBeNull();
+  });
+
+  it("a press on the panel itself keeps it open", () => {
+    render(<Harness onOpen={() => {}} />);
+    act(() => screen.getByText("a").focus());
+    act(() => {
+      touch(screen.getByRole("button", { name: "act" }), "pointerdown");
+    });
+    expect(screen.getByTestId("panel")).toBeTruthy();
+  });
+
+  it("keyboard: Down arrow moves into the panel; Esc there closes it and goes back to the item", () => {
+    render(<Harness onOpen={() => {}} />);
+    const a = screen.getByText("a");
+    act(() => a.focus());
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "act" }));
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByTestId("panel")).toBeNull();
+    expect(document.activeElement).toBe(a);
   });
 });

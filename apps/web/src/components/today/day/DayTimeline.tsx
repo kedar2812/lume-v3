@@ -1,6 +1,14 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { timeOf } from "@/lib/dates";
 import { KINDS, daySpan, minuteOf, openOf, panelOf, type DayItem, type DayKind } from "@/lib/today/day-items";
@@ -9,13 +17,15 @@ import type { Show } from "./DayList";
 import { GroupPanel, ItemPanel } from "./ItemPanel";
 import s from "./day.module.css";
 import { usePanZoom } from "./usePanZoom";
-import { fixedPlace, useItemFocus } from "./useItemFocus";
+import { fixedPlace, panelHeight, useItemFocus } from "./useItemFocus";
 
 /** Room either side of the day, in px. */
 export const PAD = 40;
 /** One line of a row, in px (a chip and the gap under it). */
 export const ROW = 38;
-const TOP = 10;
+/** Room above a row's first line for its label, so the label never covers a chip. */
+const TOP = 30;
+const BOTTOM = 10;
 
 const TONE: Record<DayItem["state"], string> = {
   over: "danger",
@@ -72,7 +82,12 @@ export function DayTimeline({
   const hours = (to - from) / 60;
   const fit = Math.max(1, (Math.max(width, 2 * PAD + 1) - 2 * PAD) / hours);
   const eff = clampPph(pph || fit, fit);
-  const xOf = useCallback((iso: string) => PAD + ((minuteOf(iso, tz) - from) / 60) * eff, [tz, from, eff]);
+  // Each thing's minute of the day, worked out once per set of things (not on every hover or zoom step).
+  const minutes = useMemo(() => new Map(items.map((i) => [i.at, minuteOf(i.at, tz)])), [items, tz]);
+  const xOf = useCallback(
+    (iso: string) => PAD + (((minutes.get(iso) ?? minuteOf(iso, tz)) - from) / 60) * eff,
+    [minutes, tz, from, eff],
+  );
 
   const kinds = KINDS.filter((k) => show === "all" || show === k.kind);
   const lanes = kinds.map(({ kind, label }) => {
@@ -153,12 +168,18 @@ export function DayTimeline({
     );
   });
 
+  // Several zoom steps can land before React draws the last one: each builds on the one before.
+  const latest = useRef(eff);
+  latest.current = eff;
   const pz = usePanZoom(scroller, canvas, {
     maxLeft,
     zoom: (factor, anchorX) => {
       anchor.current = anchorX;
-      onPph(clampPph(eff * factor, fit));
+      latest.current = clampPph(latest.current * factor, fit);
+      onPph(latest.current);
     },
+    // A drag moves things out from under their panel: it closes.
+    onDragStart: f.close,
   });
 
   const step = tickStep(eff);
@@ -167,6 +188,12 @@ export function DayTimeline({
   const nowMin = minuteOf(now, tz);
   const showNow = isToday && nowMin >= from && nowMin <= to;
   const focusedKey = f.focused?.key;
+  // A thing that vanishes in a live update takes its panel with it.
+  const gone = !!focusedKey && focusedKey !== "pile" && !placed.some((i) => `i:${i.id}` === focusedKey);
+  const pileGone = focusedKey === "pile" && !before.length;
+  useEffect(() => {
+    if (gone || pileGone) f.close();
+  }, [gone, pileGone, f.close]);
   const focusedItem = focusedKey?.startsWith("i:")
     ? placed.find((i) => `i:${i.id}` === focusedKey)
     : undefined;
@@ -177,8 +204,6 @@ export function DayTimeline({
       className={[s.scroller, f.focused && s.focusing].filter(Boolean).join(" ")}
       data-day-scroller
       data-dragging={pz.dragging || undefined}
-      // A panel stays with its thing: moving the timeline closes it.
-      onScroll={() => f.focused && f.close()}
       {...pz.handlers}
     >
       <div ref={canvas} className={s.canvas} style={{ width: canvasW }} data-day-canvas>
@@ -200,7 +225,7 @@ export function DayTimeline({
             role="region"
             aria-label={lane.label}
             className={s.lane}
-            style={{ height: lane.lines * ROW + TOP * 2 }}
+            style={{ height: TOP + lane.lines * ROW + BOTTOM }}
           >
             <span className={s.laneLabel} data-day-back>
               {lane.label}
@@ -220,10 +245,11 @@ export function DayTimeline({
                     data-day-item
                     data-on={on}
                     aria-expanded={!!on}
+                    draggable={false}
                     {...f.bind(sp.key)}
                     onClick={(e) => {
                       f.bind(sp.key).onClick(e);
-                      f.open(sp.key, e.currentTarget);
+                      f.open(sp.key, e.currentTarget, { focusPanel: true });
                     }}
                   >
                     {before.length} from before
@@ -263,7 +289,7 @@ export function DayTimeline({
               item={focusedItem}
               now={now}
               tz={tz}
-              style={fixedPlace(f.focused.el)}
+              style={fixedPlace(f.focused.el, { side: "beside", height: panelHeight() })}
               {...f.panelBind}
             />
           ) : focusedKey === "pile" ? (
@@ -272,7 +298,7 @@ export function DayTimeline({
               now={now}
               tz={tz}
               heading={`${before.length} from before`}
-              style={fixedPlace(f.focused.el)}
+              style={fixedPlace(f.focused.el, { side: "beside", height: panelHeight(before.length) })}
               {...f.panelBind}
             />
           ) : null}
@@ -303,6 +329,8 @@ function Chip({
   const go = openOf(item, now);
   const common = {
     className: s.chip,
+    // The timeline is dragged, not its links: a link drag would cancel the pan.
+    draggable: false,
     style,
     "data-chip": "",
     "data-key": k,

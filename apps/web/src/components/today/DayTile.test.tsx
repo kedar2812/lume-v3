@@ -179,3 +179,57 @@ describe("Your day: a click on the card opens the full screen (owner, 2026-11-15
     expect(open).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Your day card: review fixes (2026-11-15)", () => {
+  it("a click (or Enter) on a numbered marker puts the keyboard on its first row", () => {
+    const v = day({
+      overdue: [t("b", "Omar Ali", at(10))],
+      doneToday: [t("a", "Aisha Khan", at(10)), t("c", "Ravi Rao", at(10, 2))],
+    });
+    render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^3 follow-ups: / }));
+    const panel = document.querySelector("[data-day-panel]") as HTMLElement;
+    expect(document.activeElement).toBe(within(panel).getAllByRole("link")[0]);
+  });
+
+  it("an upcoming call with a link joins it, as on the timeline (spec Part 1); one that ended opens its lead", () => {
+    const v = day({
+      meetings: [call("next", at(15, 30), at(16)), call("over", at(9), at(9, 30), { title: "Intro call" })],
+    });
+    render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    const next = screen.getByRole("link", { name: /^Discovery call with Isha Kapoor at 3:30 pm$/ });
+    expect(next).toHaveAttribute("href", "https://meet.example/x");
+    expect(next).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: /^Intro call with Isha Kapoor at 9 am, over$/ })).toHaveAttribute(
+      "href",
+      "/leads?lead=l-over",
+    );
+  });
+
+  it("a thing that vanishes in a live update takes its panel with it, and the rest comes back", () => {
+    const v = day({ later: [t("d", "Sara Pinto", at(16))], soon: [t("s", "Omar Ali", at(12, 30))] });
+    const { rerender, container } = render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    fireEvent.pointerEnter(screen.getByRole("link", { name: /Sara Pinto/ }));
+    expect(document.querySelector("[data-day-panel]")).not.toBeNull();
+    rerender(
+      <DayTile v={day({ soon: [t("s", "Omar Ali", at(12, 30))] })} now={NOW} tz={TZ} onOpenFull={() => {}} />,
+    );
+    expect(document.querySelector("[data-day-panel]")).toBeNull();
+    expect(container.querySelector("[data-day-line]")!.className).not.toMatch(/focusing/);
+  });
+});
+
+describe("Your day card: a real browser focuses a button on mousedown", () => {
+  it("a marker already open from that focus still hands the keyboard to its first row on click", () => {
+    const v = day({
+      overdue: [t("b", "Omar Ali", at(10))],
+      doneToday: [t("a", "Aisha Khan", at(10)), t("c", "Ravi Rao", at(10, 2))],
+    });
+    render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    const marker = screen.getByRole("button", { name: /^3 follow-ups: / });
+    act(() => marker.focus()); // Chrome: focus on mousedown, which opens its panel
+    fireEvent.click(marker);
+    const panel = document.querySelector("[data-day-panel]") as HTMLElement;
+    expect(document.activeElement).toBe(within(panel).getAllByRole("link")[0]);
+  });
+});

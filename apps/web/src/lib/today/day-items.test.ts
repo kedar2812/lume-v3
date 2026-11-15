@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
 import {
   KINDS,
@@ -272,5 +272,31 @@ describe("listGroups", () => {
     const future = dayItems(data({ followUps: [task("t", at(9, 0, 6))] }), "2026-10-06", NOW, TZ);
     expect(listGroups(future, "future").map((g) => g.name)).toEqual(["Planned"]);
     expect(listGroups([], "today")).toEqual([]);
+  });
+});
+
+describe("review fixes (2026-11-15)", () => {
+  it("a call in progress isn't overdue: it's under Coming up until it ends", () => {
+    const items = dayItems(data({ meetings: [meeting("now", at(11, 30), at(12, 30))] }), DAY, NOW, TZ);
+    expect(items[0]!.state).toBe("soon");
+    expect(listGroups(items, "today").map((g) => g.name)).toEqual(["Coming up"]);
+    expect(panelOf(items[0]!, NOW, TZ).actions).toEqual(["join", "open"]);
+  });
+
+  it("minuteOf keeps one formatter per time zone (hundreds of items, every render)", () => {
+    const Real = Intl.DateTimeFormat;
+    let made = 0;
+    const spy = vi.spyOn(Intl, "DateTimeFormat").mockImplementation(((
+      ...a: ConstructorParameters<typeof Real>
+    ) => {
+      made++;
+      return new Real(...a);
+    }) as unknown as typeof Intl.DateTimeFormat);
+    try {
+      for (let i = 0; i < 300; i++) minuteOf(at(9, i % 60), "Asia/Tokyo");
+      expect(made).toBeLessThanOrEqual(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

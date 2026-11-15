@@ -865,7 +865,7 @@ a.lit:hover {
   transform: translateX(-10px);
   text-decoration: none;
   /* backwards, not both: once in, its transform is free for the focus scale to ease. */
-  animation: callin 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+  animation: callin 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   transition:
     transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
     filter 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
@@ -954,12 +954,12 @@ a.lit:hover {
 .dayOpen button {
   cursor: pointer;
 }
-.expand {
+.th .expand {
   height: 26px;
   margin: -3px -8px -3px 2px;
   color: var(--text-3);
 }
-.expand:hover {
+.th .expand:hover {
   color: var(--text);
 }
 /* Several follow-ups at about the same time: one marker, with how many. */

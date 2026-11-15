@@ -26,7 +26,8 @@ export function useDayData(day: string, today: string, v: TodayView) {
   const last = useRef<{ data: DayData; of: string } | null>(null);
 
   useEffect(() => {
-    if (day === today || cache[day]) return;
+    // Every visit asks again (things change); a day seen before shows meanwhile, not a blank.
+    if (day === today) return;
     let live = true;
     setFailed(null);
     tasksClient
@@ -40,7 +41,6 @@ export function useDayData(day: string, today: string, v: TodayView) {
     return () => {
       live = false;
     };
-    // `cache` is read, not watched: a day already fetched isn't fetched again.
   }, [day, today, attempt]);
 
   const data = day === today ? fromToday(v) : (cache[day] ?? null);

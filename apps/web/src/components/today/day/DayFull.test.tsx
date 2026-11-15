@@ -242,3 +242,76 @@ describe("DayFull: Show and view", () => {
     expect(level()).toBe("100%");
   });
 });
+
+describe("DayFull: review fixes (2026-11-15)", () => {
+  /** Element.animate that the test finishes by hand: one record per animation started. */
+  function animations() {
+    const made: { frames: Keyframe[]; done: () => void; reversed: boolean }[] = [];
+    Element.prototype.animate = function (frames: Keyframe[] | PropertyIndexedKeyframes | null) {
+      let done = () => {};
+      const finished = new Promise<void>((r) => (done = r));
+      const rec = { frames: frames as Keyframe[], done, reversed: false };
+      made.push(rec);
+      return {
+        finished,
+        cancel() {},
+        reverse() {
+          rec.reversed = true;
+        },
+        playState: "running",
+      } as unknown as Animation;
+    } as typeof Element.prototype.animate;
+    return made;
+  }
+  afterEach(() => {
+    delete (Element.prototype as { animate?: unknown }).animate;
+    vi.useRealTimers();
+  });
+
+  it("the dialog itself can hold focus, so Esc and Tab still work after a click on empty space", () => {
+    render(<Page />);
+    expect(dialog()).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("its insides show about 120 ms in, not after the whole grow", async () => {
+    vi.useFakeTimers();
+    animations();
+    render(<Page />);
+    expect(dialog()).not.toHaveAttribute("data-ready");
+    await act(async () => vi.advanceTimersByTime(130));
+    expect(dialog()).toHaveAttribute("data-ready");
+  });
+
+  it("closed while still opening: it turns round from where it is and never fades back in", async () => {
+    const made = animations();
+    render(<Page />);
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    expect(made).toHaveLength(1); // no second animation from full size
+    expect(made[0]!.reversed).toBe(true);
+    await act(async () => made[0]!.done());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("Show Calls on a day of follow-ups only says there are no calls", () => {
+    render(<Page v={{ ...V, meetings: [] }} />);
+    fireEvent.click(within(dialog()).getByRole("radio", { name: "Calls" }));
+    expect(within(dialog()).getByText("No calls on this day")).toBeTruthy();
+    expect(within(dialog()).queryByText("Add a follow-up from any lead")).toBeNull();
+  });
+
+  it("while another day loads, the header doesn't show the last day's count", () => {
+    render(<Page />);
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" }));
+    expect(within(dialog()).queryByText("1 call · 2 follow-ups")).toBeNull();
+  });
+
+  it("a day looked at again is fetched again (what's shown stays meanwhile)", async () => {
+    day.mockResolvedValue({ date: "2026-10-04", followUps: [], meetings: [] });
+    render(<Page />);
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" }));
+    await waitFor(() => expect(within(dialog()).getByText("Nothing planned for this day")).toBeTruthy());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Today" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Previous day" }));
+    await waitFor(() => expect(day).toHaveBeenCalledTimes(2));
+  });
+});

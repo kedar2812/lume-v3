@@ -189,6 +189,7 @@ export const PROBES: Record<string, Probe> = {
   },
   "GET /api/v1/today": { access: "auth.self" },
   "GET /api/v1/today/tiles": { access: "auth.self" },
+  "GET /api/v1/your-day": { access: "auth.self", path: () => "/api/v1/your-day?date=2026-09-22" },
   "GET /api/v1/follow-ups/presets": { access: "auth.self" },
   "GET /api/v1/system/health": { access: "settings.manage" },
   "GET /api/v1/templates": { access: "templates.use" },

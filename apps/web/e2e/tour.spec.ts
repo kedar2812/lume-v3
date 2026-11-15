@@ -80,7 +80,8 @@ test.describe("the tour, as the owner", () => {
     await page.goto("/today?tour=1");
     const card = page.getByRole("dialog", { name: /tour/i });
     const seen: string[] = [];
-    for (let i = 0; i < 30 && !(await page.getByRole("button", { name: "Done" }).isVisible()); i++) {
+    // Done on the tour card itself (a follow-up row on Today has a Done button of its own, shown on hover).
+    for (let i = 0; i < 30 && !(await card.getByRole("button", { name: "Done" }).isVisible()); i++) {
       seen.push(await card.getByRole("heading").innerText());
       await page.getByRole("button", { name: "Next" }).click();
     }
