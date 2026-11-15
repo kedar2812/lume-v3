@@ -163,3 +163,146 @@
     transition: opacity 0.15s;
   }
 }
+
+/* ---------- The list view ---------- */
+.list {
+  padding: 4px 0 32px;
+}
+.listGroup + .listGroup {
+  margin-top: 20px;
+}
+.listHead {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 0 12px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+.listHead span {
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+.list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.listRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-ctl);
+}
+.listRow + .listRow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--line);
+}
+.listRow:hover {
+  background: var(--hover);
+}
+.listRow:hover::before,
+.listRow:hover + .listRow::before {
+  background: transparent;
+}
+.listLink {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 96px 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: var(--r-ctl);
+  color: var(--text);
+  text-decoration: none;
+}
+.listLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.listTime {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.listIcon {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+}
+.listIcon .dot {
+  width: 8px;
+  height: 8px;
+}
+.listText {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-md);
+}
+.listText b {
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.listText span {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.listRow .state {
+  margin-left: 0;
+}
+.listJoin {
+  margin-right: 12px;
+  text-decoration: none;
+}
+@media (max-width: 640px) {
+  .listLink {
+    grid-template-columns: 64px 14px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .listLink .state {
+    display: none;
+  }
+  .listText {
+    flex-direction: column;
+    gap: 1px;
+  }
+  .listText span {
+    max-width: 100%;
+  }
+}
+
+/* ---------- Nothing on the day ---------- */
+.empty {
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  min-height: 220px;
+  text-align: center;
+}
+.emptyHead {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.emptySub {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
