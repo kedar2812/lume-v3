@@ -306,3 +306,164 @@
   font-size: var(--fs-sm);
   color: var(--text-3);
 }
+
+/* ---------- The timeline ---------- */
+.scroller {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  cursor: grab;
+  /* Pinch is ours (zoom), not the page's. */
+  touch-action: pan-x pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scroller[data-dragging] {
+  cursor: grabbing;
+}
+.canvas {
+  position: relative;
+  min-height: 100%;
+  will-change: transform;
+}
+.ruler {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 34px;
+  background: var(--sheet);
+  box-shadow: 0 1px 0 var(--line);
+}
+.tick {
+  position: absolute;
+  top: 10px;
+  padding-left: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.grid {
+  position: absolute;
+  inset: 34px 0 0 0;
+  pointer-events: none;
+}
+.grid i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.grid i[data-half] {
+  opacity: 0.5;
+}
+.lane {
+  position: relative;
+  box-shadow: 0 1px 0 var(--line);
+}
+.laneLabel {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  background: var(--sheet);
+  border-radius: 0 var(--r-chip) var(--r-chip) 0;
+}
+.chip {
+  position: absolute;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-chip);
+  font: inherit;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.chip time {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.chip:hover {
+  box-shadow: inset 0 0 0 1px var(--text-3);
+}
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.chip[data-kind="call"] {
+  color: #fff;
+  font-weight: var(--fw-medium);
+  background: var(--accent);
+  box-shadow: none;
+}
+.chip[data-kind="call"] time {
+  color: inherit;
+  opacity: 0.8;
+}
+.chip[data-kind="call"][data-state="done"] {
+  color: var(--text-3);
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.chip[data-state="done"] {
+  color: var(--text-3);
+}
+.chip .dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+}
+.chipWho {
+  color: var(--text-3);
+}
+.chip[data-on] {
+  z-index: 3;
+  transform: scale(1.04);
+}
+.pile {
+  color: #fff;
+  font-weight: var(--fw-semibold);
+  background: var(--danger);
+  box-shadow: none;
+}
+.nowLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 6;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.nowLine b {
+  position: sticky;
+  top: 7px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 20px;
+  margin-left: -21px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}

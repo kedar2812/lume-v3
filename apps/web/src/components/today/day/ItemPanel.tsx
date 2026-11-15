@@ -63,13 +63,19 @@ const TONE: Record<DayItem["state"], string> = {
 };
 
 /** Several things at about the same time: how many and when, then one row each that opens it. */
-export function GroupPanel({ items, now, tz, ...box }: { items: DayItem[]; now: Date; tz: string } & Box) {
+export function GroupPanel({
+  items,
+  now,
+  tz,
+  heading,
+  ...box
+}: { items: DayItem[]; now: Date; tz: string; heading?: string } & Box) {
   const first = items[0];
   if (!first) return null;
   return (
     <div {...box} className={[s.panel, s.group, box.className].filter(Boolean).join(" ")} data-day-panel>
       <p className={s.groupHead}>
-        {items.length} follow-ups around {timeOf(new Date(first.at), tz)}
+        {heading ?? `${items.length} follow-ups around ${timeOf(new Date(first.at), tz)}`}
       </p>
       {items.map((i) => {
         const go = openOf(i, now);
@@ -79,7 +85,7 @@ export function GroupPanel({ items, now, tz, ...box }: { items: DayItem[]; now: 
             <span className={s.rowText}>
               <b>{i.title}</b> · {i.lead?.name}
             </span>
-            <time dateTime={i.at}>{timeOf(new Date(i.at), tz)}</time>
+            <time dateTime={i.at}>{panelOf(i, now, tz).time}</time>
           </Link>
         );
       })}

@@ -127,7 +127,7 @@ describe("Your day: hover brings one thing forward (spec Part 1)", () => {
 
   it("a call's panel has Join and Open lead", () => {
     const v = day({ meetings: [call("m", at(15, 30), at(16))] });
-    const { container } = render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
     fireEvent.pointerEnter(screen.getByRole("link", { name: /^Discovery call with Isha Kapoor/ }));
     const panel = document.querySelector("[data-day-panel]") as HTMLElement;
     expect(within(panel).getByRole("link", { name: "Join" })).toHaveAttribute(
@@ -139,7 +139,7 @@ describe("Your day: hover brings one thing forward (spec Part 1)", () => {
 
   it("keyboard: Tab onto a dot opens its panel, Esc closes it", () => {
     const v = day({ later: [t("d", "Sara Pinto", at(16))] });
-    const { container } = render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
     act(() => screen.getByRole("link", { name: /Sara Pinto/ }).focus());
     expect(document.querySelector("[data-day-panel]")).not.toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
