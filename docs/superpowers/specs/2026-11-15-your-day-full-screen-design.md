@@ -58,9 +58,12 @@ the first mockup without changes ("exactly what I had in mind").
 
 ### Opening the full screen
 
-- An expand button at the card's top right (where the count is today), labelled "Open Your day full screen".
-  (My call: the card's own clicks already mean "open this lead", so the card doesn't also open full screen on a click
-  anywhere.)
+- **A click anywhere on the card opens it (owner, 2026-11-15)**, except on the things that do their own job: the calls
+  and dots on the line, an open hover panel, and the next-call row's Join / Open lead buttons. Empty space on the line,
+  the header, the count and the rest of the next-call row all open the full screen. The card shows it's clickable the
+  way other Today tiles do (pointer cursor, the tile's hover state).
+- An expand button at the card's top right as well, labelled "Open Your day full screen": the keyboard and screen
+  reader way in, and a visible hint that the card opens.
 
 ## Part 2: the full-screen day
 
