@@ -249,3 +249,24 @@ describe("Your day card: second review (2026-11-15)", () => {
     expect(container.querySelector("[data-day-line]")!.className).not.toMatch(/focusing/);
   });
 });
+
+describe("Your day card: the pile never covers the line (2026-11-16)", () => {
+  it("with ones from before, the line starts after their pill, so an early dot isn't under it", () => {
+    const yesterday = new Date(Date.UTC(2026, 9, 4, 10) - 330 * 60_000).toISOString();
+    const v = day({ overdue: [t("old", "Old Lead", yesterday)], later: [t("e", "Early Lead", at(8, 5))] });
+    const { container, rerender } = render(<DayTile v={v} now={NOW} tz={TZ} onOpenFull={() => {}} />);
+    const inside = container.querySelector("[data-day-line-in]") as HTMLElement;
+    expect(inside.style.left).toBe("104px");
+    expect(inside.contains(screen.getByRole("link", { name: /Early Lead/ }))).toBe(true);
+    expect(inside.contains(screen.getByRole("link", { name: "1 from before" }))).toBe(false);
+    rerender(
+      <DayTile
+        v={day({ later: [t("e", "Early Lead", at(8, 5))] })}
+        now={NOW}
+        tz={TZ}
+        onOpenFull={() => {}}
+      />,
+    );
+    expect((container.querySelector("[data-day-line-in]") as HTMLElement).style.left).toBe("");
+  });
+});

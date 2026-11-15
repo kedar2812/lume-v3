@@ -24,6 +24,8 @@ import { fixedPlace, panelHeight, useItemFocus } from "./day/useItemFocus";
 import s from "./today.module.css";
 
 const MIN = 60_000;
+/** Room the "N from before" pill takes at the line's start, in px. */
+const OLDER_ROOM = 104;
 const first = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 const STATE = { done: "done", over: "overdue", soon: "due soon", later: "later today" } as const;
 
@@ -145,121 +147,133 @@ export function DayTile({
       </div>
       {/* Where now and each dot sit follows the hour: screenshots hide it (dots can sit past either end). */}
       <div
-        ref={track.ref}
         className={f.focused ? `${s.day} ${d.focusing}` : s.day}
         data-live-count
         data-volatile-day
         data-day-line
       >
-        <div className={s.rail} data-day-back>
-          <i style={{ width: `${Math.max(0, Math.min(100, line.now))}%` }} />
-        </div>
-        {line.hours
-          .filter((h) => h.h % 2 === 0 || h.h === line.to / 60)
-          .filter((h) => Math.abs(h.left - line.now) > 6)
-          .map((h) => (
-            <span key={h.h} className={s.hour} style={{ left: `${h.left}%` }} aria-hidden data-day-back>
-              {h.label}
-            </span>
-          ))}
-        {line.calls.map((c, i) => {
-          const key = `i:${c.id}`;
-          // The same place as on the timeline (spec Part 1): an upcoming call with a link joins it.
-          const it = items.get(c.id);
-          const go = it
-            ? openOf(it, now)
-            : { href: c.m.lead ? `/leads?lead=${c.m.lead.id}` : `/calendar?m=${c.id}`, external: false };
-          return (
-            <GoLink
-              key={c.id}
-              go={go}
-              className={s.call}
-              data-done={c.done || undefined}
-              data-day-item
-              data-on={f.focused?.key === key || undefined}
-              style={{ left: `${c.left}%`, "--i": i } as CSSProperties}
-              aria-label={`${c.m.title} with ${c.m.lead?.name ?? "someone"} at ${timeOf(new Date(c.m.startsAt), tz)}${c.done ? ", over" : ""}`}
-              {...f.bind(key)}
-            >
-              {c.done ? (
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
-                </svg>
-              ) : (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
-                  <rect x="2" y="6" width="14" height="12" rx="2" />
-                </svg>
-              )}
-              {first(c.m.lead?.name ?? c.m.title)} {timeOf(new Date(c.m.startsAt), tz)}
-            </GoLink>
-          );
-        })}
-        {groups.map((g) => {
-          const say = (t: DayDot) =>
-            `${t.title}, ${t.leadName}, ${timeOf(new Date(t.dueAt), tz)}, ${STATE[t.state]}`;
-          if (g.length === 1) {
-            const t = g[0]!;
-            const key = `i:${t.id}`;
+        {/* The line itself. With ones from before, it starts after their pill, so nothing can sit under it. */}
+        <div
+          ref={track.ref}
+          className={s.lineIn}
+          style={line.older.length > 0 ? { left: OLDER_ROOM } : undefined}
+          data-day-line-in
+        >
+          <div className={s.rail} data-day-back>
+            <i style={{ width: `${Math.max(0, Math.min(100, line.now))}%` }} />
+          </div>
+          {line.hours
+            .filter((h) => h.h % 2 === 0 || h.h === line.to / 60)
+            .filter((h) => Math.abs(h.left - line.now) > 6)
+            .map((h) => (
+              <span key={h.h} className={s.hour} style={{ left: `${h.left}%` }} aria-hidden data-day-back>
+                {h.label}
+              </span>
+            ))}
+          {line.calls.map((c, i) => {
+            const key = `i:${c.id}`;
+            // The same place as on the timeline (spec Part 1): an upcoming call with a link joins it.
+            const it = items.get(c.id);
+            const go = it
+              ? openOf(it, now)
+              : { href: c.m.lead ? `/leads?lead=${c.m.lead.id}` : `/calendar?m=${c.id}`, external: false };
             return (
-              <Link
-                key={t.id}
-                href={`/leads?lead=${t.leadId}`}
-                className={s.dot}
-                data-state={t.state}
+              <GoLink
+                key={c.id}
+                go={go}
+                className={s.call}
+                data-done={c.done || undefined}
                 data-day-item
                 data-on={f.focused?.key === key || undefined}
-                style={{ left: `${t.left}%` }}
-                aria-label={say(t)}
+                style={{ left: `${c.left}%`, "--i": i } as CSSProperties}
+                aria-label={`${c.m.title} with ${c.m.lead?.name ?? "someone"} at ${timeOf(new Date(c.m.startsAt), tz)}${c.done ? ", over" : ""}`}
                 {...f.bind(key)}
-              />
+              >
+                {c.done ? (
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
+                    <rect x="2" y="6" width="14" height="12" rx="2" />
+                  </svg>
+                )}
+                {first(c.m.lead?.name ?? c.m.title)} {timeOf(new Date(c.m.startsAt), tz)}
+              </GoLink>
             );
-          }
-          // Several at about the same time: one marker with their count, opening the list of all of them.
-          const key = `g:${g.map((t) => t.id).join(":")}`;
-          const top = [...g].sort(
-            (a, b) =>
-              (["over", "soon", "later", "done"] as const).indexOf(a.state) -
-              (["over", "soon", "later", "done"] as const).indexOf(b.state),
-          )[0]!;
-          const bound = f.bind(key);
-          return (
-            <button
-              key={key}
-              type="button"
-              className={`${s.dot} ${s.dots}`}
-              data-state={top.state}
-              data-day-item
-              data-on={f.focused?.key === key || undefined}
-              style={{ left: `${g[0]!.left}%` }}
-              aria-label={`${g.length} follow-ups: ${g.map(say).join("; ")}`}
-              aria-expanded={f.focused?.key === key}
-              {...bound}
-              onClick={(e) => {
-                bound.onClick(e);
-                f.open(key, e.currentTarget, { focusPanel: true });
-              }}
-            >
-              {g.length}
-            </button>
-          );
-        })}
+          })}
+          {groups.map((g) => {
+            const say = (t: DayDot) =>
+              `${t.title}, ${t.leadName}, ${timeOf(new Date(t.dueAt), tz)}, ${STATE[t.state]}`;
+            if (g.length === 1) {
+              const t = g[0]!;
+              const key = `i:${t.id}`;
+              return (
+                <Link
+                  key={t.id}
+                  href={`/leads?lead=${t.leadId}`}
+                  className={s.dot}
+                  data-state={t.state}
+                  data-day-item
+                  data-on={f.focused?.key === key || undefined}
+                  style={{ left: `${t.left}%` }}
+                  aria-label={say(t)}
+                  {...f.bind(key)}
+                />
+              );
+            }
+            // Several at about the same time: one marker with their count, opening the list of all of them.
+            const key = `g:${g.map((t) => t.id).join(":")}`;
+            const top = [...g].sort(
+              (a, b) =>
+                (["over", "soon", "later", "done"] as const).indexOf(a.state) -
+                (["over", "soon", "later", "done"] as const).indexOf(b.state),
+            )[0]!;
+            const bound = f.bind(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`${s.dot} ${s.dots}`}
+                data-state={top.state}
+                data-day-item
+                data-on={f.focused?.key === key || undefined}
+                style={{ left: `${g[0]!.left}%` }}
+                aria-label={`${g.length} follow-ups: ${g.map(say).join("; ")}`}
+                aria-expanded={f.focused?.key === key}
+                {...bound}
+                onClick={(e) => {
+                  bound.onClick(e);
+                  f.open(key, e.currentTarget, { focusPanel: true });
+                }}
+              >
+                {g.length}
+              </button>
+            );
+          })}
+          {line.now >= 0 && line.now <= 100 && (
+            <div className={s.now} style={{ left: `${line.now}%` }} aria-hidden data-day-back>
+              <b>{timeOf(now, tz).replace(/ (am|pm)$/, "")}</b>
+            </div>
+          )}
+        </div>
         {line.older.length > 0 && (
           <Link
             href={`/leads?lead=${line.older[0]!.leadId}`}
@@ -269,11 +283,6 @@ export function DayTile({
           >
             {line.older.length} from before
           </Link>
-        )}
-        {line.now >= 0 && line.now <= 100 && (
-          <div className={s.now} style={{ left: `${line.now}%` }} aria-hidden data-day-back>
-            <b>{timeOf(now, tz).replace(/ (am|pm)$/, "")}</b>
-          </div>
         )}
       </div>
       {f.focused && shown && (

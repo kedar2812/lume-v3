@@ -198,13 +198,17 @@ export function usePanZoom(
 
   /** A press that became a drag doesn't also click what it started on. */
   const onClickCapture = (e: ReactMouseEvent<HTMLElement>) => {
-    if (!suppress.current) return;
+    // Only the timeline's own clicks (a panel's, bubbling here through React, are its own).
+    if (!suppress.current || !e.currentTarget.contains(e.target as Node)) return;
     suppress.current = false;
     e.preventDefault();
     e.stopPropagation();
   };
   /** The browser's own drag of a link (or text) would cancel the pan: the timeline is dragged, not its links. */
-  const onDragStart = (e: ReactDragEvent<HTMLElement>) => e.preventDefault();
+  const onDragStart = (e: ReactDragEvent<HTMLElement>) => {
+    // A panel's links stay draggable (to a new tab): only the timeline's own are held still.
+    if (e.currentTarget.contains(e.target as Node)) e.preventDefault();
+  };
 
   useEffect(() => {
     const el = scroller.current;

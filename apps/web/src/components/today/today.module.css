@@ -1476,3 +1476,11 @@ a.lit:hover {
     animation: none;
   }
 }
+/* The day line's own box (Your day): positions are % of this; it starts after the "from before" pill. */
+.lineIn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}

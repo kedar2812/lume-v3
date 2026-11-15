@@ -12,6 +12,17 @@ import {
 } from "react";
 import { FOCUSABLE } from "@/components/ui/useModalFocus";
 
+/**
+ * Whether the last input was the keyboard (not a pointer): only a keyboard in a panel holds it open against the
+ * pointer. A mouse click that puts focus in a panel (the pile's first row, a link Chrome focuses on mousedown)
+ * doesn't.
+ */
+let keyboardLast = false;
+if (typeof document !== "undefined") {
+  document.addEventListener("keydown", () => (keyboardLast = true), true);
+  document.addEventListener("pointerdown", () => (keyboardLast = false), true);
+}
+
 /** How long a panel waits after the pointer leaves, so moving from the item onto the panel doesn't close it. */
 export const GRACE_MS = 120;
 
@@ -48,9 +59,11 @@ export function useItemFocus() {
    * The keyboard is in the panel: nothing the pointer does closes it under it. Also true when the panel was just
    * unmounted with focus inside (a live update): browsers drop focus to <body> then, without a blur.
    */
-  const keyboardIn = () =>
+  const focusIn = () =>
     !!panel.current?.contains(document.activeElement) ||
     (keyboardWent.current && (!document.activeElement || document.activeElement === document.body));
+  /** Focus in the panel, put there by the keyboard: the pointer passing by doesn't close or switch it. */
+  const keyboardIn = () => keyboardLast && focusIn();
   const handBack = (el: HTMLElement) => {
     handedBack.current = el;
     el.focus({ preventScroll: true });
@@ -64,11 +77,14 @@ export function useItemFocus() {
     cancel();
     // Closing with the keyboard inside the panel would drop focus to the page: it goes back to the item.
     const f = current.current;
-    if (f && keyboardIn()) {
+    if (f && focusIn()) {
       // Its item gone (a live update): the window it lives in (the full screen) keeps the keyboard instead.
       if (f.el.isConnected) handBack(f.el);
       else home.current?.focus({ preventScroll: true });
     }
+    // Whatever had focus is gone (a chip that vanished with it, say): inside the full screen, the window keeps it.
+    const a = document.activeElement;
+    if (home.current?.isConnected && (!a || a === document.body)) home.current.focus({ preventScroll: true });
     keyboardWent.current = false;
     setFocused(null);
   }, [cancel]);
@@ -174,7 +190,9 @@ export function useItemFocus() {
       keyboardWent.current = true;
     },
     onBlur: (e: FocusEvent<HTMLElement>) => {
-      if (!panel.current?.contains(e.relatedTarget as Node | null)) keyboardWent.current = false;
+      // (Not while the panel is being taken away: that blur says nothing about where the keyboard went.)
+      if (panel.current && !panel.current.contains(e.relatedTarget as Node | null))
+        keyboardWent.current = false;
       later();
     },
     // Tab moves through the panel's own controls (it lives on <body>, outside any window around it); past either

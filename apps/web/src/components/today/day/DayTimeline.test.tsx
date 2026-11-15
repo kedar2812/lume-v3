@@ -634,3 +634,47 @@ describe("DayTimeline: third review (2026-11-16)", () => {
     expect(document.querySelector("[data-day-panel]")!.parentElement!.closest('[role="dialog"]')).toBeNull();
   });
 });
+
+describe("DayTimeline: final review (2026-11-16)", () => {
+  it("a chip that had the keyboard and vanishes in a live update leaves focus in the window", () => {
+    const { rerender } = render(
+      <div role="dialog" aria-label="Your day" tabIndex={-1}>
+        <Held items={[fu("a", 12), fu("b", 16)]} />
+      </div>,
+    );
+    act(() => chips()[1]!.focus());
+    expect(document.querySelector("[data-day-panel]")).not.toBeNull();
+    rerender(
+      <div role="dialog" aria-label="Your day" tabIndex={-1}>
+        <Held items={[fu("a", 12)]} />
+      </div>,
+    );
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+  });
+
+  it("a mouse click on the pile (which puts focus on its first row) doesn't stop hover from moving on", () => {
+    const old = fu("old", 9, 0, {
+      before: true,
+      state: "over",
+      at: new Date("2026-10-03T10:30:00Z").toISOString(),
+    });
+    render(<Held items={[old, fu("a", 12), fu("b", 16)]} />);
+    const pile = screen.getByRole("button", { name: "1 from before" });
+    act(() => {
+      mouse(pile, "pointerdown", 10);
+    });
+    fireEvent.click(pile);
+    expect(document.activeElement?.closest("[data-day-panel]")).not.toBeNull();
+    fireEvent.pointerEnter(chips().find((c) => c.textContent?.includes("Task b"))!);
+    expect(document.querySelector("[data-day-panel]")).toHaveTextContent("Task b");
+  });
+
+  it("the panel's own links can be dragged (to a new tab) and clicked: the timeline's drag guards leave them alone", () => {
+    render(<Held items={[fu("a", 12)]} />);
+    fireEvent.pointerEnter(chips()[0]!);
+    const link = within(document.querySelector("[data-day-panel]") as HTMLElement).getByRole("link", {
+      name: "Open lead",
+    });
+    expect(fireEvent.dragStart(link)).toBe(true);
+  });
+});
