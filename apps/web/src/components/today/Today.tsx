@@ -15,6 +15,7 @@ import { brief, callsLeft } from "@/lib/today/brief";
 import { todayClient } from "@/lib/today/client";
 import type { Tiles as TilesData } from "@/lib/today/types";
 import { DayTile } from "./DayTile";
+import { DayFull } from "./day/DayFull";
 import { TileSkeletons, Tiles } from "./Tiles";
 import { WorkTile } from "./WorkTile";
 import s from "./today.module.css";
@@ -87,6 +88,9 @@ export function Today({
   const [nods, setNods] = useState(0);
   const [logging, setLogging] = useState<TodayMeeting | null>(null);
   const [now, setNow] = useState(() => new Date());
+  // Your day, full screen (spec 2026-11-15): open from the card, growing out of it.
+  const [dayFull, setDayFull] = useState(false);
+  const dayCard = useRef<HTMLElement>(null);
   const lastTiles = useRef(0);
 
   const load = useCallback(async () => {
@@ -334,6 +338,7 @@ export function Today({
       </header>
       {/* What's new (spec 2026-11-02): the way back to this version's window, until its own X. */}
       <AgainPill />
+      {dayFull && v && <DayFull v={v} now={now} tz={tz} from={dayCard} onClose={() => setDayFull(false)} />}
       {canQueue && <ResumeRun variant="card" />}
       {error && (
         <p role="alert" className={s.error}>
@@ -344,7 +349,7 @@ export function Today({
       <div className={s.grid}>
         {v ? (
           <>
-            <DayTile v={v} now={now} tz={tz} onOpenFull={() => undefined} />
+            <DayTile v={v} now={now} tz={tz} cardRef={dayCard} onOpenFull={() => setDayFull(true)} />
             <WorkTile
               v={v}
               now={now}

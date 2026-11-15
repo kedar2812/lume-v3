@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type Ref } from "react";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { IconButton } from "@/components/ui/IconButton";
 import { dayKey, timeOf } from "@/lib/dates";
@@ -48,11 +48,14 @@ export function DayTile({
   now,
   tz,
   onOpenFull,
+  cardRef,
 }: {
   v: TodayView;
   now: Date;
   tz: string;
   onOpenFull: () => void;
+  /** The card itself: the full screen grows out of it and shrinks back into it. */
+  cardRef?: Ref<HTMLElement>;
 }) {
   const line = dayline(v, now, tz);
   const track = useWidth();
@@ -82,6 +85,7 @@ export function DayTile({
 
   return (
     <section
+      ref={cardRef}
       className={`${s.tl} ${s.dayArea} ${s.dayOpen}`}
       style={{ "--i": 0 } as CSSProperties}
       aria-labelledby="your-day"

@@ -19,6 +19,15 @@ column in the release that stops using it.
   Take it over (an admin) and Delete (the file stays in Drive unless asked to go to Google's bin). Pro and up; a new
   permission **Make live sheets** (with Export leads); up to 20 per business. Deleting someone's account forgets their
   Google accounts for live sheets. Migration 0109; the relay (connect.lumecrm.in) learns the live_sheet kind.
+- **Your day, hover and full screen** (owner 2026-11-15, `docs/superpowers/specs/2026-11-15-your-day-full-screen-design.md`):
+  on Today's Your day card, hovering (or tabbing onto) a call or a follow-up brings it forward with its details (its
+  words, the lead, the time, where it stands, **Join** and **Open lead**) while the rest steps back; a numbered marker
+  opens the list of everything at that time. A click anywhere else on the card (or its expand button) opens **Your day
+  full screen**, which grows out of the card: a **Timeline** where nothing overlaps (things at the same time stack),
+  dragged to move and zoomed with − / +, Ctrl + scroll or a pinch, with **Fit day**; or a **List** grouped by where
+  things stand. **Previous day**, **Next day** and **Today** move through the days (a year either way), and **Show**
+  picks all, calls or follow-ups. The same details panel shows on the card and in the full screen. New read-only
+  `GET /api/v1/your-day?date=` for another day's follow-ups and calls. No migrations.
 
 ## 1.3.2 — 2026-11-15
 

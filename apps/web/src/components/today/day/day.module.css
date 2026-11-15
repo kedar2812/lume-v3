@@ -68,23 +68,34 @@
 }
 
 /* Where something stands, in its own colour (text and dots alike). */
-[data-tone="danger"] {
+.state[data-tone="danger"],
+.dot[data-tone="danger"] {
   --tone: var(--danger);
+  --tone-ink: var(--danger-ink);
 }
-[data-tone="warn"] {
+.state[data-tone="warn"],
+.dot[data-tone="warn"] {
   --tone: var(--warn);
+  --tone-ink: var(--warn-ink);
 }
-[data-tone="accent"] {
+.state[data-tone="accent"],
+.dot[data-tone="accent"] {
   --tone: var(--accent);
+  --tone-ink: var(--accent-ink);
 }
-[data-tone="ok"] {
+.state[data-tone="ok"],
+.dot[data-tone="ok"] {
   --tone: var(--ok);
+  --tone-ink: var(--ok-ink);
 }
-[data-tone="quiet"] {
+.state[data-tone="quiet"],
+.dot[data-tone="quiet"] {
   --tone: var(--text-3);
+  --tone-ink: var(--text-3);
 }
+/* Words take the darker ink of their colour: 12px text reads at 4.5:1 or better in both themes. */
 .state[data-tone] {
-  color: var(--tone);
+  color: var(--tone-ink);
 }
 
 /* Several at about the same time. */
@@ -142,12 +153,17 @@
   filter: blur(2px);
   opacity: 0.3;
 }
-[data-day-item],
-[data-day-back] {
+/* Stepping back and coming forward ease both ways, with no overshoot (the card's own parts: today.module.css). */
+.chip,
+.ruler,
+.grid,
+.laneLabel,
+.nowLine {
   transition:
     filter 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
-    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.15s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -158,8 +174,11 @@
   .focusing [data-day-back] {
     filter: none;
   }
-  [data-day-item],
-  [data-day-back] {
+  .chip,
+  .ruler,
+  .grid,
+  .laneLabel,
+  .nowLine {
     transition: opacity 0.15s;
   }
 }

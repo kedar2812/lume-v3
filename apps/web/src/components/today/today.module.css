@@ -925,6 +925,23 @@ a.lit:hover {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+/* What steps back while one thing is forward eases both ways, with no overshoot. */
+.hour,
+.rail,
+.older,
+.now {
+  transition:
+    filter 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hour,
+  .rail,
+  .older,
+  .now {
+    transition: opacity 0.15s;
+  }
+}
 /* The whole card opens the full-screen day (spec: Your day full screen, owner 2026-11-15). */
 .dayOpen {
   cursor: pointer;
