@@ -60,3 +60,6 @@ export type TodayView = {
     alerts?: number;
   };
 };
+
+/** Your day on another day (spec: Your day full screen): the person's own follow-ups (open and done) and calls. */
+export type YourDay = { date: string; followUps: TaskView[]; meetings: TodayMeeting[] };

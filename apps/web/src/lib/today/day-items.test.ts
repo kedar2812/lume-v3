@@ -45,7 +45,12 @@ const meeting = (id: string, start: string, end: string, more: Partial<TodayMeet
   reminder: null,
   ...more,
 });
-const data = (over: Partial<DayData> = {}): DayData => ({ followUps: [], doneFollowUps: [], meetings: [], ...over });
+const data = (over: Partial<DayData> = {}): DayData => ({
+  followUps: [],
+  doneFollowUps: [],
+  meetings: [],
+  ...over,
+});
 const byId = (xs: DayItem[]) => Object.fromEntries(xs.map((x) => [x.id, x]));
 
 describe("dayItems: one list of things on the day, of a few kinds", () => {
@@ -72,7 +77,11 @@ describe("dayItems: one list of things on the day, of a few kinds", () => {
       ["b", "soon"],
       ["c", "later"],
     ]);
-    expect(byId(items).a).toMatchObject({ kind: "follow_up", title: "Task a", lead: { id: "l-a", name: "Lead a" } });
+    expect(byId(items).a).toMatchObject({
+      kind: "follow_up",
+      title: "Task a",
+      lead: { id: "l-a", name: "Lead a" },
+    });
   });
 
   it("an open follow-up on a future day is planned, on a past day overdue", () => {

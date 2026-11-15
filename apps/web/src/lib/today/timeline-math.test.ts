@@ -28,9 +28,10 @@ describe("packRows: things that would touch go onto the next line", () => {
   });
 
   it("nothing on a line ever overlaps, whatever the order of widths", () => {
-    const spans = Array.from({ length: 80 }, (_, i) => ({ x: (i * 37) % 900, w: 60 + ((i * 53) % 140) })).sort(
-      (a, b) => a.x - b.x,
-    );
+    const spans = Array.from({ length: 80 }, (_, i) => ({
+      x: (i * 37) % 900,
+      w: 60 + ((i * 53) % 140),
+    })).sort((a, b) => a.x - b.x);
     const rows = packRows(spans);
     for (let i = 0; i < spans.length; i++)
       for (let j = i + 1; j < spans.length; j++)

@@ -31,7 +31,13 @@ export function clampPph(pph: number, fitPph: number): number {
 }
 
 /** The scroll position that keeps the time under `anchorX` (px from the scroller's left edge) where it was. */
-export function zoomScroll(o: { scrollLeft: number; anchorX: number; pad: number; pph: number; next: number }): number {
+export function zoomScroll(o: {
+  scrollLeft: number;
+  anchorX: number;
+  pad: number;
+  pph: number;
+  next: number;
+}): number {
   const hours = (o.scrollLeft + o.anchorX - o.pad) / o.pph;
   return hours * o.next + o.pad - o.anchorX;
 }

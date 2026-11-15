@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { cancelTask, createTask, doneTask, leadTasks, nudgeTask, snoozeTask, updateTask } from "./service";
 import { today } from "./today";
+import { yourDay } from "./your-day";
 import { tiles } from "../today/tiles";
 import { readFollowUps } from "../settings/follow-ups";
 
@@ -34,6 +35,15 @@ const fields = {
 export async function taskRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/today", { config: { permission: "auth.self" } }, (req) => today(req, d));
+  // Your day on another day (spec: Your day full screen): the person's own follow-ups and calls, read only.
+  r.get(
+    "/api/v1/your-day",
+    {
+      config: { permission: "auth.self" },
+      schema: { querystring: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict() },
+    },
+    (req) => yourDay(req, d, req.query.date),
+  );
   // Today's tiles (the control centre): each one checks its own permission and is left out without it.
   r.get("/api/v1/today/tiles", { config: { permission: "auth.self" } }, (req) => tiles(req, d.clock(), d));
   // The time choices for the follow-up sheet (3C): names only, in the admin's order.

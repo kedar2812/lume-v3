@@ -1,6 +1,6 @@
 "use client";
 import { api } from "@/lib/api";
-import type { DoneResult, SnoozePreset, TaskInput, TaskView, TodayView } from "./types";
+import type { DoneResult, SnoozePreset, TaskInput, TaskView, TodayView, YourDay } from "./types";
 
 const task = (id: string) => `/api/v1/tasks/${encodeURIComponent(id)}`;
 
@@ -17,6 +17,8 @@ export const tasksClient = {
   /** "Remind them": the assignee hears that someone who manages them is asking (3B). */
   nudge: (id: string) => api.post<{ reminded: true }>(`${task(id)}/nudge`),
   today: () => api.get<TodayView>("/api/v1/today"),
+  /** Your day on another day (YYYY-MM-DD on the person's clock): their follow-ups and calls, read only. */
+  day: (date: string) => api.get<YourDay>(`/api/v1/your-day?date=${encodeURIComponent(date)}`),
   /** The time choices Settings → Follow-ups has right now (3C), in their order. */
   presets: () => api.get<{ presets: { id: string; label: string }[] }>("/api/v1/follow-ups/presets"),
 };
