@@ -34,8 +34,10 @@ the first mockup without changes ("exactly what I had in mind").
   the pointer leaves. Short ease-out with no overshoot (critically damped; hover is not a momentum gesture).
 - The panel stays open while the pointer is over it, so its buttons can be clicked. A short grace period (~120 ms)
   means moving from the dot to the panel doesn't close it.
+- **One panel, everywhere (owner, 2026-11-15):** the card and the full-screen timeline use the same panel component,
+  showing the same details and the same buttons for the same item. Nothing is added or left out in either view.
 - **Follow-up panel:** the task's own words first (semibold), then the lead's name, the due time, and the state on the
-  right in its colour: Overdue (danger), Due soon (warn), Later today (accent), Done (ok).
+  right in its colour: Overdue (danger), Due soon (warn), Later today (accent), Done (ok); button **Open lead**.
 - **Call panel:** the call's title, the lead's name (or who it's with), start and end times; buttons **Join** (only
   for a call that hasn't ended and has a meeting link) and **Open lead** (when it has a lead).
 - **Group marker** (several follow-ups at about the same time, today's numbered dot): the panel is a short list of all
@@ -98,8 +100,8 @@ the first mockup without changes ("exactly what I had in mind").
 - The now line (today only) runs down through all rows, with the time on a small tag that stays at the top.
 - On open, today scrolls so now sits about a third of the way in; another day opens at its first item (or 9 am when
   empty).
-- **Hover and click** work exactly as on the card: the item comes forward, the rest blurs, the panel shows its details
-  and buttons, and a click opens it.
+- **Hover and click** work exactly as on the card: the item comes forward, the rest blurs, the same panel as the card's
+  shows the same details and buttons, and a click opens it.
 - **Drag to move (owner asked):** press on the timeline and drag to move it sideways (and up and down when the rows
   scroll). It tracks the pointer 1:1, carries the flick's speed when let go and slows to a stop, and resists softly past
   the start and end of the day instead of stopping dead. The cursor is a hand while over empty space and a closed hand
