@@ -861,11 +861,15 @@ a.lit:hover {
   font-weight: 650;
   white-space: nowrap;
   color: #fff;
-  background: linear-gradient(180deg, #4f8dff, var(--accent));
-  box-shadow: 0 6px 14px -6px rgba(42, 91, 255, 0.6);
+  background: var(--accent);
   transform: translateX(-10px);
   text-decoration: none;
-  animation: callin 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  /* backwards, not both: once in, its transform is free for the focus scale to ease. */
+  animation: callin 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+  transition:
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-delay: calc(var(--i, 0) * 60ms + 0.4s);
 }
 .call::after {
@@ -904,10 +908,42 @@ a.lit:hover {
   height: 12px;
   margin-left: -6px;
   border-radius: 50%;
-  transition: transform 0.4s cubic-bezier(0.34, 1.4, 0.64, 1);
+  transition:
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.dot:hover {
-  transform: scale(1.45);
+/* One brought forward (hover, focus or a first tap): it grows a little; the rest steps back (day.module.css). */
+.dot[data-on] {
+  transform: scale(1.4);
+}
+.call[data-on] {
+  transform: translateX(-10px) scale(1.06);
+}
+.dot:focus-visible,
+.call:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The whole card opens the full-screen day (spec: Your day full screen, owner 2026-11-15). */
+.dayOpen {
+  cursor: pointer;
+}
+.dayOpen:hover {
+  background: var(--tile-hover);
+}
+.dayOpen [data-day-item],
+.dayOpen a,
+.dayOpen button {
+  cursor: pointer;
+}
+.expand {
+  height: 26px;
+  margin: -3px -8px -3px 2px;
+  color: var(--text-3);
+}
+.expand:hover {
+  color: var(--text);
 }
 /* Several follow-ups at about the same time: one marker, with how many. */
 .dots {
@@ -964,7 +1000,6 @@ a.lit:hover {
   margin-left: -1px;
   border-radius: 2px;
   background: var(--accent);
-  box-shadow: 0 0 12px rgba(42, 91, 255, 0.6);
   z-index: 3;
   pointer-events: none;
 }

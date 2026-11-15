@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type FocusEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -82,27 +83,22 @@ export function useItemFocus() {
     onFocus: cancel,
     onBlur: later,
   };
-
-  return { focused, bind, panelBind, close };
+  return { focused, bind, panelBind, open, close };
 }
 
+/** The panel's width, in px. */
+export const PANEL_W = 264;
+
 /**
- * Where the panel sits in `box`'s own coordinates: centred under the item, kept inside the box (with its scroll).
- * `width` is the panel's width.
+ * Where the panel sits on screen (it's fixed, on <body>, so a card that clips its insides can't cut it off): centred
+ * under the item and kept 8 px inside the window; above the item when there isn't room for it below.
  */
-export function panelPlace(
-  el: HTMLElement,
-  box: HTMLElement,
-  width: number,
-  gap = 8,
-): { left: number; top: number } {
+export function fixedPlace(el: HTMLElement, width = PANEL_W, room = 170, gap = 8): CSSProperties {
   const r = el.getBoundingClientRect();
-  const b = box.getBoundingClientRect();
-  const x = r.left - b.left + box.scrollLeft + r.width / 2;
-  const min = box.scrollLeft + 4;
-  const max = box.scrollLeft + b.width - width - 4;
-  return {
-    left: Math.max(min, Math.min(max, x - width / 2)),
-    top: r.bottom - b.top + box.scrollTop + gap,
-  };
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const left = Math.max(8, Math.min(vw - width - 8, r.left + r.width / 2 - width / 2));
+  return r.bottom + gap + room > vh && r.top - gap - room > 0
+    ? { position: "fixed", left, bottom: vh - r.top + gap }
+    : { position: "fixed", left, top: r.bottom + gap };
 }

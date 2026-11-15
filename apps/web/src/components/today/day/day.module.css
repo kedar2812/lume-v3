@@ -1,8 +1,9 @@
 /* Your day (spec: Your day full screen): the shared details panel and the focus that brings one item forward. */
 
 .panel {
-  position: absolute;
-  z-index: 30;
+  position: fixed;
+  /* Fixed on <body>: above Today, the full-screen day (its scrim layer) and popovers (86); under toasts (90). */
+  z-index: 87;
   width: 264px;
   padding: 12px 14px;
   border-radius: var(--r-row);

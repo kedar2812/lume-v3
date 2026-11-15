@@ -344,7 +344,7 @@ export function Today({
       <div className={s.grid}>
         {v ? (
           <>
-            <DayTile v={v} now={now} tz={tz} />
+            <DayTile v={v} now={now} tz={tz} onOpenFull={() => undefined} />
             <WorkTile
               v={v}
               now={now}
