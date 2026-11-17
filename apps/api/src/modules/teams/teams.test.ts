@@ -33,3 +33,81 @@ describe("teams drive team scope", () => {
     expect([...me!.teamMemberIds].sort()).toEqual([lead.id, m1.id, m2.id].sort());
   });
 });
+
+describe("your own team (decided 2026-11-17)", () => {
+  it("someone who manages teams can't add themselves to a team or make themselves its lead; the owner can", async () => {
+    const mgr = await h.seedUser({
+      grants: [
+        { key: "teams.manage", scope: null },
+        { key: "leads.view", scope: "team" },
+      ],
+    });
+    const c = await h.signIn(mgr);
+    const rep = await h.seedUser({ grants: [] });
+    const team = (
+      await c.inject({ method: "POST", url: "/api/v1/teams", payload: { name: "Abu Dhabi" } })
+    ).json().team;
+    const put = (members: { userId: string; isLead: boolean }[], as = c) =>
+      as.inject({ method: "PUT", url: `/api/v1/teams/${team.id}/members`, payload: { members } });
+    expect((await put([{ userId: rep.id, isLead: false }])).statusCode).toBe(200);
+    const self = await put([
+      { userId: rep.id, isLead: false },
+      { userId: mgr.id, isLead: true },
+    ]);
+    expect(self.statusCode).toBe(403);
+    expect(self.json().error.code).toBe("OWN_TEAMS");
+    const owner = await h.signIn(await h.seedUser({ owner: true, grants: [], totp: true }));
+    expect(
+      (
+        await put(
+          [
+            { userId: rep.id, isLead: false },
+            { userId: mgr.id, isLead: true },
+          ],
+          owner,
+        )
+      ).statusCode,
+    ).toBe(200);
+  });
+
+  it("the lead of a team, with teams.manage only, can't add people to it: they'd see those people's leads (review 2026-11-17)", async () => {
+    const mgr = await h.seedUser({
+      grants: [
+        { key: "teams.manage", scope: null },
+        { key: "leads.view", scope: "team" },
+      ],
+    });
+    // Made its lead by someone who manages security (one owner per install, and an earlier test seeded it).
+    const owner = await h.signIn(
+      await h.seedUser({
+        grants: [
+          { key: "teams.manage", scope: null },
+          { key: "security.manage", scope: null },
+        ],
+        totp: true,
+      }),
+    );
+    const team = (
+      await owner.inject({ method: "POST", url: "/api/v1/teams", payload: { name: "Sharjah" } })
+    ).json().team;
+    await owner.inject({
+      method: "PUT",
+      url: `/api/v1/teams/${team.id}/members`,
+      payload: { members: [{ userId: mgr.id, isLead: true }] },
+    });
+    const star = await h.seedUser({ grants: [] });
+    const c = await h.signIn(mgr);
+    const add = await c.inject({
+      method: "PUT",
+      url: `/api/v1/teams/${team.id}/members`,
+      payload: {
+        members: [
+          { userId: mgr.id, isLead: true },
+          { userId: star.id, isLead: false },
+        ],
+      },
+    });
+    expect(add.statusCode).toBe(403);
+    expect(add.json().error.code).toBe("OWN_TEAMS");
+  });
+});

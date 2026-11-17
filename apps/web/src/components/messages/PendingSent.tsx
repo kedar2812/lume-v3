@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSound } from "@/components/feedback/SoundProvider";
 import { leadsClient } from "@/lib/leads/client";
+import { announceLeadUpdated } from "@/lib/leads/updated";
 import { onBack, type Pending } from "@/lib/messages/pending";
 import { SentPrompt, type Outcome } from "./SentPrompt";
 import s from "./messages.module.css";
@@ -50,6 +51,8 @@ export function PendingSent() {
       return done(6000);
     }
     sound.play("sent");
+    // The table or board on screen shows its new stage (bug hunt 2026-11-17).
+    announceLeadUpdated(p.leadId);
     const said: Outcome = r.data.moved
       ? { moved: r.data.moved }
       : r.data.notMoved
@@ -62,6 +65,7 @@ export function PendingSent() {
     const moved = outcome?.moved;
     if (!p || !moved) return;
     const r = await leadsClient.move(p.leadId, moved.fromStageId);
+    if (r.ok) announceLeadUpdated(p.leadId);
     setOutcome(r.ok ? { moved, undone: true } : { failed: r.message });
     done(r.ok ? 1400 : 6000);
   };

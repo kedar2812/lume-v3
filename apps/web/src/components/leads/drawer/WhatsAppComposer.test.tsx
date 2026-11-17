@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { filesClient } from "@/lib/files/client";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaReply, WaThreadMessage } from "@/lib/whatsapp/types";
-import { WhatsAppComposer } from "./WhatsAppComposer";
+import { WhatsAppComposer, forgetUnsentForTests } from "./WhatsAppComposer";
 import { NO_PREVIEW } from "@/lib/files/testing";
 
 vi.mock("@/lib/whatsapp/client", () => ({
@@ -42,6 +42,7 @@ const box = () => screen.getByRole("textbox", { name: "Message to Sneha" });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  forgetUnsentForTests();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-21T06:00:00Z")); // 11:30 am in Kolkata
   vi.mocked(whatsappClient.send).mockImplementation(async (_lead, b) => ok({ message: sent(b.text ?? "") }));
@@ -50,6 +51,23 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () => {
+  it("closed with words in it and opened again: the words are still there; sent, they're gone (bug hunt 2026-11-17)", async () => {
+    const first = render(
+      <WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} onSent={vi.fn()} />,
+    );
+    await userEvent.type(box(), "Hi Sneha, about Saturday");
+    first.unmount();
+    const again = render(
+      <WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} onSent={vi.fn()} />,
+    );
+    expect(box()).toHaveValue("Hi Sneha, about Saturday");
+    await userEvent.type(box(), "{Enter}");
+    await waitFor(() => expect(box()).toHaveValue(""));
+    again.unmount();
+    render(<WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} onSent={vi.fn()} />);
+    expect(box()).toHaveValue("");
+  });
+
   it("says until when and from which number; Enter sends, Shift+Enter is a new line", async () => {
     const onSent = vi.fn();
     render(<WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} onSent={onSent} />);

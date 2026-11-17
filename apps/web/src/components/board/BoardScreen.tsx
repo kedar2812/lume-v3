@@ -37,6 +37,7 @@ import { BoardColumn } from "./BoardColumn";
 import { boardKeys, type BoardKeysState } from "./boardKeys";
 import s from "./board.module.css";
 import { useAskedLead } from "@/lib/leads/asked-lead";
+import { useLeadUpdated } from "@/lib/leads/updated";
 import { CreateLiveSheetButton } from "@/components/live-sheets/CreateLiveSheetButton";
 
 type Props = {
@@ -434,12 +435,16 @@ function Board({
     const cursor = columnsRef.current[stage.id]?.nextCursor;
     if (!cursor) return;
     setLoadingMore(stage.id);
+    const gen = generation.current;
     const r = await leadsClient.list(
       { ...filters, stageIds: [stage.id], pipelineId: pipeline.id },
       cursor,
       BOARD_PAGE,
     );
     setLoadingMore(null);
+    // The board was read again meanwhile (a filter, a search): these were for what it showed before (bug hunt
+    // 2026-11-17), as the table's own Load more drops them.
+    if (gen !== generation.current) return;
     if (!r.ok) return toast({ tone: "danger", title: "LUME couldn’t load more leads", detail: r.message });
     setColumns((c) => {
       const have = c[stage.id] ?? EMPTY;
@@ -454,12 +459,19 @@ function Board({
   };
 
   // ── the drawer over the board ──
+  // A lead changed elsewhere in the app (the shell's "Sent?" moving its stage): its card follows.
+  useLeadUpdated((lead) => onChanged(lead));
   const onChanged = (lead: Lead) => {
     const found = findLead(lead.id);
     if (!found) return;
     if (lead.stageId && lead.stageId !== found.stage.id && stages.some((st) => st.id === lead.stageId))
       shift(lead, found.stage.id, lead.stageId);
-    else setColumns((c) => ({ ...c, [found.stage.id]: replaceIn(c[found.stage.id], lead) }));
+    else {
+      setColumns((c) => ({ ...c, [found.stage.id]: replaceIn(c[found.stage.id], lead) }));
+      // A value changed in the drawer moves its column's total too (bug hunt 2026-11-17: the Won total stayed).
+      const delta = (lead.value ?? 0) - (found.lead.value ?? 0);
+      if (delta) setValues((m) => ({ ...m, [found.stage.id]: (m[found.stage.id] ?? 0) + delta }));
+    }
   };
   const onGone = (id: string) => {
     const found = findLead(id);

@@ -154,12 +154,14 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
       // post sent again (under any event id) is a duplicate.
       // An empty one is none: hashing "" would make every post the same event (review 2026-10-26 W3).
       const given = header(req.headers["x-lume-event-id"])?.trim() || undefined;
+      // A post with no event id is known by its body, on its day (review 2026-11-17): a sender's retries are minutes
+      // apart; the same form sent again another day is someone enquiring again, never dropped as a repeat.
       const eventKey =
         given && given.length <= 200
           ? given
-          : createHash("sha256")
-              .update(given ?? raw)
-              .digest("hex");
+          : given
+            ? createHash("sha256").update(given).digest("hex")
+            : `${createHash("sha256").update(raw).digest("hex")}:${new Date(now).toISOString().slice(0, 10)}`;
       const status = s.status === "draft" ? ("test" as const) : ("queued" as const);
       const kept = await db.transaction(async (tx) => {
         if (cfg.mode === "signed") {

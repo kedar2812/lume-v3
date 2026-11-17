@@ -377,6 +377,20 @@ describe("lenient: an automatic source keeps the lead when one field can't be re
     expect(o.draft.unfiled).toEqual([{ label: "Date", value: "sometime last week" }]);
   });
 
+  it("a value LUME can't read (a range, another currency): the lead comes in, the value is kept (bug hunt 2026-11-17)", () => {
+    const o = draft(lenient(["name", "value"], ["Aisha", "50,000-1,00,000"]));
+    expect(o.draft.value).toBeNull();
+    expect(o.draft.unfiled).toEqual([{ label: "Value", value: "50,000-1,00,000" }]);
+    expect(warns(o).length).toBeGreaterThan(0);
+  });
+
+  it("a tag that isn't one: the lead comes in with the tags it has, the unknown one is kept (bug hunt 2026-11-17)", () => {
+    const o = draft(lenient(["name", "tags"], ["Aisha", "No such tag"]));
+    expect(o.draft.tagIds).toEqual([]);
+    expect(warns(o)).toContain("TAG_UNKNOWN");
+    expect(o.draft.unfiled).toEqual([{ label: "Tags", value: "No such tag" }]);
+  });
+
   it("still refuses what makes a lead unusable: no name and no contact", () => {
     expect(problems(lenient(["name", "email", "tier"], ["", "", "Bronze"]))).toContain("NO_NAME_NO_CONTACT");
   });

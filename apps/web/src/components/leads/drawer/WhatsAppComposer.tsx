@@ -75,6 +75,14 @@ function untilWords(iso: string, tz: string): string {
  * words with the first; one WhatsApp doesn't take stays to try again while the others go. After WhatsApp's 24 hours,
  * the reason and the usual way to open WhatsApp (`fallback`) instead of a box.
  */
+/**
+ * Words typed and not sent, by lead, for this page's life: closing the chat (Escape, a click outside) and opening it
+ * again brings them back, never a silent loss (bug hunt 2026-11-17). Gone once sent.
+ */
+const unsent = new Map<string, string>();
+/** Tests only. */
+export const forgetUnsentForTests = () => unsent.clear();
+
 export function WhatsAppComposer({
   leadId,
   leadName,
@@ -105,7 +113,11 @@ export function WhatsAppComposer({
   const who = first(leadName);
   // Recommended by LUME AI for a template, when LUME AI is on here (2026-10-31).
   const ai = useAiOn();
-  const [text, setText] = useState(initialText);
+  const [text, setText] = useState(() => initialText || unsent.get(leadId) || "");
+  useEffect(() => {
+    if (text.trim()) unsent.set(leadId, text);
+    else unsent.delete(leadId);
+  }, [leadId, text]);
   const [files, setFiles] = useState<Ready[]>([]);
   const [attaching, setAttaching] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

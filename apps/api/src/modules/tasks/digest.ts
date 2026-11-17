@@ -206,7 +206,10 @@ async function build(pool: pg.Pool, u: Person, now: Date, base: string) {
     const assigned = Number(
       (
         await client.query<{ n: string }>(
+          // Still theirs and still here, as the names below (review 2026-11-17: a lead deleted or handed straight on
+          // was counted, so "1 lead was assigned to you" named nobody).
           `SELECT count(DISTINCT h.lead_id) AS n FROM lead_assignment_history h
+             JOIN leads l ON l.id = h.lead_id AND l.deleted_at IS NULL AND l.owner_id = $1
             WHERE h.to_user_id = $1 AND h.changed_at > $2`,
           [u.id, since],
         )
@@ -216,7 +219,7 @@ async function build(pool: pg.Pool, u: Person, now: Date, base: string) {
     const assignedLeads = (
       await client.query<{ id: string; name: string }>(
         `SELECT l.id, l.name FROM leads l
-          WHERE l.deleted_at IS NULL AND l.id IN (
+          WHERE l.deleted_at IS NULL AND l.owner_id = $1 AND l.id IN (
             SELECT h.lead_id FROM lead_assignment_history h WHERE h.to_user_id = $1 AND h.changed_at > $2)
           ORDER BY l.created_at DESC LIMIT 5`,
         [u.id, since],

@@ -14,6 +14,8 @@ export type LicenceOptions = {
   version: string;
   /** Tests: the licence server, faked. */
   fetch?: typeof fetch;
+  /** Tests: LUME's own running clock in ms (performance.now() by default), which a wall clock held back can't move. */
+  mono?: () => number;
 };
 
 /** A client's install asks for its product key at setup (spec 2026-10-15 §1.1): enforcing, with none in .env. */

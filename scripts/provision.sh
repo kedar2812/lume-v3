@@ -52,6 +52,25 @@ if [ "$status" = active ] && [[ "$running" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "
   [ "$(printf '%s\n%s\n' "$running" "$version" | sort -V | head -n 1)" = "$version" ]; then
   die "refusing: $version is older than the $running it runs (update.sh is how versions move)"
 fi
+# The release's own Caddyfile and compose file, as update.sh ships them (bug hunt 2026-11-17: this tree's files went
+# with an older pinned version). From LUME_RELEASE_DIR, else the release's tag; this tree only when it is that version.
+RELEASE="${LUME_RELEASE_DIR:-}"
+REL_TMP=""
+trap '[ -z "$REL_TMP" ] || rm -rf "$REL_TMP"' EXIT
+if [ -z "$RELEASE" ]; then
+  REL_TMP="$(mktemp -d)"
+  RELEASE="$REL_TMP"
+  mkdir -p "$RELEASE/infra"
+  for f in Caddyfile docker-compose.yml; do
+    git -C "$FLEET_ROOT" show "v$version:infra/$f" > "$RELEASE/infra/$f" 2>/dev/null || rm -f "$RELEASE/infra/$f"
+  done
+  if ! [ -s "$RELEASE/infra/Caddyfile" ] || ! [ -s "$RELEASE/infra/docker-compose.yml" ]; then
+    [ "$version" = "$(cd "$FLEET_ROOT" && node -p "require('./package.json').version")" ] && RELEASE="$FLEET_ROOT"
+  fi
+fi
+if ! [ -s "$RELEASE/infra/Caddyfile" ] || ! [ -s "$RELEASE/infra/docker-compose.yml" ]; then
+  die "can't find $version's Caddyfile and compose file: fetch the tags (git fetch --tags) or set LUME_RELEASE_DIR"
+fi
 instance="$(inv get "$slug" instance)"
 
 inputs="$CLIENTS_DIR/$slug.env"
@@ -112,8 +131,8 @@ remote "sudo bash /tmp/lume-bootstrap.sh && rm -f /tmp/lume-bootstrap.sh"
 step "/opt/lume"
 # /opt/lume is the deploy user's (750); Postgres's own user (uid 999) must read its config and init scripts.
 remote "sudo install -d -m 750 -o $DEPLOY_USER -g $DEPLOY_USER /opt/lume && sudo install -d -m 755 -o $DEPLOY_USER -g $DEPLOY_USER /opt/lume/postgres /opt/lume/postgres/init"
-upload "$FLEET_ROOT/infra/docker-compose.yml" /opt/lume/docker-compose.yml
-upload "$FLEET_ROOT/infra/Caddyfile" /opt/lume/Caddyfile
+upload "$RELEASE/infra/docker-compose.yml" /opt/lume/docker-compose.yml
+upload "$RELEASE/infra/Caddyfile" /opt/lume/Caddyfile
 upload "$FLEET_ROOT/infra/postgres/postgresql.conf" /opt/lume/postgres/postgresql.conf
 upload "$FLEET_ROOT/infra/postgres/pg_hba.conf" /opt/lume/postgres/pg_hba.conf
 for f in "$FLEET_ROOT"/infra/postgres/init/*; do
@@ -137,7 +156,7 @@ fi
 # ---------- 7. .env (mode 600) ----------
 step ".env"
 rendered="$(mktemp)"
-trap 'rm -f "$rendered"' EXIT
+trap 'rm -f "$rendered"; [ -z "$REL_TMP" ] || rm -rf "$REL_TMP"' EXIT
 # Single-quoted, so compose takes each value as it is (a "$" in an SMTP password stays a "$").
 kv() {
   case "$2" in *"'"*) die "$1 contains a single quote, which .env can't hold as it is" ;; esac

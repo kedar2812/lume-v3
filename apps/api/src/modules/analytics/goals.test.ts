@@ -31,6 +31,31 @@ afterAll(async () => {
 });
 
 describe("goals and spend (8B)", () => {
+  it("no pace on the first days of the month: from a fifth of the way in, as everywhere else (bug hunt 2026-11-17)", async () => {
+    // October 2: a fifteenth of the month gone (the clock only moves forward, so it stays there).
+    if (h.clock.now < new Date("2026-10-02T06:00:00Z")) h.clock.now = new Date("2026-10-02T06:00:00Z");
+    const c = await h.signIn(admin);
+    const start = "2026-10-01";
+    await c.inject({
+      method: "PUT",
+      url: "/api/v1/analytics/goals",
+      payload: {
+        scope: "business",
+        scopeId: null,
+        metric: "won",
+        period: "month",
+        periodStart: start,
+        target: 20,
+      },
+    });
+    const list = (await c.inject({ method: "GET", url: `/api/v1/analytics/goals?start=${start}` })).json();
+    const g = list.goals.find(
+      (x: { scope: string; metric: string }) => x.scope === "business" && x.metric === "won",
+    );
+    expect(g.elapsed).toBeLessThan(0.2);
+    expect(g.pace).toBeNull();
+  });
+
   it("an admin sets a goal; everyone in reach sees its progress, and the pace is an estimate over the time gone", async () => {
     const c = await h.signIn(admin);
     const put = await c.inject({

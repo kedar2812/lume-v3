@@ -10,6 +10,7 @@ import {
   needsOnboarding,
   needsTour,
   requiresTwoFactor,
+  moduleIncluded,
 } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
@@ -17,6 +18,8 @@ import { audit } from "../../audit/audit";
 import { clearSessionCookie } from "../../auth/cookies";
 import { revokeSession } from "../../auth/sessions";
 import { CAPABILITIES } from "../../capabilities";
+import { calendarOn } from "../calendar/service";
+import { readFollowUps } from "../settings/follow-ups";
 import { unauthorized } from "../../http/errors";
 import { onboardingOf, tourOf } from "../me/service";
 import { whatsNewFor } from "../me/whats-new";
@@ -120,6 +123,16 @@ export async function authRoutes(
       tour,
       whatsNew: whatsNew.whatsNew,
       capabilities: CAPABILITIES,
+      // What can be connected now (bug hunt 2026-11-17): onboarding never offers a Connect that only says it's off.
+      // Whether the business sends the morning email at all (bug hunt 2026-11-17): nobody is offered it while it's off.
+      digestOn: (await readFollowUps(req)).digest.enabled,
+      connectable: {
+        calendar:
+          CAPABILITIES.calendar &&
+          !!d.googleOAuth &&
+          (await calendarOn(req)) &&
+          moduleIncluded(req.server.licence.view().plan, "googleCalendar"),
+      },
       agreement: { version: u.agreedVersion ?? null, current: LEGAL_VERSION },
       // The licence as this person sees it (L-A): with the rest, so nothing flashes on load.
       licence: await licenceFor(req),

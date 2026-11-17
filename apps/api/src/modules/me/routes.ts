@@ -32,7 +32,7 @@ export async function meRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
       return reply.code(204).send();
     },
   );
-  r.get("/api/v1/me/sessions", { config: self }, (req) => me.listSessions(req));
+  r.get("/api/v1/me/sessions", { config: self }, (req) => me.listSessions(req, d));
 
   // Your look (7C): a colour for your initials, or a photo the browser lined up and cropped; each change is kept
   // with a new version. Anyone signed in sees a colleague's photo beside their name.

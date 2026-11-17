@@ -204,7 +204,7 @@ export async function listInvites(req: FastifyRequest, d: AppDeps) {
     : [];
   const inviters = inviterIds.length
     ? await req.db
-        .select({ id: schema.users.id, name: schema.users.name })
+        .select({ id: schema.users.id, name: schema.users.name, status: schema.users.status })
         .from(schema.users)
         .where(inArray(schema.users.id, inviterIds))
     : [];
@@ -219,7 +219,11 @@ export async function listInvites(req: FastifyRequest, d: AppDeps) {
         roles: roles.filter((x) => r.roleIds.includes(x.id)),
         invitedBy: inviters.find((x) => x.id === r.invitedBy)?.name ?? null,
         expiresAt: r.expiresAt,
-        expired: r.expiresAt.getTime() < now.getTime(),
+        // Its sender no longer active here, its link stopped working (liveInvite): shown as expired, to resend
+        // (review 2026-11-17).
+        expired:
+          r.expiresAt.getTime() < now.getTime() ||
+          (!!r.invitedBy && inviters.find((x) => x.id === r.invitedBy)?.status !== "active"),
       })),
   };
 }

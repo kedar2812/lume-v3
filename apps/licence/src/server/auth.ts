@@ -103,6 +103,10 @@ export async function passwordStep(req: Request, ctx: Ctx, body: { email: string
 const DUMMY_TOTP = newTotpSecret();
 
 /** Step two: the six digits. Only here is the sign-in decided, and it doesn't say which part was wrong. */
+/** Wrong two-step codes for one admin, from anywhere, before the code step waits out the window. */
+const CODE_TRIES = 10;
+const CODE_WINDOW_MS = 15 * 60_000;
+
 export async function codeStep(
   req: Request,
   ctx: Ctx,
@@ -130,6 +134,16 @@ export async function codeStep(
     await ctx.db.query("SELECT id FROM admins ORDER BY id LIMIT 1");
     verifyTotp(DUMMY_TOTP, code, { nowMs: now.getTime(), lastUsedStep: null });
     await logSignIn(ctx.db, ip, p.email, "unknown_email", now);
+    return { ok: false };
+  }
+  // Wrong codes for this admin, from any address: past CODE_TRIES in a window, even the right code waits (bug hunt
+  // 2026-11-17: the per-address limit alone let many addresses guess the six digits).
+  const wrong = await ctx.db.query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM sign_ins WHERE email = $1 AND outcome = 'bad_code' AND at > $2",
+    [p.email, new Date(now.getTime() - CODE_WINDOW_MS)],
+  );
+  if ((wrong.rows[0]?.n ?? 0) >= CODE_TRIES) {
+    await logSignIn(ctx.db, ip, p.email, "limited", now);
     return { ok: false };
   }
   const conn = await ctx.db.connect();

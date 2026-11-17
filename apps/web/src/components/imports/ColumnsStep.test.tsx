@@ -48,6 +48,22 @@ describe("ColumnsStep", () => {
     unmount();
   });
 
+  it("a new field's name typed just before Continue goes with it (bug hunt 2026-11-17)", async () => {
+    vi.mocked(importsClient.patch).mockResolvedValue(ok(testDraft()));
+    const onContinue = vi.fn();
+    render(<ColumnsStep draft={testDraft()} onDraft={vi.fn()} onContinue={onContinue} blocked={false} />);
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Email goes to" }), "new_field");
+    const name = screen.getByRole("textbox", { name: "New field's name" });
+    await userEvent.clear(name);
+    await userEvent.type(name, "Work email");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => expect(onContinue).toHaveBeenCalled());
+    const last = vi.mocked(importsClient.patch).mock.calls.at(-1)![1] as {
+      mapping: { columns: { label?: string }[] };
+    };
+    expect(last.mapping.columns.map((c) => c.label)).toContain("Work email");
+  });
+
   it("a new field starts as the kind of values the column holds, read from every row", async () => {
     vi.mocked(importsClient.patch).mockResolvedValue(ok(testDraft()));
     render(<ColumnsStep draft={testDraft()} onDraft={vi.fn()} onContinue={vi.fn()} blocked={false} />);

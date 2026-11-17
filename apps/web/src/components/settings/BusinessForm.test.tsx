@@ -39,6 +39,21 @@ describe("BusinessForm", () => {
     expect(refresh).toHaveBeenCalled(); // the business name shows in the sidebar
   });
 
+  it("a change made while it saves stays, and still says it's unsaved (bug hunt 2026-11-17)", async () => {
+    let finish: (v: unknown) => void = () => {};
+    vi.mocked(settingsClient.patch).mockImplementation(() => new Promise((r) => (finish = r)) as never);
+    render(<BusinessForm initial={initial} />);
+    const name = screen.getByLabelText("Business name");
+    await userEvent.type(name, " Co");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await userEvent.selectOptions(screen.getByLabelText("Week starts on"), "0");
+    finish({ ok: true, status: 200, data: { ...initial, businessName: "Brightpath Studio Co" } });
+    await screen.findByRole("status");
+    expect(screen.getByLabelText("Week starts on")).toHaveValue("0");
+    expect(screen.getByLabelText("Business name")).toHaveValue("Brightpath Studio Co");
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
   it("has nothing to save until something changes, and needs a name", async () => {
     render(<BusinessForm initial={initial} />);
     expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();

@@ -305,6 +305,26 @@ describe("a live sheet's run", () => {
     expect(row.cells[0]).toBe("riya.new@x.test");
   });
 
+  it("Keep them, after a write cut off part-way: LUME's own cells aren't taken for hand edits (bug hunt 2026-11-17)", async () => {
+    const a = await lead({ name: "Neha Kulkarni" });
+    const id = await sheet(h, { edits: "keep" });
+    const sid = (await run(h, id, "make")).sheet.spreadsheet_id!;
+    // A write LUME began and never finished remembering: the sheet has new cells, LUME's record the old ones.
+    const at = tab(h, sid).rows.findIndex((x) => x.lead === a);
+    h.fake!.made.editCell(sid, 0, at, 0, "neha.half@x.test");
+    await h.ownerPool.query("UPDATE live_sheets SET google_modified_at = 'lume:writing' WHERE id = $1", [id]);
+    await h.queryAll("UPDATE leads SET email = 'neha.new@x.test', updated_at = now() WHERE id = $1", [a]);
+    await run(h, id);
+    expect(rowOf(tab(h, sid).rows, a)!.cells[0]).toBe("neha.new@x.test");
+    const [w] = (
+      await h.ownerPool.query<{ edited_cols: number[] }>(
+        "SELECT edited_cols FROM live_sheet_rows WHERE sheet_id = $1 AND lead_id = $2",
+        [id, a],
+      )
+    ).rows;
+    expect(w!.edited_cols).toEqual([]);
+  });
+
   it("Put LUME's back: a hand edit is written over at the next update", async () => {
     const a = await lead({ name: "Riya Sharma" });
     const id = await sheet(h, { edits: "replace" });

@@ -290,10 +290,13 @@ test("@smoke read the audit log", async ({ page }) => {
   await expect(page.getByText(`${PEOPLE.owner.name} invited someone`).first()).toBeVisible();
   await expect(page.getByText(/ signed in$/)).toHaveCount(0);
 
-  // Download CSV (owner 2026-11-14): the same entries, in the same words, as a file.
+  // Download CSV (owner 2026-11-14): the same entries, in the same words, as a file; the password first (2026-11-17).
+  await page.getByRole("button", { name: "Download CSV" }).click();
+  const ask = page.getByRole("dialog", { name: "Download the audit log" });
+  await ask.getByLabel("Password", { exact: true }).fill(PEOPLE.owner.password);
   const [file] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("link", { name: "Download CSV" }).click(),
+    ask.getByRole("button", { name: "Download" }).click(),
   ]);
   expect(file.suggestedFilename()).toMatch(/^lume-audit-log-\d{4}-\d{2}-\d{2}\.csv$/);
   const csv = readFileSync(await file.path(), "utf8")

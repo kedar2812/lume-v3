@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
-import { can, canOnRecord, newId, normalizePhone, plural, scopeOf } from "@lume/core";
+import { can, canOnRecord, isStop, newId, normalizePhone, plural, scopeOf } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { loadActor } from "../../rbac/actor";
@@ -105,7 +105,10 @@ async function stageMany(
     .select()
     .from(L)
     .where(and(sql`${L.id} = ANY(${ids}::uuid[])`, isNull(L.deletedAt)))
-    .for("update");
+    .for("update")
+    // One order for every run's locks, as undo takes them: two runs over the same leads never deadlock (review
+    // 2026-11-17).
+    .orderBy(L.id);
   const byId = new Map(leads.map((l) => [l.id, l]));
   const [target] = await req.db
     .select()
@@ -294,7 +297,10 @@ async function setBased(
     .select()
     .from(L)
     .where(and(sql`${L.id} = ANY(${uuids(ids)}::uuid[])`, isNull(L.deletedAt)))
-    .for("update");
+    .for("update")
+    // One order for every run's locks, as undo takes them: two runs over the same leads never deadlock (review
+    // 2026-11-17).
+    .orderBy(L.id);
   const byId = new Map(leads.map((l) => [l.id, l]));
   const tagsOf =
     action.type === "tags"
@@ -489,7 +495,8 @@ function mayRestore(
       tags: "leads.edit",
       delete: "leads.delete",
       set_phone_country: "leads.edit",
-      do_not_contact: "leads.edit",
+      // Undoing it lifts do not contact: as lifting one by hand, Settings' (review 2026-11-17).
+      do_not_contact: "settings.manage",
       follow_up: "leads.edit",
     } as const
   )[kind];
@@ -582,6 +589,16 @@ async function undoChunk(
         )
       : new Map<string, string[]>();
   const out = new Map<string, Result>();
+  // A lead who said stop on WhatsApp since the action stays do not contact: their own word, not the action's (a stop
+  // on a lead already marked changes nothing on it, so the version check can't see it; review 2026-11-17).
+  const saidStop = new Set<string>();
+  if (kind === "do_not_contact") {
+    const said = await req.db.execute<{ lead_id: string; text: string | null }>(sql`
+      SELECT a.lead_id, a.payload->>'text' AS text FROM activities a
+       WHERE a.lead_id = ANY(${ids}::uuid[]) AND a.type = 'whatsapp_received'
+         AND a.occurred_at >= (SELECT created_at FROM bulk_runs WHERE id = ${run.undoOf})`);
+    for (const r of said.rows) if (isStop(r.text ?? "")) saidStop.add(r.lead_id);
+  }
   const back: { lead: LeadRow; to: Record<string, unknown> }[] = [];
   for (const [i, item] of items.entries()) {
     await hooks?.midChunk?.(n, i);
@@ -599,6 +616,10 @@ async function undoChunk(
     const to = o.before;
     if (to.unchanged) {
       out.set(lead.id, skip(lead.id, "UNCHANGED"));
+      continue;
+    }
+    if (saidStop.has(lead.id)) {
+      out.set(lead.id, skip(lead.id, "SAID_STOP"));
       continue;
     }
     if (kind === "assign" && to.ownerId && inactive.has(to.ownerId as string)) {
@@ -761,8 +782,12 @@ async function undoChunk(
             .select({ status: schema.tasks.status, assigneeId: schema.tasks.assigneeId })
             .from(schema.tasks)
             .where(eq(schema.tasks.id, taskId));
-          // Done, snoozed into a new one or cancelled by hand since: left as the person left it.
-          if (t?.status !== "open") continue;
+          // Done, snoozed into a new one or cancelled by hand since: left as the person left it, and not counted
+          // as put back (review 2026-11-17).
+          if (t?.status !== "open") {
+            out.set(b.lead.id, skip(b.lead.id, "FOLLOW_UP_CLOSED"));
+            continue;
+          }
           // Handed since to someone whose follow-ups this person doesn't manage: theirs now (review L4).
           if (!mayManageFor(req.actor!, t.assigneeId)) {
             out.set(b.lead.id, skip(b.lead.id, "FOLLOW_UP_NOT_YOURS"));

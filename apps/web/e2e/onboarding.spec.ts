@@ -1,4 +1,4 @@
-import { callApi, alertIn, enterCode, expect, stateFile, test } from "./fixtures";
+import { callApi, alertIn, enterCode, expect, openApp, stateFile, test } from "./fixtures";
 
 type Me = {
   user: { name: string; theme: string };
@@ -10,68 +10,66 @@ type Me = {
 test.describe("a sales rep", () => {
   test.use({ storageState: stateFile("rep") });
 
-  test("@smoke onboarding saves their choices and hands over to the tour", async ({ page }) => {
-    // Until onboarding is done, the app itself sends them back to it.
-    await page.goto("/leads");
-    await expect(page).toHaveURL(/\/welcome$/);
-    await expect(page.getByRole("dialog", { name: /welcome to lume, riya/i })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: /steps/i }).getByRole("button")).toHaveText([
-      "Welcome",
-      "You",
-      "Look",
-      "Your day",
-      "Alerts",
-      "Connect", // Google Calendar, now this build has it (5D): Sales may connect their own
-      "All set",
-    ]);
-    await page.getByRole("button", { name: /let’s go/i }).click();
-
-    await page.getByLabel("Your name").fill("Riya S");
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    await page.getByRole("radio", { name: /obsidian/i }).click();
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "obsidian");
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    await page.getByRole("button", { name: "Sat" }).click();
-    await expect(page.getByTestId("day-preview")).toContainText("Mon, Tue, Wed, Thu, Fri, Sat");
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    await page.getByRole("switch", { name: /email me the morning digest/i }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    // Connecting is optional and never a dead end: Connect goes to Google from here (2026-10-31: it linked to the
-    // Calendar, which onboarding sent straight back), and "I’ll do this later" moves on.
-    await expect(page.getByRole("heading", { name: "Connect your tools" })).toBeVisible();
-    await page.route("**/api/v1/calendar/connect", (r) =>
-      r.fulfill({ json: { url: "/calendar/connected?p=onboarding&s=x" } }),
+  test("@smoke onboarding saves their choices and hands over to the tour", async ({ page, browser }) => {
+    // Connect and the morning email are offered only where the business has them (bug hunt 2026-11-17). This server
+    // has no Connect with Google, so Calendar can't be on and there's no Connect step (ConnectCards' tests cover its
+    // button); the owner switches the morning email on for this, and back after.
+    const owner = await browser.newContext({ storageState: stateFile("owner") });
+    const op = await owner.newPage();
+    await openApp(op, "/today");
+    expect((await callApi(op, "PUT", "/api/v1/integrations/google-calendar", { enabled: true })).status).toBe(
+      409,
     );
-    const [google] = await Promise.all([
-      page.waitForRequest("**/api/v1/calendar/connect"),
-      page.getByRole("button", { name: "Connect Google Calendar" }).click(),
-    ]);
-    expect(google.method()).toBe("POST");
-    // Google's hand-back finishes during onboarding (here refused, said in words), rather than bouncing to /welcome.
-    await expect(page).toHaveURL(/\/calendar\/connected\?/);
-    await expect(page.getByRole("alert")).toBeVisible();
-    await page.unroute("**/api/v1/calendar/connect");
-    await page.goto("/welcome"); // where Google hands back to, and onboarding picks up at Connect
-    await expect(page.getByRole("heading", { name: "Connect your tools" })).toBeVisible();
-    await page.getByRole("button", { name: "I’ll do this later" }).click();
-    await expect(page.getByRole("heading", { name: "You’re all set, Riya" })).toBeVisible();
-    await page.getByRole("button", { name: /take the tour/i }).click();
+    expect(
+      (await callApi(op, "PUT", "/api/v1/settings/follow-ups", { digest: { enabled: true } })).status,
+    ).toBe(200);
+    try {
+      // Until onboarding is done, the app itself sends them back to it.
+      await page.goto("/leads");
+      await expect(page).toHaveURL(/\/welcome$/);
+      await expect(page.getByRole("dialog", { name: /welcome to lume, riya/i })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: /steps/i }).getByRole("button")).toHaveText([
+        "Welcome",
+        "You",
+        "Look",
+        "Your day",
+        "Alerts",
+        "All set",
+      ]);
+      await page.getByRole("button", { name: /let’s go/i }).click();
 
-    await expect(page).toHaveURL(/\/today$/); // ?tour=1 is tidied away
-    await expect(page.getByRole("dialog", { name: /tour/i })).toContainText("This is LUME");
+      await page.getByLabel("Your name").fill("Riya S");
+      await page.getByRole("button", { name: "Continue" }).click();
 
-    // Everything stuck on the server: the name, the theme, the day, and onboarding itself.
-    const { data: me } = await callApi<Me>(page, "GET", "/api/v1/auth/me");
-    expect(me.user).toMatchObject({ name: "Riya S", theme: "obsidian" });
-    expect(me.preferences.workingDays).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(me.preferences.alerts.emailDigest).toBe(false);
-    expect(me.onboarding.completedAt).not.toBeNull();
-    await page.goto("/welcome");
-    await expect(page).toHaveURL(/\/today$/);
-    await expect(page.getByTestId("lockup")).toContainText("Brightpath Studio");
+      await page.getByRole("radio", { name: /obsidian/i }).click();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "obsidian");
+      await page.getByRole("button", { name: "Continue" }).click();
+
+      await page.getByRole("button", { name: "Sat" }).click();
+      await expect(page.getByTestId("day-preview")).toContainText("Mon, Tue, Wed, Thu, Fri, Sat");
+      await page.getByRole("button", { name: "Continue" }).click();
+
+      await page.getByRole("switch", { name: /email me the morning digest/i }).click();
+      await page.getByRole("button", { name: "Continue" }).click();
+      await expect(page.getByRole("heading", { name: "You’re all set, Riya" })).toBeVisible();
+      await page.getByRole("button", { name: /take the tour/i }).click();
+
+      await expect(page).toHaveURL(/\/today$/); // ?tour=1 is tidied away
+      await expect(page.getByRole("dialog", { name: /tour/i })).toContainText("This is LUME");
+
+      // Everything stuck on the server: the name, the theme, the day, and onboarding itself.
+      const { data: me } = await callApi<Me>(page, "GET", "/api/v1/auth/me");
+      expect(me.user).toMatchObject({ name: "Riya S", theme: "obsidian" });
+      expect(me.preferences.workingDays).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(me.preferences.alerts.emailDigest).toBe(false);
+      expect(me.onboarding.completedAt).not.toBeNull();
+      await page.goto("/welcome");
+      await expect(page).toHaveURL(/\/today$/);
+      await expect(page.getByTestId("lockup")).toContainText("Brightpath Studio");
+    } finally {
+      await callApi(op, "PUT", "/api/v1/settings/follow-ups", { digest: { enabled: false } });
+      await owner.close();
+    }
   });
 });
 

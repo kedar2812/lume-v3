@@ -240,6 +240,18 @@ describe("/v1/check (spec §4.3)", () => {
     expect(await pruneCheckIns(t.pool, now)).toBe(1);
     expect(await q("SELECT 1 FROM check_ins WHERE client_id = $1", [c.clientId])).toHaveLength(1);
   });
+
+  it("a client silent past 180 days keeps its last check-in, so it still shows as gone quiet (bug hunt 2026-11-17)", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    await t.pool.query(
+      `INSERT INTO check_ins (client_id, at, app_version, active_users, lead_count, state)
+       VALUES ($1, $2::timestamptz - interval '300 days', '1.0.0', 1, 1, 'active'),
+              ($1, $2::timestamptz - interval '200 days', '1.0.0', 1, 1, 'active')`,
+      [c.clientId, now.toISOString()],
+    );
+    await pruneCheckIns(t.pool, now);
+    expect(await q("SELECT 1 FROM check_ins WHERE client_id = $1", [c.clientId])).toHaveLength(1);
+  });
 });
 
 describe("check-ins come from the bound install (spec 2026-10-15 §2.2, §2.4)", () => {

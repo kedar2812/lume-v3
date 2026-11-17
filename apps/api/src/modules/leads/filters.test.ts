@@ -144,7 +144,7 @@ describe("7A: the person's scope as a plain condition (it never shows more, or l
   };
   const view = (scope: "own" | "team") => [
     { key: "leads.view" as const, scope },
-    { key: "leads.export" as const, scope: null },
+    { key: "leads.export" as const, scope },
   ];
 
   it("own, team, an empty team, and all: each sees exactly its leads; filters can narrow, never widen (Review Focus 4)", async () => {

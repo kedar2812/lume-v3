@@ -84,18 +84,26 @@ export function ExportAll({ variant = "secondary" }: { variant?: "primary" | "se
         </a>
       );
     return (
-      <button
-        type="button"
-        className={btnClass}
-        onClick={() => void start()}
-        disabled={phase.kind === "working"}
-      >
-        {phase.kind === "working"
-          ? "Exporting…"
-          : phase.kind === "failed"
-            ? "Try the export again"
-            : "Export all data"}
-      </button>
+      <>
+        <button
+          type="button"
+          className={btnClass}
+          onClick={() => void start()}
+          disabled={phase.kind === "working"}
+        >
+          {phase.kind === "working"
+            ? "Exporting…"
+            : phase.kind === "failed"
+              ? "Try the export again"
+              : "Export all data"}
+        </button>
+        {/* Why it failed, in words (bug hunt 2026-11-17): a refusal for the role isn't something to try again. */}
+        {phase.kind === "failed" && (
+          <span role="alert" className={s.exportError}>
+            {phase.message}
+          </span>
+        )}
+      </>
     );
   }
 

@@ -68,6 +68,20 @@ describe("the WhatsApp card (spec 2026-10-18 §3.2; canvas board Main)", () => {
     expect(screen.queryByRole("status", { name: "Looking for connected numbers" })).toBeNull();
   });
 
+  it("numbers that can't be read: it says so with Try again, never a placeholder for good (bug hunt 2026-11-17)", async () => {
+    vi.mocked(whatsappClient.numbers).mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      code: "OFFLINE",
+      message: "offline",
+    } as never);
+    render(<WhatsAppCard wa={on} onView={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("LUME couldn't get your WhatsApp numbers");
+    expect(screen.queryByRole("status", { name: "Looking for connected numbers" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No number connected yet.")).toBeInTheDocument();
+  });
+
   it("switching on says so to the page", async () => {
     const onView = vi.fn();
     vi.mocked(whatsappClient.setEnabled).mockResolvedValue(ok({ whatsapp: on } as never));

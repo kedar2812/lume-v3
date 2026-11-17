@@ -81,3 +81,11 @@ describe("sniffType", () => {
     });
   });
 });
+
+describe("photos and films that aren't MP4 (bug hunt 2026-11-17)", () => {
+  it("an iPhone photo (HEIC/HEIF), an AVIF or a QuickTime film is none of WhatsApp's types, never a video", () => {
+    for (const brand of ["heic", "heix", "mif1", "msf1", "avif", "qt  "])
+      expect(sniffType(ftyp(brand)), brand).toBeNull();
+    expect(sniffType(ftyp("isom"))).toEqual({ mime: "video/mp4", kind: "video" });
+  });
+});

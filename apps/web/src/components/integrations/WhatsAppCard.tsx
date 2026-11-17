@@ -133,10 +133,14 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
   const [connecting, setConnecting] = useState(false);
   const [leaving, setLeaving] = useState<WaNumber | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The numbers couldn't be read: said, with Try again, never a skeleton for good (bug hunt 2026-11-17). */
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
     const [n, p] = await Promise.all([whatsappClient.numbers(), whatsappClient.people()]);
     if (n.ok) setNumbers(n.data.numbers);
+    else setLoadFailed(true);
     if (p.ok) setPeople(p.data.people.filter((x) => x.active));
   }, []);
   useEffect(() => {
@@ -215,7 +219,13 @@ export function WhatsAppCard({ wa, onView }: { wa: WaView; onView(v: Integration
           keeps chats with your leads only. Strangers wait in Not a lead yet for 14 days.
         </p>
       )}
-      {on && numbers === null && (
+      {on && numbers === null && loadFailed && (
+        <div className={s.waEmpty}>
+          <p role="alert">LUME couldn't get your WhatsApp numbers. Check your connection and try again.</p>
+          <Button onClick={() => void load()}>Try again</Button>
+        </div>
+      )}
+      {on && numbers === null && !loadFailed && (
         // Switched on, the numbers on their way: the card keeps its height, it never collapses and jumps back.
         <div className={s.waEmpty} role="status" aria-label="Looking for connected numbers" aria-busy="true">
           <Skeleton width="40%" height={14} />

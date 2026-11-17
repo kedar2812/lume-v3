@@ -43,6 +43,25 @@ describe("past days a write changed are counted again (owner, 2026-10-05: an imp
     expect(await dirty()).toEqual([]);
   });
 
+  it("a new time zone marks every past day since the first lead, so older days are counted in it too (bug hunt 2026-11-17)", async () => {
+    await h.queryAll("DELETE FROM analytics_dirty_days");
+    const one = await h.seedLead({ ownerId: null });
+    await h.queryAll("UPDATE leads SET lead_created_at = DATE '2026-01-05' WHERE id = $1", [one]);
+    await h.queryAll("DELETE FROM analytics_dirty_days");
+    await h.ownerPool.query("UPDATE settings SET timezone = 'America/New_York' WHERE id = 1");
+    try {
+      const days = await dirty();
+      expect(days).toContain("2026-01-05");
+      expect(days).toContain("2026-02-01");
+    } finally {
+      await h.ownerPool.query("UPDATE settings SET timezone = $1 WHERE id = 1", [TZ]);
+      await h.queryAll("DELETE FROM analytics_dirty_days");
+    }
+    // The same zone again marks nothing.
+    await h.ownerPool.query("UPDATE settings SET timezone = $1 WHERE id = 1", [TZ]);
+    expect(await dirty()).toEqual([]);
+  });
+
   it("a backdated win, a deletion or a moved enquiry date marks its days, old and new; other edits mark nothing", async () => {
     await h.queryAll("DELETE FROM analytics_dirty_days");
     const id = await h.seedLead({ ownerId: null });

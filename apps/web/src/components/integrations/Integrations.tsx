@@ -27,6 +27,8 @@ export function Integrations({ tz }: { tz?: string } = {}) {
   const [adding, setAdding] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A switch or a connect that failed: said on its card, the page stays (bug hunt 2026-11-17). */
+  const [actionError, setActionError] = useState<string | null>(null);
   const [calendly, setCalendly] = useState<CalendlyView | null>(null);
   const plan = usePlan();
 
@@ -82,16 +84,16 @@ export function Integrations({ tz }: { tz?: string } = {}) {
   const out = !inPlan(plan, "googleSheets");
 
   const toggle = async (enabled: boolean) => {
-    setError(null);
+    setActionError(null);
     const r = await sheetsClient.setEnabled(enabled);
-    if (!r.ok) return setError(r.message);
+    if (!r.ok) return setActionError(r.message);
     setView(r.data);
     if (enabled) void loadSources();
   };
   const startConnect = async () => {
-    setError(null);
+    setActionError(null);
     const r = await sheetsClient.connect();
-    if (!r.ok) return setError(r.message);
+    if (!r.ok) return setActionError(r.message);
     window.location.assign(r.data.url);
   };
   const copy = async () => {
@@ -135,6 +137,11 @@ export function Integrations({ tz }: { tz?: string } = {}) {
             />
           )}
         </header>
+        {actionError && (
+          <p role="alert" className={s.error}>
+            {actionError}
+          </p>
+        )}
         {!g.available && !out && (
           <p className={s.note}>
             Google Sheets isn't set up on this server yet. The person who installed LUME can add its Google

@@ -6,6 +6,7 @@ import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { revokeUserSessions } from "../../auth/sessions";
+import { accountKey, clearThrottle } from "../../auth/throttle";
 import { badRequest } from "../../http/errors";
 import { sendAfterCommit } from "../../mail/mailer";
 import { resetMail } from "../../mail/templates";
@@ -74,7 +75,13 @@ export async function resetPassword(
     .update(schema.users)
     .set({ passwordHash: await hashPassword(password, d.argon2), mustChangePassword: false })
     .where(eq(schema.users.id, u!.id));
-  await req.db.update(schema.passwordResets).set({ usedAt: now }).where(eq(schema.passwordResets.id, r.id));
+  // This link, and every other one still in the mailbox: one reset, then none (bug hunt 2026-11-17).
+  await req.db
+    .update(schema.passwordResets)
+    .set({ usedAt: now })
+    .where(and(eq(schema.passwordResets.userId, u!.id), isNull(schema.passwordResets.usedAt)));
+  // The new password works at once: a lockout from the guesses that led here is lifted.
+  await clearThrottle(req.db, accountKey(u!.email), now);
   await revokeUserSessions(req.db, u!.id, "password_reset", now);
   await audit(req, {
     action: "user.password.reset",

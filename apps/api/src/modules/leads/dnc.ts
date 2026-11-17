@@ -45,7 +45,10 @@ export async function setDoNotContact(
       // Each on its own timeline, as said on WhatsApp (the run, if any, was this lead's).
       for (const t of twins) await mark(req, t.id, { at, by: null, reason: o.reason, fromLead: true });
     } finally {
-      await req.db.execute(sql`SELECT set_config('lume.lead_scope', ${was ?? ""}, true)`);
+      // Restoring can't hide what went wrong: in a failed transaction it would only say the transaction failed.
+      await req.db
+        .execute(sql`SELECT set_config('lume.lead_scope', ${was ?? ""}, true)`)
+        .catch(() => undefined);
     }
   }
   return {

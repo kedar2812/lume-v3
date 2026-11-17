@@ -78,11 +78,12 @@ update_one() {
   if [ "$prev" = "$version" ]; then result "already on it"; return 0; fi
   if ! [[ "$prev" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then result "not provisioned yet (version $prev)"; return 1; fi
 
-  step "$slug: back up (encrypted, off-site as configured), and a dump for this update"
-  # Named for its moment (a retry never overwrites a good one); plain lead data, so kept 14 days only.
+  step "$slug: back up (encrypted, off-site as configured)"
+  # The dump a rollback restores is taken later, with the app stopped (bug hunt 2026-11-17: taken here, a restore
+  # lost everything written during the pull). Named for its moment; plain lead data, so kept 14 days only.
   dump="/opt/lume/backups/before-$version-$(date -u +%Y%m%dT%H%M%S).dump"
   if ! remote "cd /opt/lume && docker compose run --rm worker node dist/main.js run-now ops.backup" ||
-    ! remote "mkdir -p /opt/lume/backups && find /opt/lume/backups -name 'before-*.dump' -mtime +14 -delete && cd /opt/lume && docker compose exec -T -u postgres db pg_dump -Fc lume > $dump"; then
+    ! remote "mkdir -p /opt/lume/backups && find /opt/lume/backups -name 'before-*.dump' -mtime +14 -delete"; then
     result "backup failed, nothing changed"
     return 1
   fi
@@ -121,6 +122,15 @@ update_one() {
   # The old app stops first: migrations may lock lead tables while they build indexes and backfill (Phase 7A), and
   # a frozen Leads screen or a webhook that times out mid-update would cost more than the minute it's down.
   if remote "cd /opt/lume && docker compose stop api worker"; then
+    # Nothing writes now: this is exactly what a rollback puts back.
+    if ! remote "cd /opt/lume && docker compose exec -T -u postgres db pg_dump -Fc lume > $dump"; then
+      set_tag "$prev" || true
+      files_back || true
+      remote "cd /opt/lume && docker compose up -d" || true
+      remote "cd /opt/lume && (cmp -s Caddyfile Caddyfile.next || docker compose restart caddy)" || true
+      result "backup failed, still on $prev"
+      return 1
+    fi
     out="$(remote "cd /opt/lume && docker compose run --rm migrate")" || migrate_ok=false
   else
     # Nothing ran: the database is as it was, so a rollback restores nothing.

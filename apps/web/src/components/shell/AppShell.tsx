@@ -163,7 +163,13 @@ export function AppShell({ session, businessName, theme, mac = false, children }
               <GlobalUploadTray />
               {/* A security alert, live, for whoever reviews them (6A). */}
               {can("security.manage") && <AlertHud />}
-              <CommandPalette open={palette} onOpenChange={setPalette} can={can} onFeedback={openFeedback} />
+              <CommandPalette
+                userId={session.user.id}
+                open={palette}
+                onOpenChange={setPalette}
+                can={can}
+                onFeedback={openFeedback}
+              />
               {/* Mounted only while open: every opening is a fresh sheet, from the page it was opened on. */}
               {feedback && <FeedbackSheet open onClose={() => setFeedback(false)} />}
             </LoadingProvider>

@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, getTableColumns, gt, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { leadScope, seesFullContacts } from "@lume/core";
+import { leadScope, scopeOf, seesFullContacts } from "@lume/core";
 import { schema } from "@lume/db";
 import { HttpError, badRequest } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
@@ -52,7 +52,9 @@ export const arrivalsWhere = (since: Date, me: string) =>
 
 /** `exactUpdatedAt`: the database's own text for updated_at, microseconds and all (a Date keeps ms, review L2). */
 function encodeCursor(sort: ListQuery["sort"], row: LeadRow & { exactUpdatedAt: string }): string {
-  const v = sort === "updated" ? row.exactUpdatedAt : sort === "name" ? row.name.toLowerCase() : null;
+  // The name as written: the database lowercases both sides (bug hunt 2026-11-17: JavaScript and Postgres lowercase
+  // some letters differently, a Greek final sigma among them, so a page could repeat or skip a lead).
+  const v = sort === "updated" ? row.exactUpdatedAt : sort === "name" ? row.name : null;
   return Buffer.from(JSON.stringify([sort, v, row.id])).toString("base64url");
 }
 
@@ -74,7 +76,7 @@ function cursorWhere(sort: ListQuery["sort"], cursor: string | undefined): SQL |
     case "updated":
       return sql`(${L.updatedAt}, ${L.id}) < (${v}::timestamptz, ${id}::uuid)`;
     case "name":
-      return sql`(lower(${L.name}), ${L.id}) > (${v}, ${id}::uuid)`;
+      return sql`(lower(${L.name}), ${L.id}) > (lower(${v}), ${id}::uuid)`;
   }
 }
 
@@ -99,6 +101,19 @@ export function scopeCondition(req: FastifyRequest): SQL | undefined {
   const actor = req.actor!;
   const scope = leadScope(actor);
   if (scope === "all") return undefined;
+  if (scope === "team") return inArray(L.ownerId, [...new Set([actor.userId, ...actor.teamMemberIds])]);
+  return eq(L.ownerId, actor.userId);
+}
+
+/**
+ * What the person may take out of LUME: leads.export's own scope, on top of what they see (review 2026-11-17: it
+ * was checked as a yes/no, so "export own" with "view all" exported everyone). Unassigned leads are 'all' only.
+ */
+export function exportScopeCondition(req: FastifyRequest): SQL | undefined {
+  const actor = req.actor!;
+  const scope = scopeOf(actor, "leads.export");
+  if (scope === "all") return undefined;
+  if (scope === null) return sql`false`;
   if (scope === "team") return inArray(L.ownerId, [...new Set([actor.userId, ...actor.teamMemberIds])]);
   return eq(L.ownerId, actor.userId);
 }
@@ -220,8 +235,17 @@ export function leadFilters(
     if (!isFieldVisible(ctx, "phone")) throw badRequest("UNKNOWN_FIELD", "Unknown filter");
     where.push(eq(L.phoneStatus, q.phoneStatus));
   }
-  if (q.createdFrom) where.push(sql`${L.leadCreatedAt} >= ${q.createdFrom}::date`);
-  if (q.createdTo) where.push(sql`${L.leadCreatedAt} <= ${q.createdTo}::date`);
+  // The enquiry date when there is one, else the day the lead arrived, where the business is: as "New in N days", the
+  // drawer and the export's Enquiry date (review 2026-11-17: a lead made by hand had none, and no range held it).
+  if (q.createdFrom || q.createdTo) {
+    const tz = sql`(SELECT timezone FROM settings LIMIT 1)`;
+    const arrived = sql`(${L.createdAt} AT TIME ZONE coalesce(${tz}, 'UTC'))::date`;
+    const day = isFieldVisible(ctx, "lead_created_at")
+      ? sql`coalesce(${L.leadCreatedAt}, ${arrived})`
+      : arrived;
+    if (q.createdFrom) where.push(sql`${day} >= ${q.createdFrom}::date`);
+    if (q.createdTo) where.push(sql`${day} <= ${q.createdTo}::date`);
+  }
 
   // 4B: what's gone quiet. Stage kinds, not names: no client's stages are ever assumed.
   const kind = (k: "open" | "lost") =>

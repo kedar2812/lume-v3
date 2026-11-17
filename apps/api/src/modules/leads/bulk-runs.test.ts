@@ -100,6 +100,18 @@ describe("7B: a bulk action is a run", () => {
     });
   });
 
+  it("many unticked: the number confirmed is what's left, and that's what's compared (review 2026-11-17)", async () => {
+    const many: string[] = [];
+    for (let i = 0; i < 32; i++) many.push(await h.seedLead({ ownerId: null }));
+    const tag = await tagged(many);
+    const r = await run(admin, {
+      selection: { filters: { tagId: tag }, except: many.slice(2), expected: 2 },
+      action: { type: "assign", ownerId: adminId },
+    });
+    expect(r.statusCode, r.body).toBeLessThan(300);
+    expect(r.json().run).toMatchObject({ total: 2 });
+  });
+
   it("a filter is read as the person, minus what they unticked, and says when the count moved (Review Focus 1)", async () => {
     const repUser = await h.seedUser({ grants: sales });
     const rep = await h.signIn(repUser);
@@ -112,14 +124,14 @@ describe("7B: a bulk action is a run", () => {
     const theirs = await h.seedLead({ ownerId: other.id });
     const tag = await tagged([...mine, theirs]);
     const r = await run(rep, {
-      selection: { filters: { tagId: tag }, except: [mine[2]], expected: 4 },
+      selection: { filters: { tagId: tag }, except: [mine[2]], expected: 3 },
       action: { type: "assign", ownerId: repUser.id },
     });
     expect(r.statusCode, r.body).toBe(200);
     expect(r.json().run).toMatchObject({
       total: 2,
       done: 2,
-      selection: { kind: "filter", total: 2, expected: 4, except: 1 },
+      selection: { kind: "filter", total: 2, expected: 3, except: 1 },
     });
     const items = await h.queryAll<{ lead_id: string }>(
       "SELECT lead_id FROM bulk_run_items WHERE run_id = $1",

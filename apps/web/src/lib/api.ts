@@ -13,7 +13,7 @@ const BUSY = "Too many requests from this network right now. Wait a moment, then
 /** A read that meets a busy edge waits this long at most (Retry-After, capped) and tries once more. */
 const MAX_WAIT_MS = 3000;
 let csrf: string | null = null;
-/** A paused person (6A) is taken to the paused card once, not once per refused request. */
+/** A paused person (6A), or one whose session ended, is taken to sign-in once, not once per refused request. */
 let pausedSent = false;
 
 /** Tests only. */
@@ -110,6 +110,21 @@ async function send<T>(
   ) {
     pausedSent = true;
     window.location.assign("/sign-in?paused=1");
+  }
+  // A session that ended mid-use (signed out elsewhere, idle too long): to sign-in once, coming back here after, never
+  // a screen saying a lead is gone or a Try again that can't work (bug hunt 2026-11-17). Not from the pages that come
+  // before signing in.
+  if (
+    res.status === 401 &&
+    err?.code === "UNAUTHENTICATED" &&
+    typeof window !== "undefined" &&
+    !pausedSent &&
+    !/^\/(sign-in|setup|invite|reset|forgot)(\/|$)/.test(window.location.pathname)
+  ) {
+    pausedSent = true;
+    window.location.assign(
+      `/sign-in?next=${encodeURIComponent(window.location.pathname + (window.location.search ?? ""))}`,
+    );
   }
   // A refusal for the licence (L-A): the shell looks again, so a banner or the lock screen shows at once.
   if (res.status === 403 && err?.code?.startsWith("LICENSE_") && typeof window !== "undefined")

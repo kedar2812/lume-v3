@@ -90,3 +90,55 @@ describe("ImportSheet — File", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe("ImportSheet — opened again (bug hunt 2026-11-17)", () => {
+  const done = (id: string, fileName: string) => ({
+    id,
+    status: "done",
+    fileName,
+    rowCount: 3,
+    cursorRow: 4,
+    counts: {
+      created: 3,
+      merged: 0,
+      skipped: 0,
+      empty: 0,
+      errors: 0,
+      warnings: 0,
+      nameFromContact: 0,
+      missingStageFields: 0,
+      phoneNeedsCountry: 0,
+    },
+    startedBy: { id: "u-maya", name: "Maya Kapoor" },
+    createdAt: "2026-09-27T09:00:00Z",
+    startedAt: "2026-09-27T09:01:00Z",
+    finishedAt: "2026-09-27T09:02:00Z",
+    seenAt: null,
+    stopReason: null,
+    sourceId: "src1",
+    canSeeRows: true,
+    mine: true,
+  });
+
+  it("closed after an import's report, it opens again at the start, ready for the next file", async () => {
+    vi.mocked(importsClient.get).mockResolvedValue(ok(done("i1", "first.csv")) as never);
+    const { rerender } = render(<ImportSheet open importId="i1" onClose={vi.fn()} />);
+    expect(await screen.findByText("first.csv is in LUME")).toBeInTheDocument();
+    rerender(<ImportSheet open={false} importId="i1" onClose={vi.fn()} />);
+    rerender(<ImportSheet open onClose={vi.fn()} />);
+    expect(screen.getByLabelText(/Choose a CSV file/)).toBeInTheDocument();
+    expect(screen.queryByText("first.csv is in LUME")).toBeNull();
+  });
+
+  it("one import's report, then another's: it shows the second", async () => {
+    vi.mocked(importsClient.get).mockImplementation(
+      async (id: string) => ok(id === "i1" ? done("i1", "first.csv") : done("i2", "second.csv")) as never,
+    );
+    const { rerender } = render(<ImportSheet open importId="i1" onClose={vi.fn()} />);
+    expect(await screen.findByText("first.csv is in LUME")).toBeInTheDocument();
+    rerender(<ImportSheet open={false} importId="i1" onClose={vi.fn()} />);
+    rerender(<ImportSheet open importId="i2" onClose={vi.fn()} />);
+    expect(await screen.findByText("second.csv is in LUME")).toBeInTheDocument();
+    expect(screen.queryByText("first.csv is in LUME")).toBeNull();
+  });
+});

@@ -510,7 +510,7 @@ export async function templates(req: FastifyRequest, q: AnalyticsQuery, now: Dat
     wins: number;
   }>(sql`
     SELECT t.id, t.name::text AS name, count(*)::int AS sends,
-           count(*) FILTER (WHERE EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type = 'reply_logged'
+           count(*) FILTER (WHERE EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type IN ('reply_logged', 'whatsapp_received')
              AND r.occurred_at > a.occurred_at AND r.occurred_at <= a.occurred_at + interval '72 hours'))::int AS replies,
            count(*) FILTER (WHERE l.won_at > a.occurred_at AND l.won_at <= a.occurred_at + interval '30 days'
              AND NOT EXISTS (SELECT 1 FROM activities n WHERE n.lead_id = a.lead_id AND n.type = 'whatsapp_confirmed_sent'

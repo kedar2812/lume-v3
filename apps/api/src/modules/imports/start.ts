@@ -111,10 +111,13 @@ export async function prepareStart(
     });
   }
   for (const [key, labels] of Object.entries(draftMapping.addOptions ?? {})) {
+    // Locked while its options are merged: one added in Settings at the same moment is read here, never archived
+    // by the list sent back (bug hunt 2026-11-17).
     const [def] = await req.db
       .select()
       .from(schema.fieldDefinitions)
-      .where(eq(schema.fieldDefinitions.key, key));
+      .where(eq(schema.fieldDefinitions.key, key))
+      .for("update");
     if (!def) continue;
     const live = def.options.filter((o) => !o.archived);
     const fresh = [...new Map(labels.map((l) => [fold(l), l.trim()])).values()].filter(

@@ -23,6 +23,8 @@ type Answer = () => Promise<Response> | Response;
 let answer: Answer;
 const sent: { url: string; body: Record<string, unknown> }[] = [];
 let gate: Promise<void> | null = null;
+/** LUME's own running clock, in ms (bug hunt 2026-11-17): moved by a test apart from the wall clock. */
+let monoNow = 0;
 const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
   sent.push({ url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> });
   if (gate) await gate;
@@ -62,6 +64,7 @@ beforeAll(async () => {
       keys: { t1: rawPublicKey(server.publicKey) },
       version: "1.4.2",
       fetch: fakeFetch,
+      mono: () => monoNow,
     },
   });
   owner = await h.signIn(await h.seedUser({ owner: true, grants: ALL_GRANTS, totp: true }));
@@ -217,6 +220,40 @@ describe("the instance checks its licence (L-A Task 2)", () => {
     h.clock.advance(6 * D);
     expect(await view()).toMatchObject({ state: "read_only", reason: "unreachable" });
     h.clock.advance(-7 * D);
+  });
+
+  it("blocked from its licence server with the clock held back: LUME's own running time still counts (bug hunt 2026-11-17)", async () => {
+    answer = ok(token());
+    await check();
+    answer = () => {
+      throw new TypeError("fetch failed");
+    };
+    monoNow += 8 * D; // LUME has been running for eight days…
+    h.clock.advance(H); // …while the wall clock says an hour
+    await check();
+    expect(await view()).toMatchObject({ state: "read_only", reason: "unreachable" });
+    // A good check-in clears it.
+    answer = ok(token());
+    await check();
+    expect((await view()).state).toBe("active");
+  });
+
+  it("a kept answer from the future (the licence server's clock jumped once) gives way to the next true one (bug hunt 2026-11-17)", async () => {
+    answer = ok(
+      token({
+        issuedAt: new Date(h.clock.now.getTime() + 365 * D).toISOString(),
+        validUntil: new Date(h.clock.now.getTime() + 373 * D).toISOString(),
+      }),
+    );
+    await check();
+    expect((await view()).state).toBe("read_only"); // a clock behind the token
+    // An answer from two days ago doesn't take its place: only one issued now does.
+    answer = ok(token({ issuedAt: new Date(h.clock.now.getTime() - 2 * D).toISOString() }));
+    expect((await check()).json().state).toBe("read_only");
+    answer = ok(token());
+    const r = (await check()).json();
+    expect(r.state).toBe("active");
+    expect(r.lastError).toBeNull();
   });
 
   it("an answer not signed by LUME changes nothing, and is recorded", async () => {

@@ -19,6 +19,12 @@ export async function refreshNextDue(req: FastifyRequest, leadId: string) {
  * notifications are only ever their own — whoever did it.
  */
 export async function settleReminders(req: FastifyRequest, t: { id: string; assigneeId: string }) {
+  // Other people's notices of it too (a manager's escalation, "you were given it"), once this commits (0114).
+  req.afterCommit(() => {
+    req.server
+      .settleTaskNotices?.(t.id)
+      .catch((err: unknown) => req.log.error({ err }, "couldn't settle a follow-up's notices"));
+  });
   // Your own: in this transaction, so whatever you look at next already has them read.
   if (req.actor?.userId === t.assigneeId) {
     await req.db.execute(
@@ -34,6 +40,37 @@ export async function settleReminders(req: FastifyRequest, t: { id: string; assi
       .settleReminders?.(t.assigneeId, t.id)
       .catch((err: unknown) => req.log.error({ err }, "couldn't mark a follow-up's reminders read"));
   });
+}
+
+/**
+ * The same for work outside a request (the calendar sweep), in its own transaction: each follow-up's reminders read
+ * as its assignee (notifications are only ever their own), the one acting put back after (bug hunt 2026-11-17).
+ */
+export async function settleRemindersIn(
+  c: { query: (q: string, v?: unknown[]) => Promise<{ rows: { s?: string | null }[] }> },
+  closed: { id: string; assignee_id: string }[],
+) {
+  if (!closed.length) return;
+  const was = (await c.query("SELECT current_setting('lume.user_id', true) AS s")).rows[0]?.s ?? "";
+  const byPerson = new Map<string, string[]>();
+  for (const t of closed) byPerson.set(t.assignee_id, [...(byPerson.get(t.assignee_id) ?? []), t.id]);
+  // Escalations and "you were given it" (0114), whoever's they are.
+  const told = new Set<string>();
+  for (const t of closed)
+    for (const r of (await c.query("SELECT u AS s FROM lume_settle_task_notices($1) u", [t.id])).rows)
+      if (r.s) told.add(r.s);
+  for (const u of told)
+    if (!byPerson.has(u)) await c.query("SELECT pg_notify('lume_notifications', $1)", [readSignal(u)]);
+  for (const [userId, ids] of byPerson) {
+    await c.query("SELECT set_config('lume.user_id', $1, true)", [userId]);
+    await c.query(
+      `UPDATE notifications SET read_at = now()
+        WHERE task_id = ANY($1::uuid[]) AND read_at IS NULL AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
+      [ids],
+    );
+    await c.query("SELECT pg_notify('lume_notifications', $1)", [readSignal(userId)]);
+  }
+  await c.query("SELECT set_config('lume.user_id', $1, true)", [was]);
 }
 
 /** A lead removed: its open follow-ups are cancelled, and their reminders with them (spec §3). */

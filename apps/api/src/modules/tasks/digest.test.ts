@@ -247,6 +247,23 @@ describe("the daily digest: 3B final review", () => {
     expect(m!.text).not.toContain("Mehta");
   });
 
+  it("new for you counts only leads still theirs and still here (review 2026-11-17)", async () => {
+    const u = await person("Asia/Kolkata");
+    const other = await person("Asia/Kolkata");
+    const gone = await h.seedLead({ ownerId: u.id, name: "Gone Lead" });
+    const passed = await h.seedLead({ ownerId: other.id, name: "Passed Lead" });
+    for (const id of [gone, passed])
+      await h.queryAll(
+        "INSERT INTO lead_assignment_history (lead_id, to_user_id, changed_at) VALUES ($1, $2, '2026-10-12T01:00:00Z')",
+        [id, u.id],
+      );
+    await h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1", [gone]);
+    await run("2026-10-12T03:00:00Z"); // Monday 08:30 in Kolkata
+    const [m] = to(u.email);
+    expect(m!.text).not.toMatch(/assigned to you/);
+    expect(m!.text).not.toMatch(/New for you/);
+  });
+
   it("a digest time in the last quarter hour of the day still goes, just after midnight", async () => {
     const u = await person("Asia/Kolkata");
     await h.ownerPool.query(

@@ -46,8 +46,11 @@ export function AlertsPanel({
   onChange,
   onSample,
   isAdmin,
+  digestOn = true,
 }: {
   kicker: string;
+  /** Whether the business sends the morning email (bug hunt 2026-11-17): its row only then. */
+  digestOn?: boolean;
   value: Alerts;
   onChange: (v: Alerts) => void;
   onSample: (volume: number) => void;
@@ -106,12 +109,14 @@ export function AlertsPanel({
           checked={value.alerts.dueFollowUps}
           onChange={alert("dueFollowUps")}
         />
-        <Row
-          title="Email me the morning digest"
-          detail="One email a day, never lead contact details"
-          checked={value.alerts.emailDigest}
-          onChange={alert("emailDigest")}
-        />
+        {digestOn && (
+          <Row
+            title="Email me the morning digest"
+            detail="One email a day, never lead contact details"
+            checked={value.alerts.emailDigest}
+            onChange={alert("emailDigest")}
+          />
+        )}
         {isAdmin && (
           <div className={s.set}>
             <div className={s.setText}>

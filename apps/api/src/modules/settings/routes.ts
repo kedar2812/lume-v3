@@ -139,10 +139,20 @@ export async function settingsRoutes(app: FastifyInstance, d: AppDeps): Promise<
       await req.db.update(schema.settings).set({ followUps: next }).where(eq(schema.settings.id, 1));
       // Switched on, escalation starts from now: what was already overdue doesn't flood managers at once
       // (3B final review). Anything moved or snoozed from here on is watched as usual.
-      if (!before.escalation.enabled && next.escalation.enabled)
+      // Every follow-up in the business, not only those the admin's own reach shows (bug hunt 2026-11-17: the rest
+      // were escalated at once at the next run): reach widened for this, in this transaction only, and put back.
+      if (!before.escalation.enabled && next.escalation.enabled) {
+        const was = (
+          await req.db.execute<{ s: string | null }>(
+            sql`SELECT current_setting('lume.lead_scope', true) AS s`,
+          )
+        ).rows[0]?.s;
+        await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
         await req.db.execute(
           sql`UPDATE tasks SET escalated_at = now() WHERE status = 'open' AND escalated_at IS NULL AND due_at < now()`,
         );
+        await req.db.execute(sql`SELECT set_config('lume.lead_scope', ${was ?? ""}, true)`);
+      }
       await audit(req, {
         action: "settings.follow_ups",
         entityType: "settings",

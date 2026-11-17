@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testCatalog } from "@/lib/leads/test-catalog";
@@ -7,7 +7,7 @@ import { AuditLog } from "./AuditLog";
 
 vi.mock("@/lib/settings/audit", async (orig) => {
   const real = await orig<typeof import("@/lib/settings/audit")>();
-  return { ...real, auditClient: { ...real.auditClient, list: vi.fn() } };
+  return { ...real, auditClient: { ...real.auditClient, list: vi.fn(), csvTicket: vi.fn() } };
 });
 
 const reveal = {
@@ -49,17 +49,28 @@ describe("AuditLog", () => {
     await userEvent.selectOptions(screen.getByLabelText("What"), "lead.delete");
     expect(auditClient.list).toHaveBeenLastCalledWith({ actorUserId: "u-tas", action: "lead.delete" });
     expect(await screen.findByText("Nothing matches these filters.")).toBeInTheDocument();
-    // Download CSV follows the filters on screen, never the page's cursor (2026-11-14).
-    expect(screen.getByRole("link", { name: "Download CSV" })).toHaveAttribute(
-      "href",
-      "/api/v1/audit/csv?actorUserId=u-tas&action=lead.delete",
-    );
+    // Download CSV follows the filters on screen, never the page's cursor (2026-11-14), and asks for the password
+    // first (2026-11-17): the password buys a ticket the download carries.
+    vi.mocked(auditClient.csvTicket).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { ticket: "t-1" },
+    } as never);
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    await userEvent.click(screen.getByRole("button", { name: "Download CSV" }));
+    const ask = screen.getByRole("dialog", { name: "Download the audit log" });
+    await userEvent.type(within(ask).getByLabelText("Password"), "my password");
+    await userEvent.click(within(ask).getByRole("button", { name: "Download" }));
+    expect(auditClient.csvTicket).toHaveBeenCalledWith("my password");
+    expect(assign).toHaveBeenCalledWith("/api/v1/audit/csv?actorUserId=u-tas&action=lead.delete&ticket=t-1");
+    vi.unstubAllGlobals();
   });
 
   it("Download CSV only for whoever may download the log (audit.export)", async () => {
     render(<AuditLog people={testCatalog().people} />);
     await screen.findByLabelText("Who");
-    expect(screen.queryByRole("link", { name: "Download CSV" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download CSV" })).toBeNull();
   });
 
   it("6A: opened from an alert, it starts filtered to that person", async () => {

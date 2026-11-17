@@ -1,6 +1,6 @@
 import { ALL_GRANTS, newId, type Grant } from "@lume/core";
 import type pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
 import { escalate, overdueWords } from "./escalation";
 
@@ -114,6 +114,29 @@ describe("escalation (3B Task 3)", () => {
     expect((await inbox(teamLead)).filter((n) => n.title.includes("Moved Along"))).toHaveLength(2);
   });
 
+  it("switched on by an admin who sees only their own leads: what's already overdue anywhere never floods in (bug hunt 2026-11-17)", async () => {
+    await h.ownerPool.query(
+      `UPDATE settings SET follow_ups = '{"escalation":{"enabled":false,"hours":24}}'::jsonb WHERE id = 1`,
+    );
+    await overdue(72, "Long Overdue");
+    const narrow = await h.seedUser({
+      grants: [
+        { key: "settings.manage", scope: null },
+        { key: "leads.view", scope: "own" },
+      ],
+      totp: true,
+    });
+    const c = await h.signIn(narrow);
+    const on = await c.inject({
+      method: "PUT",
+      url: "/api/v1/settings/follow-ups",
+      payload: { escalation: { enabled: true, hours: 24 } },
+    });
+    expect(on.statusCode, on.body).toBe(200);
+    await run();
+    expect((await inbox(teamLead)).some((n) => n.title.includes("Long Overdue"))).toBe(false);
+  });
+
   it("switched off in Settings, nothing escalates", async () => {
     await h.ownerPool.query(
       `UPDATE settings SET follow_ups = '{"escalation":{"enabled":false,"hours":24}}'::jsonb WHERE id = 1`,
@@ -133,5 +156,29 @@ describe("how long overdue, in words a person reads at a glance", () => {
     expect(overdueWords(47)).toBe("47 h");
     expect(overdueWords(48)).toBe("2 days");
     expect(overdueWords(164)).toBe("6 days");
+  });
+
+  it("done by its assignee, the manager's 'overdue' notice of it is read: nothing left to chase (review 2026-11-17)", async () => {
+    const t = await overdue(31, "Kabir Sen");
+    await run();
+    const unread = async () => {
+      const c: pg.PoolClient = await h.ownerPool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('lume.user_id', $1, true)", [teamLead]);
+        const { rows } = await c.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM notifications WHERE kind = 'task_escalated' AND task_id = $1 AND read_at IS NULL",
+          [t],
+        );
+        await c.query("COMMIT");
+        return rows[0]!.n;
+      } finally {
+        c.release();
+      }
+    };
+    expect(await unread()).toBe(1);
+    const c = await h.signIn(assigneeUser);
+    expect((await c.inject({ method: "POST", url: `/api/v1/tasks/${t}/done` })).statusCode).toBeLessThan(300);
+    await vi.waitFor(async () => expect(await unread()).toBe(0));
   });
 });

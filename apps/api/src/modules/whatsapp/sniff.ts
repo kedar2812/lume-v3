@@ -37,6 +37,23 @@ const OOXML: [string, string][] = [
  * 3GPP; AAC, MP4 audio, MP3, AMR and OGG; PDF, Word, Excel, PowerPoint and plain text. Anything else is null.
  * The name helps only where the bytes can't tell (old Office files, plain text).
  */
+/** ISO media brands that aren't MP4 video: HEIF/HEIC and AVIF stills and sequences, and QuickTime. */
+const NOT_MP4 = new Set([
+  "heic",
+  "heix",
+  "hevc",
+  "hevx",
+  "heim",
+  "heis",
+  "hevm",
+  "hevs",
+  "mif1",
+  "msf1",
+  "avif",
+  "avis",
+  "qt  ",
+]);
+
 export function sniffType(bytes: Buffer, filename?: string): Sniffed | null {
   if (!bytes.length) return null;
   if (starts(bytes, [0xff, 0xd8, 0xff])) return { mime: "image/jpeg", kind: "image" };
@@ -46,6 +63,9 @@ export function sniffType(bytes: Buffer, filename?: string): Sniffed | null {
     const brand = bytes.subarray(8, 12).toString("latin1");
     if (brand.startsWith("3gp")) return { mime: "video/3gpp", kind: "video" };
     if (brand === "M4A " || brand === "M4B ") return { mime: "audio/mp4", kind: "audio" };
+    // HEIC/HEIF and AVIF photos, and QuickTime films, share the box but are none of WhatsApp's types: sent as an
+    // MP4 they fail at Meta (bug hunt 2026-11-17).
+    if (NOT_MP4.has(brand)) return null;
     return { mime: "video/mp4", kind: "video" };
   }
   if (starts(bytes, "OggS")) return { mime: "audio/ogg", kind: "audio" };

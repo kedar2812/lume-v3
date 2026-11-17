@@ -206,7 +206,7 @@ export async function liveSlots(
       SELECT 'sends', a.occurred_at, a.user_id FROM ${sent}
       UNION ALL
       SELECT 'replies', a.occurred_at, a.user_id FROM ${sent}
-        AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type = 'reply_logged'
+        AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type IN ('reply_logged', 'whatsapp_received')
                     AND r.occurred_at > a.occurred_at AND r.occurred_at <= a.occurred_at + interval '72 hours')
       UNION ALL
       SELECT 'booked', m.starts_at, m.owner_id FROM ${calls} AND m.status IN ('scheduled', 'completed', 'no_show')

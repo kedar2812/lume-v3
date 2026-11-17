@@ -134,6 +134,25 @@ describe("Settings → Integrations", () => {
     expect(await screen.findByText(/No sheets yet/)).toBeInTheDocument();
   });
 
+  it("a switch that fails says why on its card, and the rest of the page stays (bug hunt 2026-11-17)", async () => {
+    vi.mocked(sheetsClient.integrations).mockResolvedValue(
+      ok({ ...on, googleSheets: { ...on.googleSheets, enabled: false } }),
+    );
+    vi.mocked(sheetsClient.setEnabled).mockResolvedValue({
+      ok: false,
+      status: 0,
+      code: "OFFLINE",
+      message: "LUME couldn't reach the server.",
+    } as never);
+    render(<Integrations />);
+    const sw = await screen.findByRole("switch", { name: "Google Sheets" });
+    await userEvent.click(sw);
+    expect(await screen.findByRole("alert")).toHaveTextContent("LUME couldn't reach the server.");
+    // The card and its switch are still there to try again.
+    expect(screen.getByRole("switch", { name: "Google Sheets" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Google Sheets/ })).toBeInTheDocument();
+  });
+
   it("while a sheet is checking, the list looks again until it's done", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.mocked(sheetsClient.integrations).mockResolvedValue(ok(on));

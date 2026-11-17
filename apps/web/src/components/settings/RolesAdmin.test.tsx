@@ -48,6 +48,37 @@ describe("RolesAdmin", () => {
     expect(screen.getByRole("radio", { name: "Phone: Edit" })).toBeInTheDocument();
   });
 
+  it("rename: a click away keeps the name typed; Escape cancels; the keyboard goes back to Rename (bug hunt 2026-11-17)", async () => {
+    vi.mocked(rolesClient.patch).mockResolvedValue(ok({ role: role({ name: "Closers" }) }));
+    render(<RolesAdmin roles={roles} catalog={catalog} fields={testCatalog().fields} />);
+    await userEvent.click(screen.getByRole("button", { name: /Sales.*3 people/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Rename Sales" }));
+    const box = screen.getByRole("textbox", { name: "Role name" });
+    await userEvent.clear(box);
+    await userEvent.type(box, "Closers");
+    await userEvent.type(box, "{Enter}");
+    expect(rolesClient.patch).toHaveBeenCalledWith("r-sales", { name: "Closers" });
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Rename / })),
+    );
+    vi.mocked(rolesClient.patch).mockClear();
+    // A click into another box saves too, and focus stays where it was put (review 2026-11-17: pulled back).
+    await userEvent.click(screen.getByRole("button", { name: /^Rename / }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Role name" }), "!");
+    const other = screen.getByRole("textbox", { name: "New role" });
+    await userEvent.click(other);
+    expect(rolesClient.patch).toHaveBeenCalled();
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(document.activeElement).toBe(other);
+    vi.mocked(rolesClient.patch).mockClear();
+    await userEvent.click(screen.getByRole("button", { name: /^Rename / }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Role name" }), " again{Escape}");
+    expect(rolesClient.patch).not.toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Rename / })),
+    );
+  });
+
   it("creates a role and duplicates one", async () => {
     render(<RolesAdmin roles={roles} catalog={catalog} fields={testCatalog().fields} />);
     await userEvent.type(screen.getByRole("textbox", { name: "New role" }), "Setters{Enter}");

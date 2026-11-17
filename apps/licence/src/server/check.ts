@@ -351,8 +351,12 @@ export function limited(retryAfterS: number): Response {
 
 /** Check-ins are kept 180 days (R3); events, payments and prices forever. */
 export async function pruneCheckIns(db: pg.Pool, now: Date): Promise<number> {
-  const r = await db.query("DELETE FROM check_ins WHERE at < $1::timestamptz - interval '180 days'", [
-    now.toISOString(),
-  ]);
+  // Each client's last check-in stays, however old: it's what says a client has gone quiet (bug hunt 2026-11-17: one
+  // silent for over 180 days lost its last one and its alert, and read as never started).
+  const r = await db.query(
+    `DELETE FROM check_ins c WHERE c.at < $1::timestamptz - interval '180 days'
+        AND c.at < (SELECT max(l.at) FROM check_ins l WHERE l.client_id = c.client_id)`,
+    [now.toISOString()],
+  );
   return r.rowCount ?? 0;
 }

@@ -69,6 +69,16 @@ export function ImportSheet({
   const [step, setStep] = useState<Step>("file");
   const [asking, setAsking] = useState(false);
 
+  // Closed: it forgets what it showed, so it opens again at the start, or at the import it's asked for (bug hunt
+  // 2026-11-17: it stays mounted, and a finished import's report blocked the next import until a reload).
+  useEffect(() => {
+    if (open) return;
+    setDraft(null);
+    setRun(null);
+    setStep("file");
+    setAsking(false);
+  }, [open]);
+
   useEffect(() => {
     if (!open || !draftId) return;
     let live = true;
@@ -252,7 +262,7 @@ export function ImportSheet({
               }}
             />
           )}
-          {step === "run" && run && <ProgressStep initial={run} onClose={onClose} />}
+          {step === "run" && run && <ProgressStep key={run.id} initial={run} onClose={onClose} />}
         </div>
         {asking && draft && (
           <div className={s.veil}>

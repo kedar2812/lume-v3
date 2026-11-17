@@ -1620,6 +1620,10 @@
 }
 /* Download CSV (2026-11-14): the filters' height, at the row's end; it wraps under them on a phone. */
 .auditExport {
+  /* A button since the download asks for the password (2026-11-17): it keeps the link's look. */
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
   order: 1;
   margin-left: auto;
   display: inline-flex;

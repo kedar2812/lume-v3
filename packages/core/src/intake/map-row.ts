@@ -260,7 +260,13 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
           ctx.decimalMarks[c.column] ?? defaultDecimalMark(ctx.country),
           ctx.currency,
         );
-        if (!p.ok) problems.push(issue(c.column, p.issue.code, p.issue.message));
+        if (!p.ok && ctx.lenient) {
+          // An automatic source: the lead comes in without a value, and the answer is kept (bug hunt 2026-11-17).
+          warnings.push(
+            issue(c.column, p.issue.code, `${p.issue.message} Kept with the lead, not as its value.`),
+          );
+          d.unfiled.push({ label: fieldOf(ctx, "value")?.label ?? "Value", value: raw });
+        } else if (!p.ok) problems.push(issue(c.column, p.issue.code, p.issue.message));
         else {
           d.value = p.value;
           if (p.warning) warnings.push(issue(c.column, p.warning.code, p.warning.message));
@@ -281,7 +287,11 @@ export function mapRow(cells: string[], m: Mapping, r: Rules, ctx: MapContext): 
         const ids = new Set<string>();
         for (const part of raw.split(splitter(c)).filter(Boolean)) {
           const t = ctx.tags.find((x) => fold(x.label) === fold(part));
-          if (!t) problems.push(issue(c.column, "TAG_UNKNOWN", `No tag called “${part}”.`));
+          if (!t && ctx.lenient) {
+            // An automatic source: the tags it has, and the unknown one kept (bug hunt 2026-11-17).
+            warnings.push(issue(c.column, "TAG_UNKNOWN", `No tag called “${part}”. Kept with the lead.`));
+            d.unfiled.push({ label: fieldOf(ctx, "tags")?.label ?? "Tags", value: part });
+          } else if (!t) problems.push(issue(c.column, "TAG_UNKNOWN", `No tag called “${part}”.`));
           else ids.add(t.id);
         }
         d.tagIds = [...ids];

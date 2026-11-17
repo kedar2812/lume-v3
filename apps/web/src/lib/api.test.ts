@@ -211,4 +211,29 @@ describe("browser API client", () => {
     await api.post("/api/v1/auth/login", {});
     expect(assign).toHaveBeenCalledTimes(1);
   });
+
+  it("a session that ended (signed out elsewhere, idle too long): taken to sign-in once, back to this page after (bug hunt 2026-11-17)", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, pathname: "/leads", search: "?lead=l1", assign });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url).endsWith("/auth/csrf")
+          ? csrfResponse()
+          : json(401, { error: { code: "UNAUTHENTICATED", message: "Sign in to continue" } }),
+      ),
+    );
+    resetPausedForTests();
+    expect(await api.get("/api/v1/leads/l1")).toMatchObject({ ok: false, status: 401 });
+    await api.get("/api/v1/leads");
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith(`/sign-in?next=${encodeURIComponent("/leads?lead=l1")}`);
+    // Never from the pages that come before signing in.
+    for (const pathname of ["/sign-in", "/setup", "/invite/abc", "/reset/abc"]) {
+      vi.stubGlobal("location", { ...window.location, pathname, search: "", assign });
+      resetPausedForTests();
+      await api.get("/api/v1/auth/me");
+    }
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
 });

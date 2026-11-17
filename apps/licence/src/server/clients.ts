@@ -304,7 +304,7 @@ export async function getClient(ctx: Ctx, id: string) {
       { v2: true, v3: true, v4: true, v5: true, v6: true, topUps: await topUpsAround(ctx.db, id, now) },
     ),
     // LUME AI top-ups (Autopilot spec 2026-10-19 §4): what the client's admins asked for, and what was added.
-    topUps: await clientTopUps(ctx.db, id),
+    topUps: await clientTopUps(ctx.db, id, ctx.now()),
     usage: {
       people: l?.active_users ?? 0,
       modulesOn: l?.health?.modulesOn ?? [],
@@ -382,7 +382,7 @@ export async function patchPlan(
 ) {
   const p = planSchema.safeParse(body);
   if (!p.success) throw new Refusal(400, p.error.issues[0]?.message ?? "That plan doesn't look right.");
-  await row(ctx.db, id);
+  notDecommissioned(await row(ctx.db, id));
   const left = PLAN_MODULES.filter((k) => p.data.modules[k] === false);
   const hourly = p.data.aiReadsHourly ?? null;
   const weekly = p.data.aiReadsWeekly ?? null;
@@ -508,6 +508,13 @@ const event = (c: pg.PoolClient, clientId: string, at: Date, kind: string, detai
     JSON.stringify(detail),
   ]);
 /** The client's licence, locked for this action. A decommissioned client is for good: nothing changes it. */
+/** Decommissioned is for good: nothing changes it, its plan and top-ups included (bug hunt 2026-11-17). */
+function notDecommissioned(r: Row): Row {
+  if (r.decommissioned_at)
+    throw new Refusal(409, "This client is decommissioned: its record stays, but nothing changes it.");
+  return r;
+}
+
 async function lockRow(c: pg.PoolClient, id: string): Promise<Row> {
   if (!UUID.test(id)) throw new Refusal(404, "No such client.");
   await c.query("SELECT 1 FROM licences WHERE client_id = $1 FOR UPDATE", [id]);
@@ -696,6 +703,11 @@ export async function extend(ctx: Ctx, id: string, months: 1 | 3 | 12) {
     if (r.type === "trial")
       await c.query("UPDATE licences SET trial_ends = $2 WHERE client_id = $1", [id, until]);
     else await c.query("UPDATE licences SET paid_until = $2 WHERE client_id = $1", [id, until]);
+    // A payment reminder still on says the new date, never the one before the extension (bug hunt 2026-11-17).
+    await c.query("UPDATE notices SET due_date = $2 WHERE client_id = $1 AND cleared_at IS NULL", [
+      id,
+      until,
+    ]);
     await event(c, id, now, "extended", { months, until });
   });
   return getClient(ctx, id);
@@ -1027,7 +1039,9 @@ async function currentAlerts(ctx: Ctx) {
   const topUps = new Map<string, string[]>();
   for (const r of (
     await ctx.db.query<{ client_id: string; month: string }>(
-      "SELECT client_id, month FROM topup_requests WHERE done_at IS NULL ORDER BY month",
+      // An ask older than last month can't be answered (a top-up is for this month only): it's no longer an alert.
+      "SELECT client_id, month FROM topup_requests WHERE done_at IS NULL AND month >= $1 ORDER BY month",
+      [monthAround(ctx.now(), -1)],
     )
   ).rows)
     topUps.set(r.client_id, [...(topUps.get(r.client_id) ?? []), r.month]);
@@ -1119,12 +1133,13 @@ const topUpSchema = z
   .strict();
 
 /** A client's open top-up requests (oldest first) and the top-ups added (newest first). */
-async function clientTopUps(db: pg.Pool, id: string) {
+async function clientTopUps(db: pg.Pool, id: string, now: Date) {
   const [requests, added] = await Promise.all([
+    // Open asks the owner can still answer: last month's on (an older one can't be topped up; bug hunt 2026-11-17).
     db.query<{ month: string; asked_at: Date; asked_by_name: string; asked_by_email: string; note: string }>(
       `SELECT month, asked_at, asked_by_name, asked_by_email, note FROM topup_requests
-        WHERE client_id = $1 AND done_at IS NULL ORDER BY asked_at`,
-      [id],
+        WHERE client_id = $1 AND done_at IS NULL AND month >= $2 ORDER BY asked_at`,
+      [id, monthAround(now, -1)],
     ),
     db.query<{ month: string; calls: number | null; leads: number | null; note: string; added_at: Date }>(
       "SELECT month, calls, leads, note, added_at FROM ai_topups WHERE client_id = $1 ORDER BY added_at DESC LIMIT 24",
@@ -1157,15 +1172,12 @@ async function clientTopUps(db: pg.Pool, id: string) {
 export async function addTopUp(ctx: Ctx, id: string, body: { month: string; packs: number; note?: string }) {
   const p = topUpSchema.safeParse(body);
   if (!p.success) throw new Refusal(400, p.error.issues[0]?.message ?? "That top-up doesn't look right.");
-  await row(ctx.db, id);
+  notDecommissioned(await row(ctx.db, id));
   const now = ctx.now();
   const near = [monthAround(now, -1), monthAround(now, 0), monthAround(now, 1)];
-  const asked = await ctx.db.query(
-    "SELECT 1 FROM topup_requests WHERE client_id = $1 AND month = $2 AND done_at IS NULL",
-    [id, p.data.month],
-  );
-  const theirs = asked.rowCount ? near.includes(p.data.month) : p.data.month === monthAround(now, 0);
-  if (!theirs) throw new Refusal(400, "A top-up is for this month only.");
+  // Their month is a day either side of the server's, asked or not (bug hunt 2026-11-17: with no ask it had to be the
+  // server's UTC month, which isn't an Indian business's on the 1st before 05:30).
+  if (!near.includes(p.data.month)) throw new Refusal(400, "A top-up is for this month only.");
   const leads = p.data.packs * PACK;
   const c = await ctx.db.connect();
   try {

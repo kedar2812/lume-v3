@@ -317,6 +317,12 @@ describe("a sync", () => {
     await sync(s.id);
     expect((await source(s.id)).status).toBe("active");
     expect(await leadsFrom(s.id)).toHaveLength(45);
+    // One more row, read on its own (not the hourly full read): 46 leads, still under 50 (bug hunt 2026-11-17: the
+    // read past the last one was limited by positions, 50 - 54, and refused even with no new rows).
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [HEAD, ...withGaps, row(400)]);
+    await sync(s.id);
+    expect((await source(s.id)).status).toBe("active");
+    expect(await leadsFrom(s.id)).toHaveLength(46);
   });
 
   it("a row the database refuses never undoes a dismissal made meanwhile", async () => {
@@ -349,6 +355,61 @@ describe("a sync", () => {
     const s = await connect(Array.from({ length: 51 }, (_, i) => row(i + 100)));
     await sync(s.id);
     expect(await source(s.id)).toMatchObject({ status: "needs_attention", attention_code: "TOO_MANY_ROWS" });
+  });
+});
+
+describe("a column edit while a read runs (bug hunt 2026-11-17)", () => {
+  it("the edit's 'recognise rows again' and fresh anchor outlive the read that was running", async () => {
+    const s = await connect(Array.from({ length: 8 }, (_, i) => row(i + 600)));
+    await sync(s.id);
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [
+      HEAD,
+      ...Array.from({ length: 8 }, (_, i) => row(i + 600)),
+      row(700),
+      row(701),
+    ]);
+    const r = await db().transaction((tx) =>
+      requestSync(tx, { sourceId: s.id, trigger: "manual", requestedBy: null }),
+    );
+    let edited = false;
+    await runSync(
+      {
+        app: h.app,
+        pool: h.pool,
+        keyring: h.keyring,
+        google: h.google!,
+        maxRows: 50,
+        testHooks: {
+          afterRow: async () => {
+            if (edited) return;
+            edited = true;
+            // What saving changed columns does (sheets/service saveSheet), mid-read.
+            await h.pool.query(
+              `UPDATE lead_sources SET config_version = config_version + 1, head_hash = NULL, rekey_through = 9,
+                      new_columns = '[]'::jsonb, next_sync_at = now() WHERE id = $1`,
+              [s.id],
+            );
+          },
+        },
+      },
+      r!.syncId,
+    );
+    expect(edited).toBe(true);
+    const [after] = (
+      await h.pool.query<{ rekey_through: number | null; head_hash: string | null; behind: boolean }>(
+        "SELECT rekey_through, head_hash, synced_config_version < config_version AS behind FROM lead_sources WHERE id = $1",
+        [s.id],
+      )
+    ).rows;
+    expect(after).toEqual({ rekey_through: 9, head_hash: null, behind: true });
+    // And its cleared new-columns note and read-at-once stand too (review 2026-11-17).
+    const [more] = (
+      await h.pool.query<{ new_columns: string[]; soon: boolean }>(
+        "SELECT new_columns, next_sync_at <= now() + interval '1 minute' AS soon FROM lead_sources WHERE id = $1",
+        [s.id],
+      )
+    ).rows;
+    expect(more).toEqual({ new_columns: [], soon: true });
   });
 });
 
@@ -436,6 +497,43 @@ describe("rows nobody would expect to lose or repeat (final review)", () => {
       leads[0]!.id,
     ]);
     expect(acts.map((a) => a.type)).toContain("sheet_row_updated");
+  });
+
+  it("the last row deleted and a new one moved up into its place: the new one is its own lead (bug hunt 2026-11-17)", async () => {
+    const s = await connect([row(501), row(502), ["2026-08-20 09:00", "Spam Test", "0507709700", ""]]);
+    expect(await sync(s.id)).toMatchObject({ created: 3 });
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [
+      HEAD,
+      row(501),
+      row(502),
+      ["2026-08-20 09:30", "Meera Pillai", "0507709701", ""],
+    ]);
+    expect(await sync(s.id)).toMatchObject({ created: 1 });
+    const leads = await h.queryAll<{ name: string; phone_e164: string | null }>(
+      "SELECT name, phone_e164 FROM leads WHERE source_id = $1 AND deleted_at IS NULL ORDER BY name",
+      [s.id],
+    );
+    expect(leads.map((l) => l.name)).toContain("Meera Pillai");
+    expect(leads.find((l) => l.name === "Meera Pillai")!.phone_e164).toBe("+971507709701");
+    expect(leads.find((l) => l.name === "Spam Test")!.phone_e164).toBe("+971507709700");
+    expect(leads).toHaveLength(4);
+  });
+
+  it("the last row corrected a minute later (a name and a phone typo): still the one lead, never a second (review 2026-11-17)", async () => {
+    const s = await connect([row(651), ["2026-08-20 09:00", "Rahl Verma", "0507709810", ""]]);
+    expect(await sync(s.id)).toMatchObject({ created: 2 });
+    h.fake!.setRows(s.spreadsheetId, "Form responses", [
+      HEAD,
+      row(651),
+      ["2026-08-20 09:00", "Rahul Verma", "0507709801", ""],
+    ]);
+    expect(await sync(s.id)).toMatchObject({ created: 0 });
+    const leads = await h.queryAll<{ name: string; phone_e164: string | null }>(
+      "SELECT name, phone_e164 FROM leads WHERE source_id = $1 AND deleted_at IS NULL",
+      [s.id],
+    );
+    // One lead for them, not two (what the merge keeps follows the import's merge rules).
+    expect(leads).toHaveLength(2);
   });
 
   it("a lead typed into a gap in the middle still comes in, at the next full read", async () => {

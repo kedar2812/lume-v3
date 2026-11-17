@@ -90,6 +90,49 @@ describe("bulk: do not contact", () => {
     expect((await dnc(id)).dnc_at).not.toBeNull();
   });
 
+  it("undo leaves do not contact on a lead who said stop on WhatsApp since, and lifting needs Settings, as by hand (review 2026-11-17)", async () => {
+    const [stopped, quiet] = [await h.seedLead({ ownerId: null }), await h.seedLead({ ownerId: null })];
+    const run = await runOf(admin, [stopped, quiet], { type: "do_not_contact", reason: "Wrong number" });
+    expect(run).toMatchObject({ status: "done", done: 2 });
+    // What a "STOP" on WhatsApp writes on a lead already marked: the message, nothing else.
+    await h.queryAll(
+      `INSERT INTO activities (id, lead_id, type, occurred_at, payload)
+       VALUES (gen_random_uuid(), $1, 'whatsapp_received', now() + interval '1 minute', '{"text":"STOP"}'::jsonb)`,
+      [stopped],
+    );
+    // Someone who edits leads but doesn't manage Settings can't lift it through Undo.
+    const rep = await h.signIn(
+      await h.seedUser({
+        grants: [
+          { key: "leads.view", scope: "all" },
+          { key: "leads.bulk_edit", scope: "all" },
+          { key: "leads.edit", scope: "all" },
+        ],
+      }),
+    );
+    const mine = await runOf(rep, [await h.seedLead({ ownerId: null })], {
+      type: "do_not_contact",
+      reason: "Wrong number",
+    });
+    const repUndo = await undo(rep, mine.id);
+    if (repUndo.statusCode < 300) {
+      await h.runBulk();
+      const r = (
+        await rep.inject({ method: "GET", url: `/api/v1/leads/bulk-runs/${repUndo.json().run.id}` })
+      ).json().run;
+      expect(r).toMatchObject({ done: 0, skippedBy: { FORBIDDEN: 1 } });
+    }
+    const u = await undo(admin, run.id);
+    expect(u.statusCode, u.body).toBe(200);
+    await h.runBulk();
+    const back = (
+      await admin.inject({ method: "GET", url: `/api/v1/leads/bulk-runs/${u.json().run.id}` })
+    ).json().run;
+    expect(back).toMatchObject({ done: 1, skipped: 1, skippedBy: { SAID_STOP: 1 } });
+    expect((await dnc(stopped)).dnc_at).not.toBeNull();
+    expect((await dnc(quiet)).dnc_at).toBeNull();
+  });
+
   it("someone who can't edit a lead is skipped on it", async () => {
     const owner = await h.seedUser({ grants: [] });
     const rep = await h.seedUser({
@@ -163,6 +206,21 @@ describe("bulk: a follow-up", () => {
       await rep.inject({ method: "GET", url: `/api/v1/leads/bulk-runs/${u.json().run.id}` })
     ).json().run;
     expect(back).toMatchObject({ done: 1, skipped: 1, skippedBy: { FOLLOW_UP_NOT_YOURS: 1 } });
+  });
+
+  it("undo doesn't count a follow-up done since as put back (review 2026-11-17)", async () => {
+    const ids = [await h.seedLead({ ownerId: null }), await h.seedLead({ ownerId: null })];
+    const at = new Date(h.clock.now.getTime() + 3 * 86_400_000).toISOString();
+    const run = await runOf(admin, ids, { type: "follow_up", at, title: "Call back" });
+    expect(run).toMatchObject({ status: "done", done: 2 });
+    await h.queryAll("UPDATE tasks SET status = 'done' WHERE lead_id = $1 AND status = 'open'", [ids[0]]);
+    const u = await undo(admin, run.id);
+    expect(u.statusCode, u.body).toBe(200);
+    await h.runBulk();
+    const back = (
+      await admin.inject({ method: "GET", url: `/api/v1/leads/bulk-runs/${u.json().run.id}` })
+    ).json().run;
+    expect(back).toMatchObject({ done: 1, skipped: 1, skippedBy: { FOLLOW_UP_CLOSED: 1 } });
   });
 
   it("a moment already past is refused before anything is done", async () => {

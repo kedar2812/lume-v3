@@ -142,6 +142,17 @@ describe("replays", () => {
     expect(await events(id)).toHaveLength(1);
   });
 
+  it("the same post with no event id: a retry the same day is a repeat; another day it's a new enquiry (review 2026-11-17)", async () => {
+    const id = await source({ mode: "token" });
+    const raw = '{"name":"Again Later"}';
+    const token = { "x-lume-token": SECRET };
+    expect((await post(id, raw, token)).json()).toEqual({ accepted: true });
+    expect((await post(id, raw, token)).json()).toEqual({ accepted: true, duplicate: true });
+    h.clock.now = new Date(h.clock.now.getTime() + 25 * 3_600_000);
+    expect((await post(id, raw, token)).json()).toEqual({ accepted: true });
+    expect(await events(id)).toHaveLength(2);
+  });
+
   it("an empty event id is no event id: two different posts are two events (review W3)", async () => {
     const id = await source();
     for (const [raw, given] of [

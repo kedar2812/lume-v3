@@ -2,6 +2,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
+import { Field } from "@/components/ui/Field";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { Person } from "@/lib/leads/types";
 import { accessGone } from "@/lib/settings/access";
 import {
@@ -15,6 +18,7 @@ import { longDate } from "@/lib/dates";
 import { settingsDateTime } from "@/lib/settings/format";
 import { useZone } from "@/components/ZoneProvider";
 import { AccessChanged } from "./AccessChanged";
+import o from "./offboard.module.css";
 import s from "./settings.module.css";
 
 const AREAS = [...new Set(Object.values(AUDIT_ACTIONS).map((a) => a.area))];
@@ -55,6 +59,7 @@ export function AuditLog({
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [state, setState] = useState<"ready" | "loading" | "error" | "gone">("loading");
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async (f: Omit<AuditQuery, "cursor">, after?: number) => {
     setState("loading");
@@ -117,15 +122,16 @@ export function AuditLog({
         </label>
         {/* The log as a spreadsheet, with these filters, every entry (owner 2026-11-14). */}
         {canExport && (
-          <a className={s.auditExport} href={auditClient.csvHref(filters)} download>
+          <button type="button" className={s.auditExport} onClick={() => setDownloading(true)}>
             <svg viewBox="0 0 24 24" aria-hidden>
               <path d="M12 3v12" />
               <path d="m7 10 5 5 5-5" />
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             </svg>
             Download CSV
-          </a>
+          </button>
         )}
+        {downloading && <AuditDownload filters={filters} onClose={() => setDownloading(false)} />}
         {filters.day && (
           <span className={s.auditDay}>
             Only {longDate(new Date(`${filters.day}T12:00:00Z`), "UTC")}
@@ -177,5 +183,64 @@ export function AuditLog({
         </Button>
       )}
     </div>
+  );
+}
+
+/** Download CSV asks for the password first (owner 2026-11-17), then the browser takes the file. */
+function AuditDownload({ filters, onClose }: { filters: Omit<AuditQuery, "cursor">; onClose(): void }) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const go = async () => {
+    setBusy(true);
+    setProblem(null);
+    const r = await auditClient.csvTicket(password);
+    setBusy(false);
+    if (!r.ok) return setProblem(r.message);
+    window.location.assign(auditClient.csvHref(filters, r.data.ticket));
+    onClose();
+  };
+  return (
+    <Dialog label="Download the audit log" onClose={busy ? () => undefined : onClose}>
+      <form
+        className={o.sheet}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (password) void go();
+        }}
+      >
+        <header className={o.head}>
+          <div>
+            <h2 className={o.title}>Download the audit log</h2>
+            <p className={o.sub}>Enter your password to download it, with the filters on screen.</p>
+          </div>
+        </header>
+        <Field label="Password">
+          {(control) => (
+            <PasswordInput
+              {...control}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              disabled={busy}
+            />
+          )}
+        </Field>
+        {problem && (
+          <p role="alert" className={o.problem}>
+            {problem}
+          </p>
+        )}
+        <footer className={o.foot}>
+          <span className={o.grow} />
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit" loading={busy} disabled={!password}>
+            Download
+          </Button>
+        </footer>
+      </form>
+    </Dialog>
   );
 }

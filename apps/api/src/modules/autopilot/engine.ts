@@ -52,7 +52,7 @@ import { loadFieldRegistry } from "../../leads/fields";
 import { heldBack } from "../../licence/enforce";
 import { loadActor } from "../../rbac/actor";
 import { openStages, filesOf } from "../ai/profile";
-import { aiLeadsRoom, aiStatus, available, runRead, startAiLead } from "../ai/service";
+import { aiLeadsRoom, aiStatus, available, runRead, startAiLead, unstartAiLead } from "../ai/service";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { setDoNotContact } from "../leads/dnc";
 import { contextFor } from "../leads/sending";
@@ -308,6 +308,32 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
       const writing = leads.find((l) => l.state === "writing");
       if (writing) {
         if (writing.nextAt && writing.nextAt > now) return 0;
+        // A draft still goes inside hours and the pacing, as a fresh one would: a run paused mid-reveal and resumed
+        // at night, or an Ask me approval, never sends at once outside them (bug hunt 2026-11-17).
+        const template = (writing.draftPayload as { kind?: string } | null)?.kind === "template";
+        const at = template
+          ? nextSendAt({
+              now,
+              wh,
+              tz,
+              budgetLeft: dailyBudget({
+                tierLimit: tierLimitOf(number.tier),
+                cap: run.dailyCap,
+                sentToday: await templatesToday(pool, run.numberId, now, tz),
+              }),
+              lastSentAt: leads.reduce<Date | null>(
+                (m, x) => (x.lastSentAt && (!m || x.lastSentAt > m) ? x.lastSentAt : m),
+                null,
+              ),
+            })
+          : run.outsideHours === "wait"
+            ? shiftToWorkingHours(now, wh, tz)
+            : now;
+        if (at > now) {
+          if (writing.nextAt?.getTime() !== at.getTime())
+            await req.db.update(L).set({ nextAt: at, updatedAt: now }).where(keyOf(writing));
+          return 0;
+        }
         return sendStep(o, req, run, writing);
       }
       const due = leads
@@ -501,9 +527,12 @@ async function writeTemplate(
       `No approved template fits this lead yet: it has no ${missing.join(", ")}.`,
     );
   }
+  /** The month this step counted the lead in, if it did: given back when the step ends without a message. */
+  let counted: string | null = null;
   if (n === 0) {
     // Starting on this lead counts it this month (AI leads, 2026-11-12), with or without a read to choose.
     const started = await startAiLead(req, o.d, lead.id);
+    if (started.ok && started.started) counted = started.started;
     if (!started.ok) {
       if (started.why === "lead_cap") {
         await handOverAtMax(req, o.d, lead.id, started.month, started.back);
@@ -533,8 +562,15 @@ async function writeTemplate(
       schema: autopilotFirstOutput,
       maxOutputTokens: AI_OUTPUT_TOKENS.autopilot_first,
     });
-    if (!(await stillAsRead(req, l))) return 1;
-    if ("unavailable" in r) return unavailable(o, req, run, l, r);
+    // Nothing goes from this step: a lead it just counted is given back (bug hunt 2026-11-17).
+    if (!(await stillAsRead(req, l))) {
+      if (counted) await unstartAiLead(o.d, lead.id, counted);
+      return 1;
+    }
+    if ("unavailable" in r) {
+      if (counted) await unstartAiLead(o.d, lead.id, counted);
+      return unavailable(o, req, run, l, r);
+    }
     const id = guardFirst(
       r.output,
       fits.map((t) => t.id),

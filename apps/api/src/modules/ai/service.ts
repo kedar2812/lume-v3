@@ -396,7 +396,9 @@ export async function startAiLead(
   d: AppDeps,
   leadId: string,
 ): Promise<
-  { ok: true } | { ok: false; why: "leads" | "lead_cap"; until: string; back: string; month: string }
+  /** `started`: the month this call counted the lead in (it wasn't yet), so a start that sends nothing can undo it. */
+  | { ok: true; started?: string }
+  | { ok: false; why: "leads" | "lead_cap"; until: string; back: string; month: string }
 > {
   const a = await available(req, d);
   if (!a.ok || !d.ai) return { ok: true };
@@ -428,7 +430,12 @@ export async function startAiLead(
     return { ok: false, why: "leads", until, back, month };
   }
   if (r === "started") await noticeLeads(req, side, limits.leads, month, w.monthStart, back);
-  return { ok: true };
+  return r === "started" ? { ok: true, started: month } : { ok: true };
+}
+
+/** A start that sent nothing (bug hunt 2026-11-17): the lead counted for it comes out again, if nothing else was done. */
+export async function unstartAiLead(d: AppDeps, leadId: string, month: string): Promise<void> {
+  await (d.jobPool ?? d.pool).query("SELECT lume_ai_unstart_lead($1, $2)", [leadId, month]);
 }
 
 /** Whether a new lead could start LUME AI now: no AI leads limit, or some left this month (a top-up, the 1st). */

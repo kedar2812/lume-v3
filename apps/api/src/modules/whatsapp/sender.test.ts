@@ -7,7 +7,7 @@ import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { deliver, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 import { sweepWhatsAppFiles } from "./keep";
 import { staleOutbox } from "./queue";
-import { sendOutbox } from "./sender";
+import { SEND_TRIES, sendOutbox } from "./sender";
 
 /** Sending a reply from LUME (plan W3a Task 4): the queue, Meta's answers and statuses, and what a send means. */
 let h: Harness;
@@ -268,7 +268,7 @@ describe("when Meta says no", () => {
     expect(meta.sent).toEqual([]);
   });
 
-  it("busy or rate limited: tried again (the queue's backoff); after 5 tries, failed with words", async () => {
+  it("busy or rate limited: tried again (the queue's backoff); after SEND_TRIES tries, failed with words", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     await writes();
     meta.failNext.push(130429);
@@ -279,12 +279,12 @@ describe("when Meta says no", () => {
     await h.runWhatsAppSend();
     expect(await outbox(m.outboxId)).toMatchObject({ status: "sent", tries: 2 });
 
-    meta.failNext.push(130429, 130429, 130429, 130429, 130429);
+    meta.failNext.push(...Array<number>(SEND_TRIES).fill(130429));
     const again = await reply(lead, { text: "busy again" });
-    for (let i = 0; i < 5; i++) await h.runWhatsAppSend();
+    for (let i = 0; i < SEND_TRIES; i++) await h.runWhatsAppSend();
     expect(await outbox(again.outboxId)).toMatchObject({
       status: "failed",
-      tries: 5,
+      tries: SEND_TRIES,
       problem: "WhatsApp didn't take this message. Try again.",
     });
   });
@@ -339,6 +339,25 @@ describe("when Meta says no", () => {
       problem: null,
       wamid: expect.any(String),
     });
+  });
+
+  it("the lead binned while Meta takes the message: it's still sent, with Meta's id, so its statuses find it (bug hunt 2026-11-17)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const m = await reply(lead, { text: "binned meanwhile" });
+    await sendOutbox(
+      {
+        app: h.app,
+        d: h.deps,
+        testHooks: {
+          whileSending: () =>
+            h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1", [lead]).then(() => undefined),
+        },
+      },
+      m.outboxId,
+    ).catch(() => undefined);
+    expect(meta.sent).toHaveLength(1);
+    expect(await outbox(m.outboxId)).toMatchObject({ status: "sent", wamid: expect.any(String) });
   });
 
   it("do not contact, or the bin, arriving while the send is being checked: nothing is sent, and it says why (review W4)", async () => {

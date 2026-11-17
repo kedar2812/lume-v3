@@ -601,7 +601,7 @@ describe("the final review's fixes (5A)", () => {
 });
 
 describe("5C final review: a Google meeting's reminder follows its meeting", () => {
-  it("moved or cancelled at Google, its open reminder closes", async () => {
+  it("moved at Google, its open reminder moves with it; cancelled, it closes (bug hunt 2026-11-17: it used to close, and no new one came)", async () => {
     mayaC = await h.signIn(maya);
     const lead = await h.seedLead({ ownerId: maya.id, email: "followed@leads.test" });
     for (const id of ["rem-move", "rem-cancel"])
@@ -625,9 +625,57 @@ describe("5C final review: a Google meeting's reminder follows its meeting", () 
       attendees: ["followed@leads.test"],
     });
     h.fake!.cancelEvent(ME, "rem-cancel");
+    const dueOf = async (id: string) =>
+      (
+        await h.queryAll<{ due_at: Date }>("SELECT due_at FROM tasks WHERE id = $1", [id])
+      )[0]!.due_at.getTime();
+    const before = await dueOf(tasks["rem-move"]!);
     await sync(mayaConn);
-    expect(await taskStatus(tasks["rem-move"]!)).toBe("cancelled");
+    expect(await taskStatus(tasks["rem-move"]!)).toBe("open");
+    expect((await dueOf(tasks["rem-move"]!)) - before).toBe(
+      new Date(at(40)).getTime() - new Date(at(30)).getTime(),
+    );
     expect(await taskStatus(tasks["rem-cancel"]!)).toBe("cancelled");
+  });
+
+  it("a reminder that already went, its meeting moved later at Google: it's armed again for the new time (review 2026-11-17)", async () => {
+    mayaC = await h.signIn(maya);
+    const lead = await h.seedLead({ ownerId: maya.id, email: "fired@leads.test" });
+    h.fake!.putEvent(ME, {
+      id: "rem-fired",
+      title: "rem-fired",
+      start: at(1),
+      end: at(2),
+      attendees: ["fired@leads.test"],
+    });
+    await sync(mayaConn);
+    const t = newId();
+    const due = new Date(h.clock.now.getTime() - 5 * 60_000);
+    await h.queryAll(
+      `INSERT INTO tasks (id, lead_id, assignee_id, type, title, due_at, series_id, meeting_id, remind_minutes)
+       VALUES ($1, $2, $3, 'whatsapp', 'Remind', $4, $1, $5, '{0}')`,
+      [t, lead, maya.id, due, (await meetingOf("rem-fired"))!.id],
+    );
+    await h.queryAll(
+      `INSERT INTO scheduled_notifications (task_id, offset_minutes, fire_at, status, fired_at)
+       VALUES ($1, 0, $2, 'fired', $2)`,
+      [t, due],
+    );
+    h.fake!.putEvent(ME, {
+      id: "rem-fired",
+      title: "rem-fired",
+      start: at(11),
+      end: at(12),
+      attendees: ["fired@leads.test"],
+    });
+    await sync(mayaConn);
+    const [sn] = await h.queryAll<{ status: string; fire_at: Date; fired_at: Date | null }>(
+      "SELECT status, fire_at, fired_at FROM scheduled_notifications WHERE task_id = $1",
+      [t],
+    );
+    expect(sn!.status).toBe("pending");
+    expect(sn!.fired_at).toBeNull();
+    expect(sn!.fire_at.getTime()).toBe(due.getTime() + 10 * HOUR);
   });
 });
 

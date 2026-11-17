@@ -115,8 +115,10 @@ export async function resolveSelection(req: FastifyRequest, sel: Selection) {
   if (rows.length > limits.cap) throw tooMany();
   // Far more than the person was shown (counts that failed or went stale on their screen): refused, so the number
   // they confirmed is the number acted on. A few arrivals since they looked are fine (7C final review, Important 1).
+  // `expected` is the number they confirmed: what matches, less what they unticked, as the screen says it (review
+  // 2026-11-17: the unticked were counted again here, so unticking many refused the run).
   const shown = sel.expected;
-  if (shown !== undefined && rows.length + except.length > shown * 1.1 + 25)
+  if (shown !== undefined && rows.length > shown * 1.1 + 25)
     throw conflict(
       "MATCH_CHANGED",
       `${rows.length.toLocaleString("en-US")} leads match these filters now, not the ${shown.toLocaleString("en-US")} shown. Look again, then choose.`,

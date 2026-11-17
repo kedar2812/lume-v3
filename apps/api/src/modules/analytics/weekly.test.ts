@@ -45,7 +45,7 @@ describe("the Monday email (8B)", () => {
   it("goes at 09:00 on Mondays to those who see all analytics, once, with last week's numbers and no lead's details", async () => {
     const d = { pool: h.pool, mailer, publicUrl: "https://lume.test" };
     expect(await runWeekly(d, new Date("2026-06-29T03:00:00Z"))).toBe(0); // 08:30 there: not yet
-    expect(await runWeekly(d, new Date("2026-06-30T04:30:00Z"))).toBe(0); // a Tuesday
+    expect(await runWeekly(d, new Date("2026-06-28T04:30:00Z"))).toBe(0); // a Sunday
     expect(await runWeekly(d, MONDAY)).toBeGreaterThanOrEqual(1); // the admin, and the owner the install began with
     expect(await runWeekly(d, MONDAY)).toBe(0); // once a week
     const mail = sent.find((m) => m.to === (admin as { email: string }).email)!;
@@ -58,5 +58,15 @@ describe("the Monday email (8B)", () => {
     expect(mail.text).not.toMatch(/Fixture Lead|@|\+\d{6}/); // aggregates only
     expect(sent.map((m) => m.to)).not.toContain((quiet as { email: string }).email);
     for (const p of fx.people) expect(sent.map((m) => m.to)).not.toContain((p as { email: string }).email); // own reach
+  });
+
+  it("a Monday missed (LUME down or locked) is caught up on Tuesday, once; never later in the week (bug hunt 2026-11-17)", async () => {
+    const d = { pool: h.pool, mailer, publicUrl: "https://lume.test" };
+    const before = sent.length;
+    expect(await runWeekly(d, new Date("2026-07-07T04:30:00Z"))).toBeGreaterThanOrEqual(1); // Tuesday, July 7
+    const mail = sent.slice(before).find((m) => m.to === (admin as { email: string }).email)!;
+    expect(mail.text).toContain("last week (June 29 "); // the week before that Tuesday
+    expect(await runWeekly(d, new Date("2026-07-07T09:30:00Z"))).toBe(0); // once
+    expect(await runWeekly(d, new Date("2026-07-15T04:30:00Z"))).toBe(0); // a Wednesday never catches up
   });
 });

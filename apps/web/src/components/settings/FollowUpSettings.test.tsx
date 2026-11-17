@@ -42,6 +42,18 @@ describe("Settings → Follow-ups (3B Task 6)", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("between 1 and 168");
   });
 
+  it("a box switched off never blocks Save: its saved value goes back as it was (bug hunt 2026-11-17)", async () => {
+    vi.mocked(api.put).mockResolvedValue(ok({ escalation: { enabled: false, hours: 24 } }));
+    render(<FollowUpSettings initial={{ escalation: { enabled: true, hours: 24 } }} />);
+    await userEvent.clear(screen.getByLabelText("After how many hours"));
+    await userEvent.click(screen.getByRole("switch", { name: "Tell managers about overdue follow-ups" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(api.put).toHaveBeenCalledWith(
+      "/api/v1/settings/follow-ups",
+      expect.objectContaining({ escalation: { enabled: false, hours: 24 } }),
+    );
+  });
+
   it("3B final review: the morning email can be switched off for everyone", async () => {
     vi.mocked(api.put).mockResolvedValue(ok(null));
     render(

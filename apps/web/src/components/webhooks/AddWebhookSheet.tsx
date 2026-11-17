@@ -107,7 +107,11 @@ export function AddWebhookSheet({
     onClose(savedId);
   };
   const onEscape = useRef<() => void>(() => undefined);
-  onEscape.current = () => close();
+  // Not while the secret is on screen, as the scrim: it's shown once, and a stray Escape mustn't lose it (bug hunt
+  // 2026-11-17). Done closes it.
+  onEscape.current = () => {
+    if (step !== "secret") close();
+  };
   useEffect(() => {
     if (!open) return;
     const esc = (e: KeyboardEvent) => {

@@ -242,6 +242,29 @@ describe("done", () => {
     expect(new Set(series.map((s) => s.series_id)).size).toBe(1);
   });
 
+  it("a repeating one snoozed once: the next keeps the series' own time; a real new time moves the series (review 2026-11-17)", async () => {
+    const at = new Date(Date.now() + 2 * 60 * MIN);
+    const t = (
+      await create(rep, lead, {
+        due: { at: at.toISOString() },
+        recurrence: { every: 1, unit: "week", until: null, stopOn: ["won", "lost"] },
+      })
+    ).json();
+    await call(rep, "POST", `/api/v1/tasks/${t.id}/snooze`, { preset: "1h" });
+    const { next } = (await call(rep, "POST", `/api/v1/tasks/${t.id}/done`)).json();
+    // A week on, to the minute (a series keeps its wall-clock time, minutes and all).
+    const week = 7 * 24 * 60 * MIN;
+    expect(Math.abs(new Date(next.dueAt).getTime() - new Date(t.dueAt).getTime() - week)).toBeLessThan(MIN);
+    // Moved by an edit, not a snooze: that is the series' time now.
+    const later = new Date(new Date(next.dueAt).getTime() + 60 * MIN);
+    const moved = new Date(
+      (await call(rep, "PATCH", `/api/v1/tasks/${next.id}`, { due: { at: later.toISOString() } })).json()
+        .dueAt,
+    );
+    const after = (await call(rep, "POST", `/api/v1/tasks/${next.id}/done`)).json().next;
+    expect(Math.abs(new Date(after.dueAt).getTime() - moved.getTime() - week)).toBeLessThan(MIN);
+  });
+
   it("a repeat stops once the lead is won, once its last day has passed, and once they've replied", async () => {
     const weekly = { every: 1, unit: "week", until: null, stopOn: ["won", "lost", "reply_logged"] };
     const won = await h.seedLead({ ownerId: repId, name: "Won Case" });

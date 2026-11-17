@@ -30,6 +30,17 @@ const LICENCE_WRITES = new Set([
 const isSetup = (url: string) => url === "/api/v1/setup" || url.startsWith("/api/v1/setup/");
 // Feedback (spec 2026-10-16 §1.1) goes out whatever the licence: a lock screen can have bugs too.
 const isFeedback = (url: string) => url === "/api/v1/feedback";
+/**
+ * Cutting someone off stays open while read-only (owner 2026-11-17): disabling a person, ending their sessions or your
+ * own, revoking an invite and offboarding. A licence being sorted out must never keep a departing person in.
+ */
+const CUT_OFF = new Set([
+  "/api/v1/users/:id/disable",
+  "/api/v1/users/:id/sessions",
+  "/api/v1/users/:id/offboard",
+  "/api/v1/me/sessions/:id",
+  "/api/v1/invites/:id",
+]);
 /** Reads done over POST: revealing a masked contact writes only the record of who looked. */
 const READS_BY_POST = new Set(["/api/v1/leads/:id/contact/reveal"]);
 
@@ -60,7 +71,8 @@ export function allowed(
     o.firstRun
   )
     return true;
-  if (state === "read_only") return !WRITES.has(method) || READS_BY_POST.has(url);
+  if (state === "read_only")
+    return !WRITES.has(method) || READS_BY_POST.has(url) || (CUT_OFF.has(url) && method !== "PATCH");
   return (
     method === "GET" && (url === "/api/v1/licence" || url === "/api/v1/settings" || url === "/api/v1/about")
   );

@@ -276,7 +276,13 @@ async function openForChange(req: FastifyRequest, id: string): Promise<Task> {
   return t!;
 }
 
-export async function updateTask(req: FastifyRequest, d: AppDeps, id: string, body: TaskInput) {
+export async function updateTask(
+  req: FastifyRequest,
+  d: AppDeps,
+  id: string,
+  body: TaskInput,
+  o: { snooze?: boolean } = {},
+) {
   const t = await openForChange(req, id);
   const now = new Date();
   const set: Partial<typeof T.$inferInsert> = { updatedAt: now, version: t.version + 1 };
@@ -285,6 +291,9 @@ export async function updateTask(req: FastifyRequest, d: AppDeps, id: string, bo
   if (body.due) {
     set.dueAt = await resolveDue(req, body.due, await timezoneOf(req, req.actor!.userId), now);
     set.escalatedAt = null; // a new time: if it's left overdue again, its managers hear again (3B)
+    // A snooze moves this one only: the series keeps its own time (review 2026-11-17). Any other new time is the
+    // series' new time.
+    set.seriesDueAt = o.snooze && t.recurrence ? (t.seriesDueAt ?? t.dueAt) : null;
   }
   if (body.remindMinutes) set.remindMinutes = body.remindMinutes;
   if (body.recurrence !== undefined) set.recurrence = body.recurrence;
@@ -320,7 +329,7 @@ export async function snoozeTask(
     "until" in body
       ? new Date(body.until)
       : snoozeUntil(body.preset, now, await timezoneOf(req, req.actor!.userId));
-  return updateTask(req, d, id, { due: { at: until.toISOString() } });
+  return updateTask(req, d, id, { due: { at: until.toISOString() } }, { snooze: true });
 }
 
 export async function cancelTask(req: FastifyRequest, id: string) {
@@ -375,7 +384,7 @@ export async function doneTask(req: FastifyRequest, d: AppDeps, id: string) {
   let next: Task | null = null;
   const tz = await timezoneOf(req, t.assigneeId);
   if (t.recurrence && !(await stopped(req, t, t.recurrence))) {
-    const due = nextOccurrence(t.dueAt, t.recurrence, now, tz);
+    const due = nextOccurrence(t.seriesDueAt ?? t.dueAt, t.recurrence, now, tz);
     if (due) {
       const nid = newId();
       [next] = (await req.db

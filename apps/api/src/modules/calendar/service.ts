@@ -9,7 +9,7 @@ import { audit } from "../../audit/audit";
 import { HttpError, badRequest, notFound } from "../../http/errors";
 import { GoogleError, isTransient } from "../sheets/google";
 import { cancelReminders } from "../tasks/engine";
-import { refreshNextDue } from "../tasks/lifecycle";
+import { refreshNextDue, settleReminders } from "../tasks/lifecycle";
 import { integrationsView } from "../sheets/service";
 import { calendarClientFor, type CalendarListEntry } from "./google";
 
@@ -324,15 +324,16 @@ export async function disconnectCalendar(req: FastifyRequest, d: AppDeps) {
     .from(schema.meetings)
     .where(eq(schema.meetings.connectionId, c.id));
   // Their Log outcome follow-ups go with them (no reminder, no escalation, about a meeting LUME forgot).
-  const closed = await req.db.execute<{ id: string; lead_id: string }>(
+  const closed = await req.db.execute<{ id: string; lead_id: string; assignee_id: string }>(
     sql`UPDATE tasks SET status = 'cancelled', cancelled_at = now(), updated_at = now(), version = version + 1
          WHERE status = 'open'
            AND (id IN (SELECT outcome_task_id FROM meetings WHERE connection_id = ${c.id} AND outcome_task_id IS NOT NULL)
                 OR meeting_id IN (SELECT id FROM meetings WHERE connection_id = ${c.id}))
-        RETURNING id, lead_id`,
+        RETURNING id, lead_id, assignee_id`,
   );
   for (const t of closed.rows) {
     await cancelReminders(req.db, t.id);
+    await settleReminders(req, { id: t.id, assigneeId: t.assignee_id }); // and read in the bell (bug hunt 2026-11-17)
     await refreshNextDue(req, t.lead_id);
   }
   await req.db.delete(CC).where(eq(CC.id, c.id));

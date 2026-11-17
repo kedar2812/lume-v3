@@ -1,9 +1,9 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { newId } from "@lume/core";
+import { can, newId } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
-import { badRequest, conflict, notFound } from "../../http/errors";
+import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
 
 async function team(req: FastifyRequest, id: string) {
@@ -69,6 +69,29 @@ export async function setMembers(
     ? await req.db.select({ id: schema.users.id }).from(schema.users).where(inArray(schema.users.id, ids))
     : [];
   if (found.length !== ids.length) throw badRequest("UNKNOWN_USER", "One of those people doesn't exist");
+  // Joining a team, or leading it, widens whose leads you see (team scope): like your own roles, the owner's or
+  // Security's to change, never something you do for yourself with teams.manage (decided 2026-11-17).
+  // And leading a team means seeing its members' leads: no one adds people to a team they lead (review 2026-11-17).
+  const a = req.actor!;
+  if (!a.isOwner && !can(a, "security.manage")) {
+    const before = await req.db
+      .select({ userId: schema.teamMembers.userId, isLead: schema.teamMembers.isLead })
+      .from(schema.teamMembers)
+      .where(eq(schema.teamMembers.teamId, id));
+    const was = before.find((m) => m.userId === a.userId);
+    const now = members.find((m) => m.userId === a.userId);
+    if (now && (!was || (now.isLead && !was.isLead)))
+      throw forbidden(
+        "OWN_TEAMS",
+        "You can't add yourself to a team or make yourself its lead. The owner, or someone who manages security, can.",
+      );
+    const added = members.filter((m) => !before.some((b) => b.userId === m.userId));
+    if (now?.isLead && added.length)
+      throw forbidden(
+        "OWN_TEAMS",
+        "You can't add people to a team you lead: you'd see their leads. The owner, or someone who manages security, can.",
+      );
+  }
   await req.db.delete(schema.teamMembers).where(eq(schema.teamMembers.teamId, id));
   if (members.length)
     await req.db

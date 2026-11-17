@@ -66,13 +66,15 @@ describe("update.sh (L-C Task 4)", () => {
     expect(r.code, r.stderr).toBe(0);
     const order = [
       /run --rm worker node dist\/main\.js run-now ops\.backup/,
-      // Old update dumps (plain lead data) go after 14 days; this one is named for its moment.
+      // Old update dumps (plain lead data) go after 14 days.
       /find \/opt\/lume\/backups -name 'before-\*\.dump' -mtime \+14 -delete/,
-      /exec -T -u postgres db pg_dump -Fc lume > \/opt\/lume\/backups\/before-1\.1\.0-\d{8}T\d{6}\.dump/,
       /sed -i "s\/\^LUME_TAG=\.\*\/LUME_TAG='1\.1\.0'\/" \/opt\/lume\/\.env/,
       /docker compose pull/,
       // The old app stops before migrations: they lock lead tables while they build and backfill (7A review).
       /docker compose stop api worker/,
+      // The dump a rollback restores is taken with the app stopped, just before migrating: nothing written between
+      // the dump and the stop is lost by a restore (bug hunt 2026-11-17). Named for its moment.
+      /exec -T -u postgres db pg_dump -Fc lume > \/opt\/lume\/backups\/before-1\.1\.0-\d{8}T\d{6}\.dump/,
       /docker compose run --rm migrate/,
       /docker compose up -d/,
       /^curl .*https:\/\/harbour-clinic\.lumecrm\.in\/healthz/,
@@ -322,6 +324,22 @@ describe("update.sh (L-C Task 4)", () => {
     expect(at(r.calls, /compose run --rm migrate/)).toBe(-1);
     expect(r.calls.some((c) => /LUME_TAG='1\.0\.0'/.test(c))).toBe(true);
     expect(f.version("harbour-clinic")).toBe("1.0.0");
+  });
+
+  it("the rollback dump fails with the app stopped: nothing migrates, the old version starts again (bug hunt 2026-11-17)", () => {
+    const f = fleet();
+    const r = run("scripts/update.sh", ["1.1.0", "harbour-clinic"], {
+      dir: f.dir,
+      env: f.env,
+      answers: [{ match: /pg_dump -Fc lume/, code: 1 }],
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.calls.some((c) => /compose run --rm migrate/.test(c))).toBe(false);
+    expect(r.calls.some((c) => /pg_restore/.test(c))).toBe(false);
+    expect(at(r.calls, /LUME_TAG='1\.0\.0'/)).toBeGreaterThan(at(r.calls, /pg_dump -Fc lume/));
+    expect(at(r.calls, /docker compose up -d$/)).toBeGreaterThan(at(r.calls, /pg_dump -Fc lume/));
+    expect(f.version("harbour-clinic")).toBe("1.0.0");
+    expect(r.stdout).toMatch(/harbour-clinic\s+1\.0\.0\s+1\.1\.0\s+backup failed, still on 1\.0\.0/);
   });
 
   it("a backup that fails stops that client before anything changes", () => {

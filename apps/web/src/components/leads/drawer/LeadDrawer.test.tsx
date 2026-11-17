@@ -10,6 +10,7 @@ import type { Lead } from "@/lib/leads/types";
 import { fakeSession } from "@/server/session";
 import { CatalogProvider } from "../CatalogProvider";
 import { LeadDrawer } from "./LeadDrawer";
+import { forgetUnsentForTests } from "./WhatsAppComposer";
 
 vi.mock("@/lib/leads/client", () => ({
   leadsClient: {
@@ -119,6 +120,7 @@ const open = (lead: Lead = testLead(), session = rep()) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  forgetUnsentForTests();
   vi.mocked(aiClient.status).mockResolvedValue(ok(aiOff));
   vi.mocked(aiClient.lead).mockResolvedValue(ok({ offerCatchUp: false, pending: null }));
   vi.mocked(whatsappClient.thread).mockResolvedValue(ok({ on: false, reply: null, messages: [] }));
@@ -836,5 +838,38 @@ describe("LeadDrawer: bug hunt (2026-11-17)", () => {
     expect(screen.getByRole("heading", { name: "Ravi Menon", hidden: true })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Aisha Khan", hidden: true })).toBeNull();
     expect(d.onChanged).toHaveBeenCalledWith(expect.objectContaining({ id: "l1", stageId: "s-won" }));
+  });
+});
+
+describe("LeadDrawer: a lead that couldn't be read (bug hunt 2026-11-17)", () => {
+  it("offline or a server error: says so with Try again, never that the lead is gone", async () => {
+    vi.mocked(leadsClient.get)
+      .mockResolvedValueOnce({ ok: false, status: 0, code: "OFFLINE", message: "offline" } as never)
+      .mockResolvedValueOnce(ok({ lead: testLead() }));
+    vi.mocked(leadsClient.activities).mockResolvedValue(ok({ items: [], nextCursor: null }));
+    render(
+      <CatalogProvider catalog={testCatalog()}>
+        <LeadDrawer id="l1" session={rep()} neighbours={["l1"]} {...handlers()} />
+      </CatalogProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "LUME couldn’t open this lead" })).toBeInTheDocument();
+    expect(screen.queryByText(/isn’t available to you/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("dialog", { name: "Aisha Khan" })).toBeInTheDocument();
+  });
+
+  it("not found or not theirs: the lead is gone, as before", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue({
+      ok: false,
+      status: 404,
+      code: "LEAD_NOT_FOUND",
+      message: "x",
+    } as never);
+    render(
+      <CatalogProvider catalog={testCatalog()}>
+        <LeadDrawer id="l1" session={rep()} neighbours={["l1"]} {...handlers()} />
+      </CatalogProvider>,
+    );
+    expect(await screen.findByText(/isn’t available to you/)).toBeInTheDocument();
   });
 });

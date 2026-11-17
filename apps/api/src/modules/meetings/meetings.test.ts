@@ -196,6 +196,36 @@ describe("Log outcome (5A Task 6)", () => {
     ]);
     expect(t).toEqual({ status: "done" });
   });
+
+  it("logging the outcome on the meeting reads its Log outcome reminder in the bell too (bug hunt 2026-11-17)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Bell Lead" });
+    const ended = newId();
+    await meeting(ended, rep.id, lead, new Date(h.clock.now.getTime() - 2 * HOUR), "Bell call");
+    await askOutcomes({ app: h.app, pool: h.pool }, h.clock.now);
+    const [task] = await h.queryAll<{ id: string }>("SELECT id FROM tasks WHERE lead_id = $1", [lead]);
+    const asRep = async <T>(q: string, v: unknown[]) => {
+      const c = await h.ownerPool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('lume.user_id', $1, true)", [rep.id]);
+        const r = await c.query<T & object>(q, v);
+        await c.query("COMMIT");
+        return r.rows;
+      } finally {
+        c.release();
+      }
+    };
+    await asRep(
+      "INSERT INTO notifications (user_id, kind, task_id, lead_id, title) VALUES ($1, 'follow_up_due', $2, $3, 'Log outcome: Bell call')",
+      [rep.id, task!.id, lead],
+    );
+    expect((await patch(repC, ended, { status: "completed" })).statusCode).toBe(200);
+    const [n] = await asRep<{ read_at: Date | null }>(
+      "SELECT read_at FROM notifications WHERE task_id = $1",
+      [task!.id],
+    );
+    expect(n!.read_at).not.toBeNull();
+  });
 });
 
 describe("Log outcome, twice at once (5D Review Focus 4)", () => {

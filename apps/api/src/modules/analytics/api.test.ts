@@ -204,3 +204,22 @@ describe("the analytics API (8A Task 6)", () => {
     ).toBe(403);
   });
 });
+
+describe("a reply on WhatsApp is a reply (bug hunt 2026-11-17)", () => {
+  it("a lead writing back in LUME's chat counts in the reply rate, like one logged by hand", async () => {
+    const days = ["2026-06-10", "2026-06-11", "2026-06-12"];
+    const q = "range=custom&from=2026-06-10&to=2026-06-12";
+    const x = await lead("Chat Reply Lead", rep.id, "2026-06-10T05:00:00Z");
+    const y = await lead("Hand Reply Lead", rep.id, "2026-06-10T05:30:00Z");
+    await touch(x, "whatsapp_confirmed_sent", "2026-06-10T06:00:00Z");
+    await touch(x, "whatsapp_received", "2026-06-10T07:00:00Z");
+    await touch(y, "whatsapp_confirmed_sent", "2026-06-10T06:00:00Z");
+    await touch(y, "reply_logged", "2026-06-10T07:00:00Z");
+    await rollupDays(h.pool, days, TZ);
+    const body = (
+      await (await h.signIn(admin)).inject({ method: "GET", url: `/api/v1/analytics/overview?${q}` })
+    ).json();
+    expect(tile(body, "contacted").value).toBe(1);
+    expect(tile(body, "reply_rate").value).toBe(1);
+  });
+});

@@ -87,6 +87,8 @@ export function reasonWords(code: string, count: number): string {
     STAGE_GONE: `${c} ${w} in a stage that has been archived since`,
     OWNER_INACTIVE: `${c} ${w} owned by someone who can’t take leads now`,
     UNCHANGED: `${c} ${count === 1 ? "wasn’t" : "weren’t"} changed by the action, so there was nothing to put back`,
+    SAID_STOP: `${c} said stop on WhatsApp since, so ${count === 1 ? "it stays" : "they stay"} do not contact`,
+    FOLLOW_UP_CLOSED: `${c} ${count === 1 ? "follow-up was" : "follow-ups were"} done or cancelled since, so there was nothing to put back`,
   };
   return words[code] ?? `${c} couldn’t be changed`;
 }

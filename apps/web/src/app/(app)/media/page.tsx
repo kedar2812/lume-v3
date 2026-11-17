@@ -10,9 +10,12 @@ export const metadata = { title: "Media · LUME" };
 export default async function Page() {
   const session = await requirePermission("templates.use");
   const list = await apiGet<{ files: LibraryFile[] }>("/api/v1/files");
+  // Never an empty library in place of one that couldn't be read (bug hunt 2026-11-17).
+  if (list.status !== 200 || !list.data)
+    return <p role="alert">LUME couldn&apos;t load your files just now. Reload the page to try again.</p>;
   return (
     <MediaScreen
-      initial={list.data?.files ?? []}
+      initial={list.data.files}
       canManage={can(session.actor, "templates.manage")}
       guideSeen={session.preferences.hints?.mediaGuide === true}
     />

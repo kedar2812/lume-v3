@@ -139,6 +139,24 @@ describe("Today, the control centre", () => {
     expect(screen.getByRole("img", { name: "3 of 5 follow-ups due today done" })).toBeInTheDocument();
   });
 
+  it("a read already on its way when a follow-up is done never brings it back (bug hunt 2026-11-17)", async () => {
+    let late: (v: unknown) => void = () => {};
+    vi.mocked(tasksClient.today)
+      .mockResolvedValueOnce(ok(view()))
+      .mockImplementationOnce(() => new Promise((r) => (late = r)) as never)
+      .mockResolvedValue(ok(view({ soon: [] })));
+    vi.mocked(tasksClient.done).mockResolvedValue(
+      ok({ task: { ...t("b", "Omar Ali", 1), status: "done" }, next: null, clearedToday: false }),
+    );
+    show();
+    const btn = await screen.findByRole("button", { name: "Done: Follow up — Omar Ali" });
+    act(() => live?.({})); // something changed: Today reads again (slowly)
+    await userEvent.click(btn);
+    await vi.waitFor(() => expect(within(upNext()).queryByText("Omar Ali")).not.toBeInTheDocument());
+    await act(async () => late(ok(view()))); // the read from before the done lands
+    expect(within(upNext()).queryByText("Omar Ali")).not.toBeInTheDocument();
+  });
+
   it("WhatsApp from a row: the follow-up rides along, and Sent completes it — the row leaves", async () => {
     vi.mocked(tasksClient.today).mockResolvedValue(ok(view()));
     const tab = { location: { href: "" }, close: vi.fn(), opener: {} as unknown };

@@ -105,6 +105,18 @@ describe("the licence is enforced in the API (L-A Task 3)", () => {
     expect((await call("POST", "/api/v1/licence/notice/dismiss")).statusCode).toBe(204);
   });
 
+  it("read-only: an admin can still cut someone off: disable, end their sessions, revoke an invite (owner 2026-11-17)", async () => {
+    const leaving = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
+    await become("read_only");
+    const off = await call("POST", `/api/v1/users/${leaving.id}/disable`);
+    expect(off.statusCode, off.body).toBeLessThan(300);
+    const ended = await call("DELETE", `/api/v1/users/${leaving.id}/sessions`);
+    expect(ended.statusCode, ended.body).toBeLessThan(300);
+    // Letting someone back in is still a change that waits for the licence.
+    expect(await code(call("POST", `/api/v1/users/${leaving.id}/enable`))).toBe("LICENSE_READ_ONLY");
+    await become("active");
+  });
+
   it("suspended: everything is refused but signing in, the licence itself and the business's name", async () => {
     await become("suspended");
     expect(await code(call("GET", "/api/v1/leads"))).toBe("LICENSE_SUSPENDED");

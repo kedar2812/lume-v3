@@ -379,6 +379,28 @@ export const AUDIT_ACTIONS: Record<string, AuditActionDef> = {
   "product.created": { area: "Settings", phrase: "added a package" },
   "product.updated": { area: "Settings", phrase: "changed a package" },
   "product.archived": { area: "Settings", phrase: "archived a package" },
+  // Said in words since the bug hunt of 2026-11-17 (they showed as their keys).
+  "analytics.goal.set": { area: "Analytics", phrase: "set a goal" },
+  "analytics.goal.removed": { area: "Analytics", phrase: "removed a goal" },
+  "source.spend.set": { area: "Analytics", phrase: "set what a source costs" },
+  "meeting.scheduled": { area: "Leads", phrase: "scheduled a meeting with a lead" },
+  "lead.dnc_set": { area: "Leads", phrase: "marked a lead do not contact" },
+  "lead.dnc_lifted": { area: "Leads", phrase: "lifted do not contact on a lead" },
+  "data.export": { area: "Security", phrase: "exported all of LUME’s data" },
+  "feedback.sent": { area: "Settings", phrase: "sent feedback to LUME’s team" },
+  "ai.topup_asked": { area: "Settings", phrase: "asked for a LUME AI top-up" },
+  "plan.asked": { area: "Settings", phrase: "asked about a higher plan" },
+  "ai_profile.updated": { area: "Settings", phrase: "changed what LUME AI knows about the business" },
+  "autopilot.started": { area: "Leads", phrase: "started a LUME AI run" },
+  "template.submitted": { area: "Settings", phrase: "sent a template to WhatsApp for approval" },
+  "whatsapp.owner": { area: "Settings", phrase: "changed whose a WhatsApp number is" },
+  "whatsapp.disconnected": { area: "Settings", phrase: "disconnected a WhatsApp number" },
+  "file.uploaded": { area: "Settings", phrase: "added a file to Media" },
+  "file.renamed": { area: "Settings", phrase: "renamed a file in Media" },
+  "file.deleted": { area: "Settings", phrase: "deleted a file from Media" },
+  "licence.key_changed": { area: "Security", phrase: "changed LUME’s product key" },
+  "user.avatar.updated": { area: "People", phrase: "changed their photo" },
+  "user.deleted": { area: "People", phrase: "deleted someone’s account" },
 };
 
 /** What happened, in words ("revealed a lead's contact"), or null for an action LUME has no words for. */

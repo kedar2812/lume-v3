@@ -23,8 +23,14 @@ import { tokenContext } from "./service";
 export const SENDING_STUCK_MS = 10 * 60_000;
 /** Meta's ids for uploaded files last 30 days: reused for 25. */
 const UPLOAD_KEEP_MS = 25 * 86_400_000;
-/** Tries of a passing refusal (busy, rate limited) before it's failed with words. */
-export const SEND_TRIES = 5;
+/**
+ * Tries of a passing refusal (busy, rate limited) before it's failed with words: 20 s, doubling, about an hour and a
+ * half in all, so a limit Meta lifts within the hour lets the message go (bug hunt 2026-11-17: 5 tries from 1 s gave
+ * up after half a minute).
+ */
+export const SEND_TRIES = 8;
+/** The first wait before a try again, in seconds (pg-boss doubles it each time). */
+export const SEND_RETRY_DELAY_S = 20;
 const MAYBE_SENT = "LUME couldn't tell whether this went. Check the phone before sending it again.";
 
 /** The send job's deps; tests may act in the moment between the checks and the claim. */
@@ -314,20 +320,25 @@ async function sendOne(o: SendDeps, id: string, again = false): Promise<void> {
     return void (await fail(why.words));
   }
 
-  // Meta took it: it's sent (its id on the outbox, which an echo of it is matched by), and it counts as a send, as
-  // the person who sent it.
+  // Meta took it: it's sent (its id on the outbox, which an echo of it is matched by). Kept on its own first, so the
+  // bookkeeping below failing (the lead binned meanwhile, a deadlock) never undoes "sent" or loses Meta's id, which
+  // its statuses are matched by (bug hunt 2026-11-17).
+  await allScope(pool, (c) =>
+    c.query(
+      `UPDATE whatsapp_outbox SET status = 'sent', wamid = $2, problem = NULL, updated_at = now()
+        WHERE id = $1 AND (status = 'sending' OR (status = 'failed' AND problem = $3))`,
+      [id, wamid, MAYBE_SENT],
+    ),
+  );
+  // Then it counts as a send, as the person who sent it.
   await withJobRequest(
     { app: jobServer(o.app), pool, actor, requestId: `whatsapp-sent:${id}`, allLeads: true },
     async (req) => {
-      // Sent, even if the sweep gave up on it meanwhile ("may have gone"): it went, and its id is kept (W6).
-      await req.db.execute(sql`
-        UPDATE whatsapp_outbox SET status = 'sent', wamid = ${wamid}, problem = NULL, updated_at = now()
-         WHERE id = ${id} AND (status = 'sending' OR (status = 'failed' AND problem = ${MAYBE_SENT}))`);
       const lead = await visibleLead(req, row.lead_id);
       await recordActivity(req, lead.id, "whatsapp_confirmed_sent", { via: "lume", outboxId: id });
       await countSend(req, d, lead, row.task_id ?? undefined);
     },
-  );
+  ).catch((err: unknown) => o.app.log.warn({ err, outbox: id }, "a sent message couldn't be counted"));
 }
 
 class MissingFile extends Error {}

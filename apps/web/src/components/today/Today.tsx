@@ -93,8 +93,13 @@ export function Today({
   const dayCard = useRef<HTMLElement>(null);
   const lastTiles = useRef(0);
 
+  // Only the newest read counts, and one that started before a change made here (a follow-up done) is dropped: it
+  // would bring the follow-up back (bug hunt 2026-11-17).
+  const asked = useRef(0);
   const load = useCallback(async () => {
+    const n = ++asked.current;
     const r = await tasksClient.today();
+    if (n !== asked.current) return;
     if (!r.ok) return setError(r.message);
     setError(null);
     setV(r.data);
@@ -151,7 +156,8 @@ export function Today({
     (tiles.pipeline?.wonThisMonth ?? 0) === 0;
   const said = v ? brief(v, now, tz) : null;
 
-  const drop = (t: TaskView) =>
+  const drop = (t: TaskView) => {
+    asked.current++; // a read already on its way started before this: it's dropped
     setV(
       (cur) =>
         cur && {
@@ -166,6 +172,7 @@ export function Today({
           ],
         },
     );
+  };
   const done = async (t: TaskView) => {
     setTicking((x) => new Set(x).add(t.id));
     const r = await tasksClient.done(t.id);

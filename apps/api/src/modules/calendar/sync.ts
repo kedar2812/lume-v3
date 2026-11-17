@@ -9,6 +9,7 @@ import {
 } from "@lume/core";
 import type { ConnectedCalendar, SyncProgress } from "@lume/db";
 import { notify } from "../notifications/notify";
+import { settleRemindersIn } from "../tasks/lifecycle";
 import { GOOGLE_UNREACHABLE, GoogleError, isTransient } from "../sheets/google";
 import { SyncTokenGone, type CalendarEventRead, type GoogleCalendar } from "./google";
 
@@ -274,6 +275,35 @@ const chosenOf = (cs: ConnectedCalendar[]) =>
  * Its Log outcome follow-ups closed: their meeting is gone, cancelled or moved on (no reminder, no escalation).
  * With `meetingIds`, those meetings' reminders too (5C: a reminder about a meeting that isn't happening then).
  */
+/**
+ * A meeting moved: its open reminders (a stage's "remind before the meeting") keep their distance from it, and their
+ * bell reminders with them; one that would now be in the past is due now.
+ */
+async function moveReminders(c: pg.PoolClient, meetingId: string, byMs: number, now: Date) {
+  const { rows } = await c.query<{ id: string; lead_id: string }>(
+    `UPDATE tasks SET due_at = greatest(due_at + $2 * interval '1 millisecond', $3), updated_at = $3,
+            version = version + 1
+      WHERE meeting_id = $1 AND status = 'open' RETURNING id, lead_id`,
+    [meetingId, byMs, now],
+  );
+  if (!rows.length) return;
+  // As schedule() does: one that already went fires again for the new time, if that's still ahead (review
+  // 2026-11-17); one already past stays gone. The sweeper (every minute) fires what no job was queued for.
+  await c.query(
+    `UPDATE scheduled_notifications SET fire_at = greatest(fire_at + $2 * interval '1 millisecond', $3),
+            status = 'pending', fired_at = NULL
+      WHERE task_id = ANY($1::uuid[])
+        AND (status = 'pending'
+             OR (status = 'fired' AND fire_at + $2 * interval '1 millisecond' >= $3::timestamptz - interval '30 seconds'))`,
+    [rows.map((r) => r.id), byMs, now],
+  );
+  await c.query(
+    `UPDATE leads l SET next_task_due_at = (SELECT min(due_at) FROM tasks t WHERE t.lead_id = l.id AND t.status = 'open')
+      WHERE l.id = ANY($1::uuid[])`,
+    [[...new Set(rows.map((r) => r.lead_id))]],
+  );
+}
+
 async function closeOutcomeTasks(
   c: pg.PoolClient,
   taskIds: (string | null)[],
@@ -290,12 +320,14 @@ async function closeOutcomeTasks(
     : [];
   const ids = [...taskIds.filter((x): x is string => !!x), ...reminders];
   if (!ids.length) return;
-  const { rows } = await c.query<{ id: string; lead_id: string }>(
+  const { rows } = await c.query<{ id: string; lead_id: string; assignee_id: string }>(
     `UPDATE tasks SET status = 'cancelled', cancelled_at = $2, updated_at = $2, version = version + 1
-      WHERE id = ANY($1::uuid[]) AND status = 'open' RETURNING id, lead_id`,
+      WHERE id = ANY($1::uuid[]) AND status = 'open' RETURNING id, lead_id, assignee_id`,
     [ids, now],
   );
   if (!rows.length) return;
+  // Their reminders in the bell are read too: nothing left to say about a meeting moved or gone.
+  await settleRemindersIn(c as never, rows);
   await c.query(
     "UPDATE scheduled_notifications SET status = 'cancelled' WHERE task_id = ANY($1::uuid[]) AND status = 'pending'",
     [rows.map((r) => r.id)],
@@ -483,9 +515,11 @@ async function write(
     if (same) continue;
     if (startsAt.getTime() !== old.starts_at.getTime()) tally.moved++;
     else tally.changed++;
-    // Moved at all: its reminder was for the old time. Moved past its outcome: that's set aside too.
-    if (movedOn || startsAt.getTime() !== old.starts_at.getTime())
-      await closeOutcomeTasks(c, movedOn ? [old.outcome_task_id] : [], now, [old.id]);
+    // Moved past its outcome: that's set aside. Moved at all: its reminders move with it (bug hunt 2026-11-17: they
+    // were closed, and nothing made one for the new time).
+    if (movedOn) await closeOutcomeTasks(c, [old.outcome_task_id], now);
+    if (startsAt.getTime() !== old.starts_at.getTime())
+      await moveReminders(c, old.id, startsAt.getTime() - old.starts_at.getTime(), now);
     await c.query(
       `UPDATE meetings SET lead_id = $2, connection_id = $3, calendar_id = $4, matched_by = $5, title = $6,
               starts_at = $7, ends_at = $8, link = $9, location = $10, status = $11, updated_at = $12,
@@ -595,8 +629,8 @@ async function write(
     if (m.starts_at.getTime() === ev.startsAt.getTime() && m.ends_at.getTime() === endsAt.getTime()) continue;
     if (m.starts_at.getTime() !== ev.startsAt.getTime()) {
       tally.moved++;
-      // Its reminder was for the old time.
-      await closeOutcomeTasks(c, [], now, [m.id]);
+      // Its reminders move with it (bug hunt 2026-11-17).
+      await moveReminders(c, m.id, ev.startsAt.getTime() - m.starts_at.getTime(), now);
     } else tally.changed++;
     await c.query(
       "UPDATE meetings SET starts_at = $2, ends_at = $3, updated_at = $4, version = version + 1 WHERE id = $1",

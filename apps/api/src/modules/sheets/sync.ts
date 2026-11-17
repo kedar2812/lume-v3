@@ -212,13 +212,31 @@ export async function runSync(o: SyncDeps, syncId: string): Promise<void> {
         .where(and(eq(S.id, src.id), eq(S.currentSyncId, syncId)));
     });
   try {
-    const patch = await syncSource(o, db, src, syncId, now);
+    const read = await syncSource(o, db, src, syncId, now);
+    // Columns edited while this read ran (the config moved on): the edit's "recognise again", its fresh anchor and
+    // version stand, or the next full read would take every row for a new one (bug hunt 2026-11-17).
+    const same = sql`${S.configVersion} = ${src.configVersion}`;
+    const patch =
+      "rekeyThrough" in read
+        ? {
+            ...read,
+            rekeyThrough: sql`CASE WHEN ${same} THEN ${read.rekeyThrough}::int ELSE ${S.rekeyThrough} END`,
+            headHash: sql`CASE WHEN ${same} THEN ${read.headHash}::text ELSE ${S.headHash} END`,
+            syncedConfigVersion: sql`CASE WHEN ${same} THEN ${read.syncedConfigVersion}::int ELSE ${S.syncedConfigVersion} END`,
+            // The edit cleared the new-columns note against its own mapping (review 2026-11-17).
+            newColumns: sql`CASE WHEN ${same} THEN ${JSON.stringify(read.newColumns)}::jsonb ELSE ${S.newColumns} END`,
+          }
+        : read;
+    const next = new Date(now().getTime() + src.pollSeconds * 1000);
     await settle(
       { status: "done" },
       {
-        ...patch,
+        // SQL values for the three above: drizzle sets them as written.
+        ...(patch as unknown as typeof read),
         lastSyncedAt: now(),
-        nextSyncAt: new Date(now().getTime() + src.pollSeconds * 1000),
+        // The edit asked for a read at once: this one, for the old columns, doesn't put that off (review 2026-11-17).
+        nextSyncAt:
+          sql`CASE WHEN ${same} THEN ${next}::timestamptz ELSE least(${S.nextSyncAt}, ${next}::timestamptz) END` as unknown as Date,
         failures: 0,
         lastError: null,
       },
@@ -349,7 +367,10 @@ async function syncSource(
           tab: tab.title,
           from,
           lastRow: Math.max(tab.rowCount, from),
-          limit: full ? o.maxRows : o.maxRows - src.rowsRead,
+          // Past the last row read, up to the whole limit: rowsRead counts positions (blank rows too), so taking it
+          // off the limit could leave it below zero and refuse a sheet with no new rows (bug hunt 2026-11-17). The
+          // hourly full read counts the filled rows of the whole sheet against the limit.
+          limit: o.maxRows,
         });
   const rowsRead = (full ? 0 : src.rowsRead) + raw.length;
   const lastRaw = raw.length ? raw.at(-1)! : tailRaw[0];
@@ -622,7 +643,8 @@ async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) 
     },
   });
   // A finished row keeps the standing of the lead it made ("created"), and isn't counted as a merge.
-  const fillIn = !!t.fillIn && r.result === "merged";
+  // Only when it was filled in: a row that turned out to be someone else made its own lead (bug hunt 2026-11-17).
+  const fillIn = !!t.fillIn && r.result === "merged" && r.leadId === t.fillIn.leadId;
   await req.db
     .update(SR)
     .set({
@@ -638,8 +660,7 @@ async function oneRow(req: FastifyRequest, keyring: Keyring, run: Run, t: Todo) 
     })
     .where(eq(SR.id, Number(id)));
   // The row's first reading is replaced by this one: it was the same row, not a second enquiry.
-  if (t.fillIn && r.result !== "error")
-    await req.db.update(SR).set({ result: "superseded" }).where(eq(SR.id, t.fillIn.replaces));
+  if (fillIn) await req.db.update(SR).set({ result: "superseded" }).where(eq(SR.id, t.fillIn!.replaces));
   const column = r.result === "error" ? "errors" : r.result;
   await req.db.execute(
     fillIn

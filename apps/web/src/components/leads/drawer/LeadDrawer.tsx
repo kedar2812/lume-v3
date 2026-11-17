@@ -132,7 +132,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const sound = useSound();
   const reduce = useReducedMotion();
   const [lead, setLead] = useState<Lead | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "gone">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "gone" | "failed">("loading");
+  /** Bumped by Try again after a load that failed (offline, the server): the lead is asked for again. */
+  const [attempt, setAttempt] = useState(0);
   useLoadingSignal(state === "loading");
   const [tab, setTab] = useState<Tab>("details");
   // Bumped when a follow-up is set here, so the next-follow-up line and the history look again.
@@ -229,13 +231,15 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
         setState("ready");
       } else {
         setLead(null);
-        setState("gone");
+        // Only "not found" or "not yours" means it's gone; a dropped connection or a server error is said as that,
+        // with Try again (bug hunt 2026-11-17).
+        setState(r.status === 404 || r.status === 403 ? "gone" : "failed");
       }
     });
     return () => {
       live = false;
     };
-  }, [id]);
+  }, [id, attempt]);
 
   const changed = useCallback(
     (next: Lead) => {
@@ -552,7 +556,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
 
   const notes = activities.items.filter((a) => a.type === "note");
   const history = activities.items.filter((a) => a.type !== "note");
-  const title = lead?.name ?? (state === "gone" ? "Lead not available" : "Loading lead");
+  const title =
+    lead?.name ??
+    (state === "gone" ? "Lead not available" : state === "failed" ? "Lead couldn't open" : "Loading lead");
 
   return (
     <BodyPortal>
@@ -682,6 +688,19 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   This lead isn’t available to you any more
                 </h2>
                 <p>It may have been handed to someone else or deleted.</p>
+                <Button onClick={onClose}>Close</Button>
+              </div>
+            )}
+
+            {state === "failed" && (
+              <div className={s.gone}>
+                <h2 id={headingId} ref={heading} tabIndex={-1}>
+                  LUME couldn’t open this lead
+                </h2>
+                <p>Check your connection and try again.</p>
+                <Button variant="primary" onClick={() => setAttempt((n) => n + 1)}>
+                  Try again
+                </Button>
                 <Button onClick={onClose}>Close</Button>
               </div>
             )}

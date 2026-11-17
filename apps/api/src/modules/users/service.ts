@@ -64,7 +64,16 @@ export async function updateUser(
       : [];
     if (found.length !== new Set(patch.roleIds).size)
       throw badRequest("UNKNOWN_ROLE", "One of those roles doesn't exist");
-    await assertCanAssignRoles(req, patch.roleIds);
+    // Only the roles they don't hold yet are handed out: keeping or taking one away widens nothing (review
+    // 2026-11-17: a full set was checked, so a role above yours they already had blocked every change).
+    const held = await req.db
+      .select({ roleId: schema.userRoles.roleId })
+      .from(schema.userRoles)
+      .where(eq(schema.userRoles.userId, id));
+    await assertCanAssignRoles(
+      req,
+      [...new Set(patch.roleIds)].filter((r) => !held.some((x) => x.roleId === r)),
+    );
     // Sign-in hours and networks hold if any of a person's roles allows: adding a role without limits to your own
     // would lift those Security set on yours (review 2026-10-25). Your own roles are the owner's, or Security's.
     const actor = req.actor!;

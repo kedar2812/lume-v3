@@ -68,6 +68,7 @@ export function BusinessForm({ initial }: { initial?: BusinessSettings }) {
   const save = async () => {
     if (!form.businessName.trim()) return setNameError("Give the business a name");
     setBusy(true);
+    const sent = form;
     const r = await settingsClient.patch(changes);
     setBusy(false);
     if (!res.guard(r)) {
@@ -75,7 +76,13 @@ export function BusinessForm({ initial }: { initial?: BusinessSettings }) {
       return;
     }
     res.setData(r.data);
-    setDraft(editable(r.data));
+    // What was typed while it saved stays (and still says it's unsaved); the rest is as the server keeps it (bug
+    // hunt 2026-11-17: the reply wrote over a time zone picked meanwhile, and the form read as saved).
+    const fresh = editable(r.data);
+    setDraft((now) => {
+      const cur = now ?? fresh;
+      return Object.fromEntries(KEYS.map((k) => [k, cur[k] !== sent[k] ? cur[k] : fresh[k]])) as Editable;
+    });
     setStatus("Saved");
     router.refresh(); // the business name and clock show elsewhere in the app
   };

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness } from "../../../test/harness";
+import { PASSWORD, createHarness, type AuthedClient, type Harness } from "../../../test/harness";
 
 let h: Harness;
 beforeAll(async () => {
@@ -67,6 +67,16 @@ describe("GET /audit/csv (owner 2026-11-14)", () => {
       .replace(/^\uFEFF/, "")
       .trim()
       .split("\r\n");
+  /** The password buys a ticket for one download (owner 2026-11-17). */
+  const csv = async (c: AuthedClient, query = "") => {
+    const t = await c.inject({
+      method: "POST",
+      url: "/api/v1/audit/csv/ticket",
+      payload: { password: PASSWORD },
+    });
+    const ticket = (t.json() as { ticket: string }).ticket;
+    return c.inject({ method: "GET", url: `/api/v1/audit/csv${query}${query ? "&" : "?"}ticket=${ticket}` });
+  };
   const tzOf = async () =>
     (await h.ownerPool.query("SELECT timezone FROM settings WHERE id = 1")).rows[0]?.timezone ?? "UTC";
 
@@ -88,7 +98,7 @@ describe("GET /audit/csv (owner 2026-11-14)", () => {
         ])
       ).rows[0].t as string;
     const c = await h.signIn(await h.seedUser({ grants: DOWNLOAD }));
-    const res = await c.inject({ method: "GET", url: `/api/v1/audit/csv?actorUserId=${actor.id}` });
+    const res = await csv(c, `?actorUserId=${actor.id}`);
     expect(res.statusCode, res.body).toBe(200);
     expect(res.headers["content-type"]).toMatch(/^text\/csv/);
     expect(res.headers["cache-control"]).toBe("no-store");
@@ -104,9 +114,7 @@ describe("GET /audit/csv (owner 2026-11-14)", () => {
     ]);
 
     // LUME itself, and an action with no words yet: said as its key, never dropped.
-    const sys = lines(
-      (await c.inject({ method: "GET", url: "/api/v1/audit/csv?action=t.csv.unknown" })).body,
-    );
+    const sys = lines((await csv(c, "?action=t.csv.unknown")).body);
     expect(sys.slice(1)).toEqual([`${await local("2026-03-02T10:00:00Z")},LUME,t.csv.unknown,thing,`]);
 
     const audited = await h.queryAll<{ diff: Record<string, unknown> }>(
@@ -121,9 +129,9 @@ describe("GET /audit/csv (owner 2026-11-14)", () => {
       "INSERT INTO audit_log (action, entity_type) SELECT 't.csv.many', 't' FROM generate_series(1, 2105)",
     );
     const c = await h.signIn(await h.seedUser({ grants: DOWNLOAD }));
-    const many = lines((await c.inject({ method: "GET", url: "/api/v1/audit/csv?action=t.csv.many" })).body);
+    const many = lines((await csv(c, "?action=t.csv.many")).body);
     expect(many).toHaveLength(2106);
-    const none = await c.inject({ method: "GET", url: "/api/v1/audit/csv?action=t.csv.none" });
+    const none = await csv(c, "?action=t.csv.none");
     expect(none.statusCode).toBe(200);
     expect(lines(none.body)).toHaveLength(1);
   });
@@ -139,5 +147,41 @@ describe("GET /audit/csv (owner 2026-11-14)", () => {
     expect((await only.inject({ method: "GET", url: "/api/v1/audit/csv" })).statusCode).toBe(403);
     const ok = await h.signIn(await h.seedUser({ grants: DOWNLOAD }));
     expect((await ok.inject({ method: "GET", url: "/api/v1/audit/csv?day=yesterday" })).statusCode).toBe(400);
+  });
+});
+
+describe("the audit log download asks for the password (owner 2026-11-17)", () => {
+  const DOWNLOAD = [
+    { key: "audit.view" as const, scope: null },
+    { key: "audit.export" as const, scope: null },
+  ];
+  it("no password, no download; a wrong one buys nothing; a ticket is good once, and only for its person", async () => {
+    const u = await h.seedUser({ grants: DOWNLOAD });
+    const c = await h.signIn(u);
+    const none = await c.inject({ method: "GET", url: "/api/v1/audit/csv" });
+    expect(none.statusCode).toBe(403);
+    expect(none.json().error.code).toBe("PASSWORD_NEEDED");
+    const wrong = await c.inject({
+      method: "POST",
+      url: "/api/v1/audit/csv/ticket",
+      payload: { password: "nope nope" },
+    });
+    expect(wrong.statusCode).toBe(400);
+    const ok = await c.inject({
+      method: "POST",
+      url: "/api/v1/audit/csv/ticket",
+      payload: { password: u.password },
+    });
+    const ticket = (ok.json() as { ticket: string }).ticket;
+    const other = await h.signIn(await h.seedUser({ grants: DOWNLOAD }));
+    expect(
+      (await other.inject({ method: "GET", url: `/api/v1/audit/csv?ticket=${ticket}` })).statusCode,
+    ).toBe(403);
+    expect((await c.inject({ method: "GET", url: `/api/v1/audit/csv?ticket=${ticket}` })).statusCode).toBe(
+      200,
+    );
+    expect((await c.inject({ method: "GET", url: `/api/v1/audit/csv?ticket=${ticket}` })).statusCode).toBe(
+      403,
+    );
   });
 });

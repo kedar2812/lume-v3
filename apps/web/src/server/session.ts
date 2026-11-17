@@ -46,6 +46,10 @@ export type Session = {
   /** What's new in LUME (spec 2026-11-02): the running version, the stories this person may see, their state. */
   whatsNew: WhatsNewView;
   capabilities: Capabilities;
+  /** What can be connected now: Google Calendar switched on, set up here and in the plan (bug hunt 2026-11-17). */
+  connectable: { calendar: boolean };
+  /** Whether the business sends the morning email at all (bug hunt 2026-11-17). */
+  digestOn: boolean;
   /** The licence agreement, terms and privacy policy: the version agreed to, and the current one. */
   agreement: { version: string | null; current: string };
   flags: {
@@ -77,8 +81,21 @@ const NO_WHATS_NEW: WhatsNewView = { version: "", stories: [], state: EMPTY_WHAT
 /** Exactly what GET /auth/me sends. Permission keys stay loose here: a newer API may know more of them. */
 export type MePayload = Omit<
   Session,
-  "actor" | "permissions" | "agreement" | "flags" | "licence" | "watermark" | "today" | "whatsNew"
+  | "actor"
+  | "permissions"
+  | "agreement"
+  | "flags"
+  | "licence"
+  | "watermark"
+  | "today"
+  | "whatsNew"
+  | "connectable"
+  | "digestOn"
 > & {
+  /** Absent from an API that predates it: as before, offered. */
+  digestOn?: boolean;
+  /** Absent from an API that predates it (bug hunt 2026-11-17). */
+  connectable?: { calendar: boolean };
   /** Absent from an API that predates What's new. */
   whatsNew?: WhatsNewView;
   /** Absent from an API that predates the watch (6A). */
@@ -133,6 +150,9 @@ export function toSession(me: MePayload): Session {
     tour: me.tour ?? EMPTY_TOUR,
     whatsNew: me.whatsNew ?? NO_WHATS_NEW,
     capabilities: me.capabilities,
+    // An API from before it said: as the capabilities say.
+    connectable: me.connectable ?? { calendar: me.capabilities.calendar },
+    digestOn: me.digestOn ?? true,
     agreement: me.agreement ?? { version: null, current: LEGAL_VERSION },
     // An API from before the agreement existed sends no flag: nobody is asked.
     flags: {
@@ -223,6 +243,8 @@ export function fakeSession(overrides: Partial<Omit<Session, "actor">> = {}): Se
     onboarding: EMPTY_ONBOARDING,
     tour: EMPTY_TOUR,
     capabilities: { sheets: false, calendar: false },
+    connectable: { calendar: false },
+    digestOn: true,
     agreement: { version: LEGAL_VERSION, current: LEGAL_VERSION },
     flags: {
       needsAgreement: false,

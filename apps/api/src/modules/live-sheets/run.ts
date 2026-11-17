@@ -149,6 +149,9 @@ async function existing(
   }
 }
 
+/** google_modified_at while LUME writes: no Drive time is ever this. */
+const WRITING = "lume:writing";
+
 /** What LUME now knows it wrote: rows added and updated stored with their hashes, removed ones forgotten. */
 async function remember(
   pool: pg.Pool,
@@ -446,8 +449,10 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
       await pool.query("UPDATE live_sheet_rows SET edited_cols = '{}' WHERE sheet_id = $1", [sheet.id]);
       rows = rows.map((w) => ({ ...w, editedCols: [] }));
     }
-    // Only read the sheet back when someone changed it since LUME's last write.
-    if (made && rows.length) {
+    // Only read the sheet back when someone changed it since LUME's last write. After a write cut off part-way, the
+    // sheet holds LUME's own new cells that it never got to remember: those aren't a person's edits, and this run puts
+    // every row right instead (bug hunt 2026-11-17: they were kept as hand edits and never updated again).
+    if (made && rows.length && sheet.google_modified_at !== WRITING) {
       const f = await google.file(s.spreadsheetId);
       if (f.modifiedTime !== sheet.google_modified_at)
         rows = await handEdits(pool, google, s, sheet.id, rows, desired.header.length);
@@ -469,6 +474,9 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
       );
     await ping(pool, sheet.id, "progress");
     let shown = 0;
+    // Marked as being written until the write is remembered (see above): a cut-off write is told apart from hand edits.
+    if (total)
+      await pool.query("UPDATE live_sheets SET google_modified_at = $2 WHERE id = $1", [sheet.id, WRITING]);
     if (total)
       await google.write(s, writes, async (done) => {
         // The count only rises: a step Google answered twice never shows fewer.

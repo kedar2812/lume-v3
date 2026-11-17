@@ -23,6 +23,31 @@ describe("/me", () => {
     expect((await b.inject({ method: "GET", url: "/api/v1/me/sessions" })).statusCode).toBe(401);
   });
 
+  it("lists only sessions someone could use now: an idle or expired one isn't a device any more (bug hunt 2026-11-17)", async () => {
+    const u = await h.seedUser({ grants: [] });
+    const a = await h.signIn(u);
+    await h.signIn(u);
+    await h.signIn(u);
+    const mine = (await a.inject({ method: "GET", url: "/api/v1/me/sessions" })).json().sessions as {
+      id: string;
+      current: boolean;
+    }[];
+    expect(mine).toHaveLength(3);
+    const [idle, expired] = mine.filter((s) => !s.current).map((s) => s.id);
+    await h.ownerPool.query(
+      "UPDATE sessions SET last_seen_at = $3 WHERE user_id = $1 AND left(id, 16) = $2",
+      [u.id, idle, new Date(h.clock.now.getTime() - 2 * 86_400_000)],
+    );
+    await h.ownerPool.query("UPDATE sessions SET expires_at = $3 WHERE user_id = $1 AND left(id, 16) = $2", [
+      u.id,
+      expired,
+      new Date(h.clock.now.getTime() - 60_000),
+    ]);
+    const now = (await a.inject({ method: "GET", url: "/api/v1/me/sessions" })).json().sessions;
+    expect(now).toHaveLength(1);
+    expect(now[0].current).toBe(true);
+  });
+
   it("a user whose role requires 2FA can enrol (and only enrol) until done", async () => {
     const u = await h.seedUser({ grants: [{ key: "users.manage", scope: null }] });
     const c = await h.signIn(u);

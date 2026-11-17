@@ -93,8 +93,17 @@ export function ColumnsStep({
   const [failed, setFailed] = useState<string | null>(null);
   const seq = useRef(0);
   const typing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** An edit still waiting for typing to pause: sent at once on Continue or when the step closes, never dropped. */
+  const waiting = useRef<Mapping | null>(null);
   useEffect(() => setMapping(draft.mapping), [draft.mapping]);
-  useEffect(() => () => clearTimeout(typing.current ?? undefined), []);
+  useEffect(
+    () => () => {
+      clearTimeout(typing.current ?? undefined);
+      // Closed with a name still being typed (Esc, Back): it's kept all the same (bug hunt 2026-11-17).
+      if (waiting.current) void importsClient.patch(draft.id, { mapping: waiting.current });
+    },
+    [],
+  );
 
   const send = async (next: Mapping) => {
     const mine = ++seq.current;
@@ -108,8 +117,23 @@ export function ColumnsStep({
   const change = (next: Mapping, wait = 0) => {
     setMapping(next);
     clearTimeout(typing.current ?? undefined);
-    if (wait) typing.current = setTimeout(() => void send(next), wait);
+    waiting.current = wait ? next : null;
+    if (wait)
+      typing.current = setTimeout(() => {
+        waiting.current = null;
+        void send(next);
+      }, wait);
     else void send(next);
+  };
+  // Continue straight after typing a new field's name: the name goes first (bug hunt 2026-11-17).
+  const proceed = async () => {
+    const next = waiting.current;
+    if (next) {
+      clearTimeout(typing.current ?? undefined);
+      waiting.current = null;
+      await send(next);
+    }
+    onContinue();
   };
 
   const problems = draft.problems.filter((p) => COLUMN_CODES.has(p.code));
@@ -298,7 +322,7 @@ export function ColumnsStep({
       </section>
       <footer className={s.foot}>
         {blocked && <p className={s.footNote}>Settle what’s listed above to continue.</p>}
-        <Button variant="primary" disabled={blocked} onClick={onContinue}>
+        <Button variant="primary" disabled={blocked} onClick={() => void proceed()}>
           Continue
         </Button>
       </footer>

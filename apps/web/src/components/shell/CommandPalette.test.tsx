@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
@@ -36,7 +36,7 @@ describe("Search LUME (Ctrl K)", () => {
       ok({ items: [lead("l1", "Kedar Mehta", "+91 98200 11111")], nextCursor: null }) as never,
     );
     const onOpenChange = vi.fn();
-    render(<CommandPalette open onOpenChange={onOpenChange} can={() => true} />);
+    render(<CommandPalette userId="u1" open onOpenChange={onOpenChange} can={() => true} />);
     await typeIn("kedar");
     const leads = await screen.findByRole("group", { name: "Leads" });
     expect(within(leads).getByRole("option", { name: /Kedar Mehta/ })).toHaveTextContent("+91 98200 11111");
@@ -44,30 +44,52 @@ describe("Search LUME (Ctrl K)", () => {
     await userEvent.keyboard("{Enter}");
     expect(go).toHaveBeenCalledWith("/leads?lead=l1");
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(JSON.parse(localStorage.getItem("lume:recent-leads")!)[0]).toMatchObject({
+    expect(JSON.parse(localStorage.getItem("lume:recent-leads:u1")!)[0]).toMatchObject({
       id: "l1",
       name: "Kedar Mehta",
     });
   });
 
+  it("recent leads are each person's own, and keep no phone or email (bug hunt 2026-11-17)", async () => {
+    vi.mocked(leadsClient.list).mockResolvedValue(
+      ok({ items: [lead("l1", "Kedar Mehta", "+91 98200 11111")], nextCursor: null }) as never,
+    );
+    render(<CommandPalette userId="u1" open onOpenChange={vi.fn()} can={() => true} />);
+    await typeIn("kedar");
+    await screen.findByRole("group", { name: "Leads" });
+    await userEvent.keyboard("{Enter}");
+    expect(localStorage.getItem("lume:recent-leads:u1")).not.toContain("98200");
+    cleanup();
+    // Someone else signs in on this browser: none of it, and the old shared list (from before) is gone.
+    localStorage.setItem(
+      "lume:recent-leads",
+      JSON.stringify([{ id: "l9", name: "Asha Rao", hint: "+971 50 123 4567" }]),
+    );
+    render(<CommandPalette userId="u2" open onOpenChange={vi.fn()} can={() => true} />);
+    expect(screen.queryByRole("group", { name: "Recent" })).toBeNull();
+    expect(document.body.textContent).not.toContain("Kedar Mehta");
+    expect(document.body.textContent).not.toContain("Asha Rao");
+    expect(localStorage.getItem("lume:recent-leads")).toBeNull();
+  });
+
   it("LUME AI is a page to go to, as in the sidebar, whether or not it's on (owner, 2026-10-27)", async () => {
     aiOn = false;
-    render(<CommandPalette open onOpenChange={vi.fn()} can={() => true} />);
+    render(<CommandPalette userId="u1" open onOpenChange={vi.fn()} can={() => true} />);
     const go = await screen.findByRole("group", { name: "Go to" });
     expect(go).toHaveTextContent("LUME AI");
     expect(go).not.toHaveTextContent("Autopilot");
   });
 
   it("empty, it offers the leads opened lately, things to do, and the pages", async () => {
-    localStorage.setItem("lume:recent-leads", JSON.stringify([{ id: "l9", name: "Asha Rao" }]));
-    render(<CommandPalette open onOpenChange={() => undefined} can={() => true} />);
+    localStorage.setItem("lume:recent-leads:u1", JSON.stringify([{ id: "l9", name: "Asha Rao" }]));
+    render(<CommandPalette userId="u1" open onOpenChange={() => undefined} can={() => true} />);
     expect(screen.getByRole("group", { name: "Recent" })).toHaveTextContent("Asha Rao");
     expect(screen.getByRole("group", { name: "Actions" })).toHaveTextContent("New lead");
     expect(screen.getByRole("group", { name: "Go to" })).toHaveTextContent("Analytics");
   });
 
   it("pages, actions, views, settings and templates by a few letters, even with a typo", async () => {
-    render(<CommandPalette open onOpenChange={() => undefined} can={() => true} />);
+    render(<CommandPalette userId="u1" open onOpenChange={() => undefined} can={() => true} />);
     await typeIn("watermrk");
     expect(await screen.findByRole("option", { name: /On-screen watermark/ })).toBeInTheDocument();
     await userEvent.clear(screen.getByRole("combobox"));
@@ -80,7 +102,9 @@ describe("Search LUME (Ctrl K)", () => {
   });
 
   it("never offers what the role can't open, nor looks up leads without leads.view", async () => {
-    render(<CommandPalette open onOpenChange={() => undefined} can={(p) => p === "analytics.view"} />);
+    render(
+      <CommandPalette userId="u1" open onOpenChange={() => undefined} can={(p) => p === "analytics.view"} />,
+    );
     expect(screen.queryByRole("option", { name: /^Leads$/ })).toBeNull();
     expect(screen.queryByRole("option", { name: /New lead/ })).toBeNull();
     await typeIn("kedar");
@@ -90,7 +114,7 @@ describe("Search LUME (Ctrl K)", () => {
   });
 
   it("moves the selection with the arrow keys", async () => {
-    render(<CommandPalette open onOpenChange={() => undefined} can={() => true} />);
+    render(<CommandPalette userId="u1" open onOpenChange={() => undefined} can={() => true} />);
     await userEvent.keyboard("{ArrowDown}");
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
   });
@@ -108,14 +132,34 @@ describe("where a search matched", () => {
 describe("Send feedback from the palette (spec 2026-10-16 §1.1)", () => {
   it("is an action, found by what people call it", async () => {
     const onFeedback = vi.fn();
-    render(<CommandPalette open onOpenChange={() => undefined} can={() => true} onFeedback={onFeedback} />);
+    render(
+      <CommandPalette
+        userId="u1"
+        open
+        onOpenChange={() => undefined}
+        can={() => true}
+        onFeedback={onFeedback}
+      />,
+    );
     await typeIn("bug report");
     await userEvent.click(await screen.findByRole("option", { name: /Send feedback/ }));
     expect(onFeedback).toHaveBeenCalledTimes(1);
   });
   it("isn't there without somewhere to send it", async () => {
-    render(<CommandPalette open onOpenChange={() => undefined} can={() => true} />);
+    render(<CommandPalette userId="u1" open onOpenChange={() => undefined} can={() => true} />);
     await typeIn("feedback");
     expect(screen.queryByRole("option", { name: /Send feedback/ })).toBeNull();
+  });
+
+  it("an answer for words no longer typed never shows (bug hunt 2026-11-17)", async () => {
+    let answer: (v: unknown) => void = () => {};
+    vi.mocked(leadsClient.list).mockImplementation(() => new Promise((r) => (answer = r)) as never);
+    render(<CommandPalette userId="u1" open onOpenChange={vi.fn()} can={() => true} />);
+    await typeIn("an");
+    await vi.waitFor(() => expect(leadsClient.list).toHaveBeenCalled());
+    await userEvent.keyboard("{Backspace}");
+    answer(ok({ items: [lead("l7", "Anand Rao", "+91 98200 22222")], nextCursor: null }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("group", { name: "Leads" })).toBeNull();
   });
 });

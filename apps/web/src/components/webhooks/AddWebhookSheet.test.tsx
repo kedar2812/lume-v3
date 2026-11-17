@@ -147,6 +147,10 @@ describe("Add a webhook", () => {
     await user.click(document.querySelector("[class*=scrim]")!);
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByText(SECRET)).toBeInTheDocument();
+    // Nor does Escape (bug hunt 2026-11-17).
+    await user.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(SECRET)).toBeInTheDocument();
   });
 
   it("waiting for the test post stops after 10 minutes, says so, and can look again", async () => {

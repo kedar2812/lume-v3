@@ -6,7 +6,7 @@ import { scanWhatsAppFiles, sweepWhatsAppFiles } from "./keep";
 import { fetchMedia } from "./media";
 import { processWhatsAppEvent, type WhatsAppJobDeps } from "./process";
 import { readReplyMeaning } from "./meaning";
-import { SENDING_STUCK_MS, sendOutbox } from "./sender";
+import { SEND_RETRY_DELAY_S, SEND_TRIES, SENDING_STUCK_MS, sendOutbox } from "./sender";
 import { sweepTemplates } from "./submit";
 import { relayOf } from "./service";
 import { relayTokenRefresh, sweepWhatsAppTokens } from "./token-refresh";
@@ -122,7 +122,11 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
       },
     );
   const enqueueSend = async (id: string) => {
-    await boss.send("whatsapp.send", { id }, { retryLimit: 5, retryBackoff: true, singletonKey: id });
+    await boss.send(
+      "whatsapp.send",
+      { id },
+      { retryLimit: SEND_TRIES, retryDelay: SEND_RETRY_DELAY_S, retryBackoff: true, singletonKey: id },
+    );
   };
   // What a reply means (W2): one read per reply, two at a time; the provider is the slow part.
   for (let i = 0; i < 2; i++)

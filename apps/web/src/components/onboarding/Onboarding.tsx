@@ -59,6 +59,7 @@ export function Onboarding({
         actor: session.actor,
         twoFactorEnabled: session.twoFactor.enabled,
         capabilities: session.capabilities,
+        connectable: session.connectable,
       }),
     [session],
   );
@@ -274,6 +275,7 @@ export function Onboarding({
               sound.play("done");
             }}
             isAdmin={isAdmin}
+            digestOn={session.digestOn}
           />
         );
       case "team":
@@ -284,7 +286,7 @@ export function Onboarding({
         return (
           <ConnectPanel
             kicker={kicker}
-            calendar={session.capabilities.calendar}
+            calendar={session.capabilities.calendar && session.connectable.calendar}
             sheets={
               session.capabilities.sheets && (session.user.isOwner || can(session.actor, "leads.import"))
             }

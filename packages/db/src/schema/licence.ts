@@ -1,4 +1,4 @@
-import { jsonb, pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
+import { bigint, jsonb, pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
 import { bytea, tz } from "./types";
 
 /** What this instance knows of its licence (licensing L-A): one row, the last good token and its timings. */
@@ -18,6 +18,8 @@ export const licenceState = pgTable("licence_state", {
   activatedAt: tz("activated_at"),
   /** The modules the plan last left out (spec 2026-10-17 control §2.2): each is switched off once per change. */
   planApplied: jsonb("plan_applied"),
+  /** Time without a good check-in on LUME's own running clock, not the wall clock (bug hunt 2026-11-17). */
+  offlineMs: bigint("offline_ms", { mode: "number" }).notNull().default(0),
 });
 
 /** From LUME's team (spec 2026-10-16 fleet §4): who pressed Got it on which announcement. */

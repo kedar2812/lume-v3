@@ -1,6 +1,7 @@
 import type pg from "pg";
 import {
   ACCEPTS,
+  CLOCK_SLACK,
   activateBody,
   canonicalKey,
   checkBody,
@@ -65,6 +66,7 @@ type Row = {
   install_id: string;
   instance_id: string | null;
   license_key_enc: Buffer | null;
+  offline_ms: string | number;
 };
 
 /**
@@ -91,7 +93,15 @@ export class LicenceKeeper {
     private readonly log: (o: object, msg: string) => void = () => undefined,
     /** Seals the product key the owner gave (spec 2026-10-15 §1.2); without it only an .env key can be used. */
     private readonly keyring: Keyring | null = null,
-  ) {}
+  ) {
+    this.monoAt = this.mono();
+  }
+
+  /** LUME's own running clock at its last check-in try (or start): what a try adds to the time offline. */
+  private monoAt: number;
+  private mono(): number {
+    return this.opts.mono ? this.opts.mono() : performance.now();
+  }
 
   /** The key in .env wins (the owner's own servers); otherwise the one entered at setup or in Settings → About. */
   private creds(): { instanceId: string; licenseKey: string } | null {
@@ -151,6 +161,7 @@ export class LicenceKeeper {
       payload: this.payload,
       lastSuccessAt: this.row?.last_success_at ?? null,
       firstBootAt: this.row?.first_boot_at ?? this.now(),
+      offlineMs: Number(this.row?.offline_ms ?? 0),
       now: this.now(),
       dev: this.dev,
     });
@@ -159,7 +170,7 @@ export class LicenceKeeper {
   /** Read what the database holds, and act on it from now on. */
   async refresh(): Promise<LicenceView> {
     const { rows } = await this.pool.query<Row>(
-      `SELECT token, first_boot_at, last_attempt_at, last_success_at, last_error, install_id, instance_id,
+      `SELECT token, first_boot_at, last_attempt_at, last_success_at, last_error, install_id, instance_id, offline_ms,
               license_key_enc
          FROM licence_state WHERE id = 1`,
     );
@@ -232,6 +243,10 @@ export class LicenceKeeper {
 
   private async runCheck(): Promise<LicenceView> {
     const at = this.now();
+    // Running time since the last try: counted towards time offline unless this one succeeds (bug hunt 2026-11-17).
+    const m = this.mono();
+    const ran = Math.max(0, Math.round(m - this.monoAt));
+    this.monoAt = m;
     let error: string | null = null;
     let token: string | null = null;
     const creds = this.creds();
@@ -281,8 +296,17 @@ export class LicenceKeeper {
           const got = ((await r.json()) as { token?: unknown }).token;
           const p = typeof got === "string" ? verifyLicence(got, this.opts.keys, creds.instanceId) : null;
           if (!p) error = "The licence server's answer was not signed by LUME for this install";
-          // An answer older than the one kept is an old answer replayed: it never undoes a newer one.
-          else if (this.payload && Date.parse(p.issuedAt) < Date.parse(this.payload.issuedAt))
+          // An answer older than the one kept is an old answer replayed: it never undoes a newer one. A kept answer
+          // from the future (the licence server's clock jumped once) is no anchor, or LUME would refuse every true
+          // answer after it and stay read-only for good (bug hunt 2026-11-17).
+          // Only an answer issued now takes the place of one from the future (review 2026-11-17): an older one kept
+          // from before stays refused, so a clock held back can't bring it back.
+          else if (
+            this.payload &&
+            Date.parse(p.issuedAt) < Date.parse(this.payload.issuedAt) &&
+            (Date.parse(this.payload.issuedAt) <= at.getTime() + CLOCK_SLACK ||
+              Math.abs(Date.parse(p.issuedAt) - at.getTime()) > CLOCK_SLACK)
+          )
             error = "The licence server's answer was older than the one LUME already has, so it was ignored";
           else token = got as string;
         }
@@ -292,13 +316,13 @@ export class LicenceKeeper {
     }
     if (token)
       await this.pool.query(
-        "UPDATE licence_state SET token = $1, last_attempt_at = $2, last_success_at = $2, last_error = NULL, updated_at = $2 WHERE id = 1",
+        "UPDATE licence_state SET token = $1, last_attempt_at = $2, last_success_at = $2, last_error = NULL, offline_ms = 0, updated_at = $2 WHERE id = 1",
         [token, at],
       );
     else
       await this.pool.query(
-        "UPDATE licence_state SET last_attempt_at = $1, last_error = $2, updated_at = $1 WHERE id = 1",
-        [at, error],
+        "UPDATE licence_state SET last_attempt_at = $1, last_error = $2, offline_ms = offline_ms + $3, updated_at = $1 WHERE id = 1",
+        [at, error, ran],
       );
     if (error) this.log({ error }, "licence check failed");
     const view = await this.refresh();
@@ -348,7 +372,7 @@ export class LicenceKeeper {
       return { ok: false, reason: "unreachable" };
     await this.pool.query(
       `UPDATE licence_state SET license_key_enc = $1, instance_id = $2, activated_at = $3, token = $4,
-              last_attempt_at = $3, last_success_at = $3, last_error = NULL, updated_at = $3
+              last_attempt_at = $3, last_success_at = $3, last_error = NULL, offline_ms = 0, updated_at = $3
         WHERE id = 1`,
       [this.keyring.encrypt(key, KEY_CONTEXT), instanceId, at, token],
     );

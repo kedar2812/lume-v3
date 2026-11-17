@@ -419,3 +419,25 @@ describe("Autopilot counts AI leads", () => {
     expect(waiting.reason).not.toBe(LEADS_HELD);
   });
 });
+
+describe("a lead LUME AI never wrote to isn't one of the month's (bug hunt 2026-11-17)", () => {
+  it("choosing its first message failed every time: nothing went, and it isn't counted", async () => {
+    plan(100);
+    await checkIn();
+    // Two templates fit, so LUME AI reads to choose; each read fails (an answer it can't use).
+    await approvedTemplate(
+      h,
+      meta,
+      admin,
+      "Hello {{lead.first_name}}, a second way to say hi. Can we help today?",
+    );
+    const before = (await used()).used;
+    provider.script("autopilot_first", [{}, {}, {}]);
+    const one = await lead("Tara Menon");
+    await startRun([one]);
+    for (let i = 0; i < 3; i++) await tick(6 * MIN);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(0);
+    expect((await used()).used).toBe(before);
+  });
+});

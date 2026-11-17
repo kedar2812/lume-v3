@@ -138,4 +138,19 @@ describe("first contact and first reply (8A Task 1)", () => {
     await expect(worker.query("SELECT 1 FROM lead_firsts LIMIT 1")).rejects.toThrow(/permission denied/);
     await worker.end();
   });
+
+  it("WhatsApp: a reply in the chat is a first reply; a phone send is a first contact; LUME's own only once Meta takes it (bug hunt 2026-11-17)", async () => {
+    const owner = await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] });
+    const lead = await h.seedLead({ ownerId: owner.id });
+    // LUME's own reply, queued (it has an outbox id): not a contact; it may never go.
+    await h.queryAll(
+      "INSERT INTO activities (id, lead_id, type, occurred_at, payload) VALUES (gen_random_uuid(), $1, 'whatsapp_sent', $2::timestamptz, $3::jsonb)",
+      [lead, "2026-09-01T09:00:00Z", JSON.stringify({ outboxId: "o-1" })],
+    );
+    expect(await firsts(lead)).toBeNull();
+    await activity(lead, "whatsapp_sent", "2026-09-01T10:00:00Z"); // from the phone, seen by LUME
+    expect((await firsts(lead))!.c!.toISOString()).toBe("2026-09-01T10:00:00.000Z");
+    await activity(lead, "whatsapp_received", "2026-09-01T12:00:00Z");
+    expect((await firsts(lead))!.r!.toISOString()).toBe("2026-09-01T12:00:00.000Z");
+  });
 });

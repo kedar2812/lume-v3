@@ -239,6 +239,29 @@ describe("replies, stop, taking over", () => {
     expect(dnc.find((x) => x.id === twin)!.dnc_at).not.toBeNull();
   });
 
+  it("a lead in a run who says stop: their owner is told they asked not to be messaged, not that they replied (bug hunt 2026-11-17)", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    const run = await start([lead]);
+    await firstMessage(run, lead);
+    await writes("hi");
+    await writes("STOP");
+    const c = await h.ownerPool.connect();
+    let kinds: string[];
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('lume.user_id', $1, true)", [admin.id]);
+      kinds = (
+        await c.query<{ kind: string }>("SELECT kind FROM notifications WHERE lead_id = $1 ORDER BY id", [
+          lead,
+        ])
+      ).rows.map((r) => r.kind);
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
+    expect(kinds).toContain("lead_stopped");
+  });
+
   it("a stop to a lead a person has taken over: kept, but LUME AI says nothing in their conversation (review 2026-10-26 A10)", async () => {
     const before = textsSent().length;
     await h.queryAll("UPDATE leads SET deleted_at = now() WHERE deleted_at IS NULL");
@@ -337,6 +360,24 @@ describe("replies, stop, taking over", () => {
     expect((await post(admin, `/api/v1/autopilot/runs/${run}/leads/${lead}/hand-back`)).json().state).toBe(
       "up_next",
     );
+    await tick();
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(1);
+  });
+
+  it("a draft written before a pause, resumed at night, waits for working hours (bug hunt 2026-11-17)", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Sneha Reddy", phone: PHONE });
+    const run = await start([lead]);
+    await tick();
+    expect((await stateOf(run, lead)).state).toBe("writing");
+    await post(admin, `/api/v1/autopilot/runs/${run}/pause`);
+    h.clock.now = new Date(monday.getTime() + 10 * 60 * MIN); // 23:00 in Dubai
+    expect((await post(admin, `/api/v1/autopilot/runs/${run}/resume`)).json().run.status).toBe("running");
+    await tick(10 * S);
+    await h.runWhatsAppSend();
+    expect(meta.sent).toHaveLength(0);
+    h.clock.now = new Date(monday.getTime() + 20 * 60 * MIN + 30 * MIN); // 09:30 the next morning in Dubai
     await tick();
     await tick(10 * S);
     await h.runWhatsAppSend();

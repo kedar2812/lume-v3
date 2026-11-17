@@ -113,6 +113,22 @@ describe("the notification centre (3B Task 5)", () => {
     expect(screen.getByRole("list", { name: "Updates" })).toHaveTextContent("Karim Aziz was assigned");
   });
 
+  it("a reminder for a follow-up not on today's lists (a day ahead, for tomorrow) shows as an update (review 2026-11-17)", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({
+        items: [
+          note(9, "follow_up_soon", "Follow up with Dev Rao tomorrow at 10:00", { taskId: "tomorrow" }),
+          note(8, "follow_up_due", "Follow up with Aisha Khan", { taskId: "a" }),
+        ],
+        unread: 2,
+      }),
+    );
+    await open();
+    expect(screen.getByRole("list", { name: "Updates" })).toHaveTextContent("Dev Rao tomorrow");
+    // One on today's lists is shown there, not twice.
+    expect(screen.getByRole("list", { name: "Updates" })).not.toHaveTextContent("Follow up with Aisha Khan");
+  });
+
   it("filters: Needs you keeps follow-ups and escalations; Updates keeps the rest", async () => {
     await open();
     await userEvent.click(screen.getByRole("radio", { name: "Updates" }));
@@ -141,6 +157,22 @@ describe("the notification centre (3B Task 5)", () => {
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Mark all read" }));
     expect(notificationsClient.readAll).toHaveBeenCalled();
+  });
+
+  it("Undo after clearing more than a thousand brings every one back, a thousand at a time (review 2026-11-17)", async () => {
+    const many = Array.from({ length: 1500 }, (_, i) => i + 100);
+    vi.mocked(notificationsClient.clearRead).mockResolvedValue(ok({ cleared: many }));
+    vi.mocked(notificationsClient.undoClear).mockResolvedValue(ok({ restored: 1 }));
+    render(
+      <ToastProvider>
+        <NotificationCentre open onClose={vi.fn()} />
+      </ToastProvider>,
+    );
+    await screen.findByText(/Karim Aziz was assigned/); // something read, so Clear read is live
+    await userEvent.click(screen.getByRole("button", { name: "Clear read" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    await vi.waitFor(() => expect(notificationsClient.undoClear).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(notificationsClient.undoClear).mock.calls.map((c) => c[0].length)).toEqual([1000, 500]);
   });
 
   it("Clear read takes the read ones away, keeps the unread, and Undo brings them back", async () => {
@@ -223,6 +255,23 @@ describe("the notification centre (3B Task 5)", () => {
     await vi.waitFor(() => expect(screen.getByRole("listitem", { name: /^Sara Pinto/ })).toHaveFocus());
     await userEvent.keyboard("k");
     expect(screen.getByRole("listitem", { name: /^Omar Ali/ })).toHaveFocus();
+  });
+
+  it("E held down (or pressed again while it's saving) finishes one follow-up, never the next ones (bug hunt 2026-11-17)", async () => {
+    let finish: (v: unknown) => void = () => {};
+    vi.mocked(tasksClient.done).mockImplementation(() => new Promise((r) => (finish = r)) as never);
+    await open();
+    await userEvent.keyboard("j");
+    const row = screen.getByRole("listitem", { name: /^Aisha Khan/ });
+    expect(row).toHaveFocus();
+    fireEvent.keyDown(row, { key: "e" });
+    fireEvent.keyDown(row, { key: "e", repeat: true });
+    fireEvent.keyDown(row, { key: "e", repeat: true });
+    fireEvent.keyDown(row, { key: "e" }); // a second press while the first is still saving
+    expect(tasksClient.done).toHaveBeenCalledTimes(1);
+    finish(
+      ok({ task: { ...task("a", "Aisha Khan", 0.5), status: "done" }, next: null, clearedToday: false }),
+    );
   });
 
   it("F goes full screen; Esc comes back, then closes", async () => {

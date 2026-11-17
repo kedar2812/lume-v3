@@ -59,7 +59,7 @@ import { runLiveSheet } from "../src/modules/live-sheets/run";
 export const TEST_ARGON2: Argon2Params = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
 export const TEST_PUBLIC_URL = "https://lume.test";
 const SETUP_TOKEN = "test-setup-token-0000000000000000";
-const PASSWORD = "correct horse battery staple";
+export const PASSWORD = "correct horse battery staple";
 /** Stands in as lume.user_id for fixture writes; never a real user. */
 export const SYSTEM_USER = "0190e0c0-0000-7000-8000-000000000000";
 

@@ -75,7 +75,7 @@ export type LicenceView = {
 const H = 3_600_000;
 const D = 24 * H;
 /** The instance's clock may run this far behind the server's before it counts as set back. */
-const CLOCK_SLACK = 5 * 60_000;
+export const CLOCK_SLACK = 5 * 60_000;
 const rank = (s: LicenceStateName) => LICENCE_STATES.indexOf(s);
 
 type Candidate = { state: LicenceStateName; reason: string; graceEndsAt: string | null };
@@ -91,6 +91,11 @@ export function licenceState(o: {
   firstBootAt: Date;
   now: Date;
   dev: boolean;
+  /**
+   * How long LUME has been running without a good check-in, on its own running clock (not the wall clock): a clock
+   * held back can't keep it active while the licence server is blocked (bug hunt 2026-11-17).
+   */
+  offlineMs?: number;
 }): LicenceView {
   const p = o.payload;
   const base = {
@@ -108,7 +113,9 @@ export function licenceState(o: {
 
   const now = o.now.getTime();
   const since = (o.lastSuccessAt ?? o.firstBootAt).getTime();
-  const graceEnds = new Date(since + 7 * D).toISOString();
+  // Away the longer of the two: by the wall clock, or by LUME's own running time.
+  const away = Math.max(now - since, o.offlineMs ?? 0);
+  const graceEnds = new Date(now - away + 7 * D).toISOString();
   const found: Candidate[] = [];
   if (p) {
     found.push({
@@ -120,10 +127,9 @@ export function licenceState(o: {
       found.push({ state: "read_only", reason: "clock", graceEndsAt: null });
     if (now >= Date.parse(p.validUntil))
       found.push({ state: "read_only", reason: "expired", graceEndsAt: null });
-    if (now - since >= 7 * D) found.push({ state: "read_only", reason: "unreachable", graceEndsAt: null });
-    else if (now - since >= D) found.push({ state: "grace", reason: "unreachable", graceEndsAt: graceEnds });
-  } else if (now - since >= 7 * D)
-    found.push({ state: "read_only", reason: "not_checked", graceEndsAt: null });
+    if (away >= 7 * D) found.push({ state: "read_only", reason: "unreachable", graceEndsAt: null });
+    else if (away >= D) found.push({ state: "grace", reason: "unreachable", graceEndsAt: graceEnds });
+  } else if (away >= 7 * D) found.push({ state: "read_only", reason: "not_checked", graceEndsAt: null });
   else found.push({ state: "grace", reason: "not_checked", graceEndsAt: graceEnds });
 
   // The worst wins; between equals, the first found (the server's own word) stands.

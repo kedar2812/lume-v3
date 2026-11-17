@@ -164,12 +164,21 @@ export function CalendarScreen({
     return () => clearInterval(t);
   }, [nowOf]);
 
+  // Only the newest read counts, and only while the day shown is inside it: an older answer for a range left behind
+  // (T pressed meanwhile) never empties the agenda (bug hunt 2026-11-17).
+  const asked = useRef(0);
+  const shownDay = useRef(day);
+  shownDay.current = day;
   const load = useCallback(
     async (around: string) => {
+      const n = ++asked.current;
       const start = dayStart(around, tz).getTime();
       const from = new Date(start - BEFORE_DAYS * DAY);
       const to = new Date(start + AFTER_DAYS * DAY);
       const r = await calendarClient.meetings({ from, to });
+      if (n !== asked.current) return;
+      const shown = dayStart(shownDay.current, tz).getTime();
+      if (shown < from.getTime() || shown >= to.getTime()) return;
       if (!r.ok) return setError(r.message);
       range.current = { from: from.getTime(), to: to.getTime() };
       setError(null);

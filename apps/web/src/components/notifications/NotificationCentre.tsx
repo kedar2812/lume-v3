@@ -147,8 +147,12 @@ export function NotificationCentre({
     add("now", day.soon);
     add("later", day.later);
   }
+  // A reminder whose follow-up isn't on today's lists (one a day ahead, for tomorrow's) is an update of its own:
+  // otherwise the bell counts it and nothing shows it (review 2026-11-17).
+  const listed = new Set(day ? [...day.overdue, ...day.soon, ...day.later].map((t) => t.id) : []);
   for (const n of notes)
-    if (!REMINDERS.has(n.kind)) entries.push({ key: `n-${n.id}`, type: "note", group: "updates", n });
+    if (!REMINDERS.has(n.kind) || (day && !(n.taskId && listed.has(n.taskId))))
+      entries.push({ key: `n-${n.id}`, type: "note", group: "updates", n });
   const shown = entries.filter((e) =>
     filter === "all"
       ? true
@@ -159,8 +163,12 @@ export function NotificationCentre({
   const unread = notes.filter((n) => !n.read).length;
 
   /** Done; with the keyboard, focus goes on to the row that takes its place, so E, E, E works down the list. */
+  // Follow-ups being finished now: a second press (a held E, a double click) waits for the first (bug hunt 2026-11-17).
+  const finishing = useRef(new Set<string>());
   const done = async (t: TaskView, focusNext?: string) => {
-    const r = await tasksClient.done(t.id);
+    if (finishing.current.size) return;
+    finishing.current.add(t.id);
+    const r = await tasksClient.done(t.id).finally(() => finishing.current.delete(t.id));
     if (!r.ok) return setError(r.message);
     sound.play(r.data.clearedToday ? "cleared" : "done");
     await load();
@@ -231,7 +239,7 @@ export function NotificationCentre({
     } else if (key === "f") {
       e.preventDefault();
       setFull((v) => !v);
-    } else if (key === "e" && current?.type === "task" && current.task.canEdit) {
+    } else if (key === "e" && !e.repeat && current?.type === "task" && current.task.canEdit) {
       e.preventDefault();
       void done(current.task, (items[at + 1] ?? items[at - 1])?.dataset.entry);
     } else if (key === "s" && current?.type === "task") {
@@ -464,10 +472,16 @@ export function NotificationCentre({
       title: `${ids.length.toLocaleString("en")} read ${ids.length === 1 ? "notification" : "notifications"} cleared`,
       action: {
         label: "Undo",
+        // A thousand at a time, as LUME takes them; one that fails says so (review 2026-11-17: past a thousand,
+        // Undo did nothing and said nothing).
         onClick: () =>
-          void notificationsClient.undoClear(ids).then((u) => {
-            if (u.ok) setNotes((cur) => [...cur, ...gone].sort((a, b) => b.id - a.id));
-          }),
+          void (async () => {
+            for (let i = 0; i < ids.length; i += 1000) {
+              const u = await notificationsClient.undoClear(ids.slice(i, i + 1000));
+              if (!u.ok) return toast({ tone: "warn", title: "Couldn’t bring them back", detail: u.message });
+            }
+            setNotes((cur) => [...cur, ...gone].sort((a, b) => b.id - a.id));
+          })(),
       },
     });
   }

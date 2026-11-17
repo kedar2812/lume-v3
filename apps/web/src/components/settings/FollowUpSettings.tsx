@@ -43,12 +43,16 @@ export function FollowUpSettings({
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
-    const n = Number(hours);
-    if (!Number.isInteger(n) || n < 1 || n > 168)
-      return setProblem("Choose a whole number of hours between 1 and 168 (a week).");
-    const d = Number(quietDays);
-    if (!Number.isInteger(d) || d < 1 || d > 90)
-      return setProblem("Choose a whole number of days between 1 and 90 for leads gone quiet.");
+    // A box that's switched off isn't asked about (bug hunt 2026-11-17: an emptied, greyed-out box blocked Save): its
+    // saved value goes back as it was.
+    const whole = (v: string, lo: number, hi: number) => {
+      const x = Number(v);
+      return Number.isInteger(x) && x >= lo && x <= hi ? x : null;
+    };
+    const n = whole(hours, 1, 168) ?? (enabled ? null : initial.escalation.hours);
+    if (n === null) return setProblem("Choose a whole number of hours between 1 and 168 (a week).");
+    const d = whole(quietDays, 1, 90) ?? (quiet ? null : (initial.noTouch?.days ?? 7));
+    if (d === null) return setProblem("Choose a whole number of days between 1 and 90 for leads gone quiet.");
     setBusy(true);
     setProblem(null);
     const r = await api.put<FollowUpConfig>("/api/v1/settings/follow-ups", {

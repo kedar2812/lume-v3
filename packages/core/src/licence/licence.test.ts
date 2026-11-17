@@ -136,6 +136,23 @@ describe("the licence state (what the instance does with it)", () => {
     expect(state({ now: new Date(issued.getTime() - 4 * 60_000) }).state).toBe("active");
   });
 
+  it("time without a check-in counts on LUME's own running time too: a clock held back can't keep it active (bug hunt 2026-11-17)", () => {
+    const soon = new Date(issued.getTime() + H); // the wall clock says an hour since the last check-in
+    const held = (offlineMs: number) =>
+      licenceState({
+        payload: payload(),
+        lastSuccessAt: issued,
+        firstBootAt: at("2026-09-01T00:00:00Z"),
+        now: soon,
+        dev: false,
+        offlineMs,
+      });
+    expect(held(0).state).toBe("active");
+    expect(held(24 * H - 60_000).state).toBe("active");
+    expect(held(2 * D)).toMatchObject({ state: "grace", reason: "unreachable" });
+    expect(held(7 * D)).toMatchObject({ state: "read_only", reason: "unreachable" });
+  });
+
   it("the worst wins: suspended stays suspended, whatever else", () => {
     const p = payload({ state: "suspended", reason: "suspended" });
     expect(state({ p, now: new Date(issued.getTime() + 8 * D) })).toMatchObject({ state: "suspended" });

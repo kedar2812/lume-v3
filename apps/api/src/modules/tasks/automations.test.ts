@@ -92,7 +92,8 @@ describe("stage automations (3C Task 3)", () => {
     expect((await move(rep, lead, "Contacted")).statusCode).toBe(200);
     const [t] = await openTasks(lead);
     expect(t).toMatchObject({ title: "Send the plan", assignee_id: repId, auto_rule_id: rule.id });
-    expect(t!.due_at.getTime() - before).toBeGreaterThanOrEqual(48 * H - 5_000);
+    // Days keep the wall-clock time to the minute (bug hunt 2026-11-17), so up to a minute under 48 hours.
+    expect(t!.due_at.getTime() - before).toBeGreaterThanOrEqual(48 * H - 65_000);
     expect(t!.due_at.getTime() - before).toBeLessThan(48 * H + 60_000);
     const [line] = await automationLines(lead);
     expect(line!.payload).toMatchObject({

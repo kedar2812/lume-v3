@@ -47,6 +47,11 @@ const params = (q: AuditQuery) => {
 export const auditClient = {
   list: (q: AuditQuery) =>
     api.get<{ entries: AuditEntry[]; nextCursor: number | null }>(`/api/v1/audit${params(q)}`),
+  /** The password buys a ticket for one download (owner 2026-11-17: the password, not two-step sign-in). */
+  csvTicket: (password: string) => api.post<{ ticket: string }>("/api/v1/audit/csv/ticket", { password }),
   /** Every entry these filters match, as a CSV (owner 2026-11-14); the page's own cursor never goes with it. */
-  csvHref: (q: AuditQuery) => `/api/v1/audit/csv${params({ ...q, cursor: undefined })}`,
+  csvHref: (q: AuditQuery, ticket?: string) => {
+    const qs = params({ ...q, cursor: undefined });
+    return `/api/v1/audit/csv${qs}${ticket ? `${qs ? "&" : "?"}ticket=${encodeURIComponent(ticket)}` : ""}`;
+  },
 };

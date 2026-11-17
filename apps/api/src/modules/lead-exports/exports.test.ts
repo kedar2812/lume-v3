@@ -17,7 +17,7 @@ let other: SeededUser;
 
 const exporter = (scope: "team" | "all", contacts: boolean): Grant[] => [
   { key: "leads.view", scope },
-  { key: "leads.export", scope: null },
+  { key: "leads.export", scope },
   ...(contacts ? [{ key: "leads.contact.full" as const, scope }] : []),
 ];
 
@@ -142,6 +142,26 @@ describe("an export of the current view (6B Task 2)", () => {
       "Phone",
       "LUME ref",
     ]);
+  });
+
+  it("takes out only the leads export's own scope allows, whatever the person sees (review 2026-11-17)", async () => {
+    const own = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "all" },
+        { key: "leads.export", scope: "own" },
+      ],
+      totp: true,
+      name: "Ola Own",
+    });
+    await h.seedLead({ ownerId: own.id, name: "Ola's Own Lead" });
+    const c = await h.signIn(own);
+    const r = await make(c, { format: "csv", label: "Mine", filters: {}, columns });
+    expect(r.statusCode, r.body).toBeLessThan(300);
+    const names = csv((await download(c, (r.json() as Made).export.id)).body).map((x) => x[0]);
+    expect(names).toContain("Ola's Own Lead");
+    expect(names).not.toContain("Dana Whitfield");
+    expect(names).not.toContain("Omar Haddad");
+    await h.queryAll("UPDATE leads SET deleted_at = now() WHERE owner_id = $1", [own.id]); // the other tests count the shared leads
   });
 
   it("refuses a view with nothing in it, and one too big for one file", async () => {

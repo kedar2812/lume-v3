@@ -19,6 +19,8 @@ import { usePageNav } from "./PageTransition";
 import s from "./palette.module.css";
 
 type Props = {
+  /** Whose recent leads these are: kept per person on a shared browser. */
+  userId: string;
   open: boolean;
   onOpenChange(v: boolean): void;
   can(p: string): boolean;
@@ -37,7 +39,10 @@ type Item = {
   run(): void;
 };
 
-const RECENT_KEY = "lume:recent-leads";
+/** Each person's own, on this browser (bug hunt 2026-11-17: one shared list showed someone else's leads). */
+const recentKey = (userId: string) => `lume:recent-leads:${userId}`;
+/** The list from before, shared by everyone on the browser and with contacts in it: removed when seen. */
+const OLD_RECENT_KEY = "lume:recent-leads";
 const RECENT_MAX = 5;
 /** Leads are looked up once typing pauses this long; a search slower than SLOW_MS says it's looking. */
 const PAUSE_MS = 140;
@@ -45,18 +50,25 @@ const SLOW_MS = 250;
 const PER_GROUP = 5;
 const ORDER: Group[] = ["Recent", "Leads", "Actions", "Go to", "Views", "Settings", "Templates"];
 
-type Recent = { id: string; name: string; hint?: string };
-function readRecent(): Recent[] {
+/** A lead opened lately: its id and name only, never a phone or email (those follow the person's masking live). */
+type Recent = { id: string; name: string };
+function readRecent(userId: string): Recent[] {
   try {
-    return (JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as Recent[]).slice(0, RECENT_MAX);
+    localStorage.removeItem(OLD_RECENT_KEY);
+    return (JSON.parse(localStorage.getItem(recentKey(userId)) ?? "[]") as Recent[])
+      .slice(0, RECENT_MAX)
+      .map((r) => ({ id: r.id, name: r.name }));
   } catch {
     return [];
   }
 }
-function remember(r: Recent) {
+function remember(userId: string, r: Recent) {
   try {
-    const next = [r, ...readRecent().filter((x) => x.id !== r.id)].slice(0, RECENT_MAX);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    const next = [{ id: r.id, name: r.name }, ...readRecent(userId).filter((x) => x.id !== r.id)].slice(
+      0,
+      RECENT_MAX,
+    );
+    localStorage.setItem(recentKey(userId), JSON.stringify(next));
   } catch {
     // no storage: nothing to remember
   }
@@ -98,7 +110,7 @@ const LEAVE = {
   }),
 };
 
-export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
+export function CommandPalette({ userId, open, onOpenChange, can, onFeedback }: Props) {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -130,7 +142,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
   useEffect(() => {
     if (!open) return;
     setPicked(false);
-    setRecent(readRecent());
+    setRecent(readRecent(userId));
     if (can("leads.view"))
       void viewsClient
         .list()
@@ -143,11 +155,14 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
             r.ok &&
             setTemplates(r.data.templates.map((t) => ({ id: t.id, name: t.name, category: t.category }))),
         );
-  }, [open, can]);
+  }, [open, can, userId]);
 
   // Leads, from the server, once typing pauses; an older answer never replaces a newer one.
   useEffect(() => {
     if (!open || !can("leads.view") || q.length < 2) {
+      // Any search still on its way is for words no longer typed (or a closed search): its answer is dropped (bug
+      // hunt 2026-11-17).
+      asked.current++;
       setLeads([]);
       setLooking(false);
       setSlow(false);
@@ -305,7 +320,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
         ...(hint ? { hint } : {}),
         icon: <span className={s.ini}>{initials(name)}</span>,
         run: () => {
-          remember({ id: l.id, name, ...(hint ? { hint } : {}) });
+          remember(userId, { id: l.id, name });
           go(`/leads?lead=${l.id}`);
         },
       };
@@ -316,10 +331,9 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
         id: `r:${r.id}`,
         group: "Recent",
         label: r.name,
-        ...(r.hint ? { hint: r.hint } : {}),
         icon: <span className={s.ini}>{initials(r.name)}</span>,
         run: () => {
-          remember(r);
+          remember(userId, r);
           go(`/leads?lead=${r.id}`);
         },
       }));
@@ -341,7 +355,7 @@ export function CommandPalette({ open, onOpenChange, can, onFeedback }: Props) {
     }
     byGroup.set("Leads", leadItems);
     return ORDER.flatMap((g) => byGroup.get(g) ?? []);
-  }, [q, local, leads, recent]);
+  }, [q, local, leads, recent, userId]);
 
   useEffect(() => setSel((v) => Math.min(v, Math.max(0, items.length - 1))), [items.length]);
 

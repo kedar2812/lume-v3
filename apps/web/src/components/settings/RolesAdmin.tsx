@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { ApiResult } from "@/lib/api";
 import { tokenColor } from "@/lib/leads/colors";
@@ -48,6 +48,10 @@ export function RolesAdmin({
   const [draft, setDraft] = useState("");
   const [note, setNote] = useState<Note>(null);
   const [renaming, setRenaming] = useState(false);
+  // Rename keeps what was typed whether it ends with Enter, a click away or Tab; Escape alone cancels; and the
+  // keyboard goes back to Rename (bug hunt 2026-11-17: a click away lost the name, Enter dropped focus to the page).
+  const renameBtn = useRef<HTMLButtonElement>(null);
+  const renameCancelled = useRef(false);
   const [deleting, setDeleting] = useState(false);
   const [forbidden, setForbidden] = useState(false);
 
@@ -150,16 +154,31 @@ export function RolesAdmin({
                   defaultValue={open.name}
                   autoFocus
                   maxLength={60}
-                  onBlur={() => setRenaming(false)}
-                  onKeyDown={async (e) => {
-                    if (e.key === "Escape") setRenaming(false);
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
+                  onFocus={() => (renameCancelled.current = false)}
+                  onBlur={async (e) => {
                     const name = e.currentTarget.value.trim();
                     setRenaming(false);
-                    if (!name || name === open.name) return;
+                    // Back to Rename only when focus has nowhere else to be: a click or Tab into another control
+                    // keeps it there (review 2026-11-17).
+                    const to = e.relatedTarget;
+                    if (!to || to === document.body)
+                      requestAnimationFrame(() => {
+                        const now = document.activeElement;
+                        if (!now || now === document.body) renameBtn.current?.focus();
+                      });
+                    if (renameCancelled.current || !name || name === open.name) return;
                     const r = await rolesClient.patch(open.id, { name });
                     if (landed(r)) replace(r.data.role);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      renameCancelled.current = true;
+                      e.currentTarget.blur();
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    }
                   }}
                 />
               ) : (
@@ -169,6 +188,7 @@ export function RolesAdmin({
               )}
               <span className={s.teamCount}>{peopleWords(open.holders)}</span>
               <Button
+                ref={renameBtn}
                 size="sm"
                 variant="ghost"
                 aria-label={`Rename ${open.name}`}

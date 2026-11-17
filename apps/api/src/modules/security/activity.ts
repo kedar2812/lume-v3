@@ -16,10 +16,17 @@ const TOP = 6;
  * different leads per person per day, as the reveals rule does (ruling C5).
  */
 export async function securityActivity(req: FastifyRequest, d: Pick<AppDeps, "clock">) {
-  const [tzRow] = await rows<{ tz: string }>(req, sql`SELECT timezone AS tz FROM settings WHERE id = 1`);
+  const [tzRow] = await rows<{ tz: string; ws: number }>(
+    req,
+    sql`SELECT timezone AS tz, week_start AS ws FROM settings WHERE id = 1`,
+  );
   const tz = tzRow?.tz ?? "UTC";
+  const ws = Number(tzRow?.ws ?? 1);
   const dayStart = sql`(date_trunc('day', now() AT TIME ZONE ${tz}) AT TIME ZONE ${tz})`;
-  const weekStart = sql`(date_trunc('week', now() AT TIME ZONE ${tz}) AT TIME ZONE ${tz})`;
+  // The business's own week (Settings → Business: it may start on Sunday or Saturday), not ISO Monday (bug hunt
+  // 2026-11-17).
+  const localToday = sql`(now() AT TIME ZONE ${tz})::date`;
+  const weekStart = sql`((${localToday} - ((extract(dow FROM ${localToday})::int - ${ws}::int + 7) % 7))::timestamp AT TIME ZONE ${tz})`;
 
   // Different leads per person per day, for the window: the chart, and today's contacts tile.
   const perDay = await rows<{ user_id: string; day: number; n: number }>(

@@ -58,6 +58,41 @@ const warned = (w: Issue[]) => (w.length ? 1 : 0);
  * Spec 2A §6.9–§6.10 for one row, inside the caller's transaction (every lead visible, acting as the
  * person the run belongs to): map → check → lock the contacts → match → create, merge or skip.
  */
+/**
+ * The row is the same person as the lead it may finish: nothing contradicts it, or one thing was corrected and
+ * another agrees (review 2026-11-17: a phone typo fixed a minute later is still them). Names agree when one starts
+ * the other or they're a typo apart; a phone or email both have agree when equal.
+ */
+function samePerson(
+  lead: { name: string | null; phoneE164: string | null; email: string | null },
+  draft: { name: string; nameFromContact: boolean; phone: { e164: string | null }; email: string | null },
+): boolean {
+  const n = (x: string | null) => (x ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  // A name made from a contact (a row with no name yet, read mid-typing) says nothing about who it is.
+  const contactLike = (x: string) => !/\p{L}/u.test(x) || x.includes("@");
+  const a = n(lead.name);
+  const b = draft.nameFromContact ? "" : n(draft.name);
+  const said: boolean[] = []; // per thing both have: whether it agrees
+  if (a && b && !contactLike(a)) said.push(a.startsWith(b) || b.startsWith(a) || typoApart(a, b));
+  if (lead.phoneE164 && draft.phone.e164) said.push(lead.phoneE164 === draft.phone.e164);
+  if (lead.email && draft.email) said.push(lead.email.toLowerCase() === draft.email.toLowerCase());
+  const against = said.filter((x) => !x).length;
+  return against === 0 || (against === 1 && said.some((x) => x));
+}
+
+/** At most two letters added, dropped or changed, in a name long enough for that to be a typo. */
+function typoApart(a: string, b: string): boolean {
+  if (Math.min(a.length, b.length) < 4 || Math.abs(a.length - b.length) > 2) return false;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++)
+      cur.push(Math.min(prev[j]! + 1, cur[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1)));
+    prev = cur;
+  }
+  return prev[b.length]! <= 2;
+}
+
 export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowResult> {
   const { rules, mapping, ctx, cells } = o;
   const out = (
@@ -121,12 +156,20 @@ export async function writeRow(req: FastifyRequest, o: RowInput): Promise<RowRes
   };
   const also = matches.slice(1).map((m) => m.leadId);
 
-  const [forced] = o.mergeInto
+  const [lead0] = o.mergeInto
     ? await req.db
-        .select({ id: schema.leads.id })
+        .select({
+          id: schema.leads.id,
+          name: schema.leads.name,
+          phoneE164: schema.leads.phoneE164,
+          email: schema.leads.email,
+        })
         .from(schema.leads)
         .where(and(eq(schema.leads.id, o.mergeInto.leadId), isNull(schema.leads.deletedAt)))
     : [];
+  // A row taken for the one that made that lead minutes ago, finished since, only if it's the same person: a row
+  // that moved up into a deleted row's place is someone else, and gets its own lead (bug hunt 2026-11-17).
+  const forced = lead0 && samePerson(lead0, draft) ? lead0 : undefined;
   if ((matches.length && rules.onMatch !== "duplicate") || forced) {
     const target = forced ? forced.id : matches[0]!.leadId;
     if (!forced && rules.onMatch === "skip")

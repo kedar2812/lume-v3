@@ -141,3 +141,29 @@ describe("the owner sees it, and adds a top-up", () => {
     await expect(addTopUp(ctx, s.clientId, { month: "2026-13", packs: 5 })).rejects.toThrow("month");
   });
 });
+
+describe("top-ups around a month's turn (bug hunt 2026-11-17)", () => {
+  it("a request from months ago never blocks this month's top-up, and stops being an ask", async () => {
+    const s = await bound("Old Ask Studio");
+    await ask(s, { month: "2026-10" });
+    now = new Date("2026-12-05T10:00:00Z");
+    ctx = testCtx(db.pool, () => now);
+    await ask(s, { month: "2026-12" });
+    const view = await getClient(ctx, s.clientId);
+    expect(view.topUps.requests.map((r) => r.month)).toEqual(["2026-12"]);
+    const after = await addTopUp(ctx, s.clientId, { month: "2026-12", packs: 2 });
+    expect(after.topUps.requests).toEqual([]);
+    expect(
+      (await listAlerts(ctx)).alerts.filter((a) => a.clientId === s.clientId).map((a) => a.title),
+    ).not.toContain("Old Ask Studio asked for a LUME AI top-up");
+  });
+
+  it("a client may only ask for a month near now; a top-up with no ask may be for the month either side", async () => {
+    const s = await bound("Far Month Co");
+    expect((await ask(s, { month: "2099-12" })).status).toBe(400);
+    now = new Date("2026-11-30T19:30:00Z"); // December 1, 01:00 in India
+    ctx = testCtx(db.pool, () => now);
+    const after = await addTopUp(ctx, s.clientId, { month: "2026-12", packs: 3 });
+    expect(after.topUps.added).toEqual([expect.objectContaining({ month: "2026-12", leads: 300 })]);
+  });
+});

@@ -14,7 +14,7 @@ import { schema, type LoginHours } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { normaliseNetworks } from "../../auth/networks";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
-import { assertCanAssignRoles, assertCanGrant } from "../../rbac/escalation";
+import { assertCanAssignRoles, assertCanGrant, rolesWithinFields } from "../../rbac/escalation";
 import { notifyRbac } from "../../rbac/notify";
 import type { AppDeps } from "../../app";
 import { eraseAccount } from "../users/delete";
@@ -170,7 +170,13 @@ export async function listAssignableRoles(req: FastifyRequest) {
     .from(schema.rolePermissions);
   const holds = (g: { key: string; scope: Scope | null }) =>
     isPermissionKey(g.key) && can(actor, g.key, g.scope ?? undefined);
-  return { roles: rows.filter((r) => grants.filter((g) => g.roleId === r.id).every(holds)) };
+  const byGrants = rows.filter((r) => grants.filter((g) => g.roleId === r.id).every(holds));
+  // And by field access, as handing one out checks (review 2026-11-17): never offered one that would fail.
+  const within = await rolesWithinFields(
+    req,
+    byGrants.map((r) => r.id),
+  );
+  return { roles: byGrants.filter((r) => within.has(r.id)) };
 }
 
 export const readRole = async (req: FastifyRequest, id: string) => ({ role: await getRole(req, id) });

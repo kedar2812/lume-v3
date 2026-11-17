@@ -14,6 +14,7 @@ import { recordActivity } from "../leads/writer";
 import { notify, type NewNotification } from "../notifications/notify";
 import { remindForStage } from "../tasks/automations";
 import { schedule } from "../tasks/engine";
+import { settleReminders } from "../tasks/lifecycle";
 import { serverHelpers } from "../../server-helpers";
 import { eventContext, type ProcessDeps } from "../webhooks/process";
 import { openCalendly, type CalendlyConfig } from "./config";
@@ -335,13 +336,16 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
       }
       if (meeting.fresh) {
         const to = lead?.ownerId ?? ownerId;
+        // A lead with no owner may be beyond the host's sight: they hear the booking in Calendly's own words (the
+        // name the invitee typed), never the lead's (review 2026-11-17).
+        const theirs = !!lead?.ownerId;
         notices.push({
           userId: to,
           n: {
             kind: "meeting_booked",
-            title: `${lead?.name || inv.name || "Someone"} booked ${inv.title}`,
+            title: `${(theirs ? lead?.name : null) || inv.name || "Someone"} booked ${inv.title}`,
             body: await when(req, inv.startsAt),
-            leadId: lead?.id ?? null,
+            leadId: theirs ? lead!.id : null,
             data: { meetingId: meeting.id },
           },
         });
@@ -417,12 +421,13 @@ async function cancelled(
     ),
   );
   // Its Log outcome and its reminders (5C) go with it: neither is about a meeting that's happening.
-  const closed = await req.db.execute<{ id: string; lead_id: string }>(
+  const closed = await req.db.execute<{ id: string; lead_id: string; assignee_id: string }>(
     sql`UPDATE tasks SET status = 'cancelled', cancelled_at = now(), updated_at = now(), version = version + 1
          WHERE status = 'open' AND (meeting_id = ${m.id} OR id = ${m.outcome_task_id})
-        RETURNING id, lead_id`,
+        RETURNING id, lead_id, assignee_id`,
   );
   for (const t of closed.rows) {
+    await settleReminders(req, { id: t.id, assigneeId: t.assignee_id }); // read in the bell too (bug hunt 2026-11-17)
     await req.db.execute(
       sql`UPDATE scheduled_notifications SET status = 'cancelled' WHERE task_id = ${t.id} AND status = 'pending'`,
     );
@@ -440,12 +445,13 @@ async function cancelled(
     });
   if (!inv.rescheduled) {
     const to = lead?.ownerId ?? m.owner_id;
+    const theirs = !!lead?.ownerId; // as for a booking: no lead the host may not see (review 2026-11-17)
     notices.push({
       userId: to,
       n: {
         kind: "meeting_cancelled",
-        title: `${lead?.name || inv.name || "Someone"} cancelled ${m.title}`,
-        leadId: lead?.id ?? null,
+        title: `${(theirs ? lead?.name : null) || inv.name || "Someone"} cancelled ${m.title}`,
+        leadId: theirs ? lead!.id : null,
         data: { meetingId: m.id },
       },
     });

@@ -199,6 +199,25 @@ describe("a booking (5B Task 6)", () => {
     expect(await eventOf("NEW1")).toMatchObject({ status: "done" });
   });
 
+  it("a lead nobody owns: the host hears the booking by the name typed in Calendly, never the lead's (review 2026-11-17)", async () => {
+    const unowned = await h.seedLead({
+      ownerId: null,
+      name: "Stored Lead Name",
+      email: "unowned@client.test",
+    });
+    await deliver({ invitee: "UNO1", email: "unowned@client.test", name: "Typed Name" });
+    const [n] = await backup<{ title: string; lead_id: string | null }>(
+      "SELECT title, lead_id FROM notifications WHERE kind = 'meeting_booked' AND user_id = $1 ORDER BY id DESC LIMIT 1",
+      [host.id],
+    );
+    const owned = (
+      await h.queryAll<{ owner_id: string | null }>("SELECT owner_id FROM leads WHERE id = $1", [unowned])
+    )[0]!.owner_id;
+    // Taken by the booking, it's the host's own and named; still nobody's, it isn't.
+    if (owned === null) expect(n).toEqual({ title: "Typed Name booked Discovery call", lead_id: null });
+    else expect(n!.title).toBe("Stored Lead Name booked Discovery call");
+  });
+
   it("someone already a lead (same email in any case, or the phone from the mapped question) is that lead, never a second", async () => {
     const byEmail = await h.seedLead({ ownerId: rep.id, name: "Repeat Lead", email: "Repeat@Client.test" });
     await deliver({ invitee: "REP1", email: "repeat@client.test", name: "Repeat Lead" });

@@ -27,7 +27,10 @@ import { THROTTLE, checkThrottle, clearThrottle, recordFailure } from "../../aut
 import { HttpError, badRequest, forbidden, notFound, tooMany } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
 
-export async function listSessions(req: FastifyRequest) {
+export async function listSessions(req: FastifyRequest, d: AppDeps) {
+  // Only sessions someone could use now (bug hunt 2026-11-17): one past its life or idle too long isn't a device of
+  // yours any more, whatever its row says until it's next read.
+  const now = d.clock().getTime();
   const rows = await req.db
     .select()
     .from(schema.sessions)
@@ -40,6 +43,11 @@ export async function listSessions(req: FastifyRequest) {
     );
   return {
     sessions: rows
+      .filter(
+        (s) =>
+          s.id === req.session!.id ||
+          (s.expiresAt.getTime() > now && s.lastSeenAt.getTime() > now - req.sessionPolicy.idleMs),
+      )
       .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime())
       .map((s) => ({
         id: s.id.slice(0, 16),

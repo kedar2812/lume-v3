@@ -31,7 +31,7 @@ const SWITCHES: { key: keyof Alerts; label: string; hint: string }[] = [
  * My account → Notifications (3B): what reaches you, in the app and by email. Each switch saves the
  * moment it's flipped. Your follow-ups stay on Today whatever you choose here.
  */
-export function MyAlerts({ initial }: { initial: Preferences }) {
+export function MyAlerts({ initial, digestOn = true }: { initial: Preferences; digestOn?: boolean }) {
   const [alerts, setAlerts] = useState<Alerts>(initial.alerts);
   const [digestTime, setDigestTime] = useState(initial.digestTime);
   const savedTime = useRef(initial.digestTime); // what LUME last kept, so changing it back saves too
@@ -59,7 +59,13 @@ export function MyAlerts({ initial }: { initial: Preferences }) {
         </p>
       </div>
       <div className={s.panelBody}>
-        {SWITCHES.map((x) => (
+        {/* The morning email only where the business sends it (bug hunt 2026-11-17): never a switch for nothing. */}
+        {!digestOn && (
+          <p className={s.muted}>
+            The morning email is switched off for this business. An admin can turn it on.
+          </p>
+        )}
+        {SWITCHES.filter((x) => digestOn || x.key !== "emailDigest").map((x) => (
           <div key={x.key} className={s.switchRow}>
             <Switch checked={alerts[x.key] !== false} onChange={(v) => void flip(x.key, v)} label={x.label} />
             <p className={s.muted}>{x.hint}</p>

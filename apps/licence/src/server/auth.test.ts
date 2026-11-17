@@ -124,6 +124,15 @@ describe("the admin's sign-in (spec §4.4, Review Focus 4)", () => {
     expect((await signIn(jar("198.51.100.21"))).status).toBe(200);
   });
 
+  it("wrong codes from many addresses: past ten, even the right code waits out the window (bug hunt 2026-11-17)", async () => {
+    for (let i = 0; i < 10; i++)
+      expect((await signIn(jar(`198.51.100.${60 + i}`), { code: "000000" })).status).toBe(401);
+    expect((await signIn(jar("198.51.100.90"))).status).toBe(401); // the right code, from a new address
+    expect(await outcomes()).toContain("limited");
+    now = new Date(now.getTime() + 16 * 60_000);
+    expect((await signIn(jar("198.51.100.91"))).status).toBe(200);
+  });
+
   it("a flood of refused sign-ins is logged once a window, not once a request", async () => {
     ctx.limits.signIn = new Limiter(1, 15 * 60_000);
     const j = jar("198.51.100.30");

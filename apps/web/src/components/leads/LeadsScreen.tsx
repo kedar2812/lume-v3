@@ -52,6 +52,7 @@ import { useArrivals } from "./useArrivals";
 import s from "./leads.module.css";
 import { NotYetLink } from "@/components/whatsapp/NotYetLink";
 import { useAskedLead } from "@/lib/leads/asked-lead";
+import { useLeadUpdated } from "@/lib/leads/updated";
 
 /** A live sheet narrows by real ids only (the address bar's words never reach the form). */
 const UUID = /^[0-9a-f-]{36}$/;
@@ -297,6 +298,11 @@ function Screen({
   const editor = useLeadEditor(list.replace);
   const pipeline = shownPipeline;
   const [countsTick, recount] = useReducer((n: number) => n + 1, 0);
+  // A lead changed elsewhere in the app (the shell's "Sent?"): its row as it is now, and the counts.
+  useLeadUpdated((lead) => {
+    list.replace(lead);
+    recount();
+  });
   const stageCounts = useStageCounts(filters, pipeline?.id, countsTick);
 
   // N starts a new lead from anywhere on the page that isn't a field or an open panel.

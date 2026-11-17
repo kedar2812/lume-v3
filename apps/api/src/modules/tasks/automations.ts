@@ -1,7 +1,14 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type pg from "pg";
-import { leadScope, newId, onEnterSchema, shiftToWorkingHours, type StageRule } from "@lume/core";
+import {
+  dueFromPresetDef,
+  leadScope,
+  newId,
+  onEnterSchema,
+  shiftToWorkingHours,
+  type StageRule,
+} from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { loadActor } from "../../rbac/actor";
@@ -278,7 +285,13 @@ async function setFollowUp(
   );
   if (open.rows.length) return say(req, lead, rule, "skipped", { reason: "already_open" });
 
-  let dueAt = new Date(ctx.now.getTime() + rule.dueIn.n * UNIT_MS[rule.dueIn.unit]);
+  // Days keep the wall-clock time across a clock change, as the due presets do (bug hunt 2026-11-17: 24-hour days
+  // drifted an hour); hours are hours.
+  let dueAt = dueFromPresetDef(
+    { id: rule.id, label: "", rule: { in: { n: rule.dueIn.n, unit: rule.dueIn.unit } } },
+    ctx.now,
+    ctx.tz,
+  );
   if (ctx.settings.shiftToWorkingHours) dueAt = shiftToWorkingHours(dueAt, ctx.hours, ctx.tz);
   const id = newId();
   const [t] = await req.db

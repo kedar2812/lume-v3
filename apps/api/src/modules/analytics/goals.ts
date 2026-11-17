@@ -183,14 +183,19 @@ export async function listGoals(
       target,
       value,
       progress: value / target,
-      // A rate's pace is the rate itself; counts and money run on at the pace so far. An estimate, said as one.
-      pace: g.metric === "ontime" ? value / target : elapsed > 0 ? value / elapsed / target : null,
+      // A rate's pace is the rate itself; counts and money run on at the pace so far. An estimate, said as one, and
+      // only from a fifth of the way in, the one rule every "at this pace" follows (bug hunt 2026-11-17: Today and
+      // the Overview said it from day 1 while the rep view, Revenue and the insight waited).
+      pace: g.metric === "ontime" ? value / target : elapsed >= PACE_FROM ? value / elapsed / target : null,
       elapsed,
       daysLeft: days - gone,
     });
   }
   return { period, periodStart, periodEnd: end, goals: out };
 }
+
+/** "At this pace" is said from this share of the period on: earlier, a day or two says nothing yet. */
+const PACE_FROM = 0.2;
 
 /** Every source still in use, with its monthly spend (Settings → Sources & spend). */
 export async function listSpend(req: FastifyRequest) {

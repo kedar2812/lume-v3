@@ -5,7 +5,7 @@ import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, forbidden, notFound } from "../../http/errors";
 import { cancelReminders } from "../tasks/engine";
-import { refreshNextDue } from "../tasks/lifecycle";
+import { refreshNextDue, settleReminders } from "../tasks/lifecycle";
 
 const DAY = 86_400_000;
 /** The widest range the Calendar asks for at once (an agenda of a few months). */
@@ -145,13 +145,15 @@ export async function patchMeeting(
     // Someone else logged it in the same moment (5D Review Focus 4): theirs stands, and this one is told.
     if (!done) throw await recorded(req, id);
     if (done?.outcome_task_id) {
-      const t = await req.db.execute<{ id: string }>(
+      const t = await req.db.execute<{ id: string; assignee_id: string }>(
         sql`UPDATE tasks SET status = 'done', done_at = ${d.clock()}, done_by = ${a.userId}, updated_at = now(),
               version = version + 1
-            WHERE id = ${done.outcome_task_id} AND status = 'open' RETURNING id`,
+            WHERE id = ${done.outcome_task_id} AND status = 'open' RETURNING id, assignee_id`,
       );
       if (t.rows[0]) {
         await cancelReminders(req.db, t.rows[0].id);
+        // Its Log outcome reminder in the bell is read too (bug hunt 2026-11-17).
+        await settleReminders(req, { id: t.rows[0].id, assigneeId: t.rows[0].assignee_id });
         if (done.lead_id) await refreshNextDue(req, done.lead_id);
       }
     }

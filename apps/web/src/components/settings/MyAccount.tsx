@@ -27,7 +27,7 @@ export function MyAccount({ session, children }: { session: Session; children?: 
   return (
     <div className={s.stack}>
       <Profile session={session} />
-      <MyAlerts initial={session.preferences} />
+      <MyAlerts initial={session.preferences} digestOn={session.digestOn} />
       <TwoStep session={session} />
       <Sessions />
       {children}

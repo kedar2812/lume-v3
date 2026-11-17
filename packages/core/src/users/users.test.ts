@@ -114,6 +114,20 @@ describe("onboarding steps (spec §4.1)", () => {
     ).toContain("connect");
   });
 
+  it("hides Connect when Google Calendar is off or not set up on this server (bug hunt 2026-11-17)", () => {
+    const ctx = {
+      actor: actor([{ key: "calendar.connect", scope: null }]),
+      twoFactorEnabled: true,
+      capabilities: { sheets: false, calendar: true },
+    };
+    expect(onboardingStepsFor({ ...ctx, connectable: { calendar: false } }).map((s) => s.id)).not.toContain(
+      "connect",
+    );
+    expect(onboardingStepsFor({ ...ctx, connectable: { calendar: true } }).map((s) => s.id)).toContain(
+      "connect",
+    );
+  });
+
   it("is needed until it is completed", () => {
     expect(needsOnboarding(EMPTY_ONBOARDING)).toBe(true);
     expect(needsOnboarding({ step: "look", skipped: [], completedAt: null })).toBe(true);

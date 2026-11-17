@@ -246,3 +246,13 @@ describe("dueFromPresetDef (3C)", () => {
         );
   });
 });
+
+describe("a stage rule's 'in N days' (bug hunt 2026-11-17)", () => {
+  it("keeps the wall-clock time across the clocks going back; hours stay hours", () => {
+    const sat = at("2026-10-24T09:00:00Z"); // Saturday 10:00 BST in London; the clocks go back on Sunday
+    const def = (n: number, unit: "hour" | "day") =>
+      ({ id: "r", label: "", rule: { in: { n, unit } } }) as const;
+    expect(dueFromPresetDef(def(2, "day"), sat, LONDON).toISOString()).toBe("2026-10-26T10:00:00.000Z"); // Monday 10:00 GMT
+    expect(dueFromPresetDef(def(48, "hour"), sat, LONDON).toISOString()).toBe("2026-10-26T09:00:00.000Z");
+  });
+});

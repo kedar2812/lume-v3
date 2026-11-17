@@ -44,15 +44,27 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   { id: "done", title: "All set", group: "end", required: false, permission: null },
 ];
 
-export type OnboardingContext = { actor: Actor; twoFactorEnabled: boolean; capabilities: Capabilities };
+export type OnboardingContext = {
+  actor: Actor;
+  twoFactorEnabled: boolean;
+  capabilities: Capabilities;
+  /**
+   * What can be connected on this server now (bug hunt 2026-11-17): Google Calendar switched on by an admin, Connect
+   * with Google set up, and in the plan. Absent: as the capabilities say.
+   */
+  connectable?: { calendar: boolean };
+};
 
 export function onboardingStepsFor({
   actor,
   twoFactorEnabled,
   capabilities,
+  connectable,
 }: OnboardingContext): OnboardingStep[] {
   const hasConnect =
-    (capabilities.calendar && (actor.isOwner || can(actor, "calendar.connect"))) ||
+    (capabilities.calendar &&
+      (connectable?.calendar ?? true) &&
+      (actor.isOwner || can(actor, "calendar.connect"))) ||
     (capabilities.sheets && (actor.isOwner || can(actor, "leads.import")));
   return ONBOARDING_STEPS.filter((s) => {
     if (s.needsEnrolment) return requiresTwoFactor(actor) && !twoFactorEnabled;

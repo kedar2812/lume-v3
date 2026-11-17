@@ -331,6 +331,19 @@ describe("field access can't grow through roles (bug hunt 2026-11-17)", () => {
     });
     expect(give.statusCode, give.body).toBe(403);
     expect(give.json().error.code).toBe("ESCALATION");
+    // The picker never offers it (review 2026-11-17), and a role they already have doesn't block changing theirs.
+    const offered = (await c.inject({ method: "GET", url: "/api/v1/roles/assignable" })).json().roles as {
+      id: string;
+    }[];
+    expect(offered.map((r) => r.id)).not.toContain(open);
+    expect(offered.map((r) => r.id)).toContain(made.json().role.id);
+    await admin.inject({ method: "PATCH", url: `/api/v1/users/${other.id}`, payload: { roleIds: [open] } });
+    const swap = await c.inject({
+      method: "PATCH",
+      url: `/api/v1/users/${other.id}`,
+      payload: { roleIds: [made.json().role.id] },
+    });
+    expect(swap.statusCode, swap.body).toBeLessThan(300);
   });
 
   it("deleting the role you hold can't move you somewhere without its sign-in limits", async () => {

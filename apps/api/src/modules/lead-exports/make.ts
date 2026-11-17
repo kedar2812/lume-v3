@@ -7,7 +7,15 @@ import { schema } from "@lume/db";
 import { safeCell } from "../../export/service";
 import { HttpError } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
-import { leadFilters, orderBy, refuseCapped, resolveSearch, tagsFor, type FilterQuery } from "../leads/query";
+import {
+  exportScopeCondition,
+  leadFilters,
+  orderBy,
+  refuseCapped,
+  resolveSearch,
+  tagsFor,
+  type FilterQuery,
+} from "../leads/query";
 import { isFieldVisible, serializeLead, type LeadView } from "../leads/serialize";
 
 /** Most leads in one file (plan ruling B1): more is "Narrow the view". */
@@ -157,7 +165,12 @@ export async function readView(
   const rows = await req.db
     .select()
     .from(schema.leads)
-    .where(and(...leadFilters(req, q, fields, refuseCapped(await resolveSearch(req, q, fields)))))
+    .where(
+      and(
+        ...leadFilters(req, q, fields, refuseCapped(await resolveSearch(req, q, fields))),
+        exportScopeCondition(req),
+      ),
+    )
     .orderBy(...orderBy(q.sort))
     .limit(cap + 1);
   if (!rows.length)

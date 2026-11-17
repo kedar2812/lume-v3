@@ -34,10 +34,16 @@ function fleet(o: { inputs?: string | null; client?: Record<string, string> } = 
   const clients = path.join(dir, "clients");
   mkdirSync(clients, { recursive: true });
   if (o.inputs !== null) writeFileSync(path.join(clients, "harbour-clinic.env"), `${o.inputs ?? INPUTS}\n`);
+  // The release's own edge and compose files (what `git show v<version>:infra/…` gives outside the tests).
+  const rel = path.join(dir, "release");
+  mkdirSync(path.join(rel, "infra"), { recursive: true });
+  writeFileSync(path.join(rel, "infra/Caddyfile"), "# the release's Caddyfile\n");
+  writeFileSync(path.join(rel, "infra/docker-compose.yml"), "# the release's compose file\n");
   const env = {
     LUME_INVENTORY: path.join(dir, "clients.yml"),
     LUME_CLIENTS_DIR: clients,
     LUME_WAIT_SECONDS: "0",
+    LUME_RELEASE_DIR: rel,
   };
   const envFile = () => readFileSync(path.join(clients, "harbour-clinic.env"), "utf8");
   return { dir, env, envFile };
@@ -80,6 +86,22 @@ describe("provision.sh (L-C Task 3)", () => {
     const inv = readFileSync(f.env.LUME_INVENTORY, "utf8");
     expect(inv).toMatch(/version: 1\.0\.0/);
     expect(inv).toMatch(/status: active/);
+  });
+
+  it("ships the pinned release's compose file and Caddyfile, not this tree's (bug hunt 2026-11-17)", () => {
+    const f = fleet();
+    const r = run("scripts/provision.sh", ["harbour-clinic", "--version", "1.0.0"], {
+      dir: f.dir,
+      env: f.env,
+      answers: ANSWERS,
+    });
+    expect(r.code, r.stderr).toBe(0);
+    expect(readFileSync(path.join(r.dir, "uploads", "docker-compose.yml"), "utf8")).toBe(
+      "# the release's compose file\n",
+    );
+    expect(readFileSync(path.join(r.dir, "uploads", "Caddyfile"), "utf8")).toBe(
+      "# the release's Caddyfile\n",
+    );
   });
 
   it("the server's .env: the pinned version, the licence, both backup keys, secrets; never the registry token", () => {

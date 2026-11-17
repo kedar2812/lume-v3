@@ -55,9 +55,12 @@ export async function runWeekly(d: WeeklyDeps, now: Date = new Date()): Promise<
   }>("SELECT business_name, timezone AS tz, currency FROM settings WHERE id = 1");
   const tz = biz[0]?.tz ?? "UTC";
   const w = wall(now, tz);
-  if (w.weekday !== 1 || w.hour < 9) return 0;
-  const weekStart = shift(w.date, -7);
-  const weekEnd = shift(w.date, -1);
+  // Monday from 09:00; a Monday missed (LUME down or locked all morning) is caught up on Tuesday, once (the claim
+  // below), never later (bug hunt 2026-11-17: a missed Monday cost the week's email).
+  const monday = w.weekday === 1 && w.hour >= 9 ? w.date : w.weekday === 2 ? shift(w.date, -1) : null;
+  if (!monday) return 0;
+  const weekStart = shift(monday, -7);
+  const weekEnd = shift(monday, -1);
   const { rows: people } = await d.pool.query<{
     id: string;
     email: string;

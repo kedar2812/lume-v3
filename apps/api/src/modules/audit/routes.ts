@@ -7,7 +7,10 @@ import { auditWords, can } from "@lume/core/shared";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { safeCell } from "../../export/service";
+import { randomBytes } from "node:crypto";
+import type { AppDeps } from "../../app";
 import { HttpError } from "../../http/errors";
+import { WRONG_PASSWORD, confirmPassword } from "../me/service";
 
 /** What the screen filters by, and so what the download follows. */
 const filters = {
@@ -42,8 +45,38 @@ function whereOf(q: Filters, tz: string): SQL[] {
 /** Rows read at a time for the download, so a long log never sits in one query. */
 const BATCH = 2000;
 
-export async function auditRoutes(app: FastifyInstance): Promise<void> {
+/**
+ * The download asks for the password first (owner 2026-11-17: "just the password", not two-step sign-in): the
+ * password buys a ticket, good once, for its person, for two minutes; the download (a plain link the browser follows)
+ * carries it. Kept in this process: one LUME is one API.
+ */
+const TICKET_MS = 2 * 60_000;
+const tickets = new Map<string, { userId: string; until: number }>();
+function takeTicket(ticket: string | undefined, userId: string, now: number): boolean {
+  for (const [k, t] of tickets) if (t.until <= now) tickets.delete(k);
+  const t = ticket ? tickets.get(ticket) : undefined;
+  if (!t || t.userId !== userId || t.until <= now) return false;
+  tickets.delete(ticket!);
+  return true;
+}
+
+export async function auditRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
+  r.post(
+    "/api/v1/audit/csv/ticket",
+    {
+      config: { permission: "audit.view" },
+      schema: { body: z.object({ password: z.string().min(1).max(1024) }) },
+    },
+    async (req, reply) => {
+      if (!can(req.actor!, "audit.export"))
+        throw new HttpError(403, "NO_AUDIT_EXPORT", "Downloading the audit log needs its own permission.");
+      if (!(await confirmPassword(req, d, req.body.password))) return reply.code(400).send(WRONG_PASSWORD);
+      const ticket = randomBytes(24).toString("base64url");
+      tickets.set(ticket, { userId: req.actor!.userId, until: d.clock().getTime() + TICKET_MS });
+      return { ticket };
+    },
+  );
   r.get(
     "/api/v1/audit",
     {
@@ -77,12 +110,19 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
   // entry rather than a page. Reading the log and audit.export are the gates; the download is itself in the log.
   r.get(
     "/api/v1/audit/csv",
-    { config: { permission: "audit.view" }, schema: { querystring: z.object(filters) } },
+    {
+      config: { permission: "audit.view" },
+      schema: { querystring: z.object({ ...filters, ticket: z.string().max(64).optional() }) },
+    },
     async (req, reply) => {
       // Reading the log opens the page; taking it away is its own permission (owner 2026-11-14), said in words.
       if (!can(req.actor!, "audit.export"))
         throw new HttpError(403, "NO_AUDIT_EXPORT", "Downloading the audit log needs its own permission.");
-      const q = req.query;
+      if (!takeTicket(req.query.ticket, req.actor!.userId, d.clock().getTime()))
+        throw new HttpError(403, "PASSWORD_NEEDED", "Enter your password to download the audit log.");
+      // The ticket isn't a filter: never in what's downloaded or in the log's own record.
+      const { ticket, ...q } = req.query;
+      void ticket;
       const tz = await businessTz(req);
       const where = whereOf(q, tz);
       const out: string[][] = [[`When (${tz})`, "Who", "What happened", "Item", "Item ID"]];

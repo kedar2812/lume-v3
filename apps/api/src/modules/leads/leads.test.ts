@@ -267,6 +267,49 @@ describe("listing and search (report §14, §12.2)", () => {
     expect(seen).toEqual([...ids].reverse());
   });
 
+  it("an enquiry date range holds a lead with no enquiry date by the day it arrived, where the business is (review 2026-11-17)", async () => {
+    const u = await h.seedUser({ grants: [...SALES] });
+    const c = await h.signIn(u);
+    const id = await h.seedLead({ ownerId: u.id, name: "No Enquiry Date" });
+    await h.queryAll("UPDATE leads SET lead_created_at = NULL WHERE id = $1", [id]);
+    const d = (
+      await h.queryAll<{ d: string }>(
+        `SELECT to_char((created_at AT TIME ZONE coalesce((SELECT timezone FROM settings LIMIT 1), 'UTC'))::date,
+              'YYYY-MM-DD') AS d FROM leads WHERE id = $1`,
+        [id],
+      )
+    )[0]!.d;
+    const r = await c.inject({
+      method: "GET",
+      url: `/api/v1/leads?createdFrom=${d}&createdTo=${d}&limit=100`,
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().items.map((l: { id: string }) => l.id)).toContain(id);
+  });
+
+  it("pages by name without repeating or skipping, whatever letters the names have (bug hunt 2026-11-17)", async () => {
+    const u = await h.seedUser({ grants: [...SALES] });
+    const c = await h.signIn(u);
+    // A Greek final sigma: JavaScript lowercases it to ς, Postgres to σ.
+    const ids: string[] = [];
+    for (const name of ["ΟΔΥΣΣΕΑΣ A", "ΟΔΥΣΣΕΑΣ B", "ΟΔΥΣΣΕΑΣ C"])
+      ids.push(await h.seedLead({ ownerId: u.id, name }));
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const page: { items: { id: string }[]; nextCursor: string | null } = (
+        await c.inject({
+          method: "GET",
+          url: `/api/v1/leads?sort=name&limit=1${cursor ? `&cursor=${cursor}` : ""}`,
+        })
+      ).json();
+      seen.push(...page.items.map((l) => l.id));
+      cursor = page.nextCursor;
+    } while (cursor && seen.length < 10);
+    expect(seen).toHaveLength(3);
+    expect(new Set(seen)).toEqual(new Set(ids));
+  });
+
   it("filters by stage and owner, and searches names", async () => {
     const cfg = await h.config();
     const u = await h.seedUser({ grants: [] });

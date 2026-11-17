@@ -198,7 +198,11 @@ export async function processWhatsAppEvent(
           // person takes the lead.
           if (ev.kind === "received") {
             const wrote = await leadWrote(req, leadId, at, ev.text ?? "");
-            if (wrote) autopilot = { ...wrote, leadId };
+            if (wrote) {
+              autopilot = { ...wrote, leadId };
+              // A run's lead who said stop: their owner is told that, never "replied" (bug hunt 2026-11-17).
+              if (wrote.stopped) stopped = true;
+            }
             // Stop means stop for every lead (W2, §5.1): at once, by nobody, undoable by a person. A run's lead took
             // that path above, with LUME AI's one apology.
             else if (!lead.dncAt && isStop(ev.text ?? "")) {

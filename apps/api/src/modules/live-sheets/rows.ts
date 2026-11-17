@@ -13,7 +13,7 @@ import {
 import { schema } from "@lume/db";
 import { loadFieldRegistry } from "../../leads/fields";
 import { columnsFor, type Lookups } from "../lead-exports/make";
-import { scopeCondition, tagsFor } from "../leads/query";
+import { exportScopeCondition, scopeCondition, tagsFor } from "../leads/query";
 import { serializeLead } from "../leads/serialize";
 
 /**
@@ -50,6 +50,8 @@ export function ruleConditions(req: FastifyRequest, spec: SheetSpec, tz: string)
   const out: SQL[] = [isNull(L.deletedAt)];
   const scope = scopeCondition(req);
   if (scope) out.push(scope);
+  const mayExport = exportScopeCondition(req); // a live sheet is an export that keeps going (review 2026-11-17)
+  if (mayExport) out.push(mayExport);
   out.push(r.stages.mode === "in" ? inArray(L.stageId, ids) : or(inArray(L.stageId, ids), reachedEver)!);
   if (r.sourceIds?.length) out.push(inArray(L.sourceId, r.sourceIds));
   if (r.ownerIds?.length) out.push(inArray(L.ownerId, r.ownerIds));
@@ -214,6 +216,7 @@ export async function stillThere(
   for (let i = 0; i < ids.length; i += 10_000) {
     const slice = ids.slice(i, i + 10_000);
     const scope = scopeCondition(req);
+    const mayExport = exportScopeCondition(req);
     const rows = await req.db
       .select({ id: L.id })
       .from(L)
@@ -223,6 +226,7 @@ export async function stillThere(
           isNull(L.deletedAt),
           ...(dropDnc ? [isNull(L.dncAt)] : []),
           ...(scope ? [scope] : []),
+          ...(mayExport ? [mayExport] : []),
         ),
       );
     for (const r of rows) out.add(r.id);

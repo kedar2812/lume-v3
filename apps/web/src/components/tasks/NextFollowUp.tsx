@@ -50,9 +50,13 @@ export function NextFollowUp({
   }, [leadId]);
   useEffect(() => void load(), [load, version]);
 
+  // One at a time: a double click on the tick finishes it once, never a second time into an error (bug hunt 2026-11-17).
+  const acting = useRef(false);
   const act = async (f: () => Promise<{ ok: boolean; message?: string }>) => {
+    if (acting.current) return;
+    acting.current = true;
     setError(null);
-    const r = await f();
+    const r = await f().finally(() => (acting.current = false));
     if (!r.ok) return setError(r.message ?? "Something went wrong.");
     await load();
     onChange?.();

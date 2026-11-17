@@ -213,7 +213,7 @@ export const frag = {
       case "sends":
         return send(sql``);
       case "replies":
-        return send(sql`AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type = 'reply_logged'
+        return send(sql`AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type IN ('reply_logged', 'whatsapp_received')
           AND r.occurred_at > a.occurred_at AND r.occurred_at <= a.occurred_at + interval '72 hours')`);
       case "booked":
         return frag.meeting(

@@ -692,6 +692,8 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/audit": { access: "audit.view", query: "limit=5" },
   // The log as a CSV (2026-11-14): reading it is the gate; downloading also needs audit.export, refused in words.
   "GET /api/v1/audit/csv": { access: "audit.view", query: "action=t.none" },
+  // The password that buys the download's ticket (owner 2026-11-17).
+  "POST /api/v1/audit/csv/ticket": { access: "audit.view", body: () => ({ password: "not the password" }) },
   // Phase 1B — configuration
   "GET /api/v1/pipelines": { access: "leads.view" },
   "POST /api/v1/pipelines": {

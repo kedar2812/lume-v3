@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Ctx } from "./context";
 import { feedbackClient } from "./feedback";
+import { monthAround } from "./plan";
 import { clientIp, json, readCapped } from "./http";
 
 /** Exactly what an install sends (core's topUpBody): nothing else is accepted. */
@@ -47,6 +48,9 @@ export async function handleTopUp(req: Request, ctx: Ctx): Promise<Response> {
   const parsed = topUpSchema.safeParse(raw);
   if (!parsed.success) return refuse(400, "BAD_REQUEST", "Not a top-up request.");
   const b = parsed.data;
+  // Only a month near now (their clock a day either side): any other would sit open for good (bug hunt 2026-11-17).
+  if (![monthAround(now, -1), monthAround(now, 0), monthAround(now, 1)].includes(b.month))
+    return refuse(400, "BAD_REQUEST", "A top-up is for this month only.");
 
   // Wrong keys spend the same allowance a check's do, so this door is no better for guessing.
   const pair = `${ip}|${b.instanceId}`;

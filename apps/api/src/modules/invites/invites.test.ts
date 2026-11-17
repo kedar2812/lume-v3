@@ -102,6 +102,15 @@ describe("invites (report §12.1: invite-only, single-use, 72 h)", () => {
       ...(await h.csrf()),
     });
     expect(ok.statusCode).toBe(404);
+    // Settings → People says so, so it can be sent again (review 2026-11-17).
+    const other = await h.signIn(
+      await h.seedUser({ grants: [{ key: "users.manage", scope: null }], totp: true }),
+    );
+    const list = (await other.inject({ method: "GET", url: "/api/v1/invites" })).json().invites as {
+      email: string;
+      expired: boolean;
+    }[];
+    expect(list.find((i) => i.email === "late@brightpath.test")!.expired).toBe(true);
   });
 
   it("expired invites are gone", async () => {
@@ -179,6 +188,40 @@ describe("password reset (report §12.1: emailed single-use token, 30 min)", () 
         })
       ).statusCode,
     ).toBe(400);
+  });
+
+  it("a reset lifts a lockout, and every other reset link stops working (bug hunt 2026-11-17)", async () => {
+    const u = await h.seedUser({ grants: [] });
+    const c = await h.csrf();
+    const login = (password: string) =>
+      h.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/login",
+        payload: { email: u.email, password },
+        ...c,
+      });
+    for (let i = 0; i < 11; i++) await login("not the password at all");
+    expect((await login(u.password)).statusCode).toBe(429);
+    const links: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      await h.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/password/forgot",
+        payload: { email: u.email },
+        ...c,
+      });
+      links.push(tokenFrom(/https:\/\/lume\.test\/reset\/\S+/.exec(h.mail.at(-1)!.text)![0]));
+    }
+    const reset = (token: string, password: string) =>
+      h.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/password/reset",
+        payload: { token, password },
+        ...c,
+      });
+    expect((await reset(links[0]!, "a brand new passphrase")).statusCode).toBe(204);
+    expect((await login("a brand new passphrase")).statusCode).not.toBe(429);
+    expect((await reset(links[1]!, "someone else's passphrase")).statusCode).toBe(400);
   });
 
   it("sends at most three reset emails per account per 15 minutes", async () => {

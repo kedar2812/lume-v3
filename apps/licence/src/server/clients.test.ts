@@ -289,6 +289,14 @@ describe("a client's actions (spec §4.4)", () => {
     });
   });
 
+  it("extending with the reminder on: the reminder says the new date (bug hunt 2026-11-17)", async () => {
+    const { client } = await create({ name: "Marigold Florist" });
+    await admin.call("POST", `/api/clients/${client.id}/reminder`, { note: "" });
+    await admin.call("POST", `/api/clients/${client.id}/extend`, { months: 1 });
+    const d = await detail(client.id);
+    expect(d.notice?.dueDate).toBe(d.client.paidUntil);
+  });
+
   it("the reminder: on with a note (due the day it was paid until), and Stop", async () => {
     const { client } = await create({ name: "Bluebell Dental" });
     await t.pool.query("UPDATE licences SET paid_until = '2026-09-26' WHERE client_id = $1", [client.id]);
@@ -353,6 +361,26 @@ describe("a client's actions (spec §4.4)", () => {
     // Resume can't bring it back, nor can anything else.
     expect((await admin.call("POST", `/api/clients/${client.id}/resume`)).status).toBe(409);
     expect((await admin.call("POST", `/api/clients/${client.id}/paid`, {})).status).toBe(409);
+    // Its plan and top-ups too (bug hunt 2026-11-17).
+    expect(
+      (
+        await admin.call("PATCH", `/api/clients/${client.id}/plan`, {
+          places: 3,
+          modules: {
+            googleSheets: true,
+            webhooks: true,
+            googleCalendar: true,
+            calendly: true,
+            ai: true,
+            whatsapp: true,
+          },
+        })
+      ).status,
+    ).toBe(409);
+    const month = now.toISOString().slice(0, 7);
+    expect((await admin.call("POST", `/api/clients/${client.id}/topup`, { month, packs: 1 })).status).toBe(
+      409,
+    );
     expect(
       verifyLicence((await check(client.instanceId, licenseKey)).token!, KEYS, client.instanceId)?.state,
     ).toBe("suspended");

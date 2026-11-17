@@ -44,6 +44,8 @@ export const tasks = pgTable("tasks", {
   meetingId: uuid("meeting_id"),
   /** When its managers were told it was left overdue (3B); cleared when it's moved or snoozed. */
   escalatedAt: tz("escalated_at"),
+  /** A repeating one, snoozed: the series' own time, which the next one follows (0115). Null: its due time. */
+  seriesDueAt: tz("series_due_at"),
   version: integer("version").notNull().default(1),
 });
 

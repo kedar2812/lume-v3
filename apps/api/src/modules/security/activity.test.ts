@@ -89,6 +89,33 @@ describe("Security activity (6C Task 3)", () => {
     expect(t.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it("exports this week follow the business's own week start (bug hunt 2026-11-17)", async () => {
+    // The week starts today (whatever day that is here): an export yesterday is last week's.
+    await h.ownerPool.query(
+      "UPDATE settings SET week_start = extract(dow FROM (now() AT TIME ZONE timezone))::int WHERE id = 1",
+    );
+    try {
+      await h.ownerPool.query(
+        `INSERT INTO lead_exports (id, user_id, code, label, format, columns, row_count, check_name, check_email,
+                                   check_phone, check_position, expires_at, created_at)
+         VALUES ($1, $2, 'PX7Q-4MRB', 'All leads', 'csv', '{name}', 3, 'Ana Bell', 'ana.bell.0a1b2d@example.invalid',
+                 '+447700900124', 1, now() + interval '1 day',
+                 (date_trunc('day', now() AT TIME ZONE $3) AT TIME ZONE $3) - interval '12 hours')`,
+        [newId(), adminUser.id, TZ],
+      );
+      // Only today's count: the week began today.
+      const [{ n }] = (
+        await h.ownerPool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM lead_exports WHERE created_at >= (date_trunc('day', now() AT TIME ZONE $1) AT TIME ZONE $1)",
+          [TZ],
+        )
+      ).rows as [{ n: number }];
+      expect((await activity()).today.exports.count).toBe(n);
+    } finally {
+      await h.ownerPool.query("UPDATE settings SET week_start = 1 WHERE id = 1");
+    }
+  });
+
   it("contacts opened per person: the top six over 14 days, today last, an alert today marked", async () => {
     const people: SeededUser[] = [];
     for (let i = 0; i < 7; i++) {

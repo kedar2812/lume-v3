@@ -8,7 +8,8 @@
   display: grid;
   gap: 6px;
 }
-/* LUME AI's lockup: the Loop drawing itself, LUME in its letter-spaced wordmark, AI in the blue ink (reads on both themes). */
+/* LUME AI's lockup: the Loop drawing itself, then LUME AI as one letter-spaced wordmark (owner 2026-11-17: AI in the
+   same bold and colour as LUME). */
 .lockup {
   display: flex;
   align-items: center;
@@ -23,9 +24,8 @@
 }
 .ai {
   margin-left: -4px;
-  font-weight: var(--fw-medium);
-  letter-spacing: 0.06em;
-  color: var(--accent-ink);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.14em;
 }
 .lede {
   margin: 0;

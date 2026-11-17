@@ -47,7 +47,8 @@ export function TopUps({
   topUps: TopUpsView;
   onSaved: (data: unknown) => void;
 }) {
-  const asked = topUps.requests[0] ?? null;
+  // The newest ask: an older one can't be answered any more (bug hunt 2026-11-17).
+  const asked = topUps.requests.at(-1) ?? null;
   const month = asked?.month ?? thisMonth();
   const [packs, setPacks] = useState("");
   const [note, setNote] = useState("");
