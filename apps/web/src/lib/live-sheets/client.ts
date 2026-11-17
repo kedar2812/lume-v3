@@ -24,6 +24,8 @@ export type LiveSheetView = {
   run: { total: number; written: number; status: "queued" | "running" | "done" | "failed" } | null;
   madeBy: { id: string; name: string };
   runsAs: { id: string; name: string };
+  /** Whether this person may change it: who made it, who it runs as, or someone who manages people. */
+  canChange: boolean;
   createdAt: string;
 };
 export type GoogleAccount = { id: string; email: string };

@@ -203,7 +203,12 @@ export async function desiredRows(req: FastifyRequest, spec: SheetSpec): Promise
 }
 
 /** Of these leads, the ones still in LUME and in reach of the person the sheet runs as. */
-export async function stillThere(req: FastifyRequest, ids: string[]): Promise<Set<string>> {
+export async function stillThere(
+  req: FastifyRequest,
+  ids: string[],
+  /** The rule leaves out do-not-contact leads: one marked since it went in has to leave too (bug hunt 2026-11-17). */
+  dropDnc = false,
+): Promise<Set<string>> {
   if (!ids.length) return new Set();
   const out = new Set<string>();
   for (let i = 0; i < ids.length; i += 10_000) {
@@ -212,7 +217,14 @@ export async function stillThere(req: FastifyRequest, ids: string[]): Promise<Se
     const rows = await req.db
       .select({ id: L.id })
       .from(L)
-      .where(and(inArray(L.id, slice), isNull(L.deletedAt), ...(scope ? [scope] : [])));
+      .where(
+        and(
+          inArray(L.id, slice),
+          isNull(L.deletedAt),
+          ...(dropDnc ? [isNull(L.dncAt)] : []),
+          ...(scope ? [scope] : []),
+        ),
+      );
     for (const r of rows) out.add(r.id);
   }
   return out;

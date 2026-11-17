@@ -211,6 +211,34 @@ describe("replies, stop, taking over", () => {
     expect(textsSent()).toHaveLength(1);
   });
 
+  it("a stop only LUME AI recognises, in a rep's run: every lead with that number is do not contact, the ones the rep can't see too (bug hunt 2026-11-17)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: PHONE });
+    const twin = await h.seedLead({ ownerId: admin.id, name: "Sneha R (site visit)", phone: PHONE });
+    const run = await start([lead], rep);
+    await firstMessage(run, lead);
+    await writes("Mujhe isme koi interest nahi hai");
+    provider.script("autopilot_reply", [
+      {
+        kind: "stop",
+        message: "",
+        reason: "Not interested.",
+        evidence: "Mujhe isme koi interest nahi hai",
+        fileIds: [],
+        stageId: null,
+        fields: [],
+        followUp: null,
+        lostReasonId: null,
+      },
+    ]);
+    await tick();
+    const dnc = await h.queryAll<{ id: string; dnc_at: Date | null }>(
+      "SELECT id, dnc_at FROM leads WHERE id = ANY($1)",
+      [[lead, twin]],
+    );
+    expect(dnc.find((x) => x.id === lead)!.dnc_at).not.toBeNull();
+    expect(dnc.find((x) => x.id === twin)!.dnc_at).not.toBeNull();
+  });
+
   it("a stop to a lead a person has taken over: kept, but LUME AI says nothing in their conversation (review 2026-10-26 A10)", async () => {
     const before = textsSent().length;
     await h.queryAll("UPDATE leads SET deleted_at = now() WHERE deleted_at IS NULL");

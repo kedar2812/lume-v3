@@ -578,13 +578,25 @@ export async function runRead<T>(
     await finish("failed", null, err instanceof AiUnreadable ? err.usage : null);
     return { unavailable: "failed" };
   }
-  const output = o.clean ? o.clean(answer.output) : answer.output;
-  await finish("ok", o.store ? o.store(output) : output, {
+  const usage: AiUsage = {
     inputTokens: answer.inputTokens,
     outputTokens: answer.outputTokens,
     cacheWriteTokens: answer.cacheWriteTokens ?? 0,
     cacheReadTokens: answer.cacheReadTokens ?? 0,
-  });
+  };
+  // An answer the cleaner (or the store) throws on is one LUME can't use: failed with what it was billed, never a
+  // read left pending forever and a 500 (bug hunt 2026-11-17).
+  let output: T;
+  let kept: unknown;
+  try {
+    output = o.clean ? o.clean(answer.output) : answer.output;
+    kept = o.store ? o.store(output) : output;
+  } catch (err) {
+    req.log.warn({ err, provider: ai.name, task: o.task }, "LUME AI's answer couldn't be used");
+    await finish("failed", null, usage);
+    return { unavailable: "failed" };
+  }
+  await finish("ok", kept, usage);
   let atMax = false;
   if (leadMonth !== null && o.leadId !== null && limits.leadMax !== null) {
     const reads = await side.query<{ reads: number }>("SELECT reads FROM lume_ai_lead_month($1, $2, $3)", [

@@ -108,6 +108,15 @@ async function liveInvite(req: FastifyRequest, d: AppDeps, token: string) {
     )
     .for("update");
   if (!inv) throw notFound();
+  // An invite stands only while whoever sent it is still active here: disabled, suspended, offboarded or deleted,
+  // their invites go with them (bug hunt 2026-11-17: an admin let go could still bring someone in for 72 hours).
+  if (inv.invitedBy) {
+    const [by] = await req.db
+      .select({ status: schema.users.status })
+      .from(schema.users)
+      .where(eq(schema.users.id, inv.invitedBy));
+    if (by?.status !== "active") throw notFound();
+  }
   return inv;
 }
 

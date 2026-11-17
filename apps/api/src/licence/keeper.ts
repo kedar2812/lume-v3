@@ -259,6 +259,13 @@ export class LicenceKeeper {
             signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
           });
         let r = await post(checkBody({ ...base, accepts: ACCEPTS, health, ...(seen ? { seen } : {}) }));
+        // A 400 is most often only the extras a licence server doesn't know yet (a new health key, a new module):
+        // ask again keeping what this LUME accepts, so the plan it's signed still comes (bug hunt 2026-11-17: asked
+        // the old way at once, the answer carried no plan and every limit opened).
+        if (r.status === 400 && (health || seen)) {
+          await r.body?.cancel().catch(() => undefined);
+          r = await post(checkBody({ ...base, accepts: ACCEPTS }));
+        }
         // A licence server from before Fleet refuses a body it doesn't know (400): ask again the old way, once, so a
         // LUME newer than its licence server never loses its licence over it (spec 2026-10-16 fleet §1.3).
         if (r.status === 400) {

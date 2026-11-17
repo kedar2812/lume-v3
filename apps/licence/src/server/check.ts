@@ -30,7 +30,8 @@ const checkSchema = z
     serverTime: z.iso.datetime(),
     // Fleet (spec 2026-10-16 fleet §1): what this LUME can show, its health (counts and fixed keys only), and how
     // many people pressed Got it. Each optional: a LUME from before them sends none.
-    accepts: z.array(z.string().min(1).max(32)).max(8).optional(),
+    // Room to grow: LUME sends one entry a plan version, and a refusal here would cost it its plan (bug hunt 2026-11-17).
+    accepts: z.array(z.string().min(1).max(32)).max(64).optional(),
     health: fleetHealthSchema.optional(),
     seen: z
       .array(z.object({ id: z.uuid(), people: z.number().int().min(0).max(1_000_000) }).strict())

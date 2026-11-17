@@ -474,11 +474,59 @@ describe("an older licence server (spec 2026-10-16 fleet §1.3)", () => {
         : new Response(JSON.stringify({ token: token() }), { status: 200 });
     };
     const r = (await check()).json();
-    expect(sent).toHaveLength(2);
-    expect(Object.keys(sent[1]!.body)).not.toContain("accepts");
-    expect(Object.keys(sent[1]!.body)).not.toContain("health");
+    // Without its extras first (a current server refusing only those still signs the plan), then the old way.
+    expect(sent.length).toBeGreaterThanOrEqual(2);
+    expect(sent.length).toBeLessThanOrEqual(3);
+    expect(Object.keys(sent.at(-1)!.body)).not.toContain("accepts");
+    expect(Object.keys(sent.at(-1)!.body)).not.toContain("health");
     expect(r.state).toBe("active");
     expect(r.lastError).toBeNull();
+  });
+});
+
+describe("a licence server that refuses only the newer extras (bug hunt 2026-11-17)", () => {
+  it("a 400 on the health part: LUME asks again keeping what it accepts, so its plan still comes", async () => {
+    h.app.licence.reportHealth(async () => ({
+      uptimeS: 10,
+      dbBytes: 1000,
+      diskFreePct: 50,
+      errors24h: 0,
+      queue: { waiting: 0, retrying: 0, failed24h: 0 },
+      remindersLate: 0,
+      restoreTest: null,
+      problems: [],
+      sourcesNeedingAttention: 0,
+    }));
+    const plan = {
+      places: 2,
+      modules: {
+        googleSheets: true,
+        webhooks: true,
+        googleCalendar: true,
+        calendly: true,
+        ai: true,
+        whatsapp: true,
+      },
+      aiReadsHourly: null,
+      aiReadsWeekly: null,
+    };
+    answer = () => {
+      const last = sent.at(-1)!.body as { accepts?: string[]; health?: unknown };
+      if ("health" in last)
+        return new Response(
+          JSON.stringify({ error: { code: "BAD_REQUEST", message: "Not a licence check." } }),
+          {
+            status: 400,
+          },
+        );
+      return new Response(JSON.stringify({ token: token(last.accepts?.includes("plan") ? { plan } : {}) }), {
+        status: 200,
+      });
+    };
+    const r = (await check()).json();
+    expect(sent.length).toBeGreaterThanOrEqual(2);
+    expect(r.state).toBe("active");
+    expect(h.app.licence.view().plan).toMatchObject({ places: 2 });
   });
 });
 

@@ -135,6 +135,14 @@ describe("/v1/check and the fleet", () => {
     expect(q!.announcements).toHaveLength(3);
   });
 
+  it("a LUME that accepts many plan versions is still answered, with its plan (bug hunt 2026-11-17)", async () => {
+    const c = await seedClient(t.pool, { type: "perpetual" });
+    const many = ["announcements", "plan", ...Array.from({ length: 18 }, (_, i) => `plan${i + 2}`)];
+    const r = await post(body(c, { accepts: many }));
+    expect(r.status).toBe(200);
+    expect((await payloadOf(r, c.instanceId))!.plan).toBeTruthy();
+  });
+
   it("keeps the health and what the install can show with its check-in", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
     expect((await post(body(c, { accepts: ["announcements"], health }))).status).toBe(200);

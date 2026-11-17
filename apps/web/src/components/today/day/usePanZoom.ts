@@ -263,8 +263,9 @@ export function usePanZoom(
       // it moves the day sideways, easing like the browser's own scrolling, and notches add up.
       if (e.deltaY && !e.deltaX && !e.shiftKey && el.scrollHeight - el.clientHeight <= 1) {
         e.preventDefault();
-        // A glide still running would fight the wheel: the wheel wins.
-        if (frame.current != null) {
+        // A glide still running would fight the wheel: the wheel wins. A give at an end easing back (the canvas is
+        // shifted) only moves the drawing, not the scroll: it keeps easing, so it never snaps home.
+        if (frame.current != null && !canvas.current?.style.transform) {
           cancelAnimationFrame(frame.current);
           frame.current = null;
           shift(0);
@@ -333,7 +334,7 @@ export function usePanZoom(
       el.removeEventListener("gesturestart", onGestureStart);
       el.removeEventListener("gesturechange", onGestureChange);
     };
-  }, [scroller, stop]);
+  }, [scroller, canvas, stop]);
   useEffect(() => stop, [stop]);
 
   return {

@@ -215,6 +215,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     ...(seesWa ? [{ id: "whatsapp" as const, label: "WhatsApp" }] : []),
     ...(seesMeetings ? [{ id: "meetings" as const, label: "Meetings" }] : []),
   ];
+  // After J/K to a lead without the tab that was open (no WhatsApp), Details shows until it has one.
+  const shownTab: Tab = TABS.some((t) => t.id === tab) ? tab : "details";
 
   // Load (and re-load on J/K). An answer for a lead that is no longer shown is dropped.
   useEffect(() => {
@@ -237,7 +239,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
 
   const changed = useCallback(
     (next: Lead) => {
-      setLead(next);
+      // A late answer about the lead before (J/K while a move or save was in flight) still updates the list, but
+      // never replaces the lead shown now (bug hunt 2026-11-17).
+      if (next.id === shown.current) setLead(next);
       onChanged(next);
     },
     [onChanged],
@@ -247,6 +251,13 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   const logged = useCallback(() => {
     if (tab !== "details") reloadActivities();
   }, [tab, reloadActivities]);
+  // Notes and History load whenever they're shown and not loaded yet: opened with N, or after J/K on the tab
+  // (bug hunt 2026-11-17: both used to sit on Loading… for good).
+  const activityTab = tab === "notes" || tab === "history";
+  useEffect(() => {
+    if (activityTab && !activities.loaded) reloadActivities();
+    // reloadActivities is a new function each render: the tab, the lead and loaded say when to look.
+  }, [activityTab, id, activities.loaded]);
 
   // Focus moves to the name when the drawer opens and goes back where it came from when it closes.
   useEffect(() => {
@@ -326,7 +337,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     if (t === "whatsapp") {
       loadWa();
       setChat(true);
-    } else if (t !== "details") reloadActivities();
+    } else if (t !== "details" && activities.loaded) reloadActivities(); // not loaded: the effect above loads it
   };
   useChatOnScreen(chat ? id : null);
   // A message notice opens the chat itself (2026-11-01): ?lead=<id>&chat=<when>, a new value each time it's pressed.
@@ -873,9 +884,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       type="button"
                       role="tab"
                       id={`${tabsId}-${t.id}`}
-                      aria-selected={tab === t.id}
+                      aria-selected={shownTab === t.id}
                       aria-controls={`${tabsId}-${t.id}-panel`}
-                      tabIndex={tab === t.id ? 0 : -1}
+                      tabIndex={shownTab === t.id ? 0 : -1}
                       className={s.tab}
                       onClick={() => openTab(t.id)}
                       onKeyDown={(e) => {
@@ -892,7 +903,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       {t.id === "meetings" && meetings.length > 0 && (
                         <span className={s.tabCount}>{meetings.length}</span>
                       )}
-                      {tab === t.id && (
+                      {shownTab === t.id && (
                         <motion.span
                           layoutId={`${tabsId}-ink`}
                           className={s.tabInk}
@@ -909,7 +920,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   aria-labelledby={`${tabsId}-${tab}`}
                   className={s.panel}
                 >
-                  {tab === "details" && (
+                  {shownTab === "details" && (
                     <div className={s.boxes}>
                       <ContactBox key={lead.id} lead={lead} onRevealed={logged} />
                       {detailFields.length > 0 && (
@@ -920,7 +931,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       )}
                     </div>
                   )}
-                  {tab === "notes" && (
+                  {shownTab === "notes" && (
                     <>
                       <NoteComposer onAdd={addNote} disabled={!lead.can.edit} />
                       <Timeline
@@ -934,7 +945,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       />
                     </>
                   )}
-                  {tab === "whatsapp" && wa && (
+                  {shownTab === "whatsapp" && wa && (
                     <ChatCard
                       leadName={lead.name ?? "this lead"}
                       tz={tz}
@@ -986,7 +997,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       }
                     />
                   )}
-                  {tab === "meetings" && (
+                  {shownTab === "meetings" && (
                     <MeetingsTab
                       meetings={meetings}
                       tz={tz}
@@ -999,7 +1010,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       }
                     />
                   )}
-                  {tab === "history" && (
+                  {shownTab === "history" && (
                     <Timeline
                       tz={tz}
                       items={history}

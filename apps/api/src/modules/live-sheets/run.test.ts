@@ -213,6 +213,30 @@ describe("a live sheet's run", () => {
     ).toContain(dnc);
   });
 
+  it("a lead marked do not contact after it went in leaves a reached sheet that leaves them out, paused or not (bug hunt 2026-11-17)", async () => {
+    const a = await lead();
+    const b = await lead();
+    const id = await sheet(h); // reached, do-not-contact leads left out
+    const sid = (await run(h, id, "make")).sheet.spreadsheet_id!;
+    await h.queryAll("UPDATE leads SET dnc_at = now() WHERE id = $1", [a]);
+    await run(h, id);
+    expect(rowOf(tab(h, sid).rows, a)).toBeUndefined();
+    expect(rowOf(tab(h, sid).rows, b)).toBeDefined();
+    // Paused by a person: the privacy pass still takes them out.
+    await h.ownerPool.query(
+      "UPDATE live_sheets SET status = 'paused', pause_reason = 'paused_by_person' WHERE id = $1",
+      [id],
+    );
+    await h.queryAll("UPDATE leads SET dnc_at = now() WHERE id = $1", [b]);
+    await run(h, id, "schedule");
+    expect(rowOf(tab(h, sid).rows, b)).toBeUndefined();
+    // A sheet that asked for do-not-contact leads keeps them.
+    const all = await sheet(h, { rule: rule({ includeDnc: true }) });
+    const allSid = (await run(h, all, "make")).sheet.spreadsheet_id!;
+    await run(h, all);
+    expect(rowOf(tab(h, allSid).rows, a)).toBeDefined();
+  });
+
   it("a rule with a won stage adds Meta's value column", async () => {
     const w = await lead({ stage: "Won" });
     await h.queryAll("UPDATE leads SET value = 15000, won_at = now() WHERE id = $1", [w]);

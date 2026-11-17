@@ -197,6 +197,37 @@ describe("stop means stop (§3)", () => {
   });
 });
 
+describe("stop means stop: everyday ways of saying it (bug hunt 2026-11-17)", () => {
+  it("a stop with a courtesy around it, short forms and opting out", () => {
+    for (const yes of [
+      "Stop, thanks",
+      "stop now",
+      "ok stop",
+      "pls stop",
+      "plz stop",
+      "Stop pls",
+      "stop please thank you",
+      "Just stop",
+      "Opt out",
+      "I want to opt out",
+      "Don't send me messages",
+      "do not send me any more messages",
+      "stop msg",
+      "Stop messages",
+    ])
+      expect(isStop(yes), yes).toBe(true);
+    for (const no of [
+      "Can you stop by tomorrow?",
+      "Where is the nearest bus stop",
+      "Can I opt out of the EMI plan?",
+      "Don't send me the price yet, I'll ask tomorrow",
+      "ok",
+      "Please send the brochure",
+    ])
+      expect(isStop(no), no).toBe(false);
+  });
+});
+
 describe("amounts (§11: never a price that isn't in the price list)", () => {
   it("amounts read as people write them", () => {
     expect(amountsIn("A modular kitchen is ₹3,80,000 all in.")).toEqual([380000]);

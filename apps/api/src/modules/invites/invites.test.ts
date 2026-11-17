@@ -78,6 +78,32 @@ describe("invites (report §12.1: invite-only, single-use, 72 h)", () => {
     expect(kept.rows).toEqual([]);
   });
 
+  it("an invite whose sender has been disabled or offboarded no longer works (bug hunt 2026-11-17)", async () => {
+    const sender = await h.seedUser({ grants: [{ key: "users.manage", scope: null }], totp: true });
+    const admin = await h.signIn(sender);
+    const {
+      rows: [role],
+    } = await h.pool.query(
+      "INSERT INTO roles (id, name) VALUES (gen_random_uuid(), 'Gone sender') RETURNING id",
+    );
+    const res = await admin.inject({
+      method: "POST",
+      url: "/api/v1/invites",
+      payload: { email: "late@brightpath.test", name: "Late", roleIds: [role.id] },
+    });
+    expect(res.statusCode).toBe(201);
+    const token = tokenFrom(res.json().url);
+    await h.ownerPool.query("UPDATE users SET status = 'disabled' WHERE id = $1", [sender.id]);
+    expect((await h.app.inject({ method: "GET", url: `/api/v1/invites/${token}` })).statusCode).toBe(404);
+    const ok = await h.app.inject({
+      method: "POST",
+      url: `/api/v1/invites/${token}/accept`,
+      payload: { password: "a long and lovely passphrase" },
+      ...(await h.csrf()),
+    });
+    expect(ok.statusCode).toBe(404);
+  });
+
   it("expired invites are gone", async () => {
     const admin = await h.signIn(
       await h.seedUser({ grants: [{ key: "users.manage", scope: null }], totp: true }),

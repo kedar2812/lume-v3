@@ -50,6 +50,7 @@ const view = (over: Partial<LiveSheetView> = {}): LiveSheetView => ({
   lastSyncedAt: null,
   run: { total: 0, written: 0, status: "queued" },
   madeBy: { id: "u1", name: "Maya" },
+  canChange: true,
   runsAs: { id: "u1", name: "Maya" },
   createdAt: "2026-11-14T09:00:00Z",
   ...over,

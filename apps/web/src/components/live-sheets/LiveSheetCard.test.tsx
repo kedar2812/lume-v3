@@ -43,6 +43,7 @@ const sheet = (over: Partial<LiveSheetView> = {}): LiveSheetView => ({
   lastSyncedAt: new Date(NOW - 2 * 60_000).toISOString(),
   run: null,
   madeBy: { id: "u1", name: "Maya Kapoor" },
+  canChange: true,
   runsAs: { id: "u1", name: "Maya Kapoor" },
   createdAt: "2026-11-14T09:00:00Z",
   ...over,
@@ -158,5 +159,17 @@ describe("LiveSheetCard", () => {
   it("more leads than a sheet holds: it says it keeps the newest", () => {
     card(sheet({ capped: true, leadCount: 100000 }));
     expect(screen.getByText(/keeps the newest 100,000/)).toBeInTheDocument();
+  });
+});
+
+describe("LiveSheetCard: someone else's sheet (bug hunt 2026-11-17)", () => {
+  it("shows Update now and the link, never Edit, Pause, Delete or Make it again", () => {
+    card(sheet({ canChange: false }));
+    expect(screen.getByRole("button", { name: "Update now" })).toBeInTheDocument();
+    for (const name of ["Edit", "Pause", "Delete"]) expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+  it("paused by its maker: no Resume for someone else", () => {
+    card(sheet({ canChange: false, status: "paused", pauseReason: "paused_by_person" }));
+    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
   });
 });

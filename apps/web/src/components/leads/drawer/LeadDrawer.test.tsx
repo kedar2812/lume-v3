@@ -757,3 +757,84 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
     });
   });
 });
+
+describe("LeadDrawer: bug hunt (2026-11-17)", () => {
+  const noteOf = (leadId: string, body: string) => ({
+    id: `n-${leadId}`,
+    type: "note",
+    payload: { body },
+    occurredAt: "2026-09-24T10:00:00Z",
+    user: { id: "u-riya", name: "Riya" },
+  });
+  /** The drawer on lead `id`, rendered so a test can step it to another lead (J/K) with `to`. */
+  const drawer = (id: string) => {
+    const h = handlers();
+    const el = (at: string) => (
+      <CatalogProvider catalog={testCatalog()}>
+        <LeadDrawer id={at} session={rep()} neighbours={["l1", "l2"]} {...h} />
+      </CatalogProvider>
+    );
+    const r = render(el(id));
+    return { ...h, to: (at: string) => r.rerender(el(at)) };
+  };
+  beforeEach(() => {
+    vi.mocked(leadsClient.get).mockImplementation(async (id: string) =>
+      ok({ lead: testLead({ id, name: id === "l2" ? "Ravi Menon" : "Aisha Khan" }) }),
+    );
+    vi.mocked(leadsClient.activities).mockImplementation(async (id: string) =>
+      ok({ items: [noteOf(id, `A note on ${id}`)], nextCursor: null }),
+    );
+  });
+
+  it("N opens Notes with the lead's notes, not a Loading… that never ends", async () => {
+    drawer("l1");
+    await screen.findByRole("dialog", { name: "Aisha Khan" });
+    fireEvent.keyDown(window, { key: "n" });
+    expect(await screen.findByText("A note on l1")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).toBeNull();
+  });
+
+  it("J/K on the Notes tab shows the next lead's notes", async () => {
+    const d = drawer("l1");
+    await screen.findByRole("dialog", { name: "Aisha Khan" });
+    await userEvent.click(screen.getByRole("tab", { name: "Notes" }));
+    await screen.findByText("A note on l1");
+    d.to("l2");
+    expect(await screen.findByText("A note on l2")).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).toBeNull();
+  });
+
+  it("J/K from the WhatsApp tab to a lead without WhatsApp shows Details, and the tab row stays reachable", async () => {
+    vi.mocked(whatsappClient.thread).mockImplementation(async (id: string) =>
+      ok(id === "l1" ? { on: true, reply: null, messages: [] } : { on: false, reply: null, messages: [] }),
+    );
+    const d = drawer("l1");
+    await screen.findByRole("dialog", { name: "Aisha Khan" });
+    fireEvent.click(await screen.findByRole("tab", { name: "WhatsApp" }));
+    fireEvent.keyDown(document.activeElement ?? window, { key: "Escape" }); // the chat window closes
+    d.to("l2");
+    await screen.findByRole("heading", { name: "Ravi Menon", hidden: true });
+    await vi.waitFor(() => expect(screen.queryByRole("tab", { name: "WhatsApp", hidden: true })).toBeNull());
+    const details = screen.getByRole("tab", { name: "Details", hidden: true });
+    expect(details).toHaveAttribute("aria-selected", "true");
+    expect(details).toHaveAttribute("tabindex", "0");
+  });
+
+  it("a late answer about the lead before (a move still in flight) never replaces the lead shown now", async () => {
+    let finish: (v: unknown) => void = () => {};
+    vi.mocked(leadsClient.move).mockImplementation(
+      () => new Promise((r) => (finish = r as (v: unknown) => void)) as never,
+    );
+    const d = drawer("l1");
+    await userEvent.click(await screen.findByRole("button", { name: "Won" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Mark as won" }));
+    d.to("l2");
+    // The drawer may sit under the won question still open: look past what's hidden from assistive tech.
+    await screen.findByRole("heading", { name: "Ravi Menon", hidden: true });
+    finish(ok({ lead: testLead({ id: "l1", name: "Aisha Khan", stageId: "s-won" }) }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByRole("heading", { name: "Ravi Menon", hidden: true })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Aisha Khan", hidden: true })).toBeNull();
+    expect(d.onChanged).toHaveBeenCalledWith(expect.objectContaining({ id: "l1", stageId: "s-won" }));
+  });
+});

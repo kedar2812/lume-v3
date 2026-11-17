@@ -362,3 +362,28 @@ describe("DayFull: third review (2026-11-16)", () => {
     expect(document.querySelector("[data-day-panel]")!.closest('[role="dialog"]')).toBe(dialog());
   });
 });
+
+describe("DayFull: bug hunt (2026-11-17)", () => {
+  it("Show and View are one Tab stop each, and the arrow keys choose within them", () => {
+    render(<Page />);
+    const view = within(dialog()).getByRole("radiogroup", { name: "View" });
+    const [timeline, list] = within(view).getAllByRole("radio");
+    // Only the chosen option is in the Tab order (a radio group, not a row of buttons).
+    expect(timeline).toHaveAttribute("aria-checked", "true");
+    expect(timeline).toHaveAttribute("tabindex", "0");
+    expect(list).toHaveAttribute("tabindex", "-1");
+    act(() => timeline!.focus());
+    fireEvent.keyDown(timeline!, { key: "ArrowRight" });
+    expect(list).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(list);
+    fireEvent.keyDown(list!, { key: "ArrowRight" }); // wraps round
+    expect(timeline).toHaveAttribute("aria-checked", "true");
+    const show = within(dialog()).getByRole("radiogroup", { name: "Show" });
+    const all = within(show).getByRole("radio", { name: "All" });
+    act(() => all.focus());
+    fireEvent.keyDown(all, { key: "ArrowLeft" }); // wraps to the last kind
+    const last = within(show).getAllByRole("radio").at(-1)!;
+    expect(last).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(last);
+  });
+});

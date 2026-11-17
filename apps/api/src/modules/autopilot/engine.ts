@@ -52,7 +52,7 @@ import { loadFieldRegistry } from "../../leads/fields";
 import { heldBack } from "../../licence/enforce";
 import { loadActor } from "../../rbac/actor";
 import { openStages, filesOf } from "../ai/profile";
-import { aiLeadsRoom, aiStatus, runRead, startAiLead } from "../ai/service";
+import { aiLeadsRoom, aiStatus, available, runRead, startAiLead } from "../ai/service";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { setDoNotContact } from "../leads/dnc";
 import { contextFor } from "../leads/sending";
@@ -265,6 +265,9 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
         .from(schema.whatsappNumbers)
         .where(eq(schema.whatsappNumbers.id, run.numberId));
       if (!number || number.status !== "active") return (await pauseRun(pool, runId, "number")) ? 1 : 0;
+      // LUME AI switched off (by an admin, or a plan without it): nothing goes, read or not. A run whose one fitting
+      // template needs no read would otherwise keep sending with LUME AI off (bug hunt 2026-11-17).
+      if (!(await available(req, o.d)).ok) return (await pauseRun(pool, runId, "person")) ? 1 : 0;
       if (number.quality === "yellow" || number.quality === "red")
         return (await pauseRun(pool, runId, "quality")) ? 1 : 0;
 
@@ -995,7 +998,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   // (unsent.ts) is a new message, not the held one.
   const key = (part: string) =>
     messageKey(run.id, l.leadId, `${now.lastSentAt?.getTime() ?? 0}:${now.updatedAt.getTime()}:${part}`);
-  const auto = { runId: run.id };
+  const auto = { runId: run.id, numberId: run.numberId };
   let booked: Booked | null = null;
   try {
     await req.db.execute(sql`SAVEPOINT autopilot_send`);

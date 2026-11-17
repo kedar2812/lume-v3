@@ -441,8 +441,8 @@ async function uploaded(
 export async function applyStatuses(pool: pg.Pool, statuses: WaStatus[]): Promise<void> {
   if (!statuses.length) return;
   await allScope(pool, async (c) => {
-    for (const s of statuses)
-      await c.query(
+    for (const s of statuses) {
+      const r = await c.query<{ lead_id: string; run_as: string }>(
         `UPDATE whatsapp_outbox o SET status = $2, problem = $3, updated_at = now()
           WHERE o.wamid = $1
             AND o.number_id IN (SELECT id FROM whatsapp_numbers WHERE phone_number_id = $4)
@@ -452,8 +452,20 @@ export async function applyStatuses(pool: pg.Pool, statuses: WaStatus[]): Promis
                        (CASE o.status WHEN 'queued' THEN 0 WHEN 'sending' THEN 1 WHEN 'sent' THEN 2
                                       WHEN 'delivered' THEN 3 WHEN 'read' THEN 4 END)
                        < (CASE $2 WHEN 'sent' THEN 2 WHEN 'delivered' THEN 3 WHEN 'read' THEN 4 END)
-                END`,
+                END
+          RETURNING o.lead_id, (SELECT n.run_as FROM whatsapp_numbers n WHERE n.id = o.number_id) AS run_as`,
         [s.wamid, s.status, s.status === "failed" ? refusalOf(s.errorCode).words : null, s.phoneNumberId],
       );
+      // Marketing turned off, said in a status after Meta took the message (not at the send): the lead is marked the
+      // same, so no marketing template is offered or sent to them again (bug hunt 2026-11-17).
+      // Written as the number's own person, as LUME's WhatsApp work is (a lead changes only with someone behind it).
+      if (s.status === "failed" && s.errorCode === 131050 && r.rows[0]) {
+        await c.query("SELECT set_config('lume.user_id', $1, true)", [r.rows[0].run_as]);
+        await c.query(
+          "UPDATE leads SET whatsapp_marketing_off_at = now() WHERE id = $1 AND whatsapp_marketing_off_at IS NULL",
+          [r.rows[0].lead_id],
+        );
+      }
+    }
   });
 }

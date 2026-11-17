@@ -1,5 +1,13 @@
 "use client";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { IconButton } from "@/components/ui/IconButton";
@@ -331,14 +339,32 @@ function Segmented<T extends string>({
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
 }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const at = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
+  // A radio group: one Tab stop (the chosen option), the arrow keys choose within it and wrap round.
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const next = (at + step + options.length) % options.length;
+    onChange(options[next]!.value);
+    refs.current[next]?.focus();
+  };
   return (
-    <div role="radiogroup" aria-label={label} className={s.seg}>
-      {options.map((o) => (
+    <div role="radiogroup" aria-label={label} className={s.seg} onKeyDown={onKey}>
+      {options.map((o, i) => (
         <button
           key={o.value}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
           type="button"
           role="radio"
           aria-checked={o.value === value}
+          tabIndex={i === at ? 0 : -1}
           className={s.segOpt}
           onClick={() => onChange(o.value)}
         >

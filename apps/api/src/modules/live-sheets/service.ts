@@ -156,6 +156,8 @@ async function viewsOf(req: FastifyRequest, ids?: string[]) {
       run: run ? { total: run.total, written: run.written, status: run.status } : null,
       madeBy: { id: r.madeBy, name: people.get(r.madeBy) ?? "Someone" },
       runsAs: { id: r.runsAs, name: people.get(r.runsAs) ?? "Someone" },
+      /** Whether this person may change it (Edit, Pause, Resume, Make it again, Delete): see `locked`. */
+      canChange: mayChange(req, r),
       createdAt: r.createdAt.toISOString(),
     };
   });
@@ -279,13 +281,29 @@ export async function createSheet(req: FastifyRequest, d: AppDeps, body: z.infer
   return oneSheet(req, id);
 }
 
-async function locked(req: FastifyRequest, id: string) {
+/** Who made it, who it runs as, or someone who manages people (the owner too). */
+const mayChange = (req: FastifyRequest, s: { madeBy: string; runsAs: string }) => {
+  const a = req.actor!;
+  return s.madeBy === a.userId || s.runsAs === a.userId || a.isOwner || can(a, "users.manage");
+};
+
+/**
+ * A live sheet, locked for a change. Only who made it, who it runs as, or someone who manages people may change it
+ * (`change`): it runs with its runner's reach and writes into their Google file, so anyone else widening its rule
+ * would push leads they may not see, do not contact included (bug hunt 2026-11-17). Update now is anyone's.
+ */
+async function locked(req: FastifyRequest, id: string, change = true) {
   const [s] = await req.db
     .select()
     .from(LS)
     .where(and(eq(LS.id, id), isNull(LS.deletedAt)))
     .for("update");
   if (!s) throw notFound("LIVE_SHEET_NOT_FOUND", "That live sheet isn't here any more.");
+  if (change && !mayChange(req, s))
+    throw forbidden(
+      "LIVE_SHEET_NOT_YOURS",
+      "Only whoever made this live sheet, or someone who manages people, can change it.",
+    );
   return s;
 }
 
@@ -328,7 +346,7 @@ export async function editSheet(req: FastifyRequest, d: AppDeps, id: string, bod
 
 export async function runSheet(req: FastifyRequest, d: AppDeps, id: string) {
   await requireLiveSheets(req, d);
-  await locked(req, id);
+  await locked(req, id, false);
   await runNow(req, d, id, "now");
   return oneSheet(req, id);
 }

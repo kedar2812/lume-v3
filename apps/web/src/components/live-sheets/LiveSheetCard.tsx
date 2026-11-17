@@ -126,7 +126,7 @@ export function LiveSheetCard({
               </Button>
             </div>
           )}
-          {pause.fix === "remake" && (
+          {pause.fix === "remake" && sheet.canChange && (
             <div>
               <Button
                 size="sm"
@@ -177,10 +177,13 @@ export function LiveSheetCard({
         >
           Update now
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => onEdit(sheet)}>
-          Edit
-        </Button>
-        {sheet.pauseReason === "paused_by_person" ? (
+        {/* Someone else's sheet: Update now and the link only (the API refuses the rest: bug hunt 2026-11-17). */}
+        {sheet.canChange && (
+          <Button size="sm" variant="ghost" onClick={() => onEdit(sheet)}>
+            Edit
+          </Button>
+        )}
+        {!sheet.canChange ? null : sheet.pauseReason === "paused_by_person" ? (
           <Button
             size="sm"
             variant="ghost"
@@ -202,9 +205,11 @@ export function LiveSheetCard({
           )
         )}
         <span className={s.grow} />
-        <Button size="sm" variant="ghost" onClick={() => setDeleting(true)}>
-          Delete
-        </Button>
+        {sheet.canChange && (
+          <Button size="sm" variant="ghost" onClick={() => setDeleting(true)}>
+            Delete
+          </Button>
+        )}
       </footer>
 
       {deleting && (

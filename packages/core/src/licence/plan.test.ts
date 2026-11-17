@@ -42,6 +42,8 @@ describe("the plan in the signed answer", () => {
       "whatsapp",
     ]);
     expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6"]);
+    // The licence server takes at most 64 (apps/licence check.ts): well within it (bug hunt 2026-11-17).
+    expect(ACCEPTS.length).toBeLessThanOrEqual(32);
   });
   it("W3b-2: a monthly limit on paid WhatsApp messages, within bounds", () => {
     const sign = (p: unknown) =>

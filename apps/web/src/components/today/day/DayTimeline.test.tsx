@@ -249,7 +249,7 @@ describe("DayTimeline: drag to move", () => {
   });
 
   it("let go mid-flick, it carries on and slows to a stop", () => {
-    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance", "Date"] });
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
     render(<Held items={[fu("a", 12)]} start={140} />);
     const s = scroller();
     act(() => {
@@ -314,7 +314,7 @@ describe("DayTimeline: review fixes (2026-11-15)", () => {
   });
 
   it("a flick, then a hold, then letting go: it stays where it was put", () => {
-    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance", "Date"] });
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
     render(<Held items={[fu("a", 12)]} start={140} />);
     const s = scroller();
     act(() => {
@@ -344,7 +344,7 @@ describe("DayTimeline: review fixes (2026-11-15)", () => {
   });
 
   it("a plain mouse wheel moves the day sideways (smoothly) when there's nothing to scroll up and down", () => {
-    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance"] });
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
     render(<Held items={[fu("a", 12)]} start={140} />);
     const s = scroller();
     const from = s.scrollLeft;
@@ -507,7 +507,7 @@ describe("DayTimeline: second review (2026-11-15)", () => {
   });
 
   it("a wheel during the give at an end puts the day back in place", () => {
-    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance", "Date"] });
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
     render(<Held items={[fu("a", 12)]} start={140} />);
     const s = scroller();
     const canvas = document.querySelector("[data-day-canvas]") as HTMLElement;
@@ -533,6 +533,34 @@ describe("DayTimeline: second review (2026-11-15)", () => {
   });
 });
 
+describe("DayTimeline: bug hunt (2026-11-17)", () => {
+  it("a plain wheel during the give at an end lets it ease back (no snap) and still moves the day", () => {
+    // cancelAnimationFrame faked too: with only requestAnimationFrame faked, a cancel does nothing and hid the snap.
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
+    render(<Held items={[fu("a", 12)]} start={140} />);
+    const s = scroller();
+    const canvas = document.querySelector("[data-day-canvas]") as HTMLElement;
+    act(() => {
+      s.scrollLeft = 0;
+      mouse(s, "pointerdown", 300);
+      mouse(s, "pointermove", 400); // past the start: it gives
+      mouse(s, "pointerup", 400); // and starts settling back
+    });
+    act(() => vi.advanceTimersByTime(16));
+    const giving = parseFloat(canvas.style.transform.slice(11));
+    expect(giving).toBeGreaterThan(0);
+    act(() => {
+      s.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 100 }));
+    });
+    act(() => vi.advanceTimersByTime(16));
+    // Still easing back, not snapped home in one frame.
+    expect(parseFloat(canvas.style.transform.slice(11) || "0")).toBeGreaterThan(0);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(canvas.style.transform).toBe("");
+    expect(s.scrollLeft).toBeCloseTo(100, 0);
+  });
+});
+
 /** A real browser keeps scrollLeft in whole pixels (jsdom keeps fractions, which hid a never-ending ease). */
 function wholePixels(el: HTMLElement) {
   let v = el.scrollLeft;
@@ -547,7 +575,7 @@ function wholePixels(el: HTMLElement) {
 
 describe("DayTimeline: third review (2026-11-16)", () => {
   it("the wheel's ease ends with whole-pixel scrolling, and lets go of the timeline when it's done", () => {
-    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance"] });
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
     render(<Held items={[fu("a", 12)]} start={140} />);
     const s = scroller();
     wholePixels(s);
@@ -567,7 +595,7 @@ describe("DayTimeline: third review (2026-11-16)", () => {
   });
 
   it("a scroll the wheel didn't cause (a zoom button, the keyboard) stops the ease at once", () => {
-    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "performance"] });
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
     render(<Held items={[fu("a", 12)]} start={140} />);
     const s = scroller();
     wholePixels(s);

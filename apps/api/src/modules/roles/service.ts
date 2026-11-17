@@ -1,6 +1,15 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { PERMISSIONS, can, isPermissionKey, newId, permissionDef, type Scope } from "@lume/core";
+import {
+  FIELD_ACCESS_RANK,
+  PERMISSIONS,
+  can,
+  isPermissionKey,
+  newId,
+  permissionDef,
+  type FieldAccess,
+  type Scope,
+} from "@lume/core";
 import { schema, type LoginHours } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { normaliseNetworks } from "../../auth/networks";
@@ -166,7 +175,12 @@ export async function listAssignableRoles(req: FastifyRequest) {
 
 export const readRole = async (req: FastifyRequest, id: string) => ({ role: await getRole(req, id) });
 
-export async function createRole(req: FastifyRequest, input: RoleInput) {
+export async function createRole(
+  req: FastifyRequest,
+  input: RoleInput,
+  /** A copy's field access (cloneRole): kept, never wider than the maker's own. */
+  fieldAccess: { fieldId: string; access: FieldAccess }[] = [],
+) {
   const grants = normaliseGrants(input.grants);
   assertCanGrant(req, grants);
   await assertNameFree(req, input.name);
@@ -181,6 +195,18 @@ export async function createRole(req: FastifyRequest, input: RoleInput) {
     createdBy: req.actor!.userId,
   });
   await writeGrants(req, id, grants);
+  // A new role starts no wider than its maker sees fields (bug hunt 2026-11-17): fields hidden from them, or view
+  // only, are so here too; a copy keeps its own, narrowed the same way. The owner sees everything.
+  const narrowest = new Map<string, FieldAccess>(fieldAccess.map((f) => [f.fieldId, f.access]));
+  if (!req.actor!.isOwner)
+    for (const [fieldId, mine] of req.actor!.fieldAccess) {
+      const given = narrowest.get(fieldId) ?? "edit";
+      narrowest.set(fieldId, FIELD_ACCESS_RANK[mine] < FIELD_ACCESS_RANK[given] ? mine : given);
+    }
+  const rows = [...narrowest]
+    .filter(([, a]) => a !== "edit")
+    .map(([fieldId, access]) => ({ roleId: id, fieldId, access }));
+  if (rows.length) await req.db.insert(schema.roleFieldAccess).values(rows);
   await audit(req, {
     action: "role.created",
     entityType: "role",
@@ -282,6 +308,13 @@ export async function deleteRole(
         if (people.to === "offboard") await offboard(req, d, h.id, people.leads);
         else await eraseAccount(req, d, h.id, people.leads);
     } else {
+      // Moving yourself out of a role you hold is changing your own roles (its sign-in hours and networks with it):
+      // the owner's, or Security's, as on the person's own page (bug hunt 2026-11-17).
+      if (holders.some((h) => h.id === actor.userId) && !actor.isOwner && !can(actor, "security.manage"))
+        throw forbidden(
+          "OWN_ROLES",
+          "You can't change your own roles. The owner, or someone who manages security, can.",
+        );
       await assertCanAssignRoles(req, [moveTo!]);
       // Move holders (skip anyone who already has the replacement), then drop the old links.
       await req.db.execute(
@@ -315,12 +348,17 @@ export async function deleteRole(
 
 export async function cloneRole(req: FastifyRequest, id: string, name: string) {
   const src = await getRole(req, id);
-  return createRole(req, {
-    name,
-    description: src.description,
-    color: src.color,
-    grants: src.grants,
-    loginHours: src.loginHours,
-    ipAllowlist: src.ipAllowlist,
-  });
+  // Its field access too (bug hunt 2026-11-17): a copy without it showed every field the original hid.
+  return createRole(
+    req,
+    {
+      name,
+      description: src.description,
+      color: src.color,
+      grants: src.grants,
+      loginHours: src.loginHours,
+      ipAllowlist: src.ipAllowlist,
+    },
+    src.fieldAccess as { fieldId: string; access: FieldAccess }[],
+  );
 }

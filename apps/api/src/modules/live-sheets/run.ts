@@ -125,7 +125,12 @@ async function written(pool: pg.Pool, sheetId: string): Promise<Written[]> {
 }
 
 /** Of these leads, the ones that still exist in LUME (any reach): the privacy pass, which only ever removes. */
-async function existing(pool: pg.Pool, runsAs: string, ids: string[]): Promise<Set<string>> {
+async function existing(
+  pool: pg.Pool,
+  runsAs: string,
+  ids: string[],
+  dropDnc: boolean,
+): Promise<Set<string>> {
   if (!ids.length) return new Set();
   const c = await pool.connect();
   try {
@@ -134,8 +139,8 @@ async function existing(pool: pg.Pool, runsAs: string, ids: string[]): Promise<S
       runsAs,
     ]);
     const { rows } = await c.query<{ id: string }>(
-      "SELECT id FROM leads WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL",
-      [ids],
+      "SELECT id FROM leads WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL AND (NOT $2 OR dnc_at IS NULL)",
+      [ids, dropDnc],
     );
     await c.query("COMMIT");
     return new Set(rows.map((r) => r.id));
@@ -371,10 +376,13 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
     if (reason) {
       if (made) {
         const was = await written(pool, sheet.id);
+        // Do-not-contact leads leave too when its rule leaves them out (bug hunt 2026-11-17).
+        const dropDnc = !(liveSheetRuleSchema.parse(sheet.rule) as LiveSheetRule).includeDnc;
         const there = await existing(
           pool,
           sheet.runs_as,
           was.filter((w) => !w.removedByHand).map((w) => w.leadId),
+          dropDnc,
         );
         const gone = was.filter((w) => !w.removedByHand && !there.has(w.leadId)).map((w) => w.leadId);
         if (gone.length) {
@@ -400,6 +408,7 @@ async function runClaimed(o: RunOptions, trigger: string): Promise<RunResult> {
         const there = await stillThere(
           req,
           was.map((w) => w.leadId),
+          !rule.includeDnc,
         );
         const names = await namesFor(req, rule);
         return { desired, there, names };

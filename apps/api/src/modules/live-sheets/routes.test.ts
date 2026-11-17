@@ -228,6 +228,30 @@ describe("changing a live sheet", () => {
     expect(no.statusCode).toBe(403);
   });
 
+  it("someone else who makes live sheets can't change, pause, resume, remake or delete it; Update now still works (bug hunt 2026-11-17)", async () => {
+    const id = await fresh();
+    const other = await h.seedUser({
+      grants: ALL_GRANTS.filter((g) => g.key !== "users.manage" && g.key !== "settings.manage"),
+      totp: true,
+      name: "Omar Shaikh",
+    });
+    const c = await h.signIn(other);
+    for (const [method, url, payload] of [
+      ["PATCH", `/api/v1/live-sheets/${id}`, { rule: rule({ includeDnc: true }) }],
+      ["POST", `/api/v1/live-sheets/${id}/pause`, undefined],
+      ["POST", `/api/v1/live-sheets/${id}/resume`, undefined],
+      ["POST", `/api/v1/live-sheets/${id}/remake`, undefined],
+      ["DELETE", `/api/v1/live-sheets/${id}`, undefined],
+    ] as const) {
+      const r = await call(c, method, url, payload);
+      expect(r.statusCode, `${method} ${url}: ${r.body}`).toBe(403);
+    }
+    const s = (await call(admin, "GET", `/api/v1/live-sheets/${id}`)).json().sheet;
+    expect(s.status).toBe("live");
+    expect(s.rule.includeDnc).toBe(false);
+    expect((await call(c, "POST", `/api/v1/live-sheets/${id}/run`)).statusCode).toBe(200);
+  });
+
   it("Delete stops it and leaves the file, or moves the file to Google's bin when asked", async () => {
     const keep = await fresh();
     const keepUrl = (await call(admin, "GET", `/api/v1/live-sheets/${keep}`)).json().sheet.url as string;

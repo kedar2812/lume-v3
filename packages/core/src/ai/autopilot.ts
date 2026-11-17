@@ -142,6 +142,19 @@ const STOP_ANYWHERE = [
   "stop sending",
   "stop texting",
   "stop contacting",
+  "stop msg",
+  "stop msgs",
+  "stop message",
+  "stop messages",
+  "dont send me messages",
+  "don't send me messages",
+  "do not send me messages",
+  "dont send me any more",
+  "don't send me any more",
+  "do not send me any more",
+  "dont send me anymore",
+  "don't send me anymore",
+  "do not send me anymore",
   "unsubscribe",
   "dont message",
   "don't message",
@@ -171,6 +184,11 @@ const STOP_ANYWHERE = [
  * unsure, to a person (review 2026-10-26 A8).
  */
 const STOP_ENDING = [
+  // "Stop" and "opt out" with a courtesy around them ("Stop, thanks", "pls stop", "I want to opt out"): only as the
+  // message's end, so "can you stop by?" and "opt out of the EMI plan?" aren't stops (bug hunt 2026-11-17).
+  "stop",
+  "opt out",
+  "optout",
   "not interested",
   "no longer interested",
   "nahi chahiye",
@@ -178,9 +196,10 @@ const STOP_ENDING = [
   "pas intéressé",
   "pas interesse",
 ];
-const COURTESY_BEFORE = /^(?:(?:sorry|thanks|thank you|no|ok|okay|hi|hello|i'm|im|i am|we're|we are|i)\s+)+$/;
+const COURTESY_BEFORE =
+  /^(?:(?:sorry|thanks|thank you|no|ok|okay|hi|hello|i'm|im|i am|we're|we are|i|pls|plz|please|kindly|just|want to|wanna|would like to|i'd like to)\s+)+$/;
 const COURTESY_AFTER =
-  /(?:\s+(?:anymore|any more|now|thanks|thank you|thankyou|gracias|merci|dhanyavad|shukriya|sorry|bhai|ji))*$/;
+  /(?:\s+(?:anymore|any more|now|thanks|thank you|thankyou|gracias|merci|dhanyavad|shukriya|sorry|bhai|ji|pls|plz|please|it))*$/;
 
 /**
  * Whether a lead's message says stop (§3: stop means stop, in any words). Conservative on purpose: "stop" alone is a

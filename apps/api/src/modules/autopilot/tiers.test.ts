@@ -1,5 +1,5 @@
 import { ALL_GRANTS, AUTOPILOT_PRESETS, newId, type AutopilotReply, type PlanTier } from "@lume/core";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { inbound } from "../../../../../packages/core/src/whatsapp/fixtures";
 import { createHarness, type Harness } from "../../../test/harness";
 import { ALL_MODULES, testLicence } from "../../../test/licence-plan";
@@ -337,5 +337,72 @@ describe("the plan as people see it, and asking about the next one", () => {
     expect((await post("/api/v1/plan/ask", { tier: "gold" })).statusCode).toBe(400);
     expect((await post("/api/v1/plan/ask", { tier: "enterprise" }, rep)).statusCode).toBe(403);
     expect(asked).toHaveLength(0);
+  });
+});
+
+describe("LUME AI switched off under a running run (bug hunt 2026-11-17)", () => {
+  const runStatus = async (run: string) =>
+    (
+      await h.queryAll<{ status: string; pause_reason: string | null }>(
+        "SELECT status, pause_reason FROM autopilot_runs WHERE id = $1",
+        [run],
+      )
+    )[0]!;
+  const switchAi = async (enabled: boolean) =>
+    (await as(admin)).inject({ method: "PUT", url: "/api/v1/integrations/ai", payload: { enabled } });
+  afterEach(async () => {
+    await onTier(null);
+    await switchAi(true);
+  });
+
+  it("an admin switches LUME AI off: the run pauses and no template goes, even with one that fits (no read)", async () => {
+    await onTier("pro");
+    const run = await startRun([await lead("Kavya Iyer"), await lead("Dev Malhotra")]);
+    expect((await switchAi(false)).statusCode).toBeLessThan(300);
+    await sendNext();
+    await sendNext();
+    expect(meta.sent).toHaveLength(0);
+    expect(await runStatus(run)).toEqual({ status: "paused", pause_reason: "person" });
+  });
+
+  it("the plan drops to Base: the run pauses and no template goes", async () => {
+    await onTier("pro");
+    const run = await startRun([await lead("Meera Joshi")]);
+    await onTier("base");
+    await sendNext();
+    expect(meta.sent).toHaveLength(0);
+    expect((await runStatus(run)).status).toBe("paused");
+  });
+});
+
+describe("a run's own number (bug hunt 2026-11-17)", () => {
+  it("a run's template goes from the run's number, which its cap and quality checks watch, not the lead owner's", async () => {
+    await onTier(null);
+    const theirs = await seedNumber(h, { runAs: rep.id, owner: rep.id, phoneNumberId: "222000111" });
+    // seedNumber resets the WhatsApp settings: reply from LUME back on, as the file's setup has it.
+    await (
+      await as(admin)
+    ).inject({ method: "PUT", url: "/api/v1/integrations/whatsapp", payload: { replyFromLume: true } });
+    try {
+      const kavya = await lead("Kavya Rao");
+      const run = await startRun([kavya]);
+      await sendNext();
+      const [r] = await h.queryAll<{ number_id: string }>(
+        "SELECT number_id FROM autopilot_runs WHERE id = $1",
+        [run],
+      );
+      const sent = await h.queryAll<{ number_id: string }>(
+        "SELECT number_id FROM whatsapp_outbox WHERE lead_id = $1",
+        [kavya],
+      );
+      expect(sent).toHaveLength(1);
+      expect(r!.number_id).not.toBe(theirs);
+      expect(sent[0]!.number_id).toBe(r!.number_id);
+    } finally {
+      await h.ownerPool.query(
+        "UPDATE whatsapp_numbers SET status = 'disconnected', token_enc = NULL WHERE id = $1",
+        [theirs],
+      );
+    }
   });
 });

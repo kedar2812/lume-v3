@@ -1,7 +1,7 @@
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { noteAssigned } from "../notifications/notify";
-import { canOnRecord, maskPhone, newId, scopeOf } from "@lume/core";
+import { canOnRecord, fieldAccessOf, maskPhone, newId, scopeOf } from "@lume/core";
 import { schema } from "@lume/db";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, forbidden } from "../../http/errors";
@@ -264,9 +264,30 @@ export async function listActivities(
   const page = rows.slice(0, q.limit);
   // Contacts inside a payload (an import's extra numbers) follow the same masking as the lead's own.
   const full = canOnRecord(req.actor!, "leads.contact.full", lead.ownerId);
+  // Answers kept word for word (not filed) for a field hidden from this person never show: they're its value, under
+  // its label (bug hunt 2026-11-17). Matched by label, as that's what an unfiled answer keeps.
+  const fields = await loadFieldRegistry(req);
+  const hiddenLabels = new Set(
+    fields.defs
+      .filter((f) => fieldAccessOf(req.actor!.fieldAccess, f.id) === "hidden")
+      .map((f) => f.label.trim().toLowerCase()),
+  );
   const masked = (payload: unknown) => {
-    const p = payload as Record<string, unknown> | null;
-    if (full || !p || !Array.isArray(p.extraPhones)) return payload;
+    let p = payload as Record<string, unknown> | null;
+    if (!p) return payload;
+    if (hiddenLabels.size && Array.isArray(p.unfiled))
+      p = {
+        ...p,
+        unfiled: (p.unfiled as { label?: unknown }[]).filter(
+          (u) =>
+            !hiddenLabels.has(
+              String(u?.label ?? "")
+                .trim()
+                .toLowerCase(),
+            ),
+        ),
+      };
+    if (full || !Array.isArray(p.extraPhones)) return p;
     return { ...p, extraPhones: p.extraPhones.map((raw) => maskPhone({ e164: null, raw: String(raw) })) };
   };
   return {

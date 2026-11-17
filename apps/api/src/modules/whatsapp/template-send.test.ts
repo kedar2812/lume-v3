@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { inbound } from "../../../../../packages/core/src/whatsapp/fixtures";
+import { inbound, statuses } from "../../../../../packages/core/src/whatsapp/fixtures";
 import { createHarness, type Harness } from "../../../test/harness";
 import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { deliver, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
@@ -239,6 +239,26 @@ describe("an approved template to any lead", () => {
     expect((await state(rep, lead)).options.map((o: { submissionId: string }) => o.submissionId)).toEqual([
       reminder,
     ]);
+    expect((await sendTemplate(rep, lead, marketing)).json().error.code).toBe("MARKETING_OFF");
+  });
+
+  it("marketing turned off, said later in a status (not at the send): marked the same (bug hunt 2026-11-17)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    const marketing = await approved("Hello there, this is the studio. Shall we talk this week?");
+    expect((await sendTemplate(rep, lead, marketing)).statusCode).toBe(202);
+    await h.runWhatsAppSend();
+    const [sent] = await h.queryAll<{ wamid: string }>(
+      "SELECT wamid FROM whatsapp_outbox WHERE lead_id = $1",
+      [lead],
+    );
+    expect(sent!.wamid).toBeTruthy();
+    await deliver(h, statuses({ id: sent!.wamid, status: "failed", code: 131050 }));
+    await h.runWhatsApp();
+    const [l] = await h.queryAll<{ off: Date | null }>(
+      "SELECT whatsapp_marketing_off_at AS off FROM leads WHERE id = $1",
+      [lead],
+    );
+    expect(l!.off).not.toBeNull();
     expect((await sendTemplate(rep, lead, marketing)).json().error.code).toBe("MARKETING_OFF");
   });
 

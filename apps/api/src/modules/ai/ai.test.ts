@@ -115,7 +115,7 @@ beforeAll(async () => {
     aiTimeoutMs: 200,
     extraRoutes: (app, d) => {
       deps = d;
-      app.post<{ Params: { id: string }; Querystring: { task?: AiTask } }>(
+      app.post<{ Params: { id: string }; Querystring: { task?: AiTask; cleanThrows?: string } }>(
         "/test/ai-read/:id",
         { config: { permission: "leads.view" } },
         (req) =>
@@ -127,6 +127,14 @@ beforeAll(async () => {
             input: "{}",
             schema: nextStepOutput,
             maxOutputTokens: 500,
+            // A cleaner that throws on an answer it didn't expect (bug hunt 2026-11-17).
+            ...(req.query.cleanThrows
+              ? {
+                  clean: () => {
+                    throw new Error("an answer the cleaner didn't expect");
+                  },
+                }
+              : {}),
           }),
       );
     },
@@ -454,6 +462,13 @@ describe("what a read cost", () => {
     };
     await read();
     expect(await rows()).toEqual([{ status: "failed", input_tokens: 0, output_tokens: 0 }]);
+  });
+
+  it("an answer the cleaner throws on is kept failed with what it was billed, not left pending (2026-11-17)", async () => {
+    const res = await (await rep()).inject({ method: "POST", url: `/test/ai-read/${lead}?cleanThrows=1` });
+    expect(res.json()).toEqual({ unavailable: "failed" });
+    expect(await rows()).toEqual([{ status: "failed", input_tokens: 100, output_tokens: 30 }]);
+    expect((await spendFor(rep)).month.used).toBe(0); // in the spend, not against the allowance
   });
 
   it("a rep's spend is the whole business's, reads on leads they can't see included", async () => {

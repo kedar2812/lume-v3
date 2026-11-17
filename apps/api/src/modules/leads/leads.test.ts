@@ -133,6 +133,44 @@ describe("reading leads (report §4.4, §7.4)", () => {
     );
   });
 
+  it("an answer kept word for word (not filed) for a field hidden from you isn't in the lead's history (bug hunt 2026-11-17)", async () => {
+    const cfg = await h.config();
+    const u = await h.seedUser({ grants: [...SALES] });
+    const {
+      rows: [role],
+    } = await h.pool.query("SELECT role_id FROM user_roles WHERE user_id = $1", [u.id]);
+    await admin.inject({
+      method: "PUT",
+      url: `/api/v1/roles/${role.role_id}/field-access`,
+      payload: { entries: [{ fieldId: cfg.fields.value, access: "hidden" }] },
+    });
+    await h.waitForRbacNotify();
+    const [{ label }] = (
+      await h.pool.query<{ label: string }>("SELECT label FROM field_definitions WHERE id = $1", [
+        cfg.fields.value,
+      ])
+    ).rows as [{ label: string }];
+    const lead = await h.seedLead({ ownerId: u.id, name: "Budget unread" });
+    await h.queryAll(
+      "INSERT INTO activities (id, lead_id, type, occurred_at, payload) VALUES (gen_random_uuid(), $1, 'imported', now(), $2::jsonb)",
+      [
+        lead,
+        JSON.stringify({
+          unfiled: [
+            { label, value: "50k-1L" },
+            { label: "Goal", value: "Lose 5 kg" },
+          ],
+        }),
+      ],
+    );
+    const c = await h.signIn(u);
+    const r = await c.inject({ method: "GET", url: `/api/v1/leads/${lead}/activities` });
+    expect(r.statusCode, r.body).toBe(200);
+    const imported = r.json().items.find((a: { type: string }) => a.type === "imported");
+    expect(imported.payload.unfiled).toEqual([{ label: "Goal", value: "Lose 5 kg" }]);
+    expect(r.body).not.toContain("50k-1L");
+  });
+
   it("a hidden field can't be learned another way: no totals of a hidden value, no filtering by a hidden field (review L7, L8)", async () => {
     const cfg = await h.config();
     const u = await h.seedUser({ grants: [...SALES] });

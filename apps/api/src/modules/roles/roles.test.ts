@@ -262,3 +262,106 @@ describe("roles admin (report §7.1)", () => {
     expect(same.statusCode).toBe(201);
   });
 });
+
+describe("field access can't grow through roles (bug hunt 2026-11-17)", () => {
+  const valueField = async () =>
+    (await h.pool.query<{ id: string }>("SELECT id FROM field_definitions WHERE key = 'value'")).rows[0]!.id;
+  const roleOf = async (userId: string) =>
+    (await h.pool.query<{ role_id: string }>("SELECT role_id FROM user_roles WHERE user_id = $1", [userId]))
+      .rows[0]!.role_id;
+  const hideValueOn = async (roleId: string) => {
+    const r = await admin.inject({
+      method: "PUT",
+      url: `/api/v1/roles/${roleId}/field-access`,
+      payload: { entries: [{ fieldId: await valueField(), access: "hidden" }] },
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    await h.waitForRbacNotify();
+  };
+
+  it("a copy keeps the field access of the role it's copied from (and so does Move them to a new role)", async () => {
+    const src = (
+      await admin.inject({
+        method: "POST",
+        url: "/api/v1/roles",
+        payload: { name: "Hides value", grants: [] },
+      })
+    ).json().role.id as string;
+    await hideValueOn(src);
+    const copy = await admin.inject({
+      method: "POST",
+      url: `/api/v1/roles/${src}/clone`,
+      payload: { name: "Hides value copy" },
+    });
+    expect(copy.statusCode, copy.body).toBeLessThan(300);
+    expect(copy.json().role.fieldAccess).toEqual([{ fieldId: await valueField(), access: "hidden" }]);
+  });
+
+  it("someone whose own role hides a field: a role they make starts with it hidden, and they can't hand out a role that shows it", async () => {
+    const m = await h.seedUser({
+      grants: [
+        { key: "roles.manage", scope: null },
+        { key: "users.manage", scope: null },
+        { key: "leads.view", scope: "own" },
+      ],
+      totp: true,
+    });
+    await hideValueOn(await roleOf(m.id));
+    const c = await h.signIn(m);
+    const made = await c.inject({
+      method: "POST",
+      url: "/api/v1/roles",
+      payload: { name: "Made by m", grants: [{ key: "leads.view", scope: "own" }] },
+    });
+    expect(made.statusCode, made.body).toBeLessThan(300);
+    expect(made.json().role.fieldAccess).toEqual([{ fieldId: await valueField(), access: "hidden" }]);
+    // A role that shows every field (made by the admin), handed to someone else by m: refused.
+    const open = (
+      await admin.inject({
+        method: "POST",
+        url: "/api/v1/roles",
+        payload: { name: "Shows all", grants: [{ key: "leads.view", scope: "own" }] },
+      })
+    ).json().role.id as string;
+    const other = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
+    const give = await c.inject({
+      method: "PATCH",
+      url: `/api/v1/users/${other.id}`,
+      payload: { roleIds: [open] },
+    });
+    expect(give.statusCode, give.body).toBe(403);
+    expect(give.json().error.code).toBe("ESCALATION");
+  });
+
+  it("deleting the role you hold can't move you somewhere without its sign-in limits", async () => {
+    const m = await h.seedUser({
+      grants: [
+        { key: "roles.manage", scope: null },
+        { key: "users.manage", scope: null },
+      ],
+      totp: true,
+    });
+    const mine = await roleOf(m.id);
+    await h.ownerPool.query(
+      `UPDATE roles SET login_hours = '{"days":[1,2,3,4,5],"from":"09:00","to":"18:00"}'::jsonb WHERE id = $1`,
+      [mine],
+    );
+    await h.waitForRbacNotify();
+    const free = (
+      await admin.inject({
+        method: "POST",
+        url: "/api/v1/roles",
+        payload: { name: "No limits", grants: [{ key: "roles.manage" }, { key: "users.manage" }] },
+      })
+    ).json().role.id as string;
+    const c = await h.signIn(m);
+    const r = await c.inject({
+      method: "DELETE",
+      url: `/api/v1/roles/${mine}`,
+      payload: { ...proof(m), people: { to: "role", roleId: free } },
+    });
+    expect(r.statusCode, r.body).toBe(403);
+    expect(r.json().error.code).toBe("OWN_ROLES");
+    expect(await roleOf(m.id)).toBe(mine);
+  });
+});

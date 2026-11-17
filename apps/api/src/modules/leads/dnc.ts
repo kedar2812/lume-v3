@@ -29,13 +29,24 @@ export async function setDoNotContact(
   const by = person ? req.actor!.userId : null;
   if (!lead.dncAt) await mark(req, leadId, { at, by, reason: o.reason, byAi: o.byAi, fromLead: o.fromLead });
   if (!person && lead.phoneE164) {
-    const L = schema.leads;
-    const twins = await req.db
-      .select({ id: L.id })
-      .from(L)
-      .where(and(eq(L.phoneE164, lead.phoneE164), ne(L.id, leadId), isNull(L.deletedAt), isNull(L.dncAt)));
-    // Each on its own timeline, as said on WhatsApp (the run, if any, was this lead's).
-    for (const t of twins) await mark(req, t.id, { at, by: null, reason: o.reason, fromLead: true });
+    // The person asked, not one lead: every lead with their number, whoever can see it. A run's work is in its
+    // speaker's reach (a rep: their own leads), so the reach is widened for this, in this transaction only, and put
+    // back (bug hunt 2026-11-17: a twin another rep owned stayed contactable).
+    const was = (
+      await req.db.execute<{ s: string | null }>(sql`SELECT current_setting('lume.lead_scope', true) AS s`)
+    ).rows[0]?.s;
+    await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
+    try {
+      const L = schema.leads;
+      const twins = await req.db
+        .select({ id: L.id })
+        .from(L)
+        .where(and(eq(L.phoneE164, lead.phoneE164), ne(L.id, leadId), isNull(L.deletedAt), isNull(L.dncAt)));
+      // Each on its own timeline, as said on WhatsApp (the run, if any, was this lead's).
+      for (const t of twins) await mark(req, t.id, { at, by: null, reason: o.reason, fromLead: true });
+    } finally {
+      await req.db.execute(sql`SELECT set_config('lume.lead_scope', ${was ?? ""}, true)`);
+    }
   }
   return {
     doNotContact: {

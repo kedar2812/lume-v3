@@ -43,6 +43,7 @@ const sheet = (over: Partial<LiveSheetView> = {}): LiveSheetView => ({
   lastSyncedAt: null,
   run: null,
   madeBy: { id: "u1", name: "Maya" },
+  canChange: true,
   runsAs: { id: "u1", name: "Maya" },
   createdAt: "2026-11-14T09:00:00Z",
   ...over,
