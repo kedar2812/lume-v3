@@ -205,17 +205,33 @@ describe("a booking (5B Task 6)", () => {
       name: "Stored Lead Name",
       email: "unowned@client.test",
     });
-    await deliver({ invitee: "UNO1", email: "unowned@client.test", name: "Typed Name" });
+    // New leads off: the booking only matches the lead, so it stays nobody's (review 2026-11-18: the test took
+    // whichever way the booking went, and passed without the fix).
+    await adminC.inject({
+      method: "PATCH",
+      url: "/api/v1/integrations/calendly",
+      payload: { createLeads: false },
+    });
+    try {
+      await deliver({ invitee: "UNO1", email: "unowned@client.test", name: "Typed Name" });
+    } finally {
+      await adminC.inject({
+        method: "PATCH",
+        url: "/api/v1/integrations/calendly",
+        payload: { createLeads: true },
+      });
+    }
+    expect(await meetingOf("UNO1")).toMatchObject({ lead_id: unowned });
+    expect(
+      (
+        await h.queryAll<{ owner_id: string | null }>("SELECT owner_id FROM leads WHERE id = $1", [unowned])
+      )[0]!.owner_id,
+    ).toBeNull();
     const [n] = await backup<{ title: string; lead_id: string | null }>(
       "SELECT title, lead_id FROM notifications WHERE kind = 'meeting_booked' AND user_id = $1 ORDER BY id DESC LIMIT 1",
       [host.id],
     );
-    const owned = (
-      await h.queryAll<{ owner_id: string | null }>("SELECT owner_id FROM leads WHERE id = $1", [unowned])
-    )[0]!.owner_id;
-    // Taken by the booking, it's the host's own and named; still nobody's, it isn't.
-    if (owned === null) expect(n).toEqual({ title: "Typed Name booked Discovery call", lead_id: null });
-    else expect(n!.title).toBe("Stored Lead Name booked Discovery call");
+    expect(n).toEqual({ title: "Typed Name booked Discovery call", lead_id: null });
   });
 
   it("someone already a lead (same email in any case, or the phone from the mapped question) is that lead, never a second", async () => {

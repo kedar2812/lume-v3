@@ -203,6 +203,14 @@ export async function resolveSearch(
  * The WHERE for a set of filters. A search must be resolved first (resolveSearch) and its hits passed in: the list,
  * the counts and an export then filter on exactly the same leads.
  */
+const BUSINESS_TZ = sql`coalesce((SELECT timezone FROM settings LIMIT 1), 'UTC')`;
+/**
+ * Midnight starting a day, where the business is, as one value (a scalar subquery, so a parameter to the planner): a
+ * condition comparing with an AT TIME ZONE isn't leakproof, and under row-level security only a leakproof one can
+ * drive an index (review 2026-11-18).
+ */
+const businessMidnight = (day: SQL) => sql`(SELECT (${day})::timestamp AT TIME ZONE ${BUSINESS_TZ})`;
+
 export function leadFilters(
   req: FastifyRequest,
   q: FilterQuery,
@@ -237,14 +245,20 @@ export function leadFilters(
   }
   // The enquiry date when there is one, else the day the lead arrived, where the business is: as "New in N days", the
   // drawer and the export's Enquiry date (review 2026-11-17: a lead made by hand had none, and no range held it).
+  // Two ranges, so each reads its own index (0046) rather than every lead (review 2026-11-18). seen() above has
+  // already refused anyone the enquiry date is hidden from.
   if (q.createdFrom || q.createdTo) {
-    const tz = sql`(SELECT timezone FROM settings LIMIT 1)`;
-    const arrived = sql`(${L.createdAt} AT TIME ZONE coalesce(${tz}, 'UTC'))::date`;
-    const day = isFieldVisible(ctx, "lead_created_at")
-      ? sql`coalesce(${L.leadCreatedAt}, ${arrived})`
-      : arrived;
-    if (q.createdFrom) where.push(sql`${day} >= ${q.createdFrom}::date`);
-    if (q.createdTo) where.push(sql`${day} <= ${q.createdTo}::date`);
+    const dated: SQL[] = [];
+    const arrived: SQL[] = [];
+    if (q.createdFrom) {
+      dated.push(sql`${L.leadCreatedAt} >= ${q.createdFrom}::date`);
+      arrived.push(sql`${L.createdAt} >= ${businessMidnight(sql`${q.createdFrom}::date`)}`);
+    }
+    if (q.createdTo) {
+      dated.push(sql`${L.leadCreatedAt} <= ${q.createdTo}::date`);
+      arrived.push(sql`${L.createdAt} < ${businessMidnight(sql`${q.createdTo}::date + 1`)}`);
+    }
+    where.push(sql`((${and(...dated)}) OR (${L.leadCreatedAt} IS NULL AND ${and(...arrived)}))`);
   }
 
   // 4B: what's gone quiet. Stage kinds, not names: no client's stages are ever assumed.
@@ -265,13 +279,14 @@ export function leadFilters(
     );
   if (q.createdDays) {
     // Midnight where the business is, whatever zone the server runs in (Review Focus 5).
-    const tz = sql`(SELECT timezone FROM settings LIMIT 1)`;
     // Between N-1 days ago and today: an enquiry dated ahead isn't "new today". The enquiry date when there is one,
-    // else the day the lead arrived; written as two ranges so each reads its index (7A: the sidebar counts this).
-    const today = sql`(now() AT TIME ZONE ${tz})::date`;
-    const first = sql`(${today} - ${q.createdDays - 1}::int)`;
-    const reached = sql`${L.createdAt} >= (${first}::timestamp AT TIME ZONE ${tz})
-               AND ${L.createdAt} < ((${today} + 1)::timestamp AT TIME ZONE ${tz})`;
+    // else the day the lead arrived; written as two ranges so each reads its index (7A: the sidebar counts this),
+    // every bound one value (businessMidnight) so it can (review 2026-11-18).
+    const day = sql`(now() AT TIME ZONE ${BUSINESS_TZ})::date`;
+    const today = sql`(SELECT ${day})`;
+    const first = sql`(SELECT ${day} - ${q.createdDays - 1}::int)`;
+    const reached = sql`${L.createdAt} >= ${businessMidnight(sql`${day} - ${q.createdDays - 1}::int`)}
+               AND ${L.createdAt} < ${businessMidnight(sql`${day} + 1`)}`;
     // Someone who can't see the enquiry date gets when each lead reached LUME, which tells nothing hidden (L8).
     where.push(
       isFieldVisible(ctx, "lead_created_at")

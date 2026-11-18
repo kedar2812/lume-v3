@@ -234,7 +234,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         scope.decorate("notify", helpers.notify);
         scope.decorate("automationDeps", helpers.automationDeps);
         scope.decorate("settleReminders", helpers.settleReminders);
-        scope.decorate("settleTaskNotices", helpers.settleTaskNotices);
         scope.decorate("notifyNameOf", helpers.notifyNameOf);
         // The watch (6A): it tells admins on the pool once an alert has committed.
         scope.decorate("watch", { pool: deps.pool, clock: deps.clock });

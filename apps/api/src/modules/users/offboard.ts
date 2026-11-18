@@ -8,7 +8,7 @@ import { liveSessionSql, revokeUserSessions } from "../../auth/sessions";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
 import { cancelReminders } from "../tasks/engine";
-import { refreshNextDue } from "../tasks/lifecycle";
+import { refreshNextDue, settleTaskNotices } from "../tasks/lifecycle";
 
 export type LeadsChoice = { to: "person"; userId: string } | { to: "team"; teamId: string } | { to: "none" };
 /** Who takes the leads: one person, a team spread by load, or nobody (offboarding and deleting an account). */
@@ -280,6 +280,10 @@ export async function offboard(
         await cancelReminders(req.db, t.id);
         await refreshNextDue(req, t.lead_id);
       }
+      await settleTaskNotices(
+        req,
+        closed.map((t) => t.id),
+      ); // their escalations (review 2026-11-18)
     });
 
   // 4. Their open alerts: settled.
@@ -307,10 +311,17 @@ async function moveLeads(req: FastifyRequest, ids: string[], from: string, to: s
   await req.db.execute(sql`
     INSERT INTO lead_assignment_history (lead_id, from_user_id, to_user_id, changed_by, reason)
     SELECT x, ${from}, ${to}, ${req.actor!.userId}, 'owner_offboarded' FROM unnest(${list}::uuid[]) x`);
-  if (to)
-    await req.db.execute(sql`
+  if (to) {
+    const moved = await req.db.execute<{ id: string }>(sql`
       UPDATE tasks SET assignee_id = ${to}, updated_at = now(), version = version + 1
-       WHERE lead_id = ANY(${list}::uuid[]) AND assignee_id = ${from} AND status = 'open'`);
+       WHERE lead_id = ANY(${list}::uuid[]) AND assignee_id = ${from} AND status = 'open'
+      RETURNING id`);
+    // Handed on: "Riya's follow-up is overdue" is about someone who's gone (review 2026-11-18).
+    await settleTaskNotices(
+      req,
+      moved.rows.map((t) => t.id),
+    );
+  }
 }
 
 /**

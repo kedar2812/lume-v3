@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { ALL_GRANTS } from "@lume/core";
+import { and } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { FastifyRequest } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SALES_GRANTS } from "../../../test/grants";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
+import { leadFilters } from "./query";
 
 let h: Harness;
 let admin: AuthedClient;
@@ -285,6 +289,52 @@ describe("listing and search (report §14, §12.2)", () => {
     });
     expect(r.statusCode, r.body).toBe(200);
     expect(r.json().items.map((l: { id: string }) => l.id)).toContain(id);
+  });
+
+  it("an enquiry date range and New in N days read the two day indexes (0046) under row-level security, never every lead (review 2026-11-18)", async () => {
+    const req = {
+      actor: {
+        userId: randomUUID(),
+        perms: new Map([["leads.view", "all"]]),
+        teamMemberIds: [],
+        isOwner: false,
+      },
+    } as unknown as FastifyRequest;
+    const planOf = async (q: Record<string, unknown>) => {
+      const s = new PgDialect().sqlToQuery(and(...leadFilters(req, q, { byKey: new Map() } as never))!);
+      const c = await h.ownerPool.connect();
+      try {
+        await c.query("BEGIN");
+        // Thousands of leads over two years (in this transaction, rolled back), half with an enquiry date, so the
+        // planner weighs it as a real business would. An AT TIME ZONE in a condition isn't leakproof, so under
+        // row-level security it could never drive an index, and every lead was read.
+        await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
+        await c.query(
+          `INSERT INTO leads (id, name, pipeline_id, stage_id, created_at, lead_created_at)
+           SELECT gen_random_uuid(), 'Volume ' || g, l.pipeline_id, l.stage_id, now() - g * interval '3 hours',
+                  CASE WHEN g % 2 = 0 THEN date '2025-01-01' + g % 700 END
+             FROM generate_series(1, 6000) g, (SELECT pipeline_id, id AS stage_id FROM stages LIMIT 1) l`,
+        );
+        await c.query("ANALYZE leads");
+        // The filter SQL is Drizzle's, already parameterised ($1, $2…); only its text is prefixed.
+        const explain = "EXPLAIN (COSTS OFF) SELECT id FROM leads WHERE " + s.sql;
+        return (await c.query(explain, s.params)).rows
+          .map((r: Record<string, string>) => r["QUERY PLAN"])
+          .join(" | ");
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    };
+    for (const q of [{ createdFrom: "2026-01-01", createdTo: "2026-01-31" }, { createdDays: 7 }]) {
+      const plan = await planOf(q);
+      expect(plan, plan).toMatch(
+        /Bitmap Index Scan on leads_enquiry_day \|\s+Index Cond: \(\(?lead_created_at/,
+      );
+      expect(plan, plan).toMatch(
+        /Bitmap Index Scan on leads_arrived_undated \|\s+Index Cond: \(\(?created_at/,
+      );
+    }
   });
 
   it("pages by name without repeating or skipping, whatever letters the names have (bug hunt 2026-11-17)", async () => {

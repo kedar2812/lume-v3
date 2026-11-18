@@ -18,13 +18,23 @@ export async function refreshNextDue(req: FastifyRequest, leadId: string) {
  * moved, so a reminder of it has nothing left to say (3B final review, Important 2). As its assignee, since
  * notifications are only ever their own — whoever did it.
  */
+/**
+ * Other people's notices of these follow-ups (a manager's escalation, "you were given it" for whoever it isn't with
+ * now), settled in this transaction through 0114's gate, and each of those bells told when it commits. In the
+ * transaction, so a job (LUME AI, a stage rule) settles them as a request does, with no connection of its own
+ * (review 2026-11-18).
+ */
+export async function settleTaskNotices(req: FastifyRequest, ids: string[]) {
+  if (!ids.length) return;
+  const { rows } = await req.db.execute<{ u: string }>(
+    sql`SELECT DISTINCT s.u FROM unnest(${`{${ids.join(",")}}`}::uuid[]) AS x(id)
+         CROSS JOIN LATERAL lume_settle_task_notices(x.id) AS s(u)`,
+  );
+  for (const r of rows) await req.db.execute(sql`SELECT pg_notify('lume_notifications', ${readSignal(r.u)})`);
+}
+
 export async function settleReminders(req: FastifyRequest, t: { id: string; assigneeId: string }) {
-  // Other people's notices of it too (a manager's escalation, "you were given it"), once this commits (0114).
-  req.afterCommit(() => {
-    req.server
-      .settleTaskNotices?.(t.id)
-      .catch((err: unknown) => req.log.error({ err }, "couldn't settle a follow-up's notices"));
-  });
+  await settleTaskNotices(req, [t.id]);
   // Your own: in this transaction, so whatever you look at next already has them read.
   if (req.actor?.userId === t.assigneeId) {
     await req.db.execute(

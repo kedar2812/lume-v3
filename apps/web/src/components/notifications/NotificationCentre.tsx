@@ -148,10 +148,11 @@ export function NotificationCentre({
     add("later", day.later);
   }
   // A reminder whose follow-up isn't on today's lists (one a day ahead, for tomorrow's) is an update of its own:
-  // otherwise the bell counts it and nothing shows it (review 2026-11-17).
+  // otherwise the bell counts it and nothing shows it (review 2026-11-17). Only while unread: a read one is of a
+  // follow-up done, cancelled or past, and fifty of those would push the real updates out (review 2026-11-18).
   const listed = new Set(day ? [...day.overdue, ...day.soon, ...day.later].map((t) => t.id) : []);
   for (const n of notes)
-    if (!REMINDERS.has(n.kind) || (day && !(n.taskId && listed.has(n.taskId))))
+    if (!REMINDERS.has(n.kind) || (day && !n.read && !(n.taskId && listed.has(n.taskId))))
       entries.push({ key: `n-${n.id}`, type: "note", group: "updates", n });
   const shown = entries.filter((e) =>
     filter === "all"
@@ -478,7 +479,15 @@ export function NotificationCentre({
           void (async () => {
             for (let i = 0; i < ids.length; i += 1000) {
               const u = await notificationsClient.undoClear(ids.slice(i, i + 1000));
-              if (!u.ok) return toast({ tone: "warn", title: "Couldn’t bring them back", detail: u.message });
+              if (!u.ok) {
+                // Those before it are back on the server: read the list again, so they show (review 2026-11-18).
+                if (i > 0) void load();
+                return toast({
+                  tone: "warn",
+                  title: i > 0 ? "Couldn’t bring them all back" : "Couldn’t bring them back",
+                  detail: u.message,
+                });
+              }
             }
             setNotes((cur) => [...cur, ...gone].sort((a, b) => b.id - a.id));
           })(),

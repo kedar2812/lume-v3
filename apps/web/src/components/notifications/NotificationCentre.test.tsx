@@ -129,6 +129,21 @@ describe("the notification centre (3B Task 5)", () => {
     expect(screen.getByRole("list", { name: "Updates" })).not.toHaveTextContent("Follow up with Aisha Khan");
   });
 
+  it("a reminder already read whose follow-up isn't listed (done, cancelled) stays out of Updates (review 2026-11-18)", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({
+        items: [
+          note(9, "follow_up_due", "Follow up with Old Done", { taskId: "gone", read: true }),
+          note(2, "lead_assigned", "Karim Aziz was assigned to you", { read: true }),
+        ],
+        unread: 0,
+      }),
+    );
+    await open();
+    expect(screen.getByRole("list", { name: "Updates" })).toHaveTextContent("Karim Aziz was assigned");
+    expect(screen.getByRole("list", { name: "Updates" })).not.toHaveTextContent("Old Done");
+  });
+
   it("filters: Needs you keeps follow-ups and escalations; Updates keeps the rest", async () => {
     await open();
     await userEvent.click(screen.getByRole("radio", { name: "Updates" }));
@@ -173,6 +188,25 @@ describe("the notification centre (3B Task 5)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
     await vi.waitFor(() => expect(notificationsClient.undoClear).toHaveBeenCalledTimes(2));
     expect(vi.mocked(notificationsClient.undoClear).mock.calls.map((c) => c[0].length)).toEqual([1000, 500]);
+  });
+
+  it("an Undo that fails part-way reads the list again, so those already back show (review 2026-11-18)", async () => {
+    const many = Array.from({ length: 1500 }, (_, i) => i + 100);
+    vi.mocked(notificationsClient.clearRead).mockResolvedValue(ok({ cleared: many }));
+    vi.mocked(notificationsClient.undoClear)
+      .mockResolvedValueOnce(ok({ restored: 1000 }))
+      .mockResolvedValueOnce({ ok: false, status: 503, code: "UNAVAILABLE", message: "Try again" } as never);
+    render(
+      <ToastProvider>
+        <NotificationCentre open onClose={vi.fn()} />
+      </ToastProvider>,
+    );
+    await screen.findByText(/Karim Aziz was assigned/);
+    const before = vi.mocked(notificationsClient.list).mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Clear read" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("Couldn’t bring them all back")).toBeInTheDocument();
+    await vi.waitFor(() => expect(vi.mocked(notificationsClient.list).mock.calls.length).toBe(before + 1));
   });
 
   it("Clear read takes the read ones away, keeps the unread, and Undo brings them back", async () => {

@@ -95,8 +95,6 @@ declare module "fastify" {
     notifyNameOf?: (userId: string) => Promise<string | null>;
     /** Mark a follow-up's reminders read for its assignee: it was done, cancelled or moved (3B final review). */
     settleReminders?: (userId: string, taskId: string) => Promise<void>;
-    /** Its escalations and "you were given it" in other people's bells, settled (0114). */
-    settleTaskNotices?: (taskId: string) => Promise<void>;
   }
 }
 
