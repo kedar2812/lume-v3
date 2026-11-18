@@ -169,6 +169,28 @@ describe("the notification centre (3B Task 5)", () => {
     expect(updates()).toHaveTextContent("Tomorrow Lead");
   });
 
+  it("…and opened again after it was read elsewhere while closed, it's left out (review 2026-11-18)", async () => {
+    const tomorrow = (read: boolean) =>
+      ok({
+        items: [
+          note(9, "follow_up_soon", "Follow up with Tomorrow Lead", { taskId: "tomorrow", read }),
+          note(2, "lead_assigned", "Karim Aziz was assigned to you", { read: true }),
+        ],
+        unread: read ? 0 : 1,
+      });
+    vi.mocked(notificationsClient.list).mockResolvedValue(tomorrow(false));
+    const { rerender } = render(<NotificationCentre open onClose={() => {}} />);
+    const updates = () => screen.getByRole("list", { name: "Updates" });
+    await vi.waitFor(() => expect(updates()).toHaveTextContent("Tomorrow Lead"));
+    rerender(<NotificationCentre open={false} onClose={() => {}} />);
+    vi.mocked(notificationsClient.list).mockResolvedValue(tomorrow(true)); // done from the lead page meanwhile
+    rerender(<NotificationCentre open onClose={() => {}} />);
+    await vi.waitFor(() => expect(notificationsClient.list).toHaveBeenCalledTimes(2));
+    await act(() => new Promise((r) => setTimeout(r, 1200)));
+    expect(updates()).toHaveTextContent("Karim Aziz was assigned");
+    expect(updates()).not.toHaveTextContent("Tomorrow Lead");
+  });
+
   it("filters: Needs you keeps follow-ups and escalations; Updates keeps the rest", async () => {
     await open();
     await userEvent.click(screen.getByRole("radio", { name: "Updates" }));
