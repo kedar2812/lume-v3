@@ -1,5 +1,5 @@
 import { ALL_GRANTS, newId, type Grant } from "@lume/core";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { setOffboardFailureForTests } from "./offboard";
 
@@ -346,6 +346,57 @@ describe("the 6C review's fix pass", () => {
     );
     expect(tasks.find((t) => t.id === follow)).toMatchObject({ assignee_id: team[0]!.id, status: "open" });
     expect(tasks.find((t) => t.id === remind)!.status).toBe("cancelled");
+  });
+
+  it("a removed meeting's follow-up that was someone else's: their own reminder of it is read (review 2026-11-18)", async () => {
+    const { rory, leads, team } = await setUp(1);
+    const conn = newId();
+    await asUser(
+      rory.id,
+      "INSERT INTO calendar_connections (id, user_id, google_email, grant_enc) VALUES ($1, $2, 'r3@calendar.test', 'x'::bytea)",
+      [conn, rory.id],
+    );
+    const meeting = newId();
+    await asUser(
+      rory.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, connection_id, source, external_id, matched_by, title, starts_at, ends_at)
+       VALUES ($1, $2, $3, $4, 'google', 'ev-y', 'attendee', 'Call', now() + interval '1 day', now() + interval '1 day 30 minutes')`,
+      [meeting, leads[0], rory.id, conn],
+    );
+    // The same event already on the new owner's calendar: Rory's copy is removed, not moved.
+    await asUser(
+      team[0]!.id,
+      `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at)
+       VALUES ($1, $2, $3, 'google', 'ev-y', 'attendee', 'Call', now() + interval '1 day', now() + interval '1 day 30 minutes')`,
+      [newId(), leads[0], team[0]!.id],
+    );
+    const theirs = newId();
+    await h.queryAll(
+      `INSERT INTO tasks (id, lead_id, assignee_id, title, due_at, series_id, meeting_id)
+       VALUES ($1, $2, $3, 'Before the call', now() + interval '20 hours', $1, $4)`,
+      [theirs, leads[0], team[0]!.id, meeting],
+    );
+    await asUser(
+      team[0]!.id,
+      "INSERT INTO notifications (user_id, kind, task_id, title) VALUES ($1, 'follow_up_soon', $2, 'Before the call')",
+      [team[0]!.id, theirs],
+    );
+    const r = await offboard(rory.id, { to: "person", userId: team[0]!.id });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(
+      (await h.queryAll<{ status: string }>("SELECT status FROM tasks WHERE id = $1", [theirs]))[0]!.status,
+    ).toBe("cancelled");
+    await vi.waitFor(async () =>
+      expect(
+        (
+          await asUser<{ n: number }>(
+            team[0]!.id,
+            "SELECT count(*)::int AS n FROM notifications WHERE task_id = $1 AND read_at IS NULL",
+            [theirs],
+          )
+        )[0]!.n,
+      ).toBe(0),
+    );
   });
 
   it("the preview refuses the owner and yourself, as the act does", async () => {

@@ -144,6 +144,31 @@ describe("the notification centre (3B Task 5)", () => {
     expect(screen.getByRole("list", { name: "Updates" })).not.toHaveTextContent("Old Done");
   });
 
+  it("a reminder for tomorrow's follow-up stays in Updates once it's read under the pointer, or by Mark all read (review 2026-11-18)", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({
+        items: [
+          note(9, "follow_up_soon", "Follow up with Tomorrow Lead", { taskId: "tomorrow" }),
+          note(2, "lead_assigned", "Karim Aziz was assigned to you", { read: true }),
+        ],
+        unread: 1,
+      }),
+    );
+    // Real time: the exit animation (were it to leave) runs out before each look.
+    const settle = () => act(() => new Promise((r) => setTimeout(r, 1200)));
+    await open();
+    const updates = () => screen.getByRole("list", { name: "Updates" });
+    expect(updates()).toHaveTextContent("Tomorrow Lead");
+    await userEvent.hover(within(updates()).getByText(/Tomorrow Lead/));
+    await vi.waitFor(() => expect(notificationsClient.read).toHaveBeenCalledWith([9]), { timeout: 2000 });
+    await settle();
+    expect(updates()).toHaveTextContent("Tomorrow Lead");
+    await userEvent.unhover(within(updates()).getByText(/Tomorrow Lead/));
+    await userEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+    await settle();
+    expect(updates()).toHaveTextContent("Tomorrow Lead");
+  });
+
   it("filters: Needs you keeps follow-ups and escalations; Updates keeps the rest", async () => {
     await open();
     await userEvent.click(screen.getByRole("radio", { name: "Updates" }));

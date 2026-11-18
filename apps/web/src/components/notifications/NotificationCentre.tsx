@@ -77,6 +77,9 @@ export function NotificationCentre({
   const [reminded, setReminded] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const reading = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  // Reminders shown in Updates while unread, kept there while it's open: read under the pointer (or by Mark all
+  // read), one mustn't slip away from under it (review 2026-11-18). Opened again, a read one is left out.
+  const kept = useRef(new Set<number>());
 
   const load = useCallback(async () => {
     const [t, n] = await Promise.all([tasksClient.today(), notificationsClient.list()]);
@@ -89,7 +92,10 @@ export function NotificationCentre({
   }, []);
   useEffect(() => {
     if (open) void load();
-    else setFull(false);
+    else {
+      setFull(false);
+      kept.current.clear();
+    }
   }, [open, load]);
   // Opened, it takes focus (a dialog does), so its keys are live from the first press wherever focus was.
   useEffect(() => {
@@ -151,9 +157,12 @@ export function NotificationCentre({
   // otherwise the bell counts it and nothing shows it (review 2026-11-17). Only while unread: a read one is of a
   // follow-up done, cancelled or past, and fifty of those would push the real updates out (review 2026-11-18).
   const listed = new Set(day ? [...day.overdue, ...day.soon, ...day.later].map((t) => t.id) : []);
-  for (const n of notes)
-    if (!REMINDERS.has(n.kind) || (day && !n.read && !(n.taskId && listed.has(n.taskId))))
+  for (const n of notes) {
+    if (REMINDERS.has(n.kind) && day && !n.read && !(n.taskId && listed.has(n.taskId)))
+      kept.current.add(n.id);
+    if (!REMINDERS.has(n.kind) || (day && kept.current.has(n.id) && !(n.taskId && listed.has(n.taskId))))
       entries.push({ key: `n-${n.id}`, type: "note", group: "updates", n });
+  }
   const shown = entries.filter((e) =>
     filter === "all"
       ? true

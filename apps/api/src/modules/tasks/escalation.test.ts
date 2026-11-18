@@ -256,5 +256,11 @@ describe("how long overdue, in words a person reads at a glance", () => {
     });
     expect(r.statusCode, r.body).toBe(200);
     expect(await unreadEscalations(t)).toBe(0);
+    // …and it's the new person's now: left overdue with them, their managers hear (as a reassignment does).
+    const [moved] = await h.queryAll<{ assignee_id: string; escalated_at: Date | null }>(
+      "SELECT assignee_id, escalated_at FROM tasks WHERE id = $1",
+      [t],
+    );
+    expect(moved).toEqual({ assignee_id: otherRep, escalated_at: null });
   });
 });
