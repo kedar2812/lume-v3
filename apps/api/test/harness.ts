@@ -332,7 +332,7 @@ export async function createHarness(
     setupTokens,
     isBreached: createBreachedChecker(Buffer.alloc(0)),
     argon2: TEST_ARGON2,
-    rates: fixedRates("AED:USD=0.27"),
+    rates: fixedRates("AED:USD=0.27,USD:CAD=1.4"),
     onRbacEvent: (payload) => {
       waiters.get(payload)?.();
     },

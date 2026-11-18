@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type pg from "pg";
 import {
   ACCEPTS,
@@ -273,19 +274,24 @@ export class LicenceKeeper {
             body: JSON.stringify(body),
             signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
           });
-        let r = await post(checkBody({ ...base, accepts: ACCEPTS, health, ...(seen ? { seen } : {}) }));
-        // A 400 is most often only the extras a licence server doesn't know yet (a new health key, a new module):
-        // ask again keeping what this LUME accepts, so the plan it's signed still comes (bug hunt 2026-11-17: asked
-        // the old way at once, the answer carried no plan and every limit opened).
-        if (r.status === 400 && (health || seen)) {
+        // A new nonce each check, for the answer to sign back: an answer captured once can't be given again later
+        // (owner 2026-11-18, R9: a server of the client's own, replaying the licence server's last answer).
+        const nonce = randomBytes(18).toString("base64url");
+        // A 400 is most often only what a licence server doesn't know yet, so each refusal asks again with less:
+        // without the extras (a new health key, a new module), keeping what this LUME accepts so the plan it's signed
+        // still comes (bug hunt 2026-11-17); then without the nonce (a licence server from before it); then the old
+        // way, so a LUME newer than its licence server never loses its licence over it (spec 2026-10-16 fleet §1.3).
+        const asks = [
+          checkBody({ ...base, accepts: ACCEPTS, health, ...(seen ? { seen } : {}), nonce }),
+          checkBody({ ...base, accepts: ACCEPTS, nonce }),
+          checkBody({ ...base, accepts: ACCEPTS }),
+          checkBody(base),
+        ].filter((a, i, all) => all.findIndex((b) => JSON.stringify(b) === JSON.stringify(a)) === i);
+        let r = await post(asks[0]!);
+        for (const ask of asks.slice(1)) {
+          if (r.status !== 400) break;
           await r.body?.cancel().catch(() => undefined);
-          r = await post(checkBody({ ...base, accepts: ACCEPTS }));
-        }
-        // A licence server from before Fleet refuses a body it doesn't know (400): ask again the old way, once, so a
-        // LUME newer than its licence server never loses its licence over it (spec 2026-10-16 fleet §1.3).
-        if (r.status === 400) {
-          await r.body?.cancel().catch(() => undefined);
-          r = await post(checkBody(base));
+          r = await post(ask);
         }
         const code = r.ok ? null : await errorCode(r);
         if (r.status === 401) error = "The licence server didn't recognise this install's key";
@@ -296,6 +302,10 @@ export class LicenceKeeper {
           const got = ((await r.json()) as { token?: unknown }).token;
           const p = typeof got === "string" ? verifyLicence(got, this.opts.keys, creds.instanceId) : null;
           if (!p) error = "The licence server's answer was not signed by LUME for this install";
+          // The answer to this check signs its nonce back. Once one has (the licence server knows nonces), one with
+          // none, or another check's, is an answer given again: refused, so it can't keep a licence going.
+          else if (p.nonce ? p.nonce !== nonce : !!this.payload?.nonce)
+            error = "The licence server's answer wasn't the answer to this check, so it was ignored";
           // An answer older than the one kept is an old answer replayed: it never undoes a newer one. A kept answer
           // from the future (the licence server's clock jumped once) is no anchor, or LUME would refuse every true
           // answer after it and stay read-only for good (bug hunt 2026-11-17).

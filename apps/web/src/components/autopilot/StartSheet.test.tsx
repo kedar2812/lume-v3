@@ -84,6 +84,14 @@ describe("StartSheet", () => {
     expect(autopilotClient.estimate).not.toHaveBeenCalled();
   });
 
+  it("a cost under one (a few messages in dinars) keeps the figures that count, never 0 (review 2026-11-18)", async () => {
+    vi.mocked(autopilotClient.estimate).mockResolvedValue(
+      ok(estimate({ firstMessages: 1, metaCost: { amount: 0.0036, currency: "KWD" } })) as never,
+    );
+    open();
+    expect(await screen.findByText(/1 first message · about KWD\s?0\.0036 to Meta/)).toBeInTheDocument();
+  });
+
   it("opens with the business's own goals, people and hours; says what Start will do in plain numbers", async () => {
     open();
     expect(await screen.findByRole("dialog", { name: "Let LUME AI handle 3 leads" })).toBeInTheDocument();

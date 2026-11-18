@@ -2,7 +2,6 @@ import {
   AUTOPILOT_ACTIONS,
   can,
   canOnRecord,
-  costOf,
   newId,
   normalizePhone,
   profileProblem,
@@ -21,6 +20,7 @@ import { loadActor } from "../../rbac/actor";
 import { aiStatus } from "../ai/service";
 import { openStages, patchAiProfile, speakers } from "../ai/profile";
 import { visibleLead } from "../leads/service";
+import { pricer } from "../whatsapp/cost";
 import { resolveSelection } from "../leads/bulk-runs";
 import { runView, type RunView } from "./read";
 import { availability, readiness, usable } from "./setup";
@@ -204,11 +204,16 @@ export async function estimateRun(req: FastifyRequest, d: AppDeps, b: RunBody) {
       .filter((l) => busy.has(l.id))
       .map((l) => ({ leadId: l.id, why: "Already in another LUME AI run" })),
   ];
-  const costs = eligible.map((l) => costOf(l.country, "MARKETING"));
+  const price = await pricer(req, d);
+  const costs = eligible.map((l) => price(l.country, "MARKETING"));
   const currency = costs[0]?.currency ?? null;
   const metaCost =
     costs.length && costs.every((x) => x && x.currency === currency)
-      ? { amount: Math.round(costs.reduce((s, x) => s + x!.amount, 0) * 100) / 100, currency: currency! }
+      ? // To 4 places, as Meta prices one: a few leads in dinars is a fraction of one, never "0" (review 2026-11-18).
+        {
+          amount: Math.round(costs.reduce((s, x) => s + x!.amount, 0) * 10_000) / 10_000,
+          currency: currency!,
+        }
       : null;
   return {
     eligible: eligible.length,

@@ -26,6 +26,19 @@ function held() {
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe("the uploads", () => {
+  it("a video that isn't MP4 is refused as it's given, in words, and never sent; the rest go up (owner 2026-11-18)", async () => {
+    const h = held();
+    const u = createUploads(h.send);
+    u.add([new File(["x"], "IMG_0042.MOV", { type: "video/quicktime" }), file("Brochure.pdf")]);
+    await flush();
+    expect(h.calls.map((c) => c.name)).toEqual(["Brochure.pdf"]);
+    expect(u.snapshot().uploads[0]).toMatchObject({
+      name: "IMG_0042.MOV",
+      state: "refused",
+      problem: "WhatsApp only takes videos as MP4. Save this video as an MP4 and add it again.",
+    });
+  });
+
   it("go up three at a time, in the order they were given", async () => {
     const h = held();
     const u = createUploads(h.send);

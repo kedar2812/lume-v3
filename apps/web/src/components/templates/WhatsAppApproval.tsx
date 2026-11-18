@@ -1,12 +1,11 @@
 "use client";
-import { costOf, metaCategoryOf, templateProblems, type TemplateCategory } from "@lume/core/shared";
+import { metaCategoryOf, templateProblems, type TemplateCategory } from "@lume/core/shared";
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { MediaPicker } from "@/components/media/MediaPicker";
 import type { LibraryFile } from "@/lib/files/client";
 import { templatesClient, type WhatsAppSubmission } from "@/lib/templates/client";
-import { aboutCost } from "@/lib/whatsapp/cost";
 import s from "./approval.module.css";
 
 type Category = WhatsAppSubmission["category"];
@@ -24,12 +23,12 @@ const LANGUAGES = [
   { code: "pt_BR", name: "Portuguese (Brazil)" },
   { code: "de", name: "German" },
 ];
-const india = costOf("IN", "MARKETING");
 const CATEGORIES: { key: Category; name: string; line: string }[] = [
   {
     key: "MARKETING",
     name: "Marketing",
-    line: `Offers, follow-ups and bringing people back.${india ? ` WhatsApp charges ${aboutCost(india)} each in India.` : ""}`,
+    // What one costs depends on the lead's country (Meta's markets): shown with each lead's own when it's sent.
+    line: "Offers, follow-ups and bringing people back. WhatsApp charges for each, by the lead's country.",
   },
   {
     key: "UTILITY",

@@ -34,22 +34,39 @@ export async function settleTaskNotices(req: FastifyRequest, ids: string[]) {
 }
 
 export async function settleReminders(req: FastifyRequest, t: { id: string; assigneeId: string }) {
-  await settleTaskNotices(req, [t.id]);
-  // Your own: in this transaction, so whatever you look at next already has them read.
-  if (req.actor?.userId === t.assigneeId) {
-    await req.db.execute(
-      sql`UPDATE notifications SET read_at = now()
-           WHERE task_id = ${t.id} AND read_at IS NULL AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
-    );
-    await req.db.execute(sql`SELECT pg_notify('lume_notifications', ${readSignal(t.assigneeId)})`);
-    return;
+  await settleRemindersMany(req, [t]);
+}
+
+/**
+ * The same for many follow-ups closed together (a lead removed, someone offboarded): everyone's notices in one go, and
+ * each assignee's own reminders once per person, not once per follow-up (review 2026-11-18).
+ */
+export async function settleRemindersMany(req: FastifyRequest, tasks: { id: string; assigneeId: string }[]) {
+  if (!tasks.length) return;
+  await settleTaskNotices(
+    req,
+    tasks.map((t) => t.id),
+  );
+  const byPerson = new Map<string, string[]>();
+  for (const t of tasks) byPerson.set(t.assigneeId, [...(byPerson.get(t.assigneeId) ?? []), t.id]);
+  for (const [userId, ids] of byPerson) {
+    // Your own: in this transaction, so whatever you look at next already has them read.
+    if (req.actor?.userId === userId) {
+      await req.db.execute(
+        sql`UPDATE notifications SET read_at = now()
+             WHERE task_id = ANY(${`{${ids.join(",")}}`}::uuid[]) AND read_at IS NULL
+               AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
+      );
+      await req.db.execute(sql`SELECT pg_notify('lume_notifications', ${readSignal(userId)})`);
+      continue;
+    }
+    // Someone else's: theirs to read as them, once this commits.
+    req.afterCommit(() => {
+      req.server
+        .settleReminders?.(userId, ids)
+        .catch((err: unknown) => req.log.error({ err }, "couldn't mark a follow-up's reminders read"));
+    });
   }
-  // Someone else's: theirs to read as them, once this commits.
-  req.afterCommit(() => {
-    req.server
-      .settleReminders?.(t.assigneeId, t.id)
-      .catch((err: unknown) => req.log.error({ err }, "couldn't mark a follow-up's reminders read"));
-  });
 }
 
 /**
@@ -90,10 +107,8 @@ export async function cancelLeadTasks(req: FastifyRequest, leadId: string): Prom
     .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
     .where(and(eq(T.leadId, leadId), eq(T.status, "open")))
     .returning({ id: T.id, assigneeId: T.assigneeId });
-  for (const t of open) {
-    await cancelReminders(req.db, t.id);
-    await settleReminders(req, t);
-  }
+  for (const t of open) await cancelReminders(req.db, t.id);
+  await settleRemindersMany(req, open);
   await refreshNextDue(req, leadId);
   return open.length;
 }

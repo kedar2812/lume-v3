@@ -1,6 +1,5 @@
 import {
   canOnRecord,
-  costOf,
   firstNameOf,
   newId,
   normalizePhone,
@@ -21,6 +20,7 @@ import { readMessaging } from "../settings/messaging";
 import { notePaidUse, paidLimit, paidLimitError, paidUseIn } from "./paid";
 import { replyOn, type SendLimiter } from "./send";
 import { messagesOf, type ThreadMessage } from "./thread";
+import { pricer } from "./cost";
 import { personSent } from "../autopilot/lead-events";
 
 const S = schema.whatsappTemplateSubmissions;
@@ -121,13 +121,14 @@ export async function templateState(req: FastifyRequest, d: AppDeps, lead: LeadR
   const ctx = await contextFor(req, lead);
   const labels = labelsOf(ctx.fields as never);
   const country = normalizePhone(lead.phoneE164).countryIso;
+  const price = await pricer(req, d);
   const options = (await approvedFor(req, n.waba, lead)).map((r) => ({
     submissionId: r.id,
     name: r.name,
     category: r.category,
     preview: render(r.body, ctx).text,
     missing: paramsFor(r.tokens, ctx).missing.map((t) => labels.get(t) ?? t),
-    cost: costOf(country, r.category),
+    cost: price(country, r.category),
   }));
   return { number: { id: n.id, display: n.display }, options, reason: null };
 }
@@ -220,7 +221,7 @@ export async function sendTemplate(
     });
 
   const text = render(option.body, ctx).text;
-  const cost = costOf(normalizePhone(lead.phoneE164).countryIso, option.category);
+  const cost = (await pricer(req, d))(normalizePhone(lead.phoneE164).countryIso, option.category);
   const outboxId = newId();
   const activityId = newId();
   await req.db.execute(sql`SAVEPOINT lume_template`);

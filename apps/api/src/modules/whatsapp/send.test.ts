@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ALL_GRANTS } from "@lume/core";
+import { ALL_GRANTS, PHOTO_FORMATS, VIDEO_FORMATS } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { inbound } from "../../../../../packages/core/src/whatsapp/fixtures";
 import { createHarness, type Harness } from "../../../test/harness";
@@ -388,6 +388,19 @@ describe("files", () => {
         "LUME can send photos (JPEG, PNG), videos (MP4), voice notes and documents (PDF, Word, Excel, PowerPoint, text).",
       );
     }
+  });
+
+  it("an iPhone's QuickTime film or HEIC photo: refused as MP4 only, or JPEG or PNG only (owner 2026-11-18)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const box = (brand: string) =>
+      Buffer.concat([Buffer.from([0, 0, 0, 20]), Buffer.from(`ftyp${brand}`), Buffer.alloc(64)]);
+    const film = await attach(rep, lead, box("qt  "), "IMG_0042.MOV");
+    expect(film.statusCode).toBe(415);
+    expect(film.json().error.message).toBe(VIDEO_FORMATS);
+    const photo = await attach(rep, lead, box("heic"), "IMG_0043.HEIC");
+    expect(photo.statusCode).toBe(415);
+    expect(photo.json().error.message).toBe(PHOTO_FORMATS);
   });
 
   it("over WhatsApp's size for its kind, refused with the limit in words", async () => {

@@ -37,6 +37,11 @@ const checkSchema = z
       .array(z.object({ id: z.uuid(), people: z.number().int().min(0).max(1_000_000) }).strict())
       .max(3)
       .optional(),
+    // The check's own nonce (owner 2026-11-18, R9), signed back so the answer can't be given again later.
+    nonce: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{16,64}$/)
+      .optional(),
   })
   .strict();
 const MAX_BODY = 4096;
@@ -176,6 +181,7 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
       notice,
       announcements,
       plan,
+      nonce: b.nonce,
     });
   let token = sign();
   // An answer LUME would refuse turns it read-only in 7 days: drop announcements, oldest first, until it verifies.

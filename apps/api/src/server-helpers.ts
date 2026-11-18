@@ -12,12 +12,13 @@ export function serverHelpers(deps: { pool: pg.Pool; tasks?: AppDeps["tasks"] })
   return {
     notify: (userId: string, n: NewNotification) => notify(deps.pool, userId, n),
     automationDeps: { pool: deps.pool, tasks: deps.tasks },
-    settleReminders: (userId: string, taskId: string) =>
+    settleReminders: (userId: string, taskIds: string | string[]) =>
       readAs(deps.pool, userId, async (c) => {
         await c.query(
           `UPDATE notifications SET read_at = now()
-            WHERE task_id = $1 AND read_at IS NULL AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
-          [taskId],
+            WHERE task_id = ANY($1::uuid[]) AND read_at IS NULL
+              AND kind IN ('follow_up_due', 'follow_up_soon', 'follow_up_nudge')`,
+          [([] as string[]).concat(taskIds)],
         );
         await c.query("SELECT pg_notify('lume_notifications', $1)", [readSignal(userId)]);
       }),

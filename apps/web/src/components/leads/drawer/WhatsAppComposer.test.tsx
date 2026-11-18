@@ -179,6 +179,19 @@ describe("the reply box (plan W3a; canvas boards Main, Attached, Closed)", () =>
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 
+  it("a video that isn't MP4 (an iPhone's .mov) says MP4 only at once, and never goes up (owner 2026-11-18)", async () => {
+    const user = userEvent.setup({ applyAccept: false }); // "All files" in the chooser, or a phone's own picker
+    render(<WhatsAppComposer leadId="l1" leadName="Sneha Reddy" tz={TZ} reply={open} onSent={vi.fn()} />);
+    const input = screen.getByLabelText("Attach a photo or a file");
+    await user.upload(input, new File(["x"], "IMG_0042.MOV", { type: "video/quicktime" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "WhatsApp only takes videos as MP4. Save this video as an MP4 and add it again.",
+    );
+    await user.upload(input, new File(["x"], "IMG_0043.HEIC", { type: "image/heic" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("WhatsApp only takes photos as JPEG or PNG.");
+    expect(whatsappClient.attach).not.toHaveBeenCalled();
+  });
+
   it("with the business's files: Attach offers this device or Media, and a picked file is ready to send", async () => {
     vi.mocked(filesClient.list).mockResolvedValue(
       ok({

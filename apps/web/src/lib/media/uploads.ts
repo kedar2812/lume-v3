@@ -1,5 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
+import { formatProblem } from "@lume/core/shared";
 import { filesClient, type LibraryFile } from "@/lib/files/client";
 
 export type Upload = {
@@ -102,6 +103,13 @@ export function createUploads(send: Send) {
   const next = () => {
     while (running < AT_ONCE && queue.length) {
       const { key, file } = queue.shift()!;
+      // A video or photo WhatsApp won't take is told so now, not after it has gone up for nothing (owner 2026-11-18).
+      const wrong = formatProblem(file);
+      if (wrong) {
+        patch(key, { state: "refused", problem: wrong });
+        settleIfDone();
+        continue;
+      }
       running++;
       patch(key, { state: "uploading" });
       void send(file, (share) => patch(key, { share }))

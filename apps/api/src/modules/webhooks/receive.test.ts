@@ -153,6 +153,26 @@ describe("replays", () => {
     expect(await events(id)).toHaveLength(2);
   });
 
+  it("…and a retry across midnight UTC is still a repeat: the same body is one post for 24 hours (owner 2026-11-18)", async () => {
+    const id = await source({ mode: "token" });
+    const raw = '{"name":"Over Midnight"}';
+    const token = { "x-lume-token": SECRET };
+    const was = h.clock.now;
+    try {
+      h.clock.now = new Date("2026-11-20T23:55:00Z");
+      expect((await post(id, raw, token)).json()).toEqual({ accepted: true });
+      h.clock.now = new Date("2026-11-21T00:05:00Z");
+      expect((await post(id, raw, token)).json()).toEqual({ accepted: true, duplicate: true });
+      h.clock.now = new Date("2026-11-21T23:50:00Z"); // under 24 hours from the first
+      expect((await post(id, raw, token)).json()).toEqual({ accepted: true, duplicate: true });
+      h.clock.now = new Date("2026-11-22T00:00:00Z"); // over 24 hours: someone enquiring again
+      expect((await post(id, raw, token)).json()).toEqual({ accepted: true });
+      expect(await events(id)).toHaveLength(2);
+    } finally {
+      h.clock.now = was;
+    }
+  });
+
   it("an empty event id is no event id: two different posts are two events (review W3)", async () => {
     const id = await source();
     for (const [raw, given] of [

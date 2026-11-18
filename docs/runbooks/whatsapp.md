@@ -176,9 +176,18 @@ Nothing extra: WhatsApp uses the same relay connection as Connect with Google (`
 - **Editing an approved template** makes a new version: the approved one keeps sending as approved until the new words
   are submitted and approved. A turned-down version can't go again as it is: change the words, save, submit again.
 - **What it costs.** WhatsApp bills the client's own Meta account for every template, inside the 24 hours too (since
-  2026-10-01). LUME shows "about" the rate from its rate card (`packages/core/src/whatsapp/rates.ts`, India marketing
-  ₹0.86 + GST, read 2026-10-18). To add a market or category: read Meta's current rate card, add the rate with the day
-  you read it, and ship. A rate LUME doesn't have shows no amount, never a guess.
+  2026-10-01). LUME shows "about" Meta's list rate for the lead's country (Meta's market: its own, or a region such as
+  "Rest of Africa", else "Other") and the template's category, in the business currency: Meta's own card when Meta
+  bills in that currency (16 of them: USD, AED, ARS, AUD, BRL, CLP, COP, EUR, GBP, IDR, INR, MXN, MYR, PEN, SAR, SGD),
+  otherwise the US dollar card at the day's exchange rate (kept 12 hours; with no rate, shown in dollars). A lead
+  without a number LUME can place shows no amount. The list rate is the most a message costs: Meta's volume discounts
+  for utility start in the hundreds of thousands a month.
+- **Meta's rate card** (`packages/core/src/whatsapp/rate-card.ts`, generated; cards of 2026-10-01). Meta changes prices
+  only on Jan 1, Apr 1, Jul 1 and Oct 1, announced a month ahead. To refresh: on developers.facebook.com/docs/whatsapp/
+  pricing, download each currency's "list rates" file (signed links that expire; named .csv, really Excel) as
+  `<CUR>_list_rates.xlsx` into one folder; update `scripts/whatsapp/markets.tsv` if the "Pricing regions on the rate
+  card" table changed; run `python -I scripts/whatsapp/rate-card.py <folder> scripts/whatsapp/markets.tsv <date>`;
+  check the diff and `packages/core/src/whatsapp/rates.test.ts`; ship.
 - **The monthly limit.** Paid WhatsApp messages a month: the lower of the plan's (licence dashboard, Plan limits; needs
   the licence server and a LUME that accepts `plan3`) and the admin's own (Settings → Messages). Counted on the
   business's clock, every lead's. At 80% the admins hear it once that month; at the limit nothing more goes and LUME

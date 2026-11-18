@@ -46,8 +46,10 @@ function money(m: { amount: number; currency: string }) {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: m.currency,
-      maximumFractionDigits: m.amount >= 10 ? 0 : 2,
-      minimumFractionDigits: 0,
+      // Under one, two figures that count: a few messages in dinars is "KWD 0.0036", never "KWD 0" (review 2026-11-18).
+      ...(m.amount > 0 && m.amount < 1
+        ? { maximumSignificantDigits: 2 }
+        : { maximumFractionDigits: m.amount >= 10 ? 0 : 2, minimumFractionDigits: 0 }),
     }).format(m.amount);
   } catch {
     return `${m.amount.toFixed(2)} ${m.currency}`;

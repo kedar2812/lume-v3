@@ -41,6 +41,7 @@ export function issueToken(
       // Present only when given: an answer to an older LUME has exactly the keys it knows.
       ...(p.announcements ? { announcements: p.announcements } : {}),
       ...(p.plan ? { plan: p.plan } : {}),
+      ...(p.nonce ? { nonce: p.nonce } : {}),
     },
     signer.privateKey,
   );

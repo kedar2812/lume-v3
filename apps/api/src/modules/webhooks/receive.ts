@@ -13,6 +13,7 @@ import { checkSignature, checkToken, openWebhook, sealWebhook, signatureCheck } 
 const S = schema.leadSources;
 const E = schema.webhookEvents;
 const BODY_LIMIT = 65_536;
+const DAY_MS = 86_400_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Opened and checked for a source that doesn't exist, so a stranger's post costs what a bad one does. */
 const DUMMY = "d".repeat(43);
@@ -154,14 +155,17 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
       // post sent again (under any event id) is a duplicate.
       // An empty one is none: hashing "" would make every post the same event (review 2026-10-26 W3).
       const given = header(req.headers["x-lume-event-id"])?.trim() || undefined;
-      // A post with no event id is known by its body, on its day (review 2026-11-17): a sender's retries are minutes
-      // apart; the same form sent again another day is someone enquiring again, never dropped as a repeat.
+      // A post with no event id is known by its body for 24 hours (owner 2026-11-18): a sender's retries are minutes
+      // apart, across midnight too; the same form sent again a day later is someone enquiring again. Its key is the
+      // body and its UTC day, so a repeat is the same key today or yesterday's key from under 24 hours ago.
+      const bodyHash = given ? null : createHash("sha256").update(raw).digest("hex");
+      const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
       const eventKey =
         given && given.length <= 200
           ? given
           : given
             ? createHash("sha256").update(given).digest("hex")
-            : `${createHash("sha256").update(raw).digest("hex")}:${new Date(now).toISOString().slice(0, 10)}`;
+            : `${bodyHash}:${dayOf(now)}`;
       const status = s.status === "draft" ? ("test" as const) : ("queued" as const);
       const kept = await db.transaction(async (tx) => {
         if (cfg.mode === "signed") {
@@ -171,6 +175,15 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
             ON CONFLICT DO NOTHING RETURNING 1`);
           if (!first.rows.length) return { replay: true as const };
         }
+        if (bodyHash) {
+          // One at a time for this body, so two retries landing together either side of midnight are still one.
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${id}:${bodyHash}`}, 0))`);
+          const yesterday = await tx.execute(sql`
+            SELECT 1 FROM webhook_events
+             WHERE source_id = ${id} AND event_key = ${`${bodyHash}:${dayOf(now - DAY_MS)}`}
+               AND received_at > ${new Date(now - DAY_MS)}`);
+          if (yesterday.rows.length) return { row: undefined };
+        }
         const [r] = await tx
           .insert(E)
           .values({
@@ -179,6 +192,7 @@ export async function receiveRoutes(app: FastifyInstance, d: AppDeps) {
             // Kept as the JSON it read as (a form's fields too), so processing needs no content type.
             payloadEnc: d.keyring.encrypt(JSON.stringify(body.value), eventContext(id, eventKey)),
             status,
+            receivedAt: new Date(now),
           })
           .onConflictDoNothing({ target: [E.sourceId, E.eventKey] })
           .returning({ id: E.id });

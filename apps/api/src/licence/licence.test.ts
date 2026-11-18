@@ -137,6 +137,7 @@ describe("the instance checks its licence (L-A Task 2)", () => {
         "serverTime",
         "accepts",
         "health",
+        "nonce", // a random one each check, for the answer to sign back (R9)
       ].sort(),
     );
     expect(body).toMatchObject({
@@ -511,13 +512,71 @@ describe("an older licence server (spec 2026-10-16 fleet §1.3)", () => {
         : new Response(JSON.stringify({ token: token() }), { status: 200 });
     };
     const r = (await check()).json();
-    // Without its extras first (a current server refusing only those still signs the plan), then the old way.
+    // Without its extras first (a current server refusing only those still signs the plan), then without the nonce
+    // (a licence server from before it), then the old way.
     expect(sent.length).toBeGreaterThanOrEqual(2);
-    expect(sent.length).toBeLessThanOrEqual(3);
+    expect(sent.length).toBeLessThanOrEqual(4);
     expect(Object.keys(sent.at(-1)!.body)).not.toContain("accepts");
     expect(Object.keys(sent.at(-1)!.body)).not.toContain("health");
     expect(r.state).toBe("active");
     expect(r.lastError).toBeNull();
+  });
+});
+
+describe("a fresh answer, never a replayed one: each check carries a nonce the answer signs (owner 2026-11-18, R9)", () => {
+  const echo: Answer = () => {
+    const nonce = (sent.at(-1)!.body as { nonce?: string }).nonce;
+    return new Response(JSON.stringify({ token: token(nonce ? { nonce } : {}) }), { status: 200 });
+  };
+
+  it("every check asks with a new nonce, and an answer signing it is kept", async () => {
+    answer = echo;
+    expect((await check()).json()).toMatchObject({ state: "active", lastError: null });
+    h.clock.advance(H);
+    await check();
+    h.clock.advance(-H);
+    const [a, b] = sent.map((s) => (s.body as { nonce?: string }).nonce);
+    expect(a).toMatch(/^[A-Za-z0-9_-]{24}$/);
+    expect(b).toMatch(/^[A-Za-z0-9_-]{24}$/);
+    expect(a).not.toBe(b);
+  });
+
+  it("the same answer given again (a server of the client's own, replaying it) is refused: its nonce was another check's", async () => {
+    answer = echo;
+    await check();
+    const captured = (await h.ownerPool.query("SELECT token FROM licence_state")).rows[0].token as string;
+    answer = ok(captured);
+    await check();
+    const [row] = (await h.ownerPool.query("SELECT last_error, last_success_at FROM licence_state")).rows;
+    expect(row.last_error).toMatch(/wasn't the answer to this check/);
+  });
+
+  it("once an answer has signed a nonce, one that signs none (the nonce taken out on the way) is refused", async () => {
+    answer = echo;
+    await check();
+    h.clock.advance(H);
+    answer = ok(token({ state: "active" }));
+    await check();
+    h.clock.advance(-H);
+    const [row] = (await h.ownerPool.query("SELECT last_error FROM licence_state")).rows;
+    expect(row.last_error).toMatch(/wasn't the answer to this check/);
+  });
+
+  it("a licence server from before nonces (it refuses one): asked again without, keeping its plan, and its answer kept", async () => {
+    answer = () => {
+      const last = sent.at(-1)!.body as { nonce?: string; accepts?: string[] };
+      if ("nonce" in last)
+        return new Response(
+          JSON.stringify({ error: { code: "BAD_REQUEST", message: "Not a licence check." } }),
+          {
+            status: 400,
+          },
+        );
+      return new Response(JSON.stringify({ token: token() }), { status: 200 });
+    };
+    expect((await check()).json()).toMatchObject({ state: "active", lastError: null });
+    expect(sent.at(-1)!.body).toHaveProperty("accepts");
+    expect(sent.at(-1)!.body).not.toHaveProperty("nonce");
   });
 });
 

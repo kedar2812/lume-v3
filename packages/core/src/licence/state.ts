@@ -44,6 +44,14 @@ export const licencePayloadSchema = z
     announcements: z.array(announcementClaimSchema).max(3).optional(),
     /** The client's plan (spec 2026-10-17 control §1): only for an install that said it can keep one. */
     plan: planClaimSchema.optional(),
+    /**
+     * The check this answers (owner 2026-11-18, R9): LUME's own random nonce, signed back, so an answer can't be given
+     * again later. Only for an install that sent one.
+     */
+    nonce: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{16,64}$/)
+      .optional(),
   })
   .strict();
 export type LicencePayload = z.infer<typeof licencePayloadSchema>;

@@ -119,7 +119,9 @@ describe("WhatsApp approval in a template (plan W3b-2 Task 7)", () => {
     const user = userEvent.setup();
     await ready();
     expect(screen.getByRole("radio", { name: /Marketing/ })).toHaveAttribute("aria-checked", "true");
-    expect(region()).toHaveTextContent("about ₹0.86 + GST each in India");
+    // By the lead's country, never one country's rupees for every business (owner 2026-11-18).
+    expect(region()).toHaveTextContent("WhatsApp charges for each, by the lead's country");
+    expect(region()).not.toHaveTextContent("India");
     await user.click(screen.getByRole("button", { name: "Add a file at the top" }));
     await user.click(await screen.findByRole("option", { name: /Brochure\.pdf/ }));
     expect(region()).toHaveTextContent("Brochure.pdf");

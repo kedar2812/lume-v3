@@ -110,7 +110,8 @@ describe("estimate and start", () => {
         { leadId: stop, why: "Asked not to be messaged" },
       ],
       firstMessages: 2,
-      metaCost: { amount: expect.any(Number), currency: "INR" },
+      // Two Indian numbers in the business's dirhams, from Meta's AED card (owner 2026-11-18: it was rupees).
+      metaCost: { amount: 0.0866, currency: "AED" },
       monthShare: 0.002,
       // A licence counting AI calls (plan4), not AI leads: no AI leads left to say.
       aiLeadsLeft: null,

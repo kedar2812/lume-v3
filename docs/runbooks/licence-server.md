@@ -134,6 +134,15 @@ Back up first (step 6's `pg_dump`). Migration 0006 (fleet) adds health to check-
 see 7b for the nginx block it needs. Migration 0004 (product key activation) adds the binding columns and
 `retired_keys`; licences made before it keep working, but their key can't be shown again (Rotate makes one that
 can).
+**Check nonces (owner 2026-11-18, R9).** A LUME from this release sends a random `nonce` with every check, and this
+server signs it back into the answer, so an answer captured once (by a server of the client's own on
+`LUME_LICENSE_URL`) can't be given again to keep a licence going. A licence server from before refuses the field;
+LUME then asks without it and keeps working, but stays open to that replay. So update the licence server first.
+Once a LUME has had one answer that signed its nonce, it refuses answers without one: **never roll the licence server
+back below this release** after the fleet has checked in with it, or every install goes offline (read-only after its
+grace). Left open on purpose: an install whose own server stood between it and LUME's from before both updates, and
+never let one signed nonce through; closing that needs a later LUME that always asks for the nonce.
+
 Update order doesn't matter: from 0004 the server still answers an installation from before product keys (its
 check has no install ID), without binding it, for as long as no installation holds that key. Update the licence
 server first all the same, then the fleet.

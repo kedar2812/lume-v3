@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { formatProblemOf } from "@lume/core";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { HttpError } from "../../http/errors";
@@ -36,7 +37,8 @@ export function fileNameOf(req: FastifyRequest): string | null {
 /** What a file is, read from its bytes, and that WhatsApp takes it at its size; refused in words otherwise. */
 export function checkFile(bytes: Buffer, filename?: string | null): Sniffed {
   const type = sniffType(bytes, filename ?? undefined);
-  if (!type) throw new HttpError(415, "FILE_TYPE", TYPES);
+  // A video or photo of another format is told so (MP4 only; JPEG or PNG), anything else what LUME sends.
+  if (!type) throw new HttpError(415, "FILE_TYPE", formatProblemOf(bytes, filename ?? undefined) ?? TYPES);
   if (bytes.length > LIMITS[type.kind])
     throw new HttpError(
       413,

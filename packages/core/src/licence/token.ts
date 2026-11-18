@@ -81,6 +81,8 @@ export function checkBody(o: {
   health?: FleetHealth | null;
   /** How many people pressed Got it on each announcement it shows (fleet §1.2). */
   seen?: { id: string; people: number }[];
+  /** A new random one each check, for the answer to sign back (owner 2026-11-18, R9). */
+  nonce?: string;
 }) {
   return {
     instanceId: o.instanceId,
@@ -94,6 +96,7 @@ export function checkBody(o: {
     ...(o.accepts ? { accepts: [...o.accepts] } : {}),
     ...(o.health ? { health: o.health } : {}),
     ...(o.seen ? { seen: o.seen } : {}),
+    ...(o.nonce ? { nonce: o.nonce } : {}),
   };
 }
 

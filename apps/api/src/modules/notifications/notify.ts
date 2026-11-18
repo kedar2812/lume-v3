@@ -94,7 +94,7 @@ declare module "fastify" {
     /** A person's first name, for notices ("assigned to you by Maya"). */
     notifyNameOf?: (userId: string) => Promise<string | null>;
     /** Mark a follow-up's reminders read for its assignee: it was done, cancelled or moved (3B final review). */
-    settleReminders?: (userId: string, taskId: string) => Promise<void>;
+    settleReminders?: (userId: string, taskIds: string | string[]) => Promise<void>;
   }
 }
 

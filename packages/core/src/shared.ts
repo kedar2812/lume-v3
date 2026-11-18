@@ -47,6 +47,7 @@ export * from "./messaging/render";
 // WhatsApp's template rules and rate card (W3b-2): pure, so the editor checks a template as the server will.
 export * from "./whatsapp/templates";
 export * from "./whatsapp/rates";
+export * from "./whatsapp/formats";
 // The licence as people see it (no crypto: safe for the browser).
 export * from "./licence/state";
 // The product key's one spelling (pure: the setup field groups it as the licence server hashes it).

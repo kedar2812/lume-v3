@@ -76,6 +76,18 @@ describe("/v1/check (spec §4.3)", () => {
     });
   });
 
+  it("signs back the nonce a check was sent with, and none for a LUME that sent none (owner 2026-11-18, R9)", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-01" });
+    const nonce = "AbCdEfGhIjKlMnOpQrStUvWx";
+    const signed = verifyLicence(await tokenOf(await post({ ...body(c), nonce })), KEYS, c.instanceId);
+    expect(signed?.nonce).toBe(nonce);
+    const older = verifyLicence(await tokenOf(await post(body(c))), KEYS, c.instanceId);
+    expect(older).not.toBeNull();
+    expect(older).not.toHaveProperty("nonce"); // an older LUME refuses a key it doesn't know
+    expect((await post({ ...body(c), nonce: "short" })).status).toBe(400);
+    expect((await post({ ...body(c), nonce: "has spaces in it, not base64url" })).status).toBe(400);
+  });
+
   it("an unknown instance, or a wrong key, gets 401 and nothing more — the same answer for both", async () => {
     const c = await seedClient(t.pool, { type: "perpetual" });
     const wrong = await post(

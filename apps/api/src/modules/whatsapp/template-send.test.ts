@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { inbound, statuses } from "../../../../../packages/core/src/whatsapp/fixtures";
+import { forgetRatesForTests, ratesSettledForTests } from "../../money/fx-cache";
 import { createHarness, type Harness } from "../../../test/harness";
 import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { deliver, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
@@ -123,7 +124,8 @@ describe("an approved template to any lead", () => {
         category: "MARKETING",
         preview: "Hi Sneha, this is the studio. Shall we talk this week?",
         missing: [],
-        cost: { amount: 0.86, currency: "INR", asOf: "2026-10-18" },
+        // An Indian number, in the business's dirhams: Meta's AED card (owner 2026-11-18: it was rupees).
+        cost: { amount: 0.0433, currency: "AED", asOf: "2026-10-01" },
       },
     ]);
     const r = await sendTemplate(rep, lead, s);
@@ -145,13 +147,34 @@ describe("an approved template to any lead", () => {
       },
     });
     expect(await outbox(lead)).toEqual([
-      expect.objectContaining({ status: "sent", paid: true, cost: "0.8600", cost_currency: "INR" }),
+      expect.objectContaining({ status: "sent", paid: true, cost: "0.0433", cost_currency: "AED" }),
     ]);
     const [l] = await h.queryAll<{ last_message_at: Date | null }>(
       "SELECT last_message_at FROM leads WHERE id = $1",
       [lead],
     );
     expect(l!.last_message_at).not.toBeNull();
+  });
+
+  it("a business currency Meta doesn't bill in: its dollar card at today's rate (owner 2026-11-18)", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await approved("Hi {{lead.first_name}}, this is the studio. Shall we talk this week?");
+    await h.queryAll("UPDATE settings SET currency = 'CAD'");
+    forgetRatesForTests();
+    try {
+      // No rate kept yet: Meta's dollar card as it says it, and the rate fetched behind (never inside the send).
+      expect((await state(rep, lead)).options[0].cost).toEqual({
+        amount: 0.0118,
+        currency: "USD",
+        asOf: "2026-10-01",
+      });
+      await ratesSettledForTests();
+      const [o] = (await state(rep, lead)).options;
+      // India's marketing rate, $0.0118, at the harness's 1.4 Canadian dollars to the US dollar.
+      expect(o.cost).toEqual({ amount: 0.0165, currency: "CAD", asOf: "2026-10-01" });
+    } finally {
+      await h.queryAll("UPDATE settings SET currency = 'AED'");
+    }
   });
 
   it("a value the lead doesn't have: never sent with a blank; the sheet and the refusal name it", async () => {

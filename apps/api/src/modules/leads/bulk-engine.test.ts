@@ -1,4 +1,5 @@
 import { ALL_GRANTS, newId, type Grant } from "@lume/core";
+import pg from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { processRun, setChunkForTests, setInlineMaxForTests } from "./bulk-runs";
@@ -41,6 +42,50 @@ const seven = async (ownerId: string | null = null) => {
   return ids;
 };
 const count = async (sql: string, params: unknown[]) => (await h.queryAll<{ n: number }>(sql, params))[0]!.n;
+
+describe("two runs over the same leads never deadlock (B6, owner 2026-11-18)", () => {
+  it("every chunk locks its leads in id order, as undo does: a stage move, an assign and tags alike", async () => {
+    // A deadlock needs two transactions to meet in the wrong order, which a test can't time; what prevents it is that
+    // every lock on leads is taken in one order. So: what each chunk asked the database, in its own words.
+    const asked: string[] = [];
+    const real = pg.Client.prototype.query;
+    const spy = vi.spyOn(pg.Client.prototype, "query").mockImplementation(function (
+      this: pg.Client,
+      ...args: unknown[]
+    ) {
+      const q = args[0] as string | { text?: string };
+      const text = typeof q === "string" ? q : q?.text;
+      if (text) asked.push(text);
+      return (real as (...a: unknown[]) => unknown).apply(this, args);
+    } as never);
+    try {
+      const sam = await h.seedUser({ grants: [], name: "Sam Lock" });
+      const ids = (await seven()).reverse(); // handed over newest first: the order asked mustn't matter
+      const tag = (
+        await admin.inject({
+          method: "POST",
+          url: "/api/v1/tags",
+          payload: { label: `L ${newId().slice(-6)}` },
+        })
+      ).json().tag.id;
+      for (const action of [
+        { type: "stage", stageId: cfg.stages.Replied },
+        { type: "assign", ownerId: sam.id },
+        { type: "tags", add: [tag] },
+      ]) {
+        const run = await start(admin, ids, action);
+        await h.runBulk();
+        expect((await read(admin, run)).status, JSON.stringify(action)).toBe("done");
+      }
+    } finally {
+      spy.mockRestore();
+    }
+    // Every statement that locks leads, however it's written; each must end by ordering its own rows by id.
+    const locks = asked.filter((t) => /\bfrom\s+"?leads"?\b/i.test(t) && /\bfor\s+update\b/i.test(t));
+    expect(locks.length).toBeGreaterThanOrEqual(3);
+    for (const t of locks) expect(t, t).toMatch(/order by "leads"\."id" for update\s*$/i);
+  });
+});
 
 describe("7B: the engine", () => {
   it("every action over 7 leads in chunks of 3: each lead changed once, with the history a single edit leaves", async () => {

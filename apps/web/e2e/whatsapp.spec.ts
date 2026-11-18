@@ -442,7 +442,8 @@ test.describe.serial("WhatsApp", () => {
     const pick = chat.getByRole("region", { name: "Send an approved template" });
     const option = pick.getByRole("radio", { name: /Price list/ });
     await expect(option).toContainText("Hi Kavya, here is our price list, as promised. Have a look!");
-    await expect(option).toContainText("WhatsApp charges about ₹0.86 + GST for this.");
+    // An Indian number, in the business's dirhams: Meta's own AED card (owner 2026-11-18).
+    await expect(option).toContainText("WhatsApp charges about AED 0.0433 for this.");
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await settle(page);

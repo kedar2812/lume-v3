@@ -1,5 +1,5 @@
 "use client";
-import { bytesText } from "@lume/core/shared";
+import { bytesText, formatProblem } from "@lume/core/shared";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Popover } from "@/components/ui/Popover";
 import { MediaPicker } from "@/components/media/MediaPicker";
@@ -200,6 +200,12 @@ export function WhatsAppComposer({
   const attach = async (chosen: File[]) => {
     setError(null);
     for (const f of chosen) {
+      // A video or photo WhatsApp won't take is told so now, before it goes up for nothing (owner 2026-11-18).
+      const wrong = formatProblem(f);
+      if (wrong) {
+        setError(wrong);
+        continue;
+      }
       setAttaching(f.name);
       const r = await whatsappClient.attach(leadId, f);
       if (r.ok) ready({ ...r.data.media, filename: r.data.media.filename ?? f.name });

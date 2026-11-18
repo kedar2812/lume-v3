@@ -114,3 +114,57 @@ describe("columns that become new fields", () => {
     expect((await leadNamed("Lead 29")).custom[(await field("Budget"))!.key]).toBe(1200000);
   });
 });
+
+describe("an option added in Settings while an import adds its own (I9, owner 2026-11-18)", () => {
+  it("the import waits for it and keeps it: never archived by the import's own list", async () => {
+    const created = await admin.inject({
+      method: "POST",
+      url: "/api/v1/fields",
+      payload: {
+        key: "space_kind",
+        label: "Space kind",
+        type: "select",
+        options: [{ label: "Residential" }],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const d = await upload(
+      ["full_name,phone_number,space", "Interleaved One,+919876502001,Studio", ""].join("\n"),
+    );
+    const mapped = await patch(d.id, {
+      mapping: {
+        ...d.mapping,
+        columns: [
+          { column: 0, to: "field", field: "name" },
+          { column: 1, to: "field", field: "phone" },
+          { column: 2, to: "field", field: "space_kind" },
+        ],
+        addOptions: { space_kind: ["Studio"] },
+      },
+    });
+    expect(mapped.statusCode, mapped.body).toBe(200);
+    // Settings adds "Office" in a transaction of its own, not yet committed when the import starts.
+    const settings = await h.ownerPool.connect();
+    try {
+      await settings.query("BEGIN");
+      await settings.query(
+        `UPDATE field_definitions
+            SET options = options || jsonb_build_array(jsonb_build_object('id', gen_random_uuid()::text, 'label', 'Office'))
+          WHERE key = 'space_kind'`,
+      );
+      const starting = start(d.id);
+      await new Promise((r) => setTimeout(r, 400));
+      await settings.query("COMMIT");
+      expect((await starting).statusCode).toBeLessThan(300);
+    } finally {
+      settings.release();
+    }
+    const options = (await field("Space kind"))!.options as { label: string; archived?: boolean }[];
+    expect(
+      options
+        .filter((o) => !o.archived)
+        .map((o) => o.label)
+        .sort(),
+    ).toEqual(["Office", "Residential", "Studio"]);
+  });
+});

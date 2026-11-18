@@ -8,7 +8,7 @@ import { liveSessionSql, revokeUserSessions } from "../../auth/sessions";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors";
 import { notifyRbac } from "../../rbac/notify";
 import { cancelReminders } from "../tasks/engine";
-import { refreshNextDue, settleReminders, settleTaskNotices } from "../tasks/lifecycle";
+import { refreshNextDue, settleRemindersMany, settleTaskNotices } from "../tasks/lifecycle";
 
 export type LeadsChoice = { to: "person"; userId: string } | { to: "team"; teamId: string } | { to: "none" };
 /** Who takes the leads: one person, a team spread by load, or nobody (offboarding and deleting an account). */
@@ -279,9 +279,12 @@ export async function offboard(
       for (const t of closed) {
         await cancelReminders(req.db, t.id);
         await refreshNextDue(req, t.lead_id);
-        // Its escalations, and its assignee's own reminders of it, read, as a cancel does (review 2026-11-18).
-        await settleReminders(req, { id: t.id, assigneeId: t.assignee_id });
       }
+      // Their escalations, and each assignee's own reminders of them, read, as a cancel does (review 2026-11-18).
+      await settleRemindersMany(
+        req,
+        closed.map((t) => ({ id: t.id, assigneeId: t.assignee_id })),
+      );
     });
 
   // 4. Their open alerts: settled.
