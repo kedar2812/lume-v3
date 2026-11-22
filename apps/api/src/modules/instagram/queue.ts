@@ -1,6 +1,7 @@
 import PgBoss from "pg-boss";
 import type pg from "pg";
 import { sweepInstagram } from "./inbox";
+import { takeRelayNotes } from "./notes";
 import { fetchInstagramMedia } from "./media";
 import { ECHO_WAIT_MS, processInstagramEvent, type InstagramJobDeps } from "./process";
 import { readInstagramProfile } from "./profile";
@@ -182,6 +183,10 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
     );
     await sweepInstagramTokens(pool, { ...o.d, graph: igGraphOf(o.d) }).catch((err: unknown) =>
       o.app.log.error({ err }, "instagram token refresh failed"),
+    );
+    // What the relay kept for this LUME (gaps to catch up on, Meta's deauthorize and deletion requests).
+    await takeRelayNotes({ ...o.d, log: o.app.log }).catch((err: unknown) =>
+      o.app.log.error({ err }, "instagram relay notes failed"),
     );
   };
   const hourly = setInterval(() => void hourlyWork(), 3_600_000);

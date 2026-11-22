@@ -122,11 +122,16 @@ export async function moveInboxToLead(
                            AND a.type = 'instagram_received' AND a.payload->>'mid' = i.mid)
        ORDER BY i.at, i.created_at, i.id`)
   ).rows;
+  const acct = (
+    await req.db.execute<{ account_id: string }>(
+      sql`SELECT account_id FROM instagram_threads WHERE id = ${threadId}`,
+    )
+  ).rows[0]?.account_id;
   for (const m of rows)
     await req.db.execute(sql`
       INSERT INTO activities (id, lead_id, user_id, type, occurred_at, payload)
       VALUES (${newId()}, ${leadId}, ${userId}, 'instagram_received', ${new Date(m.at)},
-              ${JSON.stringify({ mid: m.mid, threadId, text: m.unsent ? null : m.text, ...(m.unsent ? {} : m.detail), unsent: m.unsent })}::jsonb)`);
+              ${JSON.stringify({ mid: m.mid, accountId: acct, threadId, text: m.unsent ? null : m.text, ...(m.unsent ? {} : m.detail), unsent: m.unsent })}::jsonb)`);
   await req.db.execute(
     sql`UPDATE instagram_media SET lead_id = ${leadId} WHERE thread_id = ${threadId} AND lead_id IS NULL`,
   );

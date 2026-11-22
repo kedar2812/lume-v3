@@ -64,7 +64,13 @@ export function allowed(
   if (url === "/whatsapp/in") return true;
   // Instagram's, the same (NEW_FEATURES_PLAN §4.2); and the relay's own calls (which accounts this LUME holds, one that
   // moved to another LUME) take nothing new either.
-  if (url === "/instagram/in" || url === "/instagram/accounts" || url === "/instagram/moved") return true;
+  if (
+    url === "/instagram/in" ||
+    url === "/instagram/accounts" ||
+    url === "/instagram/moved" ||
+    url === "/instagram/notes"
+  )
+    return true;
   if (
     isAuth(url) ||
     isExport(url) ||
