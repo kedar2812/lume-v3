@@ -35,38 +35,43 @@ export function trustedIgUrl(url: string, graphUrl: string): boolean {
   return u.protocol === "https:" && HOSTS.test(u.hostname);
 }
 
-class Fetch extends Error {
+export class IgFetch extends Error {
   constructor(readonly kind: "too_large" | "gone" | "untrusted" | "failed") {
     super(kind);
   }
 }
 
-async function download(url: string, graphUrl: string): Promise<{ bytes: Buffer; type: string | null }> {
-  if (!trustedIgUrl(url, graphUrl)) throw new Fetch("untrusted");
+/** A file from Meta's hosts only (redirects checked too), never more than `max` bytes read. */
+export async function downloadIg(
+  url: string,
+  graphUrl: string,
+  max = IG_MEDIA_MAX,
+): Promise<{ bytes: Buffer; type: string | null }> {
+  if (!trustedIgUrl(url, graphUrl)) throw new IgFetch("untrusted");
   const first = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(30_000) }).catch(
     () => null,
   );
-  if (!first) throw new Fetch("failed");
+  if (!first) throw new IgFetch("failed");
   let r = first;
   // A redirect is followed only to Meta's hosts.
   if (first.status >= 300 && first.status < 400) {
     const to = first.headers.get("location");
     const next = to ? new URL(to, url).toString() : "";
-    if (!next || !trustedIgUrl(next, graphUrl)) throw new Fetch("untrusted");
+    if (!next || !trustedIgUrl(next, graphUrl)) throw new IgFetch("untrusted");
     const again = await fetch(next, { redirect: "error", signal: AbortSignal.timeout(30_000) }).catch(
       () => null,
     );
-    if (!again) throw new Fetch("failed");
+    if (!again) throw new IgFetch("failed");
     r = again;
   }
-  if (r.status === 404 || r.status === 410 || r.status === 403) throw new Fetch("gone");
-  if (!r.ok || !r.body) throw new Fetch("failed");
-  if (Number(r.headers.get("content-length") ?? 0) > IG_MEDIA_MAX) throw new Fetch("too_large");
+  if (r.status === 404 || r.status === 410 || r.status === 403) throw new IgFetch("gone");
+  if (!r.ok || !r.body) throw new IgFetch("failed");
+  if (Number(r.headers.get("content-length") ?? 0) > max) throw new IgFetch("too_large");
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of r.body as AsyncIterable<Uint8Array>) {
     size += c.length;
-    if (size > IG_MEDIA_MAX) throw new Fetch("too_large");
+    if (size > max) throw new IgFetch("too_large");
     chunks.push(Buffer.from(c));
   }
   return { bytes: Buffer.concat(chunks), type: r.headers.get("content-type") };
@@ -145,9 +150,9 @@ export async function fetchInstagramMedia(o: InstagramJobDeps, id: string): Prom
 
   let got: { bytes: Buffer; type: string | null };
   try {
-    got = await download(row.url, graphUrl);
+    got = await downloadIg(row.url, graphUrl);
   } catch (e) {
-    if (!(e instanceof Fetch)) throw e;
+    if (!(e instanceof IgFetch)) throw e;
     if (e.kind === "too_large") return void (await set({ status: "too_large", problem: WORDS.too_large }));
     if (e.kind === "gone") return void (await set({ status: "gone", problem: WORDS.gone }));
     if (e.kind === "untrusted") {

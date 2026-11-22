@@ -5,6 +5,7 @@ import { sweepInstagram } from "./inbox";
 import { takeRelayNotes } from "./notes";
 import { fetchInstagramMedia } from "./media";
 import { ECHO_WAIT_MS, runInstagramEvent, type InstagramJobDeps } from "./process";
+import { readInstagramPhoto } from "./photo";
 import { readInstagramProfile } from "./profile";
 import {
   IG_SEND_RETRY_DELAY_S,
@@ -20,6 +21,8 @@ const SWEEP_MS = 60_000;
 const PROCESS_WORKERS = 4;
 const MEDIA_WORKERS = 2;
 const PROFILE_WORKERS = 2;
+/** Profile photos (1B addendum): a burst of new people is a burst of small fetches, two at a time. */
+const PHOTO_WORKERS = 2;
 const SEND_WORKERS = 8;
 
 /**
@@ -143,6 +146,23 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
           throw new Error("Instagram didn't answer; reading the profile again later");
       },
     );
+  // Profile photos: one look per conversation at a time (singleton); Meta down is tried again with backoff.
+  const enqueuePhoto = async (id: string) => {
+    await boss.send(
+      "instagram.photo",
+      { id },
+      { retryLimit: 5, retryDelay: 300, retryBackoff: true, singletonKey: id },
+    );
+  };
+  for (let i = 0; i < PHOTO_WORKERS; i++)
+    await boss.work<{ id: string }>(
+      "instagram.photo",
+      { batchSize: 1, pollingIntervalSeconds: 2 },
+      async ([job]) => {
+        if (job && (await readInstagramPhoto(o, job.data.id)) === "later")
+          throw new Error("Instagram didn't answer; looking at the photo again later");
+      },
+    );
   // Replies (Task 6): eight senders, each message once (singleton), tried again with backoff when Meta is busy or the
   // account's pace is reached; one pace for the whole process.
   const limits = o.d.instagramLimits ?? { perSecond: 20, privateRepliesPerHour: 600 };
@@ -230,6 +250,7 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
     enqueue: (id: number) => enqueue(id),
     enqueueMedia,
     enqueueProfile,
+    enqueuePhoto,
     enqueueSend,
     enqueuePublic,
     stop: async () => {

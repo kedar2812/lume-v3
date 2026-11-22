@@ -196,7 +196,7 @@ async function visibleMedia(req: FastifyRequest, id: string) {
   return m;
 }
 
-const onDisk = async (d: AppDeps, sha256: string | null) => {
+export const onDisk = async (d: AppDeps, sha256: string | null) => {
   if (!sha256 || !d.files) return null;
   const s = await stat(d.files.store.path(sha256)).catch(() => null);
   return s?.isFile() ? { path: d.files.store.path(sha256), size: s.size } : null;

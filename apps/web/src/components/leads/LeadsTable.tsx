@@ -181,7 +181,7 @@ export function LeadsTable({
                             aria-label={`Open ${l.name ?? "lead"}`}
                             onClick={() => onOpen(l.id)}
                           >
-                            <Avatar name={l.name ?? "?"} size={26} />
+                            <Avatar name={l.name ?? "?"} size={26} {...(l.photo ? { photo: l.photo } : {})} />
                             <span>{l.name ?? "—"}</span>
                             {glowing?.has(l.id) && (
                               <span className={s.newTag} aria-hidden>

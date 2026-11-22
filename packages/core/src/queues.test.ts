@@ -29,6 +29,7 @@ describe("QUEUE_NAMES", () => {
       "instagram.media",
       "instagram.profile",
       "instagram.public",
+      "instagram.photo",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });

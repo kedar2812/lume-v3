@@ -5,6 +5,7 @@ import { schema } from "@lume/db";
 import { HttpError, badRequest } from "../../http/errors";
 import { loadFieldRegistry, type FieldRegistry } from "../../leads/fields";
 import { isFieldVisible, serializeLead, type LeadRow } from "./serialize";
+import { photosFor, photoUrl } from "../instagram/photos-of";
 
 export type ListQuery = {
   cursor?: string;
@@ -341,8 +342,19 @@ export async function listLeads(req: FastifyRequest, q: ListQuery) {
     req,
     page.map((r) => r.id),
   );
+  const photos = await photosFor(
+    req,
+    page.map((r) => r.id),
+  );
   return {
-    items: page.map((r) => serializeLead(r, { ...ctx, tagIds: tagsOf.get(r.id) ?? [] })),
+    items: page.map((r) => {
+      const p = photos.get(r.id);
+      return serializeLead(r, {
+        ...ctx,
+        tagIds: tagsOf.get(r.id) ?? [],
+        photo: p ? photoUrl(r.id, p) : null,
+      });
+    }),
     searchCapped: hits?.capped ?? false,
     nextCursor: rows.length > q.limit ? encodeCursor(q.sort, page.at(-1)!) : null,
   };

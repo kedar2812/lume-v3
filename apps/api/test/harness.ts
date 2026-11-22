@@ -53,6 +53,7 @@ import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
 import { runDueFlows } from "../src/modules/instagram/flow-due";
 import { runInstagramEvent } from "../src/modules/instagram/process";
 import { fetchInstagramMedia } from "../src/modules/instagram/media";
+import { readInstagramPhoto } from "../src/modules/instagram/photo";
 import { readInstagramProfile } from "../src/modules/instagram/profile";
 import { igPacer, sendInstagramOutbox, TryLater } from "../src/modules/instagram/sender";
 import { fetchMedia } from "../src/modules/whatsapp/media";
@@ -182,6 +183,8 @@ export type Harness = {
   instagramSendQueued: string[];
   instagramMediaQueued: string[];
   instagramProfileQueued: string[];
+  /** Profile photos due a look (1B addendum), by conversation. */
+  instagramPhotoQueued: string[];
   /** Flows' public replies under comments, queued (comment id and words). */
   instagramPublicQueued: { commentId: string; text: string }[];
   /** The minute sweep's flow steps: every run due at the harness's time, once. */
@@ -190,6 +193,8 @@ export type Harness = {
   runInstagram(): Promise<void>;
   runInstagramMedia(): Promise<void>;
   runInstagramProfile(): Promise<void>;
+  /** Look at each queued profile photo once; one that answers "later" stays queued. */
+  runInstagramPhoto(): Promise<void>;
   /** Send the queued Instagram messages once each, as the queue would; one told to try later stays queued. */
   runInstagramSend(): Promise<void>;
   /** Autopilot (A2): every run with something due, stepped until nothing more is due at the harness's time. */
@@ -319,6 +324,7 @@ export async function createHarness(
   const instagramSendQueued: string[] = [];
   const instagramMediaQueued: string[] = [];
   const instagramProfileQueued: string[] = [];
+  const instagramPhotoQueued: string[] = [];
   const instagramPublicQueued: { commentId: string; text: string }[] = [];
   const igSendPacer = igPacer({ now: () => clock.now, perSecond: 20 });
   const autopilotQueued: string[] = [];
@@ -398,6 +404,7 @@ export async function createHarness(
       enqueueSend: async (id) => void instagramSendQueued.push(id),
       enqueueMedia: async (id) => void instagramMediaQueued.push(id),
       enqueueProfile: async (id) => void instagramProfileQueued.push(id),
+      enqueuePhoto: async (id) => void instagramPhotoQueued.push(id),
       enqueuePublic: async (commentId, text) => void instagramPublicQueued.push({ commentId, text }),
     },
     files,
@@ -601,6 +608,7 @@ export async function createHarness(
     instagramSendQueued,
     instagramMediaQueued,
     instagramProfileQueued,
+    instagramPhotoQueued,
     instagramPublicQueued,
     whatsappMediaQueued,
     whatsappSendQueued,
@@ -654,6 +662,12 @@ export async function createHarness(
       for (const id of instagramProfileQueued.splice(0))
         if ((await readInstagramProfile({ app, d: deps }, id)) === "later") again.push(id);
       instagramProfileQueued.push(...again);
+    },
+    async runInstagramPhoto() {
+      const again: string[] = [];
+      for (const id of instagramPhotoQueued.splice(0))
+        if ((await readInstagramPhoto({ app, d: deps }, id)) === "later") again.push(id);
+      instagramPhotoQueued.push(...again);
     },
     async runAutopilot() {
       for (let pass = 0; pass < 50; pass++) {

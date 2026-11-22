@@ -41,6 +41,8 @@ export function igGraph(g: IgGraphConfig, token: string) {
     /** Name and username: allowed once the person has messaged the account. */
     profile: (igsid: string) =>
       call(at(igsid, { fields: "name,username,is_user_follow_business" }), { token }),
+    /** Their profile photo's link (signed, expiring): asked on its own, so a photo that fails never costs a name. */
+    photo: (igsid: string) => call(at(igsid, { fields: "profile_pic" }), { token }),
     unsubscribe: (accountIgId: string) =>
       call(at(`${accountIgId}/subscribed_apps`), { method: "DELETE", token }),
     conversations: (accountIgId: string) =>

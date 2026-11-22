@@ -53,12 +53,19 @@ export type InstagramFake = {
   /** The next sends answer with these Meta error codes (or "lose": taken, then the answer lost), one each. */
   failNext: (number | "lose" | { code: number; subcode: number })[];
   /** Profiles by IGSID; one missing answers "User consent is required". */
-  profiles: Map<string, { name: string; username: string; is_user_follow_business?: boolean }>;
+  profiles: Map<
+    string,
+    { name: string; username: string; is_user_follow_business?: boolean; profile_pic?: string }
+  >;
   conversations: Map<string, IgFakeConversation[]>;
   /** How many conversations a page of the list holds; the rest follow by `paging.next` (no token in it, as Meta's). */
   conversationPageSize: number;
   /** Files served at `<url>/cdn/<name>`, as Instagram's CDN would. */
   files: Map<string, { type: string; bytes: Buffer }>;
+  /** The next profile reads answer with these Meta error codes, one each (a rate limit, a consent refusal). */
+  profileFailNext: number[];
+  /** Run just before a CDN file is served: something that happens while LUME is fetching it. */
+  beforeFile: (() => Promise<unknown>) | null;
   /** A Meta webhook body, signed with the app secret, posted to `to`. */
   deliver(to: string, body: unknown, o?: { secret?: string }): Promise<Response>;
   /** A data deletion / deauthorize signed_request, as Meta posts it. */
@@ -86,8 +93,13 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
     sent: [] as IgFakeSent[],
     publicReplies: [] as { commentId: string; message: string }[],
     failNext: [] as InstagramFake["failNext"],
-    profiles: new Map<string, { name: string; username: string; is_user_follow_business?: boolean }>(),
+    profiles: new Map<
+      string,
+      { name: string; username: string; is_user_follow_business?: boolean; profile_pic?: string }
+    >(),
     conversations: new Map<string, IgFakeConversation[]>(),
+    profileFailNext: [] as number[],
+    beforeFile: null as InstagramFake["beforeFile"],
     conversationPageSize: 100,
     files: new Map<string, { type: string; bytes: Buffer }>(),
   };
@@ -166,8 +178,12 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
       if (u.pathname.startsWith("/cdn/")) {
         const f = state.files.get(u.pathname.slice(5));
         if (!f) return send(res, 404, {});
-        res.writeHead(200, { "content-type": f.type, "content-length": String(f.bytes.length) });
-        return res.end(f.bytes);
+        const serve = () => {
+          res.writeHead(200, { "content-type": f.type, "content-length": String(f.bytes.length) });
+          res.end(f.bytes);
+        };
+        if (!state.beforeFile) return serve();
+        return void state.beforeFile().then(serve, () => send(res, 500, {}));
       }
 
       const m = new RegExp(`^/${version.replace(".", "\\.")}/([^/]+)(?:/([^/]+))?$`).exec(u.pathname);
@@ -246,6 +262,8 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
               })),
             },
           });
+        const refused = state.profileFailNext.shift();
+        if (refused) return send(res, 400, oauthError(refused, "Meta refused"));
         const p = state.profiles.get(node!);
         if (!p) return send(res, 400, oauthError(230, "User consent is required to access user profile"));
         return send(res, 200, { ...p, id: node });

@@ -23,11 +23,18 @@ export type LeadView = Record<string, unknown> & {
   /** What the caller may do with this lead, decided here with the routes' own checks (Phase 1C-2). */
   can: Record<"edit" | "move" | "reveal" | "assign" | "delete" | "message", boolean>;
 };
-export type SerializeCtx = { actor: ActorRecord; fields: FieldRegistry; tagIds: string[] };
+export type SerializeCtx = {
+  actor: ActorRecord;
+  fields: FieldRegistry;
+  tagIds: string[];
+  /** Where their Instagram profile photo is served (1B addendum), if LUME has one. */
+  photo?: string | null;
+};
 
 /** Core field key → property it controls in the response (report §6 core fields). */
 const CORE_PROPS: Record<string, string[]> = {
-  name: ["name"],
+  // The photo goes wherever the name goes (1B addendum): hidden with it.
+  name: ["name", "photo"],
   phone: ["phone"],
   email: ["email"],
   instagram: ["instagram"],
@@ -90,6 +97,7 @@ export function serializeLead(row: LeadRow, ctx: SerializeCtx): LeadView {
     stageId: row.stageId,
     ownerId: row.ownerId,
     name: row.name,
+    photo: ctx.photo ?? null,
     phone,
     email,
     instagram,

@@ -160,6 +160,8 @@ export type AppDeps = {
     enqueueSend(outboxId: string): Promise<void>;
     enqueueMedia(mediaId: string): Promise<void>;
     enqueueProfile(threadId: string): Promise<void>;
+    /** A conversation's profile photo, due a look (1B addendum). */
+    enqueuePhoto(threadId: string): Promise<void>;
     /** A flow's public reply under a comment (best effort, paced). */
     enqueuePublic(commentId: string, text: string): Promise<void>;
   };

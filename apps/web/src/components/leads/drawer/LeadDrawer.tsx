@@ -708,7 +708,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
             {state === "ready" && lead && (
               <>
                 <div className={s.head}>
-                  <Avatar name={lead.name ?? "?"} size={52} />
+                  <Avatar name={lead.name ?? "?"} size={52} {...(lead.photo ? { photo: lead.photo } : {})} />
                   <div className={s.headText}>
                     {nameDef && editable(lead, nameDef) ? (
                       <EditableCell

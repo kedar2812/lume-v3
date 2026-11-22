@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { igIgnore, igInboxPerson, igInboxView, igMakeLead } from "./inbox";
 import { leadInstagram } from "./thread";
+import { sendLeadPhoto } from "./photo-route";
 import { privateReply, sendInstagram, setTakeover } from "./send";
 import { sendLimiter } from "../whatsapp/send";
 import {
@@ -58,6 +59,15 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
     "/api/v1/leads/:id/instagram",
     { config: { permission: "leads.view" }, schema: { params: id } },
     (req) => leadInstagram(req, req.params.id, d.clock()),
+  );
+  // Their Instagram profile photo (1B addendum): LUME's own copy, to whoever sees the lead's name.
+  r.get(
+    "/api/v1/leads/:id/photo",
+    {
+      config: { permission: "leads.view" },
+      schema: { params: id, querystring: z.object({ v: z.string().max(64).optional() }).strict() },
+    },
+    (req, reply) => sendLeadPhoto(req, reply, d, req.params.id),
   );
   // Replying (§4.4): as anyone who may message the lead, 30 a minute and 600 an hour each.
   const limiter = sendLimiter({ now: d.clock });

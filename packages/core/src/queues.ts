@@ -30,5 +30,7 @@ export const QUEUE_NAMES = [
   "instagram.profile",
   // Flows (plan 1B): a public reply under a comment, paced per account.
   "instagram.public",
+  // Profile photos (1B addendum): a person's photo kept as LUME's own copy, checked again weekly.
+  "instagram.photo",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

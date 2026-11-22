@@ -12,6 +12,7 @@ import { isFieldEditable, serializeLead, type LeadRow } from "./serialize";
 import { cancelLeadTasks } from "../tasks/lifecycle";
 import { insertLead, recordActivity } from "./writer";
 import { runOnEnter } from "../tasks/automations";
+import { photosFor, photoUrl } from "../instagram/photos-of";
 
 export { recordActivity };
 
@@ -64,10 +65,12 @@ export async function tagIdsOf(req: FastifyRequest, leadId: string): Promise<str
 }
 
 export async function leadViewFor(req: FastifyRequest, row: LeadRow, fields?: FieldRegistry) {
+  const photo = (await photosFor(req, [row.id])).get(row.id);
   return serializeLead(row, {
     actor: req.actor!,
     fields: fields ?? (await loadFieldRegistry(req)),
     tagIds: await tagIdsOf(req, row.id),
+    photo: photo ? photoUrl(row.id, photo) : null,
   });
 }
 

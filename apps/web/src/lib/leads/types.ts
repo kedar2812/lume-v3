@@ -19,6 +19,8 @@ export type Lead = {
   stageId?: string;
   ownerId?: string | null;
   name?: string;
+  /** Their Instagram profile photo, LUME's own copy (absent with the name, when it's hidden from you). */
+  photo?: string | null;
   phone?: ContactView | null;
   email?: ContactView | null;
   instagram?: ContactView | null;

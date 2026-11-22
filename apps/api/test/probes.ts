@@ -907,6 +907,10 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.view",
     path: (f) => `/api/v1/leads/${f.leadId}/instagram`,
   },
+  "GET /api/v1/leads/:id/photo": {
+    access: "leads.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/photo`,
+  },
   "GET /api/v1/instagram/inbox": { access: "auth.self" },
   "POST /api/v1/leads/:id/instagram/messages": {
     access: "messages.send",

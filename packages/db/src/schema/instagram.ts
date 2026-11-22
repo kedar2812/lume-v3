@@ -88,6 +88,9 @@ export const instagramThreads = pgTable("instagram_threads", {
     .notNull()
     .default(sql`'{}'::jsonb`),
   profileReadAt: tz("profile_read_at"),
+  photoSha256: text("photo_sha256"),
+  photoMime: text("photo_mime"),
+  photoCheckedAt: tz("photo_checked_at"),
   createdAt: tz("created_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });

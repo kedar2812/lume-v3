@@ -17,6 +17,7 @@ import { replyArrived } from "../leads/sending";
 import { visibleLead } from "../leads/service";
 import { readAs } from "../notifications/hub";
 import { notify } from "../notifications/notify";
+import { photoDue } from "./photo";
 import { igGraph, type GraphAnswer } from "./graph";
 import { afterFlow } from "./flow-due";
 import {
@@ -87,6 +88,7 @@ type Thread = {
   name: string | null;
   last_in_at: Date | null;
   profile_read_at: Date | null;
+  photo_checked_at: Date | null;
   taken_over_by: string | null;
   source: { trigger?: string; adId?: string } | null;
   created: boolean;
@@ -104,7 +106,8 @@ async function threadFor(req: FastifyRequest, accountId: string, igsid: string):
   const r = await req.db.execute<Thread>(sql`
     INSERT INTO instagram_threads (id, account_id, igsid) VALUES (${newId()}, ${accountId}, ${igsid})
     ON CONFLICT (account_id, igsid) DO UPDATE SET updated_at = now()
-    RETURNING id, lead_id, username, name, last_in_at, profile_read_at, taken_over_by, source, (xmax = 0) AS created`);
+    RETURNING id, lead_id, username, name, last_in_at, profile_read_at, photo_checked_at, taken_over_by, source,
+              (xmax = 0) AS created`);
   return r.rows[0]!;
 }
 
@@ -129,7 +132,15 @@ type Notice = {
   title: string;
   body: string;
 };
-type Out = { media: string[]; notice: Notice | null; profile: string | null; later: boolean; flow: FlowOut };
+type Out = {
+  media: string[];
+  notice: Notice | null;
+  profile: string | null;
+  /** A conversation whose profile photo is due a look (they've written, so Meta will say). */
+  photo: string | null;
+  later: boolean;
+  flow: FlowOut;
+};
 
 /**
  * The person's name and username, read once they've messaged (Meta allows it then). Answers whether it was read; a
@@ -197,6 +208,7 @@ async function messageIn(
   const t = await threadFor(req, account.id, e.igsid);
   const ad = e.referral?.source?.toUpperCase() === "ADS";
   await personActed(req, t.id, at, ad);
+  if (photoDue(t.photo_checked_at, d.clock())) out.photo = t.id;
   if (e.referral && (t.created || ad))
     await req.db.execute(sql`
       UPDATE instagram_threads SET source = source || ${JSON.stringify({
@@ -478,7 +490,14 @@ export async function processInstagramEvent(
         sql`SELECT status FROM instagram_events WHERE id = ${eventId} FOR UPDATE`,
       );
       if (lock.rows[0]?.status !== "queued") return null;
-      const out: Out = { media: [], notice: null, profile: null, later: false, flow: newFlowOut() };
+      const out: Out = {
+        media: [],
+        notice: null,
+        profile: null,
+        photo: null,
+        later: false,
+        flow: newFlowOut(),
+      };
       const at = new Date(ev.at);
       switch (ev.kind) {
         case "message":
@@ -596,6 +615,10 @@ export async function processInstagramEvent(
     await d.instagram
       ?.enqueueProfile(out.profile)
       .catch((err: unknown) => o.app.log.error({ err }, "couldn't queue an Instagram profile read"));
+  if (out.photo)
+    await d.instagram
+      ?.enqueuePhoto(out.photo)
+      .catch((err: unknown) => o.app.log.error({ err }, "couldn't queue an Instagram profile photo"));
   if (out.notice) {
     const n = out.notice;
     // One notice for a burst: several messages in a row from one lead ring once. A stop is always said.
