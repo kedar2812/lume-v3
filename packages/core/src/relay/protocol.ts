@@ -14,7 +14,7 @@ export type Handoff = {
   /** Google's grant (a sheet's or a calendar's); a WhatsApp hand-back carries `whatsapp` instead. */
   refreshToken?: string;
   /** What the grant is for: a sheet (with the picked file), a calendar (Phase 5A; no file) or a WhatsApp number. */
-  kind?: "sheet" | "calendar" | "whatsapp" | "live_sheet";
+  kind?: "sheet" | "calendar" | "whatsapp" | "live_sheet" | "instagram";
   /** A live sheet's Google account (2026-11-14), as Drive says it: names the account in LUME. */
   email?: string;
   /** A calendar's grant may add events too (calendar.events.owned): LUME AI's calls, with a Meet link. */
@@ -29,6 +29,18 @@ export type Handoff = {
     name: string | null;
     /** Whether Meta took the request to share past chats. */
     history: boolean;
+  };
+  /**
+   * A connected Instagram professional account (NEW_FEATURES_PLAN §4.2): its 60-day token, sealed for its LUME only.
+   * `userId` is the account's Instagram id, the one Meta's webhooks carry as `entry.id`.
+   */
+  instagram?: {
+    token: string;
+    expiresIn: number;
+    userId: string;
+    username: string;
+    name: string | null;
+    accountType: string | null;
   };
   exp: number;
 };

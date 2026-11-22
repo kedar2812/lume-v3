@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import type http from "node:http";
 import { instanceIdOf, seal, sign, verify, type Handoff } from "@lume/core";
 import { pickerPage } from "./picker.html";
+import { instagramRoutes, type InstagramConfig } from "./instagram";
+import type { RouteStore } from "./routes-store";
 import { whatsappRoutes, type MetaConfig } from "./whatsapp";
 
 export type RelayConfig = {
@@ -19,6 +21,9 @@ export type RelayConfig = {
   googleApiUrl?: string;
   /** Meta's app (spec 2026-10-18 §3.1): with it, the relay also connects WhatsApp numbers and passes on their messages. */
   meta?: MetaConfig;
+  /** Instagram (NEW_FEATURES_PLAN §4.2): with it and its routing table, the relay connects accounts and routes their deliveries. */
+  instagram?: InstagramConfig;
+  instagramRoutes?: RouteStore;
   now?: () => number;
 };
 
@@ -49,7 +54,7 @@ type State = {
   i: string;
   n: string;
   exp: number;
-  k?: "calendar" | "calendar_write" | "whatsapp" | "live_sheet";
+  k?: "calendar" | "calendar_write" | "whatsapp" | "live_sheet" | "instagram";
 };
 
 /**
@@ -60,6 +65,8 @@ type State = {
 export type Relay = http.RequestListener & {
   /** Code tokens held in memory right now (expired ones are swept at each sign-in). */
   pendingSize(): number;
+  /** Instagram's routing table rebuilt from every instance's own list (on start). */
+  rebuildInstagram(): Promise<void>;
 };
 
 /** Every page the relay serves: never framed, never sending the relay's address on. */
@@ -191,11 +198,32 @@ export function createRelay(o: RelayConfig): Relay {
       })
     : null;
 
+  const instagram =
+    o.instagram && o.instagramRoutes
+      ? instagramRoutes({
+          ig: o.instagram,
+          routes: o.instagramRoutes,
+          publicUrl: o.publicUrl,
+          now,
+          byId,
+          byToken,
+          instanceIdOf,
+          packState,
+          readState,
+          plain,
+          page,
+          wordsPage,
+          backTo,
+          formBody: body,
+        })
+      : null;
+
   const listener = (req: http.IncomingMessage, res: http.ServerResponse) => {
     void (async () => {
       const u = new URL(req.url ?? "/", o.publicUrl);
       if (u.pathname === "/healthz") return json(res, 200, { status: "ok" });
       if (whatsapp && u.pathname.startsWith("/wa/") && (await whatsapp(req, res, u))) return;
+      if (instagram && u.pathname.startsWith("/ig/") && (await instagram.handle(req, res, u))) return;
 
       if (u.pathname === "/start" && req.method === "GET") {
         const id = u.searchParams.get("i") ?? "";
@@ -397,5 +425,8 @@ export function createRelay(o: RelayConfig): Relay {
       return plain(res, 404, "Not found");
     })().catch(() => plain(res, 500, "Something went wrong. Go back to LUME and try again."));
   };
-  return Object.assign(listener, { pendingSize: () => pending.size });
+  return Object.assign(listener, {
+    pendingSize: () => pending.size,
+    rebuildInstagram: () => instagram?.rebuild() ?? Promise.resolve(),
+  });
 }
