@@ -127,6 +127,11 @@ const deps: AppDeps = {
           appId: cfg.LUME_META_APP_ID ?? null,
         }
       : null,
+  // Instagram (NEW_FEATURES_PLAN §4): Meta's own Graph API unless pointed at a fake (e2e).
+  instagramGraph: {
+    graphUrl: (cfg.INSTAGRAM_GRAPH_URL ?? "https://graph.instagram.com").replace(/\/$/, ""),
+    version: cfg.INSTAGRAM_GRAPH_VERSION ?? "v27.0",
+  },
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   render: cfg.LUME_RENDER_URL ? { url: cfg.LUME_RENDER_URL.replace(/\/$/, "") } : null,
   media,

@@ -172,6 +172,11 @@ export type Harness = {
   whatsappMeaningQueued: string[];
   /** Read each queued reply's meaning once, as the queue would. */
   runWhatsAppMeaning(): Promise<void>;
+  /** Instagram (NEW_FEATURES_PLAN §4): events, sends, media and profile reads queued, in order. */
+  instagramQueued: number[];
+  instagramSendQueued: string[];
+  instagramMediaQueued: string[];
+  instagramProfileQueued: string[];
   /** Autopilot (A2): every run with something due, stepped until nothing more is due at the harness's time. */
   runAutopilot(): Promise<void>;
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
@@ -225,6 +230,8 @@ export async function createHarness(
     aiTimeoutMs?: number;
     /** WhatsApp (spec 2026-10-18 §3): where the fake Meta Graph API listens. */
     meta?: AppDeps["meta"];
+    /** Instagram (NEW_FEATURES_PLAN §4): where the fake Instagram Graph API listens. */
+    instagramGraph?: AppDeps["instagramGraph"];
     /** Media (plan 2026-10-20-media-tab): a stand-in render service on a local port. */
     render?: boolean;
     /** The request pool's size (the scale suite runs at production's DB_POOL_MAX). Default 8. */
@@ -293,6 +300,10 @@ export async function createHarness(
   const whatsappMediaQueued: string[] = [];
   const whatsappSendQueued: string[] = [];
   const whatsappMeaningQueued: string[] = [];
+  const instagramQueued: number[] = [];
+  const instagramSendQueued: string[] = [];
+  const instagramMediaQueued: string[] = [];
+  const instagramProfileQueued: string[] = [];
   const autopilotQueued: string[] = [];
   const previewQueued: string[] = [];
   const render = opts.render ? await startRenderFake() : null;
@@ -364,6 +375,13 @@ export async function createHarness(
       enqueueMeaning: async (id) => void whatsappMeaningQueued.push(id),
     },
     autopilot: { kick: async (id) => void autopilotQueued.push(id) },
+    ...(opts.instagramGraph ? { instagramGraph: opts.instagramGraph } : {}),
+    instagram: {
+      enqueue: async (id) => void instagramQueued.push(id),
+      enqueueSend: async (id) => void instagramSendQueued.push(id),
+      enqueueMedia: async (id) => void instagramMediaQueued.push(id),
+      enqueueProfile: async (id) => void instagramProfileQueued.push(id),
+    },
     files,
     render: render ? { url: render.url } : null,
     media: { enqueuePreview: async (sha) => void previewQueued.push(sha) },
@@ -561,6 +579,10 @@ export async function createHarness(
     google,
     webhookQueue,
     whatsappQueued,
+    instagramQueued,
+    instagramSendQueued,
+    instagramMediaQueued,
+    instagramProfileQueued,
     whatsappMediaQueued,
     whatsappSendQueued,
     whatsappMeaningQueued,

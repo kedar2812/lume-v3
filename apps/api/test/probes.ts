@@ -886,6 +886,23 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     path: () => `/api/v1/whatsapp/numbers/${uuid}`,
   },
+  // Instagram (NEW_FEATURES_PLAN §4): the switch, connecting accounts and whose each is — admins only.
+  "PUT /api/v1/integrations/instagram": { access: "integrations.manage", body: () => ({ enabled: false }) },
+  "POST /api/v1/instagram/connect": { access: "integrations.manage" },
+  "POST /api/v1/instagram/connect/complete": {
+    access: "integrations.manage",
+    body: () => ({ p: "x", s: "y" }),
+  },
+  "GET /api/v1/instagram/accounts": { access: "integrations.manage" },
+  "PATCH /api/v1/instagram/accounts/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/instagram/accounts/${uuid}`,
+    body: () => ({ ownerId: null }),
+  },
+  "DELETE /api/v1/instagram/accounts/:id": {
+    access: "integrations.manage",
+    path: () => `/api/v1/instagram/accounts/${uuid}`,
+  },
   "GET /api/v1/leads/:id/whatsapp": {
     access: "leads.view",
     path: (f) => `/api/v1/leads/${f.leadId}/whatsapp`,

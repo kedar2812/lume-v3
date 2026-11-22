@@ -54,6 +54,8 @@ import { mediaRoutes } from "./modules/media/routes";
 import { fileLinkRoutes } from "./modules/whatsapp/link";
 import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
+import { instagramRoutes } from "./modules/instagram/routes";
+import { instagramRelayRoutes } from "./modules/instagram/relay-routes";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
@@ -144,6 +146,17 @@ export type AppDeps = {
     /** A lead's WhatsApp reply for LUME AI to read the meaning of (W2), by its activity. */
     enqueueMeaning?(activityId: string): Promise<void>;
   };
+  /**
+   * Instagram (NEW_FEATURES_PLAN §4): where Instagram's Graph API is (tests and e2e point it at a fake; unset, Meta's
+   * own), and its queues in this process.
+   */
+  instagramGraph?: { graphUrl: string; version: string } | null;
+  instagram?: {
+    enqueue(eventId: number): Promise<void>;
+    enqueueSend(outboxId: string): Promise<void>;
+    enqueueMedia(mediaId: string): Promise<void>;
+    enqueueProfile(threadId: string): Promise<void>;
+  };
   /** Autopilot's queue (A2): a run with something to do now. */
   autopilot?: { kick(runId: string): Promise<void> };
   /** Tests and e2e only: where Calendly's API is (the fake, 5B). */
@@ -217,6 +230,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await receiveRoutes(a, deps);
         await calendlyReceiveRoutes(a, deps);
         await whatsappReceiveRoutes(a, deps);
+        await instagramRelayRoutes(a, deps);
       },
       configure: (a) => {
         a.decorate("licence", licence);
@@ -291,6 +305,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(aiRoutes, deps);
         await scope.register(autopilotRoutes, deps);
         await scope.register(whatsappRoutes, deps);
+        await scope.register(instagramRoutes, deps);
         await scope.register(fileLinkRoutes, deps);
         await scope.register(mediaRoutes, deps);
         deps.extraRoutes?.(scope, deps);

@@ -125,6 +125,13 @@ export const apiSchema = base
      */
     LUME_RENDER_URL: optional(z.url({ protocol: /^https?$/ })),
     META_GRAPH_VERSION: optional(z.string().regex(/^v\d+\.\d+$/)),
+    /** Instagram (NEW_FEATURES_PLAN §4): Instagram's Graph API. Unset: Meta's own (graph.instagram.com, v27.0). */
+    INSTAGRAM_GRAPH_URL: optional(z.url({ protocol: /^https?$/ })),
+    INSTAGRAM_GRAPH_VERSION: optional(z.string().regex(/^v\d+\.\d+$/)),
+    /** Sends a second per Instagram account (Meta allows 100 for text; LUME stays well below). */
+    LUME_IG_SEND_PER_SECOND: z.coerce.number().int().min(1).max(100).default(20),
+    /** Private replies to comments an hour per account (Meta allows 750). */
+    LUME_IG_PRIVATE_REPLIES_PER_HOUR: z.coerce.number().int().min(1).max(750).default(600),
     LUME_AI_MODEL: optional(z.string().min(1).max(100)),
     LUME_AI_KEY: optional(z.string().min(20).max(400)),
     /**

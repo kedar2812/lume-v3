@@ -106,6 +106,12 @@ export async function integrationsView(req: FastifyRequest, d: AppDeps) {
       // Replying from LUME (plan W3a): off until an admin switches it on.
       replyFromLume: !!s?.i.whatsapp?.replyFromLume,
     },
+    // Instagram (NEW_FEATURES_PLAN §4): connecting goes through the relay, the same one WhatsApp uses.
+    instagram: {
+      enabled: !!s?.i.instagram?.enabled,
+      available: !!(d.whatsappRelay ?? d.googleOAuth),
+      inPlan: moduleIncluded(req.server.licence.view().plan, "instagram"),
+    },
     ai: {
       enabled: !!s?.i.ai?.enabled,
       available: !!d.ai,
