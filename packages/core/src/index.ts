@@ -18,6 +18,7 @@ export * from "./tasks";
 export * from "./messaging";
 export * from "./relay/protocol";
 export * from "./whatsapp";
+export * from "./instagram";
 export * from "./licence";
 // Pictures read from their bytes (photos, feedback screenshots), and the tiny files tests use.
 export * from "./images/read";
