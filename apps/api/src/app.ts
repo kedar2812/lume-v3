@@ -5,7 +5,7 @@ import type { AiPricing, AiTask } from "@lume/core";
 import type { FastifyInstance, FastifyServerOptions } from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import type pg from "pg";
-import { PLAN_MODULES, PLAN_V1_MODULES, type Keyring } from "@lume/core";
+import { PLAN_MODULES, PLAN_V1_MODULES, PLAN_V2_MODULES, type Keyring } from "@lume/core";
 import type { AiProvider } from "./ai/provider";
 import type { Argon2Params } from "@lume/core/password";
 import { csrfRoutes } from "./auth/csrf";
@@ -198,9 +198,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       errors24h: errors.count(deps.clock()),
       ...(deps.tasks?.lastSweepAt ? { lastSweepAt: deps.tasks.lastSweepAt } : {}),
       ...(deps.tasks?.startedAt ? { queueStartedAt: deps.tasks.startedAt } : {}),
-      // A licence server that signs LUME AI in a plan knows it; until one has, only the modules every server knows.
-      reportable:
-        licence.view().plan && "ai" in licence.view().plan!.modules ? PLAN_MODULES : PLAN_V1_MODULES,
+      // A licence server that signs a module in a plan knows it; until one has, only the modules every server knows.
+      // An older server refuses a health report naming a module it doesn't know.
+      reportable: ((m) =>
+        m && "instagram" in m ? PLAN_MODULES : m && "ai" in m ? PLAN_V2_MODULES : PLAN_V1_MODULES)(
+        licence.view().plan?.modules,
+      ),
     }),
   );
   // Control each client (spec 2026-10-17 control §2.2): a module the plan leaves out is switched off once.

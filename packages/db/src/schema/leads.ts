@@ -33,6 +33,8 @@ export const leads = pgTable("leads", {
   instagramHandle: citext("instagram_handle"),
   sourceId: uuid("source_id"),
   externalRef: text("external_ref"),
+  /** The ad the lead came from (0118): a click-to-Instagram-Direct ad, or a comment on an ad. */
+  adId: text("ad_id"),
   value: numeric("value", { precision: 14, scale: 2, mode: "number" }),
   currency: char("currency", { length: 3 }),
   productId: uuid("product_id"),

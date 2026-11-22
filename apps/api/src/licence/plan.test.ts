@@ -89,7 +89,16 @@ const invite = (email: string) =>
 describe("the plan, kept (spec 2026-10-17 control §2)", () => {
   it("says it can keep a plan and which modules are on, with its check-in", async () => {
     await check();
-    expect(sent[0]!.accepts).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6"]);
+    expect(sent[0]!.accepts).toEqual([
+      "announcements",
+      "plan",
+      "plan2",
+      "plan3",
+      "plan4",
+      "plan5",
+      "plan6",
+      "plan7",
+    ]);
     expect((sent[0]!.health as { modulesOn: string[] }).modulesOn).toContain("webhooks");
   });
 
@@ -111,6 +120,31 @@ describe("the plan, kept (spec 2026-10-17 control §2)", () => {
     await check();
     expect((sent.at(-1)!.health as { modulesOn: string[] }).modulesOn).toContain("ai");
     await h.ownerPool.query(`UPDATE settings SET integrations = integrations - 'ai' WHERE id = 1`);
+  });
+
+  it("tells only a licence server that knows Instagram that it's on (plan7)", async () => {
+    await h.ownerPool.query(
+      `UPDATE settings SET integrations = jsonb_set(integrations, '{instagram}', '{"enabled": true}'::jsonb) WHERE id = 1`,
+    );
+    plan = {
+      places: null,
+      modules: { ...all, ai: true, whatsapp: true },
+      aiReadsHourly: null,
+      aiReadsWeekly: null,
+    };
+    await check();
+    await check();
+    expect((sent.at(-1)!.health as { modulesOn: string[] }).modulesOn).not.toContain("instagram");
+    plan = {
+      places: null,
+      modules: { ...all, ai: true, whatsapp: true, instagram: true },
+      aiReadsHourly: null,
+      aiReadsWeekly: null,
+    };
+    await check();
+    await check();
+    expect((sent.at(-1)!.health as { modulesOn: string[] }).modulesOn).toContain("instagram");
+    await h.ownerPool.query(`UPDATE settings SET integrations = integrations - 'instagram' WHERE id = 1`);
   });
 
   it("switches LUME AI off once when the plan leaves it out", async () => {

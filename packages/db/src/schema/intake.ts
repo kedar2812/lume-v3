@@ -14,7 +14,9 @@ import { bytea, tz } from "./types";
 
 export const leadSources = pgTable("lead_sources", {
   id: uuid("id").primaryKey(),
-  type: text("type").$type<"csv" | "google_sheet" | "webhook" | "manual" | "calendly">().notNull(),
+  type: text("type")
+    .$type<"csv" | "google_sheet" | "webhook" | "manual" | "calendly" | "instagram">()
+    .notNull(),
   name: text("name").notNull(),
   configEnc: bytea("config_enc"),
   mapping: jsonb("mapping")
@@ -228,7 +230,10 @@ export const oauthConnects = pgTable("oauth_connects", {
   /** "Connect again" (2B-2 final review): the existing sheet this connect gives a new grant to. */
   targetSourceId: uuid("target_source_id"),
   /** What the grant is for (5A): it completes only as that kind. */
-  kind: text("kind").$type<"sheet" | "calendar" | "whatsapp" | "live_sheet">().notNull().default("sheet"),
+  kind: text("kind")
+    .$type<"sheet" | "calendar" | "whatsapp" | "live_sheet" | "instagram">()
+    .notNull()
+    .default("sheet"),
 });
 
 export type WebhookEventStatus = "test" | "queued" | "done" | "error" | "dismissed";

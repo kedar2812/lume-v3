@@ -167,6 +167,8 @@ export async function handleCheck(req: Request, ctx: Ctx): Promise<Response> {
         v5: v4 && !!b.accepts?.includes("plan5"),
         // Plan tiers (November 2026): only a LUME that accepts plan6 is told its tier.
         v6: v4 && !!b.accepts?.includes("plan5") && !!b.accepts?.includes("plan6"),
+        // Instagram (NEW_FEATURES_PLAN §5.1): only a LUME that accepts plan7 is told whether it's in the plan.
+        v7: !!b.accepts?.includes("plan2") && !!b.accepts?.includes("plan7"),
         ...(v4 ? { topUps: await topUpsAround(ctx.db, l.client_id, now) } : {}),
       })
     : undefined;

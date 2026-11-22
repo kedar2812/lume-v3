@@ -84,6 +84,10 @@ const WITHOUT_RLS: Record<string, string> = {
   whatsapp_files_gone: "Background work and its bookkeeping",
   // Meta's id for a file uploaded for a number (W3a): a number, a hash, Meta's id; no lead data.
   whatsapp_meta_uploads: "Background work and its bookkeeping",
+  // Instagram (NEW_FEATURES_PLAN §5.1), as WhatsApp's: an intake table (each delivery encrypted, cleared once
+  // processed, never read by a route) and the connected accounts (configuration; the token encrypted, never selected).
+  instagram_events: "Background work and its bookkeeping",
+  instagram_accounts: "Business configuration",
   // Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes
   lead_firsts:
     "Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes",

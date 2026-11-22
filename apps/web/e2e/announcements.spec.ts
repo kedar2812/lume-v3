@@ -68,6 +68,7 @@ test.describe("From LUME's team", () => {
       "plan4",
       "plan5",
       "plan6",
+      "plan7",
     ]);
     expect(Object.keys(sent.lastCheck.health as object).sort()).toEqual(
       [

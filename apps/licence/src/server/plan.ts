@@ -2,6 +2,7 @@ import {
   aiCallsForOlder,
   PLAN_MODULES,
   PLAN_V1_MODULES,
+  PLAN_V2_MODULES,
   type PlanClaim,
   type PlanModule,
   type PlanTier,
@@ -32,10 +33,19 @@ export type TopUpsNow = { month: string; calls: number; leads: number }[];
  */
 export function planOf(
   l: Row,
-  o: { v2: boolean; v3?: boolean; v4?: boolean; v5?: boolean; v6?: boolean; topUps?: TopUpsNow },
+  o: {
+    v2: boolean;
+    v3?: boolean;
+    v4?: boolean;
+    v5?: boolean;
+    v6?: boolean;
+    v7?: boolean;
+    topUps?: TopUpsNow;
+  },
 ): PlanClaim {
   const m = l.modules ?? {};
-  const keys = o.v2 ? PLAN_MODULES : PLAN_V1_MODULES;
+  // Instagram (NEW_FEATURES_PLAN §5.1) only for a LUME that accepts plan7: an older one refuses a key it doesn't know.
+  const keys = o.v7 ? PLAN_MODULES : o.v2 ? PLAN_V2_MODULES : PLAN_V1_MODULES;
   const modules = Object.fromEntries(keys.map((k) => [k, m[k] !== false])) as PlanClaim["modules"];
   if (!o.v2) return { places: l.places, modules };
   const leads = l.ai_leads_monthly ?? null;
@@ -85,6 +95,7 @@ export const MODULE_WORDS: Record<PlanModule, string> = {
   calendly: "Calendly",
   ai: "LUME AI",
   whatsapp: "WhatsApp",
+  instagram: "Instagram",
 };
 
 /** "YYYY-MM" of the month `d` months from `now` (UTC). */

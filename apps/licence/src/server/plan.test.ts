@@ -237,7 +237,7 @@ describe("PATCH /api/clients/:id/plan", () => {
     await expect(patchPlan(ctx, c.clientId, { places: 0, modules: {} })).rejects.toBeInstanceOf(Refusal);
     await expect(patchPlan(ctx, c.clientId, { places: 10_001, modules: {} })).rejects.toBeInstanceOf(Refusal);
     await expect(
-      patchPlan(ctx, c.clientId, { places: null, modules: { instagram: false } as never }),
+      patchPlan(ctx, c.clientId, { places: null, modules: { faxMachine: false } as never }),
     ).rejects.toBeInstanceOf(Refusal);
     await expect(
       patchPlan(ctx, c.clientId, { places: null, modules: {}, aiReadsHourly: 0 }),
@@ -352,6 +352,28 @@ describe("AI leads, signed", () => {
     const r = await addTopUp(ctx, c.clientId, { month: "2026-10", packs: 3, note: "Busy week" });
     expect(r.topUps.added[0]).toMatchObject({ month: "2026-10", leads: 300, note: "Busy week" });
     expect(r.history[0]).toMatchObject({ kind: "ai_topup", detail: { month: "2026-10", leads: 300 } });
+  });
+});
+
+describe("Instagram in the plan (NEW_FEATURES_PLAN §5.1, plan7)", () => {
+  const ALL7 = ["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6", "plan7"];
+  const planFor = async (c: { instanceId: string; licenseKey: string }, accepts: string[]) =>
+    (await payloadOf(await post(c, accepts), c.instanceId))!.plan!;
+
+  it("is signed only to a LUME that accepts plan7: an older one would refuse the key", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    expect((await planFor(c, ALL7)).modules).toMatchObject({ instagram: true, whatsapp: true, ai: true });
+    const older = await planFor(c, ALL7.slice(0, -1));
+    expect(older.modules).not.toHaveProperty("instagram");
+    expect(older.modules).toMatchObject({ whatsapp: true, ai: true });
+    // plan7 alone, without plan2, is a LUME that can't keep the newer keys at all.
+    expect((await planFor(c, ["announcements", "plan", "plan7"])).modules).not.toHaveProperty("instagram");
+  });
+
+  it("the owner leaving Instagram out reaches a plan7 LUME as false", async () => {
+    const c = await seedClient(t.pool, { type: "subscription", paidUntil: "2026-12-31" });
+    await patchPlan(ctx, c.clientId, { places: null, modules: { instagram: false } });
+    expect((await planFor(c, ALL7)).modules.instagram).toBe(false);
   });
 });
 

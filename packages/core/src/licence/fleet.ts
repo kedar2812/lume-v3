@@ -25,9 +25,12 @@ export const PLAN_MODULES = [
   "calendly",
   "ai",
   "whatsapp",
+  "instagram",
 ] as const;
 /** The modules every licence server since Control signs; `ai` and `whatsapp` only go to a LUME that accepts plan2. */
 export const PLAN_V1_MODULES = ["googleSheets", "webhooks", "googleCalendar", "calendly"] as const;
+/** The modules a LUME that accepts plan2 (and not plan7) is signed: `instagram` only goes to one that accepts plan7. */
+export const PLAN_V2_MODULES = [...PLAN_V1_MODULES, "ai", "whatsapp"] as const;
 export type PlanModule = (typeof PLAN_MODULES)[number];
 
 const count = z.number().int().min(0).max(1_000_000_000);
@@ -103,6 +106,8 @@ export const planClaimSchema = z
         // LUME AI and WhatsApp (spec 2026-10-18 §2.2): absent from an older licence server's answer = included.
         ai: z.boolean().optional(),
         whatsapp: z.boolean().optional(),
+        // Instagram (NEW_FEATURES_PLAN §5.1): absent from an older licence server's answer = included.
+        instagram: z.boolean().optional(),
       })
       .strict(),
     /** LUME AI's limits (§2.2): reads in a rolling hour, and in a week from Monday 00:00. Absent or null: none. */
@@ -193,4 +198,13 @@ export function aiAllowance(plan: PlanClaim | null | undefined, month: string): 
 export const moduleIncluded = (plan: PlanClaim | null | undefined, key: PlanModule): boolean =>
   plan?.modules[key] !== false && (key !== "ai" || tierAllows(plan, "ai"));
 /** What a LUME from this release can keep, sent with its check-in: the licence server signs those claims only then. */
-export const ACCEPTS = ["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6"] as const;
+export const ACCEPTS = [
+  "announcements",
+  "plan",
+  "plan2",
+  "plan3",
+  "plan4",
+  "plan5",
+  "plan6",
+  "plan7",
+] as const;

@@ -27,6 +27,7 @@ export const MODULE_NAMES: Record<PlanModule, string> = {
   calendly: "Calendly",
   ai: "LUME AI",
   whatsapp: "WhatsApp",
+  instagram: "Instagram",
 };
 /** How each module is named in the audit log, as the module switches already write it. */
 const AUDIT_NAMES: Record<PlanModule, string> = {
@@ -36,6 +37,7 @@ const AUDIT_NAMES: Record<PlanModule, string> = {
   calendly: "calendly",
   ai: "ai",
   whatsapp: "whatsapp",
+  instagram: "instagram",
 };
 
 /** The plan as this person may see it: places, taken and modules for people who manage settings. */

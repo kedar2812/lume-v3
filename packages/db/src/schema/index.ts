@@ -13,5 +13,6 @@ export * from "./bulk";
 export * from "./analytics";
 export * from "./ai";
 export * from "./whatsapp";
+export * from "./instagram";
 export * from "./autopilot";
 export * from "./live-sheets";

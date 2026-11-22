@@ -70,6 +70,8 @@ export const settings = pgTable("settings", {
       /** LUME AI (spec 2026-10-18 §2.2): off unless an admin switches it on. */
       ai?: { enabled: boolean };
       whatsapp?: { enabled?: boolean; keepFilesMonths?: 3 | 6 | 12 | 24 | null; replyFromLume?: boolean };
+      /** Instagram (NEW_FEATURES_PLAN §4): off unless an admin switches it on. */
+      instagram?: { enabled?: boolean };
     }>()
     .notNull()
     .default(sql`'{}'::jsonb`),

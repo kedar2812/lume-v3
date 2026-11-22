@@ -40,10 +40,24 @@ describe("the plan in the signed answer", () => {
       "calendly",
       "ai",
       "whatsapp",
+      "instagram",
     ]);
-    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6"]);
+    expect(ACCEPTS).toEqual(["announcements", "plan", "plan2", "plan3", "plan4", "plan5", "plan6", "plan7"]);
     // The licence server takes at most 64 (apps/licence check.ts): well within it (bug hunt 2026-11-17).
     expect(ACCEPTS.length).toBeLessThanOrEqual(32);
+  });
+  it("Instagram (plan7): left out only when the plan says false; an older answer without it keeps it", () => {
+    const sign = (p: unknown) =>
+      verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
+    const without = sign({ ...plan, modules: { ...plan.modules, instagram: false } })!.plan!;
+    expect(moduleIncluded(without, "instagram")).toBe(false);
+    const withIt = sign({ ...plan, modules: { ...plan.modules, instagram: true } })!.plan!;
+    expect(moduleIncluded(withIt, "instagram")).toBe(true);
+    const older = sign(plan)!.plan!;
+    expect("instagram" in older.modules).toBe(false);
+    expect(moduleIncluded(older, "instagram")).toBe(true);
+    expect(moduleIncluded(null, "instagram")).toBe(true);
+    expect(sign({ ...plan, modules: { ...plan.modules, instagram: "yes" } })).toBeNull();
   });
   it("W3b-2: a monthly limit on paid WhatsApp messages, within bounds", () => {
     const sign = (p: unknown) =>
@@ -84,7 +98,7 @@ describe("the plan in the signed answer", () => {
   it("refuses a module it doesn't know, or places out of bounds", () => {
     const bad = (p: unknown) =>
       verifyLicence(signLicence(payload({ plan: p as never }), privateKey), keys, "LUME-K7RD-2MXQ");
-    expect(bad({ ...plan, modules: { ...plan.modules, instagram: true } })).toBeNull();
+    expect(bad({ ...plan, modules: { ...plan.modules, faxMachine: true } })).toBeNull();
     expect(bad({ ...plan, places: 0 })).toBeNull();
     expect(bad({ ...plan, places: 10_001 })).toBeNull();
     expect(bad({ ...plan, places: null })).not.toBeNull();

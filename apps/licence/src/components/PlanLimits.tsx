@@ -3,7 +3,7 @@ import { AI_LEAD_TIERS, PLAN_TIERS, tierName, type PlanTier } from "@lume/core/s
 import { useState } from "react";
 import { api } from "@/lib/client";
 
-type Module = "googleSheets" | "webhooks" | "googleCalendar" | "calendly" | "ai" | "whatsapp";
+type Module = "googleSheets" | "webhooks" | "googleCalendar" | "calendly" | "ai" | "whatsapp" | "instagram";
 export type Plan = {
   places: number | null;
   modules: Record<Module, boolean>;
@@ -45,6 +45,8 @@ const MODULES: { key: Module; name: string; mark: string | null }[] = [
   { key: "calendly", name: "Calendly", mark: "/brand/calendly.svg" },
   { key: "ai", name: "LUME AI", mark: null },
   { key: "whatsapp", name: "WhatsApp", mark: "/brand/whatsapp.svg" },
+  // Instagram's official mark isn't in /brand yet: shown by name until the owner adds it.
+  { key: "instagram", name: "Instagram", mark: null },
 ];
 /** The hidden safety net (AI leads, 2026-11-12): never shown to the client, sized well above use. */
 const SAFETY = [

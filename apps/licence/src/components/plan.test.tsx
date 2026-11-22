@@ -18,6 +18,7 @@ const all = {
   calendly: true,
   ai: true,
   whatsapp: true,
+  instagram: true,
 };
 const card = (o: Partial<Parameters<typeof PlanLimits>[0]> = {}) =>
   render(
