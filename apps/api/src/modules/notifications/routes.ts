@@ -208,6 +208,14 @@ data: ${JSON.stringify(e)}
 
 `);
       });
+      // Instagram (NEW_FEATURES_PLAN §4.6): as WhatsApp's, its own event.
+      const offInstagram = hub.onInstagram((e) => {
+        if (seesLeads)
+          write(`event: instagram
+data: ${JSON.stringify(e)}
+
+`);
+      });
       // Live sheets (2026-11-14): a sheet's progress or status, as its id and kind, for people who make them.
       const makesSheets = can(req.actor!, "leads.live_sheets");
       const offLiveSheet = hub.onLiveSheet((e) => {
@@ -216,6 +224,7 @@ data: ${JSON.stringify(e)}
       req.raw.on("close", () => {
         offLiveSheet();
         offWhatsApp();
+        offInstagram();
         offUnread();
         offAutopilot();
         offRevoked();

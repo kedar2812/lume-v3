@@ -23,5 +23,10 @@ export const QUEUE_NAMES = [
   "media.preview",
   // Autopilot (A2): a run with something to do now (written, revealed, sent; paced).
   "autopilot.step",
+  // Instagram (NEW_FEATURES_PLAN §6): deliveries into conversations, replies out, files fetched, profiles read.
+  "instagram.process",
+  "instagram.send",
+  "instagram.media",
+  "instagram.profile",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

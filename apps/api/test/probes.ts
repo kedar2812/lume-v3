@@ -903,6 +903,23 @@ export const PROBES: Record<string, Probe> = {
     access: "integrations.manage",
     path: () => `/api/v1/instagram/accounts/${uuid}`,
   },
+  "GET /api/v1/leads/:id/instagram": {
+    access: "leads.view",
+    path: (f) => `/api/v1/leads/${f.leadId}/instagram`,
+  },
+  "GET /api/v1/instagram/inbox": { access: "auth.self" },
+  "GET /api/v1/instagram/inbox/:threadId": {
+    access: "auth.self",
+    path: () => `/api/v1/instagram/inbox/${uuid}`,
+  },
+  "POST /api/v1/instagram/inbox/:threadId/lead": {
+    access: "leads.create",
+    path: () => `/api/v1/instagram/inbox/${uuid}/lead`,
+  },
+  "POST /api/v1/instagram/inbox/:threadId/ignore": {
+    access: "auth.self",
+    path: () => `/api/v1/instagram/inbox/${uuid}/ignore`,
+  },
   "GET /api/v1/leads/:id/whatsapp": {
     access: "leads.view",
     path: (f) => `/api/v1/leads/${f.leadId}/whatsapp`,

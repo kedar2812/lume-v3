@@ -62,6 +62,9 @@ export function allowed(
   // WhatsApp's intake answers for itself: it takes nothing new while locked, and still tells Meta 200 (a refusal would
   // only make Meta try again for days).
   if (url === "/whatsapp/in") return true;
+  // Instagram's, the same (NEW_FEATURES_PLAN §4.2); and the relay's own calls (which accounts this LUME holds, one that
+  // moved to another LUME) take nothing new either.
+  if (url === "/instagram/in" || url === "/instagram/accounts" || url === "/instagram/moved") return true;
   if (
     isAuth(url) ||
     isExport(url) ||

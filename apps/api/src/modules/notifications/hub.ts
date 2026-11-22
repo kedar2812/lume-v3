@@ -193,6 +193,7 @@ export async function startHub(pool: pg.Pool) {
   /** Told whenever leads change (4B): no payload, so nothing about whose or which. */
   const leadListeners = new Set<() => void>();
   const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
+  const instagramListeners = new Set<(e: WhatsAppEvent) => void>();
   /** Told of each change in a LUME AI run (Autopilot A2): its run, lead and kind, never words. */
   const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
   const liveSheetListeners = new Set<(e: LiveSheetEvent) => void>();
@@ -265,6 +266,10 @@ export async function startHub(pool: pg.Pool) {
       } else if (m.channel === "lume_whatsapp") {
         const e = whatsappEventOf(m.payload ?? "");
         if (e) for (const l of whatsappListeners) l(e);
+      } else if (m.channel === "lume_instagram") {
+        // Instagram (NEW_FEATURES_PLAN §4.6): the same shape, its own event, so a screen knows which conversation.
+        const e = whatsappEventOf(m.payload ?? "");
+        if (e) for (const l of instagramListeners) l(e);
       }
     });
     c.on("error", () => {
@@ -276,6 +281,7 @@ export async function startHub(pool: pg.Pool) {
     await c.query("LISTEN lume_leads");
     await c.query("LISTEN lume_autopilot");
     await c.query("LISTEN lume_whatsapp");
+    await c.query("LISTEN lume_instagram");
     await c.query("LISTEN lume_live_sheets");
     client = c;
   };
@@ -324,6 +330,10 @@ export async function startHub(pool: pg.Pool) {
       whatsappListeners.add(listener);
       return () => void whatsappListeners.delete(listener);
     },
+    onInstagram(listener: (e: WhatsAppEvent) => void): () => void {
+      instagramListeners.add(listener);
+      return () => void instagramListeners.delete(listener);
+    },
     /** Leads changed somewhere (4B): each stream decides how often to say so. */
     onLeads(listener: () => void): () => void {
       leadListeners.add(listener);
@@ -339,6 +349,7 @@ export async function startHub(pool: pg.Pool) {
         await c.query("UNLISTEN lume_leads").catch(() => undefined);
         await c.query("UNLISTEN lume_autopilot").catch(() => undefined);
         await c.query("UNLISTEN lume_whatsapp").catch(() => undefined);
+        await c.query("UNLISTEN lume_instagram").catch(() => undefined);
         c.release();
       }
     },

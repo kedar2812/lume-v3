@@ -24,6 +24,10 @@ describe("QUEUE_NAMES", () => {
       "whatsapp.meaning",
       "media.preview",
       "autopilot.step",
+      "instagram.process",
+      "instagram.send",
+      "instagram.media",
+      "instagram.profile",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });

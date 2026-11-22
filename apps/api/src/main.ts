@@ -16,6 +16,7 @@ import { diskOf, fileStore } from "./modules/whatsapp/files";
 import { startMediaQueue } from "./modules/media/queue";
 import { startAutopilotQueue } from "./modules/autopilot/queue";
 import { startWhatsAppQueue } from "./modules/whatsapp/queue";
+import { startInstagramQueue } from "./modules/instagram/queue";
 import { startTaskQueue } from "./modules/tasks/queue";
 import { processSetupTokens } from "./auth/setup-token";
 import { loadKeyring } from "./crypto/keyring-store";
@@ -89,6 +90,13 @@ const whatsapp: NonNullable<AppDeps["whatsapp"]> = {
   enqueueSend: async () => undefined,
   enqueueMeaning: async () => undefined,
 };
+// Instagram (NEW_FEATURES_PLAN §6): filled once its queue is up; the minute sweep queues anything accepted meanwhile.
+const instagram: NonNullable<AppDeps["instagram"]> = {
+  enqueue: async () => undefined,
+  enqueueSend: async () => undefined,
+  enqueueMedia: async () => undefined,
+  enqueueProfile: async () => undefined,
+};
 // Autopilot (A2): filled once its queue is up; the minute sweep catches any run started meanwhile.
 const autopilot: NonNullable<AppDeps["autopilot"]> = { kick: async () => undefined };
 // Media's previews (plan 2026-10-20-media-tab): filled once its queue is up; the sweep queues anything added meanwhile.
@@ -155,6 +163,7 @@ const deps: AppDeps = {
   logger: loggerOptions(cfg.LOG_LEVEL),
   licence,
   whatsapp,
+  instagram,
   autopilot,
   // WhatsApp's files (2026-10-19): the `files` volume, and how full the disk under it is.
   files: { store: fileStore(cfg.LUME_FILES_DIR), disk: () => diskOf(cfg.LUME_FILES_DIR) },
@@ -207,6 +216,11 @@ whatsapp.enqueue = whatsappQueue.enqueue;
 whatsapp.enqueueMedia = whatsappQueue.enqueueMedia;
 whatsapp.enqueueSend = whatsappQueue.enqueueSend;
 whatsapp.enqueueMeaning = whatsappQueue.enqueueMeaning;
+// Instagram (NEW_FEATURES_PLAN §6): its queues in this process, as WhatsApp's are.
+const instagramQueue = await startInstagramQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
+instagram.enqueue = instagramQueue.enqueue;
+instagram.enqueueMedia = instagramQueue.enqueueMedia;
+instagram.enqueueProfile = instagramQueue.enqueueProfile;
 const autopilotQueue = await startAutopilotQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
 autopilot.kick = autopilotQueue.kick;
 const mediaQueue = await startMediaQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
@@ -234,6 +248,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     await taskQueue.stop();
     await webhookQueue.stop();
     await whatsappQueue.stop();
+    await instagramQueue.stop();
     await autopilotQueue.stop();
     await mediaQueue.stop();
     await sheetQueue?.stop();

@@ -141,6 +141,21 @@ export const instagramOutbox = pgTable("instagram_outbox", {
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
 
+/** Not a lead yet (0119): a message from someone no lead has yet, kept 14 days on its conversation. */
+export const instagramInbox = pgTable("instagram_inbox", {
+  id: uuid("id").primaryKey(),
+  threadId: uuid("thread_id").notNull(),
+  mid: text("mid").notNull().unique(),
+  at: tz("at").notNull(),
+  text: text("text"),
+  detail: jsonb("detail")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  unsent: boolean("unsent").notNull().default(false),
+  createdAt: tz("created_at").notNull().defaultNow(),
+});
+
 /** A photo, video, voice note or file a person sent, kept once on this server's disk. */
 export const instagramMedia = pgTable("instagram_media", {
   id: uuid("id").primaryKey(),

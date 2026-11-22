@@ -50,6 +50,9 @@ import { startGoogleFake, type GoogleFake } from "./google-fake";
 import { createLimiter } from "../src/modules/webhooks/limits";
 import { processEvent } from "../src/modules/webhooks/process";
 import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
+import { processInstagramEvent } from "../src/modules/instagram/process";
+import { fetchInstagramMedia } from "../src/modules/instagram/media";
+import { readInstagramProfile } from "../src/modules/instagram/profile";
 import { fetchMedia } from "../src/modules/whatsapp/media";
 import { makePreview } from "../src/modules/media/preview";
 import { startRenderFake, type RenderFake } from "./render-fake";
@@ -177,6 +180,10 @@ export type Harness = {
   instagramSendQueued: string[];
   instagramMediaQueued: string[];
   instagramProfileQueued: string[];
+  /** Process the queued Instagram events in order; one that answers "later" stays queued (as the queue waits 30 s). */
+  runInstagram(): Promise<void>;
+  runInstagramMedia(): Promise<void>;
+  runInstagramProfile(): Promise<void>;
   /** Autopilot (A2): every run with something due, stepped until nothing more is due at the harness's time. */
   runAutopilot(): Promise<void>;
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
@@ -606,6 +613,21 @@ export async function createHarness(
     async runWhatsApp() {
       for (let id = whatsappQueued.shift(); id; id = whatsappQueued.shift())
         await processWhatsAppEvent({ app, d: deps }, id);
+    },
+    async runInstagram() {
+      const later: number[] = [];
+      for (let id = instagramQueued.shift(); id; id = instagramQueued.shift())
+        if ((await processInstagramEvent({ app, d: deps }, id)) === "later") later.push(id);
+      instagramQueued.push(...later);
+    },
+    async runInstagramMedia() {
+      for (const id of instagramMediaQueued.splice(0)) await fetchInstagramMedia({ app, d: deps }, id);
+    },
+    async runInstagramProfile() {
+      const again: string[] = [];
+      for (const id of instagramProfileQueued.splice(0))
+        if ((await readInstagramProfile({ app, d: deps }, id)) === "later") again.push(id);
+      instagramProfileQueued.push(...again);
     },
     async runAutopilot() {
       for (let pass = 0; pass < 50; pass++) {

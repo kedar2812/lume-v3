@@ -56,6 +56,7 @@ import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
 import { instagramRoutes } from "./modules/instagram/routes";
 import { instagramRelayRoutes } from "./modules/instagram/relay-routes";
+import { instagramReceiveRoutes } from "./modules/instagram/receive";
 import { lockoutAlerts } from "./modules/auth/lockout";
 import { authRoutes } from "./modules/auth/routes";
 import { inviteRoutes } from "./modules/invites/routes";
@@ -231,6 +232,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await calendlyReceiveRoutes(a, deps);
         await whatsappReceiveRoutes(a, deps);
         await instagramRelayRoutes(a, deps);
+        await instagramReceiveRoutes(a, deps);
       },
       configure: (a) => {
         a.decorate("licence", licence);
