@@ -221,10 +221,17 @@ export async function stopFlowRuns(
 
 /** A stopped run's messages still waiting to go: cancelled with words; a private reply's comment is free again. */
 async function cancelQueued(req: FastifyRequest, runIds: string[], reason: string) {
-  const c = await req.db.execute<{ comment_id: string | null }>(sql`
+  const c = await req.db.execute<{ comment_id: string | null; flow_run_id: string; step_key: string }>(sql`
     UPDATE instagram_outbox SET status = 'cancelled', problem = ${reason}, updated_at = now()
      WHERE flow_run_id = ANY(${pgArray(runIds)}::uuid[]) AND status = 'queued'
-     RETURNING comment_id`);
+     RETURNING comment_id, flow_run_id, step_key`);
+  // What never went isn't counted as sent in the flow's numbers.
+  if (c.rows.length)
+    await req.db.execute(sql`
+      DELETE FROM instagram_flow_events e
+       USING unnest(${pgArray(c.rows.map((r) => r.flow_run_id))}::uuid[],
+                    ${pgArray(c.rows.map((r) => r.step_key))}::text[]) AS x(run_id, step_key)
+       WHERE e.run_id = x.run_id AND e.step_key = x.step_key AND e.kind IN ('dm_sent', 'private_reply')`);
   const comments = c.rows.map((r) => r.comment_id).filter((x): x is string => !!x);
   if (comments.length)
     await req.db.execute(sql`

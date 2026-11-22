@@ -123,6 +123,7 @@ beforeEach(async () => {
   h.instagramPublicQueued.length = 0;
   h.instagramSendQueued.length = 0;
   ig.sent.length = 0;
+  ig.failNext.length = 0;
   ig.tokens.clear();
   ig.tokens.set("IGQlong-account-token", fakeAccount());
   ig.profiles.set(IGSID, { name: "Priya Shah", username: "priya.fit" });
@@ -567,6 +568,41 @@ describe("what a flow brought", () => {
       url: `/api/v1/instagram/flows/${f.id}/stats?from=2026-02-30&to=2026-03-01`,
     });
     expect(bad.json().error.message).toBe("Choose real days.");
+  });
+  it("only messages that went count: one Meta refused, and a stopped run's queued one, drop out", async () => {
+    const f = await liveFlow("Lead magnet", magnet);
+    const t = Math.floor(h.clock.now.getTime() / 1000);
+    await deliverIg(h, igComment({ id: "1", text: "guide", time: t }));
+    await deliverIg(
+      h,
+      igComment({ id: "2", from: "6512000000000002", username: "ana", text: "guide", time: t }),
+    );
+    await deliverIg(
+      h,
+      igComment({ id: "3", from: "6512000000000003", username: "raj", text: "guide", time: t }),
+    );
+    await h.runInstagram();
+    const o = {
+      app: h.app,
+      d: h.deps,
+      pacer: igPacer({ now: () => h.clock.now, perSecond: 10_000 }),
+      privateRepliesPerHour: 600,
+    };
+    const ids = h.instagramSendQueued.splice(0);
+    expect(ids).toHaveLength(3);
+    // Meta refuses the first (outside its window), the second goes, the third is still queued when the flow is archived.
+    ig.failNext.push({ code: 10, subcode: 2534022 });
+    await sendInstagramOutbox(o, ids[0]!);
+    await sendInstagramOutbox(o, ids[1]!);
+    const admin1 = await h.signIn(admin);
+    await admin1.inject({ method: "POST", url: `/api/v1/instagram/flows/${f.id}/archive` });
+    expect((await outbox()).map((x) => x.status).sort()).toEqual(["cancelled", "failed", "sent"]);
+    const day = (d: number) => new Date(h.clock.now.getTime() + d * 86_400_000).toISOString().slice(0, 10);
+    const r = await admin1.inject({
+      method: "GET",
+      url: `/api/v1/instagram/flows/${f.id}/stats?from=${day(-1)}&to=${day(1)}`,
+    });
+    expect(r.json().total).toMatchObject({ triggered: 3, privateReplies: 1 });
   });
 });
 

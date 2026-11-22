@@ -84,6 +84,7 @@ type Row = {
   buttons: { title: string; url: string }[] | null;
   tag: string | null;
   flow_run_id: string | null;
+  step_key: string | null;
   user_id: string;
   user_name: string | null;
   lead_id: string;
@@ -137,7 +138,7 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
       (
         await c.query<Row>(
           `SELECT o.status, o.updated_at < now() - make_interval(secs => $2) AS stuck, o.tries, o.kind, o.text,
-                  o.quick_replies, o.buttons, o.tag, o.flow_run_id, o.user_id, u.name AS user_name, o.lead_id, o.thread_id,
+                  o.quick_replies, o.buttons, o.tag, o.flow_run_id, o.step_key, o.user_id, u.name AS user_name, o.lead_id, o.thread_id,
                   l.deleted_at IS NOT NULL AS lead_deleted, l.dnc_at IS NOT NULL AS lead_dnc, l.name AS lead_name,
                   t.igsid, t.last_in_at, t.ad_window_until, a.id AS account_id, a.ig_user_id, a.status AS account_status,
                   a.token_enc, o.comment_id, c.at AS comment_at, c.private_reply AS comment_state,
@@ -166,6 +167,13 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
         await c.query(
           "UPDATE instagram_comments SET private_reply = 'failed' WHERE comment_id = $1 AND private_reply = 'queued'",
           [row.comment_id],
+        );
+      // A flow's message that didn't go isn't one it sent: its count in the flow's numbers goes with it.
+      if (row.flow_run_id && (status === "failed" || status === "cancelled"))
+        await c.query(
+          `DELETE FROM instagram_flow_events
+            WHERE run_id = $1 AND step_key = $2 AND kind IN ('dm_sent', 'private_reply')`,
+          [row.flow_run_id, row.step_key],
         );
     });
   const fail = async (problem: string) => {
