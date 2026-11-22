@@ -164,7 +164,8 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
     typeof ig.token !== "string" ||
     !/^\d{5,30}$/.test(ig.userId ?? "") ||
     typeof ig.username !== "string" ||
-    !ig.username
+    !ig.username ||
+    typeof ig.grant !== "string"
   )
     throw invalid();
   if (h.exp < Date.now())
@@ -232,6 +233,7 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
     runAs: uid,
     sourceId,
     tokenEnc: d.keyring.encrypt(ig.token, igTokenContext(id)),
+    relayGrant: ig.grant,
     tokenAt: now,
     status: "active" as const,
     problem: null,
@@ -306,14 +308,17 @@ async function relayForget(d: AppDeps, accountIgId: string) {
   }).catch(() => null);
 }
 
-/** As widened for one statement, then put back: an account's strangers go whoever's they were. */
-async function withAllScope(req: FastifyRequest, fn: () => Promise<unknown>) {
+/**
+ * Every lead in scope for `fn` only, then put back: work the person may do (by their permission, checked before) that
+ * touches leads outside their own scope, such as a lead the source's rule gives to someone else.
+ */
+export async function withAllScope<T>(req: FastifyRequest, fn: () => Promise<T>): Promise<T> {
   const prev = await req.db.execute<{ s: string | null }>(
     sql`SELECT current_setting('lume.lead_scope', true) AS s`,
   );
   await req.db.execute(sql`SELECT set_config('lume.lead_scope', 'all', true)`);
   try {
-    await fn();
+    return await fn();
   } finally {
     await req.db.execute(sql`SELECT set_config('lume.lead_scope', ${prev.rows[0]?.s ?? ""}, true)`);
   }
@@ -374,10 +379,11 @@ export async function accountMoved(pool: pg.Pool, accountIgId: string): Promise<
   return true;
 }
 
-/** The accounts this LUME holds, for the relay's routing table. */
-export async function heldAccounts(pool: pg.Pool): Promise<string[]> {
-  const { rows } = await pool.query<{ id: string }>(
-    "SELECT ig_user_id AS id FROM instagram_accounts WHERE status <> 'disconnected' ORDER BY ig_user_id",
+/** The accounts this LUME holds, each with the relay's own grant for it, for the relay's routing table. */
+export async function heldAccounts(pool: pg.Pool): Promise<{ id: string; grant: string }[]> {
+  const { rows } = await pool.query<{ id: string; grant: string }>(
+    `SELECT ig_user_id AS id, relay_grant AS grant FROM instagram_accounts
+      WHERE status <> 'disconnected' AND relay_grant IS NOT NULL ORDER BY ig_user_id`,
   );
-  return rows.map((r) => r.id);
+  return rows;
 }

@@ -25,7 +25,16 @@ const ACCT_A = "17841400000000001";
 const ACCT_B = "17841400000000002";
 
 type Got = { path: string; headers: http.IncomingHttpHeaders; raw: Buffer };
-type Fake = { server: http.Server; url: string; got: Got[]; status: number; accounts: string[] | null };
+type Fake = {
+  server: http.Server;
+  url: string;
+  got: Got[];
+  status: number;
+  accounts: { id: string; grant: string }[] | null;
+};
+/** What the relay signs at connect for an account on a LUME (its secret is the test's). */
+const grantFor = (accountId: string, instanceId: string) =>
+  sign("s".repeat(40), `instagram-grant.${accountId}.${instanceId}`);
 const listen = async (s: http.Server) => {
   await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
   return `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
@@ -43,7 +52,7 @@ async function fakeInstance(): Promise<Fake> {
           return res.end();
         }
         res.writeHead(200, { "content-type": "application/json" });
-        return res.end(JSON.stringify({ accountIds: f.accounts }));
+        return res.end(JSON.stringify({ accounts: f.accounts }));
       }
       res.writeHead(f.status);
       res.end();
@@ -391,6 +400,19 @@ describe("Meta's deauthorize and data deletion requests", () => {
     expect(routes.notesFor(A)[0]).toMatchObject({ kind: "deauthorize", userId: ACCT_A });
   });
 
+  it("a request after the account was disconnected still reaches the LUME that held it", async () => {
+    routes.drop(ACCT_A, A);
+    await post("/ig/delete", ig.signedRequest(ACCT_A));
+    expect(routes.notesFor(A)).toEqual([expect.objectContaining({ kind: "delete", userId: ACCT_A })]);
+  });
+
+  it("after a move, both the old and the new LUME get it", async () => {
+    routes.set(ACCT_A, B);
+    await post("/ig/delete", ig.signedRequest(ACCT_A));
+    expect(routes.notesFor(A)).toHaveLength(1);
+    expect(routes.notesFor(B)).toHaveLength(1);
+  });
+
   it("a forged signed_request is refused and noted nowhere", async () => {
     expect((await post("/ig/delete", ig.signedRequest(ACCT_A, { secret: "forged-secret-xyz" }))).status).toBe(
       400,
@@ -401,10 +423,30 @@ describe("Meta's deauthorize and data deletion requests", () => {
 });
 
 describe("rebuilding the routing table on start", () => {
+  it("a LUME can't claim an account the relay never granted it, even when nobody holds it", async () => {
+    a.accounts = [
+      { id: ACCT_B, grant: grantFor(ACCT_B, B) }, // B's grant, shown by A
+      { id: "17841400000000055", grant: "forged" },
+    ];
+    b.accounts = [];
+    await relay.rebuildInstagram();
+    expect(routes.get(ACCT_B)).toBeUndefined();
+    expect(routes.get("17841400000000055")).toBeUndefined();
+  });
+
+  it("the hand-back carries the grant the rebuild accepts", async () => {
+    const r = await connect(TOKEN_A);
+    const { h } = handoffOf(r, TOKEN_A);
+    routes.drop(ACCT_A, A);
+    a.accounts = [{ id: ACCT_A, grant: h!.instagram!.grant }];
+    await relay.rebuildInstagram();
+    expect(routes.get(ACCT_A)).toBe(A);
+  });
+
   it("takes each LUME's own list, keeps the routes of one that doesn't answer", async () => {
     routes.set("17841400000000077", A);
     routes.set(ACCT_B, B);
-    a.accounts = [ACCT_A];
+    a.accounts = [{ id: ACCT_A, grant: grantFor(ACCT_A, A) }];
     b.accounts = null;
     await relay.rebuildInstagram();
     expect(routes.get(ACCT_A)).toBe(A);
@@ -424,8 +466,12 @@ describe("rebuilding the routing table on start", () => {
 
   it("never takes an account another LUME already holds", async () => {
     routes.set(ACCT_B, B);
-    a.accounts = [ACCT_A, ACCT_B, "not-an-id"];
-    b.accounts = [ACCT_B];
+    a.accounts = [
+      { id: ACCT_A, grant: grantFor(ACCT_A, A) },
+      { id: ACCT_B, grant: grantFor(ACCT_B, A) },
+      { id: "not-an-id", grant: "x" },
+    ];
+    b.accounts = [{ id: ACCT_B, grant: grantFor(ACCT_B, B) }];
     await relay.rebuildInstagram();
     expect(routes.get(ACCT_B)).toBe(B);
     expect(routes.accountsOf(A)).toEqual([ACCT_A]);

@@ -339,18 +339,69 @@ describe("a person's first DM", () => {
     expect(owners[0]).toBe(owners[2]);
   });
 
-  it("no name on Instagram: the handle; no profile at all: 'Instagram lead', and the profile is read later", async () => {
+  it("no name on Instagram: the handle, masked (a name everyone sees); no profile at all: 'Instagram lead', named later", async () => {
     ig.profiles.set(IGSID, { name: "", username: "priya.fit" });
     await take(igDm());
-    expect((await leads())[0]!.name).toBe("@priya.fit");
+    expect((await leads())[0]!.name).toBe(maskInstagram("priya.fit"));
     await h.ownerPool.query("TRUNCATE leads, activities, instagram_threads CASCADE");
     ig.failPaths.add(`/${IGSID}`);
     await take(igDm({ mid: "m2" }));
     expect((await leads())[0]).toMatchObject({ name: "Instagram lead", instagram_handle: null });
     expect(h.instagramProfileQueued).toHaveLength(1);
     ig.failPaths.clear();
+    ig.profiles.set(IGSID, { name: "Priya Shah", username: "priya.fit" });
     await h.runInstagramProfile();
-    expect((await leads())[0]!.instagram_handle).toBe("priya.fit");
+    expect((await leads())[0]).toMatchObject({ instagram_handle: "priya.fit", name: "Priya Shah" });
+  });
+
+  it("a late profile never gives a second lead one person's handle", async () => {
+    ig.failPaths.add(`/${IGSID}`);
+    await take(igDm());
+    const other = await h.seedLead({ ownerId: rep.id, name: "From a sheet" });
+    await h.queryAll("UPDATE leads SET instagram_handle = 'priya.fit' WHERE id = $1", [other]);
+    ig.failPaths.clear();
+    await h.runInstagramProfile();
+    const handles = (await leads()).map((l) => l.instagram_handle).filter(Boolean);
+    expect(handles).toEqual(["priya.fit"]);
+  });
+
+  it("a delivery that keeps failing is set aside after five tries, with its reason and without its words", async () => {
+    await deliverIg(h, igDm());
+    const id = (await h.queryAll<{ id: string }>("SELECT id FROM instagram_events"))[0]!.id;
+    // Bytes no key opens, passed as a parameter (a raw NUL in the query text breaks Postgres's protocol).
+    await h.ownerPool.query("UPDATE instagram_events SET event_enc = $2 WHERE id = $1", [
+      id,
+      Buffer.from([0, 255]),
+    ]);
+    for (let i = 0; i < 6; i++) {
+      h.instagramQueued.push(Number(id));
+      await h.runInstagram();
+    }
+    const [e] = await h.queryAll<{
+      status: string;
+      tries: number;
+      problem: string;
+      event_enc: Buffer | null;
+    }>("SELECT status, tries, problem, event_enc FROM instagram_events WHERE id = $1", [id]);
+    expect(e).toMatchObject({ status: "error", tries: 5, event_enc: null });
+    expect(e!.problem).toMatch(/couldn't put this on a conversation/);
+  });
+
+  it("the person who connected the account losing access: needs attention, admins told once", async () => {
+    await h.revokeGrant(admin.id, "leads.view");
+    await h.ownerPool.query("UPDATE users SET is_owner = false WHERE id = $1", [admin.id]);
+    await take(igDm());
+    await take(igDm({ mid: "m2" }));
+    const [a] = await h.queryAll<{ status: string }>("SELECT status FROM instagram_accounts");
+    expect(a!.status).toBe("needs_attention");
+    const reader = new pg.Client({ connectionString: h.url("lume_readonly_backup") });
+    await reader.connect();
+    const n = await reader
+      .query("SELECT 1 FROM notifications WHERE kind = 'system_alert'")
+      .finally(() => reader.end());
+    expect(n.rowCount).toBe(1);
+    await h.ownerPool.query("UPDATE users SET is_owner = true WHERE id = $1", [admin.id]);
+    await h.grant(admin.id, [{ key: "leads.view", scope: "all" }]);
   });
 
   it("two first messages at once make one lead", async () => {
@@ -434,6 +485,25 @@ describe("Not a lead yet", () => {
     expect((await inbox(other)).people).toEqual([]);
   });
 
+  it("the handle is whole for the account's owner and for full contacts; masked for anyone else who sees it", async () => {
+    await take(igDm());
+    // The owner: it's their own Instagram, where the handle shows anyway.
+    expect((await inbox()).people[0].username).toBe("priya.fit");
+    // Sees every lead, but contacts only masked.
+    const manager = await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] });
+    expect((await inbox(manager)).people[0].username).toBe(maskInstagram("priya.fit").slice(1));
+    // Sees every lead's contacts in full.
+    const full = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "all" },
+        { key: "leads.contact.full", scope: "all" },
+      ],
+      // Full contacts for every lead come with two-step sign-in.
+      totp: true,
+    });
+    expect((await inbox(full)).people[0].username).toBe("priya.fit");
+  });
+
   it("make a lead: their messages move onto it in order, a stop said while waiting holds", async () => {
     await take(igDm());
     // The same second as the first: they keep the order they came in.
@@ -471,6 +541,43 @@ describe("Not a lead yet", () => {
     expect((await acts()).map((a) => a.lead_id)).toEqual([id]);
   });
 
+  it("the account's owner may make a lead the source's rule gives to someone else", async () => {
+    const rules = await h.queryAll<{ rules: Record<string, unknown> }>(
+      "SELECT rules FROM lead_sources WHERE id = $1",
+      [account.sourceId],
+    );
+    await h.ownerPool.query("UPDATE lead_sources SET rules = $2 WHERE id = $1", [
+      account.sourceId,
+      JSON.stringify({ ...rules[0]!.rules, owner: { mode: "user", userId: admin.id } }),
+    ]);
+    const maker = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.create", scope: "own" },
+      ],
+    });
+    await h.ownerPool.query("UPDATE instagram_accounts SET owner_user_id = $1", [maker.id]);
+    await take(igDm());
+    const t = (await thread())!;
+    const r = await (
+      await h.signIn(maker)
+    ).inject({ method: "POST", url: `/api/v1/instagram/inbox/${t.id}/lead` });
+    expect(r.statusCode).toBe(201);
+    expect((await leads())[0]!.owner_id).toBe(admin.id);
+  });
+
+  it("make a lead: the lead that already has this handle takes them (no second lead)", async () => {
+    await take(igDm());
+    const id = await h.seedLead({ ownerId: rep.id, name: "From ManyChat" });
+    await h.queryAll("UPDATE leads SET instagram_handle = 'priya.fit' WHERE id = $1", [id]);
+    const t = (await thread())!;
+    const r = await (
+      await h.signIn(admin)
+    ).inject({ method: "POST", url: `/api/v1/instagram/inbox/${t.id}/lead` });
+    expect(r.json()).toEqual({ leadId: id });
+    expect(await leads()).toHaveLength(1);
+  });
+
   it("a stranger's echo (the business answering from the app) keeps nothing", async () => {
     await take(igEcho());
     expect(await h.queryAll("SELECT 1 FROM instagram_inbox")).toHaveLength(0);
@@ -488,6 +595,28 @@ describe("the conversation", () => {
     expect(p[2]).toMatchObject({ attachments: ["image"] });
     expect(JSON.stringify(p)).not.toContain("lookaside");
     expect(h.instagramMediaQueued).toHaveLength(1);
+  });
+
+  it("an ad click that arrives alone (no message yet): the lead their first message makes still has the ad", async () => {
+    await take({
+      object: "instagram",
+      entry: [
+        {
+          id: IG_ACCOUNT,
+          time: Date.parse("2026-11-22T06:00:00Z"),
+          messaging: [
+            {
+              sender: { id: IGSID },
+              recipient: { id: IG_ACCOUNT },
+              timestamp: Date.parse("2026-11-22T05:59:00Z"),
+              referral: { ref: "spring", ad_id: "120200000000000009", source: "ADS", type: "OPEN_THREAD" },
+            },
+          ],
+        },
+      ],
+    });
+    await take(igDm());
+    expect((await leads())[0]!.ad_id).toBe("120200000000000009");
   });
 
   it("an ad click: the lead and the conversation remember the ad, and the window lasts 7 days", async () => {
@@ -563,6 +692,14 @@ describe("the conversation", () => {
         )
       )[0]!.reaction,
     ).toBeNull();
+    // Reacting again (Meta sends the same message id and action, at a new time) counts again.
+    const again = igReaction("react");
+    (again.entry[0]!.messaging[0] as { timestamp: number }).timestamp += 60_000;
+    await take(again);
+    const [o] = await h.queryAll<{ reaction: string | null }>(
+      "SELECT reaction FROM instagram_outbox WHERE mid = 'aWdfECHO1'",
+    );
+    expect(o!.reaction).toBe("❤️");
   });
 
   it("a message the person took back loses its words, everywhere", async () => {

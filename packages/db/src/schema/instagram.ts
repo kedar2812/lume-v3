@@ -32,6 +32,8 @@ export const instagramAccounts = pgTable("instagram_accounts", {
   status: text("status").$type<"active" | "needs_attention" | "disconnected">().notNull(),
   problem: text("problem"),
   newDmCreatesLead: boolean("new_dm_creates_lead").notNull().default(true),
+  /** The relay's signature that this account was connected here (0122): shown back when the relay rebuilds. */
+  relayGrant: text("relay_grant"),
   connectedAt: tz("connected_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
@@ -47,6 +49,7 @@ export const instagramEvents = pgTable("instagram_events", {
   eventEnc: bytea("event_enc"),
   status: text("status").$type<"queued" | "done" | "error">().notNull(),
   problem: text("problem"),
+  tries: integer("tries").notNull().default(0),
   receivedAt: tz("received_at").notNull().defaultNow(),
   processedAt: tz("processed_at"),
 });

@@ -3,7 +3,7 @@ import type pg from "pg";
 import { sweepInstagram } from "./inbox";
 import { takeRelayNotes } from "./notes";
 import { fetchInstagramMedia } from "./media";
-import { ECHO_WAIT_MS, processInstagramEvent, type InstagramJobDeps } from "./process";
+import { ECHO_WAIT_MS, runInstagramEvent, type InstagramJobDeps } from "./process";
 import { readInstagramProfile } from "./profile";
 import {
   IG_SEND_RETRY_DELAY_S,
@@ -85,7 +85,10 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
     migrate: false,
     supervise: false,
     schedule: false,
-    max: 2 + PROCESS_WORKERS + MEDIA_WORKERS + PROFILE_WORKERS + SEND_WORKERS,
+    // Connections for fetching and finishing jobs only (the work itself runs on LUME's own pools, and each of these
+    // is one short query). One keeps every queue together inside Postgres's 100: the others already hold 35 of the
+    // 36 (packages/config connections.test).
+    max: 1,
   });
   boss.on("error", (err) => o.app.log.error({ err }, "instagram queue error"));
   await boss.start();
@@ -108,7 +111,7 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
       async ([job]) => {
         if (!job) return;
         // An echo of LUME's own send still in flight: looked at again shortly, when the send has its id.
-        if ((await processInstagramEvent(o, job.data.id)) === "later")
+        if ((await runInstagramEvent(o, job.data.id)) === "later")
           await enqueue(job.data.id, Math.ceil(ECHO_WAIT_MS / 1000));
       },
     );

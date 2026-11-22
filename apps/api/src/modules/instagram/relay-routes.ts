@@ -32,7 +32,7 @@ const moved = z.object({ accountId: z.string().regex(/^\d{5,30}$/) });
 export async function instagramRelayRoutes(app: FastifyInstance, d: AppDeps) {
   app.get("/instagram/accounts", { config: { public: true, csrf: false, db: false } }, async (req, reply) => {
     if (!fromRelay(req, d, Buffer.alloc(0))) return reply.code(401).send({ error: "unauthorized" });
-    return { accountIds: await heldAccounts(d.pool) };
+    return { accounts: await heldAccounts(d.pool) };
   });
   // The relay has something kept for this LUME (a gap, Meta's deauthorize or deletion request): fetched from it now,
   // in the background (the hourly run would get it anyway).

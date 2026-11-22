@@ -17,10 +17,10 @@ import { replyArrived } from "../leads/sending";
 import { visibleLead } from "../leads/service";
 import { readAs } from "../notifications/hub";
 import { notify } from "../notifications/notify";
-import { igGraph } from "./graph";
+import { igGraph, type GraphAnswer } from "./graph";
 import { createInstagramLead, leadByHandle, liveLead, type IgAccountRow } from "./leads";
 import { igEventContext } from "./receive";
-import { igGraphOf, igTokenContext } from "./service";
+import { igGraphOf, igTokenContext, tellAdmins } from "./service";
 
 export type InstagramJobDeps = { app: FastifyInstance; d: AppDeps };
 
@@ -76,6 +76,7 @@ type Thread = {
   last_in_at: Date | null;
   profile_read_at: Date | null;
   taken_over_by: string | null;
+  source: { trigger?: string; adId?: string } | null;
   created: boolean;
 };
 
@@ -91,7 +92,7 @@ async function threadFor(req: FastifyRequest, accountId: string, igsid: string):
   const r = await req.db.execute<Thread>(sql`
     INSERT INTO instagram_threads (id, account_id, igsid) VALUES (${newId()}, ${accountId}, ${igsid})
     ON CONFLICT (account_id, igsid) DO UPDATE SET updated_at = now()
-    RETURNING id, lead_id, username, name, last_in_at, profile_read_at, taken_over_by, (xmax = 0) AS created`);
+    RETURNING id, lead_id, username, name, last_in_at, profile_read_at, taken_over_by, source, (xmax = 0) AS created`);
   return r.rows[0]!;
 }
 
@@ -122,14 +123,7 @@ type Out = { media: string[]; notice: Notice | null; profile: string | null; lat
  * The person's name and username, read once they've messaged (Meta allows it then). Answers whether it was read; a
  * refusal of consent counts as read (never asked again), Meta being down doesn't (the profile job tries later).
  */
-async function readProfile(
-  req: FastifyRequest,
-  d: AppDeps,
-  token: string,
-  t: Thread,
-  igsid: string,
-): Promise<boolean> {
-  const r = await igGraph(igGraphOf(d), token).profile(igsid);
+async function readProfile(req: FastifyRequest, t: Thread, r: GraphAnswer): Promise<boolean> {
   const username = typeof r.data.username === "string" ? r.data.username : null;
   const name = typeof r.data.name === "string" && r.data.name.trim() ? r.data.name.trim() : null;
   if (r.ok) {
@@ -185,6 +179,7 @@ async function messageIn(
   account: IgAccountRow & { token: string },
   e: IgMessageEvent,
   out: Out,
+  pre: GraphAnswer | null,
 ) {
   const at = new Date(e.at);
   const t = await threadFor(req, account.id, e.igsid);
@@ -202,7 +197,11 @@ async function messageIn(
   if (!leadId) {
     // Who this is: read their name and username first (allowed now they've written), so a lead that came in from
     // ManyChat or a sheet under the same handle is found rather than made twice.
-    if (!t.profile_read_at && !(await readProfile(req, d, account.token, t, e.igsid))) out.profile = t.id;
+    if (!t.profile_read_at) {
+      // Read before this transaction began (so a slow Meta never holds it); read now only if that didn't happen.
+      const answer = pre ?? (await igGraph(igGraphOf(d), account.token).profile(e.igsid));
+      if (!(await readProfile(req, t, answer))) out.profile = t.id;
+    }
     const ignored = await req.db.execute(
       sql`SELECT 1 FROM instagram_ignored WHERE account_id = ${account.id} AND igsid = ${e.igsid}`,
     );
@@ -211,8 +210,15 @@ async function messageIn(
       leadId = await createInstagramLead(req, account, {
         username: t.username,
         name: t.name,
-        adId: e.referral?.adId ?? null,
-        how: ad ? "ad" : e.replyToStory ? "story_reply" : e.storyMention ? "story_mention" : "dm",
+        adId: e.referral?.adId ?? t.source?.adId ?? null,
+        how:
+          ad || t.source?.trigger === "ad"
+            ? "ad"
+            : e.replyToStory
+              ? "story_reply"
+              : e.storyMention
+                ? "story_mention"
+                : "dm",
       });
     if (leadId)
       await req.db.execute(sql`UPDATE instagram_threads SET lead_id = ${leadId} WHERE id = ${t.id}`);
@@ -360,10 +366,14 @@ export async function processInstagramEvent(
   }
   const actor = await loadActor(pool, row.run_as!);
   if (!actor || !can(actor, "leads.view")) {
-    await pool.query(
-      "UPDATE instagram_accounts SET status = 'needs_attention', problem = $2, updated_at = now() WHERE id = $1 AND status = 'active'",
+    const moved = await pool.query<{ username: string }>(
+      `UPDATE instagram_accounts SET status = 'needs_attention', problem = $2, updated_at = now()
+        WHERE id = $1 AND status = 'active' RETURNING username`,
       [row.account_id, CANT_RUN],
     );
+    // Said once, on the change: messages wait meanwhile (another admin connects the account again).
+    if (moved.rows[0])
+      await tellAdmins(pool, `Instagram @${moved.rows[0].username} needs connecting again`, CANT_RUN);
     return "waiting";
   }
   const ev = JSON.parse(
@@ -380,6 +390,25 @@ export async function processInstagramEvent(
     token: d.keyring.decrypt(row.token_enc, igTokenContext(row.account_id)),
   };
 
+  // A person's message from someone LUME hasn't read the profile of: read now, before the transaction and its lock.
+  let pre: GraphAnswer | null = null;
+  if (ev.kind === "message" && !ev.isEcho) {
+    const c = await pool.connect();
+    let need = true;
+    try {
+      await c.query("BEGIN READ ONLY");
+      await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
+      const r = await c.query<{ read: boolean }>(
+        "SELECT profile_read_at IS NOT NULL AS read FROM instagram_threads WHERE account_id = $1 AND igsid = $2",
+        [account.id, ev.igsid],
+      );
+      await c.query("COMMIT");
+      need = !r.rows[0]?.read;
+    } finally {
+      c.release();
+    }
+    if (need) pre = await igGraph(igGraphOf(d), account.token).profile(ev.igsid);
+  }
   const out = await withJobRequest(
     { app: jobServer(o.app), pool, actor, requestId: `instagram-event:${eventId}`, allLeads: true },
     async (req): Promise<Out | null> => {
@@ -392,7 +421,7 @@ export async function processInstagramEvent(
       switch (ev.kind) {
         case "message":
           if (ev.isEcho) await echo(req, account, ev, out);
-          else await messageIn(req, d, account, ev, out);
+          else await messageIn(req, d, account, ev, out, pre);
           break;
         case "postback": {
           const t = await threadFor(req, account.id, ev.igsid);
@@ -413,7 +442,16 @@ export async function processInstagramEvent(
         }
         case "referral": {
           const t = await threadFor(req, account.id, ev.igsid);
-          await personActed(req, t.id, at, ev.referral.source?.toUpperCase() === "ADS");
+          const ad = ev.referral.source?.toUpperCase() === "ADS";
+          await personActed(req, t.id, at, ad);
+          // The ad (or link) they came from, kept for the lead their first message makes.
+          if (ad || ev.referral.ref)
+            await req.db.execute(sql`
+              UPDATE instagram_threads SET source = source || ${JSON.stringify({
+                trigger: ad ? "ad" : "referral",
+                ...(ev.referral.adId ? { adId: ev.referral.adId } : {}),
+                ...(ev.referral.ref ? { ref: ev.referral.ref } : {}),
+              })}::jsonb WHERE id = ${t.id} AND (source = '{}'::jsonb OR ${ad})`);
           break;
         }
         case "reaction": {
@@ -492,4 +530,36 @@ export async function processInstagramEvent(
       );
   }
   return "done";
+}
+
+/** How many times a delivery is tried before it's set aside with its reason (never every minute for ever). */
+export const IG_EVENT_TRIES = 5;
+
+/**
+ * A delivery, processed: a failure is counted on the row, and the fifth is final ("error", with the fault's kind, never
+ * its message, which can quote a person's words). The queue's own retry and the minute sweep only see queued rows.
+ */
+export async function runInstagramEvent(
+  o: InstagramJobDeps,
+  eventId: number,
+): Promise<"done" | "waiting" | "gone" | "later"> {
+  try {
+    return await processInstagramEvent(o, eventId);
+  } catch (err) {
+    const pool = o.d.jobPool ?? o.d.pool;
+    const kind = err instanceof Error ? err.name : "Error";
+    await pool
+      .query(
+        `UPDATE instagram_events
+            SET tries = tries + 1,
+                status = CASE WHEN tries + 1 >= $2 THEN 'error' ELSE status END,
+                problem = CASE WHEN tries + 1 >= $2 THEN $3 ELSE problem END,
+                event_enc = CASE WHEN tries + 1 >= $2 THEN NULL ELSE event_enc END
+          WHERE id = $1 AND status = 'queued'`,
+        [eventId, IG_EVENT_TRIES, `LUME couldn't put this on a conversation (${kind})`],
+      )
+      .catch(() => undefined);
+    o.app.log.error({ err, event: eventId }, "instagram event failed");
+    throw err;
+  }
 }

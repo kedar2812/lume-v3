@@ -1,9 +1,9 @@
 import { sql } from "drizzle-orm";
-import { can, newId } from "@lume/core";
+import { can, maskInstagram, newId } from "@lume/core";
 import { loadActor } from "../../rbac/actor";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { igGraph } from "./graph";
-import { handleOf, leadByHandle } from "./leads";
+import { handleOf, INSTAGRAM_LEAD_NAME, leadByHandle } from "./leads";
 import type { InstagramJobDeps } from "./process";
 import { igGraphOf, igTokenContext } from "./service";
 import { tokenRefused } from "./token-refresh";
@@ -80,11 +80,19 @@ export async function readInstagramProfile(o: InstagramJobDeps, threadId: string
                profile_read_at = now() WHERE id = ${threadId}`);
       const h = handleOf(username);
       if (t.lead_id) {
-        // A lead made before LUME knew who it was: its handle, if it has none yet.
-        if (h)
+        // A lead made before LUME knew who it was: its name (if it still has the placeholder) and its handle, unless
+        // another lead already has that handle (never a second lead with one person's handle).
+        const better = name ?? (h ? maskInstagram(h) : null);
+        if (better)
           await req.db.execute(
-            sql`UPDATE leads SET instagram_handle = ${h} WHERE id = ${t.lead_id} AND instagram_handle IS NULL`,
+            sql`UPDATE leads SET name = ${better} WHERE id = ${t.lead_id} AND name = ${INSTAGRAM_LEAD_NAME}`,
           );
+        if (h)
+          await req.db.execute(sql`
+            UPDATE leads SET instagram_handle = ${h}
+             WHERE id = ${t.lead_id} AND instagram_handle IS NULL
+               AND NOT EXISTS (SELECT 1 FROM leads o WHERE o.instagram_handle = ${h} AND o.id <> ${t.lead_id}
+                                 AND o.deleted_at IS NULL)`);
         return;
       }
       // Still waiting in Not a lead yet: the lead with this handle takes the conversation (and its messages).

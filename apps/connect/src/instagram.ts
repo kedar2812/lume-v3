@@ -36,6 +36,9 @@ export type InstagramContext = {
   wordsPage: (title: string, text: string, back: string | null) => string;
   backTo: (instanceId: string) => string | null;
   formBody: (req: http.IncomingMessage) => Promise<string>;
+  /** The relay's own signature on "this account was connected to this LUME" (only the relay can make one). */
+  grant: (accountId: string, instanceId: string) => string;
+  grantOk: (accountId: string, instanceId: string, grant: string) => boolean;
   log?: (msg: string) => void;
 };
 
@@ -155,12 +158,19 @@ export function instagramRoutes(c: InstagramContext) {
           signal: AbortSignal.timeout(10_000),
         }).catch(() => null);
         if (!r?.ok) return;
-        const d = (await r.json().catch(() => null)) as { accountIds?: unknown } | null;
-        if (!Array.isArray(d?.accountIds)) return;
-        c.routes.replaceFor(
-          id,
-          d.accountIds.filter((a): a is string => typeof a === "string" && IG_ID.test(a)),
-        );
+        const d = (await r.json().catch(() => null)) as { accounts?: unknown } | null;
+        if (!Array.isArray(d?.accounts)) return;
+        // Only an account the relay itself granted this LUME at connect: a LUME can't claim another's account.
+        const mine = (d.accounts as { id?: unknown; grant?: unknown }[])
+          .filter(
+            (a) =>
+              typeof a?.id === "string" &&
+              IG_ID.test(a.id) &&
+              typeof a.grant === "string" &&
+              c.grantOk(a.id, id, a.grant),
+          )
+          .map((a) => a.id as string);
+        c.routes.replaceFor(id, mine);
       }),
     );
   }
@@ -286,6 +296,7 @@ export function instagramRoutes(c: InstagramContext) {
         kind: "instagram",
         instagram: {
           token,
+          grant: c.grant(userId, state.i),
           expiresIn: typeof long.data.expires_in === "number" ? long.data.expires_in : 5_184_000,
           userId,
           username,
@@ -386,9 +397,10 @@ export function instagramRoutes(c: InstagramContext) {
         return true;
       }
       const kind = u.pathname === "/ig/delete" ? "delete" : "deauthorize";
-      const id = c.routes.get(sr.userId);
-      // Kept as a note until the instance takes it, so a request is never lost to a client's downtime.
-      if (id && c.byId.has(id)) {
+      // Kept as a note until each LUME that holds or held the account takes it: a request never lost to downtime,
+      // to a disconnect before it, or to a move.
+      for (const id of c.routes.holders(sr.userId)) {
+        if (!c.byId.has(id)) continue;
         c.routes.note(id, { kind, userId: sr.userId });
         void toInstance(c.byId.get(id)!, "/instagram/notes", {});
       }
@@ -404,7 +416,7 @@ export function instagramRoutes(c: InstagramContext) {
         200,
         c.wordsPage(
           "Your request was received",
-          "The business's LUME removes what it kept from your Instagram messages with it. Nothing else is needed from you.",
+          "LUME removes what Instagram sent it about this account from the business's LUME. Nothing else is needed from you.",
           null,
         ),
       );

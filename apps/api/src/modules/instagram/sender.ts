@@ -1,5 +1,6 @@
 import {
   canOnRecord,
+  moduleIncluded,
   igOutboundBody,
   instagramWindow,
   messageProblems,
@@ -100,6 +101,7 @@ type Row = {
   comment_id: string | null;
   comment_at: Date | string | null;
   comment_state: "none" | "queued" | "sent" | "failed" | null;
+  taken_over: boolean;
 };
 const at = (v: Date | string | null) => (v === null ? null : new Date(v));
 
@@ -138,7 +140,8 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
                   o.quick_replies, o.buttons, o.tag, o.flow_run_id, o.user_id, u.name AS user_name, o.lead_id, o.thread_id,
                   l.deleted_at IS NOT NULL AS lead_deleted, l.dnc_at IS NOT NULL AS lead_dnc, l.name AS lead_name,
                   t.igsid, t.last_in_at, t.ad_window_until, a.id AS account_id, a.ig_user_id, a.status AS account_status,
-                  a.token_enc, o.comment_id, c.at AS comment_at, c.private_reply AS comment_state
+                  a.token_enc, o.comment_id, c.at AS comment_at, c.private_reply AS comment_state,
+                  t.taken_over_by IS NOT NULL AS taken_over
              FROM instagram_outbox o
              JOIN leads l ON l.id = o.lead_id
              JOIN instagram_threads t ON t.id = o.thread_id
@@ -179,6 +182,15 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
     await set("cancelled", { problem: `${row.lead_name || "This lead"} asked not to be messaged.` });
     return void (await wakeNext(o, row.thread_id));
   }
+  // Switched off, or out of the plan, since it was queued: nothing more goes.
+  const on = await pool.query<{ on: boolean }>(
+    "SELECT coalesce((integrations -> 'instagram' ->> 'enabled')::boolean, false) AS on FROM settings WHERE id = 1",
+  );
+  if (!on.rows[0]?.on) return void (await fail("Instagram was switched off before this went."));
+  if (!moduleIncluded(o.app.licence.view().plan, "instagram"))
+    return void (await fail("Instagram left this LUME's plan before this went."));
+  if (row.flow_run_id && row.taken_over)
+    return void (await fail("A person took this conversation over before this went."));
   if (row.account_status !== "active" || !row.token_enc)
     return void (await fail("This Instagram account needs connecting again before LUME can send from it."));
   const problems = messageProblems({
@@ -250,7 +262,10 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
           AND NOT EXISTS (SELECT 1 FROM instagram_outbox e
                            WHERE e.thread_id = o.thread_id AND e.id <> o.id AND e.status IN ('queued', 'sending')
                              AND (e.created_at, e.id) < (o.created_at, o.id))
-          AND EXISTS (SELECT 1 FROM leads l WHERE l.id = o.lead_id AND l.deleted_at IS NULL AND l.dnc_at IS NULL)`,
+          AND EXISTS (SELECT 1 FROM leads l WHERE l.id = o.lead_id AND l.deleted_at IS NULL AND l.dnc_at IS NULL)
+          -- A flow's message never goes into a conversation a person has taken over since it was queued.
+          AND (o.flow_run_id IS NULL OR NOT EXISTS (
+            SELECT 1 FROM instagram_threads t WHERE t.id = o.thread_id AND t.taken_over_by IS NOT NULL))`,
       [id, tries],
     ),
   );

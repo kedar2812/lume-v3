@@ -29,10 +29,14 @@ type Account = { id: string; ig_user_id: string; username: string; status: strin
  * Conversations API, newest 20 a conversation, and put through the same keep-once door as a delivery, so a message LUME
  * already has is never kept twice. The business's own messages aren't read back.
  */
+/** Meta didn't answer while catching up: the note stays at the relay for the next run, so nothing is lost. */
+class CatchUpFailed extends Error {}
+
 async function catchUp(
   d: NotesDeps,
   a: Account,
   g: IgGraph,
+  token: string,
   from: number,
   sleep: (ms: number) => Promise<void>,
 ) {
@@ -40,7 +44,8 @@ async function catchUp(
   const graphUrl = igGraphOf(d as AppDeps).graphUrl;
   const queued: number[] = [];
   let page = await g.conversations(a.ig_user_id);
-  for (let pages = 0; pages < PAGES_MAX && page.ok; pages++) {
+  for (let pages = 0; pages < PAGES_MAX; pages++) {
+    if (!page.ok) throw new CatchUpFailed(`conversations page ${pages} answered ${page.status}`);
     const list = (Array.isArray(page.data.data) ? page.data.data : []) as {
       id?: unknown;
       updated_time?: unknown;
@@ -55,6 +60,7 @@ async function catchUp(
       }
       await sleep(CALL_GAP_MS);
       const conv = await g.conversation(c.id);
+      if (!conv.ok) throw new CatchUpFailed(`a conversation answered ${conv.status}`);
       const msgs = ((conv.data.messages as { data?: unknown } | undefined)?.data ?? []) as {
         id?: unknown;
         created_time?: unknown;
@@ -94,7 +100,10 @@ async function catchUp(
     // Only Meta's own next page (never a link elsewhere, which would carry the token).
     if (older || typeof next !== "string" || !next.startsWith(`${graphUrl}/`)) break;
     await sleep(CALL_GAP_MS);
-    const r = await fetch(next, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    const r = await fetch(next, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => null);
     page = {
       ok: !!r?.ok,
       status: r?.status ?? 0,
@@ -135,8 +144,8 @@ export async function takeRelayNotes(d: NotesDeps): Promise<number> {
             )
           ).rows[0];
           if (!a || a.status !== "active" || !a.token_enc) continue;
-          const g = igGraph(igGraphOf(d as AppDeps), d.keyring.decrypt(a.token_enc, igTokenContext(a.id)));
-          await catchUp(d, a, g, n.from, sleep);
+          const token = d.keyring.decrypt(a.token_enc, igTokenContext(a.id));
+          await catchUp(d, a, igGraph(igGraphOf(d as AppDeps), token), token, n.from, sleep);
         }
       } else {
         const gone = await pool.query<{ id: string; username: string }>(

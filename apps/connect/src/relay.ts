@@ -215,6 +215,8 @@ export function createRelay(o: RelayConfig): Relay {
           wordsPage,
           backTo,
           formBody: body,
+          grant: (a: string, i: string) => sign(o.secret, `instagram-grant.${a}.${i}`),
+          grantOk: (a: string, i: string, g: string) => verify(o.secret, `instagram-grant.${a}.${i}`, g),
         })
       : null;
 

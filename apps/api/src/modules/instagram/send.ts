@@ -18,14 +18,28 @@ import { createInstagramLead } from "./leads";
 import { instagramOn } from "./service";
 
 const conflict = (code: string, message: string) => new HttpError(409, code, message);
-const when = (d: Date) =>
-  d.toLocaleString("en-GB", {
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "UTC",
-  });
+/** "November 29, 2:00 pm", on the business's clock (month first, as LUME writes dates). */
+export function whenWords(d: Date, tz: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: tz,
+    })
+      .formatToParts(d)
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.month} ${parts.day}, ${parts.hour}:${parts.minute} ${String(parts.dayPeriod).toLowerCase()}`;
+}
+async function businessZone(req: FastifyRequest): Promise<string> {
+  const r = await req.db.execute<{ tz: string | null }>(
+    sql`SELECT timezone AS tz FROM settings WHERE id = 1`,
+  );
+  return r.rows[0]?.tz ?? "UTC";
+}
 
 async function requireInstagram(req: FastifyRequest) {
   if (!(await instagramOn(req)) || !moduleIncluded(req.server.licence.view().plan, "instagram"))
@@ -168,7 +182,7 @@ export async function sendInstagram(
     throw conflict(
       "WINDOW_CLOSED",
       w.since
-        ? `Instagram only lets a business reply within 7 days of the person's last message, and that ended ${when(w.since)}. LUME can send again once they write.`
+        ? `Instagram only lets a business reply within 7 days of the person's last message, and that ended ${whenWords(w.since, await businessZone(req))}. LUME can send again once they write.`
         : "This person hasn't written to you on Instagram, so LUME can't message them there. Instagram allows a reply only after they write.",
     );
   const verdict = limiter.take(req.actor!.userId);
@@ -287,6 +301,8 @@ export async function privateReply(
         "LEAD_NEEDED",
         "Answering this comment makes its writer a lead. Ask someone who may add leads.",
       );
+    // The person answering is working this lead: it's theirs, so their own scope already lets them write it (no wider
+    // scope needed; the mutation check showed the elevation did nothing here).
     leadId = await createInstagramLead(
       req,
       {
@@ -297,7 +313,7 @@ export async function privateReply(
         sourceId: acct.source_id,
         newDmCreatesLead: acct.new_dm_creates_lead,
       },
-      { username: c.from_username, name: null, adId: c.ad_id, how: "comment" },
+      { username: c.from_username, name: null, adId: c.ad_id, how: "comment", ownerId: req.actor!.userId },
     );
     if (!leadId) throw conflict("NO_PIPELINE", "LUME needs a pipeline with an open stage first.");
     if (!t) {

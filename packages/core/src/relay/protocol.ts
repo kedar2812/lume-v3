@@ -36,6 +36,8 @@ export type Handoff = {
    */
   instagram?: {
     token: string;
+    /** The relay's signature on this account for this LUME: shown back when the relay rebuilds its routing table. */
+    grant: string;
     expiresIn: number;
     userId: string;
     username: string;

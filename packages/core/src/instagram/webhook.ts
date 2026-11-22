@@ -276,7 +276,8 @@ export function eventKey(e: IgEvent): string {
     case "postback":
       return `p:${short(e.mid)}`;
     case "reaction":
-      return `r:${short(e.mid)}:${e.action}:${short(e.igsid)}`;
+      // Its time too: react, unreact and react again (or a new emoji) are each their own.
+      return `r:${short(e.mid)}:${e.action}:${short(e.igsid)}:${e.at}`;
     case "seen":
       return `s:${short(e.mid)}`;
     case "unsend":

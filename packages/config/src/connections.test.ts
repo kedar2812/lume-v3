@@ -46,6 +46,27 @@ describe("LUME's connections fit inside Postgres's 100", () => {
     expect(unbounded).toEqual([]);
   });
 
+  it("the API's queues together hold at most 36 (100 less the pools' 44, the worker's 9 and Postgres's own 11)", () => {
+    const total = sources(path.join(ROOT, "apps/api/src")).reduce((sum, f) => {
+      const text = readFileSync(f, "utf8");
+      // A file's own number constants, so "4 + MEDIA_WORKERS + SEND_WORKERS" adds up.
+      const consts = Object.fromEntries(
+        [...text.matchAll(/const ([A-Z_]+) = (\d+);/g)].map((m) => [m[1]!, Number(m[2])]),
+      );
+      return (
+        sum +
+        bossOptions(f).reduce((s, o) => {
+          const expr = /\bmax:\s*([^,\n]+)/.exec(o)?.[1] ?? "10";
+          return (
+            s + expr.split("+").reduce((t, part) => t + (Number(part.trim()) || consts[part.trim()] || 0), 0)
+          );
+        }, 0)
+      );
+    }, 0);
+    expect(total).toBeGreaterThan(20);
+    expect(total).toBeLessThanOrEqual(36);
+  });
+
   it("the requests' and the jobs' pools together stay within 44 (the rest is the queues, the worker and Postgres's own)", () => {
     const env = {
       LUME_PUBLIC_HOST: "lume.localhost",

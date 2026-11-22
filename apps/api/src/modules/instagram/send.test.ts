@@ -8,6 +8,7 @@ import { IG_RELAY_TOKEN, seedIgAccount } from "../../../test/instagram";
 import { fakeAccount, startInstagramFake, type InstagramFake } from "../../../test/instagram-fake";
 import { rollupDays } from "../analytics/rollup";
 import { IG_MAYBE_SENT, igPacer, sendInstagramOutbox } from "./sender";
+import { whenWords } from "./send";
 
 /** Replying on Instagram from LUME (NEW_FEATURES_PLAN §4.4; plan 1A Task 6). */
 const H = 3_600_000;
@@ -207,12 +208,16 @@ describe("after 24 hours", () => {
     expect(sentToMeta()[0]!.body).toMatchObject({ messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT" });
   });
 
-  it("after 7 days nothing goes, and LUME says from when", async () => {
+  it("after 7 days nothing goes, and LUME says from when, on the business's clock, month first", async () => {
     await h.ownerPool.query("TRUNCATE leads, instagram_threads CASCADE");
     await conversation(7 * 24 * H + 60_000);
     const r = await send(rep);
     expect(r.statusCode).toBe(409);
     expect(r.json().error.code).toBe("WINDOW_CLOSED");
+    // The harness's business is in Asia/Dubai (UTC+4).
+    const ended = new Date(h.clock.now.getTime() - 60_000);
+    expect(r.json().error.message).toContain(whenWords(ended, "Asia/Dubai"));
+    expect(whenWords(new Date("2026-11-22T10:05:00Z"), "Asia/Dubai")).toBe("November 22, 2:05 pm");
     expect(await outbox()).toHaveLength(0);
   });
 
@@ -266,6 +271,67 @@ describe("between Send and Meta", () => {
     await h.runInstagramSend();
     expect(sentToMeta()).toHaveLength(0);
     expect((await outbox())[0]!.status).toBe("cancelled");
+  });
+
+  it("Instagram switched off meanwhile: nothing more goes", async () => {
+    await send(rep);
+    await h.ownerPool.query(`UPDATE settings SET integrations = integrations - 'instagram' WHERE id = 1`);
+    await h.runInstagramSend();
+    expect(sentToMeta()).toHaveLength(0);
+    expect((await outbox())[0]).toMatchObject({
+      status: "failed",
+      problem: "Instagram was switched off before this went.",
+    });
+  });
+
+  it("Instagram taken out of the plan meanwhile: nothing more goes, and it says why", async () => {
+    await send(rep);
+    const licence = h.app.licence;
+    const view = licence.view.bind(licence);
+    licence.view = () => {
+      const v = view();
+      return {
+        ...v,
+        plan: { places: null, ...v.plan, modules: { ...v.plan?.modules, instagram: false } },
+      } as typeof v;
+    };
+    try {
+      await h.runInstagramSend();
+    } finally {
+      licence.view = view;
+    }
+    expect(sentToMeta()).toHaveLength(0);
+    expect((await outbox())[0]).toMatchObject({
+      status: "failed",
+      problem: "Instagram left this LUME's plan before this went.",
+    });
+  });
+
+  it("a flow's message never goes into a conversation a person took over meanwhile", async () => {
+    await h.queryAll(
+      `INSERT INTO instagram_outbox (id, thread_id, lead_id, account_id, user_id, client_key, kind, text, status, flow_run_id, step_key)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, gen_random_uuid(), 'dm', 'Step two', 'queued', gen_random_uuid(), '0')`,
+      [threadId, leadId, account.id, admin.id],
+    );
+    await h.queryAll("UPDATE instagram_threads SET taken_over_by = $2, taken_over_at = now() WHERE id = $1", [
+      threadId,
+      rep.id,
+    ]);
+    const [o] = await outbox();
+    await sendInstagramOutbox(
+      {
+        app: h.app,
+        d: h.deps,
+        pacer: igPacer({ now: () => h.clock.now, perSecond: 20 }),
+        privateRepliesPerHour: 600,
+      },
+      o!.id,
+    );
+    expect(sentToMeta()).toHaveLength(0);
+    expect((await outbox())[0]).toMatchObject({
+      status: "failed",
+      problem: "A person took this conversation over before this went.",
+    });
   });
 
   it("the sender lost the lead meanwhile: failed with words", async () => {
@@ -444,6 +510,32 @@ describe("the one private reply to a comment", () => {
     const [c] = await h.queryAll<{ private_reply: string }>("SELECT private_reply FROM instagram_comments");
     expect(c!.private_reply).toBe("failed");
     expect((await reply(admin, id)).statusCode).toBe(202);
+  });
+
+  it("a rep answering a stranger's comment: the new lead is theirs, whatever the source's rule", async () => {
+    const id = await comment();
+    const rules = await h.queryAll<{ rules: Record<string, unknown> }>(
+      "SELECT rules FROM lead_sources WHERE id = $1",
+      [account.sourceId],
+    );
+    await h.ownerPool.query("UPDATE lead_sources SET rules = $2 WHERE id = $1", [
+      account.sourceId,
+      JSON.stringify({ ...rules[0]!.rules, owner: { mode: "user", userId: admin.id } }),
+    ]);
+    const answerer = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.create", scope: "own" },
+        { key: "messages.send", scope: "own" },
+      ],
+    });
+    await h.ownerPool.query("UPDATE instagram_accounts SET owner_user_id = $1", [answerer.id]);
+    const r = await reply(answerer, id);
+    expect(r.statusCode).toBe(202);
+    const [l] = await h.queryAll<{ owner_id: string }>(
+      "SELECT l.owner_id FROM leads l JOIN instagram_threads t ON t.lead_id = l.id WHERE t.igsid = '6599999999999999'",
+    );
+    expect(l!.owner_id).toBe(answerer.id);
   });
 
   it("someone who may not add leads can't make a stranger one by answering", async () => {

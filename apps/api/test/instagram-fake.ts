@@ -55,6 +55,8 @@ export type InstagramFake = {
   /** Profiles by IGSID; one missing answers "User consent is required". */
   profiles: Map<string, { name: string; username: string; is_user_follow_business?: boolean }>;
   conversations: Map<string, IgFakeConversation[]>;
+  /** How many conversations a page of the list holds; the rest follow by `paging.next` (no token in it, as Meta's). */
+  conversationPageSize: number;
   /** Files served at `<url>/cdn/<name>`, as Instagram's CDN would. */
   files: Map<string, { type: string; bytes: Buffer }>;
   /** A Meta webhook body, signed with the app secret, posted to `to`. */
@@ -86,6 +88,7 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
     failNext: [] as InstagramFake["failNext"],
     profiles: new Map<string, { name: string; username: string; is_user_follow_business?: boolean }>(),
     conversations: new Map<string, IgFakeConversation[]>(),
+    conversationPageSize: 100,
     files: new Map<string, { type: string; bytes: Buffer }>(),
   };
   const shortTokens = new Map<string, IgFakeAccount>();
@@ -214,8 +217,19 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
       }
       if (edge === "conversations" && req.method === "GET") {
         const list = state.conversations.get(acct.userId) ?? [];
+        const after = Number(query.after ?? 0);
+        const more = after + state.conversationPageSize < list.length;
         return send(res, 200, {
-          data: list.map((c) => ({ id: c.id, updated_time: c.messages.at(-1)?.created })),
+          data: list
+            .slice(after, after + state.conversationPageSize)
+            .map((c) => ({ id: c.id, updated_time: c.messages.at(-1)?.created })),
+          ...(more
+            ? {
+                paging: {
+                  next: `${url}/${version}/${node}/conversations?after=${after + state.conversationPageSize}`,
+                },
+              }
+            : {}),
         });
       }
       if (!edge && req.method === "GET") {

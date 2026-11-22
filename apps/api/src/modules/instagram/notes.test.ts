@@ -72,6 +72,8 @@ beforeEach(async () => {
   notes = [];
   cleared = [];
   ig.conversations.clear();
+  ig.conversationPageSize = 100;
+  ig.failPaths.clear();
   ig.calls.length = 0;
   ig.tokens.clear();
   ig.tokens.set("IGQlong-account-token", fakeAccount());
@@ -107,8 +109,67 @@ describe("a gap the relay noted", () => {
     expect(await acts()).toHaveLength(2);
   });
 
-  it("an account that isn't connected any more: the note is simply done", async () => {
-    await h.ownerPool.query("UPDATE instagram_accounts SET status = 'disconnected', token_enc = NULL");
+  it("Meta failing midway: the note stays at the relay, and the next run brings the messages in", async () => {
+    const from = Date.parse("2026-11-22T06:00:00Z");
+    ig.conversations.set(IG_ACCOUNT, [
+      {
+        id: "conv1",
+        igsid: IGSID,
+        messages: [{ id: "g1", from: IGSID, text: "hello?", created: "2026-11-22T06:10:00Z" }],
+      },
+    ]);
+    notes = [{ id: "n1", kind: "gap", accountIds: [IG_ACCOUNT], from, to: from + 3_600_000 }];
+    ig.failPaths.add("/conv1");
+    expect(await run()).toBe(0);
+    expect(cleared).toEqual([]);
+    ig.failPaths.clear();
+    expect(await run()).toBe(1);
+    await h.runInstagram();
+    expect((await acts()).map((a) => a.payload.text)).toEqual(["hello?"]);
+  });
+
+  it("Meta failing on the list of conversations itself: the note stays too, and the next run brings them in", async () => {
+    const from = Date.parse("2026-11-22T06:00:00Z");
+    ig.conversations.set(IG_ACCOUNT, [
+      {
+        id: "conv1",
+        igsid: IGSID,
+        messages: [{ id: "g1", from: IGSID, text: "hello?", created: "2026-11-22T06:10:00Z" }],
+      },
+    ]);
+    notes = [{ id: "n1", kind: "gap", accountIds: [IG_ACCOUNT], from, to: from + 3_600_000 }];
+    ig.failPaths.add("/conversations");
+    expect(await run()).toBe(0);
+    expect(cleared).toEqual([]);
+    ig.failPaths.clear();
+    expect(await run()).toBe(1);
+    expect(cleared).toEqual([["n1"]]);
+    await h.runInstagram();
+    expect((await acts()).map((a) => a.payload.text)).toEqual(["hello?"]);
+  });
+
+  it("reads every page of conversations, with the account's token on each", async () => {
+    const from = Date.parse("2026-11-22T06:00:00Z");
+    ig.conversationPageSize = 1;
+    ig.conversations.set(
+      IG_ACCOUNT,
+      ["6512000000000031", "6512000000000032", "6512000000000033"].map((who, i) => ({
+        id: `conv${i}`,
+        igsid: who,
+        messages: [{ id: `p${i}`, from: who, text: `page ${i}`, created: `2026-11-22T06:1${i}:00Z` }],
+      })),
+    );
+    for (const who of ["6512000000000031", "6512000000000032", "6512000000000033"])
+      ig.profiles.set(who, { name: `P ${who.slice(-2)}`, username: `p${who.slice(-2)}` });
+    notes = [{ id: "n1", kind: "gap", accountIds: [IG_ACCOUNT], from, to: from + 3_600_000 }];
+    expect(await run()).toBe(1);
+    await h.runInstagram();
+    expect((await acts()).map((a) => a.payload.text).sort()).toEqual(["page 0", "page 1", "page 2"]);
+  });
+
+  it("an account that isn't connected, or needs connecting again: the note is simply done", async () => {
+    // Still holding its old token: only its state keeps LUME from asking Meta with it.
+    await h.ownerPool.query("UPDATE instagram_accounts SET status = 'needs_attention'");
     notes = [{ id: "n1", kind: "gap", accountIds: [IG_ACCOUNT], from: 0, to: 1 }];
     expect(await run()).toBe(1);
     expect(ig.calls.filter((c) => c.path.includes("conversations"))).toHaveLength(0);

@@ -148,7 +148,9 @@ Instagram ──► Meta ──► relay /ig/in ──────────�
   hours; the servers that already took their part drop the repeats by message id). If one server has failed for over
   15 minutes, the relay stops holding the batch for it: it answers 200 and writes a **gap note** (account and time
   span, no content). That server, once back, asks the relay for its gaps and catches up from Meta's Conversations API
-  (the 20 newest messages per conversation, 2 calls/s). One client's outage never stalls the others.
+  (the 20 newest messages per conversation, 2 calls/s). One client's outage never stalls the others. (Built as
+  `/ig/notes`: gap notes and Meta's deauthorize and deletion requests wait there until the LUME takes them, so a
+  client's downtime never loses a deletion request.)
 - **Unknown account** (no route): 200 and dropped, logged without content.
 
 ### 4.3 What lands where
@@ -255,6 +257,10 @@ RLS: threads, outbox, comments and flow runs carry `lead_id` and use the existin
 lead is); rows with no lead (Not a lead yet) are reachable only through the routes that check `integrations.manage` or
 the account owner, as WhatsApp's are. Activities gain types `instagram_in`, `instagram_out` (no schema change).
 
+Built as: 0118 (the tables above), 0119 (`instagram_inbox`: Not a lead yet's messages, since activities need a lead),
+0120 (Instagram counts in Analytics: the first-contact trigger and the daily rollup), 0121 (`lume_instagram_forget`
+for Meta's data deletion request).
+
 ### 5.2 Later phases (outline, designed in their own specs)
 
 - **Phase 2**: `chat_channels`, `chat_members`, `chat_messages` (thread = lead / channel / DM pair), `chat_mentions`,
@@ -316,8 +322,9 @@ Before submitting:
 1. In the LUME Meta app (1437289605181003): add the **Instagram** product → **API setup with Instagram login**. Note
    the Instagram app id and secret for the relay.
 2. Business login settings: OAuth redirect `https://connect.lumecrm.in/ig/callback`; deauthorize callback and data
-   deletion request URLs (`https://connect.lumecrm.in/ig/deauthorize`, `/ig/delete`, both forwarded to the client's
-   server, which removes the account's tokens and, for a deletion request, the person's Instagram data).
+   deletion request URLs (`https://connect.lumecrm.in/ig/deauthorize`, `/ig/delete`), kept as notes for the client's
+   server. Meta's deletion request is about the app's user, the business's own Instagram account: LUME disconnects it
+   and removes what Instagram sent about it (message words, files, comments, names); its leads stay.
 3. Webhooks: callback `https://connect.lumecrm.in/ig/in`, the verify token, fields `messages`,
    `messaging_postbacks`, `messaging_referral`, `messaging_seen`, `message_reactions`, `comments`, `live_comments`.
 4. Messaging type in the app: **hybrid** (automation with a person behind it).
@@ -349,7 +356,7 @@ owner's App Review time (Meta's answer took about two weeks for WhatsApp).
 | # | Task | Days | Depends on |
 |---|---|---|---|
 | 1 | **Core, pure**: Instagram webhook parser (every event in §4.3, never throws), `instagramWindow`, byte-exact message limits, keyword matcher, flow step schema and validator, flow interpreter (pure: state + event → actions) | 3 | – |
-| 2 | **Relay**: `/ig/start`, `/ig/callback`, `/ig/in` (verify, split, forward, gap notes), routing table with file and rebuild, `/ig/forget`, `/ig/gaps`, `/ig/deauthorize`, `/ig/delete`; cross-client isolation tests | 2.5 | 1 |
+| 2 | **Relay**: `/ig/start`, `/ig/callback`, `/ig/in` (verify, split, forward, gap notes), routing table with file and rebuild, `/ig/forget`, `/ig/notes`, `/ig/deauthorize`, `/ig/delete`; cross-client isolation tests | 2.5 | 1 |
 | 3 | **Migrations 0118–0123** with RLS, schema drift test, grants; the `instagram` plan module (`plan7`) in core, the API's module checks and the licence server's Plan limits | 1.5 | – |
 | 4 | **Connect on the client**: start, complete, disconnect, accounts view, daily refresh and health, needs-attention notices, audit | 1.5 | 2, 3 |
 | 5 | **Receive**: `/instagram/in`, events store, `instagram.in` (threads, lead match/create, Not a lead yet, comments, echoes, referral, postbacks, reactions, seen), profile and media jobs, live updates | 2.5 | 3, 4 |

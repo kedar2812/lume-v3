@@ -1,4 +1,4 @@
-import { normalizeInstagram, type Rules } from "@lume/core";
+import { maskInstagram, normalizeInstagram, type Rules } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -15,6 +15,8 @@ export type IgAccountRow = {
 };
 
 const HANDLE = /^[a-z0-9._]{1,30}$/;
+/** A lead's name when LUME knows nothing of the person yet (Meta didn't answer); replaced once their name is read. */
+export const INSTAGRAM_LEAD_NAME = "Instagram lead";
 /** A username as LUME keeps Instagram handles (lower case, no @), or null when it isn't one. */
 export const handleOf = (username: string | null | undefined): string | null => {
   if (!username) return null;
@@ -128,7 +130,14 @@ async function ownerFor(req: FastifyRequest, account: IgAccountRow, rules: Parti
 export async function createInstagramLead(
   req: FastifyRequest,
   account: IgAccountRow,
-  p: { username: string | null; name: string | null; adId: string | null; how: string },
+  p: {
+    username: string | null;
+    name: string | null;
+    adId: string | null;
+    how: string;
+    /** Whose lead it is, when a person's own action makes it (they answered the comment); else the source's rule. */
+    ownerId?: string;
+  },
 ): Promise<string | null> {
   const [src] = account.sourceId
     ? await req.db
@@ -140,11 +149,12 @@ export async function createInstagramLead(
   const where = await whereTo(req, rules);
   if (!where) return null;
   const handle = handleOf(p.username);
-  const name = p.name?.trim().slice(0, 200) || (handle ? `@${handle}` : "Instagram lead");
+  // A name made from the handle is a contact shown to everyone who sees the lead: masked, as intake masks one (C1).
+  const name = p.name?.trim().slice(0, 200) || (handle ? maskInstagram(handle) : INSTAGRAM_LEAD_NAME);
   const id = await insertLead(req, {
     pipelineId: where.pipelineId,
     stageId: where.stageId,
-    ownerId: await ownerFor(req, account, rules),
+    ownerId: p.ownerId ?? (await ownerFor(req, account, rules)),
     name,
     contact: {
       phoneRaw: null,

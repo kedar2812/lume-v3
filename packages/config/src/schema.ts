@@ -151,7 +151,7 @@ export const apiSchema = base
     LUME_AI_PRICES: optional(z.string().max(2000)),
   })
   .superRefine((c, ctx) => {
-    // Postgres takes 100 connections: the job queues hold up to 33, the worker 9, the listeners, migrations, backups
+    // Postgres takes 100 connections: the job queues hold up to 36, the worker 9, the listeners, migrations, backups
     // and Postgres's own reserved ones about 11. These two pools get the rest (connections.test).
     if (c.DB_POOL_MAX + c.DB_JOB_POOL_MAX > POOLS_MAX)
       ctx.addIssue({

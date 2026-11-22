@@ -68,6 +68,17 @@ describe("the routing table", () => {
     expect(createRouteStore(file, now).get("b")).toBe("inst");
   });
 
+  it("remembers who held an account (at most 3, newest first), on disk", () => {
+    const s = createRouteStore(file, now);
+    s.set("a1", "i1");
+    s.set("a1", "i2");
+    s.drop("a1", "i2");
+    expect(s.holders("a1")).toEqual(["i2", "i1"]);
+    s.set("a1", "i3");
+    s.set("a1", "i4");
+    expect(createRouteStore(file, now).holders("a1")).toEqual(["i4", "i3", "i2", "i1"].slice(0, 4));
+  });
+
   it("never leaves a temp file behind", () => {
     const s = createRouteStore(file, now);
     for (let i = 0; i < 50; i++) s.set(`acct${i}`, "inst");

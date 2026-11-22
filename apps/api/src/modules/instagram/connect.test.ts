@@ -79,6 +79,7 @@ function handBack(
     kind: "instagram",
     instagram: {
       token: "IGQlong-account-token",
+      grant: "relay-grant-for-this-account",
       expiresIn: 5_184_000,
       userId: ACCT,
       username: "harbour.studio",
@@ -390,7 +391,7 @@ describe("what the relay asks", () => {
   it("the accounts this LUME holds, only to the relay", async () => {
     await connect();
     const r = await fromRelay("GET", "/instagram/accounts");
-    expect(r.json()).toEqual({ accountIds: [ACCT] });
+    expect(r.json()).toEqual({ accounts: [{ id: ACCT, grant: "relay-grant-for-this-account" }] });
     expect((await h.app.inject({ method: "GET", url: "/instagram/accounts" })).statusCode).toBe(401);
   });
 

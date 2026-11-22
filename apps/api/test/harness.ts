@@ -50,7 +50,7 @@ import { startGoogleFake, type GoogleFake } from "./google-fake";
 import { createLimiter } from "../src/modules/webhooks/limits";
 import { processEvent } from "../src/modules/webhooks/process";
 import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
-import { processInstagramEvent } from "../src/modules/instagram/process";
+import { runInstagramEvent } from "../src/modules/instagram/process";
 import { fetchInstagramMedia } from "../src/modules/instagram/media";
 import { readInstagramProfile } from "../src/modules/instagram/profile";
 import { igPacer, sendInstagramOutbox, TryLater } from "../src/modules/instagram/sender";
@@ -621,7 +621,7 @@ export async function createHarness(
     async runInstagram() {
       const later: number[] = [];
       for (let id = instagramQueued.shift(); id; id = instagramQueued.shift())
-        if ((await processInstagramEvent({ app, d: deps }, id)) === "later") later.push(id);
+        if ((await runInstagramEvent({ app, d: deps }, id).catch(() => "failed")) === "later") later.push(id);
       instagramQueued.push(...later);
     },
     async runInstagramMedia() {

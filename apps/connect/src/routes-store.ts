@@ -24,6 +24,11 @@ export type RouteStore = {
   drop(accountId: string, instanceId: string): boolean;
   /** The instance holds exactly these accounts (from its own list); another instance's routes are never taken. */
   replaceFor(instanceId: string, accountIds: string[]): void;
+  /**
+   * Every LUME that holds or held the account (newest first, at most 3): Meta's deauthorize and deletion requests for
+   * it go to each, so one that arrives after a disconnect or a move still reaches the LUME that kept its data.
+   */
+  holders(accountId: string): string[];
   /** Accounts the instance holds. */
   accountsOf(instanceId: string): string[];
   size(): number;
@@ -40,7 +45,13 @@ const MAX_NOTES = 2_000;
 const JOIN_MS = 20 * 60_000;
 const WRITE_GAP_MS = 60_000;
 
-type Shape = { routes: Record<string, string>; notes: Record<string, RelayNote[]> };
+type Shape = {
+  routes: Record<string, string>;
+  notes: Record<string, RelayNote[]>;
+  /** Who held each account before (no content): where a late deletion request must still go. */
+  formerly: Record<string, string[]>;
+};
+const FORMERLY_MAX = 3;
 
 function read(file: string): Shape {
   try {
@@ -50,13 +61,18 @@ function read(file: string): Shape {
     const notes: Record<string, RelayNote[]> = {};
     if (raw?.notes && typeof raw.notes === "object" && !Array.isArray(raw.notes))
       for (const [k, v] of Object.entries(raw.notes)) if (Array.isArray(v)) notes[k] = v;
-    return { routes, notes };
+    const formerly: Record<string, string[]> = {};
+    if (raw?.formerly && typeof raw.formerly === "object" && !Array.isArray(raw.formerly))
+      for (const [k, v] of Object.entries(raw.formerly))
+        if (Array.isArray(v))
+          formerly[k] = v.filter((x): x is string => typeof x === "string").slice(0, FORMERLY_MAX);
+    return { routes, notes, formerly };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT")
       console.error(
         "instagram routes: the file couldn't be read; starting empty and rebuilding from instances",
       );
-    return { routes: {}, notes: {} };
+    return { routes: {}, notes: {}, formerly: {} };
   }
 }
 
@@ -86,12 +102,16 @@ export function createRouteStore(
     }
   };
   const newId = () => randomBytes(9).toString("base64url");
+  const remember = (a: string, inst: string) => {
+    data.formerly[a] = [inst, ...(data.formerly[a] ?? []).filter((x) => x !== inst)].slice(0, FORMERLY_MAX);
+  };
 
   return {
     get: (a) => data.routes[a],
     set(a, inst) {
       const was = data.routes[a];
       if (was === inst) return undefined;
+      if (was) remember(a, was);
       data.routes[a] = inst;
       write();
       return was;
@@ -99,6 +119,7 @@ export function createRouteStore(
     drop(a, inst) {
       if (data.routes[a] !== inst) return false;
       delete data.routes[a];
+      remember(a, inst);
       write();
       return true;
     },
@@ -107,6 +128,7 @@ export function createRouteStore(
       for (const a of ids) if (!data.routes[a]) data.routes[a] = inst;
       write();
     },
+    holders: (a) => [...new Set([...(data.routes[a] ? [data.routes[a]] : []), ...(data.formerly[a] ?? [])])],
     accountsOf: (inst) =>
       Object.entries(data.routes)
         .filter(([, i]) => i === inst)
