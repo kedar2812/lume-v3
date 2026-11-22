@@ -1,5 +1,6 @@
 import PgBoss from "pg-boss";
 import type pg from "pg";
+import { runDueFlows, sendPublicReply } from "./flow-due";
 import { sweepInstagram } from "./inbox";
 import { takeRelayNotes } from "./notes";
 import { fetchInstagramMedia } from "./media";
@@ -166,8 +167,39 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
           );
       },
     );
+  // A flow's public reply under a comment: two workers, Meta's pace kept by the same pacer; a refusal is final.
+  const enqueuePublic = async (commentId: string, text: string) => {
+    await boss.send(
+      "instagram.public",
+      { commentId, text },
+      { retryLimit: 3, retryDelay: 60, retryBackoff: true, singletonKey: commentId },
+    );
+  };
+  for (let i = 0; i < 2; i++)
+    await boss.work<{ commentId: string; text: string }>(
+      "instagram.public",
+      { batchSize: 1, pollingIntervalSeconds: 1 },
+      async ([job]) => {
+        if (!job) return;
+        await sendPublicReply({ ...o, pacer }, job.data.commentId, job.data.text);
+      },
+    );
   const pool = o.d.jobPool ?? o.d.pool;
+  // Due flow steps: one sweep at a time (a slow one is never overlapped by the next minute's).
+  let flowsBusy = false;
+  const dueFlows = async () => {
+    if (flowsBusy) return;
+    flowsBusy = true;
+    try {
+      await runDueFlows(o);
+    } catch (err) {
+      o.app.log.error({ err }, "instagram flow sweep failed");
+    } finally {
+      flowsBusy = false;
+    }
+  };
   const sweep = async () => {
+    void dueFlows();
     try {
       for (const id of await staleInstagramEvents(pool)) await enqueue(id);
       for (const id of await staleInstagramMedia(pool)) await enqueueMedia(id);
@@ -199,6 +231,7 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
     enqueueMedia,
     enqueueProfile,
     enqueueSend,
+    enqueuePublic,
     stop: async () => {
       clearInterval(timer);
       clearInterval(hourly);

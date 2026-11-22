@@ -170,6 +170,8 @@ describe("PATCH /api/clients/:id/plan", () => {
         calendly: false,
         ai: true,
         whatsapp: true,
+        // Instagram (NEW_FEATURES_PLAN §5.1): on the owner's page always, whatever the client's LUME accepts yet.
+        instagram: true,
       },
       aiReadsHourly: null,
       aiReadsWeekly: null,

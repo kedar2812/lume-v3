@@ -88,6 +88,12 @@ const WITHOUT_RLS: Record<string, string> = {
   // processed, never read by a route) and the connected accounts (configuration; the token encrypted, never selected).
   instagram_events: "Background work and its bookkeeping",
   instagram_accounts: "Business configuration",
+  // Flows (plan 1B): the business's automations and their published versions and triggers (configuration, no lead
+  // data), and what each brought (counts by flow and keyword, reached through analytics' own reach).
+  instagram_flows: "Business configuration",
+  instagram_flow_versions: "Business configuration",
+  instagram_triggers: "Business configuration",
+  instagram_flow_events: "Background work and its bookkeeping",
   // Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes
   lead_firsts:
     "Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes",

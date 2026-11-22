@@ -1,0 +1,111 @@
+import type { FastifyInstance } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
+import { z } from "zod";
+import { flowStepsSchema } from "@lume/core";
+import {
+  FLOW_TEMPLATES,
+  archiveFlow,
+  createFlow,
+  duplicateFlow,
+  flowView,
+  flowsView,
+  publishFlow,
+  saveDraft,
+  setFlowStatus,
+  setTriggers,
+  type TemplateKey,
+} from "./flow-admin";
+import { flowStats } from "./flow-stats";
+
+/** Flows (NEW_FEATURES_PLAN §4.5; plan 1B Task 3): whoever may manage Instagram flows. */
+export async function instagramFlowRoutes(app: FastifyInstance): Promise<void> {
+  const r = app.withTypeProvider<ZodTypeProvider>();
+  const manage = { config: { permission: "instagram.flows.manage" as const } };
+  const id = z.object({ id: z.uuid() });
+  const rev = z.number().int().min(1);
+  const keyword = z.string().max(100);
+  const trigger = z
+    .object({
+      kind: z.enum(["comment", "dm", "story_reply", "story_mention", "ad", "welcome"]),
+      accountId: z.uuid().nullable(),
+      keywords: z.array(keyword).max(50),
+      mode: z.enum(["word", "exact", "any"]),
+      mediaIds: z.array(z.string().regex(/^\d{1,40}$/)).max(50),
+      adIds: z.array(z.string().regex(/^\d{1,40}$/)).max(50),
+      publicReplies: z.array(z.string().max(300)).max(10),
+      cooldownHours: z.number().int().min(0).max(720),
+      enabled: z.boolean(),
+    })
+    .strict();
+
+  r.get("/api/v1/instagram/flows", manage, (req) => flowsView(req));
+  r.get("/api/v1/instagram/flows/templates", manage, () => ({
+    templates: Object.entries(FLOW_TEMPLATES).map(([key, t]) => ({ key, name: t.name })),
+  }));
+  r.post(
+    "/api/v1/instagram/flows",
+    {
+      ...manage,
+      schema: {
+        body: z
+          .object({
+            name: z.string().max(200),
+            template: z.enum(Object.keys(FLOW_TEMPLATES) as [TemplateKey, ...TemplateKey[]]).optional(),
+          })
+          .strict(),
+      },
+    },
+    async (req, reply) => reply.code(201).send(await createFlow(req, req.body)),
+  );
+  r.get("/api/v1/instagram/flows/:id", { ...manage, schema: { params: id } }, (req) =>
+    flowView(req, req.params.id),
+  );
+  r.put(
+    "/api/v1/instagram/flows/:id",
+    {
+      ...manage,
+      schema: {
+        params: id,
+        body: z
+          .object({
+            rev,
+            name: z.string().max(200).optional(),
+            steps: flowStepsSchema.optional(),
+            priority: z.number().int().min(-1000).max(1000).optional(),
+          })
+          .strict(),
+      },
+    },
+    (req) => saveDraft(req, req.params.id, req.body),
+  );
+  r.put(
+    "/api/v1/instagram/flows/:id/triggers",
+    {
+      ...manage,
+      schema: { params: id, body: z.object({ rev, triggers: z.array(trigger).max(20) }).strict() },
+    },
+    (req) => setTriggers(req, req.params.id, req.body),
+  );
+  r.post(
+    "/api/v1/instagram/flows/:id/publish",
+    { ...manage, schema: { params: id, body: z.object({ rev }).strict() } },
+    (req) => publishFlow(req, req.params.id, req.body),
+  );
+  r.post(
+    "/api/v1/instagram/flows/:id/status",
+    { ...manage, schema: { params: id, body: z.object({ rev, to: z.enum(["paused", "live"]) }).strict() } },
+    (req) => setFlowStatus(req, req.params.id, req.body),
+  );
+  r.post("/api/v1/instagram/flows/:id/archive", { ...manage, schema: { params: id } }, (req) =>
+    archiveFlow(req, req.params.id),
+  );
+  const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+  r.get(
+    "/api/v1/instagram/flows/:id/stats",
+    { ...manage, schema: { params: id, querystring: z.object({ from: day, to: day }).strict() } },
+    (req) => flowStats(req, req.params.id, req.query),
+  );
+  r.post("/api/v1/instagram/flows/:id/duplicate", { ...manage, schema: { params: id } }, async (req, reply) =>
+    reply.code(201).send(await duplicateFlow(req, req.params.id)),
+  );
+}

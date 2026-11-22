@@ -50,6 +50,7 @@ import { startGoogleFake, type GoogleFake } from "./google-fake";
 import { createLimiter } from "../src/modules/webhooks/limits";
 import { processEvent } from "../src/modules/webhooks/process";
 import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
+import { runDueFlows } from "../src/modules/instagram/flow-due";
 import { runInstagramEvent } from "../src/modules/instagram/process";
 import { fetchInstagramMedia } from "../src/modules/instagram/media";
 import { readInstagramProfile } from "../src/modules/instagram/profile";
@@ -181,6 +182,10 @@ export type Harness = {
   instagramSendQueued: string[];
   instagramMediaQueued: string[];
   instagramProfileQueued: string[];
+  /** Flows' public replies under comments, queued (comment id and words). */
+  instagramPublicQueued: { commentId: string; text: string }[];
+  /** The minute sweep's flow steps: every run due at the harness's time, once. */
+  runInstagramFlows(): Promise<void>;
   /** Process the queued Instagram events in order; one that answers "later" stays queued (as the queue waits 30 s). */
   runInstagram(): Promise<void>;
   runInstagramMedia(): Promise<void>;
@@ -314,6 +319,7 @@ export async function createHarness(
   const instagramSendQueued: string[] = [];
   const instagramMediaQueued: string[] = [];
   const instagramProfileQueued: string[] = [];
+  const instagramPublicQueued: { commentId: string; text: string }[] = [];
   const igSendPacer = igPacer({ now: () => clock.now, perSecond: 20 });
   const autopilotQueued: string[] = [];
   const previewQueued: string[] = [];
@@ -392,6 +398,7 @@ export async function createHarness(
       enqueueSend: async (id) => void instagramSendQueued.push(id),
       enqueueMedia: async (id) => void instagramMediaQueued.push(id),
       enqueueProfile: async (id) => void instagramProfileQueued.push(id),
+      enqueuePublic: async (commentId, text) => void instagramPublicQueued.push({ commentId, text }),
     },
     files,
     render: render ? { url: render.url } : null,
@@ -594,6 +601,7 @@ export async function createHarness(
     instagramSendQueued,
     instagramMediaQueued,
     instagramProfileQueued,
+    instagramPublicQueued,
     whatsappMediaQueued,
     whatsappSendQueued,
     whatsappMeaningQueued,
@@ -623,6 +631,9 @@ export async function createHarness(
       for (let id = instagramQueued.shift(); id; id = instagramQueued.shift())
         if ((await runInstagramEvent({ app, d: deps }, id).catch(() => "failed")) === "later") later.push(id);
       instagramQueued.push(...later);
+    },
+    async runInstagramFlows() {
+      await runDueFlows({ app, d: deps });
     },
     async runInstagramMedia() {
       for (const id of instagramMediaQueued.splice(0)) await fetchInstagramMedia({ app, d: deps }, id);

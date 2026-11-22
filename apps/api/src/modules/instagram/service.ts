@@ -10,6 +10,7 @@ import { HttpError, badRequest, notFound } from "../../http/errors";
 import { assertModule } from "../../licence/plan";
 import { adminIds, notify } from "../notifications/notify";
 import { integrationsView } from "../sheets/service";
+import { FLOW_WORDS, stopFlowRuns } from "./flow-run";
 import { igGraph } from "./graph";
 
 const A = schema.instagramAccounts;
@@ -347,6 +348,8 @@ export async function disconnect(req: FastifyRequest, d: AppDeps, id: string) {
     .update(A)
     .set({ status: "disconnected", tokenEnc: null, problem: null, updatedAt: new Date() })
     .where(eq(A.id, a.id));
+  // Conversations in its flows stop, saying why (nothing more can go from it).
+  await withAllScope(req, () => stopFlowRuns(req, { accountId: a.id }, FLOW_WORDS.accountGone));
   if (a.sourceId) await req.db.update(S).set({ status: "paused" }).where(eq(S.id, a.sourceId));
   await audit(req, { action: "instagram.disconnected", entityType: "instagram_account", entityId: a.id });
   return accountsView(req);

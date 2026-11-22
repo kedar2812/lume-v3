@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
   integer,
@@ -32,6 +33,13 @@ export const instagramAccounts = pgTable("instagram_accounts", {
   status: text("status").$type<"active" | "needs_attention" | "disconnected">().notNull(),
   problem: text("problem"),
   newDmCreatesLead: boolean("new_dm_creates_lead").notNull().default(true),
+  /** Sent once at a flow's start where the law asks automation to say so (0123); null: none. */
+  automatedNote: text("automated_note"),
+  /** Words that ask for a person at any point of a run (0123). */
+  personWords: text("person_words")
+    .array()
+    .notNull()
+    .default(sql`'{PERSON}'`),
   /** The relay's signature that this account was connected here (0122): shown back when the relay rebuilds. */
   relayGrant: text("relay_grant"),
   connectedAt: tz("connected_at").notNull().defaultNow(),
@@ -177,4 +185,97 @@ export const instagramMedia = pgTable("instagram_media", {
   tries: integer("tries").notNull().default(0),
   retryAt: tz("retry_at"),
   createdAt: tz("created_at").notNull().defaultNow(),
+});
+
+/** Flows (0123; plan 1B): what a business builds to answer comments and DMs. Configuration. */
+export const instagramFlows = pgTable("instagram_flows", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  status: text("status").$type<"draft" | "live" | "paused" | "archived">().notNull(),
+  liveVersionId: uuid("live_version_id"),
+  priority: integer("priority").notNull().default(0),
+  draftSteps: jsonb("draft_steps")
+    .$type<unknown[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  rev: integer("rev").notNull().default(1),
+  rr: bigint("rr", { mode: "number" }).notNull().default(0),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: tz("created_at").notNull().defaultNow(),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
+});
+
+/** A published version: its steps never change (a trigger refuses an update). */
+export const instagramFlowVersions = pgTable("instagram_flow_versions", {
+  id: uuid("id").primaryKey(),
+  flowId: uuid("flow_id").notNull(),
+  version: integer("version").notNull(),
+  steps: jsonb("steps").$type<unknown[]>().notNull(),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: tz("created_at").notNull().defaultNow(),
+});
+
+export type InstagramTriggerKind = "comment" | "dm" | "story_reply" | "story_mention" | "ad" | "welcome";
+export const instagramTriggers = pgTable("instagram_triggers", {
+  id: uuid("id").primaryKey(),
+  flowId: uuid("flow_id").notNull(),
+  accountId: uuid("account_id"),
+  kind: text("kind").$type<InstagramTriggerKind>().notNull(),
+  keywords: text("keywords")
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
+  mode: text("mode").$type<"word" | "exact" | "any">().notNull().default("word"),
+  mediaIds: text("media_ids")
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
+  adIds: text("ad_ids")
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
+  publicReplies: text("public_replies")
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
+  cooldownHours: integer("cooldown_hours").notNull().default(24),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: tz("created_at").notNull().defaultNow(),
+});
+
+export type InstagramRunStatus = "running" | "waiting" | "done" | "stopped" | "handed" | "failed";
+/** A conversation in a flow; one running or waiting at a time per conversation. Seen as its lead is. */
+export const instagramFlowRuns = pgTable("instagram_flow_runs", {
+  id: uuid("id").primaryKey(),
+  flowId: uuid("flow_id").notNull(),
+  versionId: uuid("version_id").notNull(),
+  triggerId: uuid("trigger_id"),
+  threadId: uuid("thread_id").notNull(),
+  leadId: uuid("lead_id").notNull(),
+  status: text("status").$type<InstagramRunStatus>().notNull(),
+  state: jsonb("state").$type<Record<string, unknown>>().notNull(),
+  startedBy: text("started_by").notNull(),
+  keyword: text("keyword"),
+  nextAt: tz("next_at"),
+  reason: text("reason"),
+  tries: integer("tries").notNull().default(0),
+  createdAt: tz("created_at").notNull().defaultNow(),
+  updatedAt: tz("updated_at").notNull().defaultNow(),
+});
+
+export const instagramFlowEvents = pgTable("instagram_flow_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  flowId: uuid("flow_id").notNull(),
+  versionId: uuid("version_id"),
+  triggerId: uuid("trigger_id"),
+  runId: uuid("run_id"),
+  stepKey: text("step_key"),
+  keyword: text("keyword"),
+  kind: text("kind")
+    .$type<
+      "triggered" | "private_reply" | "dm_sent" | "replied" | "lead_created" | "call_booked" | "handed"
+    >()
+    .notNull(),
+  leadId: uuid("lead_id"),
+  at: tz("at").notNull().defaultNow(),
 });

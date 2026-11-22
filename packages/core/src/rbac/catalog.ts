@@ -218,6 +218,13 @@ export const PERMISSIONS = [
     description: "Sheets, Calendly, webhooks",
   },
   {
+    key: "instagram.flows.manage",
+    group: "Admin",
+    scoped: false,
+    label: "Manage Instagram flows",
+    description: "Build and publish Instagram automations",
+  },
+  {
     key: "audit.view",
     group: "Security",
     scoped: false,

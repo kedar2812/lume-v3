@@ -54,6 +54,7 @@ import { mediaRoutes } from "./modules/media/routes";
 import { fileLinkRoutes } from "./modules/whatsapp/link";
 import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
+import { instagramFlowRoutes } from "./modules/instagram/flow-routes";
 import { instagramRoutes } from "./modules/instagram/routes";
 import { instagramRelayRoutes } from "./modules/instagram/relay-routes";
 import { instagramReceiveRoutes } from "./modules/instagram/receive";
@@ -159,6 +160,8 @@ export type AppDeps = {
     enqueueSend(outboxId: string): Promise<void>;
     enqueueMedia(mediaId: string): Promise<void>;
     enqueueProfile(threadId: string): Promise<void>;
+    /** A flow's public reply under a comment (best effort, paced). */
+    enqueuePublic(commentId: string, text: string): Promise<void>;
   };
   /** Autopilot's queue (A2): a run with something to do now. */
   autopilot?: { kick(runId: string): Promise<void> };
@@ -310,6 +313,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(autopilotRoutes, deps);
         await scope.register(whatsappRoutes, deps);
         await scope.register(instagramRoutes, deps);
+        await scope.register(instagramFlowRoutes);
         await scope.register(fileLinkRoutes, deps);
         await scope.register(mediaRoutes, deps);
         deps.extraRoutes?.(scope, deps);

@@ -28,5 +28,7 @@ export const QUEUE_NAMES = [
   "instagram.send",
   "instagram.media",
   "instagram.profile",
+  // Flows (plan 1B): a public reply under a comment, paced per account.
+  "instagram.public",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

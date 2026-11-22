@@ -15,6 +15,7 @@ import { sendable } from "../leads/sending";
 import { visibleLead } from "../leads/service";
 import type { SendLimiter } from "../whatsapp/send";
 import { createInstagramLead } from "./leads";
+import { FLOW_WORDS, stopFlowRuns } from "./flow-run";
 import { instagramOn } from "./service";
 
 const conflict = (code: string, message: string) => new HttpError(409, code, message);
@@ -81,6 +82,7 @@ async function takeOver(req: FastifyRequest, threadId: string) {
     UPDATE instagram_threads SET taken_over_by = coalesce(taken_over_by, ${req.actor!.userId}::uuid),
            taken_over_at = coalesce(taken_over_at, now()), updated_at = now()
      WHERE id = ${threadId}`);
+  await stopFlowRuns(req, { threadId }, FLOW_WORDS.takenOver);
 }
 
 /** One message as the thread shows it (thread.ts's shape). */

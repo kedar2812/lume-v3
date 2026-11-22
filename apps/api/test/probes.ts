@@ -938,6 +938,47 @@ export const PROBES: Record<string, Probe> = {
     access: "auth.self",
     path: () => `/api/v1/instagram/inbox/${uuid}/ignore`,
   },
+  // Flows (plan 1B): whoever may manage Instagram flows.
+  "GET /api/v1/instagram/flows": { access: "instagram.flows.manage" },
+  "GET /api/v1/instagram/flows/templates": { access: "instagram.flows.manage" },
+  "POST /api/v1/instagram/flows": { access: "instagram.flows.manage", body: () => ({ name: "Probe" }) },
+  "GET /api/v1/instagram/flows/:id": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}`,
+  },
+  "PUT /api/v1/instagram/flows/:id": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}`,
+    body: () => ({ rev: 1, name: "Probe" }),
+  },
+  "PUT /api/v1/instagram/flows/:id/triggers": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/triggers`,
+    body: () => ({ rev: 1, triggers: [] }),
+  },
+  "POST /api/v1/instagram/flows/:id/publish": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/publish`,
+    body: () => ({ rev: 1 }),
+  },
+  "POST /api/v1/instagram/flows/:id/status": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/status`,
+    body: () => ({ rev: 1, to: "paused" }),
+  },
+  "POST /api/v1/instagram/flows/:id/archive": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/archive`,
+  },
+  "POST /api/v1/instagram/flows/:id/duplicate": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/duplicate`,
+  },
+  "GET /api/v1/instagram/flows/:id/stats": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/stats`,
+    query: "from=2026-11-01&to=2026-11-22",
+  },
   "GET /api/v1/leads/:id/whatsapp": {
     access: "leads.view",
     path: (f) => `/api/v1/leads/${f.leadId}/whatsapp`,

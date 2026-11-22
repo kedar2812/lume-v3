@@ -96,6 +96,7 @@ const instagram: NonNullable<AppDeps["instagram"]> = {
   enqueueSend: async () => undefined,
   enqueueMedia: async () => undefined,
   enqueueProfile: async () => undefined,
+  enqueuePublic: async () => undefined,
 };
 // Autopilot (A2): filled once its queue is up; the minute sweep catches any run started meanwhile.
 const autopilot: NonNullable<AppDeps["autopilot"]> = { kick: async () => undefined };
@@ -226,6 +227,7 @@ instagram.enqueue = instagramQueue.enqueue;
 instagram.enqueueMedia = instagramQueue.enqueueMedia;
 instagram.enqueueProfile = instagramQueue.enqueueProfile;
 instagram.enqueueSend = instagramQueue.enqueueSend;
+instagram.enqueuePublic = instagramQueue.enqueuePublic;
 const autopilotQueue = await startAutopilotQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
 autopilot.kick = autopilotQueue.kick;
 const mediaQueue = await startMediaQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });

@@ -301,7 +301,15 @@ export async function getClient(ctx: Ctx, id: string) {
         ai_leads_monthly: null,
         tier: null,
       },
-      { v2: true, v3: true, v4: true, v5: true, v6: true, topUps: await topUpsAround(ctx.db, id, now) },
+      {
+        v2: true,
+        v3: true,
+        v4: true,
+        v5: true,
+        v6: true,
+        v7: true,
+        topUps: await topUpsAround(ctx.db, id, now),
+      },
     ),
     // LUME AI top-ups (Autopilot spec 2026-10-19 §4): what the client's admins asked for, and what was added.
     topUps: await clientTopUps(ctx.db, id, ctx.now()),

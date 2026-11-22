@@ -18,11 +18,23 @@ import { visibleLead } from "../leads/service";
 import { readAs } from "../notifications/hub";
 import { notify } from "../notifications/notify";
 import { igGraph, type GraphAnswer } from "./graph";
+import { afterFlow } from "./flow-due";
+import {
+  flowOnComment,
+  flowOnMessage,
+  FLOW_WORDS,
+  newFlowOut,
+  stopFlowRuns,
+  type FlowAccount,
+  type FlowOut,
+} from "./flow-run";
 import { createInstagramLead, leadByHandle, liveLead, type IgAccountRow } from "./leads";
 import { igEventContext } from "./receive";
 import { igGraphOf, igTokenContext, tellAdmins } from "./service";
 
 export type InstagramJobDeps = { app: FastifyInstance; d: AppDeps };
+/** Public replies under comments a flow may queue per account per hour (unset limits: Meta's private-reply pace). */
+export const IG_PUBLIC_REPLIES_PER_HOUR = 600;
 
 const PREVIEW = 120;
 const AD_WINDOW_MS = 7 * 86_400_000;
@@ -117,7 +129,7 @@ type Notice = {
   title: string;
   body: string;
 };
-type Out = { media: string[]; notice: Notice | null; profile: string | null; later: boolean };
+type Out = { media: string[]; notice: Notice | null; profile: string | null; later: boolean; flow: FlowOut };
 
 /**
  * The person's name and username, read once they've messaged (Meta allows it then). Answers whether it was read; a
@@ -176,7 +188,7 @@ async function addMedia(
 async function messageIn(
   req: FastifyRequest,
   d: AppDeps,
-  account: IgAccountRow & { token: string },
+  account: FlowAccount & { token: string },
   e: IgMessageEvent,
   out: Out,
   pre: GraphAnswer | null,
@@ -265,6 +277,25 @@ async function messageIn(
         : `${firstName(lead.name) ?? "A lead"} replied on Instagram`,
       body: igGist(e),
     };
+  // Then the flow it's in, or the one it starts (spec 2026-11-22 §2); a stop above has already made the lead
+  // do-not-contact, which stops any run.
+  await flowOnMessage(
+    req,
+    account,
+    {
+      threadId: t.id,
+      leadId,
+      text: e.text,
+      payload: e.quickReply,
+      // Only this message's own ad click: a later plain DM from someone who once came from an ad is a DM.
+      via: ad ? "ad" : e.replyToStory ? "story_reply" : e.storyMention ? "story_mention" : "dm",
+      // Their first message to the account: a conversation a comment flow opened has none before this.
+      first: t.created || !t.last_in_at,
+      adId: e.referral?.adId ?? t.source?.adId ?? null,
+    },
+    at,
+    out.flow,
+  );
 }
 
 /** A message the business sent from Instagram itself: on the lead, and a person has taken the conversation over. */
@@ -302,23 +333,49 @@ async function echo(
                                     (SELECT owner_id FROM leads WHERE id = ${leadId}), ${account.runAs}::uuid),
            taken_over_at = coalesce(taken_over_at, now())
      WHERE id = ${t.id}`);
+  await stopFlowRuns(req, { threadId: t.id }, FLOW_WORDS.takenOver);
   await req.db.execute(sql`
     UPDATE leads SET last_message_at = GREATEST(coalesce(last_message_at, ${at}), ${at}),
                      last_activity_at = GREATEST(coalesce(last_activity_at, ${at}), ${at})
      WHERE id = ${leadId}`);
 }
 
-async function comment(req: FastifyRequest, account: IgAccountRow, e: IgCommentEvent) {
+async function comment(
+  req: FastifyRequest,
+  account: FlowAccount,
+  e: IgCommentEvent,
+  out: Out,
+  o: { now: Date; publicRepliesPerHour: number },
+) {
   // The account's own comments (its replies under its posts) never start anything.
   if (e.fromIgsid === account.igUserId) return;
   const t = await req.db.execute<{ id: string }>(sql`
     SELECT id FROM instagram_threads WHERE account_id = ${account.id} AND igsid = ${e.fromIgsid}`);
-  await req.db.execute(sql`
+  const kept = await req.db.execute(sql`
     INSERT INTO instagram_comments
       (id, account_id, comment_id, media_id, media_type, parent_id, from_igsid, from_username, text, ad_id, live, at, thread_id)
     VALUES (${newId()}, ${account.id}, ${e.commentId}, ${e.mediaId}, ${e.mediaType}, ${e.parentId}, ${e.fromIgsid},
             ${e.fromUsername}, ${e.text}, ${e.adId}, ${e.live}, ${new Date(e.at)}, ${t.rows[0]?.id ?? null})
     ON CONFLICT (comment_id) DO NOTHING`);
+  if (!kept.rowCount) return; // the same comment again: whatever it started, it started once
+  await flowOnComment(
+    req,
+    account,
+    {
+      commentId: e.commentId,
+      igsid: e.fromIgsid,
+      username: e.fromUsername,
+      mediaId: e.mediaId,
+      adId: e.adId,
+      text: e.text,
+      live: e.live,
+      at: new Date(e.at),
+    },
+    // Meta's 7 days for the private reply run on this server's clock, not the comment's (a gap caught up late).
+    o.now,
+    { publicRepliesPerHour: o.publicRepliesPerHour },
+    out.flow,
+  );
 }
 
 type Row = {
@@ -334,6 +391,8 @@ type Row = {
   new_dm_creates_lead: boolean | null;
   username: string | null;
   token_enc: Buffer | null;
+  automated_note: string | null;
+  person_words: string[] | null;
 };
 
 /**
@@ -350,7 +409,8 @@ export async function processInstagramEvent(
   const pool = d.jobPool ?? d.pool;
   const { rows } = await pool.query<Row>(
     `SELECT e.status, e.event_enc, e.event_key, e.account_ig_id, a.id AS account_id, a.status AS account_status,
-            a.owner_user_id, a.run_as, a.source_id, a.new_dm_creates_lead, a.username, a.token_enc
+            a.owner_user_id, a.run_as, a.source_id, a.new_dm_creates_lead, a.username, a.token_enc,
+            a.automated_note, a.person_words
        FROM instagram_events e LEFT JOIN instagram_accounts a ON a.ig_user_id = e.account_ig_id
       WHERE e.id = $1`,
     [eventId],
@@ -387,6 +447,8 @@ export async function processInstagramEvent(
     sourceId: row.source_id,
     newDmCreatesLead: row.new_dm_creates_lead ?? true,
     runAs: row.run_as!,
+    automatedNote: row.automated_note?.trim() || null,
+    personWords: row.person_words ?? [],
     token: d.keyring.decrypt(row.token_enc, igTokenContext(row.account_id)),
   };
 
@@ -416,7 +478,7 @@ export async function processInstagramEvent(
         sql`SELECT status FROM instagram_events WHERE id = ${eventId} FOR UPDATE`,
       );
       if (lock.rows[0]?.status !== "queued") return null;
-      const out: Out = { media: [], notice: null, profile: null, later: false };
+      const out: Out = { media: [], notice: null, profile: null, later: false, flow: newFlowOut() };
       const at = new Date(ev.at);
       switch (ev.kind) {
         case "message":
@@ -428,12 +490,28 @@ export async function processInstagramEvent(
           await personActed(req, t.id, at, false);
           const leadId = await liveLead(req, t.lead_id);
           const payload = { tap: { title: ev.title, payload: ev.payload } };
-          if (leadId && !(await onLeadAlready(req, leadId, ev.mid)))
+          if (leadId && !(await onLeadAlready(req, leadId, ev.mid))) {
             await req.db.execute(sql`
               INSERT INTO activities (id, lead_id, user_id, type, occurred_at, payload)
               VALUES (${newId()}, ${leadId}, ${account.ownerUserId}, 'instagram_received', ${at},
                       ${JSON.stringify({ mid: ev.mid, accountId: account.id, threadId: t.id, text: ev.title, ...payload })}::jsonb)`);
-          else if (!leadId)
+            // A tap on a flow's button is the person answering it.
+            await flowOnMessage(
+              req,
+              account,
+              {
+                threadId: t.id,
+                leadId,
+                text: ev.title,
+                payload: ev.payload,
+                via: "dm",
+                first: false,
+                adId: null,
+              },
+              at,
+              out.flow,
+            );
+          } else if (!leadId)
             await req.db.execute(sql`
               INSERT INTO instagram_inbox (id, thread_id, mid, at, text, detail)
               VALUES (${newId()}, ${t.id}, ${ev.mid}, ${at}, ${ev.title}, ${JSON.stringify(payload)}::jsonb)
@@ -494,7 +572,10 @@ export async function processInstagramEvent(
           break;
         }
         case "comment":
-          await comment(req, account, ev);
+          await comment(req, account, ev, out, {
+            now: d.clock(),
+            publicRepliesPerHour: d.instagramLimits?.privateRepliesPerHour ?? IG_PUBLIC_REPLIES_PER_HOUR,
+          });
           break;
       }
       if (out.later) return out;
@@ -506,6 +587,7 @@ export async function processInstagramEvent(
   );
   if (!out) return "gone";
   if (out.later) return "later";
+  await afterFlow(o, out.flow);
   for (const id of out.media)
     await d.instagram
       ?.enqueueMedia(id)
