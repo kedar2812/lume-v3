@@ -908,6 +908,24 @@ export const PROBES: Record<string, Probe> = {
     path: (f) => `/api/v1/leads/${f.leadId}/instagram`,
   },
   "GET /api/v1/instagram/inbox": { access: "auth.self" },
+  "POST /api/v1/leads/:id/instagram/messages": {
+    access: "messages.send",
+    path: (f) => `/api/v1/leads/${f.leadId}/instagram/messages`,
+    body: () => ({ clientKey: uuid, threadId: uuid, text: "Hi" }),
+  },
+  "POST /api/v1/instagram/comments/:id/private-reply": {
+    access: "messages.send",
+    path: () => `/api/v1/instagram/comments/${uuid}/private-reply`,
+    body: () => ({ clientKey: uuid, text: "Hi" }),
+  },
+  "POST /api/v1/instagram/threads/:id/take-over": {
+    access: "messages.send",
+    path: () => `/api/v1/instagram/threads/${uuid}/take-over`,
+  },
+  "POST /api/v1/instagram/threads/:id/hand-back": {
+    access: "messages.send",
+    path: () => `/api/v1/instagram/threads/${uuid}/hand-back`,
+  },
   "GET /api/v1/instagram/inbox/:threadId": {
     access: "auth.self",
     path: () => `/api/v1/instagram/inbox/${uuid}`,

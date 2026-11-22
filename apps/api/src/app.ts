@@ -152,6 +152,8 @@ export type AppDeps = {
    * own), and its queues in this process.
    */
   instagramGraph?: { graphUrl: string; version: string } | null;
+  /** Each account's pace (LUME_IG_SEND_PER_SECOND, LUME_IG_PRIVATE_REPLIES_PER_HOUR): below Meta's own limits. */
+  instagramLimits?: { perSecond: number; privateRepliesPerHour: number };
   instagram?: {
     enqueue(eventId: number): Promise<void>;
     enqueueSend(outboxId: string): Promise<void>;

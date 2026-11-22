@@ -135,6 +135,10 @@ const deps: AppDeps = {
           appId: cfg.LUME_META_APP_ID ?? null,
         }
       : null,
+  instagramLimits: {
+    perSecond: cfg.LUME_IG_SEND_PER_SECOND,
+    privateRepliesPerHour: cfg.LUME_IG_PRIVATE_REPLIES_PER_HOUR,
+  },
   // Instagram (NEW_FEATURES_PLAN §4): Meta's own Graph API unless pointed at a fake (e2e).
   instagramGraph: {
     graphUrl: (cfg.INSTAGRAM_GRAPH_URL ?? "https://graph.instagram.com").replace(/\/$/, ""),
@@ -221,6 +225,7 @@ const instagramQueue = await startInstagramQueue({ connectionString: cfg.DATABAS
 instagram.enqueue = instagramQueue.enqueue;
 instagram.enqueueMedia = instagramQueue.enqueueMedia;
 instagram.enqueueProfile = instagramQueue.enqueueProfile;
+instagram.enqueueSend = instagramQueue.enqueueSend;
 const autopilotQueue = await startAutopilotQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
 autopilot.kick = autopilotQueue.kick;
 const mediaQueue = await startMediaQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });

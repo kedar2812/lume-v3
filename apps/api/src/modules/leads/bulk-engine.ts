@@ -595,7 +595,7 @@ async function undoChunk(
   if (kind === "do_not_contact") {
     const said = await req.db.execute<{ lead_id: string; text: string | null }>(sql`
       SELECT a.lead_id, a.payload->>'text' AS text FROM activities a
-       WHERE a.lead_id = ANY(${ids}::uuid[]) AND a.type = 'whatsapp_received'
+       WHERE a.lead_id = ANY(${ids}::uuid[]) AND a.type IN ('whatsapp_received', 'instagram_received')
          AND a.occurred_at >= (SELECT created_at FROM bulk_runs WHERE id = ${run.undoOf})`);
     for (const r of said.rows) if (isStop(r.text ?? "")) saidStop.add(r.lead_id);
   }

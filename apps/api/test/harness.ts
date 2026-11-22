@@ -53,6 +53,7 @@ import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
 import { processInstagramEvent } from "../src/modules/instagram/process";
 import { fetchInstagramMedia } from "../src/modules/instagram/media";
 import { readInstagramProfile } from "../src/modules/instagram/profile";
+import { igPacer, sendInstagramOutbox, TryLater } from "../src/modules/instagram/sender";
 import { fetchMedia } from "../src/modules/whatsapp/media";
 import { makePreview } from "../src/modules/media/preview";
 import { startRenderFake, type RenderFake } from "./render-fake";
@@ -184,6 +185,8 @@ export type Harness = {
   runInstagram(): Promise<void>;
   runInstagramMedia(): Promise<void>;
   runInstagramProfile(): Promise<void>;
+  /** Send the queued Instagram messages once each, as the queue would; one told to try later stays queued. */
+  runInstagramSend(): Promise<void>;
   /** Autopilot (A2): every run with something due, stepped until nothing more is due at the harness's time. */
   runAutopilot(): Promise<void>;
   /** Process the queued WhatsApp events, in order (plan W1 Task 6). */
@@ -311,6 +314,7 @@ export async function createHarness(
   const instagramSendQueued: string[] = [];
   const instagramMediaQueued: string[] = [];
   const instagramProfileQueued: string[] = [];
+  const igSendPacer = igPacer({ now: () => clock.now, perSecond: 20 });
   const autopilotQueued: string[] = [];
   const previewQueued: string[] = [];
   const render = opts.render ? await startRenderFake() : null;
@@ -622,6 +626,17 @@ export async function createHarness(
     },
     async runInstagramMedia() {
       for (const id of instagramMediaQueued.splice(0)) await fetchInstagramMedia({ app, d: deps }, id);
+    },
+    async runInstagramSend() {
+      const later: string[] = [];
+      for (const id of instagramSendQueued.splice(0))
+        try {
+          await sendInstagramOutbox({ app, d: deps, pacer: igSendPacer, privateRepliesPerHour: 600 }, id);
+        } catch (e) {
+          if (!(e instanceof TryLater)) throw e;
+          later.push(id);
+        }
+      instagramSendQueued.push(...later);
     },
     async runInstagramProfile() {
       const again: string[] = [];

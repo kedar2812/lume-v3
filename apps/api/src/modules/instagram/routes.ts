@@ -4,6 +4,8 @@ import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { igIgnore, igInboxPerson, igInboxView, igMakeLead } from "./inbox";
 import { leadInstagram } from "./thread";
+import { privateReply, sendInstagram, setTakeover } from "./send";
+import { sendLimiter } from "../whatsapp/send";
 import {
   accountsView,
   connectComplete,
@@ -56,6 +58,51 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
     "/api/v1/leads/:id/instagram",
     { config: { permission: "leads.view" }, schema: { params: id } },
     (req) => leadInstagram(req, req.params.id, d.clock()),
+  );
+  // Replying (§4.4): as anyone who may message the lead, 30 a minute and 600 an hour each.
+  const limiter = sendLimiter({ now: d.clock });
+  const quickReply = z
+    .object({ title: z.string().min(1).max(60), payload: z.string().min(1).max(1000) })
+    .strict();
+  r.post(
+    "/api/v1/leads/:id/instagram/messages",
+    {
+      config: { permission: "messages.send" },
+      schema: {
+        params: id,
+        body: z
+          .object({
+            clientKey: z.uuid(),
+            threadId: z.uuid(),
+            text: z.string().min(1).max(4000),
+            quickReplies: z.array(quickReply).max(20).optional(),
+            retryOf: z.uuid().optional(),
+          })
+          .strict(),
+      },
+    },
+    async (req, reply) => reply.code(202).send(await sendInstagram(req, d, limiter, req.params.id, req.body)),
+  );
+  r.post(
+    "/api/v1/instagram/comments/:id/private-reply",
+    {
+      config: { permission: "messages.send" },
+      schema: {
+        params: id,
+        body: z.object({ clientKey: z.uuid(), text: z.string().min(1).max(4000) }).strict(),
+      },
+    },
+    async (req, reply) => reply.code(202).send(await privateReply(req, d, limiter, req.params.id, req.body)),
+  );
+  r.post(
+    "/api/v1/instagram/threads/:id/take-over",
+    { config: { permission: "messages.send" }, schema: { params: id } },
+    (req) => setTakeover(req, req.params.id, true),
+  );
+  r.post(
+    "/api/v1/instagram/threads/:id/hand-back",
+    { config: { permission: "messages.send" }, schema: { params: id } },
+    (req) => setTakeover(req, req.params.id, false),
   );
   // Not a lead yet (§4.3): the account's owner and whoever sees every lead (row-level security decides).
   const thread = z.object({ threadId: z.uuid() });

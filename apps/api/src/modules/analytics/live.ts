@@ -194,7 +194,7 @@ export async function liveSlots(
   const t = span.to.toISOString();
   const within = (col: SQL) => sql`${col} >= ${f}::timestamptz AND ${col} < ${t}::timestamptz`;
   const sent = sql`activities a JOIN leads l ON l.id = a.lead_id
-    WHERE a.type = 'whatsapp_confirmed_sent' AND ${within(sql`a.occurred_at`)} AND ${liveLead(q)}`;
+    WHERE a.type IN ('whatsapp_confirmed_sent', 'instagram_confirmed_sent') AND ${within(sql`a.occurred_at`)} AND ${liveLead(q)}`;
   const calls = sql`meetings m JOIN leads l ON l.id = m.lead_id WHERE ${within(sql`m.starts_at`)} AND ${liveLead(q)}`;
   return req.db.execute<{ kind: string; dow: number; hour: number; n: number }>(sql`
     SELECT z.kind, extract(dow FROM z.at AT TIME ZONE ${tz})::int AS dow,
@@ -206,7 +206,7 @@ export async function liveSlots(
       SELECT 'sends', a.occurred_at, a.user_id FROM ${sent}
       UNION ALL
       SELECT 'replies', a.occurred_at, a.user_id FROM ${sent}
-        AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type IN ('reply_logged', 'whatsapp_received')
+        AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type IN ('reply_logged', 'whatsapp_received', 'instagram_received')
                     AND r.occurred_at > a.occurred_at AND r.occurred_at <= a.occurred_at + interval '72 hours')
       UNION ALL
       SELECT 'booked', m.starts_at, m.owner_id FROM ${calls} AND m.status IN ('scheduled', 'completed', 'no_show')

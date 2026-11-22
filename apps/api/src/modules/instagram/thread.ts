@@ -24,6 +24,8 @@ type Msg = {
   fromPhone: boolean;
   /** Sent with Meta's human agent tag (a person, after 24 hours). */
   humanAgent: boolean;
+  /** The one private reply to a comment (it shows in the person's inbox with a link to the post). */
+  privateReply: boolean;
 };
 
 /**
@@ -83,11 +85,12 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
     created_at: Date | string;
     quick_replies: unknown;
     buttons: unknown;
+    kind: string;
   }>(sql`
     SELECT o.id, o.thread_id, o.mid, o.user_id, u.name AS user_name, o.text, o.status, o.problem, o.reaction,
-           o.tag, o.created_at, o.quick_replies, o.buttons
+           o.tag, o.created_at, o.quick_replies, o.buttons, o.kind
       FROM instagram_outbox o JOIN users u ON u.id = o.user_id
-     WHERE o.thread_id = ANY(${`{${ids.join(",")}}`}::uuid[]) AND o.kind = 'dm'
+     WHERE o.thread_id = ANY(${`{${ids.join(",")}}`}::uuid[])
      ORDER BY o.created_at DESC LIMIT ${THREAD_MAX}`);
   const unsent = new Set(
     acts.rows.filter((a) => a.type === "instagram_unsent").map((a) => String(a.payload.mid ?? "")),
@@ -122,6 +125,7 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
       outboxId: null,
       fromPhone: via === "echo",
       humanAgent: false,
+      privateReply: false,
     });
   }
   for (const o of out.rows)
@@ -142,6 +146,7 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
       outboxId: o.id,
       fromPhone: false,
       humanAgent: o.tag === "human_agent",
+      privateReply: o.kind === "private_reply",
     });
   return {
     threads: threads.rows.map((t) => {

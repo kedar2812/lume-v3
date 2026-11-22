@@ -204,7 +204,7 @@ export const frag = {
     const at = (col: SQL) =>
       sql`extract(dow FROM ${col} AT TIME ZONE ${tz}) = ${x.dow} AND extract(hour FROM ${col} AT TIME ZONE ${tz}) = ${x.hour}`;
     const send = (extra: SQL) => sql`EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = l.id
-      AND a.type = 'whatsapp_confirmed_sent' AND ${frag.span(s, sql`a.occurred_at`)} AND ${at(sql`a.occurred_at`)}
+      AND a.type IN ('whatsapp_confirmed_sent', 'instagram_confirmed_sent') AND ${frag.span(s, sql`a.occurred_at`)} AND ${at(sql`a.occurred_at`)}
       AND ${credit(sql`a.user_id`, s.q)} ${extra})`;
     switch (x.kind) {
       case "arrivals":
@@ -213,7 +213,7 @@ export const frag = {
       case "sends":
         return send(sql``);
       case "replies":
-        return send(sql`AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type IN ('reply_logged', 'whatsapp_received')
+        return send(sql`AND EXISTS (SELECT 1 FROM activities r WHERE r.lead_id = a.lead_id AND r.type IN ('reply_logged', 'whatsapp_received', 'instagram_received')
           AND r.occurred_at > a.occurred_at AND r.occurred_at <= a.occurred_at + interval '72 hours')`);
       case "booked":
         return frag.meeting(

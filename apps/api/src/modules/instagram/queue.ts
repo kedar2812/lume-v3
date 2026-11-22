@@ -4,6 +4,13 @@ import { sweepInstagram } from "./inbox";
 import { fetchInstagramMedia } from "./media";
 import { ECHO_WAIT_MS, processInstagramEvent, type InstagramJobDeps } from "./process";
 import { readInstagramProfile } from "./profile";
+import {
+  IG_SEND_RETRY_DELAY_S,
+  IG_SEND_TRIES,
+  IG_SENDING_STUCK_MS,
+  igPacer,
+  sendInstagramOutbox,
+} from "./sender";
 import { igGraphOf } from "./service";
 import { sweepInstagramTokens } from "./token-refresh";
 
@@ -11,6 +18,30 @@ const SWEEP_MS = 60_000;
 const PROCESS_WORKERS = 4;
 const MEDIA_WORKERS = 2;
 const PROFILE_WORKERS = 2;
+const SEND_WORKERS = 8;
+
+/**
+ * Messages a lost job left behind: queued and untouched for 2 minutes, or "sending" for 10. Queued again; the sender
+ * fails a "sending" one with words rather than sending it twice.
+ */
+export async function staleInstagramOutbox(pool: pg.Pool): Promise<string[]> {
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
+    const { rows } = await c.query<{ id: string }>(
+      `SELECT id FROM instagram_outbox
+        WHERE (status = 'queued' AND updated_at < now() - interval '2 minutes')
+           OR (status = 'sending' AND updated_at < now() - make_interval(secs => $1))
+        ORDER BY updated_at LIMIT 500`,
+      [IG_SENDING_STUCK_MS / 1000],
+    );
+    await c.query("COMMIT");
+    return rows.map((r) => r.id);
+  } finally {
+    c.release();
+  }
+}
 
 /** Events that waited 2 minutes without a job (a restart, a lost job), for accounts that can take them now. */
 export async function staleInstagramEvents(pool: pg.Pool): Promise<number[]> {
@@ -53,7 +84,7 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
     migrate: false,
     supervise: false,
     schedule: false,
-    max: 2 + PROCESS_WORKERS + MEDIA_WORKERS + PROFILE_WORKERS,
+    max: 2 + PROCESS_WORKERS + MEDIA_WORKERS + PROFILE_WORKERS + SEND_WORKERS,
   });
   boss.on("error", (err) => o.app.log.error({ err }, "instagram queue error"));
   await boss.start();
@@ -107,11 +138,36 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
           throw new Error("Instagram didn't answer; reading the profile again later");
       },
     );
+  // Replies (Task 6): eight senders, each message once (singleton), tried again with backoff when Meta is busy or the
+  // account's pace is reached; one pace for the whole process.
+  const limits = o.d.instagramLimits ?? { perSecond: 20, privateRepliesPerHour: 600 };
+  const pacer = igPacer({ now: o.d.clock, perSecond: limits.perSecond });
+  const enqueueSend = async (id: string) => {
+    await boss.send(
+      "instagram.send",
+      { id },
+      { retryLimit: IG_SEND_TRIES, retryDelay: IG_SEND_RETRY_DELAY_S, retryBackoff: true, singletonKey: id },
+    );
+  };
+  for (let i = 0; i < SEND_WORKERS; i++)
+    await boss.work<{ id: string }>(
+      "instagram.send",
+      { batchSize: 1, pollingIntervalSeconds: 0.5 },
+      async ([job]) => {
+        // A TryLater (Meta busy, the pace reached) throws through: pg-boss tries again after its delay.
+        if (job)
+          await sendInstagramOutbox(
+            { ...o, pacer, privateRepliesPerHour: limits.privateRepliesPerHour },
+            job.data.id,
+          );
+      },
+    );
   const pool = o.d.jobPool ?? o.d.pool;
   const sweep = async () => {
     try {
       for (const id of await staleInstagramEvents(pool)) await enqueue(id);
       for (const id of await staleInstagramMedia(pool)) await enqueueMedia(id);
+      for (const id of await staleInstagramOutbox(pool)) await enqueueSend(id);
     } catch (err) {
       o.app.log.error({ err }, "instagram sweep failed");
     }
@@ -134,6 +190,7 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
     enqueue: (id: number) => enqueue(id),
     enqueueMedia,
     enqueueProfile,
+    enqueueSend,
     stop: async () => {
       clearInterval(timer);
       clearInterval(hourly);
