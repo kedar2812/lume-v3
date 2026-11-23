@@ -38,6 +38,7 @@ import {
 } from "../src/modules/sheets/google";
 import { runSync } from "../src/modules/sheets/sync";
 import { fileStore, type Disk, type FilesDeps } from "../src/modules/whatsapp/files";
+import { runCleanup } from "../src/modules/storage/clean";
 import { dueRuns, stepRun } from "../src/modules/autopilot/engine";
 import { readReplyMeaning } from "../src/modules/whatsapp/meaning";
 import { sendOutbox } from "../src/modules/whatsapp/sender";
@@ -208,6 +209,9 @@ export type Harness = {
   /** The render service's stand-in (with `render: true`), and the previews queued for it (Media). */
   render: RenderFake | null;
   previewQueued: string[];
+  /** Storage's clean-ups queued (plan 2026-11-23-storage-clean-up), and running them as the queue would. */
+  storageQueued: string[];
+  runStorageCleanup(): Promise<void>;
   /** Make the queued previews once each, as the queue would; one that asks to try again is queued again. */
   runPreviews(): Promise<void>;
   /** What the app was built with, for calling a module's background work directly. */
@@ -329,6 +333,7 @@ export async function createHarness(
   const igSendPacer = igPacer({ now: () => clock.now, perSecond: 20 });
   const autopilotQueued: string[] = [];
   const previewQueued: string[] = [];
+  const storageQueued: string[] = [];
   const render = opts.render ? await startRenderFake() : null;
   const calendarQueue: string[] = [];
   const liveSheetQueue: { runId: string; sheetId: string }[] = [];
@@ -410,6 +415,7 @@ export async function createHarness(
     files,
     render: render ? { url: render.url } : null,
     media: { enqueuePreview: async (sha) => void previewQueued.push(sha) },
+    storage: { enqueueCleanup: async (id) => void storageQueued.push(id) },
   };
   const app = await buildApp(deps);
 
@@ -687,6 +693,11 @@ export async function createHarness(
     },
     render,
     previewQueued,
+    storageQueued,
+    async runStorageCleanup() {
+      for (const id of storageQueued.splice(0))
+        await runCleanup({ pool, store: files.store, log: app.log, now: () => clock.now }, id);
+    },
     deps,
     async runPreviews() {
       const now = previewQueued.splice(0);

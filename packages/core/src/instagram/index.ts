@@ -41,3 +41,20 @@ export {
   type FlowStep,
   type RunState,
 } from "./flows";
+export {
+  blocking,
+  exitsOf,
+  flowGraphSchema,
+  gNodeSchema,
+  GRAPH_LIMITS,
+  isGraph,
+  toGraph,
+  validateGraph,
+  type FlowGraph,
+  type GNode,
+  type GraphCondition,
+  type Next as FlowNext,
+  type Problem as FlowProblem,
+  type UpdateAction,
+} from "./graph";
+export { graphRefs, nextAt, stepFlow, stepGraph, type GraphTurn } from "./graph-run";

@@ -978,6 +978,24 @@ export const PROBES: Record<string, Probe> = {
     access: "instagram.flows.manage",
     path: () => `/api/v1/instagram/flows/${uuid}/duplicate`,
   },
+  "GET /api/v1/instagram/flows/:id/versions": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/versions`,
+  },
+  "POST /api/v1/instagram/flows/:id/versions/:versionId/restore": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/versions/${uuid}/restore`,
+    body: () => ({ rev: 1 }),
+  },
+  "GET /api/v1/instagram/flows/:id/runs": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/runs`,
+    query: `lead=${uuid}`,
+  },
+  "POST /api/v1/instagram/flows/test-keyword": {
+    access: "instagram.flows.manage",
+    body: () => ({ text: "price", keywords: ["price"], mode: "word" }),
+  },
   "GET /api/v1/instagram/flows/:id/stats": {
     access: "instagram.flows.manage",
     path: () => `/api/v1/instagram/flows/${uuid}/stats`,
@@ -1054,6 +1072,15 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.create",
     path: () => `/api/v1/whatsapp/inbox/${uuid}/%2B919000000777/ignore`,
   },
+  // Storage (plan 2026-11-23-storage-clean-up): admins.
+  "GET /api/v1/storage": { access: "settings.manage" },
+  "POST /api/v1/storage/clean-up": { access: "settings.manage", body: () => ({ kinds: ["trash"] }) },
+  "GET /api/v1/storage/clean-up/:id": {
+    access: "settings.manage",
+    path: () => `/api/v1/storage/clean-up/${uuid}`,
+  },
+  "GET /api/v1/storage/clean-up/files.csv": { access: "settings.manage", query: "kinds=trash" },
+  "PUT /api/v1/storage/settings": { access: "settings.manage", body: () => ({ warnAtPct: 80 }) },
   // LUME AI (spec 2026-10-18 §2.2, §5.2–5.3): its status for anyone, its switch for admins, reads on a lead.
   "GET /api/v1/ai": { access: "auth.self" },
   "PUT /api/v1/integrations/ai": { access: "integrations.manage", body: () => ({ enabled: false }) },

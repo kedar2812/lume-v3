@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { can, newId } from "@lume/core";
 import { schema } from "@lume/db";
-import { and, asc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
@@ -57,7 +57,8 @@ function viewOf(d: AppDeps, row: Row, p: Preview | null): LibraryFile {
     createdAt: row.createdAt.toISOString(),
     archived: row.archivedAt !== null,
     viewAs: viewAsOf(row.kind, row.mime),
-    preview: p?.state ?? "pending",
+    // One Clean up let go is being made again (listFiles woke it): it shows as on its way.
+    preview: !p || p.state === "cleared" ? "pending" : p.state,
     thumbUrl: ready ? `/api/v1/files/${row.id}/thumb?v=${ready.slice(0, 12)}` : null,
     pages: p?.pages ?? null,
     durationMs: p?.durationMs ?? null,
@@ -133,6 +134,25 @@ export async function listFiles(
     .leftJoin(P, eq(P.sha256, F.sha256))
     .where(archived ? isNotNull(F.archivedAt) : isNull(F.archivedAt))
     .orderBy(asc(sql`lower(${F.name})`), asc(F.id));
+  // The library looked at counts as its previews opened (a browser keeps a thumbnail, so the picture alone isn't
+  // asked for again): stamped at most once a day, so a library in use never looks idle to Clean up.
+  const shown = [...new Set(rows.filter((r) => r.p && r.p.state !== "cleared").map((r) => r.f.sha256))];
+  if (shown.length)
+    await req.db
+      .update(P)
+      .set({ openedAt: sql`now()` })
+      .where(and(inArray(P.sha256, shown), sql`${P.openedAt} < now() - interval '1 day'`));
+  // Previews Clean up let go (not opened in 90 days): someone is looking again, so they're made again, opened now.
+  const cleared = [...new Set(rows.filter((r) => r.p?.state === "cleared").map((r) => r.f.sha256))];
+  if (cleared.length) {
+    await req.db
+      .update(P)
+      .set({ state: "pending", tries: 0, updatedAt: d.clock(), openedAt: sql`now()` })
+      .where(and(inArray(P.sha256, cleared), eq(P.state, "cleared")));
+    req.afterCommit(() => {
+      for (const sha of cleared) void d.media?.enqueuePreview(sha);
+    });
+  }
   return { files: rows.map((r) => viewOf(d, r.f, r.p)) };
 }
 

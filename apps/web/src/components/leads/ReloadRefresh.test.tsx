@@ -49,6 +49,21 @@ describe("Refresh without a sheet (Leads and the board)", () => {
   });
 });
 
+describe("Refresh before LUME knows whether a sheet is connected", () => {
+  // A press while the screen still waits to hear about Sheets went to this Refresh, which the Sheets one then replaced,
+  // and its card vanished mid-run (found by the e2e on a loaded box, 2026-11-23).
+  it("waits: no press, no R, and it says it isn't ready", async () => {
+    render(<ReloadRefresh pipelineId="p1" onReload={vi.fn()} waiting />);
+    const b = screen.getByRole("button", { name: /Refresh/ });
+    expect(b).toHaveAttribute("aria-disabled", "true");
+    act(() => b.click());
+    act(() => void window.dispatchEvent(new KeyboardEvent("keydown", { key: "r" })));
+    await tick(3700);
+    expect(leadsClient.counts).not.toHaveBeenCalled();
+    expect(b).toHaveAttribute("data-phase", "idle");
+  });
+});
+
 describe("Analytics' Refresh", () => {
   it("recounts, then the boards read their numbers again", async () => {
     vi.mocked(analyticsClient.refresh).mockResolvedValue(

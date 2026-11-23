@@ -7,6 +7,7 @@ import { EMPTY_FILTERS } from "@/lib/leads/filters";
 import { testCatalog, testLead as lead } from "@/lib/leads/test-catalog";
 import { fakeSession } from "@/server/session";
 import { viewsClient } from "@/lib/views/client";
+import { sheetsClient } from "@/lib/sheets/client";
 import { LeadsScreen } from "./LeadsScreen";
 import { useAddressSearchParams } from "@/lib/testing/address";
 
@@ -139,6 +140,35 @@ const view = (props: Partial<Parameters<typeof LeadsScreen>[0]> = {}) =>
   );
 
 describe("LeadsScreen", () => {
+  it("Refresh waits until LUME knows whether a sheet is connected, then works; a status that fails never leaves it stuck", async () => {
+    let answer!: (v: unknown) => void;
+    vi.mocked(sheetsClient.status).mockReturnValueOnce(new Promise((r) => (answer = r)) as never);
+    view();
+    expect(screen.getByRole("button", { name: /Refresh/ })).toHaveAttribute("aria-disabled", "true");
+    await act(async () => answer({ ok: true, status: 200, data: { refresh: false, attention: [] } }));
+    expect(screen.getByRole("button", { name: /Refresh/ })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("a Sheets status that never answers: after three seconds, the Refresh that needs no sheet", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(sheetsClient.status).mockReturnValueOnce(new Promise(() => undefined) as never);
+      view();
+      expect(screen.getByRole("button", { name: /Refresh/ })).toHaveAttribute("aria-disabled", "true");
+      await act(async () => void vi.advanceTimersByTime(3000));
+      expect(screen.getByRole("button", { name: /Refresh/ })).not.toHaveAttribute("aria-disabled");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a Sheets status that throws: the Refresh that needs no sheet, ready", async () => {
+    vi.mocked(sheetsClient.status).mockRejectedValueOnce(new Error("offline"));
+    view();
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: /Refresh/ })).not.toHaveAttribute("aria-disabled");
+  });
+
   it("shows the first page straight away, with a masked role's table carrying no contact column at all", () => {
     view();
     expect(screen.getByRole("button", { name: "Open Aisha Khan" })).toBeInTheDocument();

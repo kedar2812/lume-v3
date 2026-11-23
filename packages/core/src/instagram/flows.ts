@@ -49,7 +49,13 @@ export type FlowGoal =
 export type RunState = {
   /** The next step to run; null at the end. */
   at: string | null;
-  waiting: null | { for: "answer"; stepId: string } | { for: "any" } | { for: "until"; until: string };
+  waiting:
+    | null
+    | { for: "answer"; stepId: string; until?: string }
+    | { for: "any" }
+    | { for: "until"; until: string }
+    /** A graph message's quick replies: a tap (or its words) goes down that reply's line. */
+    | { for: "reply"; nodeId: string };
   answers: Record<string, string>;
   /** Messages this run has sent (a long flow is capped). */
   sent: number;
@@ -57,6 +63,10 @@ export type RunState = {
   fallbacks: string[];
   /** The automated-experience note went in this run. */
   noted?: boolean;
+  /** Times each step has run in this run (graph flows): a fourth stops a loop and waits for a person. */
+  visits?: Record<string, number>;
+  /** "Go to another flow" hops that led to this run, whatever turn they were in: never more than 3 in a row. */
+  chain?: number;
 };
 export const NEW_RUN: RunState = { at: null, waiting: null, answers: {}, sent: 0, fallbacks: [] };
 
@@ -71,7 +81,18 @@ export type FlowCtx = {
   window: IgWindow;
   /** Started by a comment, and the person hasn't written since: only the one private reply may go. */
   privateReplyOnly: boolean;
-  lead: { tags: string[]; fields: Record<string, unknown> };
+  lead: {
+    tags: string[];
+    fields: Record<string, unknown>;
+    /** For a graph's checks on the stage, the owner and where the lead came from. */
+    stageId?: string | null;
+    ownerId?: string | null;
+    sourceId?: string | null;
+  };
+  /** The business's timezone: a check on the time of day and a wait until a time read it. */
+  tz?: string;
+  /** Picks a split test's path: the same run always takes the same one (the run's id). */
+  seed?: string;
   /** Words that ask for a person (the account's setting, e.g. PERSON): any of them, alone, hands the lead over. */
   personWords: string[];
 };
@@ -83,7 +104,12 @@ export type FlowAction =
   | { kind: "stage"; stageId: string }
   | { kind: "assign"; to: Extract<FlowStep, { type: "assign" }>["to"] }
   | { kind: "handoff"; to: "person"; note: string }
-  | { kind: "handoff"; to: "ai"; note: string; goal: FlowGoal };
+  | { kind: "handoff"; to: "ai"; note: string; goal: FlowGoal }
+  /** Graph flows' own: a field cleared (null), a task, a word to the team, another flow. */
+  | { kind: "clearField"; field: string }
+  | { kind: "task"; title: string; dueMinutes: number }
+  | { kind: "notify"; to: "owner" | "admins" | { userId: string }; text: string }
+  | { kind: "goto"; flowId: string };
 
 /** A flow's own limits; Meta's message limits live in IG_LIMITS. Waits are in minutes, up to 7 days. */
 export const FLOW_LIMITS = {
@@ -96,7 +122,7 @@ export const FLOW_LIMITS = {
 } as const;
 /** The booking step's button (Meta: 20 characters at most for a button's words in a DM template). */
 export const BOOK_BUTTON = "Book a call";
-const WORDS = {
+export const WORDS = {
   windowGone: "Instagram's time to reply ran out before this step.",
   waitPast: "Instagram's time to reply would run out during this wait.",
   changed: "This flow changed while the conversation was in it.",
@@ -149,8 +175,8 @@ function holds(c: FlowCondition, state: RunState, lead: FlowCtx["lead"]): boolea
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-/** An answer, read for its kind; null when it isn't one. */
-function readAnswer(
+/** An answer, read for its kind; null when it isn't one (the graph interpreter reads answers the same way). */
+export function readAnswer(
   step: Extract<FlowStep, { type: "ask" }>,
   text: string | null,
   payload: string | null | undefined,

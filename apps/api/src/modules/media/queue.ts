@@ -43,5 +43,6 @@ export async function startMediaQueue(o: { connectionString: string; app: Fastif
     sweepPreviews(o.d).catch((err: unknown) => o.app.log.error({ err }, "media preview sweep failed"));
   const timer = setInterval(() => void sweep(), SWEEP_MS);
   timer.unref();
-  return { enqueuePreview, sweep, stop: () => (clearInterval(timer), boss.stop()) };
+  // The queue itself too: Storage's clean-ups share it (one more pg-boss would pass Postgres's connections).
+  return { boss, enqueuePreview, sweep, stop: () => (clearInterval(timer), boss.stop()) };
 }

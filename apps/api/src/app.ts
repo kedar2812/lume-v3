@@ -48,6 +48,7 @@ import { analyticsRoutes } from "./modules/analytics/routes";
 import { securityRoutes } from "./modules/security/routes";
 import { leadExportRoutes } from "./modules/lead-exports/routes";
 import { aiRoutes } from "./modules/ai/routes";
+import { storageRoutes } from "./modules/storage/routes";
 import { autopilotRoutes } from "./modules/autopilot/routes";
 import type { FilesDeps } from "./modules/whatsapp/files";
 import { mediaRoutes } from "./modules/media/routes";
@@ -139,6 +140,8 @@ export type AppDeps = {
   aiModels?: Partial<Record<AiTask, string>>;
   /** Media's queue: a file's preview to make, by its bytes' hash. */
   media?: { enqueuePreview(sha256: string): Promise<void> };
+  /** Storage (plan 2026-11-23-storage-clean-up): a clean-up to run in the background. */
+  storage?: { enqueueCleanup(id: string): Promise<void> };
   /** WhatsApp's queues (plan W1 Tasks 5–7): an event to make into lead activity, a media item to fetch. */
   whatsapp?: {
     enqueue(eventId: number): Promise<void>;
@@ -318,6 +321,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(instagramFlowRoutes);
         await scope.register(fileLinkRoutes, deps);
         await scope.register(mediaRoutes, deps);
+        await scope.register(storageRoutes, deps);
         deps.extraRoutes?.(scope, deps);
       },
     });

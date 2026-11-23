@@ -14,6 +14,7 @@ import { startCalendarQueue } from "./modules/calendar/queue";
 import { startWebhookQueue } from "./modules/webhooks/queue";
 import { diskOf, fileStore } from "./modules/whatsapp/files";
 import { startMediaQueue } from "./modules/media/queue";
+import { startStorageQueue } from "./modules/storage/queue";
 import { startAutopilotQueue } from "./modules/autopilot/queue";
 import { startWhatsAppQueue } from "./modules/whatsapp/queue";
 import { startInstagramQueue } from "./modules/instagram/queue";
@@ -103,6 +104,8 @@ const instagram: NonNullable<AppDeps["instagram"]> = {
 const autopilot: NonNullable<AppDeps["autopilot"]> = { kick: async () => undefined };
 // Media's previews (plan 2026-10-20-media-tab): filled once its queue is up; the sweep queues anything added meanwhile.
 const media: NonNullable<AppDeps["media"]> = { enqueuePreview: async () => undefined };
+// Storage's clean-ups (plan 2026-11-23-storage-clean-up): filled once its queue is up.
+const storage: NonNullable<AppDeps["storage"]> = { enqueueCleanup: async () => undefined };
 
 const mailer = createMailer(cfg.SMTP_URL, cfg.MAIL_FROM ?? `LUME <no-reply@${cfg.LUME_PUBLIC_HOST}>`);
 
@@ -149,6 +152,7 @@ const deps: AppDeps = {
   ...(cfg.LUME_GOOGLE_ENDPOINT ? { googleEndpoint: cfg.LUME_GOOGLE_ENDPOINT } : {}),
   render: cfg.LUME_RENDER_URL ? { url: cfg.LUME_RENDER_URL.replace(/\/$/, "") } : null,
   media,
+  storage,
   aiPricing: lumeAi.aiPricing,
   mailer,
   config: { publicUrl, cookieSecure: true, version: appVersion(cfg) },
@@ -235,6 +239,8 @@ autopilot.kick = autopilotQueue.kick;
 const mediaQueue = await startMediaQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });
 media.enqueuePreview = mediaQueue.enqueuePreview;
 void mediaQueue.sweep();
+const storageQueue = await startStorageQueue({ boss: mediaQueue.boss, app, d: deps });
+storage.enqueueCleanup = storageQueue.enqueueCleanup;
 const taskQueue = await startTaskQueue({
   connectionString: cfg.DATABASE_URL_APP,
   app,
@@ -260,6 +266,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     await instagramQueue.stop();
     await autopilotQueue.stop();
     await mediaQueue.stop();
+    await storageQueue.stop();
     await sheetQueue?.stop();
     await calendarQueue?.stop();
     await liveSheetsQueue?.stop();

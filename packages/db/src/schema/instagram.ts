@@ -188,7 +188,7 @@ export const instagramMedia = pgTable("instagram_media", {
   size: integer("size"),
   sha256: text("sha256"),
   status: text("status")
-    .$type<"waiting" | "ready" | "too_large" | "failed" | "gone" | "over_limit">()
+    .$type<"waiting" | "ready" | "too_large" | "failed" | "gone" | "over_limit" | "removed">()
     .notNull(),
   /** Counted against the day's file limits already (0125): a retry never counts it again. */
   counted: boolean("counted").notNull().default(false),

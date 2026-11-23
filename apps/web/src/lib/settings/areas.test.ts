@@ -30,6 +30,7 @@ describe("areasFor", () => {
       "goals",
       "sources",
       "messages",
+      "storage",
       "health",
       "ai",
       "people",

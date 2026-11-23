@@ -1,6 +1,20 @@
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { foldKeyword, flowRefs, newId, validateFlow, type FlowStep, type KeywordMode } from "@lume/core";
+import {
+  blocking,
+  foldKeyword,
+  flowRefs,
+  graphRefs,
+  isGraph,
+  newId,
+  toGraph,
+  validateFlow,
+  validateGraph,
+  type FlowGraph,
+  type FlowProblem,
+  type FlowStep,
+  type KeywordMode,
+} from "@lume/core";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
 import { assertModule } from "../../licence/plan";
@@ -36,11 +50,12 @@ type FlowRow = {
   status: "draft" | "live" | "paused" | "archived";
   live_version_id: string | null;
   priority: number;
-  draft_steps: FlowStep[];
+  /** A 1B list, or a graph ({ v: 2 }) once the builder has saved one. */
+  draft_steps: FlowStep[] | FlowGraph;
   rev: number;
 };
 
-async function requireFlows(req: FastifyRequest) {
+export async function requireFlows(req: FastifyRequest) {
   assertModule(req, "instagram");
   if (!(await instagramOn(req)))
     throw new HttpError(
@@ -113,11 +128,33 @@ export async function flowsView(req: FastifyRequest) {
   };
 }
 
+/** Flows a "Go to another flow" step may name: live or paused, never itself. */
+async function gotoTargets(req: FastifyRequest, self: string): Promise<Set<string>> {
+  const r = await req.db.execute<{ id: string }>(
+    sql`SELECT id FROM instagram_flows WHERE status IN ('live', 'paused') AND id <> ${self}`,
+  );
+  return new Set(r.rows.map((x) => x.id));
+}
+
+/**
+ * What stops a draft going live, both ways: `problems` in words (a 1B list's own check, or a graph's blocking ones),
+ * and `issues` on the graph (each with its step, warnings too) for the builder, whichever form the draft is in.
+ */
+async function problemsOf(req: FastifyRequest, id: string, draft: FlowStep[] | FlowGraph) {
+  const issues: FlowProblem[] = validateGraph(toGraph(draft), {
+    ai: false,
+    flows: await gotoTargets(req, id),
+    self: id,
+  });
+  const problems = isGraph(draft) ? blocking(issues).map((p) => p.words) : validateFlow(draft);
+  return { problems, issues };
+}
+
 export async function flowView(req: FastifyRequest, id: string) {
   await requireFlows(req);
   const f = await flowOf(req, id, false);
   const v = f.live_version_id
-    ? await req.db.execute<{ version: number; steps: FlowStep[] }>(
+    ? await req.db.execute<{ version: number; steps: FlowStep[] | FlowGraph }>(
         sql`SELECT version, steps FROM instagram_flow_versions WHERE id = ${f.live_version_id}`,
       )
     : null;
@@ -132,8 +169,10 @@ export async function flowView(req: FastifyRequest, id: string) {
     priority: f.priority,
     rev: f.rev,
     draft: f.draft_steps,
+    /** The draft as the builder shows it: a 1B list laid out as a graph with the same step ids. */
+    graph: toGraph(f.draft_steps),
     live: v?.rows[0] ?? null,
-    problems: validateFlow(f.draft_steps),
+    ...(await problemsOf(req, id, f.draft_steps)),
     triggers: triggers.rows,
   };
 }
@@ -166,7 +205,7 @@ export async function createFlow(req: FastifyRequest, body: { name: string; temp
 export async function saveDraft(
   req: FastifyRequest,
   id: string,
-  body: { rev: number; name?: string; steps?: FlowStep[]; priority?: number },
+  body: { rev: number; name?: string; steps?: FlowStep[]; graph?: FlowGraph; priority?: number },
 ) {
   await requireFlows(req);
   const f = await flowOf(req, id);
@@ -177,7 +216,7 @@ export async function saveDraft(
   await req.db.execute(sql`
     UPDATE instagram_flows
        SET name = ${name},
-           draft_steps = ${JSON.stringify(body.steps ?? f.draft_steps)}::jsonb,
+           draft_steps = ${JSON.stringify(body.graph ?? body.steps ?? f.draft_steps)}::jsonb,
            priority = ${body.priority ?? f.priority},
            rev = rev + 1, updated_at = now()
      WHERE id = ${id}`);
@@ -185,8 +224,8 @@ export async function saveDraft(
 }
 
 /** Tags, stages and people the flow names must exist (and people still use LUME), so a run never fails on them. */
-async function checkRefs(req: FastifyRequest, steps: FlowStep[]): Promise<string[]> {
-  const { tagIds, stageIds, userIds } = flowRefs(steps);
+async function checkRefs(req: FastifyRequest, draft: FlowStep[] | FlowGraph): Promise<string[]> {
+  const { tagIds, stageIds, userIds } = isGraph(draft) ? graphRefs(draft) : flowRefs(draft);
   const out: string[] = [];
   if (tagIds.length) {
     const r = await req.db.execute<{ n: number }>(
@@ -219,7 +258,10 @@ export async function publishFlow(req: FastifyRequest, id: string, body: { rev: 
   if (f.status === "archived")
     throw conflict("FLOW_ARCHIVED", "This flow is archived. Duplicate it to use it again.");
   checkRev(f, body.rev);
-  const problems = [...validateFlow(f.draft_steps), ...(await checkRefs(req, f.draft_steps))];
+  const problems = [
+    ...(await problemsOf(req, id, f.draft_steps)).problems,
+    ...(await checkRefs(req, f.draft_steps)),
+  ];
   const triggers = await triggersOf(req, id);
   if (!triggers.some((t) => t.enabled))
     problems.push("Add what starts this flow: a keyword, a story reply, an ad or a first message.");

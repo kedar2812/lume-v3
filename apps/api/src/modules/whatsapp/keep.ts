@@ -9,6 +9,9 @@ export const KEEP_MONTHS = z.union([z.literal(3), z.literal(6), z.literal(12), z
 export type KeepMonths = z.infer<typeof KEEP_MONTHS>;
 export const removedWords = (months: number) =>
   `LUME keeps WhatsApp files for ${months} months. This one is still on the phone.`;
+/** Instagram's files keep for the same months (storage plan 2026-11-23: one keep-for for every chat). */
+export const removedIgWords = (months: number) =>
+  `LUME keeps chat files for ${months} months. This one is still in Instagram.`;
 
 /** A file nothing has pointed at for this long goes: a fetch in flight touches its file first, so it's never one. */
 const UNUSED_MS = 3_600_000;
@@ -44,6 +47,12 @@ export async function sweepWhatsAppFiles(o: {
   log: Log;
   now?: Date;
   budgetMs?: number;
+  /**
+   * Only files last pointed at before this go (default: an hour ago, so a fetch in flight, whose file is touched
+   * before its message points at it, is never one). Clean up passes ten minutes before it began: what it let go was
+   * last pointed at long before, and a fetch in flight is always newer.
+   */
+  touchedBefore?: Date;
 }): Promise<{ removed: number; deleted: number; mended: number } | null> {
   const now = o.now ?? new Date();
   const started = Date.now();
@@ -85,6 +94,22 @@ export async function sweepWhatsAppFiles(o: {
         removed += n;
         if (n < BATCH) break;
       }
+      while (months && inTime()) {
+        const n = await tx(
+          async () =>
+            (
+              await c.query(
+                `UPDATE instagram_media SET status = 'removed', sha256 = NULL, problem = $3
+                  WHERE id IN (SELECT id FROM instagram_media
+                                WHERE status = 'ready' AND created_at < $1::timestamptz - make_interval(months => $2)
+                                LIMIT $4)`,
+                [now, months, removedIgWords(months), BATCH],
+              )
+            ).rowCount ?? 0,
+        );
+        removed += n;
+        if (n < BATCH) break;
+      }
       // Files attached in the composer and never sent (plan W3a): gone after a day; their files follow when unused.
       await tx(() =>
         c.query(
@@ -96,7 +121,9 @@ export async function sweepWhatsAppFiles(o: {
       let deleted = 0;
       let mended = 0;
       while (inTime()) {
-        const r = await tx(() => deleteUnused(c, o, now));
+        const r = await tx(() =>
+          deleteUnused(c, o, o.touchedBefore ?? new Date(now.getTime() - UNUSED_MS), now),
+        );
         deleted += r.deleted;
         mended += r.mended;
         if (r.seen < BATCH) break;
@@ -114,13 +141,14 @@ export async function sweepWhatsAppFiles(o: {
 async function deleteUnused(
   c: pg.PoolClient,
   o: { store: FileStore; log: Log },
+  before: Date,
   now: Date,
 ): Promise<{ seen: number; deleted: number; mended: number }> {
   const { rows: unused } = await c.query<{ sha256: string }>(
     `SELECT sha256 FROM whatsapp_files
-      WHERE refs = 0 AND last_ref_at < $1::timestamptz - make_interval(secs => $2)
-      ORDER BY last_ref_at LIMIT $3 FOR UPDATE SKIP LOCKED`,
-    [now, UNUSED_MS / 1000, BATCH],
+      WHERE refs = 0 AND last_ref_at < $1::timestamptz
+      ORDER BY last_ref_at LIMIT $2 FOR UPDATE SKIP LOCKED`,
+    [before, BATCH],
   );
   let deleted = 0;
   let mended = 0;
@@ -128,9 +156,8 @@ async function deleteUnused(
     await c.query("SAVEPOINT file");
     try {
       const del = await c.query(
-        `DELETE FROM whatsapp_files WHERE sha256 = $1 AND refs = 0
-            AND last_ref_at < $2::timestamptz - make_interval(secs => $3)`,
-        [sha256, now, UNUSED_MS / 1000],
+        "DELETE FROM whatsapp_files WHERE sha256 = $1 AND refs = 0 AND last_ref_at < $2::timestamptz",
+        [sha256, before],
       );
       if (!del.rowCount) {
         await c.query("RELEASE SAVEPOINT file");
@@ -212,11 +239,14 @@ export async function keepPreview(d: AppDeps, months: KeepMonths) {
     await c.query("BEGIN READ ONLY");
     await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
     const { rows } = await c.query<{ files: string; bytes: string }>(
-      `WITH old AS (
-         SELECT sha256, count(*) AS n FROM whatsapp_media
+      // Every chat's files the window clears: WhatsApp's and Instagram's (one setting for both, Settings › Storage).
+      `WITH refs AS (
+         SELECT sha256 FROM whatsapp_media
           WHERE status = 'ready' AND created_at < $1::timestamptz - make_interval(months => $2)
-          GROUP BY sha256
-       )
+         UNION ALL
+         SELECT sha256 FROM instagram_media
+          WHERE status = 'ready' AND sha256 IS NOT NULL AND created_at < $1::timestamptz - make_interval(months => $2)
+       ), old AS (SELECT sha256, count(*) AS n FROM refs GROUP BY sha256)
        SELECT coalesce(sum(old.n), 0) AS files,
               coalesce(sum(f.size) FILTER (WHERE f.refs <= old.n), 0) AS bytes
          FROM old JOIN whatsapp_files f ON f.sha256 = old.sha256`,

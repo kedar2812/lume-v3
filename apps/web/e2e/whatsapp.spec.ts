@@ -196,14 +196,18 @@ test.describe.serial("WhatsApp", () => {
   test("an admin keeps WhatsApp files for 3 months, then forever again (2026-10-19)", async ({ page }) => {
     await openApp(page, "/settings/integrations");
     const card = page.getByRole("article", { name: /^WhatsApp/ });
-    const keep = card.getByRole("combobox", { name: "Keep WhatsApp files" });
+    const keep = card.getByRole("combobox", { name: "Keep chat files" });
     await expect(keep).toHaveValue("");
     // Every file here is from today: nothing would go, so nothing is asked.
     await keep.selectOption("3 months");
-    await expect(page.getByText("WhatsApp files are kept for 3 months")).toBeVisible();
-    await expect(card.getByText("Older files go from LUME. They stay on the phone.")).toBeVisible();
+    await expect(page.getByText("Chat files are kept for 3 months")).toBeVisible();
+    await expect(
+      card.getByText(
+        "Older WhatsApp and Instagram files go from LUME. They stay on the phone or in Instagram.",
+      ),
+    ).toBeVisible();
     await keep.selectOption("Forever");
-    await expect(page.getByText("WhatsApp files are kept forever")).toBeVisible();
+    await expect(page.getByText("Chat files are kept forever")).toBeVisible();
     await expect(keep).toHaveValue("");
   });
 

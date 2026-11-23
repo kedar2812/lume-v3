@@ -6,6 +6,7 @@ import { EMPTY_FILTERS } from "@/lib/leads/filters";
 import { testCatalog, testLead } from "@/lib/leads/test-catalog";
 import { fakeSession } from "@/server/session";
 import { BoardScreen } from "./BoardScreen";
+import { sheetsClient } from "@/lib/sheets/client";
 import { useAddressSearchParams } from "@/lib/testing/address";
 
 // Sheets aren't connected in these tests: no Refresh, no banner.
@@ -56,6 +57,15 @@ beforeEach(() => {
 });
 
 describe("BoardScreen", () => {
+  it("Refresh waits until LUME knows whether a sheet is connected, then works", async () => {
+    let answer!: (v: unknown) => void;
+    vi.mocked(sheetsClient.status).mockReturnValueOnce(new Promise((r) => (answer = r)) as never);
+    board();
+    expect(screen.getByRole("button", { name: /Refresh/ })).toHaveAttribute("aria-disabled", "true");
+    await act(async () => answer({ ok: true, status: 200, data: { refresh: false, attention: [] } }));
+    expect(screen.getByRole("button", { name: /Refresh/ })).not.toHaveAttribute("aria-disabled");
+  });
+
   it("shows one column per stage with its count", () => {
     board();
     expect(screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"))).toEqual([

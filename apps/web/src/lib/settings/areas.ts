@@ -94,6 +94,15 @@ export const SETTINGS_AREAS: SettingsArea[] = [
     group: "workspace",
   },
   {
+    // Storage (plan 2026-11-23-storage-clean-up): the disk, what's on it, and clearing room.
+    id: "storage",
+    title: "Storage",
+    blurb: "What LUME keeps on this server, and room to clear",
+    href: "/settings/storage",
+    anyOf: ["settings.manage"],
+    group: "workspace",
+  },
+  {
     id: "health",
     title: "System health",
     blurb: "Whether every reminder, email and sync is running",

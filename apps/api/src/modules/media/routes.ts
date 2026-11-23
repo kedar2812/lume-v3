@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { can } from "@lume/core";
 import { schema } from "@lume/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -66,6 +66,10 @@ export async function mediaRoutes(app: FastifyInstance, d: AppDeps) {
     async (req, reply) => {
       const { p } = await fileFor(req, req.params.id);
       if (p?.state !== "ready" || !p.thumbSha256) throw notFound();
+      // Seen now (at most once a day per file): a preview nobody has opened in 90 days is one Clean up may let go.
+      await req.db.execute(
+        sql`UPDATE file_previews SET opened_at = now() WHERE sha256 = ${p.sha256} AND opened_at < now() - interval '1 day'`,
+      );
       return sendStored(
         req,
         reply,

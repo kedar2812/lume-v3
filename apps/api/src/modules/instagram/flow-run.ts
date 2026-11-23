@@ -4,10 +4,11 @@ import {
   matchKeyword,
   newId,
   privateReplyOpen,
-  stepRun,
+  stepFlow,
   NEW_RUN,
   type FlowAction,
   type FlowEvent,
+  type FlowGraph,
   type FlowStep,
   type KeywordMode,
   type RunState,
@@ -41,10 +42,26 @@ export type FlowOut = {
   sends: string[];
   publicReply: { commentId: string; text: string } | null;
   notices: { ownerId: string; leadId: string; title: string; body: string }[];
+  /** "Tell my team" steps addressed to the admins: who they are is read once the transaction is done. */
+  adminNotices: { leadId: string; title: string; body: string }[];
+  /** "Tell my team" steps addressed to one person, who hears the lead's name only if they may see that lead. */
+  userNotices: { userId: string; leadId: string; leadOwner: string | null; title: string; body: string }[];
+  /** Follow-ups a flow made, created as the account's run-as person once the transaction is done (as a person would). */
+  tasks: { leadId: string; title: string; dueMinutes: number; runAs: string }[];
   /** A new person was turned away: the account's new leads this hour are used up (the admins hear once an hour). */
   held: boolean;
 };
-export const newFlowOut = (): FlowOut => ({ sends: [], publicReply: null, notices: [], held: false });
+export const newFlowOut = (): FlowOut => ({
+  sends: [],
+  publicReply: null,
+  notices: [],
+  adminNotices: [],
+  userNotices: [],
+  tasks: [],
+  held: false,
+});
+/** "Go to another flow" may hop at most this many times in one turn (A → B → C → D stops), so two flows can't ping-pong. */
+export const GOTO_HOPS = 3;
 
 /**
  * A Postgres array as one parameter (drizzle would spread a JS array into a row): each element quoted, so commas,
@@ -64,7 +81,17 @@ export const FLOW_WORDS = {
   ai: "LUME AI is answering this lead.",
   cantRun: "Whoever connected this Instagram account can't see leads any more.",
   archived: "This flow was archived.",
+  gotoGone: "The flow this one goes on to isn't live.",
+  gotoHops: "Flows passed this conversation on too many times in a row.",
 } as const;
+
+/** How a run ended, as the interpreter says it: the run's status, and words when it stopped short. */
+function endOf(reason: string): { status: "done" | "handed" | "stopped"; reason: string | null } {
+  if (reason === "handed") return { status: "handed", reason: null };
+  if (reason === "finished" || reason === "went to another flow" || reason === "no answer")
+    return { status: "done", reason: null };
+  return { status: "stopped", reason };
+}
 
 type Run = {
   id: string;
@@ -76,7 +103,7 @@ type Run = {
   state: RunState;
   keyword: string | null;
   started_by: string;
-  steps: FlowStep[];
+  steps: FlowStep[] | FlowGraph;
   flow_status: string;
 };
 
@@ -253,6 +280,9 @@ async function leadFacts(req: FastifyRequest, leadId: string) {
         string,
         unknown
       >,
+      stageId: lead.stageId,
+      ownerId: lead.ownerId,
+      sourceId: lead.sourceId,
     },
   };
 }
@@ -366,6 +396,47 @@ async function apply(
         if (to && to !== lead.ownerId) await assignLead(req, lead, { ownerId: to, reason: "instagram_flow" });
       });
       return;
+    case "clearField":
+      await tryWrite(req, run.lead_id, `clear ${a.field}`, async () => {
+        const lead = await visibleLead(req, run.lead_id);
+        const core = CORE_SAVE[a.field];
+        if (core === "name") return; // a lead always has a name
+        if (core) {
+          if ((core === "email" ? lead.email : lead.phoneE164) === null) return;
+          await updateLead(req, lead.id, lead.version, { [core]: null });
+          return;
+        }
+        const reg = await loadFieldRegistry(req);
+        const def = reg.byKey.get(a.field);
+        if (!def || def.isCore || lead.custom?.[a.field] === undefined || lead.custom?.[a.field] === null)
+          return;
+        await updateLead(req, lead.id, lead.version, { custom: { [a.field]: null } });
+      });
+      return;
+    case "task":
+      out.tasks.push({ leadId: run.lead_id, title: a.title, dueMinutes: a.dueMinutes, runAs: account.runAs });
+      return;
+    case "notify": {
+      const lead = await visibleLead(req, run.lead_id);
+      const title = `${firstName(lead.name) ?? "A lead"} on Instagram`;
+      if (a.to === "admins") out.adminNotices.push({ leadId: lead.id, title, body: a.text });
+      else if (a.to === "owner") {
+        const who = lead.ownerId ?? account.ownerUserId;
+        if (who) out.notices.push({ ownerId: who, leadId: lead.id, title, body: a.text });
+      } else
+        // A named person: told the lead's name only if they may see the lead (checked once the transaction is done).
+        out.userNotices.push({
+          userId: a.to.userId,
+          leadId: lead.id,
+          leadOwner: lead.ownerId,
+          title,
+          body: a.text,
+        });
+      return;
+    }
+    case "goto":
+      // Started once this run has ended (see advance): one active run per conversation.
+      return;
     case "handoff": {
       await event(req, run, "handed", "handoff", now);
       const lead = await visibleLead(req, run.lead_id);
@@ -405,12 +476,17 @@ async function advance(
   const at = (v: Date | string | null) => (v ? new Date(v) : null);
   const window = instagramWindow({ lastInAt: at(t.last_in_at), adWindowUntil: at(t.ad_window_until) }, now);
   const { facts } = await leadFacts(req, run.lead_id);
-  const r = stepRun(run.steps, run.state, ev, {
+  const tz = (await req.db.execute<{ tz: string }>(sql`SELECT timezone AS tz FROM settings WHERE id = 1`))
+    .rows[0]?.tz;
+  const r = stepFlow(run.steps, run.state, ev, {
     now,
     window,
     privateReplyOnly: o.privateReplyOnly,
     lead: facts,
     personWords: account.personWords,
+    ...(tz ? { tz } : {}),
+    // A split test's path: the same run always takes the same one.
+    seed: run.id,
   });
   // The automated-experience note goes once, before the run's first message in the person's inbox (not inside the
   // comment's one private reply, which belongs to what the business wrote).
@@ -422,15 +498,15 @@ async function advance(
       asPrivateReply: false,
       message: { text: account.automatedNote },
     });
+  // Each step entered, for the numbers on every step and Replay (once per run and key).
+  for (const key of r.entered) await event(req, run, "entered", key, now);
   for (const a of r.actions) await apply(req, account, run, a, { commentId: o.commentId }, now, out);
   const state: RunState = { ...r.state, ...(firstDm >= 0 || run.state.noted ? { noted: true } : {}) };
   let status: string;
   let nextAt: Date | null = null;
   let reason: string | null = null;
-  if (r.done) {
-    status = r.done.reason === "handed" ? "handed" : r.done.reason === "finished" ? "done" : "stopped";
-    reason = r.done.reason === "handed" || r.done.reason === "finished" ? null : r.done.reason;
-  } else if (state.waiting?.for === "until") {
+  if (r.done) ({ status, reason } = endOf(r.done.reason));
+  else if (state.waiting?.for === "until") {
     status = "waiting";
     nextAt = new Date(state.waiting.until);
   } else if (state.waiting) {
@@ -442,20 +518,64 @@ async function advance(
         : window.state === "open"
           ? window.until
           : now;
+    // A question with "no answer after": looked at again then, even past Meta's window (its No answer steps may only
+    // change the lead; a send there stops the run with words, as any send outside the window does).
+    if (state.waiting.for === "answer" && state.waiting.until) nextAt = new Date(state.waiting.until);
   } else status = "running";
   await req.db.execute(sql`
     UPDATE instagram_flow_runs
        SET state = ${JSON.stringify(state)}::jsonb, status = ${status}, next_at = ${nextAt}, reason = ${reason},
            updated_at = now()
      WHERE id = ${run.id}`);
+  // Go to another flow: this run has ended, so the next can start on the same conversation (one active run each).
+  const go = r.actions.find((a): a is Extract<FlowAction, { kind: "goto" }> => a.kind === "goto");
+  if (go) await goOn(req, account, run, go.flowId, now, o, out);
+}
+
+/** The flow a "Go to another flow" step names starts here, on its live version; never more than GOTO_HOPS in a turn. */
+async function goOn(
+  req: FastifyRequest,
+  account: FlowAccount,
+  from: Run,
+  flowId: string,
+  now: Date,
+  o: { privateReplyOnly: boolean; commentId: string | null; commentAt: Date | null },
+  out: FlowOut,
+) {
+  // Counted on the runs themselves, so two flows that send people to each other with a wait between them stop too
+  // (a count kept only for one turn started again on every message and every due run: review 2026-11-23).
+  const hops = (from.state.chain ?? 0) + 1;
+  const problem = (words: string) =>
+    recordActivity(req, from.lead_id, "instagram_flow_problem", {
+      what: "go to another flow",
+      problem: words,
+    });
+  if (hops > GOTO_HOPS) return problem(FLOW_WORDS.gotoHops);
+  const f = (
+    await req.db.execute<{ version_id: string }>(sql`
+      SELECT live_version_id AS version_id FROM instagram_flows
+       WHERE id = ${flowId} AND status = 'live' AND live_version_id IS NOT NULL`)
+  ).rows[0];
+  if (!f) return problem(FLOW_WORDS.gotoGone);
+  // No keyword (the flow wasn't started by one: its numbers stay its own); the automated note, once sent, isn't again.
+  const next = await startRun(
+    req,
+    account,
+    { flow_id: flowId, version_id: f.version_id, trigger_id: null },
+    null,
+    { threadId: from.thread_id, leadId: from.lead_id, via: "goto", now },
+    { ...NEW_RUN, chain: hops, ...(from.state.noted ? { noted: true } : {}) },
+  );
+  if (next) await advance(req, account, next, { kind: "start", via: "dm" }, now, o, out);
 }
 
 async function startRun(
   req: FastifyRequest,
   account: FlowAccount,
-  c: Candidate,
+  c: Pick<Candidate, "flow_id" | "version_id"> & { trigger_id: string | null },
   keyword: string | null,
   p: { threadId: string; leadId: string; via: string; now: Date },
+  state: RunState = NEW_RUN,
 ): Promise<Run | null> {
   const id = newId();
   // One active run per conversation: the partial unique index decides between two deliveries at once.
@@ -463,11 +583,11 @@ async function startRun(
     INSERT INTO instagram_flow_runs (id, flow_id, version_id, trigger_id, thread_id, lead_id, status, state, started_by,
                                      keyword, created_at, updated_at)
     VALUES (${id}, ${c.flow_id}, ${c.version_id}, ${c.trigger_id}, ${p.threadId}, ${p.leadId}, 'running',
-            ${JSON.stringify(NEW_RUN)}::jsonb, ${p.via}, ${keyword}, ${p.now}, ${p.now})
+            ${JSON.stringify(state)}::jsonb, ${p.via}, ${keyword}, ${p.now}, ${p.now})
     ON CONFLICT DO NOTHING`);
   if (!ins.rowCount) return null;
   const steps = (
-    await req.db.execute<{ steps: FlowStep[] }>(
+    await req.db.execute<{ steps: FlowStep[] | FlowGraph }>(
       sql`SELECT steps FROM instagram_flow_versions WHERE id = ${c.version_id}`,
     )
   ).rows[0]!.steps;
@@ -478,7 +598,7 @@ async function startRun(
     trigger_id: c.trigger_id,
     thread_id: p.threadId,
     lead_id: p.leadId,
-    state: NEW_RUN,
+    state,
     keyword,
     started_by: p.via,
     steps,
@@ -518,8 +638,8 @@ export async function flowOnMessage(
       await stopFlowRuns(req, { threadId: m.threadId }, FLOW_WORDS.archived);
       return;
     }
-    if (run.state.sent === 0 || run.state.waiting?.for === "any")
-      await event(req, run, "replied", "replied", now);
+    // Answered: once per run (the event's own key), whatever the run was waiting on (review 2026-11-23).
+    await event(req, run, "replied", "replied", now);
     return advance(
       req,
       account,
@@ -696,7 +816,12 @@ export async function flowDue(
     await stopFlowRuns(req, { threadId }, FLOW_WORDS.archived);
     return;
   }
-  if (run.state.waiting?.for !== "until") {
+  const w = run.state.waiting;
+  // A wait's time came, or a question's "no answer after" did: the flow goes on. Anything else waiting on the person
+  // past Meta's window ends, as it always has.
+  const timed =
+    w?.for === "until" || (w?.for === "answer" && !!w.until && now.getTime() >= Date.parse(w.until));
+  if (!timed) {
     await req.db.execute(sql`
       UPDATE instagram_flow_runs SET status = 'done', reason = ${FLOW_WORDS.noAnswer}, next_at = NULL, updated_at = now()
        WHERE id = ${runId}`);

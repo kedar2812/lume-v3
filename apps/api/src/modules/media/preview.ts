@@ -13,6 +13,8 @@ import type { Sniffed } from "../whatsapp/sniff";
 
 export type ViewAs = "image" | "video" | "audio" | "pdf" | "office" | "sheet" | "text";
 export type PreviewState = "pending" | "ready" | "none" | "failed";
+/** As kept: a preview Clean up let go (0126) is 'cleared' until someone looks at the library again. */
+export type KeptPreviewState = PreviewState | "cleared";
 
 const SHEETS = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

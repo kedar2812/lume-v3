@@ -40,7 +40,7 @@ export async function flowStats(req: FastifyRequest, flowId: string, q: { from: 
     req.db.execute<Row>(sql`
       WITH ev AS (
         SELECT keyword, kind, run_id, lead_id, at FROM instagram_flow_events
-         WHERE flow_id = ${flowId} AND at >= ${start} AND at < ${end}),
+         WHERE flow_id = ${flowId} AND at >= ${start} AND at < ${end} AND kind <> 'entered'),
       runs AS (
         SELECT DISTINCT ON (run_id) run_id, keyword, lead_id, at FROM ev WHERE kind = 'triggered' ORDER BY run_id, at),
       after AS (
@@ -62,6 +62,28 @@ export async function flowStats(req: FastifyRequest, flowId: string, q: { from: 
         FROM ev e
        GROUP BY e.keyword
        ORDER BY count(*) FILTER (WHERE e.kind = 'triggered') DESC, e.keyword`),
+  );
+  // The numbers on each step and line (the builder's Numbers): how many runs entered each step, how many people, what
+  // it sent; and how many runs went down each line (one step to the next, in the order a run entered them).
+  const steps = await withAllScope(req, () =>
+    req.db.execute<{ j: { steps: Record<string, StepCount>; lines: Record<string, number> } }>(sql`
+      WITH ev AS (
+        SELECT id, run_id, lead_id, kind, split_part(step_key, ':', 1) AS step FROM instagram_flow_events
+         WHERE flow_id = ${flowId} AND at >= ${start} AND at < ${end}
+           AND kind IN ('entered', 'dm_sent', 'private_reply') AND step_key IS NOT NULL),
+      per AS (
+        SELECT step,
+               count(*) FILTER (WHERE kind = 'entered')::int AS entered,
+               count(DISTINCT lead_id) FILTER (WHERE kind = 'entered')::int AS people,
+               count(*) FILTER (WHERE kind <> 'entered')::int AS sent
+          FROM ev GROUP BY step),
+      seq AS (
+        SELECT step, lag(step) OVER (PARTITION BY run_id ORDER BY id) AS prev FROM ev WHERE kind = 'entered'),
+      lines AS (SELECT prev || '>' || step AS line, count(*)::int AS n FROM seq WHERE prev IS NOT NULL GROUP BY 1)
+      SELECT json_build_object(
+               'steps', (SELECT coalesce(json_object_agg(step, json_build_object('entered', entered, 'people', people,
+                                                                                 'sent', sent)), '{}') FROM per),
+               'lines', (SELECT coalesce(json_object_agg(line, n), '{}') FROM lines)) AS j`),
   );
   const sum = (k: keyof Omit<Row, "keyword">) => r.rows.reduce((n, x) => n + x[k], 0);
   const total = {
@@ -89,5 +111,10 @@ export async function flowStats(req: FastifyRequest, flowId: string, q: { from: 
       booked: x.booked,
       won: x.won,
     })),
+    byStep: steps.rows[0]!.j.steps,
+    /** Keyed "from>to" by step id. */
+    byLine: steps.rows[0]!.j.lines,
   };
 }
+
+type StepCount = { entered: number; people: number; sent: number };

@@ -65,6 +65,7 @@ export * from "./live-sheets/words";
 export * from "./words/greeting";
 export * from "./words/first-name";
 export * from "./words/bytes";
+export * from "./storage";
 export * from "./words/hours";
 // LUME AI's tasks (spec 2026-10-18): what each is given and must answer, and the rules on it. zod only.
 export * from "./ai";

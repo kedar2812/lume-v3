@@ -30,6 +30,7 @@ describe("QUEUE_NAMES", () => {
       "instagram.profile",
       "instagram.public",
       "instagram.photo",
+      "storage.cleanup",
     ]);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });

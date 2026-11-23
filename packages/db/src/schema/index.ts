@@ -16,3 +16,4 @@ export * from "./whatsapp";
 export * from "./instagram";
 export * from "./autopilot";
 export * from "./live-sheets";
+export * from "./storage";

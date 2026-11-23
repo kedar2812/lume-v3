@@ -32,5 +32,7 @@ export const QUEUE_NAMES = [
   "instagram.public",
   // Profile photos (1B addendum): a person's photo kept as LUME's own copy, checked again weekly.
   "instagram.photo",
+  // Storage (plan 2026-11-23-storage-clean-up): an admin's clean-up, one at a time.
+  "storage.cleanup",
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];

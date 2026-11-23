@@ -112,7 +112,10 @@ export const messageFiles = pgTable("message_files", {
  */
 export const filePreviews = pgTable("file_previews", {
   sha256: text("sha256").primaryKey(),
-  state: text("state").$type<"pending" | "ready" | "none" | "failed">().notNull().default("pending"),
+  state: text("state")
+    .$type<"pending" | "ready" | "none" | "failed" | "cleared">()
+    .notNull()
+    .default("pending"),
   thumbSha256: text("thumb_sha256"),
   pdfSha256: text("pdf_sha256"),
   pages: integer("pages"),
@@ -121,6 +124,8 @@ export const filePreviews = pgTable("file_previews", {
   height: integer("height"),
   tries: integer("tries").notNull().default(0),
   updatedAt: tz("updated_at").notNull().defaultNow(),
+  /** Last opened (0126): one not opened in 90 days may be cleared, and is made again when it next is. */
+  openedAt: tz("opened_at").notNull().defaultNow(),
 });
 
 /** Files gone from the server: their off-site copies go 200 days later. */

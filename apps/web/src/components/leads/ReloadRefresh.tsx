@@ -28,14 +28,20 @@ const plural = (n: number) => `${n.toLocaleString("en")} new ${n === 1 ? "lead" 
  * Sheets Refresh, its card showing leads settling into the list while LUME checks what arrived since you looked,
  * then "✓ 3 new" or "Up to date". It reloads the list, the stage counts and the sidebar's views. R presses it.
  */
+/** How long a screen waits to hear whether a sheet is connected before it offers this Refresh anyway. */
+export const SHEETS_WAIT_MS = 3000;
+
 export function ReloadRefresh({
   pipelineId,
   onReload,
   shortcut = true,
+  waiting = false,
 }: {
   pipelineId: string | undefined;
   onReload(): void;
   shortcut?: boolean;
+  /** The screen hasn't heard yet whether a sheet is connected: this may be swapped for Sheets' Refresh, so it waits. */
+  waiting?: boolean;
 }) {
   const reduce = !!useReducedMotion();
   const since = useRef(new Date().toISOString());
@@ -61,7 +67,7 @@ export function ReloadRefresh({
   }, [r.phase]);
   const press = r.press;
   useEffect(() => {
-    if (!shortcut) return;
+    if (!shortcut || waiting) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== "r" || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
       if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable], [role=dialog]"))
@@ -72,7 +78,7 @@ export function ReloadRefresh({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [shortcut, press]);
+  }, [shortcut, waiting, press]);
 
   const n = r.result ?? 0;
   const warn = !!r.failure;
@@ -81,12 +87,14 @@ export function ReloadRefresh({
     <span className={s.anchor}>
       <Button
         ref={btn}
-        aria-disabled={r.phase !== "idle" || undefined}
+        aria-disabled={waiting || r.phase !== "idle" || undefined}
         aria-keyshortcuts="R"
         title="Refresh (R)"
         className={s.button}
         data-phase={r.phase}
-        onClick={() => void r.press()}
+        onClick={() => {
+          if (!waiting) void r.press();
+        }}
       >
         {r.phase === "landed" ? (
           <span className={s.landed} data-warn={warn || undefined}>

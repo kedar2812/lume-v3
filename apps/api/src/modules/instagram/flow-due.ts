@@ -1,7 +1,11 @@
-import { can } from "@lume/core";
+import { can, canOnRecord } from "@lume/core";
 import { loadActor } from "../../rbac/actor";
 import { jobServer, withJobRequest } from "../imports/job-request";
-import { notify } from "../notifications/notify";
+import { HttpError } from "../../http/errors";
+import { adminIds, notify } from "../notifications/notify";
+import { recordActivity } from "../leads/writer";
+import { visibleLead } from "../leads/service";
+import { createTask, mayManageFor } from "../tasks/service";
 import type pg from "pg";
 import { FLOW_WORDS, flowDue, newFlowOut, type FlowAccount, type FlowOut } from "./flow-run";
 import { igGraph } from "./graph";
@@ -87,6 +91,84 @@ export async function afterFlow(o: InstagramJobDeps, out: FlowOut) {
       body: n.body,
       leadId: n.leadId,
     }).catch((err: unknown) => o.app.log.warn({ err }, "couldn't tell someone a flow passed them a lead"));
+  // "Tell my team" to the admins: whoever they are now.
+  if (out.adminNotices.length) {
+    const admins = await adminIds(pool).catch(() => [] as string[]);
+    for (const n of out.adminNotices)
+      for (const uid of admins)
+        await notify(pool, uid, {
+          kind: "lead_replied",
+          title: n.title,
+          body: n.body,
+          leadId: n.leadId,
+        }).catch((err: unknown) => o.app.log.warn({ err }, "couldn't tell an admin what a flow said"));
+  }
+  for (const n of out.userNotices) {
+    const who = await loadActor(pool, n.userId).catch(() => null);
+    if (!who) continue;
+    const sees = canOnRecord(who, "leads.view", n.leadOwner);
+    await notify(
+      pool,
+      n.userId,
+      sees
+        ? { kind: "lead_replied", title: n.title, body: n.body, leadId: n.leadId }
+        : { kind: "lead_replied", title: "A lead on Instagram", body: n.body },
+    ).catch((err: unknown) => o.app.log.warn({ err }, "couldn't tell someone what a flow said"));
+  }
+  // A flow's follow-ups, made as the account's run-as person would make them: for the lead's owner when that person
+  // may give them follow-ups, else their own. One that can't be made is noted on the lead; the delivery stands.
+  for (const t of out.tasks) {
+    const actor = await loadActor(pool, t.runAs).catch(() => null);
+    if (!actor) {
+      // Whoever connected the account is gone: noted on the lead, never lost without a word.
+      const c = await pool.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('lume.lead_scope', 'all', true)");
+        await c.query(
+          "INSERT INTO activities (id, lead_id, type, payload) VALUES (gen_random_uuid(), $1, 'instagram_flow_problem', $2)",
+          [
+            t.leadId,
+            JSON.stringify({
+              what: "follow-up",
+              problem: "Whoever connected Instagram no longer uses LUME.",
+            }),
+          ],
+        );
+        await c.query("COMMIT");
+      } catch (err) {
+        await c.query("ROLLBACK").catch(() => undefined);
+        o.app.log.warn({ err }, "couldn't note a flow's follow-up that wasn't made");
+      } finally {
+        c.release();
+      }
+      continue;
+    }
+
+    const job = {
+      app: jobServer(o.app),
+      pool,
+      actor,
+      requestId: `instagram-flow-task:${t.leadId}`,
+      allLeads: true,
+    };
+    try {
+      await withJobRequest(job, async (req) => {
+        const lead = await visibleLead(req, t.leadId);
+        const assigneeId = lead.ownerId && mayManageFor(actor, lead.ownerId) ? lead.ownerId : actor.userId;
+        const at = new Date(o.d.clock().getTime() + t.dueMinutes * 60_000).toISOString();
+        await createTask(req, o.d, t.leadId, { title: t.title, due: { at }, assigneeId });
+      });
+    } catch (err) {
+      o.app.log.warn({ err }, "couldn't make a flow's follow-up");
+      await withJobRequest(job, (req) =>
+        recordActivity(req, t.leadId, "instagram_flow_problem", {
+          what: "follow-up",
+          problem: err instanceof HttpError ? err.message : "LUME couldn't make it.",
+        }),
+      ).catch(() => undefined);
+    }
+  }
 }
 
 /**

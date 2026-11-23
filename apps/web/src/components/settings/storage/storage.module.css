@@ -1,0 +1,443 @@
+/* Settings › Storage (plan 2026-11-23-storage-clean-up): the approved canvas, in the app's Settings rows. Every row
+   gives its words the room and truncates them, never the sizes; nothing pushes a control off its row. */
+.page {
+  display: grid;
+  gap: 28px;
+  max-width: 760px;
+  min-width: 0;
+}
+
+/* the disk */
+.disk {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 9px;
+  min-width: 0;
+}
+.used {
+  font-size: 22px;
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.of {
+  font-size: var(--fs-md);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.pill {
+  margin-left: auto;
+  align-self: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: var(--fw-semibold);
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.pill[data-full] {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.bar {
+  display: flex;
+  gap: 2px;
+  height: 22px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.bar i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  transition: width 1.1s var(--ease-spring, cubic-bezier(0.32, 0.72, 0, 1));
+}
+.k1 {
+  background: var(--accent);
+}
+.k2 {
+  background: var(--sky, #5ab8ff);
+}
+.k3 {
+  background: color-mix(in oklab, var(--accent) 45%, var(--sky, #5ab8ff));
+}
+.k4 {
+  background: var(--text-3);
+  opacity: 0.55;
+}
+.k5 {
+  background: var(--line-2);
+}
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.keys i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.unread {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* grouped rows, as Settings lists them */
+.group {
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+  overflow: hidden;
+  min-width: 0;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 14px 18px 10px;
+}
+.head h2 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.head p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 10px 18px;
+  border-top: 0.5px solid var(--line);
+  min-width: 0;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.words {
+  flex: 1;
+  min-width: 0;
+}
+.words b {
+  display: block;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.words span {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.size {
+  flex: none;
+  min-width: 64px;
+  text-align: right;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 18px 14px;
+  border-top: 0.5px solid var(--line);
+}
+.select {
+  flex: none;
+  height: 32px;
+  max-width: 140px;
+  padding: 0 28px 0 10px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+
+/* the sheet */
+.sheetHead {
+  display: grid;
+  gap: 4px;
+  padding: 20px 22px 12px;
+}
+.sheetHead h2 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+}
+.sheetHead p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.choices {
+  display: grid;
+  padding: 0 12px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+}
+.choice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  min-width: 0;
+}
+@media (hover: hover) {
+  .choice:hover {
+    background: var(--hover);
+  }
+}
+.choice input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+.choice .words b {
+  white-space: normal;
+}
+.warn {
+  display: block;
+  margin-top: 5px;
+  font-size: var(--fs-xs, 12px);
+  color: var(--warn-ink);
+  font-weight: var(--fw-semibold);
+}
+.choiceSize {
+  flex: none;
+  text-align: right;
+  min-width: 84px;
+}
+.choiceSize b {
+  display: block;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.choiceSize span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.choice:not([data-on]) .choiceSize b {
+  color: var(--text-3);
+}
+.never {
+  margin: 8px 22px 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.sheetFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 18px 18px 22px;
+  margin-top: 14px;
+  border-top: 0.5px solid var(--line);
+}
+.total {
+  margin-right: auto;
+  min-width: 0;
+}
+.total span {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.total b {
+  display: block;
+  font-size: 24px;
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.problem {
+  margin: 8px 22px 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+
+/* the morph's own card: files lift off the shelf and come apart while the disk drains */
+.shelf {
+  position: relative;
+  height: 46px;
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  padding: 0 4px 6px;
+  border-bottom: 1px solid var(--line-2);
+}
+.tile {
+  position: relative;
+  width: 26px;
+  height: 32px;
+  border-radius: 5px;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px rgba(var(--accent-rgb), 0.45),
+    0 3px 8px rgba(var(--accent-rgb), 0.22);
+  transform-origin: 50% 100%;
+}
+.tile::before,
+.tile::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(var(--accent-rgb), 0.5);
+  top: 8px;
+}
+.tile::after {
+  top: 14px;
+  right: 10px;
+}
+.tile[data-gone] {
+  animation: leave 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes leave {
+  35% {
+    transform: translateY(-12px) rotate(-6deg) scale(0.96);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-30px) rotate(-10deg) scale(0.45);
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+.drain {
+  height: 6px;
+  border-radius: 99px;
+  margin-top: 12px;
+  background: rgba(var(--accent-rgb), 0.14);
+  overflow: hidden;
+}
+.drain i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--cyan), var(--accent));
+  background-size: 200% 100%;
+  animation: sheen 1.6s linear infinite;
+  transition: width 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes sheen {
+  to {
+    background-position: -200% 0;
+  }
+}
+.mt {
+  margin: 10px 0 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ms {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile[data-gone] {
+    animation: none;
+    opacity: 0;
+  }
+  .drain i {
+    animation: none;
+  }
+}
+@media (max-width: 520px) {
+  .row {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+  .size {
+    min-width: 0;
+  }
+  .select {
+    max-width: 120px;
+  }
+}
+.listLink {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .listLink:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+}
+
+/* A keep-for that couldn't be saved, under its row. */
+.error {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}

@@ -172,6 +172,23 @@ test.describe("Google Sheets", () => {
   }) => {
     const id = await putSheet([row(9, "Shot One")]);
     await openApp(page, "/leads");
+    // The card shows only this test's sheet, whatever the tests before it left (2026-11-23: the picture changed with
+    // how many earlier tests had run and retried).
+    const before = (await callApi<{ sources: { id: string }[] }>(page, "GET", "/api/v1/sheets/sources")).data;
+    for (const s of before?.sources ?? []) {
+      // Its leads first, as the suite's own clean-up does: leads left without their sheet would show in later specs.
+      for (;;) {
+        const { items } = (
+          await callApi<{ items: { id: string }[] }>(page, "GET", `/api/v1/leads?source=${s.id}&limit=100`)
+        ).data;
+        if (!items.length) break;
+        await callApi(page, "POST", "/api/v1/leads/bulk", {
+          ids: items.map((l) => l.id),
+          action: { type: "delete" },
+        });
+      }
+      await callApi(page, "DELETE", `/api/v1/sheets/sources/${s.id}`);
+    }
     const sourceId = await connectViaApi(page, id);
     for (const theme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: theme });

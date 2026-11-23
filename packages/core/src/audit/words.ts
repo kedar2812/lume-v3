@@ -405,6 +405,13 @@ export const AUDIT_ACTIONS: Record<string, AuditActionDef> = {
   "instagram.flow.resumed": { area: "Settings", phrase: "turned an Instagram flow back on" },
   "instagram.flow.archived": { area: "Settings", phrase: "archived an Instagram flow" },
   "instagram.flow.triggers": { area: "Settings", phrase: "changed what starts an Instagram flow" },
+  "instagram.flow.restored": {
+    area: "Settings",
+    phrase: "brought back an earlier version of an Instagram flow",
+  },
+  "storage.cleaned": { area: "Settings", phrase: "cleared room on the server" },
+  "storage.listed": { area: "Settings", phrase: "downloaded the list of files a clean-up would clear" },
+  "storage.settings": { area: "Settings", phrase: "changed the storage settings" },
   "file.uploaded": { area: "Settings", phrase: "added a file to Media" },
   "file.renamed": { area: "Settings", phrase: "renamed a file in Media" },
   "file.deleted": { area: "Settings", phrase: "deleted a file from Media" },

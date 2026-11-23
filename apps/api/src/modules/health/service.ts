@@ -198,7 +198,7 @@ export async function readHealth(
     problems.push({
       key: "disk_full",
       words: `The server's disk is ${Math.round(usedShare(disk) * 100)}% full (${bytesText(disk.free)} left). When it's full, LUME can't save new messages or files.`,
-      actions: [{ label: "Keep files for fewer months", href: "/settings/integrations" }, "tell"],
+      actions: [{ label: "Clean up", href: "/settings/storage" }, "tell"],
     });
   if (!writable)
     problems.push({

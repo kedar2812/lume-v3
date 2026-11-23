@@ -260,7 +260,7 @@ describe("System health: storage", () => {
       key: "disk_full",
       words:
         "The server's disk is 92% full (8.2 GB left). When it's full, LUME can't save new messages or files.",
-      actions: [{ label: "Keep files for fewer months", href: "/settings/integrations" }, "tell"],
+      actions: [{ label: "Clean up", href: "/settings/storage" }, "tell"],
     });
     const fine = await readHealth(h.pool, { files: filesWith({ total: 100 * GB, free: 15.5 * GB }) });
     expect(keys(fine)).not.toContain("disk_full");

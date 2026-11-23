@@ -10,7 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ImportSheet } from "@/components/imports/ImportSheet";
 import { AttentionBanner } from "@/components/integrations/AttentionBanner";
 import { RefreshButton } from "@/components/sheets/RefreshButton";
-import { ReloadRefresh } from "./ReloadRefresh";
+import { ReloadRefresh, SHEETS_WAIT_MS } from "./ReloadRefresh";
 import { importsClient } from "@/lib/imports/client";
 import { useAfter, useCountdown, useLoadingSignal } from "@/lib/loading";
 import { sheetsClient } from "@/lib/sheets/client";
@@ -278,13 +278,26 @@ function Screen({
   }, [mayImport]);
   // 2B spec §8.1: Refresh shows once a sheet is connected; admins also hear which sheet needs them.
   const [sheets, setSheets] = useState<SheetsStatus | null>(null);
+  // Until the status answers (even with an error), the screen can't tell which Refresh it has: it waits.
+  const [sheetsHeard, setSheetsHeard] = useState(false);
   useEffect(() => {
     let live = true;
-    void sheetsClient.status().then((r) => {
-      if (live && r.ok) setSheets(r.data);
-    });
+    // An answer that never comes: the Refresh that needs no sheet, after a moment.
+    const giveUp = setTimeout(() => live && setSheetsHeard(true), SHEETS_WAIT_MS);
+    void sheetsClient
+      .status()
+      .then((r) => {
+        if (!live) return;
+        if (r.ok) setSheets(r.data);
+        setSheetsHeard(true);
+      })
+      .catch(() => {
+        // Never stuck: with no answer at all, the Refresh that needs no sheet.
+        if (live) setSheetsHeard(true);
+      });
     return () => {
       live = false;
+      clearTimeout(giveUp);
     };
   }, []);
   const personal = scopeOf(session.actor, "leads.view") !== "all";
@@ -658,6 +671,7 @@ function Screen({
               />
             ) : (
               <ReloadRefresh
+                waiting={!sheetsHeard}
                 pipelineId={pipeline?.id}
                 onReload={() => {
                   void list.reload();

@@ -13,7 +13,7 @@ import {
 } from "react";
 import { can, scopeOf, seesFullContacts } from "@lume/core/shared";
 import { RefreshButton } from "@/components/sheets/RefreshButton";
-import { ReloadRefresh } from "@/components/leads/ReloadRefresh";
+import { ReloadRefresh, SHEETS_WAIT_MS } from "@/components/leads/ReloadRefresh";
 import { sheetsClient } from "@/lib/sheets/client";
 import type { SheetsStatus } from "@/lib/sheets/types";
 import { useSound } from "@/components/feedback/SoundProvider";
@@ -120,13 +120,26 @@ function Board({
   const mayLiveSheets = can(session.actor, "leads.live_sheets") && can(session.actor, "leads.export");
   // 2B spec §8.1 and amendment A10: Refresh on the board too; it reloads the board (the glow is table-only).
   const [sheets, setSheets] = useState<SheetsStatus | null>(null);
+  // Until the status answers (even with an error), the screen can't tell which Refresh it has: it waits.
+  const [sheetsHeard, setSheetsHeard] = useState(false);
   useEffect(() => {
     let live = true;
-    void sheetsClient.status().then((r) => {
-      if (live && r.ok) setSheets(r.data);
-    });
+    // An answer that never comes: the Refresh that needs no sheet, after a moment.
+    const giveUp = setTimeout(() => live && setSheetsHeard(true), SHEETS_WAIT_MS);
+    void sheetsClient
+      .status()
+      .then((r) => {
+        if (!live) return;
+        if (r.ok) setSheets(r.data);
+        setSheetsHeard(true);
+      })
+      .catch(() => {
+        // Never stuck: with no answer at all, the Refresh that needs no sheet.
+        if (live) setSheetsHeard(true);
+      });
     return () => {
       live = false;
+      clearTimeout(giveUp);
     };
   }, []);
   const personal = scopeOf(session.actor, "leads.view") !== "all";
@@ -527,7 +540,11 @@ function Board({
             {sheets?.refresh ? (
               <RefreshButton personal={personal} onArrived={() => setReloadTick((n) => n + 1)} />
             ) : (
-              <ReloadRefresh pipelineId={pipeline.id} onReload={() => setReloadTick((n) => n + 1)} />
+              <ReloadRefresh
+                waiting={!sheetsHeard}
+                pipelineId={pipeline.id}
+                onReload={() => setReloadTick((n) => n + 1)}
+              />
             )}
             {mayLiveSheets && (
               <CreateLiveSheetButton
