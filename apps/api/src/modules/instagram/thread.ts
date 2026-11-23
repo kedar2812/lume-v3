@@ -1,6 +1,8 @@
 import { canOnRecord, instagramWindow, maskInstagram } from "@lume/core";
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import { loadFieldRegistry } from "../../leads/fields";
+import { isFieldVisible } from "../leads/serialize";
 import { visibleLead } from "../leads/service";
 
 const THREAD_MAX = 500;
@@ -31,7 +33,9 @@ type Msg = {
 /**
  * A lead's Instagram conversations (NEW_FEATURES_PLAN §4.6), seen with the lead (404 otherwise): each conversation
  * with its account, Meta's window for it now, who has taken it over, and its newest 500 messages oldest first. The
- * person's handle is masked for anyone without full contact details on this lead, as the lead's own handle is.
+ * person's handle is masked for anyone without full contact details on this lead, as the lead's own handle is. The
+ * person's name, handle and where they came from (an ad, a link) follow the lead's own name, Instagram and source
+ * fields: hidden from a role, they're left out here too.
  */
 export async function leadInstagram(req: FastifyRequest, leadId: string, now: Date) {
   const lead = await visibleLead(req, leadId);
@@ -57,6 +61,9 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
      WHERE t.lead_id = ${leadId}
      ORDER BY t.last_message_at DESC NULLS LAST, t.created_at DESC`);
   if (!threads.rows.length) return { threads: [] };
+  const fields = { actor: req.actor!, fields: await loadFieldRegistry(req) };
+  const sees = { name: isFieldVisible(fields, "name"), handle: isFieldVisible(fields, "instagram") };
+  const seesSource = isFieldVisible(fields, "source");
   const ids = threads.rows.map((t) => t.id);
   const idList = `{${ids.join(",")}}`;
   const acts = await req.db.execute<{
@@ -108,7 +115,10 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
     // What came with it, without the bookkeeping keys the thread already says another way.
     const detail = Object.fromEntries(
       Object.entries(p).filter(
-        ([k]) => !["mid", "accountId", "threadId", "text", "via", "unsent"].includes(k),
+        ([k]) =>
+          !["mid", "accountId", "threadId", "text", "via", "unsent"].includes(k) &&
+          // The ad or link they came from is the lead's source: hidden with it.
+          (seesSource || k !== "referral"),
       ),
     );
     byThread.get(String(p.threadId))?.push({
@@ -158,15 +168,15 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
         id: t.id,
         account: { id: t.account_id, username: t.account, connected: t.account_status === "active" },
         person: {
-          name: t.name,
-          username: t.username ? (full ? `@${t.username}` : maskInstagram(t.username)) : null,
+          name: sees.name ? t.name : null,
+          username: sees.handle && t.username ? (full ? `@${t.username}` : maskInstagram(t.username)) : null,
         },
         window:
           w.state === "closed"
             ? { state: w.state, since: w.since?.toISOString() ?? null }
             : { state: w.state, until: w.until.toISOString() },
         takenOver: t.taken_over_by ? { id: t.taken_over_by, name: t.taken_name ?? "" } : null,
-        source: t.source,
+        source: seesSource ? t.source : null,
         messages,
       };
     }),

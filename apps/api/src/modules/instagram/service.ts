@@ -80,6 +80,9 @@ export async function accountsView(req: FastifyRequest) {
       status: A.status,
       problem: A.problem,
       newDmCreatesLead: A.newDmCreatesLead,
+      newLeadsPerHour: A.newLeadsPerHour,
+      mediaMbPerPersonDay: A.mediaMbPerPersonDay,
+      mediaMbPerDay: A.mediaMbPerDay,
       sourceId: A.sourceId,
       connectedAt: A.connectedAt,
     })
@@ -96,6 +99,11 @@ export async function accountsView(req: FastifyRequest) {
       status: r.status,
       problem: r.problem,
       newDmCreatesLead: r.newDmCreatesLead,
+      limits: {
+        newLeadsPerHour: r.newLeadsPerHour,
+        mediaMbPerPersonDay: r.mediaMbPerPersonDay,
+        mediaMbPerDay: r.mediaMbPerDay,
+      },
       sourceId: r.sourceId,
       connectedAt: r.connectedAt.toISOString(),
     })),
@@ -265,11 +273,22 @@ async function accountOf(req: FastifyRequest, id: string) {
   return a;
 }
 
-/** Whose account it is (a person: its conversations' notices come to them), and whether new people become leads. */
+/** What a stranger can make LUME do on this account (0125): each a whole number within INSTAGRAM_INTAKE's bounds. */
+export const INTAKE_LIMITS = ["newLeadsPerHour", "mediaMbPerPersonDay", "mediaMbPerDay"] as const;
+type IntakeLimit = (typeof INTAKE_LIMITS)[number];
+
+/**
+ * Whose account it is (a person: its conversations' notices come to them), whether new people become leads, and its
+ * intake limits.
+ */
 export async function setAccount(
   req: FastifyRequest,
   id: string,
-  body: { ownerId?: string | null | undefined; newDmCreatesLead?: boolean | undefined },
+  body: {
+    ownerId?: string | null | undefined;
+    newDmCreatesLead?: boolean | undefined;
+    limits?: Partial<Record<IntakeLimit, number>> | undefined;
+  },
 ) {
   const a = await accountOf(req, id);
   if (body.ownerId) {
@@ -282,6 +301,7 @@ export async function setAccount(
   const set: Partial<typeof A.$inferInsert> = { updatedAt: new Date() };
   if (body.ownerId !== undefined) set.ownerUserId = body.ownerId;
   if (body.newDmCreatesLead !== undefined) set.newDmCreatesLead = body.newDmCreatesLead;
+  for (const k of INTAKE_LIMITS) if (body.limits?.[k] !== undefined) set[k] = body.limits[k];
   await req.db.update(A).set(set).where(eq(A.id, a.id));
   await audit(req, {
     action: "instagram.updated",
@@ -292,6 +312,12 @@ export async function setAccount(
       ...(body.newDmCreatesLead !== undefined
         ? { newDmCreatesLead: { from: a.newDmCreatesLead, to: body.newDmCreatesLead } }
         : {}),
+      ...Object.fromEntries(
+        INTAKE_LIMITS.filter((k) => body.limits?.[k] !== undefined).map((k) => [
+          k,
+          { from: a[k], to: body.limits![k] },
+        ]),
+      ),
     },
   });
   return accountsView(req);
@@ -343,6 +369,12 @@ export async function disconnect(req: FastifyRequest, d: AppDeps, id: string) {
     req.db
       .delete(schema.instagramThreads)
       .where(and(eq(schema.instagramThreads.accountId, a.id), isNull(schema.instagramThreads.leadId))),
+  );
+  // Comments by people who never became a conversation here: nothing to keep them for once the account is gone.
+  await withAllScope(req, () =>
+    req.db
+      .delete(schema.instagramComments)
+      .where(and(eq(schema.instagramComments.accountId, a.id), isNull(schema.instagramComments.threadId))),
   );
   await req.db
     .update(A)

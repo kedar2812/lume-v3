@@ -94,6 +94,8 @@ const WITHOUT_RLS: Record<string, string> = {
   instagram_flow_versions: "Business configuration",
   instagram_triggers: "Business configuration",
   instagram_flow_events: "Background work and its bookkeeping",
+  // The intake limits' counts (0125): a key, a window and a number; no lead data.
+  instagram_budgets: "Background work and its bookkeeping",
   // Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes
   lead_firsts:
     "Derived from leads, only ever read joined to leads (whose RLS decides) or through lume_lead_search; contact keys are hashes",

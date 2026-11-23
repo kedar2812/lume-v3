@@ -61,6 +61,27 @@ describe("a notice for each WhatsApp message in (2026-11-01)", () => {
     await waitFor(() => expect(notices()).toHaveLength(0));
   });
 
+  it("the lead's photo when they have one, initials when not (1B addendum)", async () => {
+    const { container } = render(<Shell />);
+    latest.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        name: "Priya Shah",
+        photo: "/api/v1/leads/lead-1/photo?v=abc",
+        message: { id: "m1", direction: "in", text: "hi", at: "2026-11-01T05:50:00Z" },
+      },
+    } as never);
+    says("Riya Kapoor", "hello", "2026-11-01T05:51:00Z");
+    await arrives("lead-1");
+    await arrives("lead-2");
+    await waitFor(() => expect(notices()).toHaveLength(2));
+    const photos = [...container.querySelectorAll("img")]
+      .map((i) => i.getAttribute("src"))
+      .filter((src) => src?.includes("/photo"));
+    expect(photos).toEqual(["/api/v1/leads/lead-1/photo?v=abc"]);
+  });
+
   it("not this person's lead, a message out or a tick, alerts off, or the chat already on screen: nothing, and nothing read", async () => {
     const { rerender } = render(<Shell />);
     await arrives("lead-1", "someone-else");

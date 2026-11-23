@@ -17,7 +17,8 @@ const nameOf = (p: WaPerson) => p.name ?? formatPhone(p.peer);
  * Not a lead yet (spec 2026-10-18 §4.1; canvas board NotYet): messages from numbers no lead has, newest first. LUME
  * never makes them leads by itself: a person makes one an enquiry, or says it's not a lead (and it never shows again).
  */
-export function NotYet({ tz }: { tz: string }) {
+/** `mayDecide`: the person may add leads, so may make one of these, or ignore them (which deletes what they sent). */
+export function NotYet({ tz, mayDecide = true }: { tz: string; mayDecide?: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
   const [people, setPeople] = useState<WaPerson[] | null>(null);
@@ -116,12 +117,18 @@ export function NotYet({ tz }: { tz: string }) {
                 {current.name ? `${formatPhone(current.peer)} · ` : ""}wrote to {current.number.display}
               </span>
             </div>
-            <Button disabled={busy} onClick={() => void ignore(current)}>
-              Not a lead
-            </Button>
-            <Button variant="primary" loading={busy} onClick={() => void makeLead(current)}>
-              Make it an enquiry
-            </Button>
+            {mayDecide ? (
+              <>
+                <Button disabled={busy} onClick={() => void ignore(current)}>
+                  Not a lead
+                </Button>
+                <Button variant="primary" loading={busy} onClick={() => void makeLead(current)}>
+                  Make it an enquiry
+                </Button>
+              </>
+            ) : (
+              <p className={s.where}>Someone who can add leads decides who becomes one.</p>
+            )}
           </header>
           {problem && (
             <p role="alert" className={s.problem}>

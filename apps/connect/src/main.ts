@@ -119,7 +119,12 @@ const relay = createRelay({
     : {}),
   ...(instagram ? { instagram: instagram.config, instagramRoutes: instagram.routes } : {}),
 });
-http.createServer(relay).listen(c.PORT, "0.0.0.0", () => {
+const server = http.createServer(relay);
+// A request has this long to send its headers, and its whole body (security review 2026-11-23): a slow sender can't
+// hold a connection for Node's default five minutes.
+server.headersTimeout = 15_000;
+server.requestTimeout = 30_000;
+server.listen(c.PORT, "0.0.0.0", () => {
   console.log(`relay listening on ${c.PORT} for ${c.RELAY_INSTANCES.length} instance(s)`);
   // Instagram's routes, from each LUME's own list: a lost file heals itself.
   if (instagram)

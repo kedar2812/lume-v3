@@ -42,6 +42,10 @@ export const instagramAccounts = pgTable("instagram_accounts", {
     .default(sql`'{PERSON}'`),
   /** The relay's signature that this account was connected here (0122): shown back when the relay rebuilds. */
   relayGrant: text("relay_grant"),
+  /** What strangers can make LUME do (0125): new leads an hour, megabytes of files a day per person and in all. */
+  newLeadsPerHour: integer("new_leads_per_hour").notNull().default(1000),
+  mediaMbPerPersonDay: integer("media_mb_per_person_day").notNull().default(200),
+  mediaMbPerDay: integer("media_mb_per_day").notNull().default(5000),
   connectedAt: tz("connected_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
 });
@@ -183,7 +187,11 @@ export const instagramMedia = pgTable("instagram_media", {
   mime: text("mime"),
   size: integer("size"),
   sha256: text("sha256"),
-  status: text("status").$type<"waiting" | "ready" | "too_large" | "failed" | "gone">().notNull(),
+  status: text("status")
+    .$type<"waiting" | "ready" | "too_large" | "failed" | "gone" | "over_limit">()
+    .notNull(),
+  /** Counted against the day's file limits already (0125): a retry never counts it again. */
+  counted: boolean("counted").notNull().default(false),
   problem: text("problem"),
   tries: integer("tries").notNull().default(0),
   retryAt: tz("retry_at"),
@@ -282,3 +290,14 @@ export const instagramFlowEvents = pgTable("instagram_flow_events", {
   leadId: uuid("lead_id"),
   at: tz("at").notNull().defaultNow(),
 });
+
+/** The counts behind the intake limits (0125): one row per (what, window), never read by a route. */
+export const instagramBudgets = pgTable(
+  "instagram_budgets",
+  {
+    key: text("key").notNull(),
+    windowStart: tz("window_start").notNull(),
+    used: bigint("used", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
+);

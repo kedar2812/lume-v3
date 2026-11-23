@@ -1,4 +1,4 @@
-import { maskInstagram, normalizeInstagram, type Rules } from "@lume/core";
+import { maskInstagram, newId, normalizeInstagram, type Rules } from "@lume/core";
 import { schema } from "@lume/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -42,6 +42,17 @@ export async function leadByHandle(
               coalesce(last_activity_at, created_at) DESC, created_at DESC
      LIMIT 1`);
   return r.rows[0]?.id ?? null;
+}
+
+/**
+ * Says on the lead's timeline that an Instagram conversation joined it only because the handles match: a handle can
+ * be typed into any form, so the team checks it's the same person before following up (security review 2026-11-23).
+ * The handle itself isn't in the note (it's a contact, masked for some).
+ */
+export async function noteHandleMatch(req: FastifyRequest, leadId: string, threadId: string) {
+  await req.db.execute(sql`
+    INSERT INTO activities (id, lead_id, user_id, type, payload)
+    VALUES (${newId()}, ${leadId}, NULL, 'instagram_linked', ${JSON.stringify({ threadId, by: "handle" })}::jsonb)`);
 }
 
 /** Whether a lead is still there (not deleted) for a conversation to stay on. */

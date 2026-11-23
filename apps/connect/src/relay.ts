@@ -55,6 +55,8 @@ type State = {
   n: string;
   exp: number;
   k?: "calendar" | "calendar_write" | "whatsapp" | "live_sheet" | "instagram";
+  /** The browser that started it (a hash of its cookie): only that browser can finish (Instagram, 2026-11-23). */
+  b?: string;
 };
 
 /**

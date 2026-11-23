@@ -3,7 +3,10 @@ import { schema } from "@lume/db";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
+import { loadFieldRegistry } from "../../leads/fields";
 import { businessZone } from "../ai/next-step";
+import { photosFor, photoUrl } from "../instagram/photos-of";
+import { isFieldVisible } from "../leads/serialize";
 import { visibleLead } from "../leads/service";
 import type { KeptMeaning } from "./meaning";
 import { replyState } from "./send";
@@ -217,5 +220,13 @@ export async function leadLatest(req: FastifyRequest, leadId: string) {
     .orderBy(desc(A.occurredAt), desc(A.id))
     .limit(1);
   const [message] = await shape(req, rows);
-  return { name: lead.name ?? null, message: message ?? null };
+  // The name and the photo only where the caller's role shows the name: the notice then says "A lead", with initials.
+  if (!isFieldVisible({ actor: req.actor!, fields: await loadFieldRegistry(req) }, "name"))
+    return { name: null, photo: null, message: message ?? null };
+  const photo = (await photosFor(req, [lead.id])).get(lead.id);
+  return {
+    name: lead.name ?? null,
+    photo: photo ? photoUrl(lead.id, photo) : null,
+    message: message ?? null,
+  };
 }

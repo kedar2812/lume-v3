@@ -176,6 +176,14 @@ export function describeActivity(a: Activity, cat: Catalog, tz?: string): Histor
         tone: "accent",
       };
     }
+    // An Instagram conversation joined this lead only because the handles match (security review 2026-11-23): a
+    // handle can be typed into any form, so it says to check it's them.
+    case "instagram_linked":
+      return {
+        title: "Instagram conversation joined this lead",
+        detail: "Matched by its Instagram handle. Check it's the same person before you follow up.",
+        tone: "warn",
+      };
     // LUME's own work (3C): a stage's automations, and leads gone quiet.
     case "automation":
       return automationLine(p, cat, tz);

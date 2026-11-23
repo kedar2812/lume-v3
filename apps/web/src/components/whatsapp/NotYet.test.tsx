@@ -75,6 +75,15 @@ describe("Not a lead yet (spec 2026-10-18 §4.1; canvas board NotYet)", () => {
     expect(screen.queryByText("Ravi K")).toBeNull();
   });
 
+  it("someone who can't add leads reads them, without the buttons only those who can may use", async () => {
+    render(<NotYet tz={TZ} mayDecide={false} />);
+    const thread = await screen.findByRole("list", { name: "Messages from Ravi K" });
+    expect(await within(thread).findByText("Hi, do you do kitchens?")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Not a lead" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Make it an enquiry" })).toBeNull();
+    expect(screen.getByText("Someone who can add leads decides who becomes one.")).toBeInTheDocument();
+  });
+
   it("nobody waiting: says so", async () => {
     vi.mocked(whatsappClient.inbox).mockResolvedValue(ok({ people: [] }));
     render(<NotYet tz={TZ} />);

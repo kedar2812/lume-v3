@@ -1,6 +1,8 @@
 import type pg from "pg";
 import { DISK_STOP } from "../whatsapp/media";
 import { sha256Of, usedShare } from "../whatsapp/files";
+import { bytesSpent, dayOf, firstRefusal, spendBytes } from "./budgets";
+import { tellAdmins } from "./service";
 import type { InstagramJobDeps } from "./process";
 
 /** At most what Meta sends: 25 MB (Send API limits, read 2026-11-22). */
@@ -16,7 +18,10 @@ const WORDS = {
   gone: "Instagram no longer has this file.",
   disk_full: "The server's disk is full. LUME will try again.",
   cant_save: "LUME can't save files on this server yet.",
+  over_limit:
+    "LUME didn't keep this file: today's files from Instagram reached their limit. It's still in Instagram.",
 };
+const MB = 1024 * 1024;
 
 /**
  * Whether a link may be fetched: https on Meta's own hosts (Instagram's links carry their own signature, so no token is
@@ -108,8 +113,21 @@ export async function fetchInstagramMedia(o: InstagramJobDeps, id: string): Prom
     pool,
     async (c) =>
       (
-        await c.query<{ status: string; url: string; tries: number; retry_at: Date | null }>(
-          "SELECT status, url, tries, retry_at FROM instagram_media WHERE id = $1",
+        await c.query<{
+          status: string;
+          url: string;
+          tries: number;
+          retry_at: Date | null;
+          account_id: string;
+          thread_id: string;
+          person_mb: number;
+          account_mb: number;
+          counted: boolean;
+          username: string;
+        }>(
+          `SELECT m.status, m.url, m.tries, m.retry_at, m.account_id, m.thread_id, m.counted, a.username,
+                  a.media_mb_per_person_day AS person_mb, a.media_mb_per_day AS account_mb
+             FROM instagram_media m JOIN instagram_accounts a ON a.id = m.account_id WHERE m.id = $1`,
           [id],
         )
       ).rows[0],
@@ -147,6 +165,24 @@ export async function fetchInstagramMedia(o: InstagramJobDeps, id: string): Prom
   if (!d.files) return void (await later(WORDS.cant_save));
   const disk = await d.files.disk();
   if (disk && usedShare(disk) >= DISK_STOP) return void (await later(WORDS.disk_full));
+  // Today's files from this person, and from everyone on this account, are bounded: past either, nothing is fetched.
+  const keys = { person: `media:${row.thread_id}`, account: `media:${row.account_id}` };
+  const limits = { personBytes: row.person_mb * MB, accountBytes: row.account_mb * MB };
+  const overLimit = async () => {
+    await set({ status: "over_limit", problem: WORDS.over_limit });
+    // The admins hear once a day, the first time the limit turns a file away.
+    if (await firstRefusal(pool, `media:${row.account_id}`, dayOf(now)))
+      await tellAdmins(
+        pool,
+        "Instagram: today's files reached their limit",
+        `Files sent to @${row.username} today reached the limit, so LUME isn't keeping new ones until tomorrow. They're still in Instagram.`,
+      ).catch((err: unknown) =>
+        o.app.log.error({ err }, "couldn't tell the admins about Instagram's file limit"),
+      );
+  };
+  // A retry of a file already counted (its fetch failed after) isn't held to the limit again.
+  if (!row.counted && (await allScope(pool, (c) => bytesSpent(c, keys, limits, now))))
+    return void (await overLimit());
 
   let got: { bytes: Buffer; type: string | null };
   try {
@@ -165,14 +201,25 @@ export async function fetchInstagramMedia(o: InstagramJobDeps, id: string): Prom
     throw e; // the queue tries again later
   }
   const sha256 = sha256Of(got.bytes);
-  // The file's row first, touched now: the hourly sweep spares a file touched within the hour.
-  await allScope(pool, async (c) => {
+  // Counted against today's limits, and the file's row first, touched now (the hourly sweep spares a file touched
+  // within the hour): both or neither.
+  const room = await allScope(pool, async (c) => {
+    // Counted once: the row says so in the same transaction as the count, so a retry after a failed save skips it.
+    const fresh = await c.query("SELECT 1 FROM instagram_media WHERE id = $1 AND NOT counted FOR UPDATE", [
+      id,
+    ]);
+    if (fresh.rowCount) {
+      if (!(await spendBytes(c, keys, limits, got.bytes.length, now))) return false;
+      await c.query("UPDATE instagram_media SET counted = true WHERE id = $1", [id]);
+    }
     await c.query(
       `INSERT INTO whatsapp_files (sha256, size) VALUES ($1, $2) ON CONFLICT (sha256) DO UPDATE SET last_ref_at = now()`,
       [sha256, got.bytes.length],
     );
     await c.query("DELETE FROM whatsapp_files_gone WHERE sha256 = $1", [sha256]);
+    return true;
   });
+  if (!room) return void (await overLimit());
   try {
     await d.files.store.put(got.bytes);
   } catch (e) {

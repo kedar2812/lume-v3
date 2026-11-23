@@ -13,6 +13,14 @@ const a = (type: string, payload: Record<string, unknown> = {}) => ({
 });
 
 describe("describeActivity", () => {
+  it("an Instagram conversation matched by handle says to check it's them", () => {
+    expect(describeActivity(a("instagram_linked", { by: "handle" }), cat)).toEqual({
+      title: "Instagram conversation joined this lead",
+      detail: "Matched by its Instagram handle. Check it's the same person before you follow up.",
+      tone: "warn",
+    });
+  });
+
   it("tells each kind of event in plain words, with who did it", () => {
     expect(describeActivity(a("stage_changed", { from: "s-new", to: "s-sent" }), cat)).toMatchObject({
       title: "Moved to Message sent",

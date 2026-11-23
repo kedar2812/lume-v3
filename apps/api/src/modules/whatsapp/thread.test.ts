@@ -105,6 +105,7 @@ describe("GET /api/v1/leads/:id/whatsapp/latest (2026-11-01)", () => {
     const c = await h.signIn(rep);
     expect((await c.inject({ method: "GET", url: `/api/v1/leads/${lead}/whatsapp/latest` })).json()).toEqual({
       name: "Quiet One",
+      photo: null,
       message: null,
     });
     expect(

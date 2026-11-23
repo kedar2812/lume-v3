@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
+import { INSTAGRAM_INTAKE } from "@lume/core";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
 import { igIgnore, igInboxPerson, igInboxView, igMakeLead } from "./inbox";
@@ -12,6 +13,7 @@ import {
   connectComplete,
   connectStart,
   disconnect,
+  INTAKE_LIMITS,
   setAccount,
   setInstagramSettings,
 } from "./service";
@@ -43,9 +45,29 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
       schema: {
         params: id,
         body: z
-          .object({ ownerId: z.uuid().nullable().optional(), newDmCreatesLead: z.boolean().optional() })
+          .object({
+            ownerId: z.uuid().nullable().optional(),
+            newDmCreatesLead: z.boolean().optional(),
+            limits: z
+              .object(
+                Object.fromEntries(
+                  INTAKE_LIMITS.map((k) => [
+                    k,
+                    z.number().int().min(INSTAGRAM_INTAKE[k].min).max(INSTAGRAM_INTAKE[k].max).optional(),
+                  ]),
+                ) as Record<(typeof INTAKE_LIMITS)[number], z.ZodOptional<z.ZodNumber>>,
+              )
+              .strict()
+              .optional(),
+          })
           .strict()
-          .refine((b) => b.ownerId !== undefined || b.newDmCreatesLead !== undefined, "Nothing to change."),
+          .refine(
+            (b) =>
+              b.ownerId !== undefined ||
+              b.newDmCreatesLead !== undefined ||
+              (b.limits !== undefined && Object.values(b.limits).some((v) => v !== undefined)),
+            "Nothing to change.",
+          ),
       },
     },
     (req) => setAccount(req, req.params.id, req.body),
@@ -136,7 +158,7 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
   );
   r.post(
     "/api/v1/instagram/inbox/:threadId/ignore",
-    { config: { permission: "auth.self" }, schema: { params: thread } },
+    { config: { permission: "leads.create" }, schema: { params: thread } },
     (req) => igIgnore(req, req.params.threadId),
   );
 }

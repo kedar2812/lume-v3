@@ -12,6 +12,7 @@ import {
   startInstagramFake,
   type InstagramFake,
 } from "../../api/test/instagram-fake";
+import { READING_MAX } from "./body";
 import { HOLD_MS, IG_FIELDS } from "./instagram";
 import { createRelay, type Relay } from "./relay";
 import { createRouteStore, type RouteStore } from "./routes-store";
@@ -139,8 +140,11 @@ async function connect(
   ig.codes.set(code, { account: o.account ?? fakeAccount(), permissions: o.permissions ?? ALL_PERMISSIONS });
   return fetch(`${base}/ig/callback?${new URLSearchParams({ code, state: to.searchParams.get("state")! })}`, {
     redirect: "manual",
+    headers: { cookie: browserOf(r) },
   });
 }
+/** The cookie the start set, as the same browser sends it back. */
+const browserOf = (r: Response) => (r.headers.get("set-cookie") ?? "").split(";")[0]!;
 const handoffOf = (r: Response, token: string) => {
   const to = new URL(r.headers.get("location")!);
   const p = to.searchParams.get("p")!;
@@ -191,13 +195,42 @@ describe("connecting an account", () => {
   it("a cancelled sign-in, an expired state or no code says so in words and routes nothing", async () => {
     const r = await fetch(startUrl(TOKEN_A), { redirect: "manual" });
     const state = new URL(r.headers.get("location")!).searchParams.get("state")!;
-    const denied = await fetch(`${base}/ig/callback?error=access_denied&state=${encodeURIComponent(state)}`);
+    const cookie = { headers: { cookie: browserOf(r) } };
+    const denied = await fetch(
+      `${base}/ig/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+      cookie,
+    );
     expect(denied.status).toBe(400);
     expect(await denied.text()).toContain("cancelled");
-    expect((await fetch(`${base}/ig/callback?state=${encodeURIComponent(state)}`)).status).toBe(400);
+    expect((await fetch(`${base}/ig/callback?state=${encodeURIComponent(state)}`, cookie)).status).toBe(400);
     clock += 11 * 60_000;
-    expect((await fetch(`${base}/ig/callback?code=x&state=${encodeURIComponent(state)}`)).status).toBe(400);
+    expect(
+      (await fetch(`${base}/ig/callback?code=x&state=${encodeURIComponent(state)}`, cookie)).status,
+    ).toBe(400);
     expect(routes.size()).toBe(0);
+  });
+
+  it("only the browser that started can finish: a state taken elsewhere routes nothing and hands back nothing", async () => {
+    const r = await fetch(startUrl(TOKEN_A), { redirect: "manual" });
+    expect(r.headers.get("set-cookie")).toMatch(
+      /^lume_ig_[\w-]{16}=[\w-]+; Path=\/ig\/; Max-Age=600; HttpOnly; SameSite=Lax$/,
+    );
+    const state = new URL(r.headers.get("location")!).searchParams.get("state")!;
+    const code = "code-elsewhere";
+    ig.codes.set(code, { account: fakeAccount(), permissions: ALL_PERMISSIONS });
+    const url = `${base}/ig/callback?${new URLSearchParams({ code, state })}`;
+    const others: Record<string, string>[] = [
+      {},
+      { cookie: `${browserOf(r).split("=")[0]}=someone-elses` },
+      { cookie: browserOf(r).replace(/.$/, "x") },
+    ];
+    for (const headers of others) {
+      const elsewhere = await fetch(url, { redirect: "manual", headers });
+      expect(elsewhere.status).toBe(400);
+      expect(await elsewhere.text()).toContain("another browser");
+    }
+    expect(routes.size()).toBe(0);
+    expect(ig.subscriptions.size).toBe(0);
   });
 
   it.each([["/oauth/access_token"], ["/access_token"], ["/me"], ["/subscribed_apps"]])(
@@ -282,6 +315,46 @@ describe("passing Meta's deliveries on", () => {
   it("anything that isn't Instagram's, or isn't JSON, is answered and dropped", async () => {
     expect((await ig.deliver(`${base}/ig/in`, { object: "page", entry: [] })).status).toBe(200);
     expect(a.got.length + b.got.length).toBe(0);
+  });
+
+  it("two Connects in one browser (two tabs, two accounts): each finishes, and each cookie goes once used", async () => {
+    const one = await fetch(startUrl(TOKEN_A, "nonce-one"), { redirect: "manual" });
+    const two = await fetch(startUrl(TOKEN_A, "nonce-two"), { redirect: "manual" });
+    const jar = [browserOf(one), browserOf(two)].join("; ");
+    for (const [r, account] of [
+      [one, fakeAccount()],
+      [two, fakeAccount({ userId: "17841400000000777", username: "second.account" })],
+    ] as const) {
+      const code = `code-${Math.random().toString(36).slice(2)}`;
+      ig.codes.set(code, { account, permissions: ALL_PERMISSIONS });
+      const state = new URL(r.headers.get("location")!).searchParams.get("state")!;
+      const back = await fetch(`${base}/ig/callback?${new URLSearchParams({ code, state })}`, {
+        redirect: "manual",
+        headers: { cookie: jar },
+      });
+      expect(back.status).toBe(302);
+      expect(back.headers.get("set-cookie")).toContain(
+        `${browserOf(r).split("=")[0]}=; Path=/ig/; Max-Age=0`,
+      );
+    }
+    expect(routes.get(ACCT_A)).toBe(A);
+    expect(routes.get("17841400000000777")).toBe(A);
+  });
+
+  it("too many deliveries arriving at once: the next is told to try again (Meta does), never held", async () => {
+    const held = Array.from({ length: READING_MAX }, () => {
+      const req = http.request(`${base}/ig/in`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": "100" },
+      });
+      req.on("error", () => undefined);
+      req.write("{");
+      return req;
+    });
+    await new Promise((r) => setTimeout(r, 150));
+    const r = await ig.deliver(`${base}/ig/in`, batch());
+    expect(r.status).toBe(503);
+    for (const req of held) req.destroy();
   });
 
   it("a body over 3 MB is refused", async () => {

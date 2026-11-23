@@ -99,7 +99,8 @@ describe("a person who wrote", () => {
     const r = await served(lead.photo!);
     expect(r.statusCode).toBe(200);
     expect(r.headers["content-type"]).toBe("image/jpeg");
-    expect(r.headers["cache-control"]).toContain("private");
+    // Kept by the browser only briefly: a data deletion or a name hidden from a role shows within minutes.
+    expect(r.headers["cache-control"]).toBe("private, max-age=300");
     expect(r.rawPayload.equals(JPEG)).toBe(true);
     const list = await (await h.signIn(admin)).inject({ method: "GET", url: "/api/v1/leads" });
     expect(list.json().items[0].photo).toBe(lead.photo);
@@ -290,6 +291,42 @@ describe("who sees it, and when it goes", () => {
     const hidden = await served(url, viewer);
     expect(hidden.statusCode).toBe(204);
     expect(hidden.rawPayload.length).toBe(0);
+  });
+
+  it("a message pop-up shows the photo; a role the name is hidden from gets neither the name nor the photo", async () => {
+    await write();
+    await h.runInstagramPhoto();
+    const lead = await leadOf();
+    await h.queryAll(
+      `INSERT INTO activities (id, lead_id, type, payload, occurred_at)
+       VALUES (gen_random_uuid(), $1, 'whatsapp_received', '{"text":"Is Saturday on?"}', now())`,
+      [lead.id],
+    );
+    const latest = async (as = admin) =>
+      (await h.signIn(as)).inject({ method: "GET", url: `/api/v1/leads/${lead.id}/whatsapp/latest` });
+    expect((await latest()).json()).toMatchObject({
+      name: "Priya Shah",
+      photo: lead.photo,
+      message: { text: "Is Saturday on?" },
+    });
+    const cfg = await h.config();
+    const viewer = await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] });
+    const {
+      rows: [role],
+    } = await h.pool.query("SELECT role_id FROM user_roles WHERE user_id = $1", [viewer.id]);
+    await (
+      await h.signIn(admin)
+    ).inject({
+      method: "PUT",
+      url: `/api/v1/roles/${role.role_id}/field-access`,
+      payload: { entries: [{ fieldId: cfg.fields.name, access: "hidden" }] },
+    });
+    await h.waitForRbacNotify();
+    expect((await latest(viewer)).json()).toMatchObject({
+      name: null,
+      photo: null,
+      message: { text: "Is Saturday on?" },
+    });
   });
 
   it("a lead in the trash: no photo served; a purge's cascade takes it from the conversation", async () => {

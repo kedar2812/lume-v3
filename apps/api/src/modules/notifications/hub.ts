@@ -126,33 +126,47 @@ export const missedSince = (pool: pg.Pool, userId: string, afterId: number) =>
  * connection comes back on its own after an error, as the RBAC listener's does.
  */
 /** A change in a LUME AI run, as the stream says it (Autopilot A2). */
-export type AutopilotEvent = { run: string; lead: string | null; kind: string };
+/** `of`: whose lead the run is on (null: nobody's, or no lead), for each stream to tell only who may see it. */
+export type AutopilotEvent = { run: string; lead: string | null; kind: string; of?: string | null };
 const ID = /^[0-9a-f-]{36}$/;
 /** Only the three things it may carry, each the right shape: anything else is dropped. */
 function autopilotEventOf(payload: string): AutopilotEvent | null {
   try {
-    const e = JSON.parse(payload) as { run?: unknown; lead?: unknown; kind?: unknown };
+    const e = JSON.parse(payload) as { run?: unknown; lead?: unknown; kind?: unknown; owner?: unknown };
     if (typeof e.run !== "string" || !ID.test(e.run)) return null;
     if (typeof e.kind !== "string" || !/^[a-z_]{2,40}$/.test(e.kind)) return null;
     const lead = typeof e.lead === "string" && ID.test(e.lead) ? e.lead : null;
-    return { run: e.run, lead, kind: e.kind };
+    const of = typeof e.owner === "string" && ID.test(e.owner) ? e.owner : null;
+    return { run: e.run, lead, kind: e.kind, of };
   } catch {
     return null;
   }
 }
 
-/** A WhatsApp message on a lead's chat (2026-11-01): in (whose lead, when known), out, or a tick from LUME's queue. */
-export type WhatsAppEvent = { lead: string; kind: "in" | "out" | "status"; owner?: string };
+/**
+ * A WhatsApp (or Instagram) message on a lead's chat (2026-11-01): in (whose lead, when known), out, or a tick from
+ * LUME's queue. `of`: whose lead it is (null: nobody's), so each stream tells only people who may see that lead
+ * (security review 2026-11-23); never sent to the browser.
+ */
+export type WhatsAppEvent = {
+  lead: string;
+  kind: "in" | "out" | "status";
+  owner?: string;
+  of: string | null;
+};
+/** The event as the browser hears it: no `of`. */
+export const said = (e: WhatsAppEvent) => ({
+  lead: e.lead,
+  kind: e.kind,
+  ...(e.owner ? { owner: e.owner } : {}),
+});
 function whatsappEventOf(payload: string): WhatsAppEvent | null {
   try {
     const e = JSON.parse(payload) as { lead?: unknown; kind?: unknown; owner?: unknown };
     if (typeof e.lead !== "string" || !ID.test(e.lead)) return null;
     if (e.kind !== "in" && e.kind !== "out" && e.kind !== "status") return null;
-    return {
-      lead: e.lead,
-      kind: e.kind,
-      ...(e.kind === "in" && typeof e.owner === "string" && ID.test(e.owner) ? { owner: e.owner } : {}),
-    };
+    const owner = typeof e.owner === "string" && ID.test(e.owner) ? e.owner : null;
+    return { lead: e.lead, kind: e.kind, ...(e.kind === "in" && owner ? { owner } : {}), of: owner };
   } catch {
     return null;
   }

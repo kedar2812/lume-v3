@@ -504,6 +504,18 @@ describe("Not a lead yet", () => {
     expect((await inbox(full)).people[0].username).toBe("priya.fit");
   });
 
+  it("make a lead, when a lead already has their handle: it joins that one, and says how", async () => {
+    await take(igDm());
+    const id = await h.seedLead({ ownerId: rep.id, name: "From a form" });
+    await h.queryAll("UPDATE leads SET instagram_handle = 'priya.fit' WHERE id = $1", [id]);
+    const t = (await thread())!;
+    const r = await (
+      await h.signIn(admin)
+    ).inject({ method: "POST", url: `/api/v1/instagram/inbox/${t.id}/lead` });
+    expect(r.json()).toEqual({ leadId: id });
+    expect((await acts("instagram_linked")).map((a) => a.lead_id)).toEqual([id]);
+  });
+
   it("make a lead: their messages move onto it in order, a stop said while waiting holds", async () => {
     await take(igDm());
     // The same second as the first: they keep the order they came in.
@@ -525,7 +537,13 @@ describe("Not a lead yet", () => {
   it("not a lead: their messages go and they never show up here again", async () => {
     await take(igDm());
     const t = (await thread())!;
-    await (await h.signIn(rep)).inject({ method: "POST", url: `/api/v1/instagram/inbox/${t.id}/ignore` });
+    // Ignoring deletes what they sent and silences them for good: only someone who decides who becomes a lead may.
+    const viewOnly = await (
+      await h.signIn(masked)
+    ).inject({ method: "POST", url: `/api/v1/instagram/inbox/${t.id}/ignore` });
+    expect(viewOnly.statusCode).toBe(403);
+    expect((await inbox()).people).toHaveLength(1);
+    await (await h.signIn(admin)).inject({ method: "POST", url: `/api/v1/instagram/inbox/${t.id}/ignore` });
     await take(igDm({ mid: "m2" }));
     expect((await inbox()).people).toEqual([]);
   });
@@ -539,6 +557,21 @@ describe("Not a lead yet", () => {
     await h.runInstagramProfile();
     expect((await thread())!.lead_id).toBe(id);
     expect((await acts()).map((a) => a.lead_id)).toEqual([id]);
+    // A handle can be typed into any form: the lead says how the conversation joined it, without the handle itself.
+    const noted = await acts("instagram_linked");
+    expect(noted.map((a) => [a.lead_id, a.payload.by])).toEqual([[id, "handle"]]);
+    expect(JSON.stringify(noted)).not.toContain("priya.fit");
+  });
+
+  it("a first message from someone whose handle a lead already has: it joins that lead, and says how", async () => {
+    const id = await h.seedLead({ ownerId: rep.id, name: "From a form" });
+    await h.queryAll("UPDATE leads SET instagram_handle = 'priya.fit' WHERE id = $1", [id]);
+    await take(igDm());
+    expect((await thread())!.lead_id).toBe(id);
+    expect((await acts("instagram_linked")).map((a) => a.lead_id)).toEqual([id]);
+    // A new lead made for a new person isn't a match: nothing to say.
+    await take(igDm({ mid: "m-other", from: "6512000000000999" }));
+    expect(await acts("instagram_linked")).toHaveLength(1);
   });
 
   it("the account's owner may make a lead the source's rule gives to someone else", async () => {
@@ -730,6 +763,56 @@ describe("who sees the conversation", () => {
     expect(m.body).not.toContain("priya.fit");
     const stranger = await h.seedUser({ grants: [{ key: "leads.view", scope: "own" }] });
     expect((await get(stranger)).statusCode).toBe(404);
+  });
+
+  it("a role the name, the Instagram handle or the source is hidden from gets none of them here either", async () => {
+    await take(igDm());
+    const id = (await leads())[0]!.id;
+    await h.queryAll(
+      `UPDATE instagram_threads SET source = '{"via":"ad","adId":"120211","ref":"spring"}'::jsonb`,
+    );
+    await h.queryAll(
+      `UPDATE activities SET payload = payload || '{"referral":{"source":"ADS","adId":"120211","ref":"spring"}}'::jsonb
+        WHERE type = 'instagram_received'`,
+    );
+    const viewer = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "all" },
+        { key: "leads.contact.full", scope: "all" },
+      ],
+      totp: true,
+    });
+    const get = async () =>
+      (await h.signIn(viewer)).inject({ method: "GET", url: `/api/v1/leads/${id}/instagram` });
+    const first = await get();
+    expect(first.statusCode, first.body).toBe(200);
+    const before = first.json().threads[0];
+    expect(before.person).toEqual({ name: "Priya Shah", username: "@priya.fit" });
+    expect(before.source).toMatchObject({ adId: "120211" });
+    const cfg = await h.config();
+    const {
+      rows: [role],
+    } = await h.pool.query("SELECT role_id FROM user_roles WHERE user_id = $1", [viewer.id]);
+    const hide = async (keys: ("name" | "instagram" | "source")[]) => {
+      await (
+        await h.signIn(admin)
+      ).inject({
+        method: "PUT",
+        url: `/api/v1/roles/${role.role_id}/field-access`,
+        payload: { entries: keys.map((k) => ({ fieldId: cfg.fields[k], access: "hidden" })) },
+      });
+      await h.waitForRbacNotify();
+    };
+    await hide(["name"]);
+    expect((await get()).json().threads[0].person).toEqual({ name: null, username: "@priya.fit" });
+    await hide(["instagram", "source"]);
+    const after = await get();
+    expect(after.json().threads[0]).toMatchObject({
+      person: { name: "Priya Shah", username: null },
+      source: null,
+    });
+    expect(after.body).not.toContain("priya.fit");
+    expect(after.body).not.toContain("120211");
   });
 
   it("shows Meta's window: open, then only a person, then closed", async () => {

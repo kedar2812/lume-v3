@@ -939,7 +939,7 @@ export const PROBES: Record<string, Probe> = {
     path: () => `/api/v1/instagram/inbox/${uuid}/lead`,
   },
   "POST /api/v1/instagram/inbox/:threadId/ignore": {
-    access: "auth.self",
+    access: "leads.create",
     path: () => `/api/v1/instagram/inbox/${uuid}/ignore`,
   },
   // Flows (plan 1B): whoever may manage Instagram flows.
@@ -1051,7 +1051,7 @@ export const PROBES: Record<string, Probe> = {
     path: () => `/api/v1/whatsapp/inbox/${uuid}/%2B919000000777/lead`,
   },
   "POST /api/v1/whatsapp/inbox/:numberId/:peer/ignore": {
-    access: "auth.self",
+    access: "leads.create",
     path: () => `/api/v1/whatsapp/inbox/${uuid}/%2B919000000777/ignore`,
   },
   // LUME AI (spec 2026-10-18 §2.2, §5.2–5.3): its status for anyone, its switch for admins, reads on a lead.

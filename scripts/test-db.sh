@@ -9,7 +9,7 @@ SRC="$(cd "$(dirname "$0")/.." && pwd)"
 
 up() {
   docker network inspect "$NET" >/dev/null 2>&1 || docker network create --subnet 172.31.0.0/24 "$NET" >/dev/null
-  if [ -n "$(docker ps -q -f "name=^${NAME}$")" ]; then echo "$NAME already running"; return; fi
+  if [ -n "$(docker ps -q -f "name=^${NAME}$")" ]; then echo "$NAME already running"; clean; return; fi
   docker rm -f "$NAME" >/dev/null 2>&1 || true
   local su owner app worker backup restore publish=() host="$NAME:5432"
   su="$(openssl rand -hex 24)"; owner="$(openssl rand -hex 24)"; app="$(openssl rand -hex 24)"
@@ -40,6 +40,16 @@ EOF
 }
 
 down() { docker rm -f "$NAME" >/dev/null 2>&1 || true; : > "$ROOT/test.env"; echo "$NAME removed"; }
+
+# Each test file makes its own t_<hex> database and drops it when done; a run killed part way (a dropped connection,
+# a stopped container) leaves its own behind, and on the tmpfs they fill the memory until Postgres is killed
+# (2026-11-23). Before a gate: every such database nobody is connected to goes.
+clean() {
+  docker exec -u postgres "$NAME" psql -U postgres -At -c     "SELECT datname FROM pg_database d WHERE datname ~ '^t_[0-9a-f]{12}$'
+       AND NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)" |
+    while read -r db; do docker exec -u postgres "$NAME" psql -U postgres -q -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE)"; done
+  echo "$NAME clean: $(docker exec -u postgres "$NAME" psql -U postgres -At -c "SELECT count(*) FROM pg_database WHERE datname ~ '^t_'") test databases left"
+}
 
 # Phase 7: a disk-backed Postgres for the scale test (a year of leads won't fit the test database's tmpfs). Same
 # image, roles and limits (1 CPU, 1 GB); no published port; its volume is dropped by scale-down.
@@ -82,6 +92,6 @@ scale_down() {
 }
 
 case "${1:-up}" in
-  up) up ;; down) down ;; scale-up) scale_up ;; scale-down) scale_down ;;
-  *) echo "usage: test-db.sh up|down|scale-up|scale-down" >&2; exit 2 ;;
+  up) up ;; down) down ;; clean) clean ;; scale-up) scale_up ;; scale-down) scale_down ;;
+  *) echo "usage: test-db.sh up|down|clean|scale-up|scale-down" >&2; exit 2 ;;
 esac

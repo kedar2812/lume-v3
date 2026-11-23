@@ -271,7 +271,7 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
   );
   r.post(
     "/api/v1/whatsapp/inbox/:numberId/:peer/ignore",
-    { config: { permission: "auth.self" }, schema: { params: person } },
+    { config: { permission: "leads.create" }, schema: { params: person } },
     (req) => ignorePeer(req, req.params.numberId, req.params.peer),
   );
 }

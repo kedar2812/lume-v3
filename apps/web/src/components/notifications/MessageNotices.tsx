@@ -25,7 +25,14 @@ const MAX = 3;
 const FLICK = 500;
 const FAR = 90;
 
-type Notice = { leadId: string; name: string; words: string; at: string; count: number };
+type Notice = {
+  leadId: string;
+  name: string;
+  photo: string | null;
+  words: string;
+  at: string;
+  count: number;
+};
 
 /**
  * A notice in the corner for each WhatsApp message a person's own lead sends (2026-11-01, owner): who, what they wrote and
@@ -84,7 +91,14 @@ export function MessageNotices({
         const was = xs.find((x) => x.leadId === e.lead);
         // The same message told twice (a stream replay) is one.
         if (was && was.at === m.at) return xs;
-        const next: Notice = { leadId: e.lead, name, words, at: m.at, count: (was?.count ?? 0) + 1 };
+        const next: Notice = {
+          leadId: e.lead,
+          name,
+          photo: r.data.photo ?? null,
+          words,
+          at: m.at,
+          count: (was?.count ?? 0) + 1,
+        };
         return [next, ...xs.filter((x) => x.leadId !== e.lead)].slice(0, MAX);
       });
       arm(e.lead);
@@ -137,7 +151,7 @@ export function MessageNotices({
               aria-label={`${n.name} on WhatsApp: ${n.words}. Open the chat`}
             >
               <span className={s.who} aria-hidden>
-                <Avatar name={n.name} size={38} />
+                <Avatar name={n.name} size={38} {...(n.photo ? { photo: n.photo } : {})} />
                 <span className={s.badge}>
                   <WhatsAppIcon size={16} />
                 </span>

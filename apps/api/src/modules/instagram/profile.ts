@@ -3,7 +3,7 @@ import { can, maskInstagram, newId } from "@lume/core";
 import { loadActor } from "../../rbac/actor";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { igGraph } from "./graph";
-import { handleOf, INSTAGRAM_LEAD_NAME, leadByHandle } from "./leads";
+import { handleOf, INSTAGRAM_LEAD_NAME, leadByHandle, noteHandleMatch } from "./leads";
 import type { InstagramJobDeps } from "./process";
 import { igGraphOf, igTokenContext } from "./service";
 import { tokenRefused } from "./token-refresh";
@@ -99,6 +99,7 @@ export async function readInstagramProfile(o: InstagramJobDeps, threadId: string
       const leadId = await leadByHandle(req, username, ownerUserId);
       if (leadId) {
         await req.db.execute(sql`UPDATE instagram_threads SET lead_id = ${leadId} WHERE id = ${threadId}`);
+        await noteHandleMatch(req, leadId, threadId);
         await moveInboxToLead(req, threadId, leadId, ownerUserId);
       }
     },

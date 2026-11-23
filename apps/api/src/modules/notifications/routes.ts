@@ -3,7 +3,7 @@ import type { ServerResponse } from "node:http";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { can } from "@lume/core";
+import { can, canOnRecord } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { onSessionsRevoked } from "../../auth/sessions";
@@ -12,9 +12,11 @@ import {
   countUnread,
   missedSince,
   readSignal,
+  said,
   startHub,
   streamWriter,
   type NotificationView,
+  type WhatsAppEvent,
 } from "./hub";
 import { leadsDelay, leadsEveryMs } from "./budget";
 
@@ -196,23 +198,27 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
       });
       // LUME AI's runs (Autopilot A2): each change as its run, lead and kind (no id, no words); the screen reads the
       // rest under its own access.
+      // A run on a lead: only people who may see that lead (a run with no lead says nothing of anyone's).
       const offAutopilot = hub.onAutopilot((e) => {
-        if (seesLeads) write(`event: autopilot\ndata: ${JSON.stringify(e)}\n\n`);
+        if (!seesLeads || (e.lead && !canOnRecord(req.actor!, "leads.view", e.of ?? null))) return;
+        write(`event: autopilot\ndata: ${JSON.stringify({ run: e.run, lead: e.lead, kind: e.kind })}\n\n`);
       });
       // WhatsApp (2026-11-01): a message in, out or a tick, as its lead and kind (and, in, whose lead); the chat and the
       // owner's notice read the rest under their own access.
+      // Only about leads this person may see: whose lead it is decides, as it does everywhere else.
+      const reaches = (e: WhatsAppEvent) => seesLeads && canOnRecord(req.actor!, "leads.view", e.of);
       const offWhatsApp = hub.onWhatsApp((e) => {
-        if (seesLeads)
+        if (reaches(e))
           write(`event: whatsapp
-data: ${JSON.stringify(e)}
+data: ${JSON.stringify(said(e))}
 
 `);
       });
       // Instagram (NEW_FEATURES_PLAN §4.6): as WhatsApp's, its own event.
       const offInstagram = hub.onInstagram((e) => {
-        if (seesLeads)
+        if (reaches(e))
           write(`event: instagram
-data: ${JSON.stringify(e)}
+data: ${JSON.stringify(said(e))}
 
 `);
       });

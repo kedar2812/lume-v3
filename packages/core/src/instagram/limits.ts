@@ -62,3 +62,14 @@ export function messageProblems(m: IgOutMessage): string[] {
   }
   return out;
 }
+
+/**
+ * What a stranger on Instagram can make LUME do, per account (security review 2026-11-23; migration 0125's defaults
+ * and bounds): new leads an hour (past that, new people wait in Not a lead yet), and megabytes of files fetched a day
+ * per person and in all (past that, a file says so and isn't fetched). Each account has its own (the accounts API).
+ */
+export const INSTAGRAM_INTAKE = {
+  newLeadsPerHour: { default: 1000, min: 1, max: 100_000 },
+  mediaMbPerPersonDay: { default: 200, min: 1, max: 10_000 },
+  mediaMbPerDay: { default: 5000, min: 1, max: 1_000_000 },
+} as const;

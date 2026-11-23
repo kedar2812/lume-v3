@@ -64,9 +64,9 @@ export const whatsappClient = {
   disconnect: (id: string) => api.del<WaNumbers>(`/api/v1/whatsapp/numbers/${encodeURIComponent(id)}`),
   people: () => api.get<{ people: { id: string; name: string; active: boolean }[] }>("/api/v1/people"),
   thread: (leadId: string) => api.get<WaThread>(`/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp`),
-  /** The newest message in and the lead's name, for its owner's notice (2026-11-01); not opening the lead. */
+  /** The newest message in, the lead's name and photo, for its owner's notice (2026-11-01); not opening the lead. */
   latest: (leadId: string) =>
-    api.get<{ name: string | null; message: WaThreadMessage | null }>(
+    api.get<{ name: string | null; photo?: string | null; message: WaThreadMessage | null }>(
       `/api/v1/leads/${encodeURIComponent(leadId)}/whatsapp/latest`,
     ),
   mediaInfo: (id: string) => api.get<WaMediaInfo>(`/api/v1/whatsapp/media/${encodeURIComponent(id)}/info`),

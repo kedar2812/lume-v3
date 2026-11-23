@@ -1,6 +1,7 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type http from "node:http";
 import { metaSignatureOk, relaySign, seal, sign, verify, type Handoff } from "@lume/core";
+import { readBody, refuseBody } from "./body";
 import type { RouteStore } from "./routes-store";
 
 /**
@@ -20,7 +21,7 @@ export type InstagramConfig = {
   version: string;
 };
 type Instance = { url: string; token: string };
-type State = { i: string; n: string; exp: number; k?: string };
+type State = { i: string; n: string; exp: number; k?: string; b?: string };
 export type InstagramContext = {
   ig: InstagramConfig;
   routes: RouteStore;
@@ -61,25 +62,43 @@ const TEN_MIN = 10 * 60_000;
 export const HOLD_MS = 15 * 60_000;
 const BODY_MAX = 3 * 1024 * 1024;
 const IG_ID = /^\d{5,30}$/;
+const hashOf = (v: string) => createHash("sha256").update(v).digest("base64url");
+/**
+ * The cookie that ties one sign-in to the browser that started it (only its hash travels in the state). Named for
+ * that sign-in, so a second Connect in the same browser (another tab, another account, another LUME) leaves the
+ * first one's alone.
+ */
+const browserCookie = (nonce: string) => `lume_ig_${hashOf(nonce).slice(0, 16)}`;
+/** Where the cookie lives: the relay's own /ig/ path (under any path its public address has), https only when it is. */
+const cookieScope = (publicUrl: string) => {
+  const u = new URL(publicUrl);
+  return { path: `${u.pathname.replace(/\/+$/, "")}/ig/`, secure: u.protocol === "https:" };
+};
+const cookieFor = (publicUrl: string, name: string, value: string, maxAge: number) => {
+  const { path, secure } = cookieScope(publicUrl);
+  return `${name}=${value}; Path=${path}; Max-Age=${maxAge}; HttpOnly;${secure ? " Secure;" : ""} SameSite=Lax`;
+};
+/** Whether this request comes from the browser that started this sign-in: its cookie's hash is the state's. */
+function sameBrowser(req: http.IncomingMessage, state: { n: string; b?: string | undefined }): boolean {
+  const want = state.b;
+  if (!want) return false;
+  const name = browserCookie(state.n);
+  const raw = req.headers.cookie ?? "";
+  const got = raw
+    .split(";")
+    .map((x) => x.trim())
+    .find((x) => x.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+  if (!got) return false;
+  const a = Buffer.from(hashOf(got));
+  const b = Buffer.from(want);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 const HARDENED = {
   "cache-control": "no-store",
   "referrer-policy": "no-referrer",
   "x-content-type-options": "nosniff",
 };
-
-function rawBody(req: http.IncomingMessage, max: number): Promise<Buffer | "too_large"> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    let over = false;
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > max) over = true;
-      else chunks.push(c);
-    });
-    req.on("end", () => resolve(over ? "too_large" : Buffer.concat(chunks)));
-  });
-}
 
 /** Meta's signed_request (deauthorize, data deletion): `<sig>.<payload>`, HMAC-SHA256 of the payload. */
 export function readSignedRequest(secret: string, raw: string | null): { userId: string } | null {
@@ -184,15 +203,21 @@ export function instagramRoutes(c: InstagramContext) {
         c.plain(res, 400, "This link isn't valid. Go back to LUME and try again.");
         return true;
       }
+      const browser = randomBytes(18).toString("base64url");
       const to = new URL(c.ig.oauthUrl);
       to.search = new URLSearchParams({
         client_id: c.ig.appId,
         redirect_uri: `${c.publicUrl}/ig/callback`,
         response_type: "code",
         scope: IG_SCOPES.join(","),
-        state: c.packState({ i: id, n, exp: c.now() + TEN_MIN, k: "instagram" }),
+        state: c.packState({ i: id, n, exp: c.now() + TEN_MIN, k: "instagram", b: hashOf(browser) }),
       }).toString();
-      res.writeHead(302, { location: to.toString(), ...HARDENED });
+      res.writeHead(302, {
+        location: to.toString(),
+        // Only this browser can finish: a state copied elsewhere (a shared link, a screenshot) leads nowhere.
+        "set-cookie": cookieFor(c.publicUrl, browserCookie(n), browser, 600),
+        ...HARDENED,
+      });
       res.end();
       return true;
     }
@@ -201,6 +226,14 @@ export function instagramRoutes(c: InstagramContext) {
       const state = c.readState(u.searchParams.get("state"));
       if (!state || state.k !== "instagram") {
         c.plain(res, 400, "This sign-in expired or isn't valid. Go back to LUME and try again.");
+        return true;
+      }
+      if (!sameBrowser(req, state)) {
+        c.plain(
+          res,
+          400,
+          "This sign-in started in another browser. Go back to LUME and choose Connect again here.",
+        );
         return true;
       }
       const back = c.backTo(state.i);
@@ -308,7 +341,12 @@ export function instagramRoutes(c: InstagramContext) {
       const sealed = seal(inst.token, handoff);
       const to = new URL("/settings/integrations/instagram/connected", inst.url);
       to.search = new URLSearchParams({ p: sealed, s: sign(inst.token, sealed) }).toString();
-      res.writeHead(302, { location: to.toString(), ...HARDENED });
+      // This sign-in's cookie has done its work: gone.
+      res.writeHead(302, {
+        location: to.toString(),
+        "set-cookie": cookieFor(c.publicUrl, browserCookie(state.n), "", 0),
+        ...HARDENED,
+      });
       res.end();
       return true;
     }
@@ -326,9 +364,9 @@ export function instagramRoutes(c: InstagramContext) {
     }
 
     if (u.pathname === "/ig/in" && req.method === "POST") {
-      const raw = await rawBody(req, BODY_MAX);
-      if (raw === "too_large") {
-        c.plain(res, 413, "Too large");
+      const raw = await readBody(req, BODY_MAX);
+      if (typeof raw === "string") {
+        refuseBody(res, raw);
         return true;
       }
       const h = req.headers["x-hub-signature-256"];

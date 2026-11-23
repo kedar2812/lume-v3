@@ -17,6 +17,7 @@ import { replyArrived } from "../leads/sending";
 import { visibleLead } from "../leads/service";
 import { readAs } from "../notifications/hub";
 import { notify } from "../notifications/notify";
+import { firstRefusal, giveBackLead, hourOf, roomForLead } from "./budgets";
 import { photoDue } from "./photo";
 import { igGraph, type GraphAnswer } from "./graph";
 import { afterFlow } from "./flow-due";
@@ -29,7 +30,7 @@ import {
   type FlowAccount,
   type FlowOut,
 } from "./flow-run";
-import { createInstagramLead, leadByHandle, liveLead, type IgAccountRow } from "./leads";
+import { createInstagramLead, leadByHandle, liveLead, noteHandleMatch, type IgAccountRow } from "./leads";
 import { igEventContext } from "./receive";
 import { igGraphOf, igTokenContext, tellAdmins } from "./service";
 
@@ -230,7 +231,12 @@ async function messageIn(
       sql`SELECT 1 FROM instagram_ignored WHERE account_id = ${account.id} AND igsid = ${e.igsid}`,
     );
     leadId = await leadByHandle(req, t.username, account.ownerUserId);
-    if (!leadId && account.newDmCreatesLead && !ignored.rows.length)
+    if (leadId) await noteHandleMatch(req, leadId, t.id);
+    // A new lead only while the account has room this hour: a flood of strangers waits in Not a lead yet instead.
+    const wanted = !leadId && account.newDmCreatesLead && !ignored.rows.length;
+    const room = wanted && (await roomForLead(req, account.id, d.clock()));
+    if (wanted && !room) out.flow.held = true;
+    if (room) {
       leadId = await createInstagramLead(req, account, {
         username: t.username,
         name: t.name,
@@ -244,6 +250,9 @@ async function messageIn(
                 ? "story_mention"
                 : "dm",
       });
+      // Not made after all (no pipeline to put it in): its place this hour goes back.
+      if (!leadId) await giveBackLead(req, account.id, d.clock());
+    }
     if (leadId)
       await req.db.execute(sql`UPDATE instagram_threads SET lead_id = ${leadId} WHERE id = ${t.id}`);
     else {
@@ -607,6 +616,19 @@ export async function processInstagramEvent(
   if (!out) return "gone";
   if (out.later) return "later";
   await afterFlow(o, out.flow);
+  // New people turned away this hour: the admins hear once an hour, with what happens to them.
+  if (
+    out.flow.held &&
+    row.account_id &&
+    (await firstRefusal(pool, `lead:${row.account_id}`, hourOf(d.clock())))
+  )
+    await tellAdmins(
+      pool,
+      "Instagram: more new people than usual",
+      `More new people wrote to @${row.username ?? "your account"} this hour than its limit for new leads. New DMs wait in Not a lead yet, and flows start for new people again next hour.`,
+    ).catch((err: unknown) =>
+      o.app.log.error({ err }, "couldn't tell the admins about Instagram's lead limit"),
+    );
   for (const id of out.media)
     await d.instagram
       ?.enqueueMedia(id)

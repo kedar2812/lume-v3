@@ -580,3 +580,91 @@ describe("the bell's count on the stream (owner 2026-11-15: 9+ with nothing to r
     expect(got).toHaveLength(1); // only the count said as it opened
   });
 });
+
+/** Open the stream and collect one kind of named event (whatsapp, instagram) until `until` arrive or time runs out. */
+async function heard(
+  c: AuthedClient,
+  event: string,
+  o: { until: number; after?: () => Promise<unknown>; ms?: number },
+) {
+  const ac = new AbortController();
+  const res = await fetch(`${base}/api/v1/stream`, { headers: { cookie: cookie(c) }, signal: ac.signal });
+  const got: Record<string, unknown>[] = [];
+  const reader = res.body!.getReader();
+  const text = new TextDecoder();
+  let buf = "";
+  const timer = setTimeout(() => ac.abort(), o.ms ?? 2500);
+  // The stream is open before anything is said on it.
+  setTimeout(() => void o.after?.(), 300);
+  try {
+    while (got.length < o.until) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += text.decode(value);
+      for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
+        const block = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        if (new RegExp(`^event: ${event}$`, "m").test(block))
+          got.push(JSON.parse(/^data: (.*)$/m.exec(block)![1]!));
+      }
+    }
+  } catch {
+    // aborted: whatever arrived is the answer
+  } finally {
+    clearTimeout(timer);
+    ac.abort();
+  }
+  return got;
+}
+
+describe("live chat updates reach only people who may see the lead (security review 2026-11-23)", () => {
+  it("a message on my lead: told to me and to whoever sees every lead, never to a teammate who sees only their own", async () => {
+    const lead = await h.seedLead({ ownerId: meId, name: "Mine" });
+    const all = await h.signIn(
+      await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }], totp: true }),
+    );
+    const say = () =>
+      h.queryAll(
+        `INSERT INTO activities (id, lead_id, type, payload) VALUES
+           ($1, $3, 'whatsapp_sent', '{"text":"x"}'), ($2, $3, 'instagram_received', '{"text":"y"}')`,
+        [newId(), newId(), lead],
+      );
+    const [mineWa, theirsWa, allWa] = await Promise.all([
+      heard(me, "whatsapp", { until: 1, after: say }),
+      heard(someone, "whatsapp", { until: 1 }),
+      heard(all, "whatsapp", { until: 1 }),
+    ]);
+    expect(mineWa).toEqual([{ lead, kind: "out" }]);
+    expect(allWa).toEqual([{ lead, kind: "out" }]);
+    expect(theirsWa).toEqual([]);
+    const [mineIg, theirsIg] = await Promise.all([
+      heard(me, "instagram", { until: 1, after: say }),
+      heard(someone, "instagram", { until: 1 }),
+    ]);
+    // "in" still says whose lead (for its owner's notice); nothing else of the lead.
+    expect(mineIg).toContainEqual({ lead, kind: "in", owner: meId });
+    expect(theirsIg).toEqual([]);
+  }, 15_000);
+
+  it("LUME AI's run on my lead: told to me, never to a teammate; a run with no lead tells both, of no one", async () => {
+    const lead = await h.seedLead({ ownerId: meId, name: "Mine too" });
+    const run = newId();
+    const say = async () => {
+      await h.ownerPool.query("SELECT pg_notify('lume_autopilot', $1)", [
+        JSON.stringify({ run, lead, kind: "step", owner: meId }),
+      ]);
+      await h.ownerPool.query("SELECT pg_notify('lume_autopilot', $1)", [
+        JSON.stringify({ run, lead: null, kind: "paused" }),
+      ]);
+    };
+    const [mine, theirs] = await Promise.all([
+      heard(me, "autopilot", { until: 2, after: say }),
+      heard(someone, "autopilot", { until: 1 }),
+    ]);
+    expect(mine).toEqual([
+      { run, lead, kind: "step" },
+      { run, lead: null, kind: "paused" },
+    ]);
+    expect(theirs).toEqual([{ run, lead: null, kind: "paused" }]);
+  }, 15_000);
+});

@@ -5,12 +5,14 @@ import type { FastifyRequest } from "fastify";
 import type pg from "pg";
 import { HttpError, notFound } from "../../http/errors";
 import { setDoNotContact } from "../leads/dnc";
-import { createInstagramLead, leadByHandle } from "./leads";
+import { createInstagramLead, leadByHandle, noteHandleMatch } from "./leads";
 import { moveInboxToLead } from "./profile";
 import { withAllScope } from "./service";
 
 const INBOX_DAYS = 14;
 const EVENTS_DAYS = 30;
+/** Comments that never became a conversation: kept this long (flows, Meta's re-sends), then gone. */
+const COMMENT_DAYS = 30;
 const PAGE = 100;
 
 /**
@@ -115,8 +117,10 @@ export async function igMakeLead(req: FastifyRequest, threadId: string) {
   // The person may add leads (the route checked); the lead may still be someone else's by the source's rule, and the
   // one already holding this handle may be anyone's: every lead in scope, for this alone.
   return withAllScope(req, async () => {
+    const matched = await leadByHandle(req, t.username, a.ownerUserId);
+    if (matched) await noteHandleMatch(req, matched, threadId);
     const leadId =
-      (await leadByHandle(req, t.username, a.ownerUserId)) ??
+      matched ??
       (await createInstagramLead(
         req,
         {
@@ -162,7 +166,10 @@ export async function igIgnore(req: FastifyRequest, threadId: string) {
   return { ignored: true as const };
 }
 
-/** Hourly: Not a lead yet keeps 14 days (with its files), processed deliveries (their bodies long gone) 30. */
+/**
+ * Hourly: Not a lead yet keeps 14 days (with its files), processed deliveries (their bodies long gone) 30, comments
+ * that never became a conversation 30, the intake limits' counts 2.
+ */
 export async function sweepInstagram(pool: pg.Pool): Promise<void> {
   const c = await pool.connect();
   try {
@@ -179,6 +186,14 @@ export async function sweepInstagram(pool: pg.Pool): Promise<void> {
       "DELETE FROM instagram_events WHERE status <> 'queued' AND received_at < now() - make_interval(days => $1)",
       [EVENTS_DAYS],
     );
+    // Comments that never became a conversation (nothing queued for them), past what a flow or Meta's retries need.
+    await c.query(
+      `DELETE FROM instagram_comments
+        WHERE thread_id IS NULL AND private_reply <> 'queued' AND created_at < now() - make_interval(days => $1)`,
+      [COMMENT_DAYS],
+    );
+    // The intake limits' counts, once their window is two days past.
+    await c.query("DELETE FROM instagram_budgets WHERE window_start < now() - interval '2 days'");
     // Deliveries still waiting for an account that's gone (disconnected, or never here): their content isn't kept.
     await c.query(
       `DELETE FROM instagram_events e

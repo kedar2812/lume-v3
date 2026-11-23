@@ -21,7 +21,7 @@ export {
   privateReplyOpen,
   type IgWindow,
 } from "./window";
-export { IG_LIMITS, messageProblems, textBytes, type IgOutMessage } from "./limits";
+export { IG_LIMITS, INSTAGRAM_INTAKE, messageProblems, textBytes, type IgOutMessage } from "./limits";
 export { foldKeyword, matchKeyword, type KeywordMode } from "./keywords";
 export { igOutboundBody, refusalOfIg, type IgRefusal, type IgTarget } from "./outbound";
 export {

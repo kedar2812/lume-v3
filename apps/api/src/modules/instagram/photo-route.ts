@@ -6,6 +6,8 @@ import { visibleLead } from "../leads/service";
 import { onDisk, streamFile } from "../whatsapp/media";
 import { photosFor } from "./photos-of";
 
+const PHOTO_CACHE_S = 300;
+
 /**
  * The photo itself, to whoever sees the lead and its name. A lead out of reach is a 404, exactly as a missing one; a
  * lead in reach with no photo (or its name hidden from the caller) is a 204: nothing to show, initials stay.
@@ -22,7 +24,8 @@ export async function sendLeadPhoto(req: FastifyRequest, reply: FastifyReply, d:
     reply,
     file,
     { sha256: p.sha256, mime: p.mime, kind: "image", filename: null },
-    86_400,
-    true,
+    // Five minutes, never "immutable": after a data deletion, or once the name is hidden from a role, the browser
+    // asks again soon (a 304 while nothing changed) instead of showing the photo for a day.
+    PHOTO_CACHE_S,
   );
 }

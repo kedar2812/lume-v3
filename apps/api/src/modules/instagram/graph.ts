@@ -8,8 +8,17 @@ export type IgGraphConfig = { graphUrl: string; version: string };
 export type GraphAnswer = { ok: boolean; status: number; data: Record<string, unknown> };
 
 const TIMEOUT_MS = 15_000;
+/** Each part of a Graph path: Meta's ids (digits, or a conversation's letters, digits, - _ =) and its own words. */
+const SEGMENT = /^[A-Za-z0-9_=-]{1,200}$/;
+/** An id that would change the address (a slash, "..", ? or #): refused here, never sent to Meta. */
+const REFUSED: GraphAnswer = {
+  ok: false,
+  status: 400,
+  data: { error: { code: 100, message: "Not an id Meta gave" } },
+};
 
-async function call(url: string, init: RequestInit & { token?: string } = {}): Promise<GraphAnswer> {
+async function call(url: string | null, init: RequestInit & { token?: string } = {}): Promise<GraphAnswer> {
+  if (url === null) return REFUSED;
   const { token, ...rest } = init;
   const r = await fetch(url, {
     ...rest,
@@ -24,8 +33,12 @@ async function call(url: string, init: RequestInit & { token?: string } = {}): P
   return { ok: r.ok, status: r.status, data };
 }
 
+export const graphPathSafe = (path: string) => path.split("/").every((p) => SEGMENT.test(p));
+
 export function igGraph(g: IgGraphConfig, token: string) {
+  // Ids come from webhooks and Meta's own answers: each is checked before it becomes part of an address.
   const at = (path: string, q: Record<string, string> = {}) => {
+    if (!graphPathSafe(path)) return null;
     const u = new URL(`${g.graphUrl}/${g.version}/${path}`);
     for (const [k, v] of Object.entries(q)) u.searchParams.set(k, v);
     return u.toString();

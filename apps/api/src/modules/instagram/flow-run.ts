@@ -19,6 +19,7 @@ import { loadFieldRegistry } from "../../leads/fields";
 import { recordActivity } from "../leads/writer";
 import { tagIdsOf, updateLead, visibleLead } from "../leads/service";
 import { assignLead, moveStage } from "../leads/write";
+import { giveBackLead, roomForLead } from "./budgets";
 import { createInstagramLead, type IgAccountRow } from "./leads";
 
 /**
@@ -40,8 +41,10 @@ export type FlowOut = {
   sends: string[];
   publicReply: { commentId: string; text: string } | null;
   notices: { ownerId: string; leadId: string; title: string; body: string }[];
+  /** A new person was turned away: the account's new leads this hour are used up (the admins hear once an hour). */
+  held: boolean;
 };
-export const newFlowOut = (): FlowOut => ({ sends: [], publicReply: null, notices: [] });
+export const newFlowOut = (): FlowOut => ({ sends: [], publicReply: null, notices: [], held: false });
 
 /**
  * A Postgres array as one parameter (drizzle would spread a JS array into a row): each element quoted, so commas,
@@ -616,13 +619,21 @@ export async function flowOnComment(
         .length > 0
     : false;
   if (!live) {
+    // No room for another new lead this hour (a flood of comments): nothing starts; the comment stays kept.
+    if (!(await roomForLead(req, account.id, now))) {
+      out.held = true;
+      return;
+    }
     leadId = await createInstagramLead(req, account, {
       username: c.username,
       name: null,
       adId: c.adId,
       how: "comment",
     });
-    if (!leadId) return;
+    if (!leadId) {
+      await giveBackLead(req, account.id, now);
+      return;
+    }
     await req.db.execute(sql`UPDATE instagram_threads SET lead_id = ${leadId} WHERE id = ${t.id}`);
   }
   if (await heldElsewhere(req, t.id, leadId!)) return;

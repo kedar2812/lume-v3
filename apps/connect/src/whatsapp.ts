@@ -1,5 +1,6 @@
 import type http from "node:http";
 import { metaSignatureOk, relaySign, seal, sign, verify, type Handoff } from "@lume/core";
+import { readBody, refuseBody } from "./body";
 import { signupPage } from "./signup.html";
 
 /** Meta's app, as the relay holds it (spec 2026-10-18 §3.1): the secret never leaves the relay. */
@@ -37,21 +38,6 @@ const HARDENED = {
   "referrer-policy": "no-referrer",
   "x-content-type-options": "nosniff",
 };
-
-/** The raw bytes, or "too_large" past `max` (Meta's history chunks can be big; nothing bigger is read). */
-function rawBody(req: http.IncomingMessage, max: number): Promise<Buffer | "too_large"> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    let over = false;
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > max) over = true;
-      else chunks.push(c);
-    });
-    req.on("end", () => resolve(over ? "too_large" : Buffer.concat(chunks)));
-  });
-}
 
 /**
  * WhatsApp at the relay (spec 2026-10-18 §3.2–3.3, Decision 1): Embedded Signup for a client's existing number, and
@@ -228,8 +214,8 @@ export function whatsappRoutes(c: WhatsAppContext) {
         return true;
       }
       if (req.method === "POST") {
-        const raw = await rawBody(req, BODY_MAX);
-        if (raw === "too_large") c.plain(res, 413, "Too large");
+        const raw = await readBody(req, BODY_MAX);
+        if (typeof raw === "string") refuseBody(res, raw);
         else {
           const sig = req.headers["x-hub-signature-256"];
           const signed = metaSignatureOk(c.meta.appSecret, raw, Array.isArray(sig) ? sig[0] : sig);
@@ -252,9 +238,9 @@ export function whatsappRoutes(c: WhatsAppContext) {
       return true;
     }
     if (m && req.method === "POST") {
-      const raw = await rawBody(req, BODY_MAX);
-      if (raw === "too_large") {
-        c.plain(res, 413, "Too large");
+      const raw = await readBody(req, BODY_MAX);
+      if (typeof raw === "string") {
+        refuseBody(res, raw);
         return true;
       }
       const sig = req.headers["x-hub-signature-256"];

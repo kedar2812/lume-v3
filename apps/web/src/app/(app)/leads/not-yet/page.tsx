@@ -1,3 +1,4 @@
+import { can } from "@lume/core/shared";
 import Link from "next/link";
 import { NotYet } from "@/components/whatsapp/NotYet";
 import s from "@/components/whatsapp/notyet.module.css";
@@ -21,7 +22,7 @@ export default async function Page() {
           days.
         </p>
       </header>
-      <NotYet tz={zoneOf(session.user)} />
+      <NotYet tz={zoneOf(session.user)} mayDecide={can(session.actor, "leads.create")} />
     </section>
   );
 }
