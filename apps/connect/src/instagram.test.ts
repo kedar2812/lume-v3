@@ -222,7 +222,8 @@ describe("connecting an account", () => {
     const others: Record<string, string>[] = [
       {},
       { cookie: `${browserOf(r).split("=")[0]}=someone-elses` },
-      { cookie: browserOf(r).replace(/.$/, "x") },
+      // One character off, whatever it ends in (swapped for a fixed letter, 1 run in 64 changed nothing).
+      { cookie: browserOf(r).replace(/.$/, (c) => (c === "x" ? "y" : "x")) },
     ];
     for (const headers of others) {
       const elsewhere = await fetch(url, { redirect: "manual", headers });
