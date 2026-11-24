@@ -6,6 +6,8 @@ column in the release that stops using it.
 
 ## Unreleased
 
+## 1.4.0 — 2026-11-25
+
 - **Live sheets** (owner 2026-11-14, `docs/superpowers/specs/2026-11-14-live-sheets-design.md`): Google Sheets LUME
   makes in the client's own Drive and keeps filled with the leads a rule picks. A **Live sheets** page in the sidebar
   lists every one with its link to copy, its status and what it holds; **Create a live sheet** on Leads (with the
@@ -28,6 +30,23 @@ column in the release that stops using it.
   things stand. **Previous day**, **Next day** and **Today** move through the days (a year either way), and **Show**
   picks all, calls or follow-ups. The same details panel shows on the card and in the full screen. New read-only
   `GET /api/v1/your-day?date=` for another day's follow-ups and calls. No migrations.
+- **Storage** (Settings): what LUME keeps on the server, kind by kind, and **Clean up**, which clears only what an admin
+  ticks, in the background. A file another lead still holds is never counted or deleted, and every message's words
+  stay. One "Keep chat files" setting; admins are told when the disk passes their mark.
+- **WhatsApp:** a double tap on Send (or the same send from two tabs) is one message and never an error; sends are tried
+  again for about an hour and a half when Meta is busy; more everyday ways of saying stop are heard; a reply in LUME's
+  chat counts as a reply in Analytics; HEIC, AVIF and QuickTime files are never sent as MP4, and a format WhatsApp
+  doesn't take says so when it's chosen; prices come from Meta's own rate cards in the business currency; a half-typed
+  reply is kept; a photo in message pop-ups; the live stream tells only people who may see that lead.
+- **Bug and security fixes** from the November bug hunt and the 2026-11-23 security review: access and roles, invites,
+  imports and sheets, calendar reminders, notifications and the bell, exports, webhooks, offboarding and the licence
+  check (see the commits from 23ea168b on).
+- **Instagram** is in this release, off, and has no screen of its own yet: it waits for Meta's review. Its tables come
+  with it (0118 to 0125, 0127 to 0129), empty.
+- **Update notes:** the licence server must be updated first (its check signs back a nonce) and never rolled back after.
+  Migrations 0109 to 0129. 0111, 0112 and 0114 recount or settle existing rows; **0117 changes permissions:** an Export
+  left at "own" takes the widest View its holders have, so nobody's exports lose rows now that Export's own scope is
+  enforced. The Caddyfile changes (new addresses). No `.env` changes needed.
 
 ## 1.3.2 — 2026-11-15
 
