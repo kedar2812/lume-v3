@@ -71,3 +71,32 @@ export * from "./words/hours";
 export * from "./ai";
 // What's new in LUME (spec 2026-11-02): each release's stories and who sees them. Pure.
 export * from "./whats-new";
+// Instagram flows as a graph (plan 2026-11-23-flow-builder): the builder's model, its checks, Meta's message limits
+// and the interpreter its phone test runs in the browser. zod only, no server code.
+export {
+  blocking as flowBlocking,
+  exitsOf,
+  GRAPH_LIMITS,
+  isGraph,
+  TIME_SPAN,
+  toGraph,
+  validateGraph,
+  type FlowGraph,
+  type GNode,
+  type GraphCondition,
+  type Next as FlowNext,
+  type Problem as FlowProblem,
+  type UpdateAction,
+} from "./instagram/graph";
+export { graphRefs, nextAt, stepGraph, type GraphTurn } from "./instagram/graph-run";
+export { IG_LIMITS, messageProblems, textBytes, type IgOutMessage } from "./instagram/limits";
+export { foldKeyword, matchKeyword, type KeywordMode } from "./instagram/keywords";
+export {
+  BOOK_BUTTON,
+  NEW_RUN,
+  type FlowAction,
+  type FlowCtx,
+  type FlowEvent,
+  type FlowStep,
+  type RunState,
+} from "./instagram/flows";

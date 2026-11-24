@@ -156,6 +156,27 @@ export const api = {
    */
   uploadWithProgress: <T>(path: string, file: File, onProgress: (share: number) => void) =>
     sendWithProgress<T>(path, file, onProgress, true),
+  /**
+   * A last write as the page goes away (the flow builder's unsaved edit): keepalive, so it outlives the page, with the
+   * token already in hand (there's no time to fetch one). False when there's no token yet: nothing was sent.
+   */
+  /** Fetches the token now, so a later keepalive has one in hand. */
+  prime: async () => void (await csrfToken()),
+  keepalive: (method: "PUT" | "POST", path: string, body: unknown): boolean => {
+    if (!csrf) return false;
+    void fetch(path, {
+      method,
+      keepalive: true,
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrf,
+        "idempotency-key": crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    }).catch(() => undefined);
+    return true;
+  },
 };
 
 async function sendWithProgress<T>(

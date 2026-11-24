@@ -318,6 +318,15 @@
 .page:has([data-fit-screen]) {
   padding-bottom: 0;
 }
+/* A canvas that fills the whole main area (the flow builder, 2026-11-24): no column, no padding, no scroll. */
+.page:has([data-full-canvas]) {
+  max-width: none;
+  padding: 0;
+  height: 100%;
+}
+.scroll:has([data-full-canvas]) {
+  overflow: hidden;
+}
 @media (max-width: 860px) {
   .app {
     grid-template-columns: 1fr;
