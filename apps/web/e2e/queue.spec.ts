@@ -277,6 +277,9 @@ test.describe("The send queue (4C)", () => {
     context,
     browser,
   }) => {
+    // A long scenario (several pages, both themes): it ran at 44 to 46 s of the default 45 (gate 24), so it gets
+    // Playwright's slow budget instead of failing on a busy box.
+    test.slow();
     await stubWhatsApp(context);
     for (const theme of ["light", "dark"] as const) {
       const o = await asOwner(browser);

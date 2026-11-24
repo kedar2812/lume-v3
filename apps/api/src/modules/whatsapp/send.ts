@@ -4,6 +4,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { HttpError, badRequest, notFound } from "../../http/errors";
+import { pgCodeOf } from "../../errors";
 import { assertTaskOf, sendable } from "../leads/sending";
 import type { LeadRow } from "../leads/serialize";
 import { checkFile, keepBytes } from "./keep-bytes";
@@ -374,7 +375,7 @@ export async function sendReply(
     await req.db.execute(sql`RELEASE SAVEPOINT lume_reply`);
   } catch (e) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_reply`);
-    if ((e as { code?: string }).code !== "23505") throw e;
+    if (pgCodeOf(e) !== "23505") throw e;
     const first = await again();
     if (first) return first;
     throw e;

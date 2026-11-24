@@ -23,10 +23,33 @@ type Row = {
   won: number;
 };
 
-export async function flowStats(req: FastifyRequest, flowId: string, q: { from: string; to: string }) {
+/** The business's own calendar day for a moment (yyyy-mm-dd in its time zone). */
+export const dayIn = (zone: string, at: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: zone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+
+export async function flowStats(
+  req: FastifyRequest,
+  flowId: string,
+  ask: { from?: string; to?: string; days?: number },
+  now: Date = new Date(),
+) {
   const zone =
     (await req.db.execute<{ tz: string | null }>(sql`SELECT timezone AS tz FROM settings WHERE id = 1`))
       .rows[0]?.tz ?? "UTC";
+  // "The last N days" are the business's days, ending today where the business is (review 2026-11-24: never the
+  // viewer's browser's days).
+  let q: { from: string; to: string };
+  if (ask.from && ask.to && !ask.days) q = { from: ask.from, to: ask.to };
+  else if (ask.days && !ask.from && !ask.to) {
+    const to = dayIn(zone, now);
+    const from = new Date(Date.parse(to) - (ask.days - 1) * 86_400_000).toISOString().slice(0, 10);
+    q = { from, to };
+  } else throw badRequest("RANGE", "Choose the days: a start and an end, or how many days back.");
   const real = (d: string) =>
     !Number.isNaN(Date.parse(d)) && new Date(Date.parse(d)).toISOString().slice(0, 10) === d;
   if (!real(q.from) || !real(q.to)) throw badRequest("RANGE", "Choose real days.");

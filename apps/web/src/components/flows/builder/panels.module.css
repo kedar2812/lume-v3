@@ -1,0 +1,346 @@
+/* The flow's side panel: Test, Replay, Versions (approved canvas KJJDFJ7wddubXwRuked4m9, board BuilderTest). */
+.seg {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--sunk);
+}
+.seg button {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  border: 0;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+.seg button[aria-checked="true"] {
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: var(--shadow-sheet);
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 16px;
+}
+.title {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-3);
+}
+.cap {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+.said {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.said:empty {
+  display: none;
+}
+
+/* Versions */
+.ver {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  color: var(--text);
+  cursor: pointer;
+}
+.ver[aria-pressed="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.vt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vt b {
+  font-size: 13px;
+  font-weight: 640;
+}
+.vt span {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill {
+  flex: none;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.dr {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  min-width: 0;
+}
+.dr i {
+  font-style: normal;
+  font-weight: 700;
+  width: 12px;
+  flex: none;
+  text-align: center;
+}
+.dr[data-sign="add"] i {
+  color: var(--ok-ink);
+}
+.dr[data-sign="remove"] i {
+  color: var(--warn-ink);
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Replay */
+.search {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+}
+.who {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.who:hover,
+.who[data-on] {
+  background: var(--sunk);
+}
+.av {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 650;
+}
+.av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.whoText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.whoText b {
+  font-size: 13px;
+  font-weight: 620;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.whoText span {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.trail li {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 0 0 12px;
+  min-width: 0;
+}
+.trail li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--line);
+}
+.trail li:last-child::before {
+  display: none;
+}
+.trail i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.trail i[data-wait] {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.trail i[data-end] {
+  background: var(--text-3);
+}
+.step {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.step b {
+  font-size: 13px;
+  font-weight: 620;
+  overflow-wrap: anywhere;
+}
+.step span {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  min-width: 0;
+}
+.facts b {
+  color: var(--text);
+  font-weight: 620;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.runs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.runs button {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--sunk);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.runs button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.skel {
+  height: 44px;
+  border-radius: 12px;
+  background: var(--sunk);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+  }
+  .seg button {
+    transition: none;
+  }
+}

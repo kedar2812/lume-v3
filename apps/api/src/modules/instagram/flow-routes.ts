@@ -15,11 +15,13 @@ import {
   setTriggers,
   type TemplateKey,
 } from "./flow-admin";
+import type { AppDeps } from "../../app";
+import { aiBuildFlow } from "./flow-ai";
 import { flowStats } from "./flow-stats";
-import { flowVersions, leadRuns, restoreVersion, testKeyword } from "./flow-history";
+import { flowPeople, flowVersions, leadRuns, restoreVersion, testKeyword } from "./flow-history";
 
 /** Flows (NEW_FEATURES_PLAN §4.5; plan 1B Task 3): whoever may manage Instagram flows. */
-export async function instagramFlowRoutes(app: FastifyInstance): Promise<void> {
+export async function instagramFlowRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   const manage = { config: { permission: "instagram.flows.manage" as const } };
   const id = z.object({ id: z.uuid() });
@@ -106,7 +108,19 @@ export async function instagramFlowRoutes(app: FastifyInstance): Promise<void> {
   const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
   r.get(
     "/api/v1/instagram/flows/:id/stats",
-    { ...manage, schema: { params: id, querystring: z.object({ from: day, to: day }).strict() } },
+    {
+      ...manage,
+      schema: {
+        params: id,
+        querystring: z
+          .object({
+            from: day.optional(),
+            to: day.optional(),
+            days: z.coerce.number().int().min(1).max(366).optional(),
+          })
+          .strict(),
+      },
+    },
     (req) => flowStats(req, req.params.id, req.query),
   );
   // Versions, one brought back, a lead's way through the flow, the keyword tester (plan 2026-11-23-flow-builder A3).
@@ -120,6 +134,30 @@ export async function instagramFlowRoutes(app: FastifyInstance): Promise<void> {
       schema: { params: z.object({ id: z.uuid(), versionId: z.uuid() }), body: z.object({ rev }).strict() },
     },
     (req) => restoreVersion(req, req.params.id, req.params.versionId, req.body),
+  );
+  r.post(
+    "/api/v1/instagram/flows/:id/ai-build",
+    {
+      ...manage,
+      schema: {
+        params: id,
+        body: z
+          .object({
+            prompt: z.string().max(2000),
+            selection: z.array(z.string().max(64)).max(100).optional(),
+          })
+          .strict(),
+      },
+    },
+    (req) => aiBuildFlow(req, d, req.params.id, req.body),
+  );
+  r.get(
+    "/api/v1/instagram/flows/:id/people",
+    {
+      ...manage,
+      schema: { params: id, querystring: z.object({ q: z.string().max(100).optional() }).strict() },
+    },
+    (req) => flowPeople(req, req.params.id, req.query.q),
   );
   r.get(
     "/api/v1/instagram/flows/:id/runs",
@@ -143,7 +181,12 @@ export async function instagramFlowRoutes(app: FastifyInstance): Promise<void> {
     },
     (req) => testKeyword(req, req.body),
   );
-  r.post("/api/v1/instagram/flows/:id/duplicate", { ...manage, schema: { params: id } }, async (req, reply) =>
-    reply.code(201).send(await duplicateFlow(req, req.params.id)),
+  r.post(
+    "/api/v1/instagram/flows/:id/duplicate",
+    {
+      ...manage,
+      schema: { params: id, body: z.object({ versionId: z.uuid().optional() }).strict().nullish() },
+    },
+    async (req, reply) => reply.code(201).send(await duplicateFlow(req, req.params.id, req.body?.versionId)),
   );
 }

@@ -2,6 +2,7 @@ import {
   autopilotFirstOutput,
   autopilotReplyOutput,
   catchUpOutput,
+  flowBuildOutput,
   isStop,
   replyMeaningOutput,
   templateDraftOutput,
@@ -148,6 +149,42 @@ function lastLeadWords(input: string): string {
  * at 11:00 on the business's clock, or three plain catch-up lines; a test may give its own answer per task. It
  * remembers what it was asked, so a test can check what LUME sent.
  */
+const fakeStep = (o: Record<string, unknown>) => ({
+  text: "",
+  links: [],
+  options: [],
+  weights: [],
+  next: null,
+  otherwise: null,
+  save: null,
+  retry: "",
+  minutes: 0,
+  match: "all",
+  rules: [],
+  changes: [],
+  to: "owner",
+  url: "",
+  ...o,
+});
+const FAKE_FLOW = {
+  plan: ["Say hello and ask what they need", "Send the prices, or hand to a person"],
+  said: "Here is a flow that says hello, then sends the prices or hands to your team.",
+  start: "hello",
+  steps: [
+    fakeStep({
+      id: "hello",
+      type: "message",
+      text: "Hi! Want the price list?",
+      options: [
+        { title: "Yes please", next: "prices" },
+        { title: "Talk to someone", next: "team" },
+      ],
+    }),
+    fakeStep({ id: "prices", type: "message", text: "Here are the prices for this month." }),
+    fakeStep({ id: "team", type: "handoff", to: "person", text: "Wants to talk" }),
+  ],
+};
+
 export function fakeProvider(answers: Partial<Record<AiTask, unknown>> = {}): FakeProvider {
   const calls: { instructions: string; input: string }[] = [];
   const scripts = new Map<AiTask, unknown[]>();
@@ -173,7 +210,9 @@ export function fakeProvider(answers: Partial<Record<AiTask, unknown>> = {}): Fa
                 ? "reply_meaning"
                 : s === templateDraftOutput
                   ? "template_draft"
-                  : "next_step";
+                  : s === flowBuildOutput
+                    ? "flow_build"
+                    : "next_step";
       const scripted = scripts.get(task)?.shift();
       if (scripted !== undefined)
         return { output: r.schema.parse(scripted), inputTokens: 100, outputTokens: 30 };
@@ -200,6 +239,13 @@ export function fakeProvider(answers: Partial<Record<AiTask, unknown>> = {}): Fa
           ),
           inputTokens: 100,
           outputTokens: 60,
+        };
+      // A small flow that passes every check: a hello with two quick replies, each to its own message.
+      if (task === "flow_build")
+        return {
+          output: r.schema.parse(answers[task] ?? FAKE_FLOW),
+          inputTokens: 400,
+          outputTokens: 300,
         };
       if (task === "reply_meaning")
         return {

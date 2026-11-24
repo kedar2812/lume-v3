@@ -14,6 +14,7 @@ import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { HttpError, badRequest } from "../../http/errors";
+import { pgCodeOf } from "../../errors";
 import { contextFor, sendable } from "../leads/sending";
 import type { LeadRow } from "../leads/serialize";
 import { readMessaging } from "../settings/messaging";
@@ -248,7 +249,7 @@ export async function sendTemplate(
     await req.db.execute(sql`RELEASE SAVEPOINT lume_template`);
   } catch (e) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_template`);
-    if ((e as { code?: string }).code !== "23505") throw e;
+    if (pgCodeOf(e) !== "23505") throw e;
     const first = await again();
     if (first) return first;
     throw e;

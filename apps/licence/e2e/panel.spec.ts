@@ -169,9 +169,9 @@ test("a client's actions, end to end: New licence, Ready to send, Mark paid, the
   await expect(key).not.toContainText("Key decommissioned.");
   await hold.hover();
   await page.mouse.down();
-  await page.waitForTimeout(1900);
+  // Held until it lands: the fill runs on animation frames, which a busy machine delivers late.
+  await expect(key).toContainText("Key decommissioned.", { timeout: 15_000 });
   await page.mouse.up();
-  await expect(key).toContainText("Key decommissioned.");
   await shot(page, "client-key-decommissioned");
   expect(await axe(page)).toEqual([]);
   await key.getByRole("button", { name: "Issue a new key" }).click();

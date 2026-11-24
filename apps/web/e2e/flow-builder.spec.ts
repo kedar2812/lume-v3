@@ -110,6 +110,69 @@ test.describe("The flow builder", () => {
     await expect(page.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible({ timeout: 10_000 });
     await page.reload();
     await expect(page.getByLabel("Step: Ask, Which email should LUME use?")).toBeVisible();
+    // Starts when: a way in with its keyword, saved, on the card.
+    await page.getByLabel("Starts when").first().click();
+    const start = page.getByRole("complementary", { name: "Starts when" });
+    await start.getByRole("button", { name: "+ Add a way in" }).click();
+    await start.getByRole("textbox", { name: /Keywords/ }).fill("guide");
+    await start.getByRole("button", { name: "Save" }).click();
+    await expect(start.getByRole("status")).toHaveText("Saved.");
+    await expect(page.getByRole("group", { name: "Starts when" })).toContainText("Comments on a post");
+    // A way in the server already has (it comes with its id) changes and saves again (review 2026-11-24).
+    await page.reload();
+    await page.getByLabel("Starts when").first().click();
+    await start.getByRole("textbox", { name: /Keywords/ }).fill("guide, free");
+    await start.getByRole("button", { name: "Save" }).click();
+    await expect(start.getByRole("status")).toHaveText("Saved.");
+    await expect(start.getByRole("button", { name: "Save" })).toBeDisabled();
+    await page.reload();
+    await expect(page.getByRole("group", { name: "Starts when" })).toContainText("guide +1");
+  });
+
+  test("Test: the flow on an iPhone as Instagram shows it; nothing is sent", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openApp(page, `/instagram/flows/${id}`);
+    await expect(page.getByLabel(/^Step: Message/)).toBeVisible();
+    await page.getByRole("button", { name: "Test", exact: true }).click();
+    const phone = page.getByLabel("The flow as it reads on Instagram");
+    await expect(phone).toBeVisible();
+    const log = phone.getByRole("log");
+    await expect(log).toContainText("Here is the guide you asked for");
+    await phone.getByRole("button", { name: "Yes, send it to me" }).click();
+    await expect(log).toContainText("Where should LUME send it?");
+    await expect(page.getByLabel(/^Step: Ask/)).toHaveAttribute("data-lit", "true");
+    const write = phone.getByRole("textbox", { name: "Write as the person" });
+    await write.fill("not an email");
+    await write.press("Enter");
+    await expect(log).toContainText("That doesn't look like an email.");
+    await write.fill("sam@example.test");
+    await write.press("Enter");
+    await expect(log).toContainText("Saves sam@example.test as email");
+    await expect(page.getByRole("status").filter({ hasText: "The flow has ended." })).toBeVisible();
+    // A test changes nothing: the flow is as it was saved.
+    const f = await callApi<{ rev: number }>(page, "GET", `/api/v1/instagram/flows/${id}`);
+    expect(f.data.rev).toBe(2);
+    await page.getByRole("button", { name: "Play again" }).click();
+    await expect(log).not.toContainText("Where should LUME send it?");
+    // The same panel's other two: Replay (nobody yet, it's a draft) and Versions (nothing live yet).
+    await page.getByRole("radio", { name: "Replay" }).click();
+    await expect(page.getByRole("complementary", { name: "Replay" })).toContainText(
+      "Nobody has been through this flow yet",
+    );
+    await page.getByRole("radio", { name: "Versions" }).click();
+    await expect(page.getByRole("complementary", { name: "Versions" })).toContainText(
+      "Nothing has gone live yet",
+    );
+  });
+
+  test("Numbers: every step's last 30 days, on its card", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openApp(page, `/instagram/flows/${id}`);
+    await page.getByRole("radio", { name: "Numbers" }).click();
+    await expect(page.getByText("Last 30 days")).toBeVisible();
+    await expect(page.getByLabel(/^Step: Message/)).toContainText("Entered0");
+    await page.getByRole("radio", { name: "Build" }).click();
+    await expect(page.getByLabel(/^Step: Message/)).not.toContainText("Entered");
   });
 
   for (const theme of ["light", "dark"] as const)
@@ -125,6 +188,23 @@ test.describe("The flow builder", () => {
         await page.getByLabel(/^Step: Message/).click();
         await expect(page.getByRole("complementary", { name: "Message step" })).toBeVisible();
         await noOverflow(page);
+        // With the phone test open, a reply tapped and long words in the chat.
+        await page.getByRole("button", { name: "Test", exact: true }).click();
+        const phone = page.getByLabel("The flow as it reads on Instagram");
+        await phone.getByRole("button", { name: "Yes, send it to me" }).click();
+        await expect(phone.getByRole("log")).toContainText("Where should LUME send it?");
+        await noOverflow(page);
+        const box = await phone.boundingBox();
+        expect(box!.y + box!.height).toBeLessThanOrEqual(900);
+        // Numbers on, with Versions open: the top bar's extra controls still fit.
+        await page.getByRole("radio", { name: "Numbers" }).click();
+        await page.getByRole("radio", { name: "Versions" }).click();
+        await expect(page.getByRole("complementary", { name: "Versions" })).toBeVisible();
+        await noOverflow(page);
+        // The top bar holds everything, Publish whole inside it (its own overflow is hidden, so look at the edges).
+        const bar = await page.locator("[data-full-canvas] header").boundingBox();
+        const pub = await page.getByRole("button", { name: /^Publish/ }).boundingBox();
+        expect(pub!.x + pub!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
       }
       // A phone: the canvas needs a wider screen, and says so, without running off the side.
       await page.setViewportSize({ width: 375, height: 800 });
@@ -143,5 +223,16 @@ test.describe("The flow builder", () => {
       .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
       .analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes[0]?.target}`)).toEqual([]);
+    // The phone test too: a reply tapped (a bubble on each side) and words typed (Send shows).
+    await page.getByRole("button", { name: "Test", exact: true }).click();
+    const phone = page.getByLabel("The flow as it reads on Instagram");
+    await phone.getByRole("button", { name: "Yes, send it to me" }).click();
+    await phone.getByRole("textbox", { name: "Write as the person" }).fill("sam@");
+    await settle(page);
+    const t = await new AxeBuilder({ page })
+      .include("[data-full-canvas]")
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(t.violations.map((v) => `${v.id}: ${v.nodes[0]?.target}`)).toEqual([]);
   });
 });

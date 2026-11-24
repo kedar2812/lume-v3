@@ -27,6 +27,8 @@ export const AI_OUTPUT_TOKENS: Record<AiTask, number> = {
   autopilot_reply: 1200,
   reply_meaning: 1000,
   template_draft: 1600,
+  // A whole flow, up to 100 steps as JSON, and the thinking before it.
+  flow_build: 16000,
 };
 
 /** A model id as providers write them: letters, digits and . _ : @ / - (no spaces). */

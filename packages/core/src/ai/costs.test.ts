@@ -31,6 +31,7 @@ describe("the tasks", () => {
         "next_step",
         "reply_meaning",
         "template_draft",
+        "flow_build",
       ].sort(),
     );
   });

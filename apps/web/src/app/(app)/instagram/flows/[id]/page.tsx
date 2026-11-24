@@ -3,7 +3,7 @@ import { Builder } from "@/components/flows/builder/Builder";
 import type { FlowView } from "@/lib/flows/client";
 import { apiGet } from "@/server/api";
 import { loadCatalog } from "@/server/leads";
-import { requirePermission } from "@/server/session";
+import { businessName, requirePermission } from "@/server/session";
 
 export const metadata = { title: "Flow · Instagram · LUME" };
 
@@ -11,15 +11,19 @@ export const metadata = { title: "Flow · Instagram · LUME" };
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("instagram.flows.manage");
   const { id } = await params;
-  const [r, catalog, list] = await Promise.all([
+  const [r, catalog, list, business] = await Promise.all([
     apiGet<FlowView>(`/api/v1/instagram/flows/${encodeURIComponent(id)}`),
     loadCatalog(),
     apiGet<{ flows: { id: string; name: string; status: string }[] }>("/api/v1/instagram/flows"),
+    businessName(),
   ]);
   if (r.status === 404) notFound();
   // Go to another flow may name a flow that's live or paused.
   const flows = (list.data?.flows ?? []).filter((f) => f.status === "live" || f.status === "paused");
-  if (r.status === 200 && r.data) return <Builder initial={r.data} catalog={catalog} flows={flows} />;
+  if (r.status === 200 && r.data)
+    return (
+      <Builder initial={r.data} catalog={catalog} flows={flows} businessName={business ?? "Your business"} />
+    );
   return (
     <p role="alert" style={{ margin: 24 }}>
       {r.status === 409

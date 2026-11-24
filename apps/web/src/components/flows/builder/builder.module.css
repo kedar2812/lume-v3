@@ -821,6 +821,15 @@ select.input {
   font-size: 12px;
   line-height: 1.4;
   color: var(--warn-ink);
+  overflow-wrap: anywhere;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .lim p[data-ok] {
   color: var(--ok-ink);
@@ -892,4 +901,405 @@ select.input {
 }
 .stepProbs p[data-warning] {
   color: var(--text-3);
+}
+
+/* Starts when */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.saveBtn,
+.ghostBtnPlain {
+  flex: none;
+  appearance: none;
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.saveBtn {
+  background: var(--accent);
+  color: #fff;
+}
+.ghostBtnPlain {
+  background: var(--sunk);
+  color: var(--text);
+}
+.saveBtn:disabled,
+.ghostBtnPlain:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.said {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+/* The phone test */
+.testBtn {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--sunk);
+  color: var(--text);
+  cursor: pointer;
+}
+.testBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.testBtn svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+@media (max-width: 1180px) {
+  .testBtn {
+    padding: 0 9px;
+  }
+}
+.testBtn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.nd[data-lit] {
+  box-shadow:
+    0 0 0 2px var(--ok),
+    var(--shadow-sheet);
+}
+
+/* The view: Build or Numbers (board Builder). */
+.viewSeg {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--sunk);
+}
+.viewSeg button {
+  appearance: none;
+  border: 0;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.viewSeg button[aria-checked="true"] {
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: var(--shadow-sheet);
+}
+.range {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 220px;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A narrower window (900 to 1180 px): the top bar keeps every control whole. "Ready to publish" says "Ready", and the
+   range of the numbers is read out but not shown (the numbers themselves are on the cards). */
+.narrowOnly {
+  display: none;
+}
+@media (max-width: 1180px) {
+  .wide {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .narrowOnly {
+    display: inline;
+  }
+  .range {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+}
+
+/* LUME AI builds the flow (plan 2026-11-23-flow-builder, Task C2; approved canvas, board Builder) */
+.aibar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  /* Between the zoom tools (left, about 190 px) and the map (right, about 214 px), whatever the width. */
+  width: min(600px, calc(100% - 464px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 16px;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  z-index: 25;
+  transition: left 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.aibar[data-beside] {
+  /* Between the zoom tools and the side panel (352 px and its gap): centred in what is left. */
+  left: calc(50% - 87px);
+  width: min(600px, calc(100% - 590px));
+}
+.aiLoop {
+  flex: none;
+}
+.aiForm {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.aiInput {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: none;
+  height: 36px;
+}
+.aiInput::placeholder {
+  color: var(--text-3);
+}
+.aiSay {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.aiSay b {
+  font-weight: 620;
+}
+.aiGo,
+.aiGhost,
+.aiBtn {
+  flex: none;
+  appearance: none;
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.aiGo {
+  background: var(--accent);
+  color: #fff;
+}
+.aiGo:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.aiGhost {
+  background: transparent;
+  color: var(--text-2);
+}
+.aiGhost:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.aiBtn {
+  background: var(--sunk);
+  color: var(--text);
+}
+.aiGhost:disabled,
+.aiBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.plan {
+  position: absolute;
+  left: 68px;
+  top: 14px;
+  width: min(300px, calc(100% - 96px));
+  max-height: 60%;
+  overflow-y: auto;
+  border-radius: 16px;
+  padding: 12px 12px 10px;
+  background: var(--glass);
+  backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: var(--shadow-pop);
+  z-index: 24;
+}
+.planHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 640;
+}
+.planHead span {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.planRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.planRows li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+  height: 26px;
+  transition: color 0.3s;
+}
+.planText {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.planTick {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition:
+    background 0.3s,
+    box-shadow 0.3s;
+}
+.planTick svg {
+  width: 10px;
+  height: 10px;
+  color: #fff;
+  opacity: 0;
+}
+.planRows li[data-state="done"] {
+  color: var(--text-2);
+}
+.planRows li[data-state="done"] .planTick {
+  background: var(--ok);
+  box-shadow: none;
+}
+.planRows li[data-state="done"] .planTick svg {
+  opacity: 1;
+}
+.planRows li[data-state="now"] {
+  color: var(--text);
+  font-weight: 600;
+}
+.planRows li[data-state="now"] .planTick {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  animation: planPulse 1.4s infinite;
+}
+@keyframes planPulse {
+  50% {
+    box-shadow:
+      inset 0 0 0 1.5px var(--accent),
+      0 0 0 4px var(--accent-soft);
+  }
+}
+.planSaid {
+  margin: 8px 2px 0;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 26;
+  pointer-events: none;
+  transition: transform 950ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cursorScale {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  transform-origin: 0 0;
+}
+.cursorPtr {
+  width: 20px;
+  height: 22px;
+  filter: drop-shadow(0 2px 3px rgba(12, 18, 32, 0.28));
+}
+.cursorLabel {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px 0 6px;
+  border-radius: 13px 13px 13px 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px -6px rgba(42, 91, 255, 0.6);
+}
+.cursorLabel svg {
+  width: 16px;
+  height: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aibar,
+  .cursor {
+    transition: none;
+  }
+  .planRows li[data-state="now"] .planTick {
+    animation: none;
+  }
 }

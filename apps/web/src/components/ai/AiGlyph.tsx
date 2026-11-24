@@ -3,7 +3,8 @@ import { motion, useReducedMotion } from "motion/react";
 import { useId } from "react";
 
 /** The Loop's one stroke, as in the master file. */
-const LOOP = "M16 84 C 34 84, 52 72, 60 52 C 70 28, 64 10, 51 12 C 38 14, 36 36, 43 57 C 50 77, 66 86, 82 79";
+export const LOOP =
+  "M16 84 C 34 84, 52 72, 60 52 C 70 28, 64 10, 51 12 C 38 14, 36 36, 43 57 C 50 77, 66 86, 82 79";
 
 /**
  * LUME AI's mark, The Loop (owner, 2026-10-18): one handwritten stroke, an l for LUME, that curls back on itself —

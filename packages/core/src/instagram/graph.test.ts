@@ -134,6 +134,17 @@ describe("what stops a graph going live", () => {
       buttons: [1, 2, 3, 4].map((i) => ({ id: `b${i}`, title: `B${i}`, url: "https://x.test" })),
     } as Partial<GNode>);
     expect(words(validateGraph(four, ok))).toContain("Instagram allows at most 3 buttons.");
+    // Meta takes 20 characters on a button (review 2026-11-24): on publish, never on the way to Meta.
+    const long = swap(base(), "hello", {
+      replies: [],
+      buttons: [{ id: "b1", title: "x".repeat(21), url: "https://x.test" }],
+    } as Partial<GNode>);
+    expect(words(validateGraph(long, ok))).toContain("A button's words can be at most 20 characters.");
+    const fits = swap(base(), "hello", {
+      replies: [],
+      buttons: [{ id: "b1", title: "x".repeat(20), url: "https://x.test" }],
+    } as Partial<GNode>);
+    expect(words(validateGraph(fits, ok))).not.toContain("A button's words can be at most 20 characters.");
     const g = base();
     const split: GNode = {
       id: "s",

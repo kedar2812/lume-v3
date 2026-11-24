@@ -152,6 +152,45 @@ describe("the builder's save", () => {
     expect(bad.json().problems).toEqual(["A line leads to a step that isn't there."]);
   });
 
+  it("ways in come back in the order they were saved, every time (one request, one now(): review 2026-11-24)", async () => {
+    const f = (await call("POST", "/api/v1/instagram/flows", { name: "Order" })).json();
+    const way = (k: string) => ({
+      kind: "dm",
+      accountId: null,
+      keywords: [k],
+      mode: "word",
+      mediaIds: [],
+      adIds: [],
+      publicReplies: [],
+      cooldownHours: 0,
+      enabled: true,
+    });
+    const ks = ["zebra", "apple", "mango", "kiwi", "banana", "cherry", "date", "fig"];
+    let rev = f.rev;
+    for (const order of [ks, [...ks].reverse()]) {
+      const r = await call("PUT", `/api/v1/instagram/flows/${f.id}/triggers`, {
+        rev,
+        triggers: order.map(way),
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      rev = r.json().rev;
+      expect(r.json().triggers.map((t: { keywords: string[] }) => t.keywords[0])).toEqual(order);
+      const back = (await call("GET", `/api/v1/instagram/flows/${f.id}`)).json();
+      expect(back.triggers.map((t: { keywords: string[] }) => t.keywords[0])).toEqual(order);
+    }
+    // Rows rewritten on disk (any update moves a row to the end of the table): the order still reads as saved, because
+    // it comes from created_at, never from where the rows happen to sit.
+    await h.queryAll(
+      "UPDATE instagram_triggers SET enabled = enabled WHERE flow_id = $1 AND keywords[1] = ANY($2::text[])",
+      [f.id, ["fig", "date", "cherry"]],
+    );
+    const moved = (await call("GET", `/api/v1/instagram/flows/${f.id}`)).json();
+    expect(moved.triggers.map((t: { keywords: string[] }) => t.keywords[0])).toEqual([...ks].reverse());
+    // A copy keeps them in the same order.
+    const c = (await call("POST", `/api/v1/instagram/flows/${f.id}/duplicate`)).json();
+    expect(c.triggers.map((t: { keywords: string[] }) => t.keywords[0])).toEqual([...ks].reverse());
+  });
+
   it("publish a graph; versions say what changed; one brought back is the draft, and what's live stays", async () => {
     let f = (await call("POST", "/api/v1/instagram/flows", { name: "Quiz" })).json();
     f = (
@@ -463,6 +502,126 @@ describe("a graph flow at work", () => {
     expect(told).toHaveLength(1);
     expect(told[0]!.title).toBe("A lead on Instagram");
     expect(told[0]!.leadId ?? null).toBeNull();
+  });
+
+  it("Replay's list: who went through it, newest first, each once; a search; only leads the asker may see", async () => {
+    const f = await liveFlow("Who", G("hi", msg("hi")), ["quiz"]);
+    await dm("m1", "quiz");
+    await deliverIg(h, igDm({ mid: "m2", text: "quiz", from: "6512000000000002", at: ts() }));
+    await h.runInstagram();
+    await dm("m3", "quiz again");
+    const leads = await h.queryAll<{ id: string; name: string }>(
+      "SELECT id, name FROM leads ORDER BY created_at",
+    );
+    expect(leads).toHaveLength(2);
+    const [first, second] = leads as [{ id: string; name: string }, { id: string; name: string }];
+    await h.queryAll("UPDATE leads SET name = $2 WHERE id = $1", [first.id, "Priya Shah"]);
+    await h.queryAll("UPDATE leads SET name = $2 WHERE id = $1", [second.id, "Arjun Mehta"]);
+    first.name = "Priya Shah";
+    const all = (await call("GET", `/api/v1/instagram/flows/${f.id}/people`)).json();
+    // The first person wrote again last: they're first, once.
+    expect(all.people.map((p: { leadId: string }) => p.leadId)).toEqual([first.id, second.id]);
+    expect(all.people[0]).toMatchObject({ name: first.name, status: "done", photo: null });
+    // A search reads names, case aside, anywhere in them.
+    const found = (await call("GET", `/api/v1/instagram/flows/${f.id}/people?q=MEHT`)).json();
+    expect(found.people.map((p: { leadId: string }) => p.leadId)).toEqual([second.id]);
+    // Someone who may see only their own leads sees only theirs.
+    const rep = await h.seedUser({
+      grants: [
+        { key: "leads.view", scope: "own" },
+        { key: "instagram.flows.manage", scope: null },
+      ],
+    });
+    await h.queryAll("UPDATE leads SET owner_id = $1 WHERE id = $2", [rep.id, second.id]);
+    const theirs = (
+      await (await h.signIn(rep)).inject({ method: "GET", url: `/api/v1/instagram/flows/${f.id}/people` })
+    ).json();
+    expect(theirs.people.map((p: { leadId: string }) => p.leadId)).toEqual([second.id]);
+    // Replay counts what a run sent.
+    const replay = (await call("GET", `/api/v1/instagram/flows/${f.id}/runs?lead=${first.id}`)).json();
+    expect(replay.runs[0].sent).toBe(1);
+    // One busy lead (many runs since) hides nobody: each person is listed once, newest first.
+    await h.queryAll(
+      `INSERT INTO instagram_flow_runs (id, flow_id, version_id, lead_id, thread_id, status, state, started_by, created_at)
+       SELECT gen_random_uuid(), flow_id, version_id, lead_id, thread_id, 'done', state, started_by,
+              (SELECT max(created_at) FROM instagram_flow_runs) + g * interval '1 second'
+         FROM instagram_flow_runs, generate_series(1, 30) g
+        WHERE flow_id = $1 AND lead_id = $2 AND status = 'done'
+        ORDER BY created_at DESC LIMIT 30`,
+      [f.id, first.id],
+    );
+    const busy = (await call("GET", `/api/v1/instagram/flows/${f.id}/people`)).json();
+    expect(busy.people.map((p: { leadId: string }) => p.leadId)).toEqual([first.id, second.id]);
+    // Whoever went through it last is first, whatever order the leads were made in.
+    await h.queryAll(
+      `INSERT INTO instagram_flow_runs (id, flow_id, version_id, lead_id, thread_id, status, state, started_by, created_at)
+       SELECT gen_random_uuid(), flow_id, version_id, lead_id, thread_id, 'done', state, started_by,
+              (SELECT max(created_at) FROM instagram_flow_runs) + interval '1 hour'
+         FROM instagram_flow_runs WHERE flow_id = $1 AND lead_id = $2 LIMIT 1`,
+      [f.id, second.id],
+    );
+    const later = (await call("GET", `/api/v1/instagram/flows/${f.id}/people`)).json();
+    expect(later.people.map((p: { leadId: string }) => p.leadId)).toEqual([second.id, first.id]);
+    // A lead deleted since isn't listed.
+    await h.queryAll("UPDATE leads SET deleted_at = now() WHERE id = $1", [first.id]);
+    const after = (await call("GET", `/api/v1/instagram/flows/${f.id}/people`)).json();
+    expect(after.people.map((p: { leadId: string }) => p.leadId)).toEqual([second.id]);
+  });
+
+  it("Numbers for the last N days: the business's days, ending today where the business is", async () => {
+    const f = await liveFlow("Days", G("hi", msg("hi")), ["quiz"]);
+    await dm("m1", "quiz");
+    const r = await call("GET", `/api/v1/instagram/flows/${f.id}/stats?days=30`);
+    expect(r.statusCode, r.body).toBe(200);
+    expect((Date.parse(r.json().to) - Date.parse(r.json().from)) / 86_400_000).toBe(29);
+    const both = await call("GET", `/api/v1/instagram/flows/${f.id}/stats?days=30&from=2026-11-01`);
+    expect(both.statusCode).toBe(400);
+    const none = await call("GET", `/api/v1/instagram/flows/${f.id}/stats`);
+    expect(none.statusCode).toBe(400);
+    const all3 = await call(
+      "GET",
+      `/api/v1/instagram/flows/${f.id}/stats?days=30&from=2026-11-01&to=2026-11-02`,
+    );
+    expect(all3.statusCode).toBe(400);
+    // Today is the business's today. Two zones far either side of UTC: at any hour one of them is on another date
+    // than UTC, so a range ending on the server's (UTC) day can't pass.
+    const was = (await h.queryAll<{ tz: string }>("SELECT timezone AS tz FROM settings WHERE id = 1"))[0]!.tz;
+    const day = (tz: string) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+    const seen: string[] = [];
+    for (const tz of ["Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
+      await h.queryAll("UPDATE settings SET timezone = $1 WHERE id = 1", [tz]);
+      const one = (await call("GET", `/api/v1/instagram/flows/${f.id}/stats?days=1`)).json();
+      expect(one.to).toBe(day(tz));
+      expect(one.from).toBe(one.to);
+      seen.push(one.to);
+    }
+    expect(seen.some((d) => d !== day("UTC"))).toBe(true);
+    await h.queryAll("UPDATE settings SET timezone = $1 WHERE id = 1", [was]);
+  });
+
+  it("a version copied as a new flow: the copy's draft is that version, not today's draft", async () => {
+    const f = await liveFlow("Old", G("hi", msg("hi", { text: "The first words" })), ["quiz"]);
+    const v = (await call("GET", `/api/v1/instagram/flows/${f.id}/versions`)).json().versions[0];
+    const now = (await call("GET", `/api/v1/instagram/flows/${f.id}`)).json();
+    await call("PUT", `/api/v1/instagram/flows/${f.id}`, {
+      rev: now.rev,
+      graph: G("hi", msg("hi", { text: "Newer words" })),
+    });
+    const c = await call("POST", `/api/v1/instagram/flows/${f.id}/duplicate`, { versionId: v.id });
+    expect(c.statusCode, c.body).toBe(201);
+    expect(c.json().graph.nodes[0].text).toBe("The first words");
+    expect(c.json().status).toBe("draft");
+    const plain = (await call("POST", `/api/v1/instagram/flows/${f.id}/duplicate`)).json();
+    expect(plain.graph.nodes[0].text).toBe("Newer words");
+    const other = (await call("POST", "/api/v1/instagram/flows", { name: "Other" })).json();
+    const wrong = await call("POST", `/api/v1/instagram/flows/${other.id}/duplicate`, { versionId: v.id });
+    expect(wrong.statusCode).toBe(404);
   });
 
   it("Replay shows a run waiting in its Wait step", async () => {

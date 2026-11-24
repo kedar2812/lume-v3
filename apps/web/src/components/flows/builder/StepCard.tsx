@@ -14,6 +14,8 @@ export type StepData = {
   stats?: { entered: number; people: number; sent: number } | null;
   /** Just placed by LUME AI, not kept yet. */
   fresh?: boolean;
+  /** The phone test has gone through it. */
+  lit?: boolean;
 };
 export type StepNode = Node<StepData, "step">;
 
@@ -93,6 +95,7 @@ function StepCardImpl({ data, selected }: NodeProps<StepNode>) {
       role="group"
       data-on={selected || undefined}
       data-fresh={data.fresh || undefined}
+      data-lit={data.lit || undefined}
       data-problem={data.problems > 0 || undefined}
       aria-label={`Step: ${kind.label}, ${summary(n)}`}
     >

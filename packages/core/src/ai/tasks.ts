@@ -7,7 +7,7 @@ import { softText } from "./fit";
  * that hold whichever provider reads it. Pure: no provider, no database.
  */
 /** The read-a-note tasks (2026-10-18), and Autopilot's (2026-10-19): each counts against the month. */
-/** And a template drafted for the business (2026-10-31): the one read that is about no lead. */
+/** And a template drafted for the business (2026-10-31), and a flow built (2026-11-24): reads about no lead. */
 export const AI_TASKS = [
   "next_step",
   "catch_up",
@@ -15,6 +15,7 @@ export const AI_TASKS = [
   "autopilot_reply",
   "reply_meaning",
   "template_draft",
+  "flow_build",
 ] as const;
 export type AiTask = (typeof AI_TASKS)[number];
 type NoteTask = "next_step" | "catch_up";

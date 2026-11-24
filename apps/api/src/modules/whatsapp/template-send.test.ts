@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { inbound, statuses } from "../../../../../packages/core/src/whatsapp/fixtures";
 import { forgetRatesForTests, ratesSettledForTests } from "../../money/fx-cache";
 import { createHarness, type Harness } from "../../../test/harness";
+import { heldOpen } from "../../../test/held";
 import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { deliver, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 
@@ -217,6 +218,62 @@ describe("an approved template to any lead", () => {
     ).toEqual([[s, "Hello there, this is the studio. Shall we talk this week?"]]);
     expect((await sendTemplate(rep, lead, s)).statusCode).toBe(202);
     expect((await outbox(lead))[0]!.text).toBe("Hello there, this is the studio. Shall we talk this week?");
+  });
+
+  it("a key another tab is still writing is that message once it lands, never an error", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    const s = await approved("Hello there, this is the studio. Shall we talk this week?");
+    const clientKey = randomUUID();
+    const outboxId = randomUUID();
+    const activityId = randomUUID();
+    // What sendTemplate writes: the template's own name, on LUME's clock.
+    const [{ name }] = (await h.queryAll<{ name: string }>(
+      `SELECT t.name FROM whatsapp_template_submissions s
+         JOIN template_versions v ON v.id = s.template_version_id
+         JOIN message_templates t ON t.id = v.template_id WHERE s.id = $1`,
+      [s],
+    )) as [{ name: string }];
+
+    const held = await heldOpen(h, rep.id, async (c) => {
+      await c.query(
+        `INSERT INTO activities (id, lead_id, user_id, type, occurred_at, payload)
+         VALUES ($1, $2, $3, 'whatsapp_sent', $5, $4)`,
+        [
+          activityId,
+          lead,
+          rep.id,
+          JSON.stringify({
+            text: "Hello there, this is the studio. Shall we talk this week?",
+            numberId: number,
+            outboxId,
+            via: "lume",
+            template: { name },
+          }),
+          h.clock.now,
+        ],
+      );
+      await c.query(
+        `INSERT INTO whatsapp_outbox (id, lead_id, number_id, user_id, activity_id, client_key, text, submission_id, paid, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, 'queued', $9)`,
+        [
+          outboxId,
+          lead,
+          number,
+          rep.id,
+          activityId,
+          clientKey,
+          "Hello there, this is the studio. Shall we talk this week?",
+          s,
+          h.clock.now,
+        ],
+      );
+    });
+    const second = sendTemplate(rep, lead, s, clientKey);
+    await held.commitOnceWaited();
+    const r = await second;
+    expect(r.statusCode).toBe(202);
+    expect(r.json().message.id).toBe(activityId);
+    expect(await outbox(lead)).toHaveLength(1);
   });
 
   it("the same key twice is one message", async () => {

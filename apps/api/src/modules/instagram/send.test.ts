@@ -4,6 +4,7 @@ import { ALL_GRANTS, igOutboundBody } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { IG_ACCOUNT, IGSID } from "../../../../../packages/core/src/instagram/fixtures";
 import { createHarness, type Harness } from "../../../test/harness";
+import { heldOpen } from "../../../test/held";
 import { IG_RELAY_TOKEN, seedIgAccount } from "../../../test/instagram";
 import { fakeAccount, startInstagramFake, type InstagramFake } from "../../../test/instagram-fake";
 import { rollupDays } from "../analytics/rollup";
@@ -142,6 +143,24 @@ describe("a reply inside Meta's 24 hours", () => {
     const [c, d] = await Promise.all([send(rep, { clientKey: k2 }), send(rep, { clientKey: k2 })]);
     expect(c.json().message.id).toBe(d.json().message.id);
     expect(await outbox()).toHaveLength(2);
+  });
+
+  it("a key another tab is still writing is that message once it lands, never an error", async () => {
+    const clientKey = randomUUID();
+    const first = randomUUID();
+    const held = await heldOpen(h, rep.id, (c) =>
+      c.query(
+        `INSERT INTO instagram_outbox (id, thread_id, lead_id, account_id, user_id, client_key, kind, text, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'dm', 'Yes, the batch starts Monday', 'queued')`,
+        [first, threadId, leadId, account.id, rep.id, clientKey],
+      ),
+    );
+    const second = send(rep, { clientKey });
+    await held.commitOnceWaited();
+    const r = await second;
+    expect(r.statusCode).toBe(202);
+    expect(r.json().message.id).toBe(first);
+    expect(await outbox()).toHaveLength(1);
   });
 
   it("refuses more than Instagram takes, in words", async () => {

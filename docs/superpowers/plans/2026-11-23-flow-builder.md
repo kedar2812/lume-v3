@@ -99,13 +99,53 @@
 
 **Files:** `apps/api/src/modules/instagram/flow-ai.ts`, route `POST /flows/:id/ai-build { prompt, selection?: string[] }` → `{ plan: string[], ops: GraphOp[], said: string }` where `GraphOp = {op:"add",node,pos} | {op:"connect",from:{node,exit},to} | {op:"edit",node} | {op:"remove",nodeId}`; Max or the AI module on (as LUME AI elsewhere); costed as LUME AI actions; prompt and tool schema in `packages/core/src/ai/flow-build.ts`.
 
-- [ ] Tests (fake provider): ops applied to the draft give a graph that passes `validateGraph`; a provider answer with a 4th button or a dangling exit is repaired or refused with `said` saying what changed (Review Focus 4); never touches the live version; audit `instagram.flow_ai`.
+- [ ] Tests (fake provider): ops applied to the draft give a graph that passes `validateGraph`; a provider answer with a 4th button or a dangling exit is repaired or refused with `said` saying what changed (Review Focus 4); never touches the live version; audit `instagram.flow.ai`.
+
+**C1 detail (decided 2026-11-24, before code).**
+
+- The model answers in a flat shape (`flowBuildOutput`: `plan`, `said`, `start`, `steps[]`), every field required (empty or null when unused), because an 11-way union is fragile under structured output. Each step: `id` (an existing step's id to keep or change, or a new short name), `type` (message, ask, check, split, wait, update, notify, handoff, book, end), `text`, `links`, `options` ({title, next}: quick replies, choices, split paths), `weights`, `next`, `otherwise` (a check's No, an ask's no-answer line), `save`, `retry`, `minutes`, `match`, `rules`, `changes` ({kind: tag_add, tag_remove, stage, field, task; target; value}), `to` (owner, admins, person, ai), `url`.
+- `buildFromAnswer(draft, answer, ctx)` in `packages/core/src/ai/flow-build.ts` turns it into the whole next graph, then `opsBetween(draft, next)` into `GraphOp[]`; `applyOps(draft, ops)` (core, used by the web too) must give exactly `next`. The endpoint writes nothing: the client plays the ops into the draft and saves through the normal rev-checked save, so the live version is never touched and two editors still get "reload" (Review Focus 3).
+- Ids: an answer id that is a draft step's id keeps that step (changed or not); any other id is a new step with a fresh id from `ctx.newId`; child ids are `${step}-r${i}` / `-c${i}` / `-p${i}` / `-b${i}`. With a selection, every draft step outside it stays exactly as it was and is never removed; without one, a draft step the answer leaves out is removed, and `said` counts it.
+- Repairs, each said in one line: links past 3 or quick replies past 13 kept to the first ones; a reply or link title past 20 characters cut at a word; an exit to a step that isn't there left open; a tag, stage or field LUME doesn't have dropped from the change; hand to LUME AI when LUME AI isn't answering Instagram becomes hand to a person; split weights that don't add to 100 shared out evenly; a wait outside 1 minute to 7 days brought inside; a book step with no https link becomes a message. Not repaired (the whole answer refused, no ops, `said` says why): more than 100 steps, a message too long for Instagram, or any other new blocking problem `validateGraph` finds on a step LUME AI wrote that the draft didn't already have.
+- New steps are placed by depth from Starts when (180 down, 320 across), moved right past any step already there; kept steps keep their place.
+- API: `POST /api/v1/instagram/flows/:id/ai-build`, `instagram.flows.manage`, body `{ prompt: 1–2000 chars, selection?: ≤100 ids }`, reads the draft under the person's RLS, the business's stages, tags and non-contact fields (no lead data), `runRead` task `flow_build` (no lead, not counted as an AI lead, costed as every read; its own 90 s limit), audit `instagram.flow.ai` on the flow {steps, ops, refused}. Migration `0129`: `ai_reads.task` takes `flow_build`, and a read with no lead may be `template_draft` or `flow_build` (check and the three policies).
+
+Edge-case sheet for C1: roles (rep without `instagram.flows.manage` refused; a viewer refused), RLS (draft read as the person); concurrency (the draft changed while LUME AI thought: the ops apply to the client's current draft and the save's rev decides); outside world (AI off, not configured, at its limit, failed or slow → words, nothing changed); licence (a plan without the AI module: AI_OFF words); data (empty flow, a 100-step flow, unicode and emoji text, whitespace-only prompt, ids the model invents, duplicate ids in an answer); time n/a (no clock in a build); screens: C2.
 
 ### Task C2: The cursor playback
 
 **Files:** `AiBar.tsx`, `AiCursor.tsx`, `PlanCard.tsx` (the canvas board's look and timings), playback queue in `Builder.tsx`.
 
 - [ ] Tests: the camera fits the flow first; each op lands as the cursor arrives (≥ 900 ms apart, Reduce Motion: all at once); nodes tinted New until Keep; Discard restores the draft from before (one undo step); Stop keeps what landed.
+
+**C2 detail (decided 2026-11-24, before code).**
+
+- The bar: bottom centre of the canvas, in Build only (not Numbers), moved left of an open side panel as on the
+  canvas; sized to sit between the zoom tools and the map (or the side panel), so it never covers them. The words are at most 2,000
+  characters (the API's limit); Build it is off while they're empty or spaces; Enter builds. With steps selected the
+  placeholder reads "Tell LUME AI what to change in the selected steps" and only those ids go (never Starts when, never a
+  line).
+- Asking: the screen's steps are saved first, on the write line like every write. A flow changed elsewhere, or a save
+  that fails, says so and asks nothing. From Build it until Keep, Discard or a failure the canvas is LUME AI's: no drag,
+  no selecting, no rail, no keys, panels closed, so the ops always play into the draft they were made from.
+- Answers: refused, or nothing to change: its words (`said`) in the toast, nothing changes, the words stay in the bar.
+  AI off, at its limit, failed: the server's words, the same. Stop while it thinks: nothing changes, the answer is
+  dropped when it comes.
+- Playback: the camera fits the whole next flow first (`applyOps` of every op), then one beat every 950 ms (the
+  cursor's own move, ≥ 900): a beat is one add, edit or removal with the lines that follow it, so a line is drawn as its
+  step lands. The cursor sits on the step's top-left, in the canvas's own coordinates (it stays on the step if the
+  canvas is moved), its label sized as on screen, saying what it does by kind ("Writing a message", "Asking a
+  question", "Taking out a step", …). Reduce Motion: every op in one go, no cursor.
+- The plan card: LUME AI's plan rows, the row now being built moving down in step with the beats, "x of N". When it's
+  done it says "Built" and adds `said` (the repairs, in LUME's words) under the rows; it stays until Keep or Discard.
+  At most 60% of the canvas tall, its rows scrolling; a long row ends in … with the whole row as its title.
+- History and saving: the draft before is one Undo step, pushed when the first beat lands; beats add none and save as
+  any edit does. Leaving mid-build: the beats stop; what landed is saved on the way out like any edit.
+- New: every step added or changed is tinted New until Keep, Discard or the next build. Done: "LUME AI built N
+  steps." (or "changed N steps." when it added none). Keep: the tint goes, "Kept. Undo takes the whole build back in one
+  step." Discard: the draft before, as one change (Undo brings the build back), "Discarded. The canvas is as it was."
+  Stop mid-playback: the beats left are dropped, "Stopped. What LUME AI made so far stays, marked New.", then Keep or
+  Discard.
 
 ## Part D: the other approved Instagram screens
 

@@ -277,10 +277,10 @@ export function useCamera(o: { reduce: boolean; initial?: Cam }) {
     zoomReset: () => zoomTo(1, ...center()),
     zoomAt: (z: number, px: number, py: number) => zoomTo(z, px, py),
     /** The whole flow in view, clear of the tools (and of the panel when it's open). */
-    fit: (box: Box, panelOpen: boolean) => {
+    fit: (box: Box, panelOpen: boolean, room?: { left: number }) => {
       const { w, h } = size();
       if (!w || !h) return;
-      moveTo(fitCam(box, w, h, { left: 64, right: panelOpen ? 368 : 24, top: 24, bottom: 96 }));
+      moveTo(fitCam(box, w, h, { left: room?.left ?? 64, right: panelOpen ? 368 : 24, top: 24, bottom: 96 }));
     },
     /** Show this canvas point in the middle, at the zoom it's at. */
     centerOn: (x: number, y: number) => {

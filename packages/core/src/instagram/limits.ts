@@ -10,6 +10,8 @@ export const IG_LIMITS = {
   genericCards: 10,
   cardTitleChars: 80,
   buttons: 3,
+  /** A button's words (Meta: 20 characters, as the booking step's button). */
+  buttonTitleChars: 20,
   buttonTextChars: 640,
 } as const;
 

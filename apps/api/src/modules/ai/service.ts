@@ -471,6 +471,8 @@ export async function runRead<T>(
     clean?: (out: T) => T;
     /** What's kept on the read, from the cleaned answer (the answer itself when unset). */
     store?: (out: T) => unknown;
+    /** How long this read may take, when it writes more than a note's answer (a whole flow). */
+    timeoutMs?: number;
   },
 ): Promise<{ id: string; output: T; atMax?: true } | AiUnavailable> {
   const a = await available(req, d);
@@ -578,7 +580,7 @@ export async function runRead<T>(
       input: o.input,
       schema: o.schema,
       maxOutputTokens: o.maxOutputTokens,
-      signal: AbortSignal.timeout(d.aiTimeoutMs ?? TIMEOUT_MS),
+      signal: AbortSignal.timeout(d.aiTimeoutMs ?? o.timeoutMs ?? TIMEOUT_MS),
     });
   } catch (err) {
     req.log.warn({ err, provider: ai.name, task: o.task }, "LUME AI couldn't read this");

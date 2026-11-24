@@ -46,6 +46,7 @@ describe("what counts", () => {
     expect(isCountedTask("autopilot_first")).toBe(false);
     expect(isCountedTask("reply_meaning")).toBe(false);
     expect(isCountedTask("template_draft")).toBe(false);
+    expect(isCountedTask("flow_build")).toBe(false);
   });
   it("20 counted actions a lead a month; top-ups in packs of 100", () => {
     expect(AI_LEAD_ACTIONS_MAX).toBe(20);

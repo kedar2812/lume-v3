@@ -4,6 +4,7 @@ import type { FastifyRequest } from "fastify";
 import { audit } from "../../audit/audit";
 import { conflict, notFound } from "../../http/errors";
 import { visibleLead } from "../leads/service";
+import { photosFor, photoUrl } from "./photos-of";
 import { flowView, requireFlows } from "./flow-admin";
 import { pgArray } from "./flow-run";
 import { withAllScope } from "./service";
@@ -113,6 +114,7 @@ type RunRow = {
   state: {
     at: string | null;
     waiting: null | { for: string; stepId?: string; nodeId?: string; until?: string };
+    sent?: number;
   };
 };
 
@@ -168,12 +170,64 @@ export async function leadRuns(req: FastifyRequest, flowId: string, leadId: stri
           reason: r.reason,
           version: r.version,
           startedAt: r.created_at,
+          sent: r.state.sent ?? 0,
           trail: trail.rows.filter((t) => t.run_id === r.id).map((t) => ({ step: t.step, at: t.at })),
           waiting,
         };
       }),
     };
   });
+}
+
+/** People listed for Replay at a time, and the runs read to find them (newest first). */
+export const PEOPLE_SHOWN = 20;
+export const PEOPLE_READ = 5_000;
+
+/**
+ * Replay's list: who went through this flow lately, newest first, each once, with how their latest run stands.
+ * Bounded whatever the flow's size or the asker's reach (review 2026-11-24): the newest PEOPLE_READ runs are read for
+ * their leads alone (ids, when, how it stands: nothing about the person), one per lead, so a lead with hundreds of runs
+ * hides nobody; then names are read under the asker's own row security, so only leads they may see (and not deleted)
+ * are listed, and a search reads those names (case aside). A flow far busier than PEOPLE_READ lists its recent people.
+ */
+export async function flowPeople(req: FastifyRequest, flowId: string, q: string | undefined) {
+  await requireFlows(req);
+  const words = q?.trim() ?? "";
+  const recent = await withAllScope(req, () =>
+    req.db.execute<{ lead_id: string; started: Date; status: string }>(sql`
+      SELECT DISTINCT ON (x.lead_id) x.lead_id, x.created_at AS started, x.status
+        FROM (SELECT lead_id, created_at, status FROM instagram_flow_runs WHERE flow_id = ${flowId}
+               ORDER BY created_at DESC LIMIT ${PEOPLE_READ}) x
+       ORDER BY x.lead_id, x.created_at DESC`),
+  );
+  const ids = recent.rows.map((x) => x.lead_id);
+  const named = ids.length
+    ? await req.db.execute<{ id: string; name: string }>(sql`
+        SELECT id, name FROM leads WHERE id = ANY(${pgArray(ids)}::uuid[]) AND deleted_at IS NULL
+          ${words ? sql`AND strpos(lower(name), lower(${words})) > 0` : sql``}`)
+    : { rows: [] };
+  const nameOf = new Map(named.rows.map((x) => [x.id, x.name]));
+  const rows = recent.rows
+    .filter((x) => nameOf.has(x.lead_id))
+    .sort((a, b) => new Date(b.started).getTime() - new Date(a.started).getTime())
+    .slice(0, PEOPLE_SHOWN)
+    .map((x) => ({ ...x, name: nameOf.get(x.lead_id)! }));
+  const photos = await photosFor(
+    req,
+    rows.map((x) => x.lead_id),
+  );
+  return {
+    people: rows.map((x) => {
+      const p = photos.get(x.lead_id);
+      return {
+        leadId: x.lead_id,
+        name: x.name,
+        photo: p ? photoUrl(x.lead_id, p) : null,
+        startedAt: x.started,
+        status: x.status,
+      };
+    }),
+  };
 }
 
 /**

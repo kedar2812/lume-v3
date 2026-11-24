@@ -67,6 +67,9 @@ test.describe("The watch (6A)", () => {
     browser,
     page,
   }) => {
+    // A long scenario (two people, several pages): it ran at 44 to 46 s of the default 45 (gate 24), so it gets
+    // Playwright's slow budget instead of failing on a busy box.
+    test.slow();
     // Rory joins as Sales, with two leads of his own; the rule pauses past 5 contacts in an hour.
     await openApp(page, "/today");
     const roles = (

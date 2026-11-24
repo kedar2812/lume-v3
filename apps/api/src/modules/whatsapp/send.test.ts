@@ -3,6 +3,7 @@ import { ALL_GRANTS, PHOTO_FORMATS, VIDEO_FORMATS } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { inbound } from "../../../../../packages/core/src/whatsapp/fixtures";
 import { createHarness, type Harness } from "../../../test/harness";
+import { heldOpen } from "../../../test/held";
 import { startMetaFake, type MetaFake } from "../../../test/meta-fake";
 import { deliver, RELAY_TOKEN, seedNumber } from "../../../test/whatsapp";
 
@@ -220,6 +221,38 @@ describe("who may reply, and when", () => {
 });
 
 describe("sending", () => {
+  it("a key another tab is still writing is that message once it lands, never an error", async () => {
+    const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
+    await writes();
+    const clientKey = randomUUID();
+    const outboxId = randomUUID();
+    const activityId = randomUUID();
+
+    const held = await heldOpen(h, rep.id, async (c) => {
+      await c.query(
+        `INSERT INTO activities (id, lead_id, user_id, type, occurred_at, payload)
+         VALUES ($1, $2, $3, 'whatsapp_sent', now(), $4)`,
+        [
+          activityId,
+          lead,
+          rep.id,
+          JSON.stringify({ text: "See you Saturday", numberId: number, outboxId, via: "lume" }),
+        ],
+      );
+      await c.query(
+        `INSERT INTO whatsapp_outbox (id, lead_id, number_id, user_id, activity_id, client_key, text, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued')`,
+        [outboxId, lead, number, rep.id, activityId, clientKey, "See you Saturday"],
+      );
+    });
+    const second = send(rep, lead, { clientKey, text: "See you Saturday" });
+    await held.commitOnceWaited();
+    const r = await second;
+    expect(r.statusCode).toBe(202);
+    expect(r.json().message.id).toBe(activityId);
+    expect(await outbox(lead)).toHaveLength(1);
+  });
+
   it("a reply is queued once, shows on the thread as sent by its person, and the same key twice is one message", async () => {
     const lead = await h.seedLead({ ownerId: rep.id, name: "Sneha Reddy", phone: SNEHA });
     await writes();

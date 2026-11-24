@@ -987,6 +987,16 @@ export const PROBES: Record<string, Probe> = {
     path: () => `/api/v1/instagram/flows/${uuid}/versions/${uuid}/restore`,
     body: () => ({ rev: 1 }),
   },
+  "POST /api/v1/instagram/flows/:id/ai-build": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/ai-build`,
+    body: () => ({ prompt: "Send the price list to people who comment PRICE" }),
+  },
+  "GET /api/v1/instagram/flows/:id/people": {
+    access: "instagram.flows.manage",
+    path: () => `/api/v1/instagram/flows/${uuid}/people`,
+    query: "q=a",
+  },
   "GET /api/v1/instagram/flows/:id/runs": {
     access: "instagram.flows.manage",
     path: () => `/api/v1/instagram/flows/${uuid}/runs`,

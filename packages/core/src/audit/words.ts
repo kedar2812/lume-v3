@@ -405,6 +405,7 @@ export const AUDIT_ACTIONS: Record<string, AuditActionDef> = {
   "instagram.flow.resumed": { area: "Settings", phrase: "turned an Instagram flow back on" },
   "instagram.flow.archived": { area: "Settings", phrase: "archived an Instagram flow" },
   "instagram.flow.triggers": { area: "Settings", phrase: "changed what starts an Instagram flow" },
+  "instagram.flow.ai": { area: "Settings", phrase: "asked LUME AI to build an Instagram flow" },
   "instagram.flow.restored": {
     area: "Settings",
     phrase: "brought back an earlier version of an Instagram flow",

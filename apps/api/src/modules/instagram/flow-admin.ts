@@ -65,7 +65,7 @@ export async function requireFlows(req: FastifyRequest) {
     );
 }
 
-async function flowOf(req: FastifyRequest, id: string, lock = true): Promise<FlowRow> {
+export async function flowOf(req: FastifyRequest, id: string, lock = true): Promise<FlowRow> {
   const r = await req.db.execute<FlowRow>(sql`
     SELECT id, name, status, live_version_id, priority, draft_steps, rev FROM instagram_flows WHERE id = ${id}
     ${lock ? sql`FOR UPDATE` : sql``}`);
@@ -129,7 +129,7 @@ export async function flowsView(req: FastifyRequest) {
 }
 
 /** Flows a "Go to another flow" step may name: live or paused, never itself. */
-async function gotoTargets(req: FastifyRequest, self: string): Promise<Set<string>> {
+export async function gotoTargets(req: FastifyRequest, self: string): Promise<Set<string>> {
   const r = await req.db.execute<{ id: string }>(
     sql`SELECT id FROM instagram_flows WHERE status IN ('live', 'paused') AND id <> ${self}`,
   );
@@ -340,26 +340,38 @@ export async function archiveFlow(req: FastifyRequest, id: string) {
 }
 
 /** A copy as a new draft, with its triggers switched off (two flows can't claim the same keyword). */
-export async function duplicateFlow(req: FastifyRequest, id: string) {
+/** A copy as a new draft: of the draft, or of one version that went live (Versions › Copy as a new flow). */
+export async function duplicateFlow(req: FastifyRequest, id: string, versionId?: string) {
   await requireFlows(req);
   const f = await flowOf(req, id, false);
+  let steps: unknown = f.draft_steps;
+  if (versionId) {
+    const v = (
+      await req.db.execute<{ steps: unknown }>(
+        sql`SELECT steps FROM instagram_flow_versions WHERE id = ${versionId} AND flow_id = ${id}`,
+      )
+    ).rows[0];
+    if (!v) throw notFound("VERSION_NOT_FOUND", "That version isn't in LUME any more.");
+    steps = v.steps;
+  }
   const copy = newId();
   const base = f.name.replace(/ \(copy( \d+)?\)$/, "");
   await req.db.execute(sql`
     INSERT INTO instagram_flows (id, name, status, draft_steps, priority, created_by)
-    VALUES (${copy}, ${[...`${base} (copy)`].slice(0, 120).join("")}, 'draft', ${JSON.stringify(f.draft_steps)}::jsonb,
+    VALUES (${copy}, ${[...`${base} (copy)`].slice(0, 120).join("")}, 'draft', ${JSON.stringify(steps)}::jsonb,
             ${f.priority}, ${req.actor!.userId})`);
   await req.db.execute(sql`
     INSERT INTO instagram_triggers
-      (id, flow_id, account_id, kind, keywords, mode, media_ids, ad_ids, public_replies, cooldown_hours, enabled)
+      (id, flow_id, account_id, kind, keywords, mode, media_ids, ad_ids, public_replies, cooldown_hours, enabled,
+       created_at)
     SELECT gen_random_uuid(), ${copy}, account_id, kind, keywords, mode, media_ids, ad_ids, public_replies,
-           cooldown_hours, false
+           cooldown_hours, false, created_at
       FROM instagram_triggers WHERE flow_id = ${id}`);
   await audit(req, {
     action: "instagram.flow.created",
     entityType: "instagram_flow",
     entityId: copy,
-    diff: { from: id },
+    diff: versionId ? { from: id, version: versionId } : { from: id },
   });
   return flowView(req, copy);
 }
@@ -452,13 +464,15 @@ export async function setTriggers(
     if (clash) throw conflict("TRIGGER_TAKEN", clash);
   }
   await req.db.execute(sql`DELETE FROM instagram_triggers WHERE flow_id = ${flowId}`);
-  for (const t of body.triggers)
+  // One request is one transaction, so now() is the same for every row: each is a microsecond after the one before,
+  // and they read back in the order they were saved (review 2026-11-24).
+  for (const [i, t] of body.triggers.entries())
     await req.db.execute(sql`
       INSERT INTO instagram_triggers
-        (id, flow_id, account_id, kind, keywords, mode, media_ids, ad_ids, public_replies, cooldown_hours, enabled)
+        (id, flow_id, account_id, kind, keywords, mode, media_ids, ad_ids, public_replies, cooldown_hours, enabled, created_at)
       VALUES (${newId()}, ${flowId}, ${t.accountId}, ${t.kind}, ${pgArray(t.keywords.map((k) => k.trim()).filter(Boolean))}::text[],
               ${t.mode}, ${pgArray(t.mediaIds)}::text[], ${pgArray(t.adIds)}::text[], ${pgArray(t.publicReplies.map((p) => p.trim()).filter(Boolean))}::text[],
-              ${t.cooldownHours}, ${t.enabled})`);
+              ${t.cooldownHours}, ${t.enabled}, now() + ${i}::int * interval '1 microsecond')`);
   await req.db.execute(
     sql`UPDATE instagram_flows SET rev = rev + 1, updated_at = now() WHERE id = ${flowId}`,
   );

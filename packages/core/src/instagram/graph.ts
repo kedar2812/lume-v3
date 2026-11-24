@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BOOK_BUTTON, FLOW_LIMITS, type FlowCondition, type FlowGoal, type FlowStep } from "./flows";
-import { messageProblems } from "./limits";
+import { IG_LIMITS, messageProblems } from "./limits";
 
 /**
  * Flows as a graph (plan 2026-11-23-flow-builder, Part A): steps placed anywhere on the builder's canvas, each with its
@@ -241,6 +241,9 @@ export function validateGraph(
           buttons: n.buttons,
         }))
           at(n.id, w);
+        // Meta takes 20 characters on a button: checked here, on publish, so a version already live keeps sending.
+        if (n.buttons.some((b) => [...b.title.trim()].length > IG_LIMITS.buttonTitleChars))
+          at(n.id, `A button's words can be at most ${IG_LIMITS.buttonTitleChars} characters.`);
         if (routed && n.replies.some((r) => r.next === null))
           at(n.id, "Some replies lead nowhere.", "Connect each reply, or none of them.");
         break;

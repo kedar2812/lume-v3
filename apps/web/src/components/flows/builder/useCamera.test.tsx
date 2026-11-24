@@ -35,3 +35,29 @@ describe("the camera's frames", () => {
     expect(n).toBeLessThan(30);
   });
 });
+
+describe("fitting the flow in view", () => {
+  it("leaves the room asked for on the left (LUME AI's plan card), so no step lands under it", () => {
+    let cam!: ReturnType<typeof useCamera>;
+    function Fit() {
+      cam = useCamera({ reduce: true });
+      return <div ref={cam.hostRef} data-testid="fit" />;
+    }
+    render(
+      <ReactFlowProvider>
+        <Fit />
+      </ReactFlowProvider>,
+    );
+    vi.spyOn(screen.getByTestId("fit"), "getBoundingClientRect").mockReturnValue({
+      width: 1200,
+      height: 800,
+      left: 0,
+      top: 0,
+    } as DOMRect);
+    const box = { x: -300, y: 0, w: 1500, h: 600 };
+    cam.fit(box, false, { left: 384 });
+    expect(box.x * cam.cam.z + cam.cam.x).toBeGreaterThanOrEqual(384);
+    cam.fit(box, false);
+    expect(box.x * cam.cam.z + cam.cam.x).toBeLessThan(384);
+  });
+});

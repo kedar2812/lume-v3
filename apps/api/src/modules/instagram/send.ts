@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { HttpError, badRequest, forbidden, notFound } from "../../http/errors";
+import { pgCodeOf } from "../../errors";
 import { sendable } from "../leads/sending";
 import { visibleLead } from "../leads/service";
 import type { SendLimiter } from "../whatsapp/send";
@@ -147,7 +148,7 @@ async function insertOnce(
     return null;
   } catch (e) {
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT lume_ig_send`);
-    if ((e as { code?: string }).code !== "23505") throw e;
+    if (pgCodeOf(e) !== "23505") throw e;
     const first = await prior(req, clientKey, leadId);
     if (first) return first;
     throw e;

@@ -191,6 +191,7 @@ function Editor({
                   <input
                     className={s.input}
                     aria-label="Button words"
+                    maxLength={IG_LIMITS.buttonTitleChars}
                     value={b.title}
                     onChange={(e) =>
                       onChange({
